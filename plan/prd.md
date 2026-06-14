@@ -87,6 +87,8 @@ Split along the open-core line so single-locale users pay zero complexity tax.
 
 * **Syntax:** **Stripe Markdoc**, stored as `*.mdoc`. (Not Sätteri — Markdoc has its own parser/renderer and is not a remark/rehype plugin. Astro 6.4's pluggable Markdown pipeline stays available but unused for content in V1.)
 * **Round-trip fidelity — never drop content.** Tiptap defines a generic **`markdocPassthrough` node** storing any AST subtree it has no first-class UI for as an opaque, read-only chip, **re-serialized verbatim on save**. Structural guarantee, not a promise.
+  * **Validated by spike #1** (`prototype/markdoc-roundtrip/`): round-trip is **idempotent + byte-identical** for standard/advanced/known-block content; unknown & even malformed content is preserved verbatim. **Implementation rule the spike surfaced:** preserve passthrough by **slicing the original source** (`Markdoc.parse(src, { location: true })` + node line-range), **never `Markdoc.format()`** — `format()` *silently drops* content Markdoc can't fully parse. Parse-error fragments are coalesced into one block and **flagged for review**, still byte-for-byte preserved.
+  * Note: Markdoc has a native `{% if %}` but **no native `{% for %}`** — loops need a registered custom tag (else they parse as errors → passthrough).
 * **Normal blocks (fully editable):** custom Markdoc tags with *static* attributes (`{% callout %}`, `{% hero %}`) → Tiptap nodes with prop sidebars.
 * **Advanced / dynamic Markdoc (Pro):** variables (`{% $user.x %}`), conditionals, loops, functions/flags, partials → rendered via `markdocPassthrough` (preserved, not visually editable free). Generally **requires SSR** (build-known variables like `{% $site.title %}` can stay SSG).
 

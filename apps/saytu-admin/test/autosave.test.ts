@@ -63,4 +63,21 @@ describe('useAutosave', () => {
     }
     expect(save).toHaveBeenCalledTimes(1) // still exactly one — no idle resave loop
   })
+
+  it('flushes a pending save on unmount before the debounce fires (no lost change)', async () => {
+    const save = vi.fn(async () => ({ saved: true }))
+    const props = (rev: number) => ({
+      enabled: true,
+      rev,
+      getInput: () => ({ collection: 'post', locale: 'en', slug: 'x', content: emptyDoc, metadata: {}, baseSha: null }),
+      save,
+      onStatus: () => {},
+      delayMs: 800,
+    })
+    const { rerender, unmount } = renderHook((p) => useAutosave(p), { initialProps: props(0) })
+    rerender(props(1)) // a change is scheduled (debounce pending)
+    // Unmount BEFORE advancing the timer — the debounced save never fires on its own.
+    unmount()
+    expect(save).toHaveBeenCalledTimes(1) // the unmount flush saved exactly once
+  })
 })

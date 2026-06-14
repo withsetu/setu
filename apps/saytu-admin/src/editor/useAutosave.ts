@@ -28,10 +28,14 @@ export function useAutosave(opts: {
   const inFlight = useRef(false)
   const pending = useRef(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // True once a change is scheduled but not yet persisted. Cleared only when the
+  // queue fully drains (a real 'saved'). Drives the unmount + beforeunload flush.
+  const dirty = useRef(false)
 
   useEffect(() => {
     if (!enabled || rev === 0) return
     if (timer.current) clearTimeout(timer.current)
+    dirty.current = true
 
     const run = async (): Promise<void> => {
       if (inFlight.current) {
@@ -48,6 +52,7 @@ export function useAutosave(opts: {
           pending.current = false
           void run()
         } else {
+          dirty.current = false
           onStatusRef.current('saved')
         }
       }
@@ -58,4 +63,27 @@ export function useAutosave(opts: {
       if (timer.current) clearTimeout(timer.current)
     }
   }, [rev, enabled, delayMs])
+
+  // Content safety: if we unmount (navigate away) with a scheduled-but-unfired
+  // change, flush one final save so the debounce window can't drop it. Unmount-
+  // only ([]) — NOT in the debounce cleanup, which runs on every rev change.
+  useEffect(() => {
+    return () => {
+      if (dirty.current && !inFlight.current) {
+        void saveRef.current(getInputRef.current())
+      }
+    }
+  }, [])
+
+  // Tab close / refresh with unsaved work: attempt a final save and warn.
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent): void => {
+      if (!dirty.current) return
+      void saveRef.current(getInputRef.current())
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [])
 }

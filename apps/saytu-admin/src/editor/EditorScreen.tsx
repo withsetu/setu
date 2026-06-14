@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import type { Draft, DraftInput, TiptapDoc } from '@saytu/core'
+import { Icon } from '../ui/Icon'
 import { useServices } from '../data/store'
 import { Canvas } from './Canvas'
 import { MetaPanel } from './MetaPanel'
@@ -73,6 +74,7 @@ export function EditorScreen() {
     setRev((r) => r + 1)
   }
   const title = String(metadata['title'] ?? '')
+  const listPath = `/${collection}s`
 
   if (phase === 'loading') {
     return <div className="editor"><p className="empty-state">Loading…</p></div>
@@ -81,7 +83,12 @@ export function EditorScreen() {
   return (
     <div className="editor">
       <div className="ed-strip">
-        <div className="ed-strip-left"><span className="ed-breadcrumb">{collection} / {slug}</span></div>
+        <div className="ed-strip-left">
+          <Link className="strip-btn btn-icononly" to={listPath} aria-label="Back to list">
+            <Icon name="chevLeft" size={18} />
+          </Link>
+          <span className="ed-breadcrumb">{collection} / {slug}</span>
+        </div>
         <div className="ed-strip-center"><SaveIndicator status={status} readonly={phase === 'readonly'} /></div>
         <div className="ed-strip-right" />
       </div>

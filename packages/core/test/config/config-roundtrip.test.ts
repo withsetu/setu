@@ -9,11 +9,14 @@ describe('config drives the round-trip', () => {
     expect(doc.content[0]!.type).toBe('callout')
   })
 
-  it('treats a tag absent from the config as passthrough', () => {
+  it('treats a tag absent from the config as passthrough, preserving its source', () => {
+    // config defines only 'hero', so the callout tag below is unknown → passthrough
     const { knownBlockTags } = resolveConfig({
       blocks: [{ tag: 'hero', props: z.object({}), component: './Hero.astro' }],
     })
     const doc = markdocToTiptap('{% callout type="info" %}\nHi\n{% /callout %}\n', { knownBlockTags })
-    expect(doc.content[0]!.type).toBe('passthrough')
+    const node = doc.content[0]!
+    expect(node.type).toBe('passthrough')
+    expect((node.attrs as { raw: string }).raw).toContain('{% callout type="info" %}')
   })
 })

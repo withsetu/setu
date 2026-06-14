@@ -20,14 +20,14 @@ export function ContentList({ collection, title }: { collection: string; title: 
     }
   }, [data, collection])
 
-  const noun = title.toLowerCase().replace(/s$/, '')
+  const noun = collection
 
   return (
     <>
       <PageHeader
         title={title}
         count={drafts?.length}
-        subtitle={collection === 'post' ? 'Articles, notes and announcements.' : 'Standalone pages.'}
+        subtitle={collection === 'post' ? 'Articles, field notes and announcements.' : 'Standalone pages and landing pages.'}
         actions={
           <Link to={`/edit/${collection}/en/new`} className="btn btn-primary btn-md">
             <Icon name="plus" size={16} />
@@ -41,32 +41,34 @@ export function ContentList({ collection, title }: { collection: string; title: 
         ) : drafts.length === 0 ? (
           <p className="empty-state">No {title.toLowerCase()} yet.</p>
         ) : (
-          <table className="ctable">
-            <thead>
-              <tr>
-                <th>Title</th>
-                <th>Status</th>
-                <th>Locale</th>
-                <th>Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {drafts.map((d) => (
-                <tr key={`${d.collection}/${d.locale}/${d.slug}`}>
-                  <td className="ctable-title">
-                    <Link to={`/edit/${d.collection}/${d.locale}/${d.slug}`}>
-                      {String(d.metadata['title'] ?? d.slug)}
-                    </Link>
-                  </td>
-                  <td>
-                    <StatusPill status={String(d.metadata['status'] ?? 'draft')} />
-                  </td>
-                  <td className="ctable-muted">{d.locale}</td>
-                  <td className="ctable-muted">{new Date(d.updatedAt).toLocaleDateString()}</td>
+          <div className="list-wrap">
+            <table className="ctable">
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Status</th>
+                  <th>Locale</th>
+                  <th>Updated</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {drafts.map((d) => (
+                  <tr key={`${d.collection}/${d.locale}/${d.slug}`}>
+                    <td className="ctable-title">
+                      <Link to={`/edit/${d.collection}/${d.locale}/${d.slug}`}>
+                        {String(d.metadata['title'] ?? d.slug)}
+                      </Link>
+                    </td>
+                    <td>
+                      <StatusPill status={String(d.metadata['status'] ?? 'draft')} />
+                    </td>
+                    <td className="ctable-muted">{d.locale}</td>
+                    <td className="ctable-muted">{new Date(d.updatedAt).toLocaleDateString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </>

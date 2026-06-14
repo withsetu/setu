@@ -33,7 +33,9 @@ describe('ContentList', () => {
 
   it('renders a page header with the title and an entry count', async () => {
     renderList(createMemoryDataPort(seed), 'post', 'Posts')
-    expect(await screen.findByRole('heading', { name: 'Posts' })).toBeInTheDocument()
+    // wait for data rows to be present before asserting header state
+    await screen.findByText('First Post')
+    expect(screen.getByRole('heading', { name: /^Posts/ })).toBeInTheDocument()
     // 2 posts in the seed
     expect(screen.getByText('2')).toBeInTheDocument()
   })

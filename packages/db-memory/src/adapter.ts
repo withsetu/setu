@@ -1,11 +1,15 @@
 import type { DataPort, Draft, DraftInput, EntryRef, Lock } from '@saytu/core'
 
-const key = (r: EntryRef) => `${r.collection} ${r.locale} ${r.slug}`
+// NUL separator: cannot appear in a collection/locale/slug, so refs never collide
+// (unlike a space separator). Mirrors db-sqlite's composite-key uniqueness.
+const key = (r: EntryRef) => `${r.collection}\0${r.locale}\0${r.slug}`
 
 /** An in-memory DataPort (Map-backed, browser-safe). Optionally seeded with
- *  drafts. Behavior matches the real adapters' contract (createdAt preserved on
- *  upsert, updatedAt bumped). Timestamps are a monotonic counter — deterministic
- *  and ordering-faithful, which is all the contract requires. */
+ *  drafts. **Value semantics**: inputs are deep-cloned on write and reads return
+ *  deep clones, so callers can never mutate the adapter's internal state through a
+ *  returned object — matching db-sqlite (which round-trips through JSON).
+ *  Timestamps are a monotonic counter — deterministic and ordering-faithful,
+ *  which is all the DataPort contract requires. */
 export function createMemoryDataPort(seed: DraftInput[] = []): DataPort {
   const drafts = new Map<string, Draft>()
   const locks = new Map<string, Lock>()
@@ -15,7 +19,8 @@ export function createMemoryDataPort(seed: DraftInput[] = []): DataPort {
     const k = key(input)
     const now = ++clock
     const existing = drafts.get(k)
-    const draft: Draft = {
+    // structuredClone isolates the stored draft from the caller's input objects.
+    const stored: Draft = structuredClone({
       collection: input.collection,
       locale: input.locale,
       slug: input.slug,
@@ -24,16 +29,17 @@ export function createMemoryDataPort(seed: DraftInput[] = []): DataPort {
       baseSha: input.baseSha ?? null,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
-    }
-    drafts.set(k, draft)
-    return draft
+    })
+    drafts.set(k, stored)
+    return structuredClone(stored)
   }
 
   for (const s of seed) put(s)
 
   return {
     async getDraft(ref) {
-      return drafts.get(key(ref)) ?? null
+      const d = drafts.get(key(ref))
+      return d ? structuredClone(d) : null
     },
     async saveDraft(input) {
       return put(input)
@@ -43,10 +49,12 @@ export function createMemoryDataPort(seed: DraftInput[] = []): DataPort {
     },
     async listDrafts(filter) {
       const all = [...drafts.values()]
-      return filter?.collection ? all.filter((d) => d.collection === filter.collection) : all
+      const filtered = filter?.collection ? all.filter((d) => d.collection === filter.collection) : all
+      return filtered.map((d) => structuredClone(d))
     },
     async getLock(ref) {
-      return locks.get(key(ref)) ?? null
+      const l = locks.get(key(ref))
+      return l ? { ...l } : null
     },
     async putLock(lock) {
       locks.set(key(lock), { ...lock })

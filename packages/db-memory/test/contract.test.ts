@@ -21,4 +21,20 @@ describe('createMemoryDataPort seed', () => {
     expect((await db.listDrafts({ collection: 'post' })).map((d) => d.slug)).toEqual(['a'])
     expect((await db.getDraft({ collection: 'page', locale: 'en', slug: 'b' }))?.metadata).toEqual({ title: 'B' })
   })
+
+  it('does not collide when fields contain the separator char (space)', async () => {
+    const db = createMemoryDataPort()
+    await db.saveDraft({ collection: 'a b', locale: 'en', slug: 'x', content: doc('1'), metadata: { n: 1 } })
+    await db.saveDraft({ collection: 'a', locale: 'b en', slug: 'x', content: doc('2'), metadata: { n: 2 } })
+    expect((await db.getDraft({ collection: 'a b', locale: 'en', slug: 'x' }))?.metadata).toEqual({ n: 1 })
+    expect((await db.getDraft({ collection: 'a', locale: 'b en', slug: 'x' }))?.metadata).toEqual({ n: 2 })
+  })
+
+  it('returns value-isolated drafts (mutating a returned draft does not corrupt the store)', async () => {
+    const db = createMemoryDataPort()
+    const ref = { collection: 'post', locale: 'en', slug: 'iso' }
+    const saved = await db.saveDraft({ ...ref, content: doc('orig'), metadata: { title: 'Orig' } })
+    ;(saved.metadata as { title: string }).title = 'MUTATED'
+    expect((await db.getDraft(ref))?.metadata).toEqual({ title: 'Orig' })
+  })
 })

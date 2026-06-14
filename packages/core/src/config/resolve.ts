@@ -6,7 +6,10 @@ import type { ResolvedBlock, ResolvedConfig } from './types'
 export function resolveConfig(raw: unknown): ResolvedConfig {
   const parsed = configSchema.safeParse(raw)
   if (!parsed.success) {
-    throw new Error(`Invalid saytu.config: ${parsed.error.message}`)
+    const issues = parsed.error.issues
+      .map((i) => `  [${i.path.join('.')}] ${i.message}`)
+      .join('\n')
+    throw new Error(`Invalid saytu.config:\n${issues}`)
   }
 
   const blocks = parsed.data.blocks as ResolvedBlock[]

@@ -32,4 +32,25 @@ describe('git-local adapter (on-disk)', () => {
     expect(await b.headSha()).toBe(sha)
     expect(await b.readFile('content/hello.mdoc')).toBe('# Hi')
   })
+
+  it('rejects a path that escapes the repository root', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'saytu-git-'))
+    await git.init({ fs: nodeFs, dir, defaultBranch: 'main' })
+    const a = createLocalGitAdapter({ dir })
+    await expect(
+      a.commitFile({ path: '../escape.mdoc', content: 'X', message: 'm', author: { name: 'E', email: 'e@x.com' } }),
+    ).rejects.toThrow(/escape/i)
+  })
+
+  it('serializes concurrent commits to different paths without cross-contamination', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'saytu-git-'))
+    await git.init({ fs: nodeFs, dir, defaultBranch: 'main' })
+    const a = createLocalGitAdapter({ dir })
+    await Promise.all([
+      a.commitFile({ path: 'x.mdoc', content: 'X', message: 'mx', author: { name: 'E', email: 'e@x.com' } }),
+      a.commitFile({ path: 'y.mdoc', content: 'Y', message: 'my', author: { name: 'E', email: 'e@x.com' } }),
+    ])
+    expect(await a.readFile('x.mdoc')).toBe('X')
+    expect(await a.readFile('y.mdoc')).toBe('Y')
+  })
 })

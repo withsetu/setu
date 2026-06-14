@@ -26,6 +26,8 @@ function createMemoryAdapter(): DataPort {
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
       }
+      // test double: stores/returns the same object reference (fine for tests; a
+      // production in-memory adapter would clone to prevent caller mutation).
       drafts.set(k, draft)
       return draft
     },

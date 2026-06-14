@@ -43,6 +43,7 @@ export function runDataPortContract(makeAdapter: () => Promise<DataPort> | DataP
       })
       expect(saved.createdAt).toBeTypeOf('number')
       expect(saved.updatedAt).toBeTypeOf('number')
+      expect(saved.updatedAt).toBeGreaterThanOrEqual(saved.createdAt)
       const got = await db.getDraft({ collection: 'post', locale: 'en', slug: 'hello' })
       expect(got).toEqual(saved)
     })
@@ -79,6 +80,7 @@ export function runDataPortContract(makeAdapter: () => Promise<DataPort> | DataP
     })
 
     it('lists drafts and filters by collection', async () => {
+      // listDrafts return order is unspecified; adapters must not be assumed to order rows.
       await db.saveDraft({ collection: 'post', locale: 'en', slug: 'a', content: doc('a'), metadata: {} })
       await db.saveDraft({ collection: 'page', locale: 'en', slug: 'b', content: doc('b'), metadata: {} })
       expect(await db.listDrafts()).toHaveLength(2)

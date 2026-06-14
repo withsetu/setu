@@ -12,10 +12,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@saytu/core": "workspace:*",
-    "vitest": "^2.1.8"
+    "@saytu/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "vitest": "^2.0.0"
   },
   "devDependencies": {
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
   }
 }

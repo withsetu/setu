@@ -1,4 +1,3 @@
-/// <reference lib="dom" />
 import { createJiti } from 'jiti'
 import { resolveConfig } from './resolve'
 import type { ResolvedConfig } from './types'

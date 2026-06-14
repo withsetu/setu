@@ -1,9 +1,8 @@
-/// <reference lib="dom" />
 import { describe, it, expect } from 'vitest'
+import { fileURLToPath } from 'node:url'
 import { loadConfig } from '../../src/index'
 
-const fixture = (name: string) =>
-  new URL(`./fixtures/${name}`, import.meta.url).pathname
+const fixture = (name: string) => fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url))
 
 describe('loadConfig', () => {
   it('loads and resolves a real saytu.config.ts via jiti', async () => {

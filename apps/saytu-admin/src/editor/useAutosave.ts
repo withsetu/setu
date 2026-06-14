@@ -5,7 +5,9 @@ export type SaveStatus = 'idle' | 'saving' | 'saved'
 
 /** Debounced autosave with a single-in-flight guard. Fires `save(getInput())`
  *  ~`delayMs` after `rev` changes (skipping the initial rev 0). A change during
- *  an in-flight save queues exactly one follow-up. */
+ *  an in-flight save queues exactly one follow-up. Callbacks are held in refs so
+ *  only a real `rev` change schedules a save — re-renders from `onStatus` (or any
+ *  other state) never re-trigger autosave. */
 export function useAutosave(opts: {
   enabled: boolean
   rev: number
@@ -14,7 +16,15 @@ export function useAutosave(opts: {
   onStatus: (s: SaveStatus) => void
   delayMs?: number
 }): void {
-  const { enabled, rev, getInput, save, onStatus, delayMs = 800 } = opts
+  const { enabled, rev, delayMs = 800 } = opts
+
+  const getInputRef = useRef(opts.getInput)
+  const saveRef = useRef(opts.save)
+  const onStatusRef = useRef(opts.onStatus)
+  getInputRef.current = opts.getInput
+  saveRef.current = opts.save
+  onStatusRef.current = opts.onStatus
+
   const inFlight = useRef(false)
   const pending = useRef(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -29,16 +39,16 @@ export function useAutosave(opts: {
         return
       }
       inFlight.current = true
-      onStatus('saving')
+      onStatusRef.current('saving')
       try {
-        await save(getInput())
+        await saveRef.current(getInputRef.current())
       } finally {
         inFlight.current = false
         if (pending.current) {
           pending.current = false
           void run()
         } else {
-          onStatus('saved')
+          onStatusRef.current('saved')
         }
       }
     }
@@ -47,5 +57,5 @@ export function useAutosave(opts: {
     return () => {
       if (timer.current) clearTimeout(timer.current)
     }
-  }, [rev, enabled, delayMs, getInput, save, onStatus])
+  }, [rev, enabled, delayMs])
 }

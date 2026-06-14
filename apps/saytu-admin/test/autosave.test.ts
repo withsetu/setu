@@ -40,4 +40,27 @@ describe('useAutosave', () => {
     await vi.advanceTimersByTimeAsync(1000)
     expect(save).not.toHaveBeenCalled()
   })
+
+  it('saves exactly once per change — no idle resave loop', async () => {
+    const save = vi.fn(async () => ({ saved: true }))
+    const onStatus = vi.fn()
+    const base = {
+      enabled: true,
+      getInput: () => ({ collection: 'post', locale: 'en', slug: 'x', content: emptyDoc, metadata: {}, baseSha: null }),
+      save,
+      onStatus,
+      delayMs: 800,
+    }
+    // NEW closures each render (mimics EditorScreen) but the same rev.
+    const { rerender } = renderHook((p) => useAutosave(p), { initialProps: { ...base, rev: 0 } })
+    rerender({ ...base, getInput: () => ({ collection: 'post', locale: 'en', slug: 'x', content: emptyDoc, metadata: {}, baseSha: null }), rev: 1 })
+    await vi.advanceTimersByTimeAsync(800)
+    expect(save).toHaveBeenCalledTimes(1)
+    // Idle: keep re-rendering with NEW closures but the SAME rev, advancing time.
+    for (let i = 0; i < 4; i++) {
+      rerender({ ...base, getInput: () => ({ collection: 'post', locale: 'en', slug: 'x', content: emptyDoc, metadata: {}, baseSha: null }), rev: 1 })
+      await vi.advanceTimersByTimeAsync(800)
+    }
+    expect(save).toHaveBeenCalledTimes(1) // still exactly one — no idle resave loop
+  })
 })

@@ -27,8 +27,17 @@ describe('ContentList', () => {
     renderList(createMemoryDataPort(seed), 'post', 'Posts')
     expect(await screen.findByText('First Post')).toBeInTheDocument()
     expect(screen.getByText('Second Post')).toBeInTheDocument()
-    expect(screen.getByText('published')).toBeInTheDocument()
+    expect(screen.getByText('Published')).toBeInTheDocument()
     expect(screen.queryByText('About')).not.toBeInTheDocument()
+  })
+
+  it('renders a page header with the title and an entry count', async () => {
+    renderList(createMemoryDataPort(seed), 'post', 'Posts')
+    // wait for data rows to be present before asserting header state
+    await screen.findByText('First Post')
+    expect(screen.getByRole('heading', { name: /^Posts/ })).toBeInTheDocument()
+    // 2 posts in the seed
+    expect(screen.getByText('2')).toBeInTheDocument()
   })
 
   it('filters to the given collection', async () => {

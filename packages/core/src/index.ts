@@ -5,3 +5,4 @@ export type {
   RoundtripOptions,
 } from './markdoc/types'
 export { markdocToTiptap } from './markdoc/to-tiptap'
+export { tiptapToMarkdoc } from './markdoc/to-markdoc'

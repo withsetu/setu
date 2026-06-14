@@ -35,3 +35,6 @@ export { createAuthoringService } from './authoring/authoring-service'
 
 export type { GitAuthor, CommitInput, CommitResult } from './git/types'
 export type { GitPort } from './git/git-port'
+
+export type { PublishInput, PublishDeps, PublishResult, PublishService } from './publish/types'
+export { contentPath } from './publish/content-path'

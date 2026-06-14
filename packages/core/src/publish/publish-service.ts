@@ -29,6 +29,9 @@ export function createPublishService(deps: PublishDeps): PublishService {
         }
       }
 
+      // NOTE: this compiles the body only. The draft's `metadata` is not yet
+      // serialized to YAML frontmatter in the .mdoc — frontmatter write/parse is
+      // a later increment (it needs a matching parser in markdocToTiptap too).
       const content = tiptapToMarkdoc(draft.content)
       const commitMessage = message ?? `Publish ${ref.collection}/${ref.locale}/${ref.slug}`
       const { sha } = await git.commitFile({ path, content, message: commitMessage, author })

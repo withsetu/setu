@@ -37,6 +37,19 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.19.21)
 
+  packages/db-testing:
+    dependencies:
+      '@saytu/core':
+        specifier: workspace:*
+        version: link:../core
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.19.21)
+    devDependencies:
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+
 packages:
 
   '@esbuild/aix-ppc64@0.21.5':

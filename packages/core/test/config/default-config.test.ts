@@ -12,9 +12,12 @@ describe('defaultConfig', () => {
     expect([...defaultKnownBlockTags]).toEqual(['callout'])
   })
 
-  it('validates the callout props schema (type enum with info default)', () => {
+  it('validates the callout props schema (permissive: any string type, no default)', () => {
     const callout = defaultConfig.blocks.find((b) => b.tag === 'callout')!
-    expect(callout.props.parse({})).toEqual({ type: 'info' })
-    expect(() => callout.props.parse({ type: 'nope' })).toThrow()
+    // Permissive schema — no default applied, empty object is valid
+    expect(callout.props.parse({})).toEqual({})
+    // Any string type is accepted (not enum-restricted)
+    expect(callout.props.parse({ type: 'nope' })).toEqual({ type: 'nope' })
+    expect(callout.props.parse({ type: 'info' })).toEqual({ type: 'info' })
   })
 })

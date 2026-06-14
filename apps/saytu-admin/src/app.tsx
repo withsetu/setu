@@ -17,6 +17,7 @@ export function App() {
           <Route path="/site" element={<Placeholder title="Site" />} />
           <Route path="/settings" element={<Placeholder title="Settings" />} />
           <Route path="/edit/*" element={<Placeholder title="Editor (coming soon)" />} />
+          <Route path="*" element={<Placeholder title="Page not found" />} />
         </Routes>
       </main>
     </div>

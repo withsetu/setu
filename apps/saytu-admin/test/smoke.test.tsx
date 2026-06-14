@@ -12,4 +12,13 @@ describe('App', () => {
     )
     expect(screen.getByText('Saytu')).toBeInTheDocument()
   })
+
+  it('redirects / to /posts', () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <App />
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('heading', { name: 'Posts' })).toBeInTheDocument()
+  })
 })

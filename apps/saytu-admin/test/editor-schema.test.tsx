@@ -29,4 +29,25 @@ describe('editor schema round-trips through the Markdoc converter', () => {
     expect(tiptapToMarkdoc(json)).toBe(SOURCE)
     editor.destroy()
   })
+
+  it('preserves a titled/typed/iconned callout through getJSON + round-trips', () => {
+    const SRC =
+      '{% callout type="success" title="Success & Prosperity" icon="check" %}\n' +
+      'Body text.\n' +
+      '{% /callout %}\n\n' +
+      'After.\n'
+    const editor = new Editor({ extensions: [StarterKit, Callout, Passthrough], content: markdocToTiptap(SRC) })
+    const json = editor.getJSON() as TiptapDoc
+    const callout = json.content.find((n) => n.type === 'callout')
+    expect(callout?.attrs?.mdAttrs).toEqual({ type: 'success', title: 'Success & Prosperity', icon: 'check' })
+    expect(tiptapToMarkdoc(json)).toBe(SRC)
+    editor.destroy()
+  })
+
+  it('a plain callout (no attrs) still round-trips', () => {
+    const SRC = '{% callout %}\nJust body.\n{% /callout %}\n\nAfter.\n'
+    const editor = new Editor({ extensions: [StarterKit, Callout, Passthrough], content: markdocToTiptap(SRC) })
+    expect(tiptapToMarkdoc(editor.getJSON() as TiptapDoc)).toBe(SRC)
+    editor.destroy()
+  })
 })

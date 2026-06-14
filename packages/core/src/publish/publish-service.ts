@@ -12,19 +12,32 @@ export function createPublishService(deps: PublishDeps): PublishService {
       if (draft === null) return { status: 'nothing' }
 
       const headSha = await git.headSha()
-      // HEAD-level base-SHA guard (§2): block if the repo advanced since the
-      // draft forked. Never silently overwrites an external commit.
-      if (draft.baseSha !== null && headSha !== null && draft.baseSha !== headSha) {
-        return { status: 'conflict', baseSha: draft.baseSha, headSha }
+      const path = contentPath(ref)
+
+      if (draft.baseSha !== null) {
+        // Forked from a commit: block if the repo HEAD advanced since (HEAD-level
+        // guard — coarse but never silently overwrites an external commit).
+        if (headSha !== null && draft.baseSha !== headSha) {
+          return { status: 'conflict', baseSha: draft.baseSha, headSha }
+        }
+      } else if (headSha !== null) {
+        // New entry (never forked): block if the target file already exists, so we
+        // never clobber pre-existing published content for this slug.
+        const existing = await git.readFile(path)
+        if (existing !== null) {
+          return { status: 'conflict', baseSha: null, headSha }
+        }
       }
 
-      const path = contentPath(ref)
       const content = tiptapToMarkdoc(draft.content)
       const commitMessage = message ?? `Publish ${ref.collection}/${ref.locale}/${ref.slug}`
       const { sha } = await git.commitFile({ path, content, message: commitMessage, author })
 
-      // Advance the draft's base to the new commit so continued editing forks
-      // from the just-published state and the next conflict check is correct.
+      // Advance the draft's base to the new commit so continued editing forks from
+      // the just-published state. NOTE: if this saveDraft throws after the commit
+      // already succeeded, the draft keeps its old baseSha and a later publish
+      // returns { status: 'conflict' } until the draft is re-forked from the new
+      // HEAD (the reload flow) — never lossy, the commit is durable.
       await data.saveDraft({
         ...ref,
         content: draft.content,

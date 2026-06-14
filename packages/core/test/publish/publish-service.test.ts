@@ -119,6 +119,7 @@ describe('createPublishService', () => {
     await data.saveDraft({ ...ref, content: doc('v1'), metadata: {} })
     expect((await svc().publish({ ref, author })).status).toBe('published')
     const cur = (await data.getDraft(ref))!
+    expect(cur.baseSha).toBe('gitsha1')
     await data.saveDraft({ ...ref, content: doc('v2'), metadata: {}, baseSha: cur.baseSha })
     const second = await svc().publish({ ref, author })
     expect(second.status).toBe('published')
@@ -134,6 +135,24 @@ describe('createPublishService', () => {
     expect(r).toEqual({ status: 'conflict', baseSha: 'stale-sha', headSha: 'gitsha1' })
     expect(await git.readFile('content/post/en/hello.mdoc')).toBeNull()
     expect((await data.getDraft(ref))?.baseSha).toBe('stale-sha')
+  })
+
+  it('blocks a new entry (null baseSha) whose target file already exists', async () => {
+    // external commit creates the SAME file this draft targets
+    await git.commitFile({ path: 'content/post/en/hello.mdoc', content: 'existing', message: 'm', author })
+    await data.saveDraft({ ...ref, content: doc('mine'), metadata: {} }) // baseSha null
+    const r = await svc().publish({ ref, author })
+    expect(r).toEqual({ status: 'conflict', baseSha: null, headSha: 'gitsha1' })
+    expect(await git.readFile('content/post/en/hello.mdoc')).toBe('existing') // not clobbered
+  })
+
+  it('publishes a new entry into a repo that has unrelated content', async () => {
+    await git.commitFile({ path: 'content/post/en/other.mdoc', content: 'x', message: 'm', author }) // head gitsha1
+    await data.saveDraft({ ...ref, content: doc('new'), metadata: {} }) // baseSha null, target file absent
+    const r = await svc().publish({ ref, author })
+    expect(r.status).toBe('published')
+    if (r.status !== 'published') throw new Error('unreachable')
+    expect(await git.readFile('content/post/en/hello.mdoc')).toBe(tiptapToMarkdoc(doc('new')))
   })
 
   it('uses a default commit message and passes a custom one through', async () => {

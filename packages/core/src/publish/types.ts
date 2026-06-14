@@ -20,9 +20,10 @@ export interface PublishDeps {
 export type PublishResult =
   /** Committed; `sha` is the new HEAD, `path` the committed file. */
   | { status: 'published'; sha: string; path: string }
-  /** Blocked: the repo advanced since the draft forked (HEAD-level guard).
-   *  Nothing was committed. */
-  | { status: 'conflict'; baseSha: string; headSha: string }
+  /** Blocked, nothing committed. Either the repo HEAD advanced since the draft
+   *  forked (`baseSha` is the draft's fork point), or the draft is a new entry
+   *  (`baseSha: null`) whose target file already exists in the repo. */
+  | { status: 'conflict'; baseSha: string | null; headSha: string }
   /** No draft exists for `ref` — nothing to publish. */
   | { status: 'nothing' }
 

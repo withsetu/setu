@@ -4,9 +4,11 @@ import Database from 'better-sqlite3'
 import { and, eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
-import type { DataPort, Draft, EntryRef } from '@saytu/core'
+import type { DataPort, Draft, EntryRef, Lock } from '@saytu/core'
 import { drafts, locks } from './schema'
 
+// Path is relative to the SOURCE file (this package runs from src, no build step).
+// If a build step emitting to dist/ is ever added, adjust this traversal.
 const migrationsFolder = join(dirname(fileURLToPath(import.meta.url)), '../drizzle')
 
 type DraftRow = typeof drafts.$inferSelect
@@ -20,6 +22,16 @@ const rowToDraft = (r: DraftRow): Draft => ({
   baseSha: r.baseSha,
   createdAt: r.createdAt,
   updatedAt: r.updatedAt,
+})
+
+type LockRow = typeof locks.$inferSelect
+
+const rowToLock = (r: LockRow): Lock => ({
+  collection: r.collection,
+  locale: r.locale,
+  slug: r.slug,
+  lockedBy: r.lockedBy,
+  lockedAt: r.lockedAt,
 })
 
 /** Create a better-sqlite3-backed DataPort. `file` is a path or ':memory:'. */
@@ -63,6 +75,8 @@ export function createSqliteAdapter(file: string): DataPort {
           set: { content, metadata, baseSha, updatedAt: now },
         })
         .run()
+      // Re-read to return the canonical row: ON CONFLICT DO UPDATE preserves the
+      // original createdAt, which is not in scope here (local `now` is the new time).
       return readDraft(input)!
     },
     async deleteDraft(ref) {
@@ -76,9 +90,7 @@ export function createSqliteAdapter(file: string): DataPort {
     },
     async getLock(ref) {
       const row = db.select().from(locks).where(whereLock(ref)).get()
-      return row
-        ? { collection: row.collection, locale: row.locale, slug: row.slug, lockedBy: row.lockedBy, lockedAt: row.lockedAt }
-        : null
+      return row ? rowToLock(row) : null
     },
     async putLock(lock) {
       db.insert(locks)

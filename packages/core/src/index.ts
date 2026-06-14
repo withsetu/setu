@@ -4,3 +4,4 @@ export type {
   TiptapDoc,
   RoundtripOptions,
 } from './markdoc/types'
+export { markdocToTiptap } from './markdoc/to-tiptap'

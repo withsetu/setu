@@ -1,0 +1,38 @@
+import type { ZodTypeAny } from 'zod'
+
+/** Editor-facing metadata for a block (consumed by the slash menu later). */
+export interface BlockEditorMeta {
+  label?: string
+  icon?: string
+  group?: string
+}
+
+/** A content block as authored in saytu.config.ts. */
+export interface BlockDefinition {
+  /** Markdoc tag name, e.g. 'callout'. Unique across the config. */
+  tag: string
+  /** Zod schema for the block's Markdoc attributes (props). */
+  props: ZodTypeAny
+  /** Framework-agnostic path to the render component (.astro or framework). */
+  component: string
+  /** Optional editor metadata (slash-menu label/icon/group). */
+  editor?: BlockEditorMeta
+}
+
+/** The config object an author exports from saytu.config.ts. */
+export interface SaytuConfig {
+  blocks: BlockDefinition[]
+}
+
+/** A block after resolution (distinct type for future derived fields). */
+export type ResolvedBlock = BlockDefinition
+
+/** The validated, indexed config the rest of the system consumes. */
+export interface ResolvedConfig {
+  /** All blocks, in authored order. */
+  blocks: ResolvedBlock[]
+  /** Blocks indexed by tag for O(1) lookup. */
+  blocksByTag: Map<string, ResolvedBlock>
+  /** Tag set the round-trip treats as known/editable blocks. */
+  knownBlockTags: Set<string>
+}

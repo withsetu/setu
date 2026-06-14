@@ -7,12 +7,20 @@ export const defaultConfig = defineConfig({
   blocks: [
     {
       tag: 'callout',
+      // Permissive props — attribute-value validation is a later increment; the
+      // editor offers the `editor.variants` set, the renderer/theme interprets them.
       props: z.object({
-        type: z.enum(['info', 'warning', 'danger']).default('info'),
+        type: z.string().optional(),
         title: z.string().optional(),
+        icon: z.string().optional(),
       }),
       component: './src/components/Callout.astro',
-      editor: { label: 'Callout', icon: 'info', group: 'Blocks' },
+      editor: {
+        label: 'Callout',
+        icon: 'info',
+        group: 'Blocks',
+        variants: ['info', 'note', 'success', 'warning', 'danger', 'neutral'],
+      },
     },
   ],
 })

@@ -5,6 +5,9 @@ export interface BlockEditorMeta {
   label?: string
   icon?: string
   group?: string
+  /** Selectable variant values for the block (e.g. callout types), shown in the
+   *  editor's variant picker. The editor maps each to a theme tone/icon. */
+  variants?: string[]
 }
 
 /** A content block as authored in saytu.config.ts. */

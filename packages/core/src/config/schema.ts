@@ -10,6 +10,7 @@ const blockEditorSchema = z
     label: z.string().optional(),
     icon: z.string().optional(),
     group: z.string().optional(),
+    variants: z.array(z.string()).optional(),
   })
   .strict()
 

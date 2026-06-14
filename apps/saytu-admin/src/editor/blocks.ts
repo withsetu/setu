@@ -36,7 +36,7 @@ export function slashBlocks(): SlashBlock[] {
         .chain()
         .focus()
         .deleteRange(r)
-        .insertContent({ type: b.tag, attrs: { mdAttrs: {} }, content: [{ type: 'paragraph' }] })
+        .insertContent({ type: b.tag, attrs: { mdAttrs: { type: 'info' } }, content: [{ type: 'paragraph' }] })
         .run(),
   }))
   return [...BUILTINS, ...fromConfig]

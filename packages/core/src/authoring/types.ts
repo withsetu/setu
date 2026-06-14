@@ -24,6 +24,7 @@ export interface SaveResult {
   /** True if persisted; false if blocked (nothing was written). */
   saved: boolean
   outcome: LockOutcome
+  /** The caller's lock when saved; the holder's lock when blocked. */
   lock: Lock
   /** The saved draft when saved; the current (unchanged) draft when blocked. */
   draft: Draft | null

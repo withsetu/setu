@@ -27,7 +27,6 @@ export type {
   OpenResult,
   SaveResult,
   LockStatus,
-  LockDecision,
   LockOutcome,
   AuthoringDeps,
 } from './authoring/types'

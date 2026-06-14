@@ -18,6 +18,10 @@ describe('evaluateLock', () => {
   it('refreshes when the same editor holds it', () => {
     expect(evaluateLock(lock('a@x.com', 4500), 'a@x.com', 5000, TTL)).toBe('refresh')
   })
+  it('refreshes even when the same editor holds a stale lock (same-editor wins over staleness)', () => {
+    // age 2000 > ttl 1000, but the same editor holds it → refresh, not takeover
+    expect(evaluateLock(lock('a@x.com', 3000), 'a@x.com', 5000, TTL)).toBe('refresh')
+  })
   it('takes over when another editor holds a stale lock', () => {
     // age 2000 > ttl 1000
     expect(evaluateLock(lock('b@x.com', 3000), 'a@x.com', 5000, TTL)).toBe('takeover')

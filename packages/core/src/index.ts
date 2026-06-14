@@ -38,3 +38,4 @@ export type { GitPort } from './git/git-port'
 
 export type { PublishInput, PublishDeps, PublishResult, PublishService } from './publish/types'
 export { contentPath } from './publish/content-path'
+export { createPublishService } from './publish/publish-service'

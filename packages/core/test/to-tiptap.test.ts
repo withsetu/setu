@@ -28,13 +28,16 @@ describe('markdocToTiptap', () => {
 
   it('maps a known block tag (callout) to a callout node', () => {
     const doc = markdocToTiptap('{% callout type="warning" %}\nHi\n{% /callout %}\n')
-    expect(doc.content[0]!.type).toBe('callout')
+    const node = doc.content[0]!
+    expect(node.type).toBe('callout')
+    expect((node.attrs as any).mdAttrs).toMatchObject({ type: 'warning' })
   })
 
   it('preserves an unknown/advanced tag ({% if %}) as a passthrough node', () => {
     const doc = markdocToTiptap('{% if $x %}\nHi\n{% /if %}\n')
     const node = doc.content[0]!
     expect(node.type).toBe('passthrough')
+    expect((node.attrs as any).flagged).toBe(false)
     expect((node.attrs as any).raw).toContain('{% if $x %}')
     expect((node.attrs as any).raw).toContain('{% /if %}')
   })

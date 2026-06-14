@@ -18,3 +18,6 @@ export { defineConfig } from './config/define-config'
 export { resolveConfig } from './config/resolve'
 export { defaultConfig, defaultKnownBlockTags } from './config/default-config'
 export { loadConfig } from './config/load'
+
+export type { EntryRef, Draft, DraftInput, DraftFilter, Lock } from './data/types'
+export type { DataPort } from './data/data-port'

@@ -19,7 +19,7 @@ describe('Sidebar', () => {
   it('renders the admin navigation (PRD §24 IA)', () => {
     renderSidebar()
     for (const label of ['Dashboard', 'Posts', 'Pages', 'Media', 'Forms', 'Site', 'Settings']) {
-      expect(screen.getByRole('link', { name: label })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: new RegExp(label, 'i') })).toBeInTheDocument()
     }
   })
 
@@ -32,5 +32,18 @@ describe('Sidebar', () => {
     expect(setSpy).toHaveBeenCalledWith('saytu-theme', 'dark')
     fireEvent.click(screen.getByRole('button', { name: /theme/i }))
     expect(document.documentElement.getAttribute('data-theme')).toBe('light')
+  })
+
+  it('renders an icon for every nav item', () => {
+    renderSidebar()
+    for (const label of ['Dashboard', 'Posts', 'Pages', 'Media', 'Forms', 'Site', 'Settings']) {
+      const link = screen.getByRole('link', { name: new RegExp(label, 'i') })
+      expect(link.querySelector('svg')).not.toBeNull()
+    }
+  })
+
+  it('shows the workspace name', () => {
+    renderSidebar()
+    expect(screen.getByText('Saytu')).toBeInTheDocument()
   })
 })

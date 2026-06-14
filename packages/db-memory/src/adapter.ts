@@ -8,16 +8,14 @@ const key = (r: EntryRef) => `${r.collection}\0${r.locale}\0${r.slug}`
  *  drafts. **Value semantics**: inputs are deep-cloned on write and reads return
  *  deep clones, so callers can never mutate the adapter's internal state through a
  *  returned object — matching db-sqlite (which round-trips through JSON).
- *  Timestamps are a monotonic counter — deterministic and ordering-faithful,
- *  which is all the DataPort contract requires. */
+ *  Timestamps use Date.now() (epoch ms), matching db-sqlite. */
 export function createMemoryDataPort(seed: DraftInput[] = []): DataPort {
   const drafts = new Map<string, Draft>()
   const locks = new Map<string, Lock>()
-  let clock = 0
 
   const put = (input: DraftInput): Draft => {
     const k = key(input)
-    const now = ++clock
+    const now = Date.now()
     const existing = drafts.get(k)
     // structuredClone isolates the stored draft from the caller's input objects.
     const stored: Draft = structuredClone({

@@ -37,4 +37,12 @@ describe('createMemoryDataPort seed', () => {
     ;(saved.metadata as { title: string }).title = 'MUTATED'
     expect((await db.getDraft(ref))?.metadata).toEqual({ title: 'Orig' })
   })
+
+  it('isolates stored drafts from later mutation of the input objects', async () => {
+    const db = createMemoryDataPort()
+    const input = { collection: 'post', locale: 'en', slug: 'm', content: doc('orig'), metadata: { title: 'Orig' } }
+    await db.saveDraft(input)
+    input.metadata.title = 'MUTATED'
+    expect((await db.getDraft({ collection: 'post', locale: 'en', slug: 'm' }))?.metadata).toEqual({ title: 'Orig' })
+  })
 })

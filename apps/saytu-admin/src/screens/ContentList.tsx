@@ -44,7 +44,7 @@ export function ContentList({ collection, title }: { collection: string; title: 
                 </td>
                 <td>{String(d.metadata.status ?? 'draft')}</td>
                 <td>{d.locale}</td>
-                <td>{d.updatedAt}</td>
+                <td>{new Date(d.updatedAt).toLocaleDateString()}</td>
               </tr>
             ))}
           </tbody>

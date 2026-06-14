@@ -99,6 +99,14 @@ the publish/open flow on top (and reuses `git-memory` verbatim).
 - **Autosave over an explicit Save button.** Notion-grade feel; the authoring
   service already treats every save as the lock refresh (#4), so debounced autosave
   is the natural fit. A subtle status indicator communicates state.
+- **All editor dependencies are MIT / public-npm — no Tiptap account or SaaS.**
+  Everything used here (`@tiptap/core`, `@tiptap/react`, `@tiptap/pm`,
+  `@tiptap/starter-kit`, `@tiptap/suggestion`, `@tiptap/extension-placeholder`,
+  `@tiptap/extension-link`) is open-source on public npm; the throwaway prototype
+  already installs/runs them with no token. Tiptap's paid tier (`@tiptap-pro/*`
+  extensions like drag-handle, Tiptap Cloud collaboration/AI) is **not** used — and
+  drag-handle block reordering is deferred partly for this reason, keeping Saytu's
+  100%-open-source promise intact.
 
 ## Architecture
 

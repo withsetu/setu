@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { Sidebar } from './shell/Sidebar'
 import { Placeholder } from './screens/Placeholder'
 import { ContentList } from './screens/ContentList'
+import { EditorScreen } from './editor/EditorScreen'
 
 export function App() {
   return (
@@ -17,7 +18,7 @@ export function App() {
           <Route path="/forms" element={<Placeholder title="Forms" />} />
           <Route path="/site" element={<Placeholder title="Site" />} />
           <Route path="/settings" element={<Placeholder title="Settings" />} />
-          <Route path="/edit/*" element={<Placeholder title="Editor (coming soon)" />} />
+          <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
           <Route path="*" element={<Placeholder title="Page not found" />} />
         </Routes>
       </main>

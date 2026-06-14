@@ -1,7 +1,16 @@
-import { createContext, useContext } from 'react'
+import { createContext, useContext, useMemo } from 'react'
 import type { ReactNode } from 'react'
-import type { DataPort, DraftInput, TiptapDoc } from '@saytu/core'
+import type {
+  AuthoringService,
+  DataPort,
+  DraftInput,
+  GitPort,
+  ReadService,
+  TiptapDoc,
+} from '@saytu/core'
+import { createAuthoringService, createReadService } from '@saytu/core'
 import { createMemoryDataPort } from '@saytu/db-memory'
+import { createMemoryGitPort } from '@saytu/git-memory'
 
 const doc = (text: string): TiptapDoc => ({
   type: 'doc',
@@ -15,19 +24,55 @@ export const seedDrafts: DraftInput[] = [
   { collection: 'page', locale: 'en', slug: 'about', content: doc('About us.'), metadata: { title: 'About', status: 'published' } },
 ]
 
-/** The app's DataPort (in-memory, seeded). Swapped for a real adapter later. */
+/** The composed in-browser services the admin runs on. */
+export interface Services {
+  data: DataPort
+  git: GitPort
+  read: ReadService
+  authoring: AuthoringService
+}
+
+/** Build the in-browser services bundle around a DataPort + GitPort. */
+export function servicesFor(data: DataPort, git: GitPort): Services {
+  return {
+    data,
+    git,
+    read: createReadService({ data, git }),
+    authoring: createAuthoringService({ data }),
+  }
+}
+
+/** The app's default services: seeded in-memory adapters (swapped for real
+ *  persistence later without touching the UI). */
+export function createServices(): Services {
+  return servicesFor(createMemoryDataPort(seedDrafts), createMemoryGitPort())
+}
+
+const ServicesContext = createContext<Services | null>(null)
+
+export function ServicesProvider({ services, children }: { services: Services; children: ReactNode }) {
+  return <ServicesContext.Provider value={services}>{children}</ServicesContext.Provider>
+}
+
+export function useServices(): Services {
+  const ctx = useContext(ServicesContext)
+  if (ctx === null) throw new Error('useServices must be used within a ServicesProvider')
+  return ctx
+}
+
+/** Back-compat accessor for screens that only need the DataPort (ContentList). */
+export function useData(): DataPort {
+  return useServices().data
+}
+
+/** Back-compat provider: builds a services bundle around a given DataPort so the
+ *  existing content-list/smoke tests (which inject a DataPort) keep working. */
+export function DataProvider({ adapter, children }: { adapter: DataPort; children: ReactNode }) {
+  const services = useMemo(() => servicesFor(adapter, createMemoryGitPort()), [adapter])
+  return <ServicesProvider services={services}>{children}</ServicesProvider>
+}
+
+/** The app's DataPort (in-memory, seeded). Kept for main.tsx back-compat. */
 export function createAppDataPort(): DataPort {
   return createMemoryDataPort(seedDrafts)
-}
-
-const DataContext = createContext<DataPort | null>(null)
-
-export function DataProvider({ adapter, children }: { adapter: DataPort; children: ReactNode }) {
-  return <DataContext.Provider value={adapter}>{children}</DataContext.Provider>
-}
-
-export function useData(): DataPort {
-  const ctx = useContext(DataContext)
-  if (ctx === null) throw new Error('useData must be used within a DataProvider')
-  return ctx
 }

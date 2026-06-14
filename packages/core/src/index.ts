@@ -16,3 +16,4 @@ export type {
 } from './config/types'
 export { defineConfig } from './config/define-config'
 export { resolveConfig } from './config/resolve'
+export { defaultConfig, defaultKnownBlockTags } from './config/default-config'

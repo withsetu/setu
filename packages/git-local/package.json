@@ -1,0 +1,25 @@
+{
+  "name": "@saytu/git-local",
+  "version": "0.0.0",
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@saytu/core": "workspace:*",
+    "isomorphic-git": "^1.38.4"
+  },
+  "devDependencies": {
+    "@saytu/git-testing": "workspace:*",
+    "@types/node": "^22.10.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}

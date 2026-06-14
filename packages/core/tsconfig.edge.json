@@ -4,5 +4,5 @@
     "noEmit": true,
     "types": []
   },
-  "include": ["src/markdoc", "src/data", "src/authoring"]
+  "include": ["src/markdoc", "src/data", "src/authoring", "src/git"]
 }

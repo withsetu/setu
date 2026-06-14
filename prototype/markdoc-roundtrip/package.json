@@ -1,0 +1,13 @@
+{
+  "name": "saytu-markdoc-roundtrip-spike",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "node roundtrip.mjs",
+    "inspect": "node inspect-ast.mjs"
+  },
+  "dependencies": {
+    "@markdoc/markdoc": "^0.5.2"
+  }
+}

@@ -303,6 +303,32 @@ Two distinct surfaces, very different in difficulty:
 * **(a) Admin / editor — target WCAG 2.1 AA (ongoing investment).** The **chrome** (menus, dialogs, popovers, the slash menu) gets accessibility largely for free from **Radix/shadcn** (correct ARIA, focus management, keyboard nav). The **editing canvas** is the hard part: Tiptap/ProseMirror's core `contenteditable` is keyboard- and screen-reader-accessible for basic text, but custom work is required — the **slash menu** needs the ARIA combobox/listbox pattern, **node views** must be built accessible, every block needs an accessible name, and **drag-and-drop reordering must have a keyboard alternative** (move up/down via command). Honest caveat: Notion-style block editors are among the hardest things to make fully accessible — AA is achievable with deliberate effort, not for free.
 * **(b) Output site — enforced and first-class (the easier, differentiating win).** Semantic HTML components, **enforced alt-text** (via the media library), heading-structure validation, and **a11y linting in the build pipeline**. "Accessible output by default" overlaps with the SEO pillar and is far more tractable than perfect editor a11y — make it a marketed feature.
 
+## 26. Testing & Security Assurance
+
+Testing weight follows **risk**: heavy where content/data flows (loss is unacceptable), lighter on cosmetics. TDD is enforced (Superpowers) — write the contract/spec test first.
+
+### 26.1 Testing layers
+
+| Layer | Scope | Weight | Tooling |
+|---|---|---|---|
+| **Property-based / fuzz** | **Round-trip fidelity** — generate random valid Markdoc, assert parse→serialize **idempotency** (would auto-catch edges like the `for` case). | 🔴 heavy | `fast-check` + Vitest |
+| **Port contract tests** | One suite per Port, run against **every** adapter (sqlite *and* d1; local *and* s3; all auth/email). The payoff of hexagonal architecture. | 🔴 heavy | Vitest |
+| **Integration** | Publish pipeline (draft→commit→reindex→cache-purge), base-SHA conflict, forms, search. | 🟠 medium | Vitest + Miniflare |
+| **E2E** | Admin flows: edit, slash menu, publish, locking, drag-reorder. | 🟠 medium | Playwright |
+| **Accessibility** | Automated WCAG 2.1 AA checks in E2E. | 🟠 medium | `axe-core` + Playwright |
+| **Visual regression** | Admin screens + rendered components. | 🟢 light | Playwright screenshots |
+| **Cross-topology** | The integration suite run against all 3 topologies. | 🟠 medium | Miniflare / wrangler |
+
+**Non-negotiables:** property-based round-trip testing and Port contract tests.
+
+### 26.2 Security assurance
+
+* **Surface:** auth/authz, the presigned-upload endpoint, the admin-only HTML/JS embed (XSS), Markdoc rendering, DoW, **form-submission PII**, and supply chain (many OSS deps).
+* **CI from day one:** **SAST** (CodeQL/Semgrep), **dependency scanning** (Dependabot + `pnpm audit`), **authz tests** (Editor *can't* publish, unauth → 401, Cloudflare Access JWT signature *verified*, role enforcement), input/abuse fuzzing (Zod boundaries, presigned-URL abuse, XSS vectors).
+* **Per milestone:** diff-level security review (the `/security-review` workflow).
+* **Before 1.0 GA:** a **third-party penetration test / audit** (Saytu handles auth + content + PII).
+* **The bar scales with topology:** self-hosted single-tenant is lower-stakes; the **managed Cloud / multi-tenant aggregator** demands the highest bar (tenant isolation + the formal audit).
+
 ---
 
 ## 🤖 Instructions for the AI Developer (System Prompt Context)
@@ -325,4 +351,6 @@ Two distinct surfaces, very different in difficulty:
 16. **Astro 6.4 & Local Dev:** Astro 6.3+ Cloudflare helpers for env/D1 bindings; first-class Hono for `/api/*`; `platformProxy: { enabled: true }`; secrets in `.dev.vars`.
 17. **Admin UX:** Notion-inspired, React + Tailwind + shadcn/ui; rich SPA (Zero-JS is for output only); slash-menu from config; Pro features visible-but-gated.
 18. **Accessibility:** Admin targets WCAG 2.1 AA (lean on Radix for chrome; build the slash menu as an ARIA combobox; give drag-reorder a keyboard alternative). Enforce accessible *output*: semantic HTML, required alt-text, heading-structure + a11y linting in the build.
-19. **Strict Typing:** Zod across all API boundaries.
+19. **Testing:** TDD (contract test first). Non-negotiables — property-based round-trip fidelity (`fast-check`) and Port contract suites run against every adapter. Plus integration (Miniflare for edge), Playwright E2E + `axe-core` (WCAG AA), cross-topology runs.
+20. **Security:** CI from day one — SAST, dependency scanning, authz tests (role enforcement, 401s, verified Access JWT), input/abuse fuzzing. `/security-review` per milestone; third-party pen-test before 1.0 GA. Highest bar for the managed-Cloud/multi-tenant path.
+21. **Strict Typing:** Zod across all API boundaries.

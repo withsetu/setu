@@ -4,7 +4,7 @@ const STATUS_TONE: Record<string, { tone: Tone; label: string }> = {
   draft: { tone: 'neutral', label: 'Draft' },
   published: { tone: 'green', label: 'Published' },
   staged: { tone: 'amber', label: 'Staged' },
-  deployed: { tone: 'green', label: 'Deployed' },
+  deployed: { tone: 'blue', label: 'Deployed' },
   building: { tone: 'blue', label: 'Building' },
   failed: { tone: 'red', label: 'Failed' },
   scheduled: { tone: 'accent', label: 'Scheduled' },

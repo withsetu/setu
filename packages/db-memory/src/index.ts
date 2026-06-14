@@ -1,0 +1,1 @@
+export { createMemoryDataPort } from './adapter'

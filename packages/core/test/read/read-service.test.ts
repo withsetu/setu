@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { createReadService, tiptapToMarkdoc, markdocToTiptap, contentPath } from '../../src/index'
+import { createReadService, tiptapToMarkdoc, markdocToTiptap, contentPath, serializeMdoc } from '../../src/index'
 import type { DataPort, Draft, EntryRef, GitPort, Lock, TiptapDoc } from '../../src/index'
 
 const key = (r: EntryRef) => `${r.collection} ${r.locale} ${r.slug}`
@@ -113,5 +113,25 @@ describe('createReadService.loadForEdit', () => {
     const r = await svc().loadForEdit(ref)
     if (r.source !== 'forked') throw new Error('unreachable')
     expect(tiptapToMarkdoc(r.draft.content)).toBe(md)
+  })
+
+  it('forks metadata from a published file with frontmatter', async () => {
+    const file = serializeMdoc({ frontmatter: { title: 'Kept', status: 'published' }, body: tiptapToMarkdoc(doc('body')) })
+    await git.commitFile({ path: contentPath(ref), content: file, message: 'm', author })
+    const r = await svc().loadForEdit(ref)
+    if (r.source !== 'forked') throw new Error('unreachable')
+    expect(r.draft.metadata).toEqual({ title: 'Kept', status: 'published' })
+    expect(r.draft.content).toEqual(markdocToTiptap(tiptapToMarkdoc(doc('body'))))
+  })
+
+  it('round-trips content AND metadata through Git (publish shape → open)', async () => {
+    const original = doc('full round trip')
+    const metadata = { title: 'Round Trip', n: 3 }
+    const file = serializeMdoc({ frontmatter: metadata, body: tiptapToMarkdoc(original) })
+    await git.commitFile({ path: contentPath(ref), content: file, message: 'm', author })
+    const r = await svc().loadForEdit(ref)
+    if (r.source !== 'forked') throw new Error('unreachable')
+    expect(r.draft.metadata).toEqual(metadata)
+    expect(tiptapToMarkdoc(r.draft.content)).toBe(tiptapToMarkdoc(original))
   })
 })

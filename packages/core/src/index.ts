@@ -21,3 +21,14 @@ export { loadConfig } from './config/load'
 
 export type { EntryRef, Draft, DraftInput, DraftFilter, Lock } from './data/types'
 export type { DataPort } from './data/data-port'
+
+export type {
+  AuthoringService,
+  OpenResult,
+  SaveResult,
+  LockStatus,
+  LockOutcome,
+  AuthoringDeps,
+} from './authoring/types'
+export { DEFAULT_LOCK_TTL_MS } from './authoring/types'
+export { createAuthoringService } from './authoring/authoring-service'

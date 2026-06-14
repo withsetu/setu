@@ -1,3 +1,5 @@
+// This schema uses only drizzle-orm/sqlite-core primitives. It is intentionally
+// dialect-agnostic so that @saytu/db-d1 can import it unchanged.
 import { sqliteTable, text, integer, primaryKey } from 'drizzle-orm/sqlite-core'
 
 export const drafts = sqliteTable(

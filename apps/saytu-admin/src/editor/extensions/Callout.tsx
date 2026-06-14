@@ -71,8 +71,8 @@ function CalloutView({ node, updateAttributes }: ReactNodeViewProps) {
 /** The config `{% callout %}` block. Schema matches the converter
  *  (packages/core/src/markdoc/to-tiptap.ts): group 'block', block content, and an
  *  `mdAttrs` bag round-tripped verbatim (to-markdoc always serializes the tag as
- *  `{% callout %}`). `mdAttrs` is JSON-only (kept out of the DOM). Tone/icon
- *  pickers are deferred — the node preserves mdAttrs, it just can't change it yet. */
+ *  `{% callout %}`). `mdAttrs` is JSON-only (kept out of the DOM). The node view
+ *  edits `mdAttrs.type` (tone), `mdAttrs.title`, and `mdAttrs.icon` via a toolbar. */
 export const Callout = Node.create({
   name: 'callout',
   group: 'block',

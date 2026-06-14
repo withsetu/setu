@@ -82,6 +82,11 @@ const ICONS = {
 
 export type IconName = keyof typeof ICONS
 
+/** True when `name` is a defined icon (lets callers narrow an arbitrary string to IconName). */
+export function isIconName(name: string): name is IconName {
+  return Object.prototype.hasOwnProperty.call(ICONS, name)
+}
+
 export function Icon({
   name,
   size = 18,

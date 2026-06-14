@@ -1,0 +1,19 @@
+{
+  "name": "saytu",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Open-source, Git-backed, multi-topology CMS engine.",
+  "license": "AGPL-3.0-only",
+  "scripts": {
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  }
+}

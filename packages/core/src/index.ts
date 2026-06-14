@@ -42,3 +42,6 @@ export { createPublishService } from './publish/publish-service'
 
 export type { LoadResult, ReadDeps, ReadService } from './read/types'
 export { createReadService } from './read/read-service'
+
+export type { MdocFile } from './markdoc/frontmatter'
+export { parseMdoc, serializeMdoc } from './markdoc/frontmatter'

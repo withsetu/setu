@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { createPublishService, tiptapToMarkdoc } from '../../src/index'
+import { createPublishService, tiptapToMarkdoc, parseMdoc } from '../../src/index'
 import type {
   CommitInput,
   DataPort,
@@ -111,7 +111,9 @@ describe('createPublishService', () => {
     if (r.status !== 'published') throw new Error('unreachable')
     expect(r.path).toBe('content/post/en/hello.mdoc')
     expect(r.sha).toBe('gitsha1')
-    expect(await git.readFile(r.path)).toBe(tiptapToMarkdoc(doc('hi')))
+    const parsed = parseMdoc((await git.readFile(r.path))!)
+    expect(parsed.frontmatter).toEqual({ title: 'T' })
+    expect(parsed.body).toBe(tiptapToMarkdoc(doc('hi')))
     expect((await data.getDraft(ref))?.baseSha).toBe('gitsha1')
   })
 
@@ -164,5 +166,17 @@ describe('createPublishService', () => {
     await data.saveDraft({ ...ref2, content: doc('b'), metadata: {} })
     await svc().publish({ ref: ref2, author, message: 'custom msg' })
     expect(git.commits.at(-1)?.message).toBe('custom msg')
+  })
+
+  it('serializes draft metadata as YAML frontmatter in the committed file', async () => {
+    await data.saveDraft({ ...ref, content: doc('hello'), metadata: { title: 'Hello', status: 'published' } })
+    const r = await svc().publish({ ref, author })
+    expect(r.status).toBe('published')
+    if (r.status !== 'published') throw new Error('unreachable')
+    const file = (await git.readFile(r.path))!
+    expect(file.startsWith('---\n')).toBe(true)
+    const parsed = parseMdoc(file)
+    expect(parsed.frontmatter).toEqual({ title: 'Hello', status: 'published' })
+    expect(parsed.body).toBe(tiptapToMarkdoc(doc('hello')))
   })
 })

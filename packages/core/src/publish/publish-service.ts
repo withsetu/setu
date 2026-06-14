@@ -1,4 +1,5 @@
 import { tiptapToMarkdoc } from '../markdoc/to-markdoc'
+import { serializeMdoc } from '../markdoc/frontmatter'
 import { contentPath } from './content-path'
 import type { PublishDeps, PublishInput, PublishResult, PublishService } from './types'
 
@@ -29,10 +30,8 @@ export function createPublishService(deps: PublishDeps): PublishService {
         }
       }
 
-      // NOTE: this compiles the body only. The draft's `metadata` is not yet
-      // serialized to YAML frontmatter in the .mdoc — frontmatter write/parse is
-      // a later increment (it needs a matching parser in markdocToTiptap too).
-      const content = tiptapToMarkdoc(draft.content)
+      // Serialize metadata → YAML frontmatter + the compiled Markdoc body.
+      const content = serializeMdoc({ frontmatter: draft.metadata, body: tiptapToMarkdoc(draft.content) })
       const commitMessage = message ?? `Publish ${ref.collection}/${ref.locale}/${ref.slug}`
       const { sha } = await git.commitFile({ path, content, message: commitMessage, author })
 

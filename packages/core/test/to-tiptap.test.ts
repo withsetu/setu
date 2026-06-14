@@ -33,6 +33,18 @@ describe('markdocToTiptap', () => {
     expect((node.attrs as any).mdAttrs).toMatchObject({ type: 'warning' })
   })
 
+  it('recognizes callout by default, sourced from the config (not a hardcoded constant)', () => {
+    const doc = markdocToTiptap('{% callout type="info" %}\nHi\n{% /callout %}\n')
+    expect(doc.content[0]!.type).toBe('callout')
+  })
+
+  it('treats callout as passthrough when an empty knownBlockTags set is supplied', () => {
+    const doc = markdocToTiptap('{% callout type="info" %}\nHi\n{% /callout %}\n', {
+      knownBlockTags: new Set<string>(),
+    })
+    expect(doc.content[0]!.type).toBe('passthrough')
+  })
+
   it('preserves an unknown/advanced tag ({% if %}) as a passthrough node', () => {
     const doc = markdocToTiptap('{% if $x %}\nHi\n{% /if %}\n')
     const node = doc.content[0]!

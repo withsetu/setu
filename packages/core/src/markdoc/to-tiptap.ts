@@ -1,7 +1,6 @@
 import Markdoc from '@markdoc/markdoc'
 import type { MdNode, RoundtripOptions, TiptapDoc, TiptapMark, TiptapNode } from './types'
-
-const DEFAULT_KNOWN_BLOCK_TAGS = new Set(['callout'])
+import { defaultKnownBlockTags } from '../config/default-config'
 
 const hasError = (node: MdNode): boolean =>
   node.type === 'error' || (Array.isArray(node.errors) && node.errors.length > 0)
@@ -74,7 +73,7 @@ function blockToTiptap(node: MdNode): TiptapNode | null {
 }
 
 export function markdocToTiptap(source: string, opts: RoundtripOptions = {}): TiptapDoc {
-  const known = opts.knownBlockTags ?? DEFAULT_KNOWN_BLOCK_TAGS
+  const known = opts.knownBlockTags ?? defaultKnownBlockTags
   const isPreserve = (node: MdNode): boolean =>
     hasError(node) || (node.type === 'tag' && !known.has(node.tag ?? ''))
 

@@ -10,5 +10,12 @@ export interface CommitInput {
   path: string
   content: string
   message: string
+  /** The editor's identity (stamped on the commit, not the machine's git config). */
   author: GitAuthor
+}
+
+/** The result of a commit. */
+export interface CommitResult {
+  /** The new HEAD commit sha. */
+  sha: string
 }

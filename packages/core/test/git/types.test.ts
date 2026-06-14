@@ -8,8 +8,13 @@ describe('GitPort types', () => {
     expect([input.path, input.author.email]).toEqual(['a.mdoc', 'ed@x.com'])
   })
 
-  it('GitPort is structurally implementable', () => {
-    const stub: Pick<GitPort, 'headSha'> = { headSha: async () => null }
-    expect(typeof stub.headSha).toBe('function')
+  it('GitPort is structurally implementable (all methods)', async () => {
+    const stub: GitPort = {
+      headSha: async () => null,
+      readFile: async () => null,
+      commitFile: async () => ({ sha: 'deadbeef' }),
+    }
+    expect(await stub.headSha()).toBeNull()
+    expect(await stub.commitFile({ path: 'a.mdoc', content: 'x', message: 'm', author: { name: 'E', email: 'e@x.com' } })).toEqual({ sha: 'deadbeef' })
   })
 })

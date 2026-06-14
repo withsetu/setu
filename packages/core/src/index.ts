@@ -15,3 +15,4 @@ export type {
   ResolvedBlock,
 } from './config/types'
 export { defineConfig } from './config/define-config'
+export { resolveConfig } from './config/resolve'

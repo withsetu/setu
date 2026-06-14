@@ -12,7 +12,7 @@
 .sidebar-top { display: flex; align-items: center; gap: 4px; margin-bottom: 8px; }
 
 /* ws: design uses <button>; our markup uses <div> — all visual rules still apply */
-.ws { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 6px 7px; border: none; background: transparent; border-radius: var(--r-sm); transition: background .14s; cursor: pointer; }
+.ws { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 6px 7px; border: none; background: transparent; border-radius: var(--r-sm); transition: background .14s; }
 .ws:hover { background: var(--surface-hover); }
 .logo-mark { flex-shrink: 0; display: grid; place-items: center; filter: drop-shadow(0 2px 6px var(--accent-soft)); }
 .ws-meta { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; text-align: left; }

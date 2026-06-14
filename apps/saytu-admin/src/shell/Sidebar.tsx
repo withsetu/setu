@@ -52,7 +52,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="sidebar">
+    <aside className="sidebar surface-tx">
       <div className="sidebar-top">
         <div className="ws">
           <span className="logo-mark" aria-hidden="true">

@@ -29,7 +29,7 @@ function buildBlock(node: TiptapNode): InstanceType<typeof N> {
     case 'orderedList':
       return new N(
         'list',
-        { ordered: node.type === 'orderedList', marker: node.type === 'orderedList' ? '1.' : '-' },
+        { ordered: node.type === 'orderedList', marker: node.type === 'orderedList' ? '.' : '-' },
         (node.content ?? []).map(
           (item) => new N('item', {}, [new N('inline', {}, buildInline(item.content?.[0]?.content ?? []))]),
         ),

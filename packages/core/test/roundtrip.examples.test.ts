@@ -60,3 +60,23 @@ describe('round-trip idempotency', () => {
     }
   })
 })
+
+describe('byte-fidelity round-trip', () => {
+  // Each src is canonical Markdoc; round-tripping must produce the exact same bytes.
+  // Note: Markdoc.format normalises ordered-list counters to all-1 (markdown HTML spec),
+  // so the canonical form is "1. item" for every item, not "1. … 2. … 3. …".
+  const cases: [string, string][] = [
+    ['ordered list', '1. one\n1. two\n1. three\n'],
+    ['code fence', '```js\nconst x = 1\n```\n'],
+    ['horizontal rule', '---\n'],
+    ['strikethrough', '~~gone~~\n'],
+    ['link', 'A [link](https://saytu.dev).\n'],
+    ['blockquote', '> quoted\n'],
+  ]
+
+  for (const [name, src] of cases) {
+    it(`is byte-identical: ${name}`, () => {
+      expect(roundtrip(src)).toBe(src)
+    })
+  }
+})

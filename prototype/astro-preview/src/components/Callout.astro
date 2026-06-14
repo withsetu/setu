@@ -1,0 +1,11 @@
+---
+interface Props {
+  type?: string
+}
+const { type = 'info' } = Astro.props
+---
+
+<aside class={`callout callout--${type}`} data-component="Callout.astro">
+  <span aria-hidden>💡</span>
+  <slot />
+</aside>

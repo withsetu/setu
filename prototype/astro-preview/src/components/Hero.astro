@@ -1,0 +1,12 @@
+---
+interface Props {
+  headline: string
+  subtitle?: string
+}
+const { headline, subtitle } = Astro.props
+---
+
+<section class="hero" data-component="Hero.astro">
+  <h1>{headline}</h1>
+  {subtitle && <p class="hero__sub">{subtitle}</p>}
+</section>

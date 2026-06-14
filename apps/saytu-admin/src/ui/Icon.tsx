@@ -77,6 +77,7 @@ const ICONS = {
   slash: '<path d="M16 4 8 20"/>',
   star: '<path d="m12 3 2.6 5.6 6 .8-4.4 4.2 1.1 6L12 16.8 6.7 19.6l1.1-6L3.4 9.4l6-.8z"/>',
   pin: '<path d="M9 4h6l-1 5 3 3v2h-5v6l-1 1-1-1v-6H5v-2l3-3z"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 8h.01M12 12v4"/>',
 } as const
 
 export type IconName = keyof typeof ICONS

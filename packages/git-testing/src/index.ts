@@ -22,6 +22,7 @@ export function runGitPortContract(makeAdapter: () => Promise<GitPort> | GitPort
       expect(typeof sha).toBe('string')
       expect(sha.length).toBeGreaterThan(0)
       expect(await port.headSha()).toBe(sha)
+      expect(await port.headSha()).toBe(sha) // idempotent: reading HEAD does not change it
     })
 
     it('reads back committed content; null for an uncommitted path', async () => {
@@ -36,6 +37,13 @@ export function runGitPortContract(makeAdapter: () => Promise<GitPort> | GitPort
       expect(second.sha).not.toBe(first.sha)
       expect(await port.headSha()).toBe(second.sha)
       expect(await port.readFile('a.mdoc')).toBe('v2')
+    })
+
+    it('committing a second path does not overwrite the first', async () => {
+      await port.commitFile({ path: 'a.mdoc', content: 'A', message: 'm1', author })
+      await port.commitFile({ path: 'b.mdoc', content: 'B', message: 'm2', author })
+      expect(await port.readFile('a.mdoc')).toBe('A')
+      expect(await port.readFile('b.mdoc')).toBe('B')
     })
 
     it('commits and reads nested paths (parent dirs created)', async () => {

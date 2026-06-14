@@ -146,6 +146,22 @@ describe('createAuthoringService', () => {
     expect((await s.status(ref))?.stale).toBe(true)
   })
 
+  it('release when no lock exists returns released:false', async () => {
+    const r = await svc().release(ref, 'a@x.com')
+    expect(r).toEqual({ released: false })
+  })
+
+  it('save by a third editor against a stale lock takes over and persists', async () => {
+    const s = svc()
+    await s.open(ref, 'a@x.com') // a locked at 5000
+    clock = 6001 // a's lock now stale (age 1001 > ttl 1000)
+    const r = await s.save({ ...ref, content: doc('c-edit'), metadata: {} }, 'c@x.com')
+    expect(r.saved).toBe(true)
+    expect(r.outcome).toBe('tookOver')
+    expect(r.lock.lockedBy).toBe('c@x.com')
+    expect((await data.getDraft(ref))?.content).toEqual(doc('c-edit'))
+  })
+
   it('defaults lockTtlMs to DEFAULT_LOCK_TTL_MS', async () => {
     const s = createAuthoringService({ data, now })
     await s.open(ref, 'a@x.com') // locked at 5000

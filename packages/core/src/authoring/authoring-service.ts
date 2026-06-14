@@ -8,8 +8,11 @@ import type {
 import { DEFAULT_LOCK_TTL_MS } from './types'
 import { evaluateLock } from './lock-policy'
 
-const outcomeFor = (decision: Exclude<LockDecision, 'blocked'>): LockOutcome =>
-  decision === 'acquire' ? 'acquired' : decision === 'refresh' ? 'refreshed' : 'tookOver'
+const OUTCOME: Record<Exclude<LockDecision, 'blocked'>, LockOutcome> = {
+  acquire: 'acquired',
+  refresh: 'refreshed',
+  takeover: 'tookOver',
+}
 
 /** Draft + pessimistic-lock orchestration over a DataPort (PRD §9). */
 export function createAuthoringService(deps: AuthoringDeps): AuthoringService {
@@ -29,7 +32,7 @@ export function createAuthoringService(deps: AuthoringDeps): AuthoringService {
       }
       const lock = { ...ref, lockedBy: editor, lockedAt: t }
       await data.putLock(lock)
-      return { granted: true, outcome: outcomeFor(decision), lock, draft }
+      return { granted: true, outcome: OUTCOME[decision], lock, draft }
     },
 
     async save(input, editor) {
@@ -47,7 +50,7 @@ export function createAuthoringService(deps: AuthoringDeps): AuthoringService {
       const lock = { ...ref, lockedBy: editor, lockedAt: t }
       await data.putLock(lock)
       const draft = await data.saveDraft(input)
-      return { saved: true, outcome: outcomeFor(decision), lock, draft }
+      return { saved: true, outcome: OUTCOME[decision], lock, draft }
     },
 
     async release(ref, editor) {
@@ -64,9 +67,10 @@ export function createAuthoringService(deps: AuthoringDeps): AuthoringService {
     },
 
     async status(ref) {
+      const t = now()
       const lock = await data.getLock(ref)
       if (lock === null) return null
-      return { lock, stale: now() - lock.lockedAt > ttl }
+      return { lock, stale: t - lock.lockedAt > ttl }
     },
   }
 }

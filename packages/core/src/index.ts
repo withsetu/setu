@@ -31,3 +31,4 @@ export type {
   AuthoringDeps,
 } from './authoring/types'
 export { DEFAULT_LOCK_TTL_MS } from './authoring/types'
+export { createAuthoringService } from './authoring/authoring-service'

@@ -8,7 +8,12 @@ const LETTERS = 'abcdefghijklmnopqrstuvwxyz '.split('')
 const KEYCHARS = 'abcdefghijklmnopqrstuvwxyz'.split('')
 const safeStr = fc.array(fc.constantFrom(...LETTERS), { minLength: 0, maxLength: 20 }).map((a) => a.join(''))
 const safeKey = fc.array(fc.constantFrom(...KEYCHARS), { minLength: 1, maxLength: 8 }).map((a) => a.join(''))
-const metaValue = fc.oneof(safeStr, fc.integer(), fc.boolean())
+const scalar = fc.oneof(safeStr, fc.integer(), fc.boolean())
+const metaValue = fc.oneof(
+  scalar,
+  fc.array(scalar, { maxLength: 4 }), // arrays (e.g. tags)
+  fc.dictionary(safeKey, scalar, { maxKeys: 3 }), // one-level nested objects (e.g. seo)
+)
 const metadata = fc.dictionary(safeKey, metaValue, { maxKeys: 5 })
 const body = fc.oneof(
   safeStr,

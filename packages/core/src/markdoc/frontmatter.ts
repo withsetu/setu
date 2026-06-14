@@ -12,7 +12,13 @@ const FENCE = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/
  *  treated as frontmatter ONLY when it is a closed fence whose YAML is a plain
  *  object — so a body that starts with `---` (a horizontal rule) is never
  *  mistaken for frontmatter, and malformed/empty YAML falls back to body-only.
- *  Never throws and never drops the body. */
+ *  Never throws and never drops the body.
+ *
+ *  Round-trips for all `serializeMdoc` output and for HR-leading bodies. The one
+ *  inherently ambiguous input is a body that IS ITSELF a tight, object-shaped
+ *  YAML fence (`---\nkey: val\n---\n…`) paired with empty frontmatter — it is
+ *  indistinguishable from that fence being real frontmatter. Real publish output
+ *  (Markdoc, blank-line-separated) never produces such a body. */
 export function parseMdoc(raw: string): MdocFile {
   const m = FENCE.exec(raw)
   if (m) {

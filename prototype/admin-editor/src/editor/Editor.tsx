@@ -27,6 +27,7 @@ const INITIAL = {
 
 export function Editor({ onUpdate }: { onUpdate?: (info: { words: number }) => void }) {
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit,
       Placeholder.configure({

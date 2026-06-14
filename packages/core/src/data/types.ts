@@ -24,6 +24,7 @@ export interface Draft extends EntryRef {
 export interface DraftInput extends EntryRef {
   content: TiptapDoc
   metadata: Record<string, unknown>
+  /** Defaults to null when omitted. */
   baseSha?: string | null
 }
 
@@ -31,4 +32,9 @@ export interface DraftInput extends EntryRef {
 export interface Lock extends EntryRef {
   lockedBy: string
   lockedAt: number
+}
+
+/** Filter for listing drafts. */
+export interface DraftFilter {
+  collection?: string
 }

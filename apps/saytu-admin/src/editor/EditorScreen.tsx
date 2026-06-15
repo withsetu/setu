@@ -6,6 +6,7 @@ import { useServices } from '../data/store'
 import { useCan } from '../auth/actor'
 import { lifecycleFor } from '../lifecycle/useLifecycle'
 import { lifecycleLabel } from '../lifecycle/label'
+import { useDeploy } from '../deploy/deploy'
 import { StatusPill } from '../ui/StatusPill'
 import { Canvas } from './Canvas'
 import { MetaPanel } from './MetaPanel'
@@ -25,6 +26,7 @@ function SaveIndicator({ status, readonly }: { status: SaveStatus; readonly: boo
 export function EditorScreen() {
   const { collection = '', locale = '', slug = '' } = useParams()
   const { read, authoring, data, git, publish } = useServices()
+  const { deployedAt, sha: deploySha } = useDeploy()
   const can = useCan()
   const ref = useMemo(() => ({ collection, locale, slug }), [collection, locale, slug])
 
@@ -42,8 +44,8 @@ export function EditorScreen() {
 
   const refreshLifecycle = useCallback(async () => {
     const d = await data.getDraft(ref)
-    setLifecycle(await lifecycleFor(ref, d, git))
-  }, [data, git, ref])
+    setLifecycle(await lifecycleFor(ref, d, git, deployedAt))
+  }, [data, git, ref, deployedAt])
 
   useEffect(() => {
     let live = true
@@ -69,6 +71,11 @@ export function EditorScreen() {
       live = false
     }
   }, [ref, read, authoring, refreshLifecycle])
+
+  // When the global Deploy advances the live sha, re-derive so the pill updates.
+  useEffect(() => {
+    void refreshLifecycle()
+  }, [deploySha, refreshLifecycle])
 
   useAutosave({
     enabled: phase === 'ready',

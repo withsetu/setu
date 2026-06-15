@@ -3,12 +3,15 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { App } from '../src/app'
 import { DataProvider, createAppDataPort } from '../src/data/store'
+import { DeployProvider } from '../src/deploy/deploy'
 
 function renderApp(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <DataProvider adapter={createAppDataPort()}>
-        <App />
+        <DeployProvider>
+          <App />
+        </DeployProvider>
       </DataProvider>
     </MemoryRouter>,
   )

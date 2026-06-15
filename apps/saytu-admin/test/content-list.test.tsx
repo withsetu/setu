@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { createMemoryDataPort } from '@saytu/db-memory'
 import type { DataPort, DraftInput, TiptapDoc } from '@saytu/core'
 import { DataProvider } from '../src/data/store'
+import { DeployProvider } from '../src/deploy/deploy'
 import { ContentList } from '../src/screens/ContentList'
 
 const doc = (t: string): TiptapDoc => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] })
@@ -17,7 +18,9 @@ const renderList = (adapter: DataPort, collection: string, title: string) =>
   render(
     <MemoryRouter>
       <DataProvider adapter={adapter}>
-        <ContentList collection={collection} title={title} />
+        <DeployProvider>
+          <ContentList collection={collection} title={title} />
+        </DeployProvider>
       </DataProvider>
     </MemoryRouter>,
   )

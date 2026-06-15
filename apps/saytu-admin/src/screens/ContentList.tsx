@@ -4,12 +4,14 @@ import type { Draft, Lifecycle } from '@saytu/core'
 import { useServices } from '../data/store'
 import { lifecycleFor } from '../lifecycle/useLifecycle'
 import { lifecycleLabel } from '../lifecycle/label'
+import { useDeploy } from '../deploy/deploy'
 import { PageHeader } from '../shell/PageHeader'
 import { StatusPill } from '../ui/StatusPill'
 import { Icon } from '../ui/Icon'
 
 export function ContentList({ collection, title }: { collection: string; title: string }) {
   const { data, git } = useServices()
+  const { deployedAt, sha: deploySha } = useDeploy()
   const [drafts, setDrafts] = useState<Draft[] | null>(null)
   const [statuses, setStatuses] = useState<Record<string, Lifecycle>>({})
 
@@ -24,6 +26,7 @@ export function ContentList({ collection, title }: { collection: string; title: 
             { collection: dr.collection, locale: dr.locale, slug: dr.slug },
             dr,
             git,
+            deployedAt,
           )
           return [dr.slug, lc] as const
         }),
@@ -33,7 +36,7 @@ export function ContentList({ collection, title }: { collection: string; title: 
     return () => {
       live = false
     }
-  }, [data, git, collection])
+  }, [data, git, collection, deployedAt, deploySha])
 
   const noun = collection
 

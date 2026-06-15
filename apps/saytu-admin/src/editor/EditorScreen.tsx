@@ -10,6 +10,7 @@ import { useDeploy } from '../deploy/deploy'
 import { StatusPill } from '../ui/StatusPill'
 import { Canvas } from './Canvas'
 import { MetaPanel } from './MetaPanel'
+import { PublishMenu } from './PublishMenu'
 import { useAutosave } from './useAutosave'
 import type { SaveStatus } from './useAutosave'
 
@@ -94,9 +95,10 @@ export function EditorScreen() {
     setMetadata(next)
     setRev((r) => r + 1)
   }
-  const onPublish = async () => {
+  const commit = async () => {
     setPublishMsg(null)
-    // Save-before-publish: publish reads storage, not the in-memory doc.
+    // Save-before-publish: publish reads storage, not the in-memory doc. Always
+    // serialize the LATEST metaRef.current (Unpublish/Re-publish mutate it first).
     await authoring.save({ ...ref, content: docRef.current, metadata: metaRef.current, baseSha: baseShaRef.current }, EDITOR_ID)
     const r = await publish.publish({ ref, author: OWNER_AUTHOR })
     if (r.status === 'published') {
@@ -108,6 +110,21 @@ export function EditorScreen() {
     } else {
       setPublishMsg(null)
     }
+  }
+
+  const onPublish = () => void commit()
+  // Non-destructive: flag the draft published:false and commit (content stays in Git).
+  const onUnpublish = () => {
+    metaRef.current = { ...metaRef.current, published: false }
+    setMetadata(metaRef.current)
+    void commit()
+  }
+  const onRepublish = () => {
+    const m = { ...metaRef.current }
+    delete m['published']
+    metaRef.current = m
+    setMetadata(m)
+    void commit()
   }
 
   const title = String(metadata['title'] ?? '')
@@ -131,9 +148,14 @@ export function EditorScreen() {
           {(() => { const { label, pending } = lifecycleLabel(lifecycle); return (
             <span className="ed-status"><StatusPill status={label} />{pending && <span className="status-pending">· {pending}</span>}</span>
           ) })()}
-          {can('content.publish') && phase === 'ready' && (
-            <button type="button" className="btn btn-primary btn-md" onClick={() => void onPublish()}>Publish</button>
-          )}
+          <PublishMenu
+            canPublish={can('content.publish') && phase === 'ready'}
+            canUnpublish={can('content.unpublish') && phase === 'ready'}
+            isUnpublished={lifecycle.state === 'unpublished'}
+            onPublish={onPublish}
+            onUnpublish={onUnpublish}
+            onRepublish={onRepublish}
+          />
           {publishMsg && <span className="publish-msg">{publishMsg}</span>}
         </div>
       </div>

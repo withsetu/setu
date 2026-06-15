@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { Draft, TiptapDoc } from '@saytu/core'
+import { ActorProvider } from '../src/auth/actor'
 import { ServicesProvider, createServices } from '../src/data/store'
 import type { Services } from '../src/data/store'
 import { EditorScreen } from '../src/editor/EditorScreen'
@@ -13,14 +14,15 @@ const aLock = { collection: 'post', locale: 'en', slug: 'p1', lockedBy: 'local',
 function fakeServices(over: Partial<Services> = {}): Services {
   const save = vi.fn(async (input: { metadata: Record<string, unknown> }) => ({ saved: true, outcome: 'refreshed', lock: aLock, draft: { ...aDraft, ...input } }))
   return {
-    data: {} as Services['data'],
-    git: {} as Services['git'],
+    data: { getDraft: vi.fn(async () => aDraft) } as unknown as Services['data'],
+    git: { readFile: vi.fn(async () => null) } as unknown as Services['git'],
     read: { loadForEdit: vi.fn(async () => ({ source: 'draft', draft: aDraft })) } as unknown as Services['read'],
     authoring: {
       open: vi.fn(async () => ({ granted: true, outcome: 'acquired', lock: aLock, draft: aDraft })),
       save,
       release: vi.fn(), forceUnlock: vi.fn(), status: vi.fn(),
     } as unknown as Services['authoring'],
+    publish: { publish: vi.fn(async () => ({ status: 'nothing' as const })) } as unknown as Services['publish'],
     ...over,
   }
 }
@@ -28,11 +30,13 @@ function fakeServices(over: Partial<Services> = {}): Services {
 function renderEditor(services: Services, path = '/edit/post/en/p1') {
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <ServicesProvider services={services}>
-        <Routes>
-          <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
-        </Routes>
-      </ServicesProvider>
+      <ActorProvider>
+        <ServicesProvider services={services}>
+          <Routes>
+            <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
+          </Routes>
+        </ServicesProvider>
+      </ActorProvider>
     </MemoryRouter>,
   )
 }

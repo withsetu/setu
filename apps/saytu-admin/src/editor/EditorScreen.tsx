@@ -1,8 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import type { Draft, DraftInput, TiptapDoc } from '@saytu/core'
+import type { Draft, DraftInput, Lifecycle, TiptapDoc } from '@saytu/core'
 import { Icon } from '../ui/Icon'
 import { useServices } from '../data/store'
+import { useCan } from '../auth/actor'
+import { lifecycleFor } from '../lifecycle/useLifecycle'
+import { lifecycleLabel } from '../lifecycle/label'
+import { StatusPill } from '../ui/StatusPill'
 import { Canvas } from './Canvas'
 import { MetaPanel } from './MetaPanel'
 import { useAutosave } from './useAutosave'
@@ -10,6 +14,7 @@ import type { SaveStatus } from './useAutosave'
 
 const EDITOR_ID = 'local'
 const BLANK: TiptapDoc = { type: 'doc', content: [{ type: 'paragraph' }] }
+const OWNER_AUTHOR = { name: 'Local', email: 'local@saytu.dev' }
 
 function SaveIndicator({ status, readonly }: { status: SaveStatus; readonly: boolean }) {
   if (readonly) return <span className="autosave saving">Read-only</span>
@@ -19,7 +24,8 @@ function SaveIndicator({ status, readonly }: { status: SaveStatus; readonly: boo
 
 export function EditorScreen() {
   const { collection = '', locale = '', slug = '' } = useParams()
-  const { read, authoring } = useServices()
+  const { read, authoring, data, git, publish } = useServices()
+  const can = useCan()
   const ref = useMemo(() => ({ collection, locale, slug }), [collection, locale, slug])
 
   const [phase, setPhase] = useState<'loading' | 'ready' | 'readonly'>('loading')
@@ -27,10 +33,17 @@ export function EditorScreen() {
   const [metadata, setMetadata] = useState<Record<string, unknown>>({})
   const [status, setStatus] = useState<SaveStatus>('idle')
   const [rev, setRev] = useState(0)
+  const [lifecycle, setLifecycle] = useState<Lifecycle>({ state: 'draft' })
+  const [publishMsg, setPublishMsg] = useState<string | null>(null)
 
   const docRef = useRef<TiptapDoc>(BLANK)
   const metaRef = useRef<Record<string, unknown>>({})
   const baseShaRef = useRef<string | null>(null)
+
+  const refreshLifecycle = useCallback(async () => {
+    const d = await data.getDraft(ref)
+    setLifecycle(await lifecycleFor(ref, d, git))
+  }, [data, git, ref])
 
   useEffect(() => {
     let live = true
@@ -50,11 +63,12 @@ export function EditorScreen() {
       setRev(0)
       setStatus('idle')
       setPhase(open.granted ? 'ready' : 'readonly')
+      void refreshLifecycle()
     })()
     return () => {
       live = false
     }
-  }, [ref, read, authoring])
+  }, [ref, read, authoring, refreshLifecycle])
 
   useAutosave({
     enabled: phase === 'ready',
@@ -73,6 +87,22 @@ export function EditorScreen() {
     setMetadata(next)
     setRev((r) => r + 1)
   }
+  const onPublish = async () => {
+    setPublishMsg(null)
+    // Save-before-publish: publish reads storage, not the in-memory doc.
+    await authoring.save({ ...ref, content: docRef.current, metadata: metaRef.current, baseSha: baseShaRef.current }, EDITOR_ID)
+    const r = await publish.publish({ ref, author: OWNER_AUTHOR })
+    if (r.status === 'published') {
+      baseShaRef.current = r.sha
+      setPublishMsg('Published · ' + r.sha.slice(0, 7))
+      await refreshLifecycle()
+    } else if (r.status === 'conflict') {
+      setPublishMsg('The published version moved — reload to continue.')
+    } else {
+      setPublishMsg(null)
+    }
+  }
+
   const title = String(metadata['title'] ?? '')
   const listPath = `/${collection}s`
 
@@ -90,7 +120,15 @@ export function EditorScreen() {
           <span className="ed-breadcrumb">{collection} / {slug}</span>
         </div>
         <div className="ed-strip-center"><SaveIndicator status={status} readonly={phase === 'readonly'} /></div>
-        <div className="ed-strip-right" />
+        <div className="ed-strip-right">
+          {(() => { const { label, pending } = lifecycleLabel(lifecycle); return (
+            <span className="ed-status"><StatusPill status={label} />{pending && <span className="status-pending">· {pending}</span>}</span>
+          ) })()}
+          {can('content.publish') && phase === 'ready' && (
+            <button type="button" className="btn btn-primary btn-md" onClick={() => void onPublish()}>Publish</button>
+          )}
+          {publishMsg && <span className="publish-msg">{publishMsg}</span>}
+        </div>
       </div>
       {phase === 'readonly' && (
         <div className="ed-banner" role="status">This entry is locked by another editor — viewing read-only.</div>

@@ -23,4 +23,11 @@ describe('can', () => {
     expect(authz.can(actor('viewer'), 'content.edit')).toBe(false)
     expect(authz.can(actor('viewer'), 'content.publish')).toBe(false)
   })
+  it('author can edit but not publish', () => {
+    expect(authz.can(actor('author'), 'content.edit')).toBe(true)
+    expect(authz.can(actor('author'), 'content.publish')).toBe(false)
+  })
+  it('editor can unpublish', () => {
+    expect(authz.can(actor('editor'), 'content.unpublish')).toBe(true)
+  })
 })

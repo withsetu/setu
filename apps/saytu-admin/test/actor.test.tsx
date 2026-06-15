@@ -15,4 +15,12 @@ describe('actor context', () => {
     expect(result.current('content.publish')).toBe(true)
     expect(result.current('site.deploy')).toBe(true)
   })
+  it('gates a non-owner actor by their role', () => {
+    const viewerWrap = ({ children }: { children: ReactNode }) => (
+      <ActorProvider actor={{ id: 'v', role: 'viewer' }}>{children}</ActorProvider>
+    )
+    const { result } = renderHook(() => useCan(), { wrapper: viewerWrap })
+    expect(result.current('content.publish')).toBe(false)
+    expect(result.current('site.deploy')).toBe(false)
+  })
 })

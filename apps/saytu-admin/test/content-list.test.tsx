@@ -23,11 +23,12 @@ const renderList = (adapter: DataPort, collection: string, title: string) =>
   )
 
 describe('ContentList', () => {
-  it('renders a row per draft in the collection with title + status', async () => {
+  it('renders a row per draft in the collection with title + derived status', async () => {
     renderList(createMemoryDataPort(seed), 'post', 'Posts')
     expect(await screen.findByText('First Post')).toBeInTheDocument()
     expect(screen.getByText('Second Post')).toBeInTheDocument()
-    expect(screen.getByText('Published')).toBeInTheDocument()
+    // git is empty (createMemoryGitPort) so both posts derive to Draft regardless of metadata.status
+    expect(await screen.findAllByText('Draft', { selector: '.badge' })).toHaveLength(2)
     expect(screen.queryByText('About')).not.toBeInTheDocument()
   })
 

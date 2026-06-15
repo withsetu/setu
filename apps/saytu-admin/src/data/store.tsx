@@ -5,10 +5,11 @@ import type {
   DataPort,
   DraftInput,
   GitPort,
+  PublishService,
   ReadService,
   TiptapDoc,
 } from '@saytu/core'
-import { createAuthoringService, createReadService } from '@saytu/core'
+import { createAuthoringService, createPublishService, createReadService } from '@saytu/core'
 import { createMemoryDataPort } from '@saytu/db-memory'
 import { createMemoryGitPort } from '@saytu/git-memory'
 
@@ -30,6 +31,7 @@ export interface Services {
   git: GitPort
   read: ReadService
   authoring: AuthoringService
+  publish: PublishService
 }
 
 /** Build the in-browser services bundle around a DataPort + GitPort. */
@@ -39,6 +41,7 @@ export function servicesFor(data: DataPort, git: GitPort): Services {
     git,
     read: createReadService({ data, git }),
     authoring: createAuthoringService({ data }),
+    publish: createPublishService({ data, git }),
   }
 }
 

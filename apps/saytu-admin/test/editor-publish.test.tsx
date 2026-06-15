@@ -22,7 +22,8 @@ describe('EditorScreen publish', () => {
   it('shows a Publish button and publishing makes the status Staged', async () => {
     renderEditor()
     await screen.findByDisplayValue('Release notes')
+    expect(screen.getByText('Draft', { selector: '.badge' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /^publish$/i }))
-    await waitFor(() => expect(screen.getByText(/staged/i)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Staged', { selector: '.badge' })).toBeInTheDocument())
   })
 })

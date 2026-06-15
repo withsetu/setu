@@ -88,6 +88,7 @@ export function EditorScreen() {
     setRev((r) => r + 1)
   }
   const onPublish = async () => {
+    setPublishMsg(null)
     // Save-before-publish: publish reads storage, not the in-memory doc.
     await authoring.save({ ...ref, content: docRef.current, metadata: metaRef.current, baseSha: baseShaRef.current }, EDITOR_ID)
     const r = await publish.publish({ ref, author: OWNER_AUTHOR })

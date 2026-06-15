@@ -44,3 +44,6 @@ export { createReadService } from './read/read-service'
 
 export type { MdocFile } from './markdoc/frontmatter'
 export { parseMdoc, serializeMdoc } from './markdoc/frontmatter'
+
+export type { Action, Role, Actor, PermissionMatrix, Authz } from './authz/types'
+export { createAuthz, DEFAULT_ROLES } from './authz/authz'

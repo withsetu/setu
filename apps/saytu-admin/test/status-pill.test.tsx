@@ -14,4 +14,16 @@ describe('StatusPill', () => {
     expect(screen.getByText('weird')).toBeInTheDocument()
     expect(container.querySelector('.badge-neutral')).not.toBeNull()
   })
+
+  it('renders Live status with badge-green tone', () => {
+    const { container } = render(<StatusPill status="Live" />)
+    expect(screen.getByText('Live')).toBeInTheDocument()
+    expect(container.querySelector('.badge-green')).not.toBeNull()
+  })
+
+  it('renders Unpublished status with its label', () => {
+    const { container } = render(<StatusPill status="Unpublished" />)
+    expect(screen.getByText('Unpublished')).toBeInTheDocument()
+    expect(container.querySelector('.badge-neutral')).not.toBeNull()
+  })
 })

@@ -8,6 +8,8 @@ const STATUS_TONE: Record<string, { tone: Tone; label: string }> = {
   building: { tone: 'blue', label: 'Building' },
   failed: { tone: 'red', label: 'Failed' },
   scheduled: { tone: 'accent', label: 'Scheduled' },
+  live: { tone: 'green', label: 'Live' },
+  unpublished: { tone: 'neutral', label: 'Unpublished' },
 }
 
 export function StatusPill({ status }: { status: string }) {

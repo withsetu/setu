@@ -5,6 +5,7 @@ import type { Draft, TiptapDoc } from '@saytu/core'
 import { ActorProvider } from '../src/auth/actor'
 import { ServicesProvider, createServices } from '../src/data/store'
 import type { Services } from '../src/data/store'
+import { DeployProvider } from '../src/deploy/deploy'
 import { EditorScreen } from '../src/editor/EditorScreen'
 
 const doc = (t: string): TiptapDoc => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] })
@@ -32,9 +33,11 @@ function renderEditor(services: Services, path = '/edit/post/en/p1') {
     <MemoryRouter initialEntries={[path]}>
       <ActorProvider>
         <ServicesProvider services={services}>
-          <Routes>
-            <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
-          </Routes>
+          <DeployProvider>
+            <Routes>
+              <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
+            </Routes>
+          </DeployProvider>
         </ServicesProvider>
       </ActorProvider>
     </MemoryRouter>,

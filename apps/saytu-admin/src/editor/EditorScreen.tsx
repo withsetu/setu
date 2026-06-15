@@ -6,9 +6,11 @@ import { useServices } from '../data/store'
 import { useCan } from '../auth/actor'
 import { lifecycleFor } from '../lifecycle/useLifecycle'
 import { lifecycleLabel } from '../lifecycle/label'
+import { useDeploy } from '../deploy/deploy'
 import { StatusPill } from '../ui/StatusPill'
 import { Canvas } from './Canvas'
 import { MetaPanel } from './MetaPanel'
+import { PublishMenu } from './PublishMenu'
 import { useAutosave } from './useAutosave'
 import type { SaveStatus } from './useAutosave'
 
@@ -25,6 +27,7 @@ function SaveIndicator({ status, readonly }: { status: SaveStatus; readonly: boo
 export function EditorScreen() {
   const { collection = '', locale = '', slug = '' } = useParams()
   const { read, authoring, data, git, publish } = useServices()
+  const { deployedAt, sha: deploySha } = useDeploy()
   const can = useCan()
   const ref = useMemo(() => ({ collection, locale, slug }), [collection, locale, slug])
 
@@ -39,11 +42,12 @@ export function EditorScreen() {
   const docRef = useRef<TiptapDoc>(BLANK)
   const metaRef = useRef<Record<string, unknown>>({})
   const baseShaRef = useRef<string | null>(null)
+  const committing = useRef(false)
 
   const refreshLifecycle = useCallback(async () => {
     const d = await data.getDraft(ref)
-    setLifecycle(await lifecycleFor(ref, d, git))
-  }, [data, git, ref])
+    setLifecycle(await lifecycleFor(ref, d, git, deployedAt))
+  }, [data, git, ref, deployedAt])
 
   useEffect(() => {
     let live = true
@@ -70,6 +74,11 @@ export function EditorScreen() {
     }
   }, [ref, read, authoring, refreshLifecycle])
 
+  // When the global Deploy advances the live sha, re-derive so the pill updates.
+  useEffect(() => {
+    void refreshLifecycle()
+  }, [deploySha, refreshLifecycle])
+
   useAutosave({
     enabled: phase === 'ready',
     rev,
@@ -87,20 +96,42 @@ export function EditorScreen() {
     setMetadata(next)
     setRev((r) => r + 1)
   }
-  const onPublish = async () => {
+  const commit = async () => {
+    if (committing.current) return
+    committing.current = true
     setPublishMsg(null)
-    // Save-before-publish: publish reads storage, not the in-memory doc.
-    await authoring.save({ ...ref, content: docRef.current, metadata: metaRef.current, baseSha: baseShaRef.current }, EDITOR_ID)
-    const r = await publish.publish({ ref, author: OWNER_AUTHOR })
-    if (r.status === 'published') {
-      baseShaRef.current = r.sha
-      setPublishMsg('Published · ' + r.sha.slice(0, 7))
-      await refreshLifecycle()
-    } else if (r.status === 'conflict') {
-      setPublishMsg('The published version moved — reload to continue.')
-    } else {
-      setPublishMsg(null)
+    try {
+      // Save-before-publish: publish reads storage, not the in-memory doc. Always
+      // serialize the LATEST metaRef.current (Unpublish/Re-publish mutate it first).
+      await authoring.save({ ...ref, content: docRef.current, metadata: metaRef.current, baseSha: baseShaRef.current }, EDITOR_ID)
+      const r = await publish.publish({ ref, author: OWNER_AUTHOR })
+      if (r.status === 'published') {
+        baseShaRef.current = r.sha
+        setPublishMsg('Published · ' + r.sha.slice(0, 7))
+        await refreshLifecycle()
+      } else if (r.status === 'conflict') {
+        setPublishMsg('The published version moved — reload to continue.')
+      } else {
+        setPublishMsg(null)
+      }
+    } finally {
+      committing.current = false
     }
+  }
+
+  const onPublish = () => void commit()
+  // Non-destructive: flag the draft published:false and commit (content stays in Git).
+  const onUnpublish = () => {
+    metaRef.current = { ...metaRef.current, published: false }
+    setMetadata(metaRef.current)
+    void commit()
+  }
+  const onRepublish = () => {
+    const m = { ...metaRef.current }
+    delete m['published']
+    metaRef.current = m
+    setMetadata(m)
+    void commit()
   }
 
   const title = String(metadata['title'] ?? '')
@@ -124,9 +155,14 @@ export function EditorScreen() {
           {(() => { const { label, pending } = lifecycleLabel(lifecycle); return (
             <span className="ed-status"><StatusPill status={label} />{pending && <span className="status-pending">· {pending}</span>}</span>
           ) })()}
-          {can('content.publish') && phase === 'ready' && (
-            <button type="button" className="btn btn-primary btn-md" onClick={() => void onPublish()}>Publish</button>
-          )}
+          <PublishMenu
+            canPublish={can('content.publish') && phase === 'ready'}
+            canUnpublish={can('content.unpublish') && phase === 'ready'}
+            isUnpublished={metadata['published'] === false}
+            onPublish={onPublish}
+            onUnpublish={onUnpublish}
+            onRepublish={onRepublish}
+          />
           {publishMsg && <span className="publish-msg">{publishMsg}</span>}
         </div>
       </div>

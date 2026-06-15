@@ -1,12 +1,21 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { ActorProvider } from '../src/auth/actor'
+import { ServicesProvider, createServices } from '../src/data/store'
+import { DeployProvider } from '../src/deploy/deploy'
 import { Sidebar } from '../src/shell/Sidebar'
 
 const renderSidebar = () =>
   render(
     <MemoryRouter>
-      <Sidebar />
+      <ActorProvider>
+        <ServicesProvider services={createServices()}>
+          <DeployProvider>
+            <Sidebar />
+          </DeployProvider>
+        </ServicesProvider>
+      </ActorProvider>
     </MemoryRouter>,
   )
 

@@ -3,6 +3,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ActorProvider } from '../src/auth/actor'
 import { ServicesProvider, createServices } from '../src/data/store'
+import { DeployProvider } from '../src/deploy/deploy'
 import { EditorScreen } from '../src/editor/EditorScreen'
 
 function renderEditor(path = '/edit/post/en/release-notes') {
@@ -11,7 +12,9 @@ function renderEditor(path = '/edit/post/en/release-notes') {
     <MemoryRouter initialEntries={[path]}>
       <ActorProvider>
         <ServicesProvider services={services}>
-          <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
+          <DeployProvider>
+            <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
+          </DeployProvider>
         </ServicesProvider>
       </ActorProvider>
     </MemoryRouter>,

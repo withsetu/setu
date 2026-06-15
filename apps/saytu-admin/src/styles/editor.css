@@ -8,6 +8,13 @@
 /* ---- STATUS PENDING ANNOTATION (content list) ---- */
 .status-pending { font-size: 12px; color: var(--text-4); margin-left: 4px; font-weight: 500; }
 
+/* Publish menu (editor top strip) */
+.publish-menu { position: relative; display: inline-flex; align-items: center; gap: 4px; }
+.publish-menu-toggle { padding: 0 8px; min-width: 30px; }
+.publish-menu-list { position: absolute; top: calc(100% + 6px); right: 0; z-index: 60; min-width: 160px; display: flex; flex-direction: column; padding: 5px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-sm); box-shadow: var(--shadow-pop); }
+.publish-menu-item { display: block; width: 100%; text-align: left; padding: 8px 10px; border: none; background: transparent; border-radius: var(--r-xs); font-size: 13px; color: var(--text); cursor: pointer; }
+.publish-menu-item:hover { background: var(--surface-hover); }
+
 /* ---- EDITOR ROOT ---- */
 .editor { display: flex; flex-direction: column; height: 100%; background: var(--canvas); }
 

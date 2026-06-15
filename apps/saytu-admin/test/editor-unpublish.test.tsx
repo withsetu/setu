@@ -27,5 +27,14 @@ describe('EditorScreen unpublish', () => {
       expect(file).not.toBeNull()
       expect(parseMdoc(file as string).frontmatter['published']).toBe(false)
     })
+
+    // Re-publish: flag-based menu now shows Re-publish; committing clears published:false.
+    fireEvent.click(screen.getByRole('button', { name: /more publish actions/i }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /re-publish/i }))
+    await waitFor(async () => {
+      const file = await services.git.readFile(contentPath({ collection: 'post', locale: 'en', slug: 'release-notes' }))
+      expect(file).not.toBeNull()
+      expect(parseMdoc(file as string).frontmatter['published']).not.toBe(false)
+    })
   })
 })

@@ -42,6 +42,7 @@ export function EditorScreen() {
   const docRef = useRef<TiptapDoc>(BLANK)
   const metaRef = useRef<Record<string, unknown>>({})
   const baseShaRef = useRef<string | null>(null)
+  const committing = useRef(false)
 
   const refreshLifecycle = useCallback(async () => {
     const d = await data.getDraft(ref)
@@ -96,19 +97,25 @@ export function EditorScreen() {
     setRev((r) => r + 1)
   }
   const commit = async () => {
+    if (committing.current) return
+    committing.current = true
     setPublishMsg(null)
-    // Save-before-publish: publish reads storage, not the in-memory doc. Always
-    // serialize the LATEST metaRef.current (Unpublish/Re-publish mutate it first).
-    await authoring.save({ ...ref, content: docRef.current, metadata: metaRef.current, baseSha: baseShaRef.current }, EDITOR_ID)
-    const r = await publish.publish({ ref, author: OWNER_AUTHOR })
-    if (r.status === 'published') {
-      baseShaRef.current = r.sha
-      setPublishMsg('Published · ' + r.sha.slice(0, 7))
-      await refreshLifecycle()
-    } else if (r.status === 'conflict') {
-      setPublishMsg('The published version moved — reload to continue.')
-    } else {
-      setPublishMsg(null)
+    try {
+      // Save-before-publish: publish reads storage, not the in-memory doc. Always
+      // serialize the LATEST metaRef.current (Unpublish/Re-publish mutate it first).
+      await authoring.save({ ...ref, content: docRef.current, metadata: metaRef.current, baseSha: baseShaRef.current }, EDITOR_ID)
+      const r = await publish.publish({ ref, author: OWNER_AUTHOR })
+      if (r.status === 'published') {
+        baseShaRef.current = r.sha
+        setPublishMsg('Published · ' + r.sha.slice(0, 7))
+        await refreshLifecycle()
+      } else if (r.status === 'conflict') {
+        setPublishMsg('The published version moved — reload to continue.')
+      } else {
+        setPublishMsg(null)
+      }
+    } finally {
+      committing.current = false
     }
   }
 
@@ -151,7 +158,7 @@ export function EditorScreen() {
           <PublishMenu
             canPublish={can('content.publish') && phase === 'ready'}
             canUnpublish={can('content.unpublish') && phase === 'ready'}
-            isUnpublished={lifecycle.state === 'unpublished'}
+            isUnpublished={metadata['published'] === false}
             onPublish={onPublish}
             onUnpublish={onUnpublish}
             onRepublish={onRepublish}

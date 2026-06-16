@@ -47,4 +47,18 @@ describe('FormatBubbleToolbar', () => {
     expect(screen.getByRole('button', { name: /strikethrough/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^link$/i })).toBeInTheDocument()
   })
+
+  it('reflects active marks in aria-pressed (re-renders on toggle)', () => {
+    let editor!: Editor
+    function H() {
+      const e = useEditor({ immediatelyRender: false, extensions: [sk()], content: docOf('hello') })
+      if (e) editor = e
+      return <>{e && <><EditorContent editor={e} /><FormatBubbleToolbar editor={e} /></>}</>
+    }
+    render(<H />)
+    const boldBtn = screen.getByRole('button', { name: /bold/i })
+    expect(boldBtn).toHaveAttribute('aria-pressed', 'false')
+    act(() => { editor.chain().focus().setTextSelection({ from: 1, to: 6 }).toggleBold().run() })
+    expect(boldBtn).toHaveAttribute('aria-pressed', 'true')
+  })
 })

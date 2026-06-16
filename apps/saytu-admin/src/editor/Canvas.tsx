@@ -13,6 +13,8 @@ import { BlockMenu } from './extensions/BlockMenu'
 import { Callout } from './extensions/Callout'
 import { Passthrough } from './extensions/Passthrough'
 import { SlashCommand } from './extensions/SlashCommand'
+import { LinkTools } from './extensions/LinkTools'
+import { FormatBubble } from './FormatBubble'
 
 export function Canvas({
   initialContent,
@@ -67,13 +69,18 @@ export function Canvas({
     immediatelyRender: false,
     editable,
     extensions: [
-      StarterKit,
+      StarterKit.configure({ link: { openOnClick: false }, underline: false }),
       Placeholder.configure({ placeholder: "Type '/' for commands…" }),
       BlockActions,
       dragHandle,
       Callout,
       Passthrough,
       SlashCommand,
+      LinkTools.configure({
+        onEdit: (ed) => {
+          ed.chain().focus().extendMarkRange('link').run()
+        },
+      }),
     ],
     content: initialContent,
     editorProps: { attributes: { class: 'saytu-prose', 'aria-label': 'Content editor' } },
@@ -81,5 +88,10 @@ export function Canvas({
   })
   editorRef.current = editor
 
-  return <EditorContent editor={editor} />
+  return (
+    <>
+      <EditorContent editor={editor} />
+      {editor && <FormatBubble editor={editor} />}
+    </>
+  )
 }

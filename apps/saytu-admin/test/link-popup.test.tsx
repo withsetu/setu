@@ -1,8 +1,18 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, cleanup, fireEvent } from '@testing-library/react'
 import { LinkPopup } from '../src/editor/LinkPopup'
+import { shouldShowLinkCard } from '../src/editor/extensions/LinkTools'
 
 afterEach(cleanup)
+
+describe('shouldShowLinkCard', () => {
+  it('shows only for an empty selection inside a link with an href', () => {
+    expect(shouldShowLinkCard(true, true, 'https://x.com')).toBe(true)
+    expect(shouldShowLinkCard(false, true, 'https://x.com')).toBe(false) // non-empty selection → format bubble owns it
+    expect(shouldShowLinkCard(true, false, '')).toBe(false) // caret not in a link
+    expect(shouldShowLinkCard(true, true, '')).toBe(false) // no href
+  })
+})
 
 describe('LinkPopup', () => {
   it('renders the href as an Open link to a new tab', () => {

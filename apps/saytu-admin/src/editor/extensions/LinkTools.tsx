@@ -8,6 +8,11 @@ import { LinkPopup } from '../LinkPopup'
 
 export const linkToolsKey = new PluginKey('saytuLinkTools')
 
+/** Whether the caret-triggered link card should show for this state. Pure. */
+export function shouldShowLinkCard(selectionEmpty: boolean, linkActive: boolean, href: string): boolean {
+  return selectionEmpty && linkActive && href.length > 0
+}
+
 interface LinkToolsOptions {
   /** Called when the user picks Edit — select the link range so the format bubble opens. */
   onEdit?: (editor: Editor, href: string) => void
@@ -26,6 +31,7 @@ export const LinkTools = Extension.create<LinkToolsOptions>({
     let popup: TippyInstance | null = null
     let renderer: ReactRenderer | null = null
     let shownFor: HTMLElement | null = null
+    let mode: 'caret' | 'hover' | null = null
 
     const hide = () => {
       popup?.destroy()
@@ -33,12 +39,17 @@ export const LinkTools = Extension.create<LinkToolsOptions>({
       renderer?.destroy()
       renderer = null
       shownFor = null
+      mode = null
     }
 
-    const showFor = (anchor: HTMLElement, href: string) => {
-      if (shownFor === anchor && popup) return
+    const showFor = (anchor: HTMLElement, href: string, m: 'caret' | 'hover') => {
+      if (shownFor === anchor && popup) {
+        mode = m
+        return
+      }
       hide()
       shownFor = anchor
+      mode = m
       renderer = new ReactRenderer(LinkPopup, {
         editor,
         props: {
@@ -71,12 +82,19 @@ export const LinkTools = Extension.create<LinkToolsOptions>({
         props: {
           handleDOMEvents: {
             mouseover(_view, event) {
-              const target = event.target as HTMLElement | null
-              const a = target?.closest('a')
+              const a = (event.target as HTMLElement | null)?.closest('a')
               if (a instanceof HTMLAnchorElement) {
-                const href = a.getAttribute('href') ?? a.href
-                if (href) showFor(a, href)
+                const href = a.getAttribute('href') ?? ''
+                if (href) showFor(a, href, 'hover')
               }
+              return false
+            },
+            mouseout(_view, event) {
+              if (mode !== 'hover') return false
+              const to = event.relatedTarget as Node | null
+              if (to instanceof HTMLElement && to.closest('a')) return false
+              if (popup && to && popup.popper.contains(to)) return false
+              hide()
               return false
             },
           },
@@ -85,14 +103,19 @@ export const LinkTools = Extension.create<LinkToolsOptions>({
           return {
             update() {
               const { state } = editor
-              if (!state.selection.empty || !editor.isActive('link')) return
               const href = (editor.getAttributes('link').href as string | undefined) ?? ''
-              if (!href) return
+              if (!shouldShowLinkCard(state.selection.empty, editor.isActive('link'), href)) {
+                if (mode === 'caret') hide()
+                return
+              }
               const domAt = editor.view.domAtPos(state.selection.from)
               const node = domAt.node
               const el = node instanceof HTMLElement ? node : node.parentElement
               const a = el?.closest('a')
-              if (a instanceof HTMLAnchorElement) showFor(a, href)
+              if (a instanceof HTMLAnchorElement) showFor(a, href, 'caret')
+            },
+            destroy() {
+              hide()
             },
           }
         },

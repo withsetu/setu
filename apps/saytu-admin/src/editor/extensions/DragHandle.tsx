@@ -48,6 +48,27 @@ function blockIndexAtY(view: EditorView, clientY: number): number | null {
   return best
 }
 
+/** Reorder: move the dragged block (`fromIndex`) to wherever `clientY` points.
+ *  Derives the target purely from the pointer Y + the blocks' rects, so a drop
+ *  anywhere on the page (the gutter, not just over content) reorders correctly. */
+function performBlockDrop(view: EditorView, fromIndex: number, clientY: number): void {
+  const tops: number[] = []
+  let pos = 0
+  let height = 20
+  for (let i = 0; i < view.state.doc.childCount; i += 1) {
+    const dom = view.nodeDOM(pos)
+    if (dom instanceof HTMLElement) {
+      const r = dom.getBoundingClientRect()
+      tops.push(r.top)
+      height = r.height || height
+    }
+    pos += view.state.doc.child(i).nodeSize
+  }
+  const toIndex = dropToIndex(tops, height, clientY, fromIndex)
+  const tr = view.state.tr
+  if (moveBlock(view.state.doc, tr, fromIndex, toIndex)) view.dispatch(tr)
+}
+
 interface DragHandleOptions {
   onMenu?: (view: EditorView, index: number, anchor: HTMLElement) => void
 }
@@ -78,7 +99,16 @@ export const DragHandle = Extension.create<DragHandleOptions>({
           grip.textContent = '⋮⋮'
           grip.style.position = 'absolute'
           grip.style.display = 'none'
-          view.dom.parentElement?.appendChild(grip)
+          // The grip is absolutely positioned and `mousemove` sets its `top`
+          // relative to this mount parent's rect — so the mount parent must BE the
+          // offset parent. Tiptap's EditorContent wrapper is `position: static` by
+          // default, which would make the grip resolve against `.ed-canvas` instead
+          // and render ~100px too high. Force it relative.
+          const mount = view.dom.parentElement
+          if (mount) {
+            mount.style.position = 'relative'
+            mount.appendChild(grip)
+          }
 
           const openMenu = () => {
             if (hoverIndex === null || grip === null || options.onMenu === undefined) return
@@ -98,8 +128,30 @@ export const DragHandle = Extension.create<DragHandleOptions>({
           })
           grip.addEventListener('dragstart', (e) => {
             if (hoverIndex === null) return
-            e.dataTransfer?.setData('application/x-saytu-block', String(hoverIndex))
+            const fromIndex = hoverIndex
+            e.dataTransfer?.setData('application/x-saytu-block', String(fromIndex))
             if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
+            // Handle the drop at the document level (capture phase) so releasing the
+            // grip anywhere — the empty gutter included, not just over content —
+            // reorders, and so ProseMirror's own drop handling never runs.
+            const onDragOver = (ev: DragEvent) => {
+              ev.preventDefault()
+              if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move'
+            }
+            const cleanup = () => {
+              document.removeEventListener('dragover', onDragOver, true)
+              document.removeEventListener('drop', onDrop, true)
+              document.removeEventListener('dragend', cleanup, true)
+            }
+            const onDrop = (ev: DragEvent) => {
+              ev.preventDefault()
+              ev.stopPropagation()
+              performBlockDrop(view, fromIndex, ev.clientY)
+              cleanup()
+            }
+            document.addEventListener('dragover', onDragOver, true)
+            document.addEventListener('drop', onDrop, true)
+            document.addEventListener('dragend', cleanup, true)
           })
 
           return {
@@ -122,37 +174,25 @@ export const DragHandle = Extension.create<DragHandleOptions>({
               let pos = 0
               for (let i = 0; i < index; i += 1) pos += view.state.doc.child(i).nodeSize
               const dom = view.nodeDOM(pos)
-              const parent = view.dom.parentElement
-              if (dom instanceof HTMLElement && parent) {
-                const r = dom.getBoundingClientRect()
-                const pr = parent.getBoundingClientRect()
+              if (dom instanceof HTMLElement) {
                 grip.style.display = 'flex'
-                grip.style.top = `${r.top - pr.top}px`
+                // Measure against the grip's ACTUAL offset parent (whichever
+                // ancestor is positioned) rather than assuming it's the editor
+                // wrapper — keeps the grip aligned to the block regardless of the
+                // surrounding layout. offsetParent is only valid once visible.
+                const opTop = (grip.offsetParent as HTMLElement | null)?.getBoundingClientRect().top ?? 0
+                // Center the grip on the block's first text line (using the block's
+                // own line-height + top padding) so it aligns with the text rather
+                // than the block's very top edge.
+                const cs = getComputedStyle(dom)
+                const padTop = parseFloat(cs.paddingTop) || 0
+                const lineH = parseFloat(cs.lineHeight) || dom.getBoundingClientRect().height
+                const gripH = grip.offsetHeight || 24
+                const top = dom.getBoundingClientRect().top - opTop + padTop + lineH / 2 - gripH / 2
+                grip.style.top = `${top}px`
                 grip.style.left = '0px'
               }
               return false
-            },
-            drop(view, event) {
-              const raw = event.dataTransfer?.getData('application/x-saytu-block')
-              if (raw === undefined || raw === '') return false
-              const fromIndex = Number(raw)
-              const tops: number[] = []
-              let pos = 0
-              let height = 20
-              for (let i = 0; i < view.state.doc.childCount; i += 1) {
-                const dom = view.nodeDOM(pos)
-                if (dom instanceof HTMLElement) {
-                  const r = dom.getBoundingClientRect()
-                  tops.push(r.top)
-                  height = r.height || height
-                }
-                pos += view.state.doc.child(i).nodeSize
-              }
-              const toIndex = dropToIndex(tops, height, event.clientY, fromIndex)
-              event.preventDefault()
-              const tr = view.state.tr
-              if (moveBlock(view.state.doc, tr, fromIndex, toIndex)) view.dispatch(tr)
-              return true
             },
           },
         },

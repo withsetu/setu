@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { Extension } from '@tiptap/core'
 import type { Editor, Range } from '@tiptap/core'
 import { ReactRenderer } from '@tiptap/react'
@@ -17,6 +17,12 @@ export interface CommandListHandle {
 export const CommandList = forwardRef<CommandListHandle, SuggestionProps<SlashBlock>>((props, ref) => {
   const [selected, setSelected] = useState(0)
   useEffect(() => setSelected(0), [props.items])
+
+  // Keep the highlighted item scrolled into view as the user arrows through.
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
+  useEffect(() => {
+    itemRefs.current[selected]?.scrollIntoView({ block: 'nearest' })
+  }, [selected])
 
   const pick = (index: number) => {
     const item = props.items[index]
@@ -49,6 +55,9 @@ export const CommandList = forwardRef<CommandListHandle, SuggestionProps<SlashBl
         {props.items.map((item, index) => (
           <button
             key={item.title}
+            ref={(el) => {
+              itemRefs.current[index] = el
+            }}
             type="button"
             role="option"
             aria-selected={index === selected}

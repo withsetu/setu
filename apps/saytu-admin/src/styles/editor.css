@@ -111,8 +111,13 @@
 .saytu-prose h1 { font-size: 31px; line-height: 1.25; font-weight: 700; letter-spacing: -.02em; margin: 30px 0 8px; color: var(--text); }
 .saytu-prose h2 { font-size: 25px; line-height: 1.3; font-weight: 700; letter-spacing: -.018em; margin: 28px 0 6px; color: var(--text); }
 .saytu-prose h3 { font-size: 20px; line-height: 1.35; font-weight: 650; letter-spacing: -.01em; margin: 20px 0 4px; color: var(--text); }
-.saytu-prose ul, .saytu-prose ol { margin: 6px 0; padding-left: 26px; }
-.saytu-prose li { font-size: 19px; line-height: 1.7; padding: 2px 0; color: var(--text); }
+.saytu-prose ul { list-style: disc; margin: 6px 0; padding-left: 26px; }
+.saytu-prose ol { list-style: decimal; margin: 6px 0; padding-left: 26px; }
+.saytu-prose li { font-size: 19px; line-height: 1.7; padding: 1px 0; color: var(--text); }
+/* ProseMirror wraps each item's text in a <p>; zero its padding so list items
+ *  aren't spaced apart by the paragraph rule above. */
+.saytu-prose li > p { margin: 0; padding: 0; }
+.saytu-prose li::marker { color: var(--text-4); }
 .saytu-prose blockquote { font-size: 22px; line-height: 1.55; font-style: italic; color: var(--text); padding: 4px 0 4px 22px; border-left: 3px solid var(--accent); margin: 8px 0; }
 .saytu-prose pre { background: var(--bg-sunken); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 14px 16px; font-size: 14px; line-height: 1.6; color: var(--text); white-space: pre-wrap; font-family: var(--font-mono); margin: 10px 0; }
 .saytu-prose code { font-family: var(--font-mono); font-size: .9em; }

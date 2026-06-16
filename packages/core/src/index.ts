@@ -36,7 +36,7 @@ export type { GitAuthor, CommitInput, CommitResult } from './git/types'
 export type { GitPort } from './git/git-port'
 
 export type { PublishInput, PublishDeps, PublishResult, PublishService } from './publish/types'
-export { contentPath } from './publish/content-path'
+export { contentPath, parseContentPath } from './publish/content-path'
 export { createPublishService } from './publish/publish-service'
 
 export type { LoadResult, ReadDeps, ReadService } from './read/types'
@@ -50,3 +50,6 @@ export { createAuthz, DEFAULT_ROLES } from './authz/authz'
 
 export type { LifecycleState, LifecyclePending, Lifecycle } from './lifecycle/derive'
 export { deriveLifecycle } from './lifecycle/derive'
+
+export type { ContentRow, ListContentEntriesInput } from './content-index/list-entries'
+export { listContentEntries } from './content-index/list-entries'

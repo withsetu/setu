@@ -84,5 +84,11 @@ export function createLocalGitAdapter(options: LocalGitOptions): GitPort {
         }
       })
     },
+    async list(prefix?: string) {
+      const oid = await headSha()
+      if (oid === null) return []
+      const all = await git.listFiles({ fs, dir, ref: 'HEAD' })
+      return prefix === undefined ? all : all.filter((p) => p.startsWith(prefix))
+    },
   }
 }

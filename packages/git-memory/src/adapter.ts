@@ -50,5 +50,9 @@ export function createMemoryGitPort(seed: GitSeedFile[] = []): GitPort {
     async commitFile(input: CommitInput): Promise<CommitResult> {
       return { sha: apply(input.path, input.content) }
     },
+    async list(prefix?: string) {
+      const all = [...files.keys()]
+      return prefix === undefined ? all : all.filter((p) => p.startsWith(prefix))
+    },
   }
 }

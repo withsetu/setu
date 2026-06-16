@@ -70,6 +70,10 @@ function fakeGit(): GitPort {
       head = `gitsha${++counter}`
       return { sha: head }
     },
+    async list(prefix?: string) {
+      const all = [...files.keys()]
+      return prefix === undefined ? all : all.filter((p) => p.startsWith(prefix))
+    },
   }
 }
 

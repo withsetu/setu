@@ -6,6 +6,9 @@ import type { DataPort, DraftInput, TiptapDoc } from '@saytu/core'
 import { DataProvider } from '../src/data/store'
 import { DeployProvider } from '../src/deploy/deploy'
 import { ContentList } from '../src/screens/ContentList'
+import { serializeMdoc } from '@saytu/core'
+import { createMemoryGitPort } from '@saytu/git-memory'
+import { ServicesProvider, servicesFor } from '../src/data/store'
 
 const doc = (t: string): TiptapDoc => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] })
 const seed: DraftInput[] = [
@@ -53,5 +56,36 @@ describe('ContentList', () => {
   it('shows an empty state when the collection has no drafts', async () => {
     renderList(createMemoryDataPort([]), 'post', 'Posts')
     expect(await screen.findByText(/no posts yet/i)).toBeInTheDocument()
+  })
+})
+
+describe('ContentList — Git-only (published, no draft) entries', () => {
+  const ghostMdoc = serializeMdoc({ frontmatter: { title: 'Ghost Post' }, body: 'Still here.' })
+
+  const renderWithGit = () => {
+    const git = createMemoryGitPort([{ path: 'content/post/en/ghost.mdoc', content: ghostMdoc }])
+    const services = servicesFor(createMemoryDataPort([]), git)
+    return render(
+      <MemoryRouter>
+        <ServicesProvider services={services}>
+          <DeployProvider>
+            <ContentList collection="post" title="Posts" />
+          </DeployProvider>
+        </ServicesProvider>
+      </MemoryRouter>,
+    )
+  }
+
+  it('lists a committed entry that has no draft, with a Staged pill and a dash for Updated', async () => {
+    renderWithGit()
+    expect(await screen.findByText('Ghost Post')).toBeInTheDocument()
+    expect(screen.getByText('Staged', { selector: '.badge' })).toBeInTheDocument()
+    expect(screen.getByText('—')).toBeInTheDocument()
+  })
+
+  it('links a Git-only entry to its editor route (fork-on-open)', async () => {
+    renderWithGit()
+    const link = await screen.findByRole('link', { name: 'Ghost Post' })
+    expect(link).toHaveAttribute('href', '/edit/post/en/ghost')
   })
 })

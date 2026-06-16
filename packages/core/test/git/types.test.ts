@@ -13,6 +13,7 @@ describe('GitPort types', () => {
       headSha: async () => null,
       readFile: async () => null,
       commitFile: async () => ({ sha: 'deadbeef' }),
+      list: async () => [],
     }
     expect(await stub.headSha()).toBeNull()
     expect(await stub.commitFile({ path: 'a.mdoc', content: 'x', message: 'm', author: { name: 'E', email: 'e@x.com' } })).toEqual({ sha: 'deadbeef' })

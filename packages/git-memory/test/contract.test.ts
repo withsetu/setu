@@ -11,4 +11,12 @@ describe('createMemoryGitPort seed', () => {
     expect(await git.readFile('content/post/en/hello.mdoc')).toBe('# Hello\n')
     expect(await git.readFile('missing.mdoc')).toBeNull()
   })
+
+  it('lists seeded files (filtered by prefix)', async () => {
+    const git = createMemoryGitPort([
+      { path: 'content/post/en/hello.mdoc', content: '# Hello\n' },
+      { path: 'saytu.config.ts', content: 'export default {}' },
+    ])
+    expect(await git.list('content/')).toEqual(['content/post/en/hello.mdoc'])
+  })
 })

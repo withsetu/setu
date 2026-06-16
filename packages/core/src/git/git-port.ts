@@ -10,4 +10,7 @@ export interface GitPort {
   readFile(path: string): Promise<string | null>
   /** Write `path` and commit it; returns the new HEAD commit sha. */
   commitFile(input: CommitInput): Promise<CommitResult>
+  /** Repo-relative paths of all files at HEAD, filtered to those under `prefix`
+   *  (default: all). Empty when the repo has no commits. Order is not guaranteed. */
+  list(prefix?: string): Promise<string[]>
 }

@@ -36,12 +36,15 @@ export async function createIdbGitPort(dbName = 'saytu-git'): Promise<GitPort> {
       return ((await db.get('files', path)) as string | undefined) ?? null
     },
     async commitFile(input: CommitInput): Promise<CommitResult> {
-      const counter = (((await db.get('meta', 'counter')) as number | undefined) ?? 0) + 1
-      const prevHead = ((await db.get('meta', 'head')) as string | undefined) ?? ''
+      const tx = db.transaction(['files', 'meta'], 'readwrite')
+      const meta = tx.objectStore('meta')
+      const counter = (((await meta.get('counter')) as number | undefined) ?? 0) + 1
+      const prevHead = ((await meta.get('head')) as string | undefined) ?? ''
       const sha = sha40(`${counter}\0${prevHead}\0${input.path}\0${input.content}`)
-      await db.put('files', input.content, input.path)
-      await db.put('meta', counter, 'counter')
-      await db.put('meta', sha, 'head')
+      await tx.objectStore('files').put(input.content, input.path)
+      await meta.put(counter, 'counter')
+      await meta.put(sha, 'head')
+      await tx.done
       return { sha }
     },
     async list(prefix?: string) {

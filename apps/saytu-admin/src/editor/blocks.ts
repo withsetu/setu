@@ -2,6 +2,7 @@ import type { Editor, Range } from '@tiptap/core'
 import { isIconName } from '../ui/Icon'
 import type { IconName } from '../ui/Icon'
 import { defaultConfig, resolveConfig } from '@saytu/core'
+import { BLOCK_TYPES } from './block-types'
 
 export interface SlashBlock {
   title: string
@@ -10,14 +11,24 @@ export interface SlashBlock {
   run: (editor: Editor, range: Range) => void
 }
 
+const SUBTITLES: Record<string, string> = {
+  paragraph: 'Plain paragraph',
+  h2: 'Large section heading',
+  h3: 'Medium section heading',
+  h4: 'Small section heading',
+  bulletList: 'Simple bulleted list',
+  orderedList: 'Ordered list',
+  blockquote: 'Block quote',
+  codeBlock: 'Code block',
+}
+
 const BUILTINS: SlashBlock[] = [
-  { title: 'Text', subtitle: 'Plain paragraph', icon: 'post', run: (e, r) => e.chain().focus().deleteRange(r).setNode('paragraph').run() },
-  { title: 'Heading 1', subtitle: 'Large section heading', icon: 'pages', run: (e, r) => e.chain().focus().deleteRange(r).setNode('heading', { level: 1 }).run() },
-  { title: 'Heading 2', subtitle: 'Medium section heading', icon: 'pages', run: (e, r) => e.chain().focus().deleteRange(r).setNode('heading', { level: 2 }).run() },
-  { title: 'Bullet list', subtitle: 'Simple bulleted list', icon: 'forms', run: (e, r) => e.chain().focus().deleteRange(r).toggleBulletList().run() },
-  { title: 'Numbered list', subtitle: 'Ordered list', icon: 'forms', run: (e, r) => e.chain().focus().deleteRange(r).toggleOrderedList().run() },
-  { title: 'Quote', subtitle: 'Block quote', icon: 'post', run: (e, r) => e.chain().focus().deleteRange(r).toggleBlockquote().run() },
-  { title: 'Code', subtitle: 'Code block', icon: 'settings', run: (e, r) => e.chain().focus().deleteRange(r).toggleCodeBlock().run() },
+  ...BLOCK_TYPES.map((b) => ({
+    title: b.label,
+    subtitle: SUBTITLES[b.id] ?? b.label,
+    icon: b.icon,
+    run: (e: Editor, r: Range) => b.setOn(e.chain().focus().deleteRange(r)).run(),
+  })),
   { title: 'Divider', subtitle: 'Horizontal rule', icon: 'settings', run: (e, r) => e.chain().focus().deleteRange(r).setHorizontalRule().run() },
 ]
 

@@ -8,7 +8,7 @@ import { slashBlocks } from '../src/editor/blocks'
 describe('slashBlocks', () => {
   it('includes the built-ins and the config Callout block', () => {
     const titles = slashBlocks().map((b) => b.title)
-    expect(titles).toContain('Heading 1')
+    expect(titles).toContain('Heading 2')
     expect(titles).toContain('Callout')
   })
 

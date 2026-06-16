@@ -1,4 +1,5 @@
 import { Node, mergeAttributes } from '@tiptap/core'
+import type { Editor } from '@tiptap/core'
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { Icon } from '../../ui/Icon'
@@ -6,7 +7,29 @@ import type { IconName } from '../../ui/Icon'
 import { isIconName } from '../../ui/Icon'
 import { calloutVariants, variantFor, CALLOUT_ICONS } from '../callout-variants'
 
-function CalloutView({ node, updateAttributes }: ReactNodeViewProps) {
+/** If the caret sits at the very start of a callout's body, move keyboard focus
+ *  to that callout's title `<input>`. Returns true when it handled the key (so the
+ *  caller can preventDefault and stop ProseMirror from acting on the arrow). */
+function focusTitleAtBodyStart(editor: Editor): boolean {
+  const sel = editor.state.selection
+  if (!sel.empty || sel.$from.parentOffset !== 0) return false
+  // Walk up to the enclosing callout node and its document position.
+  for (let depth = sel.$from.depth; depth >= 0; depth--) {
+    const ancestor = sel.$from.node(depth)
+    if (ancestor.type.name !== 'callout') continue
+    const calloutPos = sel.$from.before(depth)
+    // Caret must be in the callout's first child (body start).
+    if (sel.from > calloutPos + 2) return false
+    const dom = editor.view.nodeDOM(calloutPos)
+    const input = dom instanceof HTMLElement ? dom.querySelector<HTMLInputElement>('.callout-title') : null
+    if (!input) return false
+    input.focus()
+    return true
+  }
+  return false
+}
+
+function CalloutView({ node, updateAttributes, editor, getPos }: ReactNodeViewProps) {
   const mdAttrs = (node.attrs.mdAttrs ?? {}) as Record<string, unknown>
   const type = String(mdAttrs['type'] ?? 'info')
   const title = String(mdAttrs['title'] ?? '')
@@ -60,7 +83,19 @@ function CalloutView({ node, updateAttributes }: ReactNodeViewProps) {
           placeholder="Add a title…"
           value={title}
           onChange={(e) => setAttrs({ title: e.target.value })}
-          onKeyDown={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowDown' || e.key === 'Enter') {
+              e.preventDefault()
+              const pos = getPos()
+              if (typeof pos === 'number') {
+                editor.chain().setTextSelection(pos + 2).run()
+                // focus synchronously: chain().focus() defers via rAF, which would leave the caret unplaced this tick
+                editor.view.focus()
+              }
+              return
+            }
+            e.stopPropagation()
+          }}
         />
       </div>
       <NodeViewContent className="callout-body" />
@@ -85,6 +120,12 @@ export const Callout = Node.create({
         renderHTML: () => ({}),
         parseHTML: () => ({}),
       },
+    }
+  },
+  addKeyboardShortcuts() {
+    return {
+      // ArrowUp at the very start of a callout body lifts focus to its title input.
+      ArrowUp: () => focusTitleAtBodyStart(this.editor),
     }
   },
   parseHTML() {

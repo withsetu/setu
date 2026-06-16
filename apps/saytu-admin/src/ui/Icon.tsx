@@ -21,6 +21,7 @@ const ICONS = {
   panelRight: '<rect x="3" y="3" width="18" height="18" rx="2.4"/><path d="M15 3v18"/>',
   dots: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
   chevDown: '<path d="m6 9 6 6 6-6"/>',
+  chevUp: '<path d="m6 15 6-6 6 6"/>',
   chevRight: '<path d="m9 6 6 6-6 6"/>',
   chevLeft: '<path d="m15 6-6 6 6 6"/>',
   collapse: '<path d="m11 17-5-5 5-5M18 17l-5-5 5-5"/>',

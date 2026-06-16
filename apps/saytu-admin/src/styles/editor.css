@@ -295,3 +295,24 @@
   border: 1px solid var(--border-strong); border-radius: var(--r-sm); cursor: pointer; opacity: 0.6;
 }
 .dev-reset:hover { opacity: 1; }
+
+/* Shortcut tooltips (scoped tippy theme) */
+.tippy-box[data-theme~='saytu'] {
+  background: var(--text); color: var(--canvas);
+  font-family: var(--font-ui); font-size: 12px; font-weight: 550;
+  padding: 1px 2px; border-radius: var(--r-sm, 6px);
+}
+.tippy-box[data-theme~='saytu'] .tippy-content { padding: 4px 8px; }
+
+/* Shortcuts cheat-sheet dialog */
+.sc-backdrop { position: fixed; inset: 0; z-index: 300; display: grid; place-items: center; background: color-mix(in oklch, var(--bg) 60%, transparent); }
+.sc-dialog { width: min(440px, 92vw); max-height: 80vh; overflow-y: auto; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); box-shadow: var(--shadow-pop); padding: 18px 20px 20px; font-family: var(--font-ui); }
+.sc-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.sc-title { font-size: 16px; font-weight: 700; color: var(--text); margin: 0; }
+.sc-close { display: grid; place-items: center; width: 28px; height: 28px; border: none; background: transparent; color: var(--text-3); border-radius: var(--r-sm); cursor: pointer; }
+.sc-close:hover { background: var(--surface-2, #f1f3f5); color: var(--text); }
+.sc-group { margin-top: 14px; }
+.sc-group-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-4); margin: 0 0 6px; }
+.sc-row { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; }
+.sc-label { font-size: 14px; color: var(--text); }
+.sc-keys { font-family: var(--font-ui); font-size: 12.5px; color: var(--text-2); background: var(--surface-2, #f1f3f5); border: 1px solid var(--border); border-radius: var(--r-sm, 6px); padding: 2px 7px; }

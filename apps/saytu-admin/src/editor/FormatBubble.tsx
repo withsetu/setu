@@ -6,6 +6,9 @@ import { useEffect, useState } from 'react'
 import { Icon } from '../ui/Icon'
 import type { IconName } from '../ui/Icon'
 import { LinkInput } from './LinkInput'
+import { Tooltip } from './Tooltip'
+import { SHORTCUTS, formatKeys, ariaKeyshortcuts, detectMac } from './shortcuts'
+import { onRequestLinkEdit } from './editor-events'
 
 interface MarkBtn {
   name: string
@@ -48,10 +51,22 @@ export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
     }),
   }) ?? { bold: false, italic: false, code: false, strike: false, link: false, from: 0, to: 0 }
 
+  const mac = detectMac()
+  const shortcutFor = (id: string) => SHORTCUTS.find((s) => s.id === id)
+  const tipFor = (id: string, fallback: string) => {
+    const s = shortcutFor(id)
+    return s ? `${s.label}  ${formatKeys(s.keys, mac)}` : fallback
+  }
+  const ariaFor = (id: string) => {
+    const s = shortcutFor(id)
+    return s ? ariaKeyshortcuts(s.keys) : undefined
+  }
+
   const [linking, setLinking] = useState(false)
   useEffect(() => {
     setLinking(false)
   }, [active.from, active.to])
+  useEffect(() => onRequestLinkEdit(() => setLinking(true)), [])
   const currentHref = (editor.getAttributes('link').href as string | undefined) ?? ''
 
   if (linking) {
@@ -79,28 +94,33 @@ export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
   return (
     <div className="fmt-bubble" role="toolbar" aria-label="Text formatting">
       {MARKS.map((m) => (
-        <button
-          key={m.name}
-          type="button"
-          className={`fmt-btn${active[m.name as keyof typeof active] ? ' on' : ''}`}
-          aria-label={m.label}
-          aria-pressed={!!active[m.name as keyof typeof active]}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => m.toggle(editor)}
-        >
-          <Icon name={m.icon} size={16} />
-        </button>
+        <Tooltip key={m.name} content={tipFor(m.name, m.label)}>
+          <button
+            type="button"
+            className={`fmt-btn${active[m.name as keyof typeof active] ? ' on' : ''}`}
+            aria-label={m.label}
+            aria-keyshortcuts={ariaFor(m.name)}
+            aria-pressed={!!active[m.name as keyof typeof active]}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => m.toggle(editor)}
+          >
+            <Icon name={m.icon} size={16} />
+          </button>
+        </Tooltip>
       ))}
-      <button
-        type="button"
-        className={`fmt-btn${active.link ? ' on' : ''}`}
-        aria-label="Link"
-        aria-pressed={active.link}
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={() => setLinking(true)}
-      >
-        <Icon name="link" size={16} />
-      </button>
+      <Tooltip content={tipFor('link', 'Link')}>
+        <button
+          type="button"
+          className={`fmt-btn${active.link ? ' on' : ''}`}
+          aria-label="Link"
+          aria-keyshortcuts={ariaFor('link')}
+          aria-pressed={active.link}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => setLinking(true)}
+        >
+          <Icon name="link" size={16} />
+        </button>
+      </Tooltip>
     </div>
   )
 }

@@ -13,6 +13,7 @@ import { BlockMenu } from './extensions/BlockMenu'
 import { Callout } from './extensions/Callout'
 import { Passthrough } from './extensions/Passthrough'
 import { SlashCommand } from './extensions/SlashCommand'
+import { KeyboardShortcuts } from './extensions/KeyboardShortcuts'
 import { LinkTools } from './extensions/LinkTools'
 import { FormatBubble } from './FormatBubble'
 
@@ -72,6 +73,7 @@ export function Canvas({
       StarterKit.configure({ link: { openOnClick: false }, underline: false }),
       Placeholder.configure({ placeholder: "Type '/' for commands…" }),
       BlockActions,
+      KeyboardShortcuts,
       dragHandle,
       Callout,
       Passthrough,

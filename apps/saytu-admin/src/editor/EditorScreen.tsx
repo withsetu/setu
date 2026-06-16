@@ -11,8 +11,10 @@ import { StatusPill } from '../ui/StatusPill'
 import { Canvas } from './Canvas'
 import { MetaPanel } from './MetaPanel'
 import { PublishMenu } from './PublishMenu'
+import { ShortcutsDialog } from './ShortcutsDialog'
 import { useAutosave } from './useAutosave'
 import type { SaveStatus } from './useAutosave'
+import { onRequestShortcuts } from './editor-events'
 
 const EDITOR_ID = 'local'
 const BLANK: TiptapDoc = { type: 'doc', content: [{ type: 'paragraph' }] }
@@ -38,6 +40,9 @@ export function EditorScreen() {
   const [rev, setRev] = useState(0)
   const [lifecycle, setLifecycle] = useState<Lifecycle>({ state: 'draft' })
   const [publishMsg, setPublishMsg] = useState<string | null>(null)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+
+  useEffect(() => onRequestShortcuts(() => setShortcutsOpen(true)), [])
 
   const docRef = useRef<TiptapDoc>(BLANK)
   const metaRef = useRef<Record<string, unknown>>({})
@@ -155,6 +160,14 @@ export function EditorScreen() {
           {(() => { const { label, pending } = lifecycleLabel(lifecycle); return (
             <span className="ed-status"><StatusPill status={label} />{pending && <span className="status-pending">· {pending}</span>}</span>
           ) })()}
+          <button
+            type="button"
+            className="strip-btn btn-icononly"
+            aria-label="Keyboard shortcuts"
+            onClick={() => setShortcutsOpen(true)}
+          >
+            <Icon name="keyboard" size={18} />
+          </button>
           <PublishMenu
             canPublish={can('content.publish') && phase === 'ready'}
             canUnpublish={can('content.unpublish') && phase === 'ready'}
@@ -185,6 +198,7 @@ export function EditorScreen() {
         </div>
         <MetaPanel metadata={metadata} locale={locale} slug={slug} editable={phase === 'ready'} onChange={onMetaChange} />
       </div>
+      {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
     </div>
   )
 }

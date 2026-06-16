@@ -198,3 +198,90 @@
 .blk-menu-item.sel,
 .blk-menu-item:hover:not(:disabled) { background: var(--surface-2, #f1f3f5); }
 .blk-menu-item:disabled { opacity: 0.4; cursor: default; }
+
+/* Selection format bubble */
+.fmt-bubble {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-pop);
+  font-family: var(--font-ui);
+}
+.fmt-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  border-radius: var(--r-sm, 6px);
+  cursor: pointer;
+}
+.fmt-btn:hover { background: var(--surface-2, #f1f3f5); }
+.fmt-btn.on { background: var(--accent-soft); color: var(--accent); }
+
+/* Inline link URL input (in the bubble) */
+.link-input { display: flex; align-items: center; gap: 6px; padding: 2px; }
+.link-input-field {
+  width: 240px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  padding: 4px 6px;
+}
+.link-input-apply, .link-input-remove {
+  border: none;
+  background: var(--surface-2, #f1f3f5);
+  color: var(--text);
+  border-radius: var(--r-sm, 6px);
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* Link card (caret-in-link / hover) */
+.link-card {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 360px;
+  padding: 5px 8px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-pop);
+  font-family: var(--font-ui);
+}
+.link-card-open {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 13px;
+}
+.link-card-url { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 240px; }
+.link-card-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  border-radius: var(--r-sm, 6px);
+  cursor: pointer;
+}
+.link-card-btn:hover { background: var(--surface-2, #f1f3f5); }

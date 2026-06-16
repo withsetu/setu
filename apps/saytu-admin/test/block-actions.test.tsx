@@ -6,6 +6,7 @@ import type { Editor } from '@tiptap/core'
 import { tiptapToMarkdoc } from '@saytu/core'
 import type { TiptapDoc } from '@saytu/core'
 import { BlockActions } from '../src/editor/extensions/BlockActions'
+import { Callout } from '../src/editor/extensions/Callout'
 
 afterEach(cleanup)
 
@@ -34,6 +35,21 @@ function caretInBlock(editor: Editor, index: number) {
 const texts = (editor: Editor): string[] => {
   const json = editor.getJSON() as { content: Array<{ content?: Array<{ text?: string }> }> }
   return json.content.map((n) => n.content?.[0]?.text ?? '')
+}
+
+function CalloutHarness({ onReady }: { onReady: (e: Editor) => void }) {
+  const editor = useEditor({
+    immediatelyRender: false,
+    extensions: [StarterKit, BlockActions, Callout],
+    content: {
+      type: 'doc',
+      content: [
+        { type: 'callout', attrs: { mdAttrs: { type: 'warning', title: 'Heads up' } }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'body' }] }] },
+      ],
+    },
+  })
+  if (editor) onReady(editor)
+  return <EditorContent editor={editor} />
 }
 
 describe('BlockActions', () => {
@@ -79,5 +95,28 @@ describe('BlockActions', () => {
     expect(json.content).toHaveLength(1)
     expect(json.content[0]?.type).toBe('paragraph')
     expect(json.content[0]?.content ?? []).toHaveLength(0)
+  })
+
+  it('keeps the caret inside the moved block after moveBlockDown', () => {
+    let editor!: Editor
+    render(<Harness texts={['A', 'B', 'C']} onReady={(e) => (editor = e)} />)
+    caretInBlock(editor, 0) // caret in 'A'
+    act(() => { editor.commands.moveBlockDown() })
+    // 'A' is now at index 1; the selection should sit inside that moved block
+    expect(editor.state.selection.$from.node(1).textContent).toBe('A')
+  })
+
+  it('duplicateBlock preserves a callout’s mdAttrs and nested content', () => {
+    let editor!: Editor
+    render(<CalloutHarness onReady={(e) => (editor = e)} />)
+    act(() => {
+      editor.commands.setTextSelection(2) // caret inside the callout body
+      editor.commands.duplicateBlock()
+    })
+    const json = editor.getJSON() as { content: Array<{ type: string; attrs?: { mdAttrs?: Record<string, unknown> } }> }
+    const callouts = json.content.filter((n) => n.type === 'callout')
+    expect(callouts).toHaveLength(2)
+    expect(callouts[0]?.attrs?.mdAttrs).toEqual({ type: 'warning', title: 'Heads up' })
+    expect(callouts[1]?.attrs?.mdAttrs).toEqual({ type: 'warning', title: 'Heads up' })
   })
 })

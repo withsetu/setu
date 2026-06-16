@@ -43,4 +43,16 @@ describe('BlockMenu', () => {
     fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
     expect(onClose).toHaveBeenCalledOnce()
   })
+
+  it('runs the active item on Enter after arrow navigation', () => {
+    const a = actions()
+    const onClose = vi.fn()
+    render(<BlockMenu actions={a} canMoveUp canMoveDown onClose={onClose} />)
+    const menu = screen.getByRole('menu')
+    fireEvent.keyDown(menu, { key: 'ArrowDown' }) // 0 -> 1 (Move down)
+    fireEvent.keyDown(menu, { key: 'ArrowDown' }) // 1 -> 2 (Duplicate)
+    fireEvent.keyDown(menu, { key: 'Enter' })
+    expect(a.duplicate).toHaveBeenCalledOnce()
+    expect(onClose).toHaveBeenCalledOnce()
+  })
 })

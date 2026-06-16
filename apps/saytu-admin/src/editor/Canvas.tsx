@@ -28,9 +28,13 @@ export function Canvas({
   const dragHandle = DragHandle.configure({
     onMenu: (view: EditorView, index: number, anchor: HTMLElement) => {
       let popup: TippyInstance[] = []
+      let closed = false
       const close = () => {
+        if (closed) return
+        closed = true
         popup[0]?.destroy()
         renderer.destroy()
+        editorRef.current?.commands.focus()
       }
       const renderer = new ReactRenderer(BlockMenu, {
         editor: editorRef.current!,

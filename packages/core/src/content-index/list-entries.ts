@@ -25,7 +25,9 @@ export interface ListContentEntriesInput {
   deployedAt: (path: string) => string | null
 }
 
-const keyOf = (r: EntryRef): string => `${r.collection}/${r.locale}/${r.slug}`
+/** A collision-proof identity key. Uses NUL (impossible in a path segment) so
+ *  distinct refs can never alias even if a segment contained a slash. */
+const keyOf = (r: EntryRef): string => `${r.collection}\0${r.locale}\0${r.slug}`
 
 /** Merge DB drafts with committed Git entries into one status-aware list. The
  *  draft is the identity holder (an entry with both yields a single row). Pure —

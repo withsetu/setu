@@ -97,4 +97,27 @@ describe('listContentEntries', () => {
     })
     expect(rows.map((r) => r.ref.slug).sort()).toEqual(['a', 'b'])
   })
+
+  it('orders drafts first (in input order), then committed-only entries', () => {
+    const dB = draft({ collection: 'post', locale: 'en', slug: 'b' }, 'B', 'b')
+    const dA = draft({ collection: 'post', locale: 'en', slug: 'a' }, 'A', 'a')
+    const rows = listContentEntries({
+      drafts: [dB, dA], // input order B, A
+      committed: [
+        { ref: { collection: 'post', locale: 'en', slug: 'a' }, content: committedFor(dA) }, // dup of a draft
+        { ref: { collection: 'post', locale: 'en', slug: 'c' }, content: serializeMdoc({ frontmatter: { title: 'C' }, body: 'c' }) }, // committed-only
+      ],
+      deployedAt: noDeploy,
+    })
+    // drafts first in their input order (b, a), then committed-only (c); no dup of a
+    expect(rows.map((r) => r.ref.slug)).toEqual(['b', 'a', 'c'])
+  })
+
+  it('falls back past a non-string draft title to the committed frontmatter title', () => {
+    const ref = { collection: 'post', locale: 'en', slug: 'weird' }
+    const d: Draft = { ...ref, content: doc('x'), metadata: { title: 42 }, baseSha: null, createdAt: 1, updatedAt: 1 }
+    const committed = serializeMdoc({ frontmatter: { title: 'Real Title' }, body: 'x' })
+    const rows = listContentEntries({ drafts: [d], committed: [{ ref, content: committed }], deployedAt: noDeploy })
+    expect(rows[0]?.title).toBe('Real Title')
+  })
 })

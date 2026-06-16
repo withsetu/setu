@@ -1,0 +1,46 @@
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { render, screen, cleanup, fireEvent } from '@testing-library/react'
+import { BlockMenu } from '../src/editor/extensions/BlockMenu'
+
+afterEach(cleanup)
+
+const actions = () => ({
+  moveUp: vi.fn(),
+  moveDown: vi.fn(),
+  duplicate: vi.fn(),
+  remove: vi.fn(),
+})
+
+describe('BlockMenu', () => {
+  it('renders the four actions as a role=menu', () => {
+    render(<BlockMenu actions={actions()} canMoveUp canMoveDown onClose={vi.fn()} />)
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /move up/i })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /move down/i })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /duplicate/i })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /delete/i })).toBeInTheDocument()
+  })
+
+  it('invokes the action and closes on click', () => {
+    const a = actions()
+    const onClose = vi.fn()
+    render(<BlockMenu actions={a} canMoveUp canMoveDown onClose={onClose} />)
+    fireEvent.click(screen.getByRole('menuitem', { name: /duplicate/i }))
+    expect(a.duplicate).toHaveBeenCalledOnce()
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('disables Move up at the first block and Move down at the last', () => {
+    const a = actions()
+    render(<BlockMenu actions={a} canMoveUp={false} canMoveDown onClose={vi.fn()} />)
+    expect(screen.getByRole('menuitem', { name: /move up/i })).toBeDisabled()
+    expect(screen.getByRole('menuitem', { name: /move down/i })).not.toBeDisabled()
+  })
+
+  it('closes on Escape', () => {
+    const onClose = vi.fn()
+    render(<BlockMenu actions={actions()} canMoveUp canMoveDown onClose={onClose} />)
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+})

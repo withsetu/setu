@@ -83,11 +83,16 @@ export const LinkTools = Extension.create<LinkToolsOptions>({
           href,
           editable: editor.isEditable,
           onEdit: () => {
+            // Target THIS link (the card may have been shown by hover, with the caret
+            // elsewhere): place the caret inside the anchor's link before editing.
+            const pos = editor.view.posAtDOM(anchor, 0)
+            editor.chain().focus().setTextSelection(pos).run()
             hide()
             options.onEdit?.(editor, href)
           },
           onRemove: () => {
-            editor.chain().focus().extendMarkRange('link').unsetLink().run()
+            const pos = editor.view.posAtDOM(anchor, 0)
+            editor.chain().focus().setTextSelection(pos).extendMarkRange('link').unsetLink().run()
             hide()
           },
         },

@@ -13,6 +13,7 @@ import { BlockMenu } from './extensions/BlockMenu'
 import { Callout } from './extensions/Callout'
 import { Passthrough } from './extensions/Passthrough'
 import { SlashCommand } from './extensions/SlashCommand'
+import { FormatBubble } from './FormatBubble'
 
 export function Canvas({
   initialContent,
@@ -67,7 +68,7 @@ export function Canvas({
     immediatelyRender: false,
     editable,
     extensions: [
-      StarterKit,
+      StarterKit.configure({ link: { openOnClick: false }, underline: false }),
       Placeholder.configure({ placeholder: "Type '/' for commands…" }),
       BlockActions,
       dragHandle,
@@ -81,5 +82,10 @@ export function Canvas({
   })
   editorRef.current = editor
 
-  return <EditorContent editor={editor} />
+  return (
+    <>
+      <EditorContent editor={editor} />
+      {editor && <FormatBubble editor={editor} />}
+    </>
+  )
 }

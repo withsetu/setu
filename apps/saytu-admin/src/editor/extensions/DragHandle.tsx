@@ -5,17 +5,26 @@ import { moveBlock } from '../block-reorder'
 
 export const dragHandleKey = new PluginKey('saytuDragHandle')
 
-/** Given each top-level block's top Y (`tops`, uniform `height`) and a pointer Y,
- *  return the insertion index: the block under the top half, or the next index for
- *  the bottom half. Clamped to [0, tops.length - 1]. Pure — unit-tested. */
+/** Insertion slot for a pointer at `y`: the index of the gap the block should drop
+ *  into — `i` for the top half of block `i`, `i+1` for its bottom half, and
+ *  `tops.length` past the end. Range `[0, tops.length]`. Pure — unit-tested. */
 export function dropTargetIndex(tops: number[], height: number, y: number): number {
   if (tops.length === 0) return 0
   for (let i = 0; i < tops.length; i += 1) {
     const top = tops[i]!
     if (y < top + height / 2) return i
-    if (y < top + height) return Math.min(i + 1, tops.length - 1)
+    if (y < top + height) return i + 1
   }
-  return tops.length - 1
+  return tops.length
+}
+
+/** Convert a drop (coords + source index) into the `moveBlock` target FINAL index.
+ *  Removing the source shifts later slots left by one, so a slot past the source
+ *  maps to slot-1. Dropping on the source's own gaps yields the source index
+ *  (a no-op move). Pure — unit-tested. */
+export function dropToIndex(tops: number[], height: number, y: number, fromIndex: number): number {
+  const slot = dropTargetIndex(tops, height, y)
+  return slot > fromIndex ? slot - 1 : slot
 }
 
 /** Index of the top-level block whose vertical span contains `clientY`. */
@@ -72,7 +81,7 @@ export const DragHandle = Extension.create<DragHandleOptions>({
           view.dom.parentElement?.appendChild(grip)
 
           const openMenu = () => {
-            if (hoverIndex === null || grip === null) return
+            if (hoverIndex === null || grip === null || options.onMenu === undefined) return
             let pos = 0
             for (let i = 0; i < hoverIndex; i += 1) pos += view.state.doc.child(i).nodeSize
             const tr = view.state.tr
@@ -139,8 +148,7 @@ export const DragHandle = Extension.create<DragHandleOptions>({
                 }
                 pos += view.state.doc.child(i).nodeSize
               }
-              let toIndex = dropTargetIndex(tops, height, event.clientY)
-              if (toIndex > fromIndex) toIndex -= 1
+              const toIndex = dropToIndex(tops, height, event.clientY, fromIndex)
               event.preventDefault()
               const tr = view.state.tr
               if (moveBlock(view.state.doc, tr, fromIndex, toIndex)) view.dispatch(tr)

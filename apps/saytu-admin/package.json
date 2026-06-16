@@ -12,8 +12,11 @@
   },
   "dependencies": {
     "@saytu/core": "workspace:*",
+    "@saytu/db-idb": "workspace:*",
     "@saytu/db-memory": "workspace:*",
+    "@saytu/git-idb": "workspace:*",
     "@saytu/git-memory": "workspace:*",
+    "idb": "^8.0.3",
     "@tiptap/core": "^3.26.1",
     "@tiptap/react": "^3.26.1",
     "@tiptap/pm": "^3.26.1",

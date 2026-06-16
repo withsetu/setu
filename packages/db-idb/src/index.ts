@@ -1,0 +1,1 @@
+export { createIdbDataPort } from './adapter'

@@ -201,6 +201,28 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.19.21)(jsdom@25.0.1)(lightningcss@1.32.0)
 
+  packages/git-idb:
+    dependencies:
+      '@saytu/core':
+        specifier: workspace:*
+        version: link:../core
+      idb:
+        specifier: ^8.0.3
+        version: 8.0.3
+    devDependencies:
+      '@saytu/git-testing':
+        specifier: workspace:*
+        version: link:../git-testing
+      fake-indexeddb:
+        specifier: ^6.2.5
+        version: 6.2.5
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.19.21)(jsdom@25.0.1)(lightningcss@1.32.0)
+
   packages/git-local:
     dependencies:
       '@saytu/core':

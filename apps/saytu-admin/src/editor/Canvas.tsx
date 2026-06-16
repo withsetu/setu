@@ -13,6 +13,7 @@ import { BlockMenu } from './extensions/BlockMenu'
 import { Callout } from './extensions/Callout'
 import { Passthrough } from './extensions/Passthrough'
 import { SlashCommand } from './extensions/SlashCommand'
+import { LinkTools } from './extensions/LinkTools'
 import { FormatBubble } from './FormatBubble'
 
 export function Canvas({
@@ -75,6 +76,11 @@ export function Canvas({
       Callout,
       Passthrough,
       SlashCommand,
+      LinkTools.configure({
+        onEdit: (ed) => {
+          ed.chain().focus().extendMarkRange('link').run()
+        },
+      }),
     ],
     content: initialContent,
     editorProps: { attributes: { class: 'saytu-prose', 'aria-label': 'Content editor' } },

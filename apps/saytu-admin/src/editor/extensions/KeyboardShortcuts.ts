@@ -1,5 +1,6 @@
 import { Extension } from '@tiptap/core'
 import { requestLinkEdit, requestShortcuts } from '../editor-events'
+import { collapseSelectionOnEscape } from '../dismiss'
 
 /** Editor-level custom keymaps that need app coordination (the mark/block-move
  *  shortcuts live in StarterKit/BlockActions). Mod-k opens the link editor for a
@@ -17,6 +18,7 @@ export const KeyboardShortcuts = Extension.create({
         requestShortcuts()
         return true
       },
+      Escape: () => collapseSelectionOnEscape(this.editor),
     }
   },
 })

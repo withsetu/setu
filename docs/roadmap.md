@@ -9,6 +9,23 @@
 
 ## Editor
 
+### Toolbar keyboard model — roving arrow nav + Esc-to-leave (deferred 2026-06-16 → enriched bubble)
+
+**What:** a proper WAI-ARIA **toolbar keyboard pattern** for the editor's floating toolbars —
+the **format bubble** and the **callout color/icon toolbar**: one roving `tabindex` so the
+toolbar is a single tab stop, **Left/Right arrows** move between its buttons, and **Esc** leaves
+the toolbar (returns focus/caret to the editor; for the callout toolbar, dismisses the
+`:focus-within` chrome). Surfaced in UAT of the Esc-dismiss increment (owner: Shift+Tab reaches
+the toolbar but arrows don't navigate within it; callout color/icon bubble doesn't Esc-away).
+
+**Why deferred (decided with owner):** build the bubble's full keyboard model **once, together
+with the enriched format bubble** — that increment adds many more controls (headings/lists/
+quote/color/…), which is exactly when arrow-navigation earns its keep and the focus order needs
+designing as a whole. Doing it piecemeal now would be redone when the button set changes.
+
+**Touches:** `FormatBubble.tsx` (roving tabindex + arrow handler on the `role="toolbar"`),
+the callout node-view toolbar (`Callout.tsx`), Esc-to-leave wiring (reuse `dismiss.ts`).
+
 ### Per-link attributes — "open in new window" + `nofollow` (deferred 2026-06-16)
 
 **What:** let a writer set, per link: **open in a new window** (`target="_blank"` + `rel="noopener"`) and **`nofollow`** (and likely its cousins `sponsored` / `ugc` later). Surfaced while designing the format bubble / link card increment.

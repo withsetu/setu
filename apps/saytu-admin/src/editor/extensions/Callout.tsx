@@ -6,6 +6,7 @@ import { Icon } from '../../ui/Icon'
 import type { IconName } from '../../ui/Icon'
 import { isIconName } from '../../ui/Icon'
 import { calloutVariants, variantFor, CALLOUT_ICONS } from '../callout-variants'
+import { useToolbarRoving } from '../useToolbarRoving'
 
 /** If the caret sits at the very start of a callout's body, move keyboard focus
  *  to that callout's title `<input>`. Returns true when it handled the key (so the
@@ -45,10 +46,28 @@ function CalloutView({ node, updateAttributes, editor, getPos }: ReactNodeViewPr
   }
 
   const keepFocus = (e: { preventDefault: () => void }) => e.preventDefault()
+  const { ref: toolbarRef, onKeyDown: onToolbarKeyDown } = useToolbarRoving()
 
   return (
     <NodeViewWrapper className={`blk-callout tone-${variant.tone}`} aria-label="Callout block">
-      <div className="block-props" contentEditable={false}>
+      <div
+        className="block-props"
+        contentEditable={false}
+        role="toolbar"
+        aria-label="Callout style"
+        ref={toolbarRef}
+        onKeyDown={(e) => {
+          onToolbarKeyDown(e)
+          if (e.key === 'Escape') {
+            e.preventDefault()
+            const pos = getPos()
+            if (typeof pos === 'number') {
+              editor.chain().setTextSelection(pos + 2).run()
+              editor.view.focus()
+            }
+          }
+        }}
+      >
         <span className="bp-label">Tone</span>
         {calloutVariants().map((v) => (
           <button
@@ -57,6 +76,7 @@ function CalloutView({ node, updateAttributes, editor, getPos }: ReactNodeViewPr
             className={`bp-swatch tone-${v.tone}${type === v.type ? ' on' : ''}`}
             title={v.label}
             aria-label={v.label}
+            data-toolbar-item
             onMouseDown={keepFocus}
             onClick={() => setAttrs({ type: v.type })}
           />
@@ -69,6 +89,7 @@ function CalloutView({ node, updateAttributes, editor, getPos }: ReactNodeViewPr
             className={`bp-icon${icon === ic ? ' on' : ''}`}
             title={ic}
             aria-label={`Icon ${ic}`}
+            data-toolbar-item
             onMouseDown={keepFocus}
             onClick={() => setAttrs({ icon: ic })}
           >

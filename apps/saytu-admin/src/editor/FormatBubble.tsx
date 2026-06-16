@@ -10,6 +10,8 @@ import { Tooltip } from './Tooltip'
 import { SHORTCUTS, formatKeys, ariaKeyshortcuts, detectMac } from './shortcuts'
 import { onRequestLinkEdit } from './editor-events'
 import { isEscape, collapseSelectionOnEscape } from './dismiss'
+import { TurnIntoMenu } from './TurnIntoMenu'
+import { useToolbarRoving } from './useToolbarRoving'
 
 interface MarkBtn {
   name: string
@@ -63,6 +65,8 @@ export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
     return s ? ariaKeyshortcuts(s.keys) : undefined
   }
 
+  const { ref: toolbarRef, onKeyDown: onToolbarKeyDown } = useToolbarRoving()
+
   const [linking, setLinking] = useState(false)
   useEffect(() => {
     setLinking(false)
@@ -94,20 +98,24 @@ export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
 
   return (
     <div
+      ref={toolbarRef}
       className="fmt-bubble"
       role="toolbar"
       aria-label="Text formatting"
       onKeyDown={(e) => {
+        onToolbarKeyDown(e)
         if (isEscape(e.nativeEvent)) {
           e.preventDefault()
           collapseSelectionOnEscape(editor)
         }
       }}
     >
+      <TurnIntoMenu editor={editor} />
       {MARKS.map((m) => (
         <Tooltip key={m.name} content={tipFor(m.name, m.label)}>
           <button
             type="button"
+            data-toolbar-item
             className={`fmt-btn${active[m.name as keyof typeof active] ? ' on' : ''}`}
             aria-label={m.label}
             aria-keyshortcuts={ariaFor(m.name)}
@@ -122,6 +130,7 @@ export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
       <Tooltip content={tipFor('link', 'Link')}>
         <button
           type="button"
+          data-toolbar-item
           className={`fmt-btn${active.link ? ' on' : ''}`}
           aria-label="Link"
           aria-keyshortcuts={ariaFor('link')}

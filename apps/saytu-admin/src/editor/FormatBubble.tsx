@@ -2,7 +2,7 @@ import { BubbleMenu } from '@tiptap/react/menus'
 import { useEditorState } from '@tiptap/react'
 import { TextSelection } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/core'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Icon } from '../ui/Icon'
 import type { IconName } from '../ui/Icon'
 import { LinkInput } from './LinkInput'
@@ -31,10 +31,15 @@ export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
       code: e.isActive('code'),
       strike: e.isActive('strike'),
       link: e.isActive('link'),
+      from: e.state.selection.from,
+      to: e.state.selection.to,
     }),
-  }) ?? { bold: false, italic: false, code: false, strike: false, link: false }
+  }) ?? { bold: false, italic: false, code: false, strike: false, link: false, from: 0, to: 0 }
 
   const [linking, setLinking] = useState(false)
+  useEffect(() => {
+    setLinking(false)
+  }, [active.from, active.to])
   const currentHref = (editor.getAttributes('link').href as string | undefined) ?? ''
 
   if (linking) {
@@ -43,10 +48,13 @@ export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
         <LinkInput
           initial={currentHref}
           onApply={(href) => {
-            editor.chain().focus().extendMarkRange('link').setLink({ href }).run()
-            setLinking(false)
+            const ok = editor.chain().focus().extendMarkRange('link').setLink({ href }).run()
+            if (ok) setLinking(false)
           }}
-          onCancel={() => setLinking(false)}
+          onCancel={() => {
+            setLinking(false)
+            editor.commands.focus()
+          }}
           onRemove={() => {
             editor.chain().focus().extendMarkRange('link').unsetLink().run()
             setLinking(false)
@@ -64,7 +72,7 @@ export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
           type="button"
           className={`fmt-btn${active[m.name as keyof typeof active] ? ' on' : ''}`}
           aria-label={m.label}
-          aria-pressed={active[m.name as keyof typeof active]}
+          aria-pressed={!!active[m.name as keyof typeof active]}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => m.toggle(editor)}
         >

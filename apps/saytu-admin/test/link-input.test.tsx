@@ -63,4 +63,53 @@ describe('FormatBubbleToolbar link flow', () => {
     expect(editor.isActive('link')).toBe(true)
     expect(tiptapToMarkdoc(editor.getJSON())).toContain('[hello](https://x.com)')
   })
+
+  it('editing an existing link updates the whole href and round-trips', () => {
+    let editor!: Editor
+    function H() {
+      const e = useEditor({ immediatelyRender: false, extensions: [sk()], content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'hello', marks: [{ type: 'link', attrs: { href: 'https://old.com' } }] }] }] } })
+      if (e) editor = e
+      return <>{e && <><EditorContent editor={e} /><FormatBubbleToolbar editor={e} /></>}</>
+    }
+    render(<H />)
+    act(() => { editor.chain().focus().setTextSelection({ from: 2, to: 4 }).run() }) // caret inside the link
+    fireEvent.click(screen.getByRole('button', { name: /^link$/i }))
+    const field = screen.getByRole('textbox', { name: /url/i }) as HTMLInputElement
+    expect(field.value).toBe('https://old.com') // pre-filled with the existing href
+    fireEvent.change(field, { target: { value: 'https://new.com' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    const md = tiptapToMarkdoc(editor.getJSON())
+    expect(md).toContain('[hello](https://new.com)')
+    expect(md).not.toContain('old.com')
+  })
+
+  it('removing a link via the toolbar unlinks the text', () => {
+    let editor!: Editor
+    function H() {
+      const e = useEditor({ immediatelyRender: false, extensions: [sk()], content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'hello', marks: [{ type: 'link', attrs: { href: 'https://x.com' } }] }] }] } })
+      if (e) editor = e
+      return <>{e && <><EditorContent editor={e} /><FormatBubbleToolbar editor={e} /></>}</>
+    }
+    render(<H />)
+    act(() => { editor.chain().focus().setTextSelection({ from: 2, to: 4 }).run() })
+    fireEvent.click(screen.getByRole('button', { name: /^link$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /remove link/i }))
+    expect(editor.isActive('link')).toBe(false)
+    expect(tiptapToMarkdoc(editor.getJSON())).not.toContain('](https://x.com)')
+  })
+
+  it('changing the selection closes an open link input (no stale target)', () => {
+    let editor!: Editor
+    function H() {
+      const e = useEditor({ immediatelyRender: false, extensions: [sk()], content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'alpha beta' }] }] } })
+      if (e) editor = e
+      return <>{e && <><EditorContent editor={e} /><FormatBubbleToolbar editor={e} /></>}</>
+    }
+    render(<H />)
+    act(() => { editor.chain().focus().setTextSelection({ from: 1, to: 6 }).run() }) // "alpha"
+    fireEvent.click(screen.getByRole('button', { name: /^link$/i }))
+    expect(screen.getByRole('textbox', { name: /url/i })).toBeInTheDocument()
+    act(() => { editor.chain().focus().setTextSelection({ from: 7, to: 11 }).run() }) // "beta"
+    expect(screen.queryByRole('textbox', { name: /url/i })).not.toBeInTheDocument() // input closed
+  })
 })

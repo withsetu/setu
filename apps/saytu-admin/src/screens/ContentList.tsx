@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { Draft, Lifecycle } from '@saytu/core'
+import type { ContentRow, EntryRef } from '@saytu/core'
+import { listContentEntries, parseContentPath } from '@saytu/core'
 import { useServices } from '../data/store'
-import { lifecycleFor } from '../lifecycle/useLifecycle'
 import { lifecycleLabel } from '../lifecycle/label'
 import { useDeploy } from '../deploy/deploy'
 import { PageHeader } from '../shell/PageHeader'
@@ -12,27 +12,23 @@ import { Icon } from '../ui/Icon'
 export function ContentList({ collection, title }: { collection: string; title: string }) {
   const { data, git } = useServices()
   const { deployedAt, sha: deploySha } = useDeploy()
-  const [drafts, setDrafts] = useState<Draft[] | null>(null)
-  const [statuses, setStatuses] = useState<Record<string, Lifecycle>>({})
+  const [rows, setRows] = useState<ContentRow[] | null>(null)
 
   useEffect(() => {
     let live = true
-    void data.listDrafts({ collection }).then(async (d) => {
-      if (!live) return
-      setDrafts(d)
-      const pairs = await Promise.all(
-        d.map(async (dr) => {
-          const lc = await lifecycleFor(
-            { collection: dr.collection, locale: dr.locale, slug: dr.slug },
-            dr,
-            git,
-            deployedAt,
-          )
-          return [dr.slug, lc] as const
-        }),
-      )
-      if (live) setStatuses(Object.fromEntries(pairs))
-    })
+    void (async () => {
+      const drafts = await data.listDrafts({ collection })
+      const paths = await git.list(`content/${collection}/`)
+      const committed: { ref: EntryRef; content: string }[] = []
+      for (const p of paths) {
+        const ref = parseContentPath(p)
+        if (ref === null) continue
+        const content = await git.readFile(p)
+        if (content !== null) committed.push({ ref, content })
+      }
+      const merged = listContentEntries({ drafts, committed, deployedAt })
+      if (live) setRows(merged)
+    })()
     return () => {
       live = false
     }
@@ -44,7 +40,7 @@ export function ContentList({ collection, title }: { collection: string; title: 
     <>
       <PageHeader
         title={title}
-        count={drafts?.length}
+        count={rows?.length}
         subtitle={collection === 'post' ? 'Articles, field notes and announcements.' : 'Standalone pages and landing pages.'}
         actions={
           <Link to={`/edit/${collection}/en/new`} className="btn btn-primary btn-md">
@@ -54,9 +50,9 @@ export function ContentList({ collection, title }: { collection: string; title: 
         }
       />
       <div className="page-body">
-        {drafts === null ? (
+        {rows === null ? (
           <p className="empty-state">Loading…</p>
-        ) : drafts.length === 0 ? (
+        ) : rows.length === 0 ? (
           <p className="empty-state">No {title.toLowerCase()} yet.</p>
         ) : (
           <div className="list-wrap">
@@ -70,24 +66,23 @@ export function ContentList({ collection, title }: { collection: string; title: 
                 </tr>
               </thead>
               <tbody>
-                {drafts.map((d) => {
-                  const lc: Lifecycle = statuses[d.slug] ?? { state: 'draft' }
-                  const { label, pending } = lifecycleLabel(lc)
+                {rows.map((row) => {
+                  const { label, pending } = lifecycleLabel(row.lifecycle)
                   return (
-                    <tr key={`${d.collection}/${d.locale}/${d.slug}`}>
+                    <tr key={`${row.ref.collection}/${row.ref.locale}/${row.ref.slug}`}>
                       <td className="ctable-title">
-                        <Link to={`/edit/${d.collection}/${d.locale}/${d.slug}`}>
-                          {String(d.metadata['title'] ?? d.slug)}
+                        <Link to={`/edit/${row.ref.collection}/${row.ref.locale}/${row.ref.slug}`}>
+                          {row.title}
                         </Link>
                       </td>
                       <td>
                         <StatusPill status={label} />
-                        {pending !== undefined && (
-                          <span className="status-pending">· {pending}</span>
-                        )}
+                        {pending !== undefined && <span className="status-pending">· {pending}</span>}
                       </td>
-                      <td className="ctable-muted">{d.locale}</td>
-                      <td className="ctable-muted">{new Date(d.updatedAt).toLocaleDateString()}</td>
+                      <td className="ctable-muted">{row.ref.locale}</td>
+                      <td className="ctable-muted">
+                        {row.updatedAt === null ? '—' : new Date(row.updatedAt).toLocaleDateString()}
+                      </td>
                     </tr>
                   )
                 })}

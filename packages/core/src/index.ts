@@ -50,3 +50,6 @@ export { createAuthz, DEFAULT_ROLES } from './authz/authz'
 
 export type { LifecycleState, LifecyclePending, Lifecycle } from './lifecycle/derive'
 export { deriveLifecycle } from './lifecycle/derive'
+
+export type { ContentRow, ListContentEntriesInput } from './content-index/list-entries'
+export { listContentEntries } from './content-index/list-entries'

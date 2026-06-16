@@ -138,6 +138,19 @@ export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
 
 /** Selection bubble: shows the formatting toolbar on a non-empty text selection. */
 export function FormatBubble({ editor }: { editor: Editor }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!isEscape(e)) return
+      const sel = editor.state.selection
+      if (sel instanceof TextSelection && !sel.empty) {
+        e.preventDefault()
+        collapseSelectionOnEscape(editor)
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [editor])
+
   return (
     <BubbleMenu
       editor={editor}

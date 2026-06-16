@@ -2,8 +2,10 @@ import { BubbleMenu } from '@tiptap/react/menus'
 import { useEditorState } from '@tiptap/react'
 import { TextSelection } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/core'
+import { useState } from 'react'
 import { Icon } from '../ui/Icon'
 import type { IconName } from '../ui/Icon'
+import { LinkInput } from './LinkInput'
 
 interface MarkBtn {
   name: string
@@ -31,6 +33,29 @@ export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
       link: e.isActive('link'),
     }),
   }) ?? { bold: false, italic: false, code: false, strike: false, link: false }
+
+  const [linking, setLinking] = useState(false)
+  const currentHref = (editor.getAttributes('link').href as string | undefined) ?? ''
+
+  if (linking) {
+    return (
+      <div className="fmt-bubble" role="toolbar" aria-label="Text formatting">
+        <LinkInput
+          initial={currentHref}
+          onApply={(href) => {
+            editor.chain().focus().extendMarkRange('link').setLink({ href }).run()
+            setLinking(false)
+          }}
+          onCancel={() => setLinking(false)}
+          onRemove={() => {
+            editor.chain().focus().extendMarkRange('link').unsetLink().run()
+            setLinking(false)
+          }}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="fmt-bubble" role="toolbar" aria-label="Text formatting">
       {MARKS.map((m) => (
@@ -52,9 +77,7 @@ export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
         aria-label="Link"
         aria-pressed={active.link}
         onMouseDown={(e) => e.preventDefault()}
-        onClick={() => {
-          /* Link input wired in Task 2 */
-        }}
+        onClick={() => setLinking(true)}
       >
         <Icon name="link" size={16} />
       </button>

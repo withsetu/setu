@@ -19,4 +19,16 @@
 
 **Touches:** `@saytu/core` markdoc converter (both directions) + round-trip tests; the link card / bubble UI (attribute toggles); later, the SSG/SSR renderer.
 
+### Underline round-trip support (deferred 2026-06-16)
+
+**What:** StarterKit v3 bundles an **Underline** mark, but the Markdoc round-trip
+(`packages/core/src/markdoc/`) doesn't serialize underline (Markdown has no underline) — so it
+would silently drop on publish. We **disabled underline** in the format-bubble increment
+(`underline: false`) to avoid content loss. To offer underline later: extend the converter
+(e.g. an `{% u %}` tag or HTML passthrough) + round-trip tests, then re-enable the mark and add
+a bubble button.
+
+**Touches:** `@saytu/core` markdoc converter + round-trip tests; StarterKit config; the format
+bubble.
+
 ---

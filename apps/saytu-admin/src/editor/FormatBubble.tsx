@@ -21,6 +21,18 @@ const MARKS: MarkBtn[] = [
   { name: 'strike', label: 'Strikethrough', icon: 'strike', toggle: (e) => e.chain().focus().toggleStrike().run() },
 ]
 
+/** Make a user-typed URL absolute: a bare domain like `example.com` becomes
+ *  `https://example.com` (otherwise the browser treats it as a path relative to the
+ *  current page). Leaves an explicit scheme (`http:`, `mailto:`…) and root/anchor
+ *  links (`/path`, `#id`) untouched. */
+export function normalizeUrl(href: string): string {
+  const trimmed = href.trim()
+  if (trimmed === '') return trimmed
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return trimmed // has a scheme
+  if (trimmed.startsWith('/') || trimmed.startsWith('#')) return trimmed // relative/anchor
+  return `https://${trimmed}`
+}
+
 /** Presentational toolbar — rendered unconditionally so it is unit-testable. */
 export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
   const active = useEditorState({
@@ -48,7 +60,7 @@ export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
         <LinkInput
           initial={currentHref}
           onApply={(href) => {
-            const ok = editor.chain().focus().extendMarkRange('link').setLink({ href }).run()
+            const ok = editor.chain().focus().extendMarkRange('link').setLink({ href: normalizeUrl(href) }).run()
             if (ok) setLinking(false)
           }}
           onCancel={() => {

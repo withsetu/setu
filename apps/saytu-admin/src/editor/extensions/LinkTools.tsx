@@ -31,25 +31,42 @@ export const LinkTools = Extension.create<LinkToolsOptions>({
     let popup: TippyInstance | null = null
     let renderer: ReactRenderer | null = null
     let shownFor: HTMLElement | null = null
-    let mode: 'caret' | 'hover' | null = null
+    let hideTimer: ReturnType<typeof setTimeout> | null = null
+
+    const cancelHide = () => {
+      if (hideTimer !== null) {
+        clearTimeout(hideTimer)
+        hideTimer = null
+      }
+    }
 
     const hide = () => {
+      cancelHide()
       popup?.destroy()
       popup = null
       renderer?.destroy()
       renderer = null
       shownFor = null
-      mode = null
     }
 
-    const showFor = (anchor: HTMLElement, href: string, m: 'caret' | 'hover') => {
-      if (shownFor === anchor && popup) {
-        mode = m
-        return
-      }
+    /** Hide after a short grace period — but NOT while the caret pins the card
+     *  (clicked into a link) or the pointer is over the card. The delay lets the
+     *  pointer cross the gap from the link to the card without it vanishing. */
+    const scheduleHide = () => {
+      cancelHide()
+      hideTimer = setTimeout(() => {
+        hideTimer = null
+        if (editor.state.selection.empty && editor.isActive('link')) return
+        if (popup && popup.popper.matches(':hover')) return
+        hide()
+      }, 180)
+    }
+
+    const showFor = (anchor: HTMLElement, href: string) => {
+      cancelHide()
+      if (shownFor === anchor && popup) return
       hide()
       shownFor = anchor
-      mode = m
       renderer = new ReactRenderer(LinkPopup, {
         editor,
         props: {
@@ -74,6 +91,9 @@ export const LinkTools = Extension.create<LinkToolsOptions>({
         trigger: 'manual',
         placement: 'top',
       })
+      // Keep the card alive while the pointer is over it (so its buttons are clickable).
+      popup.popper.addEventListener('mouseenter', cancelHide)
+      popup.popper.addEventListener('mouseleave', scheduleHide)
     }
 
     return [
@@ -85,16 +105,23 @@ export const LinkTools = Extension.create<LinkToolsOptions>({
               const a = (event.target as HTMLElement | null)?.closest('a')
               if (a instanceof HTMLAnchorElement) {
                 const href = a.getAttribute('href') ?? ''
-                if (href) showFor(a, href, 'hover')
+                if (href) showFor(a, href)
               }
               return false
             },
             mouseout(_view, event) {
-              if (mode !== 'hover') return false
+              if (popup === null) return false
               const to = event.relatedTarget as Node | null
-              if (to instanceof HTMLElement && to.closest('a')) return false
-              if (popup && to && popup.popper.contains(to)) return false
-              hide()
+              if (to instanceof HTMLElement && to.closest('a')) return false // onto a link
+              if (to && popup.popper.contains(to)) return false // onto the card
+              scheduleHide() // grace period; the timer re-checks caret/hover before hiding
+              return false
+            },
+            click(_view, event) {
+              // Links never navigate from inside the editor (Tiptap's openOnClick is
+              // unreliable — issue #6865). Clicking places the caret + shows the card;
+              // the card's "Open ↗" is the deliberate way to follow the link.
+              if ((event.target as HTMLElement | null)?.closest('a')) event.preventDefault()
               return false
             },
           },
@@ -104,15 +131,16 @@ export const LinkTools = Extension.create<LinkToolsOptions>({
             update() {
               const { state } = editor
               const href = (editor.getAttributes('link').href as string | undefined) ?? ''
-              if (!shouldShowLinkCard(state.selection.empty, editor.isActive('link'), href)) {
-                if (mode === 'caret') hide()
-                return
+              if (shouldShowLinkCard(state.selection.empty, editor.isActive('link'), href)) {
+                const domAt = editor.view.domAtPos(state.selection.from)
+                const node = domAt.node
+                const el = node instanceof HTMLElement ? node : node.parentElement
+                const a = el?.closest('a')
+                if (a instanceof HTMLAnchorElement) showFor(a, href)
+              } else if (popup && !popup.popper.matches(':hover')) {
+                // caret left the link; hide unless the pointer is on the card
+                scheduleHide()
               }
-              const domAt = editor.view.domAtPos(state.selection.from)
-              const node = domAt.node
-              const el = node instanceof HTMLElement ? node : node.parentElement
-              const a = el?.closest('a')
-              if (a instanceof HTMLAnchorElement) showFor(a, href, 'caret')
             },
             destroy() {
               hide()

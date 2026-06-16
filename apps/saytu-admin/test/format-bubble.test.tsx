@@ -4,7 +4,24 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import type { Editor } from '@tiptap/core'
 import { tiptapToMarkdoc } from '@saytu/core'
-import { FormatBubbleToolbar } from '../src/editor/FormatBubble'
+import { FormatBubbleToolbar, normalizeUrl } from '../src/editor/FormatBubble'
+
+describe('normalizeUrl', () => {
+  it('prefixes https:// for a bare domain', () => {
+    expect(normalizeUrl('mayankgupta.com')).toBe('https://mayankgupta.com')
+    expect(normalizeUrl('  example.com/path  ')).toBe('https://example.com/path')
+  })
+  it('leaves explicit schemes, root-relative, and anchor links untouched', () => {
+    expect(normalizeUrl('https://x.com')).toBe('https://x.com')
+    expect(normalizeUrl('http://x.com')).toBe('http://x.com')
+    expect(normalizeUrl('mailto:a@b.com')).toBe('mailto:a@b.com')
+    expect(normalizeUrl('/about')).toBe('/about')
+    expect(normalizeUrl('#section')).toBe('#section')
+  })
+  it('returns empty for empty/whitespace input', () => {
+    expect(normalizeUrl('   ')).toBe('')
+  })
+})
 
 afterEach(cleanup)
 

@@ -16,6 +16,9 @@ export function Tooltip({ content, children }: { content: string; children: Reac
       theme: 'saytu',
       delay: [150, 0],
       placement: 'top',
+      // tippy's base CSS isn't loaded (by codebase convention); the 'saytu' theme
+      // styles the box, but the arrow element would be unstyled — so disable it.
+      arrow: false,
     })
     return () => inst.destroy()
   }, [content])

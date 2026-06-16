@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Icon } from '../../ui/Icon'
 import type { IconName } from '../../ui/Icon'
+import { useDismiss } from '../../ui/useDismiss'
 
 export interface BlockMenuActions {
   moveUp: () => void
@@ -35,6 +36,7 @@ export function BlockMenu({
   ]
   const [active, setActive] = useState(0)
   const ref = useRef<HTMLDivElement>(null)
+  useDismiss(ref, onClose)
 
   useEffect(() => {
     ref.current?.focus()
@@ -47,10 +49,7 @@ export function BlockMenu({
   }
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      onClose()
-    } else if (e.key === 'ArrowDown') {
+    if (e.key === 'ArrowDown') {
       e.preventDefault()
       setActive((i) => (i + 1) % items.length)
     } else if (e.key === 'ArrowUp') {

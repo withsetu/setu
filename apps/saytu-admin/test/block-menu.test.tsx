@@ -44,6 +44,13 @@ describe('BlockMenu', () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
+  it('closes on a pointerdown outside the menu', () => {
+    const onClose = vi.fn()
+    render(<BlockMenu actions={actions()} canMoveUp canMoveDown onClose={onClose} />)
+    fireEvent.pointerDown(document.body)
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
   it('runs the active item on Enter after arrow navigation', () => {
     const a = actions()
     const onClose = vi.fn()

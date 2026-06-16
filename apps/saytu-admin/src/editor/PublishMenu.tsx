@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { useDismiss } from '../ui/useDismiss'
 
 export function PublishMenu({
   canPublish,
@@ -16,6 +17,8 @@ export function PublishMenu({
   onRepublish: () => void
 }) {
   const [open, setOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+  useDismiss(menuRef, () => setOpen(false), open)
   if (!canPublish && !canUnpublish) return null
   const items: Array<{ key: string; label: string; run: () => void; show: boolean }> = [
     { key: 'unpublish', label: 'Unpublish', run: onUnpublish, show: canUnpublish && !isUnpublished },
@@ -23,7 +26,7 @@ export function PublishMenu({
   ]
   const menuItems = items.filter((i) => i.show)
   return (
-    <div className="publish-menu">
+    <div className="publish-menu" ref={menuRef}>
       {canPublish && (
         <button type="button" className="btn btn-primary btn-md" onClick={onPublish}>Publish</button>
       )}

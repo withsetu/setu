@@ -9,6 +9,7 @@ import { LinkInput } from './LinkInput'
 import { Tooltip } from './Tooltip'
 import { SHORTCUTS, formatKeys, ariaKeyshortcuts, detectMac } from './shortcuts'
 import { onRequestLinkEdit } from './editor-events'
+import { isEscape, collapseSelectionOnEscape } from './dismiss'
 
 interface MarkBtn {
   name: string
@@ -92,7 +93,17 @@ export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
   }
 
   return (
-    <div className="fmt-bubble" role="toolbar" aria-label="Text formatting">
+    <div
+      className="fmt-bubble"
+      role="toolbar"
+      aria-label="Text formatting"
+      onKeyDown={(e) => {
+        if (isEscape(e.nativeEvent)) {
+          e.preventDefault()
+          collapseSelectionOnEscape(editor)
+        }
+      }}
+    >
       {MARKS.map((m) => (
         <Tooltip key={m.name} content={tipFor(m.name, m.label)}>
           <button
@@ -127,6 +138,19 @@ export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
 
 /** Selection bubble: shows the formatting toolbar on a non-empty text selection. */
 export function FormatBubble({ editor }: { editor: Editor }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!isEscape(e)) return
+      const sel = editor.state.selection
+      if (sel instanceof TextSelection && !sel.empty) {
+        e.preventDefault()
+        collapseSelectionOnEscape(editor)
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [editor])
+
   return (
     <BubbleMenu
       editor={editor}

@@ -1,5 +1,6 @@
 import { Extension } from '@tiptap/core'
 import type { Editor } from '@tiptap/core'
+import { isEscape } from '../dismiss'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { ReactRenderer } from '@tiptap/react'
 import tippy from 'tippy.js'
@@ -8,9 +9,16 @@ import { LinkPopup } from '../LinkPopup'
 
 export const linkToolsKey = new PluginKey('saytuLinkTools')
 
-/** Whether the caret-triggered link card should show for this state. Pure. */
-export function shouldShowLinkCard(selectionEmpty: boolean, linkActive: boolean, href: string): boolean {
-  return selectionEmpty && linkActive && href.length > 0
+/** Whether the caret-triggered link card should show for this state. Pure.
+ *  `dismissed` is true while the user has Esc-dismissed the card for the link the
+ *  caret currently sits in (suppresses re-show until the caret leaves that link). */
+export function shouldShowLinkCard(
+  selectionEmpty: boolean,
+  linkActive: boolean,
+  href: string,
+  dismissed = false,
+): boolean {
+  return selectionEmpty && linkActive && href.length > 0 && !dismissed
 }
 
 interface LinkToolsOptions {
@@ -32,6 +40,7 @@ export const LinkTools = Extension.create<LinkToolsOptions>({
     let renderer: ReactRenderer | null = null
     let shownFor: HTMLElement | null = null
     let hideTimer: ReturnType<typeof setTimeout> | null = null
+    let dismissedHref: string | null = null
 
     const cancelHide = () => {
       if (hideTimer !== null) {
@@ -63,6 +72,7 @@ export const LinkTools = Extension.create<LinkToolsOptions>({
     }
 
     const showFor = (anchor: HTMLElement, href: string) => {
+      if (dismissedHref !== null && href === dismissedHref) return
       cancelHide()
       if (shownFor === anchor && popup) return
       hide()
@@ -73,11 +83,16 @@ export const LinkTools = Extension.create<LinkToolsOptions>({
           href,
           editable: editor.isEditable,
           onEdit: () => {
+            // Target THIS link (the card may have been shown by hover, with the caret
+            // elsewhere): place the caret inside the anchor's link before editing.
+            const pos = editor.view.posAtDOM(anchor, 0)
+            editor.chain().focus().setTextSelection(pos).run()
             hide()
             options.onEdit?.(editor, href)
           },
           onRemove: () => {
-            editor.chain().focus().extendMarkRange('link').unsetLink().run()
+            const pos = editor.view.posAtDOM(anchor, 0)
+            editor.chain().focus().setTextSelection(pos).extendMarkRange('link').unsetLink().run()
             hide()
           },
         },
@@ -100,6 +115,14 @@ export const LinkTools = Extension.create<LinkToolsOptions>({
       new Plugin({
         key: linkToolsKey,
         props: {
+          handleKeyDown(_view, event) {
+            if (isEscape(event) && popup) {
+              dismissedHref = (editor.getAttributes('link').href as string | undefined) ?? ''
+              hide()
+              return true
+            }
+            return false
+          },
           handleDOMEvents: {
             mouseover(_view, event) {
               const a = (event.target as HTMLElement | null)?.closest('a')
@@ -131,7 +154,13 @@ export const LinkTools = Extension.create<LinkToolsOptions>({
             update() {
               const { state } = editor
               const href = (editor.getAttributes('link').href as string | undefined) ?? ''
-              if (shouldShowLinkCard(state.selection.empty, editor.isActive('link'), href)) {
+              const inSameDismissedLink =
+                dismissedHref !== null &&
+                editor.isActive('link') &&
+                state.selection.empty &&
+                href === dismissedHref
+              if (dismissedHref !== null && !inSameDismissedLink) dismissedHref = null // caret left → re-arm
+              if (shouldShowLinkCard(state.selection.empty, editor.isActive('link'), href, inSameDismissedLink)) {
                 const domAt = editor.view.domAtPos(state.selection.from)
                 const node = domAt.node
                 const el = node instanceof HTMLElement ? node : node.parentElement

@@ -17,9 +17,15 @@ importers:
       '@saytu/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@saytu/db-idb':
+        specifier: workspace:*
+        version: link:../../packages/db-idb
       '@saytu/db-memory':
         specifier: workspace:*
         version: link:../../packages/db-memory
+      '@saytu/git-idb':
+        specifier: workspace:*
+        version: link:../../packages/git-idb
       '@saytu/git-memory':
         specifier: workspace:*
         version: link:../../packages/git-memory
@@ -41,6 +47,9 @@ importers:
       '@tiptap/suggestion':
         specifier: ^3.26.1
         version: 3.26.1(@tiptap/core@3.26.1(@tiptap/pm@3.26.1))(@tiptap/pm@3.26.1)
+      idb:
+        specifier: ^8.0.3
+        version: 8.0.3
       react:
         specifier: ^18.3.1
         version: 18.3.1

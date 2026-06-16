@@ -45,6 +45,24 @@ export function servicesFor(data: DataPort, git: GitPort): Services {
   }
 }
 
+/** Seed the sample drafts only when the store is completely empty (no drafts AND
+ *  no Git head) — so a reload never re-seeds over real content. */
+async function seedIfEmpty(services: Services): Promise<void> {
+  const [drafts, head] = await Promise.all([services.data.listDrafts(), services.git.headSha()])
+  if (drafts.length === 0 && head === null) {
+    for (const s of seedDrafts) await services.data.saveDraft(s)
+  }
+}
+
+/** Assemble the services bundle around any DataPort/GitPort and seed-if-empty.
+ *  Adapter-agnostic: the app passes the persistent (idb) adapters, tests pass the
+ *  in-memory ones — the same shipped bootstrap logic either way. */
+export async function bootstrapServices(data: DataPort, git: GitPort): Promise<Services> {
+  const services = servicesFor(data, git)
+  await seedIfEmpty(services)
+  return services
+}
+
 /** The app's default services: seeded in-memory adapters (swapped for real
  *  persistence later without touching the UI). */
 export function createServices(): Services {

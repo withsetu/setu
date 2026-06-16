@@ -12,6 +12,17 @@ describe('shouldShowLinkCard', () => {
     expect(shouldShowLinkCard(true, false, '')).toBe(false) // caret not in a link
     expect(shouldShowLinkCard(true, true, '')).toBe(false) // no href
   })
+  it('shows for an empty selection inside a link with an href (dismissed=false explicit)', () => {
+    expect(shouldShowLinkCard(true, true, 'https://x.com', false)).toBe(true)
+  })
+  it('does not show when the card was dismissed for this link', () => {
+    expect(shouldShowLinkCard(true, true, 'https://x.com', true)).toBe(false)
+  })
+  it('does not show without a selection-empty link+href', () => {
+    expect(shouldShowLinkCard(false, true, 'https://x.com', false)).toBe(false)
+    expect(shouldShowLinkCard(true, false, 'https://x.com', false)).toBe(false)
+    expect(shouldShowLinkCard(true, true, '', false)).toBe(false)
+  })
 })
 
 describe('LinkPopup', () => {

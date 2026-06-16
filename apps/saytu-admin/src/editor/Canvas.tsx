@@ -3,6 +3,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import type { TiptapDoc } from '@saytu/core'
 import { BlockActions } from './extensions/BlockActions'
+import { DragHandle } from './extensions/DragHandle'
 import { Callout } from './extensions/Callout'
 import { Passthrough } from './extensions/Passthrough'
 import { SlashCommand } from './extensions/SlashCommand'
@@ -23,6 +24,7 @@ export function Canvas({
       StarterKit,
       Placeholder.configure({ placeholder: "Type '/' for commands…" }),
       BlockActions,
+      DragHandle,
       Callout,
       Passthrough,
       SlashCommand,

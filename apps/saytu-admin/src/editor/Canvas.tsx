@@ -2,6 +2,7 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import type { TiptapDoc } from '@saytu/core'
+import { BlockActions } from './extensions/BlockActions'
 import { Callout } from './extensions/Callout'
 import { Passthrough } from './extensions/Passthrough'
 import { SlashCommand } from './extensions/SlashCommand'
@@ -21,6 +22,7 @@ export function Canvas({
     extensions: [
       StarterKit,
       Placeholder.configure({ placeholder: "Type '/' for commands…" }),
+      BlockActions,
       Callout,
       Passthrough,
       SlashCommand,

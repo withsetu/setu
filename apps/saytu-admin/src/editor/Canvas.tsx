@@ -14,6 +14,7 @@ import { Callout } from './extensions/Callout'
 import { Passthrough } from './extensions/Passthrough'
 import { SlashCommand } from './extensions/SlashCommand'
 import { KeyboardShortcuts } from './extensions/KeyboardShortcuts'
+import { requestLinkEdit } from './editor-events'
 import { LinkTools } from './extensions/LinkTools'
 import { FormatBubble } from './FormatBubble'
 
@@ -81,6 +82,9 @@ export function Canvas({
       LinkTools.configure({
         onEdit: (ed) => {
           ed.chain().focus().extendMarkRange('link').run()
+          // Open the URL field directly (not just the bubble): defer so the bubble
+          // has mounted + subscribed to onRequestLinkEdit after the selection change.
+          setTimeout(() => requestLinkEdit(), 0)
         },
       }),
     ],

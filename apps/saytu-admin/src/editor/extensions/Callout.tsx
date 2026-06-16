@@ -89,6 +89,7 @@ function CalloutView({ node, updateAttributes, editor, getPos }: ReactNodeViewPr
               const pos = getPos()
               if (typeof pos === 'number') {
                 editor.chain().setTextSelection(pos + 2).run()
+                // focus synchronously: chain().focus() defers via rAF, which would leave the caret unplaced this tick
                 editor.view.focus()
               }
               return
@@ -97,13 +98,7 @@ function CalloutView({ node, updateAttributes, editor, getPos }: ReactNodeViewPr
           }}
         />
       </div>
-      <NodeViewContent
-        className="callout-body"
-        onKeyDown={(e: React.KeyboardEvent) => {
-          if (e.key !== 'ArrowUp') return
-          if (focusTitleAtBodyStart(editor)) e.preventDefault()
-        }}
-      />
+      <NodeViewContent className="callout-body" />
     </NodeViewWrapper>
   )
 }

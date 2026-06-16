@@ -41,4 +41,23 @@ describe('Callout title↔body keyboard nav', () => {
     fireEvent.keyDown(editor.view.dom, { key: 'ArrowUp' })
     expect(document.activeElement).toBe(title)
   })
+
+  it('Enter in the title also moves the selection into the body', async () => {
+    let editor!: Editor
+    render(<Harness onReady={(e) => (editor = e)} />)
+    const title = await screen.findByPlaceholderText(/add a title/i)
+    title.focus()
+    fireEvent.keyDown(title, { key: 'Enter' })
+    expect(editor.state.selection.$from.depth).toBeGreaterThanOrEqual(2)
+    expect(editor.isFocused).toBe(true)
+  })
+
+  it('ArrowUp mid-body does NOT steal focus to the title', async () => {
+    let editor!: Editor
+    render(<Harness onReady={(e) => (editor = e)} />)
+    const title = await screen.findByPlaceholderText(/add a title/i)
+    editor.chain().focus().setTextSelection(4).run() // caret mid 'body' text, not at start
+    fireEvent.keyDown(editor.view.dom, { key: 'ArrowUp' })
+    expect(document.activeElement).not.toBe(title)
+  })
 })

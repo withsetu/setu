@@ -2,6 +2,8 @@ import { BubbleMenu } from '@tiptap/react/menus'
 import { useEditorState } from '@tiptap/react'
 import { TextSelection } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/core'
+import '@tiptap/extension-subscript'
+import '@tiptap/extension-superscript'
 import { useEffect, useState } from 'react'
 import { Icon } from '../ui/Icon'
 import type { IconName } from '../ui/Icon'
@@ -26,6 +28,8 @@ const MARKS: MarkBtn[] = [
   { name: 'italic', label: 'Italic', icon: 'italic', toggle: (e) => e.chain().focus().toggleItalic().run() },
   { name: 'code', label: 'Inline code', icon: 'code', toggle: (e) => e.chain().focus().toggleCode().run() },
   { name: 'strike', label: 'Strikethrough', icon: 'strike', toggle: (e) => e.chain().focus().toggleStrike().run() },
+  { name: 'subscript', label: 'Subscript', icon: 'subscript', toggle: (e) => e.chain().focus().toggleSubscript().run() },
+  { name: 'superscript', label: 'Superscript', icon: 'superscript', toggle: (e) => e.chain().focus().toggleSuperscript().run() },
 ]
 
 /** Make a user-typed URL absolute: a bare domain like `example.com` becomes
@@ -49,11 +53,13 @@ export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
       italic: e.isActive('italic'),
       code: e.isActive('code'),
       strike: e.isActive('strike'),
+      subscript: e.isActive('subscript'),
+      superscript: e.isActive('superscript'),
       link: e.isActive('link'),
       from: e.state.selection.from,
       to: e.state.selection.to,
     }),
-  }) ?? { bold: false, italic: false, code: false, strike: false, link: false, from: 0, to: 0 }
+  }) ?? { bold: false, italic: false, code: false, strike: false, subscript: false, superscript: false, link: false, from: 0, to: 0 }
 
   const mac = detectMac()
   const shortcutFor = (id: string) => SHORTCUTS.find((s) => s.id === id)

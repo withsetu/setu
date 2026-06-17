@@ -42,3 +42,17 @@ describe('currentBlockType', () => {
     e.destroy()
   })
 })
+
+describe('BLOCK_TYPES shortcuts', () => {
+  it('carries the documented StarterKit keys', () => {
+    const keyOf = (id: string) => BLOCK_TYPES.find((b) => b.id === id)?.keys
+    expect(keyOf('paragraph')).toEqual(['Mod', 'Alt', '0'])
+    expect(keyOf('h2')).toEqual(['Mod', 'Alt', '2'])
+    expect(keyOf('h3')).toEqual(['Mod', 'Alt', '3'])
+    expect(keyOf('h4')).toEqual(['Mod', 'Alt', '4'])
+    expect(keyOf('bulletList')).toEqual(['Mod', 'Shift', '8'])
+    expect(keyOf('orderedList')).toEqual(['Mod', 'Shift', '7'])
+    expect(keyOf('blockquote')).toEqual(['Mod', 'Shift', 'b'])
+    expect(keyOf('codeBlock')).toEqual(['Mod', 'Alt', 'c'])
+  })
+})

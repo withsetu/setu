@@ -63,3 +63,12 @@ describe('markdocToTiptap', () => {
     expect((flagged.attrs as any).raw).toContain('{% for $p in $ps %}')
   })
 })
+
+describe('subscript/superscript inline tags', () => {
+  it('maps {% sub %}/{% sup %} to subscript/superscript marks', () => {
+    const doc = markdocToTiptap('H{% sub %}2{% /sub %}O e=mc{% sup %}2{% /sup %}\n')
+    const json = JSON.stringify(doc)
+    expect(json).toContain('"subscript"')
+    expect(json).toContain('"superscript"')
+  })
+})

@@ -75,8 +75,10 @@ export function Canvas({
     extensions: [
       StarterKit.configure({ link: { openOnClick: false }, underline: false }),
       Placeholder.configure({ placeholder: "Type '/' for commands…" }),
-      Subscript,
-      Superscript,
+      // Mutually exclusive: a glyph can't be both below and above the baseline —
+      // applying one clears the other.
+      Subscript.extend({ excludes: 'superscript' }),
+      Superscript.extend({ excludes: 'subscript' }),
       BlockActions,
       KeyboardShortcuts,
       dragHandle,

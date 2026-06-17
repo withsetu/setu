@@ -30,3 +30,33 @@ export function currentBlockType(editor: Editor): BlockType {
   const nonText = BLOCK_TYPES.slice(1).find((b) => b.isActive(editor))
   return nonText ?? BLOCK_TYPES[0]!
 }
+
+/** A row in the bubble's Turn-into menu: a leaf applies a block type directly; a
+ *  group expands inline to its items. Derived from BLOCK_TYPES (same objects) so the
+ *  transforms/active-state are single-sourced. */
+export type TurnIntoEntry =
+  | { kind: 'leaf'; type: BlockType }
+  | { kind: 'group'; id: string; label: string; icon: IconName; items: BlockType[] }
+
+function byId(id: string): BlockType {
+  const b = BLOCK_TYPES.find((x) => x.id === id)
+  if (!b) throw new Error(`block-types: unknown id ${id}`)
+  return b
+}
+
+export const TURN_INTO_GROUPS: TurnIntoEntry[] = [
+  { kind: 'leaf', type: byId('paragraph') },
+  { kind: 'group', id: 'heading', label: 'Heading', icon: 'pages', items: [byId('h2'), byId('h3'), byId('h4')] },
+  { kind: 'group', id: 'list', label: 'List', icon: 'forms', items: [byId('bulletList'), byId('orderedList')] },
+  { kind: 'leaf', type: byId('blockquote') },
+  { kind: 'leaf', type: byId('codeBlock') },
+]
+
+/** The id of the group whose item is currently active (so the menu can pre-expand it),
+ *  or null when the active block is a leaf/plain paragraph. */
+export function groupContaining(editor: Editor): string | null {
+  for (const e of TURN_INTO_GROUPS) {
+    if (e.kind === 'group' && e.items.some((it) => it.isActive(editor))) return e.id
+  }
+  return null
+}

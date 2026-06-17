@@ -10,6 +10,9 @@ import { Tooltip } from './Tooltip'
 import { SHORTCUTS, formatKeys, ariaKeyshortcuts, detectMac } from './shortcuts'
 import { onRequestLinkEdit } from './editor-events'
 import { isEscape, collapseSelectionOnEscape } from './dismiss'
+import { TurnIntoMenu } from './TurnIntoMenu'
+import { useToolbarRoving } from './useToolbarRoving'
+import { bubbleEscapeShouldCollapse, registerBubblePopup } from './bubble-popup'
 
 interface MarkBtn {
   name: string
@@ -63,7 +66,15 @@ export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
     return s ? ariaKeyshortcuts(s.keys) : undefined
   }
 
+  const { ref: toolbarRef, onKeyDown: onToolbarKeyDown } = useToolbarRoving()
+
   const [linking, setLinking] = useState(false)
+  // While the link input is open it owns Esc — register so the bubble's document
+  // Esc handler defers (one Esc cancels the input, leaving the selection intact).
+  useEffect(() => {
+    if (!linking) return
+    return registerBubblePopup()
+  }, [linking])
   useEffect(() => {
     setLinking(false)
   }, [active.from, active.to])
@@ -94,20 +105,24 @@ export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
 
   return (
     <div
+      ref={toolbarRef}
       className="fmt-bubble"
       role="toolbar"
       aria-label="Text formatting"
       onKeyDown={(e) => {
+        onToolbarKeyDown(e)
         if (isEscape(e.nativeEvent)) {
           e.preventDefault()
           collapseSelectionOnEscape(editor)
         }
       }}
     >
+      <TurnIntoMenu editor={editor} />
       {MARKS.map((m) => (
         <Tooltip key={m.name} content={tipFor(m.name, m.label)}>
           <button
             type="button"
+            data-toolbar-item
             className={`fmt-btn${active[m.name as keyof typeof active] ? ' on' : ''}`}
             aria-label={m.label}
             aria-keyshortcuts={ariaFor(m.name)}
@@ -122,6 +137,7 @@ export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
       <Tooltip content={tipFor('link', 'Link')}>
         <button
           type="button"
+          data-toolbar-item
           className={`fmt-btn${active.link ? ' on' : ''}`}
           aria-label="Link"
           aria-keyshortcuts={ariaFor('link')}
@@ -141,11 +157,11 @@ export function FormatBubble({ editor }: { editor: Editor }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!isEscape(e)) return
-      const sel = editor.state.selection
-      if (sel instanceof TextSelection && !sel.empty) {
-        e.preventDefault()
-        collapseSelectionOnEscape(editor)
-      }
+      // Defer to an inner popup (Turn-into menu / link input) when one is open —
+      // its own Esc closes it; this listener must not also collapse the selection.
+      if (!bubbleEscapeShouldCollapse(editor)) return
+      e.preventDefault()
+      collapseSelectionOnEscape(editor)
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)

@@ -9,14 +9,52 @@
 
 ## Editor
 
-### Toolbar keyboard model — roving arrow nav + Esc-to-leave (deferred 2026-06-16 → enriched bubble)
+### Editor feature wishlist — sequenced by content-model constraint (added 2026-06-16)
 
-**What:** a proper WAI-ARIA **toolbar keyboard pattern** for the editor's floating toolbars —
-the **format bubble** and the **callout color/icon toolbar**: one roving `tabindex` so the
-toolbar is a single tab stop, **Left/Right arrows** move between its buttons, and **Esc** leaves
-the toolbar (returns focus/caret to the editor; for the callout toolbar, dismisses the
-`:focus-within` chrome). Surfaced in UAT of the Esc-dismiss increment (owner: Shift+Tab reaches
-the toolbar but arrows don't navigate within it; callout color/icon bubble doesn't Esc-away).
+Owner dumped a feature wishlist during UAT of the enriched bubble. The gating factor is
+**not** "add the Tiptap extension" — it's that **every new node/mark must round-trip through
+Markdoc or it silently drops on publish** (the content-safety cardinal rule), plus a few need
+the media backend or are render-time, plus a couple may be Tiptap **Pro** (Saytu is 100% OSS →
+build-our-own if so). Grouped by that constraint:
+
+**Bubble v2 — Turn-into regroup (owner's structure ask):** make the dropdown categories instead
+of a flat list — **Heading** (→ levels), **List** (→ bullet / numbered / **checklist**), **Quote**
+(separate), **Code** (separate), and **Subscript/Superscript** (together). The regroup itself is
+UI over the existing `block-types.ts` registry, BUT it bundles two new round-trip types:
+- **Checklist / task list** → GFM `- [ ]` / `- [x]`; needs a TaskList/TaskItem node + converter
+  support (verify our Markdoc/markdown GFM task-list handling) + round-trip tests.
+- **Subscript / Superscript** → no native Markdown; needs a Markdoc tag (`{% sub %}`/`{% sup %}`)
+  or HTML passthrough + round-trip tests (same class as the deferred underline).
+
+**New nodes/marks needing `@saytu/core` converter work first:**
+- **Tables** → GFM tables (`| a | b |`); Tiptap table extensions are free MIT; needs converter
+  both directions + round-trip tests + table UI/keyboard.
+- **Text align** → no native Markdown; alignment is an attr on paragraph/heading → needs a Markdoc
+  representation (`{% align %}` or class) + tests. Presentation-ish; confirm it belongs in content.
+- **Text direction (RTL/LTR)** → `dir` attr; niche; same representation question.
+
+**Needs the media / render backend:**
+- **Images** → Markdown `![alt](src)` round-trips, BUT image **upload** (where bytes go) needs the
+  deferred **`ImagePort`/media pipeline** (PRD). Insert-by-URL is easy; upload is the real work.
+  NOTE: the Tiptap **"image-node-pro"** UI component name suggests Pro — verify before use.
+- **Code syntax highlighting** → code blocks already round-trip; highlighting is editor-DISPLAY via
+  `@tiptap/extension-code-block-lowlight` (free MIT) + lowlight; main round-trip need is persisting
+  the **language** (fence info string). Mostly additive/low-risk.
+
+**Render-time / navigation (+ licensing to verify):**
+- **Table of contents** → generated from headings, typically a render/theme concern, not stored
+  content. The Tiptap ToC sits near **Pro** — VERIFY licensing; if Pro, build our own (it's a
+  heading walk) or make it a theme/render feature.
+
+**Licensing (HARD RULE, partially verified):** free MIT — Table, TextAlign, Subscript, Superscript,
+TaskList, CodeBlockLowlight, Image. **To confirm not Pro-gated before committing:** Table-of-Contents,
+the "image-node-pro" component.
+
+### ~~Toolbar keyboard model — roving arrow nav + Esc-to-leave~~ ✅ SHIPPED 2026-06-16 (enriched bubble)
+
+Done in the enriched-bubble increment (`974f1b5`): `useToolbarRoving` roving-tabindex (←/→ +
+Home/End) on the format bubble + the callout style toolbar; Esc leaves (bubble collapses the
+selection; callout returns the caret to its body).
 
 **Why deferred (decided with owner):** build the bubble's full keyboard model **once, together
 with the enriched format bubble** — that increment adds many more controls (headings/lists/

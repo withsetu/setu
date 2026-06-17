@@ -7,12 +7,26 @@ function buildInline(content: TiptapNode[] = []): InstanceType<typeof N>[] {
   return content.map((t) => {
     if (t.type === 'hardBreak') return new N('hardbreak')
     let n: InstanceType<typeof N> = new N('text', { content: t.text })
+    // Apply markdown-native marks first (innermost), then tag marks (outermost).
+    // This ensures {% sub %}**b**{% /sub %} rather than **{% sub %}b{% /sub %}**,
+    // which Markdoc.format cannot render cleanly across inline tag boundaries.
     for (const m of t.marks ?? []) {
       if (m.type === 'code') n = new N('code', { content: t.text })
       else if (m.type === 'bold') n = new N('strong', { marker: '**' }, [n])
       else if (m.type === 'italic') n = new N('em', { marker: '*' }, [n])
       else if (m.type === 'strike') n = new N('s', {}, [n])
       else if (m.type === 'link') n = new N('link', { href: (m.attrs as Record<string, unknown>)?.href }, [n])
+    }
+    for (const m of t.marks ?? []) {
+      if (m.type === 'subscript') {
+        const tag = new N('tag', {}, [n], 'sub')
+        tag.inline = true
+        n = tag
+      } else if (m.type === 'superscript') {
+        const tag = new N('tag', {}, [n], 'sup')
+        tag.inline = true
+        n = tag
+      }
     }
     return n
   })

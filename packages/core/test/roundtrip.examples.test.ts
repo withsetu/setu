@@ -25,6 +25,8 @@ Pre-orders open Friday.
 
 After.
 `,
+  subsup: `H{% sub %}2{% /sub %}O and E=mc{% sup %}2{% /sup %}
+`,
   malformed: `Intro.
 
 {% for $p in $ps %}
@@ -70,6 +72,8 @@ describe('byte-fidelity round-trip', () => {
     ['code fence', '```js\nconst x = 1\n```\n'],
     ['horizontal rule', '---\n'],
     ['strikethrough', '~~gone~~\n'],
+    ['subscript', 'H{% sub %}2{% /sub %}O\n'],
+    ['superscript', 'E=mc{% sup %}2{% /sup %}\n'],
     ['link', 'A [link](https://saytu.dev).\n'],
     ['blockquote', '> quoted\n'],
   ]

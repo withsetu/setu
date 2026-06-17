@@ -41,6 +41,21 @@ Outro.
 
 Outro.
 `,
+  checklist: `- [ ] todo
+- [x] done with **bold**
+`,
+  nested: `- a
+  - b
+    - c
+`,
+  nestedChecklist: `- [ ] parent
+  - [x] child
+  - [ ] other
+`,
+  mixedNesting: `- parent
+  - [ ] sub task
+  - plain sub
+`,
 }
 
 const roundtrip = (s: string) => tiptapToMarkdoc(markdocToTiptap(s))
@@ -76,6 +91,12 @@ describe('byte-fidelity round-trip', () => {
     ['superscript', 'E=mc{% sup %}2{% /sup %}\n'],
     ['link', 'A [link](https://saytu.dev).\n'],
     ['blockquote', '> quoted\n'],
+    ['checklist', '- [ ] todo\n- [x] done\n'],
+    ['checklist with marks', '- [ ] do the **thing**\n'],
+    ['nested bullet', '- a\n  - b\n'],
+    ['nested checklist', '- [ ] p\n  - [x] c\n'],
+    ['mixed bullet>checklist', '- parent\n  - [ ] sub\n'],
+    ['mixed checklist>bullet', '- [ ] parent\n  - plain\n'],
   ]
 
   for (const [name, src] of cases) {
@@ -88,5 +109,17 @@ describe('byte-fidelity round-trip', () => {
 describe('checklist content-safety negatives', () => {
   it('a loose bullet list preserves its text (normalised to tight form)', () => {
     expect(roundtrip('- a\n\n- b\n')).toBe('- a\n- b\n')
+  })
+
+  it('a plain bullet list round-trips unchanged (no checkbox injected)', () => {
+    expect(roundtrip('- a\n- b\n')).toBe('- a\n- b\n')
+  })
+
+  it('a partial-marker list keeps its literal [ ] text (not silently converted)', () => {
+    expect(roundtrip('- [ ] a\n- b\n')).toBe('- [ ] a\n- b\n')
+  })
+
+  it('uppercase [X] normalises to lowercase [x] and stays checked', () => {
+    expect(roundtrip('- [X] done\n')).toBe('- [x] done\n')
   })
 })

@@ -72,3 +72,73 @@ describe('subscript/superscript inline tags', () => {
     expect(json).toContain('"superscript"')
   })
 })
+
+describe('task lists + nesting (markdocToTiptap)', () => {
+  it('maps an all-marker unordered list to a taskList with checked flags', () => {
+    const doc = markdocToTiptap('- [ ] todo\n- [x] done\n')
+    expect(doc.content[0]).toEqual({
+      type: 'taskList',
+      content: [
+        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'todo' }] }] },
+        { type: 'taskItem', attrs: { checked: true }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'done' }] }] },
+      ],
+    })
+  })
+
+  it('reads uppercase [X] as checked', () => {
+    const doc = markdocToTiptap('- [X] done\n')
+    const item = doc.content[0]!.content![0]!
+    expect(item).toMatchObject({ type: 'taskItem', attrs: { checked: true } })
+  })
+
+  it('strips the marker but keeps inner marks', () => {
+    const doc = markdocToTiptap('- [ ] do the **thing**\n')
+    const para = doc.content[0]!.content![0]!.content![0]!
+    expect(para.content).toEqual([
+      { type: 'text', text: 'do the ' },
+      { type: 'text', text: 'thing', marks: [{ type: 'bold' }] },
+    ])
+  })
+
+  it('keeps a plain bullet list as a bulletList (no false checklist)', () => {
+    const doc = markdocToTiptap('- a\n- b\n')
+    expect(doc.content[0]!.type).toBe('bulletList')
+  })
+
+  it('keeps a partial-marker list as a bulletList with literal marker text preserved', () => {
+    const doc = markdocToTiptap('- [ ] a\n- b\n')
+    expect(doc.content[0]!.type).toBe('bulletList')
+    const firstItemPara = doc.content[0]!.content![0]!.content![0]!
+    expect(firstItemPara.content).toEqual([{ type: 'text', text: '[ ] a' }])
+  })
+
+  it('preserves a nested bullet list inside a list item', () => {
+    const doc = markdocToTiptap('- a\n  - b\n')
+    expect(doc.content[0]).toEqual({
+      type: 'bulletList',
+      content: [
+        {
+          type: 'listItem',
+          content: [
+            { type: 'paragraph', content: [{ type: 'text', text: 'a' }] },
+            { type: 'bulletList', content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'b' }] }] }] },
+          ],
+        },
+      ],
+    })
+  })
+
+  it('preserves a nested checklist under a bullet (mixed)', () => {
+    const doc = markdocToTiptap('- parent\n  - [x] sub\n')
+    const outer = doc.content[0]!
+    expect(outer.type).toBe('bulletList')
+    const nested = outer.content![0]!.content![1]!
+    expect(nested).toMatchObject({ type: 'taskList' })
+    expect(nested.content![0]).toMatchObject({ type: 'taskItem', attrs: { checked: true } })
+  })
+
+  it('drops an empty marker text node (- [ ] with no text)', () => {
+    const doc = markdocToTiptap('- [ ]\n')
+    expect(doc.content[0]!.type).toBe('bulletList')
+  })
+})

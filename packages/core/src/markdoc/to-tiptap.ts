@@ -39,6 +39,56 @@ function inlineToTiptap(node: MdNode, marks: TiptapMark[] = []): TiptapNode[] {
 const collectInline = (node: MdNode): TiptapNode[] =>
   (node.children ?? []).flatMap((c) => inlineToTiptap(c))
 
+/** GFM task marker at the very start of an item's text: "[ ] ", "[x] ", "[X] ". */
+const TASK_RE = /^\[( |x|X)\] /
+
+/** If `item`'s first inline child is a text node beginning with a task marker, the
+ *  parsed marker; else null. Only a leading plain-text marker counts (so a list item
+ *  starting with bold/link is never a task item). */
+function taskMarker(item: MdNode): { checked: boolean } | null {
+  const inline = (item.children ?? []).find((c) => c.type === 'inline')
+  const first = inline?.children?.[0]
+  if (first?.type !== 'text' || typeof first.attributes.content !== 'string') return null
+  const m = TASK_RE.exec(first.attributes.content)
+  return m ? { checked: m[1] !== ' ' } : null
+}
+
+/** A list is a checklist iff it is unordered and EVERY item starts with a marker. */
+function isTaskList(node: MdNode): boolean {
+  if (node.attributes.ordered) return false
+  const items = node.children ?? []
+  return items.length > 0 && items.every((it) => taskMarker(it) !== null)
+}
+
+/** Remove the leading task marker from already-converted inline content. Drops the
+ *  first text node entirely if it becomes empty. */
+function stripMarker(inline: TiptapNode[]): TiptapNode[] {
+  const [first, ...rest] = inline
+  if (first && first.type === 'text' && typeof first.text === 'string') {
+    const stripped = first.text.replace(TASK_RE, '')
+    return stripped === '' ? rest : [{ ...first, text: stripped }, ...rest]
+  }
+  return inline
+}
+
+/** Markdoc list → Tiptap list, recursively. Checklist detection is per level. Each
+ *  item becomes [paragraph, ...nested lists]. */
+function listToTiptap(node: MdNode): TiptapNode {
+  const task = isTaskList(node)
+  const listType = task ? 'taskList' : node.attributes.ordered ? 'orderedList' : 'bulletList'
+  return {
+    type: listType,
+    content: (node.children ?? []).map((item) => {
+      const inline = collectInline(item)
+      const nested = (item.children ?? []).filter((c) => c.type === 'list').map(listToTiptap)
+      const paragraph: TiptapNode = { type: 'paragraph', content: task ? stripMarker(inline) : inline }
+      const content = [paragraph, ...nested]
+      if (task) return { type: 'taskItem', attrs: { checked: taskMarker(item)!.checked }, content }
+      return { type: 'listItem', content }
+    }),
+  }
+}
+
 function blockToTiptap(node: MdNode): TiptapNode | null {
   switch (node.type) {
     case 'heading':
@@ -46,13 +96,7 @@ function blockToTiptap(node: MdNode): TiptapNode | null {
     case 'paragraph':
       return { type: 'paragraph', content: collectInline(node) }
     case 'list':
-      return {
-        type: node.attributes.ordered ? 'orderedList' : 'bulletList',
-        content: (node.children ?? []).map((item) => ({
-          type: 'listItem',
-          content: [{ type: 'paragraph', content: collectInline(item) }],
-        })),
-      }
+      return listToTiptap(node)
     case 'blockquote':
       return {
         type: 'blockquote',

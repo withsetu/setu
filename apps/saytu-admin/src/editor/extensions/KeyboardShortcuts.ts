@@ -18,6 +18,14 @@ export function tabActionFor(editor: Editor): 'cell' | 'bubble' | 'indent' | 'co
   return 'consume'
 }
 
+/** Advance to the next table cell; if already in the last cell, append a row and move
+ *  into it. Returns true (Tab is always consumed in the editor body). */
+export function advanceCellOrAddRow(editor: Editor): boolean {
+  const moved = editor.chain().focus().goToNextCell().run()
+  if (!moved) editor.chain().focus().addRowAfter().goToNextCell().run()
+  return true
+}
+
 /** Editor-level custom keymaps that need app coordination (the mark/block-move
  *  shortcuts live in StarterKit/BlockActions). Mod-k opens the link editor for a
  *  non-empty selection; Mod-/ opens the shortcuts cheat sheet. */
@@ -40,7 +48,7 @@ export const KeyboardShortcuts = Extension.create({
       // through, because StarterKit declines Tab on a first/un-sinkable item.
       Tab: () => {
         const action = tabActionFor(this.editor)
-        if (action === 'cell') this.editor.chain().focus().goToNextCell().run()
+        if (action === 'cell') advanceCellOrAddRow(this.editor)
         else if (action === 'bubble') requestFocusToolbar()
         else if (action === 'indent') {
           const itemType = this.editor.isActive('taskItem') ? 'taskItem' : 'listItem'

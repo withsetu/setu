@@ -54,16 +54,16 @@ export function TableMenu({ editor }: { editor: Editor }) {
           <Icon name="alignRight" size={16} />
         </button>
         <button type="button" onClick={() => A.addRowAfter(editor)} title="Add row below" aria-label="Add row below">
-          <Icon name="plus" size={16} />
-        </button>
-        <button type="button" onClick={() => A.addColumnAfter(editor)} title="Add column right" aria-label="Add column right">
-          <Icon name="columns" size={16} />
+          <Icon name="rowAdd" size={16} />
         </button>
         <button type="button" onClick={() => A.deleteRow(editor)} title="Delete row" aria-label="Delete row">
-          <Icon name="trash" size={16} />
+          <Icon name="rowDelete" size={16} />
+        </button>
+        <button type="button" onClick={() => A.addColumnAfter(editor)} title="Add column right" aria-label="Add column right">
+          <Icon name="columnAdd" size={16} />
         </button>
         <button type="button" onClick={() => A.deleteColumn(editor)} title="Delete column" aria-label="Delete column">
-          <Icon name="trash" size={16} />
+          <Icon name="columnDelete" size={16} />
         </button>
       </div>
     </BubbleMenu>

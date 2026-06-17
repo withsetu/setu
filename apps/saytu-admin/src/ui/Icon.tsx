@@ -85,6 +85,10 @@ const ICONS = {
   alignLeft: '<path d="M3 6h18M3 12h12M3 18h15"/>',
   alignCenter: '<path d="M3 6h18M6 12h12M5 18h14"/>',
   alignRight: '<path d="M3 6h18M9 12h12M6 18h15"/>',
+  rowAdd: '<rect x="3" y="4" width="18" height="6" rx="1.5"/><path d="M12 14v6M9 17h6"/>',
+  rowDelete: '<rect x="3" y="4" width="18" height="6" rx="1.5"/><path d="M9 17h6"/>',
+  columnAdd: '<rect x="4" y="3" width="6" height="18" rx="1.5"/><path d="M17 9v6M14 12h6"/>',
+  columnDelete: '<rect x="4" y="3" width="6" height="18" rx="1.5"/><path d="M14 12h6"/>',
 } as const
 
 export type IconName = keyof typeof ICONS

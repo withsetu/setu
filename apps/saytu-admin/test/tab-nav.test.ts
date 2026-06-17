@@ -3,7 +3,7 @@ import { Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import { TaskList, TaskItem } from '@tiptap/extension-list'
 import { Table, TableRow, TableHeader, TableCell } from '@tiptap/extension-table'
-import { tabActionFor } from '../src/editor/extensions/KeyboardShortcuts'
+import { tabActionFor, advanceCellOrAddRow } from '../src/editor/extensions/KeyboardShortcuts'
 
 let editor: Editor
 afterEach(() => editor?.destroy())
@@ -56,5 +56,16 @@ describe('tabActionFor', () => {
     editor.chain().setTextSelection({ from: 1, to: 5 }).toggleTaskList().run()
     editor.commands.setTextSelection(3)
     expect(tabActionFor(editor)).toBe('indent')
+  })
+})
+
+describe('advanceCellOrAddRow', () => {
+  it('adds a new row when advancing past the last cell', () => {
+    editor = makeTable()
+    const rowCount = () => (editor.getJSON() as any).content[0].content.length
+    const cells = rowCount() * 2 // 2 cols
+    // advance through every existing cell, then once more past the last → should add a row
+    for (let i = 0; i < cells; i++) advanceCellOrAddRow(editor)
+    expect(rowCount()).toBe(3) // started 2 rows, last-cell advance appended one
   })
 })

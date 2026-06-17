@@ -325,3 +325,8 @@
 .ti-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border: none; background: transparent; border-radius: var(--r-sm, 6px); font-family: var(--font-ui); font-size: 13px; color: var(--text); cursor: pointer; text-align: left; }
 .ti-item:hover, .ti-item:focus-visible { background: var(--surface-2, #f1f3f5); outline: none; }
 .ti-item.on { color: var(--accent); font-weight: 600; }
+/* Turn-into groups (inline expand) */
+.ti-group { justify-content: flex-start; }
+.ti-group .ti-chev { margin-left: auto; transition: transform 120ms ease; font-size: 11px; color: var(--text-3, var(--text-2)); }
+.ti-group.open .ti-chev { transform: rotate(180deg); }
+.ti-sub { padding-left: 26px; }

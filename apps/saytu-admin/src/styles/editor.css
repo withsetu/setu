@@ -330,3 +330,4 @@
 .ti-group .ti-chev { margin-left: auto; transition: transform 120ms ease; font-size: 11px; color: var(--text-3, var(--text-2)); }
 .ti-group.open .ti-chev { transform: rotate(180deg); }
 .ti-sub { padding-left: 26px; }
+.ti-keys { margin-left: auto; padding-left: 16px; font-size: 11.5px; color: var(--text-3, var(--text-2)); }

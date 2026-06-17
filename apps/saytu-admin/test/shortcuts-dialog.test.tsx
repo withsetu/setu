@@ -24,4 +24,9 @@ describe('ShortcutsDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: /close/i }))
     expect(onClose).toHaveBeenCalledOnce()
   })
+  it('lists block-type shortcuts (Heading 2, Quote)', () => {
+    render(<ShortcutsDialog onClose={() => {}} />)
+    expect(screen.getByText('Heading 2')).toBeInTheDocument()
+    expect(screen.getByText('Quote')).toBeInTheDocument()
+  })
 })

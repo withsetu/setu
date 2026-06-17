@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { SHORTCUTS, formatKeys, detectMac } from './shortcuts'
 import type { ShortcutGroup } from './shortcuts'
+import { BLOCK_TYPES } from './block-types'
 
 const GROUP_ORDER: ShortcutGroup[] = ['Formatting', 'Links', 'Blocks', 'Help']
 
@@ -54,6 +55,15 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
             </section>
           )
         })}
+        <section className="sc-group">
+          <h3 className="sc-group-title">Turn a block into</h3>
+          {BLOCK_TYPES.map((b) => (
+            <div key={b.id} className="sc-row">
+              <span className="sc-label">{b.label}</span>
+              <kbd className="sc-keys">{formatKeys(b.keys, mac)}</kbd>
+            </div>
+          ))}
+        </section>
       </div>
     </div>
   )

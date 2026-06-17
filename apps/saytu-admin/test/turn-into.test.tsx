@@ -68,4 +68,13 @@ describe('TurnIntoMenu (grouped)', () => {
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
     expect(bubbleEscapeShouldCollapse(editor)).toBe(true)
   })
+
+  it('shows the block shortcut on a row (Quote)', () => {
+    let editor!: Editor
+    render(<H onReady={(e) => (editor = e)} />)
+    act(() => { editor.chain().setTextSelection({ from: 1, to: 6 }).run() })
+    fireEvent.click(screen.getByRole('button', { name: /turn into/i }))
+    const quote = screen.getByRole('menuitemradio', { name: /quote/i })
+    expect(quote.textContent).toMatch(/⌘⇧B|Ctrl\+Shift\+B/)
+  })
 })

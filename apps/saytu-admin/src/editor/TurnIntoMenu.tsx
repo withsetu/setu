@@ -6,6 +6,7 @@ import { useDismiss } from '../ui/useDismiss'
 import { TURN_INTO_GROUPS, currentBlockType, groupContaining } from './block-types'
 import type { BlockType } from './block-types'
 import { registerBubblePopup } from './bubble-popup'
+import { formatKeys, detectMac } from './shortcuts'
 
 type Row =
   | { kind: 'leaf'; type: BlockType }
@@ -23,6 +24,7 @@ export function TurnIntoMenu({ editor }: { editor: Editor }) {
   const triggerRef = useRef<HTMLButtonElement>(null)
   const rowRefs = useRef<(HTMLButtonElement | null)[]>([])
   const current = currentBlockType(editor)
+  const mac = detectMac()
 
   useDismiss(panelRef, () => setOpen(false), open)
   useEffect(() => {
@@ -157,6 +159,7 @@ export function TurnIntoMenu({ editor }: { editor: Editor }) {
               >
                 <Icon name={row.type.icon} size={15} />
                 <span>{row.type.label}</span>
+                <span className="ti-keys">{formatKeys(row.type.keys, mac)}</span>
               </button>
             )
           })}

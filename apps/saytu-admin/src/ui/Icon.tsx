@@ -82,6 +82,13 @@ const ICONS = {
   pin: '<path d="M9 4h6l-1 5 3 3v2h-5v6l-1 1-1-1v-6H5v-2l3-3z"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 8h.01M12 12v4"/>',
   keyboard: '<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M6 13h.01M16.5 13h.01M9 13h6"/>',
+  alignLeft: '<path d="M3 6h18M3 12h12M3 18h15"/>',
+  alignCenter: '<path d="M3 6h18M6 12h12M5 18h14"/>',
+  alignRight: '<path d="M3 6h18M9 12h12M6 18h15"/>',
+  rowAdd: '<rect x="3" y="4" width="18" height="6" rx="1.5"/><path d="M12 14v6M9 17h6"/>',
+  rowDelete: '<rect x="3" y="4" width="18" height="6" rx="1.5"/><path d="M9 17h6"/>',
+  columnAdd: '<rect x="4" y="3" width="6" height="18" rx="1.5"/><path d="M17 9v6M14 12h6"/>',
+  columnDelete: '<rect x="4" y="3" width="6" height="18" rx="1.5"/><path d="M14 12h6"/>',
 } as const
 
 export type IconName = keyof typeof ICONS

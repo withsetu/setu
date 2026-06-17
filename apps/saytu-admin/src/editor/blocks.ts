@@ -31,6 +31,7 @@ const BUILTINS: SlashBlock[] = [
     run: (e: Editor, r: Range) => b.setOn(e.chain().focus().deleteRange(r)).run(),
   })),
   { title: 'Divider', subtitle: 'Horizontal rule', icon: 'settings', run: (e, r) => e.chain().focus().deleteRange(r).setHorizontalRule().run() },
+  { title: 'Table', subtitle: 'Table with header row', icon: 'table', run: (e, r) => e.chain().focus().deleteRange(r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
 ]
 
 const toIconName = (raw: string | undefined): IconName => (raw && isIconName(raw) ? raw : 'sparkle')

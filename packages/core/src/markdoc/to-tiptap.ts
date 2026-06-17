@@ -128,6 +128,24 @@ function blockToTiptap(node: MdNode): TiptapNode | null {
         attrs: { mdAttrs: node.attributes },
         content: (node.children ?? []).map(blockToTiptap).filter((n): n is TiptapNode => n !== null),
       }
+    case 'table': {
+      const cellAlign = (cell: MdNode): string | null => (cell.attributes.align as string) ?? null
+      const cellToTiptap = (cell: MdNode, header: boolean): TiptapNode => ({
+        type: header ? 'tableHeader' : 'tableCell',
+        attrs: { align: cellAlign(cell) },
+        content: [{ type: 'paragraph', content: collectInline(cell) }],
+      })
+      const rowToTiptap = (tr: MdNode, header: boolean): TiptapNode => ({
+        type: 'tableRow',
+        content: (tr.children ?? []).map((c) => cellToTiptap(c, header)),
+      })
+      const rows: TiptapNode[] = []
+      for (const section of node.children ?? []) {
+        const header = section.type === 'thead'
+        for (const tr of section.children ?? []) rows.push(rowToTiptap(tr, header))
+      }
+      return { type: 'table', content: rows }
+    }
     default:
       return null
   }

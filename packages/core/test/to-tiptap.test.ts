@@ -175,3 +175,37 @@ describe('task lists + nesting (markdocToTiptap)', () => {
     expect(items[1]).toMatchObject({ type: 'taskItem', attrs: { checked: true } })
   })
 })
+
+describe('tables (markdocToTiptap)', () => {
+  it('reads a GFM table into a Tiptap table with header cells', () => {
+    const doc = markdocToTiptap('| Name | Role |\n| --- | --- |\n| Ada | Eng |\n')
+    expect(doc.content[0]).toEqual({
+      type: 'table',
+      content: [
+        { type: 'tableRow', content: [
+          { type: 'tableHeader', attrs: { align: null }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Name' }] }] },
+          { type: 'tableHeader', attrs: { align: null }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Role' }] }] },
+        ] },
+        { type: 'tableRow', content: [
+          { type: 'tableCell', attrs: { align: null }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Ada' }] }] },
+          { type: 'tableCell', attrs: { align: null }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Eng' }] }] },
+        ] },
+      ],
+    })
+  })
+
+  it('carries per-column alignment onto every cell in the column', () => {
+    const doc = markdocToTiptap('| L | R |\n| :-- | --: |\n| a | b |\n')
+    const t = doc.content[0]!
+    expect(t.content![0]!.content![0]!.attrs).toEqual({ align: 'left' })
+    expect(t.content![0]!.content![1]!.attrs).toEqual({ align: 'right' })
+    expect(t.content![1]!.content![0]!.attrs).toEqual({ align: 'left' })
+    expect(t.content![1]!.content![1]!.attrs).toEqual({ align: 'right' })
+  })
+
+  it('reads inline marks inside cells', () => {
+    const doc = markdocToTiptap('| a |\n| --- |\n| **b** |\n')
+    const bodyCellPara = doc.content[0]!.content![1]!.content![0]!.content![0]!
+    expect(bodyCellPara.content).toEqual([{ type: 'text', text: 'b', marks: [{ type: 'bold' }] }])
+  })
+})

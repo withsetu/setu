@@ -5,6 +5,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import { Subscript } from '@tiptap/extension-subscript'
 import { Superscript } from '@tiptap/extension-superscript'
 import { TaskList, TaskItem } from '@tiptap/extension-list'
+import { Table, TableRow, TableHeader, TableCell } from '@tiptap/extension-table'
 import type { Editor } from '@tiptap/core'
 import type { EditorView } from '@tiptap/pm/view'
 import tippy from 'tippy.js'
@@ -20,6 +21,16 @@ import { KeyboardShortcuts } from './extensions/KeyboardShortcuts'
 import { requestLinkEdit } from './editor-events'
 import { LinkTools } from './extensions/LinkTools'
 import { FormatBubble } from './FormatBubble'
+
+const cellAlign = {
+  align: {
+    default: null as string | null,
+    parseHTML: (el: HTMLElement) => el.style.textAlign || null,
+    renderHTML: (attrs: { align?: string | null }) => (attrs.align ? { style: `text-align: ${attrs.align}` } : {}),
+  },
+}
+const AlignTableHeader = TableHeader.extend({ addAttributes() { return { ...this.parent?.(), ...cellAlign } } })
+const AlignTableCell = TableCell.extend({ addAttributes() { return { ...this.parent?.(), ...cellAlign } } })
 
 export function Canvas({
   initialContent,
@@ -82,6 +93,10 @@ export function Canvas({
       Superscript.extend({ excludes: 'subscript' }),
       TaskList,
       TaskItem.configure({ nested: true }),
+      Table.configure({ resizable: false }),
+      TableRow,
+      AlignTableHeader,
+      AlignTableCell,
       BlockActions,
       KeyboardShortcuts,
       dragHandle,

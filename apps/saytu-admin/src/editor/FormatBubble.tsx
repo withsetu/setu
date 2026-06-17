@@ -32,6 +32,13 @@ const MARKS: MarkBtn[] = [
   { name: 'superscript', label: 'Superscript', icon: 'superscript', toggle: (e) => e.chain().focus().toggleSuperscript().run() },
 ]
 
+interface AlignBtn { id: string; label: string; icon: IconName; apply: (e: Editor) => void }
+const ALIGNS: AlignBtn[] = [
+  { id: 'alignLeft', label: 'Align left', icon: 'alignLeft', apply: (e) => e.chain().focus().unsetTextAlign().run() },
+  { id: 'alignCenter', label: 'Align center', icon: 'alignCenter', apply: (e) => e.chain().focus().setTextAlign('center').run() },
+  { id: 'alignRight', label: 'Align right', icon: 'alignRight', apply: (e) => e.chain().focus().setTextAlign('right').run() },
+]
+
 /** Make a user-typed URL absolute: a bare domain like `example.com` becomes
  *  `https://example.com` (otherwise the browser treats it as a path relative to the
  *  current page). Leaves an explicit scheme (`http:`, `mailto:`…) and root/anchor
@@ -56,10 +63,12 @@ export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
       subscript: e.isActive('subscript'),
       superscript: e.isActive('superscript'),
       link: e.isActive('link'),
+      alignCenter: e.isActive({ textAlign: 'center' }),
+      alignRight: e.isActive({ textAlign: 'right' }),
       from: e.state.selection.from,
       to: e.state.selection.to,
     }),
-  }) ?? { bold: false, italic: false, code: false, strike: false, subscript: false, superscript: false, link: false, from: 0, to: 0 }
+  }) ?? { bold: false, italic: false, code: false, strike: false, subscript: false, superscript: false, link: false, alignCenter: false, alignRight: false, from: 0, to: 0 }
 
   const mac = detectMac()
   const shortcutFor = (id: string) => SHORTCUTS.find((s) => s.id === id)
@@ -150,6 +159,25 @@ export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
           </button>
         </Tooltip>
       ))}
+      {ALIGNS.map((a) => {
+        const pressed = a.id === 'alignCenter' ? active.alignCenter : a.id === 'alignRight' ? active.alignRight : !active.alignCenter && !active.alignRight
+        return (
+          <Tooltip key={a.id} content={tipFor(a.id, a.label)}>
+            <button
+              type="button"
+              data-toolbar-item
+              className={`fmt-btn${pressed ? ' on' : ''}`}
+              aria-label={a.label}
+              aria-keyshortcuts={ariaFor(a.id)}
+              aria-pressed={pressed}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => a.apply(editor)}
+            >
+              <Icon name={a.icon} size={16} />
+            </button>
+          </Tooltip>
+        )
+      })}
       <Tooltip content={tipFor('link', 'Link')}>
         <button
           type="button"

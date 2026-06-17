@@ -118,6 +118,16 @@
  *  aren't spaced apart by the paragraph rule above. */
 .saytu-prose li > p { margin: 0; padding: 0; }
 .saytu-prose li::marker { color: var(--text-4); }
+/* ---- Task list (checklist) ---- */
+.saytu-prose ul[data-type="taskList"] { list-style: none; padding-left: 4px; margin: 6px 0; }
+.saytu-prose ul[data-type="taskList"] li[data-type="taskItem"] { display: flex; align-items: flex-start; gap: 9px; padding: 1px 0; }
+.saytu-prose li[data-type="taskItem"] > label { flex-shrink: 0; margin-top: 7px; user-select: none; }
+.saytu-prose li[data-type="taskItem"] > label > input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent-strong); }
+.saytu-prose li[data-type="taskItem"] > div { flex: 1; min-width: 0; }
+.saytu-prose li[data-type="taskItem"] > div > p { margin: 0; padding: 0; }
+.saytu-prose li[data-type="taskItem"][data-checked="true"] > div { color: var(--text-3); text-decoration: line-through; }
+/* nested lists indent under the content column, not the checkbox */
+.saytu-prose li[data-type="taskItem"] ul[data-type="taskList"] { padding-left: 0; }
 .saytu-prose blockquote { font-size: 22px; line-height: 1.55; font-style: italic; color: var(--text); padding: 4px 0 4px 22px; border-left: 3px solid var(--accent); margin: 8px 0; }
 .saytu-prose pre { background: var(--bg-sunken); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 14px 16px; font-size: 14px; line-height: 1.6; color: var(--text); white-space: pre-wrap; font-family: var(--font-mono); margin: 10px 0; }
 .saytu-prose code { font-family: var(--font-mono); font-size: .9em; }

@@ -42,11 +42,21 @@ const collectInline = (node: MdNode): TiptapNode[] =>
 /** GFM task marker at the very start of an item's text: "[ ] ", "[x] ", "[X] ". */
 const TASK_RE = /^\[( |x|X)\] /
 
+/** The inline AST node holding a list item's text — directly (tight list) or inside
+ *  the item's first paragraph (loose list). undefined if the item has no text. */
+function itemInlineNode(item: MdNode): MdNode | undefined {
+  const children = item.children ?? []
+  const direct = children.find((c) => c.type === 'inline')
+  if (direct) return direct
+  const para = children.find((c) => c.type === 'paragraph')
+  return para?.children?.find((c) => c.type === 'inline')
+}
+
 /** If `item`'s first inline child is a text node beginning with a task marker, the
  *  parsed marker; else null. Only a leading plain-text marker counts (so a list item
  *  starting with bold/link is never a task item). */
 function taskMarker(item: MdNode): { checked: boolean } | null {
-  const inline = (item.children ?? []).find((c) => c.type === 'inline')
+  const inline = itemInlineNode(item)
   const first = inline?.children?.[0]
   if (first?.type !== 'text' || typeof first.attributes.content !== 'string') return null
   const m = TASK_RE.exec(first.attributes.content)
@@ -79,7 +89,8 @@ function listToTiptap(node: MdNode): TiptapNode {
   return {
     type: listType,
     content: (node.children ?? []).map((item) => {
-      const inline = collectInline(item)
+      const inlineNode = itemInlineNode(item)
+      const inline = inlineNode ? inlineToTiptap(inlineNode) : []
       const nested = (item.children ?? []).filter((c) => c.type === 'list').map(listToTiptap)
       const paragraph: TiptapNode = { type: 'paragraph', content: task ? stripMarker(inline) : inline }
       const content = [paragraph, ...nested]

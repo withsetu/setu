@@ -141,4 +141,24 @@ describe('task lists + nesting (markdocToTiptap)', () => {
     const doc = markdocToTiptap('- [ ]\n')
     expect(doc.content[0]!.type).toBe('bulletList')
   })
+
+  it('preserves text in a loose bullet list (blank line between items)', () => {
+    const doc = markdocToTiptap('- a\n\n- b\n')
+    expect(doc.content[0]).toEqual({
+      type: 'bulletList',
+      content: [
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'a' }] }] },
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'b' }] }] },
+      ],
+    })
+  })
+
+  it('detects a loose checklist and preserves text', () => {
+    const doc = markdocToTiptap('- [ ] a\n\n- [x] b\n')
+    expect(doc.content[0]!.type).toBe('taskList')
+    const items = doc.content[0]!.content!
+    expect(items[0]).toMatchObject({ type: 'taskItem', attrs: { checked: false } })
+    expect(items[0]!.content![0]).toEqual({ type: 'paragraph', content: [{ type: 'text', text: 'a' }] })
+    expect(items[1]).toMatchObject({ type: 'taskItem', attrs: { checked: true } })
+  })
 })

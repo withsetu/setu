@@ -84,3 +84,9 @@ describe('byte-fidelity round-trip', () => {
     })
   }
 })
+
+describe('checklist content-safety negatives', () => {
+  it('a loose bullet list preserves its text (normalised to tight form)', () => {
+    expect(roundtrip('- a\n\n- b\n')).toBe('- a\n- b\n')
+  })
+})

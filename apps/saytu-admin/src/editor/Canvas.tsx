@@ -4,6 +4,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import { Subscript } from '@tiptap/extension-subscript'
 import { Superscript } from '@tiptap/extension-superscript'
+import { TaskList, TaskItem } from '@tiptap/extension-list'
 import type { Editor } from '@tiptap/core'
 import type { EditorView } from '@tiptap/pm/view'
 import tippy from 'tippy.js'
@@ -79,6 +80,8 @@ export function Canvas({
       // applying one clears the other.
       Subscript.extend({ excludes: 'superscript' }),
       Superscript.extend({ excludes: 'subscript' }),
+      TaskList,
+      TaskItem.configure({ nested: true }),
       BlockActions,
       KeyboardShortcuts,
       dragHandle,

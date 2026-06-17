@@ -17,7 +17,7 @@ describe('TURN_INTO_GROUPS', () => {
     expect(shape).toEqual([
       'leaf:paragraph',
       'group:heading[h2,h3,h4]',
-      'group:list[bulletList,orderedList]',
+      'group:list[bulletList,orderedList,taskList]',
       'leaf:blockquote',
       'leaf:codeBlock',
     ])
@@ -39,5 +39,19 @@ describe('groupContaining', () => {
     e.chain().setNode('paragraph').toggleBulletList().run()
     expect(groupContaining(e)).toBe('list')
     e.destroy()
+  })
+})
+
+describe('checklist block type', () => {
+  it('exposes a taskList block type with the Mod-Shift-9 shortcut', () => {
+    const t = BLOCK_TYPES.find((b) => b.id === 'taskList')
+    expect(t).toBeTruthy()
+    expect(t!.label).toBe('Checklist')
+    expect(t!.keys).toEqual(['Mod', 'Shift', '9'])
+  })
+
+  it('adds Checklist as the third item of the List group', () => {
+    const list = TURN_INTO_GROUPS.find((e) => e.kind === 'group' && e.id === 'list')
+    expect(list && list.kind === 'group' && list.items.map((i) => i.id)).toEqual(['bulletList', 'orderedList', 'taskList'])
   })
 })

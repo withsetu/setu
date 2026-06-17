@@ -14,6 +14,7 @@ describe('slashBlocks', () => {
     expect(titles).toContain('Quote')
     expect(titles).toContain('Code block')
     expect(titles).toContain('Divider')
+    expect(titles).toContain('Checklist')
     expect(titles.some((t) => /callout/i.test(t))).toBe(true)
   })
 })

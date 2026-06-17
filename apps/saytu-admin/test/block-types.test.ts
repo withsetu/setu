@@ -22,7 +22,7 @@ describe('BLOCK_TYPES registry', () => {
   })
   it('offers H2/H3/H4 (not H1) and the expected block ids', () => {
     expect(BLOCK_TYPES.map((b) => b.id)).toEqual([
-      'paragraph', 'h2', 'h3', 'h4', 'bulletList', 'orderedList', 'blockquote', 'codeBlock',
+      'paragraph', 'h2', 'h3', 'h4', 'bulletList', 'orderedList', 'blockquote', 'codeBlock', 'taskList',
     ])
   })
 })

@@ -72,3 +72,106 @@ describe('subscript/superscript inline tags', () => {
     expect(json).toContain('"superscript"')
   })
 })
+
+describe('task lists + nesting (markdocToTiptap)', () => {
+  it('maps an all-marker unordered list to a taskList with checked flags', () => {
+    const doc = markdocToTiptap('- [ ] todo\n- [x] done\n')
+    expect(doc.content[0]).toEqual({
+      type: 'taskList',
+      content: [
+        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'todo' }] }] },
+        { type: 'taskItem', attrs: { checked: true }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'done' }] }] },
+      ],
+    })
+  })
+
+  it('reads uppercase [X] as checked', () => {
+    const doc = markdocToTiptap('- [X] done\n')
+    const item = doc.content[0]!.content![0]!
+    expect(item).toMatchObject({ type: 'taskItem', attrs: { checked: true } })
+  })
+
+  it('strips the marker but keeps inner marks', () => {
+    const doc = markdocToTiptap('- [ ] do the **thing**\n')
+    const para = doc.content[0]!.content![0]!.content![0]!
+    expect(para.content).toEqual([
+      { type: 'text', text: 'do the ' },
+      { type: 'text', text: 'thing', marks: [{ type: 'bold' }] },
+    ])
+  })
+
+  it('keeps a plain bullet list as a bulletList (no false checklist)', () => {
+    const doc = markdocToTiptap('- a\n- b\n')
+    expect(doc.content[0]!.type).toBe('bulletList')
+  })
+
+  it('keeps a partial-marker list as a bulletList with literal marker text preserved', () => {
+    const doc = markdocToTiptap('- [ ] a\n- b\n')
+    expect(doc.content[0]!.type).toBe('bulletList')
+    const firstItemPara = doc.content[0]!.content![0]!.content![0]!
+    expect(firstItemPara.content).toEqual([{ type: 'text', text: '[ ] a' }])
+  })
+
+  it('preserves a nested bullet list inside a list item', () => {
+    const doc = markdocToTiptap('- a\n  - b\n')
+    expect(doc.content[0]).toEqual({
+      type: 'bulletList',
+      content: [
+        {
+          type: 'listItem',
+          content: [
+            { type: 'paragraph', content: [{ type: 'text', text: 'a' }] },
+            { type: 'bulletList', content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'b' }] }] }] },
+          ],
+        },
+      ],
+    })
+  })
+
+  it('preserves a nested checklist under a bullet (mixed)', () => {
+    const doc = markdocToTiptap('- parent\n  - [x] sub\n')
+    const outer = doc.content[0]!
+    expect(outer.type).toBe('bulletList')
+    const nested = outer.content![0]!.content![1]!
+    expect(nested).toMatchObject({ type: 'taskList' })
+    expect(nested.content![0]).toMatchObject({ type: 'taskItem', attrs: { checked: true } })
+  })
+
+  it('treats a bare "- [ ]" (no text) as an empty unchecked task item', () => {
+    const doc = markdocToTiptap('- [ ]\n')
+    expect(doc.content[0]!.type).toBe('taskList')
+    const item = doc.content[0]!.content![0]!
+    expect(item).toMatchObject({ type: 'taskItem', attrs: { checked: false } })
+    expect(item.content![0]).toEqual({ type: 'paragraph', content: [] })
+  })
+
+  it('keeps a checklist that contains an empty row as a checklist (not demoted to bullets)', () => {
+    const doc = markdocToTiptap('- [x] done\n- [ ]\n')
+    expect(doc.content[0]!.type).toBe('taskList')
+    const items = doc.content[0]!.content!
+    expect(items[0]).toMatchObject({ type: 'taskItem', attrs: { checked: true } })
+    expect(items[0]!.content![0]).toEqual({ type: 'paragraph', content: [{ type: 'text', text: 'done' }] })
+    expect(items[1]).toMatchObject({ type: 'taskItem', attrs: { checked: false } })
+    expect(items[1]!.content![0]).toEqual({ type: 'paragraph', content: [] })
+  })
+
+  it('preserves text in a loose bullet list (blank line between items)', () => {
+    const doc = markdocToTiptap('- a\n\n- b\n')
+    expect(doc.content[0]).toEqual({
+      type: 'bulletList',
+      content: [
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'a' }] }] },
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'b' }] }] },
+      ],
+    })
+  })
+
+  it('detects a loose checklist and preserves text', () => {
+    const doc = markdocToTiptap('- [ ] a\n\n- [x] b\n')
+    expect(doc.content[0]!.type).toBe('taskList')
+    const items = doc.content[0]!.content!
+    expect(items[0]).toMatchObject({ type: 'taskItem', attrs: { checked: false } })
+    expect(items[0]!.content![0]).toEqual({ type: 'paragraph', content: [{ type: 'text', text: 'a' }] })
+    expect(items[1]).toMatchObject({ type: 'taskItem', attrs: { checked: true } })
+  })
+})

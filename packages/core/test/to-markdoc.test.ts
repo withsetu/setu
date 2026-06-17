@@ -36,3 +36,63 @@ describe('tiptapToMarkdoc', () => {
     expect(tiptapToMarkdoc(doc)).toBe('{% if $x %}\nHi\n{% /if %}\n')
   })
 })
+
+describe('task lists + nesting (tiptapToMarkdoc)', () => {
+  const wrap = (node: any) => tiptapToMarkdoc({ type: 'doc', content: [node] })
+
+  it('serializes a taskList with [ ]/[x] markers', () => {
+    const md = wrap({
+      type: 'taskList',
+      content: [
+        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'todo' }] }] },
+        { type: 'taskItem', attrs: { checked: true }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'done' }] }] },
+      ],
+    })
+    expect(md).toBe('- [ ] todo\n- [x] done\n')
+  })
+
+  it('keeps inner marks after the marker', () => {
+    const md = wrap({
+      type: 'taskList',
+      content: [
+        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [
+          { type: 'text', text: 'do the ' },
+          { type: 'text', text: 'thing', marks: [{ type: 'bold' }] },
+        ] }] },
+      ],
+    })
+    expect(md).toBe('- [ ] do the **thing**\n')
+  })
+
+  it('serializes a nested bullet list inside an item', () => {
+    const md = wrap({
+      type: 'bulletList',
+      content: [
+        {
+          type: 'listItem',
+          content: [
+            { type: 'paragraph', content: [{ type: 'text', text: 'a' }] },
+            { type: 'bulletList', content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'b' }] }] }] },
+          ],
+        },
+      ],
+    })
+    expect(md).toBe('- a\n  - b\n')
+  })
+
+  it('serializes a nested checklist under a bullet (mixed)', () => {
+    const md = wrap({
+      type: 'bulletList',
+      content: [
+        {
+          type: 'listItem',
+          content: [
+            { type: 'paragraph', content: [{ type: 'text', text: 'parent' }] },
+            { type: 'taskList', content: [{ type: 'taskItem', attrs: { checked: true }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'sub' }] }] }] },
+          ],
+        },
+      ],
+    })
+    expect(md).toBe('- parent\n  - [x] sub\n')
+  })
+})

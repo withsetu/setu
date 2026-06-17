@@ -23,6 +23,7 @@ export const BLOCK_TYPES: BlockType[] = [
   { id: 'orderedList', label: 'Numbered list', icon: 'forms', keys: ['Mod', 'Shift', '7'], isActive: (e) => e.isActive('orderedList'), setOn: (c) => c.toggleOrderedList() },
   { id: 'blockquote', label: 'Quote', icon: 'post', keys: ['Mod', 'Shift', 'b'], isActive: (e) => e.isActive('blockquote'), setOn: (c) => c.toggleBlockquote() },
   { id: 'codeBlock', label: 'Code block', icon: 'settings', keys: ['Mod', 'Alt', 'c'], isActive: (e) => e.isActive('codeBlock'), setOn: (c) => c.toggleCodeBlock() },
+  { id: 'taskList', label: 'Checklist', icon: 'check', keys: ['Mod', 'Shift', '9'], isActive: (e) => e.isActive('taskList'), setOn: (c) => c.toggleTaskList() },
 ]
 
 /** The block type of the current selection — the first non-Text type that's active
@@ -48,7 +49,7 @@ function byId(id: string): BlockType {
 export const TURN_INTO_GROUPS: TurnIntoEntry[] = [
   { kind: 'leaf', type: byId('paragraph') },
   { kind: 'group', id: 'heading', label: 'Heading', icon: 'pages', items: [byId('h2'), byId('h3'), byId('h4')] },
-  { kind: 'group', id: 'list', label: 'List', icon: 'forms', items: [byId('bulletList'), byId('orderedList')] },
+  { kind: 'group', id: 'list', label: 'List', icon: 'forms', items: [byId('bulletList'), byId('orderedList'), byId('taskList')] },
   { kind: 'leaf', type: byId('blockquote') },
   { kind: 'leaf', type: byId('codeBlock') },
 ]

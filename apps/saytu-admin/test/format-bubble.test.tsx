@@ -1,7 +1,8 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { render, cleanup, act, screen } from '@testing-library/react'
+import { render, cleanup, act, screen, fireEvent } from '@testing-library/react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
+import { TextAlign } from '@tiptap/extension-text-align'
 import type { Editor } from '@tiptap/core'
 import { useEffect } from 'react'
 import { TextSelection } from '@tiptap/pm/state'
@@ -80,6 +81,29 @@ describe('FormatBubbleToolbar', () => {
     expect(boldBtn).toHaveAttribute('aria-pressed', 'false')
     act(() => { editor.chain().focus().setTextSelection({ from: 1, to: 6 }).toggleBold().run() })
     expect(boldBtn).toHaveAttribute('aria-pressed', 'true')
+  })
+})
+
+function AlignHarness({ onReady }: { onReady: (e: Editor) => void }) {
+  const editor = useEditor({
+    immediatelyRender: false,
+    extensions: [sk(), TextAlign.configure({ types: ['heading', 'paragraph'], alignments: ['left', 'center', 'right'] })],
+    content: docOf('hello world'),
+  })
+  if (editor) onReady(editor)
+  return <EditorContent editor={editor} />
+}
+
+describe('alignment buttons', () => {
+  it('aligns the current block and reflects aria-pressed', () => {
+    let editor!: Editor
+    render(<AlignHarness onReady={(e) => (editor = e)} />)
+    act(() => { editor.commands.setTextSelection({ from: 1, to: 6 }) })
+    render(<FormatBubbleToolbar editor={editor} />)
+    const centerBtn = screen.getByLabelText('Align center')
+    act(() => { fireEvent.click(centerBtn) })
+    expect(editor.isActive({ textAlign: 'center' })).toBe(true)
+    expect(screen.getByLabelText('Align center')).toHaveAttribute('aria-pressed', 'true')
   })
 })
 

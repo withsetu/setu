@@ -6,6 +6,7 @@ import { Subscript } from '@tiptap/extension-subscript'
 import { Superscript } from '@tiptap/extension-superscript'
 import { TaskList, TaskItem } from '@tiptap/extension-list'
 import { Table, TableRow, TableHeader, TableCell } from '@tiptap/extension-table'
+import { TextAlign } from '@tiptap/extension-text-align'
 import type { Editor } from '@tiptap/core'
 import type { EditorView } from '@tiptap/pm/view'
 import tippy from 'tippy.js'
@@ -98,6 +99,7 @@ export function Canvas({
       TableRow,
       AlignTableHeader,
       AlignTableCell,
+      TextAlign.configure({ types: ['heading', 'paragraph'], alignments: ['left', 'center', 'right'] }),
       BlockActions,
       KeyboardShortcuts,
       dragHandle,

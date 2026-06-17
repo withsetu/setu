@@ -1,5 +1,6 @@
 import { BubbleMenu } from '@tiptap/react/menus'
 import type { Editor } from '@tiptap/core'
+import { selectedRect } from '@tiptap/pm/tables'
 
 export const tableActions = {
   addRowAfter: (e: Editor) => e.chain().focus().addRowAfter().run(),
@@ -7,8 +8,28 @@ export const tableActions = {
   deleteRow: (e: Editor) => e.chain().focus().deleteRow().run(),
   deleteColumn: (e: Editor) => e.chain().focus().deleteColumn().run(),
   deleteTable: (e: Editor) => e.chain().focus().deleteTable().run(),
+  // Set `align` on EVERY cell in the caret's column (header + all body cells). The GFM
+  // serializer reads each column's alignment from the HEADER row, so updating only the
+  // caret's cell would lose the alignment on round-trip when the caret is in a body cell.
   setColumnAlign: (e: Editor, align: 'left' | 'center' | 'right' | null) =>
-    e.chain().focus().updateAttributes('tableCell', { align }).updateAttributes('tableHeader', { align }).run(),
+    e
+      .chain()
+      .focus()
+      .command(({ tr, state, dispatch }) => {
+        if (!e.isActive('table')) return false
+        const rect = selectedRect(state)
+        const col = rect.left // column index of the caret's cell (left edge)
+        const positions = rect.map.cellsInRect({ left: col, right: col + 1, top: 0, bottom: rect.map.height })
+        if (dispatch) {
+          for (const rel of positions) {
+            const pos = rect.tableStart + rel
+            const node = tr.doc.nodeAt(pos)
+            if (node) tr.setNodeMarkup(pos, undefined, { ...node.attrs, align })
+          }
+        }
+        return true
+      })
+      .run(),
 }
 
 /** Floating menu for table cell actions. Uses a DISTINCT pluginKey so it coexists

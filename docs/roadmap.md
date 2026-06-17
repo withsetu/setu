@@ -30,9 +30,15 @@ build-our-own if so). Grouped by that constraint:
   converter. Underline remains deferred (same inline-tag pattern available to reuse).
 
 **New nodes/marks needing `@saytu/core` converter work first:**
-- **Tables** → GFM tables (`| a | b |`); Tiptap table extensions are free MIT; needs converter
-  both directions + round-trip tests + table UI/keyboard.
+- ~~**Tables**~~ ✅ SHIPPED 2026-06-17 (`276762d`): GFM pipe tables with per-column alignment.
+  Core writes tables itself (`tableToGfm`) since Markdoc.format drops alignment; Markdoc stays the
+  reader. `@tiptap/extension-table` (pinned 3.26.1) + cell `align` attr, slash insert, icon action
+  menu, Tab/Shift-Tab cell nav + Tab-at-last-cell adds a row. No merged cells / resize / block-in-cell
+  (GFM can't represent). Spec/plan: `docs/superpowers/{specs,plans}/2026-06-17-saytu-tables*`.
 - **Text align** → no native Markdown; alignment is an attr on paragraph/heading → needs a Markdoc
+  representation (`{% align %}` or class) + tests. Presentation-ish; confirm it belongs in content.
+  NOTE: this is the GENERAL block text-align — distinct from the GFM-native table-column alignment
+  already shipped with tables. Likely the next alignment increment.
   representation (`{% align %}` or class) + tests. Presentation-ish; confirm it belongs in content.
 - **Text direction (RTL/LTR)** → `dir` attr; niche; same representation question.
 

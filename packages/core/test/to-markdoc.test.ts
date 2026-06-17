@@ -96,3 +96,27 @@ describe('task lists + nesting (tiptapToMarkdoc)', () => {
     expect(md).toBe('- parent\n  - [x] sub\n')
   })
 })
+
+describe('text alignment (tiptapToMarkdoc)', () => {
+  const wrap = (node: any) => tiptapToMarkdoc({ type: 'doc', content: [node] })
+
+  it('writes a centered paragraph as a node annotation', () => {
+    const md = wrap({ type: 'paragraph', attrs: { textAlign: 'center' }, content: [{ type: 'text', text: 'Centered' }] })
+    expect(md).toBe('Centered{% align="center" %}\n')
+  })
+
+  it('writes a right-aligned heading', () => {
+    const md = wrap({ type: 'heading', attrs: { level: 2, textAlign: 'right' }, content: [{ type: 'text', text: 'Title' }] })
+    expect(md).toBe('## Title{% align="right" %}\n')
+  })
+
+  it('keeps alignment annotation after inline marks', () => {
+    const md = wrap({ type: 'paragraph', attrs: { textAlign: 'center' }, content: [{ type: 'text', text: 'a ' }, { type: 'text', text: 'b', marks: [{ type: 'bold' }] }] })
+    expect(md).toBe('a **b**{% align="center" %}\n')
+  })
+
+  it('emits NO annotation for left/absent alignment', () => {
+    expect(wrap({ type: 'paragraph', attrs: { textAlign: 'left' }, content: [{ type: 'text', text: 'x' }] })).toBe('x\n')
+    expect(wrap({ type: 'paragraph', content: [{ type: 'text', text: 'y' }] })).toBe('y\n')
+  })
+})

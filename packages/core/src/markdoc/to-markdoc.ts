@@ -50,13 +50,24 @@ function buildListItem(item: TiptapNode, task: boolean): InstanceType<typeof N> 
   return new N('item', {}, [new N('inline', {}, inlineNodes), ...nested])
 }
 
+/** Attach a Markdoc `{% align="…" %}` annotation to a built block node when the Tiptap
+ *  node has a center/right textAlign. left/null/undefined → no annotation (clean default).
+ *  Mirrors the `tag.inline = true` write pattern in buildInline. */
+function withAlign(built: InstanceType<typeof N>, node: TiptapNode): InstanceType<typeof N> {
+  const ta = (node.attrs as Record<string, unknown> | undefined)?.['textAlign']
+  if (ta === 'center' || ta === 'right') {
+    built.annotations = [{ type: 'attribute', name: 'align', value: ta }]
+  }
+  return built
+}
+
 function buildBlock(node: TiptapNode): InstanceType<typeof N> {
   const attrs = (node.attrs ?? {}) as Record<string, unknown>
   switch (node.type) {
     case 'heading':
-      return new N('heading', { level: attrs['level'] }, [new N('inline', {}, buildInline(node.content))])
+      return withAlign(new N('heading', { level: attrs['level'] }, [new N('inline', {}, buildInline(node.content))]), node)
     case 'paragraph':
-      return new N('paragraph', {}, [new N('inline', {}, buildInline(node.content))])
+      return withAlign(new N('paragraph', {}, [new N('inline', {}, buildInline(node.content))]), node)
     case 'bulletList':
     case 'orderedList':
     case 'taskList': {

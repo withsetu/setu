@@ -56,6 +56,19 @@ Outro.
   - [ ] sub task
   - plain sub
 `,
+  table: `| Name | Role |
+| --- | --- |
+| Ada | Eng |
+| Mai | PM |
+`,
+  tableAligned: `| L | C | R |
+| :-- | :-: | --: |
+| a | b | c |
+`,
+  tableMarks: `| h | link |
+| --- | --- |
+| **b** | [site](https://saytu.dev) |
+`,
 }
 
 const roundtrip = (s: string) => tiptapToMarkdoc(markdocToTiptap(s))
@@ -99,6 +112,9 @@ describe('byte-fidelity round-trip', () => {
     ['mixed checklist>bullet', '- [ ] parent\n  - plain\n'],
     ['empty checklist row', '- [ ]\n'],
     ['checklist with an empty row', '- [x] done\n- [ ]\n'],
+    ['table', '| Name | Role |\n| --- | --- |\n| Ada | Eng |\n'],
+    ['table aligned', '| L | C | R |\n| :-- | :-: | --: |\n| a | b | c |\n'],
+    ['table with marks', '| h | l |\n| --- | --- |\n| **b** | [x](https://y.dev) |\n'],
   ]
 
   for (const [name, src] of cases) {
@@ -123,5 +139,17 @@ describe('checklist content-safety negatives', () => {
 
   it('uppercase [X] normalises to lowercase [x] and stays checked', () => {
     expect(roundtrip('- [X] done\n')).toBe('- [x] done\n')
+  })
+})
+
+describe('table content-safety', () => {
+  it('a pipe in cell text round-trips without breaking the grid', () => {
+    const src = '| a | b |\n| --- | --- |\n| x \\| y | z |\n'
+    expect(roundtrip(src)).toBe(src)
+  })
+
+  it('a pipe inside a code span in a cell survives', () => {
+    const src = '| a |\n| --- |\n| `p\\|q` |\n'
+    expect(roundtrip(src)).toBe(src)
   })
 })

@@ -1,0 +1,12 @@
+{
+  "// note": "Exclude Superpowers git worktrees (.claude/worktrees/) — they are temporary full copies of the monorepo. Without this, the TypeScript server type-checks the duplicate copies and reports phantom cross-package errors.",
+  "files.exclude": {
+    "**/.claude/worktrees": true
+  },
+  "search.exclude": {
+    "**/.claude/worktrees": true
+  },
+  "files.watcherExclude": {
+    "**/.claude/worktrees/**": true
+  }
+}

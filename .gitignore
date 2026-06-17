@@ -3,3 +3,6 @@ dist/
 .astro/
 .DS_Store
 *.log
+
+# Superpowers git worktrees (temporary, per-feature copies of the repo)
+.claude/worktrees/

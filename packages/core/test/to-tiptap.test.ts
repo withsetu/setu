@@ -137,9 +137,22 @@ describe('task lists + nesting (markdocToTiptap)', () => {
     expect(nested.content![0]).toMatchObject({ type: 'taskItem', attrs: { checked: true } })
   })
 
-  it('drops an empty marker text node (- [ ] with no text)', () => {
+  it('treats a bare "- [ ]" (no text) as an empty unchecked task item', () => {
     const doc = markdocToTiptap('- [ ]\n')
-    expect(doc.content[0]!.type).toBe('bulletList')
+    expect(doc.content[0]!.type).toBe('taskList')
+    const item = doc.content[0]!.content![0]!
+    expect(item).toMatchObject({ type: 'taskItem', attrs: { checked: false } })
+    expect(item.content![0]).toEqual({ type: 'paragraph', content: [] })
+  })
+
+  it('keeps a checklist that contains an empty row as a checklist (not demoted to bullets)', () => {
+    const doc = markdocToTiptap('- [x] done\n- [ ]\n')
+    expect(doc.content[0]!.type).toBe('taskList')
+    const items = doc.content[0]!.content!
+    expect(items[0]).toMatchObject({ type: 'taskItem', attrs: { checked: true } })
+    expect(items[0]!.content![0]).toEqual({ type: 'paragraph', content: [{ type: 'text', text: 'done' }] })
+    expect(items[1]).toMatchObject({ type: 'taskItem', attrs: { checked: false } })
+    expect(items[1]!.content![0]).toEqual({ type: 'paragraph', content: [] })
   })
 
   it('preserves text in a loose bullet list (blank line between items)', () => {

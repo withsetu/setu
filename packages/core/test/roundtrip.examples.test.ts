@@ -97,6 +97,8 @@ describe('byte-fidelity round-trip', () => {
     ['nested checklist', '- [ ] p\n  - [x] c\n'],
     ['mixed bullet>checklist', '- parent\n  - [ ] sub\n'],
     ['mixed checklist>bullet', '- [ ] parent\n  - plain\n'],
+    ['empty checklist row', '- [ ]\n'],
+    ['checklist with an empty row', '- [x] done\n- [ ]\n'],
   ]
 
   for (const [name, src] of cases) {

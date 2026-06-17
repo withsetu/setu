@@ -39,8 +39,9 @@ function inlineToTiptap(node: MdNode, marks: TiptapMark[] = []): TiptapNode[] {
 const collectInline = (node: MdNode): TiptapNode[] =>
   (node.children ?? []).flatMap((c) => inlineToTiptap(c))
 
-/** GFM task marker at the very start of an item's text: "[ ] ", "[x] ", "[X] ". */
-const TASK_RE = /^\[( |x|X)\] /
+/** GFM task marker at the very start of an item's text: "[ ] ", "[x] ", "[X] ",
+ *  or a bare "[ ]"/"[x]" at end of line (an empty task row). */
+const TASK_RE = /^\[( |x|X)\](?: |$)/
 
 /** The inline AST node holding a list item's text — directly (tight list) or inside
  *  the item's first paragraph (loose list). undefined if the item has no text. */

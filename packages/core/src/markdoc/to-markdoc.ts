@@ -1,9 +1,10 @@
 import Markdoc from '@markdoc/markdoc'
 import type { TiptapDoc, TiptapNode } from './types'
+import { tableToGfm } from './table-gfm'
 
 const N = Markdoc.Ast.Node
 
-function buildInline(content: TiptapNode[] = []): InstanceType<typeof N>[] {
+export function buildInline(content: TiptapNode[] = []): InstanceType<typeof N>[] {
   return content.map((t) => {
     if (t.type === 'hardBreak') return new N('hardbreak')
     let n: InstanceType<typeof N> = new N('text', { content: t.text })
@@ -84,7 +85,11 @@ const formatNative = (node: TiptapNode): string =>
 
 export function tiptapToMarkdoc(doc: TiptapDoc): string {
   const blocks = doc.content.map((node) =>
-    node.type === 'passthrough' ? String((node.attrs as Record<string, unknown>)?.['raw'] ?? '') : formatNative(node),
+    node.type === 'passthrough'
+      ? String((node.attrs as Record<string, unknown>)?.['raw'] ?? '')
+      : node.type === 'table'
+        ? tableToGfm(node)
+        : formatNative(node),
   )
   return blocks.join('\n\n') + '\n'
 }

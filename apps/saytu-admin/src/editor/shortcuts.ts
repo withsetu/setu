@@ -16,6 +16,8 @@ export const SHORTCUTS: Shortcut[] = [
   { id: 'italic', label: 'Italic', keys: ['Mod', 'i'], group: 'Formatting' },
   { id: 'code', label: 'Inline code', keys: ['Mod', 'e'], group: 'Formatting' },
   { id: 'strike', label: 'Strikethrough', keys: ['Mod', 'Shift', 's'], group: 'Formatting' },
+  { id: 'subscript', label: 'Subscript', keys: ['Mod', ','], group: 'Formatting' },
+  { id: 'superscript', label: 'Superscript', keys: ['Mod', '.'], group: 'Formatting' },
   { id: 'link', label: 'Add or edit link', keys: ['Mod', 'k'], group: 'Links' },
   { id: 'moveUp', label: 'Move block up', keys: ['Alt', 'Shift', 'ArrowUp'], group: 'Blocks' },
   { id: 'moveDown', label: 'Move block down', keys: ['Alt', 'Shift', 'ArrowDown'], group: 'Blocks' },

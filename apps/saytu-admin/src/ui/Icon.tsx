@@ -66,6 +66,8 @@ const ICONS = {
   italic: '<path d="M19 5h-7M13 19H6M15 5 9 19"/>',
   underline: '<path d="M7 5v6a5 5 0 0 0 10 0V5M5 21h14"/>',
   strike: '<path d="M5 12h14M8 7a4 3 0 0 1 8 0M8 16a4 3 0 0 0 8 0"/>',
+  subscript: '<path d="M4 7l9 10M13 7l-9 10"/><path d="M21 20h-4v-1l3-2.5a1.5 1.5 0 0 0-2.5-1.5"/>',
+  superscript: '<path d="M4 8l9 10M13 8l-9 10"/><path d="M21 8h-4V7l3-2.5A1.5 1.5 0 0 0 17.5 3"/>',
   bell: '<path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
   dot: '<circle cx="12" cy="12" r="4"/>',
   circle: '<circle cx="12" cy="12" r="8.5"/>',

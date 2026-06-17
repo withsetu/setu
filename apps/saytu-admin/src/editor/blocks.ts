@@ -20,6 +20,7 @@ const SUBTITLES: Record<string, string> = {
   orderedList: 'Ordered list',
   blockquote: 'Block quote',
   codeBlock: 'Code block',
+  taskList: 'Checklist with checkboxes',
 }
 
 const BUILTINS: SlashBlock[] = [

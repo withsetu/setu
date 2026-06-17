@@ -35,12 +35,13 @@ build-our-own if so). Grouped by that constraint:
   reader. `@tiptap/extension-table` (pinned 3.26.1) + cell `align` attr, slash insert, icon action
   menu, Tab/Shift-Tab cell nav + Tab-at-last-cell adds a row. No merged cells / resize / block-in-cell
   (GFM can't represent). Spec/plan: `docs/superpowers/{specs,plans}/2026-06-17-saytu-tables*`.
-- **Text align** → no native Markdown; alignment is an attr on paragraph/heading → needs a Markdoc
-  representation (`{% align %}` or class) + tests. Presentation-ish; confirm it belongs in content.
-  NOTE: this is the GENERAL block text-align — distinct from the GFM-native table-column alignment
-  already shipped with tables. Likely the next alignment increment.
-  representation (`{% align %}` or class) + tests. Presentation-ish; confirm it belongs in content.
-- **Text direction (RTL/LTR)** → `dir` attr; niche; same representation question.
+- ~~**Text align**~~ ✅ SHIPPED 2026-06-17 (`8b42924`): L/C/R for paragraphs + headings via a Markdoc
+  **node annotation** `{% align="center" %}` (read from `attributes.align`, written via the built
+  node's `.annotations`; left emits nothing). `@tiptap/extension-text-align` + an L/C/R bubble group.
+  Distinct from table-column alignment. Published-site rendering deferred to the render pipeline.
+  Spec/plan: `docs/superpowers/{specs,plans}/2026-06-17-saytu-text-align*`.
+- **Text direction (RTL/LTR)** → `dir` attr; niche; same representation question — can reuse the
+  node-annotation pattern established by text-align.
 
 **Needs the media / render backend:**
 - **Images** → Markdown `![alt](src)` round-trips, BUT image **upload** (where bytes go) needs the

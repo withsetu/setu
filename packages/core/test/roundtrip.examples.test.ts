@@ -69,6 +69,12 @@ Outro.
 | --- | --- |
 | **b** | [site](https://saytu.dev) |
 `,
+  alignParagraph: `Centered{% align="center" %}
+`,
+  alignHeading: `## Title{% align="right" %}
+`,
+  alignWithMarks: `a **b**{% align="center" %}
+`,
 }
 
 const roundtrip = (s: string) => tiptapToMarkdoc(markdocToTiptap(s))
@@ -115,6 +121,9 @@ describe('byte-fidelity round-trip', () => {
     ['table', '| Name | Role |\n| --- | --- |\n| Ada | Eng |\n'],
     ['table aligned', '| L | C | R |\n| :-- | :-: | --: |\n| a | b | c |\n'],
     ['table with marks', '| h | l |\n| --- | --- |\n| **b** | [x](https://y.dev) |\n'],
+    ['aligned paragraph', 'Centered{% align="center" %}\n'],
+    ['aligned heading', '## Title{% align="right" %}\n'],
+    ['align with marks', 'a **b**{% align="center" %}\n'],
   ]
 
   for (const [name, src] of cases) {
@@ -151,5 +160,15 @@ describe('table content-safety', () => {
   it('a pipe inside a code span in a cell survives', () => {
     const src = '| a |\n| --- |\n| `p\\|q` |\n'
     expect(roundtrip(src)).toBe(src)
+  })
+})
+
+describe('text-align content-safety', () => {
+  it('a plain paragraph never gains an align annotation', () => {
+    expect(roundtrip('Plain paragraph.\n')).toBe('Plain paragraph.\n')
+  })
+
+  it('align="left" normalises away (default, no annotation)', () => {
+    expect(roundtrip('L{% align="left" %}\n')).toBe('L\n')
   })
 })

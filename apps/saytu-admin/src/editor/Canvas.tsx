@@ -21,6 +21,7 @@ import { KeyboardShortcuts } from './extensions/KeyboardShortcuts'
 import { requestLinkEdit } from './editor-events'
 import { LinkTools } from './extensions/LinkTools'
 import { FormatBubble } from './FormatBubble'
+import { TableMenu } from './TableMenu'
 
 const cellAlign = {
   align: {
@@ -122,6 +123,7 @@ export function Canvas({
     <>
       <EditorContent editor={editor} />
       {editor && <FormatBubble editor={editor} />}
+      {editor && <TableMenu editor={editor} />}
     </>
   )
 }

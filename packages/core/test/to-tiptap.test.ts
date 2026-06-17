@@ -209,3 +209,25 @@ describe('tables (markdocToTiptap)', () => {
     expect(bodyCellPara.content).toEqual([{ type: 'text', text: 'b', marks: [{ type: 'bold' }] }])
   })
 })
+
+describe('text alignment (markdocToTiptap)', () => {
+  it('reads an aligned paragraph into a textAlign attr', () => {
+    const doc = markdocToTiptap('Centered{% align="center" %}\n')
+    expect(doc.content[0]).toEqual({ type: 'paragraph', attrs: { textAlign: 'center' }, content: [{ type: 'text', text: 'Centered' }] })
+  })
+
+  it('reads an aligned heading', () => {
+    const doc = markdocToTiptap('## Title{% align="right" %}\n')
+    expect(doc.content[0]).toEqual({ type: 'heading', attrs: { level: 2, textAlign: 'right' }, content: [{ type: 'text', text: 'Title' }] })
+  })
+
+  it('leaves an unaligned paragraph attr-free (no textAlign)', () => {
+    const doc = markdocToTiptap('Plain.\n')
+    expect(doc.content[0]).toEqual({ type: 'paragraph', content: [{ type: 'text', text: 'Plain.' }] })
+  })
+
+  it('treats align="left" as the default (no textAlign attr)', () => {
+    const doc = markdocToTiptap('L{% align="left" %}\n')
+    expect(doc.content[0]).toEqual({ type: 'paragraph', content: [{ type: 'text', text: 'L' }] })
+  })
+})

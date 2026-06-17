@@ -1,13 +1,13 @@
 import { BubbleMenu } from '@tiptap/react/menus'
 import type { Editor } from '@tiptap/core'
 import { selectedRect } from '@tiptap/pm/tables'
+import { Icon } from '../ui/Icon'
 
 export const tableActions = {
   addRowAfter: (e: Editor) => e.chain().focus().addRowAfter().run(),
   addColumnAfter: (e: Editor) => e.chain().focus().addColumnAfter().run(),
   deleteRow: (e: Editor) => e.chain().focus().deleteRow().run(),
   deleteColumn: (e: Editor) => e.chain().focus().deleteColumn().run(),
-  deleteTable: (e: Editor) => e.chain().focus().deleteTable().run(),
   // Set `align` on EVERY cell in the caret's column (header + all body cells). The GFM
   // serializer reads each column's alignment from the HEADER row, so updating only the
   // caret's cell would lose the alignment on round-trip when the caret is in a body cell.
@@ -44,14 +44,27 @@ export function TableMenu({ editor }: { editor: Editor }) {
       options={{ placement: 'top' }}
     >
       <div className="table-menu" role="toolbar" aria-label="Table actions">
-        <button type="button" onClick={() => A.addRowAfter(editor)} title="Add row">+ Row</button>
-        <button type="button" onClick={() => A.addColumnAfter(editor)} title="Add column">+ Col</button>
-        <button type="button" onClick={() => A.setColumnAlign(editor, 'left')} title="Align left" aria-label="Align left">L</button>
-        <button type="button" onClick={() => A.setColumnAlign(editor, 'center')} title="Align center" aria-label="Align center">C</button>
-        <button type="button" onClick={() => A.setColumnAlign(editor, 'right')} title="Align right" aria-label="Align right">R</button>
-        <button type="button" onClick={() => A.deleteRow(editor)} title="Delete row">− Row</button>
-        <button type="button" onClick={() => A.deleteColumn(editor)} title="Delete column">− Col</button>
-        <button type="button" onClick={() => A.deleteTable(editor)} title="Delete table">Delete</button>
+        <button type="button" onClick={() => A.setColumnAlign(editor, 'left')} title="Align column left" aria-label="Align column left">
+          <Icon name="alignLeft" size={16} />
+        </button>
+        <button type="button" onClick={() => A.setColumnAlign(editor, 'center')} title="Align column center" aria-label="Align column center">
+          <Icon name="alignCenter" size={16} />
+        </button>
+        <button type="button" onClick={() => A.setColumnAlign(editor, 'right')} title="Align column right" aria-label="Align column right">
+          <Icon name="alignRight" size={16} />
+        </button>
+        <button type="button" onClick={() => A.addRowAfter(editor)} title="Add row below" aria-label="Add row below">
+          <Icon name="plus" size={16} />
+        </button>
+        <button type="button" onClick={() => A.addColumnAfter(editor)} title="Add column right" aria-label="Add column right">
+          <Icon name="columns" size={16} />
+        </button>
+        <button type="button" onClick={() => A.deleteRow(editor)} title="Delete row" aria-label="Delete row">
+          <Icon name="trash" size={16} />
+        </button>
+        <button type="button" onClick={() => A.deleteColumn(editor)} title="Delete column" aria-label="Delete column">
+          <Icon name="trash" size={16} />
+        </button>
       </div>
     </BubbleMenu>
   )

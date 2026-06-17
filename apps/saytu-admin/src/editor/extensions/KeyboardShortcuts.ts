@@ -11,7 +11,7 @@ import { collapseSelectionOnEscape } from '../dismiss'
  *  - `consume`: caret elsewhere → swallow Tab (no-op). Pure. */
 export function tabActionFor(editor: Editor): 'bubble' | 'indent' | 'consume' {
   if (!editor.state.selection.empty) return 'bubble'
-  if (editor.isActive('listItem')) return 'indent'
+  if (editor.isActive('listItem') || editor.isActive('taskItem')) return 'indent'
   return 'consume'
 }
 
@@ -38,8 +38,16 @@ export const KeyboardShortcuts = Extension.create({
       Tab: () => {
         const action = tabActionFor(this.editor)
         if (action === 'bubble') requestFocusToolbar()
-        else if (action === 'indent') this.editor.chain().focus().sinkListItem('listItem').run()
+        else if (action === 'indent') {
+          const itemType = this.editor.isActive('taskItem') ? 'taskItem' : 'listItem'
+          this.editor.chain().focus().sinkListItem(itemType).run()
+        }
         return true
+      },
+      'Shift-Tab': () => {
+        if (this.editor.isActive('taskItem')) return this.editor.chain().focus().liftListItem('taskItem').run()
+        if (this.editor.isActive('listItem')) return this.editor.chain().focus().liftListItem('listItem').run()
+        return false
       },
       Escape: () => collapseSelectionOnEscape(this.editor),
     }

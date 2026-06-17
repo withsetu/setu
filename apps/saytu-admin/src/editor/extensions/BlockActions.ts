@@ -1,6 +1,15 @@
 import { Extension } from '@tiptap/core'
 import { TextSelection } from '@tiptap/pm/state'
-import { moveBlock } from '../block-reorder'
+import type { Transaction } from '@tiptap/pm/state'
+import { moveBlock, startOfChild } from '../block-reorder'
+
+/** Put the caret inside the top-level block now at `index` in the post-move doc.
+ *  Computed from the NEW doc (not old-doc neighbor math) so it lands inside the moved
+ *  block even when a neighbor is a large container like a callout. */
+function selectBlockAt(tr: Transaction, index: number): void {
+  const start = startOfChild(tr.doc, index)
+  tr.setSelection(TextSelection.near(tr.doc.resolve(start + 1), 1))
+}
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -28,9 +37,8 @@ export const BlockActions = Extension.create({
           if ($from.depth < 1) return false
           const index = $from.index(0)
           if (index <= 0) return false
-          if (dispatch) {
-            moveBlock(state.doc, tr, index, index - 1)
-            tr.setSelection(TextSelection.near(tr.doc.resolve($from.before(1) - state.doc.child(index - 1).nodeSize + 1)))
+          if (dispatch && moveBlock(state.doc, tr, index, index - 1)) {
+            selectBlockAt(tr, index - 1) // moved block now sits at index - 1
           }
           return true
         },
@@ -42,9 +50,8 @@ export const BlockActions = Extension.create({
           if ($from.depth < 1) return false
           const index = $from.index(0)
           if (index >= state.doc.childCount - 1) return false
-          if (dispatch) {
-            moveBlock(state.doc, tr, index, index + 1)
-            tr.setSelection(TextSelection.near(tr.doc.resolve($from.after(1) + 1)))
+          if (dispatch && moveBlock(state.doc, tr, index, index + 1)) {
+            selectBlockAt(tr, index + 1) // moved block now sits at index + 1
           }
           return true
         },

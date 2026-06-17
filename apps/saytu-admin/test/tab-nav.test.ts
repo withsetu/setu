@@ -23,10 +23,10 @@ describe('tabActionFor', () => {
     editor.commands.setTextSelection(3)
     expect(tabActionFor(editor)).toBe('consume')
   })
-  it('falls through inside a list (StarterKit indents)', () => {
+  it('indents (and always consumes) inside a list', () => {
     editor = make()
     editor.chain().setTextSelection({ from: 1, to: 6 }).toggleBulletList().run()
     editor.commands.setTextSelection(3)
-    expect(tabActionFor(editor)).toBe('fallthrough')
+    expect(tabActionFor(editor)).toBe('indent')
   })
 })

@@ -3,14 +3,15 @@ import type { Editor } from '@tiptap/core'
 import { requestLinkEdit, requestShortcuts, requestFocusToolbar } from '../editor-events'
 import { collapseSelectionOnEscape } from '../dismiss'
 
-/** What Tab should do in the editor body:
+/** What Tab should do in the editor body. Tab is ALWAYS consumed (never allowed to
+ *  escape the contenteditable to embedded inputs like a callout title):
  *  - `bubble`: a non-empty text selection is showing the format bubble → move focus into it.
- *  - `fallthrough`: caret in a list → let StarterKit handle it (indent / sink list item).
- *  - `consume`: caret elsewhere → swallow Tab so focus doesn't escape the contenteditable
- *    to embedded inputs (e.g. a callout's title field). Pure. */
-export function tabActionFor(editor: Editor): 'bubble' | 'fallthrough' | 'consume' {
+ *  - `indent`: caret in a list → sink the list item (a no-op on a first/top item, but
+ *    still consumed — so it never escapes).
+ *  - `consume`: caret elsewhere → swallow Tab (no-op). Pure. */
+export function tabActionFor(editor: Editor): 'bubble' | 'indent' | 'consume' {
   if (!editor.state.selection.empty) return 'bubble'
-  if (editor.isActive('listItem')) return 'fallthrough'
+  if (editor.isActive('listItem')) return 'indent'
   return 'consume'
 }
 
@@ -30,12 +31,14 @@ export const KeyboardShortcuts = Extension.create({
         requestShortcuts()
         return true
       },
-      // Tab: into the bubble on a selection; indent in a list; otherwise consume so
-      // focus doesn't escape the editor to embedded inputs (e.g. a callout title).
+      // Tab: into the bubble on a selection; indent in a list; otherwise consume.
+      // ALWAYS returns true so focus never escapes the editor to embedded inputs
+      // (e.g. a callout title). We do the list indent ourselves rather than fall
+      // through, because StarterKit declines Tab on a first/un-sinkable item.
       Tab: () => {
         const action = tabActionFor(this.editor)
-        if (action === 'fallthrough') return false
         if (action === 'bubble') requestFocusToolbar()
+        else if (action === 'indent') this.editor.chain().focus().sinkListItem('listItem').run()
         return true
       },
       Escape: () => collapseSelectionOnEscape(this.editor),

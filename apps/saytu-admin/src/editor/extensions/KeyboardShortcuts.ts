@@ -5,11 +5,14 @@ import { collapseSelectionOnEscape } from '../dismiss'
 
 /** What Tab should do in the editor body. Tab is ALWAYS consumed (never allowed to
  *  escape the contenteditable to embedded inputs like a callout title):
+ *  - `cell`: caret in a table → move to the next cell (table cell nav takes
+ *    precedence over bubble/indent inside a table).
  *  - `bubble`: a non-empty text selection is showing the format bubble → move focus into it.
  *  - `indent`: caret in a list → sink the list item (a no-op on a first/top item, but
  *    still consumed — so it never escapes).
  *  - `consume`: caret elsewhere → swallow Tab (no-op). Pure. */
-export function tabActionFor(editor: Editor): 'bubble' | 'indent' | 'consume' {
+export function tabActionFor(editor: Editor): 'cell' | 'bubble' | 'indent' | 'consume' {
+  if (editor.isActive('table')) return 'cell'
   if (!editor.state.selection.empty) return 'bubble'
   if (editor.isActive('listItem') || editor.isActive('taskItem')) return 'indent'
   return 'consume'
@@ -37,7 +40,8 @@ export const KeyboardShortcuts = Extension.create({
       // through, because StarterKit declines Tab on a first/un-sinkable item.
       Tab: () => {
         const action = tabActionFor(this.editor)
-        if (action === 'bubble') requestFocusToolbar()
+        if (action === 'cell') this.editor.chain().focus().goToNextCell().run()
+        else if (action === 'bubble') requestFocusToolbar()
         else if (action === 'indent') {
           const itemType = this.editor.isActive('taskItem') ? 'taskItem' : 'listItem'
           this.editor.chain().focus().sinkListItem(itemType).run()
@@ -45,6 +49,10 @@ export const KeyboardShortcuts = Extension.create({
         return true
       },
       'Shift-Tab': () => {
+        if (this.editor.isActive('table')) {
+          this.editor.chain().focus().goToPreviousCell().run()
+          return true
+        }
         if (this.editor.isActive('taskItem')) return this.editor.chain().focus().liftListItem('taskItem').run()
         if (this.editor.isActive('listItem')) return this.editor.chain().focus().liftListItem('listItem').run()
         return false

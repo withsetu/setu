@@ -186,6 +186,33 @@ a throwaway spike, building on `prototype/astro-preview/`.
 If it holds, the entire vision above is buildable and sub-project #1 goes to a full spec.
 If it fights us, we learn the seam now, cheaply.
 
+### Spike result — PASSED (2026-06-17)
+
+Built `prototype/astro-preview/` (Astro 6.4.6) with the callout tag mapped to a thin
+`CalloutWrapper.astro` that renders a single React core (`Callout.tsx`):
+
+- **Render plane fully proven.** `{% callout type="warning" title="Heads up" %}` rendered
+  through the React core to **static HTML** (`<aside class="callout callout--warning"
+  data-component="Callout.tsx">…`); `type` + `title` flowed to React props; inline markdown
+  in the body (`**bold**` → `<strong>`, `` `code` `` → `<code>`, `*em*` → `<em>`) survived
+  intact through `<slot/>` → React `children`. **Zero hydration:** `astro-island` count 0,
+  no `<script>` referenced by the page (Astro emits an orphan client runtime asset that the
+  page never loads). So: write-once React core → zero-JS static site HTML. ✅
+- **Editor-reuse seam identified (the real design constraint).** Comparing the spike's site
+  markup to the existing admin node view (`apps/saytu-admin/src/editor/extensions/Callout.tsx`,
+  which uses `<NodeViewWrapper>` + an editable `<input>` title + `<NodeViewContent>` body +
+  an editor-only tone/icon toolbar): the structures are parallel, but "write once" is **not
+  free** — it requires factoring the visual core so its **editable regions (title, body) are
+  injectable slots/render-props**: the *editor shell* passes `<input>` / `<NodeViewContent>`
+  (editable); the *site shell* passes static text / rendered `children`. Editor-only chrome
+  (the tone/icon toolbar) lives in the editor shell, NOT the core. This is a clean, known
+  pattern (presentational core + two shells injecting the editable bits), but the existing
+  Callout would be refactored to extract that core.
+
+**Conclusion:** the vision is buildable. **The component contract must let a component
+declare its editable regions (slots)** so one core can serve both planes. Sub-project #1
+(content render) is cleared to go to a full spec.
+
 ---
 
 See [[saytu-project]], [[saytu-wedge]], [[saytu-working-style]], and the topology/publishing

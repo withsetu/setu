@@ -1,0 +1,12 @@
+---
+// The thin, GENERATED site shell. A component author never writes this — codegen
+// emits it from the contract. It maps the Markdoc tag's attrs onto the React core's
+// props and forwards the rendered body via <slot/> as children. No client directive
+// => the React core renders to static HTML at build (zero JS shipped).
+import Callout from './Callout.tsx'
+const { type = 'info', title } = Astro.props
+---
+
+<Callout type={type} title={title}>
+  <slot />
+</Callout>

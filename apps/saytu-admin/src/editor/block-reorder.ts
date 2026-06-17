@@ -2,7 +2,7 @@ import type { Node as PMNode } from '@tiptap/pm/model'
 import type { Transaction } from '@tiptap/pm/state'
 
 /** Document position just before the top-level child at `index`. */
-function startOfChild(doc: PMNode, index: number): number {
+export function startOfChild(doc: PMNode, index: number): number {
   let pos = 0
   for (let i = 0; i < index; i += 1) pos += doc.child(i).nodeSize
   return pos

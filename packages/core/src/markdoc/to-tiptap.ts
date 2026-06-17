@@ -101,11 +101,16 @@ function listToTiptap(node: MdNode): TiptapNode {
   }
 }
 
+/** Whether a block carries a non-default alignment (anything but `left`/absent). */
+function isAligned(node: MdNode): boolean {
+  const a = node.attributes.align
+  return Boolean(a) && a !== 'left'
+}
+
 /** Tiptap textAlign attrs for a block, from a Markdoc node's `align` attribute.
  *  `left`/absent → none (default stays clean). */
 function alignAttr(node: MdNode): { textAlign: string } | Record<string, never> {
-  const a = node.attributes.align
-  return a && a !== 'left' ? { textAlign: String(a) } : {}
+  return isAligned(node) ? { textAlign: String(node.attributes.align) } : {}
 }
 
 function blockToTiptap(node: MdNode): TiptapNode | null {
@@ -113,7 +118,7 @@ function blockToTiptap(node: MdNode): TiptapNode | null {
     case 'heading':
       return { type: 'heading', attrs: { level: node.attributes.level, ...alignAttr(node) }, content: collectInline(node) }
     case 'paragraph':
-      return { type: 'paragraph', ...(node.attributes.align && node.attributes.align !== 'left' ? { attrs: alignAttr(node) } : {}), content: collectInline(node) }
+      return { type: 'paragraph', ...(isAligned(node) ? { attrs: alignAttr(node) } : {}), content: collectInline(node) }
     case 'list':
       return listToTiptap(node)
     case 'blockquote':

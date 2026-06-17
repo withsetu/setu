@@ -17,14 +17,17 @@ Markdoc or it silently drops on publish** (the content-safety cardinal rule), pl
 the media backend or are render-time, plus a couple may be Tiptap **Pro** (Saytu is 100% OSS →
 build-our-own if so). Grouped by that constraint:
 
-**Bubble v2 — Turn-into regroup (owner's structure ask):** make the dropdown categories instead
-of a flat list — **Heading** (→ levels), **List** (→ bullet / numbered / **checklist**), **Quote**
-(separate), **Code** (separate), and **Subscript/Superscript** (together). The regroup itself is
-UI over the existing `block-types.ts` registry, BUT it bundles two new round-trip types:
-- **Checklist / task list** → GFM `- [ ]` / `- [x]`; needs a TaskList/TaskItem node + converter
-  support (verify our Markdoc/markdown GFM task-list handling) + round-trip tests.
-- **Subscript / Superscript** → no native Markdown; needs a Markdoc tag (`{% sub %}`/`{% sup %}`)
-  or HTML passthrough + round-trip tests (same class as the deferred underline).
+### ~~Bubble v2 — Turn-into regroup + subscript/superscript + checklist~~ ✅ SHIPPED 2026-06-17 (3 slices)
+
+- slice 1 (`53019b7`): Turn-into dropdown regrouped into categories (Heading → levels, List →
+  bullet/numbered/checklist, Quote, Code, sub/sup together).
+- slice 2 (`96f1fd5`): **Subscript/Superscript** marks — inline `{% sub %}`/`{% sup %}` Markdoc
+  tags (the `node.inline = true` round-trip finding); + surfaced block-type shortcuts.
+- slice 3 (`87aa69b`): **Checklist** (TaskList/TaskItem, GFM `- [ ]`/`- [x]`) **+ list-wide
+  nesting** (recursive converter both directions; bullet/numbered/checklist, mixed, unlimited
+  depth). **Note: GFM task lists needed NO Markdoc tokenizer work** — Markdoc treats `- [ ]` as a
+  bullet with literal text and round-trips all nesting byte-clean, so all logic lives in our
+  converter. Underline remains deferred (same inline-tag pattern available to reuse).
 
 **New nodes/marks needing `@saytu/core` converter work first:**
 - **Tables** → GFM tables (`| a | b |`); Tiptap table extensions are free MIT; needs converter

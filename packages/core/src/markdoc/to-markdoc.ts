@@ -32,6 +32,23 @@ function buildInline(content: TiptapNode[] = []): InstanceType<typeof N>[] {
   })
 }
 
+/** Build a Markdoc `item` from a Tiptap list item. Uses the item's first paragraph
+ *  for inline content (prefixed with a task marker when `task`), and recurses into any
+ *  nested lists, appending them as block children of the item. */
+function buildListItem(item: TiptapNode, task: boolean): InstanceType<typeof N> {
+  const children = item.content ?? []
+  const firstPara = children.find((c) => c.type === 'paragraph')
+  const inlineNodes = buildInline(firstPara?.content ?? [])
+  if (task) {
+    const checked = (item.attrs as Record<string, unknown> | undefined)?.['checked'] === true
+    inlineNodes.unshift(new N('text', { content: checked ? '[x] ' : '[ ] ' }))
+  }
+  const nested = children
+    .filter((c) => c.type === 'bulletList' || c.type === 'orderedList' || c.type === 'taskList')
+    .map(buildBlock)
+  return new N('item', {}, [new N('inline', {}, inlineNodes), ...nested])
+}
+
 function buildBlock(node: TiptapNode): InstanceType<typeof N> {
   const attrs = (node.attrs ?? {}) as Record<string, unknown>
   switch (node.type) {
@@ -41,13 +58,14 @@ function buildBlock(node: TiptapNode): InstanceType<typeof N> {
       return new N('paragraph', {}, [new N('inline', {}, buildInline(node.content))])
     case 'bulletList':
     case 'orderedList':
+    case 'taskList': {
+      const ordered = node.type === 'orderedList'
       return new N(
         'list',
-        { ordered: node.type === 'orderedList', marker: node.type === 'orderedList' ? '.' : '-' },
-        (node.content ?? []).map(
-          (item) => new N('item', {}, [new N('inline', {}, buildInline(item.content?.[0]?.content ?? []))]),
-        ),
+        { ordered, marker: ordered ? '.' : '-' },
+        (node.content ?? []).map((item) => buildListItem(item, node.type === 'taskList')),
       )
+    }
     case 'blockquote':
       return new N('blockquote', {}, (node.content ?? []).map(buildBlock))
     case 'codeBlock':

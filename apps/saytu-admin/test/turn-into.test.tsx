@@ -18,37 +18,51 @@ function H({ onReady }: { onReady: (e: Editor) => void }) {
   return <>{e && <TurnIntoMenu editor={e} />}</>
 }
 
-describe('TurnIntoMenu', () => {
-  it('shows the current block type and turns the block into a heading', () => {
+const open = () => fireEvent.click(screen.getByRole('button', { name: /turn into/i }))
+
+describe('TurnIntoMenu (grouped)', () => {
+  it('expands the Heading group and turns the block into H4', () => {
     let editor!: Editor
     render(<H onReady={(e) => (editor = e)} />)
     act(() => { editor.chain().setTextSelection({ from: 1, to: 6 }).run() })
-    const trigger = screen.getByRole('button', { name: /turn into/i })
-    expect(trigger).toHaveTextContent('Text')
-    fireEvent.click(trigger)
-    fireEvent.click(screen.getByRole('menuitemradio', { name: /heading 3/i }))
-    expect(editor.isActive('heading', { level: 3 })).toBe(true)
+    open()
+    fireEvent.click(screen.getByRole('menuitem', { name: /heading/i }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /heading 4/i }))
+    expect(editor.isActive('heading', { level: 4 })).toBe(true)
   })
 
-  it('Escape in the menu closes it without collapsing the selection', () => {
+  it('expands the List group and makes a numbered list', () => {
     let editor!: Editor
     render(<H onReady={(e) => (editor = e)} />)
     act(() => { editor.chain().setTextSelection({ from: 1, to: 6 }).run() })
-    fireEvent.click(screen.getByRole('button', { name: /turn into/i }))
-    expect(screen.getByRole('menu')).toBeInTheDocument()
-    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
-    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
-    expect(editor.state.selection.empty).toBe(false)
+    open()
+    fireEvent.click(screen.getByRole('menuitem', { name: /list/i }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /numbered/i }))
+    expect(editor.isActive('orderedList')).toBe(true)
   })
 
-  it('suppresses the bubble Esc-collapse while the menu is open (one Esc closes only the menu)', () => {
+  it('applies a leaf (Quote) directly without expanding', () => {
     let editor!: Editor
     render(<H onReady={(e) => (editor = e)} />)
     act(() => { editor.chain().setTextSelection({ from: 1, to: 6 }).run() })
-    // closed: the bubble's document Esc handler WOULD collapse the selection
-    expect(bubbleEscapeShouldCollapse(editor)).toBe(true)
-    fireEvent.click(screen.getByRole('button', { name: /turn into/i }))
-    // open: the guard suppresses it, so Esc only closes the menu
+    open()
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /quote/i }))
+    expect(editor.isActive('blockquote')).toBe(true)
+  })
+
+  it('pre-expands the active group and checks the active item', () => {
+    let editor!: Editor
+    render(<H onReady={(e) => (editor = e)} />)
+    act(() => { editor.chain().setTextSelection({ from: 1, to: 6 }).setNode('heading', { level: 3 }).run() })
+    open()
+    expect(screen.getByRole('menuitemradio', { name: /heading 3/i })).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('Esc closes the menu without collapsing the selection', () => {
+    let editor!: Editor
+    render(<H onReady={(e) => (editor = e)} />)
+    act(() => { editor.chain().setTextSelection({ from: 1, to: 6 }).run() })
+    open()
     expect(bubbleEscapeShouldCollapse(editor)).toBe(false)
     fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()

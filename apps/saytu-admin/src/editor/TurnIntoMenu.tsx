@@ -1,8 +1,9 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/core'
 import { Icon } from '../ui/Icon'
 import { useDismiss } from '../ui/useDismiss'
 import { BLOCK_TYPES, currentBlockType } from './block-types'
+import { registerBubblePopup } from './bubble-popup'
 
 /** The bubble's block-type switcher: a button labelled with the current block type
  *  that opens a role=menu of the registry. Picking an item transforms the selected
@@ -12,10 +13,18 @@ import { BLOCK_TYPES, currentBlockType } from './block-types'
 export function TurnIntoMenu({ editor }: { editor: Editor }) {
   const [open, setOpen] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
   const current = currentBlockType(editor)
 
   useDismiss(panelRef, () => setOpen(false), open)
+
+  // While open this menu owns Esc — register so the bubble's document Esc handler
+  // defers (one Esc closes only the menu, not the whole selection/bubble).
+  useEffect(() => {
+    if (!open) return
+    return registerBubblePopup()
+  }, [open])
 
   const openMenu = () => {
     setOpen(true)
@@ -37,20 +46,24 @@ export function TurnIntoMenu({ editor }: { editor: Editor }) {
     const cur = itemRefs.current.findIndex((el) => el === document.activeElement)
     if (e.key === 'ArrowDown') {
       e.preventDefault()
+      e.stopPropagation() // don't let the toolbar roving steal focus out of the menu
       itemRefs.current[(cur + 1 + count) % count]?.focus()
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
+      e.stopPropagation()
       itemRefs.current[(cur - 1 + count) % count]?.focus()
     } else if (e.key === 'Escape') {
       e.preventDefault()
       e.stopPropagation()
       setOpen(false)
+      triggerRef.current?.focus() // return focus to the trigger
     }
   }
 
   return (
     <div className="ti-wrap">
       <button
+        ref={triggerRef}
         type="button"
         data-toolbar-item
         className="fmt-btn ti-trigger"

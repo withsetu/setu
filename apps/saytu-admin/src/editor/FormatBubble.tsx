@@ -12,6 +12,7 @@ import { onRequestLinkEdit } from './editor-events'
 import { isEscape, collapseSelectionOnEscape } from './dismiss'
 import { TurnIntoMenu } from './TurnIntoMenu'
 import { useToolbarRoving } from './useToolbarRoving'
+import { bubbleEscapeShouldCollapse, registerBubblePopup } from './bubble-popup'
 
 interface MarkBtn {
   name: string
@@ -68,6 +69,12 @@ export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
   const { ref: toolbarRef, onKeyDown: onToolbarKeyDown } = useToolbarRoving()
 
   const [linking, setLinking] = useState(false)
+  // While the link input is open it owns Esc — register so the bubble's document
+  // Esc handler defers (one Esc cancels the input, leaving the selection intact).
+  useEffect(() => {
+    if (!linking) return
+    return registerBubblePopup()
+  }, [linking])
   useEffect(() => {
     setLinking(false)
   }, [active.from, active.to])
@@ -150,11 +157,11 @@ export function FormatBubble({ editor }: { editor: Editor }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!isEscape(e)) return
-      const sel = editor.state.selection
-      if (sel instanceof TextSelection && !sel.empty) {
-        e.preventDefault()
-        collapseSelectionOnEscape(editor)
-      }
+      // Defer to an inner popup (Turn-into menu / link input) when one is open —
+      // its own Esc closes it; this listener must not also collapse the selection.
+      if (!bubbleEscapeShouldCollapse(editor)) return
+      e.preventDefault()
+      collapseSelectionOnEscape(editor)
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)

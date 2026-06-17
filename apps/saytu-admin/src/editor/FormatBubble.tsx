@@ -8,7 +8,7 @@ import type { IconName } from '../ui/Icon'
 import { LinkInput } from './LinkInput'
 import { Tooltip } from './Tooltip'
 import { SHORTCUTS, formatKeys, ariaKeyshortcuts, detectMac } from './shortcuts'
-import { onRequestLinkEdit } from './editor-events'
+import { onRequestLinkEdit, onRequestFocusToolbar } from './editor-events'
 import { isEscape, collapseSelectionOnEscape } from './dismiss'
 import { TurnIntoMenu } from './TurnIntoMenu'
 import { useToolbarRoving } from './useToolbarRoving'
@@ -79,6 +79,16 @@ export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
     setLinking(false)
   }, [active.from, active.to])
   useEffect(() => onRequestLinkEdit(() => setLinking(true)), [])
+  // Tab from the editor (on a selection) moves focus into the toolbar — land on its
+  // first control (the Turn-into trigger).
+  useEffect(
+    () =>
+      onRequestFocusToolbar(() => {
+        const first = toolbarRef.current?.querySelector<HTMLElement>('[data-toolbar-item]')
+        first?.focus()
+      }),
+    [toolbarRef],
+  )
   const currentHref = (editor.getAttributes('link').href as string | undefined) ?? ''
 
   if (linking) {

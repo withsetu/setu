@@ -115,6 +115,7 @@ export function TurnIntoMenu({ editor }: { editor: Editor }) {
           }
         }}
       >
+        <Icon name={current.icon} size={15} />
         <span className="ti-label">{current.label}</span>
         <span aria-hidden>▾</span>
       </button>

@@ -1,5 +1,5 @@
 {
-  "name": "@saytu/db-idb",
+  "name": "@setu/db-idb",
   "version": "0.0.0",
   "type": "module",
   "license": "AGPL-3.0-only",
@@ -7,9 +7,9 @@
   "types": "./src/index.ts",
   "exports": { ".": "./src/index.ts" },
   "scripts": { "test": "vitest run", "typecheck": "tsc --noEmit" },
-  "dependencies": { "@saytu/core": "workspace:*", "idb": "^8.0.3" },
+  "dependencies": { "@setu/core": "workspace:*", "idb": "^8.0.3" },
   "devDependencies": {
-    "@saytu/db-testing": "workspace:*",
+    "@setu/db-testing": "workspace:*",
     "fake-indexeddb": "^6.2.5",
     "typescript": "^5.6.3",
     "vitest": "^2.1.8"

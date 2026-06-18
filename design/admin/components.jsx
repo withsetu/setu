@@ -1,4 +1,4 @@
-// components.jsx — Saytu Admin shared primitives + icon set
+// components.jsx — Setu Admin shared primitives + icon set
 // Exposed on window for other Babel scripts.
 const { useState, useRef, useEffect, useLayoutEffect, useCallback, createContext, useContext } = React;
 

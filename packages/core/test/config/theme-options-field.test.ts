@@ -12,7 +12,7 @@ describe('config themeOptions field', () => {
   })
   it('rejects a non-string option value', () => {
     expect(() => resolveConfig({ blocks: [], themeOptions: { accent: 123 } })).toThrow(
-      /Invalid saytu.config/,
+      /Invalid setu.config/,
     )
   })
 })

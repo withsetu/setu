@@ -12,7 +12,7 @@ import {
 
 /**
  * Slash menu, the Notion-like block inserter.
- * In real Saytu these items are generated from `saytu.config.ts` (blocks +
+ * In real Setu these items are generated from `setu.config.ts` (blocks +
  * collections). Here they're hard-coded to prove the interaction + a11y model.
  */
 export type CommandItem = {

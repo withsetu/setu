@@ -15,7 +15,7 @@ importers:
         specifier: ^5.6.3
         version: 5.9.3
 
-  apps/saytu-admin:
+  apps/admin:
     dependencies:
       '@fontsource-variable/hanken-grotesk':
         specifier: 5.2.8
@@ -26,25 +26,25 @@ importers:
       '@fontsource-variable/newsreader':
         specifier: 5.2.10
         version: 5.2.10
-      '@saytu/blocks':
+      '@setu/blocks':
         specifier: workspace:*
         version: link:../../packages/blocks
-      '@saytu/core':
+      '@setu/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@saytu/db-idb':
+      '@setu/db-idb':
         specifier: workspace:*
         version: link:../../packages/db-idb
-      '@saytu/db-memory':
+      '@setu/db-memory':
         specifier: workspace:*
         version: link:../../packages/db-memory
-      '@saytu/git-http':
+      '@setu/git-http':
         specifier: workspace:*
         version: link:../../packages/git-http
-      '@saytu/git-idb':
+      '@setu/git-idb':
         specifier: workspace:*
         version: link:../../packages/git-idb
-      '@saytu/git-memory':
+      '@setu/git-memory':
         specifier: workspace:*
         version: link:../../packages/git-memory
       '@tiptap/core':
@@ -130,25 +130,25 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.19.21)(jsdom@25.0.1)(lightningcss@1.32.0)
 
-  apps/saytu-api:
+  apps/api:
     dependencies:
       '@hono/node-server':
         specifier: 2.0.5
         version: 2.0.5(hono@4.12.26)
-      '@saytu/core':
+      '@setu/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@saytu/git-local':
+      '@setu/git-local':
         specifier: workspace:*
         version: link:../../packages/git-local
       hono:
         specifier: 4.12.26
         version: 4.12.26
     devDependencies:
-      '@saytu/db-memory':
+      '@setu/db-memory':
         specifier: workspace:*
         version: link:../../packages/db-memory
-      '@saytu/git-http':
+      '@setu/git-http':
         specifier: workspace:*
         version: link:../../packages/git-http
       '@types/node':
@@ -167,7 +167,7 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.19.21)(jsdom@25.0.1)(lightningcss@1.32.0)
 
-  apps/saytu-site:
+  apps/site:
     dependencies:
       '@astrojs/markdoc':
         specifier: 1.0.6
@@ -175,13 +175,13 @@ importers:
       '@astrojs/react':
         specifier: 5.0.7
         version: 5.0.7(@types/node@22.19.21)(@types/react-dom@18.3.1)(@types/react@18.3.12)(jiti@2.7.0)(lightningcss@1.32.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(tsx@4.22.4)
-      '@saytu/blocks':
+      '@setu/blocks':
         specifier: workspace:*
         version: link:../../packages/blocks
-      '@saytu/core':
+      '@setu/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@saytu/theme-default':
+      '@setu/theme-default':
         specifier: workspace:*
         version: link:../../packages/theme-default
       astro:
@@ -206,7 +206,7 @@ importers:
 
   packages/blocks:
     dependencies:
-      '@saytu/core':
+      '@setu/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
@@ -271,14 +271,14 @@ importers:
 
   packages/db-idb:
     dependencies:
-      '@saytu/core':
+      '@setu/core':
         specifier: workspace:*
         version: link:../core
       idb:
         specifier: ^8.0.3
         version: 8.0.3
     devDependencies:
-      '@saytu/db-testing':
+      '@setu/db-testing':
         specifier: workspace:*
         version: link:../db-testing
       fake-indexeddb:
@@ -293,11 +293,11 @@ importers:
 
   packages/db-memory:
     dependencies:
-      '@saytu/core':
+      '@setu/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
-      '@saytu/db-testing':
+      '@setu/db-testing':
         specifier: workspace:*
         version: link:../db-testing
       typescript:
@@ -309,7 +309,7 @@ importers:
 
   packages/db-sqlite:
     dependencies:
-      '@saytu/core':
+      '@setu/core':
         specifier: workspace:*
         version: link:../core
       better-sqlite3:
@@ -319,7 +319,7 @@ importers:
         specifier: ^0.45.2
         version: 0.45.2(@types/better-sqlite3@7.6.13)(better-sqlite3@12.10.1)
     devDependencies:
-      '@saytu/db-testing':
+      '@setu/db-testing':
         specifier: workspace:*
         version: link:../db-testing
       '@types/better-sqlite3':
@@ -340,7 +340,7 @@ importers:
 
   packages/db-testing:
     dependencies:
-      '@saytu/core':
+      '@setu/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
@@ -353,17 +353,17 @@ importers:
 
   packages/git-http:
     dependencies:
-      '@saytu/core':
+      '@setu/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
-      '@saytu/api':
+      '@setu/api':
         specifier: workspace:*
-        version: link:../../apps/saytu-api
-      '@saytu/git-memory':
+        version: link:../../apps/api
+      '@setu/git-memory':
         specifier: workspace:*
         version: link:../git-memory
-      '@saytu/git-testing':
+      '@setu/git-testing':
         specifier: workspace:*
         version: link:../git-testing
       typescript:
@@ -375,14 +375,14 @@ importers:
 
   packages/git-idb:
     dependencies:
-      '@saytu/core':
+      '@setu/core':
         specifier: workspace:*
         version: link:../core
       idb:
         specifier: ^8.0.3
         version: 8.0.3
     devDependencies:
-      '@saytu/git-testing':
+      '@setu/git-testing':
         specifier: workspace:*
         version: link:../git-testing
       fake-indexeddb:
@@ -397,14 +397,14 @@ importers:
 
   packages/git-local:
     dependencies:
-      '@saytu/core':
+      '@setu/core':
         specifier: workspace:*
         version: link:../core
       isomorphic-git:
         specifier: ^1.38.4
         version: 1.38.4
     devDependencies:
-      '@saytu/git-testing':
+      '@setu/git-testing':
         specifier: workspace:*
         version: link:../git-testing
       '@types/node':
@@ -419,11 +419,11 @@ importers:
 
   packages/git-memory:
     dependencies:
-      '@saytu/core':
+      '@setu/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
-      '@saytu/git-testing':
+      '@setu/git-testing':
         specifier: workspace:*
         version: link:../git-testing
       typescript:
@@ -435,7 +435,7 @@ importers:
 
   packages/git-testing:
     dependencies:
-      '@saytu/core':
+      '@setu/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:

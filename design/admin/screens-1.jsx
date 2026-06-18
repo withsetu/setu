@@ -124,7 +124,7 @@ function ProLockRail() {
   const { openProModal } = useApp();
   return (
     <ProLock icon="users" title="Invite your team"
-      blurb="Real-time collaboration, editorial approvals and an audit log come with Saytu Pro."
+      blurb="Real-time collaboration, editorial approvals and an audit log come with Setu Pro."
       onLearn={() => openProModal({ title: 'Real-time collaboration', icon: 'users', blurb: 'Write together live, with approvals and a full audit trail.' })} />
   );
 }

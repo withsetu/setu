@@ -41,7 +41,7 @@ export function Editor({ onUpdate }: { onUpdate?: (info: { words: number }) => v
     content: INITIAL,
     editorProps: {
       attributes: {
-        class: 'saytu-prose focus:outline-none',
+        class: 'setu-prose focus:outline-none',
         'aria-label': 'Content editor',
       },
     },

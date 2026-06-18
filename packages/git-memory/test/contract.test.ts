@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { runGitPortContract } from '@saytu/git-testing'
+import { runGitPortContract } from '@setu/git-testing'
 import { createMemoryGitPort } from '../src/index'
 
 runGitPortContract(() => createMemoryGitPort())
@@ -15,7 +15,7 @@ describe('createMemoryGitPort seed', () => {
   it('lists seeded files (filtered by prefix)', async () => {
     const git = createMemoryGitPort([
       { path: 'content/post/en/hello.mdoc', content: '# Hello\n' },
-      { path: 'saytu.config.ts', content: 'export default {}' },
+      { path: 'setu.config.ts', content: 'export default {}' },
     ])
     expect(await git.list('content/')).toEqual(['content/post/en/hello.mdoc'])
   })

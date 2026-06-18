@@ -8,7 +8,7 @@ const MEDIA = [
   { id: 1, name: 'studio-morning.jpg', alt: 'Sunlit desk with a notebook and coffee', dims: '2400×1600', size: '842 KB', ratio: 1.5, hue: 28, used: 3 },
   { id: 2, name: 'team-offsite.jpg', alt: 'The team around a wooden table', dims: '3000×2000', size: '1.2 MB', ratio: 1.5, hue: 200, used: 1 },
   { id: 3, name: 'product-hero.png', alt: '', dims: '1600×1200', size: '410 KB', ratio: 1.33, hue: 260, used: 0 },
-  { id: 4, name: 'logo-mark.svg', alt: 'Saytu logo mark', dims: '512×512', size: '4 KB', ratio: 1, hue: 245, used: 12 },
+  { id: 4, name: 'logo-mark.svg', alt: 'Setu logo mark', dims: '512×512', size: '4 KB', ratio: 1, hue: 245, used: 12 },
   { id: 5, name: 'pricing-bg.jpg', alt: 'Soft gradient backdrop', dims: '2000×1125', size: '690 KB', ratio: 1.77, hue: 160, used: 1 },
   { id: 6, name: 'founder-portrait.jpg', alt: '', dims: '1200×1500', size: '520 KB', ratio: 0.8, hue: 12, used: 2 },
   { id: 7, name: 'field-notes-cover.jpg', alt: 'Open notebook with handwriting', dims: '2400×1350', size: '910 KB', ratio: 1.77, hue: 45, used: 1 },

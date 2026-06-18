@@ -1,0 +1,99 @@
+import { createContext, useContext, useMemo } from 'react'
+import type { ReactNode } from 'react'
+import type {
+  AuthoringService,
+  DataPort,
+  DraftInput,
+  GitPort,
+  PublishService,
+  ReadService,
+  TiptapDoc,
+} from '@setu/core'
+import { createAuthoringService, createPublishService, createReadService } from '@setu/core'
+import { createMemoryDataPort } from '@setu/db-memory'
+import { createMemoryGitPort } from '@setu/git-memory'
+
+const doc = (text: string): TiptapDoc => ({
+  type: 'doc',
+  content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+})
+
+/** Sample content so the admin has something to show before real persistence. */
+export const seedDrafts: DraftInput[] = [
+  { collection: 'post', locale: 'en', slug: 'the-quiet-week', content: doc('The quiet week before a launch.'), metadata: { title: 'The quiet week before a launch', status: 'published' } },
+  { collection: 'post', locale: 'en', slug: 'release-notes', content: doc('What shipped.'), metadata: { title: 'Release notes', status: 'draft' } },
+  { collection: 'page', locale: 'en', slug: 'about', content: doc('About us.'), metadata: { title: 'About', status: 'published' } },
+]
+
+/** The composed in-browser services the admin runs on. */
+export interface Services {
+  data: DataPort
+  git: GitPort
+  read: ReadService
+  authoring: AuthoringService
+  publish: PublishService
+}
+
+/** Build the in-browser services bundle around a DataPort + GitPort. */
+export function servicesFor(data: DataPort, git: GitPort): Services {
+  return {
+    data,
+    git,
+    read: createReadService({ data, git }),
+    authoring: createAuthoringService({ data }),
+    publish: createPublishService({ data, git }),
+  }
+}
+
+/** Seed the sample drafts only when the store is completely empty (no drafts AND
+ *  no Git head) — so a reload never re-seeds over real content. */
+async function seedIfEmpty(services: Services): Promise<void> {
+  const [drafts, head] = await Promise.all([services.data.listDrafts(), services.git.headSha()])
+  if (drafts.length === 0 && head === null) {
+    for (const s of seedDrafts) await services.data.saveDraft(s)
+  }
+}
+
+/** Assemble the services bundle around any DataPort/GitPort and seed-if-empty.
+ *  Adapter-agnostic: the app passes the persistent (idb) adapters, tests pass the
+ *  in-memory ones — the same shipped bootstrap logic either way. */
+export async function bootstrapServices(data: DataPort, git: GitPort): Promise<Services> {
+  const services = servicesFor(data, git)
+  await seedIfEmpty(services)
+  return services
+}
+
+/** The app's default services: seeded in-memory adapters (swapped for real
+ *  persistence later without touching the UI). */
+export function createServices(): Services {
+  return servicesFor(createMemoryDataPort(seedDrafts), createMemoryGitPort())
+}
+
+const ServicesContext = createContext<Services | null>(null)
+
+export function ServicesProvider({ services, children }: { services: Services; children: ReactNode }) {
+  return <ServicesContext.Provider value={services}>{children}</ServicesContext.Provider>
+}
+
+export function useServices(): Services {
+  const ctx = useContext(ServicesContext)
+  if (ctx === null) throw new Error('useServices must be used within a ServicesProvider')
+  return ctx
+}
+
+/** Back-compat accessor for screens that only need the DataPort (ContentList). */
+export function useData(): DataPort {
+  return useServices().data
+}
+
+/** Back-compat provider: builds a services bundle around a given DataPort so the
+ *  existing content-list/smoke tests (which inject a DataPort) keep working. */
+export function DataProvider({ adapter, children }: { adapter: DataPort; children: ReactNode }) {
+  const services = useMemo(() => servicesFor(adapter, createMemoryGitPort()), [adapter])
+  return <ServicesProvider services={services}>{children}</ServicesProvider>
+}
+
+/** The app's DataPort (in-memory, seeded). Kept for main.tsx back-compat. */
+export function createAppDataPort(): DataPort {
+  return createMemoryDataPort(seedDrafts)
+}

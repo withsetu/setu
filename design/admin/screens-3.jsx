@@ -175,7 +175,7 @@ function UserSettings({ openProModal, addToast }) {
 function AuthSettings() {
   return (
     <>
-      <SetGroup title="Sign-in provider" desc="How your team authenticates into Saytu.">
+      <SetGroup title="Sign-in provider" desc="How your team authenticates into Setu.">
         <div className="auth-providers">
           {[{ n: 'Email + password', ic: 'mail', on: true }, { n: 'Google Workspace', ic: 'globe', on: true }, { n: 'GitHub', ic: 'gitBranch', on: false }, { n: 'SAML SSO', ic: 'key', on: false, pro: true }].map(p => (
             <div key={p.n} className={`auth-provider ${p.on ? 'on' : ''}`}>

@@ -14,8 +14,8 @@ describe('sqlite adapter (on-disk)', () => {
   })
 
   it('persists drafts across adapter instances on a real file (migrate idempotent on reopen)', async () => {
-    dir = mkdtempSync(join(tmpdir(), 'saytu-db-'))
-    const file = join(dir, 'saytu.db')
+    dir = mkdtempSync(join(tmpdir(), 'setu-db-'))
+    const file = join(dir, 'setu.db')
 
     const a = createSqliteAdapter(file)
     await a.saveDraft({

@@ -16,7 +16,7 @@ describe('git-local adapter (on-disk)', () => {
   })
 
   it('persists a commit readable by a fresh adapter on the same repo', async () => {
-    dir = mkdtempSync(join(tmpdir(), 'saytu-git-'))
+    dir = mkdtempSync(join(tmpdir(), 'setu-git-'))
     await git.init({ fs: nodeFs, dir, defaultBranch: 'main' })
 
     const a = createLocalGitAdapter({ dir })
@@ -34,7 +34,7 @@ describe('git-local adapter (on-disk)', () => {
   })
 
   it('rejects a path that escapes the repository root', async () => {
-    dir = mkdtempSync(join(tmpdir(), 'saytu-git-'))
+    dir = mkdtempSync(join(tmpdir(), 'setu-git-'))
     await git.init({ fs: nodeFs, dir, defaultBranch: 'main' })
     const a = createLocalGitAdapter({ dir })
     await expect(
@@ -43,7 +43,7 @@ describe('git-local adapter (on-disk)', () => {
   })
 
   it('serializes concurrent commits to different paths without cross-contamination', async () => {
-    dir = mkdtempSync(join(tmpdir(), 'saytu-git-'))
+    dir = mkdtempSync(join(tmpdir(), 'setu-git-'))
     await git.init({ fs: nodeFs, dir, defaultBranch: 'main' })
     const a = createLocalGitAdapter({ dir })
     await Promise.all([

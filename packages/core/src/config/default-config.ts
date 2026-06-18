@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { defineConfig } from './define-config'
 import { resolveConfig } from './resolve'
 
-/** The config Saytu ships with when the developer provides none. */
+/** The config Setu ships with when the developer provides none. */
 export const defaultConfig = defineConfig({
   blocks: [
     {

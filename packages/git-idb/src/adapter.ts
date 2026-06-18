@@ -1,5 +1,5 @@
 import { openDB } from 'idb'
-import type { CommitInput, CommitResult, GitPort } from '@saytu/core'
+import type { CommitInput, CommitResult, GitPort } from '@setu/core'
 
 // Deterministic 40-char hex digest (no Date.now/Math.random): 5 salted FNV-1a
 // passes. Distinct per commit because the persisted counter is mixed in.
@@ -20,7 +20,7 @@ function sha40(input: string): string {
 /** An IndexedDB-backed GitPort (a `files` store path->content + a `meta` store
  *  holding the head sha and a commit counter). Behaviorally equivalent to
  *  git-memory (proven by runGitPortContract) but persistent across reloads. */
-export async function createIdbGitPort(dbName = 'saytu-git'): Promise<GitPort> {
+export async function createIdbGitPort(dbName = 'setu-git'): Promise<GitPort> {
   const db = await openDB(dbName, 1, {
     upgrade(d) {
       d.createObjectStore('files')

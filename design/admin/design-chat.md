@@ -13,7 +13,7 @@ Current date is now June 14, 2026
 </system-info>
 
 <pasted_text name="Pasted text (141 lines)">
-# Saytu Admin — Design Brief
+# Setu Admin — Design Brief
 
 &gt; A brief for **Claude Design** to generate a modern CMS admin. Scope: the **free tier**. Paste this in, optionally with screenshots of the reference products below.
 
@@ -21,7 +21,7 @@ Current date is now June 14, 2026
 
 ## What we're building
 
-**Saytu** is an open-source, Git-backed CMS. We need a beautiful, modern **admin** — the place where non-technical marketers and writers create, edit, and publish website content. Think "what WordPress's admin should have been in 2026."
+**Setu** is an open-source, Git-backed CMS. We need a beautiful, modern **admin** — the place where non-technical marketers and writers create, edit, and publish website content. Think "what WordPress's admin should have been in 2026."
 
 The single most important screen is **the editor**. Design it to be exceptional; everything else supports it.
 
@@ -346,7 +346,7 @@ _[tool: snip]_
 
 _[tool: snip]_
 
-I've built **Saytu Admin** — a calm, writer-first CMS admin. Here's what's there:
+I've built **Setu Admin** — a calm, writer-first CMS admin. Here's what's there:
 
 **The editor (centerpiece)** — full-bleed canvas with a serif/sans reading face, a working `/` slash menu (13 block types, keyboard-navigable), hover drag-handle + "+" affordances, focus mode that dims everything but the active block while typing, contextual props panels, an image block that nags for alt text, a Pro "Conditional content" chip, a slim top strip (Draft→Staged→Deployed lifecycle, autosave, presence/lock, locale switcher, split preview), and a right slide-over for metadata + SEO + raw source.
 
@@ -395,5 +395,5 @@ Clean — no errors. Let me do the verified handoff.
 
 _[tool: done]_
 
-The infinite-loop warning is fixed and the page loads clean. **Saytu Admin** is ready — the writer-first editor (slash menu, focus mode, hover affordances, alt-text prompts, Pro chips, settings slide-over) plus Dashboard, Posts/Pages, Media, Forms, Site, and Settings, all in light + dark with a Tweaks panel (accent, canvas font, focus intensity, density, radius). The background verifier is now doing a full sweep; I'll flag anything it surfaces.
+The infinite-loop warning is fixed and the page loads clean. **Setu Admin** is ready — the writer-first editor (slash menu, focus mode, hover affordances, alt-text prompts, Pro chips, settings slide-over) plus Dashboard, Posts/Pages, Media, Forms, Site, and Settings, all in light + dark with a Tweaks panel (accent, canvas font, focus intensity, density, radius). The background verifier is now doing a full sweep; I'll flag anything it surfaces.
 

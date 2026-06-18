@@ -4,7 +4,7 @@ import nodeFs from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as git from 'isomorphic-git'
-import { runGitPortContract } from '@saytu/git-testing'
+import { runGitPortContract } from '@setu/git-testing'
 import { createLocalGitAdapter } from '../src/index'
 
 const dirs: string[] = []
@@ -15,7 +15,7 @@ afterEach(() => {
 })
 
 runGitPortContract(async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'saytu-git-'))
+  const dir = mkdtempSync(join(tmpdir(), 'setu-git-'))
   dirs.push(dir)
   await git.init({ fs: nodeFs, dir, defaultBranch: 'main' })
   return createLocalGitAdapter({ dir })

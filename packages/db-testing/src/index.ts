@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import type { DataPort, TiptapDoc } from '@saytu/core'
+import type { DataPort, TiptapDoc } from '@setu/core'
 
 const doc = (text: string): TiptapDoc => ({
   type: 'doc',

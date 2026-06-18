@@ -1,6 +1,6 @@
-# Saytu Architecture (Concepts)
+# Setu Architecture (Concepts)
 
-> **What this is:** a plain-English tour of how Saytu is built and *why*. It explains the
+> **What this is:** a plain-English tour of how Setu is built and *why*. It explains the
 > ideas — not the API surface (method signatures change; the ideas don't). If you're new
 > to the codebase, read this first.
 >
@@ -10,7 +10,7 @@
 
 ---
 
-## What Saytu is
+## What Setu is
 
 A 100% open-source, Git-backed, **multi-topology** content management engine. "Multi-topology"
 is the whole point: the *same* engine runs as a local app on your laptop, as a self-hosted
@@ -23,7 +23,7 @@ The single architectural bet that makes this possible is **Ports & Adapters**.
 
 ## The big idea: Ports & Adapters (Hexagonal Architecture)
 
-Saytu's core logic never hardcodes *where* it runs or *what* it talks to. Instead it depends
+Setu's core logic never hardcodes *where* it runs or *what* it talks to. Instead it depends
 only on **ports** — small contracts that say "here's what I need," not "here's how to do it."
 Concrete **adapters** fulfill those contracts and are swapped per environment.
 
@@ -33,7 +33,7 @@ socket is the *contract* (the port); the power source behind it is swappable (th
 
 ```
             ┌───────────────────────────────────┐
-            │        @saytu/core  (engine)        │
+            │        @setu/core  (engine)        │
             │  pure logic — knows only the ports  │
             └───────┬───────────────────┬─────────┘
                     │ GitPort            │ DataPort
@@ -53,7 +53,7 @@ also why the entire engine can run *inside the browser* with no server at all (s
 
 ### `GitPort` — the canonical store
 
-Everything Saytu needs to do with Git, as a contract:
+Everything Setu needs to do with Git, as a contract:
 
 - `headSha()` — what's the latest commit?
 - `readFile(path)` — give me this file's content
@@ -68,7 +68,7 @@ That's the whole interface. It says nothing about *where* the repo lives. Adapte
 
 ### `DataPort` — the working store
 
-Everything Saytu needs from a database. Two clusters of verbs — **drafts** and **locks**:
+Everything Setu needs from a database. Two clusters of verbs — **drafts** and **locks**:
 
 - `getDraft` / `saveDraft` / `deleteDraft` / `listDrafts` — work-in-progress edits
 - `getLock` / `putLock` / `deleteLock` — pessimistic edit locks (so two people don't clobber
@@ -92,7 +92,7 @@ optimization), `AuthPort` (identity), `EmailPort` (notifications).
 
 ## Source of truth: Git is canonical, the database is derived
 
-This is the most important idea in Saytu, and it drives everything else.
+This is the most important idea in Setu, and it drives everything else.
 
 - **Git (`GitPort`) is canonical** — it holds your real, published content. It is the truth.
 - **The database (`DataPort`) is derived and disposable** — it holds *drafts* (not yet
@@ -132,13 +132,13 @@ next Deploy). One status engine, three inputs, any topology.
 
 ---
 
-## The engine: `@saytu/core`
+## The engine: `@setu/core`
 
-`@saytu/core` is pure logic that depends only on the ports. It contains:
+`@setu/core` is pure logic that depends only on the ports. It contains:
 
 - **`markdoc/`** — the round-trip between the editor's Tiptap JSON and Markdoc `.mdoc` files
   (`tiptapToMarkdoc` / `markdocToTiptap`), plus frontmatter (`parseMdoc` / `serializeMdoc`).
-- **`config/`** — `saytu.config.ts` schema, parsing, and the default block set.
+- **`config/`** — `setu.config.ts` schema, parsing, and the default block set.
 - **`authoring/`** — draft + lock orchestration (the first core logic to consume a port).
 - **`publish/`** — the publish service: compile draft → commit to Git, with a **base-SHA
   conflict guard** (won't clobber external Git edits).
@@ -174,13 +174,13 @@ Two independent axes worth separating in your head:
 
 Because Git is canonical, **switching topology never loses published content** — at worst you
 *reindex* the derived database on the new environment. (Full detail:
-[the topology note](superpowers/specs/2026-06-14-saytu-topology-publishing-note.md).)
+[the topology note](superpowers/specs/2026-06-14-setu-topology-publishing-note.md).)
 
 ---
 
 ## The in-browser bet
 
-Today's admin app (`apps/saytu-admin`) runs the **entire `@saytu/core` engine plus the in-memory
+Today's admin app (`apps/admin`) runs the **entire `@setu/core` engine plus the in-memory
 adapters (`git-memory` + `db-memory`) directly in the browser** — no server. The publish service,
 the lifecycle engine, the content list, deploy: all of it executes client-side against a `Map`.
 
@@ -223,4 +223,4 @@ The cardinal rule. A CMS that loses your writing is worthless, so several mechan
 - The full product spec: [../plan/prd.md](../plan/prd.md)
 - Design decisions, one per increment: [superpowers/specs/](superpowers/specs/)
 - The multi-topology / reindex deep-dive:
-  [superpowers/specs/2026-06-14-saytu-topology-publishing-note.md](superpowers/specs/2026-06-14-saytu-topology-publishing-note.md)
+  [superpowers/specs/2026-06-14-setu-topology-publishing-note.md](superpowers/specs/2026-06-14-setu-topology-publishing-note.md)

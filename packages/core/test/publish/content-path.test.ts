@@ -26,7 +26,7 @@ describe('parseContentPath', () => {
   })
 
   it('returns null for non-content paths', () => {
-    expect(parseContentPath('saytu.config.ts')).toBeNull()
+    expect(parseContentPath('setu.config.ts')).toBeNull()
     expect(parseContentPath('content/post/en/hello.md')).toBeNull() // wrong extension
     expect(parseContentPath('content/post/hello.mdoc')).toBeNull() // missing locale segment
     expect(parseContentPath('content/post/en/sub/hello.mdoc')).toBeNull() // extra segment

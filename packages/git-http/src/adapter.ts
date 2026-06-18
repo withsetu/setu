@@ -1,13 +1,13 @@
-import type { GitPort, CommitInput, CommitResult } from '@saytu/core'
+import type { GitPort, CommitInput, CommitResult } from '@setu/core'
 
 export interface HttpGitOptions {
-  /** Base URL of the Saytu git API (e.g. http://localhost:4444). */
+  /** Base URL of the Setu git API (e.g. http://localhost:4444). */
   baseUrl: string
   /** Injectable fetch (tests wire this to an in-process Hono app). Defaults to global fetch. */
   fetch?: typeof fetch
 }
 
-/** A GitPort that talks to the Saytu git API (apps/saytu-api) over HTTP.
+/** A GitPort that talks to the Setu git API (apps/api) over HTTP.
  *  Browser-safe: only uses fetch. Same GitPort contract as git-local/idb/memory. */
 export function createHttpGitPort(opts: HttpGitOptions): GitPort {
   const base = opts.baseUrl.replace(/\/$/, '')

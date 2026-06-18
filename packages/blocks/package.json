@@ -1,5 +1,5 @@
 {
-  "name": "@saytu/blocks",
+  "name": "@setu/blocks",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,7 +11,7 @@
   },
   "scripts": { "test": "vitest run", "typecheck": "tsc --noEmit" },
   "peerDependencies": { "react": "^18.3.1" },
-  "dependencies": { "@saytu/core": "workspace:*" },
+  "dependencies": { "@setu/core": "workspace:*" },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",

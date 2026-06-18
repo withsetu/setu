@@ -4,7 +4,7 @@ import Database from 'better-sqlite3'
 import { and, eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
-import type { DataPort, Draft, EntryRef, Lock } from '@saytu/core'
+import type { DataPort, Draft, EntryRef, Lock } from '@setu/core'
 import { drafts, locks } from './schema'
 
 // Path is relative to the SOURCE file (this package runs from src, no build step).

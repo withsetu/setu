@@ -1,0 +1,16 @@
+{
+  "name": "@saytu/theme-default",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./Layout.astro": "./Layout.astro",
+    "./PostLayout.astro": "./PostLayout.astro",
+    "./PageLayout.astro": "./PageLayout.astro",
+    "./theme.css": "./theme.css",
+    "./site.css": "./site.css"
+  },
+  "peerDependencies": {
+    "astro": "6.4.6"
+  }
+}

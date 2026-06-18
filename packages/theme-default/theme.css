@@ -1,0 +1,43 @@
+/* Saytu default theme — token layer. Every taste choice is a knob with a default;
+   change a token and the site restyles. Block tokens (names + values) are shared with
+   the editor (apps/saytu-admin tokens.css) so @saytu/blocks render themed + matching. */
+:root {
+  /* ---- Identity knobs (defaults — the customization surface) ---- */
+  --font-heading: 'Hanken Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Hanken Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --text-base: 1.0625rem;
+  --h1: 2.5rem;
+  --h2: 1.6rem;
+  --h3: 1.25rem;
+  --measure-post: 38rem;
+  --measure-page: 64rem;
+  --radius-base: 10px;
+
+  /* ---- Accent ---- */
+  --accent: #4f46e5;
+  --accent-strong: #4338ca;
+  --accent-soft: color-mix(in oklch, var(--accent) 12%, transparent);
+  --on-accent: #ffffff;
+
+  /* ---- Block tokens (shared names+values with the editor so blocks match) ---- */
+  --bg: #f7f7f8;
+  --surface-2: #fbfbfc;
+  --canvas: #ffffff;
+  --border: #e8e8ec;
+  --text: #1a1a1f;
+  --text-2: #54545d;
+  --green: #15935a;
+  --green-soft: color-mix(in oklch, #15935a 12%, transparent);
+  --amber: #b7791f;
+  --amber-soft: color-mix(in oklch, #b7791f 14%, transparent);
+  --red: #d1453b;
+  --red-soft: color-mix(in oklch, #d1453b 11%, transparent);
+
+  /* ---- Radius (consumed by blocks) ---- */
+  --r-md: var(--radius-base);
+  --r-sm: calc(var(--radius-base) * 0.6);
+
+  /* ---- Alias the block font token to the theme body so callouts use the theme face ---- */
+  --font-ui: var(--font-body);
+}

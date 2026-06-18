@@ -8,6 +8,8 @@
     "@astrojs/markdoc": "1.0.6",
     "@astrojs/react": "5.0.7",
     "@saytu/blocks": "workspace:*",
+    "@saytu/core": "workspace:*",
+    "@saytu/theme-default": "workspace:*",
     "astro": "6.4.6",
     "react": "18.3.1",
     "react-dom": "18.3.1"

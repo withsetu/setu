@@ -84,3 +84,17 @@ describe('render pipeline — table column alignment', () => {
     expect(html).not.toContain('<td align=')
   })
 })
+
+describe('render pipeline — baseline + passthrough', () => {
+  it('renders a hard break (static passthrough content)', () => {
+    expect(html).toContain('<br')
+  })
+  it('emits exactly one h1 (the title); body uses h2+', () => {
+    const h1s = html.match(/<h1[\s>]/g) ?? []
+    expect(h1s.length).toBe(1)
+  })
+  it('wires the baseline stylesheet (inlined CSS rule present)', () => {
+    // CSS is inlined by Astro; assert a known rule from site.css appears in the built HTML.
+    expect(html).toContain('.callout--warning')
+  })
+})

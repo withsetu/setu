@@ -21,5 +21,11 @@ export function resolveConfig(raw: unknown): ResolvedConfig {
     blocksByTag.set(block.tag, block)
   }
 
-  return { blocks, blocksByTag, knownBlockTags: new Set(blocksByTag.keys()), theme: parsed.data.theme }
+  return {
+    blocks,
+    blocksByTag,
+    knownBlockTags: new Set(blocksByTag.keys()),
+    theme: parsed.data.theme,
+    themeOptions: parsed.data.themeOptions,
+  }
 }

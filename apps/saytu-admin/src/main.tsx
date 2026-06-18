@@ -6,6 +6,9 @@ import { Bootstrap } from './data/Bootstrap'
 import { resetToSampleContent } from './data/reset'
 import { ActorProvider } from './auth/actor'
 import { DeployProvider } from './deploy/deploy'
+import '@fontsource-variable/hanken-grotesk'
+import '@fontsource-variable/newsreader'
+import '@fontsource-variable/jetbrains-mono'
 import './index.css'
 
 /** Dev-only escape hatch; compiled out of production by Vite. */

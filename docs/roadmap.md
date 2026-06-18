@@ -7,6 +7,33 @@
 
 ---
 
+## Render / Theme layer
+
+Vision + decomposition: `docs/superpowers/specs/2026-06-17-saytu-render-theme-vision.md`
+(5 sub-projects; lean frame — default theme + tokens, AI/MCP an accelerant not the identity;
+"write once" React core + generated editor/site shells; theme = HTML/CSS/tokens, React sealed).
+
+### ~~Render pipeline #1 — content → static HTML~~ ✅ SHIPPED 2026-06-18 (`7ec53f1`)
+
+`apps/saytu-site` (Astro 6 + `@astrojs/markdoc` + `@astrojs/react`) renders committed `.mdoc`
+to static HTML (zero JS): standard nodes + callout (one React core + wrapper) + text-align +
+sub/sup + checklist + table-column align. **Resolves the deferred render-time mappings**
+(text-align + table-column alignment now actually render on the page). Default locale unprefixed
+in URLs. Spec/plan: `docs/superpowers/{specs,plans}/2026-06-17-saytu-render-pipeline*`.
+
+**Next render-layer sub-projects (deferred, sequenced):**
+- **#2 block component package** — extract the callout React core to a shared package + make
+  the editor's node view reuse it (close the "write once" loop; no drift).
+- **#3 theme / site layer** — default theme: layouts, header/footer/nav, tokens, the
+  Rung-0 tokens (visual tweaks panel) + Rung-1 plain-HTML `.astro` + child-theme cascade.
+- **#4 custom-component pipeline + codegen** — the `component.ts` contract fanning out to all
+  3 planes; **this is where "tag set sourced from saytu.config" lands** (blocked in #1:
+  `@astrojs/markdoc`'s config loader can't import core's TS source; codegen runs where it can).
+- **#5 in-editor preview** — draft preview through the same theme + components, iframed.
+- **permalink + i18n URL scheme** — the full locale-prefixing policy (#1 only strips the
+  default `en`; config-driven default + non-default front-prefixing is its own slice).
+- **dynamic Markdoc** (`{% if %}`/`{% for %}`/`$vars`) in passthrough — Pro/SSR, long-deferred.
+
 ## Editor
 
 ### Editor feature wishlist — sequenced by content-model constraint (added 2026-06-16)

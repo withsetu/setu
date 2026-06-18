@@ -42,3 +42,13 @@ describe('render pipeline — callout', () => {
     expect(html).not.toMatch(/<script[\s>]/)
   })
 })
+
+describe('render pipeline — text align', () => {
+  it('emits text-align for non-default alignment', () => {
+    expect(html).toContain('<p style="text-align:center">This paragraph is centered.</p>')
+    expect(html).toContain('<p style="text-align:right">This paragraph is right-aligned.</p>')
+  })
+  it('leaves default-aligned paragraphs clean', () => {
+    expect(html).toContain('<p>A paragraph with <strong>bold</strong>')
+  })
+})

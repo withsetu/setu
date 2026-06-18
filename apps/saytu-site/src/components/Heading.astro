@@ -1,0 +1,7 @@
+---
+// Node override for headings: preserve the level + auto-generated id, add {% align %}.
+const { level = 1, id, align } = Astro.props
+const Tag = `h${level}`
+const style = align && align !== 'left' ? `text-align:${align}` : undefined
+---
+<Tag id={id} style={style}><slot /></Tag>

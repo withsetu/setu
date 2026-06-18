@@ -21,5 +21,5 @@ export function resolveConfig(raw: unknown): ResolvedConfig {
     blocksByTag.set(block.tag, block)
   }
 
-  return { blocks, blocksByTag, knownBlockTags: new Set(blocksByTag.keys()) }
+  return { blocks, blocksByTag, knownBlockTags: new Set(blocksByTag.keys()), theme: parsed.data.theme }
 }

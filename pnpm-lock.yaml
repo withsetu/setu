@@ -120,9 +120,6 @@ importers:
       '@astrojs/react':
         specifier: 5.0.7
         version: 5.0.7(@types/node@22.19.21)(@types/react-dom@18.3.1)(@types/react@18.3.12)(jiti@2.7.0)(lightningcss@1.32.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(tsx@4.22.4)
-      '@saytu/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       astro:
         specifier: 6.4.6
         version: 6.4.6(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(rollup@4.62.0)(tsx@4.22.4)

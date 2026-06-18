@@ -11,6 +11,7 @@ import { defineMarkdocConfig, component, nodes, Markdoc } from '@astrojs/markdoc
 // Deriving this map from saytu.config belongs to sub-project #4 (codegen), which runs in a
 // build step that CAN read core and will generate this file. Until then, keep this in sync
 // with saytu.config's blocks by hand (today: the single `callout` block).
+
 // Detect GFM task markers and render a read-only checkbox. Mirrors the editor's TASK_RE.
 // Tight items expose the marker as a bare string child; loose (multi-paragraph) items
 // wrap it in a paragraph Tag whose first child is then inspected.

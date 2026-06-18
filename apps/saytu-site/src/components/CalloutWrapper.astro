@@ -1,10 +1,13 @@
 ---
-// Thin site shell (codegen will emit this in #4). Maps tag attrs -> React props and
-// forwards the rendered body via <slot/> as children. No client:* => static HTML.
-import Callout from './Callout.tsx'
+import { createElement } from 'react'
+import { Callout, variantFor } from '@saytu/blocks'
+import '@saytu/blocks/callout.css'
+
 const { type = 'info', title } = Astro.props
+const variant = variantFor(String(type))
+const titleNode = title ? createElement('span', { className: 'callout-title' }, title) : undefined
 ---
 
-<Callout type={type} title={title}>
-  <slot />
+<Callout tone={variant.tone} icon={variant.icon} title={titleNode}>
+  <div class="callout-body"><slot /></div>
 </Callout>

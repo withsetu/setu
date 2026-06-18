@@ -2,10 +2,8 @@ import { Node, mergeAttributes } from '@tiptap/core'
 import type { Editor } from '@tiptap/core'
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import type { ReactNodeViewProps } from '@tiptap/react'
-import { Icon } from '../../ui/Icon'
-import type { IconName } from '../../ui/Icon'
-import { isIconName } from '../../ui/Icon'
-import { calloutVariants, variantFor, CALLOUT_ICONS } from '../callout-variants'
+import { Callout as CalloutCore, BlockIcon, variantFor, calloutVariants, CALLOUT_ICONS, isBlockIconName } from '@saytu/blocks'
+import type { BlockIconName } from '@saytu/blocks'
 import { useToolbarRoving } from '../useToolbarRoving'
 
 /** If the caret sits at the very start of a callout's body, move keyboard focus
@@ -36,7 +34,8 @@ function CalloutView({ node, updateAttributes, editor, getPos }: ReactNodeViewPr
   const title = String(mdAttrs['title'] ?? '')
   const variant = variantFor(type)
   const overrideIcon = mdAttrs['icon']
-  const icon: IconName = typeof overrideIcon === 'string' && isIconName(overrideIcon) ? overrideIcon : variant.icon
+  const icon: BlockIconName =
+    typeof overrideIcon === 'string' && isBlockIconName(overrideIcon) ? overrideIcon : variant.icon
 
   const setAttrs = (patch: Record<string, unknown>) => {
     const next: Record<string, unknown> = { ...mdAttrs, ...patch }
@@ -48,78 +47,82 @@ function CalloutView({ node, updateAttributes, editor, getPos }: ReactNodeViewPr
   const keepFocus = (e: { preventDefault: () => void }) => e.preventDefault()
   const { ref: toolbarRef, onKeyDown: onToolbarKeyDown } = useToolbarRoving()
 
-  return (
-    <NodeViewWrapper className={`blk-callout tone-${variant.tone}`} aria-label="Callout block">
-      <div
-        className="block-props"
-        contentEditable={false}
-        role="toolbar"
-        aria-label="Callout style"
-        ref={toolbarRef}
-        onKeyDown={(e) => {
-          onToolbarKeyDown(e)
-          if (e.key === 'Escape') {
-            e.preventDefault()
-            const pos = getPos()
-            if (typeof pos === 'number') {
-              editor.chain().setTextSelection(pos + 2).run()
-              editor.view.focus()
-            }
+  const toolbar = (
+    <div
+      className="block-props"
+      contentEditable={false}
+      role="toolbar"
+      aria-label="Callout style"
+      ref={toolbarRef}
+      onKeyDown={(e) => {
+        onToolbarKeyDown(e)
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          const pos = getPos()
+          if (typeof pos === 'number') {
+            editor.chain().setTextSelection(pos + 2).run()
+            editor.view.focus()
           }
-        }}
-      >
-        <span className="bp-label">Tone</span>
-        {calloutVariants().map((v) => (
-          <button
-            key={v.type}
-            type="button"
-            className={`bp-swatch tone-${v.tone}${type === v.type ? ' on' : ''}`}
-            title={v.label}
-            aria-label={v.label}
-            data-toolbar-item
-            onMouseDown={keepFocus}
-            onClick={() => setAttrs({ type: v.type })}
-          />
-        ))}
-        <span className="bp-sep" />
-        {CALLOUT_ICONS.map((ic) => (
-          <button
-            key={ic}
-            type="button"
-            className={`bp-icon${icon === ic ? ' on' : ''}`}
-            title={ic}
-            aria-label={`Icon ${ic}`}
-            data-toolbar-item
-            onMouseDown={keepFocus}
-            onClick={() => setAttrs({ icon: ic })}
-          >
-            <Icon name={ic} size={15} />
-          </button>
-        ))}
-      </div>
-      <div className="callout-head" contentEditable={false}>
-        <span className="callout-ic"><Icon name={icon} size={18} /></span>
-        <input
-          className="callout-title"
-          placeholder="Add a title…"
-          value={title}
-          onChange={(e) => setAttrs({ title: e.target.value })}
-          onKeyDown={(e) => {
-            if (e.key === 'ArrowDown' || e.key === 'Enter') {
-              e.preventDefault()
-              const pos = getPos()
-              if (typeof pos === 'number') {
-                editor.chain().setTextSelection(pos + 2).run()
-                // focus synchronously: chain().focus() defers via rAF, which would leave the caret unplaced this tick
-                editor.view.focus()
-              }
-              return
-            }
-            e.stopPropagation()
-          }}
+        }
+      }}
+    >
+      <span className="bp-label">Tone</span>
+      {calloutVariants().map((v) => (
+        <button
+          key={v.type}
+          type="button"
+          className={`bp-swatch tone-${v.tone}${type === v.type ? ' on' : ''}`}
+          title={v.label}
+          aria-label={v.label}
+          data-toolbar-item
+          onMouseDown={keepFocus}
+          onClick={() => setAttrs({ type: v.type })}
         />
-      </div>
-      <NodeViewContent className="callout-body" />
+      ))}
+      <span className="bp-sep" />
+      {CALLOUT_ICONS.map((ic) => (
+        <button
+          key={ic}
+          type="button"
+          className={`bp-icon${icon === ic ? ' on' : ''}`}
+          title={ic}
+          aria-label={`Icon ${ic}`}
+          data-toolbar-item
+          onMouseDown={keepFocus}
+          onClick={() => setAttrs({ icon: ic })}
+        >
+          <BlockIcon name={ic} size={15} />
+        </button>
+      ))}
+    </div>
+  )
+
+  const titleInput = (
+    <input
+      className="callout-title"
+      placeholder="Add a title…"
+      value={title}
+      onChange={(e) => setAttrs({ title: e.target.value })}
+      onKeyDown={(e) => {
+        if (e.key === 'ArrowDown' || e.key === 'Enter') {
+          e.preventDefault()
+          const pos = getPos()
+          if (typeof pos === 'number') {
+            editor.chain().setTextSelection(pos + 2).run()
+            editor.view.focus()
+          }
+          return
+        }
+        e.stopPropagation()
+      }}
+    />
+  )
+
+  return (
+    <NodeViewWrapper>
+      <CalloutCore tone={variant.tone} icon={icon} toolbar={toolbar} title={titleInput}>
+        <NodeViewContent className="callout-body" />
+      </CalloutCore>
     </NodeViewWrapper>
   )
 }

@@ -8,10 +8,3 @@
 .prose th, .prose td { border: 1px solid #ddd; padding: 0.4rem 0.7rem; }
 .prose li.task { list-style: none; margin-left: -1.2rem; }
 .prose li.task input { margin-right: 0.4rem; }
-.callout { display: flex; gap: 0.6rem; padding: 0.9rem 1rem; border-radius: 6px; margin: 1rem 0; background: #eef2ff; border: 1px solid #c7d2fe; }
-.callout--warning { background: #fff7ed; border-color: #fed7aa; }
-.callout--danger { background: #fef2f2; border-color: #fecaca; }
-.callout--success { background: #f0fdf4; border-color: #bbf7d0; }
-.callout__title { font-weight: 600; margin: 0 0 0.2rem; }
-.callout__body { margin: 0; }
-.callout__body :last-child { margin-bottom: 0; }

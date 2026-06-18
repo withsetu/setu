@@ -31,10 +31,10 @@ describe('render pipeline — standard nodes', () => {
 })
 
 describe('render pipeline — callout', () => {
-  it('renders the callout via the React core with attrs + body', () => {
-    expect(html).toContain('class="callout callout--warning"')
-    expect(html).toContain('data-component="Callout.tsx"')
-    expect(html).toContain('<p class="callout__title">Heads up</p>')
+  it('renders the callout via the shared @saytu/blocks core with attrs + body', () => {
+    expect(html).toContain('blk-callout tone-amber')
+    expect(html).toContain('<svg')
+    expect(html).toContain('class="callout-title">Heads up</span>')
     expect(html).toContain('<strong>bold</strong>')
   })
   it('ships zero JS for static content (no hydration island/script)', () => {
@@ -94,8 +94,8 @@ describe('render pipeline — baseline + passthrough', () => {
     expect(h1s.length).toBe(1)
   })
   it('wires the baseline stylesheet (inlined CSS rule present)', () => {
-    // CSS is inlined by Astro; assert a known rule from site.css appears in the built HTML.
-    expect(html).toContain('.callout--warning')
+    // CSS is inlined by Astro; assert a known rule from @saytu/blocks callout.css appears in the built HTML.
+    expect(html).toContain('.blk-callout')
   })
 })
 

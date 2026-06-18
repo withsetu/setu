@@ -1,0 +1,7 @@
+---
+// Node override so the editor's {% align %} annotation renders. Only emit a style
+// for non-default alignment (matches the converter: left/absent stays clean).
+const { align } = Astro.props
+const style = align && align !== 'left' ? `text-align:${align}` : undefined
+---
+<p style={style}><slot /></p>

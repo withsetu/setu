@@ -1,0 +1,15 @@
+---
+import { getEntry, render } from 'astro:content'
+
+const entry = await getEntry('blog', 'presentational')
+const { Content } = await render(entry!)
+---
+
+<html lang="en">
+  <head><title>Saytu presentational render spike</title></head>
+  <body>
+    <main>
+      <Content />
+    </main>
+  </body>
+</html>

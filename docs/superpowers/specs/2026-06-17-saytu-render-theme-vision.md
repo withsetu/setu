@@ -213,6 +213,35 @@ Built `prototype/astro-preview/` (Astro 6.4.6) with the callout tag mapped to a 
 declare its editable regions (slots)** so one core can serve both planes. Sub-project #1
 (content render) is cleared to go to a full spec.
 
+### Presentational-blocks spike — PASSED (2026-06-17)
+
+Before speccing #1 with the presentational blocks included, spiked the four render unknowns
+(`prototype/astro-preview`, page `/pres`). All four render — each technique now known:
+
+- **Text align** (`{% align %}` node annotation) ✅ — needs a **node override** on
+  `paragraph` + `heading` (declare an `align` attribute, emit `style="text-align:…"`; the
+  built-in nodes reject the annotation without it). Renders `<p style="text-align:center">`.
+- **Sub/superscript** (`{% sub %}`/`{% sup %}` inline tags) ✅ — trivial: register `sub`/`sup`
+  in `tags`, each a one-line `.astro` (`<sub><slot/></sub>`). Renders `H<sub>2</sub>O`.
+- **Checklist** (GFM `- [ ]`/`- [x]`) ✅ — markdown-it does NOT do task lists by default
+  (renders literal `[ ] text`). Fix = a custom **`item` node `transform`** (honored by
+  @astrojs/markdoc) that detects the marker on the item's first text child (tight items are a
+  bare string `"[ ] task"`), strips it, and prepends a read-only checkbox. Renders
+  `<li class="task" data-checked="true"><input type="checkbox" checked disabled/> …</li>`.
+- **Table-column alignment** ✅ — **native**: Markdoc already emits `align` on `<th>`/`<td>`
+  from the GFM separator. Refinement for impl: the `align` HTML attribute is valid-but-
+  deprecated; a `th`/`td` node override can map it to `style="text-align"`/a class for clean
+  CSS. No round-trip risk either way.
+
+**Spec notes captured:** (1) use the editor's canonical *no-space* annotation form
+(`heading{% align %}`); a stray space in test content left a trailing space + trailing-dash
+heading id — a content-form detail, not a render bug. (2) Loose (multi-paragraph) list items
+wrap text in a paragraph Tag, so the `item` transform inspects the first paragraph's text
+instead of a bare string — a build-time refinement (the editor only supports first-paragraph
+items today anyway). (3) Checkboxes render `disabled` (read-only published checklist).
+
+**Net:** every shipped block has a known, low-risk render path. #1 can include all of them.
+
 ---
 
 See [[saytu-project]], [[saytu-wedge]], [[saytu-working-style]], and the topology/publishing

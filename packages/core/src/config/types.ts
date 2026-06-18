@@ -27,6 +27,8 @@ export interface SaytuConfig {
   blocks: BlockDefinition[]
   /** The active theme's package name (e.g. '@saytu/theme-default'). Optional. */
   theme?: string
+  /** Chosen values for the active theme's declared options (key → value). Optional. */
+  themeOptions?: Record<string, string>
 }
 
 /** A block after resolution (distinct type for future derived fields). */
@@ -42,4 +44,6 @@ export interface ResolvedConfig {
   knownBlockTags: Set<string>
   /** The active theme's package name, passed through from the authored config. */
   theme?: string
+  /** Theme option values, passed through from the authored config. */
+  themeOptions?: Record<string, string>
 }

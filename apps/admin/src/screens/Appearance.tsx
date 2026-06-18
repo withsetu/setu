@@ -4,11 +4,23 @@ import { themeOptions, resolveThemeTokens } from '@setu/theme-default/options'
 import type { ThemeOption } from '@setu/theme-default/options'
 import { Callout } from '@setu/blocks'
 import { PageHeader } from '../shell/PageHeader'
+import { useServices } from '../data/store'
+import { useCan } from '../auth/actor'
 
 const STORAGE_KEY = 'setu-theme-options'
+// The committed file the site reads (content-repo root); see apps/site/src/lib/site-config.ts.
+const THEME_OPTIONS_PATH = 'theme-options.json'
+const AUTHOR = { name: 'Local', email: 'local@setu.dev' }
 
 function defaults(): Record<string, string> {
   return Object.fromEntries(themeOptions.map((o) => [o.key, o.default]))
+}
+
+/** Shallow record equality over the manifest's full value set. */
+function sameValues(a: Record<string, string>, b: Record<string, string>): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)])
+  for (const k of keys) if (a[k] !== b[k]) return false
+  return true
 }
 
 function loadValues(): Record<string, string> {
@@ -25,7 +37,32 @@ function loadValues(): Record<string, string> {
 const isHex = (v: string) => /^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(v)
 
 export function Appearance() {
+  const { git } = useServices()
+  const can = useCan()
   const [values, setValues] = useState<Record<string, string>>(loadValues)
+  // The currently-published values (what the live site renders). null until the baseline loads;
+  // absent file → the live state is the theme defaults.
+  const [published, setPublished] = useState<Record<string, string> | null>(null)
+  const [publishing, setPublishing] = useState(false)
+
+  useEffect(() => {
+    let live = true
+    void (async () => {
+      const raw = await git.readFile(THEME_OPTIONS_PATH)
+      let committed = defaults()
+      if (raw) {
+        try {
+          committed = { ...defaults(), ...(JSON.parse(raw) as Record<string, string>) }
+        } catch {
+          // malformed committed file → treat the live state as defaults
+        }
+      }
+      if (live) setPublished(committed)
+    })()
+    return () => {
+      live = false
+    }
+  }, [git])
 
   useEffect(() => {
     try {
@@ -39,6 +76,25 @@ export function Appearance() {
   const resetKey = (key: string, def: string) => set(key, def)
   const resetAll = () => setValues(defaults())
 
+  const dirty = published !== null && !sameValues(values, published)
+  const canPublish = can('theme.manage')
+
+  const onPublish = async () => {
+    if (publishing || !dirty) return
+    setPublishing(true)
+    try {
+      await git.commitFile({
+        path: THEME_OPTIONS_PATH,
+        content: JSON.stringify(values, null, 2),
+        message: 'Update appearance',
+        author: AUTHOR,
+      })
+      setPublished({ ...values })
+    } finally {
+      setPublishing(false)
+    }
+  }
+
   // resolveThemeTokens returns { '--accent': '…', … } — apply as inline custom properties so the
   // preview subtree restyles exactly as the published site would (same resolver).
   const previewStyle = resolveThemeTokens(values) as CSSProperties
@@ -49,9 +105,21 @@ export function Appearance() {
         title="Appearance"
         subtitle="Customize how your site looks. Changes preview live and are remembered."
         actions={
-          <button type="button" className="btn btn-ghost btn-md" onClick={resetAll}>
-            Reset all
-          </button>
+          <>
+            {canPublish && (
+              <button
+                type="button"
+                className="btn btn-primary btn-md"
+                disabled={published === null || !dirty || publishing}
+                onClick={() => void onPublish()}
+              >
+                {publishing ? 'Publishing…' : dirty ? 'Publish appearance' : 'Published'}
+              </button>
+            )}
+            <button type="button" className="btn btn-ghost btn-md" onClick={resetAll}>
+              Reset all
+            </button>
+          </>
         }
       />
       <div className="page-body">

@@ -1,11 +1,12 @@
 ---
 import PageLayout from '@theme/PageLayout.astro'
 import { getEntry, render } from 'astro:content'
-import { themeOptions } from '../lib/site-config'
+import { loadThemeOptions } from '../lib/site-config'
 
 const entry = await getEntry('entries', 'page/en/home')
 const { Content } = await render(entry!)
 const title = (entry!.data as { title?: string }).title ?? 'Home'
+const themeOptions = loadThemeOptions()
 ---
 
 <PageLayout title={title} lang="en" themeOptions={themeOptions}>

@@ -1,7 +1,7 @@
 import { resolveConfig } from './resolve'
 import type { ResolvedConfig } from './types'
 
-/** Load a saytu.config.ts/js module from disk (TS at runtime via jiti),
+/** Load a setu.config.ts/js module from disk (TS at runtime via jiti),
  *  take its default export, and resolve it. */
 export async function loadConfig(path: string): Promise<ResolvedConfig> {
   const { createJiti } = await import('jiti')

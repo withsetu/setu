@@ -11,7 +11,7 @@
 > panel** is a deliberate follow-on, unblocked once the bridge can persist the values.
 
 **Goal:** give a non-coder five knobs that retune the active theme — **accent color, font, content
-width, text size, corner style** — declared by the theme, stored in `saytu.config`, and applied by
+width, text size, corner style** — declared by the theme, stored in `setu.config`, and applied by
 the build as `:root` token overrides. Plus: remove the runtime **Google Fonts** dependency from the
 whole repo by self-hosting fonts via `@fontsource` (site theme **and** admin chrome).
 
@@ -56,7 +56,7 @@ config (new additive `themeOptions` field; read at build via the existing `loadC
 - **The visual admin Customizer panel** (color pickers / dropdowns / live preview that *saves* to
   the live site) → next increment, after the **editor→disk bridge** can persist `themeOptions`.
   The manifest is shaped so that panel renders itself generically from it — no per-theme UI code.
-- **Shipping a non-default example** — `saytu.config.ts` keeps the theme defaults (the success
+- **Shipping a non-default example** — `setu.config.ts` keeps the theme defaults (the success
   criterion is "looks identical, now tunable"; the engine is proven by tests, not a visual change).
   Decided with the owner.
 - **A font library beyond the curated shortlist** — fontsource exposes ~1,500 families; the default
@@ -165,19 +165,19 @@ never read by the converter — same guarantee as `theme`).
 
 ## 5. Build wiring (applying the options)
 
-`apps/site/saytu.config.ts` — **no value change** (defaults kept); it simply *may* carry a
+`apps/site/setu.config.ts` — **no value change** (defaults kept); it simply *may* carry a
 `themeOptions` map. The build path:
 - The Layout takes a `themeOptions?: Record<string,string>` prop, calls the theme's
   `optionsToCss(themeOptions ?? {})`, and injects `<style set:html={css} />` in `<head>` **after**
   the `theme.css`/`site.css` imports (later `:root` wins).
 - Pages (`[...path].astro`, `index.astro`) read the resolved config's `themeOptions` and pass it to
   the Layout. Source of the value: a tiny `src/lib/site-config.ts` that imports the app's
-  `saytu.config.ts` and re-exports `themeOptions` (Vite/Astro page context can import the config
+  `setu.config.ts` and re-exports `themeOptions` (Vite/Astro page context can import the config
   module directly; this is the page plane, not the markdoc-config loader that can't import core TS).
 - Default/empty `themeOptions` ⇒ `optionsToCss` emits only defaults ⇒ rendered `:root` override is
   the theme's existing values ⇒ **same look** (modulo the intentional font-delivery switch).
 
-**Verify-first (first build task):** confirm a page importing `saytu.config.ts` resolves in the
+**Verify-first (first build task):** confirm a page importing `setu.config.ts` resolves in the
 Astro build and that the injected `<style>` lands after the theme CSS in the built HTML.
 **Fallback if importing the config module in a page is awkward:** expose `themeOptions` via the
 existing `loadConfig` path used in `astro.config.mjs` (3b) as a Vite virtual module / `define`.
@@ -216,7 +216,7 @@ Either way the values reach the Layout; the apply mechanism (values → `:root` 
    panel-ready API; `optionsToCss` applies chosen values as `:root` token overrides.
 2. `@setu/core` gains an additive `themeOptions` config field; round-trip/content untouched
    (existing core tests still green + new ones).
-3. Setting `themeOptions` in `saytu.config` **visibly retunes** the built site (accent/font/width/
+3. Setting `themeOptions` in `setu.config` **visibly retunes** the built site (accent/font/width/
    size/corners), proven by a build test; **default/empty reproduces today's look.**
 4. **Zero runtime Google-Fonts dependency** repo-wide — site theme and admin chrome self-host via
    `@fontsource`; only the selected font ships to a visitor.

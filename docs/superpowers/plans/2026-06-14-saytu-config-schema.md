@@ -1,8 +1,8 @@
-# saytu.config.ts Schema + Parser Implementation Plan
+# setu.config.ts Schema + Parser Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the hardcoded `knownBlockTags = new Set(['callout'])` placeholder in `@setu/core` with a real, validated, file-loaded `saytu.config.ts` (block definitions only).
+**Goal:** Replace the hardcoded `knownBlockTags = new Set(['callout'])` placeholder in `@setu/core` with a real, validated, file-loaded `setu.config.ts` (block definitions only).
 
 **Architecture:** A new pure `src/config/` module inside `@setu/core`: typed config shapes, a `defineConfig()` inference helper, a Zod meta-schema, `resolveConfig()` (validate + index + derive the tag set), `loadConfig()` (load a real TS config via jiti), and a shipped `defaultConfig` (the `callout` block). The round-trip's default recognised-tag set is then *derived from `defaultConfig`* instead of a magic constant — a one-way `markdoc/ → config/` import edge (no cycle, since `config/` never imports `markdoc/`).
 
@@ -29,7 +29,7 @@ packages/core/test/config/
 ├── default-config.test.ts
 ├── load.test.ts
 ├── config-roundtrip.test.ts
-└── fixtures/saytu.config.ts
+└── fixtures/setu.config.ts
 
 Modified:
 - packages/core/package.json            # add zod + jiti deps
@@ -82,7 +82,7 @@ export interface BlockEditorMeta {
   group?: string
 }
 
-/** A content block as authored in saytu.config.ts. */
+/** A content block as authored in setu.config.ts. */
 export interface BlockDefinition {
   /** Markdoc tag name, e.g. 'callout'. Unique across the config. */
   tag: string
@@ -94,7 +94,7 @@ export interface BlockDefinition {
   editor?: BlockEditorMeta
 }
 
-/** The config object an author exports from saytu.config.ts. */
+/** The config object an author exports from setu.config.ts. */
 export interface SaytuConfig {
   blocks: BlockDefinition[]
 }
@@ -303,14 +303,14 @@ import type { ResolvedBlock, ResolvedConfig } from './types'
 export function resolveConfig(raw: unknown): ResolvedConfig {
   const parsed = configSchema.safeParse(raw)
   if (!parsed.success) {
-    throw new Error(`Invalid saytu.config: ${parsed.error.message}`)
+    throw new Error(`Invalid setu.config: ${parsed.error.message}`)
   }
 
   const blocks = parsed.data.blocks as ResolvedBlock[]
   const blocksByTag = new Map<string, ResolvedBlock>()
   for (const block of blocks) {
     if (blocksByTag.has(block.tag)) {
-      throw new Error(`Duplicate block tag "${block.tag}" in saytu.config.ts`)
+      throw new Error(`Duplicate block tag "${block.tag}" in setu.config.ts`)
     }
     blocksByTag.set(block.tag, block)
   }
@@ -521,12 +521,12 @@ git commit -m "refactor(core): derive round-trip default known-tags from config"
 **Files:**
 - Create: `packages/core/src/config/load.ts`
 - Modify: `packages/core/src/index.ts`
-- Create: `packages/core/test/config/fixtures/saytu.config.ts`
+- Create: `packages/core/test/config/fixtures/setu.config.ts`
 - Test: `packages/core/test/config/load.test.ts`
 
 - [ ] **Step 1: Create the fixture config file**
 
-Create `packages/core/test/config/fixtures/saytu.config.ts`:
+Create `packages/core/test/config/fixtures/setu.config.ts`:
 
 ```ts
 import { z } from 'zod'
@@ -556,8 +556,8 @@ import { loadConfig } from '../../src/index'
 const fixture = (name: string) => fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url))
 
 describe('loadConfig', () => {
-  it('loads and resolves a real saytu.config.ts via jiti', async () => {
-    const resolved = await loadConfig(fixture('saytu.config.ts'))
+  it('loads and resolves a real setu.config.ts via jiti', async () => {
+    const resolved = await loadConfig(fixture('setu.config.ts'))
     expect([...resolved.knownBlockTags]).toEqual(['callout'])
     expect(resolved.blocksByTag.get('callout')?.component).toBe('./Callout.astro')
   })
@@ -590,7 +590,7 @@ import { createJiti } from 'jiti'
 import { resolveConfig } from './resolve'
 import type { ResolvedConfig } from './types'
 
-/** Load a saytu.config.ts/js module from disk (TS at runtime via jiti),
+/** Load a setu.config.ts/js module from disk (TS at runtime via jiti),
  *  take its default export, and resolve it. */
 export async function loadConfig(path: string): Promise<ResolvedConfig> {
   const jiti = createJiti(import.meta.url)
@@ -623,8 +623,8 @@ Expected: clean.
 - [ ] **Step 9: Commit**
 
 ```bash
-git add packages/core/src/config/load.ts packages/core/src/index.ts packages/core/test/config/load.test.ts packages/core/test/config/fixtures/saytu.config.ts packages/core/test/config/fixtures/no-default.ts
-git commit -m "feat(core): loadConfig — load saytu.config.ts via jiti"
+git add packages/core/src/config/load.ts packages/core/src/index.ts packages/core/test/config/load.test.ts packages/core/test/config/fixtures/setu.config.ts packages/core/test/config/fixtures/no-default.ts
+git commit -m "feat(core): loadConfig — load setu.config.ts via jiti"
 ```
 
 ---

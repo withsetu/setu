@@ -4,9 +4,9 @@ import markdoc from '@astrojs/markdoc'
 import react from '@astrojs/react'
 import { loadConfig } from '@setu/core/node'
 
-// Read the active theme from saytu.config (single source of truth) and alias '@theme'
+// Read the active theme from setu.config (single source of truth) and alias '@theme'
 // to it, so pages render through whichever theme is configured.
-const config = await loadConfig(new URL('./saytu.config.ts', import.meta.url).pathname)
+const config = await loadConfig(new URL('./setu.config.ts', import.meta.url).pathname)
 const activeTheme = config.theme ?? '@setu/theme-default'
 
 // Content lives at repo-root content/ (the publish-engine convention), which is OUTSIDE

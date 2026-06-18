@@ -45,7 +45,7 @@ companion. Theme lives in `apps/site` for now. Spec/plan:
 
 The default theme is now an installable, **config-activated package** (`@setu/theme-default` —
 layouts + tokens + styles, extracted from the site). `@setu/core` config gained an optional
-`theme` field (additive; round-trip untouched); `apps/site/saytu.config.ts` names the active
+`theme` field (additive; round-trip untouched); `apps/site/setu.config.ts` names the active
 theme, and the build reads it (`loadConfig`) + aliases `@theme` → the package, so pages render
 through whichever theme is configured. **Switch the value + install another theme + rebuild →
 different theme.** No visible change (the success criterion — 27 site tests green unchanged); the
@@ -59,7 +59,7 @@ The Customizer **engine** (the visual admin panel deferred to the editor→disk 
 textSize/corners; the "options API" the owner asked for) + a **pure `optionsToCss(values)`** that
 maps chosen values → a `:root:root { … }` override string (fallback-to-default; never emits garbage).
 `@setu/core` config gained an additive optional `themeOptions` map (mirrors the 3b `theme` field;
-round-trip untouched). The site build threads `saytu.config`'s `themeOptions` → pages → templates →
+round-trip untouched). The site build threads `setu.config`'s `themeOptions` → pages → templates →
 `Layout`, which injects the override as the last `<head>` style — `:root:root` specificity (Astro
 puts the bundled theme `<link>` *after* an inline style, so source-order loses). `--accent-strong`
 now derives from `--accent` via `color-mix`. **Defaults kept → site looks identical** (engine proven
@@ -79,7 +79,7 @@ variable pkg registers `'<Name> Variable'`; only the selected font downloads). W
   (map `Callout → MyCallout.astro`) — the advanced "child theme without forking"; harder dynamic
   per-block resolution; lower priority than 3c.
 - **#4 custom-component pipeline + codegen** — the `component.ts` contract fanning out to all
-  3 planes; **this is where "tag set sourced from saytu.config" lands** (blocked in #1:
+  3 planes; **this is where "tag set sourced from setu.config" lands** (blocked in #1:
   `@astrojs/markdoc`'s config loader can't import core's TS source; codegen runs where it can).
 - **#5 in-editor preview** — draft preview through the same theme + components, iframed.
 - **permalink + i18n URL scheme** — the full locale-prefixing policy (#1 only strips the

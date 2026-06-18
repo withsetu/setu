@@ -22,7 +22,7 @@ decision-complete PRD (`plan/prd.md`) and two passing spikes.
   (fast-check) idempotency.
 
 **Out (explicitly deferred to later increments):**
-- `saytu.config.ts` schema and the unified config parser.
+- `setu.config.ts` schema and the unified config parser.
 - The Ports/adapters (Data, Storage, Auth, Email, Git, Image).
 - Inline-variable (`{% $var %}`) handling.
 - Tiptap editor wiring; Astro rendering; publish pipeline.
@@ -72,7 +72,7 @@ packages/core/
 - `markdocToTiptap(source: string, opts?: RoundtripOptions): TiptapDoc`
 - `tiptapToMarkdoc(doc: TiptapDoc): string`
 - `RoundtripOptions = { knownBlockTags?: Set<string> }` — default `new Set(['callout'])`.
-  A minimal nod to config; the full `saytu.config.ts` schema is increment #2.
+  A minimal nod to config; the full `setu.config.ts` schema is increment #2.
 
 Types exported: `TiptapDoc`, `TiptapNode`, `TiptapMark`, `RoundtripOptions`.
 

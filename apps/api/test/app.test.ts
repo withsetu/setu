@@ -54,7 +54,7 @@ describe('createGitApi', () => {
     const mk = (path: string) =>
       req(app, '/git/commit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path, content: 'x', message: 'm', author }) })
     await mk('content/post/en/a.mdoc')
-    await mk('saytu.config.ts')
+    await mk('setu.config.ts')
     const { paths } = (await (await req(app, '/git/list?prefix=content/')).json()) as { paths: string[] }
     expect(paths).toEqual(['content/post/en/a.mdoc'])
   })

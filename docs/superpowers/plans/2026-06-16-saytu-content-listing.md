@@ -63,12 +63,12 @@ In `packages/git-testing/src/index.ts`, inside the `describe('GitPort contract',
     it('lists committed paths, and filters by prefix', async () => {
       await port.commitFile({ path: 'content/post/en/a.mdoc', content: 'A', message: 'm', author })
       await port.commitFile({ path: 'content/page/en/b.mdoc', content: 'B', message: 'm', author })
-      await port.commitFile({ path: 'saytu.config.ts', content: 'C', message: 'm', author })
+      await port.commitFile({ path: 'setu.config.ts', content: 'C', message: 'm', author })
 
       expect([...(await port.list())].sort()).toEqual([
         'content/page/en/b.mdoc',
         'content/post/en/a.mdoc',
-        'saytu.config.ts',
+        'setu.config.ts',
       ])
       expect([...(await port.list('content/post/'))].sort()).toEqual(['content/post/en/a.mdoc'])
       expect(await port.list('content/none/')).toEqual([])
@@ -148,7 +148,7 @@ In `packages/git-memory/test/contract.test.ts`, inside `describe('createMemoryGi
   it('lists seeded files (filtered by prefix)', async () => {
     const git = createMemoryGitPort([
       { path: 'content/post/en/hello.mdoc', content: '# Hello\n' },
-      { path: 'saytu.config.ts', content: 'export default {}' },
+      { path: 'setu.config.ts', content: 'export default {}' },
     ])
     expect(await git.list('content/')).toEqual(['content/post/en/hello.mdoc'])
   })
@@ -243,7 +243,7 @@ describe('parseContentPath', () => {
   })
 
   it('returns null for non-content paths', () => {
-    expect(parseContentPath('saytu.config.ts')).toBeNull()
+    expect(parseContentPath('setu.config.ts')).toBeNull()
     expect(parseContentPath('content/post/en/hello.md')).toBeNull() // wrong extension
     expect(parseContentPath('content/post/hello.mdoc')).toBeNull() // missing locale segment
     expect(parseContentPath('content/post/en/sub/hello.mdoc')).toBeNull() // extra segment

@@ -138,7 +138,7 @@ next Deploy). One status engine, three inputs, any topology.
 
 - **`markdoc/`** — the round-trip between the editor's Tiptap JSON and Markdoc `.mdoc` files
   (`tiptapToMarkdoc` / `markdocToTiptap`), plus frontmatter (`parseMdoc` / `serializeMdoc`).
-- **`config/`** — `saytu.config.ts` schema, parsing, and the default block set.
+- **`config/`** — `setu.config.ts` schema, parsing, and the default block set.
 - **`authoring/`** — draft + lock orchestration (the first core logic to consume a port).
 - **`publish/`** — the publish service: compile draft → commit to Git, with a **base-SHA
   conflict guard** (won't clobber external Git edits).

@@ -151,7 +151,7 @@ as-is; the list uses `listContentEntries`.
 
 - **No commits yet** → `git.list()` returns `[]`; the list shows drafts only (or the
   existing empty state). No throw.
-- **Non-content files in Git** (e.g. `saytu.config.ts`, future assets) →
+- **Non-content files in Git** (e.g. `setu.config.ts`, future assets) →
   `parseContentPath` returns `null` and they're skipped; only `content/**.mdoc` rows
   appear.
 - **Entry with both draft and commit** → one row; the draft is the identity holder
@@ -170,7 +170,7 @@ as-is; the list uses `listContentEntries`.
   matching subtree; a path outside the prefix is excluded.
 - **git-memory seed** → `list()` returns seeded paths.
 - **`parseContentPath`:** valid content path → correct `EntryRef`; a non-matching
-  path (`saytu.config.ts`, a path with extra segments, wrong extension) → `null`;
+  path (`setu.config.ts`, a path with extra segments, wrong extension) → `null`;
   round-trips with `contentPath`.
 - **`listContentEntries` (pure unit, a table):** draft-only → one row, status from
   derive; committed-only → one row, title from frontmatter, `updatedAt: null`,

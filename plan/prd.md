@@ -39,7 +39,7 @@ Saytu's core logic never hardcodes its environment. The system relies on abstrac
 **Git is the single source of truth for published content. The database is a derived index/cache.**
 
 * **Content vs. Code separation (load-bearing):**
-  * **Developers edit code** — components (`*.astro`, framework components), `saytu.config.ts`, themes — in their own environment, pushed to Git.
+  * **Developers edit code** — components (`*.astro`, framework components), `setu.config.ts`, themes — in their own environment, pushed to Git.
   * **Marketers edit content** — `*.mdoc` (Markdoc) files + metadata, always through the Saytu admin.
   * These file-sets must not overlap.
 * **The derived DB index:** On boot and on every Git change, Saytu parses published content into the database for fast SSR/admin/search reads. The index is disposable and rebuildable from Git at any time.
@@ -49,7 +49,7 @@ Saytu's core logic never hardcodes its environment. The system relies on abstrac
   3. The derived index updates; cache is purged (§16).
   4. **Local Git is fine** — a remote is optional. On **Edge**, Git writes go through `GitPort` (GitHub API; workerd has no native Git), so edge publishing is online-only.
 * **External Git changes (rare but real):** Each draft records the **base Git SHA** it forked from; on Publish, if `HEAD` moved for that file, Saytu blocks the commit ("This file changed in Git — reload before publishing"). A **Git → DB re-index** hook keeps the index fresh. V1 does **not** build a real-time bidirectional sync engine.
-* **Schema migrations:** `DataPort` schema is managed with **Drizzle + Drizzle Kit**. Key simplification — only **canonical** tables (users, submissions) need careful migrations; **derived** tables (index, FTS5) can be dropped and rebuilt from Git on schema change ("bump version → reindex"). Breaking `saytu.config.ts` changes ship a `saytu migrate` codemod.
+* **Schema migrations:** `DataPort` schema is managed with **Drizzle + Drizzle Kit**. Key simplification — only **canonical** tables (users, submissions) need careful migrations; **derived** tables (index, FTS5) can be dropped and rebuilt from Git on schema change ("bump version → reindex"). Breaking `setu.config.ts` changes ship a `saytu migrate` codemod.
 
 ## 3. Content Model: Collections, Fields & Taxonomies
 
@@ -60,7 +60,7 @@ Content is organized into typed **collections**, mirroring WordPress defaults so
   * **`page`** — hierarchical (parent/child, menu order), standalone, no taxonomy.
 * **Field schema (Zod) per collection:** standard fields (title, slug, excerpt, featuredImage, author, date, status) + custom fields. **Author** is a relation to the users table. Body content is Markdoc blocks (§7); metadata is the field schema, edited in the editor sidebar.
 * **Entry identity:** `(collection, locale, slug)`. **Locale** is a first-class dimension (§6). **Site is *not* a dimension** — one repo = one site (§15 multi-site is a separate SaaS layer).
-* **Custom content types & custom fields:** the *capability* lives in **core** (a developer defines new types/fields as code in `saytu.config.ts`). The **visual type/field builder in the admin GUI is Pro** (the WordPress + ACF precedent: schema capability free, no-code builder paid).
+* **Custom content types & custom fields:** the *capability* lives in **core** (a developer defines new types/fields as code in `setu.config.ts`). The **visual type/field builder in the admin GUI is Pro** (the WordPress + ACF precedent: schema capability free, no-code builder paid).
 
 ## 4. URLs, Permalinks & Redirects
 
@@ -94,7 +94,7 @@ Split along the open-core line so single-locale users pay zero complexity tax.
 
 ## 8. The Theme API: The Single Source of Truth
 
-The relationship between the Headless Editor (Tiptap), Content Syntax (Markdoc), and Frontend Rendering (Astro) is governed by `saytu.config.ts`.
+The relationship between the Headless Editor (Tiptap), Content Syntax (Markdoc), and Frontend Rendering (Astro) is governed by `setu.config.ts`.
 
 * Developers define content blocks, expected props, Zod schemas, **collections (§3)**, and **permalink patterns (§4)** here.
 * The Tiptap Editor reads it to generate slash-menu commands, block UI, and prop sidebars; the Markdoc parser reads it to validate the AST; the Astro frontend reads it to map AST nodes to components.
@@ -113,7 +113,7 @@ Non-technical users must never face Git merge conflicts. Saytu uses **DB-backed 
 
 ## 10. Editor Preview & Mixed-Framework Rendering
 
-* **Server round-trip via Astro:** the preview API posts the AST to a renderer using Astro's container/render API (`Astro.render()`) → HTML string → editor iframe. The component registry in `saytu.config.ts` is **framework-agnostic** (path to file); the renderer handles `.astro` and framework components uniformly.
+* **Server round-trip via Astro:** the preview API posts the AST to a renderer using Astro's container/render API (`Astro.render()`) → HTML string → editor iframe. The component registry in `setu.config.ts` is **framework-agnostic** (path to file); the renderer handles `.astro` and framework components uniformly.
 * **Edge boundary:** Astro SSR runs on Workers, so **previewing already-built components works everywhere, including edge.** workerd **cannot** compile a *brand-new* `.astro` at runtime — so **component authoring with hot preview is a local/Bun activity**, while **content editing with preview of the deployed component set** works in all topologies.
 * **Debounce** preview renders.
 
@@ -216,7 +216,7 @@ Core is 100% open-source; the model is **open-core framed as a "convenience fee"
 | Area | Free (OSS, AGPL) | Pro (paid add-on) | Managed Cloud (SaaS) |
 |---|---|---|---|
 | **Editing** | Visual editing of static/component content; `markdocPassthrough` preservation of advanced syntax (edit in raw/code mode) | Visual builders for **dynamic Markdoc** (conditional / variable / loop UI) + the SSR runtime that resolves them | — |
-| **Content model** | `post` + `page` collections; **custom types/fields as code** in `saytu.config.ts` | **Visual content-type & field builder** (no-code) | — |
+| **Content model** | `post` + `page` collections; **custom types/fields as code** in `setu.config.ts` | **Visual content-type & field builder** (no-code) | — |
 | **URLs** | Permalink UI for default types; **automatic 301s** on slug/permalink change | Permalink GUI for **custom** types; **redirect manager** UI (manual/bulk/import) | — |
 | **SEO** | Meta title/description, canonical, OG/Twitter image, `sitemap.xml`, `robots.txt`, hreflang | **SEO plugin:** JSON-LD structured data, scoring/readability, social-card customization, bulk meta, internal-link suggestions | — |
 | **i18n** | Structural: locale dimension, locale routing, hreflang, translatable admin UI | **Translation-management workspace** (linking, stale-detection, side-by-side, fallback) | — |
@@ -290,7 +290,7 @@ saytu/
 * **The admin is a rich React SPA.** "Zero-JS by default" governs the *output site*, not the admin — the admin can be as rich as it needs to be.
 * **Stack:** **React 18 + Tailwind + shadcn/ui (Radix primitives)** — fast to build, accessibility-first, fully ownable (no proprietary UI dependency; fits the OSS ethos). **Pinned to React 18 (not 19)** because Tiptap's UI Components and Pro extensions (e.g. the drag-handle we want for block reordering + keyboard a11y) are not yet React-19-ready; Tiptap **core** is on v3. Revisit React 19 once Tiptap ships full support. *(Principle: the editor is the most load-bearing dependency — its compatibility matrix overrides "use latest.")*
 * **Information architecture (left sidebar):** Dashboard (recent edits, who's-editing/locks, deploy status) · Content (Posts / Pages / custom collections) · Media · Forms (submission inboxes + export) · Site (preview link, deploy controls, deploy history) · Settings (permalinks · SEO defaults · locales/i18n · users & roles · auth · integrations: email/image/storage · analytics snippet).
-* **The Editor (the heart):** Tiptap canvas with a **slash menu** driven by `saytu.config.ts`; drag handles for blocks; a **right context panel** that swaps between page metadata (title, slug, status, author, date, locale, taxonomy, custom fields, SEO) and the selected block's props; a persistent **Draft → Staged → Deployed** state pill; an **autosave indicator**; **lock/presence** ("Sarah is editing"); a **locale switcher**; and a **Preview toggle** that flips to (or splits with) the server-rendered iframe (§10).
+* **The Editor (the heart):** Tiptap canvas with a **slash menu** driven by `setu.config.ts`; drag handles for blocks; a **right context panel** that swaps between page metadata (title, slug, status, author, date, locale, taxonomy, custom fields, SEO) and the selected block's props; a persistent **Draft → Staged → Deployed** state pill; an **autosave indicator**; **lock/presence** ("Sarah is editing"); a **locale switcher**; and a **Preview toggle** that flips to (or splits with) the server-rendered iframe (§10).
 * **`markdocPassthrough`** renders advanced/Pro Markdoc as labeled, read-only chips inline.
 * **Content list view:** fast, filterable table (title · status · author · locale · updated) with FTS5 search, bulk actions, and per-row lock indicators.
 * **Pro features are visible but gated** — shown with a subtle "Pro" chip + upsell, never hidden (discovery drives conversion).
@@ -336,7 +336,7 @@ Testing weight follows **risk**: heavy where content/data flows (loss is unaccep
 1. **Architecture First:** Never couple DB, file system, images, auth, email, or Git host to Astro. Route through the Ports in `packages/core`. Default storage to AWS SDK v3 `@aws-sdk/client-s3`.
 2. **Git is canonical for published content; the DB is a derived index + drafts + locks + users + UGC.** UGC (form submissions, comments) lives in the DB, never Git. Migrate canonical tables (Drizzle); rebuild derived tables from Git.
 3. **Content vs. Code separation:** marketers edit `*.mdoc` + metadata via admin (DB drafts → publish → Git); developers edit components/config/themes in Git. Keep disjoint.
-4. **Content model:** typed collections (`post`, `page` default; custom types as code in `saytu.config.ts`, GUI builder is Pro). Entry identity `(collection, locale, slug)`. Locale is a first-class dimension; site is not (one repo = one site).
+4. **Content model:** typed collections (`post`, `page` default; custom types as code in `setu.config.ts`, GUI builder is Pro). Entry identity `(collection, locale, slug)`. Locale is a first-class dimension; site is not (one repo = one site).
 5. **URLs/SEO:** per-collection permalink patterns; **auto-generate 301s on slug/permalink change**; ship sitemap.xml, robots.txt, per-entry meta + hreflang free. Advanced SEO is a Pro plugin.
 6. **Drafts & locking:** DB-backed drafts, pessimistic locking, lock refresh via autosave (no heartbeat), lazy contention check, TTL + take-over + admin force-unlock; verify base Git SHA on Publish.
 7. **Never drop content:** the `markdocPassthrough` node preserves/re-serializes unsupported Markdoc verbatim.

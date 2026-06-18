@@ -58,12 +58,12 @@ export function runGitPortContract(makeAdapter: () => Promise<GitPort> | GitPort
     it('lists committed paths, and filters by prefix', async () => {
       await port.commitFile({ path: 'content/post/en/a.mdoc', content: 'A', message: 'm', author })
       await port.commitFile({ path: 'content/page/en/b.mdoc', content: 'B', message: 'm', author })
-      await port.commitFile({ path: 'saytu.config.ts', content: 'C', message: 'm', author })
+      await port.commitFile({ path: 'setu.config.ts', content: 'C', message: 'm', author })
 
       expect([...(await port.list())].sort()).toEqual([
         'content/page/en/b.mdoc',
         'content/post/en/a.mdoc',
-        'saytu.config.ts',
+        'setu.config.ts',
       ])
       expect([...(await port.list('content/post/'))].sort()).toEqual(['content/post/en/a.mdoc'])
       expect(await port.list('content/none/')).toEqual([])

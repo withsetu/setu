@@ -2,7 +2,7 @@ import Markdoc from '@markdoc/markdoc'
 
 const N = Markdoc.Ast.Node
 
-/** Simulated saytu.config.ts: Markdoc tags with a first-class editor UI. */
+/** Simulated setu.config.ts: Markdoc tags with a first-class editor UI. */
 const KNOWN_BLOCK_TAGS = new Set(['callout'])
 
 const hasError = (node) =>

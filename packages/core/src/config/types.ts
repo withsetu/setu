@@ -10,7 +10,7 @@ export interface BlockEditorMeta {
   variants?: string[]
 }
 
-/** A content block as authored in saytu.config.ts. */
+/** A content block as authored in setu.config.ts. */
 export interface BlockDefinition {
   /** Markdoc tag name, e.g. 'callout'. Unique across the config. */
   tag: string
@@ -22,7 +22,7 @@ export interface BlockDefinition {
   editor?: BlockEditorMeta
 }
 
-/** The config object an author exports from saytu.config.ts. */
+/** The config object an author exports from setu.config.ts. */
 export interface SaytuConfig {
   blocks: BlockDefinition[]
   /** The active theme's package name (e.g. '@setu/theme-default'). Optional. */

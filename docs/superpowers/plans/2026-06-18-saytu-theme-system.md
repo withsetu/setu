@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make the default theme an installable, config-activated package — extract its look into `@setu/theme-default`, add a `theme` field to `saytu.config`, and wire the site build to render through whichever theme the config names; the site looks **identical** to today.
+**Goal:** Make the default theme an installable, config-activated package — extract its look into `@setu/theme-default`, add a `theme` field to `setu.config`, and wire the site build to render through whichever theme the config names; the site looks **identical** to today.
 
-**Architecture:** A new `packages/theme-default` holds the theme's `.astro` layouts + CSS (moved from `apps/site`). `@setu/core`'s config gains an additive `theme` field. `apps/site/astro.config.mjs` reads `saytu.config`'s `theme` (via core's Node `loadConfig`, jiti) and sets a Vite alias `@theme` → the active theme package; the pages import layouts from `@theme/…`. Render engine (routing/Markdoc/block components) stays in the app.
+**Architecture:** A new `packages/theme-default` holds the theme's `.astro` layouts + CSS (moved from `apps/site`). `@setu/core`'s config gains an additive `theme` field. `apps/site/astro.config.mjs` reads `setu.config`'s `theme` (via core's Node `loadConfig`, jiti) and sets a Vite alias `@theme` → the active theme package; the pages import layouts from `@theme/…`. Render engine (routing/Markdoc/block components) stays in the app.
 
 **Tech Stack:** Astro 6 · a new `@setu/theme-default` package (`.astro` + CSS, `astro` peerDep) · `@setu/core` config (`theme` field; `loadConfig` jiti) · Vite alias · Vitest. The mechanism is **spiked & proven** (theme-package `.astro` import; config-value-selects-theme via Vite alias).
 
@@ -38,7 +38,7 @@ packages/theme-default/        NEW @setu/theme-default
   site.css                     moved from src/styles/site.css
 
 apps/site/
-  saytu.config.ts              NEW — { blocks: defaultConfig.blocks, theme: '@setu/theme-default' }
+  setu.config.ts              NEW — { blocks: defaultConfig.blocks, theme: '@setu/theme-default' }
   astro.config.mjs             MODIFIED — read theme + alias '@theme'
   package.json                 MODIFIED — + @setu/theme-default + @setu/core deps
   src/pages/[...path].astro    MODIFIED — import layouts from '@theme/…'
@@ -131,7 +131,7 @@ Expected: clean (incl. the edge guard `tsconfig.edge.json` — `theme` is a plai
 
 ```bash
 git add packages/core
-git commit -m "feat(core): add optional theme field to saytu.config"
+git commit -m "feat(core): add optional theme field to setu.config"
 ```
 
 ---
@@ -227,14 +227,14 @@ git commit -m "feat(theme-default): @setu/theme-default package (copied from the
 ### Task 3: Activate the theme via config (the integration)
 
 **Files:**
-- Create: `apps/site/saytu.config.ts`
+- Create: `apps/site/setu.config.ts`
 - Modify: `apps/site/astro.config.mjs`, `apps/site/src/pages/[...path].astro`, `apps/site/src/pages/index.astro`
 - Delete: `apps/site/src/layouts/{Layout,PostLayout,PageLayout}.astro`, `apps/site/src/styles/{theme,site}.css`
 
 **Interfaces:**
 - Consumes: `defineConfig`, `defaultConfig` from `@setu/core`; `loadConfig` from `@setu/core/node` (returns `ResolvedConfig` with `.theme` from Task 1); `@setu/theme-default`'s exports (Task 2).
 
-- [ ] **Step 1: Create `apps/site/saytu.config.ts`**
+- [ ] **Step 1: Create `apps/site/setu.config.ts`**
 
 ```ts
 import { defineConfig, defaultConfig } from '@setu/core'
@@ -254,9 +254,9 @@ import markdoc from '@astrojs/markdoc'
 import react from '@astrojs/react'
 import { loadConfig } from '@setu/core/node'
 
-// Read the active theme from saytu.config (single source of truth) and alias '@theme'
+// Read the active theme from setu.config (single source of truth) and alias '@theme'
 // to it, so the pages render through whichever theme is configured.
-const config = await loadConfig(new URL('./saytu.config.ts', import.meta.url).pathname)
+const config = await loadConfig(new URL('./setu.config.ts', import.meta.url).pathname)
 const activeTheme = config.theme ?? '@setu/theme-default'
 
 export default defineConfig({
@@ -292,7 +292,7 @@ Run: `pnpm --filter @setu/site test`
 Expected: PASS — **27/27 unchanged** (same HTML, now sourced from `@setu/theme-default`).
 
 This step exercises the two things to confirm:
-- **(a) `loadConfig` runs inside `astro.config.mjs`** during the build (Node + jiti — proven in #2). If the build errors loading the config (e.g. jiti can't resolve in this context), apply **fallback (b):** drop the `loadConfig` call and set `const activeTheme = '@setu/theme-default'` directly in `astro.config.mjs` (still config-driven via the alias; wiring it to read `saytu.config` becomes a follow-on). Report if used.
+- **(a) `loadConfig` runs inside `astro.config.mjs`** during the build (Node + jiti — proven in #2). If the build errors loading the config (e.g. jiti can't resolve in this context), apply **fallback (b):** drop the `loadConfig` call and set `const activeTheme = '@setu/theme-default'` directly in `astro.config.mjs` (still config-driven via the alias; wiring it to read `setu.config` becomes a follow-on). Report if used.
 - **(b) `@theme/PostLayout.astro` resolves** to the package export. If the build can't resolve the package-name alias, apply **fallback (a):** alias to the resolved path instead —
   ```js
   import { fileURLToPath } from 'node:url'
@@ -313,7 +313,7 @@ Run: `grep -rlE 'astro-island|<script' $(find apps/site/dist -name '*.html') 2>/
 
 ```bash
 git add apps/site
-git commit -m "feat(site): activate theme via saytu.config; render through @setu/theme-default"
+git commit -m "feat(site): activate theme via setu.config; render through @setu/theme-default"
 ```
 
 ---
@@ -345,7 +345,7 @@ Expected: `scope clean` — NO markdoc/round-trip path, NO `apps/admin`, NO `@se
 
 - [ ] **Step 5: Confirm the activation is real**
 
-Run: `cat apps/site/saytu.config.ts` (shows `theme: '@setu/theme-default'`) and confirm `apps/site/src/layouts/` no longer exists (`test -d apps/site/src/layouts && echo "STILL THERE" || echo "theme extracted ✓"`).
+Run: `cat apps/site/setu.config.ts` (shows `theme: '@setu/theme-default'`) and confirm `apps/site/src/layouts/` no longer exists (`test -d apps/site/src/layouts && echo "STILL THERE" || echo "theme extracted ✓"`).
 Expected: `theme extracted ✓` — the site renders through the config-named theme package; the layouts live only in `@setu/theme-default`.
 
 - [ ] **Step 6: Commit (only if verification fixups were needed)**
@@ -361,7 +361,7 @@ git add -A && git commit -m "chore(theme): theme-system final verification fixup
 **1. Spec coverage** (against `2026-06-18-saytu-theme-system-design.md`):
 - §1 `@setu/theme-default` package (layouts + tokens + styles): T2. ✓
 - §1 `theme` field in `@setu/core` config (additive): T1. ✓
-- §1 `saytu.config.ts` with `theme`: T3. ✓
+- §1 `setu.config.ts` with `theme`: T3. ✓
 - §1 build reads theme + alias `@theme`: T3. ✓
 - §1 rewire pages to `@theme/…`: T3. ✓
 - §6 no-regression gate (27 site tests green unchanged): T3/T4. ✓
@@ -372,4 +372,4 @@ git add -A && git commit -m "chore(theme): theme-system final verification fixup
 
 **2. Placeholder scan:** every code step has real code; commands have expected output. The two fallbacks in T3 Step 5 are concrete (full code shown), gated on a named failure — not TBDs.
 
-**3. Type consistency:** `theme?: string` is added to both `SaytuConfig` and `ResolvedConfig` (T1) and consumed as `config.theme` in `astro.config` (T3). `loadConfig(path): Promise<ResolvedConfig>` (unchanged) returns `.theme` after T1. The package exports (`./PostLayout.astro` etc., T2) match the imports (`@theme/PostLayout.astro`, T3) once `@theme` aliases to the package. `defineConfig`/`defaultConfig` (T3 `saytu.config.ts`) are existing `@setu/core` exports. Relative-import fixes (T2 Step 2) match the flat package layout. ✓
+**3. Type consistency:** `theme?: string` is added to both `SaytuConfig` and `ResolvedConfig` (T1) and consumed as `config.theme` in `astro.config` (T3). `loadConfig(path): Promise<ResolvedConfig>` (unchanged) returns `.theme` after T1. The package exports (`./PostLayout.astro` etc., T2) match the imports (`@theme/PostLayout.astro`, T3) once `@theme` aliases to the package. `defineConfig`/`defaultConfig` (T3 `setu.config.ts`) are existing `@setu/core` exports. Relative-import fixes (T2 Step 2) match the flat package layout. ✓

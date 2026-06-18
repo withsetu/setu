@@ -119,7 +119,7 @@ Native `@astrojs/markdoc`. No config beyond the overrides below. Styled by the b
   maps tag attrs → props, forwards `<slot/>` as `children`.
 - **Tag registration is config-aware, not hardcoded.** The site enumerates custom block tags
   from `resolveConfig(defaultConfig).blocks` (so "which custom tags exist" comes from
-  `saytu.config`, not a magic string) and maps each to its wrapper component by convention.
+  `setu.config`, not a magic string) and maps each to its wrapper component by convention.
   For #1's single block (callout), the attribute schema (`type`, `title`) is declared in the
   wiring; full **zod→Markdoc-attribute derivation is deferred to #4 (codegen)**.
 
@@ -212,7 +212,7 @@ Existing `@setu/core` + `apps/admin` test suites are untouched and stay green.
 2. Every shipped block renders to correct static HTML per §3 (proven by §5 tests).
 3. Zero JS shipped for static content (no hydration island).
 4. The callout renders through a single React core via a wrapper, with its tag known from
-   `saytu.config` rather than hardcoded.
+   `setu.config` rather than hardcoded.
 5. No changes to `apps/admin` or any content write/round-trip path.
 6. Out-of-scope items (§1) are absent — no theme, codegen, SSR, or editor bridge crept in.
 
@@ -221,14 +221,14 @@ Existing `@setu/core` + `apps/admin` test suites are untouched and stay green.
 ## 7. Risks & decisions
 
 - **zod→Markdoc attribute derivation deferred (#4).** #1 hand-declares the callout's
-  attributes in the wiring while sourcing the *tag set* from `saytu.config`. Accepted: one
+  attributes in the wiring while sourcing the *tag set* from `setu.config`. Accepted: one
   block, low duplication, clean seam for #4.
 - **Brief two-callout window.** The site's callout core duplicates the editor's node view
   until #2 extracts a shared core. Mitigated by authoring the core in the
   injectable-regions shape so #2's extraction is mechanical; recorded as #2's explicit job.
 - **`@setu/core` import surface.** The site (Node build) may use the Node-capable barrel;
   unlike the browser admin it has no jiti/bundle constraint. Use `resolveConfig`/
-  `defaultConfig` (pure) — avoid pulling `loadConfig` unless a real `saytu.config.ts` load is
+  `defaultConfig` (pure) — avoid pulling `loadConfig` unless a real `setu.config.ts` load is
   wanted (it is not, for #1; `defaultConfig` suffices).
 - **Loose list items / passthrough-dynamic** — bounded limitations documented in §3e/§3g.
 

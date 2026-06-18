@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Give a non-coder five knobs (accent color, font, content width, text size, corner style) that retune the active theme — declared by the theme, stored in `saytu.config`, applied by the build as `:root` token overrides — and remove the runtime Google-Fonts dependency repo-wide by self-hosting fonts via `@fontsource`.
+**Goal:** Give a non-coder five knobs (accent color, font, content width, text size, corner style) that retune the active theme — declared by the theme, stored in `setu.config`, applied by the build as `:root` token overrides — and remove the runtime Google-Fonts dependency repo-wide by self-hosting fonts via `@fontsource`.
 
 **Architecture:** The theme package declares its knobs in `options.ts` (the "options API") plus a pure `optionsToCss(values)` that maps chosen values → a `:root { … }` override string. `@setu/core` config gains an additive optional `themeOptions` map (pass-through, exactly like the 3b `theme` field — never read by the converter). At build, the theme's `Layout.astro` injects `optionsToCss(themeOptions)` as a `<style>` after `theme.css`, so the later `:root` wins and the site restyles. Fonts are self-hosted; the Layout declares all curated faces but the visitor downloads only the selected one.
 
@@ -53,7 +53,7 @@ describe('config themeOptions field', () => {
   })
   it('rejects a non-string option value', () => {
     expect(() => resolveConfig({ blocks: [], themeOptions: { accent: 123 } })).toThrow(
-      /Invalid saytu.config/,
+      /Invalid setu.config/,
     )
   })
 })
@@ -510,7 +510,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ### Task 4: Build wiring — apply `themeOptions` on the site
 
-Thread `themeOptions` from `saytu.config` → pages → templates → `Layout`, where `optionsToCss` injects a `:root` override that wins the cascade. **Verify the override actually wins in built HTML.**
+Thread `themeOptions` from `setu.config` → pages → templates → `Layout`, where `optionsToCss` injects a `:root` override that wins the cascade. **Verify the override actually wins in built HTML.**
 
 **Files:**
 - Create: `apps/site/src/lib/site-config.ts`
@@ -528,9 +528,9 @@ Thread `themeOptions` from `saytu.config` → pages → templates → `Layout`, 
 Create `apps/site/src/lib/site-config.ts`:
 
 ```ts
-import config from '../../saytu.config'
+import config from '../../setu.config'
 
-/** Theme option values from saytu.config (the build's single source of truth).
+/** Theme option values from setu.config (the build's single source of truth).
  *  Empty object when unset → the theme renders its declared defaults. */
 export const themeOptions: Record<string, string> = config.themeOptions ?? {}
 ```

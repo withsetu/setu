@@ -19,7 +19,7 @@ inline toolbar — all round-tripping to Markdoc losslessly.
   (`info`/`note`/`success`/`warning`/`danger`/`neutral`). Saved form:
   `{% callout type="success" title="Shipped" icon="check" %}\n…body…\n{% /callout %}`.
 - **The allowed variants live in config.** The callout block's schema in
-  `saytu.config.ts` (here, `defaultConfig`) defines the `type` enum. The editor
+  `setu.config.ts` (here, `defaultConfig`) defines the `type` enum. The editor
   reads the allowed types from the resolved config — adding/removing a variant is a
   config change, no editor code. (Saytu's config-driven-block bet.)
 - **A variant's look (tone color + default icon) is the theme's job**, ultimately
@@ -71,7 +71,7 @@ inline toolbar — all round-tripping to Markdoc losslessly.
 - Published-site rendering of the tones (theme/render work; `Callout.astro` variant
   styling).
 - The Theme-API editor preview hooks for custom themes.
-- Per-site config UI for variants (variants are edited in `saytu.config.ts`).
+- Per-site config UI for variants (variants are edited in `setu.config.ts`).
 - Attribute-schema validation at edit time (metadata/attr validation is its own
   later piece; the editor offers the config's enum, but doesn't yet block invalid
   hand-edited values beyond the neutral fallback).

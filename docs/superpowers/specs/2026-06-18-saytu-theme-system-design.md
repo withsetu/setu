@@ -8,13 +8,13 @@
 > *override* = "child themes", deferred.)
 
 **Goal:** turn the default theme into a swappable package (`@setu/theme-default`) that the
-site activates via `saytu.config` — the foundation for distributable themes (the marketplace
+site activates via `setu.config` — the foundation for distributable themes (the marketplace
 long-game), with **no visible change to the current site** (same look, now sourced from a
 theme package the config selects).
 
 **Architecture:** extract the theme's *look* (layouts + tokens + styles) out of
 `apps/site` into a new `packages/theme-default` (`@setu/theme-default`). Add a `theme`
-field to `saytu.config`. At build, the site reads that field and aliases `@theme` → the active
+field to `setu.config`. At build, the site reads that field and aliases `@theme` → the active
 theme package; the site's pages import their layouts from `@theme/…`. Switching themes = change
 the `theme` value + install the other package + rebuild. The render *engine* (routing, Markdoc
 wiring, block components) stays in the app.
@@ -36,12 +36,12 @@ an Astro app renders a layout/tokens imported from a theme package; and a build-
   - `theme.css` (the token layer), `site.css` (body/header/footer/measures/prose)
   - `package.json` with an `exports` map for each layout + css (`./Layout.astro`, etc.);
     `astro` as a peerDependency.
-- **`theme` field in `saytu.config`** (`@setu/core`): an additive, optional `theme?: string`
+- **`theme` field in `setu.config`** (`@setu/core`): an additive, optional `theme?: string`
   (the active theme's package name) on `SaytuConfig` + the schema + `ResolvedConfig`
   (pass-through). Additive only — **does not touch the Markdoc round-trip / content path.**
-- **A `saytu.config.ts` in `apps/site`** declaring `theme: '@setu/theme-default'`
+- **A `setu.config.ts` in `apps/site`** declaring `theme: '@setu/theme-default'`
   (single source of truth, per PRD §8).
-- **Build wiring** (`apps/site/astro.config.mjs`): read `saytu.config`'s `theme` (via
+- **Build wiring** (`apps/site/astro.config.mjs`): read `setu.config`'s `theme` (via
   `@setu/core`'s Node `loadConfig`, jiti — proven in #2) and set a Vite alias `@theme` → the
   active theme package; default to `@setu/theme-default` if unset.
 - **Rewire the site's pages** (`[...path].astro`, `index.astro`) to import their layouts from
@@ -104,7 +104,7 @@ unaffected (the `theme` field is never read by the converter).
 
 ## 4. Build wiring (the activation mechanism)
 
-`apps/site/saytu.config.ts` (new):
+`apps/site/setu.config.ts` (new):
 ```ts
 import { defineConfig, defaultConfig } from '@setu/core'
 export default defineConfig({ blocks: defaultConfig.blocks, theme: '@setu/theme-default' })
@@ -113,7 +113,7 @@ export default defineConfig({ blocks: defaultConfig.blocks, theme: '@setu/theme-
 `apps/site/astro.config.mjs`: read the active theme + alias `@theme` to it:
 ```js
 import { loadConfig } from '@setu/core/node'
-const config = await loadConfig(new URL('./saytu.config.ts', import.meta.url).pathname)
+const config = await loadConfig(new URL('./setu.config.ts', import.meta.url).pathname)
 const activeTheme = config.theme ?? '@setu/theme-default'
 // alias '@theme' -> the active theme package; '@theme/PostLayout.astro' resolves via its exports
 export default defineConfig({
@@ -126,7 +126,7 @@ during the build (Node + jiti — proven in #2) and that `@theme/PostLayout.astr
 package's export. **Fallbacks if fiddly:** (a) if aliasing to the package *name* doesn't resolve,
 alias to the resolved path via `import.meta.resolve`; (b) if `loadConfig` is awkward in the
 config context, read the `theme` value directly (a constant in `astro.config`, or a tiny JSON)
-and wire `saytu.config` as a follow-on — either way the theme is config-selected. The selection
+and wire `setu.config` as a follow-on — either way the theme is config-selected. The selection
 mechanism itself (value → alias → rendered theme) is already spiked.
 
 ## 5. Site rewiring
@@ -152,7 +152,7 @@ mechanism itself (value → alias → rendered theme) is already spiked.
 
 ## 7. Success criteria
 1. `@setu/theme-default` exists as a package; the site renders **through it**, selected by
-   `saytu.config`'s `theme` field — with **no visible change** vs 3a (same look).
+   `setu.config`'s `theme` field — with **no visible change** vs 3a (same look).
 2. Switching the `theme` value (+ installing another theme package) would render a different
    theme — the activation mechanism is real (spiked) and wired.
 3. `@setu/core` gains an additive `theme` config field; round-trip/content untouched (175 core

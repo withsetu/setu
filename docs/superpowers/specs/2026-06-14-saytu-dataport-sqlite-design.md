@@ -11,7 +11,7 @@ contract. This establishes the pattern every later port (Storage, Auth, Email,
 Image, Git) and adapter (`db-d1`) will copy.
 
 Follows a decision-complete PRD (`plan/prd.md`) and shipped increments #1
-(Markdoc round-trip) and #2 (`saytu.config.ts` schema/parser).
+(Markdoc round-trip) and #2 (`setu.config.ts` schema/parser).
 
 ## Scope
 

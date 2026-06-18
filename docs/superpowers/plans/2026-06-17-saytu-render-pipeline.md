@@ -262,7 +262,7 @@ git commit -m "feat(site): scaffold apps/site render app + standard nodes"
 
 ---
 
-### Task 2: Callout — single React core via wrapper, tag sourced from saytu.config
+### Task 2: Callout — single React core via wrapper, tag sourced from setu.config
 
 **Files:**
 - Create: `apps/site/src/components/Callout.tsx`, `apps/site/src/components/CalloutWrapper.astro`
@@ -333,7 +333,7 @@ const BLOCK_WRAPPERS = {
   },
 }
 
-// Source the custom-tag SET from saytu.config (not a hardcoded string). Fail loudly if a
+// Source the custom-tag SET from setu.config (not a hardcoded string). Fail loudly if a
 // configured block has no wrapper yet — that's a real, surfaced gap, not a silent drop.
 const customTags = {}
 for (const block of resolveConfig(defaultConfig).blocks) {

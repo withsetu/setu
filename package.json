@@ -8,7 +8,7 @@
   "scripts": {
     "content:seed": "node scripts/content-sandbox.mjs seed",
     "content:reset": "node scripts/content-sandbox.mjs reset",
-    "dev": "node scripts/content-sandbox.mjs seed dev && concurrently -n api,admin,site -c blue,magenta,green \"SETU_API_PORT=4444 SETU_REPO_DIR=$PWD/.content-sandbox/dev pnpm --filter @setu/api dev\" \"VITE_SETU_API=http://localhost:4444 pnpm --filter @setu/admin dev\" \"SETU_CONTENT_DIR=$PWD/.content-sandbox/dev/content pnpm --filter @setu/site dev\"",
+    "dev": "node scripts/content-sandbox.mjs seed dev && concurrently -n api,admin,site -c blue,magenta,green \"SETU_API_PORT=4444 SETU_REPO_DIR=$PWD/.content-sandbox/dev pnpm --filter @setu/api dev\" \"VITE_SETU_API=http://localhost:4444 VITE_SETU_SITE=http://localhost:4321 pnpm --filter @setu/admin dev\" \"SETU_CONTENT_DIR=$PWD/.content-sandbox/dev/content pnpm --filter @setu/site dev\"",
     "test": "pnpm -r test",
     "test:scripts": "node --test 'scripts/*.test.mjs'",
     "typecheck": "pnpm -r typecheck"

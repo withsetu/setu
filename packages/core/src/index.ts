@@ -53,3 +53,5 @@ export { deriveLifecycle } from './lifecycle/derive'
 
 export type { ContentRow, ListContentEntriesInput } from './content-index/list-entries'
 export { listContentEntries } from './content-index/list-entries'
+
+export { entryUrlPath, DEFAULT_LOCALE } from './url/entry-url'

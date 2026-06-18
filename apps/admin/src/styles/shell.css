@@ -102,5 +102,10 @@
 .ctable-title { cursor: pointer; }
 .ctable-title a { font-weight: 600; color: var(--text); font-size: 14px; text-decoration: none; white-space: nowrap; }
 .ctable-title a:hover { color: var(--accent-strong); }
+/* per-row "view on site" link — muted icon, only shown for published rows */
+.ctable-title a.ctable-view { display: inline-flex; align-items: center; margin-left: 8px; color: var(--text-3); vertical-align: middle; opacity: 0; transition: opacity .12s, color .12s; }
+.ctable tbody tr:hover a.ctable-view,
+.ctable-title a.ctable-view:focus-visible { opacity: 1; }
+.ctable-title a.ctable-view:hover { color: var(--accent-strong); }
 /* ctable-muted: used for locale and updated columns (design uses .ct-locale / .ct-updated with color: var(--text-3)) */
 .ctable-muted { color: var(--text-3); }

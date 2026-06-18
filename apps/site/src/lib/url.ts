@@ -1,14 +1,13 @@
-// Default locale is unprefixed in URLs; non-default locales keep their segment.
-// Hardcoded for now — becomes config-driven when permalinks / i18n routing land.
-export const DEFAULT_LOCALE = 'en'
+import { DEFAULT_LOCALE, entryUrlPath } from '@setu/core'
 
-// Content is stored as <collection>/<locale>/<slug...>. Drop the locale segment from the
-// URL when it's the default locale, so a single-language site has clean URLs and a locale
-// only appears once non-default content exists.
+// DEFAULT_LOCALE and the locale-dropping rule now live in @setu/core (entryUrlPath),
+// so the site and the admin's "View Page" link share one source of truth and can't drift.
+export { DEFAULT_LOCALE }
+
+// Map a content entry id ("<collection>/<locale>/<slug...>") to its URL path.
+// The home entry is served at '/' by index.astro and excluded from the catch-all, so
+// entryUrlPath's home → '' case is never reached through this wrapper.
 export function toUrlPath(id: string): string {
-  const parts = id.split('/')
-  if (parts.length >= 3 && parts[1] === DEFAULT_LOCALE) {
-    return [parts[0], ...parts.slice(2)].join('/')
-  }
-  return id
+  const [collection = '', locale = '', ...rest] = id.split('/')
+  return entryUrlPath({ collection, locale, slug: rest.join('/') })
 }

@@ -109,6 +109,26 @@ describe('render pipeline — locale URLs', () => {
   })
 })
 
+describe('default theme — templates by collection', () => {
+  it('renders a post with the narrow Post template', () => {
+    expect(page('post/kitchen-sink')).toContain('class="prose measure-post"')
+  })
+  it('renders a page with the wider Page template', () => {
+    const about = page('page/about')
+    expect(about).toContain('class="prose measure-page"')
+    expect(about).toContain('<h1>About</h1>')
+  })
+  it('renders the home page entry at the site root', () => {
+    const home = page('') // dist/index.html
+    expect(home).toContain('<h1>Welcome to Saytu</h1>')
+    expect(home).toContain('class="prose measure-page"')
+  })
+  it('carries the entry locale as <html lang>', () => {
+    expect(page('post/fr/bonjour')).toContain('lang="fr"')
+    expect(page('post/kitchen-sink')).toContain('lang="en"')
+  })
+})
+
 describe('default theme — shell + tokens', () => {
   it('renders the header (brand + nav) and footer', () => {
     expect(html).toContain('class="site-header"')

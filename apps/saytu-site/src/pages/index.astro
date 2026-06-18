@@ -1,0 +1,13 @@
+---
+import PageLayout from '../layouts/PageLayout.astro'
+import { getEntry, render } from 'astro:content'
+
+const entry = await getEntry('entries', 'page/en/home')
+const { Content } = await render(entry!)
+const title = (entry!.data as { title?: string }).title ?? 'Home'
+---
+
+<PageLayout title={title} lang="en">
+  <h1>{title}</h1>
+  <Content />
+</PageLayout>

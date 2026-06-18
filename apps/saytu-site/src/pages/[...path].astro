@@ -1,21 +1,24 @@
 ---
-import Layout from '../layouts/Layout.astro'
+import PostLayout from '../layouts/PostLayout.astro'
+import PageLayout from '../layouts/PageLayout.astro'
 import { getCollection, render } from 'astro:content'
 import { toUrlPath } from '../lib/url'
 
 export async function getStaticPaths() {
   const all = await getCollection('entries')
-  return all.map((entry) => ({ params: { path: toUrlPath(entry.id) }, props: { entry } }))
+  return all
+    .filter((entry) => entry.id !== 'page/en/home') // home renders at '/' via index.astro
+    .map((entry) => ({ params: { path: toUrlPath(entry.id) }, props: { entry } }))
 }
 
 const { entry } = Astro.props
 const { Content } = await render(entry)
 const title = (entry.data as { title?: string }).title ?? entry.id
+const [collection, locale = 'en'] = entry.id.split('/')
+const TemplateLayout = collection === 'post' ? PostLayout : PageLayout
 ---
 
-<Layout title={title}>
-  <article class="prose">
-    <h1>{title}</h1>
-    <Content />
-  </article>
-</Layout>
+<TemplateLayout title={title} lang={locale}>
+  <h1>{title}</h1>
+  <Content />
+</TemplateLayout>

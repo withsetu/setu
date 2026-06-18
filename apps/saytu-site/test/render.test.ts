@@ -75,3 +75,12 @@ describe('render pipeline — checklist', () => {
     expect(html).toContain('<li>two</li>')
   })
 })
+
+describe('render pipeline — table column alignment', () => {
+  it('emits text-align on aligned columns (clean CSS, not deprecated align attr)', () => {
+    expect(html).toContain('<th style="text-align:center">Center</th>')
+    expect(html).toContain('<th style="text-align:right">Right</th>')
+    expect(html).toContain('<td style="text-align:right">c1</td>')
+    expect(html).not.toContain('<td align=')
+  })
+})

@@ -1,0 +1,5 @@
+---
+const { align } = Astro.props
+const style = align && align !== 'left' ? `text-align:${align}` : undefined
+---
+<th style={style}><slot /></th>

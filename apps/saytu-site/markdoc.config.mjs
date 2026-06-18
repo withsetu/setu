@@ -68,5 +68,15 @@ export default defineMarkdocConfig({
       ...nodes.item,
       transform: itemTransform,
     },
+    th: {
+      ...nodes.th,
+      render: component('./src/components/Th.astro'),
+      attributes: { ...nodes.th.attributes, align: { type: String } },
+    },
+    td: {
+      ...nodes.td,
+      render: component('./src/components/Td.astro'),
+      attributes: { ...nodes.td.attributes, align: { type: String } },
+    },
   },
 })

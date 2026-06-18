@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useMemo } from 'react'
 import type { ReactNode } from 'react'
-import type { Action, Actor } from '@saytu/core'
-import { createAuthz, DEFAULT_ROLES } from '@saytu/core'
+import type { Action, Actor } from '@setu/core'
+import { createAuthz, DEFAULT_ROLES } from '@setu/core'
 
 // No real auth yet — the app runs as a single Owner. Real users + auth swap this
 // in later (the RBAC arc); every gated action already flows through useCan().

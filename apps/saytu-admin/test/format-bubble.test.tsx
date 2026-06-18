@@ -6,7 +6,7 @@ import { TextAlign } from '@tiptap/extension-text-align'
 import type { Editor } from '@tiptap/core'
 import { useEffect } from 'react'
 import { TextSelection } from '@tiptap/pm/state'
-import { tiptapToMarkdoc } from '@saytu/core'
+import { tiptapToMarkdoc } from '@setu/core'
 import { FormatBubbleToolbar, normalizeUrl } from '../src/editor/FormatBubble'
 import { isEscape, collapseSelectionOnEscape } from '../src/editor/dismiss'
 

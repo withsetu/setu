@@ -6,7 +6,7 @@
 
 **Architecture:** The publish/read/authoring services already exist and are GitPort-agnostic. This increment routes the **GitPort** (only) to a server: a Hono (Node) API wraps the existing `git-local`; a new browser-side `git-http` GitPort `fetch`es it; `Bootstrap.tsx` uses `git-http` when `VITE_SAYTU_API` is set, else the current in-browser `git-idb` path is unchanged (additive). Content is aligned to the engine's existing repo-root `content/` convention so a commit lands where the site globs.
 
-**Tech Stack:** Hono 4.12.26 + @hono/node-server 2.0.5 · existing `@saytu/git-local` (isomorphic-git) · new `@saytu/git-http` (fetch GitPort) · `@saytu/core` ports/services (unchanged) · Astro 6 glob loader · Vitest · tsx (dev) · concurrently (dev runner).
+**Tech Stack:** Hono 4.12.26 + @hono/node-server 2.0.5 · existing `@setu/git-local` (isomorphic-git) · new `@setu/git-http` (fetch GitPort) · `@setu/core` ports/services (unchanged) · Astro 6 glob loader · Vitest · tsx (dev) · concurrently (dev runner).
 
 ## Global Constraints
 
@@ -16,7 +16,7 @@
 - **Strict TS** (`tsconfig.base.json`): `verbatimModuleSyntax` → `import type` for type-only imports; `noUncheckedIndexedAccess` → guard every index / parsed-JSON field; `strict`.
 - **Verified npm deps (do NOT re-verify):** `hono@4.12.26`, `@hono/node-server@2.0.5`. `tsx` and `concurrently` are MIT (confirm they install; pick current versions).
 - **HARD RULE** — verify any *other* new dep/API claim before asserting: Hono `Hono()` routing + `c.req.query`/`c.req.json`/`c.json` signatures, `hono/cors`, `@hono/node-server` `serve({fetch,port})`, Astro glob `base` resolving a folder above the app dir, `concurrently`/`tsx` invocation, and `Request`/`app.fetch` in the contract injection.
-- **GitPort interface** (`@saytu/core`): `headSha(): Promise<string|null>`, `readFile(path:string): Promise<string|null>`, `commitFile(input: CommitInput): Promise<CommitResult>`, `list(prefix?:string): Promise<string[]>`. `CommitInput = { path, content, message, author: { name, email } }`; `CommitResult = { sha }`.
+- **GitPort interface** (`@setu/core`): `headSha(): Promise<string|null>`, `readFile(path:string): Promise<string|null>`, `commitFile(input: CommitInput): Promise<CommitResult>`, `list(prefix?:string): Promise<string[]>`. `CommitInput = { path, content, message, author: { name, email } }`; `CommitResult = { sha }`.
 - **Commit footer** (every commit): `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
 
 ---
@@ -56,7 +56,7 @@ const entries = defineCollection({ loader: glob({ pattern: '**/*.mdoc', base: '.
 ```
 **Build to verify Astro accepts a base above the app dir:**
 ```bash
-pnpm --filter @saytu/site build
+pnpm --filter @setu/site build
 ```
 If the build can't find the entries / rejects the relative base, use an absolute path resolved from this file instead:
 ```ts
@@ -69,7 +69,7 @@ Pick whichever the build actually resolves (the dist must contain the 4 routes).
 
 - [ ] **Step 3: Run the site test suite (no regression)**
 
-Run: `pnpm --filter @saytu/site test`
+Run: `pnpm --filter @setu/site test`
 Expected: all green (render tests + theme-options) — the build now reads repo-root `content/`; rendered HTML is unchanged because the files are byte-identical, only relocated.
 
 - [ ] **Step 4: Commit**
@@ -95,15 +95,15 @@ A thin RPC exposure of the GitPort, backed by `git-local`. Exposes a `createGitA
 - Test: `apps/saytu-api/test/app.test.ts`
 
 **Interfaces:**
-- Consumes: `GitPort`, `createLocalGitAdapter({ dir })` (from `@saytu/git-local`).
-- Produces: `createGitApi(git: GitPort): Hono` (exported from `@saytu/api`, package main `./src/app.ts`). Routes: `GET /git/head` → `{ sha: string|null }`; `GET /git/file?path=` → `{ content: string|null }` (400 `{ error }` if `path` missing); `POST /git/commit` body `{ path, content, message, author }` → `{ sha: string }`; `GET /git/list?prefix=` → `{ paths: string[] }`. Errors → non-2xx `{ error }`.
+- Consumes: `GitPort`, `createLocalGitAdapter({ dir })` (from `@setu/git-local`).
+- Produces: `createGitApi(git: GitPort): Hono` (exported from `@setu/api`, package main `./src/app.ts`). Routes: `GET /git/head` → `{ sha: string|null }`; `GET /git/file?path=` → `{ content: string|null }` (400 `{ error }` if `path` missing); `POST /git/commit` body `{ path, content, message, author }` → `{ sha: string }`; `GET /git/list?prefix=` → `{ paths: string[] }`. Errors → non-2xx `{ error }`.
 
 - [ ] **Step 1: Scaffold the package**
 
 Create `apps/saytu-api/package.json`:
 ```json
 {
-  "name": "@saytu/api",
+  "name": "@setu/api",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -118,8 +118,8 @@ Create `apps/saytu-api/package.json`:
   },
   "dependencies": {
     "@hono/node-server": "2.0.5",
-    "@saytu/core": "workspace:*",
-    "@saytu/git-local": "workspace:*",
+    "@setu/core": "workspace:*",
+    "@setu/git-local": "workspace:*",
     "hono": "4.12.26"
   },
   "devDependencies": {
@@ -153,7 +153,7 @@ import nodeFs from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as git from 'isomorphic-git'
-import { createLocalGitAdapter } from '@saytu/git-local'
+import { createLocalGitAdapter } from '@setu/git-local'
 import { createGitApi } from '../src/app'
 
 const dirs: string[] = []
@@ -228,7 +228,7 @@ describe('createGitApi', () => {
 
 - [ ] **Step 4: Run it, confirm it FAILS**
 
-Run: `pnpm --filter @saytu/api test`
+Run: `pnpm --filter @setu/api test`
 Expected: FAIL — `../src/app` not found.
 
 - [ ] **Step 5: Implement `src/app.ts`**
@@ -237,7 +237,7 @@ Create `apps/saytu-api/src/app.ts` (adapt to any signature notes from Step 2):
 ```ts
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import type { GitPort, CommitInput } from '@saytu/core'
+import type { GitPort, CommitInput } from '@setu/core'
 
 /** A Hono app exposing a GitPort over HTTP (RPC-style, one route per method).
  *  Pure factory — the caller supplies the GitPort and the listener (server.ts). */
@@ -271,7 +271,7 @@ export function createGitApi(git: GitPort): Hono {
 
 - [ ] **Step 6: Run the test, confirm PASS**
 
-Run: `pnpm --filter @saytu/api test`
+Run: `pnpm --filter @setu/api test`
 Expected: all green.
 
 - [ ] **Step 7: Write the server entry**
@@ -279,7 +279,7 @@ Expected: all green.
 Create `apps/saytu-api/src/server.ts`:
 ```ts
 import { serve } from '@hono/node-server'
-import { createLocalGitAdapter } from '@saytu/git-local'
+import { createLocalGitAdapter } from '@setu/git-local'
 import { createGitApi } from './app'
 
 const dir = process.env.SAYTU_REPO_DIR ?? process.cwd()
@@ -293,12 +293,12 @@ console.log(`saytu-api listening on http://localhost:${port} (repo: ${dir})`)
 - [ ] **Step 8: Smoke-test the server boots + typecheck**
 
 ```bash
-SAYTU_REPO_DIR="$(git rev-parse --show-toplevel)" SAYTU_API_PORT=4444 pnpm --filter @saytu/api exec tsx src/server.ts &
+SAYTU_REPO_DIR="$(git rev-parse --show-toplevel)" SAYTU_API_PORT=4444 pnpm --filter @setu/api exec tsx src/server.ts &
 sleep 2
 curl -s http://localhost:4444/git/head; echo
 curl -s "http://localhost:4444/git/list?prefix=content/"; echo
 kill %1
-pnpm --filter @saytu/api typecheck
+pnpm --filter @setu/api typecheck
 ```
 Expected: `/git/head` returns a JSON `{ "sha": "…" }` (non-null, since the repo has commits) and `/git/list?prefix=content/` lists the relocated `.mdoc` files. Typecheck clean. (If `kill %1` is awkward in the runner, find+kill the tsx PID on port 4444.)
 
@@ -306,7 +306,7 @@ Expected: `/git/head` returns a JSON `{ "sha": "…" }` (non-null, since the rep
 
 ```bash
 git add apps/saytu-api pnpm-lock.yaml
-git commit -m "feat(api): @saytu/api — Hono GitPort server over git-local (#bridge)
+git commit -m "feat(api): @setu/api — Hono GitPort server over git-local (#bridge)
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
@@ -325,7 +325,7 @@ A `fetch`-based GitPort that talks to the Task 2 routes. Contract-tested against
 - Test: `packages/git-http/test/contract.test.ts`
 
 **Interfaces:**
-- Consumes: `GitPort`, `CommitInput`, `CommitResult` (`@saytu/core`); `createGitApi` (`@saytu/api`, test only); `createMemoryGitPort` (`@saytu/git-memory`, test only); `runGitPortContract` (`@saytu/git-testing`).
+- Consumes: `GitPort`, `CommitInput`, `CommitResult` (`@setu/core`); `createGitApi` (`@setu/api`, test only); `createMemoryGitPort` (`@setu/git-memory`, test only); `runGitPortContract` (`@setu/git-testing`).
 - Produces: `createHttpGitPort(opts: HttpGitOptions): GitPort` where `HttpGitOptions = { baseUrl: string; fetch?: typeof fetch }`.
 
 - [ ] **Step 1: Scaffold the package (mirror git-memory)**
@@ -333,7 +333,7 @@ A `fetch`-based GitPort that talks to the Task 2 routes. Contract-tested against
 Create `packages/git-http/package.json`:
 ```json
 {
-  "name": "@saytu/git-http",
+  "name": "@setu/git-http",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -341,17 +341,17 @@ Create `packages/git-http/package.json`:
   "types": "./src/index.ts",
   "exports": { ".": "./src/index.ts" },
   "scripts": { "test": "vitest run", "typecheck": "tsc --noEmit" },
-  "dependencies": { "@saytu/core": "workspace:*" },
+  "dependencies": { "@setu/core": "workspace:*" },
   "devDependencies": {
-    "@saytu/api": "workspace:*",
-    "@saytu/git-memory": "workspace:*",
-    "@saytu/git-testing": "workspace:*",
+    "@setu/api": "workspace:*",
+    "@setu/git-memory": "workspace:*",
+    "@setu/git-testing": "workspace:*",
     "typescript": "^5.6.3",
     "vitest": "^2.1.8"
   }
 }
 ```
-(The test-only devDep on `@saytu/api` is an intentional, test-only package←app edge so the adapter is contract-tested against the real routes — document this in the file header comment.)
+(The test-only devDep on `@setu/api` is an intentional, test-only package←app edge so the adapter is contract-tested against the real routes — document this in the file header comment.)
 
 Create `packages/git-http/tsconfig.json`:
 ```json
@@ -363,9 +363,9 @@ Run `pnpm install` from the repo root.
 
 Create `packages/git-http/test/contract.test.ts`:
 ```ts
-import { runGitPortContract } from '@saytu/git-testing'
-import { createGitApi } from '@saytu/api'
-import { createMemoryGitPort } from '@saytu/git-memory'
+import { runGitPortContract } from '@setu/git-testing'
+import { createGitApi } from '@setu/api'
+import { createMemoryGitPort } from '@setu/git-memory'
 import { createHttpGitPort } from '../src/index'
 
 // Contract-tests the HTTP adapter against the REAL api routes, in-process and
@@ -382,14 +382,14 @@ runGitPortContract(() => {
 
 - [ ] **Step 3: Run it, confirm it FAILS**
 
-Run: `pnpm --filter @saytu/git-http test`
+Run: `pnpm --filter @setu/git-http test`
 Expected: FAIL — `../src/index` not found.
 
 - [ ] **Step 4: Implement the adapter**
 
 Create `packages/git-http/src/adapter.ts`:
 ```ts
-import type { GitPort, CommitInput, CommitResult } from '@saytu/core'
+import type { GitPort, CommitInput, CommitResult } from '@setu/core'
 
 export interface HttpGitOptions {
   /** Base URL of the Saytu git API (e.g. http://localhost:4444). */
@@ -451,12 +451,12 @@ export type { HttpGitOptions } from './adapter'
 
 - [ ] **Step 5: Run the contract test, confirm PASS**
 
-Run: `pnpm --filter @saytu/git-http test`
+Run: `pnpm --filter @setu/git-http test`
 Expected: the full GitPort contract passes (same suite git-local/idb/memory pass).
 
 - [ ] **Step 6: Typecheck**
 
-Run: `pnpm --filter @saytu/git-http typecheck`
+Run: `pnpm --filter @setu/git-http typecheck`
 Expected: clean (the `json<T>` guard handles `noUncheckedIndexedAccess`; `import type` for the core types).
 
 - [ ] **Step 7: Commit**
@@ -476,21 +476,21 @@ Additive branch in the bootstrap; the in-browser default is untouched.
 
 **Files:**
 - Modify: `apps/saytu-admin/src/data/Bootstrap.tsx`
-- Modify: `apps/saytu-admin/package.json` (add `@saytu/git-http`)
+- Modify: `apps/saytu-admin/package.json` (add `@setu/git-http`)
 - Test: `apps/saytu-admin` existing suite (178) stays green
 
 **Interfaces:**
-- Consumes: `createHttpGitPort` (`@saytu/git-http`), `createIdbDataPort` (`@saytu/db-idb`), `bootstrapServices` (`./store`).
+- Consumes: `createHttpGitPort` (`@setu/git-http`), `createIdbDataPort` (`@setu/db-idb`), `bootstrapServices` (`./store`).
 
 - [ ] **Step 1: Add the dependency**
 
-In `apps/saytu-admin/package.json` `dependencies`, add `"@saytu/git-http": "workspace:*"`. Run `pnpm install` from the repo root.
+In `apps/saytu-admin/package.json` `dependencies`, add `"@setu/git-http": "workspace:*"`. Run `pnpm install` from the repo root.
 
 - [ ] **Step 2: Add the env-gated branch in `Bootstrap.tsx`**
 
 Edit `apps/saytu-admin/src/data/Bootstrap.tsx`. Add the import:
 ```ts
-import { createHttpGitPort } from '@saytu/git-http'
+import { createHttpGitPort } from '@setu/git-http'
 ```
 Inside the existing async IIFE, branch BEFORE the current try/catch so the server path takes precedence when configured. Replace the body that computes `ready` with:
 ```ts
@@ -517,12 +517,12 @@ if (apiBase) {
 
 - [ ] **Step 3: Confirm the existing admin suite stays green**
 
-Run: `pnpm --filter @saytu/admin test`
+Run: `pnpm --filter @setu/admin test`
 Expected: 178 tests green. The tests don't set `VITE_SAYTU_API`, so they run the unchanged in-browser branch. (Console `act()` warnings + a deliberate error-path stack trace are pre-existing noise, not failures.)
 
 - [ ] **Step 4: Typecheck + build**
 
-Run: `pnpm --filter @saytu/admin typecheck && pnpm --filter @saytu/admin build`
+Run: `pnpm --filter @setu/admin typecheck && pnpm --filter @setu/admin build`
 Expected: clean; build succeeds (the new import resolves; `import.meta.env.VITE_SAYTU_API` is a standard Vite env access).
 
 - [ ] **Step 5: Commit**
@@ -557,10 +557,10 @@ Confirm `concurrently` installs (MIT; use the current 9.x). Add to root `package
   "scripts": {
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
-    "dev": "concurrently -n api,admin,site -c blue,magenta,green \"pnpm --filter @saytu/api dev\" \"VITE_SAYTU_API=http://localhost:4444 pnpm --filter @saytu/admin dev\" \"pnpm --filter @saytu/site dev\""
+    "dev": "concurrently -n api,admin,site -c blue,magenta,green \"pnpm --filter @setu/api dev\" \"VITE_SAYTU_API=http://localhost:4444 pnpm --filter @setu/admin dev\" \"pnpm --filter @setu/site dev\""
   }
 ```
-The `@saytu/api` `dev` script reads `SAYTU_API_PORT` (defaults 4444) and `SAYTU_REPO_DIR` (defaults `process.cwd()` = repo root when run from root). Ports: api 4444, admin 5173, site 4321 (defaults, non-colliding). Run `pnpm install`.
+The `@setu/api` `dev` script reads `SAYTU_API_PORT` (defaults 4444) and `SAYTU_REPO_DIR` (defaults `process.cwd()` = repo root when run from root). Ports: api 4444, admin 5173, site 4321 (defaults, non-colliding). Run `pnpm install`.
 
 - [ ] **Step 2: VERIFY the runner boots all three**
 
@@ -578,7 +578,7 @@ Expected: "api up", "admin up", "site up". (If env-var-prefix in the concurrentl
 
 Create `apps/saytu-api/README.md`:
 ```markdown
-# @saytu/api — local git API
+# @setu/api — local git API
 
 Exposes the GitPort (git-local) over HTTP so the in-browser admin can commit to the real repo.
 
@@ -627,10 +627,10 @@ import nodeFs from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as git from 'isomorphic-git'
-import { createLocalGitAdapter } from '@saytu/git-local'
-import { createMemoryDataPort } from '@saytu/db-memory'
-import { createPublishService } from '@saytu/core'
-import { createHttpGitPort } from '@saytu/git-http'
+import { createLocalGitAdapter } from '@setu/git-local'
+import { createMemoryDataPort } from '@setu/db-memory'
+import { createPublishService } from '@setu/core'
+import { createHttpGitPort } from '@setu/git-http'
 import { createGitApi } from '../src/app'
 
 const dirs: string[] = []
@@ -685,19 +685,19 @@ describe('end-to-end: publish over git-http → api → git-local → disk', () 
 
 - [ ] **Step 2: Run the e2e test**
 
-Run: `pnpm --filter @saytu/api test`
-Expected: both `app.test.ts` and `e2e-publish.test.ts` green. (If `@saytu/db-memory`/`@saytu/git-http` aren't resolvable from the api package, add them as devDeps to `apps/saytu-api/package.json` and `pnpm install`.)
+Run: `pnpm --filter @setu/api test`
+Expected: both `app.test.ts` and `e2e-publish.test.ts` green. (If `@setu/db-memory`/`@setu/git-http` aren't resolvable from the api package, add them as devDeps to `apps/saytu-api/package.json` and `pnpm install`.)
 
 - [ ] **Step 3: Full repo green**
 
 Run: `pnpm -r test`
-Expected: every package green — core, blocks, theme-default, site, admin (178), `@saytu/git-http` (the contract suite), `@saytu/api` (app + e2e), and the db/git packages. Capture the counts.
+Expected: every package green — core, blocks, theme-default, site, admin (178), `@setu/git-http` (the contract suite), `@setu/api` (app + e2e), and the db/git packages. Capture the counts.
 
 - [ ] **Step 4: Both apps build + typecheck the new packages**
 
 ```bash
-pnpm --filter @saytu/site build && pnpm --filter @saytu/admin build
-pnpm --filter @saytu/api typecheck && pnpm --filter @saytu/git-http typecheck
+pnpm --filter @setu/site build && pnpm --filter @setu/admin build
+pnpm --filter @setu/api typecheck && pnpm --filter @setu/git-http typecheck
 ```
 Expected: both builds succeed; typechecks clean.
 

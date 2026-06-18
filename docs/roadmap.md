@@ -23,7 +23,7 @@ in URLs. Spec/plan: `docs/superpowers/{specs,plans}/2026-06-17-saytu-render-pipe
 
 ### ~~Block component package #2 — one shared callout core~~ ✅ SHIPPED 2026-06-18 (`08f1afd`)
 
-New `@saytu/blocks` package holds the callout's **single React visual core** (+ block icons +
+New `@setu/blocks` package holds the callout's **single React visual core** (+ block icons +
 variant mapping + token-fallback `callout.css`). The editor node view AND the site wrapper now
 render it — the duplicate is gone (deleted `apps/saytu-admin/.../callout-variants.ts` +
 `apps/saytu-site/.../Callout.tsx` + the hardcoded 💡). "Write once" closed. Editor node
@@ -43,8 +43,8 @@ companion. Theme lives in `apps/saytu-site` for now. Spec/plan:
 
 ### ~~Theme system #3b — themes as config-activated packages~~ ✅ SHIPPED 2026-06-18 (`246da2a`)
 
-The default theme is now an installable, **config-activated package** (`@saytu/theme-default` —
-layouts + tokens + styles, extracted from the site). `@saytu/core` config gained an optional
+The default theme is now an installable, **config-activated package** (`@setu/theme-default` —
+layouts + tokens + styles, extracted from the site). `@setu/core` config gained an optional
 `theme` field (additive; round-trip untouched); `apps/saytu-site/saytu.config.ts` names the active
 theme, and the build reads it (`loadConfig`) + aliases `@theme` → the package, so pages render
 through whichever theme is configured. **Switch the value + install another theme + rebuild →
@@ -58,7 +58,7 @@ The Customizer **engine** (the visual admin panel deferred to the editor→disk 
 **declares its tunable knobs** in `options.ts` (`themeOptions: ThemeOption[]` — accent/font/width/
 textSize/corners; the "options API" the owner asked for) + a **pure `optionsToCss(values)`** that
 maps chosen values → a `:root:root { … }` override string (fallback-to-default; never emits garbage).
-`@saytu/core` config gained an additive optional `themeOptions` map (mirrors the 3b `theme` field;
+`@setu/core` config gained an additive optional `themeOptions` map (mirrors the 3b `theme` field;
 round-trip untouched). The site build threads `saytu.config`'s `themeOptions` → pages → templates →
 `Layout`, which injects the override as the last `<head>` style — `:root:root` specificity (Astro
 puts the bundled theme `<link>` *after* an inline style, so source-order loses). `--accent-strong`
@@ -161,7 +161,7 @@ writing the same remote.
 
 **FIRST CUT — Local topology, "Cut A" ✅ SHIPPED 2026-06-18 (`371ac42`):** only the **GitPort** goes
 to a server; drafts stay in-browser. `apps/saytu-api` (**Hono/Node**, `createGitApi(git): Hono` over
-4 RPC routes) wraps `git-local`; **`@saytu/git-http`** (browser-side fetch GitPort, passes the shared
+4 RPC routes) wraps `git-local`; **`@setu/git-http`** (browser-side fetch GitPort, passes the shared
 contract in-process against the real routes) talks to it; `Bootstrap.tsx` uses it when
 `VITE_SAYTU_API` is set (else the in-browser path — 178 admin tests untouched). Content moved to
 **repo-root `content/`** (Astro glob `base: '../../content'`). `pnpm dev` runs all three. Services/
@@ -207,7 +207,7 @@ build-our-own if so). Grouped by that constraint:
   bullet with literal text and round-trips all nesting byte-clean, so all logic lives in our
   converter. Underline remains deferred (same inline-tag pattern available to reuse).
 
-**New nodes/marks needing `@saytu/core` converter work first:**
+**New nodes/marks needing `@setu/core` converter work first:**
 - ~~**Tables**~~ ✅ SHIPPED 2026-06-17 (`276762d`): GFM pipe tables with per-column alignment.
   Core writes tables itself (`tableToGfm`) since Markdoc.format drops alignment; Markdoc stays the
   reader. `@tiptap/extension-table` (pinned 3.26.1) + cell `align` attr, slash insert, icon action
@@ -256,11 +256,11 @@ the callout node-view toolbar (`Callout.tsx`), Esc-to-leave wiring (reuse `dismi
 
 **What:** let a writer set, per link: **open in a new window** (`target="_blank"` + `rel="noopener"`) and **`nofollow`** (and likely its cousins `sponsored` / `ugc` later). Surfaced while designing the format bubble / link card increment.
 
-**Why deferred (not just UI):** standard Markdown links `[text](url)` **cannot carry `target` or `rel`**, so supporting these means **extending the Markdoc link representation in the core round-trip** (`packages/core/src/markdoc/`) — e.g. attributed links serialize as a `{% link href=… target=… rel=… %}` tag while plain links stay clean `[text](url)` — plus round-trip tests (content-safety / cardinal rule), and eventually the renderer applying them. That's content-model work in `@saytu/core`, deliberately kept out of the editing-*feel* increment. Do it as its own tight slice.
+**Why deferred (not just UI):** standard Markdown links `[text](url)` **cannot carry `target` or `rel`**, so supporting these means **extending the Markdoc link representation in the core round-trip** (`packages/core/src/markdoc/`) — e.g. attributed links serialize as a `{% link href=… target=… rel=… %}` tag while plain links stay clean `[text](url)` — plus round-trip tests (content-safety / cardinal rule), and eventually the renderer applying them. That's content-model work in `@setu/core`, deliberately kept out of the editing-*feel* increment. Do it as its own tight slice.
 
 **Note:** **"noindex" is NOT per-link** — it's a **page-level** directive (robots meta / `X-Robots-Tag`) that belongs in the SEO feature set (PRD §5), not on individual links. Per-link we only model `target` + `rel`.
 
-**Touches:** `@saytu/core` markdoc converter (both directions) + round-trip tests; the link card / bubble UI (attribute toggles); later, the SSG/SSR renderer.
+**Touches:** `@setu/core` markdoc converter (both directions) + round-trip tests; the link card / bubble UI (attribute toggles); later, the SSG/SSR renderer.
 
 ### Underline round-trip support (deferred 2026-06-16)
 
@@ -271,7 +271,7 @@ would silently drop on publish. We **disabled underline** in the format-bubble i
 (e.g. an `{% u %}` tag or HTML passthrough) + round-trip tests, then re-enable the mark and add
 a bubble button.
 
-**Touches:** `@saytu/core` markdoc converter + round-trip tests; StarterKit config; the format
+**Touches:** `@setu/core` markdoc converter + round-trip tests; StarterKit config; the format
 bubble.
 
 ---

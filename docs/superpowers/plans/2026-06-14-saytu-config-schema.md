@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the hardcoded `knownBlockTags = new Set(['callout'])` placeholder in `@saytu/core` with a real, validated, file-loaded `saytu.config.ts` (block definitions only).
+**Goal:** Replace the hardcoded `knownBlockTags = new Set(['callout'])` placeholder in `@setu/core` with a real, validated, file-loaded `saytu.config.ts` (block definitions only).
 
-**Architecture:** A new pure `src/config/` module inside `@saytu/core`: typed config shapes, a `defineConfig()` inference helper, a Zod meta-schema, `resolveConfig()` (validate + index + derive the tag set), `loadConfig()` (load a real TS config via jiti), and a shipped `defaultConfig` (the `callout` block). The round-trip's default recognised-tag set is then *derived from `defaultConfig`* instead of a magic constant — a one-way `markdoc/ → config/` import edge (no cycle, since `config/` never imports `markdoc/`).
+**Architecture:** A new pure `src/config/` module inside `@setu/core`: typed config shapes, a `defineConfig()` inference helper, a Zod meta-schema, `resolveConfig()` (validate + index + derive the tag set), `loadConfig()` (load a real TS config via jiti), and a shipped `defaultConfig` (the `callout` block). The round-trip's default recognised-tag set is then *derived from `defaultConfig`* instead of a magic constant — a one-way `markdoc/ → config/` import edge (no cycle, since `config/` never imports `markdoc/`).
 
 **Tech Stack:** TypeScript (strict), Zod (meta-schema + block prop schemas), jiti (runtime TS config loading), Vitest, pnpm.
 
@@ -136,7 +136,7 @@ describe('defineConfig', () => {
 
 - [ ] **Step 5: Run test to verify it fails**
 
-Run: `pnpm --filter @saytu/core test -- define-config`
+Run: `pnpm --filter @setu/core test -- define-config`
 Expected: FAIL — `defineConfig` is not exported from `../../src/index`.
 
 - [ ] **Step 6: Implement `defineConfig`**
@@ -176,12 +176,12 @@ export { defineConfig } from './config/define-config'
 
 - [ ] **Step 8: Run test to verify it passes**
 
-Run: `pnpm --filter @saytu/core test -- define-config`
+Run: `pnpm --filter @setu/core test -- define-config`
 Expected: PASS.
 
 - [ ] **Step 9: Typecheck**
 
-Run: `pnpm --filter @saytu/core typecheck`
+Run: `pnpm --filter @setu/core typecheck`
 Expected: clean.
 
 - [ ] **Step 10: Commit**
@@ -255,7 +255,7 @@ describe('resolveConfig', () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `pnpm --filter @saytu/core test -- config/resolve`
+Run: `pnpm --filter @setu/core test -- config/resolve`
 Expected: FAIL — `resolveConfig` is not exported.
 
 - [ ] **Step 3: Implement the meta-schema**
@@ -329,12 +329,12 @@ export { resolveConfig } from './config/resolve'
 
 - [ ] **Step 6: Run tests to verify they pass**
 
-Run: `pnpm --filter @saytu/core test -- config/resolve`
+Run: `pnpm --filter @setu/core test -- config/resolve`
 Expected: PASS (6 tests).
 
 - [ ] **Step 7: Typecheck**
 
-Run: `pnpm --filter @saytu/core typecheck`
+Run: `pnpm --filter @setu/core typecheck`
 Expected: clean.
 
 - [ ] **Step 8: Commit**
@@ -382,7 +382,7 @@ describe('defaultConfig', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @saytu/core test -- default-config`
+Run: `pnpm --filter @setu/core test -- default-config`
 Expected: FAIL — `defaultConfig` / `defaultKnownBlockTags` not exported.
 
 - [ ] **Step 3: Implement the default config**
@@ -424,12 +424,12 @@ export { defaultConfig, defaultKnownBlockTags } from './config/default-config'
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `pnpm --filter @saytu/core test -- default-config`
+Run: `pnpm --filter @setu/core test -- default-config`
 Expected: PASS (3 tests).
 
 - [ ] **Step 6: Typecheck**
 
-Run: `pnpm --filter @saytu/core typecheck`
+Run: `pnpm --filter @setu/core typecheck`
 Expected: clean.
 
 - [ ] **Step 7: Commit**
@@ -467,7 +467,7 @@ Edit `packages/core/test/to-tiptap.test.ts` — add these two tests inside the e
 
 - [ ] **Step 2: Run tests to verify the new behavior gap**
 
-Run: `pnpm --filter @saytu/core test -- to-tiptap.test`
+Run: `pnpm --filter @setu/core test -- to-tiptap.test`
 Expected: the "recognizes callout by default" test PASSES already (old constant), the "empty set" test PASSES already too — these lock current behavior. Confirm both green before refactor so the refactor is proven non-regressing. (If both already pass, proceed; they are the regression guard for Step 3.)
 
 - [ ] **Step 3: Replace the hardcoded constant with the config-derived default**
@@ -499,12 +499,12 @@ Then change the default fallback inside `markdocToTiptap` (was line 77):
 
 - [ ] **Step 4: Run the full core suite (regression guard)**
 
-Run: `pnpm --filter @saytu/core test`
+Run: `pnpm --filter @setu/core test`
 Expected: PASS — all existing 21 tests plus the new config tests; the two Step-1 tests still pass, proving the rewire preserved behavior.
 
 - [ ] **Step 5: Typecheck**
 
-Run: `pnpm --filter @saytu/core typecheck`
+Run: `pnpm --filter @setu/core typecheck`
 Expected: clean (no `markdoc/ → config/` cycle, since `config/` never imports `markdoc/`).
 
 - [ ] **Step 6: Commit**
@@ -578,7 +578,7 @@ export const notTheDefault = 42
 
 - [ ] **Step 4: Run tests to verify they fail**
 
-Run: `pnpm --filter @saytu/core test -- config/load`
+Run: `pnpm --filter @setu/core test -- config/load`
 Expected: FAIL — `loadConfig` is not exported.
 
 - [ ] **Step 5: Implement `loadConfig`**
@@ -612,12 +612,12 @@ export { loadConfig } from './config/load'
 
 - [ ] **Step 7: Run tests to verify they pass**
 
-Run: `pnpm --filter @saytu/core test -- config/load`
+Run: `pnpm --filter @setu/core test -- config/load`
 Expected: PASS (2 tests).
 
 - [ ] **Step 8: Typecheck**
 
-Run: `pnpm --filter @saytu/core typecheck`
+Run: `pnpm --filter @setu/core typecheck`
 Expected: clean.
 
 - [ ] **Step 9: Commit**
@@ -662,7 +662,7 @@ describe('config drives the round-trip', () => {
 
 - [ ] **Step 2: Run the integration test**
 
-Run: `pnpm --filter @saytu/core test -- config-roundtrip`
+Run: `pnpm --filter @setu/core test -- config-roundtrip`
 Expected: PASS (2 tests).
 
 - [ ] **Step 3: Run the full repo suite + typecheck (definition of done)**

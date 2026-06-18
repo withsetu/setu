@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto'
 import { describe, it, expect } from 'vitest'
-import { runDataPortContract } from '@saytu/db-testing'
+import { runDataPortContract } from '@setu/db-testing'
 import { createIdbDataPort } from '../src/index'
 
 let n = 0

@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { createMemoryDataPort } from '@saytu/db-memory'
-import type { DataPort, DraftInput, TiptapDoc } from '@saytu/core'
+import { createMemoryDataPort } from '@setu/db-memory'
+import type { DataPort, DraftInput, TiptapDoc } from '@setu/core'
 import { DataProvider } from '../src/data/store'
 import { DeployProvider } from '../src/deploy/deploy'
 import { ContentList } from '../src/screens/ContentList'
-import { serializeMdoc } from '@saytu/core'
-import { createMemoryGitPort } from '@saytu/git-memory'
+import { serializeMdoc } from '@setu/core'
+import { createMemoryGitPort } from '@setu/git-memory'
 import { ServicesProvider, servicesFor } from '../src/data/store'
 
 const doc = (t: string): TiptapDoc => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] })

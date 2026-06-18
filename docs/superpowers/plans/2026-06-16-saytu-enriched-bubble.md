@@ -4,7 +4,7 @@
 
 **Goal:** Add a "Turn into ▾" block-type switcher to the format bubble (sharing one registry with the slash menu), and give both floating toolbars (the bubble + the callout color/icon toolbar) a WAI-ARIA roving-tabindex keyboard model.
 
-**Architecture:** A single `block-types.ts` registry is the source of truth for block transforms; the slash menu and a new `TurnIntoMenu` dropdown both consume it. A reusable `useToolbarRoving` hook adds ←/→/Home/End roving-tabindex to any `role="toolbar"`. No `@saytu/core` changes — all block types already round-trip.
+**Architecture:** A single `block-types.ts` registry is the source of truth for block transforms; the slash menu and a new `TurnIntoMenu` dropdown both consume it. A reusable `useToolbarRoving` hook adds ←/→/Home/End roving-tabindex to any `role="toolbar"`. No `@setu/core` changes — all block types already round-trip.
 
 **Tech Stack:** TypeScript (strict: `noUncheckedIndexedAccess`, `verbatimModuleSyntax`), React 18, Tiptap v3 (`@tiptap/core`), Vitest + `@testing-library/react`. No new deps.
 
@@ -86,7 +86,7 @@ describe('currentBlockType', () => {
 
 - [ ] **Step 2: Run it — verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- block-types`
+Run: `pnpm --filter @setu/admin test -- block-types`
 Expected: FAIL — module not found.
 
 - [ ] **Step 3: Implement `block-types.ts`**
@@ -132,7 +132,7 @@ export function currentBlockType(editor: Editor): BlockType {
 
 - [ ] **Step 4: Run it — verify it passes**
 
-Run: `pnpm --filter @saytu/admin test -- block-types`
+Run: `pnpm --filter @setu/admin test -- block-types`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -178,7 +178,7 @@ describe('slashBlocks', () => {
 
 - [ ] **Step 2: Run it — verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- blocks`
+Run: `pnpm --filter @setu/admin test -- blocks`
 Expected: FAIL — current built-ins have Heading 1/Heading 2, no H3/H4.
 
 - [ ] **Step 3: Refactor `blocks.ts` built-ins to derive from the registry**
@@ -220,8 +220,8 @@ Adjust the `toContain('Code')` expectation only if you deliberately keep a diffe
 
 - [ ] **Step 4: Run it — verify it passes**
 
-Run: `pnpm --filter @saytu/admin test -- blocks`
-Expected: PASS. Also run the existing slash test: `pnpm --filter @saytu/admin test -- slash` — still green.
+Run: `pnpm --filter @setu/admin test -- blocks`
+Expected: PASS. Also run the existing slash test: `pnpm --filter @setu/admin test -- slash` — still green.
 
 - [ ] **Step 5: Commit**
 
@@ -291,7 +291,7 @@ describe('useToolbarRoving', () => {
 
 - [ ] **Step 2: Run it — verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- use-toolbar-roving`
+Run: `pnpm --filter @setu/admin test -- use-toolbar-roving`
 Expected: FAIL — module not found.
 
 - [ ] **Step 3: Implement `useToolbarRoving.ts`**
@@ -350,7 +350,7 @@ export function useToolbarRoving() {
 
 - [ ] **Step 4: Run it — verify it passes**
 
-Run: `pnpm --filter @saytu/admin test -- use-toolbar-roving`
+Run: `pnpm --filter @setu/admin test -- use-toolbar-roving`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -523,7 +523,7 @@ describe('TurnIntoMenu', () => {
 
 - [ ] **Step 3: Run it — verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- turn-into`
+Run: `pnpm --filter @setu/admin test -- turn-into`
 Expected: FAIL — until TurnIntoMenu compiles AND is correct (should pass once Step 1 is in; if the file already exists from Step 1, this step confirms it).
 
 - [ ] **Step 4: Wire `TurnIntoMenu` + roving into `FormatBubble.tsx`**
@@ -585,12 +585,12 @@ and the link button likewise gains `data-toolbar-item`. (The `TurnIntoMenu` trig
 
 - [ ] **Step 5: Run it — verify it passes**
 
-Run: `pnpm --filter @saytu/admin test -- turn-into && pnpm --filter @saytu/admin test -- format`
+Run: `pnpm --filter @setu/admin test -- turn-into && pnpm --filter @setu/admin test -- format`
 Expected: PASS (TurnIntoMenu + existing format-bubble/format-tooltips suites green).
 
 - [ ] **Step 6: Full admin suite + typecheck**
 
-Run: `pnpm --filter @saytu/admin test && pnpm --filter @saytu/admin typecheck`
+Run: `pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck`
 Expected: PASS.
 
 - [ ] **Step 7: Commit**
@@ -660,12 +660,12 @@ Change the `.block-props` container to a `role="toolbar"` wired with the ref + k
 
 `apps/saytu-admin/test/callout-toolbar-roving.test.tsx` — render the editor with the Callout node, focus a tone swatch, assert ArrowRight moves focus to the next `[data-toolbar-item]`. Because mounting a full callout node view in jsdom is heavy, a pragmatic test renders a minimal stand-in toolbar using the SAME hook (mirroring `use-toolbar-roving.test.tsx`) is ALREADY covered in Task 3 — so here, instead, add a lighter assertion that the callout's `.block-props` carries `role="toolbar"` and its buttons carry `data-toolbar-item`, via the existing callout render path if one exists (check `apps/saytu-admin/test/` for an existing callout view test, e.g. `callout-*.test.tsx`, and extend it). If no callout-view render test exists and standing one up is disproportionate, rely on Task 3's hook test + build+manual verification for the callout wiring, and state that in the task report. Do NOT ship a hollow test.
 
-Run: `pnpm --filter @saytu/admin test -- callout`
+Run: `pnpm --filter @setu/admin test -- callout`
 Expected: PASS (existing callout tests stay green; any added assertion passes).
 
 - [ ] **Step 3: Typecheck + full suite**
 
-Run: `pnpm --filter @saytu/admin test && pnpm --filter @saytu/admin typecheck`
+Run: `pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck`
 Expected: PASS.
 
 - [ ] **Step 4: Commit**
@@ -696,7 +696,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 .ti-item.on { color: var(--accent); font-weight: 600; }
 ```
 
-- [ ] **Step 2: Build** — Run: `pnpm --filter @saytu/admin build` — succeeds; CSS emitted.
+- [ ] **Step 2: Build** — Run: `pnpm --filter @setu/admin build` — succeeds; CSS emitted.
 
 - [ ] **Step 3: Commit**
 
@@ -719,7 +719,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ```ts
 import { describe, it, expect } from 'vitest'
-import { tiptapToMarkdoc, markdocToTiptap } from '@saytu/core'
+import { tiptapToMarkdoc, markdocToTiptap } from '@setu/core'
 
 describe('structural block types round-trip', () => {
   it('H2/H3/H4 + lists + quote + code block survive tiptap → markdoc → tiptap', () => {
@@ -744,13 +744,13 @@ describe('structural block types round-trip', () => {
 })
 ```
 
-> Confirm the exact import names/shape against `@saytu/core`'s barrel (`tiptapToMarkdoc`/`markdocToTiptap` and the `TiptapDoc` type) — adapt the cast if the public types differ. If `@saytu/core` exposes a `TiptapDoc` type, import and use it instead of the `Parameters<>` cast.
+> Confirm the exact import names/shape against `@setu/core`'s barrel (`tiptapToMarkdoc`/`markdocToTiptap` and the `TiptapDoc` type) — adapt the cast if the public types differ. If `@setu/core` exposes a `TiptapDoc` type, import and use it instead of the `Parameters<>` cast.
 
-- [ ] **Step 2: Run it** — Run: `pnpm --filter @saytu/admin test -- block-types-roundtrip` — Expected: PASS.
+- [ ] **Step 2: Run it** — Run: `pnpm --filter @setu/admin test -- block-types-roundtrip` — Expected: PASS.
 
 - [ ] **Step 3: Whole suite** — Run: `pnpm -r test` — every package green.
 - [ ] **Step 4: Typecheck** — Run: `pnpm -r typecheck` — clean (incl. core edge guard).
-- [ ] **Step 5: Build + no new deps** — Run: `pnpm --filter @saytu/admin build` (fonts intact) and `git diff main -- apps/saytu-admin/package.json` (empty).
+- [ ] **Step 5: Build + no new deps** — Run: `pnpm --filter @setu/admin build` (fonts intact) and `git diff main -- apps/saytu-admin/package.json` (empty).
 - [ ] **Step 6: Manual (reviewer)** — `pnpm dev`: select text → bubble shows "Turn into ▾" with the current block type; pick Heading 3 / Bullet list / Quote / Code → block transforms; **Tab** into the bubble → **←/→** move across controls, **Enter** on Turn-into opens the dropdown (**↑/↓/Enter**, **Esc** closes just the dropdown), **Esc** on the toolbar leaves the bubble; the callout style toolbar navigates by **←/→** and **Esc** returns to the body; the slash menu now lists H2/H3/H4; publish a doc with the new blocks and reopen → identical.
 
 - [ ] **Step 7: Commit** (if the round-trip test is a new file)
@@ -769,7 +769,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - **Spec coverage:** registry → T1; slash parity (H2/H3/H4) → T2; roving hook → T3; Turn-into dropdown + bubble wiring + roving → T4; callout toolbar roving + Esc-to-body → T5; CSS → T6; round-trip guard + verification → T7.
 - **Single source of truth:** the slash menu (T2) and Turn-into dropdown (T4) both consume `BLOCK_TYPES` (T1) — they can't drift.
 - **Esc precedence:** the Turn-into menu's Esc `stopPropagation`s so it closes only the dropdown (the bubble's document-level collapse won't fire); toolbar Esc (dropdown closed) = the shipped dismiss.
-- **No new deps; no `@saytu/core` change.** All block types already round-trip (verified); T7 locks it.
+- **No new deps; no `@setu/core` change.** All block types already round-trip (verified); T7 locks it.
 - **Type consistency:** `BlockType {id,label,icon,isActive,setOn}`, `BLOCK_TYPES`, `currentBlockType(editor)`, `useToolbarRoving() → {ref,onKeyDown}`, `TurnIntoMenu({editor})` — used identically across tasks.
 - **Honest test scope:** registry + slash parity + roving + Turn-into transform/Esc + round-trip are unit/integration tested; the floating bubble/callout *render* and the full keyboard end-to-end are build+manual verified (jsdom can't mount BubbleMenu / a full node-view toolbar) — consistent with prior increments.
 - **a11y:** WAI-ARIA toolbar (roving tabindex, ←/→, Home/End), `aria-haspopup`/`aria-expanded` trigger, `role="menu"`/`menuitemradio`/`aria-checked` items, Esc leaves; callout toolbar matched.

@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add the PRD §9 pessimistic-lock + draft-autosave state machine to `@saytu/core` as a pure service that consumes the `DataPort` — the first core logic to use a port.
+**Goal:** Add the PRD §9 pessimistic-lock + draft-autosave state machine to `@setu/core` as a pure service that consumes the `DataPort` — the first core logic to use a port.
 
 **Architecture:** A pure decision function `evaluateLock(lock, editor, now, ttl)` plus a thin `createAuthoringService({ data, now?, lockTtlMs? })` that applies the decision through an injected `DataPort` and injected clock. Methods: `open`, `save`, `release`, `forceUnlock`, `status`. No UI, no Node, no Git — edge-portable.
 
-**Tech Stack:** TypeScript (strict), Vitest. Consumes the existing `DataPort` interface + `Draft`/`Lock`/`EntryRef`/`DraftInput` types from `@saytu/core`.
+**Tech Stack:** TypeScript (strict), Vitest. Consumes the existing `DataPort` interface + `Draft`/`Lock`/`EntryRef`/`DraftInput` types from `@setu/core`.
 
 **Spec:** `docs/superpowers/specs/2026-06-14-saytu-lock-orchestration-design.md`
 
@@ -139,7 +139,7 @@ describe('evaluateLock', () => {
 
 - [ ] **Step 3: Run test to verify it fails**
 
-Run: `pnpm --filter @saytu/core test -- lock-policy`
+Run: `pnpm --filter @setu/core test -- lock-policy`
 Expected: FAIL — `evaluateLock` module/export missing.
 
 - [ ] **Step 4: Implement `evaluateLock`**
@@ -167,7 +167,7 @@ export function evaluateLock(
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `pnpm --filter @saytu/core test -- lock-policy`
+Run: `pnpm --filter @setu/core test -- lock-policy`
 Expected: PASS (5 tests).
 
 - [ ] **Step 6: Export the types surface from the package index**
@@ -197,12 +197,12 @@ Edit `packages/core/tsconfig.edge.json` — change the `include` array to:
 
 - [ ] **Step 8: Typecheck (incl. edge guard)**
 
-Run: `pnpm --filter @saytu/core typecheck`
+Run: `pnpm --filter @setu/core typecheck`
 Expected: clean — both the main check and the edge guard (the types + pure policy are Node-free).
 
 - [ ] **Step 9: Run the full core suite**
 
-Run: `pnpm --filter @saytu/core test`
+Run: `pnpm --filter @setu/core test`
 Expected: PASS — 44 tests (39 prior + 5 new).
 
 - [ ] **Step 10: Commit**
@@ -387,7 +387,7 @@ describe('createAuthoringService', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @saytu/core test -- authoring-service`
+Run: `pnpm --filter @setu/core test -- authoring-service`
 Expected: FAIL — `createAuthoringService` is not exported.
 
 - [ ] **Step 3: Implement the service**
@@ -479,18 +479,18 @@ export { createAuthoringService } from './authoring/authoring-service'
 
 - [ ] **Step 5: Run the service test**
 
-Run: `pnpm --filter @saytu/core test -- authoring-service`
+Run: `pnpm --filter @setu/core test -- authoring-service`
 Expected: PASS (10 tests).
 
 - [ ] **Step 6: Typecheck (incl. edge guard)**
 
-Run: `pnpm --filter @saytu/core typecheck`
+Run: `pnpm --filter @setu/core typecheck`
 Expected: clean — the service is Node-free (uses `Date.now`, an ES global, not a Node API), so it passes the edge guard now covering `src/authoring`.
 
 - [ ] **Step 7: Full repo verification (definition of done)**
 
 Run: `pnpm test && pnpm typecheck`
-Expected: every package green — `@saytu/core` now 54 (39 prior + 5 lock-policy + 10 service), `@saytu/db-testing` 11, `@saytu/db-sqlite` 12; typecheck clean across all packages incl. the core edge guard.
+Expected: every package green — `@setu/core` now 54 (39 prior + 5 lock-policy + 10 service), `@setu/db-testing` 11, `@setu/db-sqlite` 12; typecheck clean across all packages incl. the core edge guard.
 
 - [ ] **Step 8: Commit**
 

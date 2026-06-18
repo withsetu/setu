@@ -52,7 +52,7 @@ Two things the owner asked for during UAT:
    block shortcuts appear without duplicating the data. `formatKeys` shared.
 4. **Subscript & Superscript marks.** Add `@tiptap/extension-subscript` + `@tiptap/extension-superscript`
    to the editor extensions (Canvas). Mark names `subscript`/`superscript`, default `Mod-,` / `Mod-.`.
-5. **Markdoc round-trip for sub/sup (`@saytu/core`).**
+5. **Markdoc round-trip for sub/sup (`@setu/core`).**
    - **to-markdoc** (`buildInline`): for a `subscript`/`superscript` mark, wrap the text node in
      `const n = new N('tag', {}, [inner], 'sub'|'sup'); n.inline = true` (the `inline` flag is the
      spike's key finding).
@@ -131,7 +131,7 @@ apps/saytu-admin/package.json  # + @tiptap/extension-subscript, @tiptap/extensio
 ## Definition of done
 
 - `pnpm -r test` green (core sub/sup round-trip + admin display/buttons) ; `pnpm -r typecheck` clean
-  (incl. edge guard) ; `pnpm --filter @saytu/admin build` OK.
+  (incl. edge guard) ; `pnpm --filter @setu/admin build` OK.
 - `pnpm dev`: select text → bubble shows Subscript/Superscript buttons (with `⌘,` / `⌘.` tooltips)
   that toggle and survive a publish→reopen round-trip; the Turn-into menu rows show their shortcuts;
   `Cmd/Ctrl+/` cheat sheet lists block + sub/sup shortcuts.

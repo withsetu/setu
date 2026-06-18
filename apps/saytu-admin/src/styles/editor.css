@@ -4,7 +4,7 @@
    Ported faithfully from design/admin/editor.css.
    All var(--…) verified against tokens.css — no substitutions needed.
    ============================================================ */
-@import '@saytu/blocks/callout.css';
+@import '@setu/blocks/callout.css';
 
 /* ---- STATUS PENDING ANNOTATION (content list) ---- */
 .status-pending { font-size: 12px; color: var(--text-4); margin-left: 4px; font-weight: 500; }
@@ -40,7 +40,7 @@
 .ed-canvas { max-width: 720px; margin: 0 auto; padding: 64px 40px 40vh; position: relative; }
 
 /* ---- CALLOUT EDITOR-ONLY CHROME ---- */
-/* Structural callout styles are now in @saytu/blocks/callout.css (imported above). */
+/* Structural callout styles are now in @setu/blocks/callout.css (imported above). */
 .callout-title::placeholder { color: var(--text-4); font-weight: 600; }
 .tone-slate .callout-title::placeholder { color: color-mix(in oklch, #fff 55%, transparent); }
 

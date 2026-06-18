@@ -4,7 +4,7 @@
 
 **Goal:** Persist the admin's drafts + Git working set in IndexedDB so a page reload restores work instead of wiping it.
 
-**Architecture:** Two new adapter packages — `@saytu/db-idb` (DataPort) and `@saytu/git-idb` (GitPort) — backed by IndexedDB via the tiny `idb` wrapper, each passing the existing port contract suites. A shared, adapter-agnostic `bootstrapServices(data, git)` assembles the services and seeds samples only when empty; `main.tsx` wires the idb adapters in (with a loading state + in-memory fallback). A dev-only "Reset to sample content" is gated behind `import.meta.env.DEV`. **No `@saytu/core` engine changes.**
+**Architecture:** Two new adapter packages — `@setu/db-idb` (DataPort) and `@setu/git-idb` (GitPort) — backed by IndexedDB via the tiny `idb` wrapper, each passing the existing port contract suites. A shared, adapter-agnostic `bootstrapServices(data, git)` assembles the services and seeds samples only when empty; `main.tsx` wires the idb adapters in (with a loading state + in-memory fallback). A dev-only "Reset to sample content" is gated behind `import.meta.env.DEV`. **No `@setu/core` engine changes.**
 
 **Tech Stack:** TypeScript (strict: `noUncheckedIndexedAccess`, `verbatimModuleSyntax`), `idb` 8.x (ISC), `fake-indexeddb` 6.x (Apache-2.0, dev/test), Vitest, React 18, Vite.
 
@@ -29,13 +29,13 @@
 | `apps/saytu-admin/src/data/Bootstrap.tsx` | async-open idb + loading + fallback provider | 4 |
 | `apps/saytu-admin/src/data/reset.ts` | dev-only `resetToSampleContent()` | 4 |
 | `apps/saytu-admin/src/main.tsx` | wire `<Bootstrap>` + dev reset | 4 |
-| `apps/saytu-admin/package.json` | + `@saytu/db-idb`, `@saytu/git-idb` | 4 |
+| `apps/saytu-admin/package.json` | + `@setu/db-idb`, `@setu/git-idb` | 4 |
 
 > **Reference shapes:** mirror `packages/db-memory/` for package.json/tsconfig/vitest.config and the adapter's value-semantics (createdAt/updatedAt upsert), and `packages/git-memory/src/adapter.ts` for the deterministic `sha40`. Read them before writing.
 
 ---
 
-## Task 1: `@saytu/db-idb` — IndexedDB DataPort
+## Task 1: `@setu/db-idb` — IndexedDB DataPort
 
 **Files:** create `packages/db-idb/package.json`, `tsconfig.json`, `vitest.config.ts`, `src/adapter.ts`, `src/index.ts`, `test/contract.test.ts`.
 
@@ -45,7 +45,7 @@
 
 ```json
 {
-  "name": "@saytu/db-idb",
+  "name": "@setu/db-idb",
   "version": "0.0.0",
   "type": "module",
   "license": "AGPL-3.0-only",
@@ -53,9 +53,9 @@
   "types": "./src/index.ts",
   "exports": { ".": "./src/index.ts" },
   "scripts": { "test": "vitest run", "typecheck": "tsc --noEmit" },
-  "dependencies": { "@saytu/core": "workspace:*", "idb": "^8.0.3" },
+  "dependencies": { "@setu/core": "workspace:*", "idb": "^8.0.3" },
   "devDependencies": {
-    "@saytu/db-testing": "workspace:*",
+    "@setu/db-testing": "workspace:*",
     "fake-indexeddb": "^6.2.5",
     "typescript": "^5.6.3",
     "vitest": "^2.1.8"
@@ -83,7 +83,7 @@ Expected: resolves; `idb` + `fake-indexeddb` present.
 ```ts
 import 'fake-indexeddb/auto'
 import { describe, it, expect } from 'vitest'
-import { runDataPortContract } from '@saytu/db-testing'
+import { runDataPortContract } from '@setu/db-testing'
 import { createIdbDataPort } from '../src/index'
 
 let n = 0
@@ -114,7 +114,7 @@ describe('createIdbDataPort persistence', () => {
 
 - [ ] **Step 3: Run it — verify it fails**
 
-Run: `pnpm --filter @saytu/db-idb test`
+Run: `pnpm --filter @setu/db-idb test`
 Expected: FAIL — `createIdbDataPort` not exported.
 
 - [ ] **Step 4: Implement the adapter**
@@ -123,7 +123,7 @@ Expected: FAIL — `createIdbDataPort` not exported.
 
 ```ts
 import { openDB } from 'idb'
-import type { DataPort, Draft, DraftInput, EntryRef, Lock } from '@saytu/core'
+import type { DataPort, Draft, DraftInput, EntryRef, Lock } from '@setu/core'
 
 // NUL composite key — cannot appear in collection/locale/slug, so refs never collide.
 const keyOf = (r: EntryRef): string => `${r.collection}\0${r.locale}\0${r.slug}`
@@ -193,12 +193,12 @@ export { createIdbDataPort } from './adapter'
 
 - [ ] **Step 5: Run it — verify it passes**
 
-Run: `pnpm --filter @saytu/db-idb test`
+Run: `pnpm --filter @setu/db-idb test`
 Expected: PASS (all `runDataPortContract` cases + the persistence round-trip).
 
 - [ ] **Step 6: Typecheck**
 
-Run: `pnpm --filter @saytu/db-idb typecheck`
+Run: `pnpm --filter @setu/db-idb typecheck`
 Expected: PASS (`idb` returns `any` from `get`/`getAll`, so the `as Draft`/`as Lock` casts are required under `noUncheckedIndexedAccess`).
 
 - [ ] **Step 7: Commit**
@@ -212,7 +212,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ---
 
-## Task 2: `@saytu/git-idb` — IndexedDB GitPort
+## Task 2: `@setu/git-idb` — IndexedDB GitPort
 
 **Files:** create `packages/git-idb/package.json`, `tsconfig.json`, `vitest.config.ts`, `src/adapter.ts`, `src/index.ts`, `test/contract.test.ts`.
 
@@ -222,7 +222,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ```json
 {
-  "name": "@saytu/git-idb",
+  "name": "@setu/git-idb",
   "version": "0.0.0",
   "type": "module",
   "license": "AGPL-3.0-only",
@@ -230,9 +230,9 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
   "types": "./src/index.ts",
   "exports": { ".": "./src/index.ts" },
   "scripts": { "test": "vitest run", "typecheck": "tsc --noEmit" },
-  "dependencies": { "@saytu/core": "workspace:*", "idb": "^8.0.3" },
+  "dependencies": { "@setu/core": "workspace:*", "idb": "^8.0.3" },
   "devDependencies": {
-    "@saytu/git-testing": "workspace:*",
+    "@setu/git-testing": "workspace:*",
     "fake-indexeddb": "^6.2.5",
     "typescript": "^5.6.3",
     "vitest": "^2.1.8"
@@ -249,7 +249,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```ts
 import 'fake-indexeddb/auto'
 import { describe, it, expect } from 'vitest'
-import { runGitPortContract } from '@saytu/git-testing'
+import { runGitPortContract } from '@setu/git-testing'
 import { createIdbGitPort } from '../src/index'
 
 const author = { name: 'Test', email: 'test@x.com' }
@@ -275,7 +275,7 @@ describe('createIdbGitPort persistence', () => {
 
 - [ ] **Step 3: Run it — verify it fails**
 
-Run: `pnpm --filter @saytu/git-idb test`
+Run: `pnpm --filter @setu/git-idb test`
 Expected: FAIL — `createIdbGitPort` not exported.
 
 - [ ] **Step 4: Implement the adapter**
@@ -284,7 +284,7 @@ Expected: FAIL — `createIdbGitPort` not exported.
 
 ```ts
 import { openDB } from 'idb'
-import type { CommitInput, CommitResult, GitPort } from '@saytu/core'
+import type { CommitInput, CommitResult, GitPort } from '@setu/core'
 
 // Deterministic 40-char hex digest (no Date.now/Math.random): 5 salted FNV-1a
 // passes. Distinct per commit because the persisted counter is mixed in.
@@ -347,12 +347,12 @@ export { createIdbGitPort } from './adapter'
 
 - [ ] **Step 5: Run it — verify it passes**
 
-Run: `pnpm --filter @saytu/git-idb test`
+Run: `pnpm --filter @setu/git-idb test`
 Expected: PASS (`runGitPortContract` + persistence round-trip).
 
 - [ ] **Step 6: Typecheck**
 
-Run: `pnpm --filter @saytu/git-idb typecheck`
+Run: `pnpm --filter @setu/git-idb typecheck`
 Expected: PASS.
 
 - [ ] **Step 7: Commit**
@@ -376,8 +376,8 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ```tsx
 import { describe, it, expect } from 'vitest'
-import { createMemoryDataPort } from '@saytu/db-memory'
-import { createMemoryGitPort } from '@saytu/git-memory'
+import { createMemoryDataPort } from '@setu/db-memory'
+import { createMemoryGitPort } from '@setu/git-memory'
 import { bootstrapServices, seedDrafts } from '../src/data/store'
 
 describe('bootstrapServices seed-on-empty', () => {
@@ -408,7 +408,7 @@ describe('bootstrapServices seed-on-empty', () => {
 
 - [ ] **Step 2: Run it — verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- bootstrap`
+Run: `pnpm --filter @setu/admin test -- bootstrap`
 Expected: FAIL — `bootstrapServices` not exported.
 
 - [ ] **Step 3: Implement `bootstrapServices` + `seedIfEmpty`**
@@ -439,12 +439,12 @@ export async function bootstrapServices(data: DataPort, git: GitPort): Promise<S
 
 - [ ] **Step 4: Run it — verify it passes**
 
-Run: `pnpm --filter @saytu/admin test -- bootstrap`
+Run: `pnpm --filter @setu/admin test -- bootstrap`
 Expected: PASS (3 cases).
 
 - [ ] **Step 5: Typecheck + full admin suite**
 
-Run: `pnpm --filter @saytu/admin typecheck && pnpm --filter @saytu/admin test`
+Run: `pnpm --filter @setu/admin typecheck && pnpm --filter @setu/admin test`
 Expected: PASS (existing suite unaffected — `createServices`/`servicesFor` unchanged).
 
 - [ ] **Step 6: Commit**
@@ -467,8 +467,8 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 In `apps/saytu-admin/package.json` `dependencies`, add (all three — `idb` is imported directly by `reset.ts` for `deleteDB`, so it must be a declared dep under pnpm-strict):
 
 ```json
-    "@saytu/db-idb": "workspace:*",
-    "@saytu/git-idb": "workspace:*",
+    "@setu/db-idb": "workspace:*",
+    "@setu/git-idb": "workspace:*",
     "idb": "^8.0.3",
 ```
 
@@ -481,10 +481,10 @@ Then `pnpm install` from the root.
 ```tsx
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { createMemoryDataPort } from '@saytu/db-memory'
-import { createMemoryGitPort } from '@saytu/git-memory'
-import { createIdbDataPort } from '@saytu/db-idb'
-import { createIdbGitPort } from '@saytu/git-idb'
+import { createMemoryDataPort } from '@setu/db-memory'
+import { createMemoryGitPort } from '@setu/git-memory'
+import { createIdbDataPort } from '@setu/db-idb'
+import { createIdbGitPort } from '@setu/git-idb'
 import { bootstrapServices, ServicesProvider, type Services } from './store'
 
 /** Opens the persistent (IndexedDB) adapters, seeds-if-empty, and provides the
@@ -608,7 +608,7 @@ Append to `apps/saytu-admin/src/styles/editor.css` (or `index.css` — pick the 
 
 - [ ] **Step 6: Typecheck + full admin suite + build**
 
-Run: `pnpm --filter @saytu/admin typecheck && pnpm --filter @saytu/admin test && pnpm --filter @saytu/admin build`
+Run: `pnpm --filter @setu/admin typecheck && pnpm --filter @setu/admin test && pnpm --filter @setu/admin build`
 Expected: PASS. Build succeeds; confirm the dev reset is eliminated: `grep -c "Reset to sample content" apps/saytu-admin/dist/assets/*.js` → `0` (Vite drops the `import.meta.env.DEV` branch).
 
 - [ ] **Step 7: Manual smoke (reviewer)**
@@ -628,9 +628,9 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ## Task 5: Full verification
 
-- [ ] **Step 1: Whole suite** — Run: `pnpm -r test` — expect every package green, incl. new `@saytu/db-idb` + `@saytu/git-idb` (contract + round-trip) and the admin bootstrap test.
+- [ ] **Step 1: Whole suite** — Run: `pnpm -r test` — expect every package green, incl. new `@setu/db-idb` + `@setu/git-idb` (contract + round-trip) and the admin bootstrap test.
 - [ ] **Step 2: Typecheck** — Run: `pnpm -r typecheck` — expect clean (incl. core edge guard).
-- [ ] **Step 3: Build (dev reset absent + fonts + jiti-free)** — Run: `pnpm --filter @saytu/admin build`; then `grep -c "Reset to sample content" apps/saytu-admin/dist/assets/*.js` → `0`; brand fonts still linked in `dist/index.html`.
+- [ ] **Step 3: Build (dev reset absent + fonts + jiti-free)** — Run: `pnpm --filter @setu/admin build`; then `grep -c "Reset to sample content" apps/saytu-admin/dist/assets/*.js` → `0`; brand fonts still linked in `dist/index.html`.
 - [ ] **Step 4: Manual** — `pnpm dev`, reload persists; idb + the in-memory fallback both work (the fallback is exercised by temporarily disabling IndexedDB in devtools, optional).
 
 ---
@@ -638,7 +638,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ## Self-Review Notes (author)
 
 - **Spec coverage:** db-idb → Task 1; git-idb → Task 2; adapter-agnostic `bootstrapServices` + seed-on-empty (tested with in-memory) → Task 3; async `main.tsx` wiring + loading + in-memory fallback + dev-gated reset → Task 4; suite/build/no-dev-reset-in-prod → Task 5. The "tested == shipped" decision is realized: Task 3 tests the *same* bootstrap the app runs (Task 4), only the adapter differs.
-- **No engine changes:** only new packages + app wiring; `@saytu/core` untouched. New deps: `idb` (ISC) in db-idb/git-idb/admin, `fake-indexeddb` (Apache-2.0) devDep in the two adapter packages.
+- **No engine changes:** only new packages + app wiring; `@setu/core` untouched. New deps: `idb` (ISC) in db-idb/git-idb/admin, `fake-indexeddb` (Apache-2.0) devDep in the two adapter packages.
 - **Contract-fresh adapters:** idb `makeAdapter` uses a unique `dbName` per call so `runDataPortContract`/`runGitPortContract` (fresh per `beforeEach`) get empty stores; `fake-indexeddb/auto` polyfills global `indexedDB` in Node.
 - **Type consistency:** `createIdbDataPort(dbName?) => Promise<DataPort>`, `createIdbGitPort(dbName?) => Promise<GitPort>` (no `close` — GitPort has none), `bootstrapServices(data, git) => Promise<Services>`, `resetToSampleContent() => Promise<void>` — used identically across tasks.
 - **Honest test scope:** the idb adapters + the seed logic are fully tested; the `main.tsx`/`Bootstrap` glue + dev reset are verified by build + manual (consistent with prior glue-layer deferrals). The build grep proves the dev reset is compiled out.

@@ -64,7 +64,7 @@ describe('StatusPill', () => {
 })
 ```
 
-- [ ] **Step 2: Run — expect FAIL** (`Icon`/`StatusPill` missing). `pnpm --filter @saytu/admin test -- icon status-pill`
+- [ ] **Step 2: Run — expect FAIL** (`Icon`/`StatusPill` missing). `pnpm --filter @setu/admin test -- icon status-pill`
 
 - [ ] **Step 3: Implement `Icon`** — Create `apps/saytu-admin/src/ui/Icon.tsx`.
 
@@ -154,8 +154,8 @@ Then import it in `apps/saytu-admin/src/index.css` — add after the tokens impo
 - [ ] **Step 6: Run tests (PASS) + typecheck**
 
 ```bash
-pnpm --filter @saytu/admin test -- icon status-pill
-pnpm --filter @saytu/admin typecheck
+pnpm --filter @setu/admin test -- icon status-pill
+pnpm --filter @setu/admin typecheck
 ```
 Expected: 4 new tests pass; typecheck clean.
 
@@ -189,7 +189,7 @@ git commit -m "feat(admin): port Icon set + StatusPill primitives + base compone
 ```
 (Note: the existing `getByRole('link', { name: 'Posts' })` assertions may need the `name` matcher relaxed to a regex if the accessible name now includes icon context — adjust those existing assertions to `name: /Posts/` etc. if needed so they still pass.)
 
-- [ ] **Step 2: Run — expect FAIL** (no icons yet). `pnpm --filter @saytu/admin test -- sidebar`
+- [ ] **Step 2: Run — expect FAIL** (no icons yet). `pnpm --filter @setu/admin test -- sidebar`
 
 - [ ] **Step 3: Rebuild the Sidebar markup** — Replace `apps/saytu-admin/src/shell/Sidebar.tsx`:
 ```tsx
@@ -306,8 +306,8 @@ export function Sidebar() {
 - [ ] **Step 5: Run tests (PASS) + typecheck**
 
 ```bash
-pnpm --filter @saytu/admin test -- sidebar
-pnpm --filter @saytu/admin typecheck
+pnpm --filter @setu/admin test -- sidebar
+pnpm --filter @setu/admin typecheck
 ```
 Expected: sidebar tests (nav labels, icons, workspace name, theme toggle) pass; typecheck clean. If the existing `getByRole('link', {name:'Posts'})` assertions broke because the accessible name changed, relax them to regex (`name: /Posts/`).
 
@@ -335,7 +335,7 @@ git commit -m "feat(admin): sidebar fidelity — icons, workspace header, ported
 ```
 (Keep the empty-state test as `findByText(/no posts yet/i)`.)
 
-- [ ] **Step 2: Run — expect FAIL** (PageHeader + StatusPill not wired). `pnpm --filter @saytu/admin test -- content-list`
+- [ ] **Step 2: Run — expect FAIL** (PageHeader + StatusPill not wired). `pnpm --filter @setu/admin test -- content-list`
 
 - [ ] **Step 3: Implement a simplified PageHeader** — Create `apps/saytu-admin/src/shell/PageHeader.tsx`:
 ```tsx
@@ -372,7 +372,7 @@ export function PageHeader({
 ```tsx
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { Draft } from '@saytu/core'
+import type { Draft } from '@setu/core'
 import { useData } from '../data/store'
 import { PageHeader } from '../shell/PageHeader'
 import { StatusPill } from '../ui/StatusPill'
@@ -452,9 +452,9 @@ export function ContentList({ collection, title }: { collection: string; title: 
 - [ ] **Step 6: Full verification + commit**
 
 ```bash
-pnpm --filter @saytu/admin test
-pnpm --filter @saytu/admin typecheck
-pnpm --filter @saytu/admin build     # confirm it builds + brand fonts still in dist/index.html
+pnpm --filter @setu/admin test
+pnpm --filter @setu/admin typecheck
+pnpm --filter @setu/admin build     # confirm it builds + brand fonts still in dist/index.html
 pnpm test && pnpm typecheck           # whole monorepo green
 ```
 Expected: all admin tests pass (icon 2 + status-pill 2 + sidebar [4] + content-list [4] + smoke 2); db/core suites unaffected; typecheck clean; build succeeds.

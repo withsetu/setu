@@ -17,7 +17,7 @@ whole repo by self-hosting fonts via `@fontsource` (site theme **and** admin chr
 
 **Architecture:** the theme package declares its options in an `options.ts` (the "options API" —
 each knob: key, label, type, default, the token(s) it drives, and for fonts the curated
-`@fontsource` choices). `@saytu/core` config gains an additive optional `themeOptions` map (chosen
+`@fontsource` choices). `@setu/core` config gains an additive optional `themeOptions` map (chosen
 values), passed through exactly like the `theme` field (3b) — round-trip/content untouched. At
 build, a **pure** `optionsToCss(values)` in the theme turns the chosen values into a `:root { … }`
 override block the Layout injects after `theme.css`; because every theme token is
@@ -26,7 +26,7 @@ back to the theme's defaults (a non-coder cannot break the site). Fonts are self
 `@fontsource`; the Layout declares all curated faces but the visitor downloads only the **selected**
 one (browsers fetch a font file only when its family actually renders).
 
-**Tech stack:** Astro 6 · `@saytu/theme-default` (gains `options.ts` + font CSS) · `@saytu/core`
+**Tech stack:** Astro 6 · `@setu/theme-default` (gains `options.ts` + font CSS) · `@setu/core`
 config (new additive `themeOptions` field; read at build via the existing `loadConfig`/jiti from 3b)
 · `@fontsource-variable/*` (self-hosted OFL/Apache-2.0 fonts — verified on npm) · Vitest.
 
@@ -38,7 +38,7 @@ config (new additive `themeOptions` field; read at build via the existing `loadC
 - **Theme options manifest** — `packages/theme-default/options.ts` declaring the five knobs (the
   options API) + a pure `optionsToCss(values)` that maps chosen values → a `:root { … }` override
   string (falling back to per-knob defaults for missing/invalid values).
-- **`themeOptions` config field** (`@saytu/core`) — additive, optional
+- **`themeOptions` config field** (`@setu/core`) — additive, optional
   `themeOptions?: Record<string, string>` on `SaytuConfig` + `ResolvedConfig` + schema
   (pass-through, mirrors the `theme` field). Never read by the Markdoc converter.
 - **Build application** — the Layout reads the resolved `themeOptions`, runs the theme's
@@ -118,7 +118,7 @@ today's look.)
 - Return a single `:root { … }` string (empty `:root {}` is fine when all values are default).
 
 This function is the engine's heart and the primary unit-test target. It lives in the theme (the
-theme owns its tokens); `@saytu/core` only carries the values through.
+theme owns its tokens); `@setu/core` only carries the values through.
 
 **Accent cascade fix:** `theme.css` currently hard-codes `--accent-strong: #4338ca`. Change it to
 derive from `--accent` (e.g. `--accent-strong: color-mix(in oklch, var(--accent) 82%, black);`) so
@@ -149,7 +149,7 @@ body face) + mono. Declaring ~6 unused `@font-face` blocks is a few KB of CSS te
 the visitor. (Known minor tradeoff: the *deployed static bundle* contains the unused `.woff2`
 assets; invisible to visitors; a future build-time prune is an easy optimisation, noted not done.)
 
-## 4. The `themeOptions` config field (`@saytu/core`)
+## 4. The `themeOptions` config field (`@setu/core`)
 
 Additive change to `packages/core/src/config/`, mirroring the 3b `theme` field exactly:
 - `types.ts`: `SaytuConfig` + `ResolvedConfig` gain `themeOptions?: Record<string, string>`.
@@ -214,7 +214,7 @@ Either way the values reach the Layout; the apply mechanism (values → `:root` 
 
 1. The default theme **declares its options** in `options.ts` (the five knobs) — a generic,
    panel-ready API; `optionsToCss` applies chosen values as `:root` token overrides.
-2. `@saytu/core` gains an additive `themeOptions` config field; round-trip/content untouched
+2. `@setu/core` gains an additive `themeOptions` config field; round-trip/content untouched
    (existing core tests still green + new ones).
 3. Setting `themeOptions` in `saytu.config` **visibly retunes** the built site (accent/font/width/
    size/corners), proven by a build test; **default/empty reproduces today's look.**
@@ -228,7 +228,7 @@ Either way the values reach the Layout; the apply mechanism (values → `:root` 
 - **Bridge constraint (owner-aligned split):** the full WordPress Customizer needs the admin to
   *save* values to the live site — the deferred editor→disk bridge. 3c builds the engine with values
   in committed config (no bridge); the visual panel follows. Surfaced and agreed with the owner.
-- **Touches `@saytu/core`** — additively (a config field), zero effect on the round-trip/content
+- **Touches `@setu/core`** — additively (a config field), zero effect on the round-trip/content
   path. Same safety profile as the 3b `theme` field; the converter never reads it.
 - **Font delivery is the one intentional visible change** — Google `<link>` → self-hosted
   `@font-face`. The single no-regression test asserting the Google link is updated; everything else

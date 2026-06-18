@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import type { Draft, TiptapDoc } from '@saytu/core'
+import type { Draft, TiptapDoc } from '@setu/core'
 import { ActorProvider } from '../src/auth/actor'
 import { ServicesProvider, createServices } from '../src/data/store'
 import type { Services } from '../src/data/store'

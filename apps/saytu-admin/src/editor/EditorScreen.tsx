@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import type { Draft, DraftInput, Lifecycle, TiptapDoc } from '@saytu/core'
+import type { Draft, DraftInput, Lifecycle, TiptapDoc } from '@setu/core'
 import { Icon } from '../ui/Icon'
 import { useServices } from '../data/store'
 import { useCan } from '../auth/actor'

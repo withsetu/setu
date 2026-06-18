@@ -26,7 +26,7 @@ Saytu DXP bridges the gap between marketing velocity and engineering excellence.
 
 Saytu's core logic never hardcodes its environment. The system relies on abstract interfaces ("ports"); concrete implementations ("adapters") are selected per topology. This prevents vendor lock-in and lets the CMS morph across deployment topologies via plugins/addons.
 
-* **The Core (`@saytu/core`):** Pure TypeScript logic. Handles Tiptap JSON ↔ Markdoc AST conversion, content-model/schema validation, draft/lock orchestration, the publish pipeline, redirect generation, and Git commit generation.
+* **The Core (`@setu/core`):** Pure TypeScript logic. Handles Tiptap JSON ↔ Markdoc AST conversion, content-model/schema validation, draft/lock orchestration, the publish pipeline, redirect generation, and Git commit generation.
 * **`DataPort` (Database):** The DB is **not** the source of truth for published content (see §2) — it is a derived index/cache plus the live store for drafts, locks, users/roles, and UGC (form submissions). Surface: content index (`db.get()`, `db.query()`, FTS5 search), drafts, locks, plus identity & submissions owned by the auth library and form handler.
 * **`StoragePort` (Media):** `storage.signUpload()`, `storage.delete()`, `storage.signUrl()`.
 * **`ImagePort` (Optimization):** pluggable image transform/optimization (see §11). Default is build-time sharp; runtime adapters for SSR.
@@ -98,7 +98,7 @@ The relationship between the Headless Editor (Tiptap), Content Syntax (Markdoc),
 
 * Developers define content blocks, expected props, Zod schemas, **collections (§3)**, and **permalink patterns (§4)** here.
 * The Tiptap Editor reads it to generate slash-menu commands, block UI, and prop sidebars; the Markdoc parser reads it to validate the AST; the Astro frontend reads it to map AST nodes to components.
-* **Child Theming & Component Overrides:** configuration-based overriding, not folder-based child themes. Install a base theme (`import baseTheme from '@saytu/theme-minimal'`), then override specific components in local config (e.g. map `Callout` → `src/components/MyCallout.astro`). The CMS updates both the live site and the editor preview (via §10; on edge, after the component is in the deployed build).
+* **Child Theming & Component Overrides:** configuration-based overriding, not folder-based child themes. Install a base theme (`import baseTheme from '@setu/theme-minimal'`), then override specific components in local config (e.g. map `Callout` → `src/components/MyCallout.astro`). The CMS updates both the live site and the editor preview (via §10; on edge, after the component is in the deployed build).
 * **Roadmap (WordPress/Drupal Conversion):** future CLI tools compile WordPress `theme.json` / Gutenberg patterns or Drupal modules into a Saytu Theme Manifest.
 
 ## 9. Authoring, Drafts & Concurrency
@@ -121,7 +121,7 @@ Non-technical users must never face Git merge conflicts. Saytu uses **DB-backed 
 
 To keep Git lean, large binaries never live in Git.
 
-* **Storage (`StoragePort`):** **S3-compatible first** (`@saytu/storage-s3`, AWS SDK v3 → B2/R2/AWS/MinIO) and **local** (`@saytu/storage-local` → `/public/uploads/drafts`). Upload pipeline: Tiptap drop → Storage Adapter → on edge a **pre-signed POST policy** (size cap via `content-length-range`, e.g. 5 MB) → browser uploads direct → CDN link embedded in the AST → on publish, draft assets sync to the provider before the Git commit.
+* **Storage (`StoragePort`):** **S3-compatible first** (`@setu/storage-s3`, AWS SDK v3 → B2/R2/AWS/MinIO) and **local** (`@setu/storage-local` → `/public/uploads/drafts`). Upload pipeline: Tiptap drop → Storage Adapter → on edge a **pre-signed POST policy** (size cap via `content-length-range`, e.g. 5 MB) → browser uploads direct → CDN link embedded in the AST → on publish, draft assets sync to the provider before the Git commit.
 * **Media library (V1, free):** asset browser, reuse, **alt-text** (a11y/SEO), search/folders.
 * **Image optimization (`ImagePort`):**
   * **Build-time default (all topologies / SSG):** Astro `<Image/>` + **sharp** → responsive `srcset`/AVIF/WebP. Free, covers every SSG case.
@@ -277,7 +277,7 @@ saytu/
 │   ├── email/               # EmailPort + SMTP / Resend / Postmark / SES adapters
 │   ├── search/              # Pagefind pipeline integration + FTS5 helpers
 │   ├── create-saytu/        # Scaffolding CLI (bun create saytu) + `saytu init`
-│   └── astro-integration/   # @saytu/astro - injects /admin routes, Hono APIs, preview render
+│   └── astro-integration/   # @setu/astro - injects /admin routes, Hono APIs, preview render
 │
 ├── package.json
 ├── pnpm-workspace.yaml

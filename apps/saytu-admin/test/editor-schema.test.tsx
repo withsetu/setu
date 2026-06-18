@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
-import type { TiptapDoc } from '@saytu/core'
-import { markdocToTiptap, tiptapToMarkdoc } from '@saytu/core'
+import type { TiptapDoc } from '@setu/core'
+import { markdocToTiptap, tiptapToMarkdoc } from '@setu/core'
 import { Callout } from '../src/editor/extensions/Callout'
 import { Passthrough } from '../src/editor/extensions/Passthrough'
 

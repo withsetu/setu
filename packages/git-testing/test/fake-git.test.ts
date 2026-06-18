@@ -1,5 +1,5 @@
 import { runGitPortContract } from '../src/index'
-import type { GitPort } from '@saytu/core'
+import type { GitPort } from '@setu/core'
 
 /** A correct in-memory GitPort — proves the contract passes a valid
  *  implementation (and would fail a broken one). */

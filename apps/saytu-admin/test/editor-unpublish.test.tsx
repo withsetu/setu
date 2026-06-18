@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { contentPath, parseMdoc } from '@saytu/core'
+import { contentPath, parseMdoc } from '@setu/core'
 import { ActorProvider } from '../src/auth/actor'
 import { ServicesProvider, createServices } from '../src/data/store'
 import { DeployProvider } from '../src/deploy/deploy'

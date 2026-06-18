@@ -1,5 +1,5 @@
 import { serve } from '@hono/node-server'
-import { createLocalGitAdapter } from '@saytu/git-local'
+import { createLocalGitAdapter } from '@setu/git-local'
 import { createGitApi } from './app'
 
 const dir = process.env.SAYTU_REPO_DIR ?? process.cwd()

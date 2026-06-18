@@ -4,7 +4,7 @@
 
 **Goal:** Add a Checklist block (Tiptap TaskList/TaskItem, GFM `- [ ]`/`- [x]` round-trip) and make nesting work for ALL list types (bullet, numbered, checklist, mixed, unlimited depth) by making the core converter recursive.
 
-**Architecture:** All checklist + nesting logic lives in `@saytu/core`'s Markdoc converter (Markdoc itself needs no plugin — it already round-trips `- [ ]` and nested lists as plain text/sub-lists, verified byte-clean both directions). The converter's list conversion becomes recursive in both directions; checklist detection is per-list-level (an unordered list whose every item starts with a `[ ]`/`[x]`/`[X]` marker). The admin app registers the MIT `@tiptap/extension-list` TaskList/TaskItem, adds one `BLOCK_TYPES` entry (auto-surfacing in slash menu + bubble List group), teaches the custom Tab handler about task items, and adds Shift-Tab outdent + CSS.
+**Architecture:** All checklist + nesting logic lives in `@setu/core`'s Markdoc converter (Markdoc itself needs no plugin — it already round-trips `- [ ]` and nested lists as plain text/sub-lists, verified byte-clean both directions). The converter's list conversion becomes recursive in both directions; checklist detection is per-list-level (an unordered list whose every item starts with a `[ ]`/`[x]`/`[X]` marker). The admin app registers the MIT `@tiptap/extension-list` TaskList/TaskItem, adds one `BLOCK_TYPES` entry (auto-surfacing in slash menu + bubble List group), teaches the custom Tab handler about task items, and adds Shift-Tab outdent + CSS.
 
 **Tech Stack:** TypeScript (strict: `noUncheckedIndexedAccess`, `verbatimModuleSyntax`), Vitest, `@markdoc/markdoc` 0.5.7, Tiptap v3.26.1 (`@tiptap/extension-list` MIT), pnpm workspaces.
 
@@ -126,7 +126,7 @@ describe('task lists + nesting (markdocToTiptap)', () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `pnpm --filter @saytu/core test -- to-tiptap`
+Run: `pnpm --filter @setu/core test -- to-tiptap`
 Expected: FAIL — the task-list cases get `bulletList`/dropped-nesting from the current flat `case 'list'`.
 
 - [ ] **Step 3: Implement recursive `listToTiptap` + helpers**
@@ -196,12 +196,12 @@ Then replace the existing `case 'list':` block in `blockToTiptap` with:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `pnpm --filter @saytu/core test -- to-tiptap`
+Run: `pnpm --filter @setu/core test -- to-tiptap`
 Expected: PASS (new task/nesting cases + existing list cases all green).
 
 - [ ] **Step 5: Run typecheck (incl. edge guard)**
 
-Run: `pnpm --filter @saytu/core typecheck`
+Run: `pnpm --filter @setu/core typecheck`
 Expected: PASS — `tsc` + `tsc -p tsconfig.edge.json` clean (converter stays Node-free).
 
 - [ ] **Step 6: Commit**
@@ -289,7 +289,7 @@ describe('task lists + nesting (tiptapToMarkdoc)', () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `pnpm --filter @saytu/core test -- to-markdoc`
+Run: `pnpm --filter @setu/core test -- to-markdoc`
 Expected: FAIL — `taskList` hits the `default` case (empty paragraph); nested lists dropped.
 
 - [ ] **Step 3: Implement `buildListItem` + extend the list branch**
@@ -332,12 +332,12 @@ Then replace the `case 'bulletList': case 'orderedList':` block in `buildBlock` 
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `pnpm --filter @saytu/core test -- to-markdoc`
+Run: `pnpm --filter @setu/core test -- to-markdoc`
 Expected: PASS (new task/nesting cases + existing list cases green).
 
 - [ ] **Step 5: Run typecheck (incl. edge guard)**
 
-Run: `pnpm --filter @saytu/core typecheck`
+Run: `pnpm --filter @setu/core typecheck`
 Expected: PASS.
 
 - [ ] **Step 6: Commit**
@@ -413,12 +413,12 @@ describe('checklist content-safety negatives', () => {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `pnpm --filter @saytu/core test -- roundtrip.examples`
+Run: `pnpm --filter @setu/core test -- roundtrip.examples`
 Expected: PASS — every new sample is idempotent and byte-identical; negatives preserve content.
 
 - [ ] **Step 5: Run the whole core suite + typecheck**
 
-Run: `pnpm --filter @saytu/core test && pnpm --filter @saytu/core typecheck`
+Run: `pnpm --filter @setu/core test && pnpm --filter @setu/core typecheck`
 Expected: PASS — all existing core tests (incl. `roundtrip.property`) stay green; edge guard clean; no new core deps.
 
 - [ ] **Step 6: Commit**
@@ -479,7 +479,7 @@ describe('task list extension', () => {
 
 - [ ] **Step 3: Run test to verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- task-list`
+Run: `pnpm --filter @setu/admin test -- task-list`
 Expected: FAIL until `@tiptap/extension-list` is installed (Step 1) — the import won't resolve. (Once installed it passes immediately; the test mainly guards that the extension/command surface is available for Canvas + block-types.)
 
 - [ ] **Step 4: Register in Canvas**
@@ -499,7 +499,7 @@ And in the `extensions` array, add after the `Superscript.extend(...)` line:
 
 - [ ] **Step 5: Run test + build to verify**
 
-Run: `pnpm --filter @saytu/admin test -- task-list && pnpm --filter @saytu/admin build`
+Run: `pnpm --filter @setu/admin test -- task-list && pnpm --filter @setu/admin build`
 Expected: PASS; build OK (fonts + jiti-free, no bundle errors).
 
 - [ ] **Step 6: Commit**
@@ -548,7 +548,7 @@ In `apps/saytu-admin/test/blocks.test.ts`, add to the slash-menu titles test (th
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `pnpm --filter @saytu/admin test -- turn-into-groups blocks`
+Run: `pnpm --filter @setu/admin test -- turn-into-groups blocks`
 Expected: FAIL — no `taskList` entry; List group has two items; no 'Checklist' slash title.
 
 - [ ] **Step 3: Implement**
@@ -573,12 +573,12 @@ In `apps/saytu-admin/src/editor/blocks.ts`, add to the `SUBTITLES` record:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `pnpm --filter @saytu/admin test -- turn-into-groups blocks`
+Run: `pnpm --filter @setu/admin test -- turn-into-groups blocks`
 Expected: PASS.
 
 - [ ] **Step 5: Typecheck**
 
-Run: `pnpm --filter @saytu/admin typecheck`
+Run: `pnpm --filter @setu/admin typecheck`
 Expected: PASS — `setOn: (c) => c.toggleTaskList()` typechecks (`@tiptap/extension-list` registers the `toggleTaskList` command type via the new dep added in Task 4).
 
 - [ ] **Step 6: Commit**
@@ -625,7 +625,7 @@ And inside the `describe('tabActionFor', ...)` block:
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- tab-nav`
+Run: `pnpm --filter @setu/admin test -- tab-nav`
 Expected: FAIL — `tabActionFor` returns `'consume'` for a task item (only checks `listItem`).
 
 - [ ] **Step 3: Implement**
@@ -665,12 +665,12 @@ Update the `Tab` handler body (sink the active item type) and add `Shift-Tab` (l
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `pnpm --filter @saytu/admin test -- tab-nav`
+Run: `pnpm --filter @setu/admin test -- tab-nav`
 Expected: PASS — `tabActionFor` returns `'indent'` for both item types; existing Tab/escape tests stay green.
 
 - [ ] **Step 5: Typecheck**
 
-Run: `pnpm --filter @saytu/admin typecheck`
+Run: `pnpm --filter @setu/admin typecheck`
 Expected: PASS — `sinkListItem`/`liftListItem` accept the item-type-name string.
 
 - [ ] **Step 6: Commit**
@@ -708,12 +708,12 @@ In `apps/saytu-admin/src/editor/styles/editor.css`, after the existing `.saytu-p
 
 - [ ] **Step 2: Build to verify CSS is valid + bundled**
 
-Run: `pnpm --filter @saytu/admin build`
+Run: `pnpm --filter @setu/admin build`
 Expected: PASS — no CSS/build errors.
 
 - [ ] **Step 3: Manual visual check**
 
-Run: `pnpm --filter @saytu/admin dev` (one clean server; kill any stale ones first).
+Run: `pnpm --filter @setu/admin dev` (one clean server; kill any stale ones first).
 Verify in the browser:
 - `/` → Checklist inserts a task list with a clickable checkbox; clicking toggles done (strike-through).
 - Select text → bubble → List ▸ → Checklist (shows ⌘⇧9); converts the block.
@@ -743,7 +743,7 @@ Expected: Clean — `tsc` + core `tsconfig.edge.json` (converter Node-free).
 
 - [ ] **Step 3: Admin build**
 
-Run: `pnpm --filter @saytu/admin build`
+Run: `pnpm --filter @setu/admin build`
 Expected: OK — `@tiptap/extension-list` is the only new dependency; fonts + jiti-free.
 
 - [ ] **Step 4: Dispatch final code reviewer**, then use `superpowers:finishing-a-development-branch` (merge `--no-ff` to local main + push; remove worktree; delete branch), and update `memory/saytu-project.md` with the slice-3 entry (checklist + list-wide nesting; the "Markdoc treats `- [ ]` as literal text so all logic is in our converter" finding; the recursive-list pattern; TaskItem `nested: true` requirement).
@@ -752,6 +752,6 @@ Expected: OK — `@tiptap/extension-list` is the only new dependency; fonts + ji
 
 ## Definition of Done (from spec)
 
-- `pnpm -r test` green; `pnpm -r typecheck` clean (incl. edge guard); `pnpm --filter @saytu/admin build` OK.
+- `pnpm -r test` green; `pnpm -r typecheck` clean (incl. edge guard); `pnpm --filter @setu/admin build` OK.
 - `pnpm dev`: bubble List ▸ shows Bullet / Numbered / **Checklist** (⌘⇧9); `/` inserts a Checklist; checkbox toggles done; **Tab nests** any list item and **Shift-Tab outdents**; checklists + nested lists survive publish→reopen byte-clean; cheat sheet lists the Checklist shortcut.
 - Built test-first via the subagent-driven flow.

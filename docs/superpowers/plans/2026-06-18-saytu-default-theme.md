@@ -4,18 +4,18 @@
 
 **Goal:** Give the Saytu site a real, designed look — one typographic identity, a header/footer shell, and Post (narrow) + Page (wider) templates — built from tokens-with-defaults so it's fully customization-ready.
 
-**Architecture:** The default theme lives in `apps/saytu-site`: a `theme.css` token layer (the knobs, with defaults), a `Layout.astro` shell (head/fonts/header/footer), per-collection `PostLayout`/`PageLayout`, and token-driven prose. Blocks (`@saytu/blocks`) already style via `var(--token, fallback)`, so defining the tokens makes every block render themed and match the editor. Pure CSS + Astro layouts.
+**Architecture:** The default theme lives in `apps/saytu-site`: a `theme.css` token layer (the knobs, with defaults), a `Layout.astro` shell (head/fonts/header/footer), per-collection `PostLayout`/`PageLayout`, and token-driven prose. Blocks (`@setu/blocks`) already style via `var(--token, fallback)`, so defining the tokens makes every block render themed and match the editor. Pure CSS + Astro layouts.
 
-**Tech Stack:** Astro 6 · CSS custom properties · Google Fonts via `<link>` (Hanken Grotesk + JetBrains Mono) · `@saytu/blocks` (unchanged) · Vitest build-and-assert (extends `apps/saytu-site/test/render.test.ts`).
+**Tech Stack:** Astro 6 · CSS custom properties · Google Fonts via `<link>` (Hanken Grotesk + JetBrains Mono) · `@setu/blocks` (unchanged) · Vitest build-and-assert (extends `apps/saytu-site/test/render.test.ts`).
 
 ## Global Constraints
 
-- **No new dependencies.** Fonts load via a Google Fonts `<link>` in the layout `<head>` (no fontsource). No `@saytu/core` / `@saytu/blocks` changes — the theme only *defines* tokens those blocks read.
+- **No new dependencies.** Fonts load via a Google Fonts `<link>` in the layout `<head>` (no fontsource). No `@setu/core` / `@setu/blocks` changes — the theme only *defines* tokens those blocks read.
 - **Light-only, zero-JS.** No `client:*`, no theme-toggle script — every page must stay free of hydration islands / `<script>`.
 - **Tokens are the knobs.** Every taste choice (fonts, accent, radius, measures, type scale) is a CSS variable on `:root` with a sensible default. Changing a token restyles the site. "Sans body / indigo / those widths" are *defaults*, not hardcodes.
-- **Block tokens reuse the admin's names + values** (so `@saytu/blocks/callout.css` renders themed and matches the editor): `--accent #4f46e5`, `--accent-strong #4338ca`, `--accent-soft`, `--bg #f7f7f8`, `--surface-2 #fbfbfc`, `--canvas #fff`, `--text #1a1a1f`, `--text-2 #54545d`, `--green #15935a`/`--green-soft`, `--amber #b7791f`/`--amber-soft`, `--red #d1453b`/`--red-soft`, `--r-md`/`--r-sm`, `--font-ui`.
+- **Block tokens reuse the admin's names + values** (so `@setu/blocks/callout.css` renders themed and matches the editor): `--accent #4f46e5`, `--accent-strong #4338ca`, `--accent-soft`, `--bg #f7f7f8`, `--surface-2 #fbfbfc`, `--canvas #fff`, `--text #1a1a1f`, `--text-2 #54545d`, `--green #15935a`/`--green-soft`, `--amber #b7791f`/`--amber-soft`, `--red #d1453b`/`--red-soft`, `--r-md`/`--r-sm`, `--font-ui`.
 - **Only `apps/saytu-site/**` changes** (+ `pnpm-lock.yaml` only if deps shifted — they shouldn't). No `packages/*`, no `apps/saytu-admin/**`, no content write/round-trip path.
-- **Out of scope:** the admin "Theme options" panel (3c); theme-as-swappable-`@saytu/theme-*` + config override (3b); dark mode; post listing/archive/pagination/RSS/search; the editor→disk bridge.
+- **Out of scope:** the admin "Theme options" panel (3c); theme-as-swappable-`@setu/theme-*` + config override (3b); dark mode; post listing/archive/pagination/RSS/search; the editor→disk bridge.
 - Final state: `pnpm -r test` green (core 175, blocks 8, admin 178, the site suite extended), both apps build.
 
 ---
@@ -60,7 +60,7 @@ apps/saytu-site/
 ```css
 /* Saytu default theme — token layer. Every taste choice is a knob with a default;
    change a token and the site restyles. Block tokens (names + values) are shared with
-   the editor (apps/saytu-admin tokens.css) so @saytu/blocks render themed + matching. */
+   the editor (apps/saytu-admin tokens.css) so @setu/blocks render themed + matching. */
 :root {
   /* ---- Identity knobs (defaults — the customization surface) ---- */
   --font-heading: 'Hanken Grotesk', ui-sans-serif, system-ui, sans-serif;
@@ -215,7 +215,7 @@ describe('default theme — shell + tokens', () => {
 
 - [ ] **Step 6: Run, expect FAIL, then implement (Steps 1–4), then PASS**
 
-Run: `pnpm --filter @saytu/site test`
+Run: `pnpm --filter @setu/site test`
 Expected: PASS once Steps 1–4 are in place.
 **Build-output note (verify, like the #1 CSS-inline finding):** after the first build, open `apps/saytu-site/dist/post/kitchen-sink/index.html`. (a) If `theme.css` is **inlined** (`<style>… --accent:#4f46e5 …`), the `#4f46e5` assertion holds as written. (b) If Astro **links** it (`<link rel="stylesheet" href="/_astro/…css">`), change that one assertion to assert the `<link rel="stylesheet">` is present AND read the emitted CSS file to confirm `--accent`. (c) Confirm the Google Fonts `<link>` actually lands in the built `<head>` — if Astro hoists/transforms it, adjust the `fonts.googleapis.com` assertion to the real emitted form. Report which branch you took.
 
@@ -378,7 +378,7 @@ describe('default theme — templates by collection', () => {
 
 - [ ] **Step 7: Run, expect FAIL then PASS**
 
-Run: `pnpm --filter @saytu/site test`
+Run: `pnpm --filter @setu/site test`
 Expected: PASS — post uses `measure-post`, page + home use `measure-page`, home renders at root. (Confirm the dynamic-component-by-variable renders; if Astro errors on `<TemplateLayout>`, assign to a capitalized const as shown — that's the supported form.)
 
 - [ ] **Step 8: Commit**
@@ -447,7 +447,7 @@ function themeCss(): string {
 
 - [ ] **Step 3: Run, expect FAIL then PASS; confirm existing block tests still green**
 
-Run: `pnpm --filter @saytu/site test`
+Run: `pnpm --filter @setu/site test`
 Expected: PASS — prose references the tokens, and the existing callout/align/sub-sup/checklist/table assertions from #1/#2 stay green (the content still renders; only its typography is now token-driven). If a prior assertion breaks because the markup moved under `.prose measure-*`, adjust the selector in that assertion (do not weaken what it verifies).
 
 - [ ] **Step 4: Commit**
@@ -466,11 +466,11 @@ git commit -m "feat(site): token-driven prose typography"
 - [ ] **Step 1: Whole-repo test suite**
 
 Run: `pnpm -r test`
-Expected: green — `@saytu/core` 175, `@saytu/blocks` 8, `apps/saytu-admin` 178 (untouched), `apps/saytu-site` (extended with the theme tests), all db/git suites.
+Expected: green — `@setu/core` 175, `@setu/blocks` 8, `apps/saytu-admin` 178 (untouched), `apps/saytu-site` (extended with the theme tests), all db/git suites.
 
 - [ ] **Step 2: Both apps build**
 
-Run: `pnpm --filter @saytu/site build && pnpm --filter @saytu/admin build`
+Run: `pnpm --filter @setu/site build && pnpm --filter @setu/admin build`
 Expected: both succeed. The site build emits the home (`dist/index.html`), post, and page routes; admin is untouched (sanity).
 
 - [ ] **Step 3: Zero-JS holds across templates**
@@ -508,4 +508,4 @@ git add -A && git commit -m "chore(site): default theme final verification fixup
 
 **2. Placeholder scan:** every code step has real CSS/Astro/TS; commands have expected output. The two intentional verify-then-branch points (T1 Step 6 inline-vs-linked CSS + fonts-in-head; T3 `themeCss()` inline-vs-linked) are concrete instructions with both branches written, not TBDs.
 
-**3. Type consistency:** `Layout`/`PostLayout`/`PageLayout` all take `Props { title: string }` and a `<slot/>`, consistent T1/T2. Class names (`site-header`/`brand`/`site-footer`/`prose`/`measure-post`/`measure-page`) consistent across theme.css, site.css, the layouts, and the test assertions. `toUrlPath` (from `../lib/url`, #1) reused unchanged. The home entry id `page/en/home` is filtered in `[...path]` (T2) and fetched in `index.astro` (T2) — same string. Token names in theme.css (T1) match those the prose (T3) and `@saytu/blocks` consume. ✓
+**3. Type consistency:** `Layout`/`PostLayout`/`PageLayout` all take `Props { title: string }` and a `<slot/>`, consistent T1/T2. Class names (`site-header`/`brand`/`site-footer`/`prose`/`measure-post`/`measure-page`) consistent across theme.css, site.css, the layouts, and the test assertions. `toUrlPath` (from `../lib/url`, #1) reused unchanged. The home entry id `page/en/home` is filtered in `[...path]` (T2) and fetched in `index.astro` (T2) — same string. Token names in theme.css (T1) match those the prose (T3) and `@setu/blocks` consume. ✓

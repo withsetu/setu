@@ -7,7 +7,7 @@ _Date: 2026-06-14 · Status: approved_
 Turn the keystone config (`saytu.config.ts`, PRD §8) from a hardcoded placeholder
 into a real, validated, file-loaded configuration object — scoped to **block
 definitions only**. This replaces the `knownBlockTags = new Set(['callout'])`
-placeholder that increment #1 (`@saytu/core` round-trip) shipped, making the
+placeholder that increment #1 (`@setu/core` round-trip) shipped, making the
 recognised-block set genuinely config-driven.
 
 This is the second build increment of the real implementation, following a
@@ -16,7 +16,7 @@ decision-complete PRD (`plan/prd.md`) and a shipped increment #1.
 ## Scope
 
 **In:**
-- A new `src/config/` module inside `@saytu/core` (per PRD §23, the config parser
+- A new `src/config/` module inside `@setu/core` (per PRD §23, the config parser
   lives in `core`, not a separate package).
 - The authored config shape (`SaytuConfig`, `BlockDefinition`) and a typed,
   resolved shape (`ResolvedConfig`).
@@ -27,7 +27,7 @@ decision-complete PRD (`plan/prd.md`) and a shipped increment #1.
   resolve it.
 - A shipped **default config** defining the `callout` block, so the round-trip's
   recognised-tag set is derived from config rather than a magic constant.
-- Wiring: `@saytu/core`'s round-trip stops hardcoding `['callout']`; the tag set
+- Wiring: `@setu/core`'s round-trip stops hardcoding `['callout']`; the tag set
   is produced by the config layer.
 
 **Out (explicitly deferred to later increments):**
@@ -121,7 +121,7 @@ export interface ResolvedConfig {
   module at `path` via jiti, takes its default export, and runs `resolveConfig`.
 - `defaultConfig: SaytuConfig` — the shipped default (one `callout` block).
 
-New types exported from `@saytu/core`: `SaytuConfig`, `BlockDefinition`,
+New types exported from `@setu/core`: `SaytuConfig`, `BlockDefinition`,
 `BlockEditorMeta`, `ResolvedConfig`, `ResolvedBlock`.
 
 ## Meta-schema (validation rules)
@@ -160,7 +160,7 @@ the duplicate-tag check, then constructs `blocksByTag` and `knownBlockTags`.
 transpilation. Use **jiti** (unjs; runtime TS/ESM import, no build step, mature,
 used by Nuxt/unjs config loaders). `loadConfig` creates a jiti instance and
 imports the path, reads the default export, and resolves it. jiti is added as a
-dependency of `@saytu/core`.
+dependency of `@setu/core`.
 
 Rationale over alternatives: bundle-require/esbuild adds a heavier build step;
 hand-rolled `tsc`/transpile is fragile. jiti is the lightest correct option.
@@ -201,7 +201,7 @@ with a message naming the path.
 
 ## Definition of done
 
-- `pnpm install` clean (jiti added to `@saytu/core`).
+- `pnpm install` clean (jiti added to `@setu/core`).
 - `pnpm typecheck` clean (strict).
 - `pnpm test` green at repo root — new config suite + the existing 21 round-trip
   tests still pass (the placeholder removal must not regress them).

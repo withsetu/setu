@@ -1,5 +1,5 @@
 {
-  "name": "@saytu/git-testing",
+  "name": "@setu/git-testing",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@saytu/core": "workspace:*"
+    "@setu/core": "workspace:*"
   },
   "peerDependencies": {
     "vitest": "^2.0.0"

@@ -30,7 +30,7 @@ theme.manage`
 **Permission matrix:** a `Record<Role, Set<Action>>`. Default roles ship with
 sensible defaults; an admin can edit the matrix (which actions each role gets).
 
-**The API (pure, core, edge-safe — `@saytu/core/src/authz/`):**
+**The API (pure, core, edge-safe — `@setu/core/src/authz/`):**
 ```ts
 type Action = 'content.create' | 'content.edit' | ... // the vocabulary
 interface Actor { id: string; role: Role }
@@ -58,7 +58,7 @@ true. Viewer → pill only; Editor → the dropdown with permitted actions.
 
 ## Where things live
 
-- **Matrix + roles + `can()`** → `@saytu/core/src/authz/` (pure, edge-safe,
+- **Matrix + roles + `can()`** → `@setu/core/src/authz/` (pure, edge-safe,
   contract-style tests). The default matrix ships here.
 - **Persisted custom matrix + user→role assignments** → the DB (a settings/roles
   store), once persistence/users land. Until then, the default matrix + a single

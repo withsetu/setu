@@ -4,7 +4,7 @@
 
 **Goal:** Close the metadata half of the round-trip — serialize a draft's metadata to YAML frontmatter on publish and parse it back on open, so content *and* metadata survive publish → open.
 
-**Architecture:** A `frontmatter.ts` module in `@saytu/core` (`parseMdoc`/`serializeMdoc`, js-yaml — edge-safe) wired into the publish service (write) and the read/fork service (read). Empty frontmatter ⇒ body-only (backward-compatible); a body starting with `---` (a horizontal rule) is never mistaken for frontmatter. Object-level round-trip idempotency is guaranteed by a fast-check property test.
+**Architecture:** A `frontmatter.ts` module in `@setu/core` (`parseMdoc`/`serializeMdoc`, js-yaml — edge-safe) wired into the publish service (write) and the read/fork service (read). Empty frontmatter ⇒ body-only (backward-compatible); a body starting with `---` (a horizontal rule) is never mistaken for frontmatter. Object-level round-trip idempotency is guaranteed by a fast-check property test.
 
 **Tech Stack:** TypeScript (strict), js-yaml, Vitest + fast-check.
 
@@ -42,8 +42,8 @@ packages/core/test/read/read-service.test.ts         # MODIFIED: add tests
 
 Run:
 ```bash
-pnpm --filter @saytu/core add js-yaml
-pnpm --filter @saytu/core add -D @types/js-yaml
+pnpm --filter @setu/core add js-yaml
+pnpm --filter @setu/core add -D @types/js-yaml
 ```
 Expected: both resolve and install (js-yaml is pure JS — no native build).
 
@@ -96,7 +96,7 @@ describe('parseMdoc', () => {
 
 - [ ] **Step 3: Run test to verify it fails**
 
-Run: `pnpm --filter @saytu/core test -- frontmatter.test`
+Run: `pnpm --filter @setu/core test -- frontmatter.test`
 Expected: FAIL — `parseMdoc`/`serializeMdoc` not exported.
 
 - [ ] **Step 4: Implement the module**
@@ -160,7 +160,7 @@ export { parseMdoc, serializeMdoc } from './markdoc/frontmatter'
 
 - [ ] **Step 6: Run the unit test to verify it passes**
 
-Run: `pnpm --filter @saytu/core test -- frontmatter.test`
+Run: `pnpm --filter @setu/core test -- frontmatter.test`
 Expected: PASS.
 
 - [ ] **Step 7: Write the property test (idempotency)**
@@ -213,17 +213,17 @@ describe('frontmatter round-trip (property-based)', () => {
 
 - [ ] **Step 8: Run the property test**
 
-Run: `pnpm --filter @saytu/core test -- frontmatter.property`
+Run: `pnpm --filter @setu/core test -- frontmatter.property`
 Expected: PASS. (If fast-check finds a failing case, it is a real round-trip bug — fix `frontmatter.ts`, do NOT weaken the generators beyond the safe-content constraint already in place. Report any such finding.)
 
 - [ ] **Step 9: Typecheck (incl. edge guard)**
 
-Run: `pnpm --filter @saytu/core typecheck`
+Run: `pnpm --filter @setu/core typecheck`
 Expected: clean — both the main check and the edge guard. js-yaml is pure JS (Node-free), so `src/markdoc/frontmatter.ts` passes the `types: []` edge guard. If the edge check fails because js-yaml pulls Node types, STOP and report (it should not).
 
 - [ ] **Step 10: Run the full core suite + commit**
 
-Run: `pnpm --filter @saytu/core test`
+Run: `pnpm --filter @setu/core test`
 Expected: PASS — existing tests + the new frontmatter suites.
 
 ```bash
@@ -283,7 +283,7 @@ with a parse-based assertion:
 
 - [ ] **Step 2: Run to verify the updated test fails**
 
-Run: `pnpm --filter @saytu/core test -- publish/publish-service`
+Run: `pnpm --filter @setu/core test -- publish/publish-service`
 Expected: FAIL — publish still writes body-only, so the new frontmatter assertions fail.
 
 - [ ] **Step 3: Wire the publish service**
@@ -316,12 +316,12 @@ with:
 
 - [ ] **Step 4: Run the publish suite to verify it passes**
 
-Run: `pnpm --filter @saytu/core test -- publish/publish-service`
+Run: `pnpm --filter @setu/core test -- publish/publish-service`
 Expected: PASS (all publish tests, incl. the updated + new ones).
 
 - [ ] **Step 5: Typecheck + commit**
 
-Run: `pnpm --filter @saytu/core typecheck`
+Run: `pnpm --filter @setu/core typecheck`
 Expected: clean (incl. edge guard — `serializeMdoc` is edge-safe).
 
 ```bash
@@ -376,7 +376,7 @@ import { createReadService, tiptapToMarkdoc, markdocToTiptap, contentPath, seria
 
 - [ ] **Step 2: Run to verify the new tests fail**
 
-Run: `pnpm --filter @saytu/core test -- read/read-service`
+Run: `pnpm --filter @setu/core test -- read/read-service`
 Expected: FAIL — the read service still uses `metadata: {}` and `markdocToTiptap(published)` (whole file incl. frontmatter), so the metadata + content assertions fail.
 
 - [ ] **Step 3: Wire the read service**
@@ -421,13 +421,13 @@ to:
 
 - [ ] **Step 4: Run the read suite to verify it passes**
 
-Run: `pnpm --filter @saytu/core test -- read/read-service`
+Run: `pnpm --filter @setu/core test -- read/read-service`
 Expected: PASS (existing body-only fork tests + the two new metadata tests).
 
 - [ ] **Step 5: Full repo verification (definition of done)**
 
 Run: `pnpm test && pnpm typecheck`
-Expected: every package green — `@saytu/core` now larger (110 prior core 72 → frontmatter unit + property + publish + read additions), `@saytu/db-testing` 11, `@saytu/db-sqlite` 12, `@saytu/git-testing` 6, `@saytu/git-local` 9; typecheck clean across all packages incl. the core edge guard.
+Expected: every package green — `@setu/core` now larger (110 prior core 72 → frontmatter unit + property + publish + read additions), `@setu/db-testing` 11, `@setu/db-sqlite` 12, `@setu/git-testing` 6, `@setu/git-local` 9; typecheck clean across all packages incl. the core edge guard.
 
 - [ ] **Step 6: Commit**
 

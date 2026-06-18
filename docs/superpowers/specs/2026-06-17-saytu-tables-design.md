@@ -175,7 +175,7 @@ apps/saytu-admin/package.json  # + @tiptap/extension-table
 ## Definition of done
 
 - `pnpm -r test` green (core serializer + round-trip + admin table UI) ; `pnpm -r typecheck`
-  clean (incl. edge guard) ; `pnpm --filter @saytu/admin build` OK.
+  clean (incl. edge guard) ; `pnpm --filter @setu/admin build` OK.
 - `pnpm dev`: `/` → **Table** inserts a table; the cell menu adds/removes rows & columns and
   sets **column alignment** (L/C/R, visible in the editor); a table with alignment + inline
   marks **survives publish→reopen** as clean GFM (`| … |` with `:--`/`:-:`/`--:`).

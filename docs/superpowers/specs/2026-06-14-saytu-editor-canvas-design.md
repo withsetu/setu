@@ -15,7 +15,7 @@ in-browser ports, with zero server.
 
 ## The architectural continuation
 
-#9 proved the bet: the entire `@saytu/core` engine + in-memory adapters run in the
+#9 proved the bet: the entire `@setu/core` engine + in-memory adapters run in the
 browser, and the SPA depends only on ports. #9 wired the **DataPort** (`db-memory`).
 This increment needs the **GitPort** too (the read/fork service consumes it), so it
 promotes an in-memory GitPort to a real, contract-tested adapter — exactly as #9
@@ -28,7 +28,7 @@ the publish/open flow on top (and reuses `git-memory` verbatim).
 
 **In — the editor MVP vertical slice:**
 
-- **`@saytu/git-memory`** — a new package: `createMemoryGitPort(seed?)`, the
+- **`@setu/git-memory`** — a new package: `createMemoryGitPort(seed?)`, the
   in-memory `GitPort` promoted from a fake to a real, browser-safe, contract-tested
   adapter (passes the existing `runGitPortContract`). Optionally seeded with files
   so the read service's fork-from-Git path is reachable in UAT.
@@ -111,8 +111,8 @@ the publish/open flow on top (and reuses `git-memory` verbatim).
 ## Architecture
 
 ```
-packages/git-memory/                 # @saytu/git-memory (NEW — mirrors db-memory)
-├── package.json                      # deps: @saytu/core; dev: @saytu/git-testing, vitest, ts
+packages/git-memory/                 # @setu/git-memory (NEW — mirrors db-memory)
+├── package.json                      # deps: @setu/core; dev: @setu/git-testing, vitest, ts
 ├── tsconfig.json
 ├── vitest.config.ts
 ├── src/
@@ -122,7 +122,7 @@ packages/git-memory/                 # @saytu/git-memory (NEW — mirrors db-mem
 
 apps/saytu-admin/
 ├── package.json                      # + @tiptap/{core,react,pm,starter-kit,suggestion},
-│                                     #   @tiptap/extension-placeholder, tippy.js; + @saytu/git-memory
+│                                     #   @tiptap/extension-placeholder, tippy.js; + @setu/git-memory
 └── src/
     ├── data/store.tsx                # GROWS: builds data+git adapters, constructs read+authoring
     │                                 #   services, exposes useServices() (+ existing useData())
@@ -224,7 +224,7 @@ testable schema units.
 
 ## Testing (behavior; visual fidelity = UAT)
 
-- **`@saytu/git-memory`**: `runGitPortContract(() => createMemoryGitPort())` (the
+- **`@setu/git-memory`**: `runGitPortContract(() => createMemoryGitPort())` (the
   shared GitPort battery) + a seed test (a seeded adapter returns the seeded file
   from `readFile` and a stable `headSha`).
 - **Schema round-trip (the key risk)** — a unit test in the app (or core-adjacent):
@@ -249,11 +249,11 @@ testable schema units.
 
 ## Definition of done
 
-- `pnpm --filter @saytu/git-memory test` green (contract + seed); the new package is
+- `pnpm --filter @setu/git-memory test` green (contract + seed); the new package is
   contract-equivalent to `git-local`.
-- `pnpm --filter @saytu/admin test` green (existing 14 + the editor/schema/slash/
-  extension tests); `pnpm --filter @saytu/admin typecheck` clean; `pnpm --filter
-  @saytu/admin build` succeeds with the brand fonts still in `dist/index.html`.
+- `pnpm --filter @setu/admin test` green (existing 14 + the editor/schema/slash/
+  extension tests); `pnpm --filter @setu/admin typecheck` clean; `pnpm --filter
+  @setu/admin build` succeeds with the brand fonts still in `dist/index.html`.
 - `pnpm test` + `pnpm typecheck` repo-wide unaffected for #1–#10.
 - `pnpm dev`: navigating to a content-list row opens the editor with the draft's
   content; typing autosaves; a Callout can be inserted via `/`; an unknown-Markdoc

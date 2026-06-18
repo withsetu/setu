@@ -1,10 +1,10 @@
-# @saytu/core Markdoc⇄Tiptap Round-trip — Implementation Plan
+# @setu/core Markdoc⇄Tiptap Round-trip — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Stand up the Saytu monorepo and port the proven Markdoc⇄Tiptap round-trip spike into `@saytu/core` as typed, test-covered TypeScript.
+**Goal:** Stand up the Saytu monorepo and port the proven Markdoc⇄Tiptap round-trip spike into `@setu/core` as typed, test-covered TypeScript.
 
-**Architecture:** A pnpm-workspace monorepo on Node. `@saytu/core` exposes two pure functions — `markdocToTiptap` and `tiptapToMarkdoc` — with the spike's exact behavior: native blocks convert structurally; unknown/advanced/malformed content is preserved byte-for-byte by slicing the original source (never `Markdoc.format()`, which drops unparseable nodes). Round-trip is idempotent.
+**Architecture:** A pnpm-workspace monorepo on Node. `@setu/core` exposes two pure functions — `markdocToTiptap` and `tiptapToMarkdoc` — with the spike's exact behavior: native blocks convert structurally; unknown/advanced/malformed content is preserved byte-for-byte by slicing the original source (never `Markdoc.format()`, which drops unparseable nodes). Round-trip is idempotent.
 
 **Tech Stack:** TypeScript (strict), Node + pnpm workspaces, Vitest, `@markdoc/markdoc`, `fast-check`.
 
@@ -20,7 +20,7 @@ package.json              # root: workspaces, scripts (modify provisional)
 pnpm-workspace.yaml       # packages/*, apps/* (already provisional)
 tsconfig.base.json        # shared strict TS config (already provisional)
 packages/core/
-├── package.json          # @saytu/core (already provisional)
+├── package.json          # @setu/core (already provisional)
 ├── tsconfig.json         # CREATE: extends base, typecheck src+test
 ├── vitest.config.ts      # CREATE
 ├── src/
@@ -98,7 +98,7 @@ packages:
 
 ```json
 {
-  "name": "@saytu/core",
+  "name": "@setu/core",
   "version": "0.0.0",
   "type": "module",
   "license": "AGPL-3.0-only",
@@ -176,7 +176,7 @@ Expected: clean (no errors).
 
 ```bash
 git add package.json pnpm-workspace.yaml tsconfig.base.json packages/ pnpm-lock.yaml
-git commit -m "chore: scaffold Saytu monorepo (Node + pnpm + Vitest) with @saytu/core"
+git commit -m "chore: scaffold Saytu monorepo (Node + pnpm + Vitest) with @setu/core"
 ```
 
 ---
@@ -320,7 +320,7 @@ describe('markdocToTiptap', () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `pnpm --filter @saytu/core test to-tiptap`
+Run: `pnpm --filter @setu/core test to-tiptap`
 Expected: FAIL — `markdocToTiptap` is not exported.
 
 - [ ] **Step 3: Implement `packages/core/src/markdoc/to-tiptap.ts`**
@@ -449,7 +449,7 @@ export { markdocToTiptap } from './markdoc/to-tiptap'
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Run: `pnpm --filter @saytu/core test to-tiptap`
+Run: `pnpm --filter @setu/core test to-tiptap`
 Expected: PASS — 5 tests.
 
 - [ ] **Step 6: Typecheck**
@@ -518,7 +518,7 @@ describe('tiptapToMarkdoc', () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `pnpm --filter @saytu/core test to-markdoc`
+Run: `pnpm --filter @setu/core test to-markdoc`
 Expected: FAIL — `tiptapToMarkdoc` is not exported.
 
 - [ ] **Step 3: Implement `packages/core/src/markdoc/to-markdoc.ts`**
@@ -594,7 +594,7 @@ export { tiptapToMarkdoc } from './markdoc/to-markdoc'
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Run: `pnpm --filter @saytu/core test to-markdoc`
+Run: `pnpm --filter @setu/core test to-markdoc`
 Expected: PASS — 3 tests.
 
 - [ ] **Step 6: Typecheck**
@@ -685,7 +685,7 @@ describe('round-trip idempotency', () => {
 
 - [ ] **Step 2: Run the test**
 
-Run: `pnpm --filter @saytu/core test roundtrip.examples`
+Run: `pnpm --filter @setu/core test roundtrip.examples`
 Expected: PASS — 6 tests (5 idempotency + 1 preservation). The converters are already implemented, so this integration test should pass directly. If any fail, STOP and use superpowers:systematic-debugging before continuing.
 
 - [ ] **Step 3: Commit**
@@ -745,7 +745,7 @@ describe('round-trip idempotency (property-based)', () => {
 
 - [ ] **Step 2: Run the test**
 
-Run: `pnpm --filter @saytu/core test roundtrip.property`
+Run: `pnpm --filter @setu/core test roundtrip.property`
 Expected: PASS — idempotency holds across 200 random documents. If fast-check finds a counterexample, STOP and use superpowers:systematic-debugging — the shrunk counterexample is a real fidelity bug to fix (do not weaken the property to make it pass).
 
 - [ ] **Step 3: Commit**
@@ -774,7 +774,7 @@ Expected: clean.
 - [ ] **Step 3: Full test suite from the repo root**
 
 Run: `pnpm test`
-Expected: PASS — all `@saytu/core` tests green (to-tiptap, to-markdoc, roundtrip.examples, roundtrip.property), no smoke test.
+Expected: PASS — all `@setu/core` tests green (to-tiptap, to-markdoc, roundtrip.examples, roundtrip.property), no smoke test.
 
 - [ ] **Step 4: Commit**
 

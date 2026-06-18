@@ -1,5 +1,5 @@
-import type { Draft, EntryRef, GitPort, Lifecycle } from '@saytu/core'
-import { contentPath, deriveLifecycle, serializeMdoc, tiptapToMarkdoc } from '@saytu/core'
+import type { Draft, EntryRef, GitPort, Lifecycle } from '@setu/core'
+import { contentPath, deriveLifecycle, serializeMdoc, tiptapToMarkdoc } from '@setu/core'
 
 /** Compose an entry's lifecycle from the draft (memory) + Git HEAD + the live
  *  (deployed) snapshot. `deployedAt(path)` returns the live content or null. */

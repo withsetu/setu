@@ -4,7 +4,7 @@
 
 **Goal:** Stand up the Tiptap block editor on `/edit/:collection/:locale/:slug` in `apps/saytu-admin`, wired onto the real read (#7) + authoring/lock (#4) services running in-browser, so a writer can open a draft, edit rich text + a Callout, see unknown Markdoc preserved, and have it autosave and survive a reopen.
 
-**Architecture:** A new `@saytu/git-memory` package (in-memory `GitPort`, contract-tested like `db-memory`) lets the read service run client-side. The app's store grows into a services context (`data`+`git`+`read`+`authoring`). The editor is Tiptap StarterKit + two custom nodes (`callout` with `mdAttrs`, `passthrough` atom with `raw`/`flagged`) whose schema is pinned to the converter in `packages/core/src/markdoc/{to-tiptap,to-markdoc}.ts` and guarded by a round-trip test. A config-driven slash menu inserts blocks; the editor screen orchestrates load → lock → debounced autosave.
+**Architecture:** A new `@setu/git-memory` package (in-memory `GitPort`, contract-tested like `db-memory`) lets the read service run client-side. The app's store grows into a services context (`data`+`git`+`read`+`authoring`). The editor is Tiptap StarterKit + two custom nodes (`callout` with `mdAttrs`, `passthrough` atom with `raw`/`flagged`) whose schema is pinned to the converter in `packages/core/src/markdoc/{to-tiptap,to-markdoc}.ts` and guarded by a round-trip test. A config-driven slash menu inserts blocks; the editor screen orchestrates load → lock → debounced autosave.
 
 **Tech Stack:** React 18, Vite 6, Tailwind v4, react-router v6, `@tiptap/{core,react,pm,starter-kit,suggestion}`, `@tiptap/extension-placeholder`, `tippy.js`, Vitest + jsdom + @testing-library/react. All editor deps are MIT/public-npm (no Tiptap SaaS).
 
@@ -22,7 +22,7 @@
 
 ---
 
-### Task 1: `@saytu/git-memory` package (in-memory GitPort)
+### Task 1: `@setu/git-memory` package (in-memory GitPort)
 
 **Files:**
 - Create: `packages/git-memory/package.json`
@@ -32,12 +32,12 @@
 - Create: `packages/git-memory/src/index.ts`
 - Test: `packages/git-memory/test/contract.test.ts`
 
-- [ ] **Step 1: Scaffold the package files** (mirror `@saytu/db-memory`)
+- [ ] **Step 1: Scaffold the package files** (mirror `@setu/db-memory`)
 
 `packages/git-memory/package.json`:
 ```json
 {
-  "name": "@saytu/git-memory",
+  "name": "@setu/git-memory",
   "version": "0.0.0",
   "type": "module",
   "license": "AGPL-3.0-only",
@@ -45,9 +45,9 @@
   "types": "./src/index.ts",
   "exports": { ".": "./src/index.ts" },
   "scripts": { "test": "vitest run", "typecheck": "tsc --noEmit" },
-  "dependencies": { "@saytu/core": "workspace:*" },
+  "dependencies": { "@setu/core": "workspace:*" },
   "devDependencies": {
-    "@saytu/git-testing": "workspace:*",
+    "@setu/git-testing": "workspace:*",
     "typescript": "^5.6.3",
     "vitest": "^2.1.8"
   }
@@ -71,7 +71,7 @@ export default defineConfig({ test: { include: ['test/**/*.test.ts'] } })
 `packages/git-memory/test/contract.test.ts`:
 ```ts
 import { describe, it, expect } from 'vitest'
-import { runGitPortContract } from '@saytu/git-testing'
+import { runGitPortContract } from '@setu/git-testing'
 import { createMemoryGitPort } from '../src/index'
 
 runGitPortContract(() => createMemoryGitPort())
@@ -88,14 +88,14 @@ describe('createMemoryGitPort seed', () => {
 
 - [ ] **Step 3: Run from the repo root to install the new workspace package + verify it FAILS**
 
-Run: `pnpm install && pnpm --filter @saytu/git-memory test`
+Run: `pnpm install && pnpm --filter @setu/git-memory test`
 Expected: FAIL — `createMemoryGitPort` not found (adapter not written yet).
 
 - [ ] **Step 4: Implement the adapter**
 
 `packages/git-memory/src/adapter.ts`:
 ```ts
-import type { CommitInput, CommitResult, GitPort } from '@saytu/core'
+import type { CommitInput, CommitResult, GitPort } from '@setu/core'
 
 /** A pre-existing file to seed into the repo at construction. */
 export interface GitSeedFile {
@@ -159,7 +159,7 @@ export type { GitSeedFile } from './adapter'
 
 - [ ] **Step 5: Run the tests + typecheck — verify PASS**
 
-Run: `pnpm --filter @saytu/git-memory test && pnpm --filter @saytu/git-memory typecheck`
+Run: `pnpm --filter @setu/git-memory test && pnpm --filter @setu/git-memory typecheck`
 Expected: PASS — the 6 contract tests + the seed test green; typecheck clean.
 
 - [ ] **Step 6: Commit**
@@ -182,7 +182,7 @@ git commit -m "feat(git-memory): in-memory GitPort adapter (contract-tested)"
 
 Edit `apps/saytu-admin/package.json` `dependencies` to add (keep existing entries):
 ```json
-    "@saytu/git-memory": "workspace:*",
+    "@setu/git-memory": "workspace:*",
     "@tiptap/core": "^3.26.1",
     "@tiptap/react": "^3.26.1",
     "@tiptap/pm": "^3.26.1",
@@ -228,7 +228,7 @@ describe('services context', () => {
 
 - [ ] **Step 3: Run — verify it FAILS**
 
-Run: `pnpm --filter @saytu/admin test -- services`
+Run: `pnpm --filter @setu/admin test -- services`
 Expected: FAIL — `ServicesProvider`/`createServices`/`useServices` not exported.
 
 - [ ] **Step 4: Rewrite the store with a services context (back-compatible)**
@@ -244,10 +244,10 @@ import type {
   GitPort,
   ReadService,
   TiptapDoc,
-} from '@saytu/core'
-import { createAuthoringService, createReadService } from '@saytu/core'
-import { createMemoryDataPort } from '@saytu/db-memory'
-import { createMemoryGitPort } from '@saytu/git-memory'
+} from '@setu/core'
+import { createAuthoringService, createReadService } from '@setu/core'
+import { createMemoryDataPort } from '@setu/db-memory'
+import { createMemoryGitPort } from '@setu/git-memory'
 
 const doc = (text: string): TiptapDoc => ({
   type: 'doc',
@@ -317,7 +317,7 @@ export function createAppDataPort(): DataPort {
 
 - [ ] **Step 5: Run the services test + the full admin suite — verify PASS**
 
-Run: `pnpm --filter @saytu/admin test && pnpm --filter @saytu/admin typecheck`
+Run: `pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck`
 Expected: PASS — the new services tests green AND the existing 14 tests (content-list/smoke/sidebar/icon/status-pill) still green (they use `DataProvider`/`createAppDataPort`, now backed by the services context). Typecheck clean.
 
 - [ ] **Step 6: Commit**
@@ -343,8 +343,8 @@ git commit -m "feat(admin): services context (data+git+read+authoring) + Tiptap 
 import { describe, it, expect } from 'vitest'
 import { Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
-import type { TiptapDoc } from '@saytu/core'
-import { markdocToTiptap, tiptapToMarkdoc } from '@saytu/core'
+import type { TiptapDoc } from '@setu/core'
+import { markdocToTiptap, tiptapToMarkdoc } from '@setu/core'
 import { Callout } from '../src/editor/extensions/Callout'
 import { Passthrough } from '../src/editor/extensions/Passthrough'
 
@@ -376,7 +376,7 @@ describe('editor schema round-trips through the Markdoc converter', () => {
 
 - [ ] **Step 2: Run — verify it FAILS**
 
-Run: `pnpm --filter @saytu/admin test -- editor-schema`
+Run: `pnpm --filter @setu/admin test -- editor-schema`
 Expected: FAIL — `Callout`/`Passthrough` modules not found.
 
 - [ ] **Step 3: Implement the Callout node**
@@ -482,7 +482,7 @@ export const Passthrough = Node.create({
 
 - [ ] **Step 5: Run — verify PASS**
 
-Run: `pnpm --filter @saytu/admin test -- editor-schema && pnpm --filter @saytu/admin typecheck`
+Run: `pnpm --filter @setu/admin test -- editor-schema && pnpm --filter @setu/admin typecheck`
 Expected: PASS. If `tiptapToMarkdoc(json) === SOURCE` fails because ProseMirror normalized the doc (e.g. appended a trailing empty paragraph), do NOT weaken the attr assertions — fix faithfully: the fixture already ends in a `Done.` paragraph to avoid a trailing-atom textblock; if a discrepancy remains, inspect `editor.getJSON()` and reconcile the node/attr handling so the serialization matches (the engine's converter is idempotent, so any gap is in the editor schema, which is exactly what this guards).
 
 - [ ] **Step 6: Commit**
@@ -535,7 +535,7 @@ describe('slashBlocks', () => {
 
 - [ ] **Step 2: Run — verify it FAILS**
 
-Run: `pnpm --filter @saytu/admin test -- slash`
+Run: `pnpm --filter @setu/admin test -- slash`
 Expected: FAIL — `slashBlocks` not found.
 
 - [ ] **Step 3: Implement the block list**
@@ -544,7 +544,7 @@ Expected: FAIL — `slashBlocks` not found.
 ```ts
 import type { Editor, Range } from '@tiptap/core'
 import type { IconName } from '../ui/Icon'
-import { defaultConfig, resolveConfig } from '@saytu/core'
+import { defaultConfig, resolveConfig } from '@setu/core'
 
 export interface SlashBlock {
   title: string
@@ -719,7 +719,7 @@ If the `@tiptap/suggestion` generic types (`SuggestionProps`/`SuggestionKeyDownP
 
 - [ ] **Step 5: Run — verify PASS**
 
-Run: `pnpm --filter @saytu/admin test -- slash && pnpm --filter @saytu/admin typecheck`
+Run: `pnpm --filter @setu/admin test -- slash && pnpm --filter @setu/admin typecheck`
 Expected: PASS — slashBlocks includes Callout + inserts a callout node; typecheck clean.
 
 - [ ] **Step 6: Commit**
@@ -794,7 +794,7 @@ describe('useAutosave', () => {
 
 - [ ] **Step 2: Run — verify it FAILS**
 
-Run: `pnpm --filter @saytu/admin test -- autosave`
+Run: `pnpm --filter @setu/admin test -- autosave`
 Expected: FAIL — `useAutosave` not found.
 
 - [ ] **Step 3: Implement the autosave hook**
@@ -802,7 +802,7 @@ Expected: FAIL — `useAutosave` not found.
 `apps/saytu-admin/src/editor/useAutosave.ts`:
 ```ts
 import { useEffect, useRef } from 'react'
-import type { DraftInput } from '@saytu/core'
+import type { DraftInput } from '@setu/core'
 
 export type SaveStatus = 'idle' | 'saving' | 'saved'
 
@@ -856,7 +856,7 @@ export function useAutosave(opts: {
 
 - [ ] **Step 4: Run — verify the autosave test PASSES**
 
-Run: `pnpm --filter @saytu/admin test -- autosave`
+Run: `pnpm --filter @setu/admin test -- autosave`
 Expected: PASS.
 
 - [ ] **Step 5: Implement Canvas, MetaPanel, and EditorScreen**
@@ -866,7 +866,7 @@ Expected: PASS.
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
-import type { TiptapDoc } from '@saytu/core'
+import type { TiptapDoc } from '@setu/core'
 import { Callout } from './extensions/Callout'
 import { Passthrough } from './extensions/Passthrough'
 import { SlashCommand } from './extensions/SlashCommand'
@@ -950,7 +950,7 @@ export function MetaPanel({
 ```tsx
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import type { Draft, DraftInput, TiptapDoc } from '@saytu/core'
+import type { Draft, DraftInput, TiptapDoc } from '@setu/core'
 import { useServices } from '../data/store'
 import { Canvas } from './Canvas'
 import { MetaPanel } from './MetaPanel'
@@ -1081,7 +1081,7 @@ with:
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import type { Draft, TiptapDoc } from '@saytu/core'
+import type { Draft, TiptapDoc } from '@setu/core'
 import { ServicesProvider, createServices } from '../src/data/store'
 import type { Services } from '../src/data/store'
 import { EditorScreen } from '../src/editor/EditorScreen'
@@ -1168,7 +1168,7 @@ If a Tiptap mount warning or an async `act(...)` warning appears but assertions 
 
 - [ ] **Step 8: Run the full admin suite + typecheck — verify PASS**
 
-Run: `pnpm --filter @saytu/admin test && pnpm --filter @saytu/admin typecheck`
+Run: `pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck`
 Expected: PASS — editor-screen + autosave + all prior tests green; typecheck clean.
 
 - [ ] **Step 9: Commit**
@@ -1245,9 +1245,9 @@ Edit the import block so order is tailwind → tokens → components → shell �
 
 Run:
 ```bash
-pnpm --filter @saytu/admin test
-pnpm --filter @saytu/admin typecheck
-pnpm --filter @saytu/admin build
+pnpm --filter @setu/admin test
+pnpm --filter @setu/admin typecheck
+pnpm --filter @setu/admin build
 grep -c fonts.googleapis apps/saytu-admin/dist/index.html
 ```
 Expected: all admin tests green; typecheck clean; build succeeds; the `grep` prints a number > 0 (brand fonts preserved).
@@ -1269,7 +1269,7 @@ git commit -m "feat(admin): editor canvas + prose + chip + slim meta-panel CSS (
 ## Self-Review
 
 **Spec coverage:**
-- `@saytu/git-memory` package, contract-tested + seed → Task 1. ✓
+- `@setu/git-memory` package, contract-tested + seed → Task 1. ✓
 - Services context (`data`/`git`/`read`/`authoring`, `useServices`, `useData` kept) + Tiptap deps → Task 2. ✓
 - Custom Callout (`mdAttrs`, block content) + Passthrough (atom, `raw`/`flagged`) + the round-trip guard → Task 3. ✓
 - Config-driven slash menu (built-ins + `resolveConfig(defaultConfig)` Callout; ARIA listbox + keyboard) → Task 4. ✓
@@ -1280,4 +1280,4 @@ git commit -m "feat(admin): editor canvas + prose + chip + slim meta-panel CSS (
 
 **Placeholder scan:** No TBD/TODO. CSS Step 1 is a precise port-from-source directive (names the file + exact rule blocks) plus fully-specified app rules — consistent with the #9/#10 CSS-port tasks. The two "adapt to installed types / nearest token" notes are bounded reconciliation instructions against named symbols, not vague placeholders.
 
-**Type consistency:** `Services { data, git, read, authoring }` defined in Task 2, consumed via `useServices()` in Task 5. `SlashBlock { title, subtitle, icon: IconName, run(editor, range) }` defined in Task 4, consumed by `SlashCommand` + the slash test. `SaveStatus` + `useAutosave({enabled, rev, getInput, save, onStatus, delayMs})` defined in Task 5 Step 3, tested in Step 1 and consumed in `EditorScreen`. `createMemoryGitPort(seed?: GitSeedFile[])` (Task 1) consumed in Task 2's store. Node names/attrs (`callout.mdAttrs`, `passthrough.raw/flagged`) defined in Task 3 and asserted by the Task 3 guard + used by Task 4 insertion + Task 5 canvas. `TiptapDoc`/`Draft`/`DraftInput` are from `@saytu/core` (exact fields confirmed against `packages/core/src/data/types.ts`). ✓
+**Type consistency:** `Services { data, git, read, authoring }` defined in Task 2, consumed via `useServices()` in Task 5. `SlashBlock { title, subtitle, icon: IconName, run(editor, range) }` defined in Task 4, consumed by `SlashCommand` + the slash test. `SaveStatus` + `useAutosave({enabled, rev, getInput, save, onStatus, delayMs})` defined in Task 5 Step 3, tested in Step 1 and consumed in `EditorScreen`. `createMemoryGitPort(seed?: GitSeedFile[])` (Task 1) consumed in Task 2's store. Node names/attrs (`callout.mdAttrs`, `passthrough.raw/flagged`) defined in Task 3 and asserted by the Task 3 guard + used by Task 4 insertion + Task 5 canvas. `TiptapDoc`/`Draft`/`DraftInput` are from `@setu/core` (exact fields confirmed against `packages/core/src/data/types.ts`). ✓

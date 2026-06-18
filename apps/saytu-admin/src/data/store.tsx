@@ -8,10 +8,10 @@ import type {
   PublishService,
   ReadService,
   TiptapDoc,
-} from '@saytu/core'
-import { createAuthoringService, createPublishService, createReadService } from '@saytu/core'
-import { createMemoryDataPort } from '@saytu/db-memory'
-import { createMemoryGitPort } from '@saytu/git-memory'
+} from '@setu/core'
+import { createAuthoringService, createPublishService, createReadService } from '@setu/core'
+import { createMemoryDataPort } from '@setu/db-memory'
+import { createMemoryGitPort } from '@setu/git-memory'
 
 const doc = (text: string): TiptapDoc => ({
   type: 'doc',

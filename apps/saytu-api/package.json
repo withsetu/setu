@@ -1,5 +1,5 @@
 {
-  "name": "@saytu/api",
+  "name": "@setu/api",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -14,13 +14,13 @@
   },
   "dependencies": {
     "@hono/node-server": "2.0.5",
-    "@saytu/core": "workspace:*",
-    "@saytu/git-local": "workspace:*",
+    "@setu/core": "workspace:*",
+    "@setu/git-local": "workspace:*",
     "hono": "4.12.26"
   },
   "devDependencies": {
-    "@saytu/db-memory": "workspace:*",
-    "@saytu/git-http": "workspace:*",
+    "@setu/db-memory": "workspace:*",
+    "@setu/git-http": "workspace:*",
     "@types/node": "^22.10.2",
     "isomorphic-git": "^1.38.4",
     "tsx": "^4.19.2",

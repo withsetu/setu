@@ -88,7 +88,7 @@ apps/saytu-admin/package.json  # + @tiptap/extension-text-align
 
 ## Definition of done
 
-- `pnpm -r test` green (core align round-trip + admin bubble) ; `pnpm -r typecheck` clean (incl. edge guard) ; `pnpm --filter @saytu/admin build` OK.
+- `pnpm -r test` green (core align round-trip + admin bubble) ; `pnpm -r typecheck` clean (incl. edge guard) ; `pnpm --filter @setu/admin build` OK.
 - `pnpm dev`: select text in a paragraph/heading → bubble shows L/C/R; Center/Right align the block (with shortcut), Left clears; alignment survives publish→reopen as `{% align="center" %}`; cheat sheet lists the align shortcuts.
 - Built test-first via the subagent-driven flow.
 

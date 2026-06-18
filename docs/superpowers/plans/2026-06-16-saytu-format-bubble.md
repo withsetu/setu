@@ -45,7 +45,7 @@ import { render, cleanup, act } from '@testing-library/react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import type { Editor } from '@tiptap/core'
-import { tiptapToMarkdoc } from '@saytu/core'
+import { tiptapToMarkdoc } from '@setu/core'
 
 afterEach(cleanup)
 
@@ -80,7 +80,7 @@ describe('marks + StarterKit config', () => {
 
 - [ ] **Step 2: Run it — verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- format-bubble`
+Run: `pnpm --filter @setu/admin test -- format-bubble`
 Expected: FAIL — depending on the current StarterKit default, `underline` may be defined (test 2 fails) and/or the config object shape differs. (If both pass immediately because StarterKit already excludes underline, that's fine — but the spec requires the explicit config below; proceed.)
 
 - [ ] **Step 3: Configure StarterKit in the Canvas**
@@ -133,7 +133,7 @@ describe('FormatBubble', () => {
 
 - [ ] **Step 5: Run it — verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- format-bubble`
+Run: `pnpm --filter @setu/admin test -- format-bubble`
 Expected: FAIL — `FormatBubble`/`FormatBubbleToolbar` not exported.
 
 - [ ] **Step 6: Implement `FormatBubble`**
@@ -242,12 +242,12 @@ Change the return to:
 
 - [ ] **Step 8: Run tests + typecheck**
 
-Run: `pnpm --filter @saytu/admin test -- format-bubble && pnpm --filter @saytu/admin typecheck`
+Run: `pnpm --filter @setu/admin test -- format-bubble && pnpm --filter @setu/admin typecheck`
 Expected: PASS (mark round-trip, underline disabled, toolbar buttons render).
 
 - [ ] **Step 9: Full admin suite**
 
-Run: `pnpm --filter @saytu/admin test`
+Run: `pnpm --filter @setu/admin test`
 Expected: PASS (existing suite green).
 
 - [ ] **Step 10: Commit**
@@ -316,7 +316,7 @@ describe('LinkInput', () => {
 
 - [ ] **Step 2: Run it — verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- link-input`
+Run: `pnpm --filter @setu/admin test -- link-input`
 Expected: FAIL — `LinkInput` not exported.
 
 - [ ] **Step 3: Implement `LinkInput`**
@@ -389,7 +389,7 @@ export function LinkInput({
 
 - [ ] **Step 4: Run it — verify it passes**
 
-Run: `pnpm --filter @saytu/admin test -- link-input`
+Run: `pnpm --filter @setu/admin test -- link-input`
 Expected: PASS (4 cases).
 
 - [ ] **Step 5: Wire the link input into FormatBubble**
@@ -466,7 +466,7 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import type { Editor } from '@tiptap/core'
 import { FormatBubbleToolbar } from '../src/editor/FormatBubble'
-import { tiptapToMarkdoc } from '@saytu/core'
+import { tiptapToMarkdoc } from '@setu/core'
 import { act } from '@testing-library/react'
 
 describe('FormatBubbleToolbar link flow', () => {
@@ -491,7 +491,7 @@ describe('FormatBubbleToolbar link flow', () => {
 
 - [ ] **Step 7: Run tests + typecheck**
 
-Run: `pnpm --filter @saytu/admin test -- link-input && pnpm --filter @saytu/admin typecheck`
+Run: `pnpm --filter @setu/admin test -- link-input && pnpm --filter @setu/admin typecheck`
 Expected: PASS (link created, round-trips to `[hello](https://x.com)`).
 
 - [ ] **Step 8: Commit**
@@ -556,7 +556,7 @@ describe('LinkPopup', () => {
 
 - [ ] **Step 2: Run it — verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- link-popup`
+Run: `pnpm --filter @setu/admin test -- link-popup`
 Expected: FAIL — `LinkPopup` not exported.
 
 - [ ] **Step 3: Implement `LinkPopup`**
@@ -603,7 +603,7 @@ export function LinkPopup({
 
 - [ ] **Step 4: Run it — verify it passes**
 
-Run: `pnpm --filter @saytu/admin test -- link-popup`
+Run: `pnpm --filter @setu/admin test -- link-popup`
 Expected: PASS (3 cases).
 
 - [ ] **Step 5: Implement the `LinkTools` plugin (caret + hover triggers)**
@@ -731,7 +731,7 @@ Add to the extensions array (after `SlashCommand,`):
 
 - [ ] **Step 7: Run tests + typecheck + full suite**
 
-Run: `pnpm --filter @saytu/admin test && pnpm --filter @saytu/admin typecheck`
+Run: `pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck`
 Expected: PASS (LinkPopup tests + existing suite green).
 
 - [ ] **Step 8: Manual smoke (reviewer)**
@@ -849,7 +849,7 @@ Append to `apps/saytu-admin/src/styles/editor.css` (reuse existing tokens — `v
 
 - [ ] **Step 2: Build**
 
-Run: `pnpm --filter @saytu/admin build`
+Run: `pnpm --filter @setu/admin build`
 Expected: build succeeds; CSS emitted.
 
 - [ ] **Step 3: Commit**
@@ -867,7 +867,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1: Whole suite** — Run: `pnpm -r test` — expect every package green; admin gains format-bubble / link-input / link-popup tests.
 - [ ] **Step 2: Typecheck (incl. core edge guard)** — Run: `pnpm -r typecheck` — expect clean.
-- [ ] **Step 3: Build** — Run: `pnpm --filter @saytu/admin build` — succeeds; brand fonts intact; `grep -c "yjs" apps/saytu-admin/dist/assets/*.js` matches only `linkifyjs` (no new CRDT); no new dependency added (`git diff` shows `package.json` unchanged).
+- [ ] **Step 3: Build** — Run: `pnpm --filter @setu/admin build` — succeeds; brand fonts intact; `grep -c "yjs" apps/saytu-admin/dist/assets/*.js` matches only `linkifyjs` (no new CRDT); no new dependency added (`git diff` shows `package.json` unchanged).
 - [ ] **Step 4: Manual smoke (reviewer)** — `pnpm dev`: select text → bubble with bold/italic/code/strike + link; toggles reflect state; Link → URL input → link created; caret into a link or hover → card (Open ↗ new tab / Edit / Remove); Cmd+U does nothing.
 
 ---

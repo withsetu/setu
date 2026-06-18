@@ -2,29 +2,29 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Close the "write once" loop for the callout — a new `@saytu/blocks` package holds the callout's single React visual core, rendered by *both* the editor node view and the site `.astro` wrapper, killing today's duplicate.
+**Goal:** Close the "write once" loop for the callout — a new `@setu/blocks` package holds the callout's single React visual core, rendered by *both* the editor node view and the site `.astro` wrapper, killing today's duplicate.
 
 **Architecture:** `packages/blocks` exports a `Callout` core (structure + classes + slots), a block icon set (`BlockIcon`), the variant mapping (moved from the admin), and a token-fallback `callout.css`. The editor's Tiptap node view wraps the core (injecting the editable title input, `NodeViewContent` body, and its tone/icon toolbar) — the node *definition* and round-trip stay byte-identical. The site wrapper renders the same core.
 
-**Tech Stack:** React 18 · TypeScript (strict, `verbatimModuleSyntax`, `noUncheckedIndexedAccess`) · `@saytu/core` (variants) · Vitest + jsdom + Testing Library. Consumed by `@saytu/admin` (Vite/Tiptap) and `@saytu/site` (Astro/Vite).
+**Tech Stack:** React 18 · TypeScript (strict, `verbatimModuleSyntax`, `noUncheckedIndexedAccess`) · `@setu/core` (variants) · Vitest + jsdom + Testing Library. Consumed by `@setu/admin` (Vite/Tiptap) and `@setu/site` (Astro/Vite).
 
 ## Global Constraints
 
-- **`@saytu/blocks` exports TS source** (`main`/`types` → `./src/index.ts`, like `@saytu/core`) + a CSS export `./callout.css`. `react` is a **peerDependency** (`^18.3.1`); consumers provide React (no duplicate React).
+- **`@setu/blocks` exports TS source** (`main`/`types` → `./src/index.ts`, like `@setu/core`) + a CSS export `./callout.css`. `react` is a **peerDependency** (`^18.3.1`); consumers provide React (no duplicate React).
 - **Pin to the suite:** `react`/`react-dom` `^18.3.1`, `@types/react` `^18.3.31`, `@testing-library/react` `^16.1.0`, `jsdom` `^25.0.1`, `vitest` `^2.1.8`, `typescript` `^5.6.3` (`@types/react-dom` ^18.3.1, align with admin if it pins differently).
 - **Class-name contract = the editor's EXISTING names** (`blk-callout`, `tone-{tone}`, `callout-head`, `callout-ic`, `callout-title`, `callout-body`). Do NOT invent new names.
 - **The editor's `Callout` Node.create definition stays BYTE-UNCHANGED** (name/group/content/`defining`/`mdAttrs` attr with `renderHTML:()=>({})`+`parseHTML`/`renderHTML` `div[data-callout]`/`addKeyboardShortcuts` ArrowUp/the title-input ArrowDown+Enter nav/`setAttrs` empty-key hygiene). Only `CalloutView`'s JSX is re-sourced. **The round-trip guard test is the hard gate** — it must stay green.
 - **No changes to `packages/core`** or any content write / Markdoc round-trip path. This is read-only-equivalent on content.
 - **Tokens/theme = #3.** `callout.css` styles via `var(--token, FALLBACK)`; build no token system. **Only the callout** is touched (no other blocks, no codegen).
-- **Already verified (don't re-verify):** an Astro component can import `@saytu/core` and build to static HTML, so `@saytu/blocks` → `@saytu/core` works in the site.
-- Final state must be `pnpm -r test` green (core 175, admin 178 incl. the round-trip guard, site updated, + new `@saytu/blocks` tests) and both apps build.
+- **Already verified (don't re-verify):** an Astro component can import `@setu/core` and build to static HTML, so `@setu/blocks` → `@setu/core` works in the site.
+- Final state must be `pnpm -r test` green (core 175, admin 178 incl. the round-trip guard, site updated, + new `@setu/blocks` tests) and both apps build.
 
 ---
 
 ## File Structure
 
 ```
-packages/blocks/                      NEW @saytu/blocks
+packages/blocks/                      NEW @setu/blocks
   package.json                        TS-source export + ./callout.css export; react peer
   tsconfig.json                       extends ../../tsconfig.base.json; DOM lib; react-jsx
   vitest.config.ts                    jsdom + globals + setup
@@ -45,21 +45,21 @@ packages/blocks/                      NEW @saytu/blocks
 
 apps/saytu-admin/                     editor adoption (Task 4)
   src/editor/extensions/Callout.tsx   CalloutView re-sourced to render <Callout>; Node def unchanged
-  src/editor/callout-variants.ts      DELETED (moved to @saytu/blocks); importers repointed
+  src/editor/callout-variants.ts      DELETED (moved to @setu/blocks); importers repointed
   src/styles/editor.css               structural callout rules removed; chrome (.block-props/.bp-*) kept
-  package.json                        + @saytu/blocks dep
+  package.json                        + @setu/blocks dep
 
 apps/saytu-site/                      site adoption (Task 5)
-  src/components/CalloutWrapper.astro renders <Callout> from @saytu/blocks
+  src/components/CalloutWrapper.astro renders <Callout> from @setu/blocks
   src/components/Callout.tsx          DELETED
   src/styles/site.css                 old .callout/.callout--*/.callout__* removed
   test/render.test.ts                 callout assertions updated to unified markup
-  package.json                        + @saytu/blocks dep
+  package.json                        + @setu/blocks dep
 ```
 
 ---
 
-### Task 1: Scaffold `@saytu/blocks` + the block icon set
+### Task 1: Scaffold `@setu/blocks` + the block icon set
 
 **Files:**
 - Create: `packages/blocks/package.json`, `tsconfig.json`, `vitest.config.ts`, `test/setup.ts`, `src/icons/svgs.ts`, `src/icons/BlockIcon.tsx`, `src/index.ts`
@@ -73,7 +73,7 @@ apps/saytu-site/                      site adoption (Task 5)
 
 ```json
 {
-  "name": "@saytu/blocks",
+  "name": "@setu/blocks",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -85,7 +85,7 @@ apps/saytu-site/                      site adoption (Task 5)
   },
   "scripts": { "test": "vitest run", "typecheck": "tsc --noEmit" },
   "peerDependencies": { "react": "^18.3.1" },
-  "dependencies": { "@saytu/core": "workspace:*" },
+  "dependencies": { "@setu/core": "workspace:*" },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
@@ -233,14 +233,14 @@ test('isBlockIconName narrows known/unknown names', () => {
 
 - [ ] **Step 7: Run `pnpm install` then the test to verify it fails, then passes**
 
-Run: `pnpm install` (root), then `pnpm --filter @saytu/blocks test`
+Run: `pnpm install` (root), then `pnpm --filter @setu/blocks test`
 Expected: after Steps 1–6, PASS (2 tests). (Before the source files exist it errors/fails.)
 
 - [ ] **Step 8: Commit**
 
 ```bash
 git add packages/blocks pnpm-lock.yaml
-git commit -m "feat(blocks): scaffold @saytu/blocks + block icon set"
+git commit -m "feat(blocks): scaffold @setu/blocks + block icon set"
 ```
 
 ---
@@ -253,7 +253,7 @@ git commit -m "feat(blocks): scaffold @saytu/blocks + block icon set"
 - Test: `packages/blocks/test/variants.test.ts`
 
 **Interfaces:**
-- Consumes: `BlockIconName` (Task 1); `resolveConfig`, `defaultConfig` from `@saytu/core`.
+- Consumes: `BlockIconName` (Task 1); `resolveConfig`, `defaultConfig` from `@setu/core`.
 - Produces: `CalloutVariant` (`{type: string; label: string; tone: string; icon: BlockIconName}`), `variantFor(type: string): CalloutVariant`, `calloutVariants(): CalloutVariant[]`, `CALLOUT_ICONS: BlockIconName[]`.
 
 - [ ] **Step 1: Write the failing test `packages/blocks/test/variants.test.ts`**
@@ -283,14 +283,14 @@ test('CALLOUT_ICONS is the curated picker set', () => {
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `pnpm --filter @saytu/blocks test variants`
+Run: `pnpm --filter @setu/blocks test variants`
 Expected: FAIL (`variants` module not found).
 
 - [ ] **Step 3: Implement `packages/blocks/src/callout/variants.ts`**
 
 ```ts
 import type { BlockIconName } from '../icons/svgs'
-import { defaultConfig, resolveConfig } from '@saytu/core'
+import { defaultConfig, resolveConfig } from '@setu/core'
 
 export interface CalloutVariant {
   type: string
@@ -340,7 +340,7 @@ export type { CalloutVariant } from './callout/variants'
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Run: `pnpm --filter @saytu/blocks test`
+Run: `pnpm --filter @setu/blocks test`
 Expected: PASS (Task 1 + Task 2 tests).
 
 - [ ] **Step 6: Commit**
@@ -361,7 +361,7 @@ git commit -m "feat(blocks): callout variant mapping (config-driven, BlockIconNa
 
 **Interfaces:**
 - Consumes: `BlockIcon`, `BlockIconName` (Task 1).
-- Produces: `Callout` (React component, props `{ tone: string; icon: BlockIconName; title?: ReactNode; toolbar?: ReactNode; children: ReactNode }`) rendering `<aside class="blk-callout tone-{tone}">{toolbar}<div class="callout-head"><span class="callout-ic"><BlockIcon/></span>{title}</div>{children}</aside>`. CSS export `@saytu/blocks/callout.css`.
+- Produces: `Callout` (React component, props `{ tone: string; icon: BlockIconName; title?: ReactNode; toolbar?: ReactNode; children: ReactNode }`) rendering `<aside class="blk-callout tone-{tone}">{toolbar}<div class="callout-head"><span class="callout-ic"><BlockIcon/></span>{title}</div>{children}</aside>`. CSS export `@setu/blocks/callout.css`.
 
 - [ ] **Step 1: Write the failing test `packages/blocks/test/callout.test.tsx`**
 
@@ -402,7 +402,7 @@ test('omits toolbar/title when not provided', () => {
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `pnpm --filter @saytu/blocks test callout`
+Run: `pnpm --filter @setu/blocks test callout`
 Expected: FAIL (`Callout` not found).
 
 - [ ] **Step 3: Implement `packages/blocks/src/callout/Callout.tsx`**
@@ -481,8 +481,8 @@ export { Callout } from './callout/Callout'
 
 - [ ] **Step 6: Run the test to verify it passes**
 
-Run: `pnpm --filter @saytu/blocks test`
-Expected: PASS (all `@saytu/blocks` tests). Also run `pnpm --filter @saytu/blocks typecheck` → clean.
+Run: `pnpm --filter @setu/blocks test`
+Expected: PASS (all `@setu/blocks` tests). Also run `pnpm --filter @setu/blocks typecheck` → clean.
 
 - [ ] **Step 7: Commit**
 
@@ -500,27 +500,27 @@ git commit -m "feat(blocks): Callout visual core + token-fallback callout.css"
 - Delete: `apps/saytu-admin/src/editor/callout-variants.ts` (repoint importers)
 
 **Interfaces:**
-- Consumes: `Callout`, `BlockIcon`, `variantFor`, `calloutVariants`, `CALLOUT_ICONS`, `isBlockIconName`, `BlockIconName` from `@saytu/blocks`.
+- Consumes: `Callout`, `BlockIcon`, `variantFor`, `calloutVariants`, `CALLOUT_ICONS`, `isBlockIconName`, `BlockIconName` from `@setu/blocks`.
 
 - [ ] **Step 1: Add the dependency**
 
-In `apps/saytu-admin/package.json` `dependencies`, add `"@saytu/blocks": "workspace:*"`. Run `pnpm install` (root).
+In `apps/saytu-admin/package.json` `dependencies`, add `"@setu/blocks": "workspace:*"`. Run `pnpm install` (root).
 
 - [ ] **Step 2: Find importers of the old variants module**
 
 Run: `grep -rn "callout-variants" apps/saytu-admin/src`
-Expected importers: `src/editor/extensions/Callout.tsx` (known). Repoint every hit to `@saytu/blocks` in the following steps, then the file is deleted.
+Expected importers: `src/editor/extensions/Callout.tsx` (known). Repoint every hit to `@setu/blocks` in the following steps, then the file is deleted.
 
 - [ ] **Step 3: Re-source `CalloutView` in `apps/saytu-admin/src/editor/extensions/Callout.tsx`**
 
-Change the imports at the top — replace the `calloutVariants`/`variantFor`/`CALLOUT_ICONS` import from `'../callout-variants'` and the `Icon`/`IconName`/`isIconName` imports used for the callout with `@saytu/blocks`:
+Change the imports at the top — replace the `calloutVariants`/`variantFor`/`CALLOUT_ICONS` import from `'../callout-variants'` and the `Icon`/`IconName`/`isIconName` imports used for the callout with `@setu/blocks`:
 ```tsx
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { Node, mergeAttributes } from '@tiptap/core'
 import type { Editor } from '@tiptap/core'
-import { Callout as CalloutCore, BlockIcon, variantFor, calloutVariants, CALLOUT_ICONS, isBlockIconName } from '@saytu/blocks'
-import type { BlockIconName } from '@saytu/blocks'
+import { Callout as CalloutCore, BlockIcon, variantFor, calloutVariants, CALLOUT_ICONS, isBlockIconName } from '@setu/blocks'
+import type { BlockIconName } from '@setu/blocks'
 import { useToolbarRoving } from '../useToolbarRoving'
 ```
 Replace the **body** of `CalloutView` (the `return (...)`) with the shared core, keeping the same data flow (`mdAttrs`, `setAttrs`, `variant`, `icon`, the title input, the toolbar, `NodeViewContent`). Keep `focusTitleAtBodyStart` and everything above the `return` unchanged except the icon type:
@@ -631,7 +631,7 @@ Notes:
 - [ ] **Step 4: Verify the Tiptap integration (the one real API risk)**
 
 Run the admin's existing callout + round-trip tests:
-Run: `pnpm --filter @saytu/admin test`
+Run: `pnpm --filter @setu/admin test`
 Expected: PASS — the existing callout node tests and the **round-trip guard** (`tiptapToMarkdoc(getJSON()) === source`) stay green, proving `NodeViewContent` still functions as the editable body when nested as `children` of the shared core inside `NodeViewWrapper`.
 **Fallback if NodeViewContent must NOT be nested via children:** keep `NodeViewWrapper` as the root and render `<CalloutCore … />` with the body, but if Tiptap rejects the deep nesting, pass the body to the core differently — render the core for the head only and place `<NodeViewContent className="callout-body" />` as a sibling immediately after the head inside an `<aside className={`blk-callout tone-${tone}`}>` you construct in the editor (i.e. the core exposes a head-only sub-render). Only do this if Step 4 fails; default is the nested-children form above.
 
@@ -639,24 +639,24 @@ Expected: PASS — the existing callout node tests and the **round-trip guard** 
 
 In `apps/saytu-admin/src/styles/editor.css`, **remove** the structural callout rules now owned by the package: `.blk-callout` (and its `.tone-*` background variants), `.callout-head`, `.callout-ic` (+ its `.tone-* .callout-ic` color rules), `.callout-title` (the base rule), `.callout-body` (+ `.callout-body p` + the `[data-node-view-content-react]` rule). **Keep** the editor-only chrome: `.block-props`, `.bp-label`, `.bp-swatch` (+ tones), `.bp-sep`, `.bp-icon`, the `.blk-callout:focus-within .block-props` rule, and the `.callout-title::placeholder` rules (input-only). Then import the package CSS once where the editor styles are loaded (e.g. at the top of `editor.css`):
 ```css
-@import '@saytu/blocks/callout.css';
+@import '@setu/blocks/callout.css';
 ```
-(If a CSS `@import` of a package subpath does not resolve under the admin's Vite/Tailwind v4 setup, instead `import '@saytu/blocks/callout.css'` from the editor's entry module — match however the admin already loads `editor.css`. Verify the callout renders styled in Step 6.)
+(If a CSS `@import` of a package subpath does not resolve under the admin's Vite/Tailwind v4 setup, instead `import '@setu/blocks/callout.css'` from the editor's entry module — match however the admin already loads `editor.css`. Verify the callout renders styled in Step 6.)
 
 Delete `apps/saytu-admin/src/editor/callout-variants.ts`. Re-confirm no importers remain:
 Run: `grep -rn "callout-variants" apps/saytu-admin/src` → expected: no matches.
 
 - [ ] **Step 6: Run tests + typecheck + a build**
 
-Run: `pnpm --filter @saytu/admin test` → PASS (178, unchanged count; round-trip guard green).
-Run: `pnpm --filter @saytu/admin build` → succeeds (confirms `@saytu/blocks` + its CSS resolve through Vite, and verbatimModuleSyntax/noUncheckedIndexedAccess are clean).
+Run: `pnpm --filter @setu/admin test` → PASS (178, unchanged count; round-trip guard green).
+Run: `pnpm --filter @setu/admin build` → succeeds (confirms `@setu/blocks` + its CSS resolve through Vite, and verbatimModuleSyntax/noUncheckedIndexedAccess are clean).
 Manual UAT note for the controller: load the editor, confirm the callout looks the same (icon badge, title, tones, the focus toolbar) and round-trips.
 
 - [ ] **Step 7: Commit**
 
 ```bash
 git add apps/saytu-admin
-git commit -m "refactor(admin): callout view renders the shared @saytu/blocks core (node def unchanged)"
+git commit -m "refactor(admin): callout view renders the shared @setu/blocks core (node def unchanged)"
 ```
 
 ---
@@ -668,18 +668,18 @@ git commit -m "refactor(admin): callout view renders the shared @saytu/blocks co
 - Delete: `apps/saytu-site/src/components/Callout.tsx`
 
 **Interfaces:**
-- Consumes: `Callout`, `variantFor` from `@saytu/blocks`.
+- Consumes: `Callout`, `variantFor` from `@setu/blocks`.
 
 - [ ] **Step 1: Add the dependency**
 
-In `apps/saytu-site/package.json` `dependencies`, add `"@saytu/blocks": "workspace:*"`. Run `pnpm install` (root).
+In `apps/saytu-site/package.json` `dependencies`, add `"@setu/blocks": "workspace:*"`. Run `pnpm install` (root).
 
 - [ ] **Step 2: Rewrite `apps/saytu-site/src/components/CalloutWrapper.astro`**
 
 ```astro
 ---
-import { Callout, variantFor } from '@saytu/blocks'
-import '@saytu/blocks/callout.css'
+import { Callout, variantFor } from '@setu/blocks'
+import '@setu/blocks/callout.css'
 
 const { type = 'info', title } = Astro.props
 const variant = variantFor(String(type))
@@ -717,14 +717,14 @@ If the exact emitted markup differs (e.g. attribute order, the icon badge nestin
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Run: `pnpm --filter @saytu/site test`
+Run: `pnpm --filter @setu/site test`
 Expected: PASS (17 tests; callout now via the shared core, no `💡`, zero-JS holds).
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add apps/saytu-site
-git commit -m "refactor(site): callout renders the shared @saytu/blocks core; drop the duplicate"
+git commit -m "refactor(site): callout renders the shared @setu/blocks core; drop the duplicate"
 ```
 
 ---
@@ -736,12 +736,12 @@ git commit -m "refactor(site): callout renders the shared @saytu/blocks core; dr
 - [ ] **Step 1: Whole-repo test suite**
 
 Run: `pnpm -r test`
-Expected: every package green — `@saytu/core` 175, `@saytu/admin` 178 (incl. the round-trip guard), `@saytu/site` 17, the new `@saytu/blocks` tests, and all db/git suites.
+Expected: every package green — `@setu/core` 175, `@setu/admin` 178 (incl. the round-trip guard), `@setu/site` 17, the new `@setu/blocks` tests, and all db/git suites.
 
 - [ ] **Step 2: Both apps build**
 
-Run: `pnpm --filter @saytu/admin build && pnpm --filter @saytu/site build`
-Expected: both succeed (confirms `@saytu/blocks` + its CSS resolve in Vite and Astro, no duplicate-React error).
+Run: `pnpm --filter @setu/admin build && pnpm --filter @setu/site build`
+Expected: both succeed (confirms `@setu/blocks` + its CSS resolve in Vite and Astro, no duplicate-React error).
 
 - [ ] **Step 3: Scope guard**
 
@@ -752,7 +752,7 @@ Expected: `scope clean` — no `packages/core/**` changes, no content write/roun
 - [ ] **Step 4: Confirm the duplicate is gone**
 
 Run: `test -f apps/saytu-site/src/components/Callout.tsx && echo "STILL EXISTS" || echo "site Callout.tsx removed ✓"` and `test -f apps/saytu-admin/src/editor/callout-variants.ts && echo "STILL EXISTS" || echo "admin callout-variants.ts removed ✓"`
-Expected: both removed. The callout now has ONE visual core (`@saytu/blocks`), rendered by both apps.
+Expected: both removed. The callout now has ONE visual core (`@setu/blocks`), rendered by both apps.
 
 - [ ] **Step 5: Commit (if any verification fixups were needed; otherwise nothing to commit)**
 
@@ -765,7 +765,7 @@ git add -A && git commit -m "chore(blocks): final verification fixups" || echo "
 ## Self-Review
 
 **1. Spec coverage** (against `2026-06-18-saytu-block-component-package-design.md`):
-- §1 new `@saytu/blocks` (Callout core T3, block icons T1, variant mapping T2, callout.css T3). ✓
+- §1 new `@setu/blocks` (Callout core T3, block icons T1, variant mapping T2, callout.css T3). ✓
 - §2 package layout + TS-source export + `./callout.css` export + react peer: T1. ✓
 - §3 core structure & slots (tone/icon/title/toolbar/children): T3. ✓
 - §4 editor adoption (renders core, imports from blocks, deletes callout-variants.ts, CSS move, **node def unchanged**, round-trip guard): T4. ✓

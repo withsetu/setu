@@ -189,13 +189,13 @@ apps/saytu-admin/package.json      # + @tiptap/extension-list
   task item (nests it) and a list item; Shift-Tab lifts each; Tab inside a callout title is still
   consumed (no escape).
 - **Build/typecheck:** `pnpm -r test` green; `pnpm -r typecheck` clean (incl. edge guard);
-  `pnpm --filter @saytu/admin build` OK; `@tiptap/extension-list` is the only new `package.json`
+  `pnpm --filter @setu/admin build` OK; `@tiptap/extension-list` is the only new `package.json`
   change; existing list/round-trip suites stay green.
 
 ## Definition of done
 
 - `pnpm -r test` green (core checklist+nesting round-trip + admin display/menu/keymap) ;
-  `pnpm -r typecheck` clean ; `pnpm --filter @saytu/admin build` OK.
+  `pnpm -r typecheck` clean ; `pnpm --filter @setu/admin build` OK.
 - `pnpm dev`: select text → bubble List ▸ shows Bullet / Numbered / **Checklist** (⌘⇧9); `/`
   inserts a Checklist; clicking a checkbox toggles done; **Tab nests** any list item (bullet,
   numbered, checklist, mixed) and **Shift-Tab outdents**; a checklist (and nested lists) survive a

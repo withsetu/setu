@@ -4,7 +4,7 @@
 
 **Goal:** Make editor shortcuts discoverable (hover/focus hints), add a `Cmd/Ctrl+K` link shortcut, and add a keyboard-shortcuts cheat sheet — all driven by one shortcuts registry.
 
-**Architecture:** A single `shortcuts.ts` registry (+ pure `formatKeys`/`ariaKeyshortcuts`) is the source of truth. A tiny `editor-events.ts` emitter bridges a Tiptap keymap extension (`Mod-k`, `Mod-/`) to React (the format bubble's link input, and the cheat-sheet dialog). Tooltips reuse `tippy.js` (already a dep). No new dependencies; no `@saytu/core` changes.
+**Architecture:** A single `shortcuts.ts` registry (+ pure `formatKeys`/`ariaKeyshortcuts`) is the source of truth. A tiny `editor-events.ts` emitter bridges a Tiptap keymap extension (`Mod-k`, `Mod-/`) to React (the format bubble's link input, and the cheat-sheet dialog). Tooltips reuse `tippy.js` (already a dep). No new dependencies; no `@setu/core` changes.
 
 **Tech Stack:** TypeScript (strict: `noUncheckedIndexedAccess`, `verbatimModuleSyntax`), React 18, Tiptap v3, `tippy.js` (existing), Vitest + `@testing-library/react`.
 
@@ -83,7 +83,7 @@ describe('SHORTCUTS registry', () => {
 
 - [ ] **Step 2: Run it — verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- shortcuts`
+Run: `pnpm --filter @setu/admin test -- shortcuts`
 Expected: FAIL — `shortcuts` module not found.
 
 - [ ] **Step 3: Implement `shortcuts.ts`**
@@ -142,7 +142,7 @@ export function detectMac(): boolean {
 
 - [ ] **Step 4: Run it — verify it passes**
 
-Run: `pnpm --filter @saytu/admin test -- shortcuts`
+Run: `pnpm --filter @setu/admin test -- shortcuts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -193,7 +193,7 @@ describe('editor-events', () => {
 
 - [ ] **Step 2: Run it — verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- editor-events`
+Run: `pnpm --filter @setu/admin test -- editor-events`
 Expected: FAIL — module not found.
 
 - [ ] **Step 3: Implement `editor-events.ts`**
@@ -233,7 +233,7 @@ export const requestShortcuts = shortcuts.emit
 
 - [ ] **Step 4: Run it — verify it passes**
 
-Run: `pnpm --filter @saytu/admin test -- editor-events`
+Run: `pnpm --filter @setu/admin test -- editor-events`
 Expected: PASS.
 
 - [ ] **Step 5: Implement the `KeyboardShortcuts` extension**
@@ -280,7 +280,7 @@ import { KeyboardShortcuts } from './extensions/KeyboardShortcuts'
 
 - [ ] **Step 7: Run tests + typecheck**
 
-Run: `pnpm --filter @saytu/admin test -- editor-events && pnpm --filter @saytu/admin typecheck`
+Run: `pnpm --filter @setu/admin test -- editor-events && pnpm --filter @setu/admin typecheck`
 Expected: PASS.
 
 - [ ] **Step 8: Commit**
@@ -378,7 +378,7 @@ describe('FormatBubbleToolbar shortcut hints', () => {
 
 - [ ] **Step 3: Run it — verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- format-tooltips`
+Run: `pnpm --filter @setu/admin test -- format-tooltips`
 Expected: FAIL — no `aria-keyshortcuts` yet / link input not opened by the event.
 
 - [ ] **Step 4: Wire tooltips + aria + subscription into `FormatBubble.tsx`**
@@ -450,12 +450,12 @@ The link button:
 
 - [ ] **Step 5: Run it — verify it passes**
 
-Run: `pnpm --filter @saytu/admin test -- format-tooltips`
+Run: `pnpm --filter @setu/admin test -- format-tooltips`
 Expected: PASS (aria-keyshortcuts present; requestLinkEdit opens the input).
 
 - [ ] **Step 6: Full admin suite + typecheck**
 
-Run: `pnpm --filter @saytu/admin test && pnpm --filter @saytu/admin typecheck`
+Run: `pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck`
 Expected: PASS (existing format-bubble/link tests still green).
 
 - [ ] **Step 7: Commit**
@@ -509,7 +509,7 @@ describe('ShortcutsDialog', () => {
 
 - [ ] **Step 2: Run it — verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- shortcuts-dialog`
+Run: `pnpm --filter @setu/admin test -- shortcuts-dialog`
 Expected: FAIL — `ShortcutsDialog` not exported.
 
 - [ ] **Step 3: Implement `ShortcutsDialog.tsx`**
@@ -583,7 +583,7 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
 
 - [ ] **Step 4: Run it — verify it passes**
 
-Run: `pnpm --filter @saytu/admin test -- shortcuts-dialog`
+Run: `pnpm --filter @setu/admin test -- shortcuts-dialog`
 Expected: PASS (3 cases).
 
 - [ ] **Step 5: Add a `keyboard` icon**
@@ -631,7 +631,7 @@ And render the dialog near the end of the returned JSX (inside the top-level `.e
 
 - [ ] **Step 7: Run tests + typecheck + full suite**
 
-Run: `pnpm --filter @saytu/admin test && pnpm --filter @saytu/admin typecheck`
+Run: `pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck`
 Expected: PASS (dialog tests + existing suite green).
 
 - [ ] **Step 8: Commit**
@@ -678,7 +678,7 @@ Append to `apps/saytu-admin/src/styles/editor.css` (reuse existing tokens; the t
 
 - [ ] **Step 2: Build**
 
-Run: `pnpm --filter @saytu/admin build`
+Run: `pnpm --filter @setu/admin build`
 Expected: build succeeds; CSS emitted.
 
 - [ ] **Step 3: Commit**
@@ -696,7 +696,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1: Whole suite** — Run: `pnpm -r test` — expect every package green; admin gains shortcuts / editor-events / format-tooltips / shortcuts-dialog tests.
 - [ ] **Step 2: Typecheck** — Run: `pnpm -r typecheck` — expect clean (incl. core edge guard).
-- [ ] **Step 3: Build** — Run: `pnpm --filter @saytu/admin build` — succeeds; brand fonts still linked; no new deps (`git diff` shows `package.json` unchanged — tippy already present).
+- [ ] **Step 3: Build** — Run: `pnpm --filter @setu/admin build` — succeeds; brand fonts still linked; no new deps (`git diff` shows `package.json` unchanged — tippy already present).
 - [ ] **Step 4: Manual (reviewer)** — `pnpm dev`: select text → hover/focus a format button shows e.g. "Bold ⌘B"; `Cmd/Ctrl+K` on a selection opens the link input; the `?` strip button and `Cmd/Ctrl+/` open the cheat sheet listing all shortcuts; Esc/backdrop close it.
 
 ---
@@ -705,7 +705,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 - **Spec coverage:** registry+formatters → Task 1; event bridge + Mod-k/Mod-/ keymap → Task 2; tooltips + aria + Mod-k-opens-input → Task 3; cheat sheet + trigger → Task 4; CSS → Task 5; verify → Task 6.
 - **Single source of truth:** tooltips (Task 3) and the dialog (Task 4) both read `SHORTCUTS`/`formatKeys` from Task 1 — they can't drift.
-- **No new deps:** tippy already present; Task 6 asserts `package.json` unchanged. No `@saytu/core` change.
+- **No new deps:** tippy already present; Task 6 asserts `package.json` unchanged. No `@setu/core` change.
 - **Type consistency:** `formatKeys(keys, mac)`, `ariaKeyshortcuts(keys)`, `SHORTCUTS`/`Shortcut`/`ShortcutGroup`, `onRequestLinkEdit/requestLinkEdit/onRequestShortcuts/requestShortcuts`, `Tooltip({content,children})`, `ShortcutsDialog({onClose})` — used identically across tasks.
 - **Honest test scope:** pure formatters + registry + emitter + aria attributes + the Mod-k→input wiring (via `requestLinkEdit`) + the dialog are all unit/integration tested. The tippy *visual* tooltip and the EditorScreen `?`-button/Mod-/ end-to-end are build+manual verified (jsdom can't show tippy floats; EditorScreen needs heavy harness) — consistent with prior glue deferrals. The dialog's full Tab focus-trap is a noted v1 simplification (single focusable control).
 - **a11y:** `aria-keyshortcuts` on buttons (tested); tooltips on focus; dialog `role=dialog`/`aria-modal`/Esc/labelled; all shortcuts listed for keyboard discovery.

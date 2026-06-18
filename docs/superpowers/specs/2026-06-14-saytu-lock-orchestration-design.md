@@ -1,4 +1,4 @@
-# Design — Draft + Lock Orchestration (`@saytu/core`) (Increment #4)
+# Design — Draft + Lock Orchestration (`@setu/core`) (Increment #4)
 
 _Date: 2026-06-14 · Status: approved_
 
@@ -20,7 +20,7 @@ lives in core") and shipped increments #1–#3.
   - `authoring-service.ts` — `createAuthoringService(deps)` applying the policy
     through a `DataPort`: `open`, `save`, `release`, `forceUnlock`, `status`.
   - `types.ts` — `AuthoringService` interface, result types, `LockDecision`.
-- Export the service + types + `DEFAULT_LOCK_TTL_MS` from `@saytu/core`.
+- Export the service + types + `DEFAULT_LOCK_TTL_MS` from `@setu/core`.
 - Add `src/authoring` to the core edge-portability guard (`tsconfig.edge.json`).
 - Vitest tests: a pure `lock-policy` suite + a service suite using a local
   in-memory fake `DataPort` + a controllable clock.
@@ -212,5 +212,5 @@ the test file — no cross-package dependency, no workspace cycle) and a
 - `pnpm typecheck` clean across packages, including the edge guard now covering
   `src/authoring` (the service must stay Node-free).
 - `createAuthoringService`, `AuthoringService`, the result types, and
-  `DEFAULT_LOCK_TTL_MS` exported from `@saytu/core`.
+  `DEFAULT_LOCK_TTL_MS` exported from `@setu/core`.
 - Committed via the subagent-driven flow.

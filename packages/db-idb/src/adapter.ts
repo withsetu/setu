@@ -1,5 +1,5 @@
 import { openDB } from 'idb'
-import type { DataPort, Draft, DraftInput, EntryRef, Lock } from '@saytu/core'
+import type { DataPort, Draft, DraftInput, EntryRef, Lock } from '@setu/core'
 
 // NUL composite key — cannot appear in collection/locale/slug, so refs never collide.
 const keyOf = (r: EntryRef): string => `${r.collection}\0${r.locale}\0${r.slug}`

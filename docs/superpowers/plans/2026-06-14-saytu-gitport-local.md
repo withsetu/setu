@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add Saytu's git seam — the `GitPort` interface (in `@saytu/core`), a reusable contract suite (`@saytu/git-testing`), and an isomorphic-git `git-local` adapter that passes it — the read/commit primitives the publish pipeline will use.
+**Goal:** Add Saytu's git seam — the `GitPort` interface (in `@setu/core`), a reusable contract suite (`@setu/git-testing`), and an isomorphic-git `git-local` adapter that passes it — the read/commit primitives the publish pipeline will use.
 
-**Architecture:** Pure `GitPort` interface + types in `@saytu/core/src/git` (edge-portable, edge-guarded). `@saytu/git-testing` exports `runGitPortContract(makeAdapter)`, self-tested against an in-memory fake GitPort. `@saytu/git-local` implements the port with isomorphic-git over an existing repo; its tests `git.init` a temp-dir repo per case. Mirrors the increment-#3 DataPort/db-sqlite/db-testing shape.
+**Architecture:** Pure `GitPort` interface + types in `@setu/core/src/git` (edge-portable, edge-guarded). `@setu/git-testing` exports `runGitPortContract(makeAdapter)`, self-tested against an in-memory fake GitPort. `@setu/git-local` implements the port with isomorphic-git over an existing repo; its tests `git.init` a temp-dir repo per case. Mirrors the increment-#3 DataPort/db-sqlite/db-testing shape.
 
 **Tech Stack:** TypeScript (strict), isomorphic-git (pure JS — no native build), Vitest, pnpm workspaces.
 
@@ -22,14 +22,14 @@ packages/core/src/index.ts        # + re-export GitPort surface
 packages/core/tsconfig.edge.json  # + "src/git" in include
 packages/core/test/git/types.test.ts
 
-packages/git-testing/             # @saytu/git-testing (private)
+packages/git-testing/             # @setu/git-testing (private)
 ├── package.json
 ├── tsconfig.json
 ├── vitest.config.ts
 ├── src/index.ts                  # runGitPortContract(makeAdapter)
 └── test/fake-git.test.ts         # self-test vs in-memory fake GitPort
 
-packages/git-local/               # @saytu/git-local
+packages/git-local/               # @setu/git-local
 ├── package.json                  # isomorphic-git
 ├── tsconfig.json                 # types: ["node"]
 ├── vitest.config.ts
@@ -43,7 +43,7 @@ packages/git-local/               # @saytu/git-local
 
 ---
 
-### Task 1: `GitPort` interface + types in `@saytu/core`
+### Task 1: `GitPort` interface + types in `@setu/core`
 
 **Files:**
 - Create: `packages/core/src/git/types.ts`
@@ -117,7 +117,7 @@ describe('GitPort types', () => {
 
 - [ ] **Step 4: Run test to verify it fails**
 
-Run: `pnpm --filter @saytu/core test -- git/types`
+Run: `pnpm --filter @setu/core test -- git/types`
 Expected: FAIL — types not exported from `../../src/index`.
 
 - [ ] **Step 5: Export the git surface from the package index**
@@ -139,17 +139,17 @@ Edit `packages/core/tsconfig.edge.json` — change the `include` array to:
 
 - [ ] **Step 7: Run test to verify it passes**
 
-Run: `pnpm --filter @saytu/core test -- git/types`
+Run: `pnpm --filter @setu/core test -- git/types`
 Expected: PASS (2 tests).
 
 - [ ] **Step 8: Typecheck (incl. edge guard)**
 
-Run: `pnpm --filter @saytu/core typecheck`
+Run: `pnpm --filter @setu/core typecheck`
 Expected: clean — both the main check and the edge guard (the GitPort interface is pure, Node-free).
 
 - [ ] **Step 9: Run the full core suite**
 
-Run: `pnpm --filter @saytu/core test`
+Run: `pnpm --filter @setu/core test`
 Expected: PASS — 59 tests (57 prior + 2 new).
 
 - [ ] **Step 10: Commit**
@@ -161,7 +161,7 @@ git commit -m "feat(core): GitPort interface + GitAuthor/CommitInput types"
 
 ---
 
-### Task 2: `@saytu/git-testing` — contract suite + in-memory fake self-test
+### Task 2: `@setu/git-testing` — contract suite + in-memory fake self-test
 
 **Files:**
 - Create: `packages/git-testing/package.json`
@@ -176,7 +176,7 @@ Create `packages/git-testing/package.json`:
 
 ```json
 {
-  "name": "@saytu/git-testing",
+  "name": "@setu/git-testing",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -189,7 +189,7 @@ Create `packages/git-testing/package.json`:
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@saytu/core": "workspace:*"
+    "@setu/core": "workspace:*"
   },
   "peerDependencies": {
     "vitest": "^2.0.0"
@@ -224,7 +224,7 @@ export default defineConfig({
 - [ ] **Step 2: Install (links the workspace deps)**
 
 Run: `pnpm install`
-Expected: clean; `@saytu/core` symlinked into the new package.
+Expected: clean; `@setu/core` symlinked into the new package.
 
 - [ ] **Step 3: Implement the contract suite**
 
@@ -232,7 +232,7 @@ Create `packages/git-testing/src/index.ts`:
 
 ```ts
 import { describe, it, expect, beforeEach } from 'vitest'
-import type { GitPort } from '@saytu/core'
+import type { GitPort } from '@setu/core'
 
 const author = { name: 'Test', email: 'test@x.com' }
 
@@ -285,7 +285,7 @@ Create `packages/git-testing/test/fake-git.test.ts`:
 
 ```ts
 import { runGitPortContract } from '../src/index'
-import type { GitPort } from '@saytu/core'
+import type { GitPort } from '@setu/core'
 
 /** A correct in-memory GitPort — proves the contract passes a valid
  *  implementation (and would fail a broken one). */
@@ -313,12 +313,12 @@ runGitPortContract(() => createFakeGit())
 
 - [ ] **Step 5: Run the self-test**
 
-Run: `pnpm --filter @saytu/git-testing test`
+Run: `pnpm --filter @setu/git-testing test`
 Expected: PASS — the full GitPort contract (5 tests) green against the fake.
 
 - [ ] **Step 6: Typecheck**
 
-Run: `pnpm --filter @saytu/git-testing typecheck`
+Run: `pnpm --filter @setu/git-testing typecheck`
 Expected: clean.
 
 - [ ] **Step 7: Commit**
@@ -330,7 +330,7 @@ git commit -m "feat(git-testing): runGitPortContract + in-memory fake GitPort"
 
 ---
 
-### Task 3: `@saytu/git-local` — isomorphic-git adapter passing the contract
+### Task 3: `@setu/git-local` — isomorphic-git adapter passing the contract
 
 **Files:**
 - Create: `packages/git-local/package.json`
@@ -347,7 +347,7 @@ Create `packages/git-local/package.json`:
 
 ```json
 {
-  "name": "@saytu/git-local",
+  "name": "@setu/git-local",
   "version": "0.0.0",
   "type": "module",
   "license": "AGPL-3.0-only",
@@ -359,10 +359,10 @@ Create `packages/git-local/package.json`:
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@saytu/core": "workspace:*"
+    "@setu/core": "workspace:*"
   },
   "devDependencies": {
-    "@saytu/git-testing": "workspace:*",
+    "@setu/git-testing": "workspace:*",
     "@types/node": "^22.10.2",
     "typescript": "^5.6.3",
     "vitest": "^2.1.8"
@@ -392,7 +392,7 @@ export default defineConfig({
 
 - [ ] **Step 2: Add isomorphic-git**
 
-Run: `pnpm --filter @saytu/git-local add isomorphic-git`
+Run: `pnpm --filter @setu/git-local add isomorphic-git`
 Expected: resolves and installs (pure JS — no native build; no `onlyBuiltDependencies` entry needed). isomorphic-git ships its own type declarations.
 
 - [ ] **Step 3: Write the failing contract test**
@@ -406,7 +406,7 @@ import nodeFs from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as git from 'isomorphic-git'
-import { runGitPortContract } from '@saytu/git-testing'
+import { runGitPortContract } from '@setu/git-testing'
 import { createLocalGitAdapter } from '../src/index'
 
 const dirs: string[] = []
@@ -426,7 +426,7 @@ runGitPortContract(async () => {
 
 - [ ] **Step 4: Run to verify it fails**
 
-Run: `pnpm --filter @saytu/git-local test -- contract`
+Run: `pnpm --filter @setu/git-local test -- contract`
 Expected: FAIL — `createLocalGitAdapter` not exported / module missing.
 
 - [ ] **Step 5: Implement the adapter**
@@ -437,7 +437,7 @@ Create `packages/git-local/src/adapter.ts`:
 import nodeFs from 'node:fs'
 import { dirname, join } from 'node:path'
 import * as git from 'isomorphic-git'
-import type { GitPort } from '@saytu/core'
+import type { GitPort } from '@setu/core'
 
 export interface LocalGitOptions {
   /** Path to an existing git repository (the caller/test runs `git init`). */
@@ -506,7 +506,7 @@ export type { LocalGitOptions } from './adapter'
 
 - [ ] **Step 7: Run the contract test**
 
-Run: `pnpm --filter @saytu/git-local test -- contract`
+Run: `pnpm --filter @setu/git-local test -- contract`
 Expected: PASS — the full GitPort contract (5 tests) green against the local adapter.
 
 Note: if the installed isomorphic-git version reports the "not found" error with a
@@ -559,16 +559,16 @@ describe('git-local adapter (on-disk)', () => {
 
 - [ ] **Step 9: Run the package suite + typecheck**
 
-Run: `pnpm --filter @saytu/git-local test`
+Run: `pnpm --filter @setu/git-local test`
 Expected: PASS — 6 tests (5 contract + 1 on-disk).
 
-Run: `pnpm --filter @saytu/git-local typecheck`
+Run: `pnpm --filter @setu/git-local typecheck`
 Expected: clean.
 
 - [ ] **Step 10: Full repo verification (definition of done)**
 
 Run: `pnpm test && pnpm typecheck`
-Expected: every package green — `@saytu/core` 59, `@saytu/db-testing` 11, `@saytu/db-sqlite` 12, `@saytu/git-testing` 5, `@saytu/git-local` 6 (= 93 total); typecheck clean across all packages incl. the core edge guard (now covering `src/git`).
+Expected: every package green — `@setu/core` 59, `@setu/db-testing` 11, `@setu/db-sqlite` 12, `@setu/git-testing` 5, `@setu/git-local` 6 (= 93 total); typecheck clean across all packages incl. the core edge guard (now covering `src/git`).
 
 - [ ] **Step 11: Commit**
 
@@ -582,11 +582,11 @@ git commit -m "feat(git-local): isomorphic-git GitPort adapter passing the share
 ## Self-Review
 
 **Spec coverage:**
-- `GitPort` interface (`headSha`/`readFile`/`commitFile`) + `GitAuthor`/`CommitInput` in `@saytu/core/src/git` → Task 1. ✓
+- `GitPort` interface (`headSha`/`readFile`/`commitFile`) + `GitAuthor`/`CommitInput` in `@setu/core/src/git` → Task 1. ✓
 - Edge guard covers `src/git`; interface Node-free → Task 1 Steps 6, 8. ✓
-- `@saytu/git-testing` exporting `runGitPortContract`; self-tested vs in-memory fake → Task 2. ✓
+- `@setu/git-testing` exporting `runGitPortContract`; self-tested vs in-memory fake → Task 2. ✓
 - vitest as peerDependency in git-testing (matches db-testing) → Task 2 Step 1. ✓
-- `@saytu/git-local` with `createLocalGitAdapter({ dir, fs? })` (isomorphic-git, operates on an existing repo) passing the contract → Task 3. ✓
+- `@setu/git-local` with `createLocalGitAdapter({ dir, fs? })` (isomorphic-git, operates on an existing repo) passing the contract → Task 3. ✓
 - isomorphic-git pure JS, no native build / no onlyBuiltDependencies entry → Task 3 Step 2. ✓
 - Contract assertions: empty-repo null head + null read; commit→string sha = HEAD; read-back + null-for-absent; second commit advances HEAD + latest content; nested paths → Task 2 Step 3. ✓
 - On-disk persistence (fresh adapter reads prior commit; sha is a 40-hex oid) → Task 3 Step 8. ✓

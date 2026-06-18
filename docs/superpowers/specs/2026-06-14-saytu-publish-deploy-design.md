@@ -29,7 +29,7 @@ copy is ahead of live (`edited` = uncommitted edits, `staged` = committed-not-li
 ## Scope
 
 **In:**
-1. **Capability seam** — `@saytu/core/src/authz/`: the `Action` vocabulary,
+1. **Capability seam** — `@setu/core/src/authz/`: the `Action` vocabulary,
    `DEFAULT_ROLES` matrix, `createAuthz(matrix).can(actor, action)` (pure,
    edge-safe). App context provides a constant **Owner** actor via `useActor()`
    (no auth yet → Owner ⇒ all `can()` true). Publish/Deploy/Unpublish are gated.
@@ -147,8 +147,8 @@ Tested as a pure unit (a table of input triples → expected `{state, pending}`)
 
 ## Definition of done
 
-- `pnpm --filter @saytu/core test` (authz + lifecycle units) + `pnpm --filter
-  @saytu/admin test` green; typecheck + edge guard clean; build OK (fonts, no jiti).
+- `pnpm --filter @setu/core test` (authz + lifecycle units) + `pnpm --filter
+  @setu/admin test` green; typecheck + edge guard clean; build OK (fonts, no jiti).
 - `pnpm dev`: open a draft → **Publish** (status → Staged) → **Deploy** in the
   sidebar (status → Live) → edit (Live · edited) → Publish (Live · staged) → Deploy
   (Live) → **Unpublish** (Unpublishing → after Deploy, Unpublished) → Re-publish.

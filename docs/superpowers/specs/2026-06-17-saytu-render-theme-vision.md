@@ -49,7 +49,7 @@ site, AI extends it, and nothing ever gets lost.* AI is a power tool inside the 
 A "component" (block) must exist in **three planes** to work end-to-end:
 
 1. **Editor** — the in-browser React node view (edit affordances, attr panel, slash entry).
-2. **Round-trip** — `@saytu/core` knows the Markdoc tag and round-trips its attrs safely
+2. **Round-trip** — `@setu/core` knows the Markdoc tag and round-trips its attrs safely
    (the content-safety cardinal rule).
 3. **Render** — published HTML on the site.
 
@@ -71,7 +71,7 @@ components/PricingTable/
 
 Drop the folder in → on build, codegen reads `component.ts` (the **single source of
 truth**) and **fans it out** to all three planes: registers the editor node + slash entry,
-teaches `@saytu/core` the tag + round-trip, and generates the `.astro` wrapper +
+teaches `@setu/core` the tag + round-trip, and generates the `.astro` wrapper +
 `markdoc.config` wiring. **One declaration, three planes, no drift** — drift is the bug
 that rots these systems, and this designs it out. One typed shape means the `.astro` props,
 the editor attrs, and the round-trip can't disagree at compile time.

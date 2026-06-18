@@ -125,11 +125,11 @@ export function StatusPill(props: { status: string }): JSX.Element
 
 ## Definition of done
 
-- `pnpm --filter @saytu/admin test` green (existing 7 + new Icon/StatusPill/sidebar/
+- `pnpm --filter @setu/admin test` green (existing 7 + new Icon/StatusPill/sidebar/
   content-list behavior tests); `pnpm test` repo-wide unaffected.
-- `pnpm --filter @saytu/admin typecheck` clean (verbatimModuleSyntax → `import type`
+- `pnpm --filter @setu/admin typecheck` clean (verbatimModuleSyntax → `import type`
   where needed; no `React.ReactNode`).
-- `pnpm --filter @saytu/admin build` succeeds; the brand fonts still load (#9 fix
+- `pnpm --filter @setu/admin build` succeeds; the brand fonts still load (#9 fix
   preserved).
 - `pnpm dev` shows a sidebar with icons + workspace header and a content list with
   status pills that visually matches `design/admin/` (product-owner UAT).

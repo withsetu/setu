@@ -79,7 +79,7 @@ describe('collapseSelectionOnEscape', () => {
 
 - [ ] **Step 2: Run it — verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- dismiss`
+Run: `pnpm --filter @setu/admin test -- dismiss`
 Expected: FAIL — `dismiss` module not found.
 
 - [ ] **Step 3: Implement `dismiss.ts`**
@@ -107,7 +107,7 @@ export function collapseSelectionOnEscape(editor: Editor): boolean {
 
 - [ ] **Step 4: Run it — verify it passes**
 
-Run: `pnpm --filter @saytu/admin test -- dismiss`
+Run: `pnpm --filter @setu/admin test -- dismiss`
 Expected: PASS (4 cases).
 
 - [ ] **Step 5: Wire the `Escape` keymap into `KeyboardShortcuts.ts`**
@@ -154,7 +154,7 @@ On the **buttons-view** container only (the second `return`, the `<div className
 
 - [ ] **Step 7: Run tests + typecheck + full admin suite**
 
-Run: `pnpm --filter @saytu/admin test && pnpm --filter @saytu/admin typecheck`
+Run: `pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck`
 Expected: PASS — `dismiss` tests + existing format-bubble/tooltip/editor suites green; typecheck clean.
 
 - [ ] **Step 8: Commit**
@@ -197,7 +197,7 @@ describe('shouldShowLinkCard', () => {
 
 - [ ] **Step 2: Run it — verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- link-tools`
+Run: `pnpm --filter @setu/admin test -- link-tools`
 Expected: FAIL — `shouldShowLinkCard` currently takes 3 args; the `dismissed` cases fail to type/behave.
 
 - [ ] **Step 3: Extend the pure predicate**
@@ -289,12 +289,12 @@ import { isEscape } from '../dismiss'
 
 - [ ] **Step 5: Run it — verify it passes**
 
-Run: `pnpm --filter @saytu/admin test -- link-tools`
+Run: `pnpm --filter @setu/admin test -- link-tools`
 Expected: PASS (predicate cases).
 
 - [ ] **Step 6: Full admin suite + typecheck**
 
-Run: `pnpm --filter @saytu/admin test && pnpm --filter @saytu/admin typecheck`
+Run: `pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck`
 Expected: PASS — existing LinkTools/link tests still green (the `showFor`/`update` changes are behavior-preserving when `dismissedHref` is null, i.e. the default path).
 
 - [ ] **Step 7: Commit**
@@ -312,7 +312,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1: Whole suite** — Run: `pnpm -r test` — expect every package green; admin gains `dismiss` + `link-tools` cases.
 - [ ] **Step 2: Typecheck** — Run: `pnpm -r typecheck` — expect clean (incl. core edge guard).
-- [ ] **Step 3: Build + no new deps** — Run: `pnpm --filter @saytu/admin build` (succeeds; fonts intact) and `git diff main -- apps/saytu-admin/package.json` (empty — tippy/@tiptap already present, nothing added).
+- [ ] **Step 3: Build + no new deps** — Run: `pnpm --filter @setu/admin build` (succeeds; fonts intact) and `git diff main -- apps/saytu-admin/package.json` (empty — tippy/@tiptap already present, nothing added).
 - [ ] **Step 4: Manual (reviewer)** — `pnpm dev`: select text → **Esc** hides the bubble and leaves the caret where the selection ended; open the link URL input (Link button or Cmd/Ctrl+K) → **Esc** returns to the bubble buttons with the selection intact (a second Esc then collapses it); click into a link → the card shows → **Esc** hides it and it stays hidden while the caret stays in that link, re-showing once the caret moves out; the slash menu and block menu still Esc-close.
 
 ---

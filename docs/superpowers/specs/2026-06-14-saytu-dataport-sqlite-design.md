@@ -5,7 +5,7 @@ _Date: 2026-06-14 · Status: approved_
 ## Purpose
 
 Stand up Saytu's **first hexagonal Port & Adapter**: the `DataPort` interface
-(in `@saytu/core`), a reusable **port contract test suite** (`@saytu/db-testing`),
+(in `@setu/core`), a reusable **port contract test suite** (`@setu/db-testing`),
 and a concrete **`db-sqlite`** adapter (Drizzle + better-sqlite3) that passes the
 contract. This establishes the pattern every later port (Storage, Auth, Email,
 Image, Git) and adapter (`db-d1`) will copy.
@@ -25,10 +25,10 @@ because they need a *producer* (the Git publish/reindex pipeline) and a
 
 **In:**
 - `DataPort` interface + domain types (`EntryRef`, `Draft`, `DraftInput`, `Lock`)
-  in `@saytu/core` (`src/data/`). Pure types/interface — no DB, no test deps.
-- `@saytu/db-testing` — a new package exporting `runDataPortContract(makeAdapter)`,
+  in `@setu/core` (`src/data/`). Pure types/interface — no DB, no test deps.
+- `@setu/db-testing` — a new package exporting `runDataPortContract(makeAdapter)`,
   a Vitest battery that asserts the behavioral contract for any DataPort adapter.
-- `@saytu/db-sqlite` — a new adapter package: Drizzle ORM + Drizzle Kit +
+- `@setu/db-sqlite` — a new adapter package: Drizzle ORM + Drizzle Kit +
   better-sqlite3, a `drafts` + `locks` schema, migrations applied on init, and a
   test file that runs `runDataPortContract` against an in-memory adapter.
 
@@ -57,7 +57,7 @@ because they need a *producer* (the Git publish/reindex pipeline) and a
   the conventional T1 (local) / T3 (VPS) choice. Added to
   `pnpm.onlyBuiltDependencies` so pnpm builds its native binding. (`node:sqlite`
   is built-in but experimental; better-sqlite3 is the reliable choice for now.)
-- **Contract suite as its own package.** Keeps Vitest out of `@saytu/core`'s
+- **Contract suite as its own package.** Keeps Vitest out of `@setu/core`'s
   dependency graph while delivering "one suite, many adapters."
 
 ## Architecture
@@ -68,12 +68,12 @@ packages/core/src/data/
 └── data-port.ts    # DataPort interface
 (+ re-exported from packages/core/src/index.ts)
 
-packages/db-testing/            # @saytu/db-testing (private; Vitest dep)
+packages/db-testing/            # @setu/db-testing (private; Vitest dep)
 ├── package.json
 ├── tsconfig.json
 └── src/index.ts                # runDataPortContract(makeAdapter)
 
-packages/db-sqlite/             # @saytu/db-sqlite
+packages/db-sqlite/             # @setu/db-sqlite
 ├── package.json                # drizzle-orm, drizzle-kit, better-sqlite3
 ├── tsconfig.json
 ├── drizzle.config.ts
@@ -85,7 +85,7 @@ packages/db-sqlite/             # @saytu/db-sqlite
 └── test/contract.test.ts       # runDataPortContract(() => createSqliteAdapter(':memory:'))
 ```
 
-## Domain types & interface (`@saytu/core`)
+## Domain types & interface (`@setu/core`)
 
 ```ts
 import type { TiptapDoc } from '../markdoc/types'
@@ -149,7 +149,7 @@ orchestration arrives, time-sensitive *policy* will use an injected clock; the
 adapter's storage stamping stays internal and is asserted via ordering, not exact
 values, in the contract.
 
-## Contract suite (`@saytu/db-testing`)
+## Contract suite (`@setu/db-testing`)
 
 `runDataPortContract(makeAdapter: () => Promise<DataPort> | DataPort): void`
 registers a `describe('DataPort contract', …)` with Vitest. Each test gets a
@@ -210,14 +210,14 @@ under `drizzle/`. The adapter runs migrations on construction so a fresh DB
 
 ## Testing (TDD)
 
-- **`@saytu/db-testing`** is itself exercised by `db-sqlite` (no standalone tests;
+- **`@setu/db-testing`** is itself exercised by `db-sqlite` (no standalone tests;
   it's a harness). Type-only correctness via `tsc`.
 - **`db-sqlite`**: `test/contract.test.ts` calls
   `runDataPortContract(() => createSqliteAdapter(':memory:'))`. Green = the
   adapter satisfies the entire port contract. (Adapter-specific tests — e.g.
   migrations create both tables — may be added but the contract is the core gate.)
 - Root `pnpm test` runs all package suites; `pnpm typecheck` stays clean
-  (including `@saytu/core`'s edge-portability guard, which is unaffected — the
+  (including `@setu/core`'s edge-portability guard, which is unaffected — the
   DataPort interface is pure types and must remain Node-free; the better-sqlite3
   dependency lives only in `db-sqlite`).
 
@@ -226,7 +226,7 @@ under `drizzle/`. The adapter runs migrations on construction so a fresh DB
 - `pnpm install` clean (better-sqlite3 builds via `onlyBuiltDependencies`).
 - `pnpm typecheck` clean across all packages (core edge guard still green).
 - `pnpm test` green: the `db-sqlite` contract suite passes the full DataPort
-  contract; existing 37 `@saytu/core` tests unaffected.
-- `DataPort` + types exported from `@saytu/core`; `runDataPortContract` exported
-  from `@saytu/db-testing`; `createSqliteAdapter` exported from `@saytu/db-sqlite`.
+  contract; existing 37 `@setu/core` tests unaffected.
+- `DataPort` + types exported from `@setu/core`; `runDataPortContract` exported
+  from `@setu/db-testing`; `createSqliteAdapter` exported from `@setu/db-sqlite`.
 - Committed via the subagent-driven flow.

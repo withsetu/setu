@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { optionsToCss } from '@saytu/theme-default/options'
+import { optionsToCss } from '@setu/theme-default/options'
 import { themeOptions } from '../src/lib/site-config'
 
 const appDir = fileURLToPath(new URL('..', import.meta.url))

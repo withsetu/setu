@@ -33,7 +33,7 @@ socket is the *contract* (the port); the power source behind it is swappable (th
 
 ```
             ┌───────────────────────────────────┐
-            │        @saytu/core  (engine)        │
+            │        @setu/core  (engine)        │
             │  pure logic — knows only the ports  │
             └───────┬───────────────────┬─────────┘
                     │ GitPort            │ DataPort
@@ -132,9 +132,9 @@ next Deploy). One status engine, three inputs, any topology.
 
 ---
 
-## The engine: `@saytu/core`
+## The engine: `@setu/core`
 
-`@saytu/core` is pure logic that depends only on the ports. It contains:
+`@setu/core` is pure logic that depends only on the ports. It contains:
 
 - **`markdoc/`** — the round-trip between the editor's Tiptap JSON and Markdoc `.mdoc` files
   (`tiptapToMarkdoc` / `markdocToTiptap`), plus frontmatter (`parseMdoc` / `serializeMdoc`).
@@ -180,7 +180,7 @@ Because Git is canonical, **switching topology never loses published content** �
 
 ## The in-browser bet
 
-Today's admin app (`apps/saytu-admin`) runs the **entire `@saytu/core` engine plus the in-memory
+Today's admin app (`apps/saytu-admin`) runs the **entire `@setu/core` engine plus the in-memory
 adapters (`git-memory` + `db-memory`) directly in the browser** — no server. The publish service,
 the lifecycle engine, the content list, deploy: all of it executes client-side against a `Map`.
 

@@ -4,7 +4,7 @@
 
 **Goal:** Add a table block to the editor that round-trips as portable GFM pipe tables with per-column alignment, by writing tables ourselves as native GFM (Markdoc stays the reader).
 
-**Architecture:** `@saytu/core` gains a pure `tableToGfm` serializer (the content-safety core); `tiptapToMarkdoc` routes a `table` node through it instead of `Markdoc.format` (same bypass pattern as `passthrough`). `Markdoc.parse` remains the reader (it parses GFM tables incl. alignment), so `to-tiptap` gains a `case 'table'`. The admin app registers `@tiptap/extension-table`, extends the cell nodes with an `align` attribute, and adds a slash-insert + a cell action menu.
+**Architecture:** `@setu/core` gains a pure `tableToGfm` serializer (the content-safety core); `tiptapToMarkdoc` routes a `table` node through it instead of `Markdoc.format` (same bypass pattern as `passthrough`). `Markdoc.parse` remains the reader (it parses GFM tables incl. alignment), so `to-tiptap` gains a `case 'table'`. The admin app registers `@tiptap/extension-table`, extends the cell nodes with an `align` attribute, and adds a slash-insert + a cell action menu.
 
 **Tech Stack:** TypeScript (strict: `noUncheckedIndexedAccess`, `verbatimModuleSyntax`), Vitest, `@markdoc/markdoc` 0.5.7, Tiptap v3.26.1 (`@tiptap/extension-table` MIT), pnpm workspaces.
 
@@ -14,7 +14,7 @@
 - `@tiptap/extension-table` v3.26.1 (MIT) exports `TableKit` and (to verify on install) the individual `Table`, `TableRow`, `TableCell`, `TableHeader`. Commands: `insertTable({ rows, cols, withHeaderRow })`, `addRowBefore`/`addRowAfter`/`addColumnBefore`/`addColumnAfter`/`deleteRow`/`deleteColumn`/`deleteTable`. `Table` config `resizable` defaults false (keep it false — GFM has no column widths). It is NOT yet in the workspace (must be added + installed).
 - `table` is a defined `IconName` in `apps/saytu-admin/src/ui/Icon.tsx`. Slash insert pattern (`blocks.ts`): `(e,r) => e.chain().focus().deleteRange(r).<cmd>().run()` (see the `Divider` entry).
 - `to-markdoc.ts`: `buildInline` is module-private; `tiptapToMarkdoc` maps top-level blocks (passthrough bypasses `Markdoc.format`). `to-tiptap.ts`: `blockToTiptap` switch + `collectInline(node)` = `(node.children ?? []).flatMap(c => inlineToTiptap(c))`; `MdNode` type imported.
-- Edge guard: `pnpm --filter @saytu/core typecheck` runs `tsc` + `tsc -p tsconfig.edge.json` — converter must stay Node-free (pure JS/Markdoc only).
+- Edge guard: `pnpm --filter @setu/core typecheck` runs `tsc` + `tsc -p tsconfig.edge.json` — converter must stay Node-free (pure JS/Markdoc only).
 
 **HARD RULE:** Any NEW dep/API claim beyond the above must be web-checked/introspected before asserting (esp. the individual extension exports + the cell `addAttributes` extend pattern — verify against the installed package in Task 4).
 
@@ -105,7 +105,7 @@ describe('tableToGfm', () => {
 
 - [ ] **Step 3: Run tests to verify they fail**
 
-Run: `pnpm --filter @saytu/core test -- table`
+Run: `pnpm --filter @setu/core test -- table`
 Expected: FAIL — `table-gfm` module does not exist.
 
 - [ ] **Step 4: Implement `table-gfm.ts`**
@@ -156,7 +156,7 @@ export function tableToGfm(node: TiptapNode): string {
 
 - [ ] **Step 5: Run serializer tests**
 
-Run: `pnpm --filter @saytu/core test -- table`
+Run: `pnpm --filter @setu/core test -- table`
 Expected: PASS (all 5).
 
 - [ ] **Step 6: Route `table` nodes through the serializer in `tiptapToMarkdoc`**
@@ -186,7 +186,7 @@ export function tiptapToMarkdoc(doc: TiptapDoc): string {
 
 - [ ] **Step 7: Run full core suite + typecheck (edge guard)**
 
-Run: `pnpm --filter @saytu/core test && pnpm --filter @saytu/core typecheck`
+Run: `pnpm --filter @setu/core test && pnpm --filter @setu/core typecheck`
 Expected: PASS; edge guard clean (no Node APIs added).
 
 - [ ] **Step 8: Commit**
@@ -246,7 +246,7 @@ describe('tables (markdocToTiptap)', () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `pnpm --filter @saytu/core test -- to-tiptap`
+Run: `pnpm --filter @setu/core test -- to-tiptap`
 Expected: FAIL — `table` hits `default: return null` (dropped).
 
 - [ ] **Step 3: Implement the `table` case**
@@ -278,12 +278,12 @@ In `packages/core/src/markdoc/to-tiptap.ts`, add a `case 'table'` to `blockToTip
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `pnpm --filter @saytu/core test -- to-tiptap`
+Run: `pnpm --filter @setu/core test -- to-tiptap`
 Expected: PASS (new + existing).
 
 - [ ] **Step 5: Typecheck (edge guard)**
 
-Run: `pnpm --filter @saytu/core typecheck`
+Run: `pnpm --filter @setu/core typecheck`
 Expected: clean.
 
 - [ ] **Step 6: Commit**
@@ -350,12 +350,12 @@ describe('table content-safety', () => {
 
 - [ ] **Step 4: Run tests**
 
-Run: `pnpm --filter @saytu/core test -- roundtrip.examples`
+Run: `pnpm --filter @setu/core test -- roundtrip.examples`
 Expected: PASS — every table sample idempotent + byte-identical to its canonical form; negatives preserve the pipe. If a byte-fidelity case fails, the **canonical form** may differ (e.g. spacing) — fix the EXPECTED string to match the serializer's actual canonical output; do NOT weaken the serializer. (Confirm the mismatch is only cosmetic spacing, not lost content.)
 
 - [ ] **Step 5: Full core suite + typecheck**
 
-Run: `pnpm --filter @saytu/core test && pnpm --filter @saytu/core typecheck`
+Run: `pnpm --filter @setu/core test && pnpm --filter @setu/core typecheck`
 Expected: green; edge guard clean; no new core deps.
 
 - [ ] **Step 6: Commit**
@@ -437,7 +437,7 @@ describe('table extension', () => {
 
 - [ ] **Step 4: Run test to verify it passes after registration**
 
-Run: `pnpm --filter @saytu/admin test -- table`
+Run: `pnpm --filter @setu/admin test -- table`
 Expected: PASS once the dep resolves (the test defines its own extended cells; this guards the API shape we depend on).
 
 - [ ] **Step 5: Register in Canvas**
@@ -469,7 +469,7 @@ In `apps/saytu-admin/src/editor/Canvas.tsx`:
 
 - [ ] **Step 6: Verify**
 
-Run: `pnpm --filter @saytu/admin test && pnpm --filter @saytu/admin typecheck && pnpm --filter @saytu/admin build`
+Run: `pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck && pnpm --filter @setu/admin build`
 Expected: all pass; build OK; existing tests green.
 
 - [ ] **Step 7: Commit**
@@ -497,7 +497,7 @@ In `apps/saytu-admin/test/blocks.test.ts`, after the existing `toContain('Divide
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- blocks`
+Run: `pnpm --filter @setu/admin test -- blocks`
 Expected: FAIL — no 'Table' slash entry.
 
 - [ ] **Step 3: Implement**
@@ -512,12 +512,12 @@ In `apps/saytu-admin/src/editor/blocks.ts`, add to the `BUILTINS` array (after t
 
 - [ ] **Step 4: Run tests**
 
-Run: `pnpm --filter @saytu/admin test -- blocks`
+Run: `pnpm --filter @setu/admin test -- blocks`
 Expected: PASS.
 
 - [ ] **Step 5: Typecheck**
 
-Run: `pnpm --filter @saytu/admin typecheck`
+Run: `pnpm --filter @setu/admin typecheck`
 Expected: clean.
 
 - [ ] **Step 6: Commit**
@@ -585,7 +585,7 @@ describe('tableActions', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- table-menu`
+Run: `pnpm --filter @setu/admin test -- table-menu`
 Expected: FAIL — `TableMenu`/`tableActions` does not exist.
 
 - [ ] **Step 3: Implement `TableMenu.tsx`**
@@ -657,7 +657,7 @@ and in the returned JSX, after `{editor && <FormatBubble editor={editor} />}`:
 
 - [ ] **Step 5: Run tests + typecheck**
 
-Run: `pnpm --filter @saytu/admin test -- table-menu && pnpm --filter @saytu/admin test && pnpm --filter @saytu/admin typecheck`
+Run: `pnpm --filter @setu/admin test -- table-menu && pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck`
 Expected: `tableActions` tests pass; full suite green; typecheck clean.
 
 - [ ] **Step 6: Commit**
@@ -697,7 +697,7 @@ In `apps/saytu-admin/src/styles/editor.css`, after the task-list block, add (mat
 
 - [ ] **Step 2: Build + visual sanity**
 
-Run: `pnpm --filter @saytu/admin build`
+Run: `pnpm --filter @setu/admin build`
 Expected: succeeds (no CSS errors).
 
 - [ ] **Step 3: Commit**
@@ -709,10 +709,10 @@ git commit -m "feat(admin): table + alignment + selected-cell styling"
 
 - [ ] **Step 4: Full verification + manual UAT prep**
 
-Run: `pnpm -r test && pnpm -r typecheck && pnpm --filter @saytu/admin build`
+Run: `pnpm -r test && pnpm -r typecheck && pnpm --filter @setu/admin build`
 Expected: all green; edge guard clean; build OK; `@tiptap/extension-table` the only new dep.
 
-Then `pnpm --filter @saytu/admin dev` (kill stale servers first) and verify: `/` → **Table** inserts a table; cell menu adds/removes rows & columns and sets column alignment (visible); a table with alignment + bold/link survives publish→reopen as clean GFM.
+Then `pnpm --filter @setu/admin dev` (kill stale servers first) and verify: `/` → **Table** inserts a table; cell menu adds/removes rows & columns and sets column alignment (visible); a table with alignment + bold/link survives publish→reopen as clean GFM.
 
 - [ ] **Step 5: Final code review**, then `superpowers:finishing-a-development-branch` (merge `--no-ff` to local main + push; remove worktree; delete branch), and update `memory/saytu-project.md` with the tables entry (native-GFM-writer / Markdoc-reader decision; the `tableToGfm` escaping pattern; cell `align` attribute; the "Markdoc.format drops alignment → we serialize tables ourselves" finding).
 
@@ -720,6 +720,6 @@ Then `pnpm --filter @saytu/admin dev` (kill stale servers first) and verify: `/`
 
 ## Definition of Done (from spec)
 
-- `pnpm -r test` green; `pnpm -r typecheck` clean (incl. edge guard); `pnpm --filter @saytu/admin build` OK.
+- `pnpm -r test` green; `pnpm -r typecheck` clean (incl. edge guard); `pnpm --filter @setu/admin build` OK.
 - `pnpm dev`: `/` → Table inserts; cell menu adds/removes rows & columns + sets column alignment (L/C/R, visible); a table with alignment + inline marks survives publish→reopen as clean GFM (`| … |` with `:--`/`:-:`/`--:`).
 - Built test-first via the subagent-driven flow.

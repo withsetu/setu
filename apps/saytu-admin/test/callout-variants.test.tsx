@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { calloutVariants, variantFor, CALLOUT_ICONS } from '@saytu/blocks'
+import { calloutVariants, variantFor, CALLOUT_ICONS } from '@setu/blocks'
 
 describe('callout variants', () => {
   it('derives one variant per config editor.variants entry, with tone+icon+label', () => {

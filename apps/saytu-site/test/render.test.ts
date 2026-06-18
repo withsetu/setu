@@ -41,7 +41,7 @@ describe('render pipeline — standard nodes', () => {
 })
 
 describe('render pipeline — callout', () => {
-  it('renders the callout via the shared @saytu/blocks core with attrs + body', () => {
+  it('renders the callout via the shared @setu/blocks core with attrs + body', () => {
     expect(html).toContain('blk-callout tone-amber')
     expect(html).toContain('<svg')
     expect(html).toContain('class="callout-title">Heads up</span>')
@@ -104,7 +104,7 @@ describe('render pipeline — baseline + passthrough', () => {
     expect(h1s.length).toBe(1)
   })
   it('wires the baseline stylesheet (inlined CSS rule present)', () => {
-    // CSS is inlined by Astro; assert a known rule from @saytu/blocks callout.css appears in the built HTML.
+    // CSS is inlined by Astro; assert a known rule from @setu/blocks callout.css appears in the built HTML.
     expect(html).toContain('.blk-callout')
   })
 })

@@ -1,5 +1,5 @@
 import type { BlockIconName } from '../icons/svgs'
-import { defaultConfig, resolveConfig } from '@saytu/core'
+import { defaultConfig, resolveConfig } from '@setu/core'
 
 export interface CalloutVariant {
   type: string

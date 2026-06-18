@@ -1,4 +1,4 @@
-import type { Lifecycle } from '@saytu/core'
+import type { Lifecycle } from '@setu/core'
 
 const STATE_LABEL: Record<Lifecycle['state'], string> = {
   draft: 'Draft', staged: 'Staged', live: 'Live', unpublished: 'Unpublished',

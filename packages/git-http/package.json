@@ -1,5 +1,5 @@
 {
-  "name": "@saytu/git-http",
+  "name": "@setu/git-http",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -8,11 +8,11 @@
   "types": "./src/index.ts",
   "exports": { ".": "./src/index.ts" },
   "scripts": { "test": "vitest run", "typecheck": "tsc --noEmit" },
-  "dependencies": { "@saytu/core": "workspace:*" },
+  "dependencies": { "@setu/core": "workspace:*" },
   "devDependencies": {
-    "@saytu/api": "workspace:*",
-    "@saytu/git-memory": "workspace:*",
-    "@saytu/git-testing": "workspace:*",
+    "@setu/api": "workspace:*",
+    "@setu/git-memory": "workspace:*",
+    "@setu/git-testing": "workspace:*",
     "typescript": "^5.6.3",
     "vitest": "^2.1.8"
   }

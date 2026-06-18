@@ -1,7 +1,7 @@
 import type { Editor, Range } from '@tiptap/core'
 import { isIconName } from '../ui/Icon'
 import type { IconName } from '../ui/Icon'
-import { defaultConfig, resolveConfig } from '@saytu/core'
+import { defaultConfig, resolveConfig } from '@setu/core'
 import { BLOCK_TYPES } from './block-types'
 
 export interface SlashBlock {

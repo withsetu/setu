@@ -1,4 +1,4 @@
-import type { GitPort, CommitInput, CommitResult } from '@saytu/core'
+import type { GitPort, CommitInput, CommitResult } from '@setu/core'
 
 export interface HttpGitOptions {
   /** Base URL of the Saytu git API (e.g. http://localhost:4444). */

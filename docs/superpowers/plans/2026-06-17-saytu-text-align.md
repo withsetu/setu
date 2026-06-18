@@ -4,7 +4,7 @@
 
 **Goal:** Let writers align paragraphs and headings left / center / right, round-tripping through Markdoc as a node annotation `{% align="center" %}`.
 
-**Architecture:** `@saytu/core`'s converter reads a block's `align` attribute → Tiptap `textAlign`, and writes `textAlign` (center/right only) by setting the built Markdoc node's `.annotations` (left/null emits nothing). The admin app registers `@tiptap/extension-text-align` and adds an alignment button group to the format bubble.
+**Architecture:** `@setu/core`'s converter reads a block's `align` attribute → Tiptap `textAlign`, and writes `textAlign` (center/right only) by setting the built Markdoc node's `.annotations` (left/null emits nothing). The admin app registers `@tiptap/extension-text-align` and adds an alignment button group to the format bubble.
 
 **Tech Stack:** TypeScript (strict: `noUncheckedIndexedAccess`, `verbatimModuleSyntax`), Vitest, `@markdoc/markdoc` 0.5.7, Tiptap v3.26.1 (`@tiptap/extension-text-align` MIT), pnpm workspaces.
 
@@ -16,7 +16,7 @@
 - `alignLeft` / `alignCenter` / `alignRight` icons already exist in `apps/saytu-admin/src/ui/Icon.tsx`.
 - Converter call sites: `to-tiptap.ts` `blockToTiptap` has `case 'heading': return { type:'heading', attrs:{ level: node.attributes.level }, content: collectInline(node) }` and `case 'paragraph': return { type:'paragraph', content: collectInline(node) }`. `to-markdoc.ts` `buildBlock` has `case 'heading': return new N('heading', { level: attrs['level'] }, [new N('inline', {}, buildInline(node.content))])` and `case 'paragraph': return new N('paragraph', {}, [new N('inline', {}, buildInline(node.content))])`. `formatNative` strips trailing newlines; `tiptapToMarkdoc` joins blocks + adds the final `\n`.
 - FormatBubble (`apps/saytu-admin/src/editor/FormatBubble.tsx`): `MARKS` button array rendered with `<Icon>` + `Tooltip` + `data-toolbar-item` + `aria-pressed`; a `useEditorState` selector returning `{ bold, italic, … link, from, to }` (with a fallback object); `tipFor(id, fallback)` / `ariaFor(id)` from the `SHORTCUTS` registry; `FormatBubbleToolbar` is exported + unit-testable.
-- Edge guard: `pnpm --filter @saytu/core typecheck` runs `tsc` + `tsc -p tsconfig.edge.json` — converter must stay Node-free.
+- Edge guard: `pnpm --filter @setu/core typecheck` runs `tsc` + `tsc -p tsconfig.edge.json` — converter must stay Node-free.
 
 **HARD RULE:** Verify the TextAlign shortcut keys + that it's standalone (not a kit) against the installed package in Task 4 before asserting.
 
@@ -75,7 +75,7 @@ describe('text alignment (markdocToTiptap)', () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `pnpm --filter @saytu/core test -- to-tiptap`
+Run: `pnpm --filter @setu/core test -- to-tiptap`
 Expected: FAIL — the aligned cases lack `textAlign`.
 
 - [ ] **Step 3: Implement**
@@ -104,12 +104,12 @@ Then update the two cases in `blockToTiptap`:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `pnpm --filter @saytu/core test -- to-tiptap`
+Run: `pnpm --filter @setu/core test -- to-tiptap`
 Expected: PASS (new + existing).
 
 - [ ] **Step 5: Typecheck (edge guard)**
 
-Run: `pnpm --filter @saytu/core typecheck`
+Run: `pnpm --filter @setu/core typecheck`
 Expected: clean.
 
 - [ ] **Step 6: Commit**
@@ -159,7 +159,7 @@ describe('text alignment (tiptapToMarkdoc)', () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `pnpm --filter @saytu/core test -- to-markdoc`
+Run: `pnpm --filter @setu/core test -- to-markdoc`
 Expected: FAIL — no annotation emitted (output is `Centered\n` etc.).
 
 - [ ] **Step 3: Implement**
@@ -192,12 +192,12 @@ Then update the two cases in `buildBlock`:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `pnpm --filter @saytu/core test -- to-markdoc`
+Run: `pnpm --filter @setu/core test -- to-markdoc`
 Expected: PASS (new + existing).
 
 - [ ] **Step 5: Typecheck (edge guard)**
 
-Run: `pnpm --filter @saytu/core typecheck`
+Run: `pnpm --filter @setu/core typecheck`
 Expected: clean.
 
 - [ ] **Step 6: Commit**
@@ -255,12 +255,12 @@ describe('text-align content-safety', () => {
 
 - [ ] **Step 4: Run tests**
 
-Run: `pnpm --filter @saytu/core test -- roundtrip.examples`
+Run: `pnpm --filter @setu/core test -- roundtrip.examples`
 Expected: PASS — aligned samples idempotent + byte-identical to the canonical no-space form; negatives clean. (If a byte-fidelity case mismatches on spacing, the canonical form differs — fix the EXPECTED string to the serializer's actual output; do NOT weaken the converter. `align="left"` normalising to `L\n` is intended.)
 
 - [ ] **Step 5: Full core suite + typecheck**
 
-Run: `pnpm --filter @saytu/core test && pnpm --filter @saytu/core typecheck`
+Run: `pnpm --filter @setu/core test && pnpm --filter @setu/core typecheck`
 Expected: green; edge guard clean; no new core deps.
 
 - [ ] **Step 6: Commit**
@@ -402,9 +402,9 @@ In `apps/saytu-admin/src/editor/shortcuts.ts`, add to `SHORTCUTS` (use the EXACT
 - [ ] **Step 7: Verify**
 
 Run:
-- `pnpm --filter @saytu/admin test` (full suite green incl. the new bubble test; if a registry-count test broke, fix it for the 3 new entries)
-- `pnpm --filter @saytu/admin typecheck` (clean — `setTextAlign`/`unsetTextAlign` resolve via the dep)
-- `pnpm --filter @saytu/admin build` (OK)
+- `pnpm --filter @setu/admin test` (full suite green incl. the new bubble test; if a registry-count test broke, fix it for the 3 new entries)
+- `pnpm --filter @setu/admin typecheck` (clean — `setTextAlign`/`unsetTextAlign` resolve via the dep)
+- `pnpm --filter @setu/admin build` (OK)
 
 - [ ] **Step 8: Commit**
 
@@ -419,13 +419,13 @@ git commit -m "feat(admin): text-align buttons in the format bubble + TextAlign 
 
 - [ ] **Step 1:** `pnpm -r test` — all green (core align round-trip + admin bubble).
 - [ ] **Step 2:** `pnpm -r typecheck` — clean (incl. core edge guard).
-- [ ] **Step 3:** `pnpm --filter @saytu/admin build` — OK; `@tiptap/extension-text-align` the only new dep.
+- [ ] **Step 3:** `pnpm --filter @setu/admin build` — OK; `@tiptap/extension-text-align` the only new dep.
 - [ ] **Step 4:** Dispatch a final code reviewer; then `superpowers:finishing-a-development-branch` (merge `--no-ff` to local main + **`pnpm install` on main** to sync the new dep + push; remove worktree; delete branch); update `memory/saytu-project.md` with the text-align entry (Markdoc **node-annotation** representation — `built.annotations` on write, `attributes.align` on read, left emits nothing; reuses the align icons; distinct from table-column alignment; render-time mapping deferred) and mark it shipped in `docs/roadmap.md`.
 
 ---
 
 ## Definition of Done (from spec)
 
-- `pnpm -r test` green; `pnpm -r typecheck` clean (incl. edge guard); `pnpm --filter @saytu/admin build` OK.
+- `pnpm -r test` green; `pnpm -r typecheck` clean (incl. edge guard); `pnpm --filter @setu/admin build` OK.
 - `pnpm dev`: select text in a paragraph/heading → bubble shows L/C/R; Center/Right align the block (with shortcut), Left clears; alignment survives publish→reopen as `{% align="center" %}`; cheat sheet lists the align shortcuts.
 - Built test-first via the subagent-driven flow.

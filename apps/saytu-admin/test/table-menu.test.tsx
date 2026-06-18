@@ -3,7 +3,7 @@ import { Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import { Table, TableRow, TableHeader, TableCell } from '@tiptap/extension-table'
 import { tableActions } from '../src/editor/TableMenu'
-import { tiptapToMarkdoc } from '@saytu/core'
+import { tiptapToMarkdoc } from '@setu/core'
 
 let editor: Editor
 afterEach(() => editor?.destroy())

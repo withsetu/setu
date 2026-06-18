@@ -4,8 +4,8 @@ _Date: 2026-06-14 · Status: approved_
 
 ## Purpose
 
-Stand up Saytu's git seam: the **`GitPort` interface** (in `@saytu/core`), a
-reusable **GitPort contract suite** (`@saytu/git-testing`), and a concrete
+Stand up Saytu's git seam: the **`GitPort` interface** (in `@setu/core`), a
+reusable **GitPort contract suite** (`@setu/git-testing`), and a concrete
 **`git-local`** adapter (isomorphic-git) that passes the contract. This is the
 first slice of the "publish" direction — the read/commit primitives the publish
 pipeline (increment #6) will orchestrate. Mirrors the increment-#3 pattern
@@ -30,17 +30,17 @@ abstraction must exist (workerd has no git binary).
 **First GitPort slice = the read + commit primitives the publish pipeline needs.**
 
 **In:**
-- `@saytu/core/src/git/`: the `GitPort` interface + types (`GitAuthor`,
+- `@setu/core/src/git/`: the `GitPort` interface + types (`GitAuthor`,
   `CommitInput`). Pure, edge-portable; added to the core edge guard.
-- `@saytu/git-testing`: `runGitPortContract(makeAdapter)` — a Vitest battery any
+- `@setu/git-testing`: `runGitPortContract(makeAdapter)` — a Vitest battery any
   GitPort adapter runs; self-tested against an in-memory fake GitPort.
-- `@saytu/git-local`: `createLocalGitAdapter({ dir, fs? })` (isomorphic-git);
+- `@setu/git-local`: `createLocalGitAdapter({ dir, fs? })` (isomorphic-git);
   passes the contract against a fresh temp-dir repo per test, plus one on-disk
   test.
 
 **Out (explicitly deferred):**
 - The publish **service** (draft → Markdoc → commit) + the base-SHA conflict
-  guard — increment #6, in `@saytu/core`, consuming GitPort + DataPort + the
+  guard — increment #6, in `@setu/core`, consuming GitPort + DataPort + the
   round-trip.
 - The `git-github` (edge) adapter — runs this same contract later.
 - The Git → DB **reindex** (needs the content-index DataPort slice deferred in #3).
@@ -71,14 +71,14 @@ packages/core/src/git/
 └── git-port.ts       # GitPort interface
 (+ re-exported from packages/core/src/index.ts; src/git added to tsconfig.edge.json)
 
-packages/git-testing/             # @saytu/git-testing (private; vitest peer)
+packages/git-testing/             # @setu/git-testing (private; vitest peer)
 ├── package.json
 ├── tsconfig.json
 ├── vitest.config.ts
 ├── src/index.ts                  # runGitPortContract(makeAdapter)
 └── test/fake-git.test.ts         # self-test vs an in-memory fake GitPort
 
-packages/git-local/               # @saytu/git-local
+packages/git-local/               # @setu/git-local
 ├── package.json                  # isomorphic-git
 ├── tsconfig.json                 # types: ["node"]
 ├── vitest.config.ts
@@ -93,7 +93,7 @@ packages/git-local/               # @saytu/git-local
 `GitPort` interface = pure types (edge-safe). `git-local` is Node-only
 (isomorphic-git + `node:fs`/`node:path`) in its own package — not edge-guarded.
 
-## Interface & types (`@saytu/core`)
+## Interface & types (`@setu/core`)
 
 ```ts
 /** Identity stamped on a commit (the editor, not the machine's git config). */
@@ -124,7 +124,7 @@ export interface GitPort {
 }
 ```
 
-## Contract suite (`@saytu/git-testing`)
+## Contract suite (`@setu/git-testing`)
 
 `runGitPortContract(makeAdapter: () => Promise<GitPort> | GitPort): void` — each
 test gets a FRESH adapter (a fresh empty repo) via `makeAdapter` in `beforeEach`.
@@ -175,9 +175,9 @@ own repo lifecycle). `fs` defaults to `node:fs`.
 
 ## Testing (TDD)
 
-- **`@saytu/git-testing`**: the contract + the in-memory fake self-test (green
+- **`@setu/git-testing`**: the contract + the in-memory fake self-test (green
   proves the harness).
-- **`@saytu/git-local`**: `test/contract.test.ts` runs `runGitPortContract` where
+- **`@setu/git-local`**: `test/contract.test.ts` runs `runGitPortContract` where
   `makeAdapter` creates a fresh temp dir (`mkdtempSync`), `git.init({ defaultBranch:
   'main' })`, returns `createLocalGitAdapter({ dir })`, and the test's `afterEach`
   removes the temp dirs. `test/git-local.test.ts` adds an on-disk specific: commit
@@ -194,6 +194,6 @@ own repo lifecycle). `fs` defaults to `node:fs`.
   covering `src/git`).
 - `pnpm test` green: `git-local` passes the full GitPort contract; `git-testing`
   self-test green; existing 80 tests unaffected.
-- `GitPort` + types exported from `@saytu/core`; `runGitPortContract` from
-  `@saytu/git-testing`; `createLocalGitAdapter` from `@saytu/git-local`.
+- `GitPort` + types exported from `@setu/core`; `runGitPortContract` from
+  `@setu/git-testing`; `createLocalGitAdapter` from `@setu/git-local`.
 - Committed via the subagent-driven flow.

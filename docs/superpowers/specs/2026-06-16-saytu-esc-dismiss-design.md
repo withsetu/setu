@@ -120,7 +120,7 @@ apps/saytu-admin/src/editor/
 
 ## Definition of done
 
-- `pnpm --filter @saytu/admin test` green (isEscape + bubble-Esc-collapses + input-Esc-priority +
+- `pnpm --filter @setu/admin test` green (isEscape + bubble-Esc-collapses + input-Esc-priority +
   link-card-Esc) + existing; typecheck clean; build OK; no new deps.
 - `pnpm dev`: select text → Esc hides the bubble and keeps the caret; open the link URL input →
   Esc returns to the bubble buttons (selection intact); click into a link → Esc hides the card and

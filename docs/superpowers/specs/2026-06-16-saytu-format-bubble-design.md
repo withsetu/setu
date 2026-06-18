@@ -116,8 +116,8 @@ apps/saytu-admin/src/styles/editor.css   # bubble + link-card styles
 
 ## Definition of done
 
-- `pnpm --filter @saytu/admin test` green (bubble + link tests + existing suite); typecheck
-  clean; `pnpm --filter @saytu/admin build` OK.
+- `pnpm --filter @setu/admin test` green (bubble + link tests + existing suite); typecheck
+  clean; `pnpm --filter @setu/admin build` OK.
 - `pnpm dev`: select text → bubble appears → toggles work; Link → inline URL input → link
   created; caret into a link (or hover) → card with Open ↗ / Edit / Remove; everything
   keyboard-operable; Cmd+U does nothing (underline disabled).

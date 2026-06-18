@@ -1,4 +1,4 @@
-import type { CommitInput, CommitResult, GitPort } from '@saytu/core'
+import type { CommitInput, CommitResult, GitPort } from '@setu/core'
 
 /** A pre-existing file to seed into the repo at construction. */
 export interface GitSeedFile {

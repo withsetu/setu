@@ -2,12 +2,12 @@ import { defineConfig } from 'astro/config'
 import { createRequire } from 'node:module'
 import markdoc from '@astrojs/markdoc'
 import react from '@astrojs/react'
-import { loadConfig } from '@saytu/core/node'
+import { loadConfig } from '@setu/core/node'
 
 // Read the active theme from saytu.config (single source of truth) and alias '@theme'
 // to it, so pages render through whichever theme is configured.
 const config = await loadConfig(new URL('./saytu.config.ts', import.meta.url).pathname)
-const activeTheme = config.theme ?? '@saytu/theme-default'
+const activeTheme = config.theme ?? '@setu/theme-default'
 
 // Content lives at repo-root content/ (the publish-engine convention), which is OUTSIDE
 // this app's node_modules scope. The markdoc integration injects bare imports

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
-import type { TiptapDoc } from '@saytu/core'
+import type { TiptapDoc } from '@setu/core'
 import { useAutosave } from '../src/editor/useAutosave'
 
 const emptyDoc: TiptapDoc = { type: 'doc', content: [] }

@@ -4,15 +4,15 @@
 
 **Goal:** Add the RBAC capability seam (`can(actor, action)`), a pure `deriveLifecycle` status function, a **role-gated Publish** action in the editor (commit draft → Git, Draft→Staged), and **derived status** in the editor + content list. (Site-wide Deploy, Live/Deployed, and Unpublish are slice 2.)
 
-**Architecture:** Two new pure, edge-safe core modules (`@saytu/core/src/authz`, `.../lifecycle`). The app gains a constant **Owner** actor context (`useActor`/`useCan`) and a `publish` service in the existing services context. The editor flushes-saves then calls `publishService.publish` (gated by `content.publish`), and shows a read-only status pill from `deriveLifecycle`. The content list's status column switches to `deriveLifecycle`. No Deploy yet → the `deployed` input is always `null` (statuses are Draft/Staged this slice).
+**Architecture:** Two new pure, edge-safe core modules (`@setu/core/src/authz`, `.../lifecycle`). The app gains a constant **Owner** actor context (`useActor`/`useCan`) and a `publish` service in the existing services context. The editor flushes-saves then calls `publishService.publish` (gated by `content.publish`), and shows a read-only status pill from `deriveLifecycle`. The content list's status column switches to `deriveLifecycle`. No Deploy yet → the `deployed` input is always `null` (statuses are Draft/Staged this slice).
 
 **Tech Stack:** React 18, Tiptap v3, the in-browser ports (db-memory + git-memory), zod, Vitest. Design refs: `docs/superpowers/specs/2026-06-14-saytu-publish-deploy-design.md` + `...-rbac-design.md`.
 
-**Strict TS:** `verbatimModuleSyntax` (`import type`), `noUncheckedIndexedAccess`. The core modules are edge-safe (add `src/authz` + `src/lifecycle` to `packages/core/tsconfig.edge.json`). Verify per task: `pnpm --filter @saytu/core test`, `pnpm --filter @saytu/admin test`, both `typecheck`.
+**Strict TS:** `verbatimModuleSyntax` (`import type`), `noUncheckedIndexedAccess`. The core modules are edge-safe (add `src/authz` + `src/lifecycle` to `packages/core/tsconfig.edge.json`). Verify per task: `pnpm --filter @setu/core test`, `pnpm --filter @setu/admin test`, both `typecheck`.
 
 ---
 
-### Task 1: RBAC capability seam (`@saytu/core/src/authz`) + app actor context
+### Task 1: RBAC capability seam (`@setu/core/src/authz`) + app actor context
 
 **Files:**
 - Create: `packages/core/src/authz/types.ts`, `default-roles.ts`, `authz.ts`
@@ -50,7 +50,7 @@ describe('can', () => {
 })
 ```
 
-- [ ] **Step 2: Run — expect FAIL.** `pnpm --filter @saytu/core test -- authz`
+- [ ] **Step 2: Run — expect FAIL.** `pnpm --filter @setu/core test -- authz`
 
 - [ ] **Step 3: Implement the authz module.**
 
@@ -122,7 +122,7 @@ export function createAuthz(matrix: PermissionMatrix): Authz {
 export type { Action, Role, Actor, PermissionMatrix, Authz } from './authz/types'
 export { createAuthz, DEFAULT_ROLES } from './authz/authz'
 ```
-In `packages/core/tsconfig.edge.json`, add `"src/authz"` to the `include` array (the authz module must stay Node-free). Run `pnpm --filter @saytu/core test -- authz` (PASS) + `pnpm --filter @saytu/core typecheck` (edge guard clean).
+In `packages/core/tsconfig.edge.json`, add `"src/authz"` to the `include` array (the authz module must stay Node-free). Run `pnpm --filter @setu/core test -- authz` (PASS) + `pnpm --filter @setu/core typecheck` (edge guard clean).
 
 - [ ] **Step 5: Write the failing actor-context test** — `apps/saytu-admin/test/actor.test.tsx`:
 ```tsx
@@ -146,14 +146,14 @@ describe('actor context', () => {
 })
 ```
 
-- [ ] **Step 6: Run — expect FAIL.** `pnpm --filter @saytu/admin test -- actor`
+- [ ] **Step 6: Run — expect FAIL.** `pnpm --filter @setu/admin test -- actor`
 
 - [ ] **Step 7: Implement `apps/saytu-admin/src/auth/actor.tsx`:**
 ```tsx
 import { createContext, useContext, useMemo } from 'react'
 import type { ReactNode } from 'react'
-import type { Action, Actor } from '@saytu/core'
-import { createAuthz, DEFAULT_ROLES } from '@saytu/core'
+import type { Action, Actor } from '@setu/core'
+import { createAuthz, DEFAULT_ROLES } from '@setu/core'
 
 // No real auth yet — the app runs as a single Owner. Real users + auth swap this
 // in later (the RBAC arc); every gated action already flows through useCan().
@@ -176,7 +176,7 @@ export function useCan(): (action: Action) => boolean {
   return (action: Action) => authz.can(actor, action)
 }
 ```
-Wrap the app in `<ActorProvider>` in `apps/saytu-admin/src/main.tsx` (inside the existing providers). Run `pnpm --filter @saytu/admin test -- actor` (PASS) + `pnpm --filter @saytu/admin typecheck`.
+Wrap the app in `<ActorProvider>` in `apps/saytu-admin/src/main.tsx` (inside the existing providers). Run `pnpm --filter @setu/admin test -- actor` (PASS) + `pnpm --filter @setu/admin typecheck`.
 
 - [ ] **Step 8: Commit**
 ```bash
@@ -186,7 +186,7 @@ git commit -m "feat(authz): can(actor, action) capability seam + app Owner actor
 
 ---
 
-### Task 2: `deriveLifecycle` pure status function (`@saytu/core/src/lifecycle`)
+### Task 2: `deriveLifecycle` pure status function (`@setu/core/src/lifecycle`)
 
 **Files:**
 - Create: `packages/core/src/lifecycle/derive.ts`
@@ -230,7 +230,7 @@ describe('deriveLifecycle', () => {
 })
 ```
 
-- [ ] **Step 2: Run — expect FAIL.** `pnpm --filter @saytu/core test -- derive`
+- [ ] **Step 2: Run — expect FAIL.** `pnpm --filter @setu/core test -- derive`
 
 - [ ] **Step 3: Implement `packages/core/src/lifecycle/derive.ts`:**
 ```ts
@@ -289,7 +289,7 @@ export function deriveLifecycle(snap: {
 export type { LifecycleState, LifecyclePending, Lifecycle } from './lifecycle/derive'
 export { deriveLifecycle } from './lifecycle/derive'
 ```
-Add `"src/lifecycle"` to `packages/core/tsconfig.edge.json` `include`. Run `pnpm --filter @saytu/core test -- derive` (PASS) + `pnpm --filter @saytu/core typecheck` (edge guard clean — `parseMdoc` is already edge-safe).
+Add `"src/lifecycle"` to `packages/core/tsconfig.edge.json` `include`. Run `pnpm --filter @setu/core test -- derive` (PASS) + `pnpm --filter @setu/core typecheck` (edge guard clean — `parseMdoc` is already edge-safe).
 
 - [ ] **Step 5: Commit**
 ```bash
@@ -306,12 +306,12 @@ git commit -m "feat(lifecycle): deriveLifecycle pure status from draft/committed
 - Create: `apps/saytu-admin/src/lifecycle/useLifecycle.ts`
 - Test: `apps/saytu-admin/test/editor-publish.test.tsx`
 
-- [ ] **Step 1: Add the publish service to the context.** In `apps/saytu-admin/src/data/store.tsx`: import `createPublishService`, `type PublishService` from `@saytu/core`; add `publish: PublishService` to the `Services` interface; in `servicesFor`, add `publish: createPublishService({ data, git })`. (Keep everything else.)
+- [ ] **Step 1: Add the publish service to the context.** In `apps/saytu-admin/src/data/store.tsx`: import `createPublishService`, `type PublishService` from `@setu/core`; add `publish: PublishService` to the `Services` interface; in `servicesFor`, add `publish: createPublishService({ data, git })`. (Keep everything else.)
 
 - [ ] **Step 2: Create the lifecycle helper** — `apps/saytu-admin/src/lifecycle/useLifecycle.ts`:
 ```ts
-import type { Draft, EntryRef, GitPort, Lifecycle } from '@saytu/core'
-import { contentPath, deriveLifecycle, serializeMdoc, tiptapToMarkdoc } from '@saytu/core'
+import type { Draft, EntryRef, GitPort, Lifecycle } from '@setu/core'
+import { contentPath, deriveLifecycle, serializeMdoc, tiptapToMarkdoc } from '@setu/core'
 
 /** Compose an entry's lifecycle from the draft (in memory) + Git HEAD. `deployed`
  *  is null until slice 2 (Deploy) — so statuses are draft/staged here. */
@@ -341,7 +341,7 @@ it('publishing commits the draft and the status becomes Staged', async () => {
 })
 ```
 
-- [ ] **Step 4: Run — expect FAIL** (no Publish button). `pnpm --filter @saytu/admin test -- editor-publish`
+- [ ] **Step 4: Run — expect FAIL** (no Publish button). `pnpm --filter @setu/admin test -- editor-publish`
 
 - [ ] **Step 5: Wire publish + status in `EditorScreen.tsx`.** Add (keep existing load/lock/autosave):
   - `const { publish } = useServices()`, `const can = useCan()`, `const [lifecycle, setLifecycle] = useState<Lifecycle>({ state: 'draft' })`, `const [publishMsg, setPublishMsg] = useState<string | null>(null)`.
@@ -351,7 +351,7 @@ it('publishing commits the draft and the status becomes Staged', async () => {
   - In the top strip's `ed-strip-right`, render a **read-only status pill** (`<StatusPill>` from `../ui/StatusPill`, mapping the lifecycle to a label — see below) and, when `can('content.publish')`, a `<button className="btn btn-primary btn-md" onClick={onPublish}>Publish</button>` + the `publishMsg` inline. When `!can('content.publish')`, render only the pill.
   - Status label: map `lifecycle` → a string for the pill: `state==='staged' ? 'Staged' : state==='live' ? 'Live' : state==='unpublished' ? 'Unpublished' : 'Draft'`, appending the pending badge if present (e.g. `Live · edited`). Pass that string to `StatusPill` (it already tones known words; `Staged`→amber, etc.). For the pending-suffixed labels, render the base word in `StatusPill` and the `· pending` as a small muted span beside it (keep it simple — a `<span className="status-pending">· {pending}</span>`).
 
-- [ ] **Step 6: Run — expect PASS** + full suite. `pnpm --filter @saytu/admin test && pnpm --filter @saytu/admin typecheck`. The publish test goes green (after publish, `git.readFile` returns the committed file == the serialized draft → `deriveLifecycle` → `staged`). Existing editor tests stay green (the new providers/pill don't break them — if `editor-screen.test.tsx` now needs `ActorProvider`, wrap its render helper; update minimally).
+- [ ] **Step 6: Run — expect PASS** + full suite. `pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck`. The publish test goes green (after publish, `git.readFile` returns the committed file == the serialized draft → `deriveLifecycle` → `staged`). Existing editor tests stay green (the new providers/pill don't break them — if `editor-screen.test.tsx` now needs `ActorProvider`, wrap its render helper; update minimally).
 
 - [ ] **Step 7: Commit**
 ```bash
@@ -370,7 +370,7 @@ git commit -m "feat(editor): gated Publish (commit -> Staged) + read-only derive
 
 - [ ] **Step 2: Add the `lifecycleLabel` helper** — `apps/saytu-admin/src/lifecycle/label.ts`:
 ```ts
-import type { Lifecycle } from '@saytu/core'
+import type { Lifecycle } from '@setu/core'
 
 const STATE_LABEL: Record<Lifecycle['state'], string> = {
   draft: 'Draft', staged: 'Staged', live: 'Live', unpublished: 'Unpublished',
@@ -393,9 +393,9 @@ Verify the token resolves; substitute if needed.
 
 - [ ] **Step 5: Full verification + commit**
 ```bash
-pnpm --filter @saytu/admin test
-pnpm --filter @saytu/admin typecheck
-pnpm --filter @saytu/admin build && grep -c fonts.googleapis apps/saytu-admin/dist/index.html
+pnpm --filter @setu/admin test
+pnpm --filter @setu/admin typecheck
+pnpm --filter @setu/admin build && grep -c fonts.googleapis apps/saytu-admin/dist/index.html
 pnpm test && pnpm typecheck
 ```
 Expected: all green; build OK + fonts > 0; whole repo green (core authz + lifecycle units; edge guard clean).
@@ -419,4 +419,4 @@ git commit -m "feat(content-list): derived lifecycle status column"
 
 **Placeholder scan:** No TBD/TODO. Task 3 Step 5 / Task 1 Step 7 give the exact wiring against named symbols; the only prose-described UI is the pill label mapping, fully specified + factored into `lifecycleLabel`.
 
-**Type consistency:** `Action`/`Actor`/`Role` (Task 1) used by `useCan` (Task 1) + the Publish gate (Task 3). `Lifecycle` (Task 2) returned by `deriveLifecycle` + `lifecycleFor` (Task 3) + `lifecycleLabel` (Task 4), consumed by EditorScreen + ContentList. `PublishService`/`publish()` from `@saytu/core` added to `Services` (Task 3). `serializeMdoc`/`tiptapToMarkdoc`/`contentPath`/`parseMdoc` are existing core exports. ✓
+**Type consistency:** `Action`/`Actor`/`Role` (Task 1) used by `useCan` (Task 1) + the Publish gate (Task 3). `Lifecycle` (Task 2) returned by `deriveLifecycle` + `lifecycleFor` (Task 3) + `lifecycleLabel` (Task 4), consumed by EditorScreen + ContentList. `PublishService`/`publish()` from `@setu/core` added to `Services` (Task 3). `serializeMdoc`/`tiptapToMarkdoc`/`contentPath`/`parseMdoc` are existing core exports. ✓

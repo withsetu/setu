@@ -25,7 +25,7 @@ export interface BlockDefinition {
 /** The config object an author exports from saytu.config.ts. */
 export interface SaytuConfig {
   blocks: BlockDefinition[]
-  /** The active theme's package name (e.g. '@saytu/theme-default'). Optional. */
+  /** The active theme's package name (e.g. '@setu/theme-default'). Optional. */
   theme?: string
   /** Chosen values for the active theme's declared options (key → value). Optional. */
   themeOptions?: Record<string, string>

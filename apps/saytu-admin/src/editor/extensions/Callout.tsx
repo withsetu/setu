@@ -2,8 +2,8 @@ import { Node, mergeAttributes } from '@tiptap/core'
 import type { Editor } from '@tiptap/core'
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import type { ReactNodeViewProps } from '@tiptap/react'
-import { Callout as CalloutCore, BlockIcon, variantFor, calloutVariants, CALLOUT_ICONS, isBlockIconName } from '@saytu/blocks'
-import type { BlockIconName } from '@saytu/blocks'
+import { Callout as CalloutCore, BlockIcon, variantFor, calloutVariants, CALLOUT_ICONS, isBlockIconName } from '@setu/blocks'
+import type { BlockIconName } from '@setu/blocks'
 import { useToolbarRoving } from '../useToolbarRoving'
 
 /** If the caret sits at the very start of a callout's body, move keyboard focus

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import type { DraftInput } from '@saytu/core'
+import type { DraftInput } from '@setu/core'
 
 export type SaveStatus = 'idle' | 'saving' | 'saved'
 

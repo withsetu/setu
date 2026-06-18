@@ -1,5 +1,5 @@
 {
-  "name": "@saytu/git-local",
+  "name": "@setu/git-local",
   "version": "0.0.0",
   "type": "module",
   "license": "AGPL-3.0-only",
@@ -13,11 +13,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@saytu/core": "workspace:*",
+    "@setu/core": "workspace:*",
     "isomorphic-git": "^1.38.4"
   },
   "devDependencies": {
-    "@saytu/git-testing": "workspace:*",
+    "@setu/git-testing": "workspace:*",
     "@types/node": "^22.10.2",
     "typescript": "^5.6.3",
     "vitest": "^2.1.8"

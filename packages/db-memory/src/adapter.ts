@@ -1,4 +1,4 @@
-import type { DataPort, Draft, DraftInput, EntryRef, Lock } from '@saytu/core'
+import type { DataPort, Draft, DraftInput, EntryRef, Lock } from '@setu/core'
 
 // NUL separator: cannot appear in a collection/locale/slug, so refs never collide
 // (unlike a space separator). Mirrors db-sqlite's composite-key uniqueness.

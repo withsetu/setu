@@ -2,7 +2,7 @@ import nodeFs from 'node:fs'
 import { dirname, join, resolve, sep } from 'node:path'
 import * as git from 'isomorphic-git'
 import type { PromiseFsClient } from 'isomorphic-git'
-import type { GitPort } from '@saytu/core'
+import type { GitPort } from '@setu/core'
 
 export interface LocalGitOptions {
   /** Path to an existing git repository (the caller/test runs `git init`). */

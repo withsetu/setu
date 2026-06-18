@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { tiptapToMarkdoc, markdocToTiptap } from '@saytu/core'
-import type { TiptapDoc } from '@saytu/core'
+import { tiptapToMarkdoc, markdocToTiptap } from '@setu/core'
+import type { TiptapDoc } from '@setu/core'
 
 describe('structural block types round-trip', () => {
   it('H2/H3/H4 + lists + quote + code block survive tiptap → markdoc → tiptap', () => {

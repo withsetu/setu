@@ -4,7 +4,7 @@ import nodeFs from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as git from 'isomorphic-git'
-import { runGitPortContract } from '@saytu/git-testing'
+import { runGitPortContract } from '@setu/git-testing'
 import { createLocalGitAdapter } from '../src/index'
 
 const dirs: string[] = []

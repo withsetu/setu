@@ -21,7 +21,7 @@ existing tests/demo untouched). Content is aligned to the engine's existing repo
 a commit lands where the site globs.
 
 **Tech stack:** Hono 4.12.26 + @hono/node-server 2.0.5 (verified on npm) · the existing
-`@saytu/git-local` (isomorphic-git) · a new `@saytu/git-http` (fetch-based GitPort) · `@saytu/core`
+`@setu/git-local` (isomorphic-git) · a new `@setu/git-http` (fetch-based GitPort) · `@setu/core`
 ports/services (unchanged) · Astro 6 glob content loader · Vitest. **100% OSS.**
 
 ---
@@ -106,7 +106,7 @@ safety net. **No auth** (local-only; documented as such). **VERIFY-FIRST:** the 
 `list` by calling the §3 endpoints with `fetch` (injectable for tests). It is a **GitPort** — the
 same interface `git-local`/`git-idb`/`git-memory` implement — so the services consume it unchanged.
 A non-2xx or network error throws (the services already handle GitPort errors). Browser-safe (only
-`fetch`, no Node imports). New package mirroring the other adapter packages (`@saytu/core` dep,
+`fetch`, no Node imports). New package mirroring the other adapter packages (`@setu/core` dep,
 vitest, tsconfig).
 
 ## 5. Admin wiring (`Bootstrap.tsx`)
@@ -122,7 +122,7 @@ if (import.meta.env.VITE_SAYTU_API) {
 }
 ```
 No services/UI change (`bootstrapServices` + `servicesFor` already adapter-agnostic). Existing 178
-admin tests run the in-browser path → untouched. Add `@saytu/git-http` to the admin's deps.
+admin tests run the in-browser path → untouched. Add `@setu/git-http` to the admin's deps.
 
 ## 6. Dev orchestration
 
@@ -135,7 +135,7 @@ is the deliverable, the runner is the on-ramp.
 
 ## 7. Testing
 
-- **`git-http` ⇄ GitPort contract:** run the existing `runGitPortContract` (from `@saytu/git-testing`)
+- **`git-http` ⇄ GitPort contract:** run the existing `runGitPortContract` (from `@setu/git-testing`)
   against `createHttpGitPort` pointed at an **in-process Hono app** backed by a git adapter — the
   same contract `git-local`/`git-idb`/`git-memory` pass. This proves the HTTP adapter is a faithful
   GitPort.

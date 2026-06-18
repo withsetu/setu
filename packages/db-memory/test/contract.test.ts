@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { runDataPortContract } from '@saytu/db-testing'
-import type { DraftInput, TiptapDoc } from '@saytu/core'
+import { runDataPortContract } from '@setu/db-testing'
+import type { DraftInput, TiptapDoc } from '@setu/core'
 import { createMemoryDataPort } from '../src/index'
 
 runDataPortContract(() => createMemoryDataPort())

@@ -16,7 +16,7 @@ custom constructs (callout, align, sub/sup, checklist, table-column align) are w
 content-safety cardinal rule is safe by construction). Lean: lean fully on Astro; **no
 render abstraction, no codegen, no editor changes** in this increment.
 
-**Tech stack:** Astro 6 · `@astrojs/markdoc` 1.x · `@astrojs/react` · React 18 · `@saytu/core`
+**Tech stack:** Astro 6 · `@astrojs/markdoc` 1.x · `@astrojs/react` · React 18 · `@setu/core`
 (for `resolveConfig`/`defaultConfig` + the content-path convention) · Vitest (build-and-assert).
 
 ---
@@ -83,7 +83,7 @@ apps/saytu-site/
 ```
 
 **Content source & convention.** Entries live at `content/<collection>/<locale>/<slug>.mdoc`
-— the exact path convention `@saytu/core`'s publish service already writes
+— the exact path convention `@setu/core`'s publish service already writes
 (`contentPath(ref)`). Each `.mdoc` is YAML frontmatter (metadata) + a Markdoc body, parsed
 by the same `parseMdoc` shape the engine uses. The sample set is committed fixtures; there
 is **no** live editor connection in #1.
@@ -202,7 +202,7 @@ No design tokens / theme system here.
 - a "zero-JS" assertion: no hydration island / no `<script>` referenced by the page
 - standard nodes: a representative bold/link/list/code assertion
 
-Existing `@saytu/core` + `apps/saytu-admin` test suites are untouched and stay green.
+Existing `@setu/core` + `apps/saytu-admin` test suites are untouched and stay green.
 
 ---
 
@@ -226,7 +226,7 @@ Existing `@saytu/core` + `apps/saytu-admin` test suites are untouched and stay g
 - **Brief two-callout window.** The site's callout core duplicates the editor's node view
   until #2 extracts a shared core. Mitigated by authoring the core in the
   injectable-regions shape so #2's extraction is mechanical; recorded as #2's explicit job.
-- **`@saytu/core` import surface.** The site (Node build) may use the Node-capable barrel;
+- **`@setu/core` import surface.** The site (Node build) may use the Node-capable barrel;
   unlike the browser admin it has no jiti/bundle constraint. Use `resolveConfig`/
   `defaultConfig` (pure) — avoid pulling `loadConfig` unless a real `saytu.config.ts` load is
   wanted (it is not, for #1; `defaultConfig` suffices).

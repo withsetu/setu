@@ -166,8 +166,8 @@ title `<input>` currently calls `e.stopPropagation()` on every keydown. Refine i
 
 ## Definition of done
 
-- `pnpm --filter @saytu/admin test` green (new BlockActions/menu/callout tests + existing
-  suite); typecheck clean; `pnpm --filter @saytu/admin build` OK (fonts, jiti-free, no yjs in
+- `pnpm --filter @setu/admin test` green (new BlockActions/menu/callout tests + existing
+  suite); typecheck clean; `pnpm --filter @setu/admin build` OK (fonts, jiti-free, no yjs in
   the bundle).
 - `pnpm dev`: hover a block → grip appears → drag to reorder; grip menu does
   Move/Duplicate/Delete; **Alt+Shift+↑/↓** moves the current block; in a callout, ↓/Enter

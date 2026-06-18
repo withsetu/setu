@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add the publish service to `@saytu/core` — compile a DB draft to Markdoc and commit it to Git via GitPort, with a base-SHA conflict guard (PRD §2).
+**Goal:** Add the publish service to `@setu/core` — compile a DB draft to Markdoc and commit it to Git via GitPort, with a base-SHA conflict guard (PRD §2).
 
 **Architecture:** A pure `contentPath(ref)` helper + `createPublishService({ data, git })` that orchestrates `DataPort.getDraft` → `tiptapToMarkdoc` → `GitPort.commitFile`, guards on the draft's `baseSha` vs current HEAD, and advances the draft's `baseSha` to the new commit. No UI, no Node — edge-portable.
 
-**Tech Stack:** TypeScript (strict), Vitest. Consumes `DataPort`, `GitPort`, and `tiptapToMarkdoc` — all already exported from `@saytu/core`.
+**Tech Stack:** TypeScript (strict), Vitest. Consumes `DataPort`, `GitPort`, and `tiptapToMarkdoc` — all already exported from `@setu/core`.
 
 **Spec:** `docs/superpowers/specs/2026-06-14-saytu-publish-service-design.md`
 
@@ -96,7 +96,7 @@ describe('contentPath', () => {
 
 - [ ] **Step 3: Run test to verify it fails**
 
-Run: `pnpm --filter @saytu/core test -- publish/content-path`
+Run: `pnpm --filter @setu/core test -- publish/content-path`
 Expected: FAIL — `contentPath` not exported.
 
 - [ ] **Step 4: Implement contentPath**
@@ -132,17 +132,17 @@ Edit `packages/core/tsconfig.edge.json` — change the `include` array to:
 
 - [ ] **Step 7: Run test to verify it passes**
 
-Run: `pnpm --filter @saytu/core test -- publish/content-path`
+Run: `pnpm --filter @setu/core test -- publish/content-path`
 Expected: PASS (2 tests).
 
 - [ ] **Step 8: Typecheck (incl. edge guard)**
 
-Run: `pnpm --filter @saytu/core typecheck`
+Run: `pnpm --filter @setu/core typecheck`
 Expected: clean — both the main check and the edge guard (types + the pure path helper are Node-free).
 
 - [ ] **Step 9: Run the full core suite**
 
-Run: `pnpm --filter @saytu/core test`
+Run: `pnpm --filter @setu/core test`
 Expected: PASS — 61 tests (59 prior + 2 new).
 
 - [ ] **Step 10: Commit**
@@ -319,7 +319,7 @@ describe('createPublishService', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @saytu/core test -- publish/publish-service`
+Run: `pnpm --filter @setu/core test -- publish/publish-service`
 Expected: FAIL — `createPublishService` not exported.
 
 - [ ] **Step 3: Implement the service**
@@ -377,18 +377,18 @@ export { createPublishService } from './publish/publish-service'
 
 - [ ] **Step 5: Run the service test**
 
-Run: `pnpm --filter @saytu/core test -- publish/publish-service`
+Run: `pnpm --filter @setu/core test -- publish/publish-service`
 Expected: PASS (5 tests).
 
 - [ ] **Step 6: Typecheck (incl. edge guard)**
 
-Run: `pnpm --filter @saytu/core typecheck`
+Run: `pnpm --filter @setu/core typecheck`
 Expected: clean — the service uses only `tiptapToMarkdoc` (pure) + the injected ports; no Node, so it passes the edge guard now covering `src/publish`.
 
 - [ ] **Step 7: Full repo verification (definition of done)**
 
 Run: `pnpm test && pnpm typecheck`
-Expected: every package green — `@saytu/core` 66 (59 prior + 2 content-path + 5 service), `@saytu/db-testing` 11, `@saytu/db-sqlite` 12, `@saytu/git-testing` 6, `@saytu/git-local` 9 (= 104 total); typecheck clean across all packages incl. the core edge guard.
+Expected: every package green — `@setu/core` 66 (59 prior + 2 content-path + 5 service), `@setu/db-testing` 11, `@setu/db-sqlite` 12, `@setu/git-testing` 6, `@setu/git-local` 9 (= 104 total); typecheck clean across all packages incl. the core edge guard.
 
 - [ ] **Step 8: Commit**
 

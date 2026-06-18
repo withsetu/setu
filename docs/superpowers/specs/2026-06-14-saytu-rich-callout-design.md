@@ -150,8 +150,8 @@ apps/saytu-admin/test/callout-variants.test.tsx  # NEW: variants from config + i
 
 ## Definition of done
 
-- `pnpm --filter @saytu/admin test` green (extended guard + variants tests + the
-  existing suite); `pnpm --filter @saytu/admin typecheck` + `build` clean (fonts
+- `pnpm --filter @setu/admin test` green (extended guard + variants tests + the
+  existing suite); `pnpm --filter @setu/admin typecheck` + `build` clean (fonts
   preserved). `pnpm test` + `pnpm typecheck` repo-wide green (core config test
   updated for the expanded enum).
 - `pnpm dev`: a callout shows an icon + bold title + body; selecting it reveals a

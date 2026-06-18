@@ -4,7 +4,7 @@
 
 **Goal:** Make the admin content list (and Deploy) show published Git entries that have no draft, by adding an enumeration primitive to `GitPort` and a pure core derivation that merges Git entries with DB drafts into one status-aware list.
 
-**Architecture:** Add `GitPort.list(prefix?)` (implemented in both adapters, contract-tested). Add a pure `parseContentPath` (inverse of `contentPath`) and a pure `listContentEntries({drafts, committed, deployedAt})` in `@saytu/core` that unions drafts + committed entries by ref and derives each one's lifecycle. Rewire `ContentList` and `deploy()` to enumerate via Git. No new commit/write paths — listing and forking are read-only over Git.
+**Architecture:** Add `GitPort.list(prefix?)` (implemented in both adapters, contract-tested). Add a pure `parseContentPath` (inverse of `contentPath`) and a pure `listContentEntries({drafts, committed, deployedAt})` in `@setu/core` that unions drafts + committed entries by ref and derives each one's lifecycle. Rewire `ContentList` and `deploy()` to enumerate via Git. No new commit/write paths — listing and forking are read-only over Git.
 
 **Tech Stack:** TypeScript (strict: `noUncheckedIndexedAccess`, `verbatimModuleSyntax`), Vitest, React 18, isomorphic-git (git-local), in-memory Map (git-memory), `@testing-library/react`.
 
@@ -77,7 +77,7 @@ In `packages/git-testing/src/index.ts`, inside the `describe('GitPort contract',
 
 - [ ] **Step 2: Run the contract via git-memory — verify it fails to compile/run**
 
-Run: `pnpm --filter @saytu/git-memory test`
+Run: `pnpm --filter @setu/git-memory test`
 Expected: FAIL — `Property 'list' does not exist on type 'GitPort'` (typecheck) / runtime `port.list is not a function`.
 
 - [ ] **Step 3: Add `list` to the `GitPort` interface**
@@ -137,7 +137,7 @@ In `packages/git-testing/test/fake-git.test.ts`, inside `createFakeGit`'s return
 
 - [ ] **Step 7: Run both git adapter suites — verify they pass**
 
-Run: `pnpm --filter @saytu/git-memory test && pnpm --filter @saytu/git-local test && pnpm --filter @saytu/git-testing test`
+Run: `pnpm --filter @setu/git-memory test && pnpm --filter @setu/git-local test && pnpm --filter @setu/git-testing test`
 Expected: PASS (contract now includes the two `list` cases for all three).
 
 - [ ] **Step 8: Add the git-memory seed-list assertion**
@@ -194,13 +194,13 @@ In `packages/core/test/git/types.test.ts`, add `list` to the structural `stub` (
 
 - [ ] **Step 10: Run core + admin to confirm nothing else broke**
 
-Run: `pnpm --filter @saytu/core test && pnpm --filter @saytu/admin test`
+Run: `pnpm --filter @setu/core test && pnpm --filter @setu/admin test`
 Expected: PASS (admin's `DeployProvider`/`ContentList` still compile — they don't call `list` yet).
 
 - [ ] **Step 11: Typecheck + edge guard**
 
 Run: `pnpm -r typecheck`
-Expected: PASS. (`@saytu/core`'s `typecheck` script runs both `tsc --noEmit` and the edge guard `tsc -p tsconfig.edge.json --noEmit`; the interface addition is Node-free.)
+Expected: PASS. (`@setu/core`'s `typecheck` script runs both `tsc --noEmit` and the edge guard `tsc -p tsconfig.edge.json --noEmit`; the interface addition is Node-free.)
 
 - [ ] **Step 12: Commit**
 
@@ -254,7 +254,7 @@ describe('parseContentPath', () => {
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `pnpm --filter @saytu/core test -- content-path`
+Run: `pnpm --filter @setu/core test -- content-path`
 Expected: FAIL — `parseContentPath` is not exported.
 
 - [ ] **Step 3: Implement `parseContentPath`**
@@ -284,12 +284,12 @@ export { contentPath, parseContentPath } from './publish/content-path'
 
 - [ ] **Step 5: Run to verify it passes**
 
-Run: `pnpm --filter @saytu/core test -- content-path`
+Run: `pnpm --filter @setu/core test -- content-path`
 Expected: PASS (all four cases).
 
 - [ ] **Step 6: Typecheck + edge guard**
 
-Run: `pnpm --filter @saytu/core typecheck`
+Run: `pnpm --filter @setu/core typecheck`
 Expected: PASS (this script includes the edge guard; `src/publish` is already in the edge include; the regex/destructure is `noUncheckedIndexedAccess`-safe via the `if (!collection …)` guard).
 
 - [ ] **Step 7: Commit**
@@ -420,7 +420,7 @@ describe('listContentEntries', () => {
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `pnpm --filter @saytu/core test -- list-entries`
+Run: `pnpm --filter @setu/core test -- list-entries`
 Expected: FAIL — `listContentEntries` is not exported.
 
 - [ ] **Step 3: Implement `listContentEntries`**
@@ -540,12 +540,12 @@ In `packages/core/tsconfig.edge.json`, add `"src/content-index"` to the `include
 
 - [ ] **Step 6: Run to verify it passes**
 
-Run: `pnpm --filter @saytu/core test -- list-entries`
+Run: `pnpm --filter @setu/core test -- list-entries`
 Expected: PASS (all six cases).
 
 - [ ] **Step 7: Typecheck + edge guard**
 
-Run: `pnpm --filter @saytu/core typecheck`
+Run: `pnpm --filter @setu/core typecheck`
 Expected: PASS (this script includes the edge guard; imports are all Node-free: data/types, lifecycle, publish/content-path, markdoc).
 
 - [ ] **Step 8: Commit**
@@ -570,8 +570,8 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 In `apps/saytu-admin/test/content-list.test.tsx`, add imports at the top (after the existing imports):
 
 ```ts
-import { serializeMdoc } from '@saytu/core'
-import { createMemoryGitPort } from '@saytu/git-memory'
+import { serializeMdoc } from '@setu/core'
+import { createMemoryGitPort } from '@setu/git-memory'
 import { ServicesProvider, servicesFor } from '../src/data/store'
 ```
 
@@ -612,7 +612,7 @@ describe('ContentList — Git-only (published, no draft) entries', () => {
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- content-list`
+Run: `pnpm --filter @setu/admin test -- content-list`
 Expected: FAIL — `Ghost Post` not found (current `ContentList` only lists DB drafts; the seeded entry lives only in Git).
 
 - [ ] **Step 3: Rewire `ContentList`**
@@ -622,8 +622,8 @@ Replace the entire contents of `apps/saytu-admin/src/screens/ContentList.tsx` wi
 ```tsx
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { ContentRow, EntryRef } from '@saytu/core'
-import { listContentEntries, parseContentPath } from '@saytu/core'
+import type { ContentRow, EntryRef } from '@setu/core'
+import { listContentEntries, parseContentPath } from '@setu/core'
 import { useServices } from '../data/store'
 import { lifecycleLabel } from '../lifecycle/label'
 import { useDeploy } from '../deploy/deploy'
@@ -720,12 +720,12 @@ export function ContentList({ collection, title }: { collection: string; title: 
 
 - [ ] **Step 4: Run the full content-list suite — verify it passes**
 
-Run: `pnpm --filter @saytu/admin test -- content-list`
+Run: `pnpm --filter @setu/admin test -- content-list`
 Expected: PASS — both new tests, plus the four existing tests (git is empty in `DataProvider`, so the existing draft-only assertions are unchanged).
 
 - [ ] **Step 5: Typecheck**
 
-Run: `pnpm --filter @saytu/admin typecheck`
+Run: `pnpm --filter @setu/admin typecheck`
 Expected: PASS (`ContentRow`/`EntryRef` imported as types; `verbatimModuleSyntax` satisfied).
 
 - [ ] **Step 6: Commit**
@@ -770,7 +770,7 @@ In `apps/saytu-admin/test/deploy.test.tsx`, add a second `it` inside `describe('
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- deploy.test`
+Run: `pnpm --filter @setu/admin test -- deploy.test`
 Expected: FAIL — after `deleteDraft`, `deploy()` (which enumerates `listDrafts()`) skips the entry, so `deployedAt` stays null.
 
 - [ ] **Step 3: Rewire `deploy()` to enumerate Git**
@@ -778,7 +778,7 @@ Expected: FAIL — after `deleteDraft`, `deploy()` (which enumerates `listDrafts
 In `apps/saytu-admin/src/deploy/deploy.tsx`, replace the `deploy` callback body. Change the imports line:
 
 ```ts
-import { contentPath, parseContentPath } from '@saytu/core'
+import { contentPath, parseContentPath } from '@setu/core'
 ```
 
 Replace the `deploy` callback:
@@ -801,12 +801,12 @@ Note: `data` is no longer used by `deploy`. If `data` becomes unused in the comp
 
 - [ ] **Step 4: Run the deploy suites — verify they pass**
 
-Run: `pnpm --filter @saytu/admin test -- deploy`
+Run: `pnpm --filter @setu/admin test -- deploy`
 Expected: PASS — the new test plus the existing `deploy.test`, `deploy-status`, and `deploy-button` suites (the draft-backed entry still gets snapshotted because it's committed in Git).
 
 - [ ] **Step 5: Typecheck**
 
-Run: `pnpm --filter @saytu/admin typecheck`
+Run: `pnpm --filter @setu/admin typecheck`
 Expected: PASS (remove the now-unused `data` binding if the compiler flags it).
 
 - [ ] **Step 6: Commit**
@@ -827,16 +827,16 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - [ ] **Step 1: Run the entire test suite**
 
 Run: `pnpm -r test`
-Expected: PASS across `@saytu/core`, `@saytu/db-*`, `@saytu/git-*`, `@saytu/admin`. No reduction in count versus before the increment.
+Expected: PASS across `@setu/core`, `@setu/db-*`, `@setu/git-*`, `@setu/admin`. No reduction in count versus before the increment.
 
 - [ ] **Step 2: Typecheck + edge guard, workspace-wide**
 
 Run: `pnpm -r typecheck`
-Expected: PASS (`@saytu/core`'s `typecheck` includes the edge guard; `verbatimModuleSyntax` + `noUncheckedIndexedAccess` clean; `src/content-index` Node-free).
+Expected: PASS (`@setu/core`'s `typecheck` includes the edge guard; `verbatimModuleSyntax` + `noUncheckedIndexedAccess` clean; `src/content-index` Node-free).
 
 - [ ] **Step 3: Production build (fonts + jiti-free)**
 
-Run: `pnpm --filter @saytu/admin build`
+Run: `pnpm --filter @setu/admin build`
 Expected: build succeeds; brand fonts still emitted; no `jiti` in the bundle (the new code imports only browser-safe core subpaths).
 
 - [ ] **Step 4: Manual smoke (optional, for the reviewer)**

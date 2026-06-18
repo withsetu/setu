@@ -4,9 +4,9 @@
 
 **Goal:** Close the content half of the round-trip — a read service that materializes an editable draft for an entry, forking from published Git content (`markdocToTiptap`) when no live draft exists.
 
-**Architecture:** A new pure `src/read/` module in `@saytu/core`: `createReadService({ data, git }).loadForEdit(ref)` returns the live DB draft, else reads the published `.mdoc` via `GitPort` → `markdocToTiptap` → persists a draft (`baseSha = HEAD`) via `DataPort`, else reports absent. No UI, no Node — edge-portable. Kept separate from the authoring/lock service (#4) so that stays pure.
+**Architecture:** A new pure `src/read/` module in `@setu/core`: `createReadService({ data, git }).loadForEdit(ref)` returns the live DB draft, else reads the published `.mdoc` via `GitPort` → `markdocToTiptap` → persists a draft (`baseSha = HEAD`) via `DataPort`, else reports absent. No UI, no Node — edge-portable. Kept separate from the authoring/lock service (#4) so that stays pure.
 
-**Tech Stack:** TypeScript (strict), Vitest. Consumes `markdocToTiptap`, `contentPath`, `DataPort`, `GitPort` — all already exported from `@saytu/core`.
+**Tech Stack:** TypeScript (strict), Vitest. Consumes `markdocToTiptap`, `contentPath`, `DataPort`, `GitPort` — all already exported from `@setu/core`.
 
 **Spec:** `docs/superpowers/specs/2026-06-14-saytu-read-fork-design.md`
 
@@ -191,7 +191,7 @@ describe('createReadService.loadForEdit', () => {
 
 - [ ] **Step 3: Run test to verify it fails**
 
-Run: `pnpm --filter @saytu/core test -- read/read-service`
+Run: `pnpm --filter @setu/core test -- read/read-service`
 Expected: FAIL — `createReadService` not exported.
 
 - [ ] **Step 4: Implement the service**
@@ -247,18 +247,18 @@ Edit `packages/core/tsconfig.edge.json` — change the `include` array to:
 
 - [ ] **Step 7: Run the test to verify it passes**
 
-Run: `pnpm --filter @saytu/core test -- read/read-service`
+Run: `pnpm --filter @setu/core test -- read/read-service`
 Expected: PASS (4 tests).
 
 - [ ] **Step 8: Typecheck (incl. edge guard)**
 
-Run: `pnpm --filter @saytu/core typecheck`
+Run: `pnpm --filter @setu/core typecheck`
 Expected: clean — both the main check and the edge guard (the service uses only `markdocToTiptap` + `contentPath` + injected ports; no Node).
 
 - [ ] **Step 9: Full repo verification (definition of done)**
 
 Run: `pnpm test && pnpm typecheck`
-Expected: every package green — `@saytu/core` 72 (68 prior + 4 new), `@saytu/db-testing` 11, `@saytu/db-sqlite` 12, `@saytu/git-testing` 6, `@saytu/git-local` 9 (= 110 total); typecheck clean across all packages incl. the core edge guard.
+Expected: every package green — `@setu/core` 72 (68 prior + 4 new), `@setu/db-testing` 11, `@setu/db-sqlite` 12, `@setu/git-testing` 6, `@setu/git-local` 9 (= 110 total); typecheck clean across all packages incl. the core edge guard.
 
 - [ ] **Step 10: Commit**
 

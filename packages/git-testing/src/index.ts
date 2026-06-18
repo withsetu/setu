@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import type { GitPort } from '@saytu/core'
+import type { GitPort } from '@setu/core'
 
 const author = { name: 'Test', email: 'test@x.com' }
 

@@ -6,9 +6,9 @@
 
 **Architecture:** The callout node's `mdAttrs` bag already round-trips verbatim, so `type`/`title`/`icon` need NO converter change. A new `editor.variants` config field lists the selectable types; the editor maps each to a default-theme `{tone, icon, label}`. The node view renders a header (icon + editable title) + body (`NodeViewContent`) + a `:focus-within` toolbar (tone swatches + icon picker). The round-trip guard is extended to prove a titled/typed callout survives.
 
-**Tech Stack:** React 18, Tiptap v3 (StarterKit + custom Callout), `@saytu/core` config, Vitest + jsdom.
+**Tech Stack:** React 18, Tiptap v3 (StarterKit + custom Callout), `@setu/core` config, Vitest + jsdom.
 
-**Strict TS:** `verbatimModuleSyntax` (`import type`), `noUncheckedIndexedAccess`. Verify each task with `pnpm --filter @saytu/admin test` + `typecheck`; repo-wide `pnpm test` at the end.
+**Strict TS:** `verbatimModuleSyntax` (`import type`), `noUncheckedIndexedAccess`. Verify each task with `pnpm --filter @setu/admin test` + `typecheck`; repo-wide `pnpm test` at the end.
 
 **Schema ground truth (do NOT change):** `packages/core/src/markdoc/to-markdoc.ts` serializes a callout as `new N('tag', mdAttrs, children, 'callout')` → `{% callout <attrs> %}…{% /callout %}`. So any keys in `mdAttrs` (type/title/icon) serialize as tag attributes automatically. The Callout node stays `group:'block'`, `content:'block+'`, `mdAttrs` JSON-only.
 
@@ -61,7 +61,7 @@ In `packages/core/src/config/default-config.ts`, change the callout block (keep 
 
 - [ ] **Step 3: Run core tests — fix any that asserted the old callout zod**
 
-Run: `pnpm --filter @saytu/core test`
+Run: `pnpm --filter @setu/core test`
 If a config test asserted the callout's `type` enum (e.g. that `type:'info'` validates or `type:'bogus'` throws), UPDATE it to the new permissive schema (a string `type` now validates; there's no enum rejection). Keep `resolveConfig(defaultConfig)` working and `defaultKnownBlockTags` = `Set(['callout'])` (unchanged — it derives from `tag`, not props). Re-run until green. Report which tests you updated.
 
 - [ ] **Step 4: Write the failing variants test**
@@ -93,7 +93,7 @@ describe('callout variants', () => {
 })
 ```
 
-- [ ] **Step 5: Run — expect FAIL.** `pnpm --filter @saytu/admin test -- callout-variants`
+- [ ] **Step 5: Run — expect FAIL.** `pnpm --filter @setu/admin test -- callout-variants`
 
 - [ ] **Step 6: Implement `callout-variants.ts`**
 
@@ -101,7 +101,7 @@ describe('callout variants', () => {
 ```ts
 import type { IconName } from '../ui/Icon'
 import { isIconName } from '../ui/Icon'
-import { defaultConfig, resolveConfig } from '@saytu/core'
+import { defaultConfig, resolveConfig } from '@setu/core'
 
 export interface CalloutVariant {
   type: string
@@ -148,7 +148,7 @@ IMPORTANT — icon names: every icon used in `VARIANT_MAP` and `CALLOUT_ICONS` M
 - `alert`: `'<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>'`
 Report which icons you added (if any). If you prefer existing icons over adding, you may map `warning`/`danger` to an existing icon and `success` to an existing one — but `check` for success and `alert` for warning/danger are strongly preferred for clarity; adding them (synced to the design source) is the right call. Confirm `isIconName` is exported from `Icon.tsx` (it was added in #11); if not, export it.
 
-- [ ] **Step 7: Run — expect PASS.** `pnpm --filter @saytu/admin test -- callout-variants && pnpm --filter @saytu/admin typecheck`
+- [ ] **Step 7: Run — expect PASS.** `pnpm --filter @setu/admin test -- callout-variants && pnpm --filter @setu/admin typecheck`
 
 - [ ] **Step 8: Commit**
 ```bash
@@ -191,7 +191,7 @@ In `apps/saytu-admin/test/editor-schema.test.tsx`, ADD a test (keep the existing
   })
 ```
 
-- [ ] **Step 2: Run — expect the new titled-callout test to behave per current code** (the existing Callout already preserves arbitrary `mdAttrs`, so these may already PASS — that's fine; they lock the behavior in before the node-view rebuild). `pnpm --filter @saytu/admin test -- editor-schema`. If the titled test FAILS on the round-trip string (e.g. attribute order), inspect `tiptapToMarkdoc` output and align the SRC's attribute order to what Markdoc.format emits (Markdoc preserves the object key order of `mdAttrs`; `markdocToTiptap` builds `mdAttrs` from the parsed tag's attributes in source order, so `type,title,icon` order should match). Adjust SRC ordering to match the emitted order if needed — do NOT weaken the assertion.
+- [ ] **Step 2: Run — expect the new titled-callout test to behave per current code** (the existing Callout already preserves arbitrary `mdAttrs`, so these may already PASS — that's fine; they lock the behavior in before the node-view rebuild). `pnpm --filter @setu/admin test -- editor-schema`. If the titled test FAILS on the round-trip string (e.g. attribute order), inspect `tiptapToMarkdoc` output and align the SRC's attribute order to what Markdoc.format emits (Markdoc preserves the object key order of `mdAttrs`; `markdocToTiptap` builds `mdAttrs` from the parsed tag's attributes in source order, so `type,title,icon` order should match). Adjust SRC ordering to match the emitted order if needed — do NOT weaken the assertion.
 
 - [ ] **Step 3: Write the node-view behavior test**
 
@@ -228,7 +228,7 @@ describe('Callout node view', () => {
 })
 ```
 
-- [ ] **Step 4: Run — expect FAIL** (no title input yet). `pnpm --filter @saytu/admin test -- callout-node`
+- [ ] **Step 4: Run — expect FAIL** (no title input yet). `pnpm --filter @setu/admin test -- callout-node`
 
 - [ ] **Step 5: Rebuild the Callout node view**
 
@@ -323,7 +323,7 @@ In `apps/saytu-admin/src/editor/blocks.ts`, the config-block insert currently in
 ```
 (Only the `mdAttrs` default changes from `{}` to `{ type: 'info' }`.)
 
-- [ ] **Step 7: Run — expect PASS.** `pnpm --filter @saytu/admin test -- editor-schema callout-node && pnpm --filter @saytu/admin typecheck`
+- [ ] **Step 7: Run — expect PASS.** `pnpm --filter @setu/admin test -- editor-schema callout-node && pnpm --filter @setu/admin typecheck`
 If the `callout-node` test can't find the title input because the React node view doesn't mount in jsdom, ensure the test renders via the real `useEditor`/`EditorContent` (as written) and that `test/setup.ts`'s `elementFromPoint` stub is present (added in #11). Do not weaken the assertion.
 
 - [ ] **Step 8: Commit**
@@ -390,9 +390,9 @@ NOTE on tokens: verify `--green-soft`/`--amber-soft`/`--red-soft`/`--accent-soft
 
 - [ ] **Step 2: Verify build, tests, fonts**
 ```bash
-pnpm --filter @saytu/admin test
-pnpm --filter @saytu/admin typecheck
-pnpm --filter @saytu/admin build
+pnpm --filter @setu/admin test
+pnpm --filter @setu/admin typecheck
+pnpm --filter @setu/admin build
 grep -c fonts.googleapis apps/saytu-admin/dist/index.html
 ```
 Expected: all admin tests green; typecheck clean; build succeeds; fonts count > 0.

@@ -8,7 +8,7 @@
 **Goal:** close the "write once" loop for the callout — one shared React visual core,
 rendered by *both* the editor and the site, so the duplicate dies and a block can't drift.
 
-**Architecture:** a new `@saytu/blocks` React component package holding the callout's visual
+**Architecture:** a new `@setu/blocks` React component package holding the callout's visual
 core + its icons + its variant mapping + its CSS (styled via `var(--token, fallback)` so it's
 themeless-safe). The editor's Tiptap node view and the site's `.astro` wrapper both render the
 core; each injects only its context-specific bits (editor: an editable title input, the body's
@@ -16,16 +16,16 @@ core; each injects only its context-specific bits (editor: an editable title inp
 node's schema, `mdAttrs`, round-trip, and keyboard nav are **unchanged** — only the visual
 markup is re-sourced. Read-only-equivalent on content (no write/round-trip path changes).
 
-**Tech stack:** React 18 · TypeScript (strict, `verbatimModuleSyntax`) · `@saytu/core`
-(`resolveConfig`/`defaultConfig` for variants) · consumed by `@saytu/admin` (Vite/Tiptap) and
-`@saytu/site` (Astro/Vite). Vitest + Testing Library for the package's unit tests.
+**Tech stack:** React 18 · TypeScript (strict, `verbatimModuleSyntax`) · `@setu/core`
+(`resolveConfig`/`defaultConfig` for variants) · consumed by `@setu/admin` (Vite/Tiptap) and
+`@setu/site` (Astro/Vite). Vitest + Testing Library for the package's unit tests.
 
 ---
 
 ## 1. Scope
 
 ### In scope
-- New package **`packages/blocks`** (`@saytu/blocks`) — a React component library:
+- New package **`packages/blocks`** (`@setu/blocks`) — a React component library:
   - **`Callout` visual core** — renders the structure + classes (`blk-callout tone-{tone}`,
     `callout-head`, `callout-ic`, `callout-body`), with **slots** for the context-specific
     parts (see §3). No editor chrome inside the core.
@@ -33,12 +33,12 @@ markup is re-sourced. Read-only-equivalent on content (no write/round-trip path 
     + a `BlockIconName` type, so editor and site render the **same** glyph (also fixes the
     hardcoded `💡` left in the site from #1).
   - **Variant mapping** — `variantFor` / `calloutVariants` / `CALLOUT_ICONS` moved here from
-    `apps/saytu-admin/src/editor/callout-variants.ts` (reads `@saytu/core`'s `defaultConfig`).
+    `apps/saytu-admin/src/editor/callout-variants.ts` (reads `@setu/core`'s `defaultConfig`).
   - **CSS** — `callout.css`: the structural + tone rules, styled via `var(--token, fallback)`
     (e.g. `background: var(--accent-soft, #eef2ff)`), imported by both apps.
 - **Editor adoption** (`apps/saytu-admin`): the callout node view renders the shared core,
   injecting the editable title `<input>`, `<NodeViewContent>` body, and the existing tone/icon
-  toolbar. Variant logic + block icons now imported from `@saytu/blocks`. The Tiptap **node
+  toolbar. Variant logic + block icons now imported from `@setu/blocks`. The Tiptap **node
   definition (schema, `mdAttrs`, parse/render HTML, keyboard shortcuts) is byte-unchanged**.
 - **Site adoption** (`apps/saytu-site`): `CalloutWrapper.astro` renders the shared core; the
   app's own `src/components/Callout.tsx` is deleted; `site.css` callout rules removed (the
@@ -57,7 +57,7 @@ markup is re-sourced. Read-only-equivalent on content (no write/round-trip path 
   only. The package is *structured* to hold more, but adds none.
 - **Codegen / the contract fan-out** → #4. **Consolidating the admin's full 78-icon `Icon`
   system** → not now (only the ~8 block icons move; the admin's `Icon` stays for app chrome).
-- No changes to `@saytu/core` or any content write / Markdoc round-trip path.
+- No changes to `@setu/core` or any content write / Markdoc round-trip path.
 
 ---
 
@@ -65,14 +65,14 @@ markup is re-sourced. Read-only-equivalent on content (no write/round-trip path 
 
 ```
 packages/blocks/
-  package.json            @saytu/blocks; deps: react (peer), @saytu/core; main -> src/index.ts (TS source, like core)
+  package.json            @setu/blocks; deps: react (peer), @setu/core; main -> src/index.ts (TS source, like core)
   tsconfig.json           extends the strict base
   vitest.config.ts        jsdom + testing-library
   src/
     index.ts              barrel: Callout, BlockIcon, BlockIconName, variantFor, calloutVariants, CALLOUT_ICONS, CalloutVariant
     callout/
       Callout.tsx         the visual core (structure + classes + slots)
-      variants.ts         variantFor / calloutVariants / CALLOUT_ICONS (reads @saytu/core)
+      variants.ts         variantFor / calloutVariants / CALLOUT_ICONS (reads @setu/core)
       callout.css         structural + tone CSS, var(--token, fallback)
     icons/
       BlockIcon.tsx       <BlockIcon name> renderer + BlockIconName type
@@ -82,10 +82,10 @@ packages/blocks/
       variants.test.ts    variant mapping (config-driven list + neutral fallback)
 ```
 
-`@saytu/blocks` exports **TS source** (`main`/`exports` → `./src/index.ts`), matching
-`@saytu/core`'s convention — consumers (admin Vite, site Astro/Vite) transpile it. **Verified:**
-an Astro component can import `@saytu/core` and build to static HTML (spike, 2026-06-18) — so
-the `@saytu/blocks` → `@saytu/core` chain works in the site. `react` is a **peerDependency**
+`@setu/blocks` exports **TS source** (`main`/`exports` → `./src/index.ts`), matching
+`@setu/core`'s convention — consumers (admin Vite, site Astro/Vite) transpile it. **Verified:**
+an Astro component can import `@setu/core` and build to static HTML (spike, 2026-06-18) — so
+the `@setu/blocks` → `@setu/core` chain works in the site. `react` is a **peerDependency**
 (both consumers provide React 18) to avoid a duplicate React.
 
 ---
@@ -133,7 +133,7 @@ Renders (conceptually):
 
 ### Editor (`apps/saytu-admin/src/editor/extensions/Callout.tsx`)
 - `CalloutView` renders `<Callout tone={variant.tone} icon={icon} title={<input class="callout-title" …/>} toolbar={<div class="block-props" …>…</div>}><NodeViewContent class="callout-body"/></Callout>` (wrapped by `NodeViewWrapper`).
-- Imports `variantFor`/`calloutVariants`/`CALLOUT_ICONS` + `BlockIcon` from `@saytu/blocks`;
+- Imports `variantFor`/`calloutVariants`/`CALLOUT_ICONS` + `BlockIcon` from `@setu/blocks`;
   `apps/saytu-admin/src/editor/callout-variants.ts` is removed (or becomes a thin re-export if
   other modules import it — check and update those imports).
 - The toolbar's tone swatches + icon picker keep their behavior; picker icons render via
@@ -145,13 +145,13 @@ Renders (conceptually):
 - `apps/saytu-admin/src/styles/editor.css`: the structural callout rules
   (`.blk-callout`, `.tone-*` backgrounds, `.callout-head/-ic/-title/-body`) move to the package
   CSS; the **editor-only chrome** (`.block-props`, `.bp-*`, `:focus-within`) stays in editor.css.
-  Admin imports `@saytu/blocks`'s `callout.css`.
+  Admin imports `@setu/blocks`'s `callout.css`.
 
 ### Site (`apps/saytu-site`)
-- `src/components/CalloutWrapper.astro` renders `<Callout tone={tone} icon={icon} title={title && <span class="callout-title">{title}</span>}><div class="callout-body"><slot/></div></Callout>`, deriving `tone`/`icon` from `variantFor(type)` (imported from `@saytu/blocks`).
+- `src/components/CalloutWrapper.astro` renders `<Callout tone={tone} icon={icon} title={title && <span class="callout-title">{title}</span>}><div class="callout-body"><slot/></div></Callout>`, deriving `tone`/`icon` from `variantFor(type)` (imported from `@setu/blocks`).
 - Delete `src/components/Callout.tsx`.
-- `src/styles/site.css`: remove the old `.callout` / `.callout--*` / `.callout__*` rules; import `@saytu/blocks`'s `callout.css`.
-- Re-add `@saytu/core` is **not** needed directly (it comes transitively via `@saytu/blocks`).
+- `src/styles/site.css`: remove the old `.callout` / `.callout--*` / `.callout__*` rules; import `@setu/blocks`'s `callout.css`.
+- Re-add `@setu/core` is **not** needed directly (it comes transitively via `@setu/blocks`).
 
 ---
 
@@ -172,14 +172,14 @@ without a theme:
 
 ## 6. Testing
 
-- **`@saytu/blocks` unit tests:** render `<Callout tone icon title toolbar>{body}</Callout>` →
+- **`@setu/blocks` unit tests:** render `<Callout tone icon title toolbar>{body}</Callout>` →
   assert the `aside.blk-callout.tone-{tone}`, the `.callout-ic` badge renders the right icon,
   the title slot + toolbar slot + body children land in the right places. Variant tests:
   `calloutVariants()` reflects the config list; `variantFor` neutral-fallback for unknown types.
 - **Admin (unchanged-behavior gate):** the existing callout tests + the **round-trip guard**
   (`tiptapToMarkdoc(getJSON()) === source` for a titled/typed/iconned + a plain callout) must
   stay green — proving the node still round-trips byte-for-byte after the view refactor. Admin
-  suite stays at its current count (178), `@saytu/core` at 175.
+  suite stays at its current count (178), `@setu/core` at 175.
 - **Site:** the build-and-assert callout test updates its expected substrings to the unified
   markup (`blk-callout tone-…`, `callout-ic`, real icon SVG instead of `💡`) and still asserts
   zero-JS.
@@ -189,11 +189,11 @@ without a theme:
 ---
 
 ## 7. Success criteria
-1. `@saytu/blocks` exists; both apps render the callout through its `Callout` core.
+1. `@setu/blocks` exists; both apps render the callout through its `Callout` core.
 2. The editor callout looks/behaves the same (UAT) and its node round-trips byte-identically
    (guard tests green); the site callout renders via the shared core (no more `Callout.tsx`,
    no hardcoded `💡`).
-3. Whole repo green; no `@saytu/core` or write/round-trip changes.
+3. Whole repo green; no `@setu/core` or write/round-trip changes.
 4. Token/theme work, codegen, and other blocks are absent (deferred to #3/#4).
 
 ---
@@ -203,8 +203,8 @@ without a theme:
   is byte-unchanged (only the view's JSX is re-sourced); the round-trip guard is the gate.
 - **Class-name contract = the editor's existing names** (reuse, not invent) → minimal admin
   churn + working `:focus-within` chrome; the site adopts them.
-- **Minor icon duplication:** the ~8 block-icon SVGs live in `@saytu/blocks` and also remain in
-  the admin's 78-entry `Icon` map. Accepted — `@saytu/blocks` is the source of truth for *block*
+- **Minor icon duplication:** the ~8 block-icon SVGs live in `@setu/blocks` and also remain in
+  the admin's 78-entry `Icon` map. Accepted — `@setu/blocks` is the source of truth for *block*
   icons; the admin `Icon` serves app chrome. (A future consolidation could re-export.)
 - **`react` peerDependency** to avoid a duplicate React in either bundle.
 - **Site appearance shifts slightly** from #1's neutral look to the token-fallback look — UAT.

@@ -1,4 +1,4 @@
-# Design — Metadata ↔ YAML Frontmatter (`@saytu/core`) (Increment #8)
+# Design — Metadata ↔ YAML Frontmatter (`@setu/core`) (Increment #8)
 
 _Date: 2026-06-14 · Status: approved_
 
@@ -17,8 +17,8 @@ Follows a decision-complete PRD (§2, §3, §7) and shipped increments #1–#7.
 
 **In:**
 - `packages/core/src/markdoc/frontmatter.ts` — `parseMdoc(raw)` / `serializeMdoc({
-  frontmatter, body })`, using **js-yaml** (edge-safe). Exported from `@saytu/core`.
-- `js-yaml` dependency + `@types/js-yaml` devDependency on `@saytu/core`.
+  frontmatter, body })`, using **js-yaml** (edge-safe). Exported from `@setu/core`.
+- `js-yaml` dependency + `@types/js-yaml` devDependency on `@setu/core`.
 - Wire the **publish service** (#6) to serialize `draft.metadata` as frontmatter +
   the compiled body.
 - Wire the **read/fork service** (#7) to parse frontmatter → `metadata` and the
@@ -171,6 +171,6 @@ No new module dependencies beyond js-yaml; both services stay edge-portable
   both services stay Node-free).
 - `pnpm test` green: frontmatter unit + property suites, updated publish tests,
   read round-trip; existing 110 tests otherwise unaffected.
-- `parseMdoc` / `serializeMdoc` exported from `@saytu/core`; publish writes
+- `parseMdoc` / `serializeMdoc` exported from `@setu/core`; publish writes
   frontmatter; read restores metadata.
 - Committed via the subagent-driven flow.

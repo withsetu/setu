@@ -117,7 +117,7 @@ describe('moveBlock', () => {
 
 - [ ] **Step 3: Run it — verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- block-reorder`
+Run: `pnpm --filter @setu/admin test -- block-reorder`
 Expected: FAIL — `moveBlock` is not exported.
 
 - [ ] **Step 4: Implement `moveBlock`**
@@ -166,7 +166,7 @@ export function moveBlock(doc: PMNode, tr: Transaction, fromIndex: number, toInd
 
 - [ ] **Step 5: Run it — verify it passes**
 
-Run: `pnpm --filter @saytu/admin test -- block-reorder`
+Run: `pnpm --filter @setu/admin test -- block-reorder`
 Expected: PASS (4 tests).
 
 - [ ] **Step 6: Write the failing test for `BlockActions`**
@@ -179,7 +179,7 @@ import { render, cleanup, act } from '@testing-library/react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import type { Editor } from '@tiptap/core'
-import { tiptapToMarkdoc } from '@saytu/core'
+import { tiptapToMarkdoc } from '@setu/core'
 import { BlockActions } from '../src/editor/extensions/BlockActions'
 
 afterEach(cleanup)
@@ -263,7 +263,7 @@ describe('BlockActions', () => {
 
 - [ ] **Step 7: Run it — verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- block-actions`
+Run: `pnpm --filter @setu/admin test -- block-actions`
 Expected: FAIL — `BlockActions` is not exported.
 
 - [ ] **Step 8: Implement `BlockActions`**
@@ -366,7 +366,7 @@ export const BlockActions = Extension.create({
 
 - [ ] **Step 9: Run it — verify it passes**
 
-Run: `pnpm --filter @saytu/admin test -- block-actions`
+Run: `pnpm --filter @setu/admin test -- block-actions`
 Expected: PASS (5 tests).
 
 - [ ] **Step 10: Register `BlockActions` in the Canvas**
@@ -390,7 +390,7 @@ import { BlockActions } from './extensions/BlockActions'
 
 - [ ] **Step 11: Run the full admin suite + typecheck**
 
-Run: `pnpm --filter @saytu/admin test && pnpm --filter @saytu/admin typecheck`
+Run: `pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck`
 Expected: PASS (existing suite green; new tests green; strict TS clean).
 
 - [ ] **Step 12: Commit**
@@ -445,7 +445,7 @@ describe('dropTargetIndex', () => {
 
 - [ ] **Step 2: Run it — verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- drag-handle`
+Run: `pnpm --filter @setu/admin test -- drag-handle`
 Expected: FAIL — `dropTargetIndex` is not exported.
 
 - [ ] **Step 3: Implement `DragHandle`**
@@ -601,7 +601,7 @@ export const DragHandle = Extension.create<{ onMenu?: (view: EditorView, index: 
 
 - [ ] **Step 4: Run it — verify it passes**
 
-Run: `pnpm --filter @saytu/admin test -- drag-handle`
+Run: `pnpm --filter @setu/admin test -- drag-handle`
 Expected: PASS (4 tests for `dropTargetIndex`).
 
 - [ ] **Step 5: Register `DragHandle` in the Canvas (menu wired in Task 3)**
@@ -620,7 +620,7 @@ import { DragHandle } from './extensions/DragHandle'
 
 - [ ] **Step 6: Run the full admin suite + typecheck**
 
-Run: `pnpm --filter @saytu/admin test && pnpm --filter @saytu/admin typecheck`
+Run: `pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck`
 Expected: PASS. (Grip renders in the app; DnD verified manually in Step 7.)
 
 - [ ] **Step 7: Manual smoke (reviewer)**
@@ -702,7 +702,7 @@ describe('BlockMenu', () => {
 
 - [ ] **Step 2: Run it — verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- block-menu`
+Run: `pnpm --filter @setu/admin test -- block-menu`
 Expected: FAIL — `BlockMenu` is not exported.
 
 - [ ] **Step 3: Implement `BlockMenu`**
@@ -806,7 +806,7 @@ export function BlockMenu({
 
 - [ ] **Step 4: Run it — verify it passes**
 
-Run: `pnpm --filter @saytu/admin test -- block-menu`
+Run: `pnpm --filter @setu/admin test -- block-menu`
 Expected: PASS (4 tests).
 
 - [ ] **Step 5: Wire the menu into the Canvas via `DragHandle.onMenu`**
@@ -887,7 +887,7 @@ Hold the editor in a ref so the handler can reach it. Add near the top of `Canva
 
 - [ ] **Step 6: Run the full admin suite + typecheck**
 
-Run: `pnpm --filter @saytu/admin test && pnpm --filter @saytu/admin typecheck`
+Run: `pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck`
 Expected: PASS.
 
 - [ ] **Step 7: Manual smoke (reviewer)**
@@ -958,7 +958,7 @@ describe('Callout title↔body keyboard nav', () => {
 
 - [ ] **Step 2: Run it — verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- callout-keyboard`
+Run: `pnpm --filter @setu/admin test -- callout-keyboard`
 Expected: FAIL — ArrowDown is swallowed by `stopPropagation`; selection stays out of the body.
 
 - [ ] **Step 3: Implement the title↔body nav in `Callout.tsx`**
@@ -990,7 +990,7 @@ Replace the title `<input>`'s `onKeyDown`:
 
 - [ ] **Step 4: Run it — verify it passes**
 
-Run: `pnpm --filter @saytu/admin test -- callout-keyboard`
+Run: `pnpm --filter @setu/admin test -- callout-keyboard`
 Expected: PASS.
 
 - [ ] **Step 5: Add body→title (ArrowUp at body start) — failing test**
@@ -1011,7 +1011,7 @@ Append to `apps/saytu-admin/test/callout-keyboard.test.tsx`:
 
 - [ ] **Step 6: Run it — verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- callout-keyboard`
+Run: `pnpm --filter @setu/admin test -- callout-keyboard`
 Expected: FAIL — ArrowUp at body start does nothing.
 
 - [ ] **Step 7: Implement body→title**
@@ -1043,12 +1043,12 @@ In `CalloutView`, give the title input a ref and add an ArrowUp handler on the b
 
 - [ ] **Step 8: Run it — verify it passes**
 
-Run: `pnpm --filter @saytu/admin test -- callout-keyboard`
+Run: `pnpm --filter @setu/admin test -- callout-keyboard`
 Expected: PASS (both tests).
 
 - [ ] **Step 9: Full admin suite + typecheck**
 
-Run: `pnpm --filter @saytu/admin test && pnpm --filter @saytu/admin typecheck`
+Run: `pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck`
 Expected: PASS (existing callout-node test still green).
 
 - [ ] **Step 10: Commit**
@@ -1128,7 +1128,7 @@ Append to `apps/saytu-admin/src/styles/editor.css` (match the existing token usa
 
 - [ ] **Step 2: Build to confirm CSS + bundle are healthy**
 
-Run: `pnpm --filter @saytu/admin build`
+Run: `pnpm --filter @setu/admin build`
 Expected: build succeeds; CSS emitted; brand fonts intact; bundle has **no yjs** (`grep -c yjs dist/assets/*.js` → 0).
 
 - [ ] **Step 3: Commit**
@@ -1156,7 +1156,7 @@ Expected: PASS; `verbatimModuleSyntax` + `noUncheckedIndexedAccess` clean.
 
 - [ ] **Step 3: Build — fonts + jiti-free + no yjs**
 
-Run: `pnpm --filter @saytu/admin build`
+Run: `pnpm --filter @setu/admin build`
 Then: `grep -c "yjs" apps/saytu-admin/dist/assets/*.js` → expect `0`; brand fonts still linked in `dist/index.html`.
 
 - [ ] **Step 4: Manual smoke (reviewer)** — `pnpm dev`: hover→grip; drag→reorder; grip menu Move/Duplicate/Delete (edges disabled); Alt+Shift+↑/↓ moves the current block; callout ↓/Enter goes title→body, ↑ at body start returns to the title; read-only mode (a locked entry) shows no grip.

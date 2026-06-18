@@ -3,7 +3,7 @@
 > Slice **3a** of the render/theme epic (#3 = the theme/site layer). Parent vision:
 > `docs/superpowers/specs/2026-06-17-saytu-render-theme-vision.md`. #1 content render ✅,
 > #2 block component package ✅. #3 is sliced: **3a default theme (this)** → 3b theme
-> *system* (swappable `@saytu/theme-*` packages + config override) → 3c admin "Theme
+> *system* (swappable `@setu/theme-*` packages + config override) → 3c admin "Theme
 > options" panel. The *look* was designed with the owner via the visual companion.
 
 **Goal:** give the Saytu site a real, designed look — one typographic identity, a header/
@@ -12,12 +12,12 @@ defaults**, so it's customization-ready (change a token → the whole site resty
 
 **Architecture:** the default theme lives in `apps/saytu-site` for 3a (a `Layout.astro`
 shell + per-collection content templates + a `theme.css` token layer + prose styling).
-Blocks (the `@saytu/blocks` callout etc.) already style via `var(--token, fallback)`, so the
+Blocks (the `@setu/blocks` callout etc.) already style via `var(--token, fallback)`, so the
 moment the theme defines the tokens, every block looks themed and matches the editor. Pure
 CSS + Astro layouts — no new spike-class risk. (Packaging the theme as a swappable
-`@saytu/theme-*` and the admin options panel are **later slices**, 3b/3c.)
+`@setu/theme-*` and the admin options panel are **later slices**, 3b/3c.)
 
-**Tech stack:** Astro 6 (`apps/saytu-site`) · CSS custom properties (tokens) · `@saytu/blocks`
+**Tech stack:** Astro 6 (`apps/saytu-site`) · CSS custom properties (tokens) · `@setu/blocks`
 (unchanged) · theme web fonts (Hanken Grotesk + JetBrains Mono, matching the admin brand) ·
 Vitest build-and-assert.
 
@@ -57,14 +57,14 @@ Vitest build-and-assert.
 
 ### Out of scope (named, anti-creep)
 - **The admin "Theme options" panel** (turning the token knobs from the admin) → **3c**.
-- **Theme as a swappable `@saytu/theme-*` package + config-based component/token override** →
+- **Theme as a swappable `@setu/theme-*` package + config-based component/token override** →
   **3b** (PRD §8). 3a builds the theme *in `apps/saytu-site`*; 3b extracts + packages it.
 - **Dark mode** — the tokens are structured to allow a dark set later, but 3a ships **light
   only** (keeps the site zero-JS; a dark toggle/option is 3c/3b).
 - **Post listing / archive / pagination, tags, RSS, search** — own surfaces, later.
 - **The editor→disk bridge** — content edited in the admin still won't appear on the site
   (separate roadmap item); 3a renders the committed `.mdoc` fixtures, like #1.
-- No `@saytu/core` / `@saytu/blocks` changes (the theme only *defines tokens* the blocks read).
+- No `@setu/core` / `@setu/blocks` changes (the theme only *defines tokens* the blocks read).
 
 ## 3. Templates & selection
 
@@ -84,7 +84,7 @@ theme-declared/config-driven is 3b.)
 `theme.css` defines, on `:root`, a token for every taste choice, with the agreed defaults.
 **Two groups:**
 
-**(a) Block tokens — reuse the admin's names + values** so `@saytu/blocks/callout.css`
+**(a) Block tokens — reuse the admin's names + values** so `@setu/blocks/callout.css`
 (which reads `var(--accent-soft, …)` etc.) renders themed + identical to the editor:
 `--accent`, `--accent-strong`, `--accent-soft`, the tone colors (`--green`/`--green-soft`,
 `--amber`/`--amber-soft`, `--red`/`--red-soft`), `--surface-2`, `--text`, `--text-2`, `--bg`,
@@ -145,7 +145,7 @@ Existing suites stay green (core 175, blocks 8, admin 178, + the site's other te
   in #2). Font loading mirrors the admin's working approach.
 - **Token names reuse the admin's** (group a) so blocks match and there's one vocabulary; the
   theme is the *site's* values (currently = the admin's, for brand consistency + parity).
-- **Theme lives in `apps/saytu-site` for 3a**; extraction into a `@saytu/theme-*` package +
+- **Theme lives in `apps/saytu-site` for 3a**; extraction into a `@setu/theme-*` package +
   the swap/override mechanism is **3b** — deliberately not built now.
 - **Home as a root `page` entry** keeps a front door without building a listing/archive.
 - **Light-only** keeps zero-JS; dark is a deferred token-set + toggle (3b/3c).

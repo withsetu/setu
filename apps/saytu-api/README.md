@@ -1,4 +1,4 @@
-# @saytu/api — local git API
+# @setu/api — local git API
 
 Exposes the GitPort (git-local) over HTTP so the in-browser admin can commit to the real repo.
 

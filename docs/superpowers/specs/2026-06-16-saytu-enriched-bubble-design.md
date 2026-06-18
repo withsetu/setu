@@ -15,7 +15,7 @@ toolbars (the format bubble and the callout color/icon toolbar) a proper **keybo
 
 - **Block types already round-trip both directions** (`packages/core/src/markdoc/`): heading
   (with `level`), paragraph, bulletList/orderedList (`list`), blockquote, codeBlock (`fence`).
-  So the structural controls are **content-safe** — no `@saytu/core` converter change needed.
+  So the structural controls are **content-safe** — no `@setu/core` converter change needed.
 - The **slash menu** (`extensions/SlashCommand.tsx` + `blocks.ts`) already *inserts* blocks
   (Text, H1, H2, lists, quote, code, divider, callout). This increment *transforms* the selected
   block and **shares one block-type registry** with the slash menu so they can't drift.
@@ -151,7 +151,7 @@ apps/saytu-admin/src/editor/
 
 ## Definition of done
 
-- `pnpm --filter @saytu/admin test` green (registry + slash parity + roving + TurnIntoMenu +
+- `pnpm --filter @setu/admin test` green (registry + slash parity + roving + TurnIntoMenu +
   round-trip + callout) + existing; `pnpm -r typecheck` clean; build OK; no new deps.
 - `pnpm dev`: select text → the bubble shows "Turn into ▾" reflecting the block type; picking
   Heading/List/Quote/Code transforms the block; **Tab** into the bubble, **←/→** navigate,

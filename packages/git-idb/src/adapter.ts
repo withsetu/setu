@@ -1,5 +1,5 @@
 import { openDB } from 'idb'
-import type { CommitInput, CommitResult, GitPort } from '@saytu/core'
+import type { CommitInput, CommitResult, GitPort } from '@setu/core'
 
 // Deterministic 40-char hex digest (no Date.now/Math.random): 5 salted FNV-1a
 // passes. Distinct per commit because the persisted counter is mixed in.

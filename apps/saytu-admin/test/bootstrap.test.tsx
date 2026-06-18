@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { createMemoryDataPort } from '@saytu/db-memory'
-import { createMemoryGitPort } from '@saytu/git-memory'
+import { createMemoryDataPort } from '@setu/db-memory'
+import { createMemoryGitPort } from '@setu/git-memory'
 import { bootstrapServices, seedDrafts } from '../src/data/store'
 
 describe('bootstrapServices seed-on-empty', () => {

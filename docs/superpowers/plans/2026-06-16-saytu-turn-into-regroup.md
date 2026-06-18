@@ -6,7 +6,7 @@
 
 **Architecture:** A grouped view-model `TURN_INTO_GROUPS` is derived from the existing flat `BLOCK_TYPES` (so transforms/active-state stay single-sourced). `TurnIntoMenu` renders leaves + expandable groups, with keyboard nav over the computed visible rows. Pure editor UI — no content-model change; the slash menu stays flat.
 
-**Tech Stack:** TypeScript (strict), React 18, Tiptap v3, Vitest + @testing-library/react. No new deps; no `@saytu/core` change.
+**Tech Stack:** TypeScript (strict), React 18, Tiptap v3, Vitest + @testing-library/react. No new deps; no `@setu/core` change.
 
 **Spec:** `docs/superpowers/specs/2026-06-16-saytu-turn-into-regroup-design.md`
 
@@ -70,7 +70,7 @@ describe('groupContaining', () => {
 
 - [ ] **Step 2: Run it — verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- turn-into-groups`
+Run: `pnpm --filter @setu/admin test -- turn-into-groups`
 Expected: FAIL — `TURN_INTO_GROUPS`/`groupContaining` not exported.
 
 - [ ] **Step 3: Add the view-model to `block-types.ts`**
@@ -113,7 +113,7 @@ export function groupContaining(editor: Editor): string | null {
 
 - [ ] **Step 4: Run it — verify it passes**
 
-Run: `pnpm --filter @saytu/admin test -- turn-into-groups`
+Run: `pnpm --filter @setu/admin test -- turn-into-groups`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -213,7 +213,7 @@ describe('TurnIntoMenu (grouped)', () => {
 
 - [ ] **Step 2: Run it — verify it fails**
 
-Run: `pnpm --filter @saytu/admin test -- turn-into`
+Run: `pnpm --filter @setu/admin test -- turn-into`
 Expected: FAIL — the menu is still flat (no group `menuitem`s).
 
 - [ ] **Step 3: Rebuild `TurnIntoMenu.tsx`**
@@ -391,12 +391,12 @@ export function TurnIntoMenu({ editor }: { editor: Editor }) {
 
 - [ ] **Step 4: Run it — verify it passes**
 
-Run: `pnpm --filter @saytu/admin test -- turn-into`
+Run: `pnpm --filter @setu/admin test -- turn-into`
 Expected: PASS (grouped interactions + pre-expand + Esc).
 
 - [ ] **Step 5: Full admin suite + typecheck**
 
-Run: `pnpm --filter @saytu/admin test && pnpm --filter @saytu/admin typecheck`
+Run: `pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck`
 Expected: PASS — existing `format`/`block-types`/`turn-into-groups`/`slash` suites green (slash menu untouched; `BLOCK_TYPES`/`currentBlockType` unchanged).
 
 - [ ] **Step 6: Commit**
@@ -426,7 +426,7 @@ READ the existing `.ti-menu`/`.ti-item` rules first, then append (reuse the same
 .ti-sub { padding-left: 26px; }
 ```
 
-- [ ] **Step 2: Build** — Run: `pnpm --filter @saytu/admin build` — succeeds.
+- [ ] **Step 2: Build** — Run: `pnpm --filter @setu/admin build` — succeeds.
 
 - [ ] **Step 3: Commit**
 
@@ -443,7 +443,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1: Whole suite** — Run: `pnpm -r test` — every package green.
 - [ ] **Step 2: Typecheck** — Run: `pnpm -r typecheck` — clean.
-- [ ] **Step 3: Build + no new deps** — Run: `pnpm --filter @saytu/admin build` (fonts intact) and `git diff main -- apps/saytu-admin/package.json` (empty).
+- [ ] **Step 3: Build + no new deps** — Run: `pnpm --filter @setu/admin build` (fonts intact) and `git diff main -- apps/saytu-admin/package.json` (empty).
 - [ ] **Step 4: Manual (reviewer)** — `pnpm dev`: select text → "Turn into ▾" shows **Text · Heading ▸ · List ▸ · Quote · Code**; clicking Heading/List expands them inline; the current block type's group is pre-expanded with its item checked; ↑/↓ move through visible rows, Enter expands a group / applies an item, Esc closes (selection survives); the slash menu still lists the flat H2/H3/H4 etc.
 
 ---
@@ -451,7 +451,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ## Self-Review Notes (author)
 
 - **Spec coverage:** grouped model → Task 1; inline-expand menu + keyboard + pre-expand + Esc-guard → Task 2; CSS → Task 3; verify → Task 4.
-- **Single source of truth:** `TURN_INTO_GROUPS` references `BLOCK_TYPES` objects by id; the slash menu + `currentBlockType` (trigger label) are unchanged — no drift, no `@saytu/core` change.
+- **Single source of truth:** `TURN_INTO_GROUPS` references `BLOCK_TYPES` objects by id; the slash menu + `currentBlockType` (trigger label) are unchanged — no drift, no `@setu/core` change.
 - **Keyboard correctness:** `rows` (visible rows) drives both render and ↑/↓ so they can't disagree; Esc keeps the shipped popup-guard contract (`registerBubblePopup`), focus returns to the trigger; arrows `stopPropagation` so the toolbar roving doesn't steal focus.
 - **Focus-on-open:** a `useEffect` keyed on `open` (not `queueMicrotask`) focuses the active row after the seeded-`expanded` render commits — avoids the stale-refs race when rows change on open.
 - **No new deps.** Honest test scope: the grouped model + the menu interactions (expand, pick, pre-expand, Esc-guard) are unit/integration tested; the floating bubble render stays build+manual verified (jsdom can't mount BubbleMenu) — `TurnIntoMenu` is tested in isolation as before.

@@ -1,5 +1,5 @@
 import { runDataPortContract } from '../src/index'
-import type { DataPort, Draft, EntryRef, Lock } from '@saytu/core'
+import type { DataPort, Draft, EntryRef, Lock } from '@setu/core'
 
 const key = (r: EntryRef) => `${r.collection} ${r.locale} ${r.slug}`
 

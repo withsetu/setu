@@ -127,7 +127,7 @@ apps/saytu-admin/src/styles/editor.css  # MODIFY — tooltip + dialog + strip-bu
 
 ## Definition of done
 
-- `pnpm --filter @saytu/admin test` green (formatKeys + registry + Tooltip + Mod-k + dialog) +
+- `pnpm --filter @setu/admin test` green (formatKeys + registry + Tooltip + Mod-k + dialog) +
   existing; typecheck clean; build OK.
 - `pnpm dev`: hovering/focusing a format button shows its shortcut; `Cmd/Ctrl+K` on a selection
   opens the link input; the `?` strip button and `Cmd/Ctrl+/` open the cheat sheet listing all

@@ -1,4 +1,4 @@
-# Design — Read / Fork-from-Git Service (`@saytu/core`) (Increment #7)
+# Design — Read / Fork-from-Git Service (`@setu/core`) (Increment #7)
 
 _Date: 2026-06-14 · Status: approved_
 
@@ -30,10 +30,10 @@ tight and well-reviewed.
 ## Scope
 
 **In:**
-- A new `src/read/` module in `@saytu/core`:
+- A new `src/read/` module in `@setu/core`:
   - `types.ts` — `LoadResult`, `ReadDeps`, `ReadService`.
   - `read-service.ts` — `createReadService({ data, git }).loadForEdit(ref)`.
-- Export the service + types from `@saytu/core`.
+- Export the service + types from `@setu/core`.
 - Add `src/read` to the core edge guard.
 - Vitest tests with local fake `DataPort` + fake `GitPort`, including a
   publish → open → republish content round-trip through Git.
@@ -158,5 +158,5 @@ Local fakes in the test file (no cross-package cycle): a Map-based `DataPort`
 - `pnpm typecheck` clean across packages incl. the edge guard now covering
   `src/read` (the service must stay Node-free).
 - `createReadService` + `LoadResult`/`ReadDeps`/`ReadService` exported from
-  `@saytu/core`.
+  `@setu/core`.
 - Committed via the subagent-driven flow.

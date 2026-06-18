@@ -6,7 +6,7 @@
 
 **Architecture:** A new Astro app using `@astrojs/markdoc` (standard nodes render natively) plus `@astrojs/react` for the one custom React component (the callout). The editor's custom constructs are wired in `markdoc.config.mjs` via the exact techniques proven in `prototype/astro-preview`: a thin `.astro` wrapper around a single React core (callout), node overrides emitting `text-align` (align, table columns), inline tag components (sub/sup), and a custom `item` transform (checklist). Read-only over content; no editor changes; no render abstraction, codegen, or theme.
 
-**Tech Stack:** Astro 6.4.6 · `@astrojs/markdoc` 1.0.6 · `@astrojs/react` 5.0.7 · React 18.3.1 · `@saytu/core` (`resolveConfig`/`defaultConfig`) · Vitest ^2.1.8 (build-and-assert).
+**Tech Stack:** Astro 6.4.6 · `@astrojs/markdoc` 1.0.6 · `@astrojs/react` 5.0.7 · React 18.3.1 · `@setu/core` (`resolveConfig`/`defaultConfig`) · Vitest ^2.1.8 (build-and-assert).
 
 ## Global Constraints
 
@@ -14,7 +14,7 @@
 - **No changes to `apps/saytu-admin`, `packages/core`, or any content write / round-trip path.** This increment is read-only over content; the content-safety cardinal rule holds by construction. The ONLY allowed edit outside `apps/saytu-site/` is adding build deps to the root `package.json` `pnpm.onlyBuiltDependencies` (Astro needs `sharp`).
 - **Lean — do NOT build:** theme / layout / nav / index-listing pages, a shared-core editor refactor, codegen or zod→Markdoc attribute derivation, the editor→disk bridge, dynamic Markdoc (`{% if %}`/`{% for %}`/`$vars`) / SSR, syntax highlighting.
 - **Content model:** the body uses `H2+`; `H1` is reserved for the title, which comes from frontmatter. The editor's canonical `{% align %}` form has **no space** before `{%`. Published checklists render **read-only** (`disabled`) checkboxes.
-- **`@saytu/core` is importable from the Astro app** (both `markdoc.config.mjs` and `.astro`/`.tsx` files) — verified: `@astrojs/markdoc` loads its config through a TS-capable loader, and Astro/Vite transpiles the workspace TS dep. Use the main barrel: `import { resolveConfig, defaultConfig } from '@saytu/core'`.
+- **`@setu/core` is importable from the Astro app** (both `markdoc.config.mjs` and `.astro`/`.tsx` files) — verified: `@astrojs/markdoc` loads its config through a TS-capable loader, and Astro/Vite transpiles the workspace TS dep. Use the main barrel: `import { resolveConfig, defaultConfig } from '@setu/core'`.
 - **Tests are build-and-assert:** a Vitest test runs `astro build` once in `beforeAll` and asserts substrings in the generated `dist/**/index.html`. Existing suites stay green.
 
 ---
@@ -23,7 +23,7 @@
 
 ```
 apps/saytu-site/
-  package.json                 @saytu/site; deps pinned exact; scripts dev/build/test
+  package.json                 @setu/site; deps pinned exact; scripts dev/build/test
   tsconfig.json                extends astro/tsconfigs/strict
   astro.config.mjs             integrations: markdoc(), react()
   markdoc.config.mjs           THE render mapping — grows across Tasks 2-6
@@ -65,7 +65,7 @@ apps/saytu-site/
 
 ```json
 {
-  "name": "@saytu/site",
+  "name": "@setu/site",
   "private": true,
   "type": "module",
   "version": "0.0.0",
@@ -77,7 +77,7 @@ apps/saytu-site/
   "dependencies": {
     "@astrojs/markdoc": "1.0.6",
     "@astrojs/react": "5.0.7",
-    "@saytu/core": "workspace:*",
+    "@setu/core": "workspace:*",
     "astro": "6.4.6",
     "react": "18.3.1",
     "react-dom": "18.3.1"
@@ -245,12 +245,12 @@ describe('render pipeline — standard nodes', () => {
 
 - [ ] **Step 6: Run the test to verify it fails**
 
-Run: `pnpm --filter @saytu/site test`
+Run: `pnpm --filter @setu/site test`
 Expected: FAIL (the app does not build / files missing) before Steps 1–5 are complete; once 1–5 exist, this is the green target.
 
 - [ ] **Step 7: Run the test to verify it passes**
 
-Run: `pnpm --filter @saytu/site test`
+Run: `pnpm --filter @setu/site test`
 Expected: PASS — 3 assertions green; `astro build` emits `dist/post/en/kitchen-sink/index.html`.
 
 - [ ] **Step 8: Commit**
@@ -269,7 +269,7 @@ git commit -m "feat(site): scaffold apps/saytu-site render app + standard nodes"
 - Modify: `apps/saytu-site/markdoc.config.mjs`, `apps/saytu-site/content/post/en/kitchen-sink.mdoc`, `apps/saytu-site/test/render.test.ts`
 
 **Interfaces:**
-- Consumes: `resolveConfig`, `defaultConfig` from `@saytu/core` — `resolveConfig(defaultConfig).blocks` is `ResolvedBlock[]`, each `{ tag: string, props, component, editor }`. `defaultConfig` ships one block with `tag: 'callout'`.
+- Consumes: `resolveConfig`, `defaultConfig` from `@setu/core` — `resolveConfig(defaultConfig).blocks` is `ResolvedBlock[]`, each `{ tag: string, props, component, editor }`. `defaultConfig` ships one block with `tag: 'callout'`.
 - Produces: a `{% callout type title %}` tag rendering `<aside class="callout callout--{type}" data-component="Callout.tsx">` with **zero shipped JS**.
 
 - [ ] **Step 1: Write the React core `apps/saytu-site/src/components/Callout.tsx`**
@@ -319,7 +319,7 @@ const { type = 'info', title } = Astro.props
 
 ```js
 import { defineMarkdocConfig, component } from '@astrojs/markdoc/config'
-import { resolveConfig, defaultConfig } from '@saytu/core'
+import { resolveConfig, defaultConfig } from '@setu/core'
 
 // Render wrappers for custom blocks, keyed by tag. Codegen (#4) will generate these +
 // derive attributes from each block's zod schema; for now they are authored by hand.
@@ -375,12 +375,12 @@ describe('render pipeline — callout', () => {
 
 - [ ] **Step 6: Run the test to verify it fails**
 
-Run: `pnpm --filter @saytu/site test`
+Run: `pnpm --filter @setu/site test`
 Expected: FAIL before Steps 1–4 (build errors on the unregistered `callout` tag, or the callout assertions miss).
 
 - [ ] **Step 7: Run the test to verify it passes**
 
-Run: `pnpm --filter @saytu/site test`
+Run: `pnpm --filter @setu/site test`
 Expected: PASS — callout renders through the React core; zero-JS assertion holds.
 
 - [ ] **Step 8: Commit**
@@ -477,12 +477,12 @@ describe('render pipeline — text align', () => {
 
 - [ ] **Step 6: Run the test to verify it fails**
 
-Run: `pnpm --filter @saytu/site test`
+Run: `pnpm --filter @setu/site test`
 Expected: FAIL before Steps 1–3 (Markdoc errors `Invalid attribute: 'align'`, or no `text-align` in output).
 
 - [ ] **Step 7: Run the test to verify it passes**
 
-Run: `pnpm --filter @saytu/site test`
+Run: `pnpm --filter @setu/site test`
 Expected: PASS.
 
 - [ ] **Step 8: Commit**
@@ -546,12 +546,12 @@ describe('render pipeline — sub/superscript', () => {
 
 - [ ] **Step 5: Run the test to verify it fails**
 
-Run: `pnpm --filter @saytu/site test`
+Run: `pnpm --filter @setu/site test`
 Expected: FAIL before Steps 1–2 (build errors on unregistered `sub`/`sup` tags).
 
 - [ ] **Step 6: Run the test to verify it passes**
 
-Run: `pnpm --filter @saytu/site test`
+Run: `pnpm --filter @setu/site test`
 Expected: PASS.
 
 - [ ] **Step 7: Commit**
@@ -645,12 +645,12 @@ describe('render pipeline — checklist', () => {
 
 - [ ] **Step 4: Run the test to verify it fails**
 
-Run: `pnpm --filter @saytu/site test`
+Run: `pnpm --filter @setu/site test`
 Expected: FAIL before Step 1 (list items render literal `[ ] …`).
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Run: `pnpm --filter @saytu/site test`
+Run: `pnpm --filter @setu/site test`
 Expected: PASS. (Note: the precise attribute order/spacing of the emitted `<input>` is Astro/Markdoc-controlled; if an assertion mismatches on whitespace, adjust the expected substring to the actual built output — do NOT change the transform to chase formatting.)
 
 - [ ] **Step 6: Commit**
@@ -732,12 +732,12 @@ describe('render pipeline — table column alignment', () => {
 
 - [ ] **Step 5: Run the test to verify it fails**
 
-Run: `pnpm --filter @saytu/site test`
+Run: `pnpm --filter @setu/site test`
 Expected: FAIL before Steps 1–2 (cells render native `align=` attr, not `style`).
 
 - [ ] **Step 6: Run the test to verify it passes**
 
-Run: `pnpm --filter @saytu/site test`
+Run: `pnpm --filter @setu/site test`
 Expected: PASS. (If overriding th/td proves fiddly, the safe fallback named in the spec is to keep Markdoc's native `align` attribute and drop this task's `style` assertion — but attempt the override first.)
 
 - [ ] **Step 7: Commit**
@@ -810,18 +810,18 @@ describe('render pipeline — baseline + passthrough', () => {
 
 - [ ] **Step 4: Run the test to verify it fails**
 
-Run: `pnpm --filter @saytu/site test`
+Run: `pnpm --filter @setu/site test`
 Expected: FAIL before Steps 1–2 (no `<br`, or stylesheet link assertion depends on Task 1's `<link>` — adjust if the dev `/src/styles/site.css` href is rewritten by the build; assert on the emitted href substring `site.css`).
 
 - [ ] **Step 5: Write `apps/saytu-site/README.md`**
 
 ```markdown
-# @saytu/site — render pipeline (sub-project #1)
+# @setu/site — render pipeline (sub-project #1)
 
 Renders committed `.mdoc` content to static HTML, mapping every shipped editor block.
 Read-only over content. NOT a theme: neutral baseline styling, page-per-entry only.
 
-- Run: `pnpm --filter @saytu/site dev` (preview) / `build` / `test`
+- Run: `pnpm --filter @setu/site dev` (preview) / `build` / `test`
 - Render mapping: `markdoc.config.mjs` (callout via React core + wrapper; align/sub-sup/
   checklist/table-align via node overrides + tag components + the item transform).
 - Out of scope (later sub-projects): theme/layout/nav (#3), shared-core editor refactor
@@ -832,13 +832,13 @@ See `docs/superpowers/specs/2026-06-17-saytu-render-pipeline-design.md`.
 
 - [ ] **Step 6: Run the test to verify it passes**
 
-Run: `pnpm --filter @saytu/site test`
+Run: `pnpm --filter @setu/site test`
 Expected: PASS — full suite green.
 
 - [ ] **Step 7: Final verification — whole repo green, nothing out of scope**
 
 Run: `pnpm -r test`
-Expected: every package's suite passes, including the existing `@saytu/core` + `apps/saytu-admin` suites (unchanged).
+Expected: every package's suite passes, including the existing `@setu/core` + `apps/saytu-admin` suites (unchanged).
 
 Run: `git diff --name-only main -- apps/saytu-admin packages/core | grep . && echo "SCOPE VIOLATION" || echo "scope clean"`
 Expected: `scope clean` (no edits to the admin or core source — the only non-`apps/saytu-site` change is root `package.json` `onlyBuiltDependencies` + the lockfile).
@@ -862,7 +862,7 @@ git commit -m "feat(site): neutral baseline CSS, passthrough check, README + fin
 - §4 neutral baseline CSS: T1 (placeholder) + T7 (fleshed). ✓
 - §5 build-and-assert per block incl. zero-JS: T1 harness + per-task `describe` blocks; zero-JS in T2. ✓
 - §6 success criteria: builds (T1), every block (T2–T6), zero-JS (T2), config-sourced tag (T2), no admin/core edits (T7 scope check), no out-of-scope creep (Global Constraints + T7). ✓
-- §7 risks: zod→Markdoc deferral noted in T2 comment; two-callout window is #2's job (noted T2 comment); `@saytu/core` import surface verified (Global Constraints); loose-item handling in T5 transform. ✓
+- §7 risks: zod→Markdoc deferral noted in T2 comment; two-callout window is #2's job (noted T2 comment); `@setu/core` import surface verified (Global Constraints); loose-item handling in T5 transform. ✓
 
 **2. Placeholder scan:** no TBD/“handle edge cases”/uncoded steps — every code step shows real code; every run step shows the command + expected result. ✓
 

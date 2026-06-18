@@ -3,7 +3,7 @@ import { Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import Subscript from '@tiptap/extension-subscript'
 import Superscript from '@tiptap/extension-superscript'
-import { tiptapToMarkdoc, markdocToTiptap } from '@saytu/core'
+import { tiptapToMarkdoc, markdocToTiptap } from '@setu/core'
 
 function makeEditor() {
   return new Editor({

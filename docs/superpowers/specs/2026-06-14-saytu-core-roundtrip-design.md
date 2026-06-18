@@ -1,4 +1,4 @@
-# Design — `@saytu/core` Markdoc ⇄ Tiptap round-trip (Increment #1)
+# Design — `@setu/core` Markdoc ⇄ Tiptap round-trip (Increment #1)
 
 _Date: 2026-06-14 · Status: approved_
 
@@ -6,7 +6,7 @@ _Date: 2026-06-14 · Status: approved_
 
 Stand up the real Saytu monorepo and convert the **proven** Markdoc⇄Tiptap
 round-trip spike (`prototype/markdoc-roundtrip/`) into the first real, typed,
-test-covered module of `@saytu/core`. This is the foundation every later
+test-covered module of `@setu/core`. This is the foundation every later
 package builds on, so it must be trustworthy and green.
 
 This is the first build increment of "C" (the real implementation), following a
@@ -16,7 +16,7 @@ decision-complete PRD (`plan/prd.md`) and two passing spikes.
 
 **In:**
 - Monorepo skeleton (Node + pnpm workspaces + Vitest; TypeScript).
-- `@saytu/core` containing only the round-trip: `markdocToTiptap` and
+- `@setu/core` containing only the round-trip: `markdocToTiptap` and
   `tiptapToMarkdoc`, ported faithfully from the spike.
 - A real Vitest suite: example-based (the spike's samples) + property-based
   (fast-check) idempotency.

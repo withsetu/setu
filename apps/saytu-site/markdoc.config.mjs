@@ -2,10 +2,10 @@ import { defineMarkdocConfig, component, nodes, Markdoc } from '@astrojs/markdoc
 
 // Custom block tags -> render wrappers. In sub-project #1 this map is authored BY HAND.
 //
-// We would prefer to SOURCE the tag set from saytu.config (@saytu/core's defaultConfig),
+// We would prefer to SOURCE the tag set from saytu.config (@setu/core's defaultConfig),
 // but @astrojs/markdoc loads this config file through esbuild (packages:'external') + native
-// ESM, which cannot load @saytu/core's TypeScript source (extensionless .ts imports + zod).
-// Verified: a direct `import ... from '@saytu/core'` here fails at build with
+// ESM, which cannot load @setu/core's TypeScript source (extensionless .ts imports + zod).
+// Verified: a direct `import ... from '@setu/core'` here fails at build with
 // "Cannot find module .../packages/core/src/markdoc/to-tiptap".
 //
 // Deriving this map from saytu.config belongs to sub-project #4 (codegen), which runs in a

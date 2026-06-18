@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { runGitPortContract } from '@saytu/git-testing'
+import { runGitPortContract } from '@setu/git-testing'
 import { createMemoryGitPort } from '../src/index'
 
 runGitPortContract(() => createMemoryGitPort())

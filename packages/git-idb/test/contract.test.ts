@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto'
 import { describe, it, expect } from 'vitest'
-import { runGitPortContract } from '@saytu/git-testing'
+import { runGitPortContract } from '@setu/git-testing'
 import { createIdbGitPort } from '../src/index'
 
 const author = { name: 'Test', email: 'test@x.com' }

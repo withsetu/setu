@@ -4,9 +4,9 @@
 
 **Goal:** Give a non-coder five knobs (accent color, font, content width, text size, corner style) that retune the active theme — declared by the theme, stored in `saytu.config`, applied by the build as `:root` token overrides — and remove the runtime Google-Fonts dependency repo-wide by self-hosting fonts via `@fontsource`.
 
-**Architecture:** The theme package declares its knobs in `options.ts` (the "options API") plus a pure `optionsToCss(values)` that maps chosen values → a `:root { … }` override string. `@saytu/core` config gains an additive optional `themeOptions` map (pass-through, exactly like the 3b `theme` field — never read by the converter). At build, the theme's `Layout.astro` injects `optionsToCss(themeOptions)` as a `<style>` after `theme.css`, so the later `:root` wins and the site restyles. Fonts are self-hosted; the Layout declares all curated faces but the visitor downloads only the selected one.
+**Architecture:** The theme package declares its knobs in `options.ts` (the "options API") plus a pure `optionsToCss(values)` that maps chosen values → a `:root { … }` override string. `@setu/core` config gains an additive optional `themeOptions` map (pass-through, exactly like the 3b `theme` field — never read by the converter). At build, the theme's `Layout.astro` injects `optionsToCss(themeOptions)` as a `<style>` after `theme.css`, so the later `:root` wins and the site restyles. Fonts are self-hosted; the Layout declares all curated faces but the visitor downloads only the selected one.
 
-**Tech Stack:** Astro 6.4.6 · `@saytu/theme-default` (gains `options.ts` + vitest + self-hosted font CSS) · `@saytu/core` config (additive `themeOptions`) · `@fontsource-variable/*` (self-hosted OFL/Apache-2.0 fonts) · Vitest 2 · pnpm workspaces.
+**Tech Stack:** Astro 6.4.6 · `@setu/theme-default` (gains `options.ts` + vitest + self-hosted font CSS) · `@setu/core` config (additive `themeOptions`) · `@fontsource-variable/*` (self-hosted OFL/Apache-2.0 fonts) · Vitest 2 · pnpm workspaces.
 
 ## Global Constraints
 
@@ -17,11 +17,11 @@
 - **HARD RULE (verify before asserting):** any NEW dependency/API claim must be web/empirically verified, never asserted from memory. Specifically verify in-task: the exact `font-family` name each `@fontsource-variable` package's CSS declares (commonly `'<Name> Variable'`, NOT the plain name); the `@fontsource` side-effect-CSS import path; Astro `<style set:html>` / `is:inline` behavior; `color-mix(in oklch, …)` is emitted as authored. The 7 `@fontsource-variable` package names + versions below are ALREADY npm-verified — do NOT re-verify those:
   `@fontsource-variable/hanken-grotesk@5.2.8`, `inter@5.2.8`, `source-serif-4@5.2.9`, `newsreader@5.2.10`, `lora@5.2.8`, `space-grotesk@5.2.10`, `jetbrains-mono@5.2.8`.
 - **Commit message footer** (every commit): `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
-- **Run tests from the repo root** with pnpm filters, e.g. `pnpm --filter @saytu/core test`.
+- **Run tests from the repo root** with pnpm filters, e.g. `pnpm --filter @setu/core test`.
 
 ---
 
-### Task 1: `@saytu/core` — additive `themeOptions` config field
+### Task 1: `@setu/core` — additive `themeOptions` config field
 
 Mirrors exactly how the `theme` field was added in 3b. Additive, optional, pass-through.
 
@@ -61,7 +61,7 @@ describe('config themeOptions field', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @saytu/core test -- theme-options-field`
+Run: `pnpm --filter @setu/core test -- theme-options-field`
 Expected: FAIL — `themeOptions` is not on the resolved type / not parsed (first two assertions fail; the throw assertion may pass or fail depending on current passthrough — both count as red).
 
 - [ ] **Step 3: Add the type field**
@@ -108,12 +108,12 @@ In `packages/core/src/config/resolve.ts`, change the return statement to include
 
 - [ ] **Step 6: Run the test to verify it passes**
 
-Run: `pnpm --filter @saytu/core test -- theme-options-field`
+Run: `pnpm --filter @setu/core test -- theme-options-field`
 Expected: PASS (3/3).
 
 - [ ] **Step 7: Typecheck + full core suite (no regressions)**
 
-Run: `pnpm --filter @saytu/core typecheck && pnpm --filter @saytu/core test`
+Run: `pnpm --filter @setu/core typecheck && pnpm --filter @setu/core test`
 Expected: typecheck clean (incl. `tsconfig.edge.json`); all core tests green (existing + 3 new).
 
 - [ ] **Step 8: Commit**
@@ -127,7 +127,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task 2: `@saytu/theme-default` — options manifest + pure `optionsToCss`
+### Task 2: `@setu/theme-default` — options manifest + pure `optionsToCss`
 
 Adds the theme's declared knobs and the pure value→CSS mapper, plus first-time vitest/tsconfig setup for this package (it has no tests today).
 
@@ -139,7 +139,7 @@ Adds the theme's declared knobs and the pure value→CSS mapper, plus first-time
 - Test: `packages/theme-default/options.test.ts`
 
 **Interfaces:**
-- Produces: `themeOptions: ThemeOption[]` and `optionsToCss(values: Record<string, string>): string`, exported from `@saytu/theme-default/options`. Types: `ThemeOptionType = 'color' | 'select'`; `ThemeOptionChoice { value: string; label: string; tokenValue: string }`; `ThemeOption { key: string; label: string; type: ThemeOptionType; token: string | string[]; default: string; choices?: ThemeOptionChoice[] }`.
+- Produces: `themeOptions: ThemeOption[]` and `optionsToCss(values: Record<string, string>): string`, exported from `@setu/theme-default/options`. Types: `ThemeOptionType = 'color' | 'select'`; `ThemeOptionChoice { value: string; label: string; tokenValue: string }`; `ThemeOption { key: string; label: string; type: ThemeOptionType; token: string | string[]; default: string; choices?: ThemeOptionChoice[] }`.
 - Consumed by: Task 4 (`Layout.astro` imports `optionsToCss`).
 
 - [ ] **Step 1: Set up vitest + tsconfig for the package**
@@ -158,7 +158,7 @@ Edit `packages/theme-default/package.json` — add `scripts`, `devDependencies`,
 
 ```json
 {
-  "name": "@saytu/theme-default",
+  "name": "@setu/theme-default",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -247,7 +247,7 @@ describe('optionsToCss', () => {
 
 - [ ] **Step 3: Run test to verify it fails**
 
-Run: `pnpm --filter @saytu/theme-default test`
+Run: `pnpm --filter @setu/theme-default test`
 Expected: FAIL — `./options` module not found.
 
 - [ ] **Step 4: Implement `options.ts`**
@@ -373,12 +373,12 @@ export function optionsToCss(values: Record<string, string>): string {
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `pnpm --filter @saytu/theme-default test`
+Run: `pnpm --filter @setu/theme-default test`
 Expected: PASS (all assertions).
 
 - [ ] **Step 6: Typecheck**
 
-Run: `pnpm --filter @saytu/theme-default typecheck`
+Run: `pnpm --filter @setu/theme-default typecheck`
 Expected: clean (no `noUncheckedIndexedAccess` violations — `tokensOf`, the `?? default` chains, and `isValidColor` guard all index-safe).
 
 - [ ] **Step 7: Commit**
@@ -410,7 +410,7 @@ Install the curated `@fontsource` faces, import them in `Layout.astro`, drop the
 From repo root:
 
 ```bash
-pnpm --filter @saytu/theme-default add \
+pnpm --filter @setu/theme-default add \
   @fontsource-variable/hanken-grotesk@5.2.8 \
   @fontsource-variable/inter@5.2.8 \
   @fontsource-variable/source-serif-4@5.2.9 \
@@ -430,7 +430,7 @@ Inspect each package's main CSS for the exact `font-family` it registers:
 grep -h "font-family" packages/theme-default/node_modules/@fontsource-variable/{hanken-grotesk,inter,source-serif-4,newsreader,lora,space-grotesk}/index.css
 ```
 
-Expected: lines like `font-family: 'Inter Variable';`. Confirm the `*-variable/index.css` side-effect import path exists (it's the package's `"."`/`style` entry, e.g. `@fontsource-variable/inter` resolves to `index.css`). If any declared name differs from what `options.ts` authored (the `'<Name> Variable'` head), **correct the stack in `options.ts`** so the first family matches the registered name exactly. Re-run `pnpm --filter @saytu/theme-default test` after any edit — the `options.test.ts` stack assertions are substring-based so they stay green, but the family head must be byte-correct for the font to actually apply.
+Expected: lines like `font-family: 'Inter Variable';`. Confirm the `*-variable/index.css` side-effect import path exists (it's the package's `"."`/`style` entry, e.g. `@fontsource-variable/inter` resolves to `index.css`). If any declared name differs from what `options.ts` authored (the `'<Name> Variable'` head), **correct the stack in `options.ts`** so the first family matches the registered name exactly. Re-run `pnpm --filter @setu/theme-default test` after any edit — the `options.test.ts` stack assertions are substring-based so they stay green, but the family head must be byte-correct for the font to actually apply.
 
 - [ ] **Step 3: Import the fonts in `Layout.astro` and drop Google Fonts**
 
@@ -487,7 +487,7 @@ with:
 
 - [ ] **Step 5: Build the site to verify fonts load + no Google reference**
 
-Run: `pnpm --filter @saytu/site build`
+Run: `pnpm --filter @setu/site build`
 Then verify the built output self-hosts and has no Google reference:
 
 ```bash
@@ -520,7 +520,7 @@ Thread `themeOptions` from `saytu.config` → pages → templates → `Layout`, 
 - Test: `apps/saytu-site/test/theme-options.test.ts` (new)
 
 **Interfaces:**
-- Consumes: `optionsToCss` from `@saytu/theme-default/options` (Task 2); `SaytuConfig.themeOptions` (Task 1).
+- Consumes: `optionsToCss` from `@setu/theme-default/options` (Task 2); `SaytuConfig.themeOptions` (Task 1).
 - Produces: `Layout`/`PostLayout`/`PageLayout` accept `themeOptions?: Record<string, string>`. `site-config.ts` exports `themeOptions: Record<string, string>` (defaults to `{}`).
 
 - [ ] **Step 1: Create the site-config reader**
@@ -632,7 +632,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { optionsToCss } from '@saytu/theme-default/options'
+import { optionsToCss } from '@setu/theme-default/options'
 import { themeOptions } from '../src/lib/site-config'
 
 const appDir = fileURLToPath(new URL('..', import.meta.url))
@@ -669,7 +669,7 @@ NOTE: if the cascade-order assertion can't be satisfied by source order (Astro p
 
 - [ ] **Step 6: Run the test (builds the site)**
 
-Run: `pnpm --filter @saytu/site test -- theme-options`
+Run: `pnpm --filter @setu/site test -- theme-options`
 Expected: PASS — override injected, carries defaults, wins the cascade (via order or `:root:root`).
 
 - [ ] **Step 7: Commit**
@@ -697,7 +697,7 @@ Switch the admin's three faces to `@fontsource` and remove its Google `<link>`. 
 - [ ] **Step 1: Install the admin's fonts**
 
 ```bash
-pnpm --filter @saytu/admin add \
+pnpm --filter @setu/admin add \
   @fontsource-variable/hanken-grotesk@5.2.8 \
   @fontsource-variable/newsreader@5.2.10 \
   @fontsource-variable/jetbrains-mono@5.2.8
@@ -743,7 +743,7 @@ Edit `apps/saytu-admin/index.html` — delete the three font lines from `<head>`
 
 - [ ] **Step 5: Build the admin + confirm no Google reference**
 
-Run: `pnpm --filter @saytu/admin build`
+Run: `pnpm --filter @setu/admin build`
 Then:
 
 ```bash
@@ -754,7 +754,7 @@ Expected: build succeeds; "NO GOOGLE FONTS — good".
 
 - [ ] **Step 6: Run the admin test suite (no regressions)**
 
-Run: `pnpm --filter @saytu/admin test`
+Run: `pnpm --filter @setu/admin test`
 Expected: all existing admin tests green (font delivery doesn't touch tested behavior).
 
 - [ ] **Step 7: Commit**
@@ -802,18 +802,18 @@ VERIFY: confirm the exact `font-family` string in the built CSS matches the rege
 
 - [ ] **Step 2: Run the full site suite (the no-regression gate)**
 
-Run: `pnpm --filter @saytu/site test`
+Run: `pnpm --filter @setu/site test`
 Expected: all site tests green — the original 27 (with this one flipped) + the new `theme-options` build test. The themed-token test (`#4f46e5`) still passes (now sourced from the injected override and/or theme.css). Zero-JS test still passes.
 
 - [ ] **Step 3: Full repo green**
 
 Run from repo root: `pnpm -r test`
-Expected: every package green — `@saytu/core` (+ Task 1 tests), `@saytu/blocks` (8), `@saytu/theme-default` (new), `@saytu/site`, `@saytu/admin`, db/git packages. No failures.
+Expected: every package green — `@setu/core` (+ Task 1 tests), `@setu/blocks` (8), `@setu/theme-default` (new), `@setu/site`, `@setu/admin`, db/git packages. No failures.
 
 - [ ] **Step 4: Both apps build + repo-wide Google-Fonts sweep**
 
 ```bash
-pnpm --filter @saytu/site build && pnpm --filter @saytu/admin build
+pnpm --filter @setu/site build && pnpm --filter @setu/admin build
 grep -rl "fonts.googleapis.com" apps/saytu-site/dist apps/saytu-admin/dist apps/saytu-admin/index.html packages/theme-default/Layout.astro || echo "REPO IS GOOGLE-FONTS-FREE"
 ```
 
@@ -829,7 +829,7 @@ Expected: "ZERO-JS HOLDS".
 
 - [ ] **Step 6: Typecheck the touched packages**
 
-Run: `pnpm --filter @saytu/core typecheck && pnpm --filter @saytu/theme-default typecheck && pnpm --filter @saytu/admin typecheck`
+Run: `pnpm --filter @setu/core typecheck && pnpm --filter @setu/theme-default typecheck && pnpm --filter @setu/admin typecheck`
 Expected: all clean.
 
 - [ ] **Step 7: Commit**

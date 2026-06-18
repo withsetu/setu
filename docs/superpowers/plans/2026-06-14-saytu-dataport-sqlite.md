@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build Saytu's first hexagonal Port & Adapter — the `DataPort` interface (in `@saytu/core`), a reusable contract test suite (`@saytu/db-testing`), and a `db-sqlite` adapter (Drizzle + better-sqlite3) that passes the contract — scoped to the drafts + locks authoring store.
+**Goal:** Build Saytu's first hexagonal Port & Adapter — the `DataPort` interface (in `@setu/core`), a reusable contract test suite (`@setu/db-testing`), and a `db-sqlite` adapter (Drizzle + better-sqlite3) that passes the contract — scoped to the drafts + locks authoring store.
 
-**Architecture:** Pure async `DataPort` interface + domain types live in `@saytu/core/src/data` (Node-free types). `@saytu/db-testing` exports `runDataPortContract(makeAdapter)`, a Vitest battery any adapter runs; it is self-tested against an in-memory reference adapter. `@saytu/db-sqlite` implements the port with a Drizzle `sqlite-core` schema (composite PK `collection,locale,slug`), Drizzle-Kit migrations applied on init, and a test that runs the shared contract against an in-memory DB.
+**Architecture:** Pure async `DataPort` interface + domain types live in `@setu/core/src/data` (Node-free types). `@setu/db-testing` exports `runDataPortContract(makeAdapter)`, a Vitest battery any adapter runs; it is self-tested against an in-memory reference adapter. `@setu/db-sqlite` implements the port with a Drizzle `sqlite-core` schema (composite PK `collection,locale,slug`), Drizzle-Kit migrations applied on init, and a test that runs the shared contract against an in-memory DB.
 
 **Tech Stack:** TypeScript (strict), Drizzle ORM + Drizzle Kit, better-sqlite3, Vitest, pnpm workspaces.
 
@@ -21,14 +21,14 @@ packages/core/src/data/
 packages/core/src/index.ts                  # + re-export data types & DataPort
 packages/core/test/data/types.test.ts       # compile + export check
 
-packages/db-testing/                         # @saytu/db-testing (private)
+packages/db-testing/                         # @setu/db-testing (private)
 ├── package.json
 ├── tsconfig.json
 ├── vitest.config.ts
 ├── src/index.ts                             # runDataPortContract(makeAdapter)
 └── test/memory-adapter.test.ts             # self-test: contract vs in-memory adapter
 
-packages/db-sqlite/                          # @saytu/db-sqlite
+packages/db-sqlite/                          # @setu/db-sqlite
 ├── package.json
 ├── tsconfig.json
 ├── vitest.config.ts
@@ -45,7 +45,7 @@ package.json                                 # + better-sqlite3 in pnpm.onlyBuil
 
 ---
 
-### Task 1: `DataPort` interface + domain types in `@saytu/core`
+### Task 1: `DataPort` interface + domain types in `@setu/core`
 
 **Files:**
 - Create: `packages/core/src/data/types.ts`
@@ -154,7 +154,7 @@ describe('DataPort domain types', () => {
 
 - [ ] **Step 4: Run test to verify it fails**
 
-Run: `pnpm --filter @saytu/core test -- data/types`
+Run: `pnpm --filter @setu/core test -- data/types`
 Expected: FAIL — types not exported from `../../src/index`.
 
 - [ ] **Step 5: Export the data surface from the package index**
@@ -168,12 +168,12 @@ export type { DataPort } from './data/data-port'
 
 - [ ] **Step 6: Run test to verify it passes**
 
-Run: `pnpm --filter @saytu/core test -- data/types`
+Run: `pnpm --filter @setu/core test -- data/types`
 Expected: PASS (2 tests).
 
 - [ ] **Step 7: Typecheck (incl. edge guard)**
 
-Run: `pnpm --filter @saytu/core typecheck`
+Run: `pnpm --filter @setu/core typecheck`
 Expected: clean. (The DataPort types are pure and Node-free; `src/data` is not in the `src/markdoc` edge graph, so the edge guard is unaffected.)
 
 - [ ] **Step 8: Commit**
@@ -185,7 +185,7 @@ git commit -m "feat(core): DataPort interface + drafts/locks domain types"
 
 ---
 
-### Task 2: `@saytu/db-testing` — reusable contract suite + in-memory self-test
+### Task 2: `@setu/db-testing` — reusable contract suite + in-memory self-test
 
 **Files:**
 - Create: `packages/db-testing/package.json`
@@ -200,7 +200,7 @@ Create `packages/db-testing/package.json`:
 
 ```json
 {
-  "name": "@saytu/db-testing",
+  "name": "@setu/db-testing",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -213,7 +213,7 @@ Create `packages/db-testing/package.json`:
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@saytu/core": "workspace:*",
+    "@setu/core": "workspace:*",
     "vitest": "^2.1.8"
   },
   "devDependencies": {
@@ -245,7 +245,7 @@ export default defineConfig({
 - [ ] **Step 2: Install (links the workspace deps)**
 
 Run: `pnpm install`
-Expected: clean; `@saytu/core` symlinked into `@saytu/db-testing`.
+Expected: clean; `@setu/core` symlinked into `@setu/db-testing`.
 
 - [ ] **Step 3: Implement the contract suite**
 
@@ -253,7 +253,7 @@ Create `packages/db-testing/src/index.ts`:
 
 ```ts
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import type { DataPort, TiptapDoc } from '@saytu/core'
+import type { DataPort, TiptapDoc } from '@setu/core'
 
 const doc = (text: string): TiptapDoc => ({
   type: 'doc',
@@ -386,7 +386,7 @@ Create `packages/db-testing/test/memory-adapter.test.ts`:
 
 ```ts
 import { runDataPortContract } from '../src/index'
-import type { DataPort, Draft, EntryRef, Lock } from '@saytu/core'
+import type { DataPort, Draft, EntryRef, Lock } from '@setu/core'
 
 const key = (r: EntryRef) => `${r.collection} ${r.locale} ${r.slug}`
 
@@ -441,12 +441,12 @@ runDataPortContract(() => createMemoryAdapter())
 
 - [ ] **Step 5: Run the self-test**
 
-Run: `pnpm --filter @saytu/db-testing test`
+Run: `pnpm --filter @setu/db-testing test`
 Expected: PASS — the full DataPort contract (12 tests) green against the in-memory adapter.
 
 - [ ] **Step 6: Typecheck**
 
-Run: `pnpm --filter @saytu/db-testing typecheck`
+Run: `pnpm --filter @setu/db-testing typecheck`
 Expected: clean.
 
 - [ ] **Step 7: Commit**
@@ -458,7 +458,7 @@ git commit -m "feat(db-testing): runDataPortContract + in-memory reference adapt
 
 ---
 
-### Task 3: `@saytu/db-sqlite` scaffold — schema + Drizzle-Kit migration
+### Task 3: `@setu/db-sqlite` scaffold — schema + Drizzle-Kit migration
 
 **Files:**
 - Create: `packages/db-sqlite/package.json`
@@ -475,7 +475,7 @@ Create `packages/db-sqlite/package.json`:
 
 ```json
 {
-  "name": "@saytu/db-sqlite",
+  "name": "@setu/db-sqlite",
   "version": "0.0.0",
   "type": "module",
   "license": "AGPL-3.0-only",
@@ -488,10 +488,10 @@ Create `packages/db-sqlite/package.json`:
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
-    "@saytu/core": "workspace:*"
+    "@setu/core": "workspace:*"
   },
   "devDependencies": {
-    "@saytu/db-testing": "workspace:*",
+    "@setu/db-testing": "workspace:*",
     "@types/node": "^22.10.2",
     "typescript": "^5.6.3",
     "vitest": "^2.1.8"
@@ -524,8 +524,8 @@ export default defineConfig({
 Run (fetches current versions, writes them into package.json):
 
 ```bash
-pnpm --filter @saytu/db-sqlite add drizzle-orm better-sqlite3
-pnpm --filter @saytu/db-sqlite add -D drizzle-kit @types/better-sqlite3
+pnpm --filter @setu/db-sqlite add drizzle-orm better-sqlite3
+pnpm --filter @setu/db-sqlite add -D drizzle-kit @types/better-sqlite3
 ```
 
 Expected: both resolve and install.
@@ -600,7 +600,7 @@ export default defineConfig({
 
 - [ ] **Step 6: Generate the initial migration**
 
-Run: `pnpm --filter @saytu/db-sqlite db:generate`
+Run: `pnpm --filter @setu/db-sqlite db:generate`
 Expected: creates `packages/db-sqlite/drizzle/0000_*.sql` plus `packages/db-sqlite/drizzle/meta/` (snapshot + `_journal.json`). The SQL should contain `CREATE TABLE \`drafts\`` and `CREATE TABLE \`locks\`` with the composite primary keys.
 
 Verify: `cat packages/db-sqlite/drizzle/*.sql` shows both `CREATE TABLE` statements.
@@ -609,7 +609,7 @@ Verify: `cat packages/db-sqlite/drizzle/*.sql` shows both `CREATE TABLE` stateme
 
 - [ ] **Step 7: Typecheck the scaffold**
 
-Run: `pnpm --filter @saytu/db-sqlite typecheck`
+Run: `pnpm --filter @setu/db-sqlite typecheck`
 Expected: clean (schema + config compile).
 
 - [ ] **Step 8: Commit**
@@ -633,7 +633,7 @@ git commit -m "feat(db-sqlite): package scaffold + drizzle schema + initial migr
 Create `packages/db-sqlite/test/contract.test.ts`:
 
 ```ts
-import { runDataPortContract } from '@saytu/db-testing'
+import { runDataPortContract } from '@setu/db-testing'
 import { createSqliteAdapter } from '../src/index'
 
 runDataPortContract(() => createSqliteAdapter(':memory:'))
@@ -641,7 +641,7 @@ runDataPortContract(() => createSqliteAdapter(':memory:'))
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `pnpm --filter @saytu/db-sqlite test`
+Run: `pnpm --filter @setu/db-sqlite test`
 Expected: FAIL — `createSqliteAdapter` is not exported / module missing.
 
 - [ ] **Step 3: Implement the adapter**
@@ -655,7 +655,7 @@ import Database from 'better-sqlite3'
 import { and, eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
-import type { DataPort, Draft, EntryRef } from '@saytu/core'
+import type { DataPort, Draft, EntryRef } from '@setu/core'
 import { drafts, locks } from './schema'
 
 const migrationsFolder = join(dirname(fileURLToPath(import.meta.url)), '../drizzle')
@@ -766,18 +766,18 @@ export { createSqliteAdapter } from './adapter'
 
 - [ ] **Step 5: Run the contract test**
 
-Run: `pnpm --filter @saytu/db-sqlite test`
+Run: `pnpm --filter @setu/db-sqlite test`
 Expected: PASS — the full DataPort contract (12 tests) green against the in-memory SQLite adapter.
 
 - [ ] **Step 6: Typecheck**
 
-Run: `pnpm --filter @saytu/db-sqlite typecheck`
+Run: `pnpm --filter @setu/db-sqlite typecheck`
 Expected: clean.
 
 - [ ] **Step 7: Full repo verification (definition of done)**
 
 Run: `pnpm test && pnpm typecheck`
-Expected: every package green — `@saytu/core` (39 tests: 37 prior + 2 new data-types), `@saytu/db-testing` (12), `@saytu/db-sqlite` (12); typecheck clean across all packages including the core edge guard.
+Expected: every package green — `@setu/core` (39 tests: 37 prior + 2 new data-types), `@setu/db-testing` (12), `@setu/db-sqlite` (12); typecheck clean across all packages including the core edge guard.
 
 - [ ] **Step 8: Commit**
 
@@ -791,10 +791,10 @@ git commit -m "feat(db-sqlite): DataPort adapter passing the shared contract"
 ## Self-Review
 
 **Spec coverage:**
-- `DataPort` interface + `EntryRef`/`Draft`/`DraftInput`/`Lock` in `@saytu/core/src/data` → Task 1. ✓
+- `DataPort` interface + `EntryRef`/`Draft`/`DraftInput`/`Lock` in `@setu/core/src/data` → Task 1. ✓
 - Async port surface (drafts CRUD + listDrafts + lock get/put/delete + close) → Task 1 interface; exercised in Tasks 2 & 4. ✓
-- `@saytu/db-testing` exporting `runDataPortContract` → Task 2; self-tested vs in-memory reference adapter → Task 2 Step 4. ✓
-- `@saytu/db-sqlite` with Drizzle + better-sqlite3, composite-PK `drafts`/`locks` schema, Drizzle-Kit migration applied on init → Tasks 3 & 4. ✓
+- `@setu/db-testing` exporting `runDataPortContract` → Task 2; self-tested vs in-memory reference adapter → Task 2 Step 4. ✓
+- `@setu/db-sqlite` with Drizzle + better-sqlite3, composite-PK `drafts`/`locks` schema, Drizzle-Kit migration applied on init → Tasks 3 & 4. ✓
 - better-sqlite3 in root `pnpm.onlyBuiltDependencies` → Task 3 Step 3. ✓
 - Contract assertions: null-on-absent, save/read round-trip (content+metadata+baseSha), baseSha default null, upsert (createdAt stable / updatedAt bump / content change), delete + absent-delete no-op, listDrafts + collection filter, ref isolation, lock get/put/overwrite/delete → Task 2 Step 3. ✓
 - Existing 37 core tests stay green; core edge guard unaffected (data types Node-free, not in markdoc edge graph) → Task 1 Step 7, Task 4 Step 7. ✓

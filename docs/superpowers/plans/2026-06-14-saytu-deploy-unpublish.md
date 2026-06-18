@@ -6,9 +6,9 @@
 
 **Architecture:** A `DeployProvider` (app context) holds the "live" snapshot — `deploy()` (gated `site.deploy`) copies the current Git working set per known entry + the head sha. This is the **SSG-shaped `deployed` input** described in `docs/superpowers/specs/2026-06-14-saytu-topology-publishing-note.md` (keep `deriveLifecycle` topology-agnostic — `deployed` stays an input). `lifecycleFor` now passes the deployed snapshot, so Live/Unpublished light up. Unpublish/Re-publish flip `metadata.published` then reuse the publish (commit) path. The editor's single Publish button becomes a gated `Publish ▾` menu.
 
-**Tech Stack:** React 18, the in-browser ports, `@saytu/core` (`createPublishService`, `deriveLifecycle`, `contentPath`, the authz seam), Vitest. Builds on slice 1 (`useCan`, `lifecycleFor`, `lifecycleLabel`, `publish` in the services context).
+**Tech Stack:** React 18, the in-browser ports, `@setu/core` (`createPublishService`, `deriveLifecycle`, `contentPath`, the authz seam), Vitest. Builds on slice 1 (`useCan`, `lifecycleFor`, `lifecycleLabel`, `publish` in the services context).
 
-**Strict TS:** `verbatimModuleSyntax` (`import type`), `noUncheckedIndexedAccess`. Verify per task: `pnpm --filter @saytu/admin test` + `typecheck`.
+**Strict TS:** `verbatimModuleSyntax` (`import type`), `noUncheckedIndexedAccess`. Verify per task: `pnpm --filter @setu/admin test` + `typecheck`.
 
 ---
 
@@ -26,7 +26,7 @@ import { renderHook, act, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { createServices, ServicesProvider } from '../src/data/store'
 import { DeployProvider, useDeploy } from '../src/deploy/deploy'
-import { contentPath } from '@saytu/core'
+import { contentPath } from '@setu/core'
 
 describe('deploy', () => {
   it('snapshots committed content as live, and reports the deployed content per path', async () => {
@@ -49,13 +49,13 @@ describe('deploy', () => {
 })
 ```
 
-- [ ] **Step 2: Run — expect FAIL.** `pnpm --filter @saytu/admin exec vitest run test/deploy.test.tsx`
+- [ ] **Step 2: Run — expect FAIL.** `pnpm --filter @setu/admin exec vitest run test/deploy.test.tsx`
 
 - [ ] **Step 3: Implement `apps/saytu-admin/src/deploy/deploy.tsx`:**
 ```tsx
 import { createContext, useCallback, useContext, useState } from 'react'
 import type { ReactNode } from 'react'
-import { contentPath } from '@saytu/core'
+import { contentPath } from '@setu/core'
 import { useServices } from '../data/store'
 
 interface DeployState {
@@ -107,7 +107,7 @@ export function useDeploy(): DeployApi {
 
 - [ ] **Step 4: Wrap in `main.tsx`** — add `<DeployProvider>` INSIDE the services provider (so it can `useServices`) and inside `ActorProvider`, wrapping `<App/>`. Read main.tsx first; preserve nesting order (Services/Data → Actor → Deploy → App).
 
-- [ ] **Step 5: Run — expect PASS** + full suite. `pnpm --filter @saytu/admin test && pnpm --filter @saytu/admin typecheck`. (If a test that renders `<App/>`/editor now needs `DeployProvider`, wrap its render helper — minimal.)
+- [ ] **Step 5: Run — expect PASS** + full suite. `pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck`. (If a test that renders `<App/>`/editor now needs `DeployProvider`, wrap its render helper — minimal.)
 
 - [ ] **Step 6: Commit**
 ```bash
@@ -125,8 +125,8 @@ git commit -m "feat(deploy): in-browser DeployProvider — snapshot Git as the l
 
 - [ ] **Step 1: Change `lifecycleFor` to accept the deployed lookup.** In `useLifecycle.ts`:
 ```ts
-import type { Draft, EntryRef, GitPort, Lifecycle } from '@saytu/core'
-import { contentPath, deriveLifecycle, serializeMdoc, tiptapToMarkdoc } from '@saytu/core'
+import type { Draft, EntryRef, GitPort, Lifecycle } from '@setu/core'
+import { contentPath, deriveLifecycle, serializeMdoc, tiptapToMarkdoc } from '@setu/core'
 
 /** Compose an entry's lifecycle from the draft (memory) + Git HEAD + the live
  *  (deployed) snapshot. `deployedAt(path)` returns the live content or null. */
@@ -147,7 +147,7 @@ export async function lifecycleFor(
 
 - [ ] **Step 3: Write a status-after-deploy test** — `apps/saytu-admin/test/deploy-status.test.tsx`: render the editor at a seeded post inside `ServicesProvider`+`ActorProvider`+`DeployProvider`; publish (pill → Staged); then trigger a deploy (render a tiny harness that calls `useDeploy().deploy()`, or expose a Deploy control — simplest: render the sidebar `DeployButton` from Task 4 OR call deploy via a test harness component) and assert the pill becomes **Live**. If Task 4's button isn't built yet, use a small in-test harness component that calls `useDeploy().deploy()` on click. Assert pill `.badge` goes Staged → Live.
 
-- [ ] **Step 4: Run + commit.** `pnpm --filter @saytu/admin test && pnpm --filter @saytu/admin typecheck`
+- [ ] **Step 4: Run + commit.** `pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck`
 ```bash
 git add apps/saytu-admin/src/lifecycle/useLifecycle.ts apps/saytu-admin/src/editor/EditorScreen.tsx apps/saytu-admin/src/screens/ContentList.tsx apps/saytu-admin/test/deploy-status.test.tsx
 git commit -m "feat(status): feed the deployed snapshot into deriveLifecycle (Live/Unpublished)"
@@ -171,7 +171,7 @@ git commit -m "feat(status): feed the deployed snapshot into deriveLifecycle (Li
   - `onRepublish`: `metaRef.current = { ...metaRef.current, published: true }` (or delete the key) then `commit()`.
   - Replace the single Publish button with `<PublishMenu .../>`, passing `canPublish={can('content.publish')}`, `canUnpublish={can('content.unpublish')}`, `isUnpublished={lifecycle.state === 'unpublished'}`, and the three handlers.
 
-- [ ] **Step 4: Run + commit.** `pnpm --filter @saytu/admin test && pnpm --filter @saytu/admin typecheck`
+- [ ] **Step 4: Run + commit.** `pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck`
 ```bash
 git add apps/saytu-admin/src/editor/PublishMenu.tsx apps/saytu-admin/src/editor/EditorScreen.tsx apps/saytu-admin/test/editor-unpublish.test.tsx
 git commit -m "feat(editor): Unpublish/Re-publish + gated Publish menu"
@@ -192,7 +192,7 @@ git commit -m "feat(editor): Unpublish/Re-publish + gated Publish menu"
 
 - [ ] **Step 3: Place it in `Sidebar.tsx`** — in the `sidebar-bottom`/footer area, before/after the theme toggle. Run + commit.
 ```bash
-pnpm --filter @saytu/admin test && pnpm --filter @saytu/admin typecheck
+pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck
 git add apps/saytu-admin/src/shell/DeployButton.tsx apps/saytu-admin/src/shell/Sidebar.tsx apps/saytu-admin/test/deploy-button.test.tsx
 git commit -m "feat(deploy): site-wide Deploy button in the sidebar (gated site.deploy)"
 ```
@@ -211,9 +211,9 @@ git commit -m "feat(deploy): site-wide Deploy button in the sidebar (gated site.
 
 - [ ] **Step 3: Full verification + commit.**
 ```bash
-pnpm --filter @saytu/admin test
-pnpm --filter @saytu/admin typecheck
-pnpm --filter @saytu/admin build && grep -c fonts.googleapis apps/saytu-admin/dist/index.html
+pnpm --filter @setu/admin test
+pnpm --filter @setu/admin typecheck
+pnpm --filter @setu/admin build && grep -c fonts.googleapis apps/saytu-admin/dist/index.html
 pnpm test && pnpm typecheck
 ```
 Expected: all green; build OK + fonts > 0 + no jiti in dist; whole repo green; edge guard clean.

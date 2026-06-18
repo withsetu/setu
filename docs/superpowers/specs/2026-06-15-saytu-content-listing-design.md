@@ -183,14 +183,14 @@ as-is; the list uses `listContentEntries`.
 - **`deploy()`:** snapshots a published-only entry (no draft) → its row flips to
   Live.
 - Existing core/db/git suites + admin tests stay green. `verbatimModuleSyntax`
-  (`import type`) + `noUncheckedIndexedAccess` clean; `@saytu/core` edge guard
+  (`import type`) + `noUncheckedIndexedAccess` clean; `@setu/core` edge guard
   passes (new modules are Node-free); build keeps fonts + stays jiti-free.
 
 ## Definition of done
 
-- `pnpm --filter @saytu/core test` (parseContentPath + listContentEntries units),
-  `pnpm --filter @saytu/git-memory test` + `@saytu/git-local test` (list contract),
-  `pnpm --filter @saytu/admin test` green; typecheck + edge guard clean; build OK.
+- `pnpm --filter @setu/core test` (parseContentPath + listContentEntries units),
+  `pnpm --filter @setu/git-memory test` + `@setu/git-local test` (list contract),
+  `pnpm --filter @setu/admin test` green; typecheck + edge guard clean; build OK.
 - `pnpm dev`: publish a post, close its draft (or start from a seeded Git entry) →
   it **still appears** in the content list with a Staged/Live pill; open it → edits
   fork a draft; **Deploy** snapshots it and it goes Live.

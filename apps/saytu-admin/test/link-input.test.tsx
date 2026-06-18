@@ -5,7 +5,7 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import type { Editor } from '@tiptap/core'
 import { FormatBubbleToolbar } from '../src/editor/FormatBubble'
-import { tiptapToMarkdoc } from '@saytu/core'
+import { tiptapToMarkdoc } from '@setu/core'
 import { act } from '@testing-library/react'
 
 afterEach(cleanup)

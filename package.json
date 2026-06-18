@@ -6,7 +6,7 @@
   "description": "Open-source, Git-backed, multi-topology CMS engine.",
   "license": "AGPL-3.0-only",
   "scripts": {
-    "dev": "concurrently -n api,admin,site -c blue,magenta,green \"SAYTU_API_PORT=4444 SAYTU_REPO_DIR=$PWD pnpm --filter @saytu/api dev\" \"VITE_SAYTU_API=http://localhost:4444 pnpm --filter @saytu/admin dev\" \"pnpm --filter @saytu/site dev\"",
+    "dev": "concurrently -n api,admin,site -c blue,magenta,green \"SAYTU_API_PORT=4444 SAYTU_REPO_DIR=$PWD pnpm --filter @setu/api dev\" \"VITE_SAYTU_API=http://localhost:4444 pnpm --filter @setu/admin dev\" \"pnpm --filter @setu/site dev\"",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"
   },

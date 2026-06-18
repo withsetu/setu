@@ -115,11 +115,11 @@ apps/saytu-admin/src/editor/
   - Esc closes the menu and does not collapse the selection (the shipped popup-guard test pattern).
 - Existing `turn-into`/`format`/`block-types` suites stay green (the trigger label + the
   `currentBlockType`/`BLOCK_TYPES`/slash usage are unchanged). `verbatimModuleSyntax` +
-  `noUncheckedIndexedAccess` clean; build OK; **no new deps**; no `@saytu/core` change.
+  `noUncheckedIndexedAccess` clean; build OK; **no new deps**; no `@setu/core` change.
 
 ## Definition of done
 
-- `pnpm --filter @saytu/admin test` green (groups model + menu interactions) + existing; typecheck
+- `pnpm --filter @setu/admin test` green (groups model + menu interactions) + existing; typecheck
   clean; build OK; no new deps.
 - `pnpm dev`: the Turn-into menu shows **Text · Heading ▸ · List ▸ · Quote · Code**; Heading/List
   expand inline to their options; the current block type's group is pre-expanded with its item

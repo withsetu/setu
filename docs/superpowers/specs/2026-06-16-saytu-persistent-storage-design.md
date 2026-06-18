@@ -8,7 +8,7 @@ Stop the admin from losing work on reload. Today `apps/saytu-admin` runs the in-
 adapters (`db-memory` + `git-memory`), rebuilt fresh and re-seeded with sample content on
 every page load — so a reload wipes every edit. This increment backs the **`DataPort`**
 (drafts + locks) and the **`GitPort`** working set with **IndexedDB**, so a reload restores
-exactly what you left. It slots in **behind the existing ports — no `@saytu/core` engine
+exactly what you left. It slots in **behind the existing ports — no `@setu/core` engine
 changes** (the point of ports & adapters). This is the *browser* persistence path; the Node
 `db-sqlite`/`git-local` "local mode" is separate and deferred (topology note).
 
@@ -17,8 +17,8 @@ changes** (the point of ports & adapters). This is the *browser* persistence pat
 - The ports are already **async** (return Promises) and `db-memory` uses `structuredClone` +
   `Date.now()` — so IndexedDB (async, structured-clone storage) drops in behind the same
   behavioral contracts with no interface change.
-- Both **contract suites exist**: `runDataPortContract` (`@saytu/db-testing`) and
-  `runGitPortContract` (`@saytu/git-testing`). New adapters must pass them.
+- Both **contract suites exist**: `runDataPortContract` (`@setu/db-testing`) and
+  `runGitPortContract` (`@setu/git-testing`). New adapters must pass them.
 - **`idb`** 8.0.3 — ISC, dependency-free, tiny — the de-facto IndexedDB promise wrapper
   (raw IndexedDB is verbose and error-prone). **`fake-indexeddb`** 6.2.5 — Apache-2.0, no prod
   deps — in-memory IndexedDB for Vitest/Node (jsdom has no IndexedDB).
@@ -45,10 +45,10 @@ untested. (This corrects an earlier "leave `createServices` in-memory + separate
 
 **In:**
 
-1. **`@saytu/db-idb`** — `createIdbDataPort(dbName?)`: IndexedDB-backed `DataPort` (object
+1. **`@setu/db-idb`** — `createIdbDataPort(dbName?)`: IndexedDB-backed `DataPort` (object
    stores for `drafts` + `locks`, same NUL composite key as db-memory). Async; structured-clone
    value semantics (IndexedDB stores/returns clones natively). Passes `runDataPortContract`.
-2. **`@saytu/git-idb`** — `createIdbGitPort(dbName?)`: IndexedDB-backed `GitPort` (a `files`
+2. **`@setu/git-idb`** — `createIdbGitPort(dbName?)`: IndexedDB-backed `GitPort` (a `files`
    store `path→content` + a `meta` store for the head sha and a commit counter). `list(prefix)`
    filters the file keys; `commitFile` writes the file and advances a deterministic head sha
    (same FNV-1a/counter scheme as git-memory, but the counter is persisted in `meta`). Passes
@@ -78,15 +78,15 @@ untested. (This corrects an earlier "leave `createServices` in-memory + separate
 
 ```
 packages/db-idb/                 # NEW package (mirrors db-memory shape)
-├── package.json                 # deps: @saytu/core, idb; devDeps: db-testing, fake-indexeddb, vitest, ts
+├── package.json                 # deps: @setu/core, idb; devDeps: db-testing, fake-indexeddb, vitest, ts
 ├── src/{index.ts, adapter.ts}   # createIdbDataPort(dbName?)
 └── test/contract.test.ts        # runDataPortContract + persistence round-trip
 packages/git-idb/                # NEW package (mirrors git-memory shape)
-├── package.json                 # deps: @saytu/core, idb; devDeps: git-testing, fake-indexeddb, vitest, ts
+├── package.json                 # deps: @setu/core, idb; devDeps: git-testing, fake-indexeddb, vitest, ts
 ├── src/{index.ts, adapter.ts}   # createIdbGitPort(dbName?)
 └── test/contract.test.ts        # runGitPortContract + persistence round-trip + seed test
 apps/saytu-admin/
-├── package.json                 # + @saytu/db-idb, @saytu/git-idb
+├── package.json                 # + @setu/db-idb, @setu/git-idb
 ├── src/data/store.tsx           # + bootstrapServices(data, git): Promise<Services>; seedIfEmpty
 ├── src/data/reset.ts            # NEW (dev) — resetToSampleContent(): clear idb + reseed
 ├── src/main.tsx                 # async bootstrap with idb adapters + loading state
@@ -151,9 +151,9 @@ apps/saytu-admin/
 
 ## Definition of done
 
-- `pnpm --filter @saytu/db-idb test` + `@saytu/git-idb test` (contract + round-trip) green;
-  `pnpm --filter @saytu/admin test` (bootstrap seed test + existing) green; `pnpm -r typecheck`
-  clean; `pnpm --filter @saytu/admin build` OK (no dev reset in the bundle).
+- `pnpm --filter @setu/db-idb test` + `@setu/git-idb test` (contract + round-trip) green;
+  `pnpm --filter @setu/admin test` (bootstrap seed test + existing) green; `pnpm -r typecheck`
+  clean; `pnpm --filter @setu/admin build` OK (no dev reset in the bundle).
 - `pnpm dev`: create/edit content → **reload → it's still there**. First-ever run shows the
   samples; later loads restore your work, never re-seeding. The dev "Reset to sample content"
   wipes + reseeds.

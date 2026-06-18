@@ -16,7 +16,7 @@ is the visual source of truth (tokens + shell + screens already designed).
 
 ## The architectural bet: in-browser, in-memory adapters
 
-The entire `@saytu/core` engine is pure/edge-safe, and the in-memory
+The entire `@setu/core` engine is pure/edge-safe, and the in-memory
 `DataPort`/`GitPort` are `Map`-based — so the engine runs **in the browser**. The
 SPA depends on the **ports**, injected with **in-memory adapters now**; a later
 increment swaps in real persistence (Hono API + `db-sqlite`/`git-local` behind a
@@ -26,7 +26,7 @@ fully interactive, UAT-able admin ships client-side with no backend.
 ## Scope
 
 **In:**
-- A new `@saytu/db-memory` package: `createMemoryDataPort(seed?)` — the in-memory
+- A new `@setu/db-memory` package: `createMemoryDataPort(seed?)` — the in-memory
   `DataPort` (currently a test fake) promoted to a real, contract-tested adapter
   (passes `runDataPortContract`); browser-safe; optionally seeded with drafts.
 - A new `apps/saytu-admin/` app: Vite + React 18 + TypeScript + Tailwind v4 +
@@ -49,7 +49,7 @@ fully interactive, UAT-able admin ships client-side with no backend.
 
 ## Why these choices
 
-- **`@saytu/db-memory` as a real package, not an inline mock.** The app, future
+- **`@setu/db-memory` as a real package, not an inline mock.** The app, future
   demos, and the editor slices all need a solid browser persistence tier.
   Promoting the in-memory adapter once — and running it through the existing
   `runDataPortContract` — makes it a legitimate, trustworthy adapter (the ports
@@ -70,8 +70,8 @@ fully interactive, UAT-able admin ships client-side with no backend.
 ## Architecture
 
 ```
-packages/db-memory/                # @saytu/db-memory
-├── package.json                   # deps: @saytu/core; dev: @saytu/db-testing, vitest, ts
+packages/db-memory/                # @setu/db-memory
+├── package.json                   # deps: @setu/core; dev: @setu/db-testing, vitest, ts
 ├── tsconfig.json
 ├── vitest.config.ts
 ├── src/
@@ -79,9 +79,9 @@ packages/db-memory/                # @saytu/db-memory
 │   └── index.ts
 └── test/contract.test.ts          # runDataPortContract(() => createMemoryDataPort())
 
-apps/saytu-admin/                  # @saytu/admin (private app)
-├── package.json                   # react 18, react-dom, react-router-dom, @saytu/core,
-│                                  #   @saytu/db-memory; dev: vite, @vitejs/plugin-react,
+apps/saytu-admin/                  # @setu/admin (private app)
+├── package.json                   # react 18, react-dom, react-router-dom, @setu/core,
+│                                  #   @setu/db-memory; dev: vite, @vitejs/plugin-react,
 │                                  #   tailwindcss v4 + @tailwindcss/vite, vitest, jsdom,
 │                                  #   @testing-library/react, @testing-library/jest-dom, ts
 ├── index.html
@@ -112,7 +112,7 @@ apps/saytu-admin/                  # @saytu/admin (private app)
 - Routing: `/` redirects to `/posts`; `/posts` and `/pages` render `ContentList`
   with the collection; other nav routes render `Placeholder`.
 
-## `@saytu/db-memory`
+## `@setu/db-memory`
 
 `createMemoryDataPort(seed?: DraftInput[]): DataPort` — the full `DataPort`
 (`getDraft`/`saveDraft`/`deleteDraft`/`listDrafts`/`getLock`/`putLock`/
@@ -123,7 +123,7 @@ used in tests (createdAt preserved on upsert, etc.). An optional `seed` array of
 
 ## Testing
 
-- **`@saytu/db-memory`**: `runDataPortContract(() => createMemoryDataPort())`
+- **`@setu/db-memory`**: `runDataPortContract(() => createMemoryDataPort())`
   (the 12 shared contract tests) + a seed test (a seeded adapter returns the
   seeded drafts from `listDrafts`).
 - **app component tests** (vitest + jsdom + @testing-library/react):
@@ -145,10 +145,10 @@ used in tests (createdAt preserved on upsert, etc.). An optional `seed` array of
 
 - `pnpm install` clean; `pnpm dev` in `apps/saytu-admin` serves the admin with the
   shell + a populated content list.
-- `pnpm test` green: `@saytu/db-memory` contract + the app component tests; the
+- `pnpm test` green: `@setu/db-memory` contract + the app component tests; the
   existing 121 tests unaffected.
 - `pnpm typecheck` clean across packages + the new app. (The app is a browser
-  bundle; it is NOT under the core edge guard — that guard governs `@saytu/core`.)
+  bundle; it is NOT under the core edge guard — that guard governs `@setu/core`.)
 - Committed via the subagent-driven flow.
 
 ## Note on scope rhythm

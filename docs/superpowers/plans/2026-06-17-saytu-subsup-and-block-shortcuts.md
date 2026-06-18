@@ -66,7 +66,7 @@ Add to `apps/saytu-admin/test/shortcuts-dialog.test.tsx`:
 
 - [ ] **Step 2: Run — verify failures**
 
-Run: `pnpm --filter @saytu/admin test -- block-types turn-into shortcuts-dialog`
+Run: `pnpm --filter @setu/admin test -- block-types turn-into shortcuts-dialog`
 Expected: FAIL (no `keys` on BlockType; menu rows + dialog don't show block shortcuts).
 
 - [ ] **Step 3: Add `keys` to `BlockType`** (`block-types.ts`)
@@ -114,7 +114,7 @@ Import `BLOCK_TYPES`: `import { BLOCK_TYPES } from './block-types'`. After the e
 
 - [ ] **Step 6: Run — verify pass + add CSS**
 
-Run: `pnpm --filter @saytu/admin test -- block-types turn-into shortcuts-dialog` → PASS.
+Run: `pnpm --filter @setu/admin test -- block-types turn-into shortcuts-dialog` → PASS.
 Append a style for the row accelerator to `apps/saytu-admin/src/styles/editor.css`:
 
 ```css
@@ -124,7 +124,7 @@ Append a style for the row accelerator to `apps/saytu-admin/src/styles/editor.cs
 
 - [ ] **Step 7: Full admin suite + typecheck + commit**
 
-Run: `pnpm --filter @saytu/admin test && pnpm --filter @saytu/admin typecheck` → green.
+Run: `pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck` → green.
 
 ```bash
 git add apps/saytu-admin/src/editor/block-types.ts apps/saytu-admin/src/editor/TurnIntoMenu.tsx apps/saytu-admin/src/editor/ShortcutsDialog.tsx apps/saytu-admin/src/styles/editor.css apps/saytu-admin/test/block-types.test.ts apps/saytu-admin/test/turn-into.test.tsx apps/saytu-admin/test/shortcuts-dialog.test.tsx
@@ -135,7 +135,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ---
 
-## Task 2: subscript/superscript Markdoc round-trip (`@saytu/core`)
+## Task 2: subscript/superscript Markdoc round-trip (`@setu/core`)
 
 **Files:** modify `packages/core/src/markdoc/to-markdoc.ts`, `to-tiptap.ts`; tests `packages/core/test/roundtrip.examples.test.ts` (extend), `to-tiptap.test.ts` (extend).
 
@@ -166,7 +166,7 @@ describe('subscript/superscript inline tags', () => {
 
 - [ ] **Step 2: Run — verify failures**
 
-Run: `pnpm --filter @saytu/core test -- roundtrip to-tiptap`
+Run: `pnpm --filter @setu/core test -- roundtrip to-tiptap`
 Expected: FAIL — sub/sup dropped (default `return []`) and byte-fidelity off.
 
 - [ ] **Step 3: to-markdoc — build inline sub/sup tags** (`to-markdoc.ts`, in `buildInline`)
@@ -203,7 +203,7 @@ Add a `case 'tag'` before the `default`:
 
 - [ ] **Step 5: Run — verify pass**
 
-Run: `pnpm --filter @saytu/core test -- roundtrip to-tiptap` → PASS (byte-fidelity + mark mapping). Then the full core suite + edge guard: `pnpm --filter @saytu/core test && pnpm --filter @saytu/core typecheck` → green (the converter stays Node-free; edge guard passes).
+Run: `pnpm --filter @setu/core test -- roundtrip to-tiptap` → PASS (byte-fidelity + mark mapping). Then the full core suite + edge guard: `pnpm --filter @setu/core test && pnpm --filter @setu/core typecheck` → green (the converter stays Node-free; edge guard passes).
 
 - [ ] **Step 6: Commit**
 
@@ -222,7 +222,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1: Add the deps**
 
-Run: `pnpm --filter @saytu/admin add @tiptap/extension-subscript@^3.26.1 @tiptap/extension-superscript@^3.26.1`
+Run: `pnpm --filter @setu/admin add @tiptap/extension-subscript@^3.26.1 @tiptap/extension-superscript@^3.26.1`
 (Confirm the resolved version matches the rest of the `@tiptap/*` line.)
 
 - [ ] **Step 2: Register the extensions** (`Canvas.tsx`)
@@ -278,7 +278,7 @@ Add an editor round-trip guard (a real Editor with Subscript/Superscript): apply
 
 - [ ] **Step 7: Run + typecheck + build + commit**
 
-Run: `pnpm --filter @saytu/admin test && pnpm --filter @saytu/admin typecheck && pnpm --filter @saytu/admin build` → green; build jiti-free + fonts intact.
+Run: `pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck && pnpm --filter @setu/admin build` → green; build jiti-free + fonts intact.
 
 ```bash
 git add apps/saytu-admin/package.json apps/saytu-admin/src/editor/Canvas.tsx apps/saytu-admin/src/editor/shortcuts.ts apps/saytu-admin/src/editor/FormatBubble.tsx apps/saytu-admin/src/ui/Icon.tsx apps/saytu-admin/test/format-tooltips.test.tsx
@@ -293,7 +293,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1: Whole suite** — `pnpm -r test` — every package green (core sub/sup round-trip + admin display/buttons).
 - [ ] **Step 2: Typecheck + edge guard** — `pnpm -r typecheck` — clean (core edge guard passes — converter stays Node-free).
-- [ ] **Step 3: Build** — `pnpm --filter @saytu/admin build` — OK; only `package.json` dep change is the two `@tiptap/extension-*`; jiti-free; fonts intact.
+- [ ] **Step 3: Build** — `pnpm --filter @setu/admin build` — OK; only `package.json` dep change is the two `@tiptap/extension-*`; jiti-free; fonts intact.
 - [ ] **Step 4: Manual (reviewer)** — `pnpm dev`: select text → bubble shows Subscript/Superscript (tooltips `⌘,`/`⌘.`), toggling applies `<sub>`/`<sup>`; the Turn-into rows show shortcuts (e.g. Quote `⌘⇧B`); `Cmd/Ctrl+/` cheat sheet lists block + sub/sup shortcuts; publish a doc with sub/sup → reopen → marks intact (round-trip).
 
 ---

@@ -3,7 +3,7 @@ import { renderHook, act, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { createServices, ServicesProvider } from '../src/data/store'
 import { DeployProvider, useDeploy } from '../src/deploy/deploy'
-import { contentPath } from '@saytu/core'
+import { contentPath } from '@setu/core'
 
 describe('deploy', () => {
   it('snapshots committed content as live, and reports the deployed content per path', async () => {

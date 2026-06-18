@@ -147,9 +147,11 @@ describe('default theme — shell + tokens', () => {
     expect(html).toContain('class="site-footer"')
     expect(html).toContain('Built with Saytu')
   })
-  it('loads the theme web fonts', () => {
-    expect(html).toContain('fonts.googleapis.com')
-    expect(html).toContain('Hanken+Grotesk')
+  it('self-hosts the theme web fonts (no Google Fonts)', () => {
+    expect(html).not.toContain('fonts.googleapis.com')
+    // Hanken Grotesk self-hosts via @fontsource; family registered as 'Hanken Grotesk Variable'.
+    // (Minifier strips quotes in the bundled CSS — match the built form.)
+    expect(themeCss()).toMatch(/font-family:\s*['"]?Hanken Grotesk Variable['"]?/)
   })
   it('applies the theme tokens (callout themed, not bare fallback)', () => {
     expect(html).toContain('#4f46e5') // --accent from theme.css

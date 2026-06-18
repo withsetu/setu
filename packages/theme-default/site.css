@@ -19,7 +19,19 @@ body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--
 .prose ul, .prose ol { padding-left: 1.3rem; }
 .prose li { margin: .3rem 0; }
 .prose li.task { list-style: none; margin-left: -1.2rem; }
-.prose li.task input { margin-right: .5rem; }
+/* Read-only task checkbox, custom-drawn so it stays disabled yet uses the theme --accent
+   (native disabled checkboxes render greyed and ignore accent-color). */
+.prose li.task input[type="checkbox"] {
+  appearance: none; -webkit-appearance: none;
+  width: 1.05em; height: 1.05em; margin: 0 .5rem 0 0; vertical-align: -0.16em;
+  border: 1.5px solid var(--border, #cbd5e1); border-radius: 4px;
+  background: var(--surface, #fff);
+}
+.prose li.task input[type="checkbox"]:checked {
+  background-color: var(--accent); border-color: var(--accent);
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5l3 3 6-6"/></svg>');
+  background-size: .8em; background-position: center; background-repeat: no-repeat;
+}
 .prose table { border-collapse: collapse; margin: 1.25rem 0; }
 .prose th, .prose td { border: 1px solid var(--border); padding: .5rem .75rem; }
 .prose th { font-family: var(--font-heading); font-weight: 700; }

@@ -6,3 +6,4 @@ dist/
 
 # Superpowers git worktrees (temporary, per-feature copies of the repo)
 .claude/worktrees/
+.superpowers/

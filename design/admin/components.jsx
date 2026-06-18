@@ -85,6 +85,7 @@ const ICONS = {
   star: '<path d="m12 3 2.6 5.6 6 .8-4.4 4.2 1.1 6L12 16.8 6.7 19.6l1.1-6L3.4 9.4l6-.8z"/>',
   pin: '<path d="M9 4h6l-1 5 3 3v2h-5v6l-1 1-1-1v-6H5v-2l3-3z"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 8h.01M12 12v4"/>',
+  palette: '<path d="M12 2a10 10 0 1 0 0 20 1.7 1.7 0 0 0 1.7-1.7c0-.5-.2-.9-.5-1.2a1.7 1.7 0 0 1 1.2-2.9H17a5 5 0 0 0 5-5 9 9 0 0 0-10-9z"/><circle cx="8" cy="8" r="1"/><circle cx="12.5" cy="6.5" r="1"/><circle cx="16" cy="9.5" r="1"/>',
 };
 
 function Icon({ name, size = 18, stroke = 1.75, className = '', style = {} }) {

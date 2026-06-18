@@ -85,9 +85,33 @@ function tokensOf(opt: ThemeOption): string[] {
 }
 
 /**
+ * Pure: resolve chosen option values to the CSS custom properties they drive,
+ * e.g. `{ '--accent': '#…', '--font-body': '…', '--font-heading': '…', … }`.
+ * Missing/invalid values fall back to the option's default — a malformed config
+ * can never emit garbage. Shared by `optionsToCss` (the published `:root:root`
+ * override) and the admin Customizer's live preview (applied as inline custom
+ * properties on the preview element), so the two can never disagree.
+ */
+export function resolveThemeTokens(values: Record<string, string>): Record<string, string> {
+  const tokens: Record<string, string> = {}
+  for (const opt of themeOptions) {
+    const raw = values[opt.key]
+    if (opt.type === 'color') {
+      const value = isValidColor(raw) ? raw : opt.default
+      for (const token of tokensOf(opt)) tokens[token] = value
+    } else {
+      const choices = opt.choices ?? []
+      const choice =
+        choices.find((c) => c.value === raw) ?? choices.find((c) => c.value === opt.default)
+      if (!choice) continue
+      for (const token of tokensOf(opt)) tokens[token] = choice.tokenValue
+    }
+  }
+  return tokens
+}
+
+/**
  * Pure: map chosen option values to a `:root:root { … }` override string.
- * Missing/invalid values fall back to the option's default — a malformed
- * config can never emit garbage or break the site.
  *
  * The selector is intentionally doubled (`:root:root`, specificity 0,0,2,0)
  * so this override beats the theme's plain `:root` defaults (0,0,1,0) no
@@ -96,19 +120,6 @@ function tokensOf(opt: ThemeOption): string[] {
  * style). Not a typo.
  */
 export function optionsToCss(values: Record<string, string>): string {
-  const decls: string[] = []
-  for (const opt of themeOptions) {
-    const raw = values[opt.key]
-    if (opt.type === 'color') {
-      const value = isValidColor(raw) ? raw : opt.default
-      for (const token of tokensOf(opt)) decls.push(`${token}: ${value};`)
-    } else {
-      const choices = opt.choices ?? []
-      const choice =
-        choices.find((c) => c.value === raw) ?? choices.find((c) => c.value === opt.default)
-      if (!choice) continue
-      for (const token of tokensOf(opt)) decls.push(`${token}: ${choice.tokenValue};`)
-    }
-  }
+  const decls = Object.entries(resolveThemeTokens(values)).map(([token, value]) => `${token}: ${value};`)
   return `:root:root { ${decls.join(' ')} }`
 }

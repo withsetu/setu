@@ -116,7 +116,7 @@ export function Canvas({
       }),
     ],
     content: initialContent,
-    editorProps: { attributes: { class: 'saytu-prose', 'aria-label': 'Content editor' } },
+    editorProps: { attributes: { class: 'setu-prose', 'aria-label': 'Content editor' } },
     onUpdate: ({ editor }) => onChange(editor.getJSON() as TiptapDoc),
   })
   editorRef.current = editor

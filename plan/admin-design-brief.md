@@ -1,4 +1,4 @@
-# Saytu Admin — Design Brief
+# Setu Admin — Design Brief
 
 > A brief for **Claude Design** to generate a modern CMS admin. Scope: the **free tier**. Paste this in, optionally with screenshots of the reference products below.
 
@@ -6,7 +6,7 @@
 
 ## What we're building
 
-**Saytu** is an open-source, Git-backed CMS. We need a beautiful, modern **admin** — the place where non-technical marketers and writers create, edit, and publish website content. Think "what WordPress's admin should have been in 2026."
+**Setu** is an open-source, Git-backed CMS. We need a beautiful, modern **admin** — the place where non-technical marketers and writers create, edit, and publish website content. Think "what WordPress's admin should have been in 2026."
 
 The single most important screen is **the editor**. Design it to be exceptional; everything else supports it.
 

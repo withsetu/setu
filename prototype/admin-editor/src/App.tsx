@@ -46,7 +46,7 @@ export default function App() {
           <div className="flex h-7 w-7 items-center justify-center rounded-md bg-neutral-900 text-sm font-bold text-white">
             S
           </div>
-          <span className="font-semibold tracking-tight">Saytu</span>
+          <span className="font-semibold tracking-tight">Setu</span>
         </div>
         <div className="flex flex-col gap-0.5 px-2">
           {NAV.map((n) => (

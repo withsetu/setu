@@ -1,4 +1,4 @@
-/* Saytu default theme — token layer. Every taste choice is a knob with a default;
+/* Setu default theme — token layer. Every taste choice is a knob with a default;
    change a token and the site restyles. Block tokens (names + values) are shared with
    the editor (apps/admin tokens.css) so @setu/blocks render themed + matching. */
 :root {

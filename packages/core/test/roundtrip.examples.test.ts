@@ -4,7 +4,7 @@ import { markdocToTiptap, tiptapToMarkdoc } from '../src/index'
 const SAMPLES: Record<string, string> = {
   basic: `# Summer Launch
 
-Our **biggest** release *yet*, with \`code\` and a [link](https://saytu.dev).
+Our **biggest** release *yet*, with \`code\` and a [link](https://setu.dev).
 
 - one
 - two
@@ -67,7 +67,7 @@ Outro.
 `,
   tableMarks: `| h | link |
 | --- | --- |
-| **b** | [site](https://saytu.dev) |
+| **b** | [site](https://setu.dev) |
 `,
   alignParagraph: `Centered{% align="center" %}
 `,
@@ -108,7 +108,7 @@ describe('byte-fidelity round-trip', () => {
     ['strikethrough', '~~gone~~\n'],
     ['subscript', 'H{% sub %}2{% /sub %}O\n'],
     ['superscript', 'E=mc{% sup %}2{% /sup %}\n'],
-    ['link', 'A [link](https://saytu.dev).\n'],
+    ['link', 'A [link](https://setu.dev).\n'],
     ['blockquote', '> quoted\n'],
     ['checklist', '- [ ] todo\n- [x] done\n'],
     ['checklist with marks', '- [ ] do the **thing**\n'],

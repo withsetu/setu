@@ -7,7 +7,7 @@ const keyOf = (r: EntryRef): string => `${r.collection}\0${r.locale}\0${r.slug}`
 /** An IndexedDB-backed DataPort (drafts + locks), behaviorally equivalent to
  *  db-memory (proven by runDataPortContract) but persistent across reloads.
  *  `dbName` is parameterized so tests get a fresh database per run. */
-export async function createIdbDataPort(dbName = 'saytu-data'): Promise<DataPort> {
+export async function createIdbDataPort(dbName = 'setu-data'): Promise<DataPort> {
   const db = await openDB(dbName, 1, {
     upgrade(d) {
       d.createObjectStore('drafts')

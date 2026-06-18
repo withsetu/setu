@@ -1,8 +1,8 @@
 # 🏗️ Product Requirement Document (PRD)
 
-## Project Name: Saytu (Digital Experience Builder with an ultimate Developer Experience)
+## Project Name: Setu (Digital Experience Builder with an ultimate Developer Experience)
 
-**Vision (from developer angle):** A 100% open-source, Git-backed, multi-topology content management engine. Saytu acts as the "bridge" (Sanskrit: *Setu*) between a developer's preferred authoring environment and a hyper-fast production edge. It pairs a headless Tiptap editor with Astro 6's modern Rust-based toolchain, using a strict Hexagonal (Ports & Adapters) Architecture to decouple the CMS from any specific hosting provider.
+**Vision (from developer angle):** A 100% open-source, Git-backed, multi-topology content management engine. Setu acts as the "bridge" (Sanskrit: *Setu*) between a developer's preferred authoring environment and a hyper-fast production edge. It pairs a headless Tiptap editor with Astro 6's modern Rust-based toolchain, using a strict Hexagonal (Ports & Adapters) Architecture to decouple the CMS from any specific hosting provider.
 
 ### **Vision for business/marketing**
 
@@ -10,7 +10,7 @@ To empower marketing and business teams with absolute creative and operational a
 
 ### **Mission**
 
-Saytu DXP bridges the gap between marketing velocity and engineering excellence. By providing an intuitive, friction-free visual editing experience for non-technical content creators and a zero-maintenance, hyper-fast edge architecture for developers, we enable organizations to maximize their digital ROI, secure flawless SEO performance, and maintain 100% ownership of their data without vendor lock-in.
+Setu DXP bridges the gap between marketing velocity and engineering excellence. By providing an intuitive, friction-free visual editing experience for non-technical content creators and a zero-maintenance, hyper-fast edge architecture for developers, we enable organizations to maximize their digital ROI, secure flawless SEO performance, and maintain 100% ownership of their data without vendor lock-in.
 
 ---
 
@@ -24,7 +24,7 @@ Saytu DXP bridges the gap between marketing velocity and engineering excellence.
 
 ## 1. Architectural Core: Hexagonal "Ports & Adapters"
 
-Saytu's core logic never hardcodes its environment. The system relies on abstract interfaces ("ports"); concrete implementations ("adapters") are selected per topology. This prevents vendor lock-in and lets the CMS morph across deployment topologies via plugins/addons.
+Setu's core logic never hardcodes its environment. The system relies on abstract interfaces ("ports"); concrete implementations ("adapters") are selected per topology. This prevents vendor lock-in and lets the CMS morph across deployment topologies via plugins/addons.
 
 * **The Core (`@setu/core`):** Pure TypeScript logic. Handles Tiptap JSON ↔ Markdoc AST conversion, content-model/schema validation, draft/lock orchestration, the publish pipeline, redirect generation, and Git commit generation.
 * **`DataPort` (Database):** The DB is **not** the source of truth for published content (see §2) — it is a derived index/cache plus the live store for drafts, locks, users/roles, and UGC (form submissions). Surface: content index (`db.get()`, `db.query()`, FTS5 search), drafts, locks, plus identity & submissions owned by the auth library and form handler.
@@ -40,16 +40,16 @@ Saytu's core logic never hardcodes its environment. The system relies on abstrac
 
 * **Content vs. Code separation (load-bearing):**
   * **Developers edit code** — components (`*.astro`, framework components), `setu.config.ts`, themes — in their own environment, pushed to Git.
-  * **Marketers edit content** — `*.mdoc` (Markdoc) files + metadata, always through the Saytu admin.
+  * **Marketers edit content** — `*.mdoc` (Markdoc) files + metadata, always through the Setu admin.
   * These file-sets must not overlap.
-* **The derived DB index:** On boot and on every Git change, Saytu parses published content into the database for fast SSR/admin/search reads. The index is disposable and rebuildable from Git at any time.
+* **The derived DB index:** On boot and on every Git change, Setu parses published content into the database for fast SSR/admin/search reads. The index is disposable and rebuildable from Git at any time.
 * **The publish flow (the only writer of content to Git):**
   1. Live edits save continuously to the DB as a **draft** (never to Git).
   2. On **Publish**, the draft compiles to a Markdoc file and is committed to Git ("Staged" — §16).
   3. The derived index updates; cache is purged (§16).
   4. **Local Git is fine** — a remote is optional. On **Edge**, Git writes go through `GitPort` (GitHub API; workerd has no native Git), so edge publishing is online-only.
-* **External Git changes (rare but real):** Each draft records the **base Git SHA** it forked from; on Publish, if `HEAD` moved for that file, Saytu blocks the commit ("This file changed in Git — reload before publishing"). A **Git → DB re-index** hook keeps the index fresh. V1 does **not** build a real-time bidirectional sync engine.
-* **Schema migrations:** `DataPort` schema is managed with **Drizzle + Drizzle Kit**. Key simplification — only **canonical** tables (users, submissions) need careful migrations; **derived** tables (index, FTS5) can be dropped and rebuilt from Git on schema change ("bump version → reindex"). Breaking `setu.config.ts` changes ship a `saytu migrate` codemod.
+* **External Git changes (rare but real):** Each draft records the **base Git SHA** it forked from; on Publish, if `HEAD` moved for that file, Setu blocks the commit ("This file changed in Git — reload before publishing"). A **Git → DB re-index** hook keeps the index fresh. V1 does **not** build a real-time bidirectional sync engine.
+* **Schema migrations:** `DataPort` schema is managed with **Drizzle + Drizzle Kit**. Key simplification — only **canonical** tables (users, submissions) need careful migrations; **derived** tables (index, FTS5) can be dropped and rebuilt from Git on schema change ("bump version → reindex"). Breaking `setu.config.ts` changes ship a `setu migrate` codemod.
 
 ## 3. Content Model: Collections, Fields & Taxonomies
 
@@ -99,11 +99,11 @@ The relationship between the Headless Editor (Tiptap), Content Syntax (Markdoc),
 * Developers define content blocks, expected props, Zod schemas, **collections (§3)**, and **permalink patterns (§4)** here.
 * The Tiptap Editor reads it to generate slash-menu commands, block UI, and prop sidebars; the Markdoc parser reads it to validate the AST; the Astro frontend reads it to map AST nodes to components.
 * **Child Theming & Component Overrides:** configuration-based overriding, not folder-based child themes. Install a base theme (`import baseTheme from '@setu/theme-minimal'`), then override specific components in local config (e.g. map `Callout` → `src/components/MyCallout.astro`). The CMS updates both the live site and the editor preview (via §10; on edge, after the component is in the deployed build).
-* **Roadmap (WordPress/Drupal Conversion):** future CLI tools compile WordPress `theme.json` / Gutenberg patterns or Drupal modules into a Saytu Theme Manifest.
+* **Roadmap (WordPress/Drupal Conversion):** future CLI tools compile WordPress `theme.json` / Gutenberg patterns or Drupal modules into a Setu Theme Manifest.
 
 ## 9. Authoring, Drafts & Concurrency
 
-Non-technical users must never face Git merge conflicts. Saytu uses **DB-backed drafts + pessimistic locking**.
+Non-technical users must never face Git merge conflicts. Setu uses **DB-backed drafts + pessimistic locking**.
 
 * **Drafts live in the database** (debounced autosave to SQLite/D1). Git only sees committed, published content.
 * **Pessimistic locking (V1, no CRDT):** `locked_by` + `locked_at`; a second editor sees read-only "Currently being edited by …". No Yjs/CRDT co-editing in V1.
@@ -185,7 +185,7 @@ Delivery is a developer choice; publish and deploy are **decoupled and role-gate
 
 **Authentication is pluggable; authorization always lives in the app.**
 
-* **Auth engine — Better Auth, behind `AuthPort`.** Runs on Bun and workerd; Drizzle/Kysely adapters target **SQLite and D1** (auth tables co-locate with index/drafts/locks). Provides email/password + GitHub/Google OAuth + sessions + `admin`/`organization` roles plugins, so Saytu never hand-rolls security-critical code. *(Spike: validate the D1 adapter — Hono examples used Postgres/Neon.)*
+* **Auth engine — Better Auth, behind `AuthPort`.** Runs on Bun and workerd; Drizzle/Kysely adapters target **SQLite and D1** (auth tables co-locate with index/drafts/locks). Provides email/password + GitHub/Google OAuth + sessions + `admin`/`organization` roles plugins, so Setu never hand-rolls security-critical code. *(Spike: validate the D1 adapter — Hono examples used Postgres/Neon.)*
 * **Cloudflare Access** = a separate edge adapter (external IdP gate). Hono middleware **must verify the signed Access JWT** against Cloudflare's keys — never trust the header blindly.
 * **App code depends only on `AuthPort`** (`→ { email, role }`).
 * **Authorization:** roles live in the DB in every install. Baseline: **Admin, Publisher, Editor, Viewer**. **No solo/team special-casing** — solo is one row. Path-scoped permissions are later/Pro.
@@ -202,10 +202,10 @@ Delivery is a developer choice; publish and deploy are **decoupled and role-gate
 
 ## 19. Licensing
 
-* **Core + adapters → AGPL-3.0.** Chosen because Saytu's users are self-hosters (AGPL is invisible to them — it only triggers if you offer *modified Saytu itself* as a network service), it blocks cloud-cloning of the engine, and enterprise-legal friction converts into commercial-license revenue rather than lost users.
+* **Core + adapters → AGPL-3.0.** Chosen because Setu's users are self-hosters (AGPL is invisible to them — it only triggers if you offer *modified Setu itself* as a network service), it blocks cloud-cloning of the engine, and enterprise-legal friction converts into commercial-license revenue rather than lost users.
 * **CLA required** from every contributor, in place **before the first non-author contribution** (public or private; private collaborators need an IP-assignment clause). The CLA is the linchpin — it enables both the commercial dual-license **and** the option to relicense later (e.g. AGPL → Apache, the easy direction since loosening only needs copyright control).
 * **Commercial dual-license** sold to those who can't accept AGPL (enterprise bans) — friction → revenue.
-* **Pro plugins → proprietary/commercial EULA.** Closed, paid. As sole copyright holder (via CLA), Saytu can license its own Pro plugins proprietarily even atop AGPL core.
+* **Pro plugins → proprietary/commercial EULA.** Closed, paid. As sole copyright holder (via CLA), Setu can license its own Pro plugins proprietarily even atop AGPL core.
 
 ## 20. Open-Core / Monetization Boundary
 
@@ -232,11 +232,11 @@ Core is 100% open-source; the model is **open-core framed as a "convenience fee"
 
 ### 20.2 Enforcement
 
-The Pro gate lives in **proprietary cloud/license components, never in OSS code** (see §19). As sole copyright holder via the CLA, Saytu can ship proprietary Pro plugins atop the AGPL core.
+The Pro gate lives in **proprietary cloud/license components, never in OSS code** (see §19). As sole copyright holder via the CLA, Setu can ship proprietary Pro plugins atop the AGPL core.
 
 ## 21. Roadmap (post-V1)
 
-* **V1 includes:** core engine + all three topologies; content model (post/page + code-defined custom types); permalinks + auto-redirects; SEO basics; structural i18n + admin-UI localization; media library + image optimization; search; forms; email; Better Auth; **content import (WordPress WXR + Markdown/frontmatter importers — best-effort block mapping, unknowns preserved/flagged)**; **`create-saytu` scaffolding CLI** (+ `saytu init` for existing projects).
+* **V1 includes:** core engine + all three topologies; content model (post/page + code-defined custom types); permalinks + auto-redirects; SEO basics; structural i18n + admin-UI localization; media library + image optimization; search; forms; email; Better Auth; **content import (WordPress WXR + Markdown/frontmatter importers — best-effort block mapping, unknowns preserved/flagged)**; **`create-setu` scaffolding CLI** (+ `setu init` for existing projects).
 * **Pro / later:** everything in §20 Pro; multi-site SaaS aggregator; WordPress/Drupal theme-conversion CLI; comments (native or Giscus); personalization / A-B testing; additional `GitPort` (GitLab/Gitea), `ImagePort`, `EmailPort` adapters; Docker image (ships with the T3 milestone).
 
 ## 22. Tech Stack (2026 Standards)
@@ -257,7 +257,7 @@ The Pro gate lives in **proprietary cloud/license components, never in OSS code*
 ## 23. Monorepo Directory Structure (pnpm workspaces)
 
 ```text
-saytu/
+setu/
 ├── apps/
 │   ├── admin/         # React SPA for the CMS interface (Tiptap)
 │   ├── demo-site/           # Astro 6.4 template showcasing the live frontend
@@ -276,7 +276,7 @@ saytu/
 │   ├── git/                 # GitPort + GitHub adapter (edge commit/read)
 │   ├── email/               # EmailPort + SMTP / Resend / Postmark / SES adapters
 │   ├── search/              # Pagefind pipeline integration + FTS5 helpers
-│   ├── create-saytu/        # Scaffolding CLI (bun create saytu) + `saytu init`
+│   ├── create-setu/        # Scaffolding CLI (bun create setu) + `setu init`
 │   └── astro-integration/   # @setu/astro - injects /admin routes, Hono APIs, preview render
 │
 ├── package.json
@@ -326,7 +326,7 @@ Testing weight follows **risk**: heavy where content/data flows (loss is unaccep
 * **Surface:** auth/authz, the presigned-upload endpoint, the admin-only HTML/JS embed (XSS), Markdoc rendering, DoW, **form-submission PII**, and supply chain (many OSS deps).
 * **CI from day one:** **SAST** (CodeQL/Semgrep), **dependency scanning** (Dependabot + `pnpm audit`), **authz tests** (Editor *can't* publish, unauth → 401, Cloudflare Access JWT signature *verified*, role enforcement), input/abuse fuzzing (Zod boundaries, presigned-URL abuse, XSS vectors).
 * **Per milestone:** diff-level security review (the `/security-review` workflow).
-* **Before 1.0 GA:** a **third-party penetration test / audit** (Saytu handles auth + content + PII).
+* **Before 1.0 GA:** a **third-party penetration test / audit** (Setu handles auth + content + PII).
 * **The bar scales with topology:** self-hosted single-tenant is lower-stakes; the **managed Cloud / multi-tenant aggregator** demands the highest bar (tenant isolation + the formal audit).
 
 ---

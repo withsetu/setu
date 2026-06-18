@@ -15,7 +15,7 @@ afterEach(() => {
 })
 
 runGitPortContract(async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'saytu-git-'))
+  const dir = mkdtempSync(join(tmpdir(), 'setu-git-'))
   dirs.push(dir)
   await git.init({ fs: nodeFs, dir, defaultBranch: 'main' })
   return createLocalGitAdapter({ dir })

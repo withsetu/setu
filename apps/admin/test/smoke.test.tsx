@@ -23,7 +23,7 @@ function renderApp(path: string) {
 describe('App', () => {
   it('renders the shell without crashing', () => {
     renderApp('/posts')
-    expect(screen.getByText('Saytu')).toBeInTheDocument()
+    expect(screen.getByText('Setu')).toBeInTheDocument()
   })
 
   it('redirects / to /posts', async () => {

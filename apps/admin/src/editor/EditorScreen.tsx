@@ -18,7 +18,7 @@ import { onRequestShortcuts } from './editor-events'
 
 const EDITOR_ID = 'local'
 const BLANK: TiptapDoc = { type: 'doc', content: [{ type: 'paragraph' }] }
-const OWNER_AUTHOR = { name: 'Local', email: 'local@saytu.dev' }
+const OWNER_AUTHOR = { name: 'Local', email: 'local@setu.dev' }
 
 function SaveIndicator({ status, readonly }: { status: SaveStatus; readonly: boolean }) {
   if (readonly) return <span className="autosave saving">Read-only</span>

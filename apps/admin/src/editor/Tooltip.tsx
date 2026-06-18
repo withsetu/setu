@@ -13,10 +13,10 @@ export function Tooltip({ content, children }: { content: string; children: Reac
     const inst = tippy(el, {
       content,
       trigger: 'mouseenter focus',
-      theme: 'saytu',
+      theme: 'setu',
       delay: [150, 0],
       placement: 'top',
-      // tippy's base CSS isn't loaded (by codebase convention); the 'saytu' theme
+      // tippy's base CSS isn't loaded (by codebase convention); the 'setu' theme
       // styles the box, but the arrow element would be unstyled — so disable it.
       arrow: false,
     })

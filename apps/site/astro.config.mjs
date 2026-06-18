@@ -17,7 +17,7 @@ const activeTheme = config.theme ?? '@setu/theme-default'
 // no matter where they live on disk.
 const require = createRequire(import.meta.url)
 const resolveMarkdocFromApp = {
-  name: 'saytu:resolve-markdoc-from-app',
+  name: 'setu:resolve-markdoc-from-app',
   enforce: 'pre',
   resolveId(id) {
     if (id === '@astrojs/markdoc' || id.startsWith('@astrojs/markdoc/')) {

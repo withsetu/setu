@@ -24,7 +24,7 @@ const SLASH_BLOCKS = [
 const SEED_BLOCKS = () => [
   { id: nbid(), type: 'p', content: 'There’s a particular kind of quiet that settles over a small studio the week before a launch. The phones stop ringing. The Slack channel goes still. And the work — the actual work — finally has room to breathe.' },
   { id: nbid(), type: 'h2', content: 'Designing for calm' },
-  { id: nbid(), type: 'p', content: 'We started Saytu because publishing on the modern web had quietly become a second job. Every CMS wanted to be a platform; none of them wanted to be a place to write.' },
+  { id: nbid(), type: 'p', content: 'We started Setu because publishing on the modern web had quietly become a second job. Every CMS wanted to be a platform; none of them wanted to be a place to write.' },
   { id: nbid(), type: 'callout', content: 'The best tool is the one that disappears the moment you start typing.', props: { tone: 'accent', icon: 'sparkle' } },
   { id: nbid(), type: 'image', content: '', props: { alt: 'A wide, sunlit desk with a single notebook and a cup of coffee', caption: 'Our studio, the morning of the first deploy.', filled: true } },
   { id: nbid(), type: 'h2', content: 'What ships today' },

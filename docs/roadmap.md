@@ -1,4 +1,4 @@
-# Saytu Roadmap / Backlog
+# Setu Roadmap / Backlog
 
 > Running list of **deliberately deferred** improvements — things we decided are worth
 > doing but chose not to build in the increment where they came up, so we don't forget.
@@ -9,7 +9,7 @@
 
 ## Render / Theme layer
 
-Vision + decomposition: `docs/superpowers/specs/2026-06-17-saytu-render-theme-vision.md`
+Vision + decomposition: `docs/superpowers/specs/2026-06-17-setu-render-theme-vision.md`
 (5 sub-projects; lean frame — default theme + tokens, AI/MCP an accelerant not the identity;
 "write once" React core + generated editor/site shells; theme = HTML/CSS/tokens, React sealed).
 
@@ -19,7 +19,7 @@ Vision + decomposition: `docs/superpowers/specs/2026-06-17-saytu-render-theme-vi
 to static HTML (zero JS): standard nodes + callout (one React core + wrapper) + text-align +
 sub/sup + checklist + table-column align. **Resolves the deferred render-time mappings**
 (text-align + table-column alignment now actually render on the page). Default locale unprefixed
-in URLs. Spec/plan: `docs/superpowers/{specs,plans}/2026-06-17-saytu-render-pipeline*`.
+in URLs. Spec/plan: `docs/superpowers/{specs,plans}/2026-06-17-setu-render-pipeline*`.
 
 ### ~~Block component package #2 — one shared callout core~~ ✅ SHIPPED 2026-06-18 (`08f1afd`)
 
@@ -29,17 +29,17 @@ render it — the duplicate is gone (deleted `apps/admin/.../callout-variants.ts
 `apps/site/.../Callout.tsx` + the hardcoded 💡). "Write once" closed. Editor node
 definition + round-trip byte-identical (guard green); `react` is a peerDependency; CSS uses
 `var(--token, fallback)` (admin themed, site fallbacks — pixel parity follows in #3). Spec/plan:
-`docs/superpowers/{specs,plans}/2026-06-18-saytu-block-component-package*`.
+`docs/superpowers/{specs,plans}/2026-06-18-setu-block-component-package*`.
 
 ### ~~Default theme #3a — designed look, token-driven~~ ✅ SHIPPED 2026-06-18 (`bd15af4`)
 
-The Saytu site now looks designed: one typographic identity (bold-sans/indigo), a header/footer
+The Setu site now looks designed: one typographic identity (bold-sans/indigo), a header/footer
 shell, **Post (narrow) + Page (wider contained) templates by collection** + a home route — built
 entirely from **tokens-with-defaults on `:root`** so it's customization-ready (change a token →
 the site restyles). Blocks render themed via those tokens (callout matches the editor). `<html
 lang>` carries the entry locale; light-only, zero-JS. Look designed with the owner via the visual
 companion. Theme lives in `apps/site` for now. Spec/plan:
-`docs/superpowers/{specs,plans}/2026-06-18-saytu-default-theme*`.
+`docs/superpowers/{specs,plans}/2026-06-18-setu-default-theme*`.
 
 ### ~~Theme system #3b — themes as config-activated packages~~ ✅ SHIPPED 2026-06-18 (`246da2a`)
 
@@ -50,7 +50,7 @@ theme, and the build reads it (`loadConfig`) + aliases `@theme` → the package,
 through whichever theme is configured. **Switch the value + install another theme + rebuild →
 different theme.** No visible change (the success criterion — 27 site tests green unchanged); the
 render engine (routing/markdoc/block components) stays in the app. Spec/plan:
-`docs/superpowers/{specs,plans}/2026-06-18-saytu-theme-system*`.
+`docs/superpowers/{specs,plans}/2026-06-18-setu-theme-system*`.
 
 ### ~~Theme options #3c — declarative options engine + self-hosted fonts~~ ✅ SHIPPED 2026-06-18 (`36aee29`)
 
@@ -67,7 +67,7 @@ by tests). **Fonts self-hosted via `@fontsource` on BOTH the site theme and the 
 runtime Google-Fonts dependency removed repo-wide** (curated 6-font shortlist + JetBrains Mono; each
 variable pkg registers `'<Name> Variable'`; only the selected font downloads). Whole repo green
 (core 180, blocks 8, theme-default 10 [new], site 30, admin 178), both apps build, zero-JS. Spec/plan:
-`docs/superpowers/{specs,plans}/2026-06-18-saytu-theme-options*`.
+`docs/superpowers/{specs,plans}/2026-06-18-setu-theme-options*`.
 
 **Next render-layer sub-projects (deferred, sequenced):**
 - **The visual Customizer panel** (the admin UI for #3c's engine): renders generically from any
@@ -153,7 +153,7 @@ writing the same remote.
 - **NO git submodule for content.** A submodule pins a SHA → Cloudflare would rebuild *old* content
   until a parent pointer-bump commit; breaks "edit→rebuild→live". Instead: **content in the same
   repo now** (top-level `content/`), and the productized end-state is **"the user's repo holds
-  content+config and *depends on* Saytu (npm/template)"** — separation without submodule pain.
+  content+config and *depends on* Setu (npm/template)"** — separation without submodule pain.
 - **Edge can't use local git** (a Worker has no persistent fs / `.git`) → edge ⇒ GitHub API + D1.
   Kills the "local git + Cloudflare" combo from the owner's list.
 - **"local+remote git" / "remote only" are not modes** — they're the one future `git-github` adapter
@@ -166,7 +166,7 @@ contract in-process against the real routes) talks to it; `Bootstrap.tsx` uses i
 `VITE_SETU_API` is set (else the in-browser path — 178 admin tests untouched). Content moved to
 **repo-root `content/`** (Astro glob `base: '../../content'`). `pnpm dev` runs all three. Services/
 round-trip untouched; e2e proves publish→git-http→api→git-local→disk. Spec/plan:
-`docs/superpowers/{specs,plans}/2026-06-18-saytu-local-bridge*`.
+`docs/superpowers/{specs,plans}/2026-06-18-setu-local-bridge*`.
 **Caveats:** `git-local` doesn't follow a git *worktree's* `.git` pointer (use a normal checkout for
 `SETU_REPO_DIR`); a fontsource `vite.ssr.noExternal` fix was needed so `astro dev` renders themed
 routes (3c regression, build-only verification had masked it).
@@ -192,7 +192,7 @@ publish flow exist).
 Owner dumped a feature wishlist during UAT of the enriched bubble. The gating factor is
 **not** "add the Tiptap extension" — it's that **every new node/mark must round-trip through
 Markdoc or it silently drops on publish** (the content-safety cardinal rule), plus a few need
-the media backend or are render-time, plus a couple may be Tiptap **Pro** (Saytu is 100% OSS →
+the media backend or are render-time, plus a couple may be Tiptap **Pro** (Setu is 100% OSS →
 build-our-own if so). Grouped by that constraint:
 
 ### ~~Bubble v2 — Turn-into regroup + subscript/superscript + checklist~~ ✅ SHIPPED 2026-06-17 (3 slices)
@@ -212,12 +212,12 @@ build-our-own if so). Grouped by that constraint:
   Core writes tables itself (`tableToGfm`) since Markdoc.format drops alignment; Markdoc stays the
   reader. `@tiptap/extension-table` (pinned 3.26.1) + cell `align` attr, slash insert, icon action
   menu, Tab/Shift-Tab cell nav + Tab-at-last-cell adds a row. No merged cells / resize / block-in-cell
-  (GFM can't represent). Spec/plan: `docs/superpowers/{specs,plans}/2026-06-17-saytu-tables*`.
+  (GFM can't represent). Spec/plan: `docs/superpowers/{specs,plans}/2026-06-17-setu-tables*`.
 - ~~**Text align**~~ ✅ SHIPPED 2026-06-17 (`8b42924`): L/C/R for paragraphs + headings via a Markdoc
   **node annotation** `{% align="center" %}` (read from `attributes.align`, written via the built
   node's `.annotations`; left emits nothing). `@tiptap/extension-text-align` + an L/C/R bubble group.
   Distinct from table-column alignment. Published-site rendering deferred to the render pipeline.
-  Spec/plan: `docs/superpowers/{specs,plans}/2026-06-17-saytu-text-align*`.
+  Spec/plan: `docs/superpowers/{specs,plans}/2026-06-17-setu-text-align*`.
 - **Text direction (RTL/LTR)** → `dir` attr; niche; same representation question — can reuse the
   node-annotation pattern established by text-align.
 

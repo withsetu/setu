@@ -23,7 +23,7 @@ const doc = (text: string) => ({
 
 describe('end-to-end: publish over git-http → api → git-local → disk', () => {
   it('writes the compiled .mdoc to repo-relative content/ and returns published', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'saytu-e2e-'))
+    const dir = mkdtempSync(join(tmpdir(), 'setu-e2e-'))
     dirs.push(dir)
     await git.init({ fs: nodeFs, dir, defaultBranch: 'main' })
 

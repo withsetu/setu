@@ -30,7 +30,7 @@ export function advanceCellOrAddRow(editor: Editor): boolean {
  *  shortcuts live in StarterKit/BlockActions). Mod-k opens the link editor for a
  *  non-empty selection; Mod-/ opens the shortcuts cheat sheet. */
 export const KeyboardShortcuts = Extension.create({
-  name: 'saytuKeyboardShortcuts',
+  name: 'setuKeyboardShortcuts',
   addKeyboardShortcuts() {
     return {
       'Mod-k': () => {

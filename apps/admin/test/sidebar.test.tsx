@@ -38,7 +38,7 @@ describe('Sidebar', () => {
     renderSidebar()
     fireEvent.click(screen.getByRole('button', { name: /theme/i }))
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
-    expect(setSpy).toHaveBeenCalledWith('saytu-theme', 'dark')
+    expect(setSpy).toHaveBeenCalledWith('setu-theme', 'dark')
     fireEvent.click(screen.getByRole('button', { name: /theme/i }))
     expect(document.documentElement.getAttribute('data-theme')).toBe('light')
   })
@@ -53,6 +53,6 @@ describe('Sidebar', () => {
 
   it('shows the workspace name', () => {
     renderSidebar()
-    expect(screen.getByText('Saytu')).toBeInTheDocument()
+    expect(screen.getByText('Setu')).toBeInTheDocument()
   })
 })

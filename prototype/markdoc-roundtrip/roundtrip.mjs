@@ -190,7 +190,7 @@ export function tiptapToMarkdoc(doc) {
 const SAMPLES = {
   'basic markdown': `# Summer Launch
 
-Our **biggest** release *yet*, with \`code\` and a [link](https://saytu.dev).
+Our **biggest** release *yet*, with \`code\` and a [link](https://setu.dev).
 
 - one
 - two
@@ -249,7 +249,7 @@ const controls = (s) => s.match(/\{%[^%]*%\}/g) ?? []
 let idempotent = 0, ppOkCount = 0, total = 0, ppTotal = 0, byteIdentical = 0
 
 console.log('═'.repeat(72))
-console.log('  SAYTU SPIKE #1 — Markdoc ⇄ Tiptap round-trip (source-slice preserve)')
+console.log('  SETU SPIKE #1 — Markdoc ⇄ Tiptap round-trip (source-slice preserve)')
 console.log('═'.repeat(72))
 
 for (const [name, S0] of Object.entries(SAMPLES)) {

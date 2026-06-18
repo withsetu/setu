@@ -3,7 +3,7 @@ import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
 import type { EditorView } from '@tiptap/pm/view'
 import { moveBlock } from '../block-reorder'
 
-export const dragHandleKey = new PluginKey('saytuDragHandle')
+export const dragHandleKey = new PluginKey('setuDragHandle')
 
 /** Insertion slot for a pointer at `y`: the index of the gap the block should drop
  *  into — `i` for the top half of block `i`, `i+1` for its bottom half, and
@@ -76,7 +76,7 @@ interface DragHandleOptions {
 /** A grip in the left gutter that follows the hovered top-level block, drags to
  *  reorder, and opens the block menu (set via `onMenu`). Own plugin — no yjs. */
 export const DragHandle = Extension.create<DragHandleOptions>({
-  name: 'saytuDragHandle',
+  name: 'setuDragHandle',
 
   addOptions() {
     return { onMenu: undefined }
@@ -129,7 +129,7 @@ export const DragHandle = Extension.create<DragHandleOptions>({
           grip.addEventListener('dragstart', (e) => {
             if (hoverIndex === null) return
             const fromIndex = hoverIndex
-            e.dataTransfer?.setData('application/x-saytu-block', String(fromIndex))
+            e.dataTransfer?.setData('application/x-setu-block', String(fromIndex))
             if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
             // Handle the drop at the document level (capture phase) so releasing the
             // grip anywhere — the empty gutter included, not just over content —

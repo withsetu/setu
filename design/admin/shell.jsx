@@ -41,10 +41,10 @@ function Sidebar() {
   return (
     <aside className={`sidebar surface-tx ${collapsed ? 'is-collapsed' : ''}`}>
       <div className="sidebar-top">
-        <button className="ws" onClick={() => go('dashboard')} title="Saytu workspace">
+        <button className="ws" onClick={() => go('dashboard')} title="Setu workspace">
           <Logo size={28} />
           <span className="ws-meta">
-            <span className="ws-name">Saytu</span>
+            <span className="ws-name">Setu</span>
             <span className="ws-sub">northwind.site</span>
           </span>
           <Icon name="chevDown" size={14} className="ws-chev" />
@@ -214,7 +214,7 @@ function CommandPalette() {
           <span><kbd className="kbd">↑</kbd><kbd className="kbd">↓</kbd> navigate</span>
           <span><kbd className="kbd">↵</kbd> select</span>
           <span className="cmd-foot-spacer" />
-          <span>Saytu Command</span>
+          <span>Setu Command</span>
         </div>
       </div>
     </div>
@@ -252,11 +252,11 @@ function ProModal() {
   const FEATURES = ['Visual builders for conditionals, variables & loops', 'Custom content types & field builder', 'Version history, rollback & scheduled publishing', 'Translation workspace & editorial approvals', 'Real-time collaboration & audit log'];
   return (
     <div className="cmd-scrim" onMouseDown={closeProModal}>
-      <div className="promodal" onMouseDown={e => e.stopPropagation()} role="dialog" aria-label="Saytu Pro">
+      <div className="promodal" onMouseDown={e => e.stopPropagation()} role="dialog" aria-label="Setu Pro">
         <button className="promodal-x" onClick={closeProModal} aria-label="Close"><Icon name="x" size={16} /></button>
         <div className="promodal-glow" />
         <div className="promodal-ic"><Icon name={proModal.icon || 'sparkle'} size={22} /></div>
-        <ProChip label="Saytu Pro" size="md" />
+        <ProChip label="Setu Pro" size="md" />
         <h2 className="promodal-title">{proModal.title}</h2>
         <p className="promodal-blurb">{proModal.blurb || 'Unlock the full publishing toolkit for growing teams.'}</p>
         <ul className="promodal-list">

@@ -15,7 +15,7 @@ const ACCENTS = ['#4f46e5', '#0d9488', '#e0533d', '#2563eb', '#7c3aed', '#111827
 function App() {
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [route, setRoute] = uAS('editor');
-  const [theme, setThemeState] = uAS(() => { try { return localStorage.getItem('saytu-theme') || (tweaks.dark ? 'dark' : 'light'); } catch (e) { return 'light'; } });
+  const [theme, setThemeState] = uAS(() => { try { return localStorage.getItem('setu-theme') || (tweaks.dark ? 'dark' : 'light'); } catch (e) { return 'light'; } });
   const [collapsed, setCollapsed] = uAS(false);
   const [cmdOpen, setCmdOpen] = uAS(false);
   const [metaOpen, setMetaOpen] = uAS(false);
@@ -24,7 +24,7 @@ function App() {
   const [doc, setDoc] = uAS({ title: 'The quiet week before a launch', slug: 'the-quiet-week', blocks: null, metaDesc: '' });
   const toastId = uAR(0);
 
-  const setTheme = uAC((t) => { setThemeState(t); try { localStorage.setItem('saytu-theme', t); } catch (e) {} }, []);
+  const setTheme = uAC((t) => { setThemeState(t); try { localStorage.setItem('setu-theme', t); } catch (e) {} }, []);
 
   // apply theme + tweak vars
   uAE(() => {
@@ -88,7 +88,7 @@ function App() {
       <CommandPalette />
       <ProModal />
       <ToastHost />
-      <SaytuTweaks tweaks={tweaks} setTweak={setTweak} theme={theme} setTheme={setTheme} />
+      <SetuTweaks tweaks={tweaks} setTweak={setTweak} theme={theme} setTheme={setTheme} />
     </AppContext.Provider>
   );
 }
@@ -96,7 +96,7 @@ function App() {
 /* ============================================================
    TWEAKS PANEL
    ============================================================ */
-function SaytuTweaks({ tweaks, setTweak, theme, setTheme }) {
+function SetuTweaks({ tweaks, setTweak, theme, setTheme }) {
   return (
     <TweaksPanel>
       <TweakSection label="Theme" />

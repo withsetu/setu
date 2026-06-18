@@ -23,7 +23,7 @@ export interface BlockDefinition {
 }
 
 /** The config object an author exports from setu.config.ts. */
-export interface SaytuConfig {
+export interface SetuConfig {
   blocks: BlockDefinition[]
   /** The active theme's package name (e.g. '@setu/theme-default'). Optional. */
   theme?: string

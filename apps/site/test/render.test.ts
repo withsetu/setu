@@ -130,7 +130,7 @@ describe('default theme — templates by collection', () => {
   })
   it('renders the home page entry at the site root', () => {
     const home = page('') // dist/index.html
-    expect(home).toContain('<h1>Welcome to Saytu</h1>')
+    expect(home).toContain('<h1>Welcome to Setu</h1>')
     expect(home).toContain('class="prose measure-page"')
   })
   it('carries the entry locale as <html lang>', () => {
@@ -143,9 +143,9 @@ describe('default theme — shell + tokens', () => {
   it('renders the header (brand + nav) and footer', () => {
     expect(html).toContain('class="site-header"')
     expect(html).toContain('class="brand"')
-    expect(html).toContain('Saytu')
+    expect(html).toContain('Setu')
     expect(html).toContain('class="site-footer"')
-    expect(html).toContain('Built with Saytu')
+    expect(html).toContain('Built with Setu')
   })
   it('self-hosts the theme web fonts (no Google Fonts)', () => {
     expect(html).not.toContain('fonts.googleapis.com')

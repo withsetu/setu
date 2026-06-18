@@ -4,6 +4,6 @@ import { deleteDB } from 'idb'
  *  samples because the DB is then empty). Never shipped — callers gate on
  *  import.meta.env.DEV so Vite eliminates it from production. */
 export async function resetToSampleContent(): Promise<void> {
-  await Promise.all([deleteDB('saytu-data'), deleteDB('saytu-git')])
+  await Promise.all([deleteDB('setu-data'), deleteDB('setu-git')])
   location.reload()
 }

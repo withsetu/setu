@@ -7,7 +7,7 @@ import tippy from 'tippy.js'
 import type { Instance as TippyInstance } from 'tippy.js'
 import { LinkPopup } from '../LinkPopup'
 
-export const linkToolsKey = new PluginKey('saytuLinkTools')
+export const linkToolsKey = new PluginKey('setuLinkTools')
 
 /** Whether the caret-triggered link card should show for this state. Pure.
  *  `dismissed` is true while the user has Esc-dismissed the card for the link the
@@ -29,7 +29,7 @@ interface LinkToolsOptions {
 /** Shows the LinkPopup card when the caret is inside a link OR the mouse hovers a
  *  link. Reuses the tippy + ReactRenderer pattern (as BlockMenu/DragHandle do). */
 export const LinkTools = Extension.create<LinkToolsOptions>({
-  name: 'saytuLinkTools',
+  name: 'setuLinkTools',
   addOptions() {
     return { onEdit: undefined }
   },

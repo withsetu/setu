@@ -46,7 +46,7 @@ export function Sidebar() {
     setTheme(next)
     document.documentElement.setAttribute('data-theme', next)
     try {
-      localStorage.setItem('saytu-theme', next)
+      localStorage.setItem('setu-theme', next)
     } catch {
       // ignore (e.g. private mode)
     }
@@ -69,7 +69,7 @@ export function Sidebar() {
             </svg>
           </span>
           <span className="ws-meta">
-            <span className="ws-name">Saytu</span>
+            <span className="ws-name">Setu</span>
             <span className="ws-sub">Local workspace</span>
           </span>
           <Icon name="chevDown" size={14} className="ws-chev" />

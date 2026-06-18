@@ -20,7 +20,7 @@ function sha40(input: string): string {
 /** An IndexedDB-backed GitPort (a `files` store path->content + a `meta` store
  *  holding the head sha and a commit counter). Behaviorally equivalent to
  *  git-memory (proven by runGitPortContract) but persistent across reloads. */
-export async function createIdbGitPort(dbName = 'saytu-git'): Promise<GitPort> {
+export async function createIdbGitPort(dbName = 'setu-git'): Promise<GitPort> {
   const db = await openDB(dbName, 1, {
     upgrade(d) {
       d.createObjectStore('files')

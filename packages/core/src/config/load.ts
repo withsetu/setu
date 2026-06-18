@@ -8,7 +8,7 @@ export async function loadConfig(path: string): Promise<ResolvedConfig> {
   const jiti = createJiti(import.meta.url, { interopDefault: false })
   const mod = (await jiti.import(path)) as { default?: unknown }
   if (mod.default === undefined) {
-    throw new Error(`saytu config at "${path}" has no default export`)
+    throw new Error(`setu config at "${path}" has no default export`)
   }
   return resolveConfig(mod.default)
 }

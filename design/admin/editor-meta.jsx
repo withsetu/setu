@@ -113,7 +113,7 @@ function MetaPanel() {
               <div className="meta-hint">{metaTitle.length} / 60 characters</div>
             </MetaRow>
             <MetaRow label="Meta description" stacked>
-              <Textarea defaultValue="A short field note on building a calmer place to write — and what ships in Saytu today." maxLength={160}
+              <Textarea defaultValue="A short field note on building a calmer place to write — and what ships in Setu today." maxLength={160}
                 onChange={e => setDoc(d => ({ ...d, metaDesc: e.target.value }))} />
               <div className="char-meter"><span className={metaDescLen > 160 ? 'over' : ''} style={{ width: `${Math.min(100, (metaDescLen || 88) / 160 * 100)}%` }} /></div>
               <div className="meta-hint">{metaDescLen || 88} / 160 characters</div>

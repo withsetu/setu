@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { Draft, DraftInput, Lifecycle, TiptapDoc } from '@setu/core'
 import { Icon } from '../ui/Icon'
 import { useServices } from '../data/store'
@@ -16,6 +16,7 @@ import { ShortcutsDialog } from './ShortcutsDialog'
 import { useAutosave } from './useAutosave'
 import type { SaveStatus } from './useAutosave'
 import { onRequestShortcuts } from './editor-events'
+import { NEW_SLUG, mintSlug } from './new-entry'
 
 const EDITOR_ID = 'local'
 const BLANK: TiptapDoc = { type: 'doc', content: [{ type: 'paragraph' }] }
@@ -29,10 +30,13 @@ function SaveIndicator({ status, readonly }: { status: SaveStatus; readonly: boo
 
 export function EditorScreen() {
   const { collection = '', locale = '', slug = '' } = useParams()
+  const navigate = useNavigate()
   const { read, authoring, data, git, publish } = useServices()
   const { deployedAt, sha: deploySha } = useDeploy()
   const can = useCan()
   const ref = useMemo(() => ({ collection, locale, slug }), [collection, locale, slug])
+  // `new` is a compose sentinel: nothing is persisted until the first save mints a real slug.
+  const composing = slug === NEW_SLUG
 
   const [phase, setPhase] = useState<'loading' | 'ready' | 'readonly'>('loading')
   const [initialDoc, setInitialDoc] = useState<TiptapDoc>(BLANK)
@@ -49,6 +53,8 @@ export function EditorScreen() {
   const metaRef = useRef<Record<string, unknown>>({})
   const baseShaRef = useRef<string | null>(null)
   const committing = useRef(false)
+  // Slug just minted from a compose save → the in-memory doc is canonical; don't reload over it.
+  const mintedRef = useRef<string | null>(null)
 
   const refreshLifecycle = useCallback(async () => {
     const d = await data.getDraft(ref)
@@ -59,26 +65,44 @@ export function EditorScreen() {
     let live = true
     setPhase('loading')
     void (async () => {
+      if (composing) {
+        // Blank, editable, nothing persisted / no lock until the first save mints a slug.
+        docRef.current = BLANK
+        metaRef.current = {}
+        baseShaRef.current = null
+        if (!live) return
+        setInitialDoc(BLANK)
+        setMetadata({})
+        setRev(0)
+        setStatus('idle')
+        setLifecycle({ state: 'draft' })
+        setPhase('ready')
+        return
+      }
       const result = await read.loadForEdit(ref)
       const draft: Draft | null = result.source === 'absent' ? null : result.draft
       const open = await authoring.open(ref, EDITOR_ID)
       if (!live) return
-      const content = draft?.content ?? BLANK
-      const meta = draft?.metadata ?? {}
+      // Just minted this slug from a compose save: the in-memory doc/meta is canonical (may hold
+      // keystrokes newer than the saved copy) — keep it instead of reloading over it.
+      const justMinted = mintedRef.current === slug
+      mintedRef.current = null
+      const content = justMinted ? docRef.current : (draft?.content ?? BLANK)
+      const meta = justMinted ? metaRef.current : (draft?.metadata ?? {})
       docRef.current = content
       metaRef.current = meta
-      baseShaRef.current = draft?.baseSha ?? null
+      baseShaRef.current = justMinted ? null : (draft?.baseSha ?? null)
       setInitialDoc(content)
       setMetadata(meta)
       setRev(0)
-      setStatus('idle')
+      setStatus(justMinted ? 'saved' : 'idle')
       setPhase(open.granted ? 'ready' : 'readonly')
       void refreshLifecycle()
     })()
     return () => {
       live = false
     }
-  }, [ref, read, authoring, refreshLifecycle])
+  }, [ref, read, authoring, refreshLifecycle, composing, slug])
 
   // When the global Deploy advances the live sha, re-derive so the pill updates.
   useEffect(() => {
@@ -89,7 +113,21 @@ export function EditorScreen() {
     enabled: phase === 'ready',
     rev,
     getInput: (): DraftInput => ({ ...ref, content: docRef.current, metadata: metaRef.current, baseSha: baseShaRef.current }),
-    save: (input) => authoring.save(input, EDITOR_ID),
+    save: async (input) => {
+      if (composing) {
+        // First save of a new entry: mint a real slug from the title, persist under it, and
+        // replace the URL so this becomes a normal entry (each "New" → its own draft).
+        const newSlug = await mintSlug(data, git, collection, locale, String(metaRef.current['title'] ?? ''))
+        mintedRef.current = newSlug
+        const result = await authoring.save(
+          { collection, locale, slug: newSlug, content: input.content, metadata: input.metadata, baseSha: null },
+          EDITOR_ID,
+        )
+        navigate(`/edit/${collection}/${locale}/${newSlug}`, { replace: true })
+        return result
+      }
+      return authoring.save(input, EDITOR_ID)
+    },
     onStatus: setStatus,
   })
 
@@ -154,7 +192,7 @@ export function EditorScreen() {
           <Link className="strip-btn btn-icononly" to={listPath} aria-label="Back to list">
             <Icon name="chevLeft" size={18} />
           </Link>
-          <span className="ed-breadcrumb">{collection} / {slug}</span>
+          <span className="ed-breadcrumb">{composing ? `New ${collection}` : `${collection} / ${slug}`}</span>
         </div>
         <div className="ed-strip-center"><SaveIndicator status={status} readonly={phase === 'readonly'} /></div>
         <div className="ed-strip-right">
@@ -192,8 +230,8 @@ export function EditorScreen() {
             <Icon name="keyboard" size={18} />
           </button>
           <PublishMenu
-            canPublish={can('content.publish') && phase === 'ready'}
-            canUnpublish={can('content.unpublish') && phase === 'ready'}
+            canPublish={can('content.publish') && phase === 'ready' && !composing}
+            canUnpublish={can('content.unpublish') && phase === 'ready' && !composing}
             isUnpublished={metadata['published'] === false}
             onPublish={onPublish}
             onUnpublish={onUnpublish}

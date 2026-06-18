@@ -19,6 +19,8 @@
     "hono": "4.12.26"
   },
   "devDependencies": {
+    "@saytu/db-memory": "workspace:*",
+    "@saytu/git-http": "workspace:*",
     "@types/node": "^22.10.2",
     "isomorphic-git": "^1.38.4",
     "tsx": "^4.19.2",

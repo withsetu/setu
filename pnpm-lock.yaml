@@ -145,6 +145,12 @@ importers:
         specifier: 4.12.26
         version: 4.12.26
     devDependencies:
+      '@saytu/db-memory':
+        specifier: workspace:*
+        version: link:../../packages/db-memory
+      '@saytu/git-http':
+        specifier: workspace:*
+        version: link:../../packages/git-http
       '@types/node':
         specifier: ^22.10.2
         version: 22.19.21

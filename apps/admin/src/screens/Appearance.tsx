@@ -69,23 +69,27 @@ export function Appearance() {
           </div>
           <div className="cz-preview">
             <div className="cz-preview-card" style={previewStyle} data-testid="cz-preview">
-              <h2 className="cz-h">The quick brown fox</h2>
-              <p className="cz-p">
-                Jumps over the lazy dog. This is how your body copy reads — the font, size and
-                rhythm of everyday paragraphs on your site.
-              </p>
-              <button type="button" className="cz-btn" tabIndex={-1}>
-                Primary button
-              </button>
-              <Callout
-                tone="accent"
-                icon="info"
-                title={<span className="callout-title-static">Pro tip</span>}
-              >
-                <div className="callout-body">
-                  <p>Callouts pick up your accent and corner style too.</p>
-                </div>
-              </Callout>
+              {/* .cz-page's max-width tracks --measure-page (content width) so the column
+                  visibly narrows/widens — the gutters around it are the page margins. */}
+              <div className="cz-page">
+                <h2 className="cz-h">The quick brown fox</h2>
+                <p className="cz-p">
+                  Jumps over the lazy dog. This is how your body copy reads — the font, size and
+                  rhythm of everyday paragraphs on your site.
+                </p>
+                <button type="button" className="cz-btn" tabIndex={-1}>
+                  Primary button
+                </button>
+                <Callout
+                  tone="accent"
+                  icon="info"
+                  title={<span className="callout-title-static">Pro tip</span>}
+                >
+                  <div className="callout-body">
+                    <p>Callouts pick up your accent and corner style too.</p>
+                  </div>
+                </Callout>
+              </div>
             </div>
           </div>
         </div>

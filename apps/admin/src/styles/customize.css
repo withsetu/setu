@@ -62,12 +62,20 @@
 /* --- preview column --- */
 .cz-preview { position: sticky; top: 16px; }
 .cz-preview-card {
-  /* The inline style sets --accent / --font-* / --text-base / --radius-base for this subtree. */
+  /* The inline style sets --accent / --font-* / --text-base / --radius-base / --measure-page
+     for this subtree. This is the "page"; .cz-page is the content column inside it. */
   background: var(--canvas, #fff);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  padding: 28px 32px;
+  padding: 28px 24px;
   box-shadow: var(--shadow-sm);
+}
+/* Content column: max-width tracks --measure-page (52/64/78rem) at preview scale, so the
+   width knob visibly changes the column — the surrounding space is the page's margins. */
+.cz-page {
+  max-width: calc(var(--measure-page) * 0.5);
+  margin: 0 auto;
+  transition: max-width .15s ease;
 }
 .cz-h {
   font-family: var(--font-heading); font-weight: 700; font-size: 1.9rem; line-height: 1.15;
@@ -75,7 +83,7 @@
 }
 .cz-p {
   font-family: var(--font-body); font-size: var(--text-base); line-height: 1.6;
-  color: var(--text-2); margin: 0 0 18px; max-width: 52ch;
+  color: var(--text-2); margin: 0 0 18px;
 }
 .cz-btn {
   font-family: var(--font-ui, var(--font-body)); font-size: 14px; font-weight: 600;

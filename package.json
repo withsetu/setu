@@ -6,8 +6,11 @@
   "description": "Open-source, Git-backed, multi-topology CMS engine.",
   "license": "AGPL-3.0-only",
   "scripts": {
-    "dev": "concurrently -n api,admin,site -c blue,magenta,green \"SETU_API_PORT=4444 SETU_REPO_DIR=$PWD pnpm --filter @setu/api dev\" \"VITE_SETU_API=http://localhost:4444 pnpm --filter @setu/admin dev\" \"pnpm --filter @setu/site dev\"",
+    "content:seed": "node scripts/content-sandbox.mjs seed",
+    "content:reset": "node scripts/content-sandbox.mjs reset",
+    "dev": "node scripts/content-sandbox.mjs seed dev && concurrently -n api,admin,site -c blue,magenta,green \"SETU_API_PORT=4444 SETU_REPO_DIR=$PWD/.content-sandbox/dev pnpm --filter @setu/api dev\" \"VITE_SETU_API=http://localhost:4444 pnpm --filter @setu/admin dev\" \"SETU_CONTENT_DIR=$PWD/.content-sandbox/dev/content pnpm --filter @setu/site dev\"",
     "test": "pnpm -r test",
+    "test:scripts": "node --test 'scripts/*.test.mjs'",
     "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {

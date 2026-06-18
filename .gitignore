@@ -7,3 +7,6 @@ dist/
 # Superpowers git worktrees (temporary, per-feature copies of the repo)
 .claude/worktrees/
 .superpowers/
+
+# Dev/UAT content sandboxes (gitignored throwaway git repos seeded from content/)
+.content-sandbox/

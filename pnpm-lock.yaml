@@ -35,6 +35,9 @@ importers:
       '@saytu/db-memory':
         specifier: workspace:*
         version: link:../../packages/db-memory
+      '@saytu/git-http':
+        specifier: workspace:*
+        version: link:../../packages/git-http
       '@saytu/git-idb':
         specifier: workspace:*
         version: link:../../packages/git-idb

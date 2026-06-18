@@ -4,8 +4,9 @@
    One confident accent (indigo) over a cool-neutral base.
    ============================================================ */
 
-/* Fonts are loaded via index.html <head> — a CSS @import here does not survive
-   the Tailwind v4 build (it lands after @layer rules and is dropped). */
+/* Fonts are self-hosted via @fontsource (side-effect imports in src/main.tsx) — a
+   CSS @import here does not survive the Tailwind v4 build (it lands after @layer
+   rules and is dropped), so the faces are imported from the JS entry instead. */
 
 :root {
   /* ---- Type families ---- */

@@ -21,6 +21,7 @@
     "@setu/git-http": "workspace:*",
     "@setu/git-idb": "workspace:*",
     "@setu/git-memory": "workspace:*",
+    "@setu/theme-default": "workspace:*",
     "@tiptap/core": "^3.26.1",
     "@tiptap/extension-list": "^3.26.1",
     "@tiptap/extension-placeholder": "^3.26.1",

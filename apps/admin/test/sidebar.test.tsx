@@ -27,7 +27,7 @@ afterEach(() => {
 describe('Sidebar', () => {
   it('renders the admin navigation (PRD §24 IA)', () => {
     renderSidebar()
-    for (const label of ['Dashboard', 'Posts', 'Pages', 'Media', 'Forms', 'Site', 'Settings']) {
+    for (const label of ['Dashboard', 'Posts', 'Pages', 'Media', 'Forms', 'Appearance', 'Settings']) {
       expect(screen.getByRole('link', { name: label })).toBeInTheDocument()
     }
   })
@@ -45,7 +45,7 @@ describe('Sidebar', () => {
 
   it('renders an icon for every nav item', () => {
     renderSidebar()
-    for (const label of ['Dashboard', 'Posts', 'Pages', 'Media', 'Forms', 'Site', 'Settings']) {
+    for (const label of ['Dashboard', 'Posts', 'Pages', 'Media', 'Forms', 'Appearance', 'Settings']) {
       const link = screen.getByRole('link', { name: label })
       expect(link.querySelector('svg')).not.toBeNull()
     }

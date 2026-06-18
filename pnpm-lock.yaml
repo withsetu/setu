@@ -47,6 +47,9 @@ importers:
       '@setu/git-memory':
         specifier: workspace:*
         version: link:../../packages/git-memory
+      '@setu/theme-default':
+        specifier: workspace:*
+        version: link:../../packages/theme-default
       '@tiptap/core':
         specifier: ^3.26.1
         version: 3.26.1(@tiptap/pm@3.26.1)

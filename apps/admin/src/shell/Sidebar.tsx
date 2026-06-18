@@ -29,7 +29,7 @@ const NAV: NavGroup[] = [
     items: [
       { to: '/media', label: 'Media', icon: 'image' },
       { to: '/forms', label: 'Forms', icon: 'forms' },
-      { to: '/site', label: 'Site', icon: 'globe' },
+      { to: '/appearance', label: 'Appearance', icon: 'palette' },
       { to: '/settings', label: 'Settings', icon: 'settings' },
     ],
   },

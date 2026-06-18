@@ -1,5 +1,34 @@
 import { describe, it, expect } from 'vitest'
-import { themeOptions, optionsToCss } from './options'
+import { themeOptions, optionsToCss, resolveThemeTokens } from './options'
+
+describe('resolveThemeTokens', () => {
+  it('returns the manifest defaults for empty values', () => {
+    const t = resolveThemeTokens({})
+    expect(t['--accent']).toBe('#4f46e5')
+    expect(t['--measure-page']).toBe('64rem')
+    expect(t['--radius-base']).toBe('10px')
+    expect(t['--font-body']).toBe(t['--font-heading'])
+  })
+  it('applies a valid color and falls back on an invalid one', () => {
+    expect(resolveThemeTokens({ accent: '#0ea5e9' })['--accent']).toBe('#0ea5e9')
+    expect(resolveThemeTokens({ accent: 'not-a-color' })['--accent']).toBe('#4f46e5')
+  })
+  it('maps a select choice to its token value and both font tokens for fonts', () => {
+    expect(resolveThemeTokens({ width: 'wide' })['--measure-page']).toBe('78rem')
+    const fonts = resolveThemeTokens({ font: 'inter' })
+    expect(fonts['--font-body']).toBe(fonts['--font-heading'])
+    expect(fonts['--font-body']).toContain('Inter')
+  })
+  it('falls back to the default choice for an unknown select value', () => {
+    expect(resolveThemeTokens({ width: 'gigantic' })['--measure-page']).toBe('64rem')
+  })
+  it('agrees with optionsToCss (same source of truth)', () => {
+    const values = { accent: '#0ea5e9', font: 'lora', corners: 'sharp' }
+    for (const [token, value] of Object.entries(resolveThemeTokens(values))) {
+      expect(optionsToCss(values)).toContain(`${token}: ${value};`)
+    }
+  })
+})
 
 describe('theme-default options manifest', () => {
   it('declares the five knobs by key', () => {

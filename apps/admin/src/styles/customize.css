@@ -1,0 +1,94 @@
+/* ---- THEME CUSTOMIZER (Appearance screen) ---- */
+
+.customize {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) 1fr;
+  gap: 28px;
+  align-items: start;
+}
+@media (max-width: 880px) {
+  .customize { grid-template-columns: 1fr; }
+}
+
+/* --- controls column --- */
+.cz-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+}
+.cz-field { display: flex; flex-direction: column; gap: 8px; }
+.cz-field-head { display: flex; align-items: center; justify-content: space-between; min-height: 18px; }
+.cz-label { font-size: 13px; font-weight: 600; color: var(--text); }
+.cz-reset {
+  font-size: 11.5px; color: var(--text-3); background: none; border: none; cursor: pointer; padding: 0;
+}
+.cz-reset:hover { color: var(--accent-strong); }
+
+/* color */
+.cz-color { display: flex; align-items: center; gap: 8px; }
+.cz-swatch {
+  width: 36px; height: 28px; padding: 0; border: 1px solid var(--border); border-radius: var(--r-sm);
+  background: none; cursor: pointer;
+}
+.cz-swatch::-webkit-color-swatch-wrapper { padding: 2px; }
+.cz-swatch::-webkit-color-swatch { border: none; border-radius: 3px; }
+.cz-hex {
+  flex: 1; min-width: 0; font-family: var(--font-mono, ui-monospace, monospace); font-size: 12.5px;
+  padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--r-sm);
+  background: var(--surface-2); color: var(--text);
+}
+
+/* segmented + select */
+.cz-segmented {
+  display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 2px;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md);
+}
+.cz-seg {
+  font-size: 12.5px; padding: 5px 11px; border: none; border-radius: calc(var(--r-md) - 3px);
+  background: none; color: var(--text-2); cursor: pointer; transition: background .12s, color .12s;
+}
+.cz-seg:hover { color: var(--text); }
+.cz-seg.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); font-weight: 600; }
+.cz-select {
+  font-size: 13px; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--r-sm);
+  background: var(--surface-2); color: var(--text); cursor: pointer;
+}
+
+/* --- preview column --- */
+.cz-preview { position: sticky; top: 16px; }
+.cz-preview-card {
+  /* The inline style sets --accent / --font-* / --text-base / --radius-base / --measure-page
+     for this subtree. This is the "page"; .cz-page is the content column inside it. */
+  background: var(--canvas, #fff);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 28px 24px;
+  box-shadow: var(--shadow-sm);
+}
+/* Content column: max-width tracks --measure-page (52/64/78rem) at preview scale, so the
+   width knob visibly changes the column — the surrounding space is the page's margins. */
+.cz-page {
+  max-width: calc(var(--measure-page) * 0.5);
+  margin: 0 auto;
+  transition: max-width .15s ease;
+}
+.cz-h {
+  font-family: var(--font-heading); font-weight: 700; font-size: 1.9rem; line-height: 1.15;
+  margin: 0 0 12px; color: var(--text);
+}
+.cz-p {
+  font-family: var(--font-body); font-size: var(--text-base); line-height: 1.6;
+  color: var(--text-2); margin: 0 0 18px;
+}
+.cz-btn {
+  font-family: var(--font-ui, var(--font-body)); font-size: 14px; font-weight: 600;
+  color: var(--on-accent, #fff); background: var(--accent);
+  border: none; border-radius: var(--radius-base); padding: 9px 18px; cursor: default;
+  margin-bottom: 22px;
+}
+.cz-preview-card .callout-title-static { font-weight: 600; color: var(--text); }

@@ -1,4 +1,4 @@
-import { defineMarkdocConfig, component, nodes } from '@astrojs/markdoc/config'
+import { defineMarkdocConfig, component, nodes, Markdoc } from '@astrojs/markdoc/config'
 
 // Custom block tags -> render wrappers. In sub-project #1 this map is authored BY HAND.
 //
@@ -11,6 +11,36 @@ import { defineMarkdocConfig, component, nodes } from '@astrojs/markdoc/config'
 // Deriving this map from saytu.config belongs to sub-project #4 (codegen), which runs in a
 // build step that CAN read core and will generate this file. Until then, keep this in sync
 // with saytu.config's blocks by hand (today: the single `callout` block).
+// Detect GFM task markers and render a read-only checkbox. Mirrors the editor's TASK_RE.
+// Tight items expose the marker as a bare string child; loose (multi-paragraph) items
+// wrap it in a paragraph Tag whose first child is then inspected.
+const TASK_RE = /^\[( |x|X)\](?: |$)/
+function itemTransform(node, config) {
+  const children = node.transformChildren(config)
+  let first = children[0]
+  let target = children
+  let isParagraph = false
+  if (first instanceof Markdoc.Tag && Array.isArray(first.children)) {
+    target = first.children
+    first = target[0]
+    isParagraph = true
+  }
+  if (typeof first === 'string') {
+    const m = TASK_RE.exec(first)
+    if (m) {
+      const checked = m[1].toLowerCase() === 'x'
+      const stripped = first.replace(TASK_RE, '')
+      const rest = [stripped, ...target.slice(1)]
+      const box = new Markdoc.Tag('input', { type: 'checkbox', checked, disabled: true })
+      const body = isParagraph
+        ? [box, ' ', new Markdoc.Tag('span', {}, rest), ...children.slice(1)]
+        : [box, ' ', ...rest]
+      return new Markdoc.Tag('li', { class: 'task', 'data-checked': String(checked) }, body)
+    }
+  }
+  return new Markdoc.Tag('li', node.transformAttributes(config), children)
+}
+
 export default defineMarkdocConfig({
   tags: {
     callout: {
@@ -33,6 +63,10 @@ export default defineMarkdocConfig({
       ...nodes.heading,
       render: component('./src/components/Heading.astro'),
       attributes: { ...nodes.heading.attributes, align: { type: String } },
+    },
+    item: {
+      ...nodes.item,
+      transform: itemTransform,
     },
   },
 })

@@ -59,3 +59,15 @@ describe('render pipeline — sub/superscript', () => {
     expect(html).toContain('mc<sup>2</sup>')
   })
 })
+
+describe('render pipeline — checklist', () => {
+  it('renders read-only checkboxes from GFM task markers', () => {
+    expect(html).toContain('<li class="task" data-checked="false"><input type="checkbox" disabled')
+    expect(html).toContain('<li class="task" data-checked="true"><input type="checkbox" checked disabled')
+    expect(html).toContain('A checked task')
+  })
+  it('does not leak the literal marker text', () => {
+    expect(html).not.toContain('[ ] An unchecked task')
+    expect(html).not.toContain('[x] A checked task')
+  })
+})

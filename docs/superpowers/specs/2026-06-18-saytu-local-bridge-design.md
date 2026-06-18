@@ -39,7 +39,7 @@ ports/services (unchanged) · Astro 6 glob content loader · Vitest. **100% OSS.
   `createLocalGitAdapter({ dir: <repoRoot> })`. Local-only, no auth. Runs via `@hono/node-server`.
 - **`packages/git-http` — a browser-side `GitPort`** (`createHttpGitPort({ baseUrl })`) implementing
   the same 4 operations via `fetch`. A drop-in GitPort; **passes the shared `runGitPortContract`**.
-- **Admin wiring (`apps/admin/src/data/Bootstrap.tsx`)** — when `import.meta.env.VITE_SAYTU_API`
+- **Admin wiring (`apps/admin/src/data/Bootstrap.tsx`)** — when `import.meta.env.VITE_SETU_API`
   is set, build the GitPort via `createHttpGitPort({ baseUrl })` (DataPort stays `db-idb`); otherwise
   the **current in-browser path is unchanged** (`git-idb`, memory fallback). The services bundle is
   built by the existing `bootstrapServices(data, git)` — no UI/service change.
@@ -113,8 +113,8 @@ vitest, tsconfig).
 
 Additive branch — the only app change:
 ```
-if (import.meta.env.VITE_SAYTU_API) {
-  const git = createHttpGitPort({ baseUrl: import.meta.env.VITE_SAYTU_API })
+if (import.meta.env.VITE_SETU_API) {
+  const git = createHttpGitPort({ baseUrl: import.meta.env.VITE_SETU_API })
   const data = await createIdbDataPort()           // drafts stay in-browser (Cut A)
   ready = await bootstrapServices(data, git)
 } else {
@@ -127,7 +127,7 @@ admin tests run the in-browser path → untouched. Add `@setu/git-http` to the a
 ## 6. Dev orchestration
 
 A root `dev` script booting all three: `apps/api` (Node server), `apps/admin` (Vite),
-`apps/site` (Astro), with `VITE_SAYTU_API` pointed at the api port. Use a small, OSS,
+`apps/site` (Astro), with `VITE_SETU_API` pointed at the api port. Use a small, OSS,
 parallel-runner approach (e.g. `pnpm -r --parallel` with per-app `dev` scripts, or a tiny
 `concurrently`-style dep) with labeled output, fixed non-colliding ports, one-Ctrl-C shutdown.
 **This also resolves the deferred "single dev command" roadmap item.** Keep it minimal; the bridge
@@ -153,7 +153,7 @@ is the deliverable, the runner is the on-ramp.
 1. With the dev runner up, **Publish in the local admin writes a real `.mdoc` git commit** into
    repo-root `content/` and the running site renders it (create → publish → live).
 2. `git-http` is a drop-in **GitPort** (passes `runGitPortContract`); the admin uses it only when
-   `VITE_SAYTU_API` is set, else the **in-browser path is unchanged** (178 admin tests green).
+   `VITE_SETU_API` is set, else the **in-browser path is unchanged** (178 admin tests green).
 3. The publish/read/authoring **services, the converter, and the round-trip are untouched** — this is
    plumbing (server + adapter + content relocation + wiring).
 4. Content lives at **repo-root `content/`** (the core convention); the site reads it; the 4 fixtures
@@ -167,7 +167,7 @@ is the deliverable, the runner is the on-ramp.
   so the increment is never blocked.
 - **`git-local` serializes commits** (existing `serialize()`), so the single-writer API is safe under
   rapid publishes. No new concurrency model needed for Cut A.
-- **Additive wiring** — the bridge is gated by `VITE_SAYTU_API`; the in-browser mode (and its 178
+- **Additive wiring** — the bridge is gated by `VITE_SETU_API`; the in-browser mode (and its 178
   tests + the no-server demo) is the untouched default. No risk to existing behavior.
 - **Known v1 limitations (stated, not discovered):** drafts don't travel across devices (in-browser);
   "local behind remote" needs git-local `fetch`/`pull` (not built — only matters with a 2nd faucet);

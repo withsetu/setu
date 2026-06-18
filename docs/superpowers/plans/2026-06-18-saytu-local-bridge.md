@@ -4,7 +4,7 @@
 
 **Goal:** From the local admin, hitting **Publish** sends the post to a small local Node server that commits the real `.mdoc` into the repo's `content/` folder; the running site renders it (create → publish → live, one machine).
 
-**Architecture:** The publish/read/authoring services already exist and are GitPort-agnostic. This increment routes the **GitPort** (only) to a server: a Hono (Node) API wraps the existing `git-local`; a new browser-side `git-http` GitPort `fetch`es it; `Bootstrap.tsx` uses `git-http` when `VITE_SAYTU_API` is set, else the current in-browser `git-idb` path is unchanged (additive). Content is aligned to the engine's existing repo-root `content/` convention so a commit lands where the site globs.
+**Architecture:** The publish/read/authoring services already exist and are GitPort-agnostic. This increment routes the **GitPort** (only) to a server: a Hono (Node) API wraps the existing `git-local`; a new browser-side `git-http` GitPort `fetch`es it; `Bootstrap.tsx` uses `git-http` when `VITE_SETU_API` is set, else the current in-browser `git-idb` path is unchanged (additive). Content is aligned to the engine's existing repo-root `content/` convention so a commit lands where the site globs.
 
 **Tech Stack:** Hono 4.12.26 + @hono/node-server 2.0.5 · existing `@setu/git-local` (isomorphic-git) · new `@setu/git-http` (fetch GitPort) · `@setu/core` ports/services (unchanged) · Astro 6 glob loader · Vitest · tsx (dev) · concurrently (dev runner).
 
@@ -12,7 +12,7 @@
 
 - **100% OSS** — hono, @hono/node-server, tsx, concurrently are all MIT. No paid deps.
 - **Plumbing only** — do NOT touch the publish/read/authoring **services**, the Markdoc converter, or the round-trip. This is a server + an adapter + a content move + wiring.
-- **Additive bridge** — gated by `import.meta.env.VITE_SAYTU_API`; the in-browser path (and the 178 admin tests + no-server demo) is the untouched default.
+- **Additive bridge** — gated by `import.meta.env.VITE_SETU_API`; the in-browser path (and the 178 admin tests + no-server demo) is the untouched default.
 - **Strict TS** (`tsconfig.base.json`): `verbatimModuleSyntax` → `import type` for type-only imports; `noUncheckedIndexedAccess` → guard every index / parsed-JSON field; `strict`.
 - **Verified npm deps (do NOT re-verify):** `hono@4.12.26`, `@hono/node-server@2.0.5`. `tsx` and `concurrently` are MIT (confirm they install; pick current versions).
 - **HARD RULE** — verify any *other* new dep/API claim before asserting: Hono `Hono()` routing + `c.req.query`/`c.req.json`/`c.json` signatures, `hono/cors`, `@hono/node-server` `serve({fetch,port})`, Astro glob `base` resolving a folder above the app dir, `concurrently`/`tsx` invocation, and `Request`/`app.fetch` in the contract injection.
@@ -282,8 +282,8 @@ import { serve } from '@hono/node-server'
 import { createLocalGitAdapter } from '@setu/git-local'
 import { createGitApi } from './app'
 
-const dir = process.env.SAYTU_REPO_DIR ?? process.cwd()
-const port = Number(process.env.SAYTU_API_PORT ?? 4444)
+const dir = process.env.SETU_REPO_DIR ?? process.cwd()
+const port = Number(process.env.SETU_API_PORT ?? 4444)
 const app = createGitApi(createLocalGitAdapter({ dir }))
 
 serve({ fetch: app.fetch, port })
@@ -293,7 +293,7 @@ console.log(`api listening on http://localhost:${port} (repo: ${dir})`)
 - [ ] **Step 8: Smoke-test the server boots + typecheck**
 
 ```bash
-SAYTU_REPO_DIR="$(git rev-parse --show-toplevel)" SAYTU_API_PORT=4444 pnpm --filter @setu/api exec tsx src/server.ts &
+SETU_REPO_DIR="$(git rev-parse --show-toplevel)" SETU_API_PORT=4444 pnpm --filter @setu/api exec tsx src/server.ts &
 sleep 2
 curl -s http://localhost:4444/git/head; echo
 curl -s "http://localhost:4444/git/list?prefix=content/"; echo
@@ -494,7 +494,7 @@ import { createHttpGitPort } from '@setu/git-http'
 ```
 Inside the existing async IIFE, branch BEFORE the current try/catch so the server path takes precedence when configured. Replace the body that computes `ready` with:
 ```ts
-const apiBase = import.meta.env.VITE_SAYTU_API
+const apiBase = import.meta.env.VITE_SETU_API
 let ready: Services
 if (apiBase) {
   // Server-backed GitPort (Cut A): Publish commits to the real repo via the API.
@@ -518,18 +518,18 @@ if (apiBase) {
 - [ ] **Step 3: Confirm the existing admin suite stays green**
 
 Run: `pnpm --filter @setu/admin test`
-Expected: 178 tests green. The tests don't set `VITE_SAYTU_API`, so they run the unchanged in-browser branch. (Console `act()` warnings + a deliberate error-path stack trace are pre-existing noise, not failures.)
+Expected: 178 tests green. The tests don't set `VITE_SETU_API`, so they run the unchanged in-browser branch. (Console `act()` warnings + a deliberate error-path stack trace are pre-existing noise, not failures.)
 
 - [ ] **Step 4: Typecheck + build**
 
 Run: `pnpm --filter @setu/admin typecheck && pnpm --filter @setu/admin build`
-Expected: clean; build succeeds (the new import resolves; `import.meta.env.VITE_SAYTU_API` is a standard Vite env access).
+Expected: clean; build succeeds (the new import resolves; `import.meta.env.VITE_SETU_API` is a standard Vite env access).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add apps/admin/src/data/Bootstrap.tsx apps/admin/package.json pnpm-lock.yaml
-git commit -m "feat(admin): use git-http GitPort when VITE_SAYTU_API is set (#bridge)
+git commit -m "feat(admin): use git-http GitPort when VITE_SETU_API is set (#bridge)
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
@@ -557,10 +557,10 @@ Confirm `concurrently` installs (MIT; use the current 9.x). Add to root `package
   "scripts": {
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
-    "dev": "concurrently -n api,admin,site -c blue,magenta,green \"pnpm --filter @setu/api dev\" \"VITE_SAYTU_API=http://localhost:4444 pnpm --filter @setu/admin dev\" \"pnpm --filter @setu/site dev\""
+    "dev": "concurrently -n api,admin,site -c blue,magenta,green \"pnpm --filter @setu/api dev\" \"VITE_SETU_API=http://localhost:4444 pnpm --filter @setu/admin dev\" \"pnpm --filter @setu/site dev\""
   }
 ```
-The `@setu/api` `dev` script reads `SAYTU_API_PORT` (defaults 4444) and `SAYTU_REPO_DIR` (defaults `process.cwd()` = repo root when run from root). Ports: api 4444, admin 5173, site 4321 (defaults, non-colliding). Run `pnpm install`.
+The `@setu/api` `dev` script reads `SETU_API_PORT` (defaults 4444) and `SETU_REPO_DIR` (defaults `process.cwd()` = repo root when run from root). Ports: api 4444, admin 5173, site 4321 (defaults, non-colliding). Run `pnpm install`.
 
 - [ ] **Step 2: VERIFY the runner boots all three**
 
@@ -572,7 +572,7 @@ curl -s http://localhost:5173 >/dev/null && echo "admin up"
 curl -s http://localhost:4321 >/dev/null && echo "site up"
 kill %1 2>/dev/null
 ```
-Expected: "api up", "admin up", "site up". (If env-var-prefix in the concurrently command string is awkward on the runner's shell, set `SAYTU_REPO_DIR` explicitly and/or use a `cross-env`-free POSIX form; the admin must receive `VITE_SAYTU_API`. Adjust and re-verify — the goal is all three up with the admin pointed at the api.)
+Expected: "api up", "admin up", "site up". (If env-var-prefix in the concurrently command string is awkward on the runner's shell, set `SETU_REPO_DIR` explicitly and/or use a `cross-env`-free POSIX form; the admin must receive `VITE_SETU_API`. Adjust and re-verify — the goal is all three up with the admin pointed at the api.)
 
 - [ ] **Step 3: Document the run command**
 
@@ -587,12 +587,12 @@ From the repo root:
 
     pnpm dev
 
-- api: http://localhost:4444  (env: SAYTU_API_PORT, SAYTU_REPO_DIR)
-- admin: http://localhost:5173 (env: VITE_SAYTU_API → the api URL)
+- api: http://localhost:4444  (env: SETU_API_PORT, SETU_REPO_DIR)
+- admin: http://localhost:5173 (env: VITE_SETU_API → the api URL)
 - site: http://localhost:4321
 
-With the admin pointed at the api (VITE_SAYTU_API), **Publish** commits the real
-`.mdoc` into repo-root `content/` and the site renders it. Without VITE_SAYTU_API the
+With the admin pointed at the api (VITE_SETU_API), **Publish** commits the real
+`.mdoc` into repo-root `content/` and the site renders it. Without VITE_SETU_API the
 admin runs fully in-browser (no server). Local-only; the api has no auth.
 ```
 
@@ -703,7 +703,7 @@ Expected: both builds succeed; typechecks clean.
 
 - [ ] **Step 5: Confirm the in-browser admin path is unaffected**
 
-Confirm `apps/admin` build with no `VITE_SAYTU_API` set still wires the in-browser branch (grep the built output / reason about the branch: `import.meta.env.VITE_SAYTU_API` is `undefined` → the `else` runs). The 178 admin tests (Step 3) already prove the in-browser branch is green.
+Confirm `apps/admin` build with no `VITE_SETU_API` set still wires the in-browser branch (grep the built output / reason about the branch: `import.meta.env.VITE_SETU_API` is `undefined` → the `else` runs). The 178 admin tests (Step 3) already prove the in-browser branch is green.
 
 - [ ] **Step 6: Commit**
 

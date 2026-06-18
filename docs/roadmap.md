@@ -108,7 +108,7 @@ the admin's lifecycle pill to actual rendered URLs.
 
 Root `pnpm dev` boots **api + admin + site** together via `concurrently` (labeled api/admin/site,
 distinct colors, one-Ctrl-C shutdown, fixed ports api 4444 / admin 5173 / site 4321), wiring
-`VITE_SAYTU_API` into the admin and `SAYTU_REPO_DIR`/`SAYTU_API_PORT` into the api. Shipped as part
+`VITE_SETU_API` into the admin and `SETU_REPO_DIR`/`SETU_API_PORT` into the api. Shipped as part
 of the Local Bridge increment (the bridge needs all three running to be usable). See below.
 
 ## Backend / Platform
@@ -163,12 +163,12 @@ writing the same remote.
 to a server; drafts stay in-browser. `apps/api` (**Hono/Node**, `createGitApi(git): Hono` over
 4 RPC routes) wraps `git-local`; **`@setu/git-http`** (browser-side fetch GitPort, passes the shared
 contract in-process against the real routes) talks to it; `Bootstrap.tsx` uses it when
-`VITE_SAYTU_API` is set (else the in-browser path — 178 admin tests untouched). Content moved to
+`VITE_SETU_API` is set (else the in-browser path — 178 admin tests untouched). Content moved to
 **repo-root `content/`** (Astro glob `base: '../../content'`). `pnpm dev` runs all three. Services/
 round-trip untouched; e2e proves publish→git-http→api→git-local→disk. Spec/plan:
 `docs/superpowers/{specs,plans}/2026-06-18-saytu-local-bridge*`.
 **Caveats:** `git-local` doesn't follow a git *worktree's* `.git` pointer (use a normal checkout for
-`SAYTU_REPO_DIR`); a fontsource `vite.ssr.noExternal` fix was needed so `astro dev` renders themed
+`SETU_REPO_DIR`); a fontsource `vite.ssr.noExternal` fix was needed so `astro dev` renders themed
 routes (3c regression, build-only verification had masked it).
 
 **Known v1 limitations to STATE (not discover):** (a) **drafts don't travel** across devices/admins

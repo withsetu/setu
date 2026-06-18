@@ -17,7 +17,7 @@ export function Bootstrap({ children }: { children: ReactNode }) {
   useEffect(() => {
     let live = true
     void (async () => {
-      const apiBase = import.meta.env.VITE_SAYTU_API
+      const apiBase = import.meta.env.VITE_SETU_API
       let ready: Services
       if (apiBase) {
         // Server-backed GitPort (Cut A): Publish commits to the real repo via the API.

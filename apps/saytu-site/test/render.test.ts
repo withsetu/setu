@@ -52,3 +52,10 @@ describe('render pipeline — text align', () => {
     expect(html).toContain('<p>A paragraph with <strong>bold</strong>')
   })
 })
+
+describe('render pipeline — sub/superscript', () => {
+  it('renders sub and sup', () => {
+    expect(html).toContain('H<sub>2</sub>O')
+    expect(html).toContain('mc<sup>2</sup>')
+  })
+})

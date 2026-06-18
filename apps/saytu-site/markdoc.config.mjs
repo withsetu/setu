@@ -20,6 +20,8 @@ export default defineMarkdocConfig({
         title: { type: String },
       },
     },
+    sub: { render: component('./src/components/Sub.astro') },
+    sup: { render: component('./src/components/Sup.astro') },
   },
   nodes: {
     paragraph: {

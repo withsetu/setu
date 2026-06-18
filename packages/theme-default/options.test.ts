@@ -21,7 +21,7 @@ describe('theme-default options manifest', () => {
 
 describe('optionsToCss', () => {
   it('wraps declarations in a :root block', () => {
-    expect(optionsToCss({})).toMatch(/^:root\s*\{[\s\S]*\}$/)
+    expect(optionsToCss({})).toMatch(/^:root:root\s*\{[\s\S]*\}$/)
   })
   it('applies a chosen accent color', () => {
     expect(optionsToCss({ accent: '#0ea5e9' })).toContain('--accent: #0ea5e9;')

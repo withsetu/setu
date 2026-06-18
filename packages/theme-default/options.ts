@@ -104,5 +104,5 @@ export function optionsToCss(values: Record<string, string>): string {
       for (const token of tokensOf(opt)) decls.push(`${token}: ${choice.tokenValue};`)
     }
   }
-  return `:root { ${decls.join(' ')} }`
+  return `:root:root { ${decls.join(' ')} }`
 }

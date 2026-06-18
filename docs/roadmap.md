@@ -41,12 +41,25 @@ lang>` carries the entry locale; light-only, zero-JS. Look designed with the own
 companion. Theme lives in `apps/saytu-site` for now. Spec/plan:
 `docs/superpowers/{specs,plans}/2026-06-18-saytu-default-theme*`.
 
+### ~~Theme system #3b — themes as config-activated packages~~ ✅ SHIPPED 2026-06-18 (`246da2a`)
+
+The default theme is now an installable, **config-activated package** (`@saytu/theme-default` —
+layouts + tokens + styles, extracted from the site). `@saytu/core` config gained an optional
+`theme` field (additive; round-trip untouched); `apps/saytu-site/saytu.config.ts` names the active
+theme, and the build reads it (`loadConfig`) + aliases `@theme` → the package, so pages render
+through whichever theme is configured. **Switch the value + install another theme + rebuild →
+different theme.** No visible change (the success criterion — 27 site tests green unchanged); the
+render engine (routing/markdoc/block components) stays in the app. Spec/plan:
+`docs/superpowers/{specs,plans}/2026-06-18-saytu-theme-system*`.
+
 **Next render-layer sub-projects (deferred, sequenced):**
-- **#3 theme layer — remaining slices** (3a default theme DONE ✅): **3b** theme as a swappable
-  `@saytu/theme-*` package + config-based component/token override (PRD §8); **3c** the admin
-  **"Theme options" panel** — a *declarative options API* (a theme declares its knobs: key/type/
-  default/→token; the admin renders them generically; chosen values become token overrides applied
-  to the site + editor preview). 3a's token layer is the foundation both build on.
+- **#3c — the Customizer / "Theme options" panel** (the highest-value remaining theme slice for a
+  single site owner): a *declarative options API* — a theme declares its knobs (key/type/default/
+  →token); the admin renders them generically into a panel; chosen values become token overrides
+  applied to the site + editor preview. Builds directly on 3a's token layer + 3b's theme package.
+- **child-theme override** (deferred from 3b, PRD §8): config-based per-component/token override
+  (map `Callout → MyCallout.astro`) — the advanced "child theme without forking"; harder dynamic
+  per-block resolution; lower priority than 3c.
 - **#4 custom-component pipeline + codegen** — the `component.ts` contract fanning out to all
   3 planes; **this is where "tag set sourced from saytu.config" lands** (blocked in #1:
   `@astrojs/markdoc`'s config loader can't import core's TS source; codegen runs where it can).

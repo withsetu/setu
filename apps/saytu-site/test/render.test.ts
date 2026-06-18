@@ -108,3 +108,26 @@ describe('render pipeline — locale URLs', () => {
     expect(page('post/fr/bonjour')).toContain('<h1>Bonjour</h1>')
   })
 })
+
+describe('default theme — shell + tokens', () => {
+  it('renders the header (brand + nav) and footer', () => {
+    expect(html).toContain('class="site-header"')
+    expect(html).toContain('class="brand"')
+    expect(html).toContain('Saytu')
+    expect(html).toContain('class="site-footer"')
+    expect(html).toContain('Built with Saytu')
+  })
+  it('loads the theme web fonts', () => {
+    expect(html).toContain('fonts.googleapis.com')
+    expect(html).toContain('Hanken+Grotesk')
+  })
+  it('applies the theme tokens (callout themed, not bare fallback)', () => {
+    expect(html).toContain('#4f46e5') // --accent from theme.css
+    expect(html).toContain('class="blk-callout tone-amber"')
+    expect(html).toContain('<svg')
+  })
+  it('ships zero JS (no hydration island/script)', () => {
+    expect(html).not.toContain('astro-island')
+    expect(html).not.toMatch(/<script[\s>]/)
+  })
+})

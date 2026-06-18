@@ -1,5 +1,5 @@
 ---
-import '../styles/site.css'
+import Layout from '../layouts/Layout.astro'
 import { getCollection, render } from 'astro:content'
 import { toUrlPath } from '../lib/url'
 
@@ -13,15 +13,9 @@ const { Content } = await render(entry)
 const title = (entry.data as { title?: string }).title ?? entry.id
 ---
 
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>{title}</title>
-  </head>
-  <body>
-    <main class="prose">
-      <h1>{title}</h1>
-      <Content />
-    </main>
-  </body>
-</html>
+<Layout title={title}>
+  <article class="prose">
+    <h1>{title}</h1>
+    <Content />
+  </article>
+</Layout>

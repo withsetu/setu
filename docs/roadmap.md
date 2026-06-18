@@ -31,9 +31,22 @@ definition + round-trip byte-identical (guard green); `react` is a peerDependenc
 `var(--token, fallback)` (admin themed, site fallbacks — pixel parity follows in #3). Spec/plan:
 `docs/superpowers/{specs,plans}/2026-06-18-saytu-block-component-package*`.
 
+### ~~Default theme #3a — designed look, token-driven~~ ✅ SHIPPED 2026-06-18 (`bd15af4`)
+
+The Saytu site now looks designed: one typographic identity (bold-sans/indigo), a header/footer
+shell, **Post (narrow) + Page (wider contained) templates by collection** + a home route — built
+entirely from **tokens-with-defaults on `:root`** so it's customization-ready (change a token →
+the site restyles). Blocks render themed via those tokens (callout matches the editor). `<html
+lang>` carries the entry locale; light-only, zero-JS. Look designed with the owner via the visual
+companion. Theme lives in `apps/saytu-site` for now. Spec/plan:
+`docs/superpowers/{specs,plans}/2026-06-18-saytu-default-theme*`.
+
 **Next render-layer sub-projects (deferred, sequenced):**
-- **#3 theme / site layer** — default theme: layouts, header/footer/nav, tokens, the
-  Rung-0 tokens (visual tweaks panel) + Rung-1 plain-HTML `.astro` + child-theme cascade.
+- **#3 theme layer — remaining slices** (3a default theme DONE ✅): **3b** theme as a swappable
+  `@saytu/theme-*` package + config-based component/token override (PRD §8); **3c** the admin
+  **"Theme options" panel** — a *declarative options API* (a theme declares its knobs: key/type/
+  default/→token; the admin renders them generically; chosen values become token overrides applied
+  to the site + editor preview). 3a's token layer is the foundation both build on.
 - **#4 custom-component pipeline + codegen** — the `component.ts` contract fanning out to all
   3 planes; **this is where "tag set sourced from saytu.config" lands** (blocked in #1:
   `@astrojs/markdoc`'s config loader can't import core's TS source; codegen runs where it can).

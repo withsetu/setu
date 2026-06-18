@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
 
 const appDir = fileURLToPath(new URL('..', import.meta.url))
-export let html = ''
+let html = ''
 
 function page(route: string): string {
   return readFileSync(join(appDir, 'dist', route, 'index.html'), 'utf8')

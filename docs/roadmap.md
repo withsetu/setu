@@ -104,15 +104,12 @@ the admin's lifecycle pill to actual rendered URLs.
 
 ## Tooling / DX
 
-### Single command to launch all dev servers locally (added 2026-06-18)
+### ~~Single command to launch all dev servers locally~~ ✅ SHIPPED 2026-06-18 (`371ac42`, with the Local Bridge)
 
-**What (owner ask):** one command that boots **both** the admin (`@saytu/admin`, Vite :5173) and
-the site (`@saytu/site`, Astro :4321) together for local dev — today they're launched separately
-(`pnpm --filter @saytu/admin dev` / `pnpm --filter @saytu/site dev`). Add a root `dev` script
-(e.g. `pnpm -r --parallel dev`, or a tiny `concurrently`/`turbo`-style runner with labeled,
-colored output and clean shutdown). **Watch-outs:** fixed, non-colliding ports; prefix/label each
-server's logs; one Ctrl-C kills both; don't let one crashing server orphan the other (the recurring
-stale-dev-server gotcha). Pure DX — no product surface.
+Root `pnpm dev` boots **api + admin + site** together via `concurrently` (labeled api/admin/site,
+distinct colors, one-Ctrl-C shutdown, fixed ports api 4444 / admin 5173 / site 4321), wiring
+`VITE_SAYTU_API` into the admin and `SAYTU_REPO_DIR`/`SAYTU_API_PORT` into the api. Shipped as part
+of the Local Bridge increment (the bridge needs all three running to be usable). See below.
 
 ## Backend / Platform
 
@@ -162,13 +159,17 @@ writing the same remote.
 - **"local+remote git" / "remote only" are not modes** — they're the one future `git-github` adapter
   (+ an optional push-to-remote sync), added when a topology needs it.
 
-**FIRST CUT — Local topology, "Cut A" (IN PROGRESS, brainstormed 2026-06-18):** only the **GitPort**
-goes to a server; drafts stay in-browser. A small **Hono (Node) API** wraps `git-local`; a new
-**`git-http` GitPort adapter** (browser-side, fetch) talks to it; `Bootstrap.tsx` uses it when a
-server URL is configured (else in-browser fallback, so the 178 admin tests + demo are untouched).
-**Content convention:** align the site to the core's existing convention — canonical content at
-**repo-root `content/`**; move the 4 site fixtures there; point the Astro glob `base` at it; git-local
-`dir` = repo root. Then Publish → API → commit `content/…` → the site (dev HMR) renders it.
+**FIRST CUT — Local topology, "Cut A" ✅ SHIPPED 2026-06-18 (`371ac42`):** only the **GitPort** goes
+to a server; drafts stay in-browser. `apps/saytu-api` (**Hono/Node**, `createGitApi(git): Hono` over
+4 RPC routes) wraps `git-local`; **`@saytu/git-http`** (browser-side fetch GitPort, passes the shared
+contract in-process against the real routes) talks to it; `Bootstrap.tsx` uses it when
+`VITE_SAYTU_API` is set (else the in-browser path — 178 admin tests untouched). Content moved to
+**repo-root `content/`** (Astro glob `base: '../../content'`). `pnpm dev` runs all three. Services/
+round-trip untouched; e2e proves publish→git-http→api→git-local→disk. Spec/plan:
+`docs/superpowers/{specs,plans}/2026-06-18-saytu-local-bridge*`.
+**Caveats:** `git-local` doesn't follow a git *worktree's* `.git` pointer (use a normal checkout for
+`SAYTU_REPO_DIR`); a fontsource `vite.ssr.noExternal` fix was needed so `astro dev` renders themed
+routes (3c regression, build-only verification had masked it).
 
 **Known v1 limitations to STATE (not discover):** (a) **drafts don't travel** across devices/admins
 (in-browser) — publish before switching; (b) **"local behind remote"** needs git-local `fetch`/`pull`
@@ -176,10 +177,13 @@ server URL is configured (else in-browser fallback, so the 178 admin tests + dem
 (whole-repo HEAD guard) until the `lock-policy` is wired to a shared DB; (d) edge needs a
 **server-side GitHub token** + build-latency UX ("live in ~30s"). None block the first cut.
 
-**Future adapters/increments (each = swap an adapter, zero service rewrites):** `git-http` server-side
-drafts/locks via `db-sqlite` (Cut B); **`git-github`** GitPort (unlocks self-hosted-remote + edge);
-**`db-d1`** + Cloudflare Worker/Pages runtime (edge); git-local `fetch`/`pull`/`push` (the
-"local behind remote" sync). Unblocks the "View Page" links item above.
+**NEXT adapters/increments (each = swap an adapter, zero service rewrites):** **Cut B** — server-side
+drafts/locks via `db-sqlite` over HTTP (drafts travel across devices; real edit-locks via the
+`lock-policy`); **`git-github`** GitPort (unlocks self-hosted-remote + remote-as-source-of-truth +
+edge); **`db-d1`** + Cloudflare Worker/Pages runtime (the edge topology); git-local
+`fetch`/`pull`/`push` (the "local behind remote" sync once a 2nd faucet exists); auth/tokens for any
+non-local API. **The "View Site/View Page" preview-aware links are now unblocked** (a real site +
+publish flow exist).
 
 ## Editor
 

@@ -21,9 +21,17 @@ sub/sup + checklist + table-column align. **Resolves the deferred render-time ma
 (text-align + table-column alignment now actually render on the page). Default locale unprefixed
 in URLs. Spec/plan: `docs/superpowers/{specs,plans}/2026-06-17-saytu-render-pipeline*`.
 
+### ~~Block component package #2 — one shared callout core~~ ✅ SHIPPED 2026-06-18 (`08f1afd`)
+
+New `@saytu/blocks` package holds the callout's **single React visual core** (+ block icons +
+variant mapping + token-fallback `callout.css`). The editor node view AND the site wrapper now
+render it — the duplicate is gone (deleted `apps/saytu-admin/.../callout-variants.ts` +
+`apps/saytu-site/.../Callout.tsx` + the hardcoded 💡). "Write once" closed. Editor node
+definition + round-trip byte-identical (guard green); `react` is a peerDependency; CSS uses
+`var(--token, fallback)` (admin themed, site fallbacks — pixel parity follows in #3). Spec/plan:
+`docs/superpowers/{specs,plans}/2026-06-18-saytu-block-component-package*`.
+
 **Next render-layer sub-projects (deferred, sequenced):**
-- **#2 block component package** — extract the callout React core to a shared package + make
-  the editor's node view reuse it (close the "write once" loop; no drift).
 - **#3 theme / site layer** — default theme: layouts, header/footer/nav, tokens, the
   Rung-0 tokens (visual tweaks panel) + Rung-1 plain-HTML `.astro` + child-theme cascade.
 - **#4 custom-component pipeline + codegen** — the `component.ts` contract fanning out to all

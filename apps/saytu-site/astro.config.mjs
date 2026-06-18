@@ -36,5 +36,10 @@ export default defineConfig({
   vite: {
     resolve: { alias: { '@theme': activeTheme } },
     plugins: [resolveMarkdocFromApp],
+    // The theme Layout self-hosts fonts via `import '@fontsource-variable/...'`, which
+    // resolve to .css. In `astro build` Vite bundles these, but in `astro dev` SSR Node's
+    // loader tries to load the raw .css as a module and throws "Unknown file extension .css".
+    // Force Vite to bundle the fontsource packages for SSR too.
+    ssr: { noExternal: [/^@fontsource-variable\//, /^@fontsource\//] },
   },
 })

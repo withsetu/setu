@@ -1,0 +1,19 @@
+{
+  "name": "@saytu/site",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "scripts": { "dev": "astro dev", "build": "astro build", "test": "vitest run" },
+  "dependencies": {
+    "@astrojs/markdoc": "1.0.6",
+    "@astrojs/react": "5.0.7",
+    "astro": "6.4.6",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "vitest": "^2.1.8"
+  }
+}

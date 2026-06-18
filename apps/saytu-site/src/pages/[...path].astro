@@ -1,0 +1,27 @@
+---
+import '../styles/site.css'
+import { getCollection, render } from 'astro:content'
+import { toUrlPath } from '../lib/url'
+
+export async function getStaticPaths() {
+  const all = await getCollection('entries')
+  return all.map((entry) => ({ params: { path: toUrlPath(entry.id) }, props: { entry } }))
+}
+
+const { entry } = Astro.props
+const { Content } = await render(entry)
+const title = (entry.data as { title?: string }).title ?? entry.id
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <main class="prose">
+      <h1>{title}</h1>
+      <Content />
+    </main>
+  </body>
+</html>

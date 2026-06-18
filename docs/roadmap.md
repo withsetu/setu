@@ -34,6 +34,34 @@ in URLs. Spec/plan: `docs/superpowers/{specs,plans}/2026-06-17-saytu-render-pipe
   default `en`; config-driven default + non-default front-prefixing is its own slice).
 - **dynamic Markdoc** (`{% if %}`/`{% for %}`/`$vars`) in passthrough — Pro/SSR, long-deferred.
 
+### "View Site" / "View Page" links in the admin — preview vs live aware (added 2026-06-18)
+
+**What (owner ask):** from the admin, give the writer **"View Site"** (site root) and **"View
+Page"** (this entry's rendered URL) links. The system should **detect the entry's state and
+label/target accordingly** — e.g. a not-yet-deployed entry → a **Preview** link (draft preview),
+a deployed entry → **"View Live"** to the published URL.
+
+**Why it's its own item (not trivial):** (a) it needs a **shared permalink util** — the admin
+must derive the same URL the site renders (`apps/saytu-site/src/lib/url.ts` logic: collection/
+locale/slug → URL, default locale unprefixed), so this couples to the deferred **permalink/i18n
+scheme**. (b) "preview vs live" keys off the **derived lifecycle** (`deriveLifecycle` →
+draft/staged/live) already in the admin — Live → real published URL; Draft/Staged → the **#5
+in-editor/SSR preview** route (which doesn't exist yet). So this lands cleanly *after* #3 (a real
+site/theme to view) and ideally alongside **#5 preview**. Small UI, but it's the seam that ties
+the admin's lifecycle pill to actual rendered URLs.
+
+## Tooling / DX
+
+### Single command to launch all dev servers locally (added 2026-06-18)
+
+**What (owner ask):** one command that boots **both** the admin (`@saytu/admin`, Vite :5173) and
+the site (`@saytu/site`, Astro :4321) together for local dev — today they're launched separately
+(`pnpm --filter @saytu/admin dev` / `pnpm --filter @saytu/site dev`). Add a root `dev` script
+(e.g. `pnpm -r --parallel dev`, or a tiny `concurrently`/`turbo`-style runner with labeled,
+colored output and clean shutdown). **Watch-outs:** fixed, non-colliding ports; prefix/label each
+server's logs; one Ctrl-C kills both; don't let one crashing server orphan the other (the recurring
+stale-dev-server gotcha). Pure DX — no product surface.
+
 ## Editor
 
 ### Editor feature wishlist — sequenced by content-model constraint (added 2026-06-16)

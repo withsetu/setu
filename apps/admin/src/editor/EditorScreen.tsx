@@ -8,6 +8,7 @@ import { lifecycleFor } from '../lifecycle/useLifecycle'
 import { lifecycleLabel } from '../lifecycle/label'
 import { useDeploy } from '../deploy/deploy'
 import { StatusPill } from '../ui/StatusPill'
+import { siteUrl } from '../shell/site-url'
 import { Canvas } from './Canvas'
 import { MetaPanel } from './MetaPanel'
 import { PublishMenu } from './PublishMenu'
@@ -160,6 +161,28 @@ export function EditorScreen() {
           {(() => { const { label, pending } = lifecycleLabel(lifecycle); return (
             <span className="ed-status"><StatusPill status={label} />{pending && <span className="status-pending">· {pending}</span>}</span>
           ) })()}
+          {lifecycle.state === 'staged' || lifecycle.state === 'live' ? (
+            <a
+              className="strip-btn btn-icononly"
+              href={siteUrl(ref)}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="View page on site"
+              title="View page on site"
+            >
+              <Icon name="external" size={18} />
+            </a>
+          ) : (
+            <button
+              type="button"
+              className="strip-btn btn-icononly"
+              disabled
+              aria-label="Publish to view it on the site"
+              title="Publish to view it on the site"
+            >
+              <Icon name="external" size={18} />
+            </button>
+          )}
           <button
             type="button"
             className="strip-btn btn-icononly"

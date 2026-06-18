@@ -8,6 +8,7 @@ import { useDeploy } from '../deploy/deploy'
 import { PageHeader } from '../shell/PageHeader'
 import { StatusPill } from '../ui/StatusPill'
 import { Icon } from '../ui/Icon'
+import { siteUrl } from '../shell/site-url'
 
 export function ContentList({ collection, title }: { collection: string; title: string }) {
   const { data, git } = useServices()
@@ -74,6 +75,18 @@ export function ContentList({ collection, title }: { collection: string; title: 
                         <Link to={`/edit/${row.ref.collection}/${row.ref.locale}/${row.ref.slug}`}>
                           {row.title}
                         </Link>
+                        {(row.lifecycle.state === 'staged' || row.lifecycle.state === 'live') && (
+                          <a
+                            className="ctable-view"
+                            href={siteUrl(row.ref)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label={`View ${row.title} on site`}
+                            title="View on site"
+                          >
+                            <Icon name="external" size={14} />
+                          </a>
+                        )}
                       </td>
                       <td>
                         <StatusPill status={label} />

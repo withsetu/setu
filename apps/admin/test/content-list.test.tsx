@@ -57,6 +57,12 @@ describe('ContentList', () => {
     renderList(createMemoryDataPort([]), 'post', 'Posts')
     expect(await screen.findByText(/no posts yet/i)).toBeInTheDocument()
   })
+
+  it('does not show a "view on site" link for draft-only entries (nothing to view yet)', async () => {
+    renderList(createMemoryDataPort(seed), 'post', 'Posts')
+    await screen.findByText('First Post')
+    expect(screen.queryByRole('link', { name: /on site/i })).not.toBeInTheDocument()
+  })
 })
 
 describe('ContentList — Git-only (published, no draft) entries', () => {
@@ -87,5 +93,13 @@ describe('ContentList — Git-only (published, no draft) entries', () => {
     renderWithGit()
     const link = await screen.findByRole('link', { name: 'Ghost Post' })
     expect(link).toHaveAttribute('href', '/edit/post/en/ghost')
+  })
+
+  it('shows a "view on site" link for a published (Staged) entry, pointing at its live URL', async () => {
+    renderWithGit()
+    const view = await screen.findByRole('link', { name: /view ghost post on site/i })
+    expect(view).toHaveAttribute('href', 'http://localhost:4321/post/ghost')
+    expect(view).toHaveAttribute('target', '_blank')
+    expect(view).toHaveAttribute('rel', 'noopener noreferrer')
   })
 })

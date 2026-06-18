@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom'
 import { Icon } from '../ui/Icon'
 import type { IconName } from '../ui/Icon'
 import { DeployButton } from './DeployButton'
+import { siteUrl } from './site-url'
 
 interface NavItem {
   to: string
@@ -95,6 +96,15 @@ export function Sidebar() {
       </nav>
 
       <div className="sidebar-bottom">
+        <a
+          className="theme-toggle"
+          href={siteUrl()}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Icon name="external" size={16} />
+          <span>View site</span>
+        </a>
         <DeployButton />
         <button type="button" className="theme-toggle" onClick={toggleTheme} aria-label="Toggle theme">
           <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={16} />

@@ -28,7 +28,7 @@ describe('Sidebar', () => {
   it('renders the admin navigation (PRD §24 IA)', () => {
     renderSidebar()
     for (const label of ['Dashboard', 'Posts', 'Pages', 'Media', 'Forms', 'Site', 'Settings']) {
-      expect(screen.getByRole('link', { name: new RegExp(label, 'i') })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: label })).toBeInTheDocument()
     }
   })
 
@@ -46,7 +46,7 @@ describe('Sidebar', () => {
   it('renders an icon for every nav item', () => {
     renderSidebar()
     for (const label of ['Dashboard', 'Posts', 'Pages', 'Media', 'Forms', 'Site', 'Settings']) {
-      const link = screen.getByRole('link', { name: new RegExp(label, 'i') })
+      const link = screen.getByRole('link', { name: label })
       expect(link.querySelector('svg')).not.toBeNull()
     }
   })
@@ -54,5 +54,13 @@ describe('Sidebar', () => {
   it('shows the workspace name', () => {
     renderSidebar()
     expect(screen.getByText('Setu')).toBeInTheDocument()
+  })
+
+  it('has a "View site" link to the site base, opening in a new tab', () => {
+    renderSidebar()
+    const link = screen.getByRole('link', { name: /view site/i })
+    expect(link).toHaveAttribute('href', 'http://localhost:4321')
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer')
   })
 })

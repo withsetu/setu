@@ -64,6 +64,11 @@
 .cz-preview-card {
   /* The inline style sets --accent / --font-* / --text-base / --radius-base / --measure-page
      for this subtree. This is the "page"; .cz-page is the content column inside it. */
+  /* Re-derive the accent family from the chosen --accent using the THEME's formulas (the admin
+     chrome pins --accent-strong to a fixed hex), so accent-toned blocks like the callout preview
+     match the real site instead of the editor's accent. */
+  --accent-strong: color-mix(in oklch, var(--accent) 82%, black);
+  --accent-soft: color-mix(in oklch, var(--accent) 12%, transparent);
   background: var(--canvas, #fff);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);

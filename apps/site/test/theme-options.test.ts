@@ -4,7 +4,11 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { optionsToCss } from '@setu/theme-default/options'
-import { themeOptions } from '../src/lib/site-config'
+import { loadThemeOptions } from '../src/lib/site-config'
+
+// No theme-options.json at this repo's root → loadThemeOptions() is {} (the defaults),
+// matching what `astro build` reads in beforeAll.
+const themeOptions = loadThemeOptions()
 
 const appDir = fileURLToPath(new URL('..', import.meta.url))
 const distDir = join(appDir, 'dist')

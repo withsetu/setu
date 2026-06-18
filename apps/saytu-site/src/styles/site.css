@@ -5,15 +5,23 @@ body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--
 .site-header nav a { color: var(--text-2); text-decoration: none; }
 .site-header nav a:hover { color: var(--text); }
 .site-footer { max-width: var(--measure-page); margin: 4rem auto 0; padding: 1.5rem 1.25rem; border-top: 1px solid var(--border); color: var(--text-2); font-size: .9rem; }
-.prose { max-width: 42rem; margin: 2rem auto; padding: 0 1rem; font-family: system-ui, sans-serif; line-height: 1.6; color: #1a1a1a; }
-.prose h1 { font-size: 2rem; }
-.prose h2 { font-size: 1.4rem; margin-top: 2rem; }
-.prose code { background: #f2f2f2; padding: 0.1em 0.3em; border-radius: 3px; }
-.prose pre { background: #f6f6f6; padding: 1rem; overflow-x: auto; }
-.prose blockquote { border-left: 3px solid #ddd; margin: 1rem 0; padding-left: 1rem; color: #555; }
-.prose table { border-collapse: collapse; }
-.prose th, .prose td { border: 1px solid #ddd; padding: 0.4rem 0.7rem; }
+.prose { padding: 3rem 1.25rem 2rem; font-family: var(--font-body); font-size: var(--text-base); line-height: 1.7; color: var(--text); }
+.prose > h1 { font-family: var(--font-heading); font-weight: 800; letter-spacing: -.03em; line-height: 1.1; font-size: var(--h1); margin: 0 0 .5rem; }
+.prose h2 { font-family: var(--font-heading); font-weight: 800; letter-spacing: -.02em; line-height: 1.2; font-size: var(--h2); margin: 2.25rem 0 .75rem; }
+.prose h3 { font-family: var(--font-heading); font-weight: 700; font-size: var(--h3); margin: 1.75rem 0 .5rem; }
+.prose p { margin: 0 0 1.1rem; }
+.prose a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.prose strong { font-weight: 700; }
+.prose code { font-family: var(--font-mono); background: var(--surface-2); padding: .12em .35em; border-radius: var(--r-sm); font-size: .9em; }
+.prose pre { background: var(--surface-2); padding: 1rem 1.1rem; border-radius: var(--r-md); overflow-x: auto; }
+.prose pre code { background: none; padding: 0; }
+.prose blockquote { border-left: 3px solid var(--accent); margin: 1.25rem 0; padding-left: 1rem; color: var(--text-2); }
+.prose ul, .prose ol { padding-left: 1.3rem; }
+.prose li { margin: .3rem 0; }
 .prose li.task { list-style: none; margin-left: -1.2rem; }
-.prose li.task input { margin-right: 0.4rem; }
+.prose li.task input { margin-right: .5rem; }
+.prose table { border-collapse: collapse; margin: 1.25rem 0; }
+.prose th, .prose td { border: 1px solid var(--border); padding: .5rem .75rem; }
+.prose th { font-family: var(--font-heading); font-weight: 700; }
 .measure-post { max-width: var(--measure-post); margin: 0 auto; }
 .measure-page { max-width: var(--measure-page); margin: 0 auto; }

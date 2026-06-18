@@ -1,5 +1,5 @@
 import { execSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
@@ -9,6 +9,16 @@ let html = ''
 
 function page(route: string): string {
   return readFileSync(join(appDir, 'dist', route, 'index.html'), 'utf8')
+}
+
+function themeCss(): string {
+  const styleBlocks = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join('\n')
+  if (styleBlocks.includes('.prose')) return styleBlocks
+  const astroDir = join(appDir, 'dist', '_astro')
+  return readdirSync(astroDir)
+    .filter((f) => f.endsWith('.css'))
+    .map((f) => readFileSync(join(astroDir, f), 'utf8'))
+    .join('\n')
 }
 
 beforeAll(() => {
@@ -149,5 +159,18 @@ describe('default theme — shell + tokens', () => {
   it('ships zero JS (no hydration island/script)', () => {
     expect(html).not.toContain('astro-island')
     expect(html).not.toMatch(/<script[\s>]/)
+  })
+})
+
+describe('default theme — prose typography', () => {
+  it('drives prose typography from the theme tokens', () => {
+    const css = themeCss()
+    expect(css).toMatch(/\.prose[^{]*\{[^}]*var\(--font-body\)/)
+    expect(css).toMatch(/\.prose h2[^{]*\{[^}]*var\(--font-heading\)/)
+    expect(css).toMatch(/\.prose a[^{]*\{[^}]*var\(--accent\)/)
+  })
+  it('no longer hardcodes system-ui for prose body', () => {
+    const css = themeCss()
+    expect(css).not.toMatch(/\.prose\s*\{[^}]*system-ui/)
   })
 })

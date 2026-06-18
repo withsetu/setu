@@ -18,6 +18,7 @@
     "@saytu/core": "workspace:*",
     "@saytu/db-idb": "workspace:*",
     "@saytu/db-memory": "workspace:*",
+    "@saytu/git-http": "workspace:*",
     "@saytu/git-idb": "workspace:*",
     "@saytu/git-memory": "workspace:*",
     "@tiptap/core": "^3.26.1",

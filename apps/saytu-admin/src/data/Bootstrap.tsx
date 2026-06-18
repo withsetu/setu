@@ -4,6 +4,7 @@ import { createMemoryDataPort } from '@saytu/db-memory'
 import { createMemoryGitPort } from '@saytu/git-memory'
 import { createIdbDataPort } from '@saytu/db-idb'
 import { createIdbGitPort } from '@saytu/git-idb'
+import { createHttpGitPort } from '@saytu/git-http'
 import { bootstrapServices, ServicesProvider } from './store'
 import type { Services } from './store'
 
@@ -16,14 +17,23 @@ export function Bootstrap({ children }: { children: ReactNode }) {
   useEffect(() => {
     let live = true
     void (async () => {
+      const apiBase = import.meta.env.VITE_SAYTU_API
       let ready: Services
-      try {
+      if (apiBase) {
+        // Server-backed GitPort (Cut A): Publish commits to the real repo via the API.
+        // Drafts stay in-browser (IndexedDB) this cut.
         const data = await createIdbDataPort()
-        const git = await createIdbGitPort()
+        const git = createHttpGitPort({ baseUrl: apiBase })
         ready = await bootstrapServices(data, git)
-      } catch (err) {
-        console.error('IndexedDB unavailable — using in-memory storage for this session.', err)
-        ready = await bootstrapServices(createMemoryDataPort(), createMemoryGitPort())
+      } else {
+        try {
+          const data = await createIdbDataPort()
+          const git = await createIdbGitPort()
+          ready = await bootstrapServices(data, git)
+        } catch (err) {
+          console.error('IndexedDB unavailable — using in-memory storage for this session.', err)
+          ready = await bootstrapServices(createMemoryDataPort(), createMemoryGitPort())
+        }
       }
       if (live) setServices(ready)
     })()

@@ -14,6 +14,15 @@ importers:
 
   apps/saytu-admin:
     dependencies:
+      '@fontsource-variable/hanken-grotesk':
+        specifier: 5.2.8
+        version: 5.2.8
+      '@fontsource-variable/jetbrains-mono':
+        specifier: 5.2.8
+        version: 5.2.8
+      '@fontsource-variable/newsreader':
+        specifier: 5.2.10
+        version: 5.2.10
       '@saytu/blocks':
         specifier: workspace:*
         version: link:../../packages/blocks

@@ -25,6 +25,8 @@ export interface BlockDefinition {
 /** The config object an author exports from saytu.config.ts. */
 export interface SaytuConfig {
   blocks: BlockDefinition[]
+  /** The active theme's package name (e.g. '@saytu/theme-default'). Optional. */
+  theme?: string
 }
 
 /** A block after resolution (distinct type for future derived fields). */
@@ -38,4 +40,6 @@ export interface ResolvedConfig {
   blocksByTag: Map<string, ResolvedBlock>
   /** Tag set the round-trip treats as known/editable blocks. */
   knownBlockTags: Set<string>
+  /** The active theme's package name, passed through from the authored config. */
+  theme?: string
 }

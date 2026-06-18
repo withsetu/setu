@@ -23,4 +23,5 @@ const blockSchema = z.object({
 
 export const configSchema = z.object({
   blocks: z.array(blockSchema),
+  theme: z.string().optional(),
 })

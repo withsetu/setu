@@ -116,31 +116,70 @@ stale-dev-server gotcha). Pure DX — no product surface.
 
 ## Backend / Platform
 
-### Editor→disk bridge — make admin + site share one store (added 2026-06-18)
+### Editor→disk bridge / multi-topology — make admin + site share one store (added 2026-06-18; topology model refined 2026-06-18)
 
 **The gap (owner noticed during UAT):** the admin and the front-end site are **two separate
-content worlds today**. The admin runs entirely **in the browser** — its drafts/posts (the seeded
-`the-quiet-week`, `release-notes`, `about` in `apps/saytu-admin/src/data/store.tsx`, plus anything
-you create) live in **IndexedDB**, and even its "git" is in-browser (`db-idb`/`git-idb`). The site
-(`apps/saytu-site`) renders only the **on-disk `.mdoc` fixtures** in `apps/saytu-site/content/`
-(`kitchen-sink`, `bonjour`) — it has no knowledge of the admin's store (no API, no shared DB).
-So **publishing in the admin does not appear on the site**, and vice-versa.
+content worlds today**. The admin runs entirely **in the browser** — drafts/posts live in
+**IndexedDB**, its "git" is in-browser (`db-idb`/`git-idb`, wired in `apps/saytu-admin/src/data/Bootstrap.tsx`).
+The site (`apps/saytu-site`) renders only the **on-disk `.mdoc` fixtures** (Astro globs
+`base: './content'` in `src/content.config.ts`). So **publishing in the admin does not appear on
+the site**, and vice-versa.
 
-**What closes it:** a small server — a **Hono API** — that the admin talks to *instead of* the
-in-browser adapters, backed by the **already-built** Node adapters: `git-local` (writes real
-`.mdoc` to the on-disk repo / Git) + a DataPort like `db-sqlite` for drafts/locks. Then "Publish"
-in the admin → API → `git-local` commits the `.mdoc` into the folder the site reads → it shows up
-on the site. This is the **payoff of the ports/adapters bet**: the admin UI doesn't change, it just
-points at server-backed ports (per the increment-#9 note: "real persistence swaps in without
-touching the UI").
+**Verified current state (read the code 2026-06-18 — roadmap's old "already built" list is ACCURATE):**
+the **ports + services are real and adapter-agnostic** — `servicesFor(data, git)` composes
+publish/read/authoring over ANY DataPort+GitPort (`store.tsx`). `git-local` is a real GitPort over
+`isomorphic-git` (`commitFile`/`readFile`/`list`/`headSha`; **NO `fetch`/`pull`/`push` yet**, takes
+`{dir,fs}`, dir must have `.git`). The **publish service already compiles draft→Markdoc + commits**
+to repo-relative `content/<collection>/<locale>/<slug>.mdoc` AND has a **HEAD-based conflict guard**
+(returns `conflict` not clobber). `db-sqlite` (better-sqlite3+drizzle) + `lock-policy` exist.
+**The architecture already assumes content at repo-root `content/`** (that's what `contentPath`
+emits) — the site is the outlier (reads `apps/saytu-site/content/`).
 
-**Already built (most of the machinery):** `GitPort` + `git-local` (#5), the publish service (#6),
-the read/fork service (#7), `db-sqlite` (#3), lock orchestration (#4). **Missing:** the Hono API
-layer + wiring the admin's services context to it (vs `bootstrapServices` with `db-idb`/`git-idb`),
-and a content dir convention shared with `apps/saytu-site`. Sizable, and the increment that makes
-the product feel "whole" (create → publish → see it live, end to end). Sequencing note: the
-multi-topology edge case (`git-github` GitPort / `db-d1`, SSR) layers on later — local single-machine
-(git-local + db-sqlite behind Hono) is the first cut. Unblocks the "View Page" links item above.
+**The multi-topology model (the moat — refined with the owner).** A "topology" is THREE independent
+choices, and the services don't care (the ports/adapters payoff), so we never build "a mode" — we
+build *adapters*:
+1. **Runtime:** Node (laptop *or* self-hosted server — same runtime) | Edge (Cloudflare Worker/Pages).
+2. **Git backend:** local `.git` (git-local) | remote GitHub API (`git-github`, future).
+3. **Drafts/locks store:** none (in-browser) | SQLite (Node) | D1 (edge).
+
+| Topology | Runs on | Git | Drafts/locks | Adapters | Built? |
+|---|---|---|---|---|---|
+| **Local dev** (FIRST CUT) | Node, laptop | local `.git` | in-browser | git-local, db-idb | ✅ all exist |
+| **Self-hosted** | Node, server | local **or** GitHub | SQLite | + git-github | git-github ❌ |
+| **Edge** | Cloudflare | **GitHub (must)** | D1 | + git-github, + db-d1 | both ❌ |
+
+**Anchor:** **remote Git (GitHub) is the eventual single source of truth**; the local clone and the
+live site are both *derivatives*. The local admin and a future Cloudflare admin are two faucets
+writing the same remote.
+
+**Decisions locked (2026-06-18):**
+- **NO git submodule for content.** A submodule pins a SHA → Cloudflare would rebuild *old* content
+  until a parent pointer-bump commit; breaks "edit→rebuild→live". Instead: **content in the same
+  repo now** (top-level `content/`), and the productized end-state is **"the user's repo holds
+  content+config and *depends on* Saytu (npm/template)"** — separation without submodule pain.
+- **Edge can't use local git** (a Worker has no persistent fs / `.git`) → edge ⇒ GitHub API + D1.
+  Kills the "local git + Cloudflare" combo from the owner's list.
+- **"local+remote git" / "remote only" are not modes** — they're the one future `git-github` adapter
+  (+ an optional push-to-remote sync), added when a topology needs it.
+
+**FIRST CUT — Local topology, "Cut A" (IN PROGRESS, brainstormed 2026-06-18):** only the **GitPort**
+goes to a server; drafts stay in-browser. A small **Hono (Node) API** wraps `git-local`; a new
+**`git-http` GitPort adapter** (browser-side, fetch) talks to it; `Bootstrap.tsx` uses it when a
+server URL is configured (else in-browser fallback, so the 178 admin tests + demo are untouched).
+**Content convention:** align the site to the core's existing convention — canonical content at
+**repo-root `content/`**; move the 4 site fixtures there; point the Astro glob `base` at it; git-local
+`dir` = repo root. Then Publish → API → commit `content/…` → the site (dev HMR) renders it.
+
+**Known v1 limitations to STATE (not discover):** (a) **drafts don't travel** across devices/admins
+(in-browser) — publish before switching; (b) **"local behind remote"** needs git-local `fetch`/`pull`
+(not built) — only matters once a 2nd faucet exists; (c) **concurrent-editor conflicts are coarse**
+(whole-repo HEAD guard) until the `lock-policy` is wired to a shared DB; (d) edge needs a
+**server-side GitHub token** + build-latency UX ("live in ~30s"). None block the first cut.
+
+**Future adapters/increments (each = swap an adapter, zero service rewrites):** `git-http` server-side
+drafts/locks via `db-sqlite` (Cut B); **`git-github`** GitPort (unlocks self-hosted-remote + edge);
+**`db-d1`** + Cloudflare Worker/Pages runtime (edge); git-local `fetch`/`pull`/`push` (the
+"local behind remote" sync). Unblocks the "View Page" links item above.
 
 ## Editor
 

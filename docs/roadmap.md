@@ -52,11 +52,29 @@ different theme.** No visible change (the success criterion — 27 site tests gr
 render engine (routing/markdoc/block components) stays in the app. Spec/plan:
 `docs/superpowers/{specs,plans}/2026-06-18-saytu-theme-system*`.
 
+### ~~Theme options #3c — declarative options engine + self-hosted fonts~~ ✅ SHIPPED 2026-06-18 (`36aee29`)
+
+The Customizer **engine** (the visual admin panel deferred to the editor→disk bridge). A theme now
+**declares its tunable knobs** in `options.ts` (`themeOptions: ThemeOption[]` — accent/font/width/
+textSize/corners; the "options API" the owner asked for) + a **pure `optionsToCss(values)`** that
+maps chosen values → a `:root:root { … }` override string (fallback-to-default; never emits garbage).
+`@saytu/core` config gained an additive optional `themeOptions` map (mirrors the 3b `theme` field;
+round-trip untouched). The site build threads `saytu.config`'s `themeOptions` → pages → templates →
+`Layout`, which injects the override as the last `<head>` style — `:root:root` specificity (Astro
+puts the bundled theme `<link>` *after* an inline style, so source-order loses). `--accent-strong`
+now derives from `--accent` via `color-mix`. **Defaults kept → site looks identical** (engine proven
+by tests). **Fonts self-hosted via `@fontsource` on BOTH the site theme and the admin chrome →
+runtime Google-Fonts dependency removed repo-wide** (curated 6-font shortlist + JetBrains Mono; each
+variable pkg registers `'<Name> Variable'`; only the selected font downloads). Whole repo green
+(core 180, blocks 8, theme-default 10 [new], site 30, admin 178), both apps build, zero-JS. Spec/plan:
+`docs/superpowers/{specs,plans}/2026-06-18-saytu-theme-options*`.
+
 **Next render-layer sub-projects (deferred, sequenced):**
-- **#3c — the Customizer / "Theme options" panel** (the highest-value remaining theme slice for a
-  single site owner): a *declarative options API* — a theme declares its knobs (key/type/default/
-  →token); the admin renders them generically into a panel; chosen values become token overrides
-  applied to the site + editor preview. Builds directly on 3a's token layer + 3b's theme package.
+- **The visual Customizer panel** (the admin UI for #3c's engine): renders generically from any
+  theme's `options.ts` manifest (color picker / font dropdown / width+size+corner selects) with live
+  preview, then **Save**. The full WordPress loop (Save → live site changes) needs the **editor→disk
+  bridge** to persist the chosen `themeOptions` where the published site reads them — so this lands
+  after (or with) that bridge. The engine + manifest are done; this is "render the form + persist."
 - **child-theme override** (deferred from 3b, PRD §8): config-based per-component/token override
   (map `Callout → MyCallout.astro`) — the advanced "child theme without forking"; harder dynamic
   per-block resolution; lower priority than 3c.

@@ -85,9 +85,15 @@ function tokensOf(opt: ThemeOption): string[] {
 }
 
 /**
- * Pure: map chosen option values to a `:root { … }` override string.
+ * Pure: map chosen option values to a `:root:root { … }` override string.
  * Missing/invalid values fall back to the option's default — a malformed
  * config can never emit garbage or break the site.
+ *
+ * The selector is intentionally doubled (`:root:root`, specificity 0,0,2,0)
+ * so this override beats the theme's plain `:root` defaults (0,0,1,0) no
+ * matter where Astro places the bundled theme CSS in the document — source
+ * order alone is not enough (the bundled stylesheet loads after this inline
+ * style). Not a typo.
  */
 export function optionsToCss(values: Record<string, string>): string {
   const decls: string[] = []

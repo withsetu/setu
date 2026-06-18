@@ -13,7 +13,7 @@ function page(route: string): string {
 
 beforeAll(() => {
   execSync('pnpm build', { cwd: appDir, stdio: 'inherit' })
-  html = page('post/en/kitchen-sink')
+  html = page('post/kitchen-sink')
 })
 
 describe('render pipeline — standard nodes', () => {
@@ -96,5 +96,15 @@ describe('render pipeline — baseline + passthrough', () => {
   it('wires the baseline stylesheet (inlined CSS rule present)', () => {
     // CSS is inlined by Astro; assert a known rule from site.css appears in the built HTML.
     expect(html).toContain('.callout--warning')
+  })
+})
+
+describe('render pipeline — locale URLs', () => {
+  it('omits the default locale (en) from the URL', () => {
+    expect(() => page('post/kitchen-sink')).not.toThrow()
+    expect(() => page('post/en/kitchen-sink')).toThrow()
+  })
+  it('keeps a non-default locale segment in the URL', () => {
+    expect(page('post/fr/bonjour')).toContain('<h1>Bonjour</h1>')
   })
 })

@@ -20,7 +20,7 @@ function itemTransform(node, config) {
   let first = children[0]
   let target = children
   let isParagraph = false
-  if (first instanceof Markdoc.Tag && Array.isArray(first.children)) {
+  if (first instanceof Markdoc.Tag && first.name === 'paragraph' && Array.isArray(first.children)) {
     target = first.children
     first = target[0]
     isParagraph = true

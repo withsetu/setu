@@ -70,4 +70,8 @@ describe('render pipeline — checklist', () => {
     expect(html).not.toContain('[ ] An unchecked task')
     expect(html).not.toContain('[x] A checked task')
   })
+  it('leaves non-task bullet items as plain <li>', () => {
+    expect(html).toContain('<li>one</li>')
+    expect(html).toContain('<li>two</li>')
+  })
 })

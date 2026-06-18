@@ -1,0 +1,10 @@
+---
+// Thin site shell (codegen will emit this in #4). Maps tag attrs -> React props and
+// forwards the rendered body via <slot/> as children. No client:* => static HTML.
+import Callout from './Callout.tsx'
+const { type = 'info', title } = Astro.props
+---
+
+<Callout type={type} title={title}>
+  <slot />
+</Callout>

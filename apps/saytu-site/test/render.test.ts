@@ -29,3 +29,16 @@ describe('render pipeline — standard nodes', () => {
     expect(html).toContain('<h2 id="a-subheading">A subheading</h2>')
   })
 })
+
+describe('render pipeline — callout', () => {
+  it('renders the callout via the React core with attrs + body', () => {
+    expect(html).toContain('class="callout callout--warning"')
+    expect(html).toContain('data-component="Callout.tsx"')
+    expect(html).toContain('<p class="callout__title">Heads up</p>')
+    expect(html).toContain('<strong>bold</strong>')
+  })
+  it('ships zero JS for static content (no hydration island/script)', () => {
+    expect(html).not.toContain('astro-island')
+    expect(html).not.toMatch(/<script[\s>]/)
+  })
+})

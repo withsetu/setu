@@ -3,9 +3,9 @@
    the editor (apps/saytu-admin tokens.css) so @saytu/blocks render themed + matching. */
 :root {
   /* ---- Identity knobs (defaults — the customization surface) ---- */
-  --font-heading: 'Hanken Grotesk', ui-sans-serif, system-ui, sans-serif;
-  --font-body: 'Hanken Grotesk', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-heading: 'Hanken Grotesk Variable', 'Hanken Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Hanken Grotesk Variable', 'Hanken Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
   --text-base: 1.0625rem;
   --h1: 2.5rem;
   --h2: 1.6rem;
@@ -16,7 +16,7 @@
 
   /* ---- Accent ---- */
   --accent: #4f46e5;
-  --accent-strong: #4338ca;
+  --accent-strong: color-mix(in oklch, var(--accent) 82%, black);
   --accent-soft: color-mix(in oklch, var(--accent) 12%, transparent);
   --on-accent: #ffffff;
 

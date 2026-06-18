@@ -1,5 +1,5 @@
 import { execSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
@@ -9,6 +9,16 @@ let html = ''
 
 function page(route: string): string {
   return readFileSync(join(appDir, 'dist', route, 'index.html'), 'utf8')
+}
+
+function themeCss(): string {
+  const styleBlocks = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join('\n')
+  if (styleBlocks.includes('.prose')) return styleBlocks
+  const astroDir = join(appDir, 'dist', '_astro')
+  return readdirSync(astroDir)
+    .filter((f) => f.endsWith('.css'))
+    .map((f) => readFileSync(join(astroDir, f), 'utf8'))
+    .join('\n')
 }
 
 beforeAll(() => {
@@ -106,5 +116,61 @@ describe('render pipeline — locale URLs', () => {
   })
   it('keeps a non-default locale segment in the URL', () => {
     expect(page('post/fr/bonjour')).toContain('<h1>Bonjour</h1>')
+  })
+})
+
+describe('default theme — templates by collection', () => {
+  it('renders a post with the narrow Post template', () => {
+    expect(page('post/kitchen-sink')).toContain('class="prose measure-post"')
+  })
+  it('renders a page with the wider Page template', () => {
+    const about = page('page/about')
+    expect(about).toContain('class="prose measure-page"')
+    expect(about).toContain('<h1>About</h1>')
+  })
+  it('renders the home page entry at the site root', () => {
+    const home = page('') // dist/index.html
+    expect(home).toContain('<h1>Welcome to Saytu</h1>')
+    expect(home).toContain('class="prose measure-page"')
+  })
+  it('carries the entry locale as <html lang>', () => {
+    expect(page('post/fr/bonjour')).toContain('lang="fr"')
+    expect(page('post/kitchen-sink')).toContain('lang="en"')
+  })
+})
+
+describe('default theme — shell + tokens', () => {
+  it('renders the header (brand + nav) and footer', () => {
+    expect(html).toContain('class="site-header"')
+    expect(html).toContain('class="brand"')
+    expect(html).toContain('Saytu')
+    expect(html).toContain('class="site-footer"')
+    expect(html).toContain('Built with Saytu')
+  })
+  it('loads the theme web fonts', () => {
+    expect(html).toContain('fonts.googleapis.com')
+    expect(html).toContain('Hanken+Grotesk')
+  })
+  it('applies the theme tokens (callout themed, not bare fallback)', () => {
+    expect(html).toContain('#4f46e5') // --accent from theme.css
+    expect(html).toContain('class="blk-callout tone-amber"')
+    expect(html).toContain('<svg')
+  })
+  it('ships zero JS (no hydration island/script)', () => {
+    expect(html).not.toContain('astro-island')
+    expect(html).not.toMatch(/<script[\s>]/)
+  })
+})
+
+describe('default theme — prose typography', () => {
+  it('drives prose typography from the theme tokens', () => {
+    const css = themeCss()
+    expect(css).toMatch(/\.prose[^{]*\{[^}]*var\(--font-body\)/)
+    expect(css).toMatch(/\.prose h2[^{]*\{[^}]*var\(--font-heading\)/)
+    expect(css).toMatch(/\.prose a[^{]*\{[^}]*var\(--accent\)/)
+  })
+  it('no longer hardcodes system-ui for prose body', () => {
+    const css = themeCss()
+    expect(css).not.toMatch(/\.prose\s*\{[^}]*system-ui/)
   })
 })

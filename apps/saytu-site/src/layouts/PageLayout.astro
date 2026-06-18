@@ -1,0 +1,8 @@
+---
+import Layout from './Layout.astro'
+interface Props { title: string; lang?: string }
+const { title, lang = 'en' } = Astro.props
+---
+<Layout title={title} lang={lang}>
+  <article class="prose measure-page"><slot /></article>
+</Layout>

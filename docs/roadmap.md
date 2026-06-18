@@ -62,6 +62,34 @@ colored output and clean shutdown). **Watch-outs:** fixed, non-colliding ports; 
 server's logs; one Ctrl-C kills both; don't let one crashing server orphan the other (the recurring
 stale-dev-server gotcha). Pure DX — no product surface.
 
+## Backend / Platform
+
+### Editor→disk bridge — make admin + site share one store (added 2026-06-18)
+
+**The gap (owner noticed during UAT):** the admin and the front-end site are **two separate
+content worlds today**. The admin runs entirely **in the browser** — its drafts/posts (the seeded
+`the-quiet-week`, `release-notes`, `about` in `apps/saytu-admin/src/data/store.tsx`, plus anything
+you create) live in **IndexedDB**, and even its "git" is in-browser (`db-idb`/`git-idb`). The site
+(`apps/saytu-site`) renders only the **on-disk `.mdoc` fixtures** in `apps/saytu-site/content/`
+(`kitchen-sink`, `bonjour`) — it has no knowledge of the admin's store (no API, no shared DB).
+So **publishing in the admin does not appear on the site**, and vice-versa.
+
+**What closes it:** a small server — a **Hono API** — that the admin talks to *instead of* the
+in-browser adapters, backed by the **already-built** Node adapters: `git-local` (writes real
+`.mdoc` to the on-disk repo / Git) + a DataPort like `db-sqlite` for drafts/locks. Then "Publish"
+in the admin → API → `git-local` commits the `.mdoc` into the folder the site reads → it shows up
+on the site. This is the **payoff of the ports/adapters bet**: the admin UI doesn't change, it just
+points at server-backed ports (per the increment-#9 note: "real persistence swaps in without
+touching the UI").
+
+**Already built (most of the machinery):** `GitPort` + `git-local` (#5), the publish service (#6),
+the read/fork service (#7), `db-sqlite` (#3), lock orchestration (#4). **Missing:** the Hono API
+layer + wiring the admin's services context to it (vs `bootstrapServices` with `db-idb`/`git-idb`),
+and a content dir convention shared with `apps/saytu-site`. Sizable, and the increment that makes
+the product feel "whole" (create → publish → see it live, end to end). Sequencing note: the
+multi-topology edge case (`git-github` GitPort / `db-d1`, SSR) layers on later — local single-machine
+(git-local + db-sqlite behind Hono) is the first cut. Unblocks the "View Page" links item above.
+
 ## Editor
 
 ### Editor feature wishlist — sequenced by content-model constraint (added 2026-06-16)

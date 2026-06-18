@@ -43,13 +43,13 @@ packages/blocks/                      NEW @setu/blocks
     variants.test.ts                  Task 2
     callout.test.tsx                  Task 3
 
-apps/saytu-admin/                     editor adoption (Task 4)
+apps/admin/                     editor adoption (Task 4)
   src/editor/extensions/Callout.tsx   CalloutView re-sourced to render <Callout>; Node def unchanged
   src/editor/callout-variants.ts      DELETED (moved to @setu/blocks); importers repointed
   src/styles/editor.css               structural callout rules removed; chrome (.block-props/.bp-*) kept
   package.json                        + @setu/blocks dep
 
-apps/saytu-site/                      site adoption (Task 5)
+apps/site/                      site adoption (Task 5)
   src/components/CalloutWrapper.astro renders <Callout> from @setu/blocks
   src/components/Callout.tsx          DELETED
   src/styles/site.css                 old .callout/.callout--*/.callout__* removed
@@ -136,7 +136,7 @@ export default defineConfig({
 import '@testing-library/jest-dom/vitest'
 ```
 
-- [ ] **Step 3: `packages/blocks/src/icons/svgs.ts`** — the 8 block-icon SVGs, copied verbatim from `apps/saytu-admin/src/ui/Icon.tsx`
+- [ ] **Step 3: `packages/blocks/src/icons/svgs.ts`** — the 8 block-icon SVGs, copied verbatim from `apps/admin/src/ui/Icon.tsx`
 
 ```ts
 /** Block icons — inner SVG markup for the icons blocks use (curated subset of the
@@ -496,22 +496,22 @@ git commit -m "feat(blocks): Callout visual core + token-fallback callout.css"
 ### Task 4: Editor adoption — render the shared core, node definition unchanged
 
 **Files:**
-- Modify: `apps/saytu-admin/src/editor/extensions/Callout.tsx`, `apps/saytu-admin/src/styles/editor.css`, `apps/saytu-admin/package.json`
-- Delete: `apps/saytu-admin/src/editor/callout-variants.ts` (repoint importers)
+- Modify: `apps/admin/src/editor/extensions/Callout.tsx`, `apps/admin/src/styles/editor.css`, `apps/admin/package.json`
+- Delete: `apps/admin/src/editor/callout-variants.ts` (repoint importers)
 
 **Interfaces:**
 - Consumes: `Callout`, `BlockIcon`, `variantFor`, `calloutVariants`, `CALLOUT_ICONS`, `isBlockIconName`, `BlockIconName` from `@setu/blocks`.
 
 - [ ] **Step 1: Add the dependency**
 
-In `apps/saytu-admin/package.json` `dependencies`, add `"@setu/blocks": "workspace:*"`. Run `pnpm install` (root).
+In `apps/admin/package.json` `dependencies`, add `"@setu/blocks": "workspace:*"`. Run `pnpm install` (root).
 
 - [ ] **Step 2: Find importers of the old variants module**
 
-Run: `grep -rn "callout-variants" apps/saytu-admin/src`
+Run: `grep -rn "callout-variants" apps/admin/src`
 Expected importers: `src/editor/extensions/Callout.tsx` (known). Repoint every hit to `@setu/blocks` in the following steps, then the file is deleted.
 
-- [ ] **Step 3: Re-source `CalloutView` in `apps/saytu-admin/src/editor/extensions/Callout.tsx`**
+- [ ] **Step 3: Re-source `CalloutView` in `apps/admin/src/editor/extensions/Callout.tsx`**
 
 Change the imports at the top — replace the `calloutVariants`/`variantFor`/`CALLOUT_ICONS` import from `'../callout-variants'` and the `Icon`/`IconName`/`isIconName` imports used for the callout with `@setu/blocks`:
 ```tsx
@@ -637,14 +637,14 @@ Expected: PASS — the existing callout node tests and the **round-trip guard** 
 
 - [ ] **Step 5: Move callout structural CSS; delete the variants module**
 
-In `apps/saytu-admin/src/styles/editor.css`, **remove** the structural callout rules now owned by the package: `.blk-callout` (and its `.tone-*` background variants), `.callout-head`, `.callout-ic` (+ its `.tone-* .callout-ic` color rules), `.callout-title` (the base rule), `.callout-body` (+ `.callout-body p` + the `[data-node-view-content-react]` rule). **Keep** the editor-only chrome: `.block-props`, `.bp-label`, `.bp-swatch` (+ tones), `.bp-sep`, `.bp-icon`, the `.blk-callout:focus-within .block-props` rule, and the `.callout-title::placeholder` rules (input-only). Then import the package CSS once where the editor styles are loaded (e.g. at the top of `editor.css`):
+In `apps/admin/src/styles/editor.css`, **remove** the structural callout rules now owned by the package: `.blk-callout` (and its `.tone-*` background variants), `.callout-head`, `.callout-ic` (+ its `.tone-* .callout-ic` color rules), `.callout-title` (the base rule), `.callout-body` (+ `.callout-body p` + the `[data-node-view-content-react]` rule). **Keep** the editor-only chrome: `.block-props`, `.bp-label`, `.bp-swatch` (+ tones), `.bp-sep`, `.bp-icon`, the `.blk-callout:focus-within .block-props` rule, and the `.callout-title::placeholder` rules (input-only). Then import the package CSS once where the editor styles are loaded (e.g. at the top of `editor.css`):
 ```css
 @import '@setu/blocks/callout.css';
 ```
 (If a CSS `@import` of a package subpath does not resolve under the admin's Vite/Tailwind v4 setup, instead `import '@setu/blocks/callout.css'` from the editor's entry module — match however the admin already loads `editor.css`. Verify the callout renders styled in Step 6.)
 
-Delete `apps/saytu-admin/src/editor/callout-variants.ts`. Re-confirm no importers remain:
-Run: `grep -rn "callout-variants" apps/saytu-admin/src` → expected: no matches.
+Delete `apps/admin/src/editor/callout-variants.ts`. Re-confirm no importers remain:
+Run: `grep -rn "callout-variants" apps/admin/src` → expected: no matches.
 
 - [ ] **Step 6: Run tests + typecheck + a build**
 
@@ -655,7 +655,7 @@ Manual UAT note for the controller: load the editor, confirm the callout looks t
 - [ ] **Step 7: Commit**
 
 ```bash
-git add apps/saytu-admin
+git add apps/admin
 git commit -m "refactor(admin): callout view renders the shared @setu/blocks core (node def unchanged)"
 ```
 
@@ -664,17 +664,17 @@ git commit -m "refactor(admin): callout view renders the shared @setu/blocks cor
 ### Task 5: Site adoption — render the shared core, delete the duplicate
 
 **Files:**
-- Modify: `apps/saytu-site/src/components/CalloutWrapper.astro`, `apps/saytu-site/src/styles/site.css`, `apps/saytu-site/package.json`, `apps/saytu-site/test/render.test.ts`
-- Delete: `apps/saytu-site/src/components/Callout.tsx`
+- Modify: `apps/site/src/components/CalloutWrapper.astro`, `apps/site/src/styles/site.css`, `apps/site/package.json`, `apps/site/test/render.test.ts`
+- Delete: `apps/site/src/components/Callout.tsx`
 
 **Interfaces:**
 - Consumes: `Callout`, `variantFor` from `@setu/blocks`.
 
 - [ ] **Step 1: Add the dependency**
 
-In `apps/saytu-site/package.json` `dependencies`, add `"@setu/blocks": "workspace:*"`. Run `pnpm install` (root).
+In `apps/site/package.json` `dependencies`, add `"@setu/blocks": "workspace:*"`. Run `pnpm install` (root).
 
-- [ ] **Step 2: Rewrite `apps/saytu-site/src/components/CalloutWrapper.astro`**
+- [ ] **Step 2: Rewrite `apps/site/src/components/CalloutWrapper.astro`**
 
 ```astro
 ---
@@ -693,9 +693,9 @@ const variant = variantFor(String(type))
 
 - [ ] **Step 3: Delete the site's own callout core + its CSS**
 
-Delete `apps/saytu-site/src/components/Callout.tsx`. In `apps/saytu-site/src/styles/site.css`, **remove** the `.callout`, `.callout--warning`, `.callout--danger`, `.callout--success`, `.callout__title`, `.callout__body`, `.callout__body :last-child` rules (the package CSS now owns callout styling; it's imported by the wrapper in Step 2).
+Delete `apps/site/src/components/Callout.tsx`. In `apps/site/src/styles/site.css`, **remove** the `.callout`, `.callout--warning`, `.callout--danger`, `.callout--success`, `.callout__title`, `.callout__body`, `.callout__body :last-child` rules (the package CSS now owns callout styling; it's imported by the wrapper in Step 2).
 
-- [ ] **Step 4: Update the callout assertions in `apps/saytu-site/test/render.test.ts`**
+- [ ] **Step 4: Update the callout assertions in `apps/site/test/render.test.ts`**
 
 Replace the `describe('render pipeline — callout', …)` assertions that referenced the old markup with the unified markup:
 ```ts
@@ -713,7 +713,7 @@ describe('render pipeline — callout', () => {
   })
 })
 ```
-If the exact emitted markup differs (e.g. attribute order, the icon badge nesting), inspect `apps/saytu-site/dist/post/kitchen-sink/index.html` and adjust the expected substrings to the real output — but keep asserting: the `blk-callout tone-amber` class, an `<svg>` icon (NOT `💡`), the title text, the body markdown, and zero-JS.
+If the exact emitted markup differs (e.g. attribute order, the icon badge nesting), inspect `apps/site/dist/post/kitchen-sink/index.html` and adjust the expected substrings to the real output — but keep asserting: the `blk-callout tone-amber` class, an `<svg>` icon (NOT `💡`), the title text, the body markdown, and zero-JS.
 
 - [ ] **Step 5: Run the test to verify it passes**
 
@@ -723,7 +723,7 @@ Expected: PASS (17 tests; callout now via the shared core, no `💡`, zero-JS ho
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/saytu-site
+git add apps/site
 git commit -m "refactor(site): callout renders the shared @setu/blocks core; drop the duplicate"
 ```
 
@@ -745,13 +745,13 @@ Expected: both succeed (confirms `@setu/blocks` + its CSS resolve in Vite and As
 
 - [ ] **Step 3: Scope guard**
 
-Run: `git diff --name-only <branch-base>..HEAD | grep -vE '^(packages/blocks/|apps/saytu-admin/|apps/saytu-site/|pnpm-lock.yaml|package.json)' && echo "SCOPE VIOLATION" || echo "scope clean"`
+Run: `git diff --name-only <branch-base>..HEAD | grep -vE '^(packages/blocks/|apps/admin/|apps/site/|pnpm-lock.yaml|package.json)' && echo "SCOPE VIOLATION" || echo "scope clean"`
 (`<branch-base>` = the commit the worktree branched from.)
 Expected: `scope clean` — no `packages/core/**` changes, no content write/round-trip path touched.
 
 - [ ] **Step 4: Confirm the duplicate is gone**
 
-Run: `test -f apps/saytu-site/src/components/Callout.tsx && echo "STILL EXISTS" || echo "site Callout.tsx removed ✓"` and `test -f apps/saytu-admin/src/editor/callout-variants.ts && echo "STILL EXISTS" || echo "admin callout-variants.ts removed ✓"`
+Run: `test -f apps/site/src/components/Callout.tsx && echo "STILL EXISTS" || echo "site Callout.tsx removed ✓"` and `test -f apps/admin/src/editor/callout-variants.ts && echo "STILL EXISTS" || echo "admin callout-variants.ts removed ✓"`
 Expected: both removed. The callout now has ONE visual core (`@setu/blocks`), rendered by both apps.
 
 - [ ] **Step 5: Commit (if any verification fixups were needed; otherwise nothing to commit)**

@@ -31,10 +31,10 @@
 | `packages/core/test/content-index/list-entries.test.ts` | table unit | 3 |
 | `packages/core/src/index.ts` | export new symbols | 2, 3 |
 | `packages/core/tsconfig.edge.json` | add `src/content-index` to edge guard | 3 |
-| `apps/saytu-admin/src/screens/ContentList.tsx` | enumerate Git + merge + render | 4 |
-| `apps/saytu-admin/test/content-list.test.tsx` | + Git-only-entry tests | 4 |
-| `apps/saytu-admin/src/deploy/deploy.tsx` | enumerate via `git.list('content/')` | 5 |
-| `apps/saytu-admin/test/deploy.test.tsx` | + published-no-draft snapshot test | 5 |
+| `apps/admin/src/screens/ContentList.tsx` | enumerate Git + merge + render | 4 |
+| `apps/admin/test/content-list.test.tsx` | + Git-only-entry tests | 4 |
+| `apps/admin/src/deploy/deploy.tsx` | enumerate via `git.list('content/')` | 5 |
+| `apps/admin/test/deploy.test.tsx` | + published-no-draft snapshot test | 5 |
 
 ---
 
@@ -562,12 +562,12 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ## Task 4: Rewire `ContentList` to enumerate Git + render merged rows
 
 **Files:**
-- Modify: `apps/saytu-admin/src/screens/ContentList.tsx`
-- Modify: `apps/saytu-admin/test/content-list.test.tsx`
+- Modify: `apps/admin/src/screens/ContentList.tsx`
+- Modify: `apps/admin/test/content-list.test.tsx`
 
 - [ ] **Step 1: Add the failing Git-only-entry tests**
 
-In `apps/saytu-admin/test/content-list.test.tsx`, add imports at the top (after the existing imports):
+In `apps/admin/test/content-list.test.tsx`, add imports at the top (after the existing imports):
 
 ```ts
 import { serializeMdoc } from '@setu/core'
@@ -617,7 +617,7 @@ Expected: FAIL — `Ghost Post` not found (current `ContentList` only lists DB d
 
 - [ ] **Step 3: Rewire `ContentList`**
 
-Replace the entire contents of `apps/saytu-admin/src/screens/ContentList.tsx` with:
+Replace the entire contents of `apps/admin/src/screens/ContentList.tsx` with:
 
 ```tsx
 import { useEffect, useState } from 'react'
@@ -731,7 +731,7 @@ Expected: PASS (`ContentRow`/`EntryRef` imported as types; `verbatimModuleSyntax
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/saytu-admin/src/screens/ContentList.tsx apps/saytu-admin/test/content-list.test.tsx
+git add apps/admin/src/screens/ContentList.tsx apps/admin/test/content-list.test.tsx
 git commit -m "feat(admin): content list shows committed Git entries merged with drafts
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -742,12 +742,12 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ## Task 5: Rewire `deploy()` to enumerate via Git
 
 **Files:**
-- Modify: `apps/saytu-admin/src/deploy/deploy.tsx`
-- Modify: `apps/saytu-admin/test/deploy.test.tsx`
+- Modify: `apps/admin/src/deploy/deploy.tsx`
+- Modify: `apps/admin/test/deploy.test.tsx`
 
 - [ ] **Step 1: Add the failing published-no-draft test**
 
-In `apps/saytu-admin/test/deploy.test.tsx`, add a second `it` inside `describe('deploy', …)`:
+In `apps/admin/test/deploy.test.tsx`, add a second `it` inside `describe('deploy', …)`:
 
 ```tsx
   it('snapshots a published entry that has no draft (enumerated from Git)', async () => {
@@ -775,7 +775,7 @@ Expected: FAIL — after `deleteDraft`, `deploy()` (which enumerates `listDrafts
 
 - [ ] **Step 3: Rewire `deploy()` to enumerate Git**
 
-In `apps/saytu-admin/src/deploy/deploy.tsx`, replace the `deploy` callback body. Change the imports line:
+In `apps/admin/src/deploy/deploy.tsx`, replace the `deploy` callback body. Change the imports line:
 
 ```ts
 import { contentPath, parseContentPath } from '@setu/core'
@@ -812,7 +812,7 @@ Expected: PASS (remove the now-unused `data` binding if the compiler flags it).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/saytu-admin/src/deploy/deploy.tsx apps/saytu-admin/test/deploy.test.tsx
+git add apps/admin/src/deploy/deploy.tsx apps/admin/test/deploy.test.tsx
 git commit -m "feat(admin): deploy snapshots all committed entries via git.list
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"

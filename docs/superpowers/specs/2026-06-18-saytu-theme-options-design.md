@@ -45,7 +45,7 @@ config (new additive `themeOptions` field; read at build via the existing `loadC
   `optionsToCss`, and injects the result as a `<style>` in `<head>` **after** `theme.css`.
 - **Self-hosted fonts (site theme)** — bundle the curated shortlist via `@fontsource-variable/*`;
   the Layout imports their CSS and drops the Google Fonts `<link>` + `preconnect`s.
-- **Self-hosted fonts (admin chrome)** — `apps/saytu-admin` switches its three faces
+- **Self-hosted fonts (admin chrome)** — `apps/admin` switches its three faces
   (Hanken Grotesk / Newsreader / JetBrains Mono) to `@fontsource` imports; drops the Google
   `<link>` from `index.html`. Repo then has **zero runtime Google-Fonts dependency**.
 - **Tests** — core field test; pure `optionsToCss` unit tests; a site build test proving a
@@ -165,7 +165,7 @@ never read by the converter — same guarantee as `theme`).
 
 ## 5. Build wiring (applying the options)
 
-`apps/saytu-site/saytu.config.ts` — **no value change** (defaults kept); it simply *may* carry a
+`apps/site/saytu.config.ts` — **no value change** (defaults kept); it simply *may* carry a
 `themeOptions` map. The build path:
 - The Layout takes a `themeOptions?: Record<string,string>` prop, calls the theme's
   `optionsToCss(themeOptions ?? {})`, and injects `<style set:html={css} />` in `<head>` **after**
@@ -185,10 +185,10 @@ Either way the values reach the Layout; the apply mechanism (values → `:root` 
 
 ## 6. Admin font self-hosting
 
-`apps/saytu-admin`:
+`apps/admin`:
 - Add `@fontsource-variable/{hanken-grotesk,newsreader,jetbrains-mono}` deps; import their CSS in
   the admin entry (`main.tsx` or the top stylesheet).
-- Remove the Google Fonts `<link>` + `preconnect`s from `apps/saytu-admin/index.html`.
+- Remove the Google Fonts `<link>` + `preconnect`s from `apps/admin/index.html`.
 - The admin's `tokens.css` font-family stacks are unchanged (the families now resolve to the
   self-hosted faces). `design/admin/tokens.css` is a non-shipped design reference — leave as-is.
 - Verify: admin builds, fonts render, no network call to `fonts.googleapis.com`.
@@ -197,7 +197,7 @@ Either way the values reach the Layout; the apply mechanism (values → `:root` 
 
 - **No-regression gate (site):** the existing **27 render tests stay green**, with exactly **one
   intentional change** — the test asserting `fonts.googleapis.com` in the shell
-  (`apps/saytu-site/test/render.test.ts:151`) flips to asserting the self-hosted font (e.g. an
+  (`apps/site/test/render.test.ts:151`) flips to asserting the self-hosted font (e.g. an
   `@font-face`/font CSS marker) and the **absence** of `fonts.googleapis.com`. All other rendered
   HTML (layout, prose, themed callout, lang, zero-JS) stays byte-identical for default options.
 - **Core:** unit test for the `themeOptions` field on `resolveConfig` (present + omitted).

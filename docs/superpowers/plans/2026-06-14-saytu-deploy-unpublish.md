@@ -15,11 +15,11 @@
 ### Task 1: DeployProvider — the in-browser "live" snapshot + deploy()
 
 **Files:**
-- Create: `apps/saytu-admin/src/deploy/deploy.tsx`
-- Modify: `apps/saytu-admin/src/main.tsx` (wrap), `apps/saytu-admin/src/data/store.tsx` (only if `useServices` is needed inside DeployProvider — it is, for `data`/`git`)
-- Test: `apps/saytu-admin/test/deploy.test.tsx`
+- Create: `apps/admin/src/deploy/deploy.tsx`
+- Modify: `apps/admin/src/main.tsx` (wrap), `apps/admin/src/data/store.tsx` (only if `useServices` is needed inside DeployProvider — it is, for `data`/`git`)
+- Test: `apps/admin/test/deploy.test.tsx`
 
-- [ ] **Step 1: Write the failing test** — `apps/saytu-admin/test/deploy.test.tsx`:
+- [ ] **Step 1: Write the failing test** — `apps/admin/test/deploy.test.tsx`:
 ```tsx
 import { describe, it, expect } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
@@ -51,7 +51,7 @@ describe('deploy', () => {
 
 - [ ] **Step 2: Run — expect FAIL.** `pnpm --filter @setu/admin exec vitest run test/deploy.test.tsx`
 
-- [ ] **Step 3: Implement `apps/saytu-admin/src/deploy/deploy.tsx`:**
+- [ ] **Step 3: Implement `apps/admin/src/deploy/deploy.tsx`:**
 ```tsx
 import { createContext, useCallback, useContext, useState } from 'react'
 import type { ReactNode } from 'react'
@@ -111,7 +111,7 @@ export function useDeploy(): DeployApi {
 
 - [ ] **Step 6: Commit**
 ```bash
-git add apps/saytu-admin/src/deploy apps/saytu-admin/src/main.tsx apps/saytu-admin/test/deploy.test.tsx
+git add apps/admin/src/deploy apps/admin/src/main.tsx apps/admin/test/deploy.test.tsx
 git commit -m "feat(deploy): in-browser DeployProvider — snapshot Git as the live version"
 ```
 
@@ -120,8 +120,8 @@ git commit -m "feat(deploy): in-browser DeployProvider — snapshot Git as the l
 ### Task 2: Wire the deployed snapshot into derived status (editor + content list)
 
 **Files:**
-- Modify: `apps/saytu-admin/src/lifecycle/useLifecycle.ts`, `apps/saytu-admin/src/editor/EditorScreen.tsx`, `apps/saytu-admin/src/screens/ContentList.tsx`
-- Test: `apps/saytu-admin/test/deploy-status.test.tsx`
+- Modify: `apps/admin/src/lifecycle/useLifecycle.ts`, `apps/admin/src/editor/EditorScreen.tsx`, `apps/admin/src/screens/ContentList.tsx`
+- Test: `apps/admin/test/deploy-status.test.tsx`
 
 - [ ] **Step 1: Change `lifecycleFor` to accept the deployed lookup.** In `useLifecycle.ts`:
 ```ts
@@ -145,11 +145,11 @@ export async function lifecycleFor(
 
 - [ ] **Step 2: Pass `deployedAt` in the editor + content list.** In `EditorScreen.tsx` and `ContentList.tsx`, add `const { deployedAt } = useDeploy()` and pass it to `lifecycleFor(ref, draft, git, deployedAt)`. In the editor, ALSO call `refreshLifecycle()` whenever the deploy snapshot changes — easiest: include `deployedAt` (a stable `useCallback`) in `refreshLifecycle`'s deps and re-run on deploy. Since deploy is a global action from the sidebar, the editor should re-derive when it regains focus or via the deploy `sha` — pull `sha` from `useDeploy()` and add it to a `useEffect` that calls `refreshLifecycle()`. Keep it simple: `useEffect(() => { void refreshLifecycle() }, [deploySha, refreshLifecycle])` where `deploySha = useDeploy().sha`.
 
-- [ ] **Step 3: Write a status-after-deploy test** — `apps/saytu-admin/test/deploy-status.test.tsx`: render the editor at a seeded post inside `ServicesProvider`+`ActorProvider`+`DeployProvider`; publish (pill → Staged); then trigger a deploy (render a tiny harness that calls `useDeploy().deploy()`, or expose a Deploy control — simplest: render the sidebar `DeployButton` from Task 4 OR call deploy via a test harness component) and assert the pill becomes **Live**. If Task 4's button isn't built yet, use a small in-test harness component that calls `useDeploy().deploy()` on click. Assert pill `.badge` goes Staged → Live.
+- [ ] **Step 3: Write a status-after-deploy test** — `apps/admin/test/deploy-status.test.tsx`: render the editor at a seeded post inside `ServicesProvider`+`ActorProvider`+`DeployProvider`; publish (pill → Staged); then trigger a deploy (render a tiny harness that calls `useDeploy().deploy()`, or expose a Deploy control — simplest: render the sidebar `DeployButton` from Task 4 OR call deploy via a test harness component) and assert the pill becomes **Live**. If Task 4's button isn't built yet, use a small in-test harness component that calls `useDeploy().deploy()` on click. Assert pill `.badge` goes Staged → Live.
 
 - [ ] **Step 4: Run + commit.** `pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck`
 ```bash
-git add apps/saytu-admin/src/lifecycle/useLifecycle.ts apps/saytu-admin/src/editor/EditorScreen.tsx apps/saytu-admin/src/screens/ContentList.tsx apps/saytu-admin/test/deploy-status.test.tsx
+git add apps/admin/src/lifecycle/useLifecycle.ts apps/admin/src/editor/EditorScreen.tsx apps/admin/src/screens/ContentList.tsx apps/admin/test/deploy-status.test.tsx
 git commit -m "feat(status): feed the deployed snapshot into deriveLifecycle (Live/Unpublished)"
 ```
 
@@ -158,13 +158,13 @@ git commit -m "feat(status): feed the deployed snapshot into deriveLifecycle (Li
 ### Task 3: Unpublish / Re-publish + the gated Publish ▾ menu (editor)
 
 **Files:**
-- Create: `apps/saytu-admin/src/editor/PublishMenu.tsx`
-- Modify: `apps/saytu-admin/src/editor/EditorScreen.tsx`
-- Test: `apps/saytu-admin/test/editor-unpublish.test.tsx`
+- Create: `apps/admin/src/editor/PublishMenu.tsx`
+- Modify: `apps/admin/src/editor/EditorScreen.tsx`
+- Test: `apps/admin/test/editor-unpublish.test.tsx`
 
 - [ ] **Step 1: Implement `PublishMenu.tsx`** — a small dropdown: a primary **Publish** button + an overflow with **Unpublish** (when `can('content.unpublish')` and the entry is live/staged) / **Re-publish** (when unpublished). Props: `{ canPublish, canUnpublish, isUnpublished, onPublish, onUnpublish, onRepublish }`. Render the primary `Publish` button (label "Publish") + a `▾` toggle that reveals the menu (a simple `useState` open + a list of `role="menuitem"` buttons). Keyboard-accessible (the toggle is a button; menu items are buttons). Gate each item by its `can*` flag.
 
-- [ ] **Step 2: Write the failing unpublish test** — `apps/saytu-admin/test/editor-unpublish.test.tsx`: render the editor (real services + providers), publish, open the Publish menu, click **Unpublish**, assert the draft's `metadata.published === false` got committed (read via `services.git.readFile(contentPath(ref))` → `parseMdoc(...).frontmatter.published === false`) OR assert the status pill reflects an unpublish-pending/unpublished state. Keep the assertion concrete (prefer reading the committed file's frontmatter).
+- [ ] **Step 2: Write the failing unpublish test** — `apps/admin/test/editor-unpublish.test.tsx`: render the editor (real services + providers), publish, open the Publish menu, click **Unpublish**, assert the draft's `metadata.published === false` got committed (read via `services.git.readFile(contentPath(ref))` → `parseMdoc(...).frontmatter.published === false`) OR assert the status pill reflects an unpublish-pending/unpublished state. Keep the assertion concrete (prefer reading the committed file's frontmatter).
 
 - [ ] **Step 3: Wire the handlers in `EditorScreen.tsx`:**
   - `onUnpublish`: `metaRef.current = { ...metaRef.current, published: false }; setMetadata(metaRef.current);` then run the existing publish flow (flush-save → `publish.publish` → refresh). Factor the publish flow into a reusable `commit()` so onPublish/onUnpublish/onRepublish share it.
@@ -173,7 +173,7 @@ git commit -m "feat(status): feed the deployed snapshot into deriveLifecycle (Li
 
 - [ ] **Step 4: Run + commit.** `pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck`
 ```bash
-git add apps/saytu-admin/src/editor/PublishMenu.tsx apps/saytu-admin/src/editor/EditorScreen.tsx apps/saytu-admin/test/editor-unpublish.test.tsx
+git add apps/admin/src/editor/PublishMenu.tsx apps/admin/src/editor/EditorScreen.tsx apps/admin/test/editor-unpublish.test.tsx
 git commit -m "feat(editor): Unpublish/Re-publish + gated Publish menu"
 ```
 
@@ -182,18 +182,18 @@ git commit -m "feat(editor): Unpublish/Re-publish + gated Publish menu"
 ### Task 4: Sidebar Deploy button (site-wide, gated)
 
 **Files:**
-- Create: `apps/saytu-admin/src/shell/DeployButton.tsx`
-- Modify: `apps/saytu-admin/src/shell/Sidebar.tsx`
-- Test: `apps/saytu-admin/test/deploy-button.test.tsx`
+- Create: `apps/admin/src/shell/DeployButton.tsx`
+- Modify: `apps/admin/src/shell/Sidebar.tsx`
+- Test: `apps/admin/test/deploy-button.test.tsx`
 
 - [ ] **Step 1: Implement `DeployButton.tsx`** — in the sidebar footer (near the theme toggle). Renders only when `can('site.deploy')`. A button "Deploy" that calls `useDeploy().deploy()`; shows the deployed short sha when present (e.g. "Deployed · a1b2c3d") or "Deploy" when never deployed. Optional: a staged count (entries whose `committed !== deployedAt`) — keep simple, the label + sha is enough for v1; a tooltip/subtext is fine.
 
-- [ ] **Step 2: Write the test** — `apps/saytu-admin/test/deploy-button.test.tsx`: render the Sidebar (it needs `ActorProvider`+`ServicesProvider`+`DeployProvider`+`MemoryRouter`); assert a "Deploy" control is present for the owner; clicking it calls deploy (after a publish, the deployed sha appears / the label updates). For a non-permitted actor (`role: 'viewer'`), assert no Deploy control.
+- [ ] **Step 2: Write the test** — `apps/admin/test/deploy-button.test.tsx`: render the Sidebar (it needs `ActorProvider`+`ServicesProvider`+`DeployProvider`+`MemoryRouter`); assert a "Deploy" control is present for the owner; clicking it calls deploy (after a publish, the deployed sha appears / the label updates). For a non-permitted actor (`role: 'viewer'`), assert no Deploy control.
 
 - [ ] **Step 3: Place it in `Sidebar.tsx`** — in the `sidebar-bottom`/footer area, before/after the theme toggle. Run + commit.
 ```bash
 pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck
-git add apps/saytu-admin/src/shell/DeployButton.tsx apps/saytu-admin/src/shell/Sidebar.tsx apps/saytu-admin/test/deploy-button.test.tsx
+git add apps/admin/src/shell/DeployButton.tsx apps/admin/src/shell/Sidebar.tsx apps/admin/test/deploy-button.test.tsx
 git commit -m "feat(deploy): site-wide Deploy button in the sidebar (gated site.deploy)"
 ```
 
@@ -202,8 +202,8 @@ git commit -m "feat(deploy): site-wide Deploy button in the sidebar (gated site.
 ### Task 5: StatusPill tones (live/unpublished) + CSS + full verification
 
 **Files:**
-- Modify: `apps/saytu-admin/src/ui/StatusPill.tsx`, `apps/saytu-admin/src/styles/{components,editor}.css`
-- Test: `apps/saytu-admin/test/status-pill.test.tsx` (extend)
+- Modify: `apps/admin/src/ui/StatusPill.tsx`, `apps/admin/src/styles/{components,editor}.css`
+- Test: `apps/admin/test/status-pill.test.tsx` (extend)
 
 - [ ] **Step 1: Add tones for the new states.** In `StatusPill.tsx`'s `STATUS_TONE` map, add: `live: { tone: 'green', label: 'Live' }`, `unpublished: { tone: 'neutral', label: 'Unpublished' }` (keep `staged: amber`, `draft: neutral`, etc.). Extend `status-pill.test.tsx` to assert `Live`→`badge-green` and `Unpublished` renders.
 
@@ -213,12 +213,12 @@ git commit -m "feat(deploy): site-wide Deploy button in the sidebar (gated site.
 ```bash
 pnpm --filter @setu/admin test
 pnpm --filter @setu/admin typecheck
-pnpm --filter @setu/admin build && grep -c fonts.googleapis apps/saytu-admin/dist/index.html
+pnpm --filter @setu/admin build && grep -c fonts.googleapis apps/admin/dist/index.html
 pnpm test && pnpm typecheck
 ```
 Expected: all green; build OK + fonts > 0 + no jiti in dist; whole repo green; edge guard clean.
 ```bash
-git add apps/saytu-admin/src/ui/StatusPill.tsx apps/saytu-admin/src/styles apps/saytu-admin/test/status-pill.test.tsx
+git add apps/admin/src/ui/StatusPill.tsx apps/admin/src/styles apps/admin/test/status-pill.test.tsx
 git commit -m "feat(status): Live/Unpublished pill tones + PublishMenu/DeployButton CSS"
 ```
 

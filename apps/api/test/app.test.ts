@@ -14,7 +14,7 @@ afterEach(() => {
 })
 
 async function freshApp() {
-  const dir = mkdtempSync(join(tmpdir(), 'saytu-api-'))
+  const dir = mkdtempSync(join(tmpdir(), 'api-'))
   dirs.push(dir)
   await git.init({ fs: nodeFs, dir, defaultBranch: 'main' })
   return createGitApi(createLocalGitAdapter({ dir }))

@@ -17,8 +17,8 @@
 **Files:**
 - Create: `packages/core/src/authz/types.ts`, `default-roles.ts`, `authz.ts`
 - Modify: `packages/core/src/index.ts` (export the authz API), `packages/core/tsconfig.edge.json` (include `src/authz`)
-- Create: `apps/saytu-admin/src/auth/actor.tsx`
-- Test: `packages/core/test/authz/authz.test.ts`, `apps/saytu-admin/test/actor.test.tsx`
+- Create: `apps/admin/src/auth/actor.tsx`
+- Test: `packages/core/test/authz/authz.test.ts`, `apps/admin/test/actor.test.tsx`
 
 - [ ] **Step 1: Write the failing core authz test** — `packages/core/test/authz/authz.test.ts`:
 ```ts
@@ -124,7 +124,7 @@ export { createAuthz, DEFAULT_ROLES } from './authz/authz'
 ```
 In `packages/core/tsconfig.edge.json`, add `"src/authz"` to the `include` array (the authz module must stay Node-free). Run `pnpm --filter @setu/core test -- authz` (PASS) + `pnpm --filter @setu/core typecheck` (edge guard clean).
 
-- [ ] **Step 5: Write the failing actor-context test** — `apps/saytu-admin/test/actor.test.tsx`:
+- [ ] **Step 5: Write the failing actor-context test** — `apps/admin/test/actor.test.tsx`:
 ```tsx
 import { describe, it, expect } from 'vitest'
 import { renderHook } from '@testing-library/react'
@@ -148,7 +148,7 @@ describe('actor context', () => {
 
 - [ ] **Step 6: Run — expect FAIL.** `pnpm --filter @setu/admin test -- actor`
 
-- [ ] **Step 7: Implement `apps/saytu-admin/src/auth/actor.tsx`:**
+- [ ] **Step 7: Implement `apps/admin/src/auth/actor.tsx`:**
 ```tsx
 import { createContext, useContext, useMemo } from 'react'
 import type { ReactNode } from 'react'
@@ -176,11 +176,11 @@ export function useCan(): (action: Action) => boolean {
   return (action: Action) => authz.can(actor, action)
 }
 ```
-Wrap the app in `<ActorProvider>` in `apps/saytu-admin/src/main.tsx` (inside the existing providers). Run `pnpm --filter @setu/admin test -- actor` (PASS) + `pnpm --filter @setu/admin typecheck`.
+Wrap the app in `<ActorProvider>` in `apps/admin/src/main.tsx` (inside the existing providers). Run `pnpm --filter @setu/admin test -- actor` (PASS) + `pnpm --filter @setu/admin typecheck`.
 
 - [ ] **Step 8: Commit**
 ```bash
-git add packages/core/src/authz packages/core/src/index.ts packages/core/tsconfig.edge.json packages/core/test/authz apps/saytu-admin/src/auth apps/saytu-admin/src/main.tsx apps/saytu-admin/test/actor.test.tsx
+git add packages/core/src/authz packages/core/src/index.ts packages/core/tsconfig.edge.json packages/core/test/authz apps/admin/src/auth apps/admin/src/main.tsx apps/admin/test/actor.test.tsx
 git commit -m "feat(authz): can(actor, action) capability seam + app Owner actor context"
 ```
 
@@ -302,13 +302,13 @@ git commit -m "feat(lifecycle): deriveLifecycle pure status from draft/committed
 ### Task 3: Publish wiring + gated Publish button + read-only status pill (editor)
 
 **Files:**
-- Modify: `apps/saytu-admin/src/data/store.tsx` (add `publish` to services), `apps/saytu-admin/src/editor/EditorScreen.tsx`
-- Create: `apps/saytu-admin/src/lifecycle/useLifecycle.ts`
-- Test: `apps/saytu-admin/test/editor-publish.test.tsx`
+- Modify: `apps/admin/src/data/store.tsx` (add `publish` to services), `apps/admin/src/editor/EditorScreen.tsx`
+- Create: `apps/admin/src/lifecycle/useLifecycle.ts`
+- Test: `apps/admin/test/editor-publish.test.tsx`
 
-- [ ] **Step 1: Add the publish service to the context.** In `apps/saytu-admin/src/data/store.tsx`: import `createPublishService`, `type PublishService` from `@setu/core`; add `publish: PublishService` to the `Services` interface; in `servicesFor`, add `publish: createPublishService({ data, git })`. (Keep everything else.)
+- [ ] **Step 1: Add the publish service to the context.** In `apps/admin/src/data/store.tsx`: import `createPublishService`, `type PublishService` from `@setu/core`; add `publish: PublishService` to the `Services` interface; in `servicesFor`, add `publish: createPublishService({ data, git })`. (Keep everything else.)
 
-- [ ] **Step 2: Create the lifecycle helper** — `apps/saytu-admin/src/lifecycle/useLifecycle.ts`:
+- [ ] **Step 2: Create the lifecycle helper** — `apps/admin/src/lifecycle/useLifecycle.ts`:
 ```ts
 import type { Draft, EntryRef, GitPort, Lifecycle } from '@setu/core'
 import { contentPath, deriveLifecycle, serializeMdoc, tiptapToMarkdoc } from '@setu/core'
@@ -322,7 +322,7 @@ export async function lifecycleFor(ref: EntryRef, draft: Draft | null, git: GitP
 }
 ```
 
-- [ ] **Step 3: Write the failing editor-publish test** — `apps/saytu-admin/test/editor-publish.test.tsx`. It renders `EditorScreen` with REAL services (`createServices()`), at a seeded post; asserts a **Publish** button is present (owner can publish); clicks it; waits; then asserts the status pill shows **Staged** (the draft got committed). Use `ActorProvider` + `ServicesProvider`. (Model it on the existing `editor-screen.test.tsx` real-services reopen test — same providers + `MemoryRouter`/`Routes`.) Example core of the test:
+- [ ] **Step 3: Write the failing editor-publish test** — `apps/admin/test/editor-publish.test.tsx`. It renders `EditorScreen` with REAL services (`createServices()`), at a seeded post; asserts a **Publish** button is present (owner can publish); clicks it; waits; then asserts the status pill shows **Staged** (the draft got committed). Use `ActorProvider` + `ServicesProvider`. (Model it on the existing `editor-screen.test.tsx` real-services reopen test — same providers + `MemoryRouter`/`Routes`.) Example core of the test:
 ```tsx
 it('publishing commits the draft and the status becomes Staged', async () => {
   const services = createServices()
@@ -355,7 +355,7 @@ it('publishing commits the draft and the status becomes Staged', async () => {
 
 - [ ] **Step 7: Commit**
 ```bash
-git add apps/saytu-admin/src/data/store.tsx apps/saytu-admin/src/lifecycle apps/saytu-admin/src/editor/EditorScreen.tsx apps/saytu-admin/test/editor-publish.test.tsx
+git add apps/admin/src/data/store.tsx apps/admin/src/lifecycle apps/admin/src/editor/EditorScreen.tsx apps/admin/test/editor-publish.test.tsx
 git commit -m "feat(editor): gated Publish (commit -> Staged) + read-only derived status pill"
 ```
 
@@ -364,11 +364,11 @@ git commit -m "feat(editor): gated Publish (commit -> Staged) + read-only derive
 ### Task 4: Content-list derived status + CSS + test updates
 
 **Files:**
-- Modify: `apps/saytu-admin/src/screens/ContentList.tsx`, `apps/saytu-admin/src/styles/editor.css` (or a small status-pending rule), `apps/saytu-admin/test/content-list.test.tsx`
+- Modify: `apps/admin/src/screens/ContentList.tsx`, `apps/admin/src/styles/editor.css` (or a small status-pending rule), `apps/admin/test/content-list.test.tsx`
 
-- [ ] **Step 1: Update the content-list status column.** `ContentList` currently shows `metadata.status` via `StatusPill`. Switch each row to the **derived** status: after loading drafts, for each draft compute `await lifecycleFor({collection,locale,slug}, draft, git)` (pull `git` from `useServices`), store a `Map<slug, Lifecycle>` in state, and render the pill from the lifecycle (same label mapping as the editor — factor it into a tiny `lifecycleLabel(lifecycle): {label, pending?}` helper in `apps/saytu-admin/src/lifecycle/label.ts`, used by both ContentList and EditorScreen). Seeded drafts were never committed to git-memory → they derive to `draft` (honest — they aren't really published yet); after a real publish they show `staged`.
+- [ ] **Step 1: Update the content-list status column.** `ContentList` currently shows `metadata.status` via `StatusPill`. Switch each row to the **derived** status: after loading drafts, for each draft compute `await lifecycleFor({collection,locale,slug}, draft, git)` (pull `git` from `useServices`), store a `Map<slug, Lifecycle>` in state, and render the pill from the lifecycle (same label mapping as the editor — factor it into a tiny `lifecycleLabel(lifecycle): {label, pending?}` helper in `apps/admin/src/lifecycle/label.ts`, used by both ContentList and EditorScreen). Seeded drafts were never committed to git-memory → they derive to `draft` (honest — they aren't really published yet); after a real publish they show `staged`.
 
-- [ ] **Step 2: Add the `lifecycleLabel` helper** — `apps/saytu-admin/src/lifecycle/label.ts`:
+- [ ] **Step 2: Add the `lifecycleLabel` helper** — `apps/admin/src/lifecycle/label.ts`:
 ```ts
 import type { Lifecycle } from '@setu/core'
 
@@ -383,9 +383,9 @@ export function lifecycleLabel(lc: Lifecycle): { label: string; pending?: string
 ```
 Use it in both `ContentList` and `EditorScreen` (replace the inline mapping in Task 3 Step 5 with this helper for consistency).
 
-- [ ] **Step 3: Update the content-list tests.** `apps/saytu-admin/test/content-list.test.tsx` currently asserts `'Published'` for a seeded `metadata.status:'published'` row. With derived status (git empty → all seeded rows are `draft`), change those assertions: the rows now show **Draft** (the seeded `metadata.status` no longer drives the pill). Update the assertions to the derived labels (e.g. expect `getAllByText('Draft')` for the seeded posts). Keep the row-count/filter/empty-state tests. The test's `renderList` wraps in `DataProvider` (which builds services incl. `git`) — `useServices().git` is available; if `ContentList` now needs `git`, confirm `DataProvider` provides it (it does, via `servicesFor`). Add `ActorProvider` to `renderList` only if `ContentList` reads `useCan` (it doesn't need to — the list is read-only display; skip).
+- [ ] **Step 3: Update the content-list tests.** `apps/admin/test/content-list.test.tsx` currently asserts `'Published'` for a seeded `metadata.status:'published'` row. With derived status (git empty → all seeded rows are `draft`), change those assertions: the rows now show **Draft** (the seeded `metadata.status` no longer drives the pill). Update the assertions to the derived labels (e.g. expect `getAllByText('Draft')` for the seeded posts). Keep the row-count/filter/empty-state tests. The test's `renderList` wraps in `DataProvider` (which builds services incl. `git`) — `useServices().git` is available; if `ContentList` now needs `git`, confirm `DataProvider` provides it (it does, via `servicesFor`). Add `ActorProvider` to `renderList` only if `ContentList` reads `useCan` (it doesn't need to — the list is read-only display; skip).
 
-- [ ] **Step 4: Add minimal CSS** for the pending badge in `apps/saytu-admin/src/styles/editor.css` (or `components.css`):
+- [ ] **Step 4: Add minimal CSS** for the pending badge in `apps/admin/src/styles/editor.css` (or `components.css`):
 ```css
 .status-pending { font-size: 12px; color: var(--text-4); margin-left: 4px; font-weight: 500; }
 ```
@@ -395,12 +395,12 @@ Verify the token resolves; substitute if needed.
 ```bash
 pnpm --filter @setu/admin test
 pnpm --filter @setu/admin typecheck
-pnpm --filter @setu/admin build && grep -c fonts.googleapis apps/saytu-admin/dist/index.html
+pnpm --filter @setu/admin build && grep -c fonts.googleapis apps/admin/dist/index.html
 pnpm test && pnpm typecheck
 ```
 Expected: all green; build OK + fonts > 0; whole repo green (core authz + lifecycle units; edge guard clean).
 ```bash
-git add apps/saytu-admin/src/screens/ContentList.tsx apps/saytu-admin/src/lifecycle/label.ts apps/saytu-admin/src/styles/editor.css apps/saytu-admin/test/content-list.test.tsx
+git add apps/admin/src/screens/ContentList.tsx apps/admin/src/lifecycle/label.ts apps/admin/src/styles/editor.css apps/admin/test/content-list.test.tsx
 git commit -m "feat(content-list): derived lifecycle status column"
 ```
 

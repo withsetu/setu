@@ -64,7 +64,7 @@ math and transactions tractable and the content provably safe.
 ## Architecture / data flow
 
 ```
-apps/saytu-admin/src/editor/
+apps/admin/src/editor/
 ├── extensions/
 │   ├── BlockActions.ts      # NEW — commands (move/duplicate/delete) + keyboard shortcuts
 │   ├── DragHandle.tsx       # NEW — ProseMirror plugin: hover grip + drag-reorder + opens menu

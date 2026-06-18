@@ -18,26 +18,26 @@
 
 | File | Responsibility | Task |
 | --- | --- | --- |
-| `apps/saytu-admin/src/editor/Canvas.tsx` | StarterKit config; render `<FormatBubble/>`; register the link-card plugin | 1, 3 |
-| `apps/saytu-admin/src/editor/FormatBubble.tsx` | selection bubble: mark toggles + Link (via LinkInput) | 1, 2 |
-| `apps/saytu-admin/src/editor/LinkInput.tsx` | shared URL field (apply / cancel / remove) | 2 |
-| `apps/saytu-admin/src/editor/LinkPopup.tsx` | link card content: Open ↗ / Edit / Remove | 3 |
-| `apps/saytu-admin/src/editor/extensions/LinkTools.tsx` | plugin: show LinkPopup on caret-in-link or hover (tippy + ReactRenderer) | 3 |
-| `apps/saytu-admin/src/styles/editor.css` | bubble toolbar + link card styles | 4 |
-| `apps/saytu-admin/test/*` | tests per task | 1–3 |
+| `apps/admin/src/editor/Canvas.tsx` | StarterKit config; render `<FormatBubble/>`; register the link-card plugin | 1, 3 |
+| `apps/admin/src/editor/FormatBubble.tsx` | selection bubble: mark toggles + Link (via LinkInput) | 1, 2 |
+| `apps/admin/src/editor/LinkInput.tsx` | shared URL field (apply / cancel / remove) | 2 |
+| `apps/admin/src/editor/LinkPopup.tsx` | link card content: Open ↗ / Edit / Remove | 3 |
+| `apps/admin/src/editor/extensions/LinkTools.tsx` | plugin: show LinkPopup on caret-in-link or hover (tippy + ReactRenderer) | 3 |
+| `apps/admin/src/styles/editor.css` | bubble toolbar + link card styles | 4 |
+| `apps/admin/test/*` | tests per task | 1–3 |
 
 ---
 
 ## Task 1: StarterKit config + FormatBubble mark toggles
 
 **Files:**
-- Modify: `apps/saytu-admin/src/editor/Canvas.tsx`
-- Create: `apps/saytu-admin/src/editor/FormatBubble.tsx`
-- Test: `apps/saytu-admin/test/format-bubble.test.tsx`
+- Modify: `apps/admin/src/editor/Canvas.tsx`
+- Create: `apps/admin/src/editor/FormatBubble.tsx`
+- Test: `apps/admin/test/format-bubble.test.tsx`
 
 - [ ] **Step 1: Write the failing test**
 
-Create `apps/saytu-admin/test/format-bubble.test.tsx`:
+Create `apps/admin/test/format-bubble.test.tsx`:
 
 ```tsx
 import { describe, it, expect, afterEach } from 'vitest'
@@ -85,7 +85,7 @@ Expected: FAIL — depending on the current StarterKit default, `underline` may 
 
 - [ ] **Step 3: Configure StarterKit in the Canvas**
 
-In `apps/saytu-admin/src/editor/Canvas.tsx`, change the `StarterKit,` entry in the extensions array to:
+In `apps/admin/src/editor/Canvas.tsx`, change the `StarterKit,` entry in the extensions array to:
 
 ```tsx
       StarterKit.configure({ link: { openOnClick: false }, underline: false }),
@@ -95,7 +95,7 @@ In `apps/saytu-admin/src/editor/Canvas.tsx`, change the `StarterKit,` entry in t
 
 - [ ] **Step 4: Write the FormatBubble failing test**
 
-Append to `apps/saytu-admin/test/format-bubble.test.tsx`:
+Append to `apps/admin/test/format-bubble.test.tsx`:
 
 ```tsx
 import { FormatBubble } from '../src/editor/FormatBubble'
@@ -138,7 +138,7 @@ Expected: FAIL — `FormatBubble`/`FormatBubbleToolbar` not exported.
 
 - [ ] **Step 6: Implement `FormatBubble`**
 
-Create `apps/saytu-admin/src/editor/FormatBubble.tsx`:
+Create `apps/admin/src/editor/FormatBubble.tsx`:
 
 ```tsx
 import { BubbleMenu } from '@tiptap/react/menus'
@@ -223,7 +223,7 @@ render(<ToolbarHarness />)
 
 - [ ] **Step 7: Render `FormatBubble` in the Canvas**
 
-In `apps/saytu-admin/src/editor/Canvas.tsx`, add the import and render it next to `EditorContent` (it needs the `editor`):
+In `apps/admin/src/editor/Canvas.tsx`, add the import and render it next to `EditorContent` (it needs the `editor`):
 
 ```tsx
 import { FormatBubble } from './FormatBubble'
@@ -253,7 +253,7 @@ Expected: PASS (existing suite green).
 - [ ] **Step 10: Commit**
 
 ```bash
-git add apps/saytu-admin/src/editor/Canvas.tsx apps/saytu-admin/src/editor/FormatBubble.tsx apps/saytu-admin/test/format-bubble.test.tsx
+git add apps/admin/src/editor/Canvas.tsx apps/admin/src/editor/FormatBubble.tsx apps/admin/test/format-bubble.test.tsx
 git commit -m "feat(editor): selection format bubble (bold/italic/code/strike) + StarterKit config
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -264,13 +264,13 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ## Task 2: Link create / edit / remove via inline input
 
 **Files:**
-- Create: `apps/saytu-admin/src/editor/LinkInput.tsx`
-- Modify: `apps/saytu-admin/src/editor/FormatBubble.tsx`
-- Test: `apps/saytu-admin/test/link-input.test.tsx`
+- Create: `apps/admin/src/editor/LinkInput.tsx`
+- Modify: `apps/admin/src/editor/FormatBubble.tsx`
+- Test: `apps/admin/test/link-input.test.tsx`
 
 - [ ] **Step 1: Write the failing test**
 
-Create `apps/saytu-admin/test/link-input.test.tsx`:
+Create `apps/admin/test/link-input.test.tsx`:
 
 ```tsx
 import { describe, it, expect, vi, afterEach } from 'vitest'
@@ -321,7 +321,7 @@ Expected: FAIL — `LinkInput` not exported.
 
 - [ ] **Step 3: Implement `LinkInput`**
 
-Create `apps/saytu-admin/src/editor/LinkInput.tsx`:
+Create `apps/admin/src/editor/LinkInput.tsx`:
 
 ```tsx
 import { useEffect, useRef, useState } from 'react'
@@ -394,7 +394,7 @@ Expected: PASS (4 cases).
 
 - [ ] **Step 5: Wire the link input into FormatBubble**
 
-In `apps/saytu-admin/src/editor/FormatBubble.tsx`, make `FormatBubbleToolbar` manage a "linking" mode: clicking Link shows `LinkInput` (pre-filled with the current link href if the selection is already linked), applying sets the link on the selection, removing unsets it. Add imports + state:
+In `apps/admin/src/editor/FormatBubble.tsx`, make `FormatBubbleToolbar` manage a "linking" mode: clicking Link shows `LinkInput` (pre-filled with the current link href if the selection is already linked), applying sets the link on the selection, removing unsets it. Add imports + state:
 
 ```tsx
 import { useState } from 'react'
@@ -459,7 +459,7 @@ export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
 
 - [ ] **Step 6: Write the link wiring test**
 
-Append to `apps/saytu-admin/test/link-input.test.tsx` a test that exercises the toolbar's link flow against a real editor:
+Append to `apps/admin/test/link-input.test.tsx` a test that exercises the toolbar's link flow against a real editor:
 
 ```tsx
 import { useEditor, EditorContent } from '@tiptap/react'
@@ -497,7 +497,7 @@ Expected: PASS (link created, round-trips to `[hello](https://x.com)`).
 - [ ] **Step 8: Commit**
 
 ```bash
-git add apps/saytu-admin/src/editor/LinkInput.tsx apps/saytu-admin/src/editor/FormatBubble.tsx apps/saytu-admin/test/link-input.test.tsx
+git add apps/admin/src/editor/LinkInput.tsx apps/admin/src/editor/FormatBubble.tsx apps/admin/test/link-input.test.tsx
 git commit -m "feat(editor): create/edit/remove links via inline URL input in the format bubble
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -508,16 +508,16 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ## Task 3: Link card (caret-in-link + hover)
 
 **Files:**
-- Create: `apps/saytu-admin/src/editor/LinkPopup.tsx`
-- Create: `apps/saytu-admin/src/editor/extensions/LinkTools.tsx`
-- Modify: `apps/saytu-admin/src/editor/Canvas.tsx`
-- Test: `apps/saytu-admin/test/link-popup.test.tsx`
+- Create: `apps/admin/src/editor/LinkPopup.tsx`
+- Create: `apps/admin/src/editor/extensions/LinkTools.tsx`
+- Modify: `apps/admin/src/editor/Canvas.tsx`
+- Test: `apps/admin/test/link-popup.test.tsx`
 
 **Context:** A `LinkPopup` card (Open ↗ / Edit / Remove) shown when the caret is inside a link (keyboard) or the mouse hovers a link. Shown via a small ProseMirror plugin reusing the `tippy` + `ReactRenderer` pattern from `BlockMenu`/`DragHandle` — one plugin, two triggers. The card's pure predicate (`linkAtSelection`) is unit-tested; the hover DOM wiring is verified manually (jsdom can't position/hover), like the drag handle.
 
 - [ ] **Step 1: Write the failing test for `LinkPopup` + the predicate**
 
-Create `apps/saytu-admin/test/link-popup.test.tsx`:
+Create `apps/admin/test/link-popup.test.tsx`:
 
 ```tsx
 import { describe, it, expect, vi, afterEach } from 'vitest'
@@ -561,7 +561,7 @@ Expected: FAIL — `LinkPopup` not exported.
 
 - [ ] **Step 3: Implement `LinkPopup`**
 
-Create `apps/saytu-admin/src/editor/LinkPopup.tsx`:
+Create `apps/admin/src/editor/LinkPopup.tsx`:
 
 ```tsx
 import { Icon } from '../ui/Icon'
@@ -608,7 +608,7 @@ Expected: PASS (3 cases).
 
 - [ ] **Step 5: Implement the `LinkTools` plugin (caret + hover triggers)**
 
-Create `apps/saytu-admin/src/editor/extensions/LinkTools.tsx`:
+Create `apps/admin/src/editor/extensions/LinkTools.tsx`:
 
 ```tsx
 import { Extension } from '@tiptap/core'
@@ -711,7 +711,7 @@ export const LinkTools = Extension.create<LinkToolsOptions>({
 
 - [ ] **Step 6: Register `LinkTools` in the Canvas, wired to open the link input**
 
-In `apps/saytu-admin/src/editor/Canvas.tsx`: import `LinkTools`, add it to the extensions array, and pass `onEdit` to select the link's range so the format bubble's link input opens on it. Add:
+In `apps/admin/src/editor/Canvas.tsx`: import `LinkTools`, add it to the extensions array, and pass `onEdit` to select the link's range so the format bubble's link input opens on it. Add:
 
 ```tsx
 import { LinkTools } from './extensions/LinkTools'
@@ -741,7 +741,7 @@ Expected: PASS (LinkPopup tests + existing suite green).
 - [ ] **Step 9: Commit**
 
 ```bash
-git add apps/saytu-admin/src/editor/LinkPopup.tsx apps/saytu-admin/src/editor/extensions/LinkTools.tsx apps/saytu-admin/src/editor/Canvas.tsx apps/saytu-admin/test/link-popup.test.tsx
+git add apps/admin/src/editor/LinkPopup.tsx apps/admin/src/editor/extensions/LinkTools.tsx apps/admin/src/editor/Canvas.tsx apps/admin/test/link-popup.test.tsx
 git commit -m "feat(editor): link card (open/edit/remove) on caret-in-link or hover
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -752,11 +752,11 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ## Task 4: CSS — format bubble + link card
 
 **Files:**
-- Modify: `apps/saytu-admin/src/styles/editor.css`
+- Modify: `apps/admin/src/styles/editor.css`
 
 - [ ] **Step 1: Append the styles**
 
-Append to `apps/saytu-admin/src/styles/editor.css` (reuse existing tokens — `var(--surface)`, `var(--border-strong)`, `var(--r-md)`, `var(--r-sm)`, `var(--text)`, `var(--surface-2)`, `var(--accent-soft)`, `var(--accent)`, `var(--shadow-pop)`, `var(--font-ui)`):
+Append to `apps/admin/src/styles/editor.css` (reuse existing tokens — `var(--surface)`, `var(--border-strong)`, `var(--r-md)`, `var(--r-sm)`, `var(--text)`, `var(--surface-2)`, `var(--accent-soft)`, `var(--accent)`, `var(--shadow-pop)`, `var(--font-ui)`):
 
 ```css
 /* Selection format bubble */
@@ -855,7 +855,7 @@ Expected: build succeeds; CSS emitted.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add apps/saytu-admin/src/styles/editor.css
+git add apps/admin/src/styles/editor.css
 git commit -m "style(editor): format bubble + link card CSS
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -867,7 +867,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1: Whole suite** — Run: `pnpm -r test` — expect every package green; admin gains format-bubble / link-input / link-popup tests.
 - [ ] **Step 2: Typecheck (incl. core edge guard)** — Run: `pnpm -r typecheck` — expect clean.
-- [ ] **Step 3: Build** — Run: `pnpm --filter @setu/admin build` — succeeds; brand fonts intact; `grep -c "yjs" apps/saytu-admin/dist/assets/*.js` matches only `linkifyjs` (no new CRDT); no new dependency added (`git diff` shows `package.json` unchanged).
+- [ ] **Step 3: Build** — Run: `pnpm --filter @setu/admin build` — succeeds; brand fonts intact; `grep -c "yjs" apps/admin/dist/assets/*.js` matches only `linkifyjs` (no new CRDT); no new dependency added (`git diff` shows `package.json` unchanged).
 - [ ] **Step 4: Manual smoke (reviewer)** — `pnpm dev`: select text → bubble with bold/italic/code/strike + link; toggles reflect state; Link → URL input → link created; caret into a link or hover → card (Open ↗ new tab / Edit / Remove); Cmd+U does nothing.
 
 ---

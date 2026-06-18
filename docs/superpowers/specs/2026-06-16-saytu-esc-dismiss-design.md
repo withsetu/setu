@@ -65,7 +65,7 @@ A read of the editor popups found:
 ## Architecture / components
 
 ```
-apps/saytu-admin/src/editor/
+apps/admin/src/editor/
 ├── dismiss.ts                   # NEW — isEscape(e) + dismissToEditor(editor) (pure-ish helpers)
 ├── FormatBubble.tsx             # MODIFY — bubble-level onKeyDown: Esc collapses selection (when link input closed)
 ├── extensions/LinkTools.tsx     # MODIFY — Esc hides the card + "dismissed until caret leaves link" flag + refocus

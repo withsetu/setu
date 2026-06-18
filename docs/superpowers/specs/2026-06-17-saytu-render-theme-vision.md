@@ -181,7 +181,7 @@ a throwaway spike, building on `prototype/astro-preview/`.
    markdown inside the callout body renders.
 3. (Stretch / reason-about if not coded) the same React core is reusable as the basis of
    the editor node view — confirm the seam, even if just by inspecting the existing
-   `apps/saytu-admin` Callout node view rather than fully wiring it.
+   `apps/admin` Callout node view rather than fully wiring it.
 
 If it holds, the entire vision above is buildable and sub-project #1 goes to a full spec.
 If it fights us, we learn the seam now, cheaply.
@@ -199,7 +199,7 @@ Built `prototype/astro-preview/` (Astro 6.4.6) with the callout tag mapped to a 
   no `<script>` referenced by the page (Astro emits an orphan client runtime asset that the
   page never loads). So: write-once React core → zero-JS static site HTML. ✅
 - **Editor-reuse seam identified (the real design constraint).** Comparing the spike's site
-  markup to the existing admin node view (`apps/saytu-admin/src/editor/extensions/Callout.tsx`,
+  markup to the existing admin node view (`apps/admin/src/editor/extensions/Callout.tsx`,
   which uses `<NodeViewWrapper>` + an editable `<input>` title + `<NodeViewContent>` body +
   an editor-only tone/icon toolbar): the structures are parallel, but "write once" is **not
   free** — it requires factoring the visual core so its **editable regions (title, body) are

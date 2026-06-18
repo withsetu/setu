@@ -16,11 +16,11 @@
 
 ## Task 1: `TURN_INTO_GROUPS` view-model
 
-**Files:** modify `apps/saytu-admin/src/editor/block-types.ts`; create `apps/saytu-admin/test/turn-into-groups.test.ts`.
+**Files:** modify `apps/admin/src/editor/block-types.ts`; create `apps/admin/test/turn-into-groups.test.ts`.
 
 - [ ] **Step 1: Write the failing test**
 
-`apps/saytu-admin/test/turn-into-groups.test.ts`:
+`apps/admin/test/turn-into-groups.test.ts`:
 
 ```ts
 import { describe, it, expect, afterEach } from 'vitest'
@@ -75,7 +75,7 @@ Expected: FAIL — `TURN_INTO_GROUPS`/`groupContaining` not exported.
 
 - [ ] **Step 3: Add the view-model to `block-types.ts`**
 
-Append to `apps/saytu-admin/src/editor/block-types.ts` (keep `BLOCK_TYPES`/`currentBlockType` as-is):
+Append to `apps/admin/src/editor/block-types.ts` (keep `BLOCK_TYPES`/`currentBlockType` as-is):
 
 ```ts
 /** A row in the bubble's Turn-into menu: a leaf applies a block type directly; a
@@ -119,7 +119,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/saytu-admin/src/editor/block-types.ts apps/saytu-admin/test/turn-into-groups.test.ts
+git add apps/admin/src/editor/block-types.ts apps/admin/test/turn-into-groups.test.ts
 git commit -m "feat(editor): TURN_INTO_GROUPS view-model (Heading/List groups) derived from registry
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -129,11 +129,11 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ## Task 2: rebuild `TurnIntoMenu` with inline-expand groups
 
-**Files:** modify `apps/saytu-admin/src/editor/TurnIntoMenu.tsx`, `apps/saytu-admin/test/turn-into.test.tsx`.
+**Files:** modify `apps/admin/src/editor/TurnIntoMenu.tsx`, `apps/admin/test/turn-into.test.tsx`.
 
 - [ ] **Step 1: Update the existing tests to the grouped interaction + add cases**
 
-Replace `apps/saytu-admin/test/turn-into.test.tsx` with (the old tests clicked a flat "Heading 3" item; now Heading is a group you expand first):
+Replace `apps/admin/test/turn-into.test.tsx` with (the old tests clicked a flat "Heading 3" item; now Heading is a group you expand first):
 
 ```tsx
 import { describe, it, expect, afterEach } from 'vitest'
@@ -218,7 +218,7 @@ Expected: FAIL — the menu is still flat (no group `menuitem`s).
 
 - [ ] **Step 3: Rebuild `TurnIntoMenu.tsx`**
 
-Replace `apps/saytu-admin/src/editor/TurnIntoMenu.tsx` with:
+Replace `apps/admin/src/editor/TurnIntoMenu.tsx` with:
 
 ```tsx
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -402,7 +402,7 @@ Expected: PASS — existing `format`/`block-types`/`turn-into-groups`/`slash` su
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/saytu-admin/src/editor/TurnIntoMenu.tsx apps/saytu-admin/test/turn-into.test.tsx
+git add apps/admin/src/editor/TurnIntoMenu.tsx apps/admin/test/turn-into.test.tsx
 git commit -m "feat(editor): categorize Turn-into menu (Heading/List inline-expand groups)
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -412,7 +412,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ## Task 3: CSS — group rows, indentation, chevron
 
-**Files:** modify `apps/saytu-admin/src/styles/editor.css`.
+**Files:** modify `apps/admin/src/styles/editor.css`.
 
 - [ ] **Step 1: Append styles**
 
@@ -431,7 +431,7 @@ READ the existing `.ti-menu`/`.ti-item` rules first, then append (reuse the same
 - [ ] **Step 3: Commit**
 
 ```bash
-git add apps/saytu-admin/src/styles/editor.css
+git add apps/admin/src/styles/editor.css
 git commit -m "style(editor): Turn-into group rows + indented sub-items + chevron
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -443,7 +443,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1: Whole suite** — Run: `pnpm -r test` — every package green.
 - [ ] **Step 2: Typecheck** — Run: `pnpm -r typecheck` — clean.
-- [ ] **Step 3: Build + no new deps** — Run: `pnpm --filter @setu/admin build` (fonts intact) and `git diff main -- apps/saytu-admin/package.json` (empty).
+- [ ] **Step 3: Build + no new deps** — Run: `pnpm --filter @setu/admin build` (fonts intact) and `git diff main -- apps/admin/package.json` (empty).
 - [ ] **Step 4: Manual (reviewer)** — `pnpm dev`: select text → "Turn into ▾" shows **Text · Heading ▸ · List ▸ · Quote · Code**; clicking Heading/List expands them inline; the current block type's group is pre-expanded with its item checked; ↑/↓ move through visible rows, Enter expands a group / applies an item, Esc closes (selection survives); the slash menu still lists the flat H2/H3/H4 etc.
 
 ---

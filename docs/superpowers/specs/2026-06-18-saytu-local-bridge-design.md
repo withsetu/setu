@@ -30,23 +30,23 @@ ports/services (unchanged) · Astro 6 glob content loader · Vitest. **100% OSS.
 
 ### In scope
 - **Content convention — repo-root `content/`.** Move the 4 site fixtures from
-  `apps/saytu-site/content/` → repo-root `content/`; change the Astro glob `base` to read the
+  `apps/site/content/` → repo-root `content/`; change the Astro glob `base` to read the
   repo-root folder; `git-local`'s `dir` = repo root (which has `.git`). This **aligns the site to the
   core's existing `contentPath` convention** (`content/<collection>/<locale>/<slug>.mdoc`) — the
   engine already assumes content at repo root; the site was the outlier.
-- **`apps/saytu-api` — a Hono (Node) server** exposing the **GitPort** over HTTP (the 4 operations
+- **`apps/api` — a Hono (Node) server** exposing the **GitPort** over HTTP (the 4 operations
   the services use: `headSha`, `readFile`, `commitFile`, `list`), backed by
   `createLocalGitAdapter({ dir: <repoRoot> })`. Local-only, no auth. Runs via `@hono/node-server`.
 - **`packages/git-http` — a browser-side `GitPort`** (`createHttpGitPort({ baseUrl })`) implementing
   the same 4 operations via `fetch`. A drop-in GitPort; **passes the shared `runGitPortContract`**.
-- **Admin wiring (`apps/saytu-admin/src/data/Bootstrap.tsx`)** — when `import.meta.env.VITE_SAYTU_API`
+- **Admin wiring (`apps/admin/src/data/Bootstrap.tsx`)** — when `import.meta.env.VITE_SAYTU_API`
   is set, build the GitPort via `createHttpGitPort({ baseUrl })` (DataPort stays `db-idb`); otherwise
   the **current in-browser path is unchanged** (`git-idb`, memory fallback). The services bundle is
   built by the existing `bootstrapServices(data, git)` — no UI/service change.
 - **One-command dev runner** — a root script that boots `api + admin + site` together (you can't use
   the feature otherwise). Labeled output, non-colliding ports, one Ctrl-C stops all.
 - **Tests:** `git-http` against `runGitPortContract` (in-process Hono server backed by an in-memory
-  or local git); `apps/saytu-api` endpoint integration tests; an **end-to-end** test that publishes
+  or local git); `apps/api` endpoint integration tests; an **end-to-end** test that publishes
   through the real service stack over `git-http` and asserts the `.mdoc` lands in `content/`
   (and renders via the site build); admin 178 + site tests stay green.
 
@@ -68,15 +68,15 @@ The core already emits repo-relative `content/<collection>/<locale>/<slug>.mdoc`
 `git-local` commits relative to its `dir`; with `dir` = repo root, a publish lands at
 `<repo>/content/…`. So the site must read `<repo>/content/`:
 
-- **Move:** `apps/saytu-site/content/{page/en/about,page/en/home,post/en/kitchen-sink,post/fr/bonjour}.mdoc`
+- **Move:** `apps/site/content/{page/en/about,page/en/home,post/en/kitchen-sink,post/fr/bonjour}.mdoc`
   → `content/…` at the repo root (same sub-layout).
-- **Site loader:** `apps/saytu-site/src/content.config.ts` — change
+- **Site loader:** `apps/site/src/content.config.ts` — change
   `glob({ pattern: '**/*.mdoc', base: './content' })` to read the repo-root folder.
   **VERIFY-FIRST (build task):** confirm Astro's glob `base` resolves a folder *above* the app dir
   (e.g. `'../../content'` or an absolute path via `new URL`/`fileURLToPath`). **Fallback if base
   can't escape the app root:** keep the site reading its own `content/` and make the API/git-local
   write there instead — i.e. configure the server's git-local `dir` = repo root but commit under a
-  configured content root (`apps/saytu-site/content/…`) by passing a path prefix; the publish path is
+  configured content root (`apps/site/content/…`) by passing a path prefix; the publish path is
   derived from `contentPath`, so the prefix is applied at the API/adapter boundary, not in core.
   (Preferred: repo-root `content/`, matching the core convention; the fallback exists so the build
   is never blocked.)
@@ -85,7 +85,7 @@ The core already emits repo-relative `content/<collection>/<locale>/<slug>.mdoc`
   this in the build/e2e task; if dev-watch doesn't fire on an external commit, a manual refresh /
   rebuild is the documented v1 behavior.
 
-## 3. `apps/saytu-api` — the Hono GitPort server (Node)
+## 3. `apps/api` — the Hono GitPort server (Node)
 
 A thin RPC-style exposure of the GitPort. One adapter instance: `createLocalGitAdapter({ dir })`
 where `dir` is the repo root (resolved from the server's CWD / an env var). Endpoints mirror the
@@ -126,8 +126,8 @@ admin tests run the in-browser path → untouched. Add `@setu/git-http` to the a
 
 ## 6. Dev orchestration
 
-A root `dev` script booting all three: `apps/saytu-api` (Node server), `apps/saytu-admin` (Vite),
-`apps/saytu-site` (Astro), with `VITE_SAYTU_API` pointed at the api port. Use a small, OSS,
+A root `dev` script booting all three: `apps/api` (Node server), `apps/admin` (Vite),
+`apps/site` (Astro), with `VITE_SAYTU_API` pointed at the api port. Use a small, OSS,
 parallel-runner approach (e.g. `pnpm -r --parallel` with per-app `dev` scripts, or a tiny
 `concurrently`-style dep) with labeled output, fixed non-colliding ports, one-Ctrl-C shutdown.
 **This also resolves the deferred "single dev command" roadmap item.** Keep it minimal; the bridge
@@ -139,13 +139,13 @@ is the deliverable, the runner is the on-ramp.
   against `createHttpGitPort` pointed at an **in-process Hono app** backed by a git adapter — the
   same contract `git-local`/`git-idb`/`git-memory` pass. This proves the HTTP adapter is a faithful
   GitPort.
-- **`apps/saytu-api` endpoints:** integration tests hitting each route (head/read/commit/list) against
+- **`apps/api` endpoints:** integration tests hitting each route (head/read/commit/list) against
   a temp `git init` repo via `git-local`, asserting commits land + round-trip.
 - **End-to-end bridge:** drive the **real publish service** with `git-http` (in-process server +
   git-local on a temp repo); publish a draft; assert the `.mdoc` exists at
   `content/<…>.mdoc` with the compiled body, and (build assertion) the site renders it from the
   relocated content root.
-- **No-regression:** `apps/saytu-admin` 178 tests green (in-browser branch unchanged); `apps/saytu-site`
+- **No-regression:** `apps/admin` 178 tests green (in-browser branch unchanged); `apps/site`
   tests green after the content move (build reads repo-root `content/`); whole repo green; both apps
   build.
 

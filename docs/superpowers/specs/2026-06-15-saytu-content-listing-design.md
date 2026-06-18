@@ -76,7 +76,7 @@ packages/core/src/content-index/          # NEW (pure, edge-safe)
 packages/git-memory/src/adapter.ts        # implement list() over the Map
 packages/git-local/src/adapter.ts         # implement list() via git.listFiles at HEAD
 packages/git-testing (runGitPortContract) # + list() contract cases
-apps/saytu-admin/src/
+apps/admin/src/
 ├── screens/ContentList.tsx   # gather git.list + drafts -> listContentEntries -> render
 └── deploy/deploy.tsx         # deploy() enumerates via git.list('content/')
 ```

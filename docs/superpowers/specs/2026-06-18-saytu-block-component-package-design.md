@@ -33,14 +33,14 @@ markup is re-sourced. Read-only-equivalent on content (no write/round-trip path 
     + a `BlockIconName` type, so editor and site render the **same** glyph (also fixes the
     hardcoded `💡` left in the site from #1).
   - **Variant mapping** — `variantFor` / `calloutVariants` / `CALLOUT_ICONS` moved here from
-    `apps/saytu-admin/src/editor/callout-variants.ts` (reads `@setu/core`'s `defaultConfig`).
+    `apps/admin/src/editor/callout-variants.ts` (reads `@setu/core`'s `defaultConfig`).
   - **CSS** — `callout.css`: the structural + tone rules, styled via `var(--token, fallback)`
     (e.g. `background: var(--accent-soft, #eef2ff)`), imported by both apps.
-- **Editor adoption** (`apps/saytu-admin`): the callout node view renders the shared core,
+- **Editor adoption** (`apps/admin`): the callout node view renders the shared core,
   injecting the editable title `<input>`, `<NodeViewContent>` body, and the existing tone/icon
   toolbar. Variant logic + block icons now imported from `@setu/blocks`. The Tiptap **node
   definition (schema, `mdAttrs`, parse/render HTML, keyboard shortcuts) is byte-unchanged**.
-- **Site adoption** (`apps/saytu-site`): `CalloutWrapper.astro` renders the shared core; the
+- **Site adoption** (`apps/site`): `CalloutWrapper.astro` renders the shared core; the
   app's own `src/components/Callout.tsx` is deleted; `site.css` callout rules removed (the
   package CSS owns them).
 - Tests: package unit tests for the core + variant mapping; the admin's callout + **round-trip
@@ -131,10 +131,10 @@ Renders (conceptually):
 
 ## 4. Consumer changes
 
-### Editor (`apps/saytu-admin/src/editor/extensions/Callout.tsx`)
+### Editor (`apps/admin/src/editor/extensions/Callout.tsx`)
 - `CalloutView` renders `<Callout tone={variant.tone} icon={icon} title={<input class="callout-title" …/>} toolbar={<div class="block-props" …>…</div>}><NodeViewContent class="callout-body"/></Callout>` (wrapped by `NodeViewWrapper`).
 - Imports `variantFor`/`calloutVariants`/`CALLOUT_ICONS` + `BlockIcon` from `@setu/blocks`;
-  `apps/saytu-admin/src/editor/callout-variants.ts` is removed (or becomes a thin re-export if
+  `apps/admin/src/editor/callout-variants.ts` is removed (or becomes a thin re-export if
   other modules import it — check and update those imports).
 - The toolbar's tone swatches + icon picker keep their behavior; picker icons render via
   `<BlockIcon>` so they match the rendered badge.
@@ -142,12 +142,12 @@ Renders (conceptually):
   attribute with `renderHTML:()=>({})`/parseHTML/`renderHTML` div[data-callout]),
   `addKeyboardShortcuts` (ArrowUp→title), the title-input ArrowDown/Enter→body nav, and
   `setAttrs` empty-key hygiene. The round-trip is therefore byte-identical.
-- `apps/saytu-admin/src/styles/editor.css`: the structural callout rules
+- `apps/admin/src/styles/editor.css`: the structural callout rules
   (`.blk-callout`, `.tone-*` backgrounds, `.callout-head/-ic/-title/-body`) move to the package
   CSS; the **editor-only chrome** (`.block-props`, `.bp-*`, `:focus-within`) stays in editor.css.
   Admin imports `@setu/blocks`'s `callout.css`.
 
-### Site (`apps/saytu-site`)
+### Site (`apps/site`)
 - `src/components/CalloutWrapper.astro` renders `<Callout tone={tone} icon={icon} title={title && <span class="callout-title">{title}</span>}><div class="callout-body"><slot/></div></Callout>`, deriving `tone`/`icon` from `variantFor(type)` (imported from `@setu/blocks`).
 - Delete `src/components/Callout.tsx`.
 - `src/styles/site.css`: remove the old `.callout` / `.callout--*` / `.callout__*` rules; import `@setu/blocks`'s `callout.css`.

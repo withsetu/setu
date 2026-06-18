@@ -26,9 +26,9 @@
 Align the site to the engine's existing convention (the core already writes `content/<collection>/<locale>/<slug>.mdoc`). Move the fixtures up to the repo root and point the site loader at them.
 
 **Files:**
-- Move: `apps/saytu-site/content/{page/en/about.mdoc, page/en/home.mdoc, post/en/kitchen-sink.mdoc, post/fr/bonjour.mdoc}` → `content/…` (repo root, same sub-layout)
-- Modify: `apps/saytu-site/src/content.config.ts` (glob `base`)
-- Test: existing `apps/saytu-site/test/render.test.ts` + `test/theme-options.test.ts` (must stay green)
+- Move: `apps/site/content/{page/en/about.mdoc, page/en/home.mdoc, post/en/kitchen-sink.mdoc, post/fr/bonjour.mdoc}` → `content/…` (repo root, same sub-layout)
+- Modify: `apps/site/src/content.config.ts` (glob `base`)
+- Test: existing `apps/site/test/render.test.ts` + `test/theme-options.test.ts` (must stay green)
 
 **Interfaces:**
 - Produces: canonical content at repo-root `content/`. `git-local` with `dir` = repo root commits there; the site reads there.
@@ -37,20 +37,20 @@ Align the site to the engine's existing convention (the core already writes `con
 
 ```bash
 mkdir -p content/page/en content/post/en content/post/fr
-git mv apps/saytu-site/content/page/en/about.mdoc      content/page/en/about.mdoc
-git mv apps/saytu-site/content/page/en/home.mdoc       content/page/en/home.mdoc
-git mv apps/saytu-site/content/post/en/kitchen-sink.mdoc content/post/en/kitchen-sink.mdoc
-git mv apps/saytu-site/content/post/fr/bonjour.mdoc    content/post/fr/bonjour.mdoc
+git mv apps/site/content/page/en/about.mdoc      content/page/en/about.mdoc
+git mv apps/site/content/page/en/home.mdoc       content/page/en/home.mdoc
+git mv apps/site/content/post/en/kitchen-sink.mdoc content/post/en/kitchen-sink.mdoc
+git mv apps/site/content/post/fr/bonjour.mdoc    content/post/fr/bonjour.mdoc
 ```
-Confirm `apps/saytu-site/content/` is now empty (remove the empty dir if git left it).
+Confirm `apps/site/content/` is now empty (remove the empty dir if git left it).
 
 - [ ] **Step 2: Point the site loader at repo-root content (VERIFY-FIRST)**
 
-Edit `apps/saytu-site/src/content.config.ts`. Current:
+Edit `apps/site/src/content.config.ts`. Current:
 ```ts
 const entries = defineCollection({ loader: glob({ pattern: '**/*.mdoc', base: './content' }) })
 ```
-Change `base` to the repo-root content folder. **Try first** (project root = `apps/saytu-site`, so two levels up is the repo root):
+Change `base` to the repo-root content folder. **Try first** (project root = `apps/site`, so two levels up is the repo root):
 ```ts
 const entries = defineCollection({ loader: glob({ pattern: '**/*.mdoc', base: '../../content' }) })
 ```
@@ -61,11 +61,11 @@ pnpm --filter @setu/site build
 If the build can't find the entries / rejects the relative base, use an absolute path resolved from this file instead:
 ```ts
 import { fileURLToPath } from 'node:url'
-// content.config.ts lives in apps/saytu-site/src/ → repo root is three levels up
+// content.config.ts lives in apps/site/src/ → repo root is three levels up
 const contentBase = fileURLToPath(new URL('../../../content', import.meta.url))
 const entries = defineCollection({ loader: glob({ pattern: '**/*.mdoc', base: contentBase }) })
 ```
-Pick whichever the build actually resolves (the dist must contain the 4 routes). **FALLBACK (only if neither form lets Astro read above the app root):** revert the move, keep content at `apps/saytu-site/content/`, and instead make the API server (Task 2) write there by configuring its git-local content-root prefix — note this decision loudly in the commit and tell the controller, because it changes Task 2's `dir`/path handling. Strongly prefer repo-root `content/`.
+Pick whichever the build actually resolves (the dist must contain the 4 routes). **FALLBACK (only if neither form lets Astro read above the app root):** revert the move, keep content at `apps/site/content/`, and instead make the API server (Task 2) write there by configuring its git-local content-root prefix — note this decision loudly in the commit and tell the controller, because it changes Task 2's `dir`/path handling. Strongly prefer repo-root `content/`.
 
 - [ ] **Step 3: Run the site test suite (no regression)**
 
@@ -75,7 +75,7 @@ Expected: all green (render tests + theme-options) — the build now reads repo-
 - [ ] **Step 4: Commit**
 
 ```bash
-git add -A content apps/saytu-site/src/content.config.ts
+git add -A content apps/site/src/content.config.ts
 git commit -m "refactor(site): read content from repo-root content/ (engine convention) (#bridge)
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -83,16 +83,16 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task 2: `apps/saytu-api` — the Hono GitPort server (Node)
+### Task 2: `apps/api` — the Hono GitPort server (Node)
 
 A thin RPC exposure of the GitPort, backed by `git-local`. Exposes a `createGitApi(git)` app factory (importable by Task 3's test) plus a `server.ts` entry.
 
 **Files:**
-- Create: `apps/saytu-api/package.json`
-- Create: `apps/saytu-api/tsconfig.json`
-- Create: `apps/saytu-api/src/app.ts` (`createGitApi`)
-- Create: `apps/saytu-api/src/server.ts` (the Node entry)
-- Test: `apps/saytu-api/test/app.test.ts`
+- Create: `apps/api/package.json`
+- Create: `apps/api/tsconfig.json`
+- Create: `apps/api/src/app.ts` (`createGitApi`)
+- Create: `apps/api/src/server.ts` (the Node entry)
+- Test: `apps/api/test/app.test.ts`
 
 **Interfaces:**
 - Consumes: `GitPort`, `createLocalGitAdapter({ dir })` (from `@setu/git-local`).
@@ -100,7 +100,7 @@ A thin RPC exposure of the GitPort, backed by `git-local`. Exposes a `createGitA
 
 - [ ] **Step 1: Scaffold the package**
 
-Create `apps/saytu-api/package.json`:
+Create `apps/api/package.json`:
 ```json
 {
   "name": "@setu/api",
@@ -133,7 +133,7 @@ Create `apps/saytu-api/package.json`:
 ```
 (`isomorphic-git` is a devDep only for the test's `git.init`. Confirm the latest `tsx` 4.x installs; adjust the caret if needed.)
 
-Create `apps/saytu-api/tsconfig.json`:
+Create `apps/api/tsconfig.json`:
 ```json
 { "extends": "../../tsconfig.base.json", "compilerOptions": { "noEmit": true, "types": ["node"] }, "include": ["src", "test"] }
 ```
@@ -145,7 +145,7 @@ Before writing `app.ts`, confirm against the installed packages (read `node_modu
 
 - [ ] **Step 3: Write the failing test**
 
-Create `apps/saytu-api/test/app.test.ts`:
+Create `apps/api/test/app.test.ts`:
 ```ts
 import { afterEach, describe, expect, it } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
@@ -163,7 +163,7 @@ afterEach(() => {
 })
 
 async function freshApp() {
-  const dir = mkdtempSync(join(tmpdir(), 'saytu-api-'))
+  const dir = mkdtempSync(join(tmpdir(), 'api-'))
   dirs.push(dir)
   await git.init({ fs: nodeFs, dir, defaultBranch: 'main' })
   return createGitApi(createLocalGitAdapter({ dir }))
@@ -233,7 +233,7 @@ Expected: FAIL — `../src/app` not found.
 
 - [ ] **Step 5: Implement `src/app.ts`**
 
-Create `apps/saytu-api/src/app.ts` (adapt to any signature notes from Step 2):
+Create `apps/api/src/app.ts` (adapt to any signature notes from Step 2):
 ```ts
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
@@ -276,7 +276,7 @@ Expected: all green.
 
 - [ ] **Step 7: Write the server entry**
 
-Create `apps/saytu-api/src/server.ts`:
+Create `apps/api/src/server.ts`:
 ```ts
 import { serve } from '@hono/node-server'
 import { createLocalGitAdapter } from '@setu/git-local'
@@ -287,7 +287,7 @@ const port = Number(process.env.SAYTU_API_PORT ?? 4444)
 const app = createGitApi(createLocalGitAdapter({ dir }))
 
 serve({ fetch: app.fetch, port })
-console.log(`saytu-api listening on http://localhost:${port} (repo: ${dir})`)
+console.log(`api listening on http://localhost:${port} (repo: ${dir})`)
 ```
 
 - [ ] **Step 8: Smoke-test the server boots + typecheck**
@@ -305,7 +305,7 @@ Expected: `/git/head` returns a JSON `{ "sha": "…" }` (non-null, since the rep
 - [ ] **Step 9: Commit**
 
 ```bash
-git add apps/saytu-api pnpm-lock.yaml
+git add apps/api pnpm-lock.yaml
 git commit -m "feat(api): @setu/api — Hono GitPort server over git-local (#bridge)
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -398,7 +398,7 @@ export interface HttpGitOptions {
   fetch?: typeof fetch
 }
 
-/** A GitPort that talks to the Saytu git API (apps/saytu-api) over HTTP.
+/** A GitPort that talks to the Saytu git API (apps/api) over HTTP.
  *  Browser-safe: only uses fetch. The same GitPort contract as git-local/idb/memory. */
 export function createHttpGitPort(opts: HttpGitOptions): GitPort {
   const base = opts.baseUrl.replace(/\/$/, '')
@@ -475,20 +475,20 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 Additive branch in the bootstrap; the in-browser default is untouched.
 
 **Files:**
-- Modify: `apps/saytu-admin/src/data/Bootstrap.tsx`
-- Modify: `apps/saytu-admin/package.json` (add `@setu/git-http`)
-- Test: `apps/saytu-admin` existing suite (178) stays green
+- Modify: `apps/admin/src/data/Bootstrap.tsx`
+- Modify: `apps/admin/package.json` (add `@setu/git-http`)
+- Test: `apps/admin` existing suite (178) stays green
 
 **Interfaces:**
 - Consumes: `createHttpGitPort` (`@setu/git-http`), `createIdbDataPort` (`@setu/db-idb`), `bootstrapServices` (`./store`).
 
 - [ ] **Step 1: Add the dependency**
 
-In `apps/saytu-admin/package.json` `dependencies`, add `"@setu/git-http": "workspace:*"`. Run `pnpm install` from the repo root.
+In `apps/admin/package.json` `dependencies`, add `"@setu/git-http": "workspace:*"`. Run `pnpm install` from the repo root.
 
 - [ ] **Step 2: Add the env-gated branch in `Bootstrap.tsx`**
 
-Edit `apps/saytu-admin/src/data/Bootstrap.tsx`. Add the import:
+Edit `apps/admin/src/data/Bootstrap.tsx`. Add the import:
 ```ts
 import { createHttpGitPort } from '@setu/git-http'
 ```
@@ -528,7 +528,7 @@ Expected: clean; build succeeds (the new import resolves; `import.meta.env.VITE_
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/saytu-admin/src/data/Bootstrap.tsx apps/saytu-admin/package.json pnpm-lock.yaml
+git add apps/admin/src/data/Bootstrap.tsx apps/admin/package.json pnpm-lock.yaml
 git commit -m "feat(admin): use git-http GitPort when VITE_SAYTU_API is set (#bridge)
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -542,7 +542,7 @@ Boot `api + admin + site` together so the bridge is usable. Also closes the defe
 
 **Files:**
 - Modify: root `package.json` (a `dev` script + `concurrently` devDep)
-- Create: `apps/saytu-api/README.md` (short run note) — or append to an existing README
+- Create: `apps/api/README.md` (short run note) — or append to an existing README
 
 **Interfaces:** none (tooling).
 
@@ -576,7 +576,7 @@ Expected: "api up", "admin up", "site up". (If env-var-prefix in the concurrentl
 
 - [ ] **Step 3: Document the run command**
 
-Create `apps/saytu-api/README.md`:
+Create `apps/api/README.md`:
 ```markdown
 # @setu/api — local git API
 
@@ -599,7 +599,7 @@ admin runs fully in-browser (no server). Local-only; the api has no auth.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add package.json apps/saytu-api/README.md pnpm-lock.yaml
+git add package.json apps/api/README.md pnpm-lock.yaml
 git commit -m "feat(dev): one-command runner for api+admin+site; close single-dev-command item (#bridge)
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -612,14 +612,14 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 Prove the whole stack: the real publish service → `git-http` → `createGitApi` → `git-local` on a temp repo → the `.mdoc` lands on disk.
 
 **Files:**
-- Test: `apps/saytu-api/test/e2e-publish.test.ts`
+- Test: `apps/api/test/e2e-publish.test.ts`
 
 **Interfaces:**
 - Consumes: `createPublishService`, `createMemoryDataPort`-style DataPort holding a draft, `createHttpGitPort`, `createGitApi`, `createLocalGitAdapter`.
 
 - [ ] **Step 1: Write the end-to-end test**
 
-Create `apps/saytu-api/test/e2e-publish.test.ts`:
+Create `apps/api/test/e2e-publish.test.ts`:
 ```ts
 import { afterEach, describe, expect, it } from 'vitest'
 import { mkdtempSync, rmSync, readFileSync } from 'node:fs'
@@ -686,7 +686,7 @@ describe('end-to-end: publish over git-http → api → git-local → disk', () 
 - [ ] **Step 2: Run the e2e test**
 
 Run: `pnpm --filter @setu/api test`
-Expected: both `app.test.ts` and `e2e-publish.test.ts` green. (If `@setu/db-memory`/`@setu/git-http` aren't resolvable from the api package, add them as devDeps to `apps/saytu-api/package.json` and `pnpm install`.)
+Expected: both `app.test.ts` and `e2e-publish.test.ts` green. (If `@setu/db-memory`/`@setu/git-http` aren't resolvable from the api package, add them as devDeps to `apps/api/package.json` and `pnpm install`.)
 
 - [ ] **Step 3: Full repo green**
 
@@ -703,12 +703,12 @@ Expected: both builds succeed; typechecks clean.
 
 - [ ] **Step 5: Confirm the in-browser admin path is unaffected**
 
-Confirm `apps/saytu-admin` build with no `VITE_SAYTU_API` set still wires the in-browser branch (grep the built output / reason about the branch: `import.meta.env.VITE_SAYTU_API` is `undefined` → the `else` runs). The 178 admin tests (Step 3) already prove the in-browser branch is green.
+Confirm `apps/admin` build with no `VITE_SAYTU_API` set still wires the in-browser branch (grep the built output / reason about the branch: `import.meta.env.VITE_SAYTU_API` is `undefined` → the `else` runs). The 178 admin tests (Step 3) already prove the in-browser branch is green.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/saytu-api/test/e2e-publish.test.ts apps/saytu-api/package.json pnpm-lock.yaml
+git add apps/api/test/e2e-publish.test.ts apps/api/package.json pnpm-lock.yaml
 git commit -m "test(api): end-to-end publish over git-http → api → git-local → disk (#bridge)
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"

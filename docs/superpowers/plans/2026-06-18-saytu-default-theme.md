@@ -4,9 +4,9 @@
 
 **Goal:** Give the Saytu site a real, designed look — one typographic identity, a header/footer shell, and Post (narrow) + Page (wider) templates — built from tokens-with-defaults so it's fully customization-ready.
 
-**Architecture:** The default theme lives in `apps/saytu-site`: a `theme.css` token layer (the knobs, with defaults), a `Layout.astro` shell (head/fonts/header/footer), per-collection `PostLayout`/`PageLayout`, and token-driven prose. Blocks (`@setu/blocks`) already style via `var(--token, fallback)`, so defining the tokens makes every block render themed and match the editor. Pure CSS + Astro layouts.
+**Architecture:** The default theme lives in `apps/site`: a `theme.css` token layer (the knobs, with defaults), a `Layout.astro` shell (head/fonts/header/footer), per-collection `PostLayout`/`PageLayout`, and token-driven prose. Blocks (`@setu/blocks`) already style via `var(--token, fallback)`, so defining the tokens makes every block render themed and match the editor. Pure CSS + Astro layouts.
 
-**Tech Stack:** Astro 6 · CSS custom properties · Google Fonts via `<link>` (Hanken Grotesk + JetBrains Mono) · `@setu/blocks` (unchanged) · Vitest build-and-assert (extends `apps/saytu-site/test/render.test.ts`).
+**Tech Stack:** Astro 6 · CSS custom properties · Google Fonts via `<link>` (Hanken Grotesk + JetBrains Mono) · `@setu/blocks` (unchanged) · Vitest build-and-assert (extends `apps/site/test/render.test.ts`).
 
 ## Global Constraints
 
@@ -14,7 +14,7 @@
 - **Light-only, zero-JS.** No `client:*`, no theme-toggle script — every page must stay free of hydration islands / `<script>`.
 - **Tokens are the knobs.** Every taste choice (fonts, accent, radius, measures, type scale) is a CSS variable on `:root` with a sensible default. Changing a token restyles the site. "Sans body / indigo / those widths" are *defaults*, not hardcodes.
 - **Block tokens reuse the admin's names + values** (so `@setu/blocks/callout.css` renders themed and matches the editor): `--accent #4f46e5`, `--accent-strong #4338ca`, `--accent-soft`, `--bg #f7f7f8`, `--surface-2 #fbfbfc`, `--canvas #fff`, `--text #1a1a1f`, `--text-2 #54545d`, `--green #15935a`/`--green-soft`, `--amber #b7791f`/`--amber-soft`, `--red #d1453b`/`--red-soft`, `--r-md`/`--r-sm`, `--font-ui`.
-- **Only `apps/saytu-site/**` changes** (+ `pnpm-lock.yaml` only if deps shifted — they shouldn't). No `packages/*`, no `apps/saytu-admin/**`, no content write/round-trip path.
+- **Only `apps/site/**` changes** (+ `pnpm-lock.yaml` only if deps shifted — they shouldn't). No `packages/*`, no `apps/admin/**`, no content write/round-trip path.
 - **Out of scope:** the admin "Theme options" panel (3c); theme-as-swappable-`@setu/theme-*` + config override (3b); dark mode; post listing/archive/pagination/RSS/search; the editor→disk bridge.
 - Final state: `pnpm -r test` green (core 175, blocks 8, admin 178, the site suite extended), both apps build.
 
@@ -23,7 +23,7 @@
 ## File Structure
 
 ```
-apps/saytu-site/
+apps/site/
   src/
     styles/
       theme.css            NEW — the token layer (:root knobs + block tokens). Task 1.
@@ -49,18 +49,18 @@ apps/saytu-site/
 ### Task 1: Token layer + Layout shell
 
 **Files:**
-- Create: `apps/saytu-site/src/styles/theme.css`, `apps/saytu-site/src/layouts/Layout.astro`
-- Modify: `apps/saytu-site/src/styles/site.css`, `apps/saytu-site/src/pages/[...path].astro`, `apps/saytu-site/test/render.test.ts`
+- Create: `apps/site/src/styles/theme.css`, `apps/site/src/layouts/Layout.astro`
+- Modify: `apps/site/src/styles/site.css`, `apps/site/src/pages/[...path].astro`, `apps/site/test/render.test.ts`
 
 **Interfaces:**
 - Produces: `Layout.astro` — an Astro component with `Props { title: string }` and a default `<slot/>`; imports `theme.css` + `site.css`, renders the html/head (fonts + title) + a `.site-header` (brand + nav) + `<main>` + `.site-footer`. Tokens on `:root` (see theme.css).
 
-- [ ] **Step 1: Create `apps/saytu-site/src/styles/theme.css`**
+- [ ] **Step 1: Create `apps/site/src/styles/theme.css`**
 
 ```css
 /* Saytu default theme — token layer. Every taste choice is a knob with a default;
    change a token and the site restyles. Block tokens (names + values) are shared with
-   the editor (apps/saytu-admin tokens.css) so @setu/blocks render themed + matching. */
+   the editor (apps/admin tokens.css) so @setu/blocks render themed + matching. */
 :root {
   /* ---- Identity knobs (defaults — the customization surface) ---- */
   --font-heading: 'Hanken Grotesk', ui-sans-serif, system-ui, sans-serif;
@@ -103,7 +103,7 @@ apps/saytu-site/
 }
 ```
 
-- [ ] **Step 2: Add body/header/footer rules to `apps/saytu-site/src/styles/site.css`** (prepend these; leave the existing `.prose` rules for now — Task 3 rewrites them)
+- [ ] **Step 2: Add body/header/footer rules to `apps/site/src/styles/site.css`** (prepend these; leave the existing `.prose` rules for now — Task 3 rewrites them)
 
 ```css
 body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-body); -webkit-font-smoothing: antialiased; }
@@ -115,7 +115,7 @@ body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--
 .site-footer { max-width: var(--measure-page); margin: 4rem auto 0; padding: 1.5rem 1.25rem; border-top: 1px solid var(--border); color: var(--text-2); font-size: .9rem; }
 ```
 
-- [ ] **Step 3: Create `apps/saytu-site/src/layouts/Layout.astro`**
+- [ ] **Step 3: Create `apps/site/src/layouts/Layout.astro`**
 
 ```astro
 ---
@@ -156,7 +156,7 @@ const { title } = Astro.props
 </html>
 ```
 
-- [ ] **Step 4: Refactor `apps/saytu-site/src/pages/[...path].astro` to render through `Layout`**
+- [ ] **Step 4: Refactor `apps/site/src/pages/[...path].astro` to render through `Layout`**
 
 ```astro
 ---
@@ -183,7 +183,7 @@ const title = (entry.data as { title?: string }).title ?? entry.id
 ```
 (This drops the inline `import '../styles/site.css'` + the hand-written `<html>` — `Layout` owns them now.)
 
-- [ ] **Step 5: Write the failing assertions in `apps/saytu-site/test/render.test.ts`** (append a new `describe` at the end)
+- [ ] **Step 5: Write the failing assertions in `apps/site/test/render.test.ts`** (append a new `describe` at the end)
 
 ```ts
 describe('default theme — shell + tokens', () => {
@@ -217,12 +217,12 @@ describe('default theme — shell + tokens', () => {
 
 Run: `pnpm --filter @setu/site test`
 Expected: PASS once Steps 1–4 are in place.
-**Build-output note (verify, like the #1 CSS-inline finding):** after the first build, open `apps/saytu-site/dist/post/kitchen-sink/index.html`. (a) If `theme.css` is **inlined** (`<style>… --accent:#4f46e5 …`), the `#4f46e5` assertion holds as written. (b) If Astro **links** it (`<link rel="stylesheet" href="/_astro/…css">`), change that one assertion to assert the `<link rel="stylesheet">` is present AND read the emitted CSS file to confirm `--accent`. (c) Confirm the Google Fonts `<link>` actually lands in the built `<head>` — if Astro hoists/transforms it, adjust the `fonts.googleapis.com` assertion to the real emitted form. Report which branch you took.
+**Build-output note (verify, like the #1 CSS-inline finding):** after the first build, open `apps/site/dist/post/kitchen-sink/index.html`. (a) If `theme.css` is **inlined** (`<style>… --accent:#4f46e5 …`), the `#4f46e5` assertion holds as written. (b) If Astro **links** it (`<link rel="stylesheet" href="/_astro/…css">`), change that one assertion to assert the `<link rel="stylesheet">` is present AND read the emitted CSS file to confirm `--accent`. (c) Confirm the Google Fonts `<link>` actually lands in the built `<head>` — if Astro hoists/transforms it, adjust the `fonts.googleapis.com` assertion to the real emitted form. Report which branch you took.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add apps/saytu-site
+git add apps/site
 git commit -m "feat(site): default theme token layer + Layout shell (header/footer/fonts)"
 ```
 
@@ -231,14 +231,14 @@ git commit -m "feat(site): default theme token layer + Layout shell (header/foot
 ### Task 2: Post + Page templates by collection + home route
 
 **Files:**
-- Create: `apps/saytu-site/src/layouts/PostLayout.astro`, `apps/saytu-site/src/layouts/PageLayout.astro`, `apps/saytu-site/src/pages/index.astro`, `apps/saytu-site/content/page/en/home.mdoc`, `apps/saytu-site/content/page/en/about.mdoc`
-- Modify: `apps/saytu-site/src/styles/site.css`, `apps/saytu-site/src/pages/[...path].astro`, `apps/saytu-site/test/render.test.ts`
+- Create: `apps/site/src/layouts/PostLayout.astro`, `apps/site/src/layouts/PageLayout.astro`, `apps/site/src/pages/index.astro`, `apps/site/content/page/en/home.mdoc`, `apps/site/content/page/en/about.mdoc`
+- Modify: `apps/site/src/styles/site.css`, `apps/site/src/pages/[...path].astro`, `apps/site/test/render.test.ts`
 
 **Interfaces:**
 - Consumes: `Layout` (Task 1).
 - Produces: `PostLayout.astro` / `PageLayout.astro` — each `Props { title: string }`, wrap `Layout`, render `<article class="prose measure-post|measure-page"><slot/></article>`.
 
-- [ ] **Step 1: Add the measure classes to `apps/saytu-site/src/styles/site.css`**
+- [ ] **Step 1: Add the measure classes to `apps/site/src/styles/site.css`**
 
 ```css
 .measure-post { max-width: var(--measure-post); margin: 0 auto; }
@@ -247,7 +247,7 @@ git commit -m "feat(site): default theme token layer + Layout shell (header/foot
 
 - [ ] **Step 2: Create the two template layouts**
 
-`apps/saytu-site/src/layouts/PostLayout.astro`:
+`apps/site/src/layouts/PostLayout.astro`:
 ```astro
 ---
 import Layout from './Layout.astro'
@@ -259,7 +259,7 @@ const { title } = Astro.props
 </Layout>
 ```
 
-`apps/saytu-site/src/layouts/PageLayout.astro`:
+`apps/site/src/layouts/PageLayout.astro`:
 ```astro
 ---
 import Layout from './Layout.astro'
@@ -310,7 +310,7 @@ const TemplateLayout = collection === 'post' ? PostLayout : PageLayout
 ```
 (A capitalized component held in a variable is renderable in Astro. The `prose`/`measure-*` wrapper now lives in the layout, so it's removed from here.)
 
-- [ ] **Step 4: Create the home route `apps/saytu-site/src/pages/index.astro`**
+- [ ] **Step 4: Create the home route `apps/site/src/pages/index.astro`**
 
 ```astro
 ---
@@ -330,7 +330,7 @@ const title = (entry!.data as { title?: string }).title ?? 'Home'
 
 - [ ] **Step 5: Add the page fixtures**
 
-`apps/saytu-site/content/page/en/home.mdoc`:
+`apps/site/content/page/en/home.mdoc`:
 ```markdown
 ---
 title: Welcome to Saytu
@@ -345,7 +345,7 @@ A Git-backed CMS where content people run the site.
 - Render with this theme
 ```
 
-`apps/saytu-site/content/page/en/about.mdoc`:
+`apps/site/content/page/en/about.mdoc`:
 ```markdown
 ---
 title: About
@@ -354,7 +354,7 @@ title: About
 This is a standalone page, rendered with the wider Page template.
 ```
 
-- [ ] **Step 6: Add failing assertions to `apps/saytu-site/test/render.test.ts`** (append)
+- [ ] **Step 6: Add failing assertions to `apps/site/test/render.test.ts`** (append)
 
 ```ts
 describe('default theme — templates by collection', () => {
@@ -384,7 +384,7 @@ Expected: PASS — post uses `measure-post`, page + home use `measure-page`, hom
 - [ ] **Step 8: Commit**
 
 ```bash
-git add apps/saytu-site
+git add apps/site
 git commit -m "feat(site): Post/Page templates by collection + home route"
 ```
 
@@ -393,9 +393,9 @@ git commit -m "feat(site): Post/Page templates by collection + home route"
 ### Task 3: Token-driven prose / typography
 
 **Files:**
-- Modify: `apps/saytu-site/src/styles/site.css`, `apps/saytu-site/test/render.test.ts`
+- Modify: `apps/site/src/styles/site.css`, `apps/site/test/render.test.ts`
 
-- [ ] **Step 1: Replace the `.prose` block in `apps/saytu-site/src/styles/site.css`** (remove the old hardcoded `.prose*` rules from #1; keep the body/header/footer/measure rules added in Tasks 1–2) with token-driven prose:
+- [ ] **Step 1: Replace the `.prose` block in `apps/site/src/styles/site.css`** (remove the old hardcoded `.prose*` rules from #1; keep the body/header/footer/measure rules added in Tasks 1–2) with token-driven prose:
 
 ```css
 .prose { padding: 3rem 1.25rem 2rem; font-family: var(--font-body); font-size: var(--text-base); line-height: 1.7; color: var(--text); }
@@ -418,7 +418,7 @@ git commit -m "feat(site): Post/Page templates by collection + home route"
 .prose th { font-family: var(--font-heading); font-weight: 700; }
 ```
 
-- [ ] **Step 2: Add failing assertions to `apps/saytu-site/test/render.test.ts`** (append)
+- [ ] **Step 2: Add failing assertions to `apps/site/test/render.test.ts`** (append)
 
 ```ts
 describe('default theme — prose typography', () => {
@@ -453,7 +453,7 @@ Expected: PASS — prose references the tokens, and the existing callout/align/s
 - [ ] **Step 4: Commit**
 
 ```bash
-git add apps/saytu-site
+git add apps/site
 git commit -m "feat(site): token-driven prose typography"
 ```
 
@@ -466,7 +466,7 @@ git commit -m "feat(site): token-driven prose typography"
 - [ ] **Step 1: Whole-repo test suite**
 
 Run: `pnpm -r test`
-Expected: green — `@setu/core` 175, `@setu/blocks` 8, `apps/saytu-admin` 178 (untouched), `apps/saytu-site` (extended with the theme tests), all db/git suites.
+Expected: green — `@setu/core` 175, `@setu/blocks` 8, `apps/admin` 178 (untouched), `apps/site` (extended with the theme tests), all db/git suites.
 
 - [ ] **Step 2: Both apps build**
 
@@ -475,14 +475,14 @@ Expected: both succeed. The site build emits the home (`dist/index.html`), post,
 
 - [ ] **Step 3: Zero-JS holds across templates**
 
-Run: `grep -rl 'astro-island\|<script' apps/saytu-site/dist --include=*.html || echo "zero-JS ✓"`
+Run: `grep -rl 'astro-island\|<script' apps/site/dist --include=*.html || echo "zero-JS ✓"`
 Expected: `zero-JS ✓` (no hydration islands / scripts in any built page).
 
 - [ ] **Step 4: Scope guard**
 
-Run: `git diff --name-only <branch-base>..HEAD | grep -vE '^(apps/saytu-site/|pnpm-lock.yaml)' && echo "SCOPE VIOLATION" || echo "scope clean"`
+Run: `git diff --name-only <branch-base>..HEAD | grep -vE '^(apps/site/|pnpm-lock.yaml)' && echo "SCOPE VIOLATION" || echo "scope clean"`
 (`<branch-base>` = the commit the worktree branched from.)
-Expected: `scope clean` — no `packages/**`, no `apps/saytu-admin/**`, no content write/round-trip path touched.
+Expected: `scope clean` — no `packages/**`, no `apps/admin/**`, no content write/round-trip path touched.
 
 - [ ] **Step 5: Commit (only if verification fixups were needed)**
 

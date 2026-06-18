@@ -15,7 +15,7 @@ importers:
         specifier: ^5.6.3
         version: 5.9.3
 
-  apps/saytu-admin:
+  apps/admin:
     dependencies:
       '@fontsource-variable/hanken-grotesk':
         specifier: 5.2.8
@@ -130,7 +130,7 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.19.21)(jsdom@25.0.1)(lightningcss@1.32.0)
 
-  apps/saytu-api:
+  apps/api:
     dependencies:
       '@hono/node-server':
         specifier: 2.0.5
@@ -167,7 +167,7 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.19.21)(jsdom@25.0.1)(lightningcss@1.32.0)
 
-  apps/saytu-site:
+  apps/site:
     dependencies:
       '@astrojs/markdoc':
         specifier: 1.0.6
@@ -359,7 +359,7 @@ importers:
     devDependencies:
       '@setu/api':
         specifier: workspace:*
-        version: link:../../apps/saytu-api
+        version: link:../../apps/api
       '@setu/git-memory':
         specifier: workspace:*
         version: link:../git-memory

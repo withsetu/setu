@@ -35,7 +35,7 @@ inline toolbar — all round-tripping to Markdoc losslessly.
 ## Scope
 
 **In:**
-- **Callout node, rebuilt** (`apps/saytu-admin/src/editor/extensions/Callout.tsx`):
+- **Callout node, rebuilt** (`apps/admin/src/editor/extensions/Callout.tsx`):
   a titled layout — a header row (`icon` badge + an inline-editable **title**) and
   the **body** (`NodeViewContent`, block content). Reads `mdAttrs.type` (→ tone +
   default icon), `mdAttrs.title`, `mdAttrs.icon` (override); writes them via
@@ -58,7 +58,7 @@ inline toolbar — all round-tripping to Markdoc losslessly.
   (the default theme's variant set).
 - **Slash insert** creates a default callout (`type:'info'`, empty title, an empty
   body paragraph the cursor lands in).
-- **CSS** (`apps/saytu-admin/src/styles/editor.css`): the titled callout layout +
+- **CSS** (`apps/admin/src/styles/editor.css`): the titled callout layout +
   the six tones + the toolbar, ported/extended from `design/admin/editor.css`
   (`.blk-callout`, `.callout-head`, `.callout-title`, `.callout-body`,
   `.block-props`/swatches), using existing tokens.
@@ -98,15 +98,15 @@ inline toolbar — all round-tripping to Markdoc losslessly.
 ## Architecture / data flow
 
 ```
-apps/saytu-admin/src/editor/
+apps/admin/src/editor/
 ├── extensions/Callout.tsx     # REBUILT: titled node view + inline variant toolbar
 ├── callout-variants.ts        # NEW: default-theme type→{label,tone,icon} map +
 │                              #   a helper reading allowed types from resolveConfig
 └── blocks.ts                  # slash insert -> default titled callout
 packages/core/src/config/default-config.ts   # callout type enum expanded + icon?
-apps/saytu-admin/src/styles/editor.css        # titled callout + tones + toolbar
-apps/saytu-admin/test/editor-schema.test.tsx  # guard extended (typed+titled callout)
-apps/saytu-admin/test/callout-variants.test.tsx  # NEW: variants from config + insert
+apps/admin/src/styles/editor.css        # titled callout + tones + toolbar
+apps/admin/test/editor-schema.test.tsx  # guard extended (typed+titled callout)
+apps/admin/test/callout-variants.test.tsx  # NEW: variants from config + insert
 ```
 
 - The node view derives `variant = variantFor(mdAttrs.type)` from the default-theme

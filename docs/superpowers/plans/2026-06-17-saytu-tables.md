@@ -12,7 +12,7 @@
 - Markdoc.parse reads GFM tables into `table → thead/tbody → tr → th/td → inline`, with `:--`/`:-:`/`--:` → `align: "left"|"center"|"right"` on each th/td. Markdoc.format is idempotent for tables but **drops alignment + pads cells** — so we don't use it for tables.
 - A custom serializer that renders each cell's inline via `buildInline`+`Markdoc.format` (as a paragraph, trailing `\n` stripped) then escapes `\`→`\\`, `|`→`\|`, `\n`→`<br>` produces GFM that re-parses byte-faithfully: pipe-in-text, pipe-in-code-span, bold/link/code, empty cells, and per-column alignment all round-trip (spike-confirmed).
 - `@tiptap/extension-table` v3.26.1 (MIT) exports `TableKit` and (to verify on install) the individual `Table`, `TableRow`, `TableCell`, `TableHeader`. Commands: `insertTable({ rows, cols, withHeaderRow })`, `addRowBefore`/`addRowAfter`/`addColumnBefore`/`addColumnAfter`/`deleteRow`/`deleteColumn`/`deleteTable`. `Table` config `resizable` defaults false (keep it false — GFM has no column widths). It is NOT yet in the workspace (must be added + installed).
-- `table` is a defined `IconName` in `apps/saytu-admin/src/ui/Icon.tsx`. Slash insert pattern (`blocks.ts`): `(e,r) => e.chain().focus().deleteRange(r).<cmd>().run()` (see the `Divider` entry).
+- `table` is a defined `IconName` in `apps/admin/src/ui/Icon.tsx`. Slash insert pattern (`blocks.ts`): `(e,r) => e.chain().focus().deleteRange(r).<cmd>().run()` (see the `Divider` entry).
 - `to-markdoc.ts`: `buildInline` is module-private; `tiptapToMarkdoc` maps top-level blocks (passthrough bypasses `Markdoc.format`). `to-tiptap.ts`: `blockToTiptap` switch + `collectInline(node)` = `(node.children ?? []).flatMap(c => inlineToTiptap(c))`; `MdNode` type imported.
 - Edge guard: `pnpm --filter @setu/core typecheck` runs `tsc` + `tsc -p tsconfig.edge.json` — converter must stay Node-free (pure JS/Markdoc only).
 
@@ -28,12 +28,12 @@
 - `to-tiptap.ts` — `case 'table'` reader (Markdoc table → Tiptap table/row/cell{align}/paragraph).
 - `test/table.test.ts` (NEW), `test/to-tiptap.test.ts`, `test/roundtrip.examples.test.ts`.
 
-**Admin (`apps/saytu-admin/src/editor/`):**
+**Admin (`apps/admin/src/editor/`):**
 - `Canvas.tsx` — register Table/TableRow + cell nodes extended with `align`.
 - `blocks.ts` — "Table" slash insert.
 - `TableMenu.tsx` (NEW) — cell/table action menu (rows, cols, alignment, delete).
 - `styles/editor.css` — table + alignment + selected-cell styling.
-- `apps/saytu-admin/package.json` — `+ @tiptap/extension-table`.
+- `apps/admin/package.json` — `+ @tiptap/extension-table`.
 
 **Worktree:** Execute in an isolated worktree off `main` (native `EnterWorktree`); `pnpm install` + baseline `pnpm -r test` before Task 1.
 
@@ -370,13 +370,13 @@ git commit -m "test(core): table round-trip examples + pipe-escaping negatives"
 ## Task 4: Admin — register table extensions with a cell `align` attribute
 
 **Files:**
-- Modify: `apps/saytu-admin/package.json`
-- Modify: `apps/saytu-admin/src/editor/Canvas.tsx`
-- Test: `apps/saytu-admin/test/table.test.ts` (new)
+- Modify: `apps/admin/package.json`
+- Modify: `apps/admin/src/editor/Canvas.tsx`
+- Test: `apps/admin/test/table.test.ts` (new)
 
 - [ ] **Step 1: Add the dependency + install**
 
-Add to `apps/saytu-admin/package.json` `dependencies` (alphabetical among `@tiptap/extension-*`):
+Add to `apps/admin/package.json` `dependencies` (alphabetical among `@tiptap/extension-*`):
 
 ```json
     "@tiptap/extension-table": "^3.26.1",
@@ -398,7 +398,7 @@ Expected: `Table`, `TableRow`, `TableCell`, `TableHeader`, `TableKit` all presen
 
 - [ ] **Step 3: Write the failing test**
 
-Create `apps/saytu-admin/test/table.test.ts`:
+Create `apps/admin/test/table.test.ts`:
 
 ```ts
 import { describe, it, expect, afterEach } from 'vitest'
@@ -442,7 +442,7 @@ Expected: PASS once the dep resolves (the test defines its own extended cells; t
 
 - [ ] **Step 5: Register in Canvas**
 
-In `apps/saytu-admin/src/editor/Canvas.tsx`:
+In `apps/admin/src/editor/Canvas.tsx`:
 - Add import after the TaskList/TaskItem import:
   ```ts
   import { Table, TableRow, TableHeader, TableCell } from '@tiptap/extension-table'
@@ -475,7 +475,7 @@ Expected: all pass; build OK; existing tests green.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add apps/saytu-admin/package.json apps/saytu-admin/src/editor/Canvas.tsx apps/saytu-admin/test/table.test.ts pnpm-lock.yaml
+git add apps/admin/package.json apps/admin/src/editor/Canvas.tsx apps/admin/test/table.test.ts pnpm-lock.yaml
 git commit -m "feat(admin): register table extension with a cell align attribute"
 ```
 
@@ -484,12 +484,12 @@ git commit -m "feat(admin): register table extension with a cell align attribute
 ## Task 5: Admin — "Table" slash insert
 
 **Files:**
-- Modify: `apps/saytu-admin/src/editor/blocks.ts`
-- Test: `apps/saytu-admin/test/blocks.test.ts`
+- Modify: `apps/admin/src/editor/blocks.ts`
+- Test: `apps/admin/test/blocks.test.ts`
 
 - [ ] **Step 1: Write the failing test**
 
-In `apps/saytu-admin/test/blocks.test.ts`, after the existing `toContain('Divider')` / `toContain('Checklist')` assertions, add:
+In `apps/admin/test/blocks.test.ts`, after the existing `toContain('Divider')` / `toContain('Checklist')` assertions, add:
 
 ```ts
     expect(titles).toContain('Table')
@@ -502,7 +502,7 @@ Expected: FAIL — no 'Table' slash entry.
 
 - [ ] **Step 3: Implement**
 
-In `apps/saytu-admin/src/editor/blocks.ts`, add to the `BUILTINS` array (after the `Divider` entry):
+In `apps/admin/src/editor/blocks.ts`, add to the `BUILTINS` array (after the `Divider` entry):
 
 ```ts
   { title: 'Table', subtitle: 'Table with header row', icon: 'table', run: (e, r) => e.chain().focus().deleteRange(r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
@@ -523,7 +523,7 @@ Expected: clean.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/saytu-admin/src/editor/blocks.ts apps/saytu-admin/test/blocks.test.ts
+git add apps/admin/src/editor/blocks.ts apps/admin/test/blocks.test.ts
 git commit -m "feat(admin): slash-menu Table insert (3x3 with header row)"
 ```
 
@@ -532,15 +532,15 @@ git commit -m "feat(admin): slash-menu Table insert (3x3 with header row)"
 ## Task 6: Admin — table cell action menu (rows / columns / alignment / delete)
 
 **Files:**
-- Create: `apps/saytu-admin/src/editor/TableMenu.tsx`
-- Modify: `apps/saytu-admin/src/editor/Canvas.tsx` (render the menu)
-- Test: `apps/saytu-admin/test/table-menu.test.tsx` (new)
+- Create: `apps/admin/src/editor/TableMenu.tsx`
+- Modify: `apps/admin/src/editor/Canvas.tsx` (render the menu)
+- Test: `apps/admin/test/table-menu.test.tsx` (new)
 
 This menu appears when the caret is inside a table and offers the table actions. It uses Tiptap's `BubbleMenu` (from `@tiptap/react/menus`, already used by `FormatBubble`) with a distinct `pluginKey` and a `shouldShow` keyed to table context, so it coexists with the selection-based `FormatBubble`.
 
 - [ ] **Step 1: Write the failing test (commands wiring)**
 
-Create `apps/saytu-admin/test/table-menu.test.tsx`. Because BubbleMenu positioning needs a live view, test the **action callbacks** against a real editor rather than the floating UI:
+Create `apps/admin/test/table-menu.test.tsx`. Because BubbleMenu positioning needs a live view, test the **action callbacks** against a real editor rather than the floating UI:
 
 ```tsx
 import { describe, it, expect, afterEach } from 'vitest'
@@ -590,7 +590,7 @@ Expected: FAIL — `TableMenu`/`tableActions` does not exist.
 
 - [ ] **Step 3: Implement `TableMenu.tsx`**
 
-Create `apps/saytu-admin/src/editor/TableMenu.tsx`:
+Create `apps/admin/src/editor/TableMenu.tsx`:
 
 ```tsx
 import { BubbleMenu } from '@tiptap/react/menus'
@@ -645,7 +645,7 @@ Notes for the implementer:
 
 - [ ] **Step 4: Render the menu in Canvas**
 
-In `apps/saytu-admin/src/editor/Canvas.tsx`, import and render `TableMenu` next to `FormatBubble`:
+In `apps/admin/src/editor/Canvas.tsx`, import and render `TableMenu` next to `FormatBubble`:
 
 ```tsx
 import { TableMenu } from './TableMenu'
@@ -663,7 +663,7 @@ Expected: `tableActions` tests pass; full suite green; typecheck clean.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/saytu-admin/src/editor/TableMenu.tsx apps/saytu-admin/src/editor/Canvas.tsx apps/saytu-admin/test/table-menu.test.tsx
+git add apps/admin/src/editor/TableMenu.tsx apps/admin/src/editor/Canvas.tsx apps/admin/test/table-menu.test.tsx
 git commit -m "feat(admin): table cell action menu (rows, columns, alignment, delete)"
 ```
 
@@ -672,11 +672,11 @@ git commit -m "feat(admin): table cell action menu (rows, columns, alignment, de
 ## Task 7: Admin — table CSS + final verification
 
 **Files:**
-- Modify: `apps/saytu-admin/src/styles/editor.css`
+- Modify: `apps/admin/src/styles/editor.css`
 
 - [ ] **Step 1: Add CSS**
 
-In `apps/saytu-admin/src/styles/editor.css`, after the task-list block, add (match the existing token style; verify `--border`/`--border-strong`/`--surface`/`--bg-sunken` exist via grep, substitute defined tokens if not):
+In `apps/admin/src/styles/editor.css`, after the task-list block, add (match the existing token style; verify `--border`/`--border-strong`/`--surface`/`--bg-sunken` exist via grep, substitute defined tokens if not):
 
 ```css
 /* ---- Tables ---- */
@@ -703,7 +703,7 @@ Expected: succeeds (no CSS errors).
 - [ ] **Step 3: Commit**
 
 ```bash
-git add apps/saytu-admin/src/styles/editor.css
+git add apps/admin/src/styles/editor.css
 git commit -m "feat(admin): table + alignment + selected-cell styling"
 ```
 

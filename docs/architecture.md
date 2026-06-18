@@ -180,7 +180,7 @@ Because Git is canonical, **switching topology never loses published content** â
 
 ## The in-browser bet
 
-Today's admin app (`apps/saytu-admin`) runs the **entire `@setu/core` engine plus the in-memory
+Today's admin app (`apps/admin`) runs the **entire `@setu/core` engine plus the in-memory
 adapters (`git-memory` + `db-memory`) directly in the browser** â€” no server. The publish service,
 the lifecycle engine, the content list, deploy: all of it executes client-side against a `Map`.
 

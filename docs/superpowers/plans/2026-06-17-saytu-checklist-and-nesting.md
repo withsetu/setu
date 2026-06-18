@@ -26,13 +26,13 @@
 - `to-markdoc.ts` — `buildBlock` list branch handles `taskList` + recurses nested lists via a `buildListItem` helper.
 - `test/to-tiptap.test.ts`, `test/to-markdoc.test.ts`, `test/roundtrip.examples.test.ts` — checklist + nesting + negatives.
 
-**Admin editor (`apps/saytu-admin/src/editor/`)**:
+**Admin editor (`apps/admin/src/editor/`)**:
 - `Canvas.tsx` — register `TaskList` + `TaskItem.configure({ nested: true })`.
 - `block-types.ts` — one `taskList` BlockType + add to List group.
 - `blocks.ts` — `taskList` slash-menu subtitle.
 - `extensions/KeyboardShortcuts.ts` — Tab sink + Shift-Tab lift for `listItem` AND `taskItem`.
 - `styles/editor.css` — task checkbox layout + nested-list indentation.
-- `apps/saytu-admin/package.json` — `+ @tiptap/extension-list`.
+- `apps/admin/package.json` — `+ @tiptap/extension-list`.
 
 **Worktree:** Execute in an isolated worktree off `main` (use `superpowers:using-git-worktrees` / native `EnterWorktree`). Run `pnpm install` and a baseline `pnpm -r test` before Task 1.
 
@@ -433,15 +433,15 @@ git commit -m "test(core): checklist + nesting round-trip examples and negatives
 ## Task 4: Register TaskList + TaskItem in the editor
 
 **Files:**
-- Modify: `apps/saytu-admin/package.json`
-- Modify: `apps/saytu-admin/src/editor/Canvas.tsx`
-- Test: `apps/saytu-admin/test/task-list.test.ts` (new; admin tests live in `apps/saytu-admin/test/`, jsdom env, setup `./test/setup.ts`)
+- Modify: `apps/admin/package.json`
+- Modify: `apps/admin/src/editor/Canvas.tsx`
+- Test: `apps/admin/test/task-list.test.ts` (new; admin tests live in `apps/admin/test/`, jsdom env, setup `./test/setup.ts`)
 
 Add the MIT `@tiptap/extension-list` dependency and register the two nodes. `TaskItem` must be configured `nested: true` so checklists can nest (default is `false`, which forbids nested blocks).
 
 - [ ] **Step 1: Add the dependency**
 
-In `apps/saytu-admin/package.json`, add to `dependencies` (alphabetically near the other `@tiptap/extension-*` entries):
+In `apps/admin/package.json`, add to `dependencies` (alphabetically near the other `@tiptap/extension-*` entries):
 
 ```json
     "@tiptap/extension-list": "^3.26.1",
@@ -454,7 +454,7 @@ Expected: lockfile updates; `@tiptap/extension-list` resolves to 3.26.1.
 
 - [ ] **Step 2: Write the failing test**
 
-Create `apps/saytu-admin/test/task-list.test.ts` (mirrors the `Editor`+StarterKit harness used in `test/tab-nav.test.ts`). The behavior to assert: a configured editor can toggle a task list:
+Create `apps/admin/test/task-list.test.ts` (mirrors the `Editor`+StarterKit harness used in `test/tab-nav.test.ts`). The behavior to assert: a configured editor can toggle a task list:
 
 ```ts
 import { describe, it, expect, afterEach } from 'vitest'
@@ -484,7 +484,7 @@ Expected: FAIL until `@tiptap/extension-list` is installed (Step 1) — the impo
 
 - [ ] **Step 4: Register in Canvas**
 
-In `apps/saytu-admin/src/editor/Canvas.tsx`, add the import after the Superscript import (line ~6):
+In `apps/admin/src/editor/Canvas.tsx`, add the import after the Superscript import (line ~6):
 
 ```ts
 import { TaskList, TaskItem } from '@tiptap/extension-list'
@@ -505,7 +505,7 @@ Expected: PASS; build OK (fonts + jiti-free, no bundle errors).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/saytu-admin/package.json apps/saytu-admin/src/editor/Canvas.tsx apps/saytu-admin/test/task-list.test.ts pnpm-lock.yaml
+git add apps/admin/package.json apps/admin/src/editor/Canvas.tsx apps/admin/test/task-list.test.ts pnpm-lock.yaml
 git commit -m "feat(admin): register TaskList + nested TaskItem in the editor"
 ```
 
@@ -514,15 +514,15 @@ git commit -m "feat(admin): register TaskList + nested TaskItem in the editor"
 ## Task 5: Surface Checklist in block-types (slash menu + bubble List group)
 
 **Files:**
-- Modify: `apps/saytu-admin/src/editor/block-types.ts`
-- Modify: `apps/saytu-admin/src/editor/blocks.ts`
-- Test: `apps/saytu-admin/test/turn-into-groups.test.ts` (existing — has a hard-coded List-group shape assertion that MUST be updated), `apps/saytu-admin/test/blocks.test.ts` (existing — slash menu)
+- Modify: `apps/admin/src/editor/block-types.ts`
+- Modify: `apps/admin/src/editor/blocks.ts`
+- Test: `apps/admin/test/turn-into-groups.test.ts` (existing — has a hard-coded List-group shape assertion that MUST be updated), `apps/admin/test/blocks.test.ts` (existing — slash menu)
 
 One `BLOCK_TYPES` entry feeds both surfaces. Adding it to the List group makes the bubble show Bullet/Numbered/Checklist; the slash menu picks it up via the `BLOCK_TYPES` map (add a subtitle).
 
 - [ ] **Step 1: Update the existing breaking assertion + add new tests**
 
-In `apps/saytu-admin/test/turn-into-groups.test.ts`, the shape test hard-codes the List group. Change `'group:list[bulletList,orderedList]'` to `'group:list[bulletList,orderedList,taskList]'` in the `expect(shape).toEqual([...])` array. Then add a new describe to the same file:
+In `apps/admin/test/turn-into-groups.test.ts`, the shape test hard-codes the List group. Change `'group:list[bulletList,orderedList]'` to `'group:list[bulletList,orderedList,taskList]'` in the `expect(shape).toEqual([...])` array. Then add a new describe to the same file:
 
 ```ts
 describe('checklist block type', () => {
@@ -540,7 +540,7 @@ describe('checklist block type', () => {
 })
 ```
 
-In `apps/saytu-admin/test/blocks.test.ts`, add to the slash-menu titles test (the one asserting `toContain('Divider')`) an assertion that the Checklist entry is present:
+In `apps/admin/test/blocks.test.ts`, add to the slash-menu titles test (the one asserting `toContain('Divider')`) an assertion that the Checklist entry is present:
 
 ```ts
     expect(titles).toContain('Checklist')
@@ -553,7 +553,7 @@ Expected: FAIL — no `taskList` entry; List group has two items; no 'Checklist'
 
 - [ ] **Step 3: Implement**
 
-In `apps/saytu-admin/src/editor/block-types.ts`, add to the `BLOCK_TYPES` array after the `codeBlock` entry:
+In `apps/admin/src/editor/block-types.ts`, add to the `BLOCK_TYPES` array after the `codeBlock` entry:
 
 ```ts
   { id: 'taskList', label: 'Checklist', icon: 'check', keys: ['Mod', 'Shift', '9'], isActive: (e) => e.isActive('taskList'), setOn: (c) => c.toggleTaskList() },
@@ -565,7 +565,7 @@ And change the List group line in `TURN_INTO_GROUPS` to include the third item:
   { kind: 'group', id: 'list', label: 'List', icon: 'forms', items: [byId('bulletList'), byId('orderedList'), byId('taskList')] },
 ```
 
-In `apps/saytu-admin/src/editor/blocks.ts`, add to the `SUBTITLES` record:
+In `apps/admin/src/editor/blocks.ts`, add to the `SUBTITLES` record:
 
 ```ts
   taskList: 'Checklist with checkboxes',
@@ -584,7 +584,7 @@ Expected: PASS — `setOn: (c) => c.toggleTaskList()` typechecks (`@tiptap/exten
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/saytu-admin/src/editor/block-types.ts apps/saytu-admin/src/editor/blocks.ts apps/saytu-admin/test/turn-into-groups.test.ts apps/saytu-admin/test/blocks.test.ts
+git add apps/admin/src/editor/block-types.ts apps/admin/src/editor/blocks.ts apps/admin/test/turn-into-groups.test.ts apps/admin/test/blocks.test.ts
 git commit -m "feat(admin): surface Checklist in slash menu + bubble List group"
 ```
 
@@ -593,14 +593,14 @@ git commit -m "feat(admin): surface Checklist in slash menu + bubble List group"
 ## Task 6: Tab/Shift-Tab indent-outdent for both list kinds
 
 **Files:**
-- Modify: `apps/saytu-admin/src/editor/extensions/KeyboardShortcuts.ts`
-- Test: `apps/saytu-admin/test/tab-nav.test.ts` (existing — already tests `tabActionFor` with a StarterKit-only `make()` helper)
+- Modify: `apps/admin/src/editor/extensions/KeyboardShortcuts.ts`
+- Test: `apps/admin/test/tab-nav.test.ts` (existing — already tests `tabActionFor` with a StarterKit-only `make()` helper)
 
 `tabActionFor` must report `'indent'` for a caret in a `taskItem` as well as a `listItem`, and the Tab/Shift-Tab handlers must sink/lift the ACTIVE item type. The "Tab never escapes the editor body" guarantee stays (Tab always returns true).
 
 - [ ] **Step 1: Write the failing test**
 
-In `apps/saytu-admin/test/tab-nav.test.ts`, add a task-aware editor factory and a test (the existing `make()` only registers StarterKit, which lacks TaskList). Add near the top imports:
+In `apps/admin/test/tab-nav.test.ts`, add a task-aware editor factory and a test (the existing `make()` only registers StarterKit, which lacks TaskList). Add near the top imports:
 
 ```ts
 import { TaskList, TaskItem } from '@tiptap/extension-list'
@@ -630,7 +630,7 @@ Expected: FAIL — `tabActionFor` returns `'consume'` for a task item (only chec
 
 - [ ] **Step 3: Implement**
 
-In `apps/saytu-admin/src/editor/extensions/KeyboardShortcuts.ts`:
+In `apps/admin/src/editor/extensions/KeyboardShortcuts.ts`:
 
 Update `tabActionFor`:
 
@@ -676,7 +676,7 @@ Expected: PASS — `sinkListItem`/`liftListItem` accept the item-type-name strin
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/saytu-admin/src/editor/extensions/KeyboardShortcuts.ts apps/saytu-admin/test/tab-nav.test.ts
+git add apps/admin/src/editor/extensions/KeyboardShortcuts.ts apps/admin/test/tab-nav.test.ts
 git commit -m "feat(admin): Tab/Shift-Tab indent-outdent for task items and list items"
 ```
 
@@ -685,13 +685,13 @@ git commit -m "feat(admin): Tab/Shift-Tab indent-outdent for task items and list
 ## Task 7: CSS — task checkbox layout + nested indentation
 
 **Files:**
-- Modify: `apps/saytu-admin/src/editor/styles/editor.css`
+- Modify: `apps/admin/src/editor/styles/editor.css`
 
 Style the TaskItem render (`<li data-type="taskItem"><label><input type=checkbox/></label><div>content</div></li>`) so the checkbox sits beside the content with no list marker, and verify nested lists indent sensibly. This is a visual task; verification is manual via `pnpm dev` plus a build check.
 
 - [ ] **Step 1: Add the CSS**
 
-In `apps/saytu-admin/src/editor/styles/editor.css`, after the existing `.saytu-prose li::marker` rule (~line 120), add:
+In `apps/admin/src/editor/styles/editor.css`, after the existing `.saytu-prose li::marker` rule (~line 120), add:
 
 ```css
 /* ---- Task list (checklist) ---- */
@@ -723,7 +723,7 @@ Verify in the browser:
 - [ ] **Step 4: Commit**
 
 ```bash
-git add apps/saytu-admin/src/editor/styles/editor.css
+git add apps/admin/src/editor/styles/editor.css
 git commit -m "feat(admin): checklist checkbox styling + nested list layout"
 ```
 

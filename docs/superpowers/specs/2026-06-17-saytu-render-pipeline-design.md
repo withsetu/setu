@@ -9,7 +9,7 @@
 **shipped** editor block to correct, static HTML — the first time Saytu's authored content
 becomes a visible website.
 
-**Architecture:** a new `apps/saytu-site` Astro app using `@astrojs/markdoc` (+ `@astrojs/react`
+**Architecture:** a new `apps/site` Astro app using `@astrojs/markdoc` (+ `@astrojs/react`
 for the one custom React component). Standard Markdoc nodes render natively; the editor's
 custom constructs (callout, align, sub/sup, checklist, table-column align) are wired via
 `markdoc.config` using the techniques the spikes proved. Read-only over content (the
@@ -24,7 +24,7 @@ render abstraction, no codegen, no editor changes** in this increment.
 ## 1. Scope
 
 ### In scope
-- A new `apps/saytu-site` Astro app that renders a **page per content entry** from a
+- A new `apps/site` Astro app that renders a **page per content entry** from a
   committed sample `content/` directory.
 - Correct static-HTML rendering of every shipped block:
   - **Standard nodes** — headings, paragraphs, lists, blockquotes, code fences, horizontal
@@ -45,7 +45,7 @@ render abstraction, no codegen, no editor changes** in this increment.
   (sub-project #3). #1 renders content bodies + a minimal title; it is not a navigable site.
 - **Unifying editor + site onto one shared callout core** → sub-project #2. #1 authors the
   site's callout core standalone (shaped for later extraction), and does **not** modify
-  `apps/saytu-admin`.
+  `apps/admin`.
 - **Codegen / auto-generated wrappers / zod→Markdoc attribute derivation** → sub-project #4.
 - **The editor→disk content bridge** (Hono API + `git-local`). #1 reads a committed sample
   `content/` dir; wiring the live editor's output to on-disk Git is a separate increment.
@@ -59,7 +59,7 @@ render abstraction, no codegen, no editor changes** in this increment.
 ## 2. App structure & content source
 
 ```
-apps/saytu-site/
+apps/site/
   astro.config.mjs            integrations: markdoc(), react()
   markdoc.config.mjs          the render mapping (tags + node overrides) — the heart of #1
   package.json
@@ -102,7 +102,7 @@ a faithful page; the theme (#3) refines its placement/markup.
 ## 3. The render mapping (`markdoc.config.mjs`) — proven techniques
 
 All of the following are demonstrated working in `prototype/astro-preview` (pages `/preview`,
-`/pres`). #1 ports them into `apps/saytu-site`.
+`/pres`). #1 ports them into `apps/site`.
 
 ### 3a. Standard nodes
 Native `@astrojs/markdoc`. No config beyond the overrides below. Styled by the baseline CSS.
@@ -202,18 +202,18 @@ No design tokens / theme system here.
 - a "zero-JS" assertion: no hydration island / no `<script>` referenced by the page
 - standard nodes: a representative bold/link/list/code assertion
 
-Existing `@setu/core` + `apps/saytu-admin` test suites are untouched and stay green.
+Existing `@setu/core` + `apps/admin` test suites are untouched and stay green.
 
 ---
 
 ## 6. Success criteria
 
-1. `apps/saytu-site` builds and renders a page per sample entry.
+1. `apps/site` builds and renders a page per sample entry.
 2. Every shipped block renders to correct static HTML per §3 (proven by §5 tests).
 3. Zero JS shipped for static content (no hydration island).
 4. The callout renders through a single React core via a wrapper, with its tag known from
    `saytu.config` rather than hardcoded.
-5. No changes to `apps/saytu-admin` or any content write/round-trip path.
+5. No changes to `apps/admin` or any content write/round-trip path.
 6. Out-of-scope items (§1) are absent — no theme, codegen, SSR, or editor bridge crept in.
 
 ---

@@ -71,7 +71,7 @@ packages/core/src/authz/                 # NEW (pure, edge-safe)
 └── authz.ts        # createAuthz(matrix).can(actor, action)
 packages/core/src/lifecycle/             # NEW (pure)
 └── derive.ts       # deriveLifecycle({draft, committed, deployed}) -> {state, pending}
-apps/saytu-admin/src/
+apps/admin/src/
 ├── data/store.tsx          # + publish service; + DeployState + ActorContext
 ├── auth/actor.tsx          # useActor() -> constant Owner; useCan()
 ├── deploy/deploy.tsx       # DeployProvider: snapshot + sha + deploy(); useDeploy()

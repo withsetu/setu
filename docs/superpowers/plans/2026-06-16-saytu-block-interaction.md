@@ -16,30 +16,30 @@
 
 | File | Responsibility | Task |
 | --- | --- | --- |
-| `apps/saytu-admin/package.json` | declare `@tiptap/pm` dependency | 1 |
-| `apps/saytu-admin/src/editor/block-reorder.ts` | pure `moveBlock(doc, tr, from, to)` — the reorder math | 1 |
-| `apps/saytu-admin/src/editor/extensions/BlockActions.ts` | Tiptap extension: move/duplicate/delete commands + Alt-Shift-↑/↓ | 1 |
-| `apps/saytu-admin/src/editor/Canvas.tsx` | register `BlockActions` + `DragHandle` | 1, 2 |
-| `apps/saytu-admin/src/editor/extensions/DragHandle.tsx` | PM plugin: hover grip + drag-reorder (reuses `moveBlock`) + opens menu | 2 |
-| `apps/saytu-admin/src/editor/extensions/BlockMenu.tsx` | `role=menu` popover wired to the commands | 3 |
-| `apps/saytu-admin/src/editor/extensions/Callout.tsx` | title↔body keyboard nav | 4 |
-| `apps/saytu-admin/src/styles/editor.css` | grip / drop indicator / block menu styles | 5 |
-| `apps/saytu-admin/test/*` | tests per task | 1–4 |
+| `apps/admin/package.json` | declare `@tiptap/pm` dependency | 1 |
+| `apps/admin/src/editor/block-reorder.ts` | pure `moveBlock(doc, tr, from, to)` — the reorder math | 1 |
+| `apps/admin/src/editor/extensions/BlockActions.ts` | Tiptap extension: move/duplicate/delete commands + Alt-Shift-↑/↓ | 1 |
+| `apps/admin/src/editor/Canvas.tsx` | register `BlockActions` + `DragHandle` | 1, 2 |
+| `apps/admin/src/editor/extensions/DragHandle.tsx` | PM plugin: hover grip + drag-reorder (reuses `moveBlock`) + opens menu | 2 |
+| `apps/admin/src/editor/extensions/BlockMenu.tsx` | `role=menu` popover wired to the commands | 3 |
+| `apps/admin/src/editor/extensions/Callout.tsx` | title↔body keyboard nav | 4 |
+| `apps/admin/src/styles/editor.css` | grip / drop indicator / block menu styles | 5 |
+| `apps/admin/test/*` | tests per task | 1–4 |
 
 ---
 
 ## Task 1: `moveBlock` pure fn + `BlockActions` commands
 
 **Files:**
-- Modify: `apps/saytu-admin/package.json`
-- Create: `apps/saytu-admin/src/editor/block-reorder.ts`
-- Create: `apps/saytu-admin/src/editor/extensions/BlockActions.ts`
-- Modify: `apps/saytu-admin/src/editor/Canvas.tsx`
-- Test: `apps/saytu-admin/test/block-reorder.test.tsx`, `apps/saytu-admin/test/block-actions.test.tsx`
+- Modify: `apps/admin/package.json`
+- Create: `apps/admin/src/editor/block-reorder.ts`
+- Create: `apps/admin/src/editor/extensions/BlockActions.ts`
+- Modify: `apps/admin/src/editor/Canvas.tsx`
+- Test: `apps/admin/test/block-reorder.test.tsx`, `apps/admin/test/block-actions.test.tsx`
 
 - [ ] **Step 1: Declare the `@tiptap/pm` dependency**
 
-In `apps/saytu-admin/package.json`, add to `dependencies` (keep alphabetical-ish with the other `@tiptap/*` entries):
+In `apps/admin/package.json`, add to `dependencies` (keep alphabetical-ish with the other `@tiptap/*` entries):
 
 ```json
     "@tiptap/pm": "^3.26.1",
@@ -51,7 +51,7 @@ Expected: resolves; `@tiptap/pm` is now a declared dep (it was already in the tr
 
 - [ ] **Step 2: Write the failing test for `moveBlock`**
 
-Create `apps/saytu-admin/test/block-reorder.test.tsx`:
+Create `apps/admin/test/block-reorder.test.tsx`:
 
 ```tsx
 import { describe, it, expect, afterEach } from 'vitest'
@@ -122,7 +122,7 @@ Expected: FAIL — `moveBlock` is not exported.
 
 - [ ] **Step 4: Implement `moveBlock`**
 
-Create `apps/saytu-admin/src/editor/block-reorder.ts`:
+Create `apps/admin/src/editor/block-reorder.ts`:
 
 ```ts
 import type { Node as PMNode } from '@tiptap/pm/model'
@@ -171,7 +171,7 @@ Expected: PASS (4 tests).
 
 - [ ] **Step 6: Write the failing test for `BlockActions`**
 
-Create `apps/saytu-admin/test/block-actions.test.tsx`:
+Create `apps/admin/test/block-actions.test.tsx`:
 
 ```tsx
 import { describe, it, expect, afterEach } from 'vitest'
@@ -268,7 +268,7 @@ Expected: FAIL — `BlockActions` is not exported.
 
 - [ ] **Step 8: Implement `BlockActions`**
 
-Create `apps/saytu-admin/src/editor/extensions/BlockActions.ts`:
+Create `apps/admin/src/editor/extensions/BlockActions.ts`:
 
 ```ts
 import { Extension } from '@tiptap/core'
@@ -371,7 +371,7 @@ Expected: PASS (5 tests).
 
 - [ ] **Step 10: Register `BlockActions` in the Canvas**
 
-In `apps/saytu-admin/src/editor/Canvas.tsx`, add the import and put it in the extensions array:
+In `apps/admin/src/editor/Canvas.tsx`, add the import and put it in the extensions array:
 
 ```tsx
 import { BlockActions } from './extensions/BlockActions'
@@ -396,7 +396,7 @@ Expected: PASS (existing suite green; new tests green; strict TS clean).
 - [ ] **Step 12: Commit**
 
 ```bash
-git add apps/saytu-admin/package.json apps/saytu-admin/src/editor/block-reorder.ts apps/saytu-admin/src/editor/extensions/BlockActions.ts apps/saytu-admin/src/editor/Canvas.tsx apps/saytu-admin/test/block-reorder.test.tsx apps/saytu-admin/test/block-actions.test.tsx pnpm-lock.yaml
+git add apps/admin/package.json apps/admin/src/editor/block-reorder.ts apps/admin/src/editor/extensions/BlockActions.ts apps/admin/src/editor/Canvas.tsx apps/admin/test/block-reorder.test.tsx apps/admin/test/block-actions.test.tsx pnpm-lock.yaml
 git commit -m "feat(editor): block move/duplicate/delete commands + Alt-Shift-arrow shortcuts
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -407,15 +407,15 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ## Task 2: `DragHandle` plugin — hover grip + drag-to-reorder
 
 **Files:**
-- Create: `apps/saytu-admin/src/editor/extensions/DragHandle.tsx`
-- Modify: `apps/saytu-admin/src/editor/Canvas.tsx`
-- Test: `apps/saytu-admin/test/drag-handle.test.tsx`
+- Create: `apps/admin/src/editor/extensions/DragHandle.tsx`
+- Modify: `apps/admin/src/editor/Canvas.tsx`
+- Test: `apps/admin/test/drag-handle.test.tsx`
 
 **Context:** A ProseMirror plugin (via `addProseMirrorPlugins`, like `SlashCommand`) that renders one reusable grip element in the editor's left gutter, positions it against the top-level block under the pointer, and reorders via the shared `moveBlock` on drop. The grip exposes a callback the menu (Task 3) hooks into. Drag-and-drop over real HTML5 events is validated manually (`pnpm dev`); the automated test covers the index-mapping helper that translates a drop position into `moveBlock` indices (the logic most likely to be wrong), since `moveBlock` itself is already tested.
 
 - [ ] **Step 1: Write the failing test for the drop-index helper**
 
-Create `apps/saytu-admin/test/drag-handle.test.tsx`:
+Create `apps/admin/test/drag-handle.test.tsx`:
 
 ```tsx
 import { describe, it, expect } from 'vitest'
@@ -450,7 +450,7 @@ Expected: FAIL — `dropTargetIndex` is not exported.
 
 - [ ] **Step 3: Implement `DragHandle`**
 
-Create `apps/saytu-admin/src/editor/extensions/DragHandle.tsx`:
+Create `apps/admin/src/editor/extensions/DragHandle.tsx`:
 
 ```tsx
 import { Extension } from '@tiptap/core'
@@ -606,7 +606,7 @@ Expected: PASS (4 tests for `dropTargetIndex`).
 
 - [ ] **Step 5: Register `DragHandle` in the Canvas (menu wired in Task 3)**
 
-In `apps/saytu-admin/src/editor/Canvas.tsx` add the import and the extension. For now register it without `onMenu` (Task 3 supplies the handler):
+In `apps/admin/src/editor/Canvas.tsx` add the import and the extension. For now register it without `onMenu` (Task 3 supplies the handler):
 
 ```tsx
 import { DragHandle } from './extensions/DragHandle'
@@ -630,7 +630,7 @@ Expected: PASS. (Grip renders in the app; DnD verified manually in Step 7.)
 - [ ] **Step 8: Commit**
 
 ```bash
-git add apps/saytu-admin/src/editor/extensions/DragHandle.tsx apps/saytu-admin/src/editor/Canvas.tsx apps/saytu-admin/test/drag-handle.test.tsx
+git add apps/admin/src/editor/extensions/DragHandle.tsx apps/admin/src/editor/Canvas.tsx apps/admin/test/drag-handle.test.tsx
 git commit -m "feat(editor): drag handle grip + drag-to-reorder (own plugin, no yjs)
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -641,15 +641,15 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ## Task 3: `BlockMenu` — the role=menu popover
 
 **Files:**
-- Create: `apps/saytu-admin/src/editor/extensions/BlockMenu.tsx`
-- Modify: `apps/saytu-admin/src/editor/Canvas.tsx`
-- Test: `apps/saytu-admin/test/block-menu.test.tsx`
+- Create: `apps/admin/src/editor/extensions/BlockMenu.tsx`
+- Modify: `apps/admin/src/editor/Canvas.tsx`
+- Test: `apps/admin/test/block-menu.test.tsx`
 
 **Context:** A self-contained React menu component, rendered + positioned with `tippy.js` (already a dep, same as `SlashCommand`). It takes the four actions and an `onClose`, renders `role="menu"` with `role="menuitem"` buttons, supports ↑/↓/Enter/Esc, and disables Move up at the first block / Move down at the last. Task 2's `DragHandle.onMenu` will mount it; this task builds + tests the component in isolation, then wires it into the Canvas.
 
 - [ ] **Step 1: Write the failing test**
 
-Create `apps/saytu-admin/test/block-menu.test.tsx`:
+Create `apps/admin/test/block-menu.test.tsx`:
 
 ```tsx
 import { describe, it, expect, vi, afterEach } from 'vitest'
@@ -707,7 +707,7 @@ Expected: FAIL — `BlockMenu` is not exported.
 
 - [ ] **Step 3: Implement `BlockMenu`**
 
-Create `apps/saytu-admin/src/editor/extensions/BlockMenu.tsx`:
+Create `apps/admin/src/editor/extensions/BlockMenu.tsx`:
 
 ```tsx
 import { useEffect, useRef, useState } from 'react'
@@ -796,7 +796,7 @@ export function BlockMenu({
 }
 ```
 
-> **Icon check (verified against `src/ui/Icon.tsx`):** `chevDown`, `copy`, `trash` already exist; **`chevUp` does NOT** — add it to the `ICONS` map in `apps/saytu-admin/src/ui/Icon.tsx` (mirroring `chevDown: 'm6 9 6 6 6-6'`), so the `IconName` union includes it and the menu typechecks:
+> **Icon check (verified against `src/ui/Icon.tsx`):** `chevDown`, `copy`, `trash` already exist; **`chevUp` does NOT** — add it to the `ICONS` map in `apps/admin/src/ui/Icon.tsx` (mirroring `chevDown: 'm6 9 6 6 6-6'`), so the `IconName` union includes it and the menu typechecks:
 >
 > ```ts
 >   chevUp: '<path d="m6 15 6-6 6 6"/>',
@@ -811,7 +811,7 @@ Expected: PASS (4 tests).
 
 - [ ] **Step 5: Wire the menu into the Canvas via `DragHandle.onMenu`**
 
-In `apps/saytu-admin/src/editor/Canvas.tsx`, mount the menu with `tippy` when the grip requests it. Replace the bare `DragHandle` registration with a configured one. Add imports:
+In `apps/admin/src/editor/Canvas.tsx`, mount the menu with `tippy` when the grip requests it. Replace the bare `DragHandle` registration with a configured one. Add imports:
 
 ```tsx
 import { ReactRenderer } from '@tiptap/react'
@@ -897,7 +897,7 @@ Expected: PASS.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add apps/saytu-admin/src/editor/extensions/BlockMenu.tsx apps/saytu-admin/src/editor/extensions/DragHandle.tsx apps/saytu-admin/src/editor/Canvas.tsx apps/saytu-admin/src/ui/Icon.tsx apps/saytu-admin/test/block-menu.test.tsx
+git add apps/admin/src/editor/extensions/BlockMenu.tsx apps/admin/src/editor/extensions/DragHandle.tsx apps/admin/src/editor/Canvas.tsx apps/admin/src/ui/Icon.tsx apps/admin/test/block-menu.test.tsx
 git commit -m "feat(editor): block actions menu (role=menu) on the drag-handle grip
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -908,14 +908,14 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ## Task 4: Callout title↔body keyboard navigation
 
 **Files:**
-- Modify: `apps/saytu-admin/src/editor/extensions/Callout.tsx`
-- Test: `apps/saytu-admin/test/callout-keyboard.test.tsx`
+- Modify: `apps/admin/src/editor/extensions/Callout.tsx`
+- Test: `apps/admin/test/callout-keyboard.test.tsx`
 
 **Context:** Today the callout title `<input>` calls `e.stopPropagation()` on every keydown, trapping the keyboard there. `CalloutView` gets `editor` and `getPos` from `ReactNodeViewProps`. We move into the body on ↓/Enter and back to the title on ↑ at body start.
 
 - [ ] **Step 1: Write the failing test**
 
-Create `apps/saytu-admin/test/callout-keyboard.test.tsx`:
+Create `apps/admin/test/callout-keyboard.test.tsx`:
 
 ```tsx
 import { describe, it, expect, afterEach } from 'vitest'
@@ -963,7 +963,7 @@ Expected: FAIL — ArrowDown is swallowed by `stopPropagation`; selection stays 
 
 - [ ] **Step 3: Implement the title↔body nav in `Callout.tsx`**
 
-In `apps/saytu-admin/src/editor/extensions/Callout.tsx`, update `CalloutView` to use `editor` + `getPos` and move focus into the body. Change the function signature destructure and the title input's `onKeyDown`:
+In `apps/admin/src/editor/extensions/Callout.tsx`, update `CalloutView` to use `editor` + `getPos` and move focus into the body. Change the function signature destructure and the title input's `onKeyDown`:
 
 ```tsx
 function CalloutView({ node, updateAttributes, editor, getPos }: ReactNodeViewProps) {
@@ -995,7 +995,7 @@ Expected: PASS.
 
 - [ ] **Step 5: Add body→title (ArrowUp at body start) — failing test**
 
-Append to `apps/saytu-admin/test/callout-keyboard.test.tsx`:
+Append to `apps/admin/test/callout-keyboard.test.tsx`:
 
 ```tsx
   it('ArrowUp at the start of the body refocuses the title input', async () => {
@@ -1054,7 +1054,7 @@ Expected: PASS (existing callout-node test still green).
 - [ ] **Step 10: Commit**
 
 ```bash
-git add apps/saytu-admin/src/editor/extensions/Callout.tsx apps/saytu-admin/test/callout-keyboard.test.tsx
+git add apps/admin/src/editor/extensions/Callout.tsx apps/admin/test/callout-keyboard.test.tsx
 git commit -m "feat(editor): callout title<->body keyboard navigation (a11y)
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -1065,11 +1065,11 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ## Task 5: CSS — grip, drop affordance, block menu
 
 **Files:**
-- Modify: `apps/saytu-admin/src/styles/editor.css`
+- Modify: `apps/admin/src/styles/editor.css`
 
 - [ ] **Step 1: Add the styles**
 
-Append to `apps/saytu-admin/src/styles/editor.css` (match the existing token usage — `var(--surface)`, `var(--border)`, `var(--r-md)`, `var(--text)`, `var(--font-ui)`, `var(--shadow-pop)` — already used elsewhere in this file):
+Append to `apps/admin/src/styles/editor.css` (match the existing token usage — `var(--surface)`, `var(--border)`, `var(--r-md)`, `var(--text)`, `var(--font-ui)`, `var(--shadow-pop)` — already used elsewhere in this file):
 
 ```css
 /* Block drag handle (gutter grip) */
@@ -1134,7 +1134,7 @@ Expected: build succeeds; CSS emitted; brand fonts intact; bundle has **no yjs**
 - [ ] **Step 3: Commit**
 
 ```bash
-git add apps/saytu-admin/src/styles/editor.css
+git add apps/admin/src/styles/editor.css
 git commit -m "style(editor): drag-handle grip + block menu CSS
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -1157,7 +1157,7 @@ Expected: PASS; `verbatimModuleSyntax` + `noUncheckedIndexedAccess` clean.
 - [ ] **Step 3: Build — fonts + jiti-free + no yjs**
 
 Run: `pnpm --filter @setu/admin build`
-Then: `grep -c "yjs" apps/saytu-admin/dist/assets/*.js` → expect `0`; brand fonts still linked in `dist/index.html`.
+Then: `grep -c "yjs" apps/admin/dist/assets/*.js` → expect `0`; brand fonts still linked in `dist/index.html`.
 
 - [ ] **Step 4: Manual smoke (reviewer)** — `pnpm dev`: hover→grip; drag→reorder; grip menu Move/Duplicate/Delete (edges disabled); Alt+Shift+↑/↓ moves the current block; callout ↓/Enter goes title→body, ↑ at body start returns to the title; read-only mode (a locked entry) shows no grip.
 

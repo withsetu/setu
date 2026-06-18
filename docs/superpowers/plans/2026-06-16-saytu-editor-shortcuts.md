@@ -18,26 +18,26 @@
 
 | File | Responsibility | Task |
 | --- | --- | --- |
-| `apps/saytu-admin/src/editor/shortcuts.ts` | registry + `formatKeys` + `ariaKeyshortcuts` + `detectMac` | 1 |
-| `apps/saytu-admin/src/editor/editor-events.ts` | `requestLinkEdit/onRequestLinkEdit`, `requestShortcuts/onRequestShortcuts` | 2 |
-| `apps/saytu-admin/src/editor/extensions/KeyboardShortcuts.ts` | Tiptap keymap: `Mod-k`, `Mod-/` | 2 |
-| `apps/saytu-admin/src/editor/Canvas.tsx` | register `KeyboardShortcuts` | 2 |
-| `apps/saytu-admin/src/editor/Tooltip.tsx` | tippy hover+focus wrapper | 3 |
-| `apps/saytu-admin/src/editor/FormatBubble.tsx` | button tooltips + aria-keyshortcuts + open-link subscription | 3 |
-| `apps/saytu-admin/src/editor/ShortcutsDialog.tsx` | the cheat-sheet modal | 4 |
-| `apps/saytu-admin/src/ui/Icon.tsx` | add `keyboard` icon | 4 |
-| `apps/saytu-admin/src/editor/EditorScreen.tsx` | `?` strip button + dialog state + `onRequestShortcuts` | 4 |
-| `apps/saytu-admin/src/styles/editor.css` | tooltip theme + dialog + strip button | 5 |
+| `apps/admin/src/editor/shortcuts.ts` | registry + `formatKeys` + `ariaKeyshortcuts` + `detectMac` | 1 |
+| `apps/admin/src/editor/editor-events.ts` | `requestLinkEdit/onRequestLinkEdit`, `requestShortcuts/onRequestShortcuts` | 2 |
+| `apps/admin/src/editor/extensions/KeyboardShortcuts.ts` | Tiptap keymap: `Mod-k`, `Mod-/` | 2 |
+| `apps/admin/src/editor/Canvas.tsx` | register `KeyboardShortcuts` | 2 |
+| `apps/admin/src/editor/Tooltip.tsx` | tippy hover+focus wrapper | 3 |
+| `apps/admin/src/editor/FormatBubble.tsx` | button tooltips + aria-keyshortcuts + open-link subscription | 3 |
+| `apps/admin/src/editor/ShortcutsDialog.tsx` | the cheat-sheet modal | 4 |
+| `apps/admin/src/ui/Icon.tsx` | add `keyboard` icon | 4 |
+| `apps/admin/src/editor/EditorScreen.tsx` | `?` strip button + dialog state + `onRequestShortcuts` | 4 |
+| `apps/admin/src/styles/editor.css` | tooltip theme + dialog + strip button | 5 |
 
 ---
 
 ## Task 1: `shortcuts.ts` — registry + formatters
 
-**Files:** create `apps/saytu-admin/src/editor/shortcuts.ts`, `apps/saytu-admin/test/shortcuts.test.ts`.
+**Files:** create `apps/admin/src/editor/shortcuts.ts`, `apps/admin/test/shortcuts.test.ts`.
 
 - [ ] **Step 1: Write the failing test**
 
-`apps/saytu-admin/test/shortcuts.test.ts`:
+`apps/admin/test/shortcuts.test.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest'
@@ -88,7 +88,7 @@ Expected: FAIL — `shortcuts` module not found.
 
 - [ ] **Step 3: Implement `shortcuts.ts`**
 
-`apps/saytu-admin/src/editor/shortcuts.ts`:
+`apps/admin/src/editor/shortcuts.ts`:
 
 ```ts
 export type ShortcutGroup = 'Formatting' | 'Links' | 'Blocks' | 'Help'
@@ -148,7 +148,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/saytu-admin/src/editor/shortcuts.ts apps/saytu-admin/test/shortcuts.test.ts
+git add apps/admin/src/editor/shortcuts.ts apps/admin/test/shortcuts.test.ts
 git commit -m "feat(editor): shortcuts registry + platform-aware formatKeys/ariaKeyshortcuts
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -158,11 +158,11 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ## Task 2: event bridge + `KeyboardShortcuts` extension
 
-**Files:** create `apps/saytu-admin/src/editor/editor-events.ts`, `apps/saytu-admin/src/editor/extensions/KeyboardShortcuts.ts`, `apps/saytu-admin/test/editor-events.test.ts`; modify `apps/saytu-admin/src/editor/Canvas.tsx`.
+**Files:** create `apps/admin/src/editor/editor-events.ts`, `apps/admin/src/editor/extensions/KeyboardShortcuts.ts`, `apps/admin/test/editor-events.test.ts`; modify `apps/admin/src/editor/Canvas.tsx`.
 
 - [ ] **Step 1: Write the failing test**
 
-`apps/saytu-admin/test/editor-events.test.ts`:
+`apps/admin/test/editor-events.test.ts`:
 
 ```ts
 import { describe, it, expect, vi } from 'vitest'
@@ -198,7 +198,7 @@ Expected: FAIL — module not found.
 
 - [ ] **Step 3: Implement `editor-events.ts`**
 
-`apps/saytu-admin/src/editor/editor-events.ts`:
+`apps/admin/src/editor/editor-events.ts`:
 
 ```ts
 type Listener = () => void
@@ -238,7 +238,7 @@ Expected: PASS.
 
 - [ ] **Step 5: Implement the `KeyboardShortcuts` extension**
 
-`apps/saytu-admin/src/editor/extensions/KeyboardShortcuts.ts`:
+`apps/admin/src/editor/extensions/KeyboardShortcuts.ts`:
 
 ```ts
 import { Extension } from '@tiptap/core'
@@ -267,7 +267,7 @@ export const KeyboardShortcuts = Extension.create({
 
 - [ ] **Step 6: Register it in the Canvas**
 
-In `apps/saytu-admin/src/editor/Canvas.tsx`, add the import and place it in the extensions array (after `BlockActions,`):
+In `apps/admin/src/editor/Canvas.tsx`, add the import and place it in the extensions array (after `BlockActions,`):
 
 ```tsx
 import { KeyboardShortcuts } from './extensions/KeyboardShortcuts'
@@ -286,7 +286,7 @@ Expected: PASS.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add apps/saytu-admin/src/editor/editor-events.ts apps/saytu-admin/src/editor/extensions/KeyboardShortcuts.ts apps/saytu-admin/src/editor/Canvas.tsx apps/saytu-admin/test/editor-events.test.ts
+git add apps/admin/src/editor/editor-events.ts apps/admin/src/editor/extensions/KeyboardShortcuts.ts apps/admin/src/editor/Canvas.tsx apps/admin/test/editor-events.test.ts
 git commit -m "feat(editor): Mod-k (link) + Mod-/ (cheat sheet) keymap via an event bridge
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -296,11 +296,11 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ## Task 3: Tooltip + format-bubble hints + Mod-k opens link input
 
-**Files:** create `apps/saytu-admin/src/editor/Tooltip.tsx`; modify `apps/saytu-admin/src/editor/FormatBubble.tsx`; create `apps/saytu-admin/test/format-tooltips.test.tsx`.
+**Files:** create `apps/admin/src/editor/Tooltip.tsx`; modify `apps/admin/src/editor/FormatBubble.tsx`; create `apps/admin/test/format-tooltips.test.tsx`.
 
 - [ ] **Step 1: Implement `Tooltip` (no test-first — it's a thin tippy wrapper, covered via FormatBubble)**
 
-`apps/saytu-admin/src/editor/Tooltip.tsx`:
+`apps/admin/src/editor/Tooltip.tsx`:
 
 ```tsx
 import { useEffect, useRef } from 'react'
@@ -334,7 +334,7 @@ export function Tooltip({ content, children }: { content: string; children: Reac
 
 - [ ] **Step 2: Write the failing test**
 
-`apps/saytu-admin/test/format-tooltips.test.tsx`:
+`apps/admin/test/format-tooltips.test.tsx`:
 
 ```tsx
 import { describe, it, expect, afterEach } from 'vitest'
@@ -461,7 +461,7 @@ Expected: PASS (existing format-bubble/link tests still green).
 - [ ] **Step 7: Commit**
 
 ```bash
-git add apps/saytu-admin/src/editor/Tooltip.tsx apps/saytu-admin/src/editor/FormatBubble.tsx apps/saytu-admin/test/format-tooltips.test.tsx
+git add apps/admin/src/editor/Tooltip.tsx apps/admin/src/editor/FormatBubble.tsx apps/admin/test/format-tooltips.test.tsx
 git commit -m "feat(editor): shortcut hint tooltips on format buttons + Mod-k opens link input
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -471,11 +471,11 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ## Task 4: ShortcutsDialog + cheat-sheet trigger
 
-**Files:** create `apps/saytu-admin/src/editor/ShortcutsDialog.tsx`; modify `apps/saytu-admin/src/ui/Icon.tsx`, `apps/saytu-admin/src/editor/EditorScreen.tsx`; create `apps/saytu-admin/test/shortcuts-dialog.test.tsx`.
+**Files:** create `apps/admin/src/editor/ShortcutsDialog.tsx`; modify `apps/admin/src/ui/Icon.tsx`, `apps/admin/src/editor/EditorScreen.tsx`; create `apps/admin/test/shortcuts-dialog.test.tsx`.
 
 - [ ] **Step 1: Write the failing test**
 
-`apps/saytu-admin/test/shortcuts-dialog.test.tsx`:
+`apps/admin/test/shortcuts-dialog.test.tsx`:
 
 ```tsx
 import { describe, it, expect, vi, afterEach } from 'vitest'
@@ -514,7 +514,7 @@ Expected: FAIL — `ShortcutsDialog` not exported.
 
 - [ ] **Step 3: Implement `ShortcutsDialog.tsx`**
 
-`apps/saytu-admin/src/editor/ShortcutsDialog.tsx`:
+`apps/admin/src/editor/ShortcutsDialog.tsx`:
 
 ```tsx
 import { useEffect, useRef } from 'react'
@@ -588,7 +588,7 @@ Expected: PASS (3 cases).
 
 - [ ] **Step 5: Add a `keyboard` icon**
 
-In `apps/saytu-admin/src/ui/Icon.tsx`, add to the `ICONS` map (near other icons):
+In `apps/admin/src/ui/Icon.tsx`, add to the `ICONS` map (near other icons):
 
 ```ts
   keyboard: '<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M6 13h.01M16.5 13h.01M9 13h6"/>',
@@ -637,7 +637,7 @@ Expected: PASS (dialog tests + existing suite green).
 - [ ] **Step 8: Commit**
 
 ```bash
-git add apps/saytu-admin/src/editor/ShortcutsDialog.tsx apps/saytu-admin/src/ui/Icon.tsx apps/saytu-admin/src/editor/EditorScreen.tsx apps/saytu-admin/test/shortcuts-dialog.test.tsx
+git add apps/admin/src/editor/ShortcutsDialog.tsx apps/admin/src/ui/Icon.tsx apps/admin/src/editor/EditorScreen.tsx apps/admin/test/shortcuts-dialog.test.tsx
 git commit -m "feat(editor): keyboard-shortcuts cheat sheet (dialog + strip button + Mod-/)
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -647,11 +647,11 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ## Task 5: CSS — tooltip theme + dialog + strip button
 
-**Files:** modify `apps/saytu-admin/src/styles/editor.css`.
+**Files:** modify `apps/admin/src/styles/editor.css`.
 
 - [ ] **Step 1: Append the styles**
 
-Append to `apps/saytu-admin/src/styles/editor.css` (reuse existing tokens; the tippy theme is scoped to `data-theme~='saytu'` so it doesn't affect the slash/block popups, which use their own content):
+Append to `apps/admin/src/styles/editor.css` (reuse existing tokens; the tippy theme is scoped to `data-theme~='saytu'` so it doesn't affect the slash/block popups, which use their own content):
 
 ```css
 /* Shortcut tooltips (scoped tippy theme) */
@@ -684,7 +684,7 @@ Expected: build succeeds; CSS emitted.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add apps/saytu-admin/src/styles/editor.css
+git add apps/admin/src/styles/editor.css
 git commit -m "style(editor): shortcut tooltip theme + cheat-sheet dialog CSS
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"

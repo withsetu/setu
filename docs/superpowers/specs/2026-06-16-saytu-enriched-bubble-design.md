@@ -88,7 +88,7 @@ toolbars (the format bubble and the callout color/icon toolbar) a proper **keybo
 ## Architecture / components
 
 ```
-apps/saytu-admin/src/editor/
+apps/admin/src/editor/
 ├── block-types.ts          # NEW — shared registry {id,label,icon,isActive,setOn} + currentBlockType()
 ├── TurnIntoMenu.tsx        # NEW — the bubble's block-type dropdown (role=menu, useDismiss, keyboard)
 ├── useToolbarRoving.ts     # NEW — roving-tabindex + ←/→/Home/End hook for a role=toolbar container

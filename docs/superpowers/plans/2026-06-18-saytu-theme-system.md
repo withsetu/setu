@@ -4,7 +4,7 @@
 
 **Goal:** Make the default theme an installable, config-activated package — extract its look into `@setu/theme-default`, add a `theme` field to `saytu.config`, and wire the site build to render through whichever theme the config names; the site looks **identical** to today.
 
-**Architecture:** A new `packages/theme-default` holds the theme's `.astro` layouts + CSS (moved from `apps/saytu-site`). `@setu/core`'s config gains an additive `theme` field. `apps/saytu-site/astro.config.mjs` reads `saytu.config`'s `theme` (via core's Node `loadConfig`, jiti) and sets a Vite alias `@theme` → the active theme package; the pages import layouts from `@theme/…`. Render engine (routing/Markdoc/block components) stays in the app.
+**Architecture:** A new `packages/theme-default` holds the theme's `.astro` layouts + CSS (moved from `apps/site`). `@setu/core`'s config gains an additive `theme` field. `apps/site/astro.config.mjs` reads `saytu.config`'s `theme` (via core's Node `loadConfig`, jiti) and sets a Vite alias `@theme` → the active theme package; the pages import layouts from `@theme/…`. Render engine (routing/Markdoc/block components) stays in the app.
 
 **Tech Stack:** Astro 6 · a new `@setu/theme-default` package (`.astro` + CSS, `astro` peerDep) · `@setu/core` config (`theme` field; `loadConfig` jiti) · Vite alias · Vitest. The mechanism is **spiked & proven** (theme-package `.astro` import; config-value-selects-theme via Vite alias).
 
@@ -12,7 +12,7 @@
 
 - **No-regression is the headline gate:** the site's existing **27 render tests stay green UNCHANGED** — same HTML (shell, Post/Page templates, themed callout, prose, `lang`, zero-JS), now sourced from `@setu/theme-default`. Success = "looks identical, now swappable."
 - **`@setu/core` change is additive config only** — an optional `theme?: string`. It must NOT touch the Markdoc converter / round-trip / content path; the existing **175 core tests + the edge guard stay green**.
-- **Render engine stays in `apps/saytu-site`:** `content.config.ts`, `lib/url.ts`, `markdoc.config.mjs`, and the block components (`CalloutWrapper`/`Heading`/`Paragraph`/`Sub`/`Sup`/`Th`/`Td`) do NOT move. Only the theme's *look* (layouts + tokens + styles) moves.
+- **Render engine stays in `apps/site`:** `content.config.ts`, `lib/url.ts`, `markdoc.config.mjs`, and the block components (`CalloutWrapper`/`Heading`/`Paragraph`/`Sub`/`Sup`/`Th`/`Td`) do NOT move. Only the theme's *look* (layouts + tokens + styles) moves.
 - **No new external deps.** Theme = look only. `verbatimModuleSyntax` (`import type`) + strict TS clean.
 - **Out of scope (do NOT build):** per-component/token override ("child themes"); the Customizer / theme-options panel (3c); a second shipped theme; dark mode; marketplace/registry; theme CLI.
 - **Light-only, zero-JS** preserved (no `client:*`/script in any built page).
@@ -31,13 +31,13 @@ packages/core/test/config/
 
 packages/theme-default/        NEW @setu/theme-default
   package.json                 exports each layout + css; astro peerDep
-  Layout.astro                 moved from apps/saytu-site/src/layouts/Layout.astro
+  Layout.astro                 moved from apps/site/src/layouts/Layout.astro
   PostLayout.astro             moved from src/layouts/PostLayout.astro
   PageLayout.astro             moved from src/layouts/PageLayout.astro
   theme.css                    moved from src/styles/theme.css
   site.css                     moved from src/styles/site.css
 
-apps/saytu-site/
+apps/site/
   saytu.config.ts              NEW — { blocks: defaultConfig.blocks, theme: '@setu/theme-default' }
   astro.config.mjs             MODIFIED — read theme + alias '@theme'
   package.json                 MODIFIED — + @setu/theme-default + @setu/core deps
@@ -140,7 +140,7 @@ git commit -m "feat(core): add optional theme field to saytu.config"
 
 **Files:**
 - Create: `packages/theme-default/package.json`, `packages/theme-default/{Layout,PostLayout,PageLayout}.astro`, `packages/theme-default/{theme,site}.css`
-- Modify: `apps/saytu-site/package.json`
+- Modify: `apps/site/package.json`
 - Run: `pnpm install`
 
 **Interfaces:**
@@ -149,19 +149,19 @@ git commit -m "feat(core): add optional theme field to saytu.config"
 - [ ] **Step 1: Copy the five theme files into `packages/theme-default/`**
 
 Copy **verbatim** (content unchanged) into the package root:
-- `apps/saytu-site/src/layouts/Layout.astro` → `packages/theme-default/Layout.astro`
-- `apps/saytu-site/src/layouts/PostLayout.astro` → `packages/theme-default/PostLayout.astro`
-- `apps/saytu-site/src/layouts/PageLayout.astro` → `packages/theme-default/PageLayout.astro`
-- `apps/saytu-site/src/styles/theme.css` → `packages/theme-default/theme.css`
-- `apps/saytu-site/src/styles/site.css` → `packages/theme-default/site.css`
+- `apps/site/src/layouts/Layout.astro` → `packages/theme-default/Layout.astro`
+- `apps/site/src/layouts/PostLayout.astro` → `packages/theme-default/PostLayout.astro`
+- `apps/site/src/layouts/PageLayout.astro` → `packages/theme-default/PageLayout.astro`
+- `apps/site/src/styles/theme.css` → `packages/theme-default/theme.css`
+- `apps/site/src/styles/site.css` → `packages/theme-default/site.css`
 
 ```bash
 mkdir -p packages/theme-default
-cp apps/saytu-site/src/layouts/Layout.astro packages/theme-default/Layout.astro
-cp apps/saytu-site/src/layouts/PostLayout.astro packages/theme-default/PostLayout.astro
-cp apps/saytu-site/src/layouts/PageLayout.astro packages/theme-default/PageLayout.astro
-cp apps/saytu-site/src/styles/theme.css packages/theme-default/theme.css
-cp apps/saytu-site/src/styles/site.css packages/theme-default/site.css
+cp apps/site/src/layouts/Layout.astro packages/theme-default/Layout.astro
+cp apps/site/src/layouts/PostLayout.astro packages/theme-default/PostLayout.astro
+cp apps/site/src/layouts/PageLayout.astro packages/theme-default/PageLayout.astro
+cp apps/site/src/styles/theme.css packages/theme-default/theme.css
+cp apps/site/src/styles/site.css packages/theme-default/site.css
 ```
 
 - [ ] **Step 2: Fix the relative imports for the flat package layout**
@@ -199,7 +199,7 @@ import './site.css'
 }
 ```
 
-- [ ] **Step 4: Add the deps to `apps/saytu-site/package.json`**
+- [ ] **Step 4: Add the deps to `apps/site/package.json`**
 
 In `dependencies`, add:
 ```json
@@ -218,7 +218,7 @@ Expected: PASS — 27/27 (unchanged).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add packages/theme-default apps/saytu-site/package.json pnpm-lock.yaml
+git add packages/theme-default apps/site/package.json pnpm-lock.yaml
 git commit -m "feat(theme-default): @setu/theme-default package (copied from the site theme)"
 ```
 
@@ -227,14 +227,14 @@ git commit -m "feat(theme-default): @setu/theme-default package (copied from the
 ### Task 3: Activate the theme via config (the integration)
 
 **Files:**
-- Create: `apps/saytu-site/saytu.config.ts`
-- Modify: `apps/saytu-site/astro.config.mjs`, `apps/saytu-site/src/pages/[...path].astro`, `apps/saytu-site/src/pages/index.astro`
-- Delete: `apps/saytu-site/src/layouts/{Layout,PostLayout,PageLayout}.astro`, `apps/saytu-site/src/styles/{theme,site}.css`
+- Create: `apps/site/saytu.config.ts`
+- Modify: `apps/site/astro.config.mjs`, `apps/site/src/pages/[...path].astro`, `apps/site/src/pages/index.astro`
+- Delete: `apps/site/src/layouts/{Layout,PostLayout,PageLayout}.astro`, `apps/site/src/styles/{theme,site}.css`
 
 **Interfaces:**
 - Consumes: `defineConfig`, `defaultConfig` from `@setu/core`; `loadConfig` from `@setu/core/node` (returns `ResolvedConfig` with `.theme` from Task 1); `@setu/theme-default`'s exports (Task 2).
 
-- [ ] **Step 1: Create `apps/saytu-site/saytu.config.ts`**
+- [ ] **Step 1: Create `apps/site/saytu.config.ts`**
 
 ```ts
 import { defineConfig, defaultConfig } from '@setu/core'
@@ -245,7 +245,7 @@ export default defineConfig({
 })
 ```
 
-- [ ] **Step 2: Wire `apps/saytu-site/astro.config.mjs` to read the theme + alias `@theme`**
+- [ ] **Step 2: Wire `apps/site/astro.config.mjs` to read the theme + alias `@theme`**
 
 Replace the whole file with:
 ```js
@@ -267,14 +267,14 @@ export default defineConfig({
 
 - [ ] **Step 3: Rewire the pages to import layouts from `@theme/…`**
 
-`apps/saytu-site/src/pages/[...path].astro` — change the two layout imports:
+`apps/site/src/pages/[...path].astro` — change the two layout imports:
 ```astro
 import PostLayout from '@theme/PostLayout.astro'
 import PageLayout from '@theme/PageLayout.astro'
 ```
 (everything else in the file unchanged.)
 
-`apps/saytu-site/src/pages/index.astro` — change the import:
+`apps/site/src/pages/index.astro` — change the import:
 ```astro
 import PageLayout from '@theme/PageLayout.astro'
 ```
@@ -283,7 +283,7 @@ import PageLayout from '@theme/PageLayout.astro'
 - [ ] **Step 4: Delete the now-duplicated theme files from the site**
 
 ```bash
-git rm apps/saytu-site/src/layouts/Layout.astro apps/saytu-site/src/layouts/PostLayout.astro apps/saytu-site/src/layouts/PageLayout.astro apps/saytu-site/src/styles/theme.css apps/saytu-site/src/styles/site.css
+git rm apps/site/src/layouts/Layout.astro apps/site/src/layouts/PostLayout.astro apps/site/src/layouts/PageLayout.astro apps/site/src/styles/theme.css apps/site/src/styles/site.css
 ```
 
 - [ ] **Step 5: VERIFY the wiring (the one risky bit), then run the no-regression gate**
@@ -307,12 +307,12 @@ If a test fails because the markup shifted (it should NOT — the files moved ve
 
 Run: `pnpm --filter @setu/site build`
 Expected: succeeds; `dist/` has the same routes (home, post, page). Confirm no `<script>`/`astro-island` in built pages:
-Run: `grep -rlE 'astro-island|<script' $(find apps/saytu-site/dist -name '*.html') 2>/dev/null | wc -l` → expect `0`.
+Run: `grep -rlE 'astro-island|<script' $(find apps/site/dist -name '*.html') 2>/dev/null | wc -l` → expect `0`.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add apps/saytu-site
+git add apps/site
 git commit -m "feat(site): activate theme via saytu.config; render through @setu/theme-default"
 ```
 
@@ -325,7 +325,7 @@ git commit -m "feat(site): activate theme via saytu.config; render through @setu
 - [ ] **Step 1: Whole-repo test suite**
 
 Run: `pnpm -r test`
-Expected: green — `@setu/core` 177 (175 + 2 new), `@setu/theme-default` (no test runner — skipped/no tests), `@setu/blocks` 8, `apps/saytu-site` 27, `apps/saytu-admin` 178, + db/git suites.
+Expected: green — `@setu/core` 177 (175 + 2 new), `@setu/theme-default` (no test runner — skipped/no tests), `@setu/blocks` 8, `apps/site` 27, `apps/admin` 178, + db/git suites.
 
 - [ ] **Step 2: Both apps build**
 
@@ -334,18 +334,18 @@ Expected: both succeed (admin untouched — sanity).
 
 - [ ] **Step 3: Zero-JS holds**
 
-Run: `grep -rlE 'astro-island|<script' $(find apps/saytu-site/dist -name '*.html') 2>/dev/null | wc -l`
+Run: `grep -rlE 'astro-island|<script' $(find apps/site/dist -name '*.html') 2>/dev/null | wc -l`
 Expected: `0`.
 
 - [ ] **Step 4: Scope guard**
 
-Run: `git diff --name-only <branch-base>..HEAD | grep -vE '^(packages/core/src/config/|packages/core/test/|packages/theme-default/|apps/saytu-site/|pnpm-lock.yaml)' && echo "SCOPE VIOLATION" || echo "scope clean"`
+Run: `git diff --name-only <branch-base>..HEAD | grep -vE '^(packages/core/src/config/|packages/core/test/|packages/theme-default/|apps/site/|pnpm-lock.yaml)' && echo "SCOPE VIOLATION" || echo "scope clean"`
 (`<branch-base>` = the commit the worktree branched from.)
-Expected: `scope clean` — NO markdoc/round-trip path, NO `apps/saytu-admin`, NO `@setu/blocks` touched.
+Expected: `scope clean` — NO markdoc/round-trip path, NO `apps/admin`, NO `@setu/blocks` touched.
 
 - [ ] **Step 5: Confirm the activation is real**
 
-Run: `cat apps/saytu-site/saytu.config.ts` (shows `theme: '@setu/theme-default'`) and confirm `apps/saytu-site/src/layouts/` no longer exists (`test -d apps/saytu-site/src/layouts && echo "STILL THERE" || echo "theme extracted ✓"`).
+Run: `cat apps/site/saytu.config.ts` (shows `theme: '@setu/theme-default'`) and confirm `apps/site/src/layouts/` no longer exists (`test -d apps/site/src/layouts && echo "STILL THERE" || echo "theme extracted ✓"`).
 Expected: `theme extracted ✓` — the site renders through the config-named theme package; the layouts live only in `@setu/theme-default`.
 
 - [ ] **Step 6: Commit (only if verification fixups were needed)**

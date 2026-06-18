@@ -62,7 +62,7 @@ of truth so the hints and the cheat sheet never drift.
 ## Architecture / components
 
 ```
-apps/saytu-admin/src/editor/
+apps/admin/src/editor/
 ├── shortcuts.ts                 # NEW — registry + formatKeys(keys, mac) + detectMac()
 ├── editor-events.ts             # NEW — requestLinkEdit/onRequestLinkEdit, requestShortcuts/onRequestShortcuts
 ├── extensions/KeyboardShortcuts.ts  # NEW — Tiptap extension: Mod-k (link) + Mod-/ (cheat sheet)
@@ -71,7 +71,7 @@ apps/saytu-admin/src/editor/
 ├── FormatBubble.tsx             # MODIFY — wrap buttons in Tooltip + aria-keyshortcuts; subscribe to onRequestLinkEdit
 ├── Canvas.tsx                   # MODIFY — register KeyboardShortcuts
 └── EditorScreen.tsx             # MODIFY — a "?" strip button + ShortcutsDialog state + onRequestShortcuts
-apps/saytu-admin/src/styles/editor.css  # MODIFY — tooltip + dialog + strip-button styles
+apps/admin/src/styles/editor.css  # MODIFY — tooltip + dialog + strip-button styles
 ```
 
 - **`formatKeys(keys, mac)`** maps token → glyph: `Mod`→`⌘`/`Ctrl`, `Alt`→`⌥`/`Alt`,

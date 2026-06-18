@@ -81,7 +81,7 @@ packages/core/src/markdoc/
 ├── to-markdoc.ts          # MODIFY — buildInline: subscript/superscript → inline {% sub %}/{% sup %} (inline=true)
 ├── to-tiptap.ts           # MODIFY — inlineToTiptap: case 'tag' sub/sup → subscript/superscript mark
 └── test/roundtrip.examples.test.ts (+ to-*.test.ts)  # MODIFY — sub/sup round-trip samples
-apps/saytu-admin/src/editor/
+apps/admin/src/editor/
 ├── block-types.ts         # MODIFY — add keys[] to each BlockType
 ├── TurnIntoMenu.tsx       # MODIFY — render formatKeys(keys) on each row
 ├── shortcuts.ts           # MODIFY — add subscript/superscript entries
@@ -89,7 +89,7 @@ apps/saytu-admin/src/editor/
 ├── FormatBubble.tsx       # MODIFY — add Subscript/Superscript mark buttons
 ├── Canvas.tsx             # MODIFY — register Subscript + Superscript extensions
 └── ../ui/Icon.tsx         # MODIFY — add subscript/superscript icons
-apps/saytu-admin/package.json  # + @tiptap/extension-subscript, @tiptap/extension-superscript
+apps/admin/package.json  # + @tiptap/extension-subscript, @tiptap/extension-superscript
 ```
 
 ## Error handling / edge cases

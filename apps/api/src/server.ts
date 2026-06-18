@@ -7,4 +7,4 @@ const port = Number(process.env.SAYTU_API_PORT ?? 4444)
 const app = createGitApi(createLocalGitAdapter({ dir }))
 
 serve({ fetch: app.fetch, port })
-console.log(`saytu-api listening on http://localhost:${port} (repo: ${dir})`)
+console.log(`api listening on http://localhost:${port} (repo: ${dir})`)

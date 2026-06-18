@@ -120,7 +120,7 @@ packages/git-memory/                 # @setu/git-memory (NEW — mirrors db-memo
 │   └── index.ts
 └── test/contract.test.ts             # runGitPortContract(() => createMemoryGitPort()) + seed test
 
-apps/saytu-admin/
+apps/admin/
 ├── package.json                      # + @tiptap/{core,react,pm,starter-kit,suggestion},
 │                                     #   @tiptap/extension-placeholder, tippy.js; + @setu/git-memory
 └── src/

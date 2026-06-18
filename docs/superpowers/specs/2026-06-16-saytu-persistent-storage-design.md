@@ -4,7 +4,7 @@ _Date: 2026-06-16 · Status: approved (converged in UAT discussion)_
 
 ## Purpose
 
-Stop the admin from losing work on reload. Today `apps/saytu-admin` runs the in-memory
+Stop the admin from losing work on reload. Today `apps/admin` runs the in-memory
 adapters (`db-memory` + `git-memory`), rebuilt fresh and re-seeded with sample content on
 every page load — so a reload wipes every edit. This increment backs the **`DataPort`**
 (drafts + locks) and the **`GitPort`** working set with **IndexedDB**, so a reload restores
@@ -53,7 +53,7 @@ untested. (This corrects an earlier "leave `createServices` in-memory + separate
    filters the file keys; `commitFile` writes the file and advances a deterministic head sha
    (same FNV-1a/counter scheme as git-memory, but the counter is persisted in `meta`). Passes
    `runGitPortContract`.
-3. **`bootstrapServices(data, git)`** in `apps/saytu-admin/src/data/store.tsx` — assembles
+3. **`bootstrapServices(data, git)`** in `apps/admin/src/data/store.tsx` — assembles
    `servicesFor(data, git)` and seeds the sample drafts **only when the store is empty**
    (no drafts *and* no Git head). Returns `Promise<Services>`.
 4. **Async app bootstrap** in `main.tsx` — open the idb adapters, `await bootstrapServices(...)`,
@@ -85,7 +85,7 @@ packages/git-idb/                # NEW package (mirrors git-memory shape)
 ├── package.json                 # deps: @setu/core, idb; devDeps: git-testing, fake-indexeddb, vitest, ts
 ├── src/{index.ts, adapter.ts}   # createIdbGitPort(dbName?)
 └── test/contract.test.ts        # runGitPortContract + persistence round-trip + seed test
-apps/saytu-admin/
+apps/admin/
 ├── package.json                 # + @setu/db-idb, @setu/git-idb
 ├── src/data/store.tsx           # + bootstrapServices(data, git): Promise<Services>; seedIfEmpty
 ├── src/data/reset.ts            # NEW (dev) — resetToSampleContent(): clear idb + reseed

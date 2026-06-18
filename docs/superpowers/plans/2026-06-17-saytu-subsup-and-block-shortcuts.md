@@ -16,11 +16,11 @@
 
 ## Task 1: block-type shortcuts as data + menu + cheat sheet
 
-**Files:** modify `apps/saytu-admin/src/editor/block-types.ts`, `TurnIntoMenu.tsx`, `ShortcutsDialog.tsx`; tests `apps/saytu-admin/test/block-types.test.ts` (extend), `turn-into.test.tsx` (extend), `shortcuts-dialog.test.tsx` (extend).
+**Files:** modify `apps/admin/src/editor/block-types.ts`, `TurnIntoMenu.tsx`, `ShortcutsDialog.tsx`; tests `apps/admin/test/block-types.test.ts` (extend), `turn-into.test.tsx` (extend), `shortcuts-dialog.test.tsx` (extend).
 
 - [ ] **Step 1: Write/extend the failing tests**
 
-Add to `apps/saytu-admin/test/block-types.test.ts`:
+Add to `apps/admin/test/block-types.test.ts`:
 
 ```ts
 import { BLOCK_TYPES } from '../src/editor/block-types'
@@ -40,7 +40,7 @@ describe('BLOCK_TYPES shortcuts', () => {
 })
 ```
 
-Add to `apps/saytu-admin/test/turn-into.test.tsx` (inside the grouped describe) — a row shows its shortcut:
+Add to `apps/admin/test/turn-into.test.tsx` (inside the grouped describe) — a row shows its shortcut:
 
 ```ts
   it('shows the block shortcut on a row (Quote)', () => {
@@ -54,7 +54,7 @@ Add to `apps/saytu-admin/test/turn-into.test.tsx` (inside the grouped describe) 
   })
 ```
 
-Add to `apps/saytu-admin/test/shortcuts-dialog.test.tsx`:
+Add to `apps/admin/test/shortcuts-dialog.test.tsx`:
 
 ```ts
   it('lists block-type shortcuts (Heading 2, Quote)', () => {
@@ -115,7 +115,7 @@ Import `BLOCK_TYPES`: `import { BLOCK_TYPES } from './block-types'`. After the e
 - [ ] **Step 6: Run — verify pass + add CSS**
 
 Run: `pnpm --filter @setu/admin test -- block-types turn-into shortcuts-dialog` → PASS.
-Append a style for the row accelerator to `apps/saytu-admin/src/styles/editor.css`:
+Append a style for the row accelerator to `apps/admin/src/styles/editor.css`:
 
 ```css
 .ti-keys { margin-left: auto; padding-left: 16px; font-size: 11.5px; color: var(--text-3, var(--text-2)); }
@@ -127,7 +127,7 @@ Append a style for the row accelerator to `apps/saytu-admin/src/styles/editor.cs
 Run: `pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck` → green.
 
 ```bash
-git add apps/saytu-admin/src/editor/block-types.ts apps/saytu-admin/src/editor/TurnIntoMenu.tsx apps/saytu-admin/src/editor/ShortcutsDialog.tsx apps/saytu-admin/src/styles/editor.css apps/saytu-admin/test/block-types.test.ts apps/saytu-admin/test/turn-into.test.tsx apps/saytu-admin/test/shortcuts-dialog.test.tsx
+git add apps/admin/src/editor/block-types.ts apps/admin/src/editor/TurnIntoMenu.tsx apps/admin/src/editor/ShortcutsDialog.tsx apps/admin/src/styles/editor.css apps/admin/test/block-types.test.ts apps/admin/test/turn-into.test.tsx apps/admin/test/shortcuts-dialog.test.tsx
 git commit -m "feat(editor): surface block-type shortcuts in the Turn-into menu + cheat sheet
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -218,7 +218,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ## Task 3: sub/sup marks + bubble buttons + registry
 
-**Files:** modify `apps/saytu-admin/package.json`, `Canvas.tsx`, `shortcuts.ts`, `FormatBubble.tsx`, `ui/Icon.tsx`; test `apps/saytu-admin/test/format-tooltips.test.tsx` (extend) + a round-trip-through-editor guard.
+**Files:** modify `apps/admin/package.json`, `Canvas.tsx`, `shortcuts.ts`, `FormatBubble.tsx`, `ui/Icon.tsx`; test `apps/admin/test/format-tooltips.test.tsx` (extend) + a round-trip-through-editor guard.
 
 - [ ] **Step 1: Add the deps**
 
@@ -281,7 +281,7 @@ Add an editor round-trip guard (a real Editor with Subscript/Superscript): apply
 Run: `pnpm --filter @setu/admin test && pnpm --filter @setu/admin typecheck && pnpm --filter @setu/admin build` → green; build jiti-free + fonts intact.
 
 ```bash
-git add apps/saytu-admin/package.json apps/saytu-admin/src/editor/Canvas.tsx apps/saytu-admin/src/editor/shortcuts.ts apps/saytu-admin/src/editor/FormatBubble.tsx apps/saytu-admin/src/ui/Icon.tsx apps/saytu-admin/test/format-tooltips.test.tsx
+git add apps/admin/package.json apps/admin/src/editor/Canvas.tsx apps/admin/src/editor/shortcuts.ts apps/admin/src/editor/FormatBubble.tsx apps/admin/src/ui/Icon.tsx apps/admin/test/format-tooltips.test.tsx
 git commit -m "feat(editor): subscript/superscript marks + bubble buttons (Mod-, / Mod-.)
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"

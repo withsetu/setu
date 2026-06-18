@@ -259,7 +259,7 @@ The Pro gate lives in **proprietary cloud/license components, never in OSS code*
 ```text
 saytu/
 ├── apps/
-│   ├── saytu-admin/         # React SPA for the CMS interface (Tiptap)
+│   ├── admin/         # React SPA for the CMS interface (Tiptap)
 │   ├── demo-site/           # Astro 6.4 template showcasing the live frontend
 │   └── server-vps/          # Bun/Node wrapper for Dockerized Topology 3 (later)
 │

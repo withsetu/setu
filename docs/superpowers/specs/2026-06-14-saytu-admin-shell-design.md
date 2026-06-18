@@ -29,7 +29,7 @@ fully interactive, UAT-able admin ships client-side with no backend.
 - A new `@setu/db-memory` package: `createMemoryDataPort(seed?)` — the in-memory
   `DataPort` (currently a test fake) promoted to a real, contract-tested adapter
   (passes `runDataPortContract`); browser-safe; optionally seeded with drafts.
-- A new `apps/saytu-admin/` app: Vite + React 18 + TypeScript + Tailwind v4 +
+- A new `apps/admin/` app: Vite + React 18 + TypeScript + Tailwind v4 +
   react-router-dom; `tokens.css` ported; vitest + @testing-library/react + jsdom.
 - The **shell**: sidebar nav (the §24 IA), theme toggle (light/dark), Saytu
   logo/branding, collapse; routing.
@@ -79,7 +79,7 @@ packages/db-memory/                # @setu/db-memory
 │   └── index.ts
 └── test/contract.test.ts          # runDataPortContract(() => createMemoryDataPort())
 
-apps/saytu-admin/                  # @setu/admin (private app)
+apps/admin/                  # @setu/admin (private app)
 ├── package.json                   # react 18, react-dom, react-router-dom, @setu/core,
 │                                  #   @setu/db-memory; dev: vite, @vitejs/plugin-react,
 │                                  #   tailwindcss v4 + @tailwindcss/vite, vitest, jsdom,
@@ -143,7 +143,7 @@ used in tests (createdAt preserved on upsert, etc.). An optional `seed` array of
 
 ## Definition of done
 
-- `pnpm install` clean; `pnpm dev` in `apps/saytu-admin` serves the admin with the
+- `pnpm install` clean; `pnpm dev` in `apps/admin` serves the admin with the
   shell + a populated content list.
 - `pnpm test` green: `@setu/db-memory` contract + the app component tests; the
   existing 121 tests unaffected.

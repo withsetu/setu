@@ -13,9 +13,9 @@
 - WRITE: a plain `align` *attribute* on a built node is NOT emitted by `Markdoc.format`. Setting **`builtNode.annotations = [{ type: 'attribute', name: 'align', value }]`** IS emitted. Spike outputs: built paragraph → `"Centered{% align=\"center\" %}\n"`, heading → `"## Title{% align=\"right\" %}\n"`, with marks → `"a **b**{% align=\"center\" %}\n"`. Idempotent. Our writer emits **no space** before `{%` (canonical form for tests).
 - Setting a property on a built Markdoc node is already done in this file: `buildInline` does `tag.inline = true` and typechecks. `built.annotations = [...]` follows the same precedent (if TS flags it, mirror how `.inline` is set / use a minimal local type — do NOT change behavior).
 - `@tiptap/extension-text-align` (MIT): `TextAlign.configure({ types: ['heading','paragraph'], alignments: ['left','center','right'] })`; commands `setTextAlign(value)` / `unsetTextAlign()`; stores a `textAlign` attribute; renders `style="text-align:…"`. NOT yet a workspace dep. Default keyboard shortcuts ship with the extension — **verify the exact keys on install** (likely `Mod-Shift-l/e/r`) before putting them in `shortcuts.ts`.
-- `alignLeft` / `alignCenter` / `alignRight` icons already exist in `apps/saytu-admin/src/ui/Icon.tsx`.
+- `alignLeft` / `alignCenter` / `alignRight` icons already exist in `apps/admin/src/ui/Icon.tsx`.
 - Converter call sites: `to-tiptap.ts` `blockToTiptap` has `case 'heading': return { type:'heading', attrs:{ level: node.attributes.level }, content: collectInline(node) }` and `case 'paragraph': return { type:'paragraph', content: collectInline(node) }`. `to-markdoc.ts` `buildBlock` has `case 'heading': return new N('heading', { level: attrs['level'] }, [new N('inline', {}, buildInline(node.content))])` and `case 'paragraph': return new N('paragraph', {}, [new N('inline', {}, buildInline(node.content))])`. `formatNative` strips trailing newlines; `tiptapToMarkdoc` joins blocks + adds the final `\n`.
-- FormatBubble (`apps/saytu-admin/src/editor/FormatBubble.tsx`): `MARKS` button array rendered with `<Icon>` + `Tooltip` + `data-toolbar-item` + `aria-pressed`; a `useEditorState` selector returning `{ bold, italic, … link, from, to }` (with a fallback object); `tipFor(id, fallback)` / `ariaFor(id)` from the `SHORTCUTS` registry; `FormatBubbleToolbar` is exported + unit-testable.
+- FormatBubble (`apps/admin/src/editor/FormatBubble.tsx`): `MARKS` button array rendered with `<Icon>` + `Tooltip` + `data-toolbar-item` + `aria-pressed`; a `useEditorState` selector returning `{ bold, italic, … link, from, to }` (with a fallback object); `tipFor(id, fallback)` / `ariaFor(id)` from the `SHORTCUTS` registry; `FormatBubbleToolbar` is exported + unit-testable.
 - Edge guard: `pnpm --filter @setu/core typecheck` runs `tsc` + `tsc -p tsconfig.edge.json` — converter must stay Node-free.
 
 **HARD RULE:** Verify the TextAlign shortcut keys + that it's standalone (not a kit) against the installed package in Task 4 before asserting.
@@ -29,11 +29,11 @@
 - `to-markdoc.ts` — heading/paragraph: write `attrs.textAlign` (center/right) → `built.annotations` via a `withAlign` helper.
 - `test/{to-tiptap,to-markdoc,roundtrip.examples}.test.ts`.
 
-**Admin (`apps/saytu-admin/src/editor/`):**
+**Admin (`apps/admin/src/editor/`):**
 - `Canvas.tsx` — register TextAlign.
 - `FormatBubble.tsx` — alignment button group + `textAlign` active state.
 - `shortcuts.ts` — align shortcut entries.
-- `apps/saytu-admin/package.json` — `+ @tiptap/extension-text-align`.
+- `apps/admin/package.json` — `+ @tiptap/extension-text-align`.
 
 **Worktree:** isolated worktree off `main` (native `EnterWorktree`); `pnpm install` + baseline `pnpm -r test` before Task 1.
 
@@ -275,15 +275,15 @@ git commit -m "test(core): text-align round-trip examples + negatives"
 ## Task 4: Admin — TextAlign extension + format-bubble alignment group
 
 **Files:**
-- Modify: `apps/saytu-admin/package.json`
-- Modify: `apps/saytu-admin/src/editor/Canvas.tsx`
-- Modify: `apps/saytu-admin/src/editor/FormatBubble.tsx`
-- Modify: `apps/saytu-admin/src/editor/shortcuts.ts`
-- Test: `apps/saytu-admin/test/format-bubble.test.tsx` (or the existing bubble test file — match its path), `apps/saytu-admin/test/shortcuts.test.ts`
+- Modify: `apps/admin/package.json`
+- Modify: `apps/admin/src/editor/Canvas.tsx`
+- Modify: `apps/admin/src/editor/FormatBubble.tsx`
+- Modify: `apps/admin/src/editor/shortcuts.ts`
+- Test: `apps/admin/test/format-bubble.test.tsx` (or the existing bubble test file — match its path), `apps/admin/test/shortcuts.test.ts`
 
 - [ ] **Step 1: Add dep + install**
 
-Add to `apps/saytu-admin/package.json` `dependencies` (alphabetical among `@tiptap/extension-*`):
+Add to `apps/admin/package.json` `dependencies` (alphabetical among `@tiptap/extension-*`):
 
 ```json
     "@tiptap/extension-text-align": "3.26.1",
@@ -303,7 +303,7 @@ Note the EXACT shortcut keys printed (e.g. `Mod-Shift-l`, `Mod-Shift-e`, `Mod-Sh
 
 - [ ] **Step 3: Register TextAlign in Canvas**
 
-In `apps/saytu-admin/src/editor/Canvas.tsx`:
+In `apps/admin/src/editor/Canvas.tsx`:
 - Import after the table import:
   ```ts
   import { TextAlign } from '@tiptap/extension-text-align'
@@ -315,7 +315,7 @@ In `apps/saytu-admin/src/editor/Canvas.tsx`:
 
 - [ ] **Step 4: Write the failing bubble test**
 
-`apps/saytu-admin/test/format-bubble.test.tsx` uses an `EditorHarness` whose extensions are `[sk()]` (StarterKit only) — the align buttons need TextAlign registered. Add a TextAlign-aware harness + test (mirror the existing `EditorHarness`/`docOf` helpers + the `@testing-library/react` `render`/`act`/`screen` + `fireEvent` style already imported in the file; import `fireEvent` from `@testing-library/react` if not present):
+`apps/admin/test/format-bubble.test.tsx` uses an `EditorHarness` whose extensions are `[sk()]` (StarterKit only) — the align buttons need TextAlign registered. Add a TextAlign-aware harness + test (mirror the existing `EditorHarness`/`docOf` helpers + the `@testing-library/react` `render`/`act`/`screen` + `fireEvent` style already imported in the file; import `fireEvent` from `@testing-library/react` if not present):
 
 ```ts
 import { TextAlign } from '@tiptap/extension-text-align'
@@ -347,7 +347,7 @@ describe('alignment buttons', () => {
 
 - [ ] **Step 5: Implement the bubble alignment group**
 
-In `apps/saytu-admin/src/editor/FormatBubble.tsx`:
+In `apps/admin/src/editor/FormatBubble.tsx`:
 
 (a) Add an `ALIGNS` array near `MARKS`:
 ```ts
@@ -391,13 +391,13 @@ const ALIGNS: AlignBtn[] = [
 
 - [ ] **Step 6: Add align entries to the shortcuts registry**
 
-In `apps/saytu-admin/src/editor/shortcuts.ts`, add to `SHORTCUTS` (use the EXACT keys verified in Step 2; example assumes `Mod-Shift-l/e/r`):
+In `apps/admin/src/editor/shortcuts.ts`, add to `SHORTCUTS` (use the EXACT keys verified in Step 2; example assumes `Mod-Shift-l/e/r`):
 ```ts
   { id: 'alignLeft', label: 'Align left', keys: ['Mod', 'Shift', 'l'], group: 'Formatting' },
   { id: 'alignCenter', label: 'Align center', keys: ['Mod', 'Shift', 'e'], group: 'Formatting' },
   { id: 'alignRight', label: 'Align right', keys: ['Mod', 'Shift', 'r'], group: 'Formatting' },
 ```
-(If Step 2 showed different keys, use those.) **IMPORTANT:** `apps/saytu-admin/test/shortcuts.test.ts` has a test that iterates `SHORTCUTS` asserting every entry has a `label`, **non-empty `keys`**, and a `group` in `['Formatting','Links','Blocks','Help']`. So the align entries MUST use group `'Formatting'` and carry non-empty keys — do NOT add keyless entries. If Step 2 shows the extension binds NO default shortcuts, then either (a) the TextAlign extension is configured/extended to bind `Mod-Shift-l/e/r` ourselves (then register those keys), or (b) omit the align entries from `SHORTCUTS` entirely (the bubble buttons simply won't show a shortcut hint) — but never add an entry with empty keys (it breaks that test). The existing registry test needs no change when the entries have valid keys + the `'Formatting'` group.
+(If Step 2 showed different keys, use those.) **IMPORTANT:** `apps/admin/test/shortcuts.test.ts` has a test that iterates `SHORTCUTS` asserting every entry has a `label`, **non-empty `keys`**, and a `group` in `['Formatting','Links','Blocks','Help']`. So the align entries MUST use group `'Formatting'` and carry non-empty keys — do NOT add keyless entries. If Step 2 shows the extension binds NO default shortcuts, then either (a) the TextAlign extension is configured/extended to bind `Mod-Shift-l/e/r` ourselves (then register those keys), or (b) omit the align entries from `SHORTCUTS` entirely (the bubble buttons simply won't show a shortcut hint) — but never add an entry with empty keys (it breaks that test). The existing registry test needs no change when the entries have valid keys + the `'Formatting'` group.
 
 - [ ] **Step 7: Verify**
 
@@ -409,7 +409,7 @@ Run:
 - [ ] **Step 8: Commit**
 
 ```bash
-git add apps/saytu-admin/package.json apps/saytu-admin/src/editor/Canvas.tsx apps/saytu-admin/src/editor/FormatBubble.tsx apps/saytu-admin/src/editor/shortcuts.ts apps/saytu-admin/test/ pnpm-lock.yaml
+git add apps/admin/package.json apps/admin/src/editor/Canvas.tsx apps/admin/src/editor/FormatBubble.tsx apps/admin/src/editor/shortcuts.ts apps/admin/test/ pnpm-lock.yaml
 git commit -m "feat(admin): text-align buttons in the format bubble + TextAlign extension"
 ```
 

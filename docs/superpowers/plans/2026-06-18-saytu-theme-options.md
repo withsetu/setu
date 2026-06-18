@@ -491,8 +491,8 @@ Run: `pnpm --filter @setu/site build`
 Then verify the built output self-hosts and has no Google reference:
 
 ```bash
-grep -rl "fonts.googleapis.com" apps/saytu-site/dist || echo "NO GOOGLE FONTS — good"
-grep -rho "font-family: '[^']*Variable'" apps/saytu-site/dist/_astro/*.css | sort -u
+grep -rl "fonts.googleapis.com" apps/site/dist || echo "NO GOOGLE FONTS — good"
+grep -rho "font-family: '[^']*Variable'" apps/site/dist/_astro/*.css | sort -u
 ```
 
 Expected: "NO GOOGLE FONTS — good"; the variable family names (incl. `Hanken Grotesk Variable`) appear in the bundled CSS. Build succeeds.
@@ -513,11 +513,11 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 Thread `themeOptions` from `saytu.config` → pages → templates → `Layout`, where `optionsToCss` injects a `:root` override that wins the cascade. **Verify the override actually wins in built HTML.**
 
 **Files:**
-- Create: `apps/saytu-site/src/lib/site-config.ts`
+- Create: `apps/site/src/lib/site-config.ts`
 - Modify: `packages/theme-default/Layout.astro` (accept `themeOptions` prop; inject override `<style>`)
 - Modify: `packages/theme-default/PostLayout.astro` + `PageLayout.astro` (forward `themeOptions`)
-- Modify: `apps/saytu-site/src/pages/[...path].astro` + `index.astro` (read + pass `themeOptions`)
-- Test: `apps/saytu-site/test/theme-options.test.ts` (new)
+- Modify: `apps/site/src/pages/[...path].astro` + `index.astro` (read + pass `themeOptions`)
+- Test: `apps/site/test/theme-options.test.ts` (new)
 
 **Interfaces:**
 - Consumes: `optionsToCss` from `@setu/theme-default/options` (Task 2); `SaytuConfig.themeOptions` (Task 1).
@@ -525,7 +525,7 @@ Thread `themeOptions` from `saytu.config` → pages → templates → `Layout`, 
 
 - [ ] **Step 1: Create the site-config reader**
 
-Create `apps/saytu-site/src/lib/site-config.ts`:
+Create `apps/site/src/lib/site-config.ts`:
 
 ```ts
 import config from '../../saytu.config'
@@ -560,7 +560,7 @@ In `<head>`, as the final element before `</head>`:
     <style is:inline set:html={overrideCss}></style>
 ```
 
-VERIFY-FIRST: after wiring (Step 6 build), confirm in `apps/saytu-site/dist/post/kitchen-sink/index.html` that this inline `:root` style appears AFTER the bundled theme CSS so it wins the cascade. If Astro's bundled stylesheet `<link>` ends up after the inline style (override loses), bump specificity by emitting the override as `:root:root { … }` — change the return in `optionsToCss` to `` `:root:root { ${decls.join(' ')} }` `` and update the `options.test.ts` `:root` regex accordingly (`/^:root:root\s*\{/`). Use the cascade-order approach if it works; fall back to `:root:root` only if needed. Document which was used in the commit.
+VERIFY-FIRST: after wiring (Step 6 build), confirm in `apps/site/dist/post/kitchen-sink/index.html` that this inline `:root` style appears AFTER the bundled theme CSS so it wins the cascade. If Astro's bundled stylesheet `<link>` ends up after the inline style (override loses), bump specificity by emitting the override as `:root:root { … }` — change the return in `optionsToCss` to `` `:root:root { ${decls.join(' ')} }` `` and update the `options.test.ts` `:root` regex accordingly (`/^:root:root\s*\{/`). Use the cascade-order approach if it works; fall back to `:root:root` only if needed. Document which was used in the commit.
 
 - [ ] **Step 3: Forward `themeOptions` through the templates**
 
@@ -592,7 +592,7 @@ const { title, lang = 'en', themeOptions } = Astro.props
 
 - [ ] **Step 4: Pass `themeOptions` from the pages**
 
-Edit `apps/saytu-site/src/pages/[...path].astro` — add the import and pass the prop:
+Edit `apps/site/src/pages/[...path].astro` — add the import and pass the prop:
 
 ```astro
 import { themeOptions } from '../lib/site-config'
@@ -607,7 +607,7 @@ and change the render to:
 </TemplateLayout>
 ```
 
-Edit `apps/saytu-site/src/pages/index.astro` — add the import and pass the prop:
+Edit `apps/site/src/pages/index.astro` — add the import and pass the prop:
 
 ```astro
 import { themeOptions } from '../lib/site-config'
@@ -624,7 +624,7 @@ and:
 
 - [ ] **Step 5: Write the wiring test**
 
-Create `apps/saytu-site/test/theme-options.test.ts`. This builds once and asserts the injected override is present, sourced from `optionsToCss`, and reflects the config. (Default config ⇒ default tokens; this proves the config→page→cascade pipe end-to-end. Non-default value mapping is covered by Task 2's pure tests.)
+Create `apps/site/test/theme-options.test.ts`. This builds once and asserts the injected override is present, sourced from `optionsToCss`, and reflects the config. (Default config ⇒ default tokens; this proves the config→page→cascade pipe end-to-end. Non-default value mapping is covered by Task 2's pure tests.)
 
 ```ts
 import { execSync } from 'node:child_process'
@@ -675,7 +675,7 @@ Expected: PASS — override injected, carries defaults, wins the cascade (via or
 - [ ] **Step 7: Commit**
 
 ```bash
-git add apps/saytu-site/src/lib/site-config.ts packages/theme-default/Layout.astro packages/theme-default/PostLayout.astro packages/theme-default/PageLayout.astro apps/saytu-site/src/pages/ apps/saytu-site/test/theme-options.test.ts
+git add apps/site/src/lib/site-config.ts packages/theme-default/Layout.astro packages/theme-default/PostLayout.astro packages/theme-default/PageLayout.astro apps/site/src/pages/ apps/site/test/theme-options.test.ts
 git commit -m "feat(site): apply themeOptions as :root token overrides at build (#3c)
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -688,9 +688,9 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 Switch the admin's three faces to `@fontsource` and remove its Google `<link>`. No product-surface change; the families resolve to self-hosted faces.
 
 **Files:**
-- Modify: `apps/saytu-admin/package.json` (dependencies)
-- Modify: `apps/saytu-admin/src/main.tsx` (font CSS imports)
-- Modify: `apps/saytu-admin/index.html` (remove Google `<link>` + preconnects)
+- Modify: `apps/admin/package.json` (dependencies)
+- Modify: `apps/admin/src/main.tsx` (font CSS imports)
+- Modify: `apps/admin/index.html` (remove Google `<link>` + preconnects)
 
 **Interfaces:** none exported; this is app-internal.
 
@@ -707,17 +707,17 @@ Expected: installs cleanly.
 
 - [ ] **Step 2: Verify the admin's font-family names match the variable packages**
 
-The admin's `apps/saytu-admin/src/styles/tokens.css` references font families (Hanken Grotesk / Newsreader / JetBrains Mono). Check the families it expects:
+The admin's `apps/admin/src/styles/tokens.css` references font families (Hanken Grotesk / Newsreader / JetBrains Mono). Check the families it expects:
 
 ```bash
-grep -n "font-family\|--font" apps/saytu-admin/src/styles/tokens.css
+grep -n "font-family\|--font" apps/admin/src/styles/tokens.css
 ```
 
 If the admin's stacks use the plain names (e.g. `'Hanken Grotesk'`) but the variable packages register `'Hanken Grotesk Variable'`, add the Variable name to the front of those stacks in `tokens.css` (keep the plain name as fallback) so the self-hosted faces actually apply. Make the minimal edit needed; do not restyle.
 
 - [ ] **Step 3: Import the font CSS in the admin entry**
 
-Edit `apps/saytu-admin/src/main.tsx`. Add the three imports next to the existing `import './index.css'` (place them BEFORE `./index.css` so token CSS can override if needed):
+Edit `apps/admin/src/main.tsx`. Add the three imports next to the existing `import './index.css'` (place them BEFORE `./index.css` so token CSS can override if needed):
 
 ```ts
 import '@fontsource-variable/hanken-grotesk'
@@ -728,7 +728,7 @@ import './index.css'
 
 - [ ] **Step 4: Remove Google Fonts from `index.html`**
 
-Edit `apps/saytu-admin/index.html` — delete the three font lines from `<head>`:
+Edit `apps/admin/index.html` — delete the three font lines from `<head>`:
 
 ```html
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -747,7 +747,7 @@ Run: `pnpm --filter @setu/admin build`
 Then:
 
 ```bash
-grep -rl "fonts.googleapis.com" apps/saytu-admin/dist apps/saytu-admin/index.html || echo "NO GOOGLE FONTS — good"
+grep -rl "fonts.googleapis.com" apps/admin/dist apps/admin/index.html || echo "NO GOOGLE FONTS — good"
 ```
 
 Expected: build succeeds; "NO GOOGLE FONTS — good".
@@ -760,7 +760,7 @@ Expected: all existing admin tests green (font delivery doesn't touch tested beh
 - [ ] **Step 7: Commit**
 
 ```bash
-git add apps/saytu-admin/package.json apps/saytu-admin/src/main.tsx apps/saytu-admin/index.html apps/saytu-admin/src/styles/tokens.css pnpm-lock.yaml
+git add apps/admin/package.json apps/admin/src/main.tsx apps/admin/index.html apps/admin/src/styles/tokens.css pnpm-lock.yaml
 git commit -m "feat(admin): self-host fonts via @fontsource; drop Google Fonts (#3c)
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -773,13 +773,13 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 Flip the one intentional font-delivery test, then prove the whole repo is green and Google-free.
 
 **Files:**
-- Modify: `apps/saytu-site/test/render.test.ts` (the `loads the theme web fonts` test, ~line 155)
+- Modify: `apps/site/test/render.test.ts` (the `loads the theme web fonts` test, ~line 155)
 
 **Interfaces:** none.
 
 - [ ] **Step 1: Flip the Google-Fonts assertion to self-hosted**
 
-In `apps/saytu-site/test/render.test.ts`, find the test:
+In `apps/site/test/render.test.ts`, find the test:
 
 ```ts
   it('loads the theme web fonts', () => {
@@ -814,7 +814,7 @@ Expected: every package green — `@setu/core` (+ Task 1 tests), `@setu/blocks` 
 
 ```bash
 pnpm --filter @setu/site build && pnpm --filter @setu/admin build
-grep -rl "fonts.googleapis.com" apps/saytu-site/dist apps/saytu-admin/dist apps/saytu-admin/index.html packages/theme-default/Layout.astro || echo "REPO IS GOOGLE-FONTS-FREE"
+grep -rl "fonts.googleapis.com" apps/site/dist apps/admin/dist apps/admin/index.html packages/theme-default/Layout.astro || echo "REPO IS GOOGLE-FONTS-FREE"
 ```
 
 Expected: both builds succeed; "REPO IS GOOGLE-FONTS-FREE" (the only remaining reference is the non-shipped `design/admin/tokens.css` reference file, intentionally left).
@@ -822,7 +822,7 @@ Expected: both builds succeed; "REPO IS GOOGLE-FONTS-FREE" (the only remaining r
 - [ ] **Step 5: Zero-JS holds (site)**
 
 ```bash
-grep -rl "astro-island" apps/saytu-site/dist && echo "UNEXPECTED JS ISLAND" || echo "ZERO-JS HOLDS"
+grep -rl "astro-island" apps/site/dist && echo "UNEXPECTED JS ISLAND" || echo "ZERO-JS HOLDS"
 ```
 
 Expected: "ZERO-JS HOLDS".
@@ -835,7 +835,7 @@ Expected: all clean.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add apps/saytu-site/test/render.test.ts
+git add apps/site/test/render.test.ts
 git commit -m "test(site): self-hosted-fonts assertion; #3c no-regression gate green
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"

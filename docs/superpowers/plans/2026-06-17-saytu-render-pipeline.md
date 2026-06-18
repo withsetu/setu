@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build `apps/saytu-site`, an Astro app that renders every shipped editor block to correct static HTML from committed sample `.mdoc` content — the first time Saytu's authored content becomes a visible website.
+**Goal:** Build `apps/site`, an Astro app that renders every shipped editor block to correct static HTML from committed sample `.mdoc` content — the first time Saytu's authored content becomes a visible website.
 
 **Architecture:** A new Astro app using `@astrojs/markdoc` (standard nodes render natively) plus `@astrojs/react` for the one custom React component (the callout). The editor's custom constructs are wired in `markdoc.config.mjs` via the exact techniques proven in `prototype/astro-preview`: a thin `.astro` wrapper around a single React core (callout), node overrides emitting `text-align` (align, table columns), inline tag components (sub/sup), and a custom `item` transform (checklist). Read-only over content; no editor changes; no render abstraction, codegen, or theme.
 
@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - **Pin dependencies EXACT** (no `^`): `astro` `6.4.6`, `@astrojs/markdoc` `1.0.6`, `@astrojs/react` `5.0.7`, `react` `18.3.1`, `react-dom` `18.3.1`, `@types/react` `18.3.12`, `@types/react-dom` `18.3.1`. `vitest` matches the workspace value `^2.1.8`. (Matches the repo's pin-exact discipline for framework deps.)
-- **No changes to `apps/saytu-admin`, `packages/core`, or any content write / round-trip path.** This increment is read-only over content; the content-safety cardinal rule holds by construction. The ONLY allowed edit outside `apps/saytu-site/` is adding build deps to the root `package.json` `pnpm.onlyBuiltDependencies` (Astro needs `sharp`).
+- **No changes to `apps/admin`, `packages/core`, or any content write / round-trip path.** This increment is read-only over content; the content-safety cardinal rule holds by construction. The ONLY allowed edit outside `apps/site/` is adding build deps to the root `package.json` `pnpm.onlyBuiltDependencies` (Astro needs `sharp`).
 - **Lean — do NOT build:** theme / layout / nav / index-listing pages, a shared-core editor refactor, codegen or zod→Markdoc attribute derivation, the editor→disk bridge, dynamic Markdoc (`{% if %}`/`{% for %}`/`$vars`) / SSR, syntax highlighting.
 - **Content model:** the body uses `H2+`; `H1` is reserved for the title, which comes from frontmatter. The editor's canonical `{% align %}` form has **no space** before `{%`. Published checklists render **read-only** (`disabled`) checkboxes.
 - **`@setu/core` is importable from the Astro app** (both `markdoc.config.mjs` and `.astro`/`.tsx` files) — verified: `@astrojs/markdoc` loads its config through a TS-capable loader, and Astro/Vite transpiles the workspace TS dep. Use the main barrel: `import { resolveConfig, defaultConfig } from '@setu/core'`.
@@ -22,7 +22,7 @@
 ## File Structure
 
 ```
-apps/saytu-site/
+apps/site/
   package.json                 @setu/site; deps pinned exact; scripts dev/build/test
   tsconfig.json                extends astro/tsconfigs/strict
   astro.config.mjs             integrations: markdoc(), react()
@@ -54,8 +54,8 @@ apps/saytu-site/
 ### Task 1: Scaffold the app + standard nodes + frontmatter title
 
 **Files:**
-- Create: `apps/saytu-site/package.json`, `apps/saytu-site/tsconfig.json`, `apps/saytu-site/astro.config.mjs`, `apps/saytu-site/markdoc.config.mjs`, `apps/saytu-site/vitest.config.ts`, `apps/saytu-site/src/content.config.ts`, `apps/saytu-site/src/pages/[...path].astro`, `apps/saytu-site/src/styles/site.css`, `apps/saytu-site/content/post/en/kitchen-sink.mdoc`
-- Test: `apps/saytu-site/test/render.test.ts`
+- Create: `apps/site/package.json`, `apps/site/tsconfig.json`, `apps/site/astro.config.mjs`, `apps/site/markdoc.config.mjs`, `apps/site/vitest.config.ts`, `apps/site/src/content.config.ts`, `apps/site/src/pages/[...path].astro`, `apps/site/src/styles/site.css`, `apps/site/content/post/en/kitchen-sink.mdoc`
+- Test: `apps/site/test/render.test.ts`
 - Modify: root `package.json` (`pnpm.onlyBuiltDependencies`: add `"sharp"`)
 
 **Interfaces:**
@@ -92,7 +92,7 @@ apps/saytu-site/
 
 - [ ] **Step 2: Create configs**
 
-`apps/saytu-site/tsconfig.json`:
+`apps/site/tsconfig.json`:
 ```json
 {
   "extends": "astro/tsconfigs/strict",
@@ -101,7 +101,7 @@ apps/saytu-site/
 }
 ```
 
-`apps/saytu-site/astro.config.mjs`:
+`apps/site/astro.config.mjs`:
 ```js
 import { defineConfig } from 'astro/config'
 import markdoc from '@astrojs/markdoc'
@@ -112,14 +112,14 @@ export default defineConfig({
 })
 ```
 
-`apps/saytu-site/markdoc.config.mjs` (minimal; grows in Tasks 2-6):
+`apps/site/markdoc.config.mjs` (minimal; grows in Tasks 2-6):
 ```js
 import { defineMarkdocConfig } from '@astrojs/markdoc/config'
 
 export default defineMarkdocConfig({})
 ```
 
-`apps/saytu-site/vitest.config.ts`:
+`apps/site/vitest.config.ts`:
 ```ts
 import { defineConfig } from 'vitest/config'
 
@@ -133,7 +133,7 @@ export default defineConfig({
 })
 ```
 
-`apps/saytu-site/src/content.config.ts`:
+`apps/site/src/content.config.ts`:
 ```ts
 import { defineCollection } from 'astro:content'
 import { glob } from 'astro/loaders'
@@ -147,7 +147,7 @@ const entries = defineCollection({
 export const collections = { entries }
 ```
 
-`apps/saytu-site/src/pages/[...path].astro`:
+`apps/site/src/pages/[...path].astro`:
 ```astro
 ---
 import { getCollection, render } from 'astro:content'
@@ -177,12 +177,12 @@ const title = (entry.data as { title?: string }).title ?? entry.id
 </html>
 ```
 
-`apps/saytu-site/src/styles/site.css` (minimal placeholder; fleshed out in Task 7):
+`apps/site/src/styles/site.css` (minimal placeholder; fleshed out in Task 7):
 ```css
 .prose { max-width: 42rem; margin: 2rem auto; font-family: system-ui, sans-serif; line-height: 1.6; }
 ```
 
-- [ ] **Step 3: Create the fixture `apps/saytu-site/content/post/en/kitchen-sink.mdoc`** (standard nodes only; later tasks append)
+- [ ] **Step 3: Create the fixture `apps/site/content/post/en/kitchen-sink.mdoc`** (standard nodes only; later tasks append)
 
 ```markdown
 ---
@@ -205,9 +205,9 @@ A paragraph with **bold**, *italic*, `code`, and a [link](https://example.com).
 In the repo root `package.json`, ensure `pnpm.onlyBuiltDependencies` contains `"sharp"` alongside the existing entries (`esbuild`, `better-sqlite3`). Then from the repo root run `pnpm install` so the new workspace app + Astro's native deps are linked and built.
 
 Run: `pnpm install`
-Expected: completes; `apps/saytu-site/node_modules` (or the workspace link) present.
+Expected: completes; `apps/site/node_modules` (or the workspace link) present.
 
-- [ ] **Step 5: Write the failing smoke test `apps/saytu-site/test/render.test.ts`**
+- [ ] **Step 5: Write the failing smoke test `apps/site/test/render.test.ts`**
 
 ```ts
 import { execSync } from 'node:child_process'
@@ -256,8 +256,8 @@ Expected: PASS — 3 assertions green; `astro build` emits `dist/post/en/kitchen
 - [ ] **Step 8: Commit**
 
 ```bash
-git add apps/saytu-site package.json pnpm-lock.yaml
-git commit -m "feat(site): scaffold apps/saytu-site render app + standard nodes"
+git add apps/site package.json pnpm-lock.yaml
+git commit -m "feat(site): scaffold apps/site render app + standard nodes"
 ```
 
 ---
@@ -265,14 +265,14 @@ git commit -m "feat(site): scaffold apps/saytu-site render app + standard nodes"
 ### Task 2: Callout — single React core via wrapper, tag sourced from saytu.config
 
 **Files:**
-- Create: `apps/saytu-site/src/components/Callout.tsx`, `apps/saytu-site/src/components/CalloutWrapper.astro`
-- Modify: `apps/saytu-site/markdoc.config.mjs`, `apps/saytu-site/content/post/en/kitchen-sink.mdoc`, `apps/saytu-site/test/render.test.ts`
+- Create: `apps/site/src/components/Callout.tsx`, `apps/site/src/components/CalloutWrapper.astro`
+- Modify: `apps/site/markdoc.config.mjs`, `apps/site/content/post/en/kitchen-sink.mdoc`, `apps/site/test/render.test.ts`
 
 **Interfaces:**
 - Consumes: `resolveConfig`, `defaultConfig` from `@setu/core` — `resolveConfig(defaultConfig).blocks` is `ResolvedBlock[]`, each `{ tag: string, props, component, editor }`. `defaultConfig` ships one block with `tag: 'callout'`.
 - Produces: a `{% callout type title %}` tag rendering `<aside class="callout callout--{type}" data-component="Callout.tsx">` with **zero shipped JS**.
 
-- [ ] **Step 1: Write the React core `apps/saytu-site/src/components/Callout.tsx`**
+- [ ] **Step 1: Write the React core `apps/site/src/components/Callout.tsx`**
 
 ```tsx
 import type { ReactNode } from 'react'
@@ -300,7 +300,7 @@ export default function Callout({ type = 'info', title, children }: Props) {
 }
 ```
 
-- [ ] **Step 2: Write the site shell `apps/saytu-site/src/components/CalloutWrapper.astro`**
+- [ ] **Step 2: Write the site shell `apps/site/src/components/CalloutWrapper.astro`**
 
 ```astro
 ---
@@ -315,7 +315,7 @@ const { type = 'info', title } = Astro.props
 </Callout>
 ```
 
-- [ ] **Step 3: Wire the tag from config in `apps/saytu-site/markdoc.config.mjs`** (replace the whole file)
+- [ ] **Step 3: Wire the tag from config in `apps/site/markdoc.config.mjs`** (replace the whole file)
 
 ```js
 import { defineMarkdocConfig, component } from '@astrojs/markdoc/config'
@@ -338,7 +338,7 @@ const BLOCK_WRAPPERS = {
 const customTags = {}
 for (const block of resolveConfig(defaultConfig).blocks) {
   const wrapper = BLOCK_WRAPPERS[block.tag]
-  if (!wrapper) throw new Error(`saytu-site: no render wrapper for config block "${block.tag}"`)
+  if (!wrapper) throw new Error(`site: no render wrapper for config block "${block.tag}"`)
   customTags[block.tag] = wrapper
 }
 
@@ -347,7 +347,7 @@ export default defineMarkdocConfig({
 })
 ```
 
-- [ ] **Step 4: Append a callout to the fixture `apps/saytu-site/content/post/en/kitchen-sink.mdoc`**
+- [ ] **Step 4: Append a callout to the fixture `apps/site/content/post/en/kitchen-sink.mdoc`**
 
 ```markdown
 
@@ -356,7 +356,7 @@ Callout body with **bold** inside.
 {% /callout %}
 ```
 
-- [ ] **Step 5: Add the failing assertions to `apps/saytu-site/test/render.test.ts`** (new `describe` block, appended)
+- [ ] **Step 5: Add the failing assertions to `apps/site/test/render.test.ts`** (new `describe` block, appended)
 
 ```ts
 describe('render pipeline — callout', () => {
@@ -386,7 +386,7 @@ Expected: PASS — callout renders through the React core; zero-JS assertion hol
 - [ ] **Step 8: Commit**
 
 ```bash
-git add apps/saytu-site
+git add apps/site
 git commit -m "feat(site): callout via single React core + config-sourced tag"
 ```
 
@@ -395,14 +395,14 @@ git commit -m "feat(site): callout via single React core + config-sourced tag"
 ### Task 3: Text alignment — paragraph + heading node overrides
 
 **Files:**
-- Create: `apps/saytu-site/src/components/Paragraph.astro`, `apps/saytu-site/src/components/Heading.astro`
-- Modify: `apps/saytu-site/markdoc.config.mjs`, `apps/saytu-site/content/post/en/kitchen-sink.mdoc`, `apps/saytu-site/test/render.test.ts`
+- Create: `apps/site/src/components/Paragraph.astro`, `apps/site/src/components/Heading.astro`
+- Modify: `apps/site/markdoc.config.mjs`, `apps/site/content/post/en/kitchen-sink.mdoc`, `apps/site/test/render.test.ts`
 
 **Interfaces:**
 - Consumes: the `{% align %}` node annotation on paragraph/heading (Markdoc rejects it unless the node declares an `align` attribute).
 - Produces: `<p style="text-align:center">` / `<h2 ... style="text-align:right">` for non-default alignment; left/absent stays clean.
 
-- [ ] **Step 1: Write `apps/saytu-site/src/components/Paragraph.astro`**
+- [ ] **Step 1: Write `apps/site/src/components/Paragraph.astro`**
 
 ```astro
 ---
@@ -414,7 +414,7 @@ const style = align && align !== 'left' ? `text-align:${align}` : undefined
 <p style={style}><slot /></p>
 ```
 
-- [ ] **Step 2: Write `apps/saytu-site/src/components/Heading.astro`**
+- [ ] **Step 2: Write `apps/site/src/components/Heading.astro`**
 
 ```astro
 ---
@@ -426,7 +426,7 @@ const style = align && align !== 'left' ? `text-align:${align}` : undefined
 <Tag id={id} style={style}><slot /></Tag>
 ```
 
-- [ ] **Step 3: Add node overrides to `apps/saytu-site/markdoc.config.mjs`**
+- [ ] **Step 3: Add node overrides to `apps/site/markdoc.config.mjs`**
 
 Add `nodes` to the imports and the exported config. Change the import line to:
 ```js
@@ -451,7 +451,7 @@ export default defineMarkdocConfig({
 })
 ```
 
-- [ ] **Step 4: Append aligned content to the fixture** (`apps/saytu-site/content/post/en/kitchen-sink.mdoc`)
+- [ ] **Step 4: Append aligned content to the fixture** (`apps/site/content/post/en/kitchen-sink.mdoc`)
 
 Use the editor's canonical **no-space** annotation form:
 ```markdown
@@ -461,7 +461,7 @@ This paragraph is centered.{% align="center" %}
 This paragraph is right-aligned.{% align="right" %}
 ```
 
-- [ ] **Step 5: Add failing assertions to `apps/saytu-site/test/render.test.ts`**
+- [ ] **Step 5: Add failing assertions to `apps/site/test/render.test.ts`**
 
 ```ts
 describe('render pipeline — text align', () => {
@@ -488,7 +488,7 @@ Expected: PASS.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add apps/saytu-site
+git add apps/site
 git commit -m "feat(site): text-align via paragraph/heading node overrides"
 ```
 
@@ -497,8 +497,8 @@ git commit -m "feat(site): text-align via paragraph/heading node overrides"
 ### Task 4: Sub/superscript — inline tag components
 
 **Files:**
-- Create: `apps/saytu-site/src/components/Sub.astro`, `apps/saytu-site/src/components/Sup.astro`
-- Modify: `apps/saytu-site/markdoc.config.mjs`, `apps/saytu-site/content/post/en/kitchen-sink.mdoc`, `apps/saytu-site/test/render.test.ts`
+- Create: `apps/site/src/components/Sub.astro`, `apps/site/src/components/Sup.astro`
+- Modify: `apps/site/markdoc.config.mjs`, `apps/site/content/post/en/kitchen-sink.mdoc`, `apps/site/test/render.test.ts`
 
 **Interfaces:**
 - Consumes: the editor's `{% sub %}` / `{% sup %}` inline round-trip tags.
@@ -506,16 +506,16 @@ git commit -m "feat(site): text-align via paragraph/heading node overrides"
 
 - [ ] **Step 1: Write the two components**
 
-`apps/saytu-site/src/components/Sub.astro`:
+`apps/site/src/components/Sub.astro`:
 ```astro
 <sub><slot /></sub>
 ```
-`apps/saytu-site/src/components/Sup.astro`:
+`apps/site/src/components/Sup.astro`:
 ```astro
 <sup><slot /></sup>
 ```
 
-- [ ] **Step 2: Register the tags in `apps/saytu-site/markdoc.config.mjs`**
+- [ ] **Step 2: Register the tags in `apps/site/markdoc.config.mjs`**
 
 Add to the `tags` object in the exported config so it reads:
 ```js
@@ -557,7 +557,7 @@ Expected: PASS.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add apps/saytu-site
+git add apps/site
 git commit -m "feat(site): sub/superscript inline tag rendering"
 ```
 
@@ -566,13 +566,13 @@ git commit -m "feat(site): sub/superscript inline tag rendering"
 ### Task 5: Checklist — custom `item` node transform
 
 **Files:**
-- Modify: `apps/saytu-site/markdoc.config.mjs`, `apps/saytu-site/content/post/en/kitchen-sink.mdoc`, `apps/saytu-site/test/render.test.ts`
+- Modify: `apps/site/markdoc.config.mjs`, `apps/site/content/post/en/kitchen-sink.mdoc`, `apps/site/test/render.test.ts`
 
 **Interfaces:**
 - Consumes: GFM task markers `- [ ]` / `- [x]` (stored literally; markdown-it renders them as literal `[ ] text` by default).
 - Produces: `<li class="task" data-checked="true|false"><input type="checkbox" [checked] disabled/> …</li>`.
 
-- [ ] **Step 1: Add the transform to `apps/saytu-site/markdoc.config.mjs`**
+- [ ] **Step 1: Add the transform to `apps/site/markdoc.config.mjs`**
 
 Add `Markdoc` to the config import:
 ```js
@@ -656,7 +656,7 @@ Expected: PASS. (Note: the precise attribute order/spacing of the emitted `<inpu
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/saytu-site
+git add apps/site
 git commit -m "feat(site): GFM checklist rendering via item transform"
 ```
 
@@ -665,14 +665,14 @@ git commit -m "feat(site): GFM checklist rendering via item transform"
 ### Task 6: Table-column alignment — th/td node overrides
 
 **Files:**
-- Create: `apps/saytu-site/src/components/Th.astro`, `apps/saytu-site/src/components/Td.astro`
-- Modify: `apps/saytu-site/markdoc.config.mjs`, `apps/saytu-site/content/post/en/kitchen-sink.mdoc`, `apps/saytu-site/test/render.test.ts`
+- Create: `apps/site/src/components/Th.astro`, `apps/site/src/components/Td.astro`
+- Modify: `apps/site/markdoc.config.mjs`, `apps/site/content/post/en/kitchen-sink.mdoc`, `apps/site/test/render.test.ts`
 
 **Interfaces:**
 - Consumes: the `align` attribute Markdoc emits natively on `th`/`td` from the GFM separator (`:--`/`:-:`/`--:`).
 - Produces: `<th style="text-align:center">` / `<td style="text-align:right">` (clean CSS instead of the deprecated `align` HTML attribute).
 
-- [ ] **Step 1: Write `apps/saytu-site/src/components/Th.astro` and `Td.astro`**
+- [ ] **Step 1: Write `apps/site/src/components/Th.astro` and `Td.astro`**
 
 `Th.astro`:
 ```astro
@@ -691,7 +691,7 @@ const style = align && align !== 'left' ? `text-align:${align}` : undefined
 <td style={style}><slot /></td>
 ```
 
-- [ ] **Step 2: Add th/td overrides to `apps/saytu-site/markdoc.config.mjs`**
+- [ ] **Step 2: Add th/td overrides to `apps/site/markdoc.config.mjs`**
 
 Add to the `nodes` block:
 ```js
@@ -743,7 +743,7 @@ Expected: PASS. (If overriding th/td proves fiddly, the safe fallback named in t
 - [ ] **Step 7: Commit**
 
 ```bash
-git add apps/saytu-site
+git add apps/site
 git commit -m "feat(site): table column alignment via th/td overrides"
 ```
 
@@ -752,15 +752,15 @@ git commit -m "feat(site): table column alignment via th/td overrides"
 ### Task 7: Neutral baseline CSS + final verification
 
 **Files:**
-- Modify: `apps/saytu-site/src/styles/site.css`
-- Create: `apps/saytu-site/README.md`
-- Modify: `apps/saytu-site/content/post/en/kitchen-sink.mdoc` (add a static passthrough-style snippet), `apps/saytu-site/test/render.test.ts`
+- Modify: `apps/site/src/styles/site.css`
+- Create: `apps/site/README.md`
+- Modify: `apps/site/content/post/en/kitchen-sink.mdoc` (add a static passthrough-style snippet), `apps/site/test/render.test.ts`
 
 **Interfaces:**
 - Consumes: every component/class emitted by Tasks 1–6.
 - Produces: a deliberately neutral stylesheet + a README documenting scope; a final all-green build.
 
-- [ ] **Step 1: Flesh out `apps/saytu-site/src/styles/site.css`** (neutral baseline — NOT a theme)
+- [ ] **Step 1: Flesh out `apps/site/src/styles/site.css`** (neutral baseline — NOT a theme)
 
 ```css
 .prose { max-width: 42rem; margin: 2rem auto; padding: 0 1rem; font-family: system-ui, sans-serif; line-height: 1.6; color: #1a1a1a; }
@@ -813,7 +813,7 @@ describe('render pipeline — baseline + passthrough', () => {
 Run: `pnpm --filter @setu/site test`
 Expected: FAIL before Steps 1–2 (no `<br`, or stylesheet link assertion depends on Task 1's `<link>` — adjust if the dev `/src/styles/site.css` href is rewritten by the build; assert on the emitted href substring `site.css`).
 
-- [ ] **Step 5: Write `apps/saytu-site/README.md`**
+- [ ] **Step 5: Write `apps/site/README.md`**
 
 ```markdown
 # @setu/site — render pipeline (sub-project #1)
@@ -838,15 +838,15 @@ Expected: PASS — full suite green.
 - [ ] **Step 7: Final verification — whole repo green, nothing out of scope**
 
 Run: `pnpm -r test`
-Expected: every package's suite passes, including the existing `@setu/core` + `apps/saytu-admin` suites (unchanged).
+Expected: every package's suite passes, including the existing `@setu/core` + `apps/admin` suites (unchanged).
 
-Run: `git diff --name-only main -- apps/saytu-admin packages/core | grep . && echo "SCOPE VIOLATION" || echo "scope clean"`
-Expected: `scope clean` (no edits to the admin or core source — the only non-`apps/saytu-site` change is root `package.json` `onlyBuiltDependencies` + the lockfile).
+Run: `git diff --name-only main -- apps/admin packages/core | grep . && echo "SCOPE VIOLATION" || echo "scope clean"`
+Expected: `scope clean` (no edits to the admin or core source — the only non-`apps/site` change is root `package.json` `onlyBuiltDependencies` + the lockfile).
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add apps/saytu-site
+git add apps/site
 git commit -m "feat(site): neutral baseline CSS, passthrough check, README + final verify"
 ```
 

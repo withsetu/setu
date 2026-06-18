@@ -24,12 +24,12 @@
 | `packages/git-idb/{package.json,tsconfig.json,vitest.config.ts}` | new package scaffolding | 2 |
 | `packages/git-idb/src/{index.ts,adapter.ts}` | `createIdbGitPort(dbName?)` | 2 |
 | `packages/git-idb/test/contract.test.ts` | contract + round-trip + seed-listable | 2 |
-| `apps/saytu-admin/src/data/store.tsx` | + `bootstrapServices` / `seedIfEmpty` | 3 |
-| `apps/saytu-admin/test/bootstrap.test.tsx` | seed-on-empty logic (in-memory adapters) | 3 |
-| `apps/saytu-admin/src/data/Bootstrap.tsx` | async-open idb + loading + fallback provider | 4 |
-| `apps/saytu-admin/src/data/reset.ts` | dev-only `resetToSampleContent()` | 4 |
-| `apps/saytu-admin/src/main.tsx` | wire `<Bootstrap>` + dev reset | 4 |
-| `apps/saytu-admin/package.json` | + `@setu/db-idb`, `@setu/git-idb` | 4 |
+| `apps/admin/src/data/store.tsx` | + `bootstrapServices` / `seedIfEmpty` | 3 |
+| `apps/admin/test/bootstrap.test.tsx` | seed-on-empty logic (in-memory adapters) | 3 |
+| `apps/admin/src/data/Bootstrap.tsx` | async-open idb + loading + fallback provider | 4 |
+| `apps/admin/src/data/reset.ts` | dev-only `resetToSampleContent()` | 4 |
+| `apps/admin/src/main.tsx` | wire `<Bootstrap>` + dev reset | 4 |
+| `apps/admin/package.json` | + `@setu/db-idb`, `@setu/git-idb` | 4 |
 
 > **Reference shapes:** mirror `packages/db-memory/` for package.json/tsconfig/vitest.config and the adapter's value-semantics (createdAt/updatedAt upsert), and `packages/git-memory/src/adapter.ts` for the deterministic `sha40`. Read them before writing.
 
@@ -368,11 +368,11 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ## Task 3: `bootstrapServices` + seed-on-empty (adapter-agnostic, tested)
 
-**Files:** modify `apps/saytu-admin/src/data/store.tsx`; create `apps/saytu-admin/test/bootstrap.test.tsx`.
+**Files:** modify `apps/admin/src/data/store.tsx`; create `apps/admin/test/bootstrap.test.tsx`.
 
 - [ ] **Step 1: Write the failing test (in-memory adapters — same shipped logic)**
 
-`apps/saytu-admin/test/bootstrap.test.tsx`:
+`apps/admin/test/bootstrap.test.tsx`:
 
 ```tsx
 import { describe, it, expect } from 'vitest'
@@ -413,7 +413,7 @@ Expected: FAIL — `bootstrapServices` not exported.
 
 - [ ] **Step 3: Implement `bootstrapServices` + `seedIfEmpty`**
 
-In `apps/saytu-admin/src/data/store.tsx`, add (after `servicesFor`):
+In `apps/admin/src/data/store.tsx`, add (after `servicesFor`):
 
 ```tsx
 /** Seed the sample drafts only when the store is completely empty (no drafts AND
@@ -450,7 +450,7 @@ Expected: PASS (existing suite unaffected — `createServices`/`servicesFor` unc
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/saytu-admin/src/data/store.tsx apps/saytu-admin/test/bootstrap.test.tsx
+git add apps/admin/src/data/store.tsx apps/admin/test/bootstrap.test.tsx
 git commit -m "feat(admin): adapter-agnostic bootstrapServices + seed-only-when-empty
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -460,11 +460,11 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ## Task 4: Wire idb into `main.tsx` (loading + fallback) + dev reset
 
-**Files:** modify `apps/saytu-admin/package.json`; create `apps/saytu-admin/src/data/Bootstrap.tsx`, `apps/saytu-admin/src/data/reset.ts`; modify `apps/saytu-admin/src/main.tsx`.
+**Files:** modify `apps/admin/package.json`; create `apps/admin/src/data/Bootstrap.tsx`, `apps/admin/src/data/reset.ts`; modify `apps/admin/src/main.tsx`.
 
 - [ ] **Step 1: Add the idb adapter packages to the app**
 
-In `apps/saytu-admin/package.json` `dependencies`, add (all three — `idb` is imported directly by `reset.ts` for `deleteDB`, so it must be a declared dep under pnpm-strict):
+In `apps/admin/package.json` `dependencies`, add (all three — `idb` is imported directly by `reset.ts` for `deleteDB`, so it must be a declared dep under pnpm-strict):
 
 ```json
     "@setu/db-idb": "workspace:*",
@@ -476,7 +476,7 @@ Then `pnpm install` from the root.
 
 - [ ] **Step 2: Create the async bootstrap provider**
 
-`apps/saytu-admin/src/data/Bootstrap.tsx`:
+`apps/admin/src/data/Bootstrap.tsx`:
 
 ```tsx
 import { useEffect, useState } from 'react'
@@ -527,7 +527,7 @@ export function Bootstrap({ children }: { children: ReactNode }) {
 
 - [ ] **Step 3: Create the dev-only reset**
 
-`apps/saytu-admin/src/data/reset.ts`:
+`apps/admin/src/data/reset.ts`:
 
 ```ts
 import { deleteDB } from 'idb'
@@ -545,7 +545,7 @@ export async function resetToSampleContent(): Promise<void> {
 
 - [ ] **Step 4: Wire `main.tsx`**
 
-Replace `apps/saytu-admin/src/main.tsx` with:
+Replace `apps/admin/src/main.tsx` with:
 
 ```tsx
 import { StrictMode } from 'react'
@@ -592,7 +592,7 @@ createRoot(document.getElementById('root')!).render(
 
 - [ ] **Step 5: Add minimal CSS for the loading + dev reset**
 
-Append to `apps/saytu-admin/src/styles/editor.css` (or `index.css` — pick the one already imported; editor.css is imported last):
+Append to `apps/admin/src/styles/editor.css` (or `index.css` — pick the one already imported; editor.css is imported last):
 
 ```css
 /* Bootstrap loading + dev-only reset */
@@ -609,7 +609,7 @@ Append to `apps/saytu-admin/src/styles/editor.css` (or `index.css` — pick the 
 - [ ] **Step 6: Typecheck + full admin suite + build**
 
 Run: `pnpm --filter @setu/admin typecheck && pnpm --filter @setu/admin test && pnpm --filter @setu/admin build`
-Expected: PASS. Build succeeds; confirm the dev reset is eliminated: `grep -c "Reset to sample content" apps/saytu-admin/dist/assets/*.js` → `0` (Vite drops the `import.meta.env.DEV` branch).
+Expected: PASS. Build succeeds; confirm the dev reset is eliminated: `grep -c "Reset to sample content" apps/admin/dist/assets/*.js` → `0` (Vite drops the `import.meta.env.DEV` branch).
 
 - [ ] **Step 7: Manual smoke (reviewer)**
 
@@ -618,7 +618,7 @@ Expected: PASS. Build succeeds; confirm the dev reset is eliminated: `grep -c "R
 - [ ] **Step 8: Commit**
 
 ```bash
-git add apps/saytu-admin/package.json apps/saytu-admin/src/data/Bootstrap.tsx apps/saytu-admin/src/data/reset.ts apps/saytu-admin/src/main.tsx apps/saytu-admin/src/styles/editor.css pnpm-lock.yaml
+git add apps/admin/package.json apps/admin/src/data/Bootstrap.tsx apps/admin/src/data/reset.ts apps/admin/src/main.tsx apps/admin/src/styles/editor.css pnpm-lock.yaml
 git commit -m "feat(admin): persist via IndexedDB on boot (loading + in-memory fallback) + dev reset
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -630,7 +630,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1: Whole suite** — Run: `pnpm -r test` — expect every package green, incl. new `@setu/db-idb` + `@setu/git-idb` (contract + round-trip) and the admin bootstrap test.
 - [ ] **Step 2: Typecheck** — Run: `pnpm -r typecheck` — expect clean (incl. core edge guard).
-- [ ] **Step 3: Build (dev reset absent + fonts + jiti-free)** — Run: `pnpm --filter @setu/admin build`; then `grep -c "Reset to sample content" apps/saytu-admin/dist/assets/*.js` → `0`; brand fonts still linked in `dist/index.html`.
+- [ ] **Step 3: Build (dev reset absent + fonts + jiti-free)** — Run: `pnpm --filter @setu/admin build`; then `grep -c "Reset to sample content" apps/admin/dist/assets/*.js` → `0`; brand fonts still linked in `dist/index.html`.
 - [ ] **Step 4: Manual** — `pnpm dev`, reload persists; idb + the in-memory fallback both work (the fallback is exercised by temporarily disabling IndexedDB in devtools, optional).
 
 ---

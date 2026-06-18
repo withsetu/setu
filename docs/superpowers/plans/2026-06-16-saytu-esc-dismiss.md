@@ -18,10 +18,10 @@
 
 | File | Responsibility | Task |
 | --- | --- | --- |
-| `apps/saytu-admin/src/editor/dismiss.ts` | `isEscape(e)` + `collapseSelectionOnEscape(editor)` | 1 |
-| `apps/saytu-admin/src/editor/extensions/KeyboardShortcuts.ts` | add `Escape` keymap → collapse selection | 1 |
-| `apps/saytu-admin/src/editor/FormatBubble.tsx` | secondary `onKeyDown` on the buttons view (tabbed-in keyboard users) | 1 |
-| `apps/saytu-admin/src/editor/extensions/LinkTools.tsx` | Esc hides card + dismissed-until-caret-leaves flag; extend `shouldShowLinkCard` | 2 |
+| `apps/admin/src/editor/dismiss.ts` | `isEscape(e)` + `collapseSelectionOnEscape(editor)` | 1 |
+| `apps/admin/src/editor/extensions/KeyboardShortcuts.ts` | add `Escape` keymap → collapse selection | 1 |
+| `apps/admin/src/editor/FormatBubble.tsx` | secondary `onKeyDown` on the buttons view (tabbed-in keyboard users) | 1 |
+| `apps/admin/src/editor/extensions/LinkTools.tsx` | Esc hides card + dismissed-until-caret-leaves flag; extend `shouldShowLinkCard` | 2 |
 | (verification only) | full suite + typecheck + build | 3 |
 
 No CSS changes (no new UI). No new dependencies.
@@ -30,11 +30,11 @@ No CSS changes (no new UI). No new dependencies.
 
 ## Task 1: `dismiss.ts` + format-bubble Esc (collapse selection)
 
-**Files:** create `apps/saytu-admin/src/editor/dismiss.ts`, `apps/saytu-admin/test/dismiss.test.ts`; modify `apps/saytu-admin/src/editor/extensions/KeyboardShortcuts.ts`, `apps/saytu-admin/src/editor/FormatBubble.tsx`.
+**Files:** create `apps/admin/src/editor/dismiss.ts`, `apps/admin/test/dismiss.test.ts`; modify `apps/admin/src/editor/extensions/KeyboardShortcuts.ts`, `apps/admin/src/editor/FormatBubble.tsx`.
 
 - [ ] **Step 1: Write the failing test**
 
-`apps/saytu-admin/test/dismiss.test.ts`:
+`apps/admin/test/dismiss.test.ts`:
 
 ```ts
 import { describe, it, expect, afterEach } from 'vitest'
@@ -84,7 +84,7 @@ Expected: FAIL — `dismiss` module not found.
 
 - [ ] **Step 3: Implement `dismiss.ts`**
 
-`apps/saytu-admin/src/editor/dismiss.ts`:
+`apps/admin/src/editor/dismiss.ts`:
 
 ```ts
 import type { Editor } from '@tiptap/core'
@@ -112,7 +112,7 @@ Expected: PASS (4 cases).
 
 - [ ] **Step 5: Wire the `Escape` keymap into `KeyboardShortcuts.ts`**
 
-In `apps/saytu-admin/src/editor/extensions/KeyboardShortcuts.ts`, add the import and an `Escape` entry to the returned keymap (alongside `Mod-k` / `Mod-/`):
+In `apps/admin/src/editor/extensions/KeyboardShortcuts.ts`, add the import and an `Escape` entry to the returned keymap (alongside `Mod-k` / `Mod-/`):
 
 ```ts
 import { collapseSelectionOnEscape } from '../dismiss'
@@ -160,7 +160,7 @@ Expected: PASS — `dismiss` tests + existing format-bubble/tooltip/editor suite
 - [ ] **Step 8: Commit**
 
 ```bash
-git add apps/saytu-admin/src/editor/dismiss.ts apps/saytu-admin/test/dismiss.test.ts apps/saytu-admin/src/editor/extensions/KeyboardShortcuts.ts apps/saytu-admin/src/editor/FormatBubble.tsx
+git add apps/admin/src/editor/dismiss.ts apps/admin/test/dismiss.test.ts apps/admin/src/editor/extensions/KeyboardShortcuts.ts apps/admin/src/editor/FormatBubble.tsx
 git commit -m "feat(editor): Esc collapses the selection to dismiss the format bubble
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -170,11 +170,11 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ## Task 2: Link card Esc dismissal (`LinkTools`)
 
-**Files:** modify `apps/saytu-admin/src/editor/extensions/LinkTools.tsx`, `apps/saytu-admin/test/link-tools.test.ts` (create if absent; if a LinkTools test file already exists, ADD the cases to it — check first).
+**Files:** modify `apps/admin/src/editor/extensions/LinkTools.tsx`, `apps/admin/test/link-tools.test.ts` (create if absent; if a LinkTools test file already exists, ADD the cases to it — check first).
 
 - [ ] **Step 1: Write the failing test for the extended predicate**
 
-`apps/saytu-admin/test/link-tools.test.ts` (create, or append the `dismissed` cases to the existing `shouldShowLinkCard` tests if a file already covers it):
+`apps/admin/test/link-tools.test.ts` (create, or append the `dismissed` cases to the existing `shouldShowLinkCard` tests if a file already covers it):
 
 ```ts
 import { describe, it, expect } from 'vitest'
@@ -202,7 +202,7 @@ Expected: FAIL — `shouldShowLinkCard` currently takes 3 args; the `dismissed` 
 
 - [ ] **Step 3: Extend the pure predicate**
 
-In `apps/saytu-admin/src/editor/extensions/LinkTools.tsx`, change `shouldShowLinkCard` to accept a 4th `dismissed` flag (default `false` so existing internal call sites needn't all change at once, though we update them in Step 4):
+In `apps/admin/src/editor/extensions/LinkTools.tsx`, change `shouldShowLinkCard` to accept a 4th `dismissed` flag (default `false` so existing internal call sites needn't all change at once, though we update them in Step 4):
 
 ```ts
 /** Whether the caret-triggered link card should show for this state. Pure.
@@ -300,7 +300,7 @@ Expected: PASS — existing LinkTools/link tests still green (the `showFor`/`upd
 - [ ] **Step 7: Commit**
 
 ```bash
-git add apps/saytu-admin/src/editor/extensions/LinkTools.tsx apps/saytu-admin/test/link-tools.test.ts
+git add apps/admin/src/editor/extensions/LinkTools.tsx apps/admin/test/link-tools.test.ts
 git commit -m "feat(editor): Esc dismisses the link card until the caret leaves the link
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -312,7 +312,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1: Whole suite** — Run: `pnpm -r test` — expect every package green; admin gains `dismiss` + `link-tools` cases.
 - [ ] **Step 2: Typecheck** — Run: `pnpm -r typecheck` — expect clean (incl. core edge guard).
-- [ ] **Step 3: Build + no new deps** — Run: `pnpm --filter @setu/admin build` (succeeds; fonts intact) and `git diff main -- apps/saytu-admin/package.json` (empty — tippy/@tiptap already present, nothing added).
+- [ ] **Step 3: Build + no new deps** — Run: `pnpm --filter @setu/admin build` (succeeds; fonts intact) and `git diff main -- apps/admin/package.json` (empty — tippy/@tiptap already present, nothing added).
 - [ ] **Step 4: Manual (reviewer)** — `pnpm dev`: select text → **Esc** hides the bubble and leaves the caret where the selection ended; open the link URL input (Link button or Cmd/Ctrl+K) → **Esc** returns to the bubble buttons with the selection intact (a second Esc then collapses it); click into a link → the card shows → **Esc** hides it and it stays hidden while the caret stays in that link, re-showing once the caret moves out; the slash menu and block menu still Esc-close.
 
 ---

@@ -92,9 +92,9 @@ The final bubble-v2 piece, plus a folded-in upgrade the owner chose after we fou
      preserved; `[X]` (uppercase) reads as checked and writes back lowercase `[x]`.
    - Edge guard still passes (converter stays Node-free; no new core deps).
 
-### B. Editor (`apps/saytu-admin/`)
+### B. Editor (`apps/admin/`)
 
-4. **Register the extensions.** Add `@tiptap/extension-list` to `apps/saytu-admin/package.json`;
+4. **Register the extensions.** Add `@tiptap/extension-list` to `apps/admin/package.json`;
    import `{ TaskList, TaskItem }` and add them to the `Canvas.tsx` extensions array. (Keep
    StarterKit's existing list extensions; TaskList/TaskItem are additive.)
 
@@ -140,13 +140,13 @@ packages/core/src/markdoc/
 ├── to-markdoc.ts      # MODIFY — buildBlock: case 'taskList'; items recurse nested lists; task marker prefix
 ├── to-tiptap.ts       # MODIFY — listToTiptap recursion + checklist detection/marker strip
 └── test/{to-markdoc,to-tiptap,roundtrip.examples}.test.ts  # MODIFY — checklist + nesting + negatives
-apps/saytu-admin/src/editor/
+apps/admin/src/editor/
 ├── block-types.ts                 # MODIFY — add taskList BlockType + List-group item
 ├── blocks.ts                      # MODIFY — taskList subtitle (slash menu)
 ├── Canvas.tsx                     # MODIFY — register TaskList + TaskItem
 ├── extensions/KeyboardShortcuts.ts# MODIFY — Tab sink + Shift-Tab lift for listItem & taskItem
 └── styles/editor.css              # MODIFY — task checkbox layout + nested indentation
-apps/saytu-admin/package.json      # + @tiptap/extension-list
+apps/admin/package.json      # + @tiptap/extension-list
 ```
 
 - `listToTiptap` (to-tiptap) and the list branch of `buildBlock` (to-markdoc) are the only recursive

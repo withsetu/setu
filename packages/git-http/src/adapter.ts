@@ -7,7 +7,7 @@ export interface HttpGitOptions {
   fetch?: typeof fetch
 }
 
-/** A GitPort that talks to the Saytu git API (apps/saytu-api) over HTTP.
+/** A GitPort that talks to the Saytu git API (apps/api) over HTTP.
  *  Browser-safe: only uses fetch. Same GitPort contract as git-local/idb/memory. */
 export function createHttpGitPort(opts: HttpGitOptions): GitPort {
   const base = opts.baseUrl.replace(/\/$/, '')

@@ -2,14 +2,14 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Stand up the Tiptap block editor on `/edit/:collection/:locale/:slug` in `apps/saytu-admin`, wired onto the real read (#7) + authoring/lock (#4) services running in-browser, so a writer can open a draft, edit rich text + a Callout, see unknown Markdoc preserved, and have it autosave and survive a reopen.
+**Goal:** Stand up the Tiptap block editor on `/edit/:collection/:locale/:slug` in `apps/admin`, wired onto the real read (#7) + authoring/lock (#4) services running in-browser, so a writer can open a draft, edit rich text + a Callout, see unknown Markdoc preserved, and have it autosave and survive a reopen.
 
 **Architecture:** A new `@setu/git-memory` package (in-memory `GitPort`, contract-tested like `db-memory`) lets the read service run client-side. The app's store grows into a services context (`data`+`git`+`read`+`authoring`). The editor is Tiptap StarterKit + two custom nodes (`callout` with `mdAttrs`, `passthrough` atom with `raw`/`flagged`) whose schema is pinned to the converter in `packages/core/src/markdoc/{to-tiptap,to-markdoc}.ts` and guarded by a round-trip test. A config-driven slash menu inserts blocks; the editor screen orchestrates load → lock → debounced autosave.
 
 **Tech Stack:** React 18, Vite 6, Tailwind v4, react-router v6, `@tiptap/{core,react,pm,starter-kit,suggestion}`, `@tiptap/extension-placeholder`, `tippy.js`, Vitest + jsdom + @testing-library/react. All editor deps are MIT/public-npm (no Tiptap SaaS).
 
 **Key constraints:**
-- `apps/saytu-admin/tsconfig.json` extends the strict base: `verbatimModuleSyntax` (use `import type`), `noUncheckedIndexedAccess` (guard indexed access). No `React.ReactNode` value imports — `import type { ReactNode }`.
+- `apps/admin/tsconfig.json` extends the strict base: `verbatimModuleSyntax` (use `import type`), `noUncheckedIndexedAccess` (guard indexed access). No `React.ReactNode` value imports — `import type { ReactNode }`.
 - The schema MUST match the converter exactly: `callout` (group `block`, content `block+`, attr `mdAttrs`), `passthrough` (atom, attrs `raw`/`flagged`), built-in node/mark names already match StarterKit (incl. the `link` mark — Tiptap v3 StarterKit bundles Link, so do NOT add `@tiptap/extension-link` separately).
 - `prototype/admin-editor/` is a PATTERN reference only. Its node attrs (`callout: inline*`, `passthrough: {label}`) are WRONG vs the engine — do not copy them.
 - Never lose content (the CMS cardinal rule) — the round-trip guard test in Task 3 is the gate.
@@ -174,13 +174,13 @@ git commit -m "feat(git-memory): in-memory GitPort adapter (contract-tested)"
 ### Task 2: Services context in the admin app
 
 **Files:**
-- Modify: `apps/saytu-admin/package.json` (add deps)
-- Modify: `apps/saytu-admin/src/data/store.tsx` (add services context; keep `useData`/`DataProvider` working)
-- Test: `apps/saytu-admin/test/services.test.tsx` (new)
+- Modify: `apps/admin/package.json` (add deps)
+- Modify: `apps/admin/src/data/store.tsx` (add services context; keep `useData`/`DataProvider` working)
+- Test: `apps/admin/test/services.test.tsx` (new)
 
 - [ ] **Step 1: Add dependencies**
 
-Edit `apps/saytu-admin/package.json` `dependencies` to add (keep existing entries):
+Edit `apps/admin/package.json` `dependencies` to add (keep existing entries):
 ```json
     "@setu/git-memory": "workspace:*",
     "@tiptap/core": "^3.26.1",
@@ -195,7 +195,7 @@ Then run: `pnpm install`
 
 - [ ] **Step 2: Write the failing services test**
 
-`apps/saytu-admin/test/services.test.tsx`:
+`apps/admin/test/services.test.tsx`:
 ```tsx
 import { describe, it, expect } from 'vitest'
 import { renderHook } from '@testing-library/react'
@@ -233,7 +233,7 @@ Expected: FAIL — `ServicesProvider`/`createServices`/`useServices` not exporte
 
 - [ ] **Step 4: Rewrite the store with a services context (back-compatible)**
 
-Replace `apps/saytu-admin/src/data/store.tsx`:
+Replace `apps/admin/src/data/store.tsx`:
 ```tsx
 import { createContext, useContext, useMemo } from 'react'
 import type { ReactNode } from 'react'
@@ -323,7 +323,7 @@ Expected: PASS — the new services tests green AND the existing 14 tests (conte
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/saytu-admin/package.json apps/saytu-admin/src/data/store.tsx apps/saytu-admin/test/services.test.tsx pnpm-lock.yaml
+git add apps/admin/package.json apps/admin/src/data/store.tsx apps/admin/test/services.test.tsx pnpm-lock.yaml
 git commit -m "feat(admin): services context (data+git+read+authoring) + Tiptap deps"
 ```
 
@@ -332,13 +332,13 @@ git commit -m "feat(admin): services context (data+git+read+authoring) + Tiptap 
 ### Task 3: Tiptap schema — Callout + Passthrough nodes + the round-trip guard
 
 **Files:**
-- Create: `apps/saytu-admin/src/editor/extensions/Callout.tsx`
-- Create: `apps/saytu-admin/src/editor/extensions/Passthrough.tsx`
-- Test: `apps/saytu-admin/test/editor-schema.test.tsx`
+- Create: `apps/admin/src/editor/extensions/Callout.tsx`
+- Create: `apps/admin/src/editor/extensions/Passthrough.tsx`
+- Test: `apps/admin/test/editor-schema.test.tsx`
 
 - [ ] **Step 1: Write the failing round-trip guard test**
 
-`apps/saytu-admin/test/editor-schema.test.tsx`:
+`apps/admin/test/editor-schema.test.tsx`:
 ```tsx
 import { describe, it, expect } from 'vitest'
 import { Editor } from '@tiptap/core'
@@ -381,7 +381,7 @@ Expected: FAIL — `Callout`/`Passthrough` modules not found.
 
 - [ ] **Step 3: Implement the Callout node**
 
-`apps/saytu-admin/src/editor/extensions/Callout.tsx`:
+`apps/admin/src/editor/extensions/Callout.tsx`:
 ```tsx
 import { Node, mergeAttributes } from '@tiptap/core'
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
@@ -432,7 +432,7 @@ export const Callout = Node.create({
 
 - [ ] **Step 4: Implement the Passthrough node (never-drop chip)**
 
-`apps/saytu-admin/src/editor/extensions/Passthrough.tsx`:
+`apps/admin/src/editor/extensions/Passthrough.tsx`:
 ```tsx
 import { Node, mergeAttributes } from '@tiptap/core'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
@@ -488,7 +488,7 @@ Expected: PASS. If `tiptapToMarkdoc(json) === SOURCE` fails because ProseMirror 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/saytu-admin/src/editor/extensions/Callout.tsx apps/saytu-admin/src/editor/extensions/Passthrough.tsx apps/saytu-admin/test/editor-schema.test.tsx
+git add apps/admin/src/editor/extensions/Callout.tsx apps/admin/src/editor/extensions/Passthrough.tsx apps/admin/test/editor-schema.test.tsx
 git commit -m "feat(admin): Callout + Passthrough Tiptap nodes matching the converter schema"
 ```
 
@@ -497,13 +497,13 @@ git commit -m "feat(admin): Callout + Passthrough Tiptap nodes matching the conv
 ### Task 4: Config-driven slash menu
 
 **Files:**
-- Create: `apps/saytu-admin/src/editor/blocks.ts`
-- Create: `apps/saytu-admin/src/editor/extensions/SlashCommand.tsx`
-- Test: `apps/saytu-admin/test/slash.test.tsx`
+- Create: `apps/admin/src/editor/blocks.ts`
+- Create: `apps/admin/src/editor/extensions/SlashCommand.tsx`
+- Test: `apps/admin/test/slash.test.tsx`
 
 - [ ] **Step 1: Write the failing slash-blocks test**
 
-`apps/saytu-admin/test/slash.test.tsx`:
+`apps/admin/test/slash.test.tsx`:
 ```tsx
 import { describe, it, expect } from 'vitest'
 import { Editor } from '@tiptap/core'
@@ -540,7 +540,7 @@ Expected: FAIL — `slashBlocks` not found.
 
 - [ ] **Step 3: Implement the block list**
 
-`apps/saytu-admin/src/editor/blocks.ts`:
+`apps/admin/src/editor/blocks.ts`:
 ```ts
 import type { Editor, Range } from '@tiptap/core'
 import type { IconName } from '../ui/Icon'
@@ -588,7 +588,7 @@ Note: `defaultConfig`'s callout has `editor: { label: 'Callout', icon: 'info', .
 
 - [ ] **Step 4: Implement the SlashCommand extension + CommandList**
 
-`apps/saytu-admin/src/editor/extensions/SlashCommand.tsx`:
+`apps/admin/src/editor/extensions/SlashCommand.tsx`:
 ```tsx
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
 import { Extension } from '@tiptap/core'
@@ -725,7 +725,7 @@ Expected: PASS — slashBlocks includes Callout + inserts a callout node; typech
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/saytu-admin/src/editor/blocks.ts apps/saytu-admin/src/editor/extensions/SlashCommand.tsx apps/saytu-admin/test/slash.test.tsx
+git add apps/admin/src/editor/blocks.ts apps/admin/src/editor/extensions/SlashCommand.tsx apps/admin/test/slash.test.tsx
 git commit -m "feat(admin): config-driven slash-command block menu"
 ```
 
@@ -734,17 +734,17 @@ git commit -m "feat(admin): config-driven slash-command block menu"
 ### Task 5: Editor screen + metadata panel + autosave + route
 
 **Files:**
-- Create: `apps/saytu-admin/src/editor/Canvas.tsx`
-- Create: `apps/saytu-admin/src/editor/useAutosave.ts`
-- Create: `apps/saytu-admin/src/editor/MetaPanel.tsx`
-- Create: `apps/saytu-admin/src/editor/EditorScreen.tsx`
-- Modify: `apps/saytu-admin/src/app.tsx` (wire the route)
-- Test: `apps/saytu-admin/test/autosave.test.ts`
-- Test: `apps/saytu-admin/test/editor-screen.test.tsx`
+- Create: `apps/admin/src/editor/Canvas.tsx`
+- Create: `apps/admin/src/editor/useAutosave.ts`
+- Create: `apps/admin/src/editor/MetaPanel.tsx`
+- Create: `apps/admin/src/editor/EditorScreen.tsx`
+- Modify: `apps/admin/src/app.tsx` (wire the route)
+- Test: `apps/admin/test/autosave.test.ts`
+- Test: `apps/admin/test/editor-screen.test.tsx`
 
 - [ ] **Step 1: Write the failing autosave hook test**
 
-`apps/saytu-admin/test/autosave.test.ts`:
+`apps/admin/test/autosave.test.ts`:
 ```ts
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
@@ -799,7 +799,7 @@ Expected: FAIL — `useAutosave` not found.
 
 - [ ] **Step 3: Implement the autosave hook**
 
-`apps/saytu-admin/src/editor/useAutosave.ts`:
+`apps/admin/src/editor/useAutosave.ts`:
 ```ts
 import { useEffect, useRef } from 'react'
 import type { DraftInput } from '@setu/core'
@@ -861,7 +861,7 @@ Expected: PASS.
 
 - [ ] **Step 5: Implement Canvas, MetaPanel, and EditorScreen**
 
-`apps/saytu-admin/src/editor/Canvas.tsx`:
+`apps/admin/src/editor/Canvas.tsx`:
 ```tsx
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -899,7 +899,7 @@ export function Canvas({
 }
 ```
 
-`apps/saytu-admin/src/editor/MetaPanel.tsx`:
+`apps/admin/src/editor/MetaPanel.tsx`:
 ```tsx
 const STATUSES = ['Draft', 'Staged', 'Deployed'] as const
 
@@ -946,7 +946,7 @@ export function MetaPanel({
 }
 ```
 
-`apps/saytu-admin/src/editor/EditorScreen.tsx`:
+`apps/admin/src/editor/EditorScreen.tsx`:
 ```tsx
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
@@ -1061,7 +1061,7 @@ export function EditorScreen() {
 
 - [ ] **Step 6: Wire the route**
 
-In `apps/saytu-admin/src/app.tsx`: add the import and replace the `/edit/*` placeholder route with the param route (keep the rest).
+In `apps/admin/src/app.tsx`: add the import and replace the `/edit/*` placeholder route with the param route (keep the rest).
 ```tsx
 import { EditorScreen } from './editor/EditorScreen'
 ```
@@ -1076,7 +1076,7 @@ with:
 
 - [ ] **Step 7: Write the editor-screen tests**
 
-`apps/saytu-admin/test/editor-screen.test.tsx`:
+`apps/admin/test/editor-screen.test.tsx`:
 ```tsx
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
@@ -1174,7 +1174,7 @@ Expected: PASS — editor-screen + autosave + all prior tests green; typecheck c
 - [ ] **Step 9: Commit**
 
 ```bash
-git add apps/saytu-admin/src/editor apps/saytu-admin/src/app.tsx apps/saytu-admin/test/autosave.test.ts apps/saytu-admin/test/editor-screen.test.tsx
+git add apps/admin/src/editor apps/admin/src/app.tsx apps/admin/test/autosave.test.ts apps/admin/test/editor-screen.test.tsx
 git commit -m "feat(admin): editor screen — load/lock/autosave + canvas + metadata panel + route"
 ```
 
@@ -1183,12 +1183,12 @@ git commit -m "feat(admin): editor screen — load/lock/autosave + canvas + meta
 ### Task 6: CSS port (editor canvas + prose + chips + slim meta panel)
 
 **Files:**
-- Create: `apps/saytu-admin/src/styles/editor.css`
-- Modify: `apps/saytu-admin/src/index.css` (import editor.css last)
+- Create: `apps/admin/src/styles/editor.css`
+- Modify: `apps/admin/src/index.css` (import editor.css last)
 
 This task has no new behavior tests — fidelity is a UAT check. The gate is: existing tests stay green, typecheck + build pass, brand fonts preserved.
 
-- [ ] **Step 1: Create `apps/saytu-admin/src/styles/editor.css`**
+- [ ] **Step 1: Create `apps/admin/src/styles/editor.css`**
 
 Port the editor chrome faithfully from `design/admin/editor.css` (read it). Copy these rule blocks verbatim (values, not invented): `.editor`, `.ed-strip`, `.ed-strip-left`, `.ed-strip-center`, `.ed-strip-right`, `.ed-breadcrumb`, `.autosave`, `.autosave.saving`, `.editor-stage`, `.ed-scroll`, `.ed-canvas`, `.ed-title` (+ the `::placeholder` equivalent — the design uses a `[data-empty]` attr trick; since our title is an `<input>`, use the native `::placeholder`), `.blk-callout` + `.blk-callout.tone-*` + `.callout-ic` + `.callout-text`, the dynamic/Pro chip `.blk-dynamic` + `.dyn-rail` + `.dyn-head` + `.dyn-ic` + `.dyn-title` + `.dyn-lock`, and the slash menu `.slash` + `.slash-head` + `.slash-list` + `.slash-item` + `.slash-item.sel` + `.slash-ic` + `.slash-text` + `.slash-label` + `.slash-desc` (read their values from `design/admin/editor.css`).
 
@@ -1228,9 +1228,9 @@ Then ADD these app-specific rules (Tiptap renders semantic tags inside `.saytu-p
 .segmented-opt.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1, 0 1px 2px rgba(0,0,0,.06)); }
 .segmented-opt:disabled { opacity: .55; cursor: default; }
 ```
-If any `var(--…)` referenced is NOT in `apps/saytu-admin/src/styles/tokens.css`, substitute the nearest present token and note it (e.g. `--surface-active`, `--bg-sunken`, `--shadow-1` — verify each exists; if not, use `--surface-hover`/`--bg`/a literal shadow respectively).
+If any `var(--…)` referenced is NOT in `apps/admin/src/styles/tokens.css`, substitute the nearest present token and note it (e.g. `--surface-active`, `--bg-sunken`, `--shadow-1` — verify each exists; if not, use `--surface-hover`/`--bg`/a literal shadow respectively).
 
-- [ ] **Step 2: Import editor.css last in `apps/saytu-admin/src/index.css`**
+- [ ] **Step 2: Import editor.css last in `apps/admin/src/index.css`**
 
 Edit the import block so order is tailwind → tokens → components → shell → editor:
 ```css
@@ -1248,7 +1248,7 @@ Run:
 pnpm --filter @setu/admin test
 pnpm --filter @setu/admin typecheck
 pnpm --filter @setu/admin build
-grep -c fonts.googleapis apps/saytu-admin/dist/index.html
+grep -c fonts.googleapis apps/admin/dist/index.html
 ```
 Expected: all admin tests green; typecheck clean; build succeeds; the `grep` prints a number > 0 (brand fonts preserved).
 
@@ -1260,7 +1260,7 @@ Expected: all suites pass (core/db/git/admin) and typecheck clean repo-wide.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/saytu-admin/src/styles/editor.css apps/saytu-admin/src/index.css
+git add apps/admin/src/styles/editor.css apps/admin/src/index.css
 git commit -m "feat(admin): editor canvas + prose + chip + slim meta-panel CSS (ported)"
 ```
 

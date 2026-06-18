@@ -55,12 +55,12 @@ modern editor."
 ## Architecture / components
 
 ```
-apps/saytu-admin/src/editor/
+apps/admin/src/editor/
 ├── Canvas.tsx              # configure StarterKit (link openOnClick:false, underline:false);
 │                           # render <FormatBubble/> + <LinkPopup/> inside the editor context
 ├── FormatBubble.tsx        # NEW — selection bubble: 4 mark toggles + Link (inline URL input)
 └── LinkPopup.tsx           # NEW — caret-in-link / hover-link card: Open ↗ / Edit / Remove
-apps/saytu-admin/src/styles/editor.css   # bubble + link-card styles
+apps/admin/src/styles/editor.css   # bubble + link-card styles
 ```
 
 - **FormatBubble** uses `BubbleMenu`'s `shouldShow` to appear only on a non-empty selection

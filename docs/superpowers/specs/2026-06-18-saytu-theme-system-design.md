@@ -13,7 +13,7 @@ long-game), with **no visible change to the current site** (same look, now sourc
 theme package the config selects).
 
 **Architecture:** extract the theme's *look* (layouts + tokens + styles) out of
-`apps/saytu-site` into a new `packages/theme-default` (`@setu/theme-default`). Add a `theme`
+`apps/site` into a new `packages/theme-default` (`@setu/theme-default`). Add a `theme`
 field to `saytu.config`. At build, the site reads that field and aliases `@theme` → the active
 theme package; the site's pages import their layouts from `@theme/…`. Switching themes = change
 the `theme` value + install the other package + rebuild. The render *engine* (routing, Markdoc
@@ -31,7 +31,7 @@ an Astro app renders a layout/tokens imported from a theme package; and a build-
 
 ### In scope
 - **New package `packages/theme-default` (`@setu/theme-default`)** containing the theme's look,
-  moved from `apps/saytu-site/src`:
+  moved from `apps/site/src`:
   - `Layout.astro`, `PostLayout.astro`, `PageLayout.astro`
   - `theme.css` (the token layer), `site.css` (body/header/footer/measures/prose)
   - `package.json` with an `exports` map for each layout + css (`./Layout.astro`, etc.);
@@ -39,9 +39,9 @@ an Astro app renders a layout/tokens imported from a theme package; and a build-
 - **`theme` field in `saytu.config`** (`@setu/core`): an additive, optional `theme?: string`
   (the active theme's package name) on `SaytuConfig` + the schema + `ResolvedConfig`
   (pass-through). Additive only — **does not touch the Markdoc round-trip / content path.**
-- **A `saytu.config.ts` in `apps/saytu-site`** declaring `theme: '@setu/theme-default'`
+- **A `saytu.config.ts` in `apps/site`** declaring `theme: '@setu/theme-default'`
   (single source of truth, per PRD §8).
-- **Build wiring** (`apps/saytu-site/astro.config.mjs`): read `saytu.config`'s `theme` (via
+- **Build wiring** (`apps/site/astro.config.mjs`): read `saytu.config`'s `theme` (via
   `@setu/core`'s Node `loadConfig`, jiti — proven in #2) and set a Vite alias `@theme` → the
   active theme package; default to `@setu/theme-default` if unset.
 - **Rewire the site's pages** (`[...path].astro`, `index.astro`) to import their layouts from
@@ -58,7 +58,7 @@ an Astro app renders a layout/tokens imported from a theme package; and a build-
   `@setu/theme-editorial` etc. is future content, not this increment.
 - **Dark mode, the marketplace/registry, theme scaffolding CLI** — all later.
 - **The render engine stays put:** routing, `content.config`, `lib/url`, `markdoc.config`, and
-  the block-render components (callout/align/sub-sup) remain in `apps/saytu-site` (#1). The
+  the block-render components (callout/align/sub-sup) remain in `apps/site` (#1). The
   callout still themes — it reads the *tokens*, which now live in the theme package and load via
   the theme's `Layout`.
 
@@ -69,7 +69,7 @@ an Astro app renders a layout/tokens imported from a theme package; and a build-
 ```
 packages/theme-default/
   package.json        @setu/theme-default; type module; exports each layout + css; astro peerDep
-  Layout.astro        moved from apps/saytu-site/src/layouts/Layout.astro (head/fonts/header/footer)
+  Layout.astro        moved from apps/site/src/layouts/Layout.astro (head/fonts/header/footer)
   PostLayout.astro    moved — narrow .measure-post (imports ./Layout.astro)
   PageLayout.astro    moved — wider .measure-page (imports ./Layout.astro)
   theme.css           moved from src/styles/theme.css (the :root token layer)
@@ -104,13 +104,13 @@ unaffected (the `theme` field is never read by the converter).
 
 ## 4. Build wiring (the activation mechanism)
 
-`apps/saytu-site/saytu.config.ts` (new):
+`apps/site/saytu.config.ts` (new):
 ```ts
 import { defineConfig, defaultConfig } from '@setu/core'
 export default defineConfig({ blocks: defaultConfig.blocks, theme: '@setu/theme-default' })
 ```
 
-`apps/saytu-site/astro.config.mjs`: read the active theme + alias `@theme` to it:
+`apps/site/astro.config.mjs`: read the active theme + alias `@theme` to it:
 ```js
 import { loadConfig } from '@setu/core/node'
 const config = await loadConfig(new URL('./saytu.config.ts', import.meta.url).pathname)
@@ -131,12 +131,12 @@ mechanism itself (value → alias → rendered theme) is already spiked.
 
 ## 5. Site rewiring
 
-- `apps/saytu-site/src/pages/[...path].astro`: `import PostLayout from '@theme/PostLayout.astro'`
+- `apps/site/src/pages/[...path].astro`: `import PostLayout from '@theme/PostLayout.astro'`
   + `import PageLayout from '@theme/PageLayout.astro'` (was `../layouts/…`). Logic unchanged.
-- `apps/saytu-site/src/pages/index.astro`: `import PageLayout from '@theme/PageLayout.astro'`.
-- Delete `apps/saytu-site/src/layouts/{Layout,PostLayout,PageLayout}.astro` and
+- `apps/site/src/pages/index.astro`: `import PageLayout from '@theme/PageLayout.astro'`.
+- Delete `apps/site/src/layouts/{Layout,PostLayout,PageLayout}.astro` and
   `src/styles/{theme,site}.css` (now owned by the theme package).
-- `apps/saytu-site/package.json`: add `@setu/theme-default` (workspace) + `@setu/core` deps.
+- `apps/site/package.json`: add `@setu/theme-default` (workspace) + `@setu/core` deps.
 - **What stays:** `content.config.ts`, `lib/url.ts`, `markdoc.config.mjs`, the block components
   (`CalloutWrapper`/`Heading`/`Paragraph`/`Sub`/`Sup`/`Th`/`Td`), `content/`, `test/`.
 

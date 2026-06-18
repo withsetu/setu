@@ -79,7 +79,7 @@ used for `passthrough` blocks (written verbatim, not via `Markdoc.format`).
      `th/td` `align` attr (or null). Apply the column's alignment to **every** cell in the
      column (read side: each th/td already carries it).
 
-### B. Editor (`apps/saytu-admin/`)
+### B. Editor (`apps/admin/`)
 
 4. **Register tables.** Add `@tiptap/extension-table` (MIT) to `package.json`; register
    `TableKit` in `Canvas.tsx`. **Extend `TableCell` and `TableHeader`** (via
@@ -127,12 +127,12 @@ packages/core/src/markdoc/
 ├── to-markdoc.ts      # MODIFY — export buildInline; route `table` node → tableToGfm
 ├── to-tiptap.ts       # MODIFY — case 'table' → Tiptap table/row/cell(align)/paragraph
 └── test/{table.test.ts (new), roundtrip.examples.test.ts}  # serializer + round-trip + negatives
-apps/saytu-admin/src/editor/
+apps/admin/src/editor/
 ├── Canvas.tsx         # MODIFY — register TableKit; extend TableCell/TableHeader with align
 ├── blocks.ts          # MODIFY — "Table" slash insert (starter 2x2 w/ header)
 ├── TableMenu.tsx      # NEW — cell/table actions (rows, cols, align, delete)
 └── styles/editor.css  # MODIFY — table + alignment + selected-cell styling
-apps/saytu-admin/package.json  # + @tiptap/extension-table
+apps/admin/package.json  # + @tiptap/extension-table
 ```
 
 - `table-gfm.ts` is the one new unit and the content-safety centerpiece: pure, fully

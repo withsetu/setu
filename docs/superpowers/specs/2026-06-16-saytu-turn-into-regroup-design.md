@@ -12,7 +12,7 @@ Subscript/superscript (slice 2) and checklist (slice 3) follow as their own incr
 
 ## Key context (verified)
 
-- `apps/saytu-admin/src/editor/block-types.ts` already exports the flat `BLOCK_TYPES`
+- `apps/admin/src/editor/block-types.ts` already exports the flat `BLOCK_TYPES`
   (`{id,label,icon,isActive,setOn}`) + `currentBlockType(editor)`, consumed by BOTH the slash menu
   (`blocks.ts`) and the bubble's `TurnIntoMenu.tsx`. The slash menu stays flat; only the bubble
   menu gains grouping. The grouped view is **derived from the same `BLOCK_TYPES`** so nothing
@@ -69,7 +69,7 @@ Subscript/superscript (slice 2) and checklist (slice 3) follow as their own incr
 ## Architecture / components
 
 ```
-apps/saytu-admin/src/editor/
+apps/admin/src/editor/
 ├── block-types.ts        # MODIFY — add TurnIntoEntry + TURN_INTO_GROUPS + groupContaining()
 ├── TurnIntoMenu.tsx      # MODIFY — render groups w/ inline expand + visible-row keyboard nav
 └── styles/editor.css     # MODIFY — .ti-group/.ti-sub indentation + chevron

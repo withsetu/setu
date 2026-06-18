@@ -28,7 +28,7 @@ maps `align` → a class/style at render time — a **separate later concern**, 
 
 - **Tiptap `@tiptap/extension-text-align`** (MIT). Config: `types` (e.g. `['heading','paragraph']`), `alignments` (default `['left','center','right','justify']`; we use `['left','center','right']`), `defaultAlignment`. Commands `setTextAlign(value)` / `unsetTextAlign()`; stores a `textAlign` attribute on the configured node types; renders `style="text-align:…"`. Default keyboard shortcuts are bundled by the extension (commonly `Mod-Shift-l/e/r`) — the plan **verifies the exact keys against the installed package** (HARD RULE) before surfacing them. NOT yet a workspace dep (must add). Standalone in v3 (not folded into a kit, unlike list/table) — plan confirms on install.
 - **Converter** (`packages/core/src/markdoc/`): `to-markdoc.ts` `buildBlock` builds `heading`/`paragraph` via `new N('heading',{level},[inline])` / `new N('paragraph',{},[inline])`; `to-tiptap.ts` `blockToTiptap` `case 'heading'`/`'paragraph'` use `collectInline`. `MdNode` has an `annotations?` field at runtime (spike-confirmed) though not in the minimal `MdNode` type — the plan adds it to the type.
-- **FormatBubble** (`apps/saytu-admin/src/editor/FormatBubble.tsx`): a `MARKS` button array, a `useEditorState` selector for active state, `tipFor`/`ariaFor` from the `SHORTCUTS` registry, toolbar roving (`data-toolbar-item`), and the `TurnIntoMenu`. Alignment buttons slot in as a new group using `editor.isActive({ textAlign: 'center' })` for active state.
+- **FormatBubble** (`apps/admin/src/editor/FormatBubble.tsx`): a `MARKS` button array, a `useEditorState` selector for active state, `tipFor`/`ariaFor` from the `SHORTCUTS` registry, toolbar roving (`data-toolbar-item`), and the `TurnIntoMenu`. Alignment buttons slot in as a new group using `editor.isActive({ textAlign: 'center' })` for active state.
 - The `alignLeft` / `alignCenter` / `alignRight` icons already exist in `Icon.tsx` (added for tables) — reuse them.
 
 ## Scope
@@ -42,7 +42,7 @@ maps `align` → a class/style at render time — a **separate later concern**, 
 3. **`to-markdoc.ts`** — in `buildBlock` for `heading`/`paragraph`, read `node.attrs.textAlign`; if it's `'center'`/`'right'` (not `left`/null/undefined), set `built.annotations = [{ type: 'attribute', name: 'align', value: textAlign }]` on the constructed Markdoc node before returning. Unaligned blocks set no annotation. A small `withAlign(builtNode, tiptapNode)` helper keeps this DRY across the two cases.
 4. Round-trip tests (the centerpiece): aligned paragraph + heading; alignment with inline marks; **default-left emits no annotation**; idempotency + byte-fidelity (canonical no-space form); negative (plain paragraph stays annotation-free).
 
-### B. Editor (`apps/saytu-admin/`)
+### B. Editor (`apps/admin/`)
 
 5. **Register** `@tiptap/extension-text-align` in `Canvas.tsx`: `TextAlign.configure({ types: ['heading', 'paragraph'], alignments: ['left', 'center', 'right'] })`.
 6. **FormatBubble alignment group** — three icon buttons (`alignLeft`/`alignCenter`/`alignRight`) after the marks (or near Turn-into), each: `aria-pressed` from `editor.isActive({ textAlign: <v> })`, tooltip + `aria-keyshortcuts` from the `SHORTCUTS` registry, `data-toolbar-item` (joins roving). Click: center/right → `setTextAlign(v)`; left → `unsetTextAlign()` (clean default). Add `textAlign` active-state to the `useEditorState` selector.
@@ -63,11 +63,11 @@ packages/core/src/markdoc/
 ├── to-tiptap.ts      # MODIFY — heading/paragraph: align attr → textAlign
 ├── to-markdoc.ts     # MODIFY — heading/paragraph: textAlign → node.annotations (withAlign helper)
 └── test/{to-markdoc,to-tiptap,roundtrip.examples}.test.ts
-apps/saytu-admin/src/editor/
+apps/admin/src/editor/
 ├── Canvas.tsx        # MODIFY — register TextAlign (types: heading,paragraph; L/C/R)
 ├── FormatBubble.tsx  # MODIFY — alignment button group + textAlign active state
 ├── shortcuts.ts      # MODIFY — align shortcuts (verified keys)
-apps/saytu-admin/package.json  # + @tiptap/extension-text-align
+apps/admin/package.json  # + @tiptap/extension-text-align
 ```
 
 ## Error handling / edge cases

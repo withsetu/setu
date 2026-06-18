@@ -27,7 +27,7 @@ editor canvas (#11) goes on top of it. Design source of truth: `design/admin/`
 - **ContentList** rebuilt to match the design's polished table + status pills.
 - CSS: port the foundational `components.css` (Icon/Button/Badge/StatusPill), the
   **sidebar** section of `shell.css`, and the **content-list** section of
-  `screens.css` into `apps/saytu-admin/src/styles/`; match markup to the design's
+  `screens.css` into `apps/admin/src/styles/`; match markup to the design's
   class names. `tokens.css` unchanged.
 - Behavior tests for the new bits; the existing 7 admin tests stay green.
 
@@ -63,7 +63,7 @@ design CSS also covers them):**
 ## Architecture
 
 ```
-apps/saytu-admin/src/
+apps/admin/src/
 ├── ui/
 │   ├── Icon.tsx            # ICONS map + Icon({name,size,stroke,className})
 │   └── StatusPill.tsx      # Badge + StatusPill + STATUS_MAP

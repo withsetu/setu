@@ -19,8 +19,8 @@
 **Files:**
 - Modify: `packages/core/src/config/types.ts` (add `variants?` to `BlockEditorMeta`)
 - Modify: `packages/core/src/config/default-config.ts` (permissive callout props + `editor.variants`)
-- Create: `apps/saytu-admin/src/editor/callout-variants.ts`
-- Test: `apps/saytu-admin/test/callout-variants.test.tsx`
+- Create: `apps/admin/src/editor/callout-variants.ts`
+- Test: `apps/admin/test/callout-variants.test.tsx`
 
 - [ ] **Step 1: Add `variants?: string[]` to `BlockEditorMeta`**
 
@@ -66,7 +66,7 @@ If a config test asserted the callout's `type` enum (e.g. that `type:'info'` val
 
 - [ ] **Step 4: Write the failing variants test**
 
-`apps/saytu-admin/test/callout-variants.test.tsx`:
+`apps/admin/test/callout-variants.test.tsx`:
 ```tsx
 import { describe, it, expect } from 'vitest'
 import { calloutVariants, variantFor, CALLOUT_ICONS } from '../src/editor/callout-variants'
@@ -97,7 +97,7 @@ describe('callout variants', () => {
 
 - [ ] **Step 6: Implement `callout-variants.ts`**
 
-`apps/saytu-admin/src/editor/callout-variants.ts`:
+`apps/admin/src/editor/callout-variants.ts`:
 ```ts
 import type { IconName } from '../ui/Icon'
 import { isIconName } from '../ui/Icon'
@@ -143,7 +143,7 @@ export function calloutVariants(): CalloutVariant[] {
   return configVariantTypes().map((t) => variantFor(t))
 }
 ```
-IMPORTANT — icon names: every icon used in `VARIANT_MAP` and `CALLOUT_ICONS` MUST be a valid `IconName` (check `apps/saytu-admin/src/ui/Icon.tsx`'s ICONS). `info`, `sparkle`, `zap`, `pin`, `lock`, `settings` should already exist. If `check` and/or `alert` do NOT exist in ICONS, add them to BOTH `apps/saytu-admin/src/ui/Icon.tsx` AND `design/admin/components.jsx` (byte-identical, per the verbatim-port invariant), using proper Lucide-style stroke paths:
+IMPORTANT — icon names: every icon used in `VARIANT_MAP` and `CALLOUT_ICONS` MUST be a valid `IconName` (check `apps/admin/src/ui/Icon.tsx`'s ICONS). `info`, `sparkle`, `zap`, `pin`, `lock`, `settings` should already exist. If `check` and/or `alert` do NOT exist in ICONS, add them to BOTH `apps/admin/src/ui/Icon.tsx` AND `design/admin/components.jsx` (byte-identical, per the verbatim-port invariant), using proper Lucide-style stroke paths:
 - `check`: `'<path d="M20 6 9 17l-5-5"/>'`
 - `alert`: `'<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>'`
 Report which icons you added (if any). If you prefer existing icons over adding, you may map `warning`/`danger` to an existing icon and `success` to an existing one — but `check` for success and `alert` for warning/danger are strongly preferred for clarity; adding them (synced to the design source) is the right call. Confirm `isIconName` is exported from `Icon.tsx` (it was added in #11); if not, export it.
@@ -152,7 +152,7 @@ Report which icons you added (if any). If you prefer existing icons over adding,
 
 - [ ] **Step 8: Commit**
 ```bash
-git add packages/core/src/config/types.ts packages/core/src/config/default-config.ts apps/saytu-admin/src/editor/callout-variants.ts apps/saytu-admin/test/callout-variants.test.tsx apps/saytu-admin/src/ui/Icon.tsx design/admin/components.jsx
+git add packages/core/src/config/types.ts packages/core/src/config/default-config.ts apps/admin/src/editor/callout-variants.ts apps/admin/test/callout-variants.test.tsx apps/admin/src/ui/Icon.tsx design/admin/components.jsx
 git commit -m "feat(callout): config-driven variants (editor.variants) + default-theme tone/icon map"
 ```
 
@@ -161,13 +161,13 @@ git commit -m "feat(callout): config-driven variants (editor.variants) + default
 ### Task 2: Rebuild the Callout node (titled header + body + toolbar) + extend the guard + slash insert
 
 **Files:**
-- Modify: `apps/saytu-admin/src/editor/extensions/Callout.tsx`
-- Modify: `apps/saytu-admin/src/editor/blocks.ts` (slash insert)
-- Test: `apps/saytu-admin/test/editor-schema.test.tsx` (extend guard) + `apps/saytu-admin/test/callout-node.test.tsx` (new)
+- Modify: `apps/admin/src/editor/extensions/Callout.tsx`
+- Modify: `apps/admin/src/editor/blocks.ts` (slash insert)
+- Test: `apps/admin/test/editor-schema.test.tsx` (extend guard) + `apps/admin/test/callout-node.test.tsx` (new)
 
 - [ ] **Step 1: Extend the round-trip guard test**
 
-In `apps/saytu-admin/test/editor-schema.test.tsx`, ADD a test (keep the existing one):
+In `apps/admin/test/editor-schema.test.tsx`, ADD a test (keep the existing one):
 ```tsx
   it('preserves a titled/typed/iconned callout through getJSON + round-trips', () => {
     const SRC =
@@ -195,7 +195,7 @@ In `apps/saytu-admin/test/editor-schema.test.tsx`, ADD a test (keep the existing
 
 - [ ] **Step 3: Write the node-view behavior test**
 
-`apps/saytu-admin/test/callout-node.test.tsx`:
+`apps/admin/test/callout-node.test.tsx`:
 ```tsx
 import { describe, it, expect, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
@@ -232,7 +232,7 @@ describe('Callout node view', () => {
 
 - [ ] **Step 5: Rebuild the Callout node view**
 
-Replace the `CalloutView` component (and keep the `Node.create` config below it; only the view + imports change) in `apps/saytu-admin/src/editor/extensions/Callout.tsx`:
+Replace the `CalloutView` component (and keep the `Node.create` config below it; only the view + imports change) in `apps/admin/src/editor/extensions/Callout.tsx`:
 ```tsx
 import { Node, mergeAttributes } from '@tiptap/core'
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
@@ -312,7 +312,7 @@ Notes: the title `<input>` calls `e.stopPropagation()` on keydown so ProseMirror
 
 - [ ] **Step 6: Update the slash insert to a typed callout**
 
-In `apps/saytu-admin/src/editor/blocks.ts`, the config-block insert currently inserts `{ type: b.tag, attrs: { mdAttrs: {} }, content: [{ type: 'paragraph' }] }`. Change the callout insert to seed `type: 'info'`:
+In `apps/admin/src/editor/blocks.ts`, the config-block insert currently inserts `{ type: b.tag, attrs: { mdAttrs: {} }, content: [{ type: 'paragraph' }] }`. Change the callout insert to seed `type: 'info'`:
 ```ts
       e
         .chain()
@@ -328,7 +328,7 @@ If the `callout-node` test can't find the title input because the React node vie
 
 - [ ] **Step 8: Commit**
 ```bash
-git add apps/saytu-admin/src/editor/extensions/Callout.tsx apps/saytu-admin/src/editor/blocks.ts apps/saytu-admin/test/editor-schema.test.tsx apps/saytu-admin/test/callout-node.test.tsx
+git add apps/admin/src/editor/extensions/Callout.tsx apps/admin/src/editor/blocks.ts apps/admin/test/editor-schema.test.tsx apps/admin/test/callout-node.test.tsx
 git commit -m "feat(callout): titled node view (icon+title header, body) + variant toolbar"
 ```
 
@@ -337,11 +337,11 @@ git commit -m "feat(callout): titled node view (icon+title header, body) + varia
 ### Task 3: CSS — titled callout layout + the six tones + the toolbar
 
 **Files:**
-- Modify: `apps/saytu-admin/src/styles/editor.css`
+- Modify: `apps/admin/src/styles/editor.css`
 
 - [ ] **Step 1: Replace the callout CSS block**
 
-In `apps/saytu-admin/src/styles/editor.css`, REPLACE the current `.blk-callout` … `.callout-text` rules (the `/* ---- CALLOUT ---- */` section + the `.callout-text > [data-node-view-content-react]` rule) with the titled layout below. Port the `.block-props`/`.bp-*` values from `design/admin/editor.css` where present; verify every `var(--…)` exists in `tokens.css` (substitute nearest + comment if not — esp. `--slate`/dark tone; if no slate token, use a dark surface token or `color-mix`):
+In `apps/admin/src/styles/editor.css`, REPLACE the current `.blk-callout` … `.callout-text` rules (the `/* ---- CALLOUT ---- */` section + the `.callout-text > [data-node-view-content-react]` rule) with the titled layout below. Port the `.block-props`/`.bp-*` values from `design/admin/editor.css` where present; verify every `var(--…)` exists in `tokens.css` (substitute nearest + comment if not — esp. `--slate`/dark tone; if no slate token, use a dark surface token or `color-mix`):
 ```css
 /* ---- CALLOUT (titled admonition) ---- */
 .blk-callout { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 15px 16px; border-radius: var(--r-md); margin: 12px 0; font-family: var(--font-ui); }
@@ -386,14 +386,14 @@ In `apps/saytu-admin/src/styles/editor.css`, REPLACE the current `.blk-callout` 
 .bp-icon:hover { background: var(--surface-hover); color: var(--text); }
 .bp-icon.on { background: var(--accent-soft); color: var(--accent-strong); }
 ```
-NOTE on tokens: verify `--green-soft`/`--amber-soft`/`--red-soft`/`--accent-soft`/`--surface-2`/`--surface`/`--surface-hover`/`--border-strong`/`--shadow-pop`/`--text-2`/`--text-3`/`--text-4`/`--accent`/`--accent-strong`/`--green`/`--amber`/`--red`/`--canvas`/`--bg`/`--text`/`--r-sm`/`--r-xs`/`--r-md`/`--font-ui` all exist in `apps/saytu-admin/src/styles/tokens.css`. For any missing, substitute the nearest present token and add a `/* sub: X→Y */` comment. Report substitutions. (`tone-slate` is intentionally derived via `color-mix` from `--text` since there's likely no `--slate` token — fine.)
+NOTE on tokens: verify `--green-soft`/`--amber-soft`/`--red-soft`/`--accent-soft`/`--surface-2`/`--surface`/`--surface-hover`/`--border-strong`/`--shadow-pop`/`--text-2`/`--text-3`/`--text-4`/`--accent`/`--accent-strong`/`--green`/`--amber`/`--red`/`--canvas`/`--bg`/`--text`/`--r-sm`/`--r-xs`/`--r-md`/`--font-ui` all exist in `apps/admin/src/styles/tokens.css`. For any missing, substitute the nearest present token and add a `/* sub: X→Y */` comment. Report substitutions. (`tone-slate` is intentionally derived via `color-mix` from `--text` since there's likely no `--slate` token — fine.)
 
 - [ ] **Step 2: Verify build, tests, fonts**
 ```bash
 pnpm --filter @setu/admin test
 pnpm --filter @setu/admin typecheck
 pnpm --filter @setu/admin build
-grep -c fonts.googleapis apps/saytu-admin/dist/index.html
+grep -c fonts.googleapis apps/admin/dist/index.html
 ```
 Expected: all admin tests green; typecheck clean; build succeeds; fonts count > 0.
 
@@ -404,7 +404,7 @@ pnpm test && pnpm typecheck
 
 - [ ] **Step 4: Commit**
 ```bash
-git add apps/saytu-admin/src/styles/editor.css
+git add apps/admin/src/styles/editor.css
 git commit -m "feat(callout): titled-callout + six-tone + toolbar CSS"
 ```
 

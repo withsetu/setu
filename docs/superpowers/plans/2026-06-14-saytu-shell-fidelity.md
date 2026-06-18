@@ -4,7 +4,7 @@
 
 **Goal:** Make the admin chrome match the Claude Design mockup — port the icon set + the real sidebar and content-list styling/markup — without re-Tailwinding and without building deferred interactive features.
 
-**Architecture:** Port presentational primitives (`Icon`, `StatusPill`) + faithfully-ported CSS sections from `design/admin/` into `apps/saytu-admin`, and rebuild `Sidebar`/`ContentList` markup to the design's structure. Behavior is preserved (theme toggle, data flow); only presentation changes. Pixel-fidelity is a UAT check; tests cover behavior.
+**Architecture:** Port presentational primitives (`Icon`, `StatusPill`) + faithfully-ported CSS sections from `design/admin/` into `apps/admin`, and rebuild `Sidebar`/`ContentList` markup to the design's structure. Behavior is preserved (theme toggle, data flow); only presentation changes. Pixel-fidelity is a UAT check; tests cover behavior.
 
 **Tech Stack:** React 18, Tailwind v4, the ported `tokens.css`; vitest + @testing-library/react + jsdom.
 
@@ -17,11 +17,11 @@
 
 ### Task 1: `Icon` + `StatusPill` primitives + base CSS
 
-**Files:** Create `apps/saytu-admin/src/ui/Icon.tsx`, `apps/saytu-admin/src/ui/StatusPill.tsx`, `apps/saytu-admin/src/styles/components.css`; Modify `apps/saytu-admin/src/index.css`; Test `apps/saytu-admin/test/icon.test.tsx`, `apps/saytu-admin/test/status-pill.test.tsx`
+**Files:** Create `apps/admin/src/ui/Icon.tsx`, `apps/admin/src/ui/StatusPill.tsx`, `apps/admin/src/styles/components.css`; Modify `apps/admin/src/index.css`; Test `apps/admin/test/icon.test.tsx`, `apps/admin/test/status-pill.test.tsx`
 
 - [ ] **Step 1: Write the failing tests**
 
-`apps/saytu-admin/test/icon.test.tsx`:
+`apps/admin/test/icon.test.tsx`:
 ```tsx
 import { describe, it, expect } from 'vitest'
 import { render } from '@testing-library/react'
@@ -43,7 +43,7 @@ describe('Icon', () => {
 })
 ```
 
-`apps/saytu-admin/test/status-pill.test.tsx`:
+`apps/admin/test/status-pill.test.tsx`:
 ```tsx
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
@@ -66,7 +66,7 @@ describe('StatusPill', () => {
 
 - [ ] **Step 2: Run — expect FAIL** (`Icon`/`StatusPill` missing). `pnpm --filter @setu/admin test -- icon status-pill`
 
-- [ ] **Step 3: Implement `Icon`** — Create `apps/saytu-admin/src/ui/Icon.tsx`.
+- [ ] **Step 3: Implement `Icon`** — Create `apps/admin/src/ui/Icon.tsx`.
 
 Copy the `ICONS` object **verbatim** from `design/admin/components.jsx` (the `const ICONS = { … }` block, ~70 entries) into this file, adding `as const`. Then add the typed component:
 ```tsx
@@ -113,7 +113,7 @@ export function Icon({
 ```
 (The runtime `if (!d) return null` guard handles the test's `@ts-expect-error` unknown-name case.)
 
-- [ ] **Step 4: Implement `StatusPill`** — Create `apps/saytu-admin/src/ui/StatusPill.tsx`:
+- [ ] **Step 4: Implement `StatusPill`** — Create `apps/admin/src/ui/StatusPill.tsx`:
 ```tsx
 type Tone = 'neutral' | 'amber' | 'green' | 'blue' | 'red' | 'accent'
 
@@ -143,9 +143,9 @@ export function StatusPill({ status }: { status: string }) {
 }
 ```
 
-- [ ] **Step 5: Port the base component CSS** — Create `apps/saytu-admin/src/styles/components.css` by porting from `design/admin/components.css` the rules for: the icon-bearing primitives we use now — **`.badge` / `.badge-soft` / `.badge-<tone>` / `.badge-dot` / `.pill-sm`** (the StatusPill), and the **`.btn` / `.btn-*`** button rules (used by the content-list "New" action in Task 3). Read `design/admin/components.css`, copy those rule blocks verbatim (they reference `tokens.css` vars), and OMIT rules for primitives not used yet (inputs, prochip, prolock, empty-art, etc.) to avoid dead CSS for unbuilt features. If a tone color var referenced isn't in `tokens.css`, use the nearest token present (note it).
+- [ ] **Step 5: Port the base component CSS** — Create `apps/admin/src/styles/components.css` by porting from `design/admin/components.css` the rules for: the icon-bearing primitives we use now — **`.badge` / `.badge-soft` / `.badge-<tone>` / `.badge-dot` / `.pill-sm`** (the StatusPill), and the **`.btn` / `.btn-*`** button rules (used by the content-list "New" action in Task 3). Read `design/admin/components.css`, copy those rule blocks verbatim (they reference `tokens.css` vars), and OMIT rules for primitives not used yet (inputs, prochip, prolock, empty-art, etc.) to avoid dead CSS for unbuilt features. If a tone color var referenced isn't in `tokens.css`, use the nearest token present (note it).
 
-Then import it in `apps/saytu-admin/src/index.css` — add after the tokens import, before shell:
+Then import it in `apps/admin/src/index.css` — add after the tokens import, before shell:
 ```css
 @import './styles/components.css';
 ```
@@ -162,7 +162,7 @@ Expected: 4 new tests pass; typecheck clean.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add apps/saytu-admin
+git add apps/admin
 git commit -m "feat(admin): port Icon set + StatusPill primitives + base component CSS"
 ```
 
@@ -170,9 +170,9 @@ git commit -m "feat(admin): port Icon set + StatusPill primitives + base compone
 
 ### Task 2: Sidebar visual fidelity (icons + workspace header)
 
-**Files:** Modify `apps/saytu-admin/src/shell/Sidebar.tsx`, `apps/saytu-admin/src/styles/shell.css`; Test `apps/saytu-admin/test/sidebar.test.tsx`
+**Files:** Modify `apps/admin/src/shell/Sidebar.tsx`, `apps/admin/src/styles/shell.css`; Test `apps/admin/test/sidebar.test.tsx`
 
-- [ ] **Step 1: Extend the failing Sidebar test** — Update `apps/saytu-admin/test/sidebar.test.tsx` to add icon + workspace assertions (keep the existing nav-label + theme-toggle tests):
+- [ ] **Step 1: Extend the failing Sidebar test** — Update `apps/admin/test/sidebar.test.tsx` to add icon + workspace assertions (keep the existing nav-label + theme-toggle tests):
 ```tsx
   it('renders an icon for every nav item', () => {
     renderSidebar()
@@ -191,7 +191,7 @@ git commit -m "feat(admin): port Icon set + StatusPill primitives + base compone
 
 - [ ] **Step 2: Run — expect FAIL** (no icons yet). `pnpm --filter @setu/admin test -- sidebar`
 
-- [ ] **Step 3: Rebuild the Sidebar markup** — Replace `apps/saytu-admin/src/shell/Sidebar.tsx`:
+- [ ] **Step 3: Rebuild the Sidebar markup** — Replace `apps/admin/src/shell/Sidebar.tsx`:
 ```tsx
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
@@ -301,7 +301,7 @@ export function Sidebar() {
 ```
 (Deferred vs the design — do NOT add: the collapse button, the ⌘K search button, the topology indicator, the user chip, `Tip` tooltips. Those are later increments. `ws-sub` is a neutral placeholder.)
 
-- [ ] **Step 4: Port the sidebar CSS** — In `apps/saytu-admin/src/styles/shell.css`, REPLACE the current `.sidebar*`/`.nav*`/`.theme-toggle` rules with a faithful port of the **sidebar section** of `design/admin/shell.css`. Read `design/admin/shell.css` and copy the rule blocks for: `.sidebar`, `.sidebar-top`, `.ws`, `.ws-meta`, `.ws-name`, `.ws-sub`, `.ws-chev`, `.logo-mark`, `.nav`, `.nav-group`, `.nav-item`, `.nav-item.on`, `.nav-item:hover`, `.nav-label`, `.sidebar-bottom`, `.theme-toggle` (and any sub-rules they need). Keep the existing `.app` and `.main` layout rules (and the `.content-table`/`.placeholder`/`.empty-state` rules — Task 3 revisits content-list). OMIT rules for the deferred bits (`.search-btn`, `.sidebar-collapse`, `.topology`, `.userchip`, `.is-collapsed` rail). If a referenced token var isn't in `tokens.css`, use the nearest present token (note adjustments).
+- [ ] **Step 4: Port the sidebar CSS** — In `apps/admin/src/styles/shell.css`, REPLACE the current `.sidebar*`/`.nav*`/`.theme-toggle` rules with a faithful port of the **sidebar section** of `design/admin/shell.css`. Read `design/admin/shell.css` and copy the rule blocks for: `.sidebar`, `.sidebar-top`, `.ws`, `.ws-meta`, `.ws-name`, `.ws-sub`, `.ws-chev`, `.logo-mark`, `.nav`, `.nav-group`, `.nav-item`, `.nav-item.on`, `.nav-item:hover`, `.nav-label`, `.sidebar-bottom`, `.theme-toggle` (and any sub-rules they need). Keep the existing `.app` and `.main` layout rules (and the `.content-table`/`.placeholder`/`.empty-state` rules — Task 3 revisits content-list). OMIT rules for the deferred bits (`.search-btn`, `.sidebar-collapse`, `.topology`, `.userchip`, `.is-collapsed` rail). If a referenced token var isn't in `tokens.css`, use the nearest present token (note adjustments).
 
 - [ ] **Step 5: Run tests (PASS) + typecheck**
 
@@ -314,7 +314,7 @@ Expected: sidebar tests (nav labels, icons, workspace name, theme toggle) pass; 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/saytu-admin
+git add apps/admin
 git commit -m "feat(admin): sidebar fidelity — icons, workspace header, ported shell CSS"
 ```
 
@@ -322,9 +322,9 @@ git commit -m "feat(admin): sidebar fidelity — icons, workspace header, ported
 
 ### Task 3: Content-list visual fidelity (PageHeader + ctable + StatusPill)
 
-**Files:** Create `apps/saytu-admin/src/shell/PageHeader.tsx`; Modify `apps/saytu-admin/src/screens/ContentList.tsx`, `apps/saytu-admin/src/styles/shell.css`; Test `apps/saytu-admin/test/content-list.test.tsx`
+**Files:** Create `apps/admin/src/shell/PageHeader.tsx`; Modify `apps/admin/src/screens/ContentList.tsx`, `apps/admin/src/styles/shell.css`; Test `apps/admin/test/content-list.test.tsx`
 
-- [ ] **Step 1: Extend the failing content-list test** — Update `apps/saytu-admin/test/content-list.test.tsx`: keep the existing rows/filter/empty tests; the status assertions now go through StatusPill (the label is title-cased). Change the status assertion in the first test from `getByText('published')` to `getByText('Published')` (StatusPill renders the title-cased label). Add a header test:
+- [ ] **Step 1: Extend the failing content-list test** — Update `apps/admin/test/content-list.test.tsx`: keep the existing rows/filter/empty tests; the status assertions now go through StatusPill (the label is title-cased). Change the status assertion in the first test from `getByText('published')` to `getByText('Published')` (StatusPill renders the title-cased label). Add a header test:
 ```tsx
   it('renders a page header with the title and an entry count', async () => {
     renderList(createMemoryDataPort(seed), 'post', 'Posts')
@@ -337,7 +337,7 @@ git commit -m "feat(admin): sidebar fidelity — icons, workspace header, ported
 
 - [ ] **Step 2: Run — expect FAIL** (PageHeader + StatusPill not wired). `pnpm --filter @setu/admin test -- content-list`
 
-- [ ] **Step 3: Implement a simplified PageHeader** — Create `apps/saytu-admin/src/shell/PageHeader.tsx`:
+- [ ] **Step 3: Implement a simplified PageHeader** — Create `apps/admin/src/shell/PageHeader.tsx`:
 ```tsx
 import type { ReactNode } from 'react'
 
@@ -368,7 +368,7 @@ export function PageHeader({
 ```
 (Deferred vs the design's PageHeader: tabs + search — later, with the content-management increment.)
 
-- [ ] **Step 4: Rebuild ContentList** — Replace `apps/saytu-admin/src/screens/ContentList.tsx`:
+- [ ] **Step 4: Rebuild ContentList** — Replace `apps/admin/src/screens/ContentList.tsx`:
 ```tsx
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -447,7 +447,7 @@ export function ContentList({ collection, title }: { collection: string; title: 
 ```
 (Deferred vs the design's list: tabs, search, bulk-select, row menus, the filter button — later. The "New" button links to a `/edit/.../new` route that currently hits the editor placeholder.)
 
-- [ ] **Step 5: Port the content-list CSS** — In `apps/saytu-admin/src/styles/shell.css`, add a faithful port of the **page-header + content-table** rules from `design/admin/screens.css`: read it and copy the rule blocks for `.page-header`, `.page-title`, `.page-count`, `.page-subtitle`, `.page-actions`, `.page-body`, `.ctable`, `.ctable th/td`, `.ctable tr:hover`, `.ctable-title`, `.ctable-muted` (map the design's actual class names — they may differ slightly; match what the markup above uses, adding small bridging rules if a design class name differs). Remove the now-superseded basic `.content-table` rules from Task-#9. If token vars are missing, use nearest present (note it).
+- [ ] **Step 5: Port the content-list CSS** — In `apps/admin/src/styles/shell.css`, add a faithful port of the **page-header + content-table** rules from `design/admin/screens.css`: read it and copy the rule blocks for `.page-header`, `.page-title`, `.page-count`, `.page-subtitle`, `.page-actions`, `.page-body`, `.ctable`, `.ctable th/td`, `.ctable tr:hover`, `.ctable-title`, `.ctable-muted` (map the design's actual class names — they may differ slightly; match what the markup above uses, adding small bridging rules if a design class name differs). Remove the now-superseded basic `.content-table` rules from Task-#9. If token vars are missing, use nearest present (note it).
 
 - [ ] **Step 6: Full verification + commit**
 
@@ -460,7 +460,7 @@ pnpm test && pnpm typecheck           # whole monorepo green
 Expected: all admin tests pass (icon 2 + status-pill 2 + sidebar [4] + content-list [4] + smoke 2); db/core suites unaffected; typecheck clean; build succeeds.
 
 ```bash
-git add apps/saytu-admin
+git add apps/admin
 git commit -m "feat(admin): content-list fidelity — PageHeader, ctable, status pills"
 ```
 

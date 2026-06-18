@@ -18,24 +18,24 @@
 
 | File | Responsibility | Task |
 | --- | --- | --- |
-| `apps/saytu-admin/src/editor/block-types.ts` | shared registry + `currentBlockType` | 1 |
-| `apps/saytu-admin/src/editor/blocks.ts` | slash built-ins derive from registry (H2/H3/H4) | 2 |
-| `apps/saytu-admin/src/editor/useToolbarRoving.ts` | roving-tabindex hook | 3 |
-| `apps/saytu-admin/src/editor/TurnIntoMenu.tsx` | the bubble's block-type dropdown | 4 |
-| `apps/saytu-admin/src/editor/FormatBubble.tsx` | add TurnIntoMenu + apply roving | 4 |
-| `apps/saytu-admin/src/editor/extensions/Callout.tsx` | roving + Esc-to-body on the variant toolbar | 5 |
-| `apps/saytu-admin/src/styles/editor.css` | Turn-into trigger + dropdown styles | 6 |
+| `apps/admin/src/editor/block-types.ts` | shared registry + `currentBlockType` | 1 |
+| `apps/admin/src/editor/blocks.ts` | slash built-ins derive from registry (H2/H3/H4) | 2 |
+| `apps/admin/src/editor/useToolbarRoving.ts` | roving-tabindex hook | 3 |
+| `apps/admin/src/editor/TurnIntoMenu.tsx` | the bubble's block-type dropdown | 4 |
+| `apps/admin/src/editor/FormatBubble.tsx` | add TurnIntoMenu + apply roving | 4 |
+| `apps/admin/src/editor/extensions/Callout.tsx` | roving + Esc-to-body on the variant toolbar | 5 |
+| `apps/admin/src/styles/editor.css` | Turn-into trigger + dropdown styles | 6 |
 | round-trip guard + full verification | — | 7 |
 
 ---
 
 ## Task 1: `block-types.ts` — shared registry
 
-**Files:** create `apps/saytu-admin/src/editor/block-types.ts`, `apps/saytu-admin/test/block-types.test.ts`.
+**Files:** create `apps/admin/src/editor/block-types.ts`, `apps/admin/test/block-types.test.ts`.
 
 - [ ] **Step 1: Write the failing test**
 
-`apps/saytu-admin/test/block-types.test.ts`:
+`apps/admin/test/block-types.test.ts`:
 
 ```ts
 import { describe, it, expect, afterEach } from 'vitest'
@@ -91,7 +91,7 @@ Expected: FAIL — module not found.
 
 - [ ] **Step 3: Implement `block-types.ts`**
 
-`apps/saytu-admin/src/editor/block-types.ts`:
+`apps/admin/src/editor/block-types.ts`:
 
 ```ts
 import type { Editor, ChainedCommands } from '@tiptap/core'
@@ -138,7 +138,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/saytu-admin/src/editor/block-types.ts apps/saytu-admin/test/block-types.test.ts
+git add apps/admin/src/editor/block-types.ts apps/admin/test/block-types.test.ts
 git commit -m "feat(editor): shared block-type registry (Text/H2-H4/lists/quote/code)
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -148,11 +148,11 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ## Task 2: slash menu consumes the registry (H2/H3/H4)
 
-**Files:** modify `apps/saytu-admin/src/editor/blocks.ts`; create/extend `apps/saytu-admin/test/blocks.test.ts`.
+**Files:** modify `apps/admin/src/editor/blocks.ts`; create/extend `apps/admin/test/blocks.test.ts`.
 
 - [ ] **Step 1: Write the failing test**
 
-`apps/saytu-admin/test/blocks.test.ts` (create; if one exists, add these cases):
+`apps/admin/test/blocks.test.ts` (create; if one exists, add these cases):
 
 ```ts
 import { describe, it, expect } from 'vitest'
@@ -183,7 +183,7 @@ Expected: FAIL — current built-ins have Heading 1/Heading 2, no H3/H4.
 
 - [ ] **Step 3: Refactor `blocks.ts` built-ins to derive from the registry**
 
-In `apps/saytu-admin/src/editor/blocks.ts`, replace the hardcoded `BUILTINS` block list so the block-transform entries come from `BLOCK_TYPES` (slash *inserts*: delete the `/query` range, focus, then apply `setOn`). Keep Divider and the config Callout exactly as they are. Import the registry:
+In `apps/admin/src/editor/blocks.ts`, replace the hardcoded `BUILTINS` block list so the block-transform entries come from `BLOCK_TYPES` (slash *inserts*: delete the `/query` range, focus, then apply `setOn`). Keep Divider and the config Callout exactly as they are. Import the registry:
 
 ```ts
 import { BLOCK_TYPES } from './block-types'
@@ -226,7 +226,7 @@ Expected: PASS. Also run the existing slash test: `pnpm --filter @setu/admin tes
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/saytu-admin/src/editor/blocks.ts apps/saytu-admin/test/blocks.test.ts
+git add apps/admin/src/editor/blocks.ts apps/admin/test/blocks.test.ts
 git commit -m "refactor(editor): slash built-ins derive from block-type registry (H2-H4)
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -236,11 +236,11 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ## Task 3: `useToolbarRoving` hook
 
-**Files:** create `apps/saytu-admin/src/editor/useToolbarRoving.ts`, `apps/saytu-admin/test/use-toolbar-roving.test.tsx`.
+**Files:** create `apps/admin/src/editor/useToolbarRoving.ts`, `apps/admin/test/use-toolbar-roving.test.tsx`.
 
 - [ ] **Step 1: Write the failing test**
 
-`apps/saytu-admin/test/use-toolbar-roving.test.tsx`:
+`apps/admin/test/use-toolbar-roving.test.tsx`:
 
 ```tsx
 import { describe, it, expect, afterEach } from 'vitest'
@@ -296,7 +296,7 @@ Expected: FAIL — module not found.
 
 - [ ] **Step 3: Implement `useToolbarRoving.ts`**
 
-`apps/saytu-admin/src/editor/useToolbarRoving.ts`:
+`apps/admin/src/editor/useToolbarRoving.ts`:
 
 ```ts
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -356,7 +356,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/saytu-admin/src/editor/useToolbarRoving.ts apps/saytu-admin/test/use-toolbar-roving.test.tsx
+git add apps/admin/src/editor/useToolbarRoving.ts apps/admin/test/use-toolbar-roving.test.tsx
 git commit -m "feat(editor): useToolbarRoving — roving-tabindex arrow nav for role=toolbar
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -366,11 +366,11 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ## Task 4: `TurnIntoMenu` + wire into FormatBubble (+ roving)
 
-**Files:** create `apps/saytu-admin/src/editor/TurnIntoMenu.tsx`, `apps/saytu-admin/test/turn-into.test.tsx`; modify `apps/saytu-admin/src/editor/FormatBubble.tsx`.
+**Files:** create `apps/admin/src/editor/TurnIntoMenu.tsx`, `apps/admin/test/turn-into.test.tsx`; modify `apps/admin/src/editor/FormatBubble.tsx`.
 
 - [ ] **Step 1: Implement `TurnIntoMenu.tsx`** (thin UI over the registry; tested via the next step)
 
-`apps/saytu-admin/src/editor/TurnIntoMenu.tsx`:
+`apps/admin/src/editor/TurnIntoMenu.tsx`:
 
 ```tsx
 import { useRef, useState } from 'react'
@@ -473,7 +473,7 @@ export function TurnIntoMenu({ editor }: { editor: Editor }) {
 
 - [ ] **Step 2: Write the failing test**
 
-`apps/saytu-admin/test/turn-into.test.tsx`:
+`apps/admin/test/turn-into.test.tsx`:
 
 ```tsx
 import { describe, it, expect, afterEach } from 'vitest'
@@ -596,7 +596,7 @@ Expected: PASS.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add apps/saytu-admin/src/editor/TurnIntoMenu.tsx apps/saytu-admin/test/turn-into.test.tsx apps/saytu-admin/src/editor/FormatBubble.tsx
+git add apps/admin/src/editor/TurnIntoMenu.tsx apps/admin/test/turn-into.test.tsx apps/admin/src/editor/FormatBubble.tsx
 git commit -m "feat(editor): Turn-into block-type dropdown in the format bubble + roving toolbar nav
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -606,7 +606,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ## Task 5: callout toolbar — roving + Esc-to-body
 
-**Files:** modify `apps/saytu-admin/src/editor/extensions/Callout.tsx`; create `apps/saytu-admin/test/callout-toolbar-roving.test.tsx`.
+**Files:** modify `apps/admin/src/editor/extensions/Callout.tsx`; create `apps/admin/test/callout-toolbar-roving.test.tsx`.
 
 - [ ] **Step 1: Apply `useToolbarRoving` + Esc to the `.block-props` toolbar**
 
@@ -658,7 +658,7 @@ Change the `.block-props` container to a `role="toolbar"` wired with the ref + k
 
 - [ ] **Step 2: Write the test**
 
-`apps/saytu-admin/test/callout-toolbar-roving.test.tsx` — render the editor with the Callout node, focus a tone swatch, assert ArrowRight moves focus to the next `[data-toolbar-item]`. Because mounting a full callout node view in jsdom is heavy, a pragmatic test renders a minimal stand-in toolbar using the SAME hook (mirroring `use-toolbar-roving.test.tsx`) is ALREADY covered in Task 3 — so here, instead, add a lighter assertion that the callout's `.block-props` carries `role="toolbar"` and its buttons carry `data-toolbar-item`, via the existing callout render path if one exists (check `apps/saytu-admin/test/` for an existing callout view test, e.g. `callout-*.test.tsx`, and extend it). If no callout-view render test exists and standing one up is disproportionate, rely on Task 3's hook test + build+manual verification for the callout wiring, and state that in the task report. Do NOT ship a hollow test.
+`apps/admin/test/callout-toolbar-roving.test.tsx` — render the editor with the Callout node, focus a tone swatch, assert ArrowRight moves focus to the next `[data-toolbar-item]`. Because mounting a full callout node view in jsdom is heavy, a pragmatic test renders a minimal stand-in toolbar using the SAME hook (mirroring `use-toolbar-roving.test.tsx`) is ALREADY covered in Task 3 — so here, instead, add a lighter assertion that the callout's `.block-props` carries `role="toolbar"` and its buttons carry `data-toolbar-item`, via the existing callout render path if one exists (check `apps/admin/test/` for an existing callout view test, e.g. `callout-*.test.tsx`, and extend it). If no callout-view render test exists and standing one up is disproportionate, rely on Task 3's hook test + build+manual verification for the callout wiring, and state that in the task report. Do NOT ship a hollow test.
 
 Run: `pnpm --filter @setu/admin test -- callout`
 Expected: PASS (existing callout tests stay green; any added assertion passes).
@@ -671,7 +671,7 @@ Expected: PASS.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add apps/saytu-admin/src/editor/extensions/Callout.tsx apps/saytu-admin/test/callout-toolbar-roving.test.tsx
+git add apps/admin/src/editor/extensions/Callout.tsx apps/admin/test/callout-toolbar-roving.test.tsx
 git commit -m "feat(editor): roving arrow-nav + Esc-to-body on the callout style toolbar
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -681,9 +681,9 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ## Task 6: CSS — Turn-into trigger + dropdown
 
-**Files:** modify `apps/saytu-admin/src/styles/editor.css`.
+**Files:** modify `apps/admin/src/styles/editor.css`.
 
-- [ ] **Step 1: Read the existing bubble styles** for the design tokens + `.fmt-bubble`/`.fmt-btn` patterns, then append styles for the Turn-into trigger and dropdown. READ `apps/saytu-admin/src/styles/editor.css` (find `.fmt-bubble`, `.fmt-btn`). Append (reuse existing tokens — adjust names to whatever the file already uses, e.g. `--surface`, `--border`, `--text`, `--r-sm`, `--shadow-pop`):
+- [ ] **Step 1: Read the existing bubble styles** for the design tokens + `.fmt-bubble`/`.fmt-btn` patterns, then append styles for the Turn-into trigger and dropdown. READ `apps/admin/src/styles/editor.css` (find `.fmt-bubble`, `.fmt-btn`). Append (reuse existing tokens — adjust names to whatever the file already uses, e.g. `--surface`, `--border`, `--text`, `--r-sm`, `--shadow-pop`):
 
 ```css
 /* Turn-into block-type switcher (in the format bubble) */
@@ -701,7 +701,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - [ ] **Step 3: Commit**
 
 ```bash
-git add apps/saytu-admin/src/styles/editor.css
+git add apps/admin/src/styles/editor.css
 git commit -m "style(editor): Turn-into trigger + dropdown menu styles
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -711,11 +711,11 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ## Task 7: round-trip guard + full verification
 
-**Files:** create `apps/saytu-admin/test/block-types-roundtrip.test.ts` (or add to an existing core round-trip test in admin if one exists).
+**Files:** create `apps/admin/test/block-types-roundtrip.test.ts` (or add to an existing core round-trip test in admin if one exists).
 
 - [ ] **Step 1: Write the round-trip guard**
 
-`apps/saytu-admin/test/block-types-roundtrip.test.ts`:
+`apps/admin/test/block-types-roundtrip.test.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest'
@@ -750,13 +750,13 @@ describe('structural block types round-trip', () => {
 
 - [ ] **Step 3: Whole suite** — Run: `pnpm -r test` — every package green.
 - [ ] **Step 4: Typecheck** — Run: `pnpm -r typecheck` — clean (incl. core edge guard).
-- [ ] **Step 5: Build + no new deps** — Run: `pnpm --filter @setu/admin build` (fonts intact) and `git diff main -- apps/saytu-admin/package.json` (empty).
+- [ ] **Step 5: Build + no new deps** — Run: `pnpm --filter @setu/admin build` (fonts intact) and `git diff main -- apps/admin/package.json` (empty).
 - [ ] **Step 6: Manual (reviewer)** — `pnpm dev`: select text → bubble shows "Turn into ▾" with the current block type; pick Heading 3 / Bullet list / Quote / Code → block transforms; **Tab** into the bubble → **←/→** move across controls, **Enter** on Turn-into opens the dropdown (**↑/↓/Enter**, **Esc** closes just the dropdown), **Esc** on the toolbar leaves the bubble; the callout style toolbar navigates by **←/→** and **Esc** returns to the body; the slash menu now lists H2/H3/H4; publish a doc with the new blocks and reopen → identical.
 
 - [ ] **Step 7: Commit** (if the round-trip test is a new file)
 
 ```bash
-git add apps/saytu-admin/test/block-types-roundtrip.test.ts
+git add apps/admin/test/block-types-roundtrip.test.ts
 git commit -m "test(editor): round-trip guard for H2-H4/lists/quote/code block types
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"

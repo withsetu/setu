@@ -98,6 +98,9 @@ importers:
       tippy.js:
         specifier: ^6.3.7
         version: 6.3.7
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
     devDependencies:
       '@tailwindcss/vite':
         specifier: ^4.0.0

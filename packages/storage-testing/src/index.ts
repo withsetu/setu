@@ -44,6 +44,17 @@ export function runStoragePortContract(makeAdapter: () => Promise<StoragePort> |
       expect(await s.get('k')).toBeNull()
     })
 
+    it('keeps object keys and stored metadata in separate namespaces (no sidecar collision)', async () => {
+      await s.put('a', bytes('A-body'), { contentType: 'image/png' })
+      await s.put('a.ctype', bytes('CT-body'), { contentType: 'text/plain' })
+      const a = await s.get('a')
+      const act = await s.get('a.ctype')
+      expect(text(a!.body)).toBe('A-body')
+      expect(a!.contentType).toBe('image/png')   // NOT clobbered by put('a.ctype')
+      expect(text(act!.body)).toBe('CT-body')    // a real object, not a's content-type string
+      expect(act!.contentType).toBe('text/plain')
+    })
+
     it('url(key) contains the key', async () => {
       expect(s.url('media/abc/original.jpg')).toContain('media/abc/original.jpg')
     })

@@ -1,5 +1,7 @@
 # HTML+YAML Component Blocks — Walking Skeleton Implementation Plan
 
+> **DEFERRED (2026-06-19) — DO NOT EXECUTE.** Shelved in favour of authoring blocks/themes as plain Astro components + strong AI-authoring docs (see the spec's deferral note). This plan was never executed (no code shipped). Kept as a record of the decomposition.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make a content block authored as one folder (`block.yaml` + `<tag>.html`) work across the editor, the Markdoc round-trip, and the static site render — with no config edit and no React. Proof block: `card`.

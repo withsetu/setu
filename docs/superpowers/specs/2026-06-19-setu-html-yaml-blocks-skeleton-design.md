@@ -1,7 +1,7 @@
 # HTML+YAML component blocks — Slice 1: the walking skeleton
 
 **Date:** 2026-06-19
-**Status:** approved (owner)
+**Status:** **DEFERRED (2026-06-19)** — superseded by the decision to author blocks/themes as plain **Astro components + strong authoring docs**, not a sandboxed template system. The driver: the elaborate authoring system only earns its keep once block authors are *untrusted/unreviewed* (AI in-product, non-coders, a marketplace). Until that's real, plain Astro components (full power, handles the rich 10% natively) + docs that teach an AI to author them safely are the leaner path. Revisit (LiquidJS, the safe/sandboxed engine — **not** Nunjucks, which its own docs call unsafe for user templates) when untrusted/marketplace authoring actually arrives. The security analysis below stands as the reference for that future decision.
 **Sub-project:** render/theme **#4** — the auto-discovered, no-code-first component model.
 First slice of several (see "Deferred" for the rest).
 

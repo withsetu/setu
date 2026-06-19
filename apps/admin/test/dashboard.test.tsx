@@ -35,6 +35,12 @@ describe('Dashboard', () => {
     expect(await screen.findByText('First Post')).toBeInTheDocument()
     expect(screen.getByText('Quick actions')).toBeInTheDocument()
   })
+
+  it('shows an inline error state when data load fails', async () => {
+    const git: GitPort = { ...createMemoryGitPort(), list: () => Promise.reject(new Error('boom')) }
+    renderDash(createMemoryDataPort(seed), git)
+    expect(await screen.findByText(/couldn't load/i)).toBeInTheDocument()
+  })
 })
 
 describe('admin landing route', () => {

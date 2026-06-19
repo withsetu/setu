@@ -18,14 +18,20 @@ export function Dashboard() {
   const { deployedAt, sha: deploySha } = useDeploy()
   const [rows, setRows] = useState<ContentRow[] | null>(null)
   const [locks, setLocks] = useState<Lock[]>([])
+  const [error, setError] = useState(false)
 
   useEffect(() => {
     let live = true
     void (async () => {
-      const loaded = await loadDashboardEntries(data, git, deployedAt)
-      if (!live) return
-      setRows(loaded)
-      setLocks(await loadActiveLocks(data, loaded))
+      setError(false)
+      try {
+        const loaded = await loadDashboardEntries(data, git, deployedAt)
+        if (!live) return
+        setRows(loaded)
+        setLocks(await loadActiveLocks(data, loaded))
+      } catch {
+        if (live) setError(true)
+      }
     })()
     return () => { live = false }
   }, [data, git, deployedAt, deploySha])
@@ -36,6 +42,7 @@ export function Dashboard() {
     <>
       <PageHeader title="Dashboard" subtitle="Your site at a glance." />
       <div className="page-body dash">
+        {error && <p className="empty-state">Couldn't load your dashboard. Try refreshing.</p>}
         <CountsTiles posts={counts.posts} pages={counts.pages} drafts={counts.drafts} media={null} />
         <div className="dash-grid">
           <div className="dash-col-main">

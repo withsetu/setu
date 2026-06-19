@@ -14,6 +14,7 @@ const OUT = path.join(ROOT, 'apps', 'site', 'markdoc.blocks.generated.mjs')
 
 // @setu/core, @setu/core/node and zod are NOT hoisted to the repo root (pnpm strict
 // hoisting). Resolve them from packages/core where they ARE installed as dependencies.
+// Anchors Node module resolution to the @setu/core package location; assumes the packages/core repo layout.
 const coreReq = createRequire(
   path.join(ROOT, 'packages', 'core', 'package.json'),
 )

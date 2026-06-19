@@ -38,7 +38,7 @@ export function markdocAttributesFor(props: ZodTypeAny): Record<string, MarkdocA
     const tn = (inner as { _def?: { typeName?: string; values?: string[] } })._def?.typeName ?? ''
     let attr: MarkdocAttr
     if (tn === 'ZodEnum') {
-      attr = { type: 'String', matches: (inner as { _def: { values: string[] } })._def.values }
+      attr = { type: 'String', matches: [...(inner as { _def: { values: string[] } })._def.values] }
     } else if (BASE[tn]) {
       attr = { type: BASE[tn] }
     } else {

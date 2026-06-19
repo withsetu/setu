@@ -26,8 +26,8 @@ describe('App', () => {
     expect(screen.getByText('Setu')).toBeInTheDocument()
   })
 
-  it('redirects / to /posts', async () => {
+  it('redirects / to /dashboard', async () => {
     renderApp('/')
-    expect(await screen.findByRole('heading', { name: 'Posts' })).toBeInTheDocument()
+    expect(await screen.findByText('Quick actions')).toBeInTheDocument()
   })
 })

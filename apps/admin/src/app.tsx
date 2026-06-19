@@ -4,6 +4,7 @@ import { Placeholder } from './screens/Placeholder'
 import { ContentList } from './screens/ContentList'
 import { Appearance } from './screens/Appearance'
 import { EditorScreen } from './editor/EditorScreen'
+import { Dashboard } from './screens/Dashboard'
 
 export function App() {
   return (
@@ -11,8 +12,8 @@ export function App() {
       <Sidebar />
       <main className="main">
         <Routes>
-          <Route path="/" element={<Navigate to="/posts" replace />} />
-          <Route path="/dashboard" element={<Placeholder title="Dashboard" />} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/posts" element={<ContentList collection="post" title="Posts" />} />
           <Route path="/pages" element={<ContentList collection="page" title="Pages" />} />
           <Route path="/media" element={<Placeholder title="Media" />} />

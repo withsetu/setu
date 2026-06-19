@@ -18,7 +18,7 @@ the owner (2026-06-19). Built hexagonally (Port + contract suite + adapters), sa
 |---|---|---|
 | ~~**1**~~ ✅ | ~~**`StoragePort` + contract suite + `storage-local`**~~ SHIPPED (`e1aeac7`) | the storage *foundation* — a **dumb keyed-blob store** (put/get/delete/url), an in-memory reference + a local-disk adapter, one contract battery every adapter runs |
 | ~~2~~ ✅ | ~~**Upload service + API**~~ SHIPPED 2026-06-19 | auth-gated upload flow (admin → Hono api → StoragePort → URL); the visible "drop a file, get a link" win — see notes below |
-| 3 | **Editor image block + round-trip** | Tiptap image node, alt-text, `![alt](src)` Markdoc round-trip, site render |
+| 3 | **Editor image block + round-trip** ⏳ in progress | Tiptap image node, alt-text, `![alt](src)` Markdoc round-trip, site render — content stores host-free `/uploads/media/<id>/original.<ext>` (id-in-path, env-mapped prefix); inline node (Markdoc-faithful, content-safe). Spec: `docs/superpowers/specs/2026-06-19-media-image-block-design.md` |
 | 4 | **`ImagePort` + optimization** | variants/srcset/focal/quality — see the decisions below |
 | 5 | **Media library UI** | browse / reuse / search / alt-text in the admin |
 | 6 | **`@setu/storage-s3`** | the S3-compatible adapter (R2/B2/AWS/MinIO) — drops in against the *same* contract |
@@ -27,6 +27,16 @@ the owner (2026-06-19). Built hexagonally (Port + contract suite + adapters), sa
 **`StoragePort` = dumb bytes (decided):** the port stores/serves keyed blobs only; **variants are just
 more keys the `ImagePort` manages**. Keeps the port + local/S3 adapters trivial; all size/variant/
 focal/quality logic lives in the ImagePort.
+
+**NORTH STAR — Gutenberg / Tiptap-Pro-grade figure block (owner ambition, 2026-06-19):** the eventual
+image experience should match WordPress Gutenberg / Tiptap's paid image node — **caption, alignment
+(left/center/wide/full), resize/width, link-on-click, focal point, lightbox**. Plain `![alt](src)`
+**cannot** carry any of that, so the rich block will be a **`{% figure %}` Setu tag** (human-readable +
+lossless through `@setu/core`, but not vanilla Markdown for those images — same portability tradeoff as
+attributed links). It **coexists** with slice #3's lightweight inline `![alt](src)` node as the heavier
+tier. Slice #3 is the foundation, NOT a dead end; #4+ build toward this. **Image-model layering:**
+inline `![alt](src)` (simple, pure Markdown) → `{% figure %}` tag (rich, Setu tag) → `ImagePort`
+variants/srcset underneath both.
 
 **Upload service (#2) — SHIPPED notes (2026-06-19):** `POST /media` on `@setu/api` — a pluggable
 **auth seam** (`ResolveActor`, dev-stubbed to the local owner; real JWT/session slots in later with

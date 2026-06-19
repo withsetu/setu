@@ -19,10 +19,22 @@ the owner (2026-06-19). Built hexagonally (Port + contract suite + adapters), sa
 | ~~**1**~~ ✅ | ~~**`StoragePort` + contract suite + `storage-local`**~~ SHIPPED (`e1aeac7`) | the storage *foundation* — a **dumb keyed-blob store** (put/get/delete/url), an in-memory reference + a local-disk adapter, one contract battery every adapter runs |
 | ~~2~~ ✅ | ~~**Upload service + API**~~ SHIPPED 2026-06-19 | auth-gated upload flow (admin → Hono api → StoragePort → URL); the visible "drop a file, get a link" win — see notes below |
 | ~~3~~ ✅ | ~~**Editor image block + round-trip**~~ SHIPPED 2026-06-19 (`8e3d1ef`) | inline Tiptap image node, alt-text, `![alt](src)` Markdoc round-trip, site render — content stores host-free `/uploads/media/<id>/original.<ext>` (id-in-path, env-mapped prefix); inline node (Markdoc-faithful, content-safe). Editor resolves display src via `VITE_SETU_API`, site via `PUBLIC_SETU_MEDIA`. Plain `<img>` (optimization = #4) |
-| 4 | **`ImagePort` + optimization** | variants/srcset/focal/quality — see the decisions below |
-| 5 | **Media library UI** | browse / reuse / search / alt-text in the admin |
-| 6 | **`@setu/storage-s3`** | the S3-compatible adapter (R2/B2/AWS/MinIO) — drops in against the *same* contract |
+| 4 | **`ImagePort` + optimization** | variants/srcset/focal/quality — upgrades the shipped `Image.astro` in place; see the decisions below |
+| 5 | **`{% image %}` rich block** | the first **per-type rich tag** — caption, alignment (left/center/wide/full), width, link-on-click, lightbox; **focal-point + responsive ride on #4** so this lands after it. Renders semantic `<figure>`/`<figcaption>`; coexists with the simple inline `![alt](src)` (#3) |
+| 6 | **Media library UI + registry** | browse / reuse / search / alt-text in the admin; the **media registry** (id → metadata / variants / locations) keyed off the path-embedded id |
+| 7 | **`@setu/storage-s3`** | the S3-compatible adapter (R2/B2/AWS/MinIO) — drops in against the *same* contract; independent plumbing, can land anytime |
+| 8 | **`{% video %}` + `{% audio %}` blocks** | per-type rich tags for A/V — the upload service already accepts these; editor blocks + `<figure>` render + round-trip. **Independent of #4** (no image optimization). Build when needed (blog-first may defer) |
+| 9 | **`{% embed %}` block** | oEmbed / provider URLs (YouTube, etc.) — no upload; arguably its **own sub-project**, not media-storage |
+| — | **`{% gallery %}` (deferred)** | multi-image block; depends on `{% image %}` (#5) |
 | — | **Private/access-controlled media (deferred)** | the `signUrl()` + auth-gated-serving story (signed URLs for private assets) |
+
+**Build-order note (owner, 2026-06-19):** the **plumbing track** (#4 ImagePort → #6 library → #7 S3) and the
+**rich-blocks track** (#5 `{% image %}` → #8 A/V → #9 embed) run mostly in parallel; the only hard
+dependency is `{% image %}`'s focal-point/responsive bits riding on #4. Priority chosen: **#4 → #5
+(rich image) → #6 library → #7 S3**, because captioned/aligned images are the most-felt gap and the
+library is more valuable once richer media exists. `{% video %}`/`{% audio %}`/`{% embed %}` are
+scheduled but **build-when-needed** (a blog-first CMS may defer them). "media" stays the **subsystem**
+name throughout — never a content tag (see the rich-media taxonomy note below).
 
 **`StoragePort` = dumb bytes (decided):** the port stores/serves keyed blobs only; **variants are just
 more keys the `ImagePort` manages**. Keeps the port + local/S3 adapters trivial; all size/variant/

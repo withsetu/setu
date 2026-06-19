@@ -42,7 +42,8 @@ export function createLocalStorage({ dir, baseUrl }: LocalStorageOptions): Stora
         let contentType = 'application/octet-stream'
         try {
           contentType = (await readFile(`${path}.ctype`, 'utf8')).trim() || contentType
-        } catch {
+        } catch (e) {
+          if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
           /* sidecar missing → default content type */
         }
         return { body: new Uint8Array(body), contentType }
@@ -61,8 +62,9 @@ export function createLocalStorage({ dir, baseUrl }: LocalStorageOptions): Stora
       try {
         await stat(path)
         return true
-      } catch {
-        return false
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code === 'ENOENT') return false
+        throw e
       }
     },
     url(key) {

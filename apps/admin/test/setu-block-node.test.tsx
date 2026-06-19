@@ -6,6 +6,7 @@ import StarterKit from '@tiptap/starter-kit'
 import { z } from 'zod'
 import type { ResolvedBlock } from '@setu/core'
 import { createSetuBlock } from '../src/editor/extensions/SetuBlock'
+import { Notice } from '@setu/blocks'
 
 afterEach(cleanup)
 
@@ -68,5 +69,30 @@ describe('setuBlock node view', () => {
     const block2 = json2.content.find((n) => n.type === 'setuBlock')
     expect(typeof block2?.attrs?.mdAttrs?.count).toBe('number')
     expect(block2?.attrs?.mdAttrs?.count).toBe(7)
+  })
+})
+
+describe('setuBlock node view — real core rendering', () => {
+  it('renders the block\'s real React core in-canvas when a core is registered', async () => {
+    const noticeBlock: ResolvedBlock = {
+      tag: 'notice',
+      props: z.object({ tone: z.enum(['info', 'warn', 'success']).default('info'), title: z.string().optional() }),
+      component: 'blocks/notice/notice.astro',
+      editor: { label: 'Notice' },
+    }
+    function Harness() {
+      const editor = useEditor({
+        immediatelyRender: false,
+        extensions: [StarterKit, createSetuBlock([noticeBlock], { notice: Notice })],
+        content: { type: 'doc', content: [{ type: 'setuBlock', attrs: { tag: 'notice', mdAttrs: { tone: 'success', title: 'Hi' } }, content: [{ type: 'paragraph' }] }] },
+      })
+      return <EditorContent editor={editor} />
+    }
+    const { container } = render(<Harness />)
+    expect(await screen.findByText('Hi')).toBeInTheDocument()
+    // the REAL core markup is in-canvas (not chrome):
+    expect(container.querySelector('aside.notice.notice-success')).toBeTruthy()
+    // the options form is still present:
+    expect(screen.getByLabelText('tone')).toBeInTheDocument()
   })
 })

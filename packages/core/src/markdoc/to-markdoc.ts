@@ -86,6 +86,13 @@ function buildBlock(node: TiptapNode): InstanceType<typeof N> {
       return new N('hr')
     case 'callout':
       return new N('tag', attrs['mdAttrs'] ?? {}, (node.content ?? []).map(buildBlock), 'callout')
+    case 'setuBlock':
+      return new N(
+        'tag',
+        (attrs['mdAttrs'] ?? {}) as Record<string, unknown>,
+        (node.content ?? []).map(buildBlock),
+        String(attrs['tag']),
+      )
     default:
       return new N('paragraph', {}, [])
   }

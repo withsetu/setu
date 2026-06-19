@@ -10,6 +10,7 @@ import type {
   TiptapDoc,
 } from '@setu/core'
 import { createAuthoringService, createPublishService, createReadService } from '@setu/core'
+import { registry } from '../blocks/registry'
 import { createMemoryDataPort } from '@setu/db-memory'
 import { createMemoryGitPort } from '@setu/git-memory'
 
@@ -39,7 +40,7 @@ export function servicesFor(data: DataPort, git: GitPort): Services {
   return {
     data,
     git,
-    read: createReadService({ data, git }),
+    read: createReadService({ data, git, knownBlockTags: registry.knownBlockTags }),
     authoring: createAuthoringService({ data }),
     publish: createPublishService({ data, git }),
   }

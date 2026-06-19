@@ -43,13 +43,17 @@ export function slashBlocks(): SlashBlock[] {
     title: b.editor?.label ?? b.tag,
     subtitle: `Insert a ${b.tag} block`,
     icon: toIconName(b.editor?.icon),
-    run: (e: Editor, r: Range) =>
-      e
-        .chain()
-        .focus()
-        .deleteRange(r)
-        .insertContent({ type: b.tag, attrs: { mdAttrs: { type: 'info' } }, content: [{ type: 'paragraph' }] })
-        .run(),
+    run: (e: Editor, r: Range) => {
+      const chain = e.chain().focus().deleteRange(r)
+      if (b.tag === 'callout') {
+        // Callout has its own dedicated React editor node.
+        chain.insertContent({ type: 'callout', attrs: { mdAttrs: { type: 'info' } }, content: [{ type: 'paragraph' }] })
+      } else {
+        // Every other folder block uses the generic node, keyed by tag.
+        chain.insertContent({ type: 'setuBlock', attrs: { tag: b.tag, mdAttrs: {} }, content: [{ type: 'paragraph' }] })
+      }
+      chain.run()
+    },
   }))
   return [...BUILTINS, ...fromBlocks]
 }

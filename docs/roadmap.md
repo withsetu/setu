@@ -78,9 +78,31 @@ variable pkg registers `'<Name> Variable'`; only the selected font downloads). W
 - **child-theme override** (deferred from 3b, PRD §8): config-based per-component/token override
   (map `Callout → MyCallout.astro`) — the advanced "child theme without forking"; harder dynamic
   per-block resolution; lower priority than 3c.
-- **#4 custom-component pipeline + codegen** — the `component.ts` contract fanning out to all
-  3 planes; **this is where "tag set sourced from setu.config" lands** (blocked in #1:
-  `@astrojs/markdoc`'s config loader can't import core's TS source; codegen runs where it can).
+- **#4 custom-component pipeline + codegen** — a block is a self-contained folder fanning out to
+  all 3 planes.
+  - **Slice A ✅ SHIPPED 2026-06-19 (`ba286d4`):** auto-discovery + registration codegen. `blocks/<tag>/`
+    (`block.ts` zod contract + `<tag>.astro`); one registry feeds editor slash + round-trip
+    `knownBlockTags` + a build-time `scripts/gen-blocks.mjs` codegen of the site's `markdoc.config`
+    tags (resolves the #1 "can't import core TS" wall). Central `setu.config.blocks` retired; callout
+    migrated zero-change. Spec/plan: `docs/superpowers/{specs,plans}/2026-06-19-*block-autodiscovery-codegen*`.
+  - **Slice B (in progress 2026-06-19):** the generic `setuBlock` round-trip node + a generic editor
+    node (chrome + auto-form from `markdocAttributesFor(props)`) so a *new* (non-callout) folder block
+    works end-to-end. Proven with a **dependency-free** `notice` block (deliberately, see below).
+  - **DEFERRED — block packaging / `blocks/` location refactor** (trigger: the first block that needs
+    npm deps). `blocks/` lives at the repo root, outside any package's dependency tree, so a block's
+    bare imports (`@setu/blocks`, etc.) don't resolve by the normal node walk-up — patched today with
+    explicit resolver entries in 3 tools (admin Vite / gen-blocks jiti / site Rollup), one per dep.
+    Permanent fix = give blocks a real home (workspace package, or generated per-block `package.json`),
+    entangled with the end-user packaging story (`create-setu`). Dep-free blocks have ZERO friction, so
+    deferring costs nothing until forced; the move itself is cheap + test-covered.
+  - **DEFERRED — interactive / dependency blocks (Rung 3) + their edge endpoints** (the "dreamers"
+    pillar). A real interactive block (e.g. a Stripe **buy** block, a Three.js scene, a live search) is
+    THREE layers: (1) a portable content tag (`{% buy product=… %}`, zero deps, round-trips); (2) a
+    **client island** importing an npm pkg (`@stripe/stripe-js`) shipped via `client:*` — the real
+    "block needs a dependency" case; (3) a **server endpoint** for secret-key work (`stripe` server SDK,
+    Checkout Sessions, webhooks) that MUST live at the **edge (Pages Function/Worker), never in the
+    static bundle** — i.e. the SSR/edge topology (Pro). This is its own sub-project (islands + edge
+    endpoints + secret handling + customer packaging), pairs with the edge topology + `create-setu`.
 - **#5 in-editor preview** — draft preview through the same theme + components, iframed.
 - **permalink + i18n URL scheme** — the full locale-prefixing policy (#1 only strips the
   default `en`; config-driven default + non-default front-prefixing is its own slice).

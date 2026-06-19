@@ -20,6 +20,8 @@ export interface BlockDefinition {
   component: string
   /** Optional editor metadata (slash-menu label/icon/group). */
   editor?: BlockEditorMeta
+  /** Content types this block is meant for. Reserved — carried, not enforced (Slice A). */
+  scope?: string[]
 }
 
 /** The config object an author exports from setu.config.ts. */

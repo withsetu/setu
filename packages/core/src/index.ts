@@ -58,3 +58,8 @@ export { entryUrlPath, DEFAULT_LOCALE } from './url/entry-url'
 
 export type { MarkdocAttr } from './blocks/markdoc-attributes'
 export { markdocAttributesFor } from './blocks/markdoc-attributes'
+
+export type { BlockContract } from './blocks/define-block'
+export { defineBlock } from './blocks/define-block'
+export type { BlockEntry, BlockRegistry } from './blocks/registry'
+export { buildRegistry } from './blocks/registry'

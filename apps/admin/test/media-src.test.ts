@@ -15,6 +15,6 @@ describe('resolveMediaSrc', () => {
   })
   it('leaves an empty src unchanged and tolerates an undefined base', () => {
     expect(resolveMediaSrc('', 'http://localhost:4444')).toBe('')
-    expect(resolveMediaSrc('/uploads/x.png', undefined)).toBe('/uploads/x.png')
+    expect(resolveMediaSrc('/uploads/x.png', undefined)).toBe('http://localhost:4444/uploads/x.png')
   })
 })

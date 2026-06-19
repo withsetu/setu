@@ -57,6 +57,10 @@ export default defineMarkdocConfig({
       ...nodes.item,
       transform: itemTransform,
     },
+    image: {
+      ...nodes.image,
+      render: component('./src/components/Image.astro'),
+    },
     th: {
       ...nodes.th,
       render: component('./src/components/Th.astro'),

@@ -3,6 +3,7 @@ import { isIconName } from '../ui/Icon'
 import type { IconName } from '../ui/Icon'
 import { registry } from '../blocks/registry'
 import { BLOCK_TYPES } from './block-types'
+import { pickImageAndInsert } from './image-insert'
 
 export interface SlashBlock {
   title: string
@@ -32,6 +33,11 @@ const BUILTINS: SlashBlock[] = [
   })),
   { title: 'Divider', subtitle: 'Horizontal rule', icon: 'settings', run: (e, r) => e.chain().focus().deleteRange(r).setHorizontalRule().run() },
   { title: 'Table', subtitle: 'Table with header row', icon: 'table', run: (e, r) => e.chain().focus().deleteRange(r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
+  { title: 'Image', subtitle: 'Upload an image', icon: 'image', run: (e, r) => {
+    e.chain().focus().deleteRange(r).run()
+    const editor = e as Editor & { storage: { image?: { onUploading?: (b: boolean) => void; onError?: (m: string) => void } } }
+    pickImageAndInsert(editor, (import.meta.env.VITE_SETU_API as string) ?? '', editor.storage.image ?? {})
+  } },
 ]
 
 const toIconName = (raw: string | undefined): IconName => (raw && isIconName(raw) ? raw : 'sparkle')

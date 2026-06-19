@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { useEditor, EditorContent, ReactRenderer } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -19,6 +19,7 @@ import { DragHandle } from './extensions/DragHandle'
 import { BlockMenu } from './extensions/BlockMenu'
 import { Callout } from './extensions/Callout'
 import { createSetuBlock } from './extensions/SetuBlock'
+import { Image } from './extensions/Image'
 import { Passthrough } from './extensions/Passthrough'
 import { SlashCommand } from './extensions/SlashCommand'
 import { KeyboardShortcuts } from './extensions/KeyboardShortcuts'
@@ -109,6 +110,7 @@ export function Canvas({
       Callout,
       createSetuBlock(registry.blocks, blockCores),
       Passthrough,
+      Image,
       SlashCommand,
       LinkTools.configure({
         onEdit: (ed) => {
@@ -125,8 +127,19 @@ export function Canvas({
   })
   editorRef.current = editor
 
+  const [imgBusy, setImgBusy] = useState(false)
+  const [imgError, setImgError] = useState<string | null>(null)
+  useEffect(() => {
+    if (!editor) return
+    const imgStorage = editor.storage as unknown as { image: { onUploading?: (busy: boolean) => void; onError?: (msg: string) => void } }
+    imgStorage.image.onUploading = (busy: boolean) => { setImgBusy(busy); if (busy) setImgError(null) }
+    imgStorage.image.onError = (msg: string) => setImgError(msg)
+  }, [editor])
+
   return (
     <>
+      {imgBusy && <div className="editor-banner">Uploading image…</div>}
+      {imgError && <div className="editor-banner error" role="alert">{imgError}</div>}
       <EditorContent editor={editor} />
       {editor && <FormatBubble editor={editor} />}
       {editor && <TableMenu editor={editor} />}

@@ -187,3 +187,15 @@ describe('default theme — prose typography', () => {
     expect(css).not.toMatch(/\.prose\s*\{[^}]*system-ui/)
   })
 })
+
+describe('render pipeline — images', () => {
+  it('resolves a root-relative media src against PUBLIC_SETU_MEDIA (default localhost:4444)', () => {
+    expect(html).toContain('src="http://localhost:4444/uploads/media/test/original.png"')
+    expect(html).toContain('alt="A test cat"')
+    expect(html).toContain('loading="lazy"')
+  })
+  it('leaves an absolute external image src unchanged', () => {
+    expect(html).toContain('src="https://example.com/photo.png"')
+    expect(html).toContain('alt="External photo"')
+  })
+})

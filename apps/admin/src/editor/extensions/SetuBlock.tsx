@@ -38,7 +38,7 @@ function viewFor(byTag: Record<string, ResolvedBlock>) {
                       ))}
                     </select>
                   ) : (
-                    <input value={String(mdAttrs[name] ?? '')} onChange={(e) => setAttr(name, e.target.value)} />
+                    <input type="text" value={String(mdAttrs[name] ?? '')} onChange={(e) => setAttr(name, e.target.value)} />
                   )}
                 </label>
               ))}

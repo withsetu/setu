@@ -36,6 +36,7 @@ describe('setuBlock node view', () => {
     const json = getJSON() as { content: Array<{ type: string; attrs?: { mdAttrs?: Record<string, unknown> } }> }
     const block = json.content.find((n) => n.type === 'setuBlock')
     expect(block?.attrs?.mdAttrs?.title).toBe('Good news')
+    expect(block?.attrs?.mdAttrs?.tone).toBeUndefined()
   })
   it('degrades to body-only (no form, no crash) when the tag has no registry entry', async () => {
     render(<Harness tag="ghost" onReady={() => {}} />)

@@ -27,6 +27,15 @@ const resolveMarkdocFromApp = {
         return null
       }
     }
+    // blocks/callout/callout.astro lives outside apps/site — its bare @setu/* imports
+    // won't resolve from the repo root. Resolve them from this app where they ARE installed.
+    if (id === '@setu/blocks' || id.startsWith('@setu/blocks/')) {
+      try {
+        return require.resolve(id)
+      } catch {
+        return null
+      }
+    }
     return null
   },
 }
@@ -59,5 +68,7 @@ export default defineConfig({
     // loader tries to load the raw .css as a module and throws "Unknown file extension .css".
     // Force Vite to bundle the fontsource packages for SSR too.
     ssr: { noExternal: [/^@fontsource-variable\//, /^@fontsource\//] },
+    // Allow Vite to serve/process files from the repo root (blocks/ live outside apps/site).
+    server: { fs: { allow: ['../..'] } },
   },
 })

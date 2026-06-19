@@ -1,4 +1,5 @@
 import { defineMarkdocConfig, component, nodes, Markdoc } from '@astrojs/markdoc/config'
+import { tags as generatedTags } from './markdoc.blocks.generated.mjs'
 
 // Custom block tags -> render wrappers. In sub-project #1 this map is authored BY HAND.
 //
@@ -44,13 +45,7 @@ function itemTransform(node, config) {
 
 export default defineMarkdocConfig({
   tags: {
-    callout: {
-      render: component('./src/components/CalloutWrapper.astro'),
-      attributes: {
-        type: { type: String, default: 'info' },
-        title: { type: String },
-      },
-    },
+    ...generatedTags,
     sub: { render: component('./src/components/Sub.astro') },
     sup: { render: component('./src/components/Sup.astro') },
   },

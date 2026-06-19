@@ -16,8 +16,8 @@ the owner (2026-06-19). Built hexagonally (Port + contract suite + adapters), sa
 
 | # | Sub-project | Delivers |
 |---|---|---|
-| **1** | **`StoragePort` + contract suite + `storage-local`** | the storage *foundation* — a **dumb keyed-blob store** (put/get/delete/url), an in-memory reference + a local-disk adapter, one contract battery every adapter runs |
-| 2 | **Upload service + API** | auth-gated upload flow (admin → Hono api → StoragePort → URL); the visible "drop a file, get a link" win |
+| ~~**1**~~ ✅ | ~~**`StoragePort` + contract suite + `storage-local`**~~ SHIPPED (`e1aeac7`) | the storage *foundation* — a **dumb keyed-blob store** (put/get/delete/url), an in-memory reference + a local-disk adapter, one contract battery every adapter runs |
+| ~~2~~ ✅ | ~~**Upload service + API**~~ SHIPPED 2026-06-19 | auth-gated upload flow (admin → Hono api → StoragePort → URL); the visible "drop a file, get a link" win — see notes below |
 | 3 | **Editor image block + round-trip** | Tiptap image node, alt-text, `![alt](src)` Markdoc round-trip, site render |
 | 4 | **`ImagePort` + optimization** | variants/srcset/focal/quality — see the decisions below |
 | 5 | **Media library UI** | browse / reuse / search / alt-text in the admin |
@@ -27,6 +27,19 @@ the owner (2026-06-19). Built hexagonally (Port + contract suite + adapters), sa
 **`StoragePort` = dumb bytes (decided):** the port stores/serves keyed blobs only; **variants are just
 more keys the `ImagePort` manages**. Keeps the port + local/S3 adapters trivial; all size/variant/
 focal/quality logic lives in the ImagePort.
+
+**Upload service (#2) — SHIPPED notes (2026-06-19):** `POST /media` on `@setu/api` — a pluggable
+**auth seam** (`ResolveActor`, dev-stubbed to the local owner; real JWT/session slots in later with
+zero route changes) gating an upload that stores at `media/<uuid>/original.<ext>` via `StoragePort`
+and returns a loadable URL; `GET /uploads/*` is the **Node/dev serving path** (image inline / else
+`Content-Disposition: attachment`; key guarded to the `media/` keyspace). Validation: 25 MB cap +
+17-type allowlist (SVG/HTML/JS blocked). Admin `/media` page = the visible "drop a file → link +
+preview" win. **Deferred follow-ups (recorded):** (a) `c.req.formData()` buffers the whole body
+before the `file.size` 413 check — cap protects **disk, not memory**; add a streaming/`bodyLimit`
+guard (or rely on the edge request-size limit) **when real auth lands and the endpoint faces
+untrusted clients**. (b) `cors()` uses the default `*` origin (matches the existing git api) —
+restrict to the admin origin when real auth lands. (c) a dedicated `media.upload` authz action (the
+slice reuses `content.create`).
 
 **VERIFIED CONSTRAINT (web-checked 2026-06-19) — sharp does NOT run on Cloudflare Workers/Pages
 Functions.** sharp is a native libvips binary; the Workers runtime can't load native modules — a

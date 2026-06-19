@@ -89,4 +89,19 @@ describe('POST /media', () => {
     expect((await post(app, png(4, 'x.svg', 'image/svg+xml'))).status).toBe(415)
     expect((await post(app, png(4, 'x.html', 'text/html'))).status).toBe(415)
   })
+
+  it('415 when a custom allowedContentTypes includes a type with no extension mapping', async () => {
+    const app = createUploadApi({
+      storage: memStorage(),
+      resolveActor: () => owner,
+      limits: { allowedContentTypes: new Set(['application/x-custom']) },
+    })
+    const file = new File([new Uint8Array(4).fill(1)], 'data.bin', { type: 'application/x-custom' })
+    const body = new FormData()
+    body.append('file', file)
+    const res = await app.fetch(new Request('http://test/media', { method: 'POST', body }))
+    expect(res.status).toBe(415)
+    const json = await res.json()
+    expect(json.error).toContain('application/x-custom')
+  })
 })

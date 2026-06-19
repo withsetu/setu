@@ -60,8 +60,9 @@ export function createUploadApi(opts: UploadApiOptions): Hono {
     if (file.size > maxBytes) return c.json({ error: 'file too large' }, 413)
     if (!allowed.has(file.type)) return c.json({ error: `unsupported type: ${file.type}` }, 415)
 
-    const id = crypto.randomUUID()
     const ext = EXT_BY_TYPE[file.type]
+    if (ext === undefined) return c.json({ error: `unsupported type: ${file.type}` }, 415)
+    const id = crypto.randomUUID()
     const key = `media/${id}/original.${ext}`
     const bytes = new Uint8Array(await file.arrayBuffer())
     await storage.put(key, bytes, { contentType: file.type })

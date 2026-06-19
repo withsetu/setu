@@ -33,7 +33,7 @@ export function Media() {
           {result.contentType.startsWith('image/') && (
             <img src={result.url} alt={result.filename} style={{ maxWidth: 320, display: 'block' }} />
           )}
-          <a href={result.url} target="_blank" rel="noreferrer">{result.key.split('/').pop() ?? result.filename}</a>
+          <a href={result.url} target="_blank" rel="noreferrer">{result.filename}</a>
         </div>
       )}
     </section>

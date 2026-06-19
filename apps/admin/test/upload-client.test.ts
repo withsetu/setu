@@ -12,7 +12,7 @@ describe('uploadFile', () => {
     )
     const out = await uploadFile('http://api', file)
     expect(out).toEqual(result)
-    const [url, init] = fetchMock.mock.calls[0]
+    const [url, init] = fetchMock.mock.calls[0]!
     expect(url).toBe('http://api/media')
     expect(init?.method).toBe('POST')
     expect(init?.body).toBeInstanceOf(FormData)

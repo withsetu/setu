@@ -19,7 +19,7 @@ describe('Media screen', () => {
     })
     render(<Media />)
     pickFile()
-    const link = await screen.findByRole('link', { name: /original\.png/ })
+    const link = await screen.findByRole('link', { name: /a\.png/ })
     expect(link).toHaveAttribute('href', 'http://api/uploads/media/1/original.png')
     expect(screen.getByRole('img')).toHaveAttribute('src', 'http://api/uploads/media/1/original.png')
   })

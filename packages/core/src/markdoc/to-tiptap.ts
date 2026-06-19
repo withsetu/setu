@@ -164,6 +164,8 @@ function blockToTiptap(node: MdNode): TiptapNode | null {
 }
 
 export function markdocToTiptap(source: string, opts: RoundtripOptions = {}): TiptapDoc {
+  // defaultKnownBlockTags is now empty by default (blocks moved to auto-discovered folders).
+  // Real callers (e.g., read-service) inject knownBlockTags from the block registry; without injection, tags pass through.
   const known = opts.knownBlockTags ?? defaultKnownBlockTags
   const isPreserve = (node: MdNode): boolean =>
     hasError(node) || (node.type === 'tag' && !known.has(node.tag ?? ''))

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { z } from 'zod'
-import { markdocToTiptap, resolveConfig, defaultConfig } from '../../src/index'
+import { markdocToTiptap, resolveConfig } from '../../src/index'
 
 describe('config drives the round-trip', () => {
   it('recognizes a block defined in the config as known', () => {

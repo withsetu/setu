@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { Draft, DraftInput, Lifecycle, TiptapDoc } from '@setu/core'
+import { serializeMdoc, tiptapToMarkdoc } from '@setu/core'
 import { Icon } from '../ui/Icon'
 import { useServices } from '../data/store'
 import { useCan } from '../auth/actor'
@@ -13,6 +14,7 @@ import { Canvas } from './Canvas'
 import { MetaPanel } from './MetaPanel'
 import { PublishMenu } from './PublishMenu'
 import { ShortcutsDialog } from './ShortcutsDialog'
+import { Tooltip } from './Tooltip'
 import { useAutosave } from './useAutosave'
 import type { SaveStatus } from './useAutosave'
 import { onRequestShortcuts } from './editor-events'
@@ -55,6 +57,9 @@ export function EditorScreen() {
   const committing = useRef(false)
   // Slug just minted from a compose save → the in-memory doc is canonical; don't reload over it.
   const mintedRef = useRef<string | null>(null)
+  const previewWin = useRef<Window | null>(null)
+  const previewNonce = useRef(0)
+  const previewApi = import.meta.env.VITE_SETU_API as string | undefined
 
   const refreshLifecycle = useCallback(async () => {
     const d = await data.getDraft(ref)
@@ -163,6 +168,26 @@ export function EditorScreen() {
     }
   }
 
+  // Preview the CURRENT in-memory draft (unsaved edits included) through the real site theme:
+  // compile it the same way publish does, push it to the api's preview slot, open/refresh the tab.
+  const onPreview = async () => {
+    if (!previewApi) return
+    const content = serializeMdoc({ frontmatter: metaRef.current, body: tiptapToMarkdoc(docRef.current) })
+    await fetch(`${previewApi}/preview`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ content, collection, locale, slug }),
+    })
+    // A changing nonce forces the named tab to navigate → re-fetch the just-pushed draft.
+    const url = `${siteUrl()}/preview?n=${(previewNonce.current += 1)}`
+    if (previewWin.current && !previewWin.current.closed) {
+      previewWin.current.location.href = url
+      previewWin.current.focus()
+    } else {
+      previewWin.current = window.open(url, 'setu-preview')
+    }
+  }
+
   const onPublish = () => void commit()
   // Non-destructive: flag the draft published:false and commit (content stays in Git).
   const onUnpublish = () => {
@@ -189,9 +214,11 @@ export function EditorScreen() {
     <div className="editor">
       <div className="ed-strip">
         <div className="ed-strip-left">
-          <Link className="strip-btn btn-icononly" to={listPath} aria-label="Back to list">
-            <Icon name="chevLeft" size={18} />
-          </Link>
+          <Tooltip content="Back to list">
+            <Link className="strip-btn btn-icononly" to={listPath} aria-label="Back to list">
+              <Icon name="chevLeft" size={18} />
+            </Link>
+          </Tooltip>
           <span className="ed-breadcrumb">{composing ? `New ${collection}` : `${collection} / ${slug}`}</span>
         </div>
         <div className="ed-strip-center"><SaveIndicator status={status} readonly={phase === 'readonly'} /></div>
@@ -200,35 +227,54 @@ export function EditorScreen() {
             <span className="ed-status"><StatusPill status={label} />{pending && <span className="status-pending">· {pending}</span>}</span>
           ) })()}
           {lifecycle.state === 'staged' || lifecycle.state === 'live' ? (
-            <a
-              className="strip-btn btn-icononly"
-              href={siteUrl(ref)}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="View page on site"
-              title="View page on site"
-            >
-              <Icon name="external" size={18} />
-            </a>
+            <Tooltip content="View this page on the live site">
+              <a
+                className="strip-btn btn-icononly"
+                href={siteUrl(ref)}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="View this page on the live site"
+              >
+                <Icon name="external" size={18} />
+              </a>
+            </Tooltip>
           ) : (
+            // Disabled buttons don't fire tippy's hover, so the tooltip targets a wrapper span.
+            <Tooltip content="Not on the site yet — publish to view it live">
+              <span className="strip-tipwrap">
+                <button
+                  type="button"
+                  className="strip-btn btn-icononly"
+                  disabled
+                  aria-label="Not on the site yet — publish to view it live"
+                >
+                  <Icon name="external" size={18} />
+                </button>
+              </span>
+            </Tooltip>
+          )}
+          {previewApi && !composing && (
+            <Tooltip content="Preview the draft in your site theme">
+              <button
+                type="button"
+                className="strip-btn btn-icononly"
+                aria-label="Preview the draft in your site theme"
+                onClick={() => void onPreview()}
+              >
+                <Icon name="eye" size={18} />
+              </button>
+            </Tooltip>
+          )}
+          <Tooltip content="Keyboard shortcuts">
             <button
               type="button"
               className="strip-btn btn-icononly"
-              disabled
-              aria-label="Publish to view it on the site"
-              title="Publish to view it on the site"
+              aria-label="Keyboard shortcuts"
+              onClick={() => setShortcutsOpen(true)}
             >
-              <Icon name="external" size={18} />
+              <Icon name="keyboard" size={18} />
             </button>
-          )}
-          <button
-            type="button"
-            className="strip-btn btn-icononly"
-            aria-label="Keyboard shortcuts"
-            onClick={() => setShortcutsOpen(true)}
-          >
-            <Icon name="keyboard" size={18} />
-          </button>
+          </Tooltip>
           <PublishMenu
             canPublish={can('content.publish') && phase === 'ready' && !composing}
             canUnpublish={can('content.unpublish') && phase === 'ready' && !composing}

@@ -1,0 +1,74 @@
+---
+// Dev-only in-editor preview: render the editor's current draft through the REAL theme +
+// Markdoc component pipeline (same render path as the build → zero drift). Injected only in
+// `astro dev` (see astro.config.mjs), so it never enters the static build.
+export const prerender = false
+
+import { parseMdoc } from '@setu/core'
+import { Markdoc } from '@astrojs/markdoc/config'
+import { Renderer } from '@astrojs/markdoc/components'
+import { createContentComponent } from '@astrojs/markdoc/runtime'
+import { assetsConfig } from '@astrojs/markdoc/runtime-assets-config'
+import markdocConfig from '../../markdoc.config.mjs'
+import PostLayout from '@theme/PostLayout.astro'
+import PageLayout from '@theme/PageLayout.astro'
+import CalloutWrapper from '../components/CalloutWrapper.astro'
+import Sub from '../components/Sub.astro'
+import Sup from '../components/Sup.astro'
+import Heading from '../components/Heading.astro'
+import Paragraph from '../components/Paragraph.astro'
+import Th from '../components/Th.astro'
+import Td from '../components/Td.astro'
+import { loadThemeOptions } from '../lib/site-config'
+
+const apiUrl = import.meta.env.SETU_API_URL ?? 'http://localhost:4444'
+
+let draft: { content: string; collection: string; locale: string; slug: string } | null = null
+try {
+  const res = await fetch(`${apiUrl}/preview`)
+  if (res.ok) draft = await res.json()
+} catch {
+  // api unreachable → show the empty state below
+}
+
+// Build the Content component for the draft body, reusing the build's own markdoc runtime.
+markdocConfig.nodes = { ...assetsConfig.nodes, ...markdocConfig.nodes }
+const tagComponentMap = { callout: CalloutWrapper, sub: Sub, sup: Sup }
+const nodeComponentMap = { heading: Heading, paragraph: Paragraph, th: Th, td: Td }
+
+let Content = null
+let title = 'Preview'
+let lang = 'en'
+let isPost = true
+if (draft) {
+  const { frontmatter, body } = parseMdoc(draft.content)
+  title = (frontmatter as { title?: string }).title ?? draft.slug
+  lang = draft.locale
+  isPost = draft.collection === 'post'
+  Content = createContentComponent(
+    Renderer,
+    JSON.stringify(Markdoc.parse(body)),
+    markdocConfig,
+    {},
+    tagComponentMap,
+    nodeComponentMap,
+  )
+}
+
+const themeOptions = loadThemeOptions()
+const TemplateLayout = isPost ? PostLayout : PageLayout
+---
+
+{
+  draft && Content ? (
+    <TemplateLayout title={title} lang={lang} themeOptions={themeOptions}>
+      <h1>{title}</h1>
+      <Content />
+    </TemplateLayout>
+  ) : (
+    <PageLayout title="Preview" lang="en" themeOptions={themeOptions}>
+      <h1>Nothing to preview yet</h1>
+      <p>Open an entry in the editor and hit Preview.</p>
+    </PageLayout>
+  )
+}

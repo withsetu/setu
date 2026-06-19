@@ -27,6 +27,10 @@
 .strip-btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 9px; border: 1px solid transparent; background: transparent; color: var(--text-2); border-radius: var(--r-sm); font-size: 12.5px; font-weight: 550; transition: background .14s, color .14s, border-color .14s; }
 .strip-btn.btn-icononly { width: 32px; padding: 0; justify-content: center; }
 .strip-btn:hover { background: var(--surface-hover); color: var(--text); }
+.strip-btn:disabled { opacity: .45; cursor: not-allowed; }
+/* Wrapper so a tooltip can fire over a disabled button (the button itself eats no hover). */
+.strip-tipwrap { display: inline-flex; }
+.strip-tipwrap > button:disabled { pointer-events: none; }
 .ed-breadcrumb { font-size: 13px; color: var(--text-3); font-weight: 500; }
 .autosave { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 550; color: var(--green); }
 .autosave svg { color: var(--green); }

@@ -3,8 +3,9 @@ import { Hono } from 'hono'
 import type { Actor } from '@setu/core'
 import { authMiddleware } from '../src/auth/middleware'
 import { resolveLocalOwner } from '../src/auth/resolve-actor'
+import type { ResolveActor } from '../src/auth/resolve-actor'
 
-function appWith(resolve: (req: Request) => Actor | null) {
+function appWith(resolve: ResolveActor) {
   const app = new Hono<{ Variables: { actor: Actor } }>()
   app.use('*', authMiddleware(resolve))
   app.get('/whoami', (c) => c.json({ actor: c.get('actor') }))

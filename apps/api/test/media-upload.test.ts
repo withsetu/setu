@@ -42,7 +42,7 @@ describe('POST /media', () => {
     const { app, storage } = makeApp(() => owner)
     const res = await post(app, png(4))
     expect(res.status).toBe(201)
-    const json = await res.json()
+    const json = (await res.json()) as { key: string; url: string; contentType: string; size: number; filename: string }
     expect(json.key).toMatch(/^media\/[0-9a-f-]{36}\/original\.png$/)
     expect(json.url).toBe(`http://test/uploads/${json.key}`)
     expect(json.contentType).toBe('image/png')
@@ -56,7 +56,7 @@ describe('POST /media', () => {
   it('derives the extension from the content-type, not the filename', async () => {
     const { app } = makeApp(() => owner)
     const res = await post(app, png(2, 'weird-name.bin', 'application/pdf'))
-    const json = await res.json()
+    const json = (await res.json()) as { key: string }
     expect(json.key).toMatch(/\/original\.pdf$/)
   })
 
@@ -101,7 +101,7 @@ describe('POST /media', () => {
     body.append('file', file)
     const res = await app.fetch(new Request('http://test/media', { method: 'POST', body }))
     expect(res.status).toBe(415)
-    const json = await res.json()
+    const json = (await res.json()) as { error: string }
     expect(json.error).toContain('application/x-custom')
   })
 })

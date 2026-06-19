@@ -19,7 +19,7 @@ async function uploadThenServe(file: File) {
   const app = createUploadApi({ storage, resolveActor: () => owner })
   const body = new FormData(); body.append('file', file)
   const up = await app.fetch(new Request('http://test/media', { method: 'POST', body }))
-  const { key } = await up.json()
+  const { key } = (await up.json()) as { key: string }
   const res = await app.fetch(new Request(`http://test/uploads/${key}`))
   return { res, key }
 }

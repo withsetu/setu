@@ -42,7 +42,7 @@ export interface UploadApiOptions {
 
 const authz = createAuthz(DEFAULT_ROLES)
 
-export function createUploadApi(opts: UploadApiOptions): Hono {
+export function createUploadApi(opts: UploadApiOptions) {
   const maxBytes = opts.limits?.maxBytes ?? DEFAULT_MAX_BYTES
   const allowed = opts.limits?.allowedContentTypes ?? DEFAULT_ALLOWED
   const { storage } = opts

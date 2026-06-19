@@ -18,7 +18,7 @@ the owner (2026-06-19). Built hexagonally (Port + contract suite + adapters), sa
 |---|---|---|
 | ~~**1**~~ ✅ | ~~**`StoragePort` + contract suite + `storage-local`**~~ SHIPPED (`e1aeac7`) | the storage *foundation* — a **dumb keyed-blob store** (put/get/delete/url), an in-memory reference + a local-disk adapter, one contract battery every adapter runs |
 | ~~2~~ ✅ | ~~**Upload service + API**~~ SHIPPED 2026-06-19 | auth-gated upload flow (admin → Hono api → StoragePort → URL); the visible "drop a file, get a link" win — see notes below |
-| 3 | **Editor image block + round-trip** ⏳ in progress | Tiptap image node, alt-text, `![alt](src)` Markdoc round-trip, site render — content stores host-free `/uploads/media/<id>/original.<ext>` (id-in-path, env-mapped prefix); inline node (Markdoc-faithful, content-safe). Spec: `docs/superpowers/specs/2026-06-19-media-image-block-design.md` |
+| ~~3~~ ✅ | ~~**Editor image block + round-trip**~~ SHIPPED 2026-06-19 (`8e3d1ef`) | inline Tiptap image node, alt-text, `![alt](src)` Markdoc round-trip, site render — content stores host-free `/uploads/media/<id>/original.<ext>` (id-in-path, env-mapped prefix); inline node (Markdoc-faithful, content-safe). Editor resolves display src via `VITE_SETU_API`, site via `PUBLIC_SETU_MEDIA`. Plain `<img>` (optimization = #4) |
 | 4 | **`ImagePort` + optimization** | variants/srcset/focal/quality — see the decisions below |
 | 5 | **Media library UI** | browse / reuse / search / alt-text in the admin |
 | 6 | **`@setu/storage-s3`** | the S3-compatible adapter (R2/B2/AWS/MinIO) — drops in against the *same* contract |

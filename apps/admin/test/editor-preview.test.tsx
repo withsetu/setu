@@ -29,7 +29,7 @@ describe('EditorScreen preview', () => {
     vi.stubEnv('VITE_SETU_API', '')
     renderEditor()
     await screen.findByDisplayValue('Release notes')
-    expect(screen.queryByRole('button', { name: /preview in the site theme/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /preview the draft in your site theme/i })).not.toBeInTheDocument()
   })
 
   it('compiles the current draft, POSTs it to the api, and opens the site preview', async () => {
@@ -42,7 +42,7 @@ describe('EditorScreen preview', () => {
 
     renderEditor()
     await screen.findByDisplayValue('Release notes')
-    fireEvent.click(screen.getByRole('button', { name: /preview in the site theme/i }))
+    fireEvent.click(screen.getByRole('button', { name: /preview the draft in your site theme/i }))
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
     const [url, init] = fetchMock.mock.calls[0]!

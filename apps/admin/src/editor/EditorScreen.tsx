@@ -14,6 +14,7 @@ import { Canvas } from './Canvas'
 import { MetaPanel } from './MetaPanel'
 import { PublishMenu } from './PublishMenu'
 import { ShortcutsDialog } from './ShortcutsDialog'
+import { Tooltip } from './Tooltip'
 import { useAutosave } from './useAutosave'
 import type { SaveStatus } from './useAutosave'
 import { onRequestShortcuts } from './editor-events'
@@ -213,9 +214,11 @@ export function EditorScreen() {
     <div className="editor">
       <div className="ed-strip">
         <div className="ed-strip-left">
-          <Link className="strip-btn btn-icononly" to={listPath} aria-label="Back to list">
-            <Icon name="chevLeft" size={18} />
-          </Link>
+          <Tooltip content="Back to list">
+            <Link className="strip-btn btn-icononly" to={listPath} aria-label="Back to list">
+              <Icon name="chevLeft" size={18} />
+            </Link>
+          </Tooltip>
           <span className="ed-breadcrumb">{composing ? `New ${collection}` : `${collection} / ${slug}`}</span>
         </div>
         <div className="ed-strip-center"><SaveIndicator status={status} readonly={phase === 'readonly'} /></div>
@@ -224,46 +227,54 @@ export function EditorScreen() {
             <span className="ed-status"><StatusPill status={label} />{pending && <span className="status-pending">· {pending}</span>}</span>
           ) })()}
           {lifecycle.state === 'staged' || lifecycle.state === 'live' ? (
-            <a
-              className="strip-btn btn-icononly"
-              href={siteUrl(ref)}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="View page on site"
-              title="View page on site"
-            >
-              <Icon name="external" size={18} />
-            </a>
+            <Tooltip content="View this page on the live site">
+              <a
+                className="strip-btn btn-icononly"
+                href={siteUrl(ref)}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="View this page on the live site"
+              >
+                <Icon name="external" size={18} />
+              </a>
+            </Tooltip>
           ) : (
-            <button
-              type="button"
-              className="strip-btn btn-icononly"
-              disabled
-              aria-label="Publish to view it on the site"
-              title="Publish to view it on the site"
-            >
-              <Icon name="external" size={18} />
-            </button>
+            // Disabled buttons don't fire tippy's hover, so the tooltip targets a wrapper span.
+            <Tooltip content="Not on the site yet — publish to view it live">
+              <span className="strip-tipwrap">
+                <button
+                  type="button"
+                  className="strip-btn btn-icononly"
+                  disabled
+                  aria-label="Not on the site yet — publish to view it live"
+                >
+                  <Icon name="external" size={18} />
+                </button>
+              </span>
+            </Tooltip>
           )}
           {previewApi && !composing && (
+            <Tooltip content="Preview the draft in your site theme">
+              <button
+                type="button"
+                className="strip-btn btn-icononly"
+                aria-label="Preview the draft in your site theme"
+                onClick={() => void onPreview()}
+              >
+                <Icon name="eye" size={18} />
+              </button>
+            </Tooltip>
+          )}
+          <Tooltip content="Keyboard shortcuts">
             <button
               type="button"
               className="strip-btn btn-icononly"
-              aria-label="Preview in the site theme"
-              title="Preview in the site theme"
-              onClick={() => void onPreview()}
+              aria-label="Keyboard shortcuts"
+              onClick={() => setShortcutsOpen(true)}
             >
-              <Icon name="eye" size={18} />
+              <Icon name="keyboard" size={18} />
             </button>
-          )}
-          <button
-            type="button"
-            className="strip-btn btn-icononly"
-            aria-label="Keyboard shortcuts"
-            onClick={() => setShortcutsOpen(true)}
-          >
-            <Icon name="keyboard" size={18} />
-          </button>
+          </Tooltip>
           <PublishMenu
             canPublish={can('content.publish') && phase === 'ready' && !composing}
             canUnpublish={can('content.unpublish') && phase === 'ready' && !composing}

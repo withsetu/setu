@@ -34,11 +34,11 @@ describe('EditorScreen publish', () => {
     renderEditor()
     await screen.findByDisplayValue('Release notes')
     // Draft → there is no live page yet: the control is a disabled button, not a link.
-    expect(screen.queryByRole('link', { name: /view page on site/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /publish to view it on the site/i })).toBeDisabled()
+    expect(screen.queryByRole('link', { name: /view this page on the live site/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /not on the site yet/i })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: /^publish$/i }))
     await waitFor(() => {
-      const link = screen.getByRole('link', { name: /view page on site/i })
+      const link = screen.getByRole('link', { name: /view this page on the live site/i })
       expect(link).toHaveAttribute('href', 'http://localhost:4321/post/release-notes')
       expect(link).toHaveAttribute('target', '_blank')
     })

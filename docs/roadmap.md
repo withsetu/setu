@@ -7,6 +7,57 @@
 
 ---
 
+## Media / Images (active next — 2026-06-19)
+
+PRD §11 + §17 specify this; the decomposition + the optimization decisions below were refined with
+the owner (2026-06-19). Built hexagonally (Port + contract suite + adapters), same shape as `DataPort`.
+
+**Sub-projects (build order):**
+
+| # | Sub-project | Delivers |
+|---|---|---|
+| **1** | **`StoragePort` + contract suite + `storage-local`** | the storage *foundation* — a **dumb keyed-blob store** (put/get/delete/url), an in-memory reference + a local-disk adapter, one contract battery every adapter runs |
+| 2 | **Upload service + API** | auth-gated upload flow (admin → Hono api → StoragePort → URL); the visible "drop a file, get a link" win |
+| 3 | **Editor image block + round-trip** | Tiptap image node, alt-text, `![alt](src)` Markdoc round-trip, site render |
+| 4 | **`ImagePort` + optimization** | variants/srcset/focal/quality — see the decisions below |
+| 5 | **Media library UI** | browse / reuse / search / alt-text in the admin |
+| 6 | **`@setu/storage-s3`** | the S3-compatible adapter (R2/B2/AWS/MinIO) — drops in against the *same* contract |
+| — | **Private/access-controlled media (deferred)** | the `signUrl()` + auth-gated-serving story (signed URLs for private assets) |
+
+**`StoragePort` = dumb bytes (decided):** the port stores/serves keyed blobs only; **variants are just
+more keys the `ImagePort` manages**. Keeps the port + local/S3 adapters trivial; all size/variant/
+focal/quality logic lives in the ImagePort.
+
+**VERIFIED CONSTRAINT (web-checked 2026-06-19) — sharp does NOT run on Cloudflare Workers/Pages
+Functions.** sharp is a native libvips binary; the Workers runtime can't load native modules — a
+hard capability wall, NOT a limits/free-tier issue ([cloudflare/workers-sdk#12338], [sharp#3860]).
+BUT *build-time* sharp works on ALL topologies (the BUILD runs on a Node/Linux machine, even for CF
+Pages — only the runtime Worker is sharp-less).
+
+**`ImagePort` / optimization decisions (#4 — owner, 2026-06-19; reframes the PRD's "build-time sharp
+default"):**
+- **Three adapters behind one interface, by topology:** **at-upload sharp on Node** (local +
+  self-hosted — the new preferred default, WordPress-style "generate sizes on upload, not every
+  build") | **Cloudflare Images on edge** (Workers can't run sharp) | **at-build sharp** as a fallback
+  (works everywhere).
+- **Generation-timing knob:** when variants are generated is a policy — on-upload (sync) /
+  background-queued / batch / defer-to-build. A bulk import (e.g. 200 images) would queue/background.
+- **Theme-author-declared sizes** (WordPress `add_image_size`-style): theme + site config declare
+  named sizes / breakpoint widths; the admin can add custom thumbnails; the ImagePort generates
+  exactly those variants.
+- **Responsive `srcset`:** Astro `<Image>` emits `srcset`+`sizes` (verified — pass `widths`, or
+  `layout="constrained"` auto-picks device widths), but it resizes at BUILD. With at-upload variants
+  we reference our own pre-generated files and emit the srcset ourselves (we know them). The ImagePort
+  picks which path.
+- **Focal point:** default = sharp smart-crop (`position:'entropy'`/`'attention'` — automatic focal
+  point); **optional** manual focal point stored per image, optionally per-device (art direction via
+  `<Picture>`). Astro has no native focal-point crop → ImagePort logic.
+- **Compression/format/quality:** sharp does per-format quality/effort/lossless (AVIF/WebP/JPEG/PNG).
+  Expose sparingly: global defaults (AVIF+WebP ~q70–80) + optional per-image override (format +
+  quality). Don't surface every knob.
+- **Security (PRD §17):** auth-gated upload sign (`POST /api/upload/sign` → 401 without session);
+  size caps (presigned `content-length-range`, ~5 MB).
+
 ## Render / Theme layer
 
 Vision + decomposition: `docs/superpowers/specs/2026-06-17-setu-render-theme-vision.md`

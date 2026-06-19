@@ -21,6 +21,8 @@ export { defaultConfig, defaultKnownBlockTags } from './config/default-config'
 export type { EntryRef, Draft, DraftInput, DraftFilter, Lock } from './data/types'
 export type { DataPort } from './data/data-port'
 
+export type { StoragePort, PutOptions, StoredObject } from './storage/storage-port'
+
 export type {
   AuthoringService,
   OpenResult,

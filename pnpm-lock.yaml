@@ -150,6 +150,9 @@ importers:
       '@setu/git-local':
         specifier: workspace:*
         version: link:../../packages/git-local
+      '@setu/storage-local':
+        specifier: workspace:*
+        version: link:../../packages/storage-local
       hono:
         specifier: 4.12.26
         version: 4.12.26

@@ -19,6 +19,7 @@ import { DragHandle } from './extensions/DragHandle'
 import { BlockMenu } from './extensions/BlockMenu'
 import { Callout } from './extensions/Callout'
 import { createSetuBlock } from './extensions/SetuBlock'
+import { Image } from './extensions/Image'
 import { Passthrough } from './extensions/Passthrough'
 import { SlashCommand } from './extensions/SlashCommand'
 import { KeyboardShortcuts } from './extensions/KeyboardShortcuts'
@@ -109,6 +110,7 @@ export function Canvas({
       Callout,
       createSetuBlock(registry.blocks, blockCores),
       Passthrough,
+      Image,
       SlashCommand,
       LinkTools.configure({
         onEdit: (ed) => {

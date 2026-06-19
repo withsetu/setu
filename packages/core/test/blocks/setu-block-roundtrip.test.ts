@@ -24,4 +24,9 @@ describe('setuBlock round-trip', () => {
     const doc = { type: 'doc' as const, content: [{ type: 'setuBlock', attrs: { mdAttrs: {} }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] }] }
     expect(() => tiptapToMarkdoc(doc)).toThrow(/missing its "tag"/)
   })
+  it('round-trips a multi-attr setuBlock with nested block content byte-stably', () => {
+    const src = '{% notice tone="warn" title="Hi" %}\nIntro line.\n\n- a\n- b\n{% /notice %}'
+    const out = tiptapToMarkdoc(markdocToTiptap(src, { knownBlockTags: new Set(['notice']) }))
+    expect(out.trim()).toBe(src)
+  })
 })

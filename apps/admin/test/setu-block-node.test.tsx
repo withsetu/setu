@@ -16,10 +16,17 @@ const notice: ResolvedBlock = {
   editor: { label: 'Notice', icon: 'info' },
 }
 
+const widget: ResolvedBlock = {
+  tag: 'widget',
+  props: z.object({ count: z.number().default(1), flag: z.boolean().default(false), label: z.string().optional() }),
+  component: 'blocks/widget/widget.astro',
+  editor: { label: 'Widget' },
+}
+
 function Harness({ tag, onReady }: { tag: string; onReady: (getJSON: () => unknown) => void }) {
   const editor = useEditor({
     immediatelyRender: false,
-    extensions: [StarterKit, createSetuBlock([notice])],
+    extensions: [StarterKit, createSetuBlock([notice, widget])],
     content: { type: 'doc', content: [{ type: 'setuBlock', attrs: { tag, mdAttrs: {} }, content: [{ type: 'paragraph' }] }] },
   })
   if (editor) onReady(() => editor.getJSON())
@@ -42,5 +49,24 @@ describe('setuBlock node view', () => {
     render(<Harness tag="ghost" onReady={() => {}} />)
     expect(await screen.findByText('ghost')).toBeInTheDocument() // label falls back to the tag
     expect(screen.queryByLabelText('tone')).toBeNull()
+  })
+  it('renders number input and checkbox for Number/Boolean attrs, writing correctly-typed values into mdAttrs', async () => {
+    let getJSON: () => unknown = () => ({})
+    render(<Harness tag="widget" onReady={(g) => (getJSON = g)} />)
+    const countInput = await screen.findByLabelText('count') as HTMLInputElement
+    const flagInput = await screen.findByLabelText('flag') as HTMLInputElement
+    expect(countInput.type).toBe('number')
+    expect(flagInput.type).toBe('checkbox')
+    // Toggle the checkbox — should write a real boolean true
+    fireEvent.click(flagInput)
+    const json1 = getJSON() as { content: Array<{ type: string; attrs?: { mdAttrs?: Record<string, unknown> } }> }
+    const block1 = json1.content.find((n) => n.type === 'setuBlock')
+    expect(block1?.attrs?.mdAttrs?.flag).toBe(true) // must be boolean, not 'true'
+    // Type into the number field — should write a real number
+    fireEvent.change(countInput, { target: { value: '7' } })
+    const json2 = getJSON() as { content: Array<{ type: string; attrs?: { mdAttrs?: Record<string, unknown> } }> }
+    const block2 = json2.content.find((n) => n.type === 'setuBlock')
+    expect(typeof block2?.attrs?.mdAttrs?.count).toBe('number')
+    expect(block2?.attrs?.mdAttrs?.count).toBe(7)
   })
 })

@@ -13,7 +13,7 @@ function viewFor(byTag: Record<string, ResolvedBlock>) {
     const attrs = block ? markdocAttributesFor(block.props) : {}
     const label = block?.editor?.label ?? tag
 
-    const setAttr = (name: string, value: string) => {
+    const setAttr = (name: string, value: unknown) => {
       const next: Record<string, unknown> = { ...mdAttrs }
       if (value === '') delete next[name]
       else next[name] = value
@@ -37,6 +37,21 @@ function viewFor(byTag: Record<string, ResolvedBlock>) {
                         <option key={o} value={o}>{o}</option>
                       ))}
                     </select>
+                  ) : a.type === 'Number' ? (
+                    <input
+                      type="number"
+                      value={String(mdAttrs[name] ?? a.default ?? '')}
+                      onChange={(e) => {
+                        if (e.target.value === '') setAttr(name, '')
+                        else setAttr(name, Number(e.target.value))
+                      }}
+                    />
+                  ) : a.type === 'Boolean' ? (
+                    <input
+                      type="checkbox"
+                      checked={Boolean(mdAttrs[name] ?? a.default ?? false)}
+                      onChange={(e) => setAttr(name, e.target.checked)}
+                    />
                   ) : (
                     <input type="text" value={String(mdAttrs[name] ?? '')} onChange={(e) => setAttr(name, e.target.value)} />
                   )}

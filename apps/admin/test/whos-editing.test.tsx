@@ -4,7 +4,7 @@ import { WhosEditing } from '../src/dashboard/widgets/WhosEditing'
 
 describe('WhosEditing', () => {
   it('lists each locked entry and its holder', () => {
-    render(<WhosEditing locks={[{ collection: 'post', locale: 'en', slug: 'p1', lockedBy: 'sarah' }]} />)
+    render(<WhosEditing locks={[{ collection: 'post', locale: 'en', slug: 'p1', lockedBy: 'sarah', lockedAt: 0 }]} />)
     expect(screen.getByText(/p1/)).toBeInTheDocument()
     expect(screen.getByText(/sarah/)).toBeInTheDocument()
   })

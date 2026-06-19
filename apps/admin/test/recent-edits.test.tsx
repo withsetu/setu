@@ -7,8 +7,10 @@ import { RecentEdits } from '../src/dashboard/widgets/RecentEdits'
 const row: ContentRow = {
   ref: { collection: 'post', locale: 'en', slug: 'p1' },
   title: 'First Post',
+  locale: 'en',
   updatedAt: 0,
   lifecycle: { state: 'draft' },
+  hasDraft: true,
 }
 
 describe('RecentEdits', () => {

@@ -31,9 +31,9 @@ describe('dashboard entries', () => {
 
   it('loadActiveLocks returns only locked entries', async () => {
     const data = createMemoryDataPort(seed)
-    await data.putLock({ collection: 'post', locale: 'en', slug: 'p1', lockedBy: 'sarah' })
+    await data.putLock({ collection: 'post', locale: 'en', slug: 'p1', lockedBy: 'sarah', lockedAt: 0 })
     const rows = await loadDashboardEntries(data, createMemoryGitPort(), noDeploy)
     const locks = await loadActiveLocks(data, rows)
-    expect(locks).toEqual([{ collection: 'post', locale: 'en', slug: 'p1', lockedBy: 'sarah' }])
+    expect(locks).toEqual([{ collection: 'post', locale: 'en', slug: 'p1', lockedBy: 'sarah', lockedAt: 0 }])
   })
 })

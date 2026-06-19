@@ -22,7 +22,7 @@ const blockSchema = z.object({
 })
 
 export const configSchema = z.object({
-  blocks: z.array(blockSchema),
+  blocks: z.array(blockSchema).optional().default([]),
   theme: z.string().optional(),
   themeOptions: z.record(z.string(), z.string()).optional(),
 })

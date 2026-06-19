@@ -1,7 +1,7 @@
 import type { Editor, Range } from '@tiptap/core'
 import { isIconName } from '../ui/Icon'
 import type { IconName } from '../ui/Icon'
-import { defaultConfig, resolveConfig } from '@setu/core'
+import { registry } from '../blocks/registry'
 import { BLOCK_TYPES } from './block-types'
 
 export interface SlashBlock {
@@ -36,11 +36,10 @@ const BUILTINS: SlashBlock[] = [
 
 const toIconName = (raw: string | undefined): IconName => (raw && isIconName(raw) ? raw : 'sparkle')
 
-/** Insertable blocks = built-ins + the resolved config blocks (Callout). Each
- *  config block inserts a node of its tag (only `callout` has a node today). */
+/** Insertable blocks = built-ins + every auto-discovered folder block. Each folder block
+ *  inserts a node of its tag (today only `callout` has an editor node). */
 export function slashBlocks(): SlashBlock[] {
-  const config = resolveConfig(defaultConfig)
-  const fromConfig: SlashBlock[] = config.blocks.map((b) => ({
+  const fromBlocks: SlashBlock[] = registry.blocks.map((b) => ({
     title: b.editor?.label ?? b.tag,
     subtitle: `Insert a ${b.tag} block`,
     icon: toIconName(b.editor?.icon),
@@ -52,5 +51,5 @@ export function slashBlocks(): SlashBlock[] {
         .insertContent({ type: b.tag, attrs: { mdAttrs: { type: 'info' } }, content: [{ type: 'paragraph' }] })
         .run(),
   }))
-  return [...BUILTINS, ...fromConfig]
+  return [...BUILTINS, ...fromBlocks]
 }

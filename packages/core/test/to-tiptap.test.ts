@@ -27,15 +27,12 @@ describe('markdocToTiptap', () => {
   })
 
   it('maps a known block tag (callout) to a callout node', () => {
-    const doc = markdocToTiptap('{% callout type="warning" %}\nHi\n{% /callout %}\n')
+    const doc = markdocToTiptap('{% callout type="warning" %}\nHi\n{% /callout %}\n', {
+      knownBlockTags: new Set(['callout']),
+    })
     const node = doc.content[0]!
     expect(node.type).toBe('callout')
     expect((node.attrs as any).mdAttrs).toMatchObject({ type: 'warning' })
-  })
-
-  it('recognizes callout by default, sourced from the config (not a hardcoded constant)', () => {
-    const doc = markdocToTiptap('{% callout type="info" %}\nHi\n{% /callout %}\n')
-    expect(doc.content[0]!.type).toBe('callout')
   })
 
   it('treats callout as passthrough when an empty knownBlockTags set is supplied', () => {

@@ -54,10 +54,13 @@ apps/admin/src/widgets/
 apps/admin/src/styles/dashboard.css        ← tokens-based styling, imported by index.css
 ```
 
-Hooks reused (already provided in the app tree): `useServices`/`useData`, `useDeploy`,
-`useActor`. Helpers reused: `listContentEntries` (`@setu/core`), `mintSlug`
-(`editor/new-entry.ts`), `siteUrl` (`shell/site-url.ts`), `useDismiss`
-(`ui`/hooks), `Icon`, `StatusPill`, `DeployButton`.
+Hooks reused (already provided in the app tree): `useServices`/`useData`, `useDeploy`.
+Helpers/components reused: `listContentEntries` + `parseContentPath` (`@setu/core`),
+`lifecycleLabel` (`lifecycle/label`), `siteUrl` (`shell/site-url`), `Icon`, `StatusPill`,
+`PageHeader`. Dismissible widgets persist a flag in `localStorage` via a small local helper
+(note: the existing `useDismiss` is an Escape/click-outside popup hook, **not** persistence —
+it is not used here). "New post/page" are plain `<Link>`s to `/edit/<collection>/en/new`
+(slug minting already happens inside the editor's new-entry route), not `mintSlug` calls.
 
 ### Data flow
 
@@ -76,12 +79,12 @@ cross-collection entry list, then derives every widget's props from it:
      non-null lock (`lockedBy`). Capped to the loaded list — no extra fan-out. Empty state
      when none.
    - **GettingStarted**: derive checks — site URL set? (`siteUrl`/config), ≥1 post exists?
-     (entry list), deployed? (`useDeploy`). Dismiss persisted via `useDismiss`.
+     (entry list), deployed? (`useDeploy().sha !== null`). Dismiss persisted in `localStorage`.
 4. Independent of the entry list:
    - **SiteStatusCard**: site URL + topology label + deploy state (`useDeploy`); Sync button
      rendered **disabled** with a quiet "not yet connected" affordance.
-   - **TipsDeck**: a bundled static array of tips/Pro teasers; dismissible via `useDismiss`.
-   - **QuickActions**: buttons that `mintSlug` + navigate to the editor for a new post/page.
+   - **TipsDeck**: a bundled static array of tips/Pro teasers; dismiss persisted in `localStorage`.
+   - **QuickActions**: plain `<Link>`s to `/edit/post/en/new` and `/edit/page/en/new`.
 
 ### Route change
 

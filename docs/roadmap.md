@@ -36,10 +36,20 @@ Pages — only the runtime Worker is sharp-less).
 
 **`ImagePort` / optimization decisions (#4 — owner, 2026-06-19; reframes the PRD's "build-time sharp
 default"):**
-- **Three adapters behind one interface, by topology:** **at-upload sharp on Node** (local +
-  self-hosted — the new preferred default, WordPress-style "generate sizes on upload, not every
-  build") | **Cloudflare Images on edge** (Workers can't run sharp) | **at-build sharp** as a fallback
-  (works everywhere).
+- **STORE-ONCE model (unifying, verified 2026-06-19):** the ImagePort's job is **generate variants
+  ONCE → persist them to the StoragePort → serve the static files**. The transform engine is the only
+  topology difference; the downstream (stored variant objects + srcset + static CDN serving, **zero
+  per-render transform cost**) is identical everywhere.
+- **Three transform engines behind one interface, by topology:** **at-upload sharp on Node** (local +
+  self-hosted — the preferred default) | **Cloudflare Images Workers binding on edge** (Workers can't
+  run sharp; the binding transforms in the Worker and **writes the output straight to R2** — Cloudflare
+  explicitly supports "transform → upload to R2 without serving") | **at-build sharp** as a fallback.
+  **CF Images is a GENERATION-TIME engine, NOT a per-render service.** Billing (verified): **per
+  transformation *call*** — one per variant generated, store-or-serve irrespective; free plan 5,000
+  transforms/month → a *one-time* generation cost per image, then free static serving. (Prefer
+  store-once over Cloudflare's on-the-fly `/cdn-cgi/image/` URL transforms: those are CDN-cached but
+  re-bill on cache miss and you don't own the files.) The shipped `StoragePort` is exactly where every
+  variant lands.
 - **Generation-timing knob:** when variants are generated is a policy — on-upload (sync) /
   background-queued / batch / defer-to-build. A bulk import (e.g. 200 images) would queue/background.
 - **Theme-author-declared sizes** (WordPress `add_image_size`-style): theme + site config declare

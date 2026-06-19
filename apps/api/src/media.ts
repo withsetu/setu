@@ -75,6 +75,7 @@ export function createUploadApi(opts: UploadApiOptions): Hono {
 
   app.get('/uploads/*', async (c) => {
     const key = decodeURIComponent(c.req.path.slice('/uploads/'.length))
+    if (!key.startsWith('media/')) return c.json({ error: 'not found' }, 404)
     const obj = await storage.get(key)
     if (!obj) return c.json({ error: 'not found' }, 404)
     const headers: Record<string, string> = { 'Content-Type': obj.contentType }

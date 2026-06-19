@@ -38,6 +38,15 @@ describe('GET /uploads/*', () => {
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toContain('application/pdf')
     expect(res.headers.get('content-disposition')).toBe('attachment')
+    expect(new Uint8Array(await res.arrayBuffer())).toEqual(new Uint8Array([5, 6]))
+  })
+
+  it('404 for a key outside the media/ namespace', async () => {
+    const storage = memStorage()
+    const app = createUploadApi({ storage, resolveActor: () => owner })
+    // Path traversal attempt: /uploads/..%2F..%2Fetc%2Fpasswd decodes to ../../etc/passwd
+    const res = await app.fetch(new Request('http://test/uploads/..%2F..%2Fetc%2Fpasswd'))
+    expect(res.status).toBe(404)
   })
 
   it('404 for an absent key', async () => {

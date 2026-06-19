@@ -5,7 +5,7 @@ import type { MarkdocAttr } from './markdoc-attributes'
 function serializeAttrs(attrs: Record<string, MarkdocAttr>): string {
   const parts = Object.entries(attrs).map(([name, a]) => {
     const bits = [`type: ${a.type}`] // bare identifier (String/Number/Boolean) — not a string literal
-    if (a.matches) bits.push(`matches: ${JSON.stringify(a.matches)}`)
+    if (a.matches?.length) bits.push(`matches: ${JSON.stringify(a.matches)}`)
     if (a.default !== undefined) bits.push(`default: ${JSON.stringify(a.default)}`)
     return `${name}: { ${bits.join(', ')} }`
   })

@@ -73,6 +73,15 @@ export function createUploadApi(opts: UploadApiOptions): Hono {
     )
   })
 
+  app.get('/uploads/*', async (c) => {
+    const key = decodeURIComponent(c.req.path.slice('/uploads/'.length))
+    const obj = await storage.get(key)
+    if (!obj) return c.json({ error: 'not found' }, 404)
+    const headers: Record<string, string> = { 'Content-Type': obj.contentType }
+    if (!obj.contentType.startsWith('image/')) headers['Content-Disposition'] = 'attachment'
+    return new Response(obj.body, { status: 200, headers })
+  })
+
   app.onError((err, c) => c.json({ error: err instanceof Error ? err.message : String(err) }, 500))
   return app
 }

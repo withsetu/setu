@@ -28,15 +28,20 @@ the owner (2026-06-19). Built hexagonally (Port + contract suite + adapters), sa
 more keys the `ImagePort` manages**. Keeps the port + local/S3 adapters trivial; all size/variant/
 focal/quality logic lives in the ImagePort.
 
-**NORTH STAR — Gutenberg / Tiptap-Pro-grade figure block (owner ambition, 2026-06-19):** the eventual
-image experience should match WordPress Gutenberg / Tiptap's paid image node — **caption, alignment
-(left/center/wide/full), resize/width, link-on-click, focal point, lightbox**. Plain `![alt](src)`
-**cannot** carry any of that, so the rich block will be a **`{% figure %}` Setu tag** (human-readable +
-lossless through `@setu/core`, but not vanilla Markdown for those images — same portability tradeoff as
-attributed links). It **coexists** with slice #3's lightweight inline `![alt](src)` node as the heavier
-tier. Slice #3 is the foundation, NOT a dead end; #4+ build toward this. **Image-model layering:**
-inline `![alt](src)` (simple, pure Markdown) → `{% figure %}` tag (rich, Setu tag) → `ImagePort`
-variants/srcset underneath both.
+**NORTH STAR — Gutenberg / Tiptap-Pro-grade rich media (owner ambition, 2026-06-19; taxonomy locked
+2026-06-19):** the eventual experience should match WordPress Gutenberg / Tiptap's paid nodes —
+**caption, alignment (left/center/wide/full), resize/width, link-on-click, focal point, lightbox**.
+Plain `![alt](src)` **cannot** carry any of that, so the rich tier is **Setu tags** (human-readable +
+lossless through `@setu/core`, but not vanilla Markdown for those — same portability tradeoff as
+attributed links). **TAXONOMY (owner, locked):** **"media" is the SUBSYSTEM name** (StoragePort,
+upload service, `ImagePort`, media-library UI) — it is **NEVER a content tag**. Content uses
+**per-type rich tags** (Gutenberg's model — controls differ per type, so distinct blocks, not one
+umbrella): **`{% image %}`** (rich image: caption/alignment/focal/lightbox), **`{% video %}`**,
+**`{% audio %}`**, **`{% embed %}`** — each rendering semantic `<figure>`/`<figcaption>`. (Rejected:
+a single `{% media %}` umbrella block — muddy conditional UI; and `{% figure %}` — that names the HTML
+wrapper element, not the block.) **Image-model layering:** inline `![alt](src)` (simple, pure Markdown,
+SHIPPED #3) → **`{% image %}`** tag (rich, Setu tag) → `ImagePort` variants/srcset underneath both.
+Slice #3's inline node is the lightweight tier + the foundation, NOT a dead end; #4+ build toward this.
 
 **Upload service (#2) — SHIPPED notes (2026-06-19):** `POST /media` on `@setu/api` — a pluggable
 **auth seam** (`ResolveActor`, dev-stubbed to the local owner; real JWT/session slots in later with

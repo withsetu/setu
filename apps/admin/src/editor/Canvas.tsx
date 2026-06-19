@@ -12,6 +12,7 @@ import type { EditorView } from '@tiptap/pm/view'
 import tippy from 'tippy.js'
 import type { Instance as TippyInstance } from 'tippy.js'
 import type { TiptapDoc } from '@setu/core'
+import { blockCores } from '@setu/blocks'
 import { registry } from '../blocks/registry'
 import { BlockActions } from './extensions/BlockActions'
 import { DragHandle } from './extensions/DragHandle'
@@ -106,7 +107,7 @@ export function Canvas({
       KeyboardShortcuts,
       dragHandle,
       Callout,
-      createSetuBlock(registry.blocks),
+      createSetuBlock(registry.blocks, blockCores),
       Passthrough,
       SlashCommand,
       LinkTools.configure({

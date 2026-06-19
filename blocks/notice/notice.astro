@@ -1,15 +1,8 @@
 ---
-// blocks/notice/notice.astro — plain HTML, ZERO imports (no resolver patches needed).
+import { Notice } from '@setu/blocks'
+import '@setu/blocks/notice.css'
+
 const { tone = 'info', title } = Astro.props
 ---
-<aside class={`notice notice-${tone}`}>
-  {title && <p class="notice-title">{title}</p>}
-  <div class="notice-body"><slot /></div>
-</aside>
-<style>
-  .notice { border-left: 4px solid var(--accent, #6366f1); padding: 0.75rem 1rem; border-radius: 6px; background: color-mix(in srgb, var(--accent, #6366f1) 8%, transparent); }
-  .notice-warn { border-color: #d97706; background: color-mix(in srgb, #d97706 8%, transparent); }
-  .notice-success { border-color: #16a34a; background: color-mix(in srgb, #16a34a 8%, transparent); }
-  .notice-title { font-weight: 600; margin: 0 0 0.25rem; }
-  .notice-body :global(> :last-child) { margin-bottom: 0; }
-</style>
+
+<Notice tone={tone} title={title}><slot /></Notice>

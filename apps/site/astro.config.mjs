@@ -31,8 +31,26 @@ const resolveMarkdocFromApp = {
   },
 }
 
+// Inject the in-editor preview route ONLY in `astro dev`, from outside src/pages so it never
+// enters the static build (astro build + the render tests are untouched). Production/edge preview
+// is a later, adapter-backed concern; locally `astro dev` serves it on demand with no adapter.
+const devPreviewRoute = {
+  name: 'setu:dev-preview-route',
+  hooks: {
+    'astro:config:setup': ({ command, injectRoute }) => {
+      if (command === 'dev') {
+        injectRoute({
+          pattern: '/preview',
+          entrypoint: new URL('./src/preview/preview.astro', import.meta.url).pathname,
+          prerender: false,
+        })
+      }
+    },
+  },
+}
+
 export default defineConfig({
-  integrations: [markdoc(), react()],
+  integrations: [markdoc(), react(), devPreviewRoute],
   vite: {
     resolve: { alias: { '@theme': activeTheme } },
     plugins: [resolveMarkdocFromApp],

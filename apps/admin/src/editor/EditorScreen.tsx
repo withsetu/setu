@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { Draft, DraftInput, Lifecycle, TiptapDoc } from '@setu/core'
+import { serializeMdoc, tiptapToMarkdoc } from '@setu/core'
 import { Icon } from '../ui/Icon'
 import { useServices } from '../data/store'
 import { useCan } from '../auth/actor'
@@ -55,6 +56,9 @@ export function EditorScreen() {
   const committing = useRef(false)
   // Slug just minted from a compose save → the in-memory doc is canonical; don't reload over it.
   const mintedRef = useRef<string | null>(null)
+  const previewWin = useRef<Window | null>(null)
+  const previewNonce = useRef(0)
+  const previewApi = import.meta.env.VITE_SETU_API as string | undefined
 
   const refreshLifecycle = useCallback(async () => {
     const d = await data.getDraft(ref)
@@ -163,6 +167,26 @@ export function EditorScreen() {
     }
   }
 
+  // Preview the CURRENT in-memory draft (unsaved edits included) through the real site theme:
+  // compile it the same way publish does, push it to the api's preview slot, open/refresh the tab.
+  const onPreview = async () => {
+    if (!previewApi) return
+    const content = serializeMdoc({ frontmatter: metaRef.current, body: tiptapToMarkdoc(docRef.current) })
+    await fetch(`${previewApi}/preview`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ content, collection, locale, slug }),
+    })
+    // A changing nonce forces the named tab to navigate → re-fetch the just-pushed draft.
+    const url = `${siteUrl()}/preview?n=${(previewNonce.current += 1)}`
+    if (previewWin.current && !previewWin.current.closed) {
+      previewWin.current.location.href = url
+      previewWin.current.focus()
+    } else {
+      previewWin.current = window.open(url, 'setu-preview')
+    }
+  }
+
   const onPublish = () => void commit()
   // Non-destructive: flag the draft published:false and commit (content stays in Git).
   const onUnpublish = () => {
@@ -219,6 +243,17 @@ export function EditorScreen() {
               title="Publish to view it on the site"
             >
               <Icon name="external" size={18} />
+            </button>
+          )}
+          {previewApi && !composing && (
+            <button
+              type="button"
+              className="strip-btn btn-icononly"
+              aria-label="Preview in the site theme"
+              title="Preview in the site theme"
+              onClick={() => void onPreview()}
+            >
+              <Icon name="eye" size={18} />
             </button>
           )}
           <button

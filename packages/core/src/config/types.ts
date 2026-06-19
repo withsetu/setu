@@ -26,7 +26,8 @@ export interface BlockDefinition {
 
 /** The config object an author exports from setu.config.ts. */
 export interface SetuConfig {
-  blocks: BlockDefinition[]
+  /** Authored blocks. Optional — blocks are normally auto-discovered from folders. */
+  blocks?: BlockDefinition[]
   /** The active theme's package name (e.g. '@setu/theme-default'). Optional. */
   theme?: string
   /** Chosen values for the active theme's declared options (key → value). Optional. */

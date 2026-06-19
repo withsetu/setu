@@ -20,4 +20,8 @@ describe('setuBlock round-trip', () => {
     const doc = markdocToTiptap('{% callout type="info" %}\nHi.\n{% /callout %}', { knownBlockTags: known })
     expect(doc.content[0]!.type).toBe('callout')
   })
+  it('throws (never serializes {% undefined %}) when a setuBlock has no tag', () => {
+    const doc = { type: 'doc' as const, content: [{ type: 'setuBlock', attrs: { mdAttrs: {} }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] }] }
+    expect(() => tiptapToMarkdoc(doc)).toThrow(/missing its "tag"/)
+  })
 })

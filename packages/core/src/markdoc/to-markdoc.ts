@@ -86,13 +86,18 @@ function buildBlock(node: TiptapNode): InstanceType<typeof N> {
       return new N('hr')
     case 'callout':
       return new N('tag', attrs['mdAttrs'] ?? {}, (node.content ?? []).map(buildBlock), 'callout')
-    case 'setuBlock':
+    case 'setuBlock': {
+      const tag = attrs['tag']
+      if (typeof tag !== 'string' || tag === '') {
+        throw new Error('tiptapToMarkdoc: setuBlock node is missing its "tag" attribute')
+      }
       return new N(
         'tag',
         (attrs['mdAttrs'] ?? {}) as Record<string, unknown>,
         (node.content ?? []).map(buildBlock),
-        String(attrs['tag']),
+        tag,
       )
+    }
     default:
       return new N('paragraph', {}, [])
   }

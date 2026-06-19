@@ -26,6 +26,15 @@ function inlineToTiptap(node: MdNode, marks: TiptapMark[] = []): TiptapNode[] {
       return [{ type: 'hardBreak' }]
     case 'softbreak':
       return [{ type: 'text', text: ' ' }]
+    case 'image':
+      return [{
+        type: 'image',
+        attrs: {
+          src: String(node.attributes.src ?? ''),
+          alt: String(node.attributes.alt ?? ''),
+          title: node.attributes.title != null ? String(node.attributes.title) : null,
+        },
+      }]
     case 'tag': {
       if (node.tag === 'sub') return kids.flatMap((c) => inlineToTiptap(c, [...marks, { type: 'subscript' }]))
       if (node.tag === 'sup') return kids.flatMap((c) => inlineToTiptap(c, [...marks, { type: 'superscript' }]))

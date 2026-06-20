@@ -225,3 +225,20 @@ describe('render pipeline — images', () => {
     expect(html).toContain('alt="External photo"')
   })
 })
+
+describe('render pipeline — {% image %} figure block', () => {
+  it('renders {% image %} as a responsive figure with caption and alignment', () => {
+    expect(html).toContain('<figure class="setu-image align-wide">')
+    expect(html).toContain('http://localhost:4444/uploads/media/test/w400.webp 400w')
+    expect(html).toContain('http://localhost:4444/uploads/media/test/w1000.webp 1000w')
+    expect(html).toContain('sizes="min(100vw, 1024px)"')
+    expect(html).toContain('width="1000"')
+    expect(html).toContain('height="600"')
+    expect(html).toContain('alt="A wide test cat"')
+    expect(html).toContain('<figcaption>A caption with detail</figcaption>')
+  })
+  it('styles the alignment classes from the theme stylesheet', () => {
+    expect(themeCss()).toContain('figure.setu-image')
+    expect(themeCss()).toContain('.align-full')
+  })
+})

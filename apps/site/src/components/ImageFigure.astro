@@ -1,0 +1,14 @@
+---
+// {% image %} block (#5a): a responsive <figure> with optional caption + alignment.
+// Reuses Image.astro (#4c) for all manifest/srcset/intrinsic-dims logic; adds only the
+// figure/caption wrapper and a per-alignment `sizes`. Build-time + static (zero runtime cost).
+import Image from './Image.astro'
+import { sizesForAlign } from '../lib/image-align'
+
+const { src = '', alt = '', caption, align = 'none' } = Astro.props
+const sizes = sizesForAlign(align)
+---
+<figure class:list={['setu-image', `align-${align}`]}>
+  <Image src={src} alt={alt} sizes={sizes} />
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>

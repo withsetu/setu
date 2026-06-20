@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { Draft, TiptapDoc } from '@setu/core'
+import { createMemoryIndexPort } from '@setu/db-memory'
 import { ActorProvider } from '../src/auth/actor'
 import { ServicesProvider, createServices } from '../src/data/store'
 import type { Services } from '../src/data/store'
@@ -25,6 +26,7 @@ function fakeServices(over: Partial<Services> = {}): Services {
       release: vi.fn(), forceUnlock: vi.fn(), status: vi.fn(),
     } as unknown as Services['authoring'],
     publish: { publish: vi.fn(async () => ({ status: 'nothing' as const })) } as unknown as Services['publish'],
+    index: createMemoryIndexPort(),
     ...over,
   }
 }

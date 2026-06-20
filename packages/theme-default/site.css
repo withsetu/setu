@@ -38,6 +38,9 @@ body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--
 .measure-post { max-width: var(--measure-post); margin: 0 auto; }
 .measure-page { max-width: var(--measure-page); margin: 0 auto; }
 
+/* Inline images (![](...)) fit the content column (the figure block has its own rule below) */
+.prose img { max-width: 100%; height: auto; }
+
 /* {% image %} figure block (media #5a) */
 .prose figure.setu-image { margin: 1.75rem 0; }
 .prose figure.setu-image img { display: block; max-width: 100%; height: auto; border-radius: var(--r-md); }

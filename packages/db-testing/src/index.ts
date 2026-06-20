@@ -175,5 +175,16 @@ export function runIndexPortContract(makeAdapter: () => Promise<IndexPort> | Ind
       await ix.setMeta({ indexedSha: 'abc', version: 2 })
       expect(await ix.getMeta()).toEqual({ indexedSha: 'abc', version: 2 })
     })
+
+    it('distinctTags: prefix-filters, dedupes across rows, sorts, respects limit', async () => {
+      await ix.upsertMany([
+        irow({ slug: 'a', tags: ['react', 'nextjs'] }),
+        irow({ slug: 'b', tags: ['react', 'redux'] }),
+        irow({ slug: 'c', tags: ['vue'] }),
+      ])
+      expect(await ix.distinctTags('re', 10)).toEqual(['react', 'redux'])
+      expect(await ix.distinctTags('', 2)).toEqual(['nextjs', 'react'])
+      expect(await ix.distinctTags('zzz', 10)).toEqual([])
+    })
   })
 }

@@ -41,6 +41,7 @@ export interface IndexPort {
   clear(): Promise<void>
   getMeta(): Promise<IndexMeta>
   setMeta(meta: IndexMeta): Promise<void>
+  distinctTags(prefix: string, limit: number): Promise<string[]>
 }
 
 export const indexKey = (ref: EntryRef): string => `${ref.collection}\0${ref.locale}\0${ref.slug}`

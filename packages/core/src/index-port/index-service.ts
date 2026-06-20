@@ -22,6 +22,7 @@ export interface IndexService {
   reindexEntry(ref: EntryRef): Promise<void>
   reindexAfterDeploy(): Promise<void>
   query(q: IndexQuery): Promise<{ rows: ContentRow[]; total: number }>
+  distinctTags(prefix: string, limit: number): Promise<string[]>
 }
 
 export function createIndexService(deps: IndexServiceDeps): IndexService {
@@ -69,5 +70,9 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
     return { rows: rows.map(rowToContentRow), total }
   }
 
-  return { rebuild, ensureBuilt, reindexEntry, reindexAfterDeploy, query }
+  async function distinctTags(prefix: string, limit: number): Promise<string[]> {
+    return index.distinctTags(prefix, limit)
+  }
+
+  return { rebuild, ensureBuilt, reindexEntry, reindexAfterDeploy, query, distinctTags }
 }

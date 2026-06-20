@@ -34,4 +34,18 @@ describe('{% image %} block — round-trip', () => {
     const minimal = `{% image src="/uploads/media/test/original.jpg" /%}\n`
     expect(rtKnown(minimal)).toBe(minimal)
   })
+
+  it('caption containing a double-quote round-trips byte-exact (escape fix)', () => {
+    // Markdoc parses \" → literal " in the attribute value; re-serializing must escape it back.
+    const md = `{% image src="/uploads/media/x/original.jpg" caption="A \\"quoted\\" cat" /%}\n`
+    // Single round-trip must be byte-exact.
+    expect(rtKnown(md)).toBe(md)
+    // Idempotency: second round-trip equals first.
+    expect(rtKnown(rtKnown(md))).toBe(rtKnown(md))
+  })
+
+  it('unknown/extra attributes are preserved through the round-trip (no silent data loss)', () => {
+    const md = `{% image src="/uploads/media/x/original.jpg" loading="lazy" /%}\n`
+    expect(rtKnown(md)).toBe(md)
+  })
 })

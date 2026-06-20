@@ -92,8 +92,6 @@ function buildBlock(node: TiptapNode): InstanceType<typeof N> {
       return new N('hr')
     case 'callout':
       return new N('tag', attrs['mdAttrs'] ?? {}, (node.content ?? []).map(buildBlock), 'callout')
-    case 'imageBlock':
-      return new N('tag', (attrs['mdAttrs'] ?? {}) as Record<string, unknown>, [], 'image')
     case 'setuBlock': {
       const tag = attrs['tag']
       if (typeof tag !== 'string' || tag === '') {
@@ -114,20 +112,28 @@ function buildBlock(node: TiptapNode): InstanceType<typeof N> {
 const formatNative = (node: TiptapNode): string =>
   Markdoc.format(new N('document', {}, [buildBlock(node)])).replace(/\n+$/, '')
 
-/** Serialize an `imageBlock` node to a self-closing {% image ... /%} tag. */
+/** Escape a string attribute value: backslash → \\, double-quote → \". */
+function escapeAttrString(val: string): string {
+  return val.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+}
+
+/** Serialize an `imageBlock` node to a self-closing {% image ... /%} tag.
+ *  Returns the tag WITHOUT a trailing newline — the caller's join('\n\n') supplies it. */
 function imageBlockToMarkdoc(node: TiptapNode): string {
   const attrs = (node.attrs ?? {}) as Record<string, unknown>
   const mdAttrs = attrs['mdAttrs'] as Record<string, unknown> | undefined ?? {}
 
-  // Serialize attributes as space-separated key="value" pairs, in order: src, alt, caption, align
-  const attrOrder = ['src', 'alt', 'caption', 'align']
+  // Emit src/alt/caption/align first (when present), then any remaining keys — no key is dropped.
+  const leadKeys = ['src', 'alt', 'caption', 'align']
+  const remainingKeys = Object.keys(mdAttrs).filter((k) => !leadKeys.includes(k))
+  const orderedKeys = [...leadKeys.filter((k) => k in mdAttrs), ...remainingKeys]
+
   const parts: string[] = []
-  for (const key of attrOrder) {
-    if (key in mdAttrs) {
-      const val = mdAttrs[key]
-      if (typeof val === 'string') parts.push(`${key}="${val}"`)
-      else if (val != null) parts.push(`${key}="${String(val)}"`)
-    }
+  for (const key of orderedKeys) {
+    const val = mdAttrs[key]
+    if (typeof val === 'string') parts.push(`${key}="${escapeAttrString(val)}"`)
+    else if (typeof val === 'number' || typeof val === 'boolean') parts.push(`${key}=${val}`)
+    else if (val != null) parts.push(`${key}="${escapeAttrString(String(val))}"`)
   }
 
   return `{% image ${parts.join(' ')} /%}`

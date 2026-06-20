@@ -23,6 +23,8 @@ export type { DataPort } from './data/data-port'
 
 export type { StoragePort, PutOptions, StoredObject } from './storage/storage-port'
 
+export type { ImageFormat, VariantSpec, ImageMeta, GeneratedVariant, ImagePort } from './image/image-port'
+
 export type {
   AuthoringService,
   OpenResult,

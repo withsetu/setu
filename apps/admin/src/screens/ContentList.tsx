@@ -93,6 +93,9 @@ export function ContentList({ collection, title }: { collection: string; title: 
   }, [index])
 
   // Run the query.
+  // NB: intentionally no setRows(null) here — keep prior results visible while a
+  // re-filter query resolves (no loading flicker on filter change). Only the
+  // initial mount shows "Loading…".
   useEffect(() => {
     let live = true
     void (async () => {
@@ -169,6 +172,8 @@ export function ContentList({ collection, title }: { collection: string; title: 
           )}
           <TagFilter value={tag} onChange={(t) => setParam('tag', t)} />
           {hasFilters && (rows === null || rows.length > 0) && (
+            // Clear filters also appears in the filtered-empty state below; the toolbar
+            // copy is hidden when results are empty so they never both show. Keep both.
             <button type="button" className="btn btn-sm" onClick={clearFilters}>Clear filters</button>
           )}
         </div>

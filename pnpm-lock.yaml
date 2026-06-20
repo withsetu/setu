@@ -256,6 +256,12 @@ importers:
         specifier: ^3.23.8
         version: 3.25.76
     devDependencies:
+      '@setu/db-memory':
+        specifier: workspace:*
+        version: link:../db-memory
+      '@setu/git-memory':
+        specifier: workspace:*
+        version: link:../git-memory
       '@types/js-yaml':
         specifier: ^4.0.9
         version: 4.0.9

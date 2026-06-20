@@ -59,7 +59,7 @@ describe('POST /media', () => {
     const { app } = makeApp(() => owner)
     const res = await post(app, png(2, 'weird-name.bin', 'application/pdf'))
     const json = (await res.json()) as { key: string }
-    expect(json.key).toMatch(/\.pdf$/)
+    expect(json.key).toMatch(/^\d{4}\/\d{2}\/.+\.pdf$/)
   })
 
   it('second upload of same filename gets a -2 suffix (collision dedup)', async () => {

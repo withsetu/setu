@@ -77,6 +77,7 @@ export function createUploadApi(opts: UploadApiOptions) {
     const slug = mediaSlug(file.name)
     let mediaKey = mediaKeyOf(yyyy, mm, slug)
     for (let n = 2; await storage.exists(originalKey(mediaKey, ext)); n += 1) {
+      if (n > 1000) throw new Error(`media key collision overflow for ${slug}`)
       mediaKey = mediaKeyOf(yyyy, mm, `${slug}-${n}`)
     }
     const key = originalKey(mediaKey, ext)

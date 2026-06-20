@@ -4,6 +4,7 @@ import { deriveLifecycle } from '../lifecycle/derive'
 import { contentPath } from '../publish/content-path'
 import { parseMdoc, serializeMdoc } from '../markdoc/frontmatter'
 import { tiptapToMarkdoc } from '../markdoc/to-markdoc'
+import { normalizeTags } from '../tags/normalize'
 
 /** One row in the merged content list: an entry that exists as a draft, as a
  *  committed Git file, or both. */
@@ -16,6 +17,8 @@ export interface ContentRow {
   /** Draft's updatedAt (epoch ms); null for entries that live only in Git. */
   updatedAt: number | null
   hasDraft: boolean
+  /** Normalized, deduped tags for this entry (draft's tags win when a draft exists). */
+  tags: string[]
 }
 
 export interface ListContentEntriesInput {
@@ -76,6 +79,7 @@ export function listContentEntries(input: ListContentEntriesInput): ContentRow[]
       lifecycle,
       updatedAt: draft ? draft.updatedAt : null,
       hasDraft: draft !== null,
+      tags: tagsOf(draft, committedStr),
     }
   })
 }
@@ -90,4 +94,18 @@ function titleOf(draft: Draft | null, committedStr: string | null, slug: string)
     if (typeof t === 'string' && t.length > 0) return t
   }
   return slug
+}
+
+/** Tags from the live version: the draft's `tags` when a draft exists (even if
+ *  empty — the editor may have cleared them), else the committed frontmatter's.
+ *  Normalized + deduped; tolerant of absent/non-array. */
+function tagsOf(draft: Draft | null, committedStr: string | null): string[] {
+  if (draft) return normalizeFrom(draft.metadata['tags'])
+  if (committedStr !== null) return normalizeFrom(parseMdoc(committedStr).frontmatter['tags'])
+  return []
+}
+
+function normalizeFrom(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  return normalizeTags(raw.filter((x): x is string => typeof x === 'string'))
 }

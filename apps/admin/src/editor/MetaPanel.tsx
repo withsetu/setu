@@ -1,4 +1,5 @@
 import { CategoryField } from './CategoryField'
+import { TagField } from './TagField'
 
 const STATUSES = ['Draft', 'Staged', 'Deployed'] as const
 
@@ -40,6 +41,14 @@ export function MetaPanel({
         <CategoryField
           selected={Array.isArray(metadata['categories']) ? (metadata['categories'] as string[]) : []}
           onChange={(next) => onChange({ ...metadata, categories: next })}
+          editable={editable}
+        />
+      </section>
+      <section className="meta-section">
+        <h2 className="meta-title">Tags</h2>
+        <TagField
+          selected={Array.isArray(metadata['tags']) ? (metadata['tags'] as string[]) : []}
+          onChange={(next) => onChange({ ...metadata, tags: next })}
           editable={editable}
         />
       </section>

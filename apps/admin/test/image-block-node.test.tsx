@@ -56,4 +56,17 @@ describe('ImageBlock node view', () => {
     fireEvent.change(alt, { target: { value: '' } })
     expect(mdAttrsOf(getJSON).alt).toBeUndefined()
   })
+
+  it('pressing Enter in the caption inserts a new paragraph after the imageBlock', async () => {
+    let getJSON: () => unknown = () => ({})
+    render(<Harness onReady={(g) => (getJSON = g)} />)
+    const cap = await screen.findByPlaceholderText(/add a caption/i)
+    fireEvent.keyDown(cap, { key: 'Enter' })
+    const json = getJSON() as { content: Array<{ type: string }> }
+    // the imageBlock is still present AND a paragraph now follows it
+    const types = json.content.map((n) => n.type)
+    expect(types).toContain('imageBlock')
+    expect(types).toContain('paragraph')
+    expect(types.indexOf('paragraph')).toBeGreaterThan(types.indexOf('imageBlock'))
+  })
 })

@@ -13,7 +13,7 @@ interface ImageBlockStorage {
   onError?: (msg: string) => void
 }
 
-function ImageBlockView({ node, updateAttributes, editor }: ReactNodeViewProps) {
+function ImageBlockView({ node, updateAttributes, editor, getPos }: ReactNodeViewProps) {
   const storage = (editor.storage as unknown as { imageBlock: ImageBlockStorage }).imageBlock
   const apiBase = storage?.apiBase ?? ''
   const mdAttrs = (node.attrs.mdAttrs ?? {}) as Record<string, unknown>
@@ -27,6 +27,28 @@ function ImageBlockView({ node, updateAttributes, editor }: ReactNodeViewProps) 
     if (next['caption'] === '') delete next['caption']
     if (next['alt'] === '') delete next['alt']
     updateAttributes({ mdAttrs: next })
+  }
+
+  const onCaptionKeyDown = (e: React.KeyboardEvent) => {
+    const pos = getPos()
+    if (typeof pos !== 'number') return
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      // exit downward: new empty paragraph right after the image block, caret inside it
+      editor.chain().insertContentAt(pos + node.nodeSize, { type: 'paragraph' }).setTextSelection(pos + node.nodeSize + 1).focus().run()
+      return
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      editor.chain().setTextSelection(pos + node.nodeSize).focus().run()
+      return
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      editor.chain().setTextSelection(Math.max(pos - 1, 0)).focus().run()
+      return
+    }
+    e.stopPropagation()
   }
 
   const keepFocus = (e: { preventDefault: () => void }) => e.preventDefault()
@@ -59,6 +81,7 @@ function ImageBlockView({ node, updateAttributes, editor }: ReactNodeViewProps) 
             placeholder="Alt text…"
             value={alt}
             onChange={(e) => setAttrs({ alt: e.target.value })}
+            onKeyDown={(e) => e.stopPropagation()}
             data-toolbar-item
           />
           <button type="button" className="bp-replace" data-toolbar-item onMouseDown={keepFocus} onClick={onReplace}>
@@ -71,6 +94,7 @@ function ImageBlockView({ node, updateAttributes, editor }: ReactNodeViewProps) 
           placeholder="Add a caption…"
           value={caption}
           onChange={(e) => setAttrs({ caption: e.target.value })}
+          onKeyDown={onCaptionKeyDown}
         />
       </figure>
     </NodeViewWrapper>

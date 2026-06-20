@@ -9,3 +9,11 @@ export function selectDistinctTags(rows: EntryIndexRow[], prefix: string, limit:
   for (const r of rows) for (const t of r.tags) if (t.startsWith(p)) set.add(t)
   return [...set].sort().slice(0, limit)
 }
+
+/** Distinct locales across rows, sorted ascending. Locales are a tiny bounded
+ *  set, so no prefix/limit — the whole list feeds a filter dropdown. */
+export function selectDistinctLocales(rows: EntryIndexRow[]): string[] {
+  const set = new Set<string>()
+  for (const r of rows) set.add(r.locale)
+  return [...set].sort()
+}

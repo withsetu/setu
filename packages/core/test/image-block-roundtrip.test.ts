@@ -17,5 +17,7 @@ describe('{% image %} block — #5a passthrough safety', () => {
     expect(doc.content).toHaveLength(1)
     expect(doc.content?.[0]?.type).toBe('passthrough')
     expect(doc.content?.[0]?.content).toBeUndefined()
+    // also reject an explicit empty body (content: []) — the regression this guard exists to catch
+    expect(doc.content?.[0]?.content ?? []).toHaveLength(0)
   })
 })

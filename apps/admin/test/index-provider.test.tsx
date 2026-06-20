@@ -42,7 +42,7 @@ describe('IndexProvider', () => {
     // Simulate the shared idb index: a row indexed by "another tab", and meta marked
     // built so ensureBuilt is a no-op (must not rebuild over the shared/persisted index).
     const shared = createMemoryIndexPort()
-    await shared.upsert({ key: 'post\0en\0x', collection: 'post', locale: 'en', slug: 'x', title: 'X', titleLower: 'x', status: 'draft', updatedAt: 1, hasDraft: true })
+    await shared.upsert({ key: 'post\0en\0x', collection: 'post', locale: 'en', slug: 'x', title: 'X', titleLower: 'x', status: 'draft', updatedAt: 1, hasDraft: true, tags: [], categories: [] })
     await shared.setMeta({ indexedSha: 'built', version: INDEX_VERSION })
     // The data port is EMPTY — if the provider rebuilt instead of using the shared
     // index, total would be 0. It must use services.index as-is → total:1.

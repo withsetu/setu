@@ -130,7 +130,7 @@ export function runDataPortContract(makeAdapter: () => Promise<DataPort> | DataP
 const irow = (over: Partial<EntryIndexRow>): EntryIndexRow => {
   const base = {
     collection: 'post', locale: 'en', slug: 'x', title: 'X',
-    status: 'draft' as const, updatedAt: 0, hasDraft: true,
+    status: 'draft' as const, updatedAt: 0, hasDraft: true, tags: [] as string[], categories: [] as string[],
     ...over,
   }
   return { ...base, key: `${base.collection}\0${base.locale}\0${base.slug}`, titleLower: base.title.toLowerCase() }
@@ -174,6 +174,26 @@ export function runIndexPortContract(makeAdapter: () => Promise<IndexPort> | Ind
       expect(await ix.getMeta()).toEqual({ indexedSha: null, version: 0 })
       await ix.setMeta({ indexedSha: 'abc', version: 2 })
       expect(await ix.getMeta()).toEqual({ indexedSha: 'abc', version: 2 })
+    })
+
+    it('distinctTags: prefix-filters, dedupes across rows, sorts, respects limit', async () => {
+      await ix.upsertMany([
+        irow({ slug: 'a', tags: ['react', 'nextjs'] }),
+        irow({ slug: 'b', tags: ['react', 'redux'] }),
+        irow({ slug: 'c', tags: ['vue'] }),
+      ])
+      expect(await ix.distinctTags('re', 10)).toEqual(['react', 'redux'])
+      expect(await ix.distinctTags('', 2)).toEqual(['nextjs', 'react'])
+      expect(await ix.distinctTags('zzz', 10)).toEqual([])
+    })
+
+    it('distinctLocales: returns distinct locales sorted', async () => {
+      await ix.upsertMany([
+        irow({ slug: 'a', locale: 'fr' }),
+        irow({ slug: 'b', locale: 'en' }),
+        irow({ slug: 'c', locale: 'en' }),
+      ])
+      expect(await ix.distinctLocales()).toEqual(['en', 'fr'])
     })
   })
 }

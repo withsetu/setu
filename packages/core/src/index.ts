@@ -67,6 +67,7 @@ export { entryUrlPath, DEFAULT_LOCALE } from './url/entry-url'
 export type { EntryIndexRow, SortKey, IndexQuery, IndexMeta, IndexPort } from './index-port/types'
 export { indexKey, projectRow, rowToContentRow } from './index-port/types'
 export { runQuery } from './index-port/run-query'
+export { selectDistinctTags, selectDistinctLocales } from './index-port/distinct-tags'
 export type { IndexService, IndexServiceDeps } from './index-port/index-service'
 export { createIndexService, INDEX_VERSION } from './index-port/index-service'
 
@@ -77,6 +78,8 @@ export { addCategory, renameLabel, reparent, slugify, TaxonomyError } from './ta
 export type { TaxonomyErrorCode } from './taxonomy/ops'
 export type { TaxonomyService } from './taxonomy/service'
 export { createTaxonomyService, TAXONOMY_PATH } from './taxonomy/service'
+
+export { normalizeTag, normalizeTags } from './tags/normalize'
 
 export type { MarkdocAttr } from './blocks/markdoc-attributes'
 export { markdocAttributesFor } from './blocks/markdoc-attributes'

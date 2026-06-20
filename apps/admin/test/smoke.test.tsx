@@ -6,6 +6,7 @@ import { DataProvider, createAppDataPort } from '../src/data/store'
 import { ActorProvider } from '../src/auth/actor'
 import { DeployProvider } from '../src/deploy/deploy'
 import { IndexProvider } from '../src/data/index-store'
+import { TaxonomyProvider } from '../src/data/taxonomy-store'
 
 function renderApp(path: string) {
   return render(
@@ -14,7 +15,9 @@ function renderApp(path: string) {
         <ActorProvider>
           <DeployProvider>
             <IndexProvider>
-              <App />
+              <TaxonomyProvider>
+                <App />
+              </TaxonomyProvider>
             </IndexProvider>
           </DeployProvider>
         </ActorProvider>

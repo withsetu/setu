@@ -67,7 +67,7 @@ export { entryUrlPath, DEFAULT_LOCALE } from './url/entry-url'
 export type { EntryIndexRow, SortKey, IndexQuery, IndexMeta, IndexPort } from './index-port/types'
 export { indexKey, projectRow, rowToContentRow } from './index-port/types'
 export { runQuery } from './index-port/run-query'
-export { selectDistinctTags, selectDistinctLocales } from './index-port/distinct-tags'
+export { selectDistinctTags, selectDistinctLocales, selectDistinctCategories } from './index-port/distinct-tags'
 export type { IndexService, IndexServiceDeps } from './index-port/index-service'
 export { createIndexService, INDEX_VERSION } from './index-port/index-service'
 

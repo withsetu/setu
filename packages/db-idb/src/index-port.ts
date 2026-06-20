@@ -1,6 +1,6 @@
 import { openDB } from 'idb'
 import type { EntryIndexRow, IndexMeta, IndexPort } from '@setu/core'
-import { runQuery, selectDistinctTags, selectDistinctLocales } from '@setu/core'
+import { runQuery, selectDistinctTags, selectDistinctLocales, selectDistinctCategories } from '@setu/core'
 
 /** IndexedDB-backed IndexPort. Rows are tiny (no bodies), so `query` loads the
  *  store and delegates to the shared pure `runQuery` — fast at Slice 1 scale and
@@ -43,6 +43,10 @@ export async function createIdbIndexPort(dbName = 'setu-index'): Promise<IndexPo
     async distinctLocales() {
       const all = (await db.getAll('entries')) as EntryIndexRow[]
       return selectDistinctLocales(all)
+    },
+    async distinctCategories() {
+      const all = (await db.getAll('entries')) as EntryIndexRow[]
+      return selectDistinctCategories(all)
     },
   }
 }

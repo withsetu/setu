@@ -7,6 +7,22 @@
 
 ---
 
+## Single-source content topology + repo/deploy model (to revisit — 2026-06-20)
+
+**Context:** The admin's default browser/IndexedDB mode stores content per-origin, so it appears to "disappear" across ports/worktrees and is disconnected from the real `content/` files. The proper dev stack (`pnpm dev`) already manages a real on-disk content repo via the API (git-local) — so *published* content is single-source on disk. Three deliberate follow-ups surfaced while fixing dev-content confusion:
+
+1. **Cut B — server-side drafts.** Today drafts still live in the browser (per-origin); only *published* content is on the server. Make drafts single-source too: a new `packages/db-http` adapter + data/lock routes on `apps/api` (`createDataApi`) backed by `db-sqlite`, and `Bootstrap` using the http DataPort in API mode. (`db-sqlite` + `runDataPortContract` already exist; `db-http` + the routes do not. The index can stay a derived per-browser idb cache.) This is a real product feature — how the server topology should work for any Setu user — not a dev hack.
+
+2. **Fixed / worktree-independent content location.** Point the dev stack at one stable content repo path (env-overridable, resolved from the *main* checkout, not `$PWD`) so every worktree's admin manages the same content. Small (dev-script change).
+
+3. **Repo topology + deploy pipeline.** Decide **one repo** (content as a subfolder of the site repo — simplest, solo) vs **two repos** (`setu/` app + `content/` data — clean separation, multi-editor / one-engine-many-sites; the product vision). Then the build/deploy: `astro build` combining app + content, media **pre-generated at upload** and copied into the static output at `/media/...` (no build/request-time image work → Cloudflare-Pages-safe), shipped to Cloudflare Pages. Media in the content repo locally; swappable to R2/S3 via `StoragePort` later. Owner currently undecided on one-vs-two repos.
+
+**Why noted:** the immediate dev pain is solved by running `pnpm dev` against the on-disk content repo; these are the deliberate next steps toward the real content/build/deploy model.
+
+**Touches:** new `packages/db-http`; `apps/api` data routes + `server.ts` sqlite wiring; `apps/admin` `Bootstrap`; root `pnpm dev` / content-sandbox script; (later) CI/deploy + an Astro media-copy step.
+
+---
+
 ## Media / Images (active next — 2026-06-19)
 
 PRD §11 + §17 specify this; the decomposition + the optimization decisions below were refined with

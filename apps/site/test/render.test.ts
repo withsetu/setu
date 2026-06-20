@@ -1,8 +1,9 @@
 import { execSync } from 'node:child_process'
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync, readdirSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 const appDir = fileURLToPath(new URL('..', import.meta.url))
 let html = ''
@@ -21,9 +22,29 @@ function themeCss(): string {
     .join('\n')
 }
 
+let mediaDir = ''
 beforeAll(() => {
-  execSync('pnpm build', { cwd: appDir, stdio: 'inherit' })
+  mediaDir = mkdtempSync(join(tmpdir(), 'site-media-'))
+  const md = join(mediaDir, 'media', 'test')
+  mkdirSync(md, { recursive: true })
+  writeFileSync(
+    join(md, 'manifest.json'),
+    JSON.stringify({
+      id: 'test',
+      format: 'webp',
+      original: { key: 'media/test/original.png', width: 1000, height: 600, format: 'png' },
+      variants: [
+        { width: 400, height: 240, key: 'media/test/w400.webp', contentType: 'image/webp' },
+        { width: 800, height: 480, key: 'media/test/w800.webp', contentType: 'image/webp' },
+        { width: 1000, height: 600, key: 'media/test/w1000.webp', contentType: 'image/webp' },
+      ],
+    }),
+  )
+  execSync('pnpm build', { cwd: appDir, stdio: 'inherit', env: { ...process.env, SETU_MEDIA_DIR: mediaDir } })
   html = page('post/kitchen-sink')
+})
+afterAll(() => {
+  if (mediaDir) rmSync(mediaDir, { recursive: true, force: true })
 })
 
 describe('render pipeline — standard nodes', () => {
@@ -189,12 +210,17 @@ describe('default theme — prose typography', () => {
 })
 
 describe('render pipeline — images', () => {
-  it('resolves a root-relative media src against PUBLIC_SETU_MEDIA (default localhost:4444)', () => {
+  it('renders an uploaded image responsively from its manifest', () => {
+    // original src resolved against PUBLIC_SETU_MEDIA (default localhost:4444)
     expect(html).toContain('src="http://localhost:4444/uploads/media/test/original.png"')
+    expect(html).toContain('http://localhost:4444/uploads/media/test/w400.webp 400w')
+    expect(html).toContain('http://localhost:4444/uploads/media/test/w1000.webp 1000w')
+    expect(html).toContain('width="1000"')
+    expect(html).toContain('height="600"')
     expect(html).toContain('alt="A test cat"')
     expect(html).toContain('loading="lazy"')
   })
-  it('leaves an absolute external image src unchanged', () => {
+  it('leaves an absolute external image a plain img (no manifest lookup)', () => {
     expect(html).toContain('src="https://example.com/photo.png"')
     expect(html).toContain('alt="External photo"')
   })

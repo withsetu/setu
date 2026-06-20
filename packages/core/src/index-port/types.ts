@@ -24,6 +24,8 @@ export interface IndexQuery {
   q?: string
   status?: LifecycleState
   locale?: string
+  tag?: string
+  category?: string
   sort?: { key: SortKey; dir: 'asc' | 'desc' }
   offset: number
   limit: number

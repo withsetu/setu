@@ -44,6 +44,9 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
 
   async function ensureBuilt(): Promise<void> {
     const meta = await index.getMeta()
+    // Gate on version only: indexedSha is null for an empty git repo (the default
+    // local start state), so also gating on `indexedSha === null` would rebuild on
+    // every mount forever. version (default 0 ≠ INDEX_VERSION) covers cold start.
     if (meta.version !== INDEX_VERSION) await rebuild()
   }
 

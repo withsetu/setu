@@ -8,6 +8,7 @@ import { ActorProvider } from '../src/auth/actor'
 import { ServicesProvider, servicesFor } from '../src/data/store'
 import { DeployProvider } from '../src/deploy/deploy'
 import { IndexProvider } from '../src/data/index-store'
+import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { EditorScreen } from '../src/editor/EditorScreen'
 
 const doc = (t: string): TiptapDoc => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] })
@@ -21,14 +22,16 @@ function renderAt(path: string, data: DataPort, git: GitPort) {
     <MemoryRouter initialEntries={[path]}>
       <ActorProvider>
         <ServicesProvider services={servicesFor(data, git)}>
-          <DeployProvider>
-            <IndexProvider>
-              <Routes>
-                <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
-              </Routes>
-              <LocationProbe />
-            </IndexProvider>
-          </DeployProvider>
+          <TaxonomyProvider>
+            <DeployProvider>
+              <IndexProvider>
+                <Routes>
+                  <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
+                </Routes>
+                <LocationProbe />
+              </IndexProvider>
+            </DeployProvider>
+          </TaxonomyProvider>
         </ServicesProvider>
       </ActorProvider>
     </MemoryRouter>,

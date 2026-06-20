@@ -5,6 +5,7 @@ import { ActorProvider } from '../src/auth/actor'
 import { ServicesProvider, createServices } from '../src/data/store'
 import { DeployProvider } from '../src/deploy/deploy'
 import { IndexProvider } from '../src/data/index-store'
+import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { EditorScreen } from '../src/editor/EditorScreen'
 
 function renderEditor(path = '/edit/post/en/release-notes') {
@@ -13,11 +14,13 @@ function renderEditor(path = '/edit/post/en/release-notes') {
     <MemoryRouter initialEntries={[path]}>
       <ActorProvider>
         <ServicesProvider services={services}>
-          <DeployProvider>
-            <IndexProvider>
-              <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
-            </IndexProvider>
-          </DeployProvider>
+          <TaxonomyProvider>
+            <DeployProvider>
+              <IndexProvider>
+                <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
+              </IndexProvider>
+            </DeployProvider>
+          </TaxonomyProvider>
         </ServicesProvider>
       </ActorProvider>
     </MemoryRouter>,

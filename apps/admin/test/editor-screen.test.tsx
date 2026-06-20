@@ -8,6 +8,7 @@ import { ServicesProvider, createServices } from '../src/data/store'
 import type { Services } from '../src/data/store'
 import { DeployProvider } from '../src/deploy/deploy'
 import { IndexProvider } from '../src/data/index-store'
+import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { EditorScreen } from '../src/editor/EditorScreen'
 
 const doc = (t: string): TiptapDoc => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] })
@@ -36,13 +37,15 @@ function renderEditor(services: Services, path = '/edit/post/en/p1') {
     <MemoryRouter initialEntries={[path]}>
       <ActorProvider>
         <ServicesProvider services={services}>
-          <DeployProvider>
-            <IndexProvider>
-              <Routes>
-                <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
-              </Routes>
-            </IndexProvider>
-          </DeployProvider>
+          <TaxonomyProvider>
+            <DeployProvider>
+              <IndexProvider>
+                <Routes>
+                  <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
+                </Routes>
+              </IndexProvider>
+            </DeployProvider>
+          </TaxonomyProvider>
         </ServicesProvider>
       </ActorProvider>
     </MemoryRouter>,

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { Draft, TiptapDoc } from '@setu/core'
+import { createBulkService } from '@setu/core'
 import { createMemoryIndexPort } from '@setu/db-memory'
 import { ActorProvider } from '../src/auth/actor'
 import { ServicesProvider, createServices } from '../src/data/store'
@@ -17,10 +18,13 @@ const aLock = { collection: 'post', locale: 'en', slug: 'p1', lockedBy: 'local',
 
 function fakeServices(over: Partial<Services> = {}): Services {
   const save = vi.fn(async (input: { metadata: Record<string, unknown> }) => ({ saved: true, outcome: 'refreshed', lock: aLock, draft: { ...aDraft, ...input } }))
+  const data = { getDraft: vi.fn(async () => aDraft) } as unknown as Services['data']
+  const git = { readFile: vi.fn(async () => null) } as unknown as Services['git']
+  const read = { loadForEdit: vi.fn(async () => ({ source: 'draft', draft: aDraft })) } as unknown as Services['read']
   return {
-    data: { getDraft: vi.fn(async () => aDraft) } as unknown as Services['data'],
-    git: { readFile: vi.fn(async () => null) } as unknown as Services['git'],
-    read: { loadForEdit: vi.fn(async () => ({ source: 'draft', draft: aDraft })) } as unknown as Services['read'],
+    data,
+    git,
+    read,
     authoring: {
       open: vi.fn(async () => ({ granted: true, outcome: 'acquired', lock: aLock, draft: aDraft })),
       save,
@@ -28,6 +32,7 @@ function fakeServices(over: Partial<Services> = {}): Services {
     } as unknown as Services['authoring'],
     publish: { publish: vi.fn(async () => ({ status: 'nothing' as const })) } as unknown as Services['publish'],
     index: createMemoryIndexPort(),
+    bulk: createBulkService({ data, git, read, author: { name: 'T', email: 't@x.com' } }),
     ...over,
   }
 }

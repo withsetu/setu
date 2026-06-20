@@ -10,6 +10,7 @@ import { StatusPill } from '../ui/StatusPill'
 import { Icon } from '../ui/Icon'
 import { siteUrl } from '../shell/site-url'
 import { TagFilter } from './TagFilter'
+import { BulkBar } from './BulkBar'
 
 const PAGE_SIZE = 25
 const STATUSES: LifecycleState[] = ['draft', 'staged', 'live', 'unpublished']
@@ -23,6 +24,8 @@ function flatten(nodes: CategoryNode[], out: CategoryNode[] = []): CategoryNode[
   }
   return out
 }
+
+const keyOf = (r: ContentRow) => `${r.ref.collection}/${r.ref.locale}/${r.ref.slug}`
 
 function parseSort(raw: string | null): { key: SortKey; dir: 'asc' | 'desc' } {
   if (raw) {
@@ -42,6 +45,8 @@ export function ContentList({ collection, title }: { collection: string; title: 
   const [rows, setRows] = useState<ContentRow[] | null>(null)
   const [total, setTotal] = useState(0)
   const [locales, setLocales] = useState<string[]>([])
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [refreshKey, setRefreshKey] = useState(0)
 
   const q = params.get('q') ?? ''
   const status = params.get('status') ?? ''
@@ -83,7 +88,13 @@ export function ContentList({ collection, title }: { collection: string; title: 
   // Reset to page 0 when collection or any filter/sort changes.
   useEffect(() => {
     setPage(0)
+    setSelected(new Set())
   }, [collection, q, status, locale, category, tag, sortRaw])
+
+  // Clear selection when navigating between pages (selection is current-page-scoped).
+  useEffect(() => {
+    setSelected(new Set())
+  }, [page])
 
   // Locale dropdown options.
   useEffect(() => {
@@ -113,7 +124,7 @@ export function ContentList({ collection, title }: { collection: string; title: 
       }
     })()
     return () => { live = false }
-  }, [index, collection, page, q, status, locale, category, tag, sort.key, sort.dir])
+  }, [index, collection, page, q, status, locale, category, tag, sort.key, sort.dir, refreshKey])
 
   const toggleSort = (key: SortKey) => {
     const dir = sort.key === key && sort.dir === 'asc' ? 'desc' : 'asc'
@@ -122,6 +133,21 @@ export function ContentList({ collection, title }: { collection: string; title: 
   const sortIndicator = (key: SortKey) => (sort.key === key ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : '')
 
   const clearFilters = () => setParams({}, { replace: true })
+
+  const toggleRow = (k: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(k)) next.delete(k)
+      else next.add(k)
+      return next
+    })
+  const pageKeys = (rows ?? []).map(keyOf)
+  const allSelected = pageKeys.length > 0 && pageKeys.every((k) => selected.has(k))
+  const toggleAll = () =>
+    setSelected((prev) => {
+      if (pageKeys.every((k) => prev.has(k))) return new Set()
+      return new Set(pageKeys)
+    })
 
   const from = total === 0 ? 0 : page * PAGE_SIZE + 1
   const to = Math.min(total, (page + 1) * PAGE_SIZE)
@@ -186,10 +212,22 @@ export function ContentList({ collection, title }: { collection: string; title: 
             <p className="empty-state">No {title.toLowerCase()} yet.</p>
           )
         ) : (
+          <>
+            {selected.size > 0 && rows !== null && (
+              <BulkBar
+                rows={rows}
+                selected={selected}
+                onClear={() => setSelected(new Set())}
+                onDone={() => { setSelected(new Set()); setRefreshKey((k) => k + 1) }}
+              />
+            )}
           <div className="list-wrap">
             <table className="ctable">
               <thead>
                 <tr>
+                  <th className="ctable-check">
+                    <input type="checkbox" aria-label="Select all on this page" checked={allSelected} onChange={toggleAll} />
+                  </th>
                   <th><button type="button" className="ctable-sort" onClick={() => toggleSort('title')}>Title{sortIndicator('title')}</button></th>
                   <th><button type="button" className="ctable-sort" onClick={() => toggleSort('status')}>Status{sortIndicator('status')}</button></th>
                   <th>Locale</th>
@@ -201,6 +239,14 @@ export function ContentList({ collection, title }: { collection: string; title: 
                   const { label, pending } = lifecycleLabel(row.lifecycle)
                   return (
                     <tr key={`${row.ref.collection}/${row.ref.locale}/${row.ref.slug}`}>
+                      <td className="ctable-check">
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${row.title}`}
+                          checked={selected.has(keyOf(row))}
+                          onChange={() => toggleRow(keyOf(row))}
+                        />
+                      </td>
                       <td className="ctable-title">
                         <Link to={`/edit/${row.ref.collection}/${row.ref.locale}/${row.ref.slug}`}>{row.title}</Link>
                         {(row.lifecycle.state === 'staged' || row.lifecycle.state === 'live') && (
@@ -228,6 +274,7 @@ export function ContentList({ collection, title }: { collection: string; title: 
               </div>
             )}
           </div>
+          </>
         )}
       </div>
     </>

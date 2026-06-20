@@ -110,6 +110,88 @@
 /* ctable-muted: used for locale and updated columns (design uses .ct-locale / .ct-updated with color: var(--text-3)) */
 .ctable-muted { color: var(--text-3); }
 
+/* ctable-check: narrow checkbox column — ~36px, centered */
+.ctable-check {
+  width: 36px;
+  min-width: 36px;
+  padding: 0 0 0 16px !important;
+  text-align: center;
+  vertical-align: middle;
+}
+.ctable-check input[type="checkbox"] {
+  display: block;
+  margin: 0 auto;
+  accent-color: var(--accent);
+  cursor: pointer;
+  width: 15px;
+  height: 15px;
+}
+
+/* ---- BULK ACTION BAR ---- */
+/* Horizontal, wrapping context row that appears above the table when rows are selected */
+.bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 30px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-strong);
+  border-top: 1px solid var(--border-strong);
+  border-radius: 0;
+  box-shadow: var(--shadow-sm);
+}
+
+/* Emphasized selection count */
+.bulk-count {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  white-space: nowrap;
+}
+
+/* Clusters a label's controls (select/input + its buttons) */
+.bulk-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.bulk-group select,
+.bulk-group input[type="text"] {
+  height: 28px;
+  padding: 0 8px;
+  font-size: 12.5px;
+  font-family: var(--font-ui);
+  color: var(--text-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-xs);
+  outline: none;
+  transition: border-color .14s;
+}
+.bulk-group select:focus,
+.bulk-group input[type="text"]:focus { border-color: var(--accent-ring); }
+
+/* Muted heads-up note (unpublished-changes warning) */
+.bulk-note {
+  font-size: 12px;
+  color: var(--amber);
+  background: var(--amber-soft);
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  white-space: nowrap;
+}
+
+/* Muted result message after an action completes */
+.bulk-msg {
+  font-size: 12px;
+  color: var(--text-3);
+  font-style: italic;
+}
+
 /* ---- FILTER TOOLBAR ---- */
 /* Horizontal, wrapping row of filter controls that sits between the page header and the table */
 .list-toolbar {

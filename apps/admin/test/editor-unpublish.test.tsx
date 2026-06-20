@@ -6,6 +6,7 @@ import { ActorProvider } from '../src/auth/actor'
 import { ServicesProvider, createServices } from '../src/data/store'
 import { DeployProvider } from '../src/deploy/deploy'
 import { IndexProvider } from '../src/data/index-store'
+import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { EditorScreen } from '../src/editor/EditorScreen'
 
 describe('EditorScreen unpublish', () => {
@@ -13,9 +14,9 @@ describe('EditorScreen unpublish', () => {
     const services = createServices()
     render(
       <MemoryRouter initialEntries={['/edit/post/en/release-notes']}>
-        <ActorProvider><ServicesProvider services={services}><DeployProvider><IndexProvider>
+        <ActorProvider><ServicesProvider services={services}><TaxonomyProvider><DeployProvider><IndexProvider>
           <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
-        </IndexProvider></DeployProvider></ServicesProvider></ActorProvider>
+        </IndexProvider></DeployProvider></TaxonomyProvider></ServicesProvider></ActorProvider>
       </MemoryRouter>,
     )
     await screen.findByDisplayValue('Release notes')

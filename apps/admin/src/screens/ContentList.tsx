@@ -17,6 +17,12 @@ export function ContentList({ collection, title }: { collection: string; title: 
   const [total, setTotal] = useState(0)
 
   useEffect(() => {
+    setPage(0)
+    setRows(null)
+    setTotal(0)
+  }, [collection])
+
+  useEffect(() => {
     let live = true
     void (async () => {
       await index.ensureBuilt()
@@ -38,7 +44,7 @@ export function ContentList({ collection, title }: { collection: string; title: 
     <>
       <PageHeader
         title={title}
-        count={total > 0 ? total : rows?.length}
+        count={rows !== null ? total : undefined}
         subtitle={collection === 'post' ? 'Articles, field notes and announcements.' : 'Standalone pages and landing pages.'}
         actions={
           <Link to={`/edit/${collection}/en/new`} className="btn btn-primary btn-md">

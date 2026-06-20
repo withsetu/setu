@@ -2,6 +2,7 @@ import { createContext, useContext, useMemo } from 'react'
 import type { ReactNode } from 'react'
 import type {
   AuthoringService,
+  BulkService,
   DataPort,
   DraftInput,
   GitPort,
@@ -10,10 +11,13 @@ import type {
   ReadService,
   TiptapDoc,
 } from '@setu/core'
-import { createAuthoringService, createPublishService, createReadService } from '@setu/core'
+import { createAuthoringService, createBulkService, createPublishService, createReadService } from '@setu/core'
 import { registry } from '../blocks/registry'
 import { createMemoryDataPort, createMemoryIndexPort } from '@setu/db-memory'
 import { createMemoryGitPort } from '@setu/git-memory'
+
+/** Editor identity stamped on bulk commits (matches the editor's OWNER_AUTHOR). */
+const OWNER_AUTHOR = { name: 'Local', email: 'local@setu.dev' }
 
 const doc = (text: string): TiptapDoc => ({
   type: 'doc',
@@ -38,18 +42,21 @@ export interface Services {
   read: ReadService
   authoring: AuthoringService
   publish: PublishService
+  bulk: BulkService
 }
 
 /** Build the in-browser services bundle around a DataPort + GitPort. The index
  *  port defaults to in-memory (tests); the app passes the persistent idb one. */
 export function servicesFor(data: DataPort, git: GitPort, index: IndexPort = createMemoryIndexPort()): Services {
+  const read = createReadService({ data, git, knownBlockTags: registry.knownBlockTags })
   return {
     data,
     git,
     index,
-    read: createReadService({ data, git, knownBlockTags: registry.knownBlockTags }),
+    read,
     authoring: createAuthoringService({ data }),
     publish: createPublishService({ data, git }),
+    bulk: createBulkService({ data, git, read, author: OWNER_AUTHOR }),
   }
 }
 

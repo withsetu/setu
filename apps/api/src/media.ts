@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { createAuthz, DEFAULT_ROLES, ingestImage, mediaSlug, mediaKeyOf, originalKey } from '@setu/core'
+import { createAuthz, DEFAULT_ROLES, ingestImage, mediaSlug, mediaKeyOf, originalKey, manifestKey } from '@setu/core'
 import type { Actor, ImageFormat, ImagePort, MediaManifest, StoragePort } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
 import type { ResolveActor } from './auth/resolve-actor'
@@ -76,7 +76,7 @@ export function createUploadApi(opts: UploadApiOptions) {
     const mm = now.getUTCMonth() + 1
     const slug = mediaSlug(file.name)
     let mediaKey = mediaKeyOf(yyyy, mm, slug)
-    for (let n = 2; await storage.exists(originalKey(mediaKey, ext)); n += 1) {
+    for (let n = 2; (await storage.exists(originalKey(mediaKey, ext))) || (await storage.exists(manifestKey(mediaKey))); n += 1) {
       if (n > 1000) throw new Error(`media key collision overflow for ${slug}`)
       mediaKey = mediaKeyOf(yyyy, mm, `${slug}-${n}`)
     }

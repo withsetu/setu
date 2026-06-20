@@ -76,6 +76,36 @@ describe('POST /media', () => {
     expect(json2.key).toBe(`${json2.id}.png`)
   })
 
+  it('cross-content-type collision: PNG then JPEG with same basename get distinct ids', async () => {
+    const storage = memStorage()
+    const { app } = makeApp(() => owner, { storage })
+    // Upload Cat.png — creates 2026/06/cat.png (original) and 2026/06/cat.manifest.json
+    // Simulate a manifest entry so the manifest key is occupied (like a real ingest would do)
+    // For the bug test, we just upload then upload again with a different extension
+    const res1 = await post(app, png(4, 'Cat.png', 'image/png'))
+    expect(res1.status).toBe(201)
+    const json1 = (await res1.json()) as { id: string; key: string }
+    expect(json1.id).toMatch(/^\d{4}\/\d{2}\/cat$/)
+    expect(json1.key).toMatch(/\.png$/)
+
+    // Manually put a manifest at the cat mediaKey to simulate what ingestImage would do
+    // (the upload handler skips ingest here since no ImagePort is configured, but the
+    // collision probe must still detect ext-independent conflicts via the manifest key)
+    const [yyyy, mm, slug] = json1.id.split('/')
+    const fakeManifestKey = `${yyyy}/${mm}/${slug}.manifest.json`
+    await storage.put(fakeManifestKey, new TextEncoder().encode('{}'), { contentType: 'application/json' })
+
+    // Upload Cat.jpeg (same basename, different ext) — without the fix this would get id=2026/06/cat
+    // because the probe only checks 2026/06/cat.jpg (not present), colliding with the first's manifest
+    const res2 = await post(app, png(4, 'Cat.jpeg', 'image/jpeg'))
+    expect(res2.status).toBe(201)
+    const json2 = (await res2.json()) as { id: string; key: string }
+    // Must have a distinct id — the manifest key probe forces dedup
+    expect(json2.id).toMatch(/^\d{4}\/\d{2}\/cat-2$/)
+    expect(json2.key).toMatch(/\.jpg$/)
+    expect(json2.id).not.toBe(json1.id)
+  })
+
   it('401 when unauthenticated', async () => {
     const { app } = makeApp(() => null)
     expect((await post(app, png())).status).toBe(401)

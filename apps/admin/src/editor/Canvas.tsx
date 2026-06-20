@@ -20,6 +20,7 @@ import { BlockMenu } from './extensions/BlockMenu'
 import { Callout } from './extensions/Callout'
 import { createSetuBlock } from './extensions/SetuBlock'
 import { Image } from './extensions/Image'
+import { ImageBlock } from './extensions/ImageBlock'
 import { Passthrough } from './extensions/Passthrough'
 import { SlashCommand } from './extensions/SlashCommand'
 import { KeyboardShortcuts } from './extensions/KeyboardShortcuts'
@@ -111,6 +112,7 @@ export function Canvas({
       createSetuBlock(registry.blocks, blockCores),
       Passthrough,
       Image,
+      ImageBlock,
       SlashCommand,
       LinkTools.configure({
         onEdit: (ed) => {
@@ -131,9 +133,17 @@ export function Canvas({
   const [imgError, setImgError] = useState<string | null>(null)
   useEffect(() => {
     if (!editor) return
-    const imgStorage = editor.storage as unknown as { image: { onUploading?: (busy: boolean) => void; onError?: (msg: string) => void } }
-    imgStorage.image.onUploading = (busy: boolean) => { setImgBusy(busy); if (busy) setImgError(null) }
-    imgStorage.image.onError = (msg: string) => setImgError(msg)
+    const s = editor.storage as unknown as {
+      image: { onUploading?: (b: boolean) => void; onError?: (m: string) => void }
+      imageBlock: { apiBase: string; onUploading?: (b: boolean) => void; onError?: (m: string) => void }
+    }
+    const onUploading = (busy: boolean) => { setImgBusy(busy); if (busy) setImgError(null) }
+    const onError = (msg: string) => setImgError(msg)
+    s.image.onUploading = onUploading
+    s.image.onError = onError
+    s.imageBlock.apiBase = (import.meta.env.VITE_SETU_API as string) ?? ''
+    s.imageBlock.onUploading = onUploading
+    s.imageBlock.onError = onError
   }, [editor])
 
   return (

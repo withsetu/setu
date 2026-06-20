@@ -16,7 +16,7 @@ export interface ImageMarkupInput {
   resolvedSrc: string
   alt: string
   title?: string
-  /** Resolves a root-relative `/uploads/<key>` to an absolute URL (the #3 resolver). */
+  /** Resolves a root-relative `/media/<key>` to an absolute URL (the #3 resolver). */
   resolveUrl: (rootRelative: string) => string
   sizes: string
 }

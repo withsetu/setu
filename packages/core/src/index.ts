@@ -81,6 +81,14 @@ export { createTaxonomyService, TAXONOMY_PATH } from './taxonomy/service'
 
 export { normalizeTag, normalizeTags } from './tags/normalize'
 
+// Bulk metadata mutations — note: aliased due to conflict with taxonomy/ops addCategory
+export {
+  addCategory as bulkAddCategory,
+  removeCategory as bulkRemoveCategory,
+  addTag as bulkAddTag,
+  removeTag as bulkRemoveTag,
+} from './bulk/mutations'
+
 export type { MarkdocAttr } from './blocks/markdoc-attributes'
 export { markdocAttributesFor } from './blocks/markdoc-attributes'
 

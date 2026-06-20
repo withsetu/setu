@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createMemoryDataPort } from '@setu/db-memory'
 import { createMemoryGitPort } from '@setu/git-memory'
-import { createIdbDataPort } from '@setu/db-idb'
+import { createIdbDataPort, createIdbIndexPort } from '@setu/db-idb'
 import { createIdbGitPort } from '@setu/git-idb'
 import { createHttpGitPort } from '@setu/git-http'
 import { bootstrapServices, ServicesProvider } from './store'
@@ -24,12 +24,16 @@ export function Bootstrap({ children }: { children: ReactNode }) {
         // Drafts stay in-browser (IndexedDB) this cut.
         const data = await createIdbDataPort()
         const git = createHttpGitPort({ baseUrl: apiBase })
-        ready = await bootstrapServices(data, git)
+        // Persistent, cross-tab content index (shared via IndexedDB).
+        const index = await createIdbIndexPort()
+        ready = await bootstrapServices(data, git, index)
       } else {
         try {
           const data = await createIdbDataPort()
           const git = await createIdbGitPort()
-          ready = await bootstrapServices(data, git)
+          // Persistent, cross-tab content index (shared via IndexedDB).
+          const index = await createIdbIndexPort()
+          ready = await bootstrapServices(data, git, index)
         } catch (err) {
           console.error('IndexedDB unavailable — using in-memory storage for this session.', err)
           ready = await bootstrapServices(createMemoryDataPort(), createMemoryGitPort())

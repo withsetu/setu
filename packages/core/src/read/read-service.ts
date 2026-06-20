@@ -21,7 +21,9 @@ export function createReadService(deps: ReadDeps): ReadService {
       const { frontmatter, body } = parseMdoc(published)
       const content = markdocToTiptap(body, knownBlockTags ? { knownBlockTags } : {})
       const head = await git.headSha()
-      const draft = await data.saveDraft({ ...ref, content, metadata: frontmatter, baseSha: head })
+      // baseContent = the committed file we forked from → the per-file publish guard
+      // compares against THIS, so publishing other entries can't trip a false conflict.
+      const draft = await data.saveDraft({ ...ref, content, metadata: frontmatter, baseSha: head, baseContent: published })
       return { source: 'forked', draft }
     },
   }

@@ -49,30 +49,33 @@ describe('ingestImage', () => {
     const { port, map } = memStorage()
     const manifest = await ingestImage(
       { image: stubImage(1000, 500), storage: port },
-      { id: 'abc', bytes: new Uint8Array([1]), originalKey: 'media/abc/original.png', format: 'webp', widths: [400, 800, 1200, 1600] },
+      { mediaKey: '2026/06/cat', bytes: new Uint8Array([1]), originalKey: '2026/06/cat.png', format: 'webp', widths: [400, 800, 1200, 1600] },
     )
+    expect(manifest.id).toBe('2026/06/cat')
     // 1200 & 1600 exceed the 1000px source → dropped; source width 1000 added ⇒ [400, 800, 1000]
     expect(manifest.variants.map((v) => v.width)).toEqual([400, 800, 1000])
     expect(manifest.variants.map((v) => v.key)).toEqual([
-      'media/abc/w400.webp',
-      'media/abc/w800.webp',
-      'media/abc/w1000.webp',
+      '2026/06/cat-400w.webp',
+      '2026/06/cat-800w.webp',
+      '2026/06/cat-1000w.webp',
     ])
-    expect(manifest.original).toEqual({ key: 'media/abc/original.png', width: 1000, height: 500, format: 'png' })
+    expect(manifest.original).toEqual({ key: '2026/06/cat.png', width: 1000, height: 500, format: 'png' })
     expect(manifest.format).toBe('webp')
-    expect(map.get('media/abc/w400.webp')?.contentType).toBe('image/webp')
-    const mf = map.get('media/abc/manifest.json')
+    expect(map.get('2026/06/cat-400w.webp')?.contentType).toBe('image/webp')
+    // manifest persisted at the sidecar key
+    expect(map.has('2026/06/cat.manifest.json')).toBe(true)
+    const mf = map.get('2026/06/cat.manifest.json')
     expect(mf?.contentType).toBe('application/json')
-    expect(JSON.parse(new TextDecoder().decode(mf!.body)).id).toBe('abc')
+    expect(JSON.parse(new TextDecoder().decode(mf!.body)).id).toBe('2026/06/cat')
   })
 
   it('uses the .jpg extension for the jpeg format and never upscales', async () => {
     const { port } = memStorage()
     const manifest = await ingestImage(
       { image: stubImage(500, 500), storage: port },
-      { id: 'x', bytes: new Uint8Array([1]), originalKey: 'media/x/original.jpg', format: 'jpeg', widths: [400, 800] },
+      { mediaKey: '2026/06/photo', bytes: new Uint8Array([1]), originalKey: '2026/06/photo.jpg', format: 'jpeg', widths: [400, 800] },
     )
     // 800 > 500 source → dropped; 400 kept + source 500 ⇒ [400, 500]
-    expect(manifest.variants.map((v) => v.key)).toEqual(['media/x/w400.jpg', 'media/x/w500.jpg'])
+    expect(manifest.variants.map((v) => v.key)).toEqual(['2026/06/photo-400w.jpg', '2026/06/photo-500w.jpg'])
   })
 })

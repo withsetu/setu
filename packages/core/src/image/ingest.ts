@@ -2,6 +2,7 @@ import type { ImageFormat, ImagePort } from './image-port'
 import type { StoragePort } from '../storage/storage-port'
 import type { ManifestVariant, MediaManifest } from './manifest'
 import { contentTypeFor, extensionFor } from './format'
+import { variantKey, manifestKey } from './media-key'
 
 // TextEncoder is a universal WHATWG global (Node ≥11, Deno, browsers, edge runtimes).
 // Declare it locally so the edge tsconfig (lib: ["ES2022"], no DOM) can compile this file.
@@ -12,9 +13,9 @@ export interface IngestDeps {
   storage: StoragePort
 }
 export interface IngestInput {
-  id: string
+  mediaKey: string
   bytes: Uint8Array
-  /** Key of the already-stored original (e.g. media/<id>/original.png). */
+  /** Key of the already-stored original (e.g. 2026/06/cat.png). */
   originalKey: string
   format: ImageFormat
   widths: number[]
@@ -25,7 +26,7 @@ export interface IngestInput {
  *  pure orchestration over the injected ImagePort + StoragePort. */
 export async function ingestImage(deps: IngestDeps, input: IngestInput): Promise<MediaManifest> {
   const { image, storage } = deps
-  const { id, bytes, originalKey, format, widths } = input
+  const { mediaKey, bytes, originalKey, format, widths } = input
 
   const meta = await image.metadata(bytes)
   const ext = extensionFor(format)
@@ -39,18 +40,18 @@ export async function ingestImage(deps: IngestDeps, input: IngestInput): Promise
 
   const manifestVariants: ManifestVariant[] = []
   for (const v of variants) {
-    const key = `media/${id}/w${v.width}.${ext}`
+    const key = variantKey(mediaKey, v.width, ext)
     await storage.put(key, v.body, { contentType })
     manifestVariants.push({ width: v.width, height: v.height, key, contentType })
   }
 
   const manifest: MediaManifest = {
-    id,
+    id: mediaKey,
     format,
     original: { key: originalKey, width: meta.width, height: meta.height, format: meta.format },
     variants: manifestVariants,
   }
-  await storage.put(`media/${id}/manifest.json`, new TextEncoder().encode(JSON.stringify(manifest)), {
+  await storage.put(manifestKey(mediaKey), new TextEncoder().encode(JSON.stringify(manifest)), {
     contentType: 'application/json',
   })
   return manifest

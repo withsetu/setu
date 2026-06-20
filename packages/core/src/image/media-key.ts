@@ -7,7 +7,7 @@ export function mediaSlug(filename: string): string {
   const base = filename.replace(/\.[^./\\]*$/, '') // strip a trailing extension
   const slug = base
     .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '') // remove combining diacritical marks
+    .replace(/\p{M}/gu, '') // remove all Unicode combining marks
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')

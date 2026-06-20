@@ -17,6 +17,10 @@ describe('mediaSlug', () => {
     expect(s.length).toBeLessThanOrEqual(60)
     expect(s.endsWith('-')).toBe(false)
   })
+  it('keeps an extensionless filename', () => {
+    expect(mediaSlug('Makefile')).toBe('makefile')
+    expect(mediaSlug('README')).toBe('readme')
+  })
 })
 
 describe('key assembly', () => {

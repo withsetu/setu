@@ -1,3 +1,5 @@
+import { CategoryField } from './CategoryField'
+
 const STATUSES = ['Draft', 'Staged', 'Deployed'] as const
 
 export function MetaPanel({
@@ -32,6 +34,14 @@ export function MetaPanel({
             </button>
           ))}
         </div>
+      </section>
+      <section className="meta-section">
+        <h2 className="meta-title">Categories</h2>
+        <CategoryField
+          selected={Array.isArray(metadata['categories']) ? (metadata['categories'] as string[]) : []}
+          onChange={(next) => onChange({ ...metadata, categories: next })}
+          editable={editable}
+        />
       </section>
       <section className="meta-section">
         <h2 className="meta-title">Permalink</h2>

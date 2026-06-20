@@ -5,6 +5,7 @@ import { ActorProvider } from '../src/auth/actor'
 import { ServicesProvider, createServices } from '../src/data/store'
 import { DeployProvider, useDeploy } from '../src/deploy/deploy'
 import { IndexProvider } from '../src/data/index-store'
+import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { EditorScreen } from '../src/editor/EditorScreen'
 
 function DeployTrigger() {
@@ -19,12 +20,14 @@ describe('deploy status', () => {
       <MemoryRouter initialEntries={['/edit/post/en/release-notes']}>
         <ActorProvider>
           <ServicesProvider services={services}>
-            <DeployProvider>
-              <IndexProvider>
-                <DeployTrigger />
-                <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
-              </IndexProvider>
-            </DeployProvider>
+            <TaxonomyProvider>
+              <DeployProvider>
+                <IndexProvider>
+                  <DeployTrigger />
+                  <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
+                </IndexProvider>
+              </DeployProvider>
+            </TaxonomyProvider>
           </ServicesProvider>
         </ActorProvider>
       </MemoryRouter>,

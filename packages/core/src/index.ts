@@ -70,6 +70,14 @@ export { runQuery } from './index-port/run-query'
 export type { IndexService, IndexServiceDeps } from './index-port/index-service'
 export { createIndexService, INDEX_VERSION } from './index-port/index-service'
 
+export type { Category, CategoryNode } from './taxonomy/types'
+export { parseCategories, serializeCategories } from './taxonomy/parse'
+export { buildTree } from './taxonomy/tree'
+export { addCategory, renameLabel, reparent, slugify, TaxonomyError } from './taxonomy/ops'
+export type { TaxonomyErrorCode } from './taxonomy/ops'
+export type { TaxonomyService } from './taxonomy/service'
+export { createTaxonomyService, TAXONOMY_PATH } from './taxonomy/service'
+
 export type { MarkdocAttr } from './blocks/markdoc-attributes'
 export { markdocAttributesFor } from './blocks/markdoc-attributes'
 

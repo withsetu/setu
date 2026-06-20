@@ -6,6 +6,7 @@ import { Appearance } from './screens/Appearance'
 import { EditorScreen } from './editor/EditorScreen'
 import { Dashboard } from './screens/Dashboard'
 import { Media } from './screens/Media'
+import { Categories } from './screens/Categories'
 
 export function App() {
   return (
@@ -17,6 +18,7 @@ export function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/posts" element={<ContentList collection="post" title="Posts" />} />
           <Route path="/pages" element={<ContentList collection="page" title="Pages" />} />
+          <Route path="/categories" element={<Categories />} />
           <Route path="/media" element={<Media />} />
           <Route path="/forms" element={<Placeholder title="Forms" />} />
           <Route path="/appearance" element={<Appearance />} />

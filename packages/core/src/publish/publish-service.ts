@@ -15,18 +15,15 @@ export function createPublishService(deps: PublishDeps): PublishService {
       const headSha = await git.headSha()
       const path = contentPath(ref)
 
-      if (draft.baseSha !== null) {
-        // Forked from a commit: block if the repo HEAD advanced since (HEAD-level
-        // guard — coarse but never silently overwrites an external commit).
-        if (headSha !== null && draft.baseSha !== headSha) {
+      // Per-file optimistic guard: conflict only if THIS file's committed content
+      // changed since the draft forked from it. Publishing OTHER entries advances
+      // HEAD but never touches this file, so it no longer trips a false conflict.
+      // A new entry has baseContent null, so it conflicts iff its target file
+      // already exists (never clobber pre-existing content for the slug).
+      if (headSha !== null) {
+        const committed = await git.readFile(path)
+        if (committed !== (draft.baseContent ?? null)) {
           return { status: 'conflict', baseSha: draft.baseSha, headSha }
-        }
-      } else if (headSha !== null) {
-        // New entry (never forked): block if the target file already exists, so we
-        // never clobber pre-existing published content for this slug.
-        const existing = await git.readFile(path)
-        if (existing !== null) {
-          return { status: 'conflict', baseSha: null, headSha }
         }
       }
 
@@ -45,6 +42,8 @@ export function createPublishService(deps: PublishDeps): PublishService {
         content: draft.content,
         metadata: draft.metadata,
         baseSha: sha,
+        // The just-committed content becomes this file's new per-file conflict base.
+        baseContent: content,
       })
 
       return { status: 'published', sha, path }

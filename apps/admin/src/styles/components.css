@@ -32,6 +32,105 @@
 .btn-quiet { background: transparent; color: var(--text-3); }
 .btn-quiet:hover { background: var(--surface-hover); color: var(--text); }
 
+/* ---- CATEGORIES MANAGEMENT SCREEN ---- */
+/* Page wrapper — fills the available main area */
+.categories-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+/* Reuse the .category-new class (also in editor.css) at screen-scale:
+   override sizes for the larger context without duplicating the base rule. */
+.categories-screen .category-new {
+  padding: 16px 30px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  gap: 8px;
+}
+.categories-screen .category-new input[type="text"] {
+  max-width: 280px;
+  height: 34px;
+  font-size: 13.5px;
+  border-radius: var(--r-sm);
+}
+.categories-screen .category-new button {
+  height: 34px;
+  padding: 0 14px;
+  font-size: 13.5px;
+  border-radius: var(--r-sm);
+}
+
+/* Scrollable list of managed categories */
+.category-manage-list {
+  list-style: none;
+  margin: 0;
+  padding: 16px 30px 60px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* One managed-category row */
+.category-manage-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-sm);
+  /* paddingLeft is increased inline by component for depth indentation */
+  transition: border-color .14s;
+}
+.category-manage-row:hover { border-color: var(--border-strong); }
+
+/* Editable name input — looks like plain text until focused */
+.category-name-input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 6px;
+  font-size: 13.5px;
+  font-weight: 550;
+  font-family: var(--font-ui);
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-xs);
+  outline: none;
+  transition: background .12s, border-color .14s;
+}
+.category-name-input:hover { background: var(--surface-hover); border-color: var(--border); }
+.category-name-input:focus { background: var(--surface); border-color: var(--accent-ring); }
+
+/* Parent label + select (inline, pushed to the right) */
+.category-parent {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.category-parent select {
+  height: 28px;
+  padding: 0 6px;
+  font-size: 12.5px;
+  font-family: var(--font-ui);
+  color: var(--text-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  outline: none;
+  cursor: pointer;
+  transition: border-color .14s;
+}
+.category-parent select:focus { border-color: var(--accent-ring); }
+
 /* ---- BADGE ---- */
 .badge {
   display: inline-flex; align-items: center; gap: 5px;

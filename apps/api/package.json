@@ -16,11 +16,14 @@
     "@hono/node-server": "2.0.5",
     "@setu/core": "workspace:*",
     "@setu/git-local": "workspace:*",
+    "@setu/image-sharp": "workspace:*",
+    "@setu/storage-local": "workspace:*",
     "hono": "4.12.26"
   },
   "devDependencies": {
     "@setu/db-memory": "workspace:*",
     "@setu/git-http": "workspace:*",
+    "@setu/image-testing": "workspace:*",
     "@types/node": "^22.10.2",
     "isomorphic-git": "^1.38.4",
     "tsx": "^4.19.2",

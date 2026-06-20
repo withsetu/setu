@@ -1,0 +1,8 @@
+---
+import { Notice } from '@setu/blocks'
+import '@setu/blocks/notice.css'
+
+const { tone = 'info', title } = Astro.props
+---
+
+<Notice tone={tone} title={title}><slot /></Notice>

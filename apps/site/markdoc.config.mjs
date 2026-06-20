@@ -1,16 +1,10 @@
 import { defineMarkdocConfig, component, nodes, Markdoc } from '@astrojs/markdoc/config'
+import { tags as generatedTags } from './markdoc.blocks.generated.mjs'
 
-// Custom block tags -> render wrappers. In sub-project #1 this map is authored BY HAND.
-//
-// We would prefer to SOURCE the tag set from setu.config (@setu/core's defaultConfig),
-// but @astrojs/markdoc loads this config file through esbuild (packages:'external') + native
-// ESM, which cannot load @setu/core's TypeScript source (extensionless .ts imports + zod).
-// Verified: a direct `import ... from '@setu/core'` here fails at build with
-// "Cannot find module .../packages/core/src/markdoc/to-tiptap".
-//
-// Deriving this map from setu.config belongs to sub-project #4 (codegen), which runs in a
-// build step that CAN read core and will generate this file. Until then, keep this in sync
-// with setu.config's blocks by hand (today: the single `callout` block).
+// Block tags (e.g. callout) are AUTO-GENERATED from blocks/<tag>/ folders by
+// scripts/gen-blocks.mjs into ./markdoc.blocks.generated.mjs and spread in below.
+// `sub` and `sup` remain hand-authored inline tags — they are inline Markdoc
+// tags, not folder blocks, and are listed explicitly beneath.
 
 // Detect GFM task markers and render a read-only checkbox. Mirrors the editor's TASK_RE.
 // Tight items expose the marker as a bare string child; loose (multi-paragraph) items
@@ -44,13 +38,7 @@ function itemTransform(node, config) {
 
 export default defineMarkdocConfig({
   tags: {
-    callout: {
-      render: component('./src/components/CalloutWrapper.astro'),
-      attributes: {
-        type: { type: String, default: 'info' },
-        title: { type: String },
-      },
-    },
+    ...generatedTags,
     sub: { render: component('./src/components/Sub.astro') },
     sup: { render: component('./src/components/Sup.astro') },
   },
@@ -68,6 +56,10 @@ export default defineMarkdocConfig({
     item: {
       ...nodes.item,
       transform: itemTransform,
+    },
+    image: {
+      ...nodes.image,
+      render: component('./src/components/Image.astro'),
     },
     th: {
       ...nodes.th,

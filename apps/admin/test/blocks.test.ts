@@ -19,3 +19,9 @@ describe('slashBlocks', () => {
     expect(titles.some((t) => /callout/i.test(t))).toBe(true)
   })
 })
+
+describe('slashBlocks — folder blocks route to the right node', () => {
+  it('offers the dependency-free Notice folder block', () => {
+    expect(slashBlocks().map((b) => b.title)).toContain('Notice')
+  })
+})

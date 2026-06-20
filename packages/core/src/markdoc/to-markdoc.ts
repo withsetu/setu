@@ -7,6 +7,12 @@ const N = Markdoc.Ast.Node
 export function buildInline(content: TiptapNode[] = []): InstanceType<typeof N>[] {
   return content.map((t) => {
     if (t.type === 'hardBreak') return new N('hardbreak')
+    if (t.type === 'image') {
+      const a = (t.attrs ?? {}) as Record<string, unknown>
+      const attrs: Record<string, unknown> = { src: a.src ?? '', alt: a.alt ?? '' }
+      if (a.title != null && a.title !== '') attrs.title = a.title
+      return new N('image', attrs)
+    }
     let n: InstanceType<typeof N> = new N('text', { content: t.text })
     // Apply markdown-native marks first (innermost), then tag marks (outermost).
     // This ensures {% sub %}**b**{% /sub %} rather than **{% sub %}b{% /sub %}**,
@@ -86,6 +92,18 @@ function buildBlock(node: TiptapNode): InstanceType<typeof N> {
       return new N('hr')
     case 'callout':
       return new N('tag', attrs['mdAttrs'] ?? {}, (node.content ?? []).map(buildBlock), 'callout')
+    case 'setuBlock': {
+      const tag = attrs['tag']
+      if (typeof tag !== 'string' || tag === '') {
+        throw new Error('tiptapToMarkdoc: setuBlock node is missing its "tag" attribute')
+      }
+      return new N(
+        'tag',
+        (attrs['mdAttrs'] ?? {}) as Record<string, unknown>,
+        (node.content ?? []).map(buildBlock),
+        tag,
+      )
+    }
     default:
       return new N('paragraph', {}, [])
   }

@@ -53,6 +53,17 @@ describe('render pipeline — callout', () => {
   })
 })
 
+describe('render pipeline — generic folder block (notice)', () => {
+  it('renders the dependency-free notice block through the generated registration', () => {
+    expect(html).toContain('notice notice-success') // tone class (Astro may append a scope class)
+    expect(html).toContain('Good news') // title
+    expect(html).toContain('<strong>dependency-free</strong>') // body markdown rendered
+  })
+  it('ships zero JS for the folder block (static, no island)', () => {
+    expect(html).not.toContain('astro-island')
+  })
+})
+
 describe('render pipeline — text align', () => {
   it('emits text-align for non-default alignment', () => {
     expect(html).toContain('<p style="text-align:center">This paragraph is centered.</p>')
@@ -174,5 +185,17 @@ describe('default theme — prose typography', () => {
   it('no longer hardcodes system-ui for prose body', () => {
     const css = themeCss()
     expect(css).not.toMatch(/\.prose\s*\{[^}]*system-ui/)
+  })
+})
+
+describe('render pipeline — images', () => {
+  it('resolves a root-relative media src against PUBLIC_SETU_MEDIA (default localhost:4444)', () => {
+    expect(html).toContain('src="http://localhost:4444/uploads/media/test/original.png"')
+    expect(html).toContain('alt="A test cat"')
+    expect(html).toContain('loading="lazy"')
+  })
+  it('leaves an absolute external image src unchanged', () => {
+    expect(html).toContain('src="https://example.com/photo.png"')
+    expect(html).toContain('alt="External photo"')
   })
 })

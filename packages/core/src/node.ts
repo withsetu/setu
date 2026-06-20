@@ -2,3 +2,4 @@
 // and keep Node-only code (the jiti-based config loader) out of the main barrel
 // (./index.ts) so the engine stays browser-bundleable. Import via '@setu/core/node'.
 export { loadConfig } from './config/load'
+export { generateMarkdocTagsInclude } from './blocks/generate-markdoc'

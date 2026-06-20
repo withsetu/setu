@@ -5,6 +5,7 @@
    All var(--…) verified against tokens.css — no substitutions needed.
    ============================================================ */
 @import '@setu/blocks/callout.css';
+@import '@setu/blocks/notice.css';
 
 /* ---- STATUS PENDING ANNOTATION (content list) ---- */
 .status-pending { font-size: 12px; color: var(--text-4); margin-left: 4px; font-weight: 500; }

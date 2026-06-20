@@ -24,6 +24,10 @@ export type { DataPort } from './data/data-port'
 export type { StoragePort, PutOptions, StoredObject } from './storage/storage-port'
 
 export type { ImageFormat, VariantSpec, ImageMeta, GeneratedVariant, ImagePort } from './image/image-port'
+export { extensionFor, contentTypeFor } from './image/format'
+export type { ManifestVariant, MediaManifest } from './image/manifest'
+export { ingestImage } from './image/ingest'
+export type { IngestDeps, IngestInput } from './image/ingest'
 
 export type {
   AuthoringService,

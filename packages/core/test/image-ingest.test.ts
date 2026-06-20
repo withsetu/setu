@@ -9,7 +9,7 @@ function memStorage() {
     async get(key) { const o = map.get(key); return o ? { body: o.body.slice(), contentType: o.contentType } : null },
     async delete(key) { map.delete(key) },
     async exists(key) { return map.has(key) },
-    url(key) { return `/uploads/${key}` },
+    url(key) { return `/media/${key}` },
   }
   return { port, map }
 }

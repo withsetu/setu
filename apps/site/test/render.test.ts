@@ -25,18 +25,17 @@ function themeCss(): string {
 let mediaDir = ''
 beforeAll(() => {
   mediaDir = mkdtempSync(join(tmpdir(), 'site-media-'))
-  const md = join(mediaDir, 'media', 'test')
+  const md = join(mediaDir, '2026', '06')
   mkdirSync(md, { recursive: true })
   writeFileSync(
-    join(md, 'manifest.json'),
+    join(md, 'test-cat.manifest.json'),
     JSON.stringify({
-      id: 'test',
-      format: 'webp',
-      original: { key: 'media/test/original.png', width: 1000, height: 600, format: 'png' },
+      id: '2026/06/test-cat', format: 'webp',
+      original: { key: '2026/06/test-cat.jpg', width: 1000, height: 600, format: 'jpeg' },
       variants: [
-        { width: 400, height: 240, key: 'media/test/w400.webp', contentType: 'image/webp' },
-        { width: 800, height: 480, key: 'media/test/w800.webp', contentType: 'image/webp' },
-        { width: 1000, height: 600, key: 'media/test/w1000.webp', contentType: 'image/webp' },
+        { width: 400, height: 240, key: '2026/06/test-cat-400w.webp', contentType: 'image/webp' },
+        { width: 800, height: 480, key: '2026/06/test-cat-800w.webp', contentType: 'image/webp' },
+        { width: 1000, height: 600, key: '2026/06/test-cat-1000w.webp', contentType: 'image/webp' },
       ],
     }),
   )
@@ -212,9 +211,9 @@ describe('default theme — prose typography', () => {
 describe('render pipeline — images', () => {
   it('renders an uploaded image responsively from its manifest', () => {
     // original src resolved against PUBLIC_SETU_MEDIA (default localhost:4444)
-    expect(html).toContain('src="http://localhost:4444/uploads/media/test/original.png"')
-    expect(html).toContain('http://localhost:4444/uploads/media/test/w400.webp 400w')
-    expect(html).toContain('http://localhost:4444/uploads/media/test/w1000.webp 1000w')
+    expect(html).toContain('src="http://localhost:4444/media/2026/06/test-cat.jpg"')
+    expect(html).toContain('http://localhost:4444/media/2026/06/test-cat-400w.webp 400w')
+    expect(html).toContain('http://localhost:4444/media/2026/06/test-cat-1000w.webp 1000w')
     expect(html).toContain('width="1000"')
     expect(html).toContain('height="600"')
     expect(html).toContain('alt="A test cat"')
@@ -230,8 +229,8 @@ describe('render pipeline — {% image %} figure block', () => {
   it('renders {% image %} as a responsive figure with caption and alignment', () => {
     const figure = html.match(/<figure class="setu-image align-wide">[\s\S]*?<\/figure>/)?.[0] ?? ''
     expect(figure).not.toBe('')
-    expect(figure).toContain('/uploads/media/test/w400.webp 400w')
-    expect(figure).toContain('/uploads/media/test/w1000.webp 1000w')
+    expect(figure).toContain('/media/2026/06/test-cat-400w.webp 400w')
+    expect(figure).toContain('/media/2026/06/test-cat-1000w.webp 1000w')
     expect(figure).toContain('sizes="min(100vw, 1024px)"')
     expect(figure).toContain('width="1000"')
     expect(figure).toContain('height="600"')

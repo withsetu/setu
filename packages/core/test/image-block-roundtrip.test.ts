@@ -6,7 +6,7 @@ const rtKnown = (md: string) => tiptapToMarkdoc(markdocToTiptap(md, KNOWN))
 const rtDefault = (md: string) => tiptapToMarkdoc(markdocToTiptap(md))
 
 describe('{% image %} block — round-trip', () => {
-  const full = `{% image src="/uploads/media/test/original.jpg" alt="A test cat" caption="A caption" align="wide" /%}\n`
+  const full = `{% image src="/media/2026/06/test-cat.jpg" alt="A test cat" caption="A caption" align="wide" /%}\n`
 
   // Default (no editor block registered): stays a verbatim passthrough (the #5a behavior).
   it('default knownBlockTags → passthrough, byte-exact', () => {
@@ -22,7 +22,7 @@ describe('{% image %} block — round-trip', () => {
     expect(doc.content?.[0]?.type).toBe('imageBlock')
     expect(doc.content?.[0]?.content).toBeUndefined()
     expect(doc.content?.[0]?.attrs?.mdAttrs).toEqual({
-      src: '/uploads/media/test/original.jpg', alt: 'A test cat', caption: 'A caption', align: 'wide',
+      src: '/media/2026/06/test-cat.jpg', alt: 'A test cat', caption: 'A caption', align: 'wide',
     })
   })
 
@@ -31,13 +31,13 @@ describe('{% image %} block — round-trip', () => {
   })
 
   it('an imageBlock with only src serializes a minimal self-closing tag', () => {
-    const minimal = `{% image src="/uploads/media/test/original.jpg" /%}\n`
+    const minimal = `{% image src="/media/2026/06/test-cat.jpg" /%}\n`
     expect(rtKnown(minimal)).toBe(minimal)
   })
 
   it('caption containing a double-quote round-trips byte-exact (escape fix)', () => {
     // Markdoc parses \" → literal " in the attribute value; re-serializing must escape it back.
-    const md = `{% image src="/uploads/media/x/original.jpg" caption="A \\"quoted\\" cat" /%}\n`
+    const md = `{% image src="/media/2026/06/my-cat.jpg" caption="A \\"quoted\\" cat" /%}\n`
     // Single round-trip must be byte-exact.
     expect(rtKnown(md)).toBe(md)
     // Idempotency: second round-trip equals first.
@@ -45,7 +45,7 @@ describe('{% image %} block — round-trip', () => {
   })
 
   it('unknown/extra attributes are preserved through the round-trip (no silent data loss)', () => {
-    const md = `{% image src="/uploads/media/x/original.jpg" loading="lazy" /%}\n`
+    const md = `{% image src="/media/2026/06/my-cat.jpg" loading="lazy" /%}\n`
     expect(rtKnown(md)).toBe(md)
   })
 })

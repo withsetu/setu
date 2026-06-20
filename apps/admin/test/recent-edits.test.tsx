@@ -11,6 +11,7 @@ const row: ContentRow = {
   updatedAt: 0,
   lifecycle: { state: 'draft' },
   hasDraft: true,
+  tags: [],
 }
 
 describe('RecentEdits', () => {

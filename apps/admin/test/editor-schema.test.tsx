@@ -16,7 +16,7 @@ const SOURCE =
 
 describe('editor schema round-trips through the Markdoc converter', () => {
   it('preserves every node + callout mdAttrs + passthrough raw/flagged via getJSON', () => {
-    const editor = new Editor({ extensions: [StarterKit, Callout, Passthrough], content: markdocToTiptap(SOURCE) })
+    const editor = new Editor({ extensions: [StarterKit, Callout, Passthrough], content: markdocToTiptap(SOURCE, { knownBlockTags: new Set(['callout']) }) })
     const json = editor.getJSON() as TiptapDoc
 
     const callout = json.content.find((n) => n.type === 'callout')
@@ -36,7 +36,7 @@ describe('editor schema round-trips through the Markdoc converter', () => {
       'Body text.\n' +
       '{% /callout %}\n\n' +
       'After.\n'
-    const editor = new Editor({ extensions: [StarterKit, Callout, Passthrough], content: markdocToTiptap(SRC) })
+    const editor = new Editor({ extensions: [StarterKit, Callout, Passthrough], content: markdocToTiptap(SRC, { knownBlockTags: new Set(['callout']) }) })
     const json = editor.getJSON() as TiptapDoc
     const callout = json.content.find((n) => n.type === 'callout')
     expect(callout?.attrs?.mdAttrs).toEqual({ type: 'success', title: 'Success & Prosperity', icon: 'check' })
@@ -46,7 +46,7 @@ describe('editor schema round-trips through the Markdoc converter', () => {
 
   it('a plain callout (no attrs) still round-trips', () => {
     const SRC = '{% callout %}\nJust body.\n{% /callout %}\n\nAfter.\n'
-    const editor = new Editor({ extensions: [StarterKit, Callout, Passthrough], content: markdocToTiptap(SRC) })
+    const editor = new Editor({ extensions: [StarterKit, Callout, Passthrough], content: markdocToTiptap(SRC, { knownBlockTags: new Set(['callout']) }) })
     expect(tiptapToMarkdoc(editor.getJSON() as TiptapDoc)).toBe(SRC)
     editor.destroy()
   })

@@ -21,6 +21,14 @@ export { defaultConfig, defaultKnownBlockTags } from './config/default-config'
 export type { EntryRef, Draft, DraftInput, DraftFilter, Lock } from './data/types'
 export type { DataPort } from './data/data-port'
 
+export type { StoragePort, PutOptions, StoredObject } from './storage/storage-port'
+
+export type { ImageFormat, VariantSpec, ImageMeta, GeneratedVariant, ImagePort } from './image/image-port'
+export { extensionFor, contentTypeFor } from './image/format'
+export type { ManifestVariant, MediaManifest } from './image/manifest'
+export { ingestImage } from './image/ingest'
+export type { IngestDeps, IngestInput } from './image/ingest'
+
 export type {
   AuthoringService,
   OpenResult,
@@ -61,3 +69,11 @@ export { indexKey, projectRow, rowToContentRow } from './index-port/types'
 export { runQuery } from './index-port/run-query'
 export type { IndexService, IndexServiceDeps } from './index-port/index-service'
 export { createIndexService, INDEX_VERSION } from './index-port/index-service'
+
+export type { MarkdocAttr } from './blocks/markdoc-attributes'
+export { markdocAttributesFor } from './blocks/markdoc-attributes'
+
+export type { BlockContract } from './blocks/define-block'
+export { defineBlock } from './blocks/define-block'
+export type { BlockEntry, BlockRegistry } from './blocks/registry'
+export { buildRegistry } from './blocks/registry'

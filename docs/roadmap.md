@@ -7,6 +7,107 @@
 
 ---
 
+## Media / Images (active next — 2026-06-19)
+
+PRD §11 + §17 specify this; the decomposition + the optimization decisions below were refined with
+the owner (2026-06-19). Built hexagonally (Port + contract suite + adapters), same shape as `DataPort`.
+
+**Sub-projects (build order):**
+
+| # | Sub-project | Delivers |
+|---|---|---|
+| ~~**1**~~ ✅ | ~~**`StoragePort` + contract suite + `storage-local`**~~ SHIPPED (`e1aeac7`) | the storage *foundation* — a **dumb keyed-blob store** (put/get/delete/url), an in-memory reference + a local-disk adapter, one contract battery every adapter runs |
+| ~~2~~ ✅ | ~~**Upload service + API**~~ SHIPPED 2026-06-19 | auth-gated upload flow (admin → Hono api → StoragePort → URL); the visible "drop a file, get a link" win — see notes below |
+| ~~3~~ ✅ | ~~**Editor image block + round-trip**~~ SHIPPED 2026-06-19 (`8e3d1ef`) | inline Tiptap image node, alt-text, `![alt](src)` Markdoc round-trip, site render — content stores host-free `/uploads/media/<id>/original.<ext>` (id-in-path, env-mapped prefix); inline node (Markdoc-faithful, content-safe). Editor resolves display src via `VITE_SETU_API`, site via `PUBLIC_SETU_MEDIA`. Plain `<img>` (optimization = #4) |
+| 4 | **`ImagePort` + optimization** | variants/srcset/focal/quality — upgrades the shipped `Image.astro` in place; see the decisions below. **#4a foundation ✅ + #4b ingest ✅ SHIPPED 2026-06-19 (`96b9aea`, `81dc857`)**: edge-safe `ImagePort` (metadata + generate, never-upscale, aspect-preserving) in `@setu/core` + `@setu/image-testing` contract battery + `@setu/image-sharp` adapter (sharp 0.35, AVIF/WebP/JPEG/PNG). Remaining: **#4c** srcset/`<picture>` render, **#4d** focal, **#4e** per-image quality, **#4f** queued. **#4b note (from #4a review):** centralize `format→ext` (`jpeg`→`jpg`!) + `format→contentType` in `@setu/core` (the `CONTENT_TYPE` map is duplicated in image-testing + image-sharp; #4b builds keys `media/<id>/<name>.<ext>`) |
+| 5 | **`{% image %}` rich block** | the first **per-type rich tag** — caption, alignment (left/center/wide/full), width, link-on-click, lightbox; **focal-point + responsive ride on #4** so this lands after it. Renders semantic `<figure>`/`<figcaption>`; coexists with the simple inline `![alt](src)` (#3) |
+| 6 | **Media library UI + registry** | browse / reuse / search / alt-text in the admin; the **media registry** (id → metadata / variants / locations) keyed off the path-embedded id |
+| 7 | **`@setu/storage-s3`** | the S3-compatible adapter (R2/B2/AWS/MinIO) — drops in against the *same* contract; independent plumbing, can land anytime |
+| 8 | **`{% video %}` + `{% audio %}` blocks** | per-type rich tags for A/V — the upload service already accepts these; editor blocks + `<figure>` render + round-trip. **Independent of #4** (no image optimization). Build when needed (blog-first may defer) |
+| 9 | **`{% embed %}` block** | oEmbed / provider URLs (YouTube, etc.) — no upload; arguably its **own sub-project**, not media-storage |
+| — | **`{% gallery %}` (deferred)** | multi-image block; depends on `{% image %}` (#5) |
+| — | **Private/access-controlled media (deferred)** | the `signUrl()` + auth-gated-serving story (signed URLs for private assets) |
+
+**Build-order note (owner, 2026-06-19):** the **plumbing track** (#4 ImagePort → #6 library → #7 S3) and the
+**rich-blocks track** (#5 `{% image %}` → #8 A/V → #9 embed) run mostly in parallel; the only hard
+dependency is `{% image %}`'s focal-point/responsive bits riding on #4. Priority chosen: **#4 → #5
+(rich image) → #6 library → #7 S3**, because captioned/aligned images are the most-felt gap and the
+library is more valuable once richer media exists. `{% video %}`/`{% audio %}`/`{% embed %}` are
+scheduled but **build-when-needed** (a blog-first CMS may defer them). "media" stays the **subsystem**
+name throughout — never a content tag (see the rich-media taxonomy note below).
+
+**`StoragePort` = dumb bytes (decided):** the port stores/serves keyed blobs only; **variants are just
+more keys the `ImagePort` manages**. Keeps the port + local/S3 adapters trivial; all size/variant/
+focal/quality logic lives in the ImagePort.
+
+**NORTH STAR — Gutenberg / Tiptap-Pro-grade rich media (owner ambition, 2026-06-19; taxonomy locked
+2026-06-19):** the eventual experience should match WordPress Gutenberg / Tiptap's paid nodes —
+**caption, alignment (left/center/wide/full), resize/width, link-on-click, focal point, lightbox**.
+Plain `![alt](src)` **cannot** carry any of that, so the rich tier is **Setu tags** (human-readable +
+lossless through `@setu/core`, but not vanilla Markdown for those — same portability tradeoff as
+attributed links). **TAXONOMY (owner, locked):** **"media" is the SUBSYSTEM name** (StoragePort,
+upload service, `ImagePort`, media-library UI) — it is **NEVER a content tag**. Content uses
+**per-type rich tags** (Gutenberg's model — controls differ per type, so distinct blocks, not one
+umbrella): **`{% image %}`** (rich image: caption/alignment/focal/lightbox), **`{% video %}`**,
+**`{% audio %}`**, **`{% embed %}`** — each rendering semantic `<figure>`/`<figcaption>`. (Rejected:
+a single `{% media %}` umbrella block — muddy conditional UI; and `{% figure %}` — that names the HTML
+wrapper element, not the block.) **Image-model layering:** inline `![alt](src)` (simple, pure Markdown,
+SHIPPED #3) → **`{% image %}`** tag (rich, Setu tag) → `ImagePort` variants/srcset underneath both.
+Slice #3's inline node is the lightweight tier + the foundation, NOT a dead end; #4+ build toward this.
+
+**Upload service (#2) — SHIPPED notes (2026-06-19):** `POST /media` on `@setu/api` — a pluggable
+**auth seam** (`ResolveActor`, dev-stubbed to the local owner; real JWT/session slots in later with
+zero route changes) gating an upload that stores at `media/<uuid>/original.<ext>` via `StoragePort`
+and returns a loadable URL; `GET /uploads/*` is the **Node/dev serving path** (image inline / else
+`Content-Disposition: attachment`; key guarded to the `media/` keyspace). Validation: 25 MB cap +
+17-type allowlist (SVG/HTML/JS blocked). Admin `/media` page = the visible "drop a file → link +
+preview" win. **Deferred follow-ups (recorded):** (a) `c.req.formData()` buffers the whole body
+before the `file.size` 413 check — cap protects **disk, not memory**; add a streaming/`bodyLimit`
+guard (or rely on the edge request-size limit) **when real auth lands and the endpoint faces
+untrusted clients**. (b) `cors()` uses the default `*` origin (matches the existing git api) —
+restrict to the admin origin when real auth lands. (c) a dedicated `media.upload` authz action (the
+slice reuses `content.create`).
+
+**VERIFIED CONSTRAINT (web-checked 2026-06-19) — sharp does NOT run on Cloudflare Workers/Pages
+Functions.** sharp is a native libvips binary; the Workers runtime can't load native modules — a
+hard capability wall, NOT a limits/free-tier issue ([cloudflare/workers-sdk#12338], [sharp#3860]).
+BUT *build-time* sharp works on ALL topologies (the BUILD runs on a Node/Linux machine, even for CF
+Pages — only the runtime Worker is sharp-less).
+
+**`ImagePort` / optimization decisions (#4 — owner, 2026-06-19; reframes the PRD's "build-time sharp
+default"):**
+- **STORE-ONCE model (unifying, verified 2026-06-19):** the ImagePort's job is **generate variants
+  ONCE → persist them to the StoragePort → serve the static files**. The transform engine is the only
+  topology difference; the downstream (stored variant objects + srcset + static CDN serving, **zero
+  per-render transform cost**) is identical everywhere.
+- **Three transform engines behind one interface, by topology:** **at-upload sharp on Node** (local +
+  self-hosted — the preferred default) | **Cloudflare Images Workers binding on edge** (Workers can't
+  run sharp; the binding transforms in the Worker and **writes the output straight to R2** — Cloudflare
+  explicitly supports "transform → upload to R2 without serving") | **at-build sharp** as a fallback.
+  **CF Images is a GENERATION-TIME engine, NOT a per-render service.** Billing (verified): **per
+  transformation *call*** — one per variant generated, store-or-serve irrespective; free plan 5,000
+  transforms/month → a *one-time* generation cost per image, then free static serving. (Prefer
+  store-once over Cloudflare's on-the-fly `/cdn-cgi/image/` URL transforms: those are CDN-cached but
+  re-bill on cache miss and you don't own the files.) The shipped `StoragePort` is exactly where every
+  variant lands.
+- **Generation-timing knob:** when variants are generated is a policy — on-upload (sync) /
+  background-queued / batch / defer-to-build. A bulk import (e.g. 200 images) would queue/background.
+- **Theme-author-declared sizes** (WordPress `add_image_size`-style): theme + site config declare
+  named sizes / breakpoint widths; the admin can add custom thumbnails; the ImagePort generates
+  exactly those variants.
+- **Responsive `srcset`:** Astro `<Image>` emits `srcset`+`sizes` (verified — pass `widths`, or
+  `layout="constrained"` auto-picks device widths), but it resizes at BUILD. With at-upload variants
+  we reference our own pre-generated files and emit the srcset ourselves (we know them). The ImagePort
+  picks which path.
+- **Focal point:** default = sharp smart-crop (`position:'entropy'`/`'attention'` — automatic focal
+  point); **optional** manual focal point stored per image, optionally per-device (art direction via
+  `<Picture>`). Astro has no native focal-point crop → ImagePort logic.
+- **Compression/format/quality:** sharp does per-format quality/effort/lossless (AVIF/WebP/JPEG/PNG).
+  Expose sparingly: global defaults (AVIF+WebP ~q70–80) + optional per-image override (format +
+  quality). Don't surface every knob.
+- **Security (PRD §17):** auth-gated upload sign (`POST /api/upload/sign` → 401 without session);
+  size caps (presigned `content-length-range`, ~5 MB).
+
 ## Render / Theme layer
 
 Vision + decomposition: `docs/superpowers/specs/2026-06-17-setu-render-theme-vision.md`
@@ -78,9 +179,31 @@ variable pkg registers `'<Name> Variable'`; only the selected font downloads). W
 - **child-theme override** (deferred from 3b, PRD §8): config-based per-component/token override
   (map `Callout → MyCallout.astro`) — the advanced "child theme without forking"; harder dynamic
   per-block resolution; lower priority than 3c.
-- **#4 custom-component pipeline + codegen** — the `component.ts` contract fanning out to all
-  3 planes; **this is where "tag set sourced from setu.config" lands** (blocked in #1:
-  `@astrojs/markdoc`'s config loader can't import core's TS source; codegen runs where it can).
+- **#4 custom-component pipeline + codegen** — a block is a self-contained folder fanning out to
+  all 3 planes.
+  - **Slice A ✅ SHIPPED 2026-06-19 (`ba286d4`):** auto-discovery + registration codegen. `blocks/<tag>/`
+    (`block.ts` zod contract + `<tag>.astro`); one registry feeds editor slash + round-trip
+    `knownBlockTags` + a build-time `scripts/gen-blocks.mjs` codegen of the site's `markdoc.config`
+    tags (resolves the #1 "can't import core TS" wall). Central `setu.config.blocks` retired; callout
+    migrated zero-change. Spec/plan: `docs/superpowers/{specs,plans}/2026-06-19-*block-autodiscovery-codegen*`.
+  - **Slice B (in progress 2026-06-19):** the generic `setuBlock` round-trip node + a generic editor
+    node (chrome + auto-form from `markdocAttributesFor(props)`) so a *new* (non-callout) folder block
+    works end-to-end. Proven with a **dependency-free** `notice` block (deliberately, see below).
+  - **DEFERRED — block packaging / `blocks/` location refactor** (trigger: the first block that needs
+    npm deps). `blocks/` lives at the repo root, outside any package's dependency tree, so a block's
+    bare imports (`@setu/blocks`, etc.) don't resolve by the normal node walk-up — patched today with
+    explicit resolver entries in 3 tools (admin Vite / gen-blocks jiti / site Rollup), one per dep.
+    Permanent fix = give blocks a real home (workspace package, or generated per-block `package.json`),
+    entangled with the end-user packaging story (`create-setu`). Dep-free blocks have ZERO friction, so
+    deferring costs nothing until forced; the move itself is cheap + test-covered.
+  - **DEFERRED — interactive / dependency blocks (Rung 3) + their edge endpoints** (the "dreamers"
+    pillar). A real interactive block (e.g. a Stripe **buy** block, a Three.js scene, a live search) is
+    THREE layers: (1) a portable content tag (`{% buy product=… %}`, zero deps, round-trips); (2) a
+    **client island** importing an npm pkg (`@stripe/stripe-js`) shipped via `client:*` — the real
+    "block needs a dependency" case; (3) a **server endpoint** for secret-key work (`stripe` server SDK,
+    Checkout Sessions, webhooks) that MUST live at the **edge (Pages Function/Worker), never in the
+    static bundle** — i.e. the SSR/edge topology (Pro). This is its own sub-project (islands + edge
+    endpoints + secret handling + customer packaging), pairs with the edge topology + `create-setu`.
 - **#5 in-editor preview** — draft preview through the same theme + components, iframed.
 - **permalink + i18n URL scheme** — the full locale-prefixing policy (#1 only strips the
   default `en`; config-driven default + non-default front-prefixing is its own slice).

@@ -1,0 +1,9 @@
+---
+// Render an image node. Resolve a root-relative `/uploads/…` src against the configured
+// media origin (dev: the local API; prod: the CDN); leave absolute (http/https) srcs alone.
+// Plain <img> only — responsive/optimized variants are the ImagePort slice (#4).
+const { src = '', alt = '', title } = Astro.props
+const base = (import.meta.env.PUBLIC_SETU_MEDIA ?? 'http://localhost:4444').replace(/\/+$/, '')
+const resolved = !src || /^https?:\/\//i.test(src) ? src : src.startsWith('/') ? `${base}${src}` : src
+---
+<img src={resolved} alt={alt} title={title} loading="lazy" decoding="async" />

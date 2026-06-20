@@ -26,6 +26,15 @@ function inlineToTiptap(node: MdNode, marks: TiptapMark[] = []): TiptapNode[] {
       return [{ type: 'hardBreak' }]
     case 'softbreak':
       return [{ type: 'text', text: ' ' }]
+    case 'image':
+      return [{
+        type: 'image',
+        attrs: {
+          src: String(node.attributes.src ?? ''),
+          alt: String(node.attributes.alt ?? ''),
+          title: node.attributes.title != null ? String(node.attributes.title) : null,
+        },
+      }]
     case 'tag': {
       if (node.tag === 'sub') return kids.flatMap((c) => inlineToTiptap(c, [...marks, { type: 'subscript' }]))
       if (node.tag === 'sup') return kids.flatMap((c) => inlineToTiptap(c, [...marks, { type: 'superscript' }]))
@@ -134,12 +143,14 @@ function blockToTiptap(node: MdNode): TiptapNode | null {
       }
     case 'hr':
       return { type: 'horizontalRule' }
-    case 'tag':
-      return {
-        type: 'callout',
-        attrs: { mdAttrs: node.attributes },
-        content: (node.children ?? []).map(blockToTiptap).filter((n): n is TiptapNode => n !== null),
+    case 'tag': {
+      const tag = node.tag ?? ''
+      const kids = (node.children ?? []).map(blockToTiptap).filter((n): n is TiptapNode => n !== null)
+      if (tag === 'callout') {
+        return { type: 'callout', attrs: { mdAttrs: node.attributes }, content: kids }
       }
+      return { type: 'setuBlock', attrs: { tag, mdAttrs: node.attributes }, content: kids }
+    }
     case 'table': {
       const cellAlign = (cell: MdNode): string | null => (cell.attributes.align as string) ?? null
       const cellToTiptap = (cell: MdNode, header: boolean): TiptapNode => ({
@@ -164,6 +175,8 @@ function blockToTiptap(node: MdNode): TiptapNode | null {
 }
 
 export function markdocToTiptap(source: string, opts: RoundtripOptions = {}): TiptapDoc {
+  // defaultKnownBlockTags is now empty by default (blocks moved to auto-discovered folders).
+  // Real callers (e.g., read-service) inject knownBlockTags from the block registry; without injection, tags pass through.
   const known = opts.knownBlockTags ?? defaultKnownBlockTags
   const isPreserve = (node: MdNode): boolean =>
     hasError(node) || (node.type === 'tag' && !known.has(node.tag ?? ''))

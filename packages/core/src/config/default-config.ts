@@ -1,30 +1,11 @@
-import { z } from 'zod'
 import { defineConfig } from './define-config'
 import { resolveConfig } from './resolve'
 
-/** The config Setu ships with when the developer provides none. */
-export const defaultConfig = defineConfig({
-  blocks: [
-    {
-      tag: 'callout',
-      // Permissive props — attribute-value validation is a later increment; the
-      // editor offers the `editor.variants` set, the renderer/theme interprets them.
-      props: z.object({
-        type: z.string().optional(),
-        title: z.string().optional(),
-        icon: z.string().optional(),
-      }),
-      component: './src/components/Callout.astro',
-      editor: {
-        label: 'Callout',
-        icon: 'info',
-        group: 'Blocks',
-        variants: ['info', 'note', 'success', 'warning', 'danger', 'neutral'],
-      },
-    },
-  ],
-})
+/** The config Setu ships with when the developer provides none. Blocks are no longer
+ *  listed here — they are auto-discovered from `blocks/<tag>/` folders (sub-project #4).
+ *  This keeps only site-wide choices (theme, theme-options). */
+export const defaultConfig = defineConfig({})
 
-/** Known-block tag set derived from the default config (used by the round-trip
- *  when no explicit config is supplied). Computed once at module load. */
+/** Known-block tag set from the default config — now empty (blocks come from the folder
+ *  registry, injected at the call site). Kept as the converter's inert fallback. */
 export const defaultKnownBlockTags = resolveConfig(defaultConfig).knownBlockTags

@@ -14,6 +14,9 @@ export type LoadResult =
 export interface ReadDeps {
   data: DataPort
   git: GitPort
+  /** Block tags the round-trip should treat as first-class nodes (from the block
+   *  registry). Omitted → the converter's default. */
+  knownBlockTags?: Set<string>
 }
 
 export interface ReadService {

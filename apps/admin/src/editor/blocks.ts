@@ -1,8 +1,9 @@
 import type { Editor, Range } from '@tiptap/core'
 import { isIconName } from '../ui/Icon'
 import type { IconName } from '../ui/Icon'
-import { defaultConfig, resolveConfig } from '@setu/core'
+import { registry } from '../blocks/registry'
 import { BLOCK_TYPES } from './block-types'
+import { pickImageAndInsert } from './image-insert'
 
 export interface SlashBlock {
   title: string
@@ -32,25 +33,33 @@ const BUILTINS: SlashBlock[] = [
   })),
   { title: 'Divider', subtitle: 'Horizontal rule', icon: 'settings', run: (e, r) => e.chain().focus().deleteRange(r).setHorizontalRule().run() },
   { title: 'Table', subtitle: 'Table with header row', icon: 'table', run: (e, r) => e.chain().focus().deleteRange(r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
+  { title: 'Image', subtitle: 'Upload an image', icon: 'image', run: (e, r) => {
+    e.chain().focus().deleteRange(r).run()
+    const editor = e as Editor & { storage: { image?: { onUploading?: (b: boolean) => void; onError?: (m: string) => void } } }
+    pickImageAndInsert(editor, (import.meta.env.VITE_SETU_API as string) ?? '', editor.storage.image ?? {})
+  } },
 ]
 
 const toIconName = (raw: string | undefined): IconName => (raw && isIconName(raw) ? raw : 'sparkle')
 
-/** Insertable blocks = built-ins + the resolved config blocks (Callout). Each
- *  config block inserts a node of its tag (only `callout` has a node today). */
+/** Insertable blocks = built-ins + every auto-discovered folder block. Each folder block
+ *  inserts a node of its tag (today only `callout` has an editor node). */
 export function slashBlocks(): SlashBlock[] {
-  const config = resolveConfig(defaultConfig)
-  const fromConfig: SlashBlock[] = config.blocks.map((b) => ({
+  const fromBlocks: SlashBlock[] = registry.blocks.map((b) => ({
     title: b.editor?.label ?? b.tag,
     subtitle: `Insert a ${b.tag} block`,
     icon: toIconName(b.editor?.icon),
-    run: (e: Editor, r: Range) =>
-      e
-        .chain()
-        .focus()
-        .deleteRange(r)
-        .insertContent({ type: b.tag, attrs: { mdAttrs: { type: 'info' } }, content: [{ type: 'paragraph' }] })
-        .run(),
+    run: (e: Editor, r: Range) => {
+      const chain = e.chain().focus().deleteRange(r)
+      if (b.tag === 'callout') {
+        // Callout has its own dedicated React editor node.
+        chain.insertContent({ type: 'callout', attrs: { mdAttrs: { type: 'info' } }, content: [{ type: 'paragraph' }] })
+      } else {
+        // Every other folder block uses the generic node, keyed by tag.
+        chain.insertContent({ type: 'setuBlock', attrs: { tag: b.tag, mdAttrs: {} }, content: [{ type: 'paragraph' }] })
+      }
+      chain.run()
+    },
   }))
-  return [...BUILTINS, ...fromConfig]
+  return [...BUILTINS, ...fromBlocks]
 }

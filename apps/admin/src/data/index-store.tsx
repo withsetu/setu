@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef } from 'react'
 import type { ReactNode } from 'react'
 import type { IndexService } from '@setu/core'
 import { createIndexService } from '@setu/core'
@@ -11,10 +11,19 @@ const IndexContext = createContext<IndexService | null>(null)
 export function IndexProvider({ children }: { children: ReactNode }) {
   const { data, git } = useServices()
   const deploy = useDeploy()
+
+  const deployedAtRef = useRef(deploy.deployedAt)
+  deployedAtRef.current = deploy.deployedAt
+
   const service = useMemo(
-    () => createIndexService({ data, git, index: createMemoryIndexPort(), deployedAt: deploy.deployedAt }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data, git, deploy.deployedAt],
+    () =>
+      createIndexService({
+        data,
+        git,
+        index: createMemoryIndexPort(),
+        deployedAt: (path: string) => deployedAtRef.current(path),
+      }),
+    [data, git],
   )
   useEffect(() => {
     void service.ensureBuilt().catch(() => {})

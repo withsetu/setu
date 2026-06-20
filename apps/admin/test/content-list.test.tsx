@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { createMemoryDataPort } from '@setu/db-memory'
 import type { DataPort, DraftInput, TiptapDoc } from '@setu/core'
-import { DataProvider } from '../src/data/store'
 import { DeployProvider } from '../src/deploy/deploy'
 import { ContentList } from '../src/screens/ContentList'
 import { serializeMdoc } from '@setu/core'
 import { createMemoryGitPort } from '@setu/git-memory'
 import { ServicesProvider, servicesFor } from '../src/data/store'
+import { IndexProvider } from '../src/data/index-store'
 
 const doc = (t: string): TiptapDoc => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] })
 const seed: DraftInput[] = [
@@ -20,11 +20,13 @@ const seed: DraftInput[] = [
 const renderList = (adapter: DataPort, collection: string, title: string) =>
   render(
     <MemoryRouter>
-      <DataProvider adapter={adapter}>
+      <ServicesProvider services={servicesFor(adapter, createMemoryGitPort())}>
         <DeployProvider>
-          <ContentList collection={collection} title={title} />
+          <IndexProvider>
+            <ContentList collection={collection} title={title} />
+          </IndexProvider>
         </DeployProvider>
-      </DataProvider>
+      </ServicesProvider>
     </MemoryRouter>,
   )
 
@@ -63,6 +65,17 @@ describe('ContentList', () => {
     await screen.findByText('First Post')
     expect(screen.queryByRole('link', { name: /on site/i })).not.toBeInTheDocument()
   })
+
+  it('paginates: shows page size and advances with Next', async () => {
+    const many: DraftInput[] = Array.from({ length: 30 }, (_, i) => ({
+      collection: 'post', locale: 'en', slug: `p${i}`, content: doc('x'),
+      metadata: { title: `Post ${String(i).padStart(2, '0')}` },
+    }))
+    renderList(createMemoryDataPort(many), 'post', 'Posts')
+    expect(await screen.findByText(/1–25 of 30/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    expect(await screen.findByText(/26–30 of 30/)).toBeInTheDocument()
+  })
 })
 
 describe('ContentList — Git-only (published, no draft) entries', () => {
@@ -75,7 +88,9 @@ describe('ContentList — Git-only (published, no draft) entries', () => {
       <MemoryRouter>
         <ServicesProvider services={services}>
           <DeployProvider>
-            <ContentList collection="post" title="Posts" />
+            <IndexProvider>
+              <ContentList collection="post" title="Posts" />
+            </IndexProvider>
           </DeployProvider>
         </ServicesProvider>
       </MemoryRouter>,

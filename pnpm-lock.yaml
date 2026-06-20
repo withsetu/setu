@@ -150,6 +150,9 @@ importers:
       '@setu/git-local':
         specifier: workspace:*
         version: link:../../packages/git-local
+      '@setu/image-sharp':
+        specifier: workspace:*
+        version: link:../../packages/image-sharp
       '@setu/storage-local':
         specifier: workspace:*
         version: link:../../packages/storage-local
@@ -163,6 +166,9 @@ importers:
       '@setu/git-http':
         specifier: workspace:*
         version: link:../../packages/git-http
+      '@setu/image-testing':
+        specifier: workspace:*
+        version: link:../../packages/image-testing
       '@types/node':
         specifier: ^22.10.2
         version: 22.19.21

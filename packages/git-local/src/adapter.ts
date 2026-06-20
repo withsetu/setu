@@ -2,7 +2,7 @@ import nodeFs from 'node:fs'
 import { dirname, join, resolve, sep } from 'node:path'
 import * as git from 'isomorphic-git'
 import type { PromiseFsClient } from 'isomorphic-git'
-import type { GitPort } from '@setu/core'
+import type { GitPort, CommitFilesInput, CommitResult } from '@setu/core'
 
 export interface LocalGitOptions {
   /** Path to an existing git repository (the caller/test runs `git init`). */
@@ -44,46 +44,64 @@ export function createLocalGitAdapter(options: LocalGitOptions): GitPort {
     return run
   }
 
+  const readFileAtHead = async (path: string): Promise<string | null> => {
+    const oid = await headSha()
+    if (oid === null) return null
+    try {
+      const { blob } = await git.readBlob({ fs, dir, oid, filepath: path })
+      return new TextDecoder().decode(blob)
+    } catch (e) {
+      if (isNotFound(e)) return null
+      throw e
+    }
+  }
+
+  const safePath = (p: string): string => {
+    const repoRoot = resolve(dir)
+    const full = resolve(repoRoot, p)
+    if (full !== repoRoot && !full.startsWith(repoRoot + sep)) {
+      throw new Error(`commitFiles: path escapes the repository root: ${p}`)
+    }
+    return full
+  }
+
+  const commitFiles = ({ changes, message, author }: CommitFilesInput): Promise<CommitResult> =>
+    serialize(async () => {
+      const staged: string[] = []
+      try {
+        for (const ch of changes) {
+          const full = safePath(ch.path)
+          if ('delete' in ch) {
+            if ((await readFileAtHead(ch.path)) !== null) {
+              await fs.promises.unlink(full).catch(() => {})
+              await git.remove({ fs, dir, filepath: ch.path })
+              staged.push(ch.path)
+            }
+          } else if ((await readFileAtHead(ch.path)) !== ch.content) {
+            await fs.promises.mkdir(dirname(full), { recursive: true })
+            await fs.promises.writeFile(full, ch.content, 'utf8')
+            await git.add({ fs, dir, filepath: ch.path })
+            staged.push(ch.path)
+          }
+        }
+        if (staged.length === 0) return { sha: (await headSha()) ?? '' }
+        const sha = await git.commit({ fs, dir, message, author: { name: author.name, email: author.email } })
+        return { sha }
+      } catch (e) {
+        for (const p of staged) await git.resetIndex({ fs, dir, filepath: p }).catch(() => {})
+        throw e
+      }
+    })
+
   return {
     headSha,
     async readFile(path) {
-      // Content is read from the HEAD snapshot captured at call start;
-      // a concurrent commit may advance HEAD afterward (single-writer assumption).
-      const oid = await headSha()
-      if (oid === null) return null
-      try {
-        const { blob } = await git.readBlob({ fs, dir, oid, filepath: path })
-        return new TextDecoder().decode(blob)
-      } catch (e) {
-        if (isNotFound(e)) return null
-        throw e
-      }
+      return readFileAtHead(path)
     },
-    async commitFile({ path, content, message, author }) {
-      return serialize(async () => {
-        const repoRoot = resolve(dir)
-        const full = resolve(repoRoot, path)
-        if (full !== repoRoot && !full.startsWith(repoRoot + sep)) {
-          throw new Error(`commitFile: path escapes the repository root: ${path}`)
-        }
-        await fs.promises.mkdir(dirname(full), { recursive: true })
-        await fs.promises.writeFile(full, content, 'utf8')
-        await git.add({ fs, dir, filepath: path })
-        try {
-          const sha = await git.commit({
-            fs,
-            dir,
-            message,
-            author: { name: author.name, email: author.email },
-          })
-          return { sha }
-        } catch (e) {
-          // Leave the index clean on failure so a later commit isn't polluted.
-          await git.resetIndex({ fs, dir, filepath: path }).catch(() => {})
-          throw e
-        }
-      })
+    commitFile({ path, content, message, author }) {
+      return commitFiles({ changes: [{ path, content }], message, author })
     },
+    commitFiles,
     async list(prefix?: string) {
       const oid = await headSha()
       if (oid === null) return []

@@ -40,7 +40,7 @@ export type {
 export { DEFAULT_LOCK_TTL_MS } from './authoring/types'
 export { createAuthoringService } from './authoring/authoring-service'
 
-export type { GitAuthor, CommitInput, CommitResult } from './git/types'
+export type { GitAuthor, CommitInput, CommitResult, FileChange, CommitFilesInput } from './git/types'
 export type { GitPort } from './git/git-port'
 
 export type { PublishInput, PublishDeps, PublishResult, PublishService } from './publish/types'

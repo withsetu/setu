@@ -19,3 +19,15 @@ export interface CommitResult {
   /** The new HEAD commit sha. */
   sha: string
 }
+
+/** One change in a multi-file commit: a write (create/update) or a delete. */
+export type FileChange =
+  | { path: string; content: string }
+  | { path: string; delete: true }
+
+/** A multi-file commit request: all changes land in ONE atomic commit. */
+export interface CommitFilesInput {
+  changes: FileChange[]
+  message: string
+  author: GitAuthor
+}

@@ -58,6 +58,20 @@ function fakeGit(): GitPort {
   const files = new Map<string, string>()
   let counter = 0
   let head: string | null = null
+  const commitFiles: GitPort['commitFiles'] = async ({ changes }) => {
+    let changed = false
+    for (const ch of changes) {
+      if ('delete' in ch) {
+        if (files.delete(ch.path)) changed = true
+      } else {
+        files.set(ch.path, ch.content)
+        changed = true
+      }
+    }
+    if (!changed) return { sha: head ?? '' }
+    head = `gitsha${++counter}`
+    return { sha: head }
+  }
   return {
     async headSha() {
       return head
@@ -65,11 +79,8 @@ function fakeGit(): GitPort {
     async readFile(path) {
       return head === null ? null : files.get(path) ?? null
     },
-    async commitFile(input) {
-      files.set(input.path, input.content)
-      head = `gitsha${++counter}`
-      return { sha: head }
-    },
+    commitFile: (input) => commitFiles({ changes: [{ path: input.path, content: input.content }], message: input.message, author: input.author }),
+    commitFiles,
     async list(prefix?: string) {
       const all = [...files.keys()]
       return prefix === undefined ? all : all.filter((p) => p.startsWith(prefix))

@@ -1,4 +1,4 @@
-import type { CommitInput, CommitResult, GitPort } from '@setu/core'
+import type { CommitInput, CommitFilesInput, CommitResult, GitPort } from '@setu/core'
 
 /** A pre-existing file to seed into the repo at construction. */
 export interface GitSeedFile {
@@ -40,6 +40,22 @@ export function createMemoryGitPort(seed: GitSeedFile[] = []): GitPort {
 
   for (const f of seed) apply(f.path, f.content)
 
+  const commitFiles = async ({ changes }: CommitFilesInput): Promise<CommitResult> => {
+    let changed = false
+    for (const ch of changes) {
+      if ('delete' in ch) {
+        if (files.delete(ch.path)) changed = true
+      } else if (files.get(ch.path) !== ch.content) {
+        files.set(ch.path, ch.content)
+        changed = true
+      }
+    }
+    if (!changed) return { sha: head ?? '' }
+    counter += 1
+    head = sha40(`${counter}\0${head ?? ''}\0${changes.map((c) => ('delete' in c ? `D:${c.path}` : `W:${c.path}:${c.content}`)).join('\0')}`)
+    return { sha: head }
+  }
+
   return {
     async headSha() {
       return head
@@ -47,9 +63,10 @@ export function createMemoryGitPort(seed: GitSeedFile[] = []): GitPort {
     async readFile(path: string) {
       return files.has(path) ? files.get(path)! : null
     },
-    async commitFile(input: CommitInput): Promise<CommitResult> {
-      return { sha: apply(input.path, input.content) }
+    commitFile(input: CommitInput): Promise<CommitResult> {
+      return commitFiles({ changes: [{ path: input.path, content: input.content }], message: input.message, author: input.author })
     },
+    commitFiles,
     async list(prefix?: string) {
       const all = [...files.keys()]
       return prefix === undefined ? all : all.filter((p) => p.startsWith(prefix))

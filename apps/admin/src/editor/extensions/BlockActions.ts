@@ -99,6 +99,8 @@ export const BlockActions = Extension.create({
     return {
       'Alt-Shift-ArrowUp': () => this.editor.commands.moveBlockUp(),
       'Alt-Shift-ArrowDown': () => this.editor.commands.moveBlockDown(),
+      'Alt-Shift-d': () => this.editor.commands.duplicateBlock(),
+      'Alt-Shift-Backspace': () => this.editor.commands.deleteBlock(),
     }
   },
 })

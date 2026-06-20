@@ -208,6 +208,7 @@
 .blk-menu-item.sel,
 .blk-menu-item:hover:not(:disabled) { background: var(--surface-2, #f1f3f5); }
 .blk-menu-item:disabled { opacity: 0.4; cursor: default; }
+.blk-menu-key { margin-left: auto; font-size: .72rem; color: var(--text-2, #888); font-family: inherit; }
 
 /* Selection format bubble */
 .fmt-bubble {

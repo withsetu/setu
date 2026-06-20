@@ -24,11 +24,13 @@ export const SHORTCUTS: Shortcut[] = [
   { id: 'link', label: 'Add or edit link', keys: ['Mod', 'k'], group: 'Links' },
   { id: 'moveUp', label: 'Move block up', keys: ['Alt', 'Shift', 'ArrowUp'], group: 'Blocks' },
   { id: 'moveDown', label: 'Move block down', keys: ['Alt', 'Shift', 'ArrowDown'], group: 'Blocks' },
+  { id: 'duplicateBlock', label: 'Duplicate block', keys: ['Alt', 'Shift', 'd'], group: 'Blocks' },
+  { id: 'deleteBlock', label: 'Delete block', keys: ['Alt', 'Shift', 'Backspace'], group: 'Blocks' },
   { id: 'shortcuts', label: 'Keyboard shortcuts', keys: ['Mod', '/'], group: 'Help' },
 ]
 
-const MAC_GLYPH: Record<string, string> = { Mod: '⌘', Alt: '⌥', Shift: '⇧', ArrowUp: '↑', ArrowDown: '↓' }
-const PC_LABEL: Record<string, string> = { Mod: 'Ctrl', Alt: 'Alt', Shift: 'Shift', ArrowUp: '↑', ArrowDown: '↓' }
+const MAC_GLYPH: Record<string, string> = { Mod: '⌘', Alt: '⌥', Shift: '⇧', ArrowUp: '↑', ArrowDown: '↓', Backspace: '⌫' }
+const PC_LABEL: Record<string, string> = { Mod: 'Ctrl', Alt: 'Alt', Shift: 'Shift', ArrowUp: '↑', ArrowDown: '↓', Backspace: 'Backspace' }
 
 /** Render a shortcut for display, platform-aware. Mac uses adjacent glyphs (⌘⇧S);
  *  other platforms use `+`-joined labels (Ctrl+Shift+S). Pure. */

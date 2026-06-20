@@ -2,12 +2,25 @@ import { useEffect, useRef, useState } from 'react'
 import { Icon } from '../../ui/Icon'
 import type { IconName } from '../../ui/Icon'
 import { useDismiss } from '../../ui/useDismiss'
+import { SHORTCUTS, formatKeys, detectMac } from '../shortcuts'
 
 export interface BlockMenuActions {
   moveUp: () => void
   moveDown: () => void
   duplicate: () => void
   remove: () => void
+}
+
+const SHORTCUT_ID: Record<keyof BlockMenuActions, string> = {
+  moveUp: 'moveUp',
+  moveDown: 'moveDown',
+  duplicate: 'duplicateBlock',
+  remove: 'deleteBlock',
+}
+
+const keysFor = (k: keyof BlockMenuActions, mac: boolean): string => {
+  const s = SHORTCUTS.find((x) => x.id === SHORTCUT_ID[k])
+  return s ? formatKeys(s.keys, mac) : ''
 }
 
 interface Item {
@@ -34,6 +47,7 @@ export function BlockMenu({
     { key: 'duplicate', label: 'Duplicate', icon: 'copy' },
     { key: 'remove', label: 'Delete', icon: 'trash' },
   ]
+  const mac = detectMac()
   const [active, setActive] = useState(0)
   const ref = useRef<HTMLDivElement>(null)
   useDismiss(ref, onClose)
@@ -76,6 +90,7 @@ export function BlockMenu({
         >
           <Icon name={item.icon} size={15} />
           <span>{item.label}</span>
+          <kbd className="blk-menu-key">{keysFor(item.key, mac)}</kbd>
         </button>
       ))}
     </div>

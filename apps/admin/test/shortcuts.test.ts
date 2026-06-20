@@ -36,4 +36,16 @@ describe('SHORTCUTS registry', () => {
     const link = SHORTCUTS.find((s) => s.id === 'link')
     expect(link?.keys).toEqual(['Mod', 'k'])
   })
+  it('includes duplicateBlock in the Blocks group', () => {
+    const s = SHORTCUTS.find((x) => x.id === 'duplicateBlock')
+    expect(s).toBeDefined()
+    expect(s?.group).toBe('Blocks')
+    expect(s?.keys).toEqual(['Alt', 'Shift', 'd'])
+  })
+  it('includes deleteBlock in the Blocks group', () => {
+    const s = SHORTCUTS.find((x) => x.id === 'deleteBlock')
+    expect(s).toBeDefined()
+    expect(s?.group).toBe('Blocks')
+    expect(s?.keys).toEqual(['Alt', 'Shift', 'Backspace'])
+  })
 })

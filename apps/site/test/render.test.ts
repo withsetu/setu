@@ -228,14 +228,15 @@ describe('render pipeline — images', () => {
 
 describe('render pipeline — {% image %} figure block', () => {
   it('renders {% image %} as a responsive figure with caption and alignment', () => {
-    expect(html).toContain('<figure class="setu-image align-wide">')
-    expect(html).toContain('http://localhost:4444/uploads/media/test/w400.webp 400w')
-    expect(html).toContain('http://localhost:4444/uploads/media/test/w1000.webp 1000w')
-    expect(html).toContain('sizes="min(100vw, 1024px)"')
-    expect(html).toContain('width="1000"')
-    expect(html).toContain('height="600"')
-    expect(html).toContain('alt="A wide test cat"')
-    expect(html).toContain('<figcaption>A caption with detail</figcaption>')
+    const figure = html.match(/<figure class="setu-image align-wide">[\s\S]*?<\/figure>/)?.[0] ?? ''
+    expect(figure).not.toBe('')
+    expect(figure).toContain('/uploads/media/test/w400.webp 400w')
+    expect(figure).toContain('/uploads/media/test/w1000.webp 1000w')
+    expect(figure).toContain('sizes="min(100vw, 1024px)"')
+    expect(figure).toContain('width="1000"')
+    expect(figure).toContain('height="600"')
+    expect(figure).toContain('alt="A wide test cat"')
+    expect(figure).toContain('<figcaption>A caption with detail</figcaption>')
   })
   it('styles the alignment classes from the theme stylesheet', () => {
     expect(themeCss()).toContain('figure.setu-image')

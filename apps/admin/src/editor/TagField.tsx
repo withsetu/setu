@@ -81,15 +81,13 @@ export function TagField({
           }}
         />
         {suggestions.length > 0 && (
-          <ul className="tag-suggestions" role="listbox">
+          <div className="tag-suggestions" role="listbox">
             {suggestions.map((tag) => (
-              <li key={tag}>
-                <button type="button" className="tag-suggestion" role="option" aria-selected={false} onClick={() => add(tag)}>
-                  {tag}
-                </button>
-              </li>
+              <button key={tag} type="button" className="tag-suggestion" role="option" aria-selected={false} onClick={() => add(tag)}>
+                {tag}
+              </button>
             ))}
-          </ul>
+          </div>
         )}
       </div>
     </div>

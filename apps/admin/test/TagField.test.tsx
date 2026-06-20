@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import type { TiptapDoc } from '@setu/core'
 import { createMemoryGitPort } from '@setu/git-memory'
 import { createMemoryDataPort } from '@setu/db-memory'

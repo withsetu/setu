@@ -22,6 +22,7 @@ const NAV: NavGroup[] = [
     items: [
       { to: '/posts', label: 'Posts', icon: 'post' },
       { to: '/pages', label: 'Pages', icon: 'pages' },
+      { to: '/categories', label: 'Categories', icon: 'folder' },
     ],
   },
   {

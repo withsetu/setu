@@ -1,5 +1,5 @@
 import { Extension } from '@tiptap/core'
-import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
+import { NodeSelection, Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
 import type { EditorView } from '@tiptap/pm/view'
 import { moveBlock } from '../block-reorder'
 
@@ -114,8 +114,12 @@ export const DragHandle = Extension.create<DragHandleOptions>({
             if (hoverIndex === null || grip === null || options.onMenu === undefined) return
             let pos = 0
             for (let i = 0; i < hoverIndex; i += 1) pos += view.state.doc.child(i).nodeSize
+            const node = view.state.doc.child(hoverIndex)
             const tr = view.state.tr
-            tr.setSelection(TextSelection.near(view.state.doc.resolve(pos + 1)))
+            const sel = node.isAtom
+              ? NodeSelection.create(view.state.doc, pos)
+              : TextSelection.near(view.state.doc.resolve(pos + 1))
+            tr.setSelection(sel)
             view.dispatch(tr)
             options.onMenu?.(view, hoverIndex, grip)
           }

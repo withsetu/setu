@@ -68,10 +68,6 @@ export function replaceImage(
   upload: typeof uploadFile = uploadFile,
 ): void {
   pickAndUploadImage(apiBase, handlers, (result) => {
-    if (!result.contentType.startsWith('image/')) {
-      handlers.onError?.(`not an image: ${result.contentType}`)
-      return
-    }
     onSrc(srcFromUploadUrl(result.url))
   }, upload)
 }

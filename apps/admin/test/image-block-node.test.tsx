@@ -47,10 +47,13 @@ describe('ImageBlock node view', () => {
     expect(mdAttrsOf(getJSON).caption).toBeUndefined()
   })
 
-  it('the alt input updates mdAttrs.alt', async () => {
+  it('the alt input updates mdAttrs.alt, and clearing it removes the key', async () => {
     let getJSON: () => unknown = () => ({})
     render(<Harness onReady={(g) => (getJSON = g)} />)
-    fireEvent.change(await screen.findByPlaceholderText(/alt text/i), { target: { value: 'A cat' } })
+    const alt = await screen.findByPlaceholderText(/alt text/i)
+    fireEvent.change(alt, { target: { value: 'A cat' } })
     expect(mdAttrsOf(getJSON).alt).toBe('A cat')
+    fireEvent.change(alt, { target: { value: '' } })
+    expect(mdAttrsOf(getJSON).alt).toBeUndefined()
   })
 })

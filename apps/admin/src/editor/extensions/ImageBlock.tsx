@@ -59,6 +59,7 @@ function ImageBlockView({ node, updateAttributes, editor }: ReactNodeViewProps) 
             placeholder="Alt text…"
             value={alt}
             onChange={(e) => setAttrs({ alt: e.target.value })}
+            data-toolbar-item
           />
           <button type="button" className="bp-replace" data-toolbar-item onMouseDown={keepFocus} onClick={onReplace}>
             Replace

@@ -78,6 +78,8 @@ export type { TaxonomyErrorCode } from './taxonomy/ops'
 export type { TaxonomyService } from './taxonomy/service'
 export { createTaxonomyService, TAXONOMY_PATH } from './taxonomy/service'
 
+export { normalizeTag, normalizeTags } from './tags/normalize'
+
 export type { MarkdocAttr } from './blocks/markdoc-attributes'
 export { markdocAttributesFor } from './blocks/markdoc-attributes'
 

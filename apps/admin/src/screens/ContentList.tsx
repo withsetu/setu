@@ -10,6 +10,7 @@ import { StatusPill } from '../ui/StatusPill'
 import { Icon } from '../ui/Icon'
 import { siteUrl } from '../shell/site-url'
 import { TagFilter } from './TagFilter'
+import { BulkBar } from './BulkBar'
 
 const PAGE_SIZE = 25
 const STATUSES: LifecycleState[] = ['draft', 'staged', 'live', 'unpublished']
@@ -89,6 +90,11 @@ export function ContentList({ collection, title }: { collection: string; title: 
     setPage(0)
     setSelected(new Set())
   }, [collection, q, status, locale, category, tag, sortRaw])
+
+  // Clear selection when navigating between pages (selection is current-page-scoped).
+  useEffect(() => {
+    setSelected(new Set())
+  }, [page])
 
   // Locale dropdown options.
   useEffect(() => {
@@ -207,11 +213,13 @@ export function ContentList({ collection, title }: { collection: string; title: 
           )
         ) : (
           <>
-            {selected.size > 0 && (
-              <div className="bulk-bar">
-                <span>{selected.size} selected</span>
-                <button type="button" className="btn btn-sm" onClick={() => setSelected(new Set())}>Clear selection</button>
-              </div>
+            {selected.size > 0 && rows !== null && (
+              <BulkBar
+                rows={rows}
+                selected={selected}
+                onClear={() => setSelected(new Set())}
+                onDone={() => { setSelected(new Set()); setRefreshKey((k) => k + 1) }}
+              />
             )}
           <div className="list-wrap">
             <table className="ctable">

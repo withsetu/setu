@@ -13,7 +13,7 @@ afterEach(() => { for (const d of dirs) rmSync(d, { recursive: true, force: true
 function freshApp() {
   const dir = mkdtempSync(join(tmpdir(), 'ingest-'))
   dirs.push(dir)
-  const storage = createLocalStorage({ dir, baseUrl: 'http://localhost:4444/uploads' })
+  const storage = createLocalStorage({ dir, baseUrl: 'http://localhost:4444/media' })
   const app = createUploadApi({
     storage,
     resolveActor: () => ({ id: 'local', role: 'owner' }),
@@ -33,11 +33,15 @@ describe('media ingest e2e (real sharp + storage-local)', () => {
     const res = await app.fetch(new Request('http://test/media', { method: 'POST', body }))
     expect(res.status).toBe(201)
     const json = (await res.json()) as Resp
+    // id = YYYY/MM/pic (human-readable key, no uuid)
+    expect(json.id).toMatch(/^\d{4}\/\d{2}\/pic$/)
     expect(json.manifest).toBeTruthy()
     // 1200 & 1600 exceed the 1000px source → dropped; source 1000 added ⇒ [400, 800, 1000]
     expect(json.manifest!.variants.map((v) => v.width)).toEqual([400, 800, 1000])
-    expect(existsSync(join(dir, `media/${json.id}/w400.webp`))).toBe(true)
-    expect(existsSync(join(dir, `media/${json.id}/manifest.json`))).toBe(true)
+    // variant key: <id>-<width>w.webp  (e.g. 2026/06/pic-400w.webp)
+    expect(existsSync(join(dir, `${json.id}-400w.webp`))).toBe(true)
+    // manifest key: <id>.manifest.json  (e.g. 2026/06/pic.manifest.json)
+    expect(existsSync(join(dir, `${json.id}.manifest.json`))).toBe(true)
   })
 
   it('stores a non-image without a manifest', async () => {

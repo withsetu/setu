@@ -11,7 +11,7 @@ function memStorage(): StoragePort & { map: Map<string, StoredObject> } {
     async get(key) { const o = map.get(key); return o ? { body: o.body.slice(), contentType: o.contentType } : null },
     async delete(key) { map.delete(key) },
     async exists(key) { return map.has(key) },
-    url(key) { return `http://test/uploads/${key}` },
+    url(key) { return `http://test/media/${key}` },
   }
 }
 
@@ -40,14 +40,16 @@ const png = (bytes = 4, name = 'a.png', type = 'image/png') =>
 describe('POST /media', () => {
   it('stores the file and returns a loadable url (201)', async () => {
     const { app, storage } = makeApp(() => owner)
-    const res = await post(app, png(4))
+    const res = await post(app, png(4, 'Cat.png'))
     expect(res.status).toBe(201)
-    const json = (await res.json()) as { key: string; url: string; contentType: string; size: number; filename: string }
-    expect(json.key).toMatch(/^media\/[0-9a-f-]{36}\/original\.png$/)
-    expect(json.url).toBe(`http://test/uploads/${json.key}`)
+    const json = (await res.json()) as { id: string; key: string; url: string; contentType: string; size: number; filename: string }
+    // id = YYYY/MM/slug (year/month are "now")
+    expect(json.id).toMatch(/^\d{4}\/\d{2}\/cat$/)
+    expect(json.key).toBe(`${json.id}.png`)
+    expect(json.url).toBe(`http://test/media/${json.key}`)
     expect(json.contentType).toBe('image/png')
     expect(json.size).toBe(4)
-    expect(json.filename).toBe('a.png')
+    expect(json.filename).toBe('Cat.png')
     const stored = await storage.get(json.key)
     expect(stored?.contentType).toBe('image/png')
     expect(stored?.body.length).toBe(4)
@@ -57,7 +59,21 @@ describe('POST /media', () => {
     const { app } = makeApp(() => owner)
     const res = await post(app, png(2, 'weird-name.bin', 'application/pdf'))
     const json = (await res.json()) as { key: string }
-    expect(json.key).toMatch(/\/original\.pdf$/)
+    expect(json.key).toMatch(/\.pdf$/)
+  })
+
+  it('second upload of same filename gets a -2 suffix (collision dedup)', async () => {
+    const storage = memStorage()
+    const { app } = makeApp(() => owner, { storage })
+    // First upload
+    const res1 = await post(app, png(4, 'Cat.png'))
+    const json1 = (await res1.json()) as { id: string; key: string }
+    expect(json1.id).toMatch(/^\d{4}\/\d{2}\/cat$/)
+    // Second upload of same filename — must deduplicate
+    const res2 = await post(app, png(4, 'Cat.png'))
+    const json2 = (await res2.json()) as { id: string; key: string }
+    expect(json2.id).toMatch(/^\d{4}\/\d{2}\/cat-2$/)
+    expect(json2.key).toBe(`${json2.id}.png`)
   })
 
   it('401 when unauthenticated', async () => {

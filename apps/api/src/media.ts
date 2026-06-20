@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { createAuthz, DEFAULT_ROLES, ingestImage } from '@setu/core'
+import { createAuthz, DEFAULT_ROLES, ingestImage, mediaSlug, mediaKeyOf, originalKey } from '@setu/core'
 import type { Actor, ImageFormat, ImagePort, MediaManifest, StoragePort } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
 import type { ResolveActor } from './auth/resolve-actor'
@@ -71,8 +71,15 @@ export function createUploadApi(opts: UploadApiOptions) {
 
     const ext = EXT_BY_TYPE[file.type]
     if (ext === undefined) return c.json({ error: `unsupported type: ${file.type}` }, 415)
-    const id = crypto.randomUUID()
-    const key = `media/${id}/original.${ext}`
+    const now = new Date()
+    const yyyy = now.getUTCFullYear()
+    const mm = now.getUTCMonth() + 1
+    const slug = mediaSlug(file.name)
+    let mediaKey = mediaKeyOf(yyyy, mm, slug)
+    for (let n = 2; await storage.exists(originalKey(mediaKey, ext)); n += 1) {
+      mediaKey = mediaKeyOf(yyyy, mm, `${slug}-${n}`)
+    }
+    const key = originalKey(mediaKey, ext)
     const bytes = new Uint8Array(await file.arrayBuffer())
     await storage.put(key, bytes, { contentType: file.type })
 
@@ -81,16 +88,16 @@ export function createUploadApi(opts: UploadApiOptions) {
       try {
         manifest = await ingestImage(
           { image: opts.image, storage },
-          { id, bytes, originalKey: key, format: imageConfig.format, widths: imageConfig.widths },
+          { mediaKey, bytes, originalKey: key, format: imageConfig.format, widths: imageConfig.widths },
         )
       } catch (err) {
-        console.warn(`media ingest failed for ${id}: ${err instanceof Error ? err.message : String(err)}`)
+        console.warn(`media ingest failed for ${mediaKey}: ${err instanceof Error ? err.message : String(err)}`)
       }
     }
 
     return c.json(
       {
-        id,
+        id: mediaKey,
         key,
         url: storage.url(key),
         contentType: file.type,
@@ -102,9 +109,9 @@ export function createUploadApi(opts: UploadApiOptions) {
     )
   })
 
-  app.get('/uploads/*', async (c) => {
-    const key = decodeURIComponent(c.req.path.slice('/uploads/'.length))
-    if (!key.startsWith('media/')) return c.json({ error: 'not found' }, 404)
+  app.get('/media/*', async (c) => {
+    const key = decodeURIComponent(c.req.path.slice('/media/'.length))
+    if (key.split('/').some((seg) => seg === '..' || seg === '')) return c.json({ error: 'not found' }, 404)
     const obj = await storage.get(key)
     if (!obj) return c.json({ error: 'not found' }, 404)
     const headers: Record<string, string> = { 'Content-Type': obj.contentType }

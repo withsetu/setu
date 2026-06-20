@@ -13,6 +13,7 @@ export interface EntryIndexRow {
   pending?: LifecyclePending
   updatedAt: number | null
   hasDraft: boolean
+  tags: string[]
 }
 
 export type SortKey = 'updatedAt' | 'title' | 'status'
@@ -55,6 +56,7 @@ export function projectRow(row: ContentRow): EntryIndexRow {
     status: row.lifecycle.state,
     updatedAt: row.updatedAt,
     hasDraft: row.hasDraft,
+    tags: row.tags,
   }
   if (row.lifecycle.pending !== undefined) out.pending = row.lifecycle.pending
   return out
@@ -69,5 +71,6 @@ export function rowToContentRow(r: EntryIndexRow): ContentRow {
     lifecycle,
     updatedAt: r.updatedAt,
     hasDraft: r.hasDraft,
+    tags: r.tags,
   }
 }

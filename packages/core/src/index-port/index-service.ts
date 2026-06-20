@@ -7,7 +7,7 @@ import { contentPath, parseContentPath } from '../publish/content-path'
 import type { IndexPort, IndexQuery } from './types'
 import { indexKey, projectRow, rowToContentRow } from './types'
 
-export const INDEX_VERSION = 1
+export const INDEX_VERSION = 2
 
 export interface IndexServiceDeps {
   data: DataPort

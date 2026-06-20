@@ -6,6 +6,7 @@ import { Bootstrap } from './data/Bootstrap'
 import { resetToSampleContent } from './data/reset'
 import { ActorProvider } from './auth/actor'
 import { DeployProvider } from './deploy/deploy'
+import { IndexProvider } from './data/index-store'
 import '@fontsource-variable/hanken-grotesk'
 import '@fontsource-variable/newsreader'
 import '@fontsource-variable/jetbrains-mono'
@@ -33,7 +34,9 @@ createRoot(document.getElementById('root')!).render(
       <Bootstrap>
         <ActorProvider>
           <DeployProvider>
-            <App />
+            <IndexProvider>
+              <App />
+            </IndexProvider>
           </DeployProvider>
         </ActorProvider>
         <DevReset />

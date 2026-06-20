@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ActorProvider } from '../src/auth/actor'
 import { ServicesProvider, createServices } from '../src/data/store'
 import { DeployProvider, useDeploy } from '../src/deploy/deploy'
+import { IndexProvider } from '../src/data/index-store'
 import { EditorScreen } from '../src/editor/EditorScreen'
 
 function DeployTrigger() {
@@ -19,8 +20,10 @@ describe('deploy status', () => {
         <ActorProvider>
           <ServicesProvider services={services}>
             <DeployProvider>
-              <DeployTrigger />
-              <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
+              <IndexProvider>
+                <DeployTrigger />
+                <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
+              </IndexProvider>
             </DeployProvider>
           </ServicesProvider>
         </ActorProvider>

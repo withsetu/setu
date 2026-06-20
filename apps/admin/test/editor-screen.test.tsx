@@ -6,6 +6,7 @@ import { ActorProvider } from '../src/auth/actor'
 import { ServicesProvider, createServices } from '../src/data/store'
 import type { Services } from '../src/data/store'
 import { DeployProvider } from '../src/deploy/deploy'
+import { IndexProvider } from '../src/data/index-store'
 import { EditorScreen } from '../src/editor/EditorScreen'
 
 const doc = (t: string): TiptapDoc => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] })
@@ -34,9 +35,11 @@ function renderEditor(services: Services, path = '/edit/post/en/p1') {
       <ActorProvider>
         <ServicesProvider services={services}>
           <DeployProvider>
-            <Routes>
-              <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
-            </Routes>
+            <IndexProvider>
+              <Routes>
+                <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
+              </Routes>
+            </IndexProvider>
           </DeployProvider>
         </ServicesProvider>
       </ActorProvider>

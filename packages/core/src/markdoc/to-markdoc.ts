@@ -92,6 +92,8 @@ function buildBlock(node: TiptapNode): InstanceType<typeof N> {
       return new N('hr')
     case 'callout':
       return new N('tag', attrs['mdAttrs'] ?? {}, (node.content ?? []).map(buildBlock), 'callout')
+    case 'imageBlock':
+      return new N('tag', (attrs['mdAttrs'] ?? {}) as Record<string, unknown>, [], 'image')
     case 'setuBlock': {
       const tag = attrs['tag']
       if (typeof tag !== 'string' || tag === '') {
@@ -112,13 +114,34 @@ function buildBlock(node: TiptapNode): InstanceType<typeof N> {
 const formatNative = (node: TiptapNode): string =>
   Markdoc.format(new N('document', {}, [buildBlock(node)])).replace(/\n+$/, '')
 
+/** Serialize an `imageBlock` node to a self-closing {% image ... /%} tag. */
+function imageBlockToMarkdoc(node: TiptapNode): string {
+  const attrs = (node.attrs ?? {}) as Record<string, unknown>
+  const mdAttrs = attrs['mdAttrs'] as Record<string, unknown> | undefined ?? {}
+
+  // Serialize attributes as space-separated key="value" pairs, in order: src, alt, caption, align
+  const attrOrder = ['src', 'alt', 'caption', 'align']
+  const parts: string[] = []
+  for (const key of attrOrder) {
+    if (key in mdAttrs) {
+      const val = mdAttrs[key]
+      if (typeof val === 'string') parts.push(`${key}="${val}"`)
+      else if (val != null) parts.push(`${key}="${String(val)}"`)
+    }
+  }
+
+  return `{% image ${parts.join(' ')} /%}`
+}
+
 export function tiptapToMarkdoc(doc: TiptapDoc): string {
   const blocks = doc.content.map((node) =>
     node.type === 'passthrough'
       ? String((node.attrs as Record<string, unknown>)?.['raw'] ?? '')
       : node.type === 'table'
         ? tableToGfm(node)
-        : formatNative(node),
+        : node.type === 'imageBlock'
+          ? imageBlockToMarkdoc(node)
+          : formatNative(node),
   )
   return blocks.join('\n\n') + '\n'
 }

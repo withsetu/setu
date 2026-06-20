@@ -1,5 +1,5 @@
 import { openDB } from 'idb'
-import type { CommitInput, CommitResult, GitPort } from '@setu/core'
+import type { CommitInput, CommitFilesInput, CommitResult, GitPort } from '@setu/core'
 
 // Deterministic 40-char hex digest (no Date.now/Math.random): 5 salted FNV-1a
 // passes. Distinct per commit because the persisted counter is mixed in.
@@ -28,6 +28,35 @@ export async function createIdbGitPort(dbName = 'setu-git'): Promise<GitPort> {
     },
   })
 
+  const commitFiles = async ({ changes }: CommitFilesInput): Promise<CommitResult> => {
+    const tx = db.transaction(['files', 'meta'], 'readwrite')
+    const filesStore = tx.objectStore('files')
+    const meta = tx.objectStore('meta')
+    let changed = false
+    for (const ch of changes) {
+      if ('delete' in ch) {
+        if ((await filesStore.get(ch.path)) !== undefined) {
+          await filesStore.delete(ch.path)
+          changed = true
+        }
+      } else if (((await filesStore.get(ch.path)) as string | undefined) !== ch.content) {
+        await filesStore.put(ch.content, ch.path)
+        changed = true
+      }
+    }
+    const prevHead = ((await meta.get('head')) as string | undefined) ?? ''
+    if (!changed) {
+      await tx.done
+      return { sha: prevHead }
+    }
+    const counter = (((await meta.get('counter')) as number | undefined) ?? 0) + 1
+    const sha = sha40(`${counter}\0${prevHead}\0${changes.map((c) => ('delete' in c ? `D:${c.path}` : `W:${c.path}:${c.content}`)).join('\0')}`)
+    await meta.put(counter, 'counter')
+    await meta.put(sha, 'head')
+    await tx.done
+    return { sha }
+  }
+
   return {
     async headSha() {
       return ((await db.get('meta', 'head')) as string | undefined) ?? null
@@ -35,18 +64,10 @@ export async function createIdbGitPort(dbName = 'setu-git'): Promise<GitPort> {
     async readFile(path: string) {
       return ((await db.get('files', path)) as string | undefined) ?? null
     },
-    async commitFile(input: CommitInput): Promise<CommitResult> {
-      const tx = db.transaction(['files', 'meta'], 'readwrite')
-      const meta = tx.objectStore('meta')
-      const counter = (((await meta.get('counter')) as number | undefined) ?? 0) + 1
-      const prevHead = ((await meta.get('head')) as string | undefined) ?? ''
-      const sha = sha40(`${counter}\0${prevHead}\0${input.path}\0${input.content}`)
-      await tx.objectStore('files').put(input.content, input.path)
-      await meta.put(counter, 'counter')
-      await meta.put(sha, 'head')
-      await tx.done
-      return { sha }
+    commitFile(input: CommitInput): Promise<CommitResult> {
+      return commitFiles({ changes: [{ path: input.path, content: input.content }], message: input.message, author: input.author })
     },
+    commitFiles,
     async list(prefix?: string) {
       const keys = (await db.getAllKeys('files')) as string[]
       return prefix === undefined ? keys : keys.filter((k) => k.startsWith(prefix))

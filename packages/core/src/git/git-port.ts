@@ -1,4 +1,4 @@
-import type { CommitInput, CommitResult } from './types'
+import type { CommitInput, CommitFilesInput, CommitResult } from './types'
 
 /** The git seam: read published content + commit. Server topologies use a real
  *  local git adapter; edge uses a GitHub-API adapter (later). The DB is derived;
@@ -10,6 +10,9 @@ export interface GitPort {
   readFile(path: string): Promise<string | null>
   /** Write `path` and commit it; returns the new HEAD commit sha. */
   commitFile(input: CommitInput): Promise<CommitResult>
+  /** Apply several writes/deletes in ONE atomic commit; returns the new HEAD
+   *  sha. A net-empty changeset makes no commit and returns the current HEAD. */
+  commitFiles(input: CommitFilesInput): Promise<CommitResult>
   /** Repo-relative paths of all files at HEAD, filtered to those under `prefix`
    *  (default: all). Empty when the repo has no commits. Order is not guaranteed. */
   list(prefix?: string): Promise<string[]>

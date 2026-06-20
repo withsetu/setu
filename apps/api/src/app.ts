@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import type { GitPort, CommitInput } from '@setu/core'
+import type { GitPort, CommitInput, CommitFilesInput } from '@setu/core'
 
 /** A Hono app exposing a GitPort over HTTP (RPC-style, one route per method).
  *  Pure factory — the caller supplies the GitPort and the listener (server.ts). */
@@ -19,6 +19,12 @@ export function createGitApi(git: GitPort): Hono {
   app.post('/git/commit', async (c) => {
     const body = (await c.req.json()) as CommitInput
     const { sha } = await git.commitFile(body)
+    return c.json({ sha })
+  })
+
+  app.post('/git/commit-files', async (c) => {
+    const body = (await c.req.json()) as CommitFilesInput
+    const { sha } = await git.commitFiles(body)
     return c.json({ sha })
   })
 

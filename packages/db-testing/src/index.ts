@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import type { DataPort, TiptapDoc } from '@setu/core'
+import type { DataPort, TiptapDoc, IndexPort, EntryIndexRow } from '@setu/core'
 
 const doc = (text: string): TiptapDoc => ({
   type: 'doc',
@@ -123,6 +123,57 @@ export function runDataPortContract(makeAdapter: () => Promise<DataPort> | DataP
       await db.deleteLock(ref)
       expect(await db.getLock(ref)).toBeNull()
       await expect(db.deleteLock(ref)).resolves.toBeUndefined()
+    })
+  })
+}
+
+const irow = (over: Partial<EntryIndexRow>): EntryIndexRow => {
+  const base = {
+    collection: 'post', locale: 'en', slug: 'x', title: 'X',
+    status: 'draft' as const, updatedAt: 0, hasDraft: true,
+    ...over,
+  }
+  return { ...base, key: `${base.collection}\0${base.locale}\0${base.slug}`, titleLower: base.title.toLowerCase() }
+}
+
+export function runIndexPortContract(makeAdapter: () => Promise<IndexPort> | IndexPort): void {
+  describe('IndexPort contract', () => {
+    let ix: IndexPort
+    beforeEach(async () => {
+      ix = await makeAdapter()
+    })
+
+    it('upserts and queries back a row', async () => {
+      await ix.upsert(irow({ slug: 'a', title: 'Alpha' }))
+      const r = await ix.query({ collection: 'post', offset: 0, limit: 10 })
+      expect(r.total).toBe(1)
+      expect(r.rows[0]!.slug).toBe('a')
+    })
+
+    it('upsertMany, filters by status, paginates with total', async () => {
+      await ix.upsertMany([
+        irow({ slug: 'a', status: 'live', updatedAt: 3 }),
+        irow({ slug: 'b', status: 'draft', updatedAt: 2 }),
+        irow({ slug: 'c', status: 'draft', updatedAt: 1 }),
+      ])
+      const drafts = await ix.query({ collection: 'post', status: 'draft', offset: 0, limit: 1 })
+      expect(drafts.total).toBe(2)
+      expect(drafts.rows).toHaveLength(1)
+      expect(drafts.rows[0]!.slug).toBe('b') // updatedAt desc
+    })
+
+    it('remove and clear', async () => {
+      await ix.upsertMany([irow({ slug: 'a' }), irow({ slug: 'b' })])
+      await ix.remove('post\0en\0a')
+      expect((await ix.query({ collection: 'post', offset: 0, limit: 10 })).total).toBe(1)
+      await ix.clear()
+      expect((await ix.query({ collection: 'post', offset: 0, limit: 10 })).total).toBe(0)
+    })
+
+    it('meta round-trips and defaults to null/0', async () => {
+      expect(await ix.getMeta()).toEqual({ indexedSha: null, version: 0 })
+      await ix.setMeta({ indexedSha: 'abc', version: 2 })
+      expect(await ix.getMeta()).toEqual({ indexedSha: 'abc', version: 2 })
     })
   })
 }

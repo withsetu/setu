@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ActorProvider } from '../src/auth/actor'
 import { ServicesProvider, createServices } from '../src/data/store'
 import { DeployProvider } from '../src/deploy/deploy'
+import { IndexProvider } from '../src/data/index-store'
 import { EditorScreen } from '../src/editor/EditorScreen'
 
 function renderEditor(path = '/edit/post/en/release-notes') {
@@ -13,7 +14,9 @@ function renderEditor(path = '/edit/post/en/release-notes') {
       <ActorProvider>
         <ServicesProvider services={services}>
           <DeployProvider>
-            <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
+            <IndexProvider>
+              <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
+            </IndexProvider>
           </DeployProvider>
         </ServicesProvider>
       </ActorProvider>

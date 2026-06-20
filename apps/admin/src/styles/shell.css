@@ -109,3 +109,6 @@
 .ctable-title a.ctable-view:hover { color: var(--accent-strong); }
 /* ctable-muted: used for locale and updated columns (design uses .ct-locale / .ct-updated with color: var(--text-3)) */
 .ctable-muted { color: var(--text-3); }
+
+/* ---- LIST PAGER ---- */
+.list-pager { display: flex; gap: var(--space-2); align-items: center; justify-content: flex-end; margin-top: var(--space-3); }

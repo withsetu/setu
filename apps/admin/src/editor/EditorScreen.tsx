@@ -10,6 +10,7 @@ import { lifecycleLabel } from '../lifecycle/label'
 import { useDeploy } from '../deploy/deploy'
 import { StatusPill } from '../ui/StatusPill'
 import { siteUrl } from '../shell/site-url'
+import { useIndex } from '../data/index-store'
 import { Canvas } from './Canvas'
 import { MetaPanel } from './MetaPanel'
 import { PublishMenu } from './PublishMenu'
@@ -35,7 +36,10 @@ export function EditorScreen() {
   const navigate = useNavigate()
   const { read, authoring, data, git, publish } = useServices()
   const { deployedAt, sha: deploySha } = useDeploy()
+  const index = useIndex()
   const can = useCan()
+  // Best-effort reindex — never lets a failure surface to the editor.
+  const reindex = (r: typeof ref) => void index.reindexEntry(r).catch(() => {})
   const ref = useMemo(() => ({ collection, locale, slug }), [collection, locale, slug])
   // `new` is a compose sentinel: nothing is persisted until the first save mints a real slug.
   const composing = slug === NEW_SLUG
@@ -129,9 +133,12 @@ export function EditorScreen() {
           EDITOR_ID,
         )
         navigate(`/edit/${collection}/${locale}/${newSlug}`, { replace: true })
+        reindex({ collection, locale, slug: newSlug })
         return result
       }
-      return authoring.save(input, EDITOR_ID)
+      const result = await authoring.save(input, EDITOR_ID)
+      reindex(ref)
+      return result
     },
     onStatus: setStatus,
   })
@@ -153,10 +160,12 @@ export function EditorScreen() {
       // Save-before-publish: publish reads storage, not the in-memory doc. Always
       // serialize the LATEST metaRef.current (Unpublish/Re-publish mutate it first).
       await authoring.save({ ...ref, content: docRef.current, metadata: metaRef.current, baseSha: baseShaRef.current }, EDITOR_ID)
+      reindex(ref)
       const r = await publish.publish({ ref, author: OWNER_AUTHOR })
       if (r.status === 'published') {
         baseShaRef.current = r.sha
         setPublishMsg('Published · ' + r.sha.slice(0, 7))
+        reindex(ref)
         await refreshLifecycle()
       } else if (r.status === 'conflict') {
         setPublishMsg('The published version moved — reload to continue.')

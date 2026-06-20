@@ -5,6 +5,7 @@ import { contentPath, parseMdoc } from '@setu/core'
 import { ActorProvider } from '../src/auth/actor'
 import { ServicesProvider, createServices } from '../src/data/store'
 import { DeployProvider } from '../src/deploy/deploy'
+import { IndexProvider } from '../src/data/index-store'
 import { EditorScreen } from '../src/editor/EditorScreen'
 
 describe('EditorScreen unpublish', () => {
@@ -12,9 +13,9 @@ describe('EditorScreen unpublish', () => {
     const services = createServices()
     render(
       <MemoryRouter initialEntries={['/edit/post/en/release-notes']}>
-        <ActorProvider><ServicesProvider services={services}><DeployProvider>
+        <ActorProvider><ServicesProvider services={services}><DeployProvider><IndexProvider>
           <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
-        </DeployProvider></ServicesProvider></ActorProvider>
+        </IndexProvider></DeployProvider></ServicesProvider></ActorProvider>
       </MemoryRouter>,
     )
     await screen.findByDisplayValue('Release notes')

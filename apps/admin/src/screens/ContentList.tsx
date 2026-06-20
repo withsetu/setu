@@ -1,47 +1,50 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { ContentRow, EntryRef } from '@setu/core'
-import { listContentEntries, parseContentPath } from '@setu/core'
-import { useServices } from '../data/store'
+import type { ContentRow } from '@setu/core'
+import { useIndex } from '../data/index-store'
 import { lifecycleLabel } from '../lifecycle/label'
-import { useDeploy } from '../deploy/deploy'
 import { PageHeader } from '../shell/PageHeader'
 import { StatusPill } from '../ui/StatusPill'
 import { Icon } from '../ui/Icon'
 import { siteUrl } from '../shell/site-url'
 
+const PAGE_SIZE = 25
+
 export function ContentList({ collection, title }: { collection: string; title: string }) {
-  const { data, git } = useServices()
-  const { deployedAt, sha: deploySha } = useDeploy()
+  const index = useIndex()
+  const [page, setPage] = useState(0)
   const [rows, setRows] = useState<ContentRow[] | null>(null)
+  const [total, setTotal] = useState(0)
+
+  useEffect(() => {
+    setPage(0)
+    setRows(null)
+    setTotal(0)
+  }, [collection])
 
   useEffect(() => {
     let live = true
     void (async () => {
-      const drafts = await data.listDrafts({ collection })
-      const paths = await git.list(`content/${collection}/`)
-      const committed: { ref: EntryRef; content: string }[] = []
-      for (const p of paths) {
-        const ref = parseContentPath(p)
-        if (ref === null) continue
-        const content = await git.readFile(p)
-        if (content !== null) committed.push({ ref, content })
-      }
-      const merged = listContentEntries({ drafts, committed, deployedAt })
-      if (live) setRows(merged)
+      await index.ensureBuilt()
+      const r = await index.query({
+        collection, offset: page * PAGE_SIZE, limit: PAGE_SIZE,
+        sort: { key: 'updatedAt', dir: 'desc' },
+      })
+      if (live) { setRows(r.rows); setTotal(r.total) }
     })()
-    return () => {
-      live = false
-    }
-  }, [data, git, collection, deployedAt, deploySha])
+    return () => { live = false }
+  }, [index, collection, page])
 
   const noun = collection
+
+  const from = total === 0 ? 0 : page * PAGE_SIZE + 1
+  const to = Math.min(total, (page + 1) * PAGE_SIZE)
 
   return (
     <>
       <PageHeader
         title={title}
-        count={rows?.length}
+        count={rows !== null ? total : undefined}
         subtitle={collection === 'post' ? 'Articles, field notes and announcements.' : 'Standalone pages and landing pages.'}
         actions={
           <Link to={`/edit/${collection}/en/new`} className="btn btn-primary btn-md">
@@ -53,7 +56,7 @@ export function ContentList({ collection, title }: { collection: string; title: 
       <div className="page-body">
         {rows === null ? (
           <p className="empty-state">Loading…</p>
-        ) : rows.length === 0 ? (
+        ) : rows.length === 0 && total === 0 ? (
           <p className="empty-state">No {title.toLowerCase()} yet.</p>
         ) : (
           <div className="list-wrap">
@@ -101,6 +104,13 @@ export function ContentList({ collection, title }: { collection: string; title: 
                 })}
               </tbody>
             </table>
+            {total > 0 && (
+              <div className="list-pager">
+                <span className="ctable-muted">{from}–{to} of {total}</span>
+                <button className="btn btn-sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Prev</button>
+                <button className="btn btn-sm" disabled={to >= total} onClick={() => setPage((p) => p + 1)} aria-label="Next">Next</button>
+              </div>
+            )}
           </div>
         )}
       </div>

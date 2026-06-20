@@ -127,11 +127,14 @@ export function runDataPortContract(makeAdapter: () => Promise<DataPort> | DataP
   })
 }
 
-const irow = (over: Partial<EntryIndexRow>): EntryIndexRow => ({
-  key: `post\0en\0${over.slug ?? 'x'}`, collection: 'post', locale: 'en', slug: over.slug ?? 'x',
-  title: over.title ?? 'X', titleLower: (over.title ?? 'X').toLowerCase(),
-  status: over.status ?? 'draft', updatedAt: over.updatedAt ?? 0, hasDraft: true, ...over,
-})
+const irow = (over: Partial<EntryIndexRow>): EntryIndexRow => {
+  const base = {
+    collection: 'post', locale: 'en', slug: 'x', title: 'X',
+    status: 'draft' as const, updatedAt: 0, hasDraft: true,
+    ...over,
+  }
+  return { ...base, key: `${base.collection}\0${base.locale}\0${base.slug}`, titleLower: base.title.toLowerCase() }
+}
 
 export function runIndexPortContract(makeAdapter: () => Promise<IndexPort> | IndexPort): void {
   describe('IndexPort contract', () => {

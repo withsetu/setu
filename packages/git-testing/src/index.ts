@@ -68,5 +68,47 @@ export function runGitPortContract(makeAdapter: () => Promise<GitPort> | GitPort
       expect([...(await port.list('content/post/'))].sort()).toEqual(['content/post/en/a.mdoc'])
       expect(await port.list('content/none/')).toEqual([])
     })
+
+    it('commitFiles writes multiple files in ONE commit', async () => {
+      const { sha } = await port.commitFiles({
+        changes: [{ path: 'a.mdoc', content: 'A' }, { path: 'b.mdoc', content: 'B' }],
+        message: 'm', author,
+      })
+      expect(await port.headSha()).toBe(sha)
+      expect(await port.readFile('a.mdoc')).toBe('A')
+      expect(await port.readFile('b.mdoc')).toBe('B')
+    })
+
+    it('commitFiles deletes a file', async () => {
+      await port.commitFile({ path: 'a.mdoc', content: 'A', message: 'm', author })
+      await port.commitFiles({ changes: [{ path: 'a.mdoc', delete: true }], message: 'rm', author })
+      expect(await port.readFile('a.mdoc')).toBeNull()
+      expect(await port.list()).toEqual([])
+    })
+
+    it('commitFiles mixes a write and a delete in ONE commit', async () => {
+      await port.commitFile({ path: 'a.mdoc', content: 'A', message: 'm', author })
+      const { sha } = await port.commitFiles({
+        changes: [{ path: 'a.mdoc', delete: true }, { path: 'b.mdoc', content: 'B' }],
+        message: 'm2', author,
+      })
+      expect(await port.headSha()).toBe(sha)
+      expect(await port.readFile('a.mdoc')).toBeNull()
+      expect(await port.readFile('b.mdoc')).toBe('B')
+    })
+
+    it('commitFiles with empty changes makes no commit', async () => {
+      const { sha: first } = await port.commitFile({ path: 'a.mdoc', content: 'A', message: 'm', author })
+      const { sha } = await port.commitFiles({ changes: [], message: 'noop', author })
+      expect(sha).toBe(first)
+      expect(await port.headSha()).toBe(first)
+    })
+
+    it('commitFiles tolerates deleting an absent path (no commit)', async () => {
+      const { sha: first } = await port.commitFile({ path: 'a.mdoc', content: 'A', message: 'm', author })
+      const { sha } = await port.commitFiles({ changes: [{ path: 'ghost.mdoc', delete: true }], message: 'noop', author })
+      expect(sha).toBe(first)
+      expect(await port.readFile('a.mdoc')).toBe('A')
+    })
   })
 }

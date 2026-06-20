@@ -130,7 +130,7 @@ export function runDataPortContract(makeAdapter: () => Promise<DataPort> | DataP
 const irow = (over: Partial<EntryIndexRow>): EntryIndexRow => {
   const base = {
     collection: 'post', locale: 'en', slug: 'x', title: 'X',
-    status: 'draft' as const, updatedAt: 0, hasDraft: true, tags: [] as string[],
+    status: 'draft' as const, updatedAt: 0, hasDraft: true, tags: [] as string[], categories: [] as string[],
     ...over,
   }
   return { ...base, key: `${base.collection}\0${base.locale}\0${base.slug}`, titleLower: base.title.toLowerCase() }
@@ -185,6 +185,15 @@ export function runIndexPortContract(makeAdapter: () => Promise<IndexPort> | Ind
       expect(await ix.distinctTags('re', 10)).toEqual(['react', 'redux'])
       expect(await ix.distinctTags('', 2)).toEqual(['nextjs', 'react'])
       expect(await ix.distinctTags('zzz', 10)).toEqual([])
+    })
+
+    it('distinctLocales: returns distinct locales sorted', async () => {
+      await ix.upsertMany([
+        irow({ slug: 'a', locale: 'fr' }),
+        irow({ slug: 'b', locale: 'en' }),
+        irow({ slug: 'c', locale: 'en' }),
+      ])
+      expect(await ix.distinctLocales()).toEqual(['en', 'fr'])
     })
   })
 }

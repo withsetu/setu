@@ -9,6 +9,7 @@ import { serializeMdoc } from '@setu/core'
 import { createMemoryGitPort } from '@setu/git-memory'
 import { ServicesProvider, servicesFor } from '../src/data/store'
 import { IndexProvider } from '../src/data/index-store'
+import { TaxonomyProvider } from '../src/data/taxonomy-store'
 
 const doc = (t: string): TiptapDoc => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] })
 const seed: DraftInput[] = [
@@ -23,7 +24,9 @@ const renderList = (adapter: DataPort, collection: string, title: string) =>
       <ServicesProvider services={servicesFor(adapter, createMemoryGitPort())}>
         <DeployProvider>
           <IndexProvider>
-            <ContentList collection={collection} title={title} />
+            <TaxonomyProvider>
+              <ContentList collection={collection} title={title} />
+            </TaxonomyProvider>
           </IndexProvider>
         </DeployProvider>
       </ServicesProvider>
@@ -99,7 +102,9 @@ describe('ContentList', () => {
         <ServicesProvider services={servicesFor(adapter, createMemoryGitPort())}>
           <DeployProvider>
             <IndexProvider>
-              <ContentList collection="page" title="Pages" />
+              <TaxonomyProvider>
+                <ContentList collection="page" title="Pages" />
+              </TaxonomyProvider>
             </IndexProvider>
           </DeployProvider>
         </ServicesProvider>
@@ -121,7 +126,9 @@ describe('ContentList — Git-only (published, no draft) entries', () => {
         <ServicesProvider services={services}>
           <DeployProvider>
             <IndexProvider>
-              <ContentList collection="post" title="Posts" />
+              <TaxonomyProvider>
+                <ContentList collection="post" title="Posts" />
+              </TaxonomyProvider>
             </IndexProvider>
           </DeployProvider>
         </ServicesProvider>

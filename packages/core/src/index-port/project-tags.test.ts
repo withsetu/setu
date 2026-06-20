@@ -7,6 +7,7 @@ const row: ContentRow = {
   title: 'A', locale: 'en',
   lifecycle: { state: 'draft' }, updatedAt: 1, hasDraft: true,
   tags: ['react', 'redux'],
+  categories: [],
 }
 
 describe('projectRow / rowToContentRow — tags', () => {

@@ -19,6 +19,8 @@ export interface ContentRow {
   hasDraft: boolean
   /** Normalized, deduped tags for this entry (draft's tags win when a draft exists). */
   tags: string[]
+  /** Category slugs for this entry (draft's win when a draft exists). */
+  categories: string[]
 }
 
 export interface ListContentEntriesInput {
@@ -80,6 +82,7 @@ export function listContentEntries(input: ListContentEntriesInput): ContentRow[]
       updatedAt: draft ? draft.updatedAt : null,
       hasDraft: draft !== null,
       tags: tagsOf(draft, committedStr),
+      categories: categoriesOf(draft, committedStr),
     }
   })
 }
@@ -108,4 +111,25 @@ function tagsOf(draft: Draft | null, committedStr: string | null): string[] {
 function normalizeFrom(raw: unknown): string[] {
   if (!Array.isArray(raw)) return []
   return normalizeTags(raw.filter((x): x is string => typeof x === 'string'))
+}
+
+/** Category slugs from the live version: the draft's when a draft exists, else
+ *  committed frontmatter. Slugs are already canonical (no normalization);
+ *  deduped, first-seen order; tolerant of absent/non-array. */
+function categoriesOf(draft: Draft | null, committedStr: string | null): string[] {
+  const raw = draft
+    ? draft.metadata['categories']
+    : committedStr !== null
+      ? parseMdoc(committedStr).frontmatter['categories']
+      : undefined
+  if (!Array.isArray(raw)) return []
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const x of raw) {
+    if (typeof x === 'string' && x !== '' && !seen.has(x)) {
+      seen.add(x)
+      out.push(x)
+    }
+  }
+  return out
 }

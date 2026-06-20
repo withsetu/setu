@@ -110,5 +110,87 @@
 /* ctable-muted: used for locale and updated columns (design uses .ct-locale / .ct-updated with color: var(--text-3)) */
 .ctable-muted { color: var(--text-3); }
 
+/* ---- FILTER TOOLBAR ---- */
+/* Horizontal, wrapping row of filter controls that sits between the page header and the table */
+.list-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 30px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+/* Search input — wider pill, matches admin input aesthetic */
+.list-search {
+  height: 32px;
+  padding: 0 10px;
+  min-width: 180px;
+  font-size: 13px;
+  font-family: var(--font-ui);
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  outline: none;
+  transition: border-color .14s;
+}
+.list-search::placeholder { color: var(--text-3); }
+.list-search:focus { border-color: var(--accent-ring); }
+
+/* Filter <select>s — match existing .category-parent select sizing/look */
+.list-toolbar select {
+  height: 32px;
+  padding: 0 8px;
+  font-size: 13px;
+  font-family: var(--font-ui);
+  color: var(--text-2);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  outline: none;
+  cursor: pointer;
+  transition: border-color .14s;
+  appearance: auto; /* keep native OS arrow */
+}
+.list-toolbar select:focus { border-color: var(--accent-ring); }
+
+/* tag-filter: the typeahead wrapper needs a fixed width so it doesn't grow unbounded */
+.list-toolbar .tag-filter {
+  min-width: 160px;
+}
+
+/* Compact the tag-input height to match other toolbar controls */
+.list-toolbar .tag-input {
+  height: 32px;
+}
+
+/* ---- SORTABLE TABLE HEADERS ---- */
+/* ctable-sort: a <button> inside <th> that looks exactly like the plain th text.
+   Inherits the header weight/color/size set on .ctable thead th.
+   Adds a subtle hover affordance and shows the ▲/▼ indicator inline. */
+.ctable-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: inherit;       /* inherits 11.5px from .ctable thead th */
+  font-weight: inherit;     /* inherits 600 */
+  font-family: var(--font-ui);
+  color: inherit;           /* inherits var(--text-3) */
+  text-transform: inherit;  /* inherits uppercase */
+  letter-spacing: inherit;  /* inherits .04em */
+  cursor: pointer;
+  border-radius: var(--r-xs);
+  transition: color .12s;
+}
+.ctable-sort:hover { color: var(--text); }
+
+/* The ▲/▼ indicator is appended as inline text by sortIndicator() — no extra wrapper needed.
+   The button itself handles hover color; indicator character inherits the transition. */
+
 /* ---- LIST PAGER ---- */
 .list-pager { display: flex; gap: var(--space-2); align-items: center; justify-content: flex-end; margin-top: var(--space-3); }

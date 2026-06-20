@@ -20,6 +20,8 @@ export function runQuery(
     const needle = q.q.toLowerCase()
     xs = xs.filter((r) => r.titleLower.includes(needle) || r.slug.toLowerCase().includes(needle))
   }
+  if (q.tag) xs = xs.filter((r) => r.tags.includes(q.tag!))
+  if (q.category) xs = xs.filter((r) => r.categories.includes(q.category!))
   const sort = q.sort ?? { key: 'updatedAt' as SortKey, dir: 'desc' as const }
   const sorted = [...xs].sort((a, b) => {
     const c = compare(a, b, sort.key)

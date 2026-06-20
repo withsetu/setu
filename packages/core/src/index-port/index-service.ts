@@ -7,7 +7,7 @@ import { contentPath, parseContentPath } from '../publish/content-path'
 import type { IndexPort, IndexQuery } from './types'
 import { indexKey, projectRow, rowToContentRow } from './types'
 
-export const INDEX_VERSION = 2
+export const INDEX_VERSION = 3
 
 export interface IndexServiceDeps {
   data: DataPort
@@ -23,6 +23,7 @@ export interface IndexService {
   reindexAfterDeploy(): Promise<void>
   query(q: IndexQuery): Promise<{ rows: ContentRow[]; total: number }>
   distinctTags(prefix: string, limit: number): Promise<string[]>
+  distinctLocales(): Promise<string[]>
 }
 
 export function createIndexService(deps: IndexServiceDeps): IndexService {
@@ -74,5 +75,9 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
     return index.distinctTags(prefix, limit)
   }
 
-  return { rebuild, ensureBuilt, reindexEntry, reindexAfterDeploy, query, distinctTags }
+  async function distinctLocales(): Promise<string[]> {
+    return index.distinctLocales()
+  }
+
+  return { rebuild, ensureBuilt, reindexEntry, reindexAfterDeploy, query, distinctTags, distinctLocales }
 }

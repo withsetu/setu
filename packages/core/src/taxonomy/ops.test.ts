@@ -30,6 +30,11 @@ describe('addCategory', () => {
     const { cats } = addCategory([], { name: '  Spaced  ', parent: null })
     expect(cats[0]!.name).toBe('Spaced')
   })
+  it('throws empty-name when name is all whitespace', () => {
+    const err = (() => { try { addCategory([], { name: '   ', parent: null }); } catch (e) { return e } })()
+    expect(err).toBeInstanceOf(TaxonomyError)
+    expect((err as TaxonomyError).code).toBe('empty-name')
+  })
 })
 
 describe('renameLabel', () => {
@@ -38,6 +43,11 @@ describe('renameLabel', () => {
   })
   it('throws when slug missing', () => {
     expect(() => renameLabel([], 'a', 'Alpha')).toThrow(TaxonomyError)
+  })
+  it('throws empty-name when new name is all whitespace', () => {
+    const err = (() => { try { renameLabel([cat('a')], 'a', '  '); } catch (e) { return e } })()
+    expect(err).toBeInstanceOf(TaxonomyError)
+    expect((err as TaxonomyError).code).toBe('empty-name')
   })
 })
 

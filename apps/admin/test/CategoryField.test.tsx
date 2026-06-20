@@ -26,6 +26,8 @@ describe('CategoryField', () => {
     fireEvent.click(screen.getByText('Add'))
     await waitFor(() => expect(screen.getByLabelText('Tutorials')).toBeTruthy())
     expect(onChange).toHaveBeenCalledWith(['tutorials'])
+    // error surface stays clean on success
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('toggles an existing category off when checked', async () => {

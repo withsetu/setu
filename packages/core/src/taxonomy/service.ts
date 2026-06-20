@@ -25,7 +25,10 @@ export function createTaxonomyService(deps: { git: GitPort; author: GitAuthor })
   }
 
   async function commit(cats: Category[], message: string): Promise<Category[]> {
-    await git.commitFile({ path: TAXONOMY_PATH, content: serializeCategories(cats), message, author })
+    const newContent = serializeCategories(cats)
+    const existing = await git.readFile(TAXONOMY_PATH)
+    if (newContent === (existing ?? '')) return cats
+    await git.commitFile({ path: TAXONOMY_PATH, content: newContent, message, author })
     return cats
   }
 

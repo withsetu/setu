@@ -1,6 +1,6 @@
 import type { Category } from './types'
 
-export type TaxonomyErrorCode = 'parent-not-found' | 'not-found' | 'cycle'
+export type TaxonomyErrorCode = 'parent-not-found' | 'not-found' | 'cycle' | 'empty-name'
 
 /** A validation failure from a taxonomy op. `code` lets the UI show a message. */
 export class TaxonomyError extends Error {
@@ -39,17 +39,21 @@ export function addCategory(
   cats: Category[],
   input: { name: string; parent: string | null },
 ): { cats: Category[]; slug: string } {
+  const trimmed = input.name.trim()
+  if (trimmed === '') throw new TaxonomyError('empty-name', 'Category name cannot be empty')
   if (input.parent !== null && !cats.some((c) => c.slug === input.parent)) {
     throw new TaxonomyError('parent-not-found', `Parent "${input.parent}" does not exist`)
   }
-  const slug = uniqueSlug(slugify(input.name), new Set(cats.map((c) => c.slug)))
-  return { cats: [...cats, { slug, name: input.name.trim(), parent: input.parent }], slug }
+  const slug = uniqueSlug(slugify(trimmed), new Set(cats.map((c) => c.slug)))
+  return { cats: [...cats, { slug, name: trimmed, parent: input.parent }], slug }
 }
 
 /** Change a category's display name only (posts reference the slug, untouched). */
 export function renameLabel(cats: Category[], slug: string, name: string): Category[] {
   if (!cats.some((c) => c.slug === slug)) throw new TaxonomyError('not-found', `Category "${slug}" does not exist`)
-  return cats.map((c) => (c.slug === slug ? { ...c, name: name.trim() } : c))
+  const trimmed = name.trim()
+  if (trimmed === '') throw new TaxonomyError('empty-name', 'Category name cannot be empty')
+  return cats.map((c) => (c.slug === slug ? { ...c, name: trimmed } : c))
 }
 
 /** Move a category under a new parent (or null for root). Throws on missing

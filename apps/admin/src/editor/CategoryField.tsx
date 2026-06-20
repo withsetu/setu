@@ -25,6 +25,7 @@ export function CategoryField({
   const rows = useMemo(() => flatten(buildTree(categories)), [categories])
   const [name, setName] = useState('')
   const [parent, setParent] = useState('')
+  const [error, setError] = useState<string | null>(null)
 
   const toggle = (slug: string) =>
     onChange(selected.includes(slug) ? selected.filter((s) => s !== slug) : [...selected, slug])
@@ -32,10 +33,15 @@ export function CategoryField({
   const submit = async () => {
     const trimmed = name.trim()
     if (!trimmed) return
-    const slug = await create({ name: trimmed, parent: parent || null })
-    if (!selected.includes(slug)) onChange([...selected, slug])
-    setName('')
-    setParent('')
+    setError(null)
+    try {
+      const slug = await create({ name: trimmed, parent: parent || null })
+      if (!selected.includes(slug)) onChange([...selected, slug])
+      setName('')
+      setParent('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
   }
 
   return (
@@ -55,6 +61,7 @@ export function CategoryField({
         ))}
       </div>
       <div className="category-new">
+        {error && <p role="alert" className="error">{error}</p>}
         <input
           type="text"
           placeholder="New category"

@@ -40,4 +40,14 @@ describe('TaxonomyService', () => {
     expect(afterReparent.find((c) => c.slug === 'react')!.parent).toBe('tutorials')
     expect(parseCategories((await git.readFile(TAXONOMY_PATH))!)).toEqual(afterReparent)
   })
+
+  it('reparent to same parent is a no-op (no new commit)', async () => {
+    const git = createMemoryGitPort()
+    const svc = createTaxonomyService({ git, author })
+    await svc.create({ name: 'Tutorials', parent: null })
+    const shaAfterCreate = await git.headSha()
+    // reparent to current parent (null) — file content is unchanged, should not commit
+    await svc.reparent('tutorials', null)
+    expect(await git.headSha()).toBe(shaAfterCreate)
+  })
 })

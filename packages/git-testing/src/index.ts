@@ -110,5 +110,16 @@ export function runGitPortContract(makeAdapter: () => Promise<GitPort> | GitPort
       expect(sha).toBe(first)
       expect(await port.readFile('a.mdoc')).toBe('A')
     })
+
+    it('commitFiles applies same-path changes in order (last wins)', async () => {
+      await port.commitFile({ path: 'x.mdoc', content: 'OLD', message: 'm', author })
+      // delete then re-write the same path in one batch → write wins
+      const a = await port.commitFiles({ changes: [{ path: 'x.mdoc', delete: true }, { path: 'x.mdoc', content: 'OLD' }], message: 'b1', author })
+      expect(await port.headSha()).toBe(a.sha)
+      expect(await port.readFile('x.mdoc')).toBe('OLD')
+      // write then delete the same path in one batch → delete wins
+      await port.commitFiles({ changes: [{ path: 'x.mdoc', content: 'NEW' }, { path: 'x.mdoc', delete: true }], message: 'b2', author })
+      expect(await port.readFile('x.mdoc')).toBeNull()
+    })
   })
 }

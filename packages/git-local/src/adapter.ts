@@ -69,25 +69,36 @@ export function createLocalGitAdapter(options: LocalGitOptions): GitPort {
     serialize(async () => {
       const staged: string[] = []
       try {
+        const pending = new Map<string, string | null>()
+        const effective = async (p: string): Promise<string | null> => {
+          const v = pending.get(p)
+          return v === undefined ? await readFileAtHead(p) : v
+        }
         for (const ch of changes) {
           const full = safePath(ch.path)
           if ('delete' in ch) {
-            if ((await readFileAtHead(ch.path)) !== null) {
+            if ((await effective(ch.path)) !== null) {
               await fs.promises.unlink(full).catch(() => {})
               await git.remove({ fs, dir, filepath: ch.path })
               staged.push(ch.path)
             }
-          } else if ((await readFileAtHead(ch.path)) !== ch.content) {
-            await fs.promises.mkdir(dirname(full), { recursive: true })
-            await fs.promises.writeFile(full, ch.content, 'utf8')
-            await git.add({ fs, dir, filepath: ch.path })
-            staged.push(ch.path)
+            pending.set(ch.path, null)
+          } else {
+            if ((await effective(ch.path)) !== ch.content) {
+              await fs.promises.mkdir(dirname(full), { recursive: true })
+              await fs.promises.writeFile(full, ch.content, 'utf8')
+              await git.add({ fs, dir, filepath: ch.path })
+              staged.push(ch.path)
+            }
+            pending.set(ch.path, ch.content)
           }
         }
         if (staged.length === 0) return { sha: (await headSha()) ?? '' }
         const sha = await git.commit({ fs, dir, message, author: { name: author.name, email: author.email } })
         return { sha }
       } catch (e) {
+        // Note: working tree may be partially written/unlinked on failure — only
+        // the index is reset here, which is what matters for the next commit.
         for (const p of staged) await git.resetIndex({ fs, dir, filepath: p }).catch(() => {})
         throw e
       }

@@ -41,6 +41,15 @@ export default defineMarkdocConfig({
     ...generatedTags,
     sub: { render: component('./src/components/Sub.astro') },
     sup: { render: component('./src/components/Sup.astro') },
+    image: {
+      render: component('./src/components/ImageFigure.astro'),
+      attributes: {
+        src: { type: String },
+        alt: { type: String },
+        caption: { type: String },
+        align: { type: String, matches: ['none', 'left', 'right', 'wide', 'full'], default: 'none' },
+      },
+    },
   },
   nodes: {
     paragraph: {

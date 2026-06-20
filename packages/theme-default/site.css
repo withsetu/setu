@@ -37,3 +37,20 @@ body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--
 .prose th { font-family: var(--font-heading); font-weight: 700; }
 .measure-post { max-width: var(--measure-post); margin: 0 auto; }
 .measure-page { max-width: var(--measure-page); margin: 0 auto; }
+
+/* Inline images (![](...)) fit the content column (the figure block has its own rule below) */
+.prose img { max-width: 100%; height: auto; }
+
+/* {% image %} figure block (media #5a) */
+.prose figure.setu-image { margin: 1.75rem 0; }
+.prose figure.setu-image img { display: block; max-width: 100%; height: auto; border-radius: var(--r-md); }
+.prose figure.setu-image figcaption { margin-top: .5rem; font-size: .9rem; color: var(--text-2); text-align: center; }
+.prose figure.setu-image.align-wide { max-width: var(--measure-page); margin-left: 50%; transform: translateX(-50%); }
+.prose figure.setu-image.align-full { width: 100vw; margin-left: 50%; transform: translateX(-50%); }
+.prose figure.setu-image.align-full img { border-radius: 0; }
+.prose figure.setu-image.align-left { float: left; max-width: 50%; margin: .3rem 1.25rem 1rem 0; }
+.prose figure.setu-image.align-right { float: right; max-width: 50%; margin: .3rem 0 1rem 1.25rem; }
+@media (max-width: 38rem) {
+  .prose figure.setu-image.align-left,
+  .prose figure.setu-image.align-right { float: none; max-width: 100%; margin: 1.75rem 0; }
+}

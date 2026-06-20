@@ -5,16 +5,16 @@ export function srcFromUploadUrl(url: string): string {
   return new URL(url).pathname
 }
 
-export interface ImageNodeSpec {
-  type: 'image'
-  attrs: { src: string; alt: string; title: null }
+export interface ImageBlockSpec {
+  type: 'imageBlock'
+  attrs: { mdAttrs: { src: string; align: 'none' } }
 }
 
-export function imageNodeFromUpload(result: UploadResult): ImageNodeSpec {
+export function imageNodeFromUpload(result: UploadResult): ImageBlockSpec {
   if (!result.contentType.startsWith('image/')) {
     throw new Error(`not an image: ${result.contentType}`)
   }
-  return { type: 'image', attrs: { src: srcFromUploadUrl(result.url), alt: '', title: null } }
+  return { type: 'imageBlock', attrs: { mdAttrs: { src: srcFromUploadUrl(result.url), align: 'none' } } }
 }
 
 export interface InsertHandlers {
@@ -22,12 +22,12 @@ export interface InsertHandlers {
   onError?: (msg: string) => void
 }
 
-/** Open an image file picker; on pick, upload via the media service and insert the
- *  image node at the selection. Busy/error are reported through `handlers`. */
-export function pickImageAndInsert(
-  editor: Editor,
+/** Open an image file picker; on pick, upload via the media service and hand the result
+ *  to `onResult`. Busy/error are reported through `handlers`. The single upload primitive. */
+export function pickAndUploadImage(
   apiBase: string,
-  handlers: InsertHandlers = {},
+  handlers: InsertHandlers,
+  onResult: (result: UploadResult) => void,
   upload: typeof uploadFile = uploadFile,
 ): void {
   const input = document.createElement('input')
@@ -38,8 +38,7 @@ export function pickImageAndInsert(
     if (!file) return
     handlers.onUploading?.(true)
     try {
-      const result = await upload(apiBase, file)
-      editor.chain().focus().insertContent(imageNodeFromUpload(result)).run()
+      onResult(await upload(apiBase, file))
     } catch (err) {
       handlers.onError?.(err instanceof Error ? err.message : String(err))
     } finally {
@@ -47,4 +46,32 @@ export function pickImageAndInsert(
     }
   }
   input.click()
+}
+
+/** Pick + upload, then insert a new imageBlock at the selection. */
+export function pickImageAndInsert(
+  editor: Editor,
+  apiBase: string,
+  handlers: InsertHandlers = {},
+  upload: typeof uploadFile = uploadFile,
+): void {
+  pickAndUploadImage(apiBase, handlers, (result) => {
+    editor.chain().focus().insertContent(imageNodeFromUpload(result)).run()
+  }, upload)
+}
+
+/** Pick + upload, then hand the new path-only src to `onSrc` (the node-view Replace action). */
+export function replaceImage(
+  apiBase: string,
+  handlers: InsertHandlers,
+  onSrc: (src: string) => void,
+  upload: typeof uploadFile = uploadFile,
+): void {
+  pickAndUploadImage(apiBase, handlers, (result) => {
+    if (!result.contentType.startsWith('image/')) {
+      handlers.onError?.(`not an image: ${result.contentType}`)
+      return
+    }
+    onSrc(srcFromUploadUrl(result.url))
+  }, upload)
 }

@@ -35,8 +35,8 @@ const BUILTINS: SlashBlock[] = [
   { title: 'Table', subtitle: 'Table with header row', icon: 'table', run: (e, r) => e.chain().focus().deleteRange(r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
   { title: 'Image', subtitle: 'Upload an image', icon: 'image', run: (e, r) => {
     e.chain().focus().deleteRange(r).run()
-    const editor = e as Editor & { storage: { image?: { onUploading?: (b: boolean) => void; onError?: (m: string) => void } } }
-    pickImageAndInsert(editor, (import.meta.env.VITE_SETU_API as string) ?? '', editor.storage.image ?? {})
+    const editor = e as Editor & { storage: { imageBlock?: { onUploading?: (b: boolean) => void; onError?: (m: string) => void } } }
+    pickImageAndInsert(editor, (import.meta.env.VITE_SETU_API as string) ?? '', editor.storage.imageBlock ?? {})
   } },
 ]
 

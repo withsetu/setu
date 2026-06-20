@@ -149,6 +149,9 @@ function blockToTiptap(node: MdNode): TiptapNode | null {
       if (tag === 'callout') {
         return { type: 'callout', attrs: { mdAttrs: node.attributes }, content: kids }
       }
+      if (tag === 'image') {
+        return { type: 'imageBlock', attrs: { mdAttrs: node.attributes } }
+      }
       return { type: 'setuBlock', attrs: { tag, mdAttrs: node.attributes }, content: kids }
     }
     case 'table': {

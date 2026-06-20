@@ -3,10 +3,12 @@ import { render, cleanup, act } from '@testing-library/react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import type { Editor } from '@tiptap/core'
+import { NodeSelection } from '@tiptap/pm/state'
 import { tiptapToMarkdoc } from '@setu/core'
 import type { TiptapDoc } from '@setu/core'
 import { BlockActions } from '../src/editor/extensions/BlockActions'
 import { Callout } from '../src/editor/extensions/Callout'
+import { ImageBlock } from '../src/editor/extensions/ImageBlock'
 
 afterEach(cleanup)
 
@@ -136,7 +138,7 @@ describe('BlockActions', () => {
     expect(editor.state.selection.$from.node(1).textContent).toBe('A')
   })
 
-  it('duplicateBlock preserves a callout’s mdAttrs and nested content', () => {
+  it('duplicateBlock preserves a callout mdAttrs and nested content', () => {
     let editor!: Editor
     render(<CalloutHarness onReady={(e) => (editor = e)} />)
     act(() => {
@@ -148,5 +150,75 @@ describe('BlockActions', () => {
     expect(callouts).toHaveLength(2)
     expect(callouts[0]?.attrs?.mdAttrs).toEqual({ type: 'warning', title: 'Heads up' })
     expect(callouts[1]?.attrs?.mdAttrs).toEqual({ type: 'warning', title: 'Heads up' })
+  })
+})
+
+const IMAGE_ATTRS = { mdAttrs: { src: '/x.png', align: 'none' } }
+
+function ImageHarness({ onReady }: { onReady: (e: Editor) => void }) {
+  const editor = useEditor({
+    immediatelyRender: false,
+    extensions: [StarterKit, BlockActions, ImageBlock],
+    content: {
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'a' }] },
+        { type: 'imageBlock', attrs: IMAGE_ATTRS },
+        { type: 'paragraph', content: [{ type: 'text', text: 'b' }] },
+      ],
+    },
+  })
+  if (editor) onReady(editor)
+  return <EditorContent editor={editor} />
+}
+
+/** Return the position (absolute start offset) of the imageBlock in the doc. */
+function imageBlockPos(editor: Editor): number {
+  let pos = 0
+  for (let i = 0; i < editor.state.doc.childCount; i += 1) {
+    const child = editor.state.doc.child(i)
+    if (child.type.name === 'imageBlock') return pos
+    pos += child.nodeSize
+  }
+  throw new Error('imageBlock not found in doc')
+}
+
+/** Select the imageBlock via a NodeSelection. */
+function selectImageBlock(editor: Editor) {
+  act(() => {
+    const pos = imageBlockPos(editor)
+    editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, pos)))
+  })
+}
+
+describe('BlockActions — top-level atom (imageBlock)', () => {
+  it('deleteBlock removes the imageBlock, leaving both paragraphs', () => {
+    let editor!: Editor
+    render(<ImageHarness onReady={(e) => (editor = e)} />)
+    selectImageBlock(editor)
+    act(() => { editor.commands.deleteBlock() })
+    const json = editor.getJSON() as { content: Array<{ type: string }> }
+    expect(json.content.some((n) => n.type === 'imageBlock')).toBe(false)
+    expect(json.content.filter((n) => n.type === 'paragraph')).toHaveLength(2)
+  })
+
+  it('moveBlockUp moves imageBlock above the first paragraph (to index 0)', () => {
+    let editor!: Editor
+    render(<ImageHarness onReady={(e) => (editor = e)} />)
+    selectImageBlock(editor)
+    act(() => { editor.commands.moveBlockUp() })
+    const json = editor.getJSON() as { content: Array<{ type: string }> }
+    expect(json.content[0]?.type).toBe('imageBlock')
+    expect(json.content[1]?.type).toBe('paragraph')
+    expect(json.content[2]?.type).toBe('paragraph')
+  })
+
+  it('duplicateBlock yields two imageBlock nodes', () => {
+    let editor!: Editor
+    render(<ImageHarness onReady={(e) => (editor = e)} />)
+    selectImageBlock(editor)
+    act(() => { editor.commands.duplicateBlock() })
+    const json = editor.getJSON() as { content: Array<{ type: string }> }
+    expect(json.content.filter((n) => n.type === 'imageBlock')).toHaveLength(2)
   })
 })

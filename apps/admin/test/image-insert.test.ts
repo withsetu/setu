@@ -1,8 +1,8 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
-import { Image } from '../src/editor/extensions/Image'
-import { srcFromUploadUrl, imageNodeFromUpload, pickImageAndInsert } from '../src/editor/image-insert'
+import { ImageBlock } from '../src/editor/extensions/ImageBlock'
+import { srcFromUploadUrl, imageNodeFromUpload, pickImageAndInsert, replaceImage } from '../src/editor/image-insert'
 import type { UploadResult } from '../src/media/upload-client'
 
 afterEach(() => vi.restoreAllMocks())
@@ -19,9 +19,9 @@ describe('srcFromUploadUrl', () => {
 })
 
 describe('imageNodeFromUpload', () => {
-  it('builds an image node with the path-only src, empty alt, null title', () => {
+  it('builds an imageBlock spec with path-only src and align none', () => {
     expect(imageNodeFromUpload(result())).toEqual({
-      type: 'image', attrs: { src: '/uploads/media/abc/original.png', alt: '', title: null },
+      type: 'imageBlock', attrs: { mdAttrs: { src: '/uploads/media/abc/original.png', align: 'none' } },
     })
   })
   it('throws when the upload result is not an image', () => {
@@ -31,33 +31,24 @@ describe('imageNodeFromUpload', () => {
 
 describe('pickImageAndInsert', () => {
   function makeEditor() {
-    return new Editor({ extensions: [StarterKit, Image], content: { type: 'doc', content: [{ type: 'paragraph' }] } })
+    return new Editor({ extensions: [StarterKit, ImageBlock], content: { type: 'doc', content: [{ type: 'paragraph' }] } })
   }
-
-  it('uploads the picked file and inserts the image node; reports busy true then false', async () => {
+  it('uploads the picked file and inserts an imageBlock; reports busy true then false', async () => {
     const editor = makeEditor()
     const upload = vi.fn().mockResolvedValue(result())
-    const onUploading = vi.fn()
-    const onError = vi.fn()
-
-    // Capture the input element pickImageAndInsert creates.
+    const onUploading = vi.fn(); const onError = vi.fn()
     const input = document.createElement('input')
     vi.spyOn(document, 'createElement').mockReturnValueOnce(input)
     vi.spyOn(input, 'click').mockImplementation(() => {})
-
     pickImageAndInsert(editor, 'http://localhost:4444', { onUploading, onError }, upload)
-
-    // Simulate the user choosing a file.
     Object.defineProperty(input, 'files', { value: [new File([new Uint8Array([1])], 'cat.png', { type: 'image/png' })] })
     await input.onchange?.(new Event('change'))
-
-    const node = editor.getJSON().content?.[0]?.content?.[0]
-    expect(node).toMatchObject({ type: 'image', attrs: { src: '/uploads/media/abc/original.png' } })
+    const node = editor.getJSON().content?.find((n) => n.type === 'imageBlock')
+    expect(node).toMatchObject({ type: 'imageBlock', attrs: { mdAttrs: { src: '/uploads/media/abc/original.png' } } })
     expect(onUploading.mock.calls).toEqual([[true], [false]])
     expect(onError).not.toHaveBeenCalled()
     editor.destroy()
   })
-
   it('reports the error and inserts nothing on a failed upload', async () => {
     const editor = makeEditor()
     const upload = vi.fn().mockRejectedValue(new Error('file too large'))
@@ -65,13 +56,38 @@ describe('pickImageAndInsert', () => {
     const input = document.createElement('input')
     vi.spyOn(document, 'createElement').mockReturnValueOnce(input)
     vi.spyOn(input, 'click').mockImplementation(() => {})
-
     pickImageAndInsert(editor, 'http://localhost:4444', { onError }, upload)
     Object.defineProperty(input, 'files', { value: [new File([new Uint8Array([1])], 'big.png', { type: 'image/png' })] })
     await input.onchange?.(new Event('change'))
-
     expect(onError).toHaveBeenCalledWith('file too large')
-    expect(editor.getJSON().content?.[0]?.content ?? []).toEqual([]) // empty paragraph, nothing inserted
+    expect(editor.getJSON().content?.find((n) => n.type === 'imageBlock')).toBeUndefined()
     editor.destroy()
+  })
+})
+
+describe('replaceImage', () => {
+  it('uploads the picked file and calls onSrc with the path-only src', async () => {
+    const upload = vi.fn().mockResolvedValue(result({ url: 'http://localhost:4444/uploads/media/xyz/original.png' }))
+    const onSrc = vi.fn(); const onUploading = vi.fn()
+    const input = document.createElement('input')
+    vi.spyOn(document, 'createElement').mockReturnValueOnce(input)
+    vi.spyOn(input, 'click').mockImplementation(() => {})
+    replaceImage('http://localhost:4444', { onUploading }, onSrc, upload)
+    Object.defineProperty(input, 'files', { value: [new File([new Uint8Array([1])], 'x.png', { type: 'image/png' })] })
+    await input.onchange?.(new Event('change'))
+    expect(onSrc).toHaveBeenCalledWith('/uploads/media/xyz/original.png')
+    expect(onUploading.mock.calls).toEqual([[true], [false]])
+  })
+  it('rejects non-image uploads and calls onError without calling onSrc', async () => {
+    const upload = vi.fn().mockResolvedValue(result({ contentType: 'application/pdf' }))
+    const onSrc = vi.fn(); const onError = vi.fn()
+    const input = document.createElement('input')
+    vi.spyOn(document, 'createElement').mockReturnValueOnce(input)
+    vi.spyOn(input, 'click').mockImplementation(() => {})
+    replaceImage('http://localhost:4444', { onError }, onSrc, upload)
+    Object.defineProperty(input, 'files', { value: [new File([new Uint8Array([1])], 'doc.pdf', { type: 'application/pdf' })] })
+    await input.onchange?.(new Event('change'))
+    expect(onError).toHaveBeenCalledWith(expect.stringMatching(/not an image/))
+    expect(onSrc).not.toHaveBeenCalled()
   })
 })

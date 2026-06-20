@@ -1,7 +1,23 @@
 import { Extension } from '@tiptap/core'
-import { TextSelection } from '@tiptap/pm/state'
-import type { Transaction } from '@tiptap/pm/state'
+import { NodeSelection, TextSelection } from '@tiptap/pm/state'
+import type { EditorState, Transaction } from '@tiptap/pm/state'
+import type { Node as PMNode } from '@tiptap/pm/model'
 import { moveBlock, startOfChild } from '../block-reorder'
+
+interface TopBlock { index: number; from: number; to: number; node: PMNode }
+
+/** The top-level block targeted by the current selection — works for a text selection
+ *  inside a block AND a NodeSelection on a top-level atom (e.g. imageBlock). null if none. */
+function topBlock(state: EditorState): TopBlock | null {
+  const sel = state.selection
+  if (sel instanceof NodeSelection && sel.$from.depth === 0) {
+    const node = sel.node
+    return { index: sel.$from.index(0), from: sel.from, to: sel.from + node.nodeSize, node }
+  }
+  const { $from } = sel
+  if ($from.depth < 1) return null
+  return { index: $from.index(0), from: $from.before(1), to: $from.after(1), node: $from.node(1) }
+}
 
 /** Put the caret inside the top-level block now at `index` in the post-move doc.
  *  Computed from the NEW doc (not old-doc neighbor math) so it lands inside the moved
@@ -33,12 +49,10 @@ export const BlockActions = Extension.create({
       moveBlockUp:
         () =>
         ({ state, tr, dispatch }) => {
-          const { $from } = state.selection
-          if ($from.depth < 1) return false
-          const index = $from.index(0)
-          if (index <= 0) return false
-          if (dispatch && moveBlock(state.doc, tr, index, index - 1)) {
-            selectBlockAt(tr, index - 1) // moved block now sits at index - 1
+          const b = topBlock(state)
+          if (!b || b.index <= 0) return false
+          if (dispatch && moveBlock(state.doc, tr, b.index, b.index - 1)) {
+            selectBlockAt(tr, b.index - 1) // moved block now sits at index - 1
           }
           return true
         },
@@ -46,12 +60,10 @@ export const BlockActions = Extension.create({
       moveBlockDown:
         () =>
         ({ state, tr, dispatch }) => {
-          const { $from } = state.selection
-          if ($from.depth < 1) return false
-          const index = $from.index(0)
-          if (index >= state.doc.childCount - 1) return false
-          if (dispatch && moveBlock(state.doc, tr, index, index + 1)) {
-            selectBlockAt(tr, index + 1) // moved block now sits at index + 1
+          const b = topBlock(state)
+          if (!b || b.index >= state.doc.childCount - 1) return false
+          if (dispatch && moveBlock(state.doc, tr, b.index, b.index + 1)) {
+            selectBlockAt(tr, b.index + 1) // moved block now sits at index + 1
           }
           return true
         },
@@ -59,27 +71,23 @@ export const BlockActions = Extension.create({
       duplicateBlock:
         () =>
         ({ state, chain }) => {
-          const { $from } = state.selection
-          if ($from.depth < 1) return false
-          const after = $from.after(1)
-          const node = $from.node(1)
-          return chain().insertContentAt(after, node.toJSON()).run()
+          const b = topBlock(state)
+          if (!b) return false
+          return chain().insertContentAt(b.to, b.node.toJSON()).run()
         },
 
       deleteBlock:
         () =>
         ({ state, tr, dispatch }) => {
-          const { $from } = state.selection
-          if ($from.depth < 1) return false
-          const from = $from.before(1)
-          const to = $from.after(1)
+          const b = topBlock(state)
+          if (!b) return false
           if (dispatch) {
             if (state.doc.childCount > 1) {
-              tr.delete(from, to)
+              tr.delete(b.from, b.to)
             } else {
-              tr.replaceWith(from, to, state.schema.nodes.paragraph!.create())
+              tr.replaceWith(b.from, b.to, state.schema.nodes.paragraph!.create())
             }
-            const target = Math.min(from + 1, tr.doc.content.size)
+            const target = Math.min(b.from + 1, tr.doc.content.size)
             tr.setSelection(TextSelection.near(tr.doc.resolve(target)))
           }
           return true
@@ -91,6 +99,8 @@ export const BlockActions = Extension.create({
     return {
       'Alt-Shift-ArrowUp': () => this.editor.commands.moveBlockUp(),
       'Alt-Shift-ArrowDown': () => this.editor.commands.moveBlockDown(),
+      'Alt-Shift-d': () => this.editor.commands.duplicateBlock(),
+      'Alt-Shift-Backspace': () => this.editor.commands.deleteBlock(),
     }
   },
 })

@@ -19,3 +19,8 @@ export const registry: BlockRegistry = buildRegistry(
     return { tag, component: `blocks/${tag}/${tag}.astro`, contract }
   }),
 )
+
+// `image` has a dedicated editor node (ImageBlock) but is NOT a folder block — its render
+// needs apps/site's build-time manifest read (#5a). Register it as a known editor tag so the
+// round-trip maps {% image %} to the imageBlock node instead of a passthrough.
+registry.knownBlockTags.add('image')

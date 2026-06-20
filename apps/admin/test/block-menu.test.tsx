@@ -62,4 +62,22 @@ describe('BlockMenu', () => {
     expect(a.duplicate).toHaveBeenCalledOnce()
     expect(onClose).toHaveBeenCalledOnce()
   })
+
+  it('renders a non-empty shortcut kbd for each of the four menu items', () => {
+    render(<BlockMenu actions={actions()} canMoveUp canMoveDown onClose={vi.fn()} />)
+    const kbds = document.querySelectorAll('.blk-menu-key')
+    expect(kbds).toHaveLength(4)
+    kbds.forEach((kbd) => {
+      expect(kbd.textContent?.trim().length).toBeGreaterThan(0)
+    })
+  })
+
+  it('shows duplicate and delete shortcut text in menu items', () => {
+    render(<BlockMenu actions={actions()} canMoveUp canMoveDown onClose={vi.fn()} />)
+    const kbds = Array.from(document.querySelectorAll('.blk-menu-key'))
+    // duplicate is 3rd item (index 2), delete is 4th (index 3)
+    // On non-Mac (jsdom) we expect PC label format
+    expect(kbds[2]?.textContent).toMatch(/Alt/) // duplicate: Alt+Shift+D
+    expect(kbds[3]?.textContent).toMatch(/Alt/) // delete: Alt+Shift+Backspace
+  })
 })

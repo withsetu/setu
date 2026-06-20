@@ -1,15 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import type { ImageFormat, ImagePort, VariantSpec } from '@setu/core'
+import { contentTypeFor } from '@setu/core'
+import type { ImagePort, VariantSpec } from '@setu/core'
 import { makeTestPng, detectFormat } from './png'
 
 export { makeTestPng, detectFormat } from './png'
-
-const CONTENT_TYPE: Record<ImageFormat, string> = {
-  webp: 'image/webp',
-  avif: 'image/avif',
-  jpeg: 'image/jpeg',
-  png: 'image/png',
-}
 
 /** Run the ImagePort behavioural contract against an adapter. `makeAdapter` returns a
  *  ready adapter on each call. */
@@ -64,7 +58,7 @@ export function runImagePortContract(makeAdapter: () => Promise<ImagePort> | Ima
       ])
       for (const v of out) {
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        expect(v.contentType).toBe(CONTENT_TYPE[v.format]!)
+        expect(v.contentType).toBe(contentTypeFor(v.format))
         expect(detectFormat(v.body)).toBe(v.format)
       }
     })

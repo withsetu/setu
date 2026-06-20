@@ -1,13 +1,7 @@
 import { Buffer } from 'node:buffer'
 import sharp from 'sharp'
+import { contentTypeFor } from '@setu/core'
 import type { GeneratedVariant, ImageFormat, ImageMeta, ImagePort, VariantSpec } from '@setu/core'
-
-const CONTENT_TYPE: Record<ImageFormat, string> = {
-  webp: 'image/webp',
-  avif: 'image/avif',
-  jpeg: 'image/jpeg',
-  png: 'image/png',
-}
 
 /** Conservative per-format defaults (good size/quality). PNG is lossless — no quality. */
 const DEFAULT_QUALITY: Record<ImageFormat, number | undefined> = {
@@ -37,7 +31,7 @@ export function createSharpImageAdapter(): ImagePort {
           width: info.width,
           height: info.height,
           format: spec.format,
-          contentType: CONTENT_TYPE[spec.format],
+          contentType: contentTypeFor(spec.format),
           body: new Uint8Array(data),
         })
       }

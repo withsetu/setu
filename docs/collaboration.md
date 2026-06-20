@@ -31,6 +31,12 @@ That is exactly the lock we hit. The flow below routes around it.
 5. **Sync small and often.** Merge `origin/main` into your branch at least at the start
    of each feature and before you ship — not once at the end.
 6. **Claim your turf** (see Ownership below) so two sessions don't edit the same files.
+7. **If you drive work with subagents, guard their cwd + branch.** A subagent can stray into
+   the wrong worktree or branch and commit there — it happened (a subagent committed to `main`
+   by mistake). Every subagent dispatch must, before any edit or commit, verify
+   `git rev-parse --show-toplevel` is *its* worktree and `git branch --show-current` is *its*
+   branch, and must never run `git checkout/switch/reset/merge` or touch another checkout. With
+   multiple live checkouts this is essential, not optional.
 
 ---
 
@@ -96,6 +102,12 @@ Agree on **zones** up front so changes don't collide. Example split:
 - **Session A:** `packages/core/src/image`, `apps/api`, `apps/site` (media pipeline)
 - **Session B:** `apps/admin` (dashboard, content listing)
 
+**Zones are verticals, not single directories.** An "admin" feature routinely reaches into
+`packages/core` and the `packages/db-*` adapters — the content index, for example, lives in
+`packages/core/src/index-port` with `db-memory`/`db-idb`/`db-testing` implementations, not just
+`apps/admin`. The media pipeline reaches into `packages/core` too. So treat a zone as "this
+feature's whole vertical" and coordinate on shared **core/db** files, not only `apps/admin`.
+
 **Hot files both sessions tend to touch — coordinate or serialize edits to these:**
 - `apps/admin/src/app.tsx` (route table)
 - `packages/core/src/index.ts` (barrel exports)
@@ -129,3 +141,4 @@ so the other session can see the turf. Keep it short.
 - [ ] Ran **`pnpm -r test && pnpm -r typecheck`** on the *merged* result before pushing.
 - [ ] Pushed the branch to `origin`; integrated via PR (or via the integrator session).
 - [ ] Synced `origin/main` into the branch **before** shipping, not after a long divergence.
+- [ ] If using subagents: each dispatch verified its **worktree path + branch** before committing.

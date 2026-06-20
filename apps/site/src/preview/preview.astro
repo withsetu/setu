@@ -13,6 +13,7 @@ import markdocConfig from '../../markdoc.config.mjs'
 import PostLayout from '@theme/PostLayout.astro'
 import PageLayout from '@theme/PageLayout.astro'
 import CalloutWrapper from '../../../../blocks/callout/callout.astro'
+import ImageFigure from '../components/ImageFigure.astro'
 import Sub from '../components/Sub.astro'
 import Sup from '../components/Sup.astro'
 import Heading from '../components/Heading.astro'
@@ -33,7 +34,10 @@ try {
 
 // Build the Content component for the draft body, reusing the build's own markdoc runtime.
 markdocConfig.nodes = { ...assetsConfig.nodes, ...markdocConfig.nodes }
-const tagComponentMap = { callout: CalloutWrapper, sub: Sub, sup: Sup }
+// MUST list every tag that markdoc.config.mjs renders via `component()` — the runtime only
+// resolves the real component for tags present here; a missing one leaks the `component()`
+// descriptor into the renderer and crashes (`$$typeof` undefined). Keep in sync with markdoc.config.
+const tagComponentMap = { callout: CalloutWrapper, image: ImageFigure, sub: Sub, sup: Sup }
 const nodeComponentMap = { heading: Heading, paragraph: Paragraph, th: Th, td: Td }
 
 let Content = null

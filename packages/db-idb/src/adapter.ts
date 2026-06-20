@@ -31,6 +31,8 @@ export async function createIdbDataPort(dbName = 'setu-data'): Promise<DataPort>
         content: input.content,
         metadata: input.metadata,
         baseSha: input.baseSha ?? null,
+        // Preserve the fork point across saves that omit it (editing must not move it).
+        baseContent: input.baseContent !== undefined ? input.baseContent : (existing?.baseContent ?? null),
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
       }

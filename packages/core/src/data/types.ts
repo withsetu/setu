@@ -15,6 +15,10 @@ export interface Draft extends EntryRef {
   metadata: Record<string, unknown>
   /** Git SHA the draft forked from (§2 base-SHA publish conflict guard). */
   baseSha: string | null
+  /** The committed content this draft forked from — the PER-FILE conflict base
+   *  (§2). null for an entry never committed. Editing never changes it (it is the
+   *  fork reference); only fork (read service) and publish set it. */
+  baseContent?: string | null
   /** Epoch ms. */
   createdAt: number
   updatedAt: number
@@ -26,6 +30,9 @@ export interface DraftInput extends EntryRef {
   metadata: Record<string, unknown>
   /** Defaults to null when omitted. */
   baseSha?: string | null
+  /** The per-file conflict base. OMIT to PRESERVE the stored value (editing must
+   *  not move the fork point); set explicitly only on fork and on publish. */
+  baseContent?: string | null
 }
 
 /** A pessimistic edit lock on an entry (PRD §9). TTL policy lives in core. */

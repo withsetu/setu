@@ -34,6 +34,8 @@ function fakeData(): DataPort {
         content: input.content,
         metadata: input.metadata,
         baseSha: input.baseSha ?? null,
+        // Mirror the real adapters: preserve the fork point across saves that omit it.
+        baseContent: input.baseContent !== undefined ? input.baseContent : (existing?.baseContent ?? null),
         createdAt: existing?.createdAt ?? 0,
         updatedAt: 0,
       }
@@ -134,13 +136,24 @@ describe('createPublishService', () => {
     expect(await git.readFile(second.path)).toBe(tiptapToMarkdoc(doc('v2')))
   })
 
-  it('blocks with conflict when the repo advanced since the draft forked', async () => {
+  it('an unrelated commit advancing HEAD does NOT block this entry (per-file guard)', async () => {
+    // Publishing some OTHER file advances repo HEAD. The guard is per-file, so this
+    // entry — whose own file is untouched — must still publish (the bug fix).
     await git.commitFile({ path: 'other.mdoc', content: 'x', message: 'm', author })
-    await data.saveDraft({ ...ref, content: doc('mine'), metadata: {}, baseSha: 'stale-sha' })
+    await data.saveDraft({ ...ref, content: doc('mine'), metadata: {} }) // baseContent null, file absent
     const r = await svc().publish({ ref, author })
-    expect(r).toEqual({ status: 'conflict', baseSha: 'stale-sha', headSha: 'gitsha1' })
-    expect(await git.readFile('content/post/en/hello.mdoc')).toBeNull()
-    expect((await data.getDraft(ref))?.baseSha).toBe('stale-sha')
+    expect(r.status).toBe('published')
+    expect(await git.readFile('content/post/en/hello.mdoc')).not.toBeNull()
+  })
+
+  it('blocks with conflict when THIS file changed externally since the fork', async () => {
+    // Forked with baseContent = the committed file; an external edit to the SAME file
+    // must be detected (protection preserved — matters once multi-writer lands).
+    await data.saveDraft({ ...ref, content: doc('mine'), metadata: {}, baseContent: 'forked-from' })
+    await git.commitFile({ path: 'content/post/en/hello.mdoc', content: 'EXTERNAL', message: 'm', author })
+    const r = await svc().publish({ ref, author })
+    expect(r.status).toBe('conflict')
+    expect(await git.readFile('content/post/en/hello.mdoc')).toBe('EXTERNAL') // not clobbered
   })
 
   it('blocks a new entry (null baseSha) whose target file already exists', async () => {

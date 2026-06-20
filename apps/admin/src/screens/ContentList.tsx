@@ -42,7 +42,6 @@ export function ContentList({ collection, title }: { collection: string; title: 
   const [rows, setRows] = useState<ContentRow[] | null>(null)
   const [total, setTotal] = useState(0)
   const [locales, setLocales] = useState<string[]>([])
-  const [indexCategorySlugs, setIndexCategorySlugs] = useState<string[]>([])
 
   const q = params.get('q') ?? ''
   const status = params.get('status') ?? ''
@@ -53,20 +52,8 @@ export function ContentList({ collection, title }: { collection: string; title: 
   const sort = parseSort(sortRaw)
   const hasFilters = Boolean(q || status || locale || category || tag)
 
-  // Taxonomy tree provides hierarchy + names; index provides all slugs actually in use.
-  // Merge: prefer taxonomy entries (for name/depth), then append index-only slugs as leaf nodes.
+  // Category filter options come from the taxonomy (hierarchy + display names).
   const catRows = useMemo(() => flatten(buildTree(categories)), [categories])
-  const taxonomySlugs = useMemo(() => new Set(catRows.map((c) => c.slug)), [catRows])
-  const categoryOptions = useMemo(() => {
-    const opts = [...catRows]
-    // Append index slugs not in the taxonomy tree (shown as flat leaf entries).
-    for (const slug of indexCategorySlugs) {
-      if (!taxonomySlugs.has(slug)) {
-        opts.push({ slug, name: slug, parent: null, depth: 0, children: [] })
-      }
-    }
-    return opts
-  }, [catRows, indexCategorySlugs, taxonomySlugs])
 
   const setParam = (key: string, value: string) => {
     setParams(
@@ -102,18 +89,6 @@ export function ContentList({ collection, title }: { collection: string; title: 
   useEffect(() => {
     let live = true
     void index.distinctLocales().then((ls) => { if (live) setLocales(ls) }).catch(() => {})
-    return () => { live = false }
-  }, [index])
-
-  // Category dropdown options from the index (all slugs in use across content).
-  // Must await ensureBuilt so the index is populated before querying distinct cats.
-  useEffect(() => {
-    let live = true
-    void (async () => {
-      await index.ensureBuilt()
-      const cs = await index.distinctCategories()
-      if (live) setIndexCategorySlugs(cs)
-    })().catch(() => {})
     return () => { live = false }
   }, [index])
 
@@ -180,7 +155,7 @@ export function ContentList({ collection, title }: { collection: string; title: 
           </select>
           <select aria-label="Filter by category" value={category} onChange={(e) => setParam('category', e.target.value)}>
             <option value="">All categories</option>
-            {categoryOptions.map((c) => (
+            {catRows.map((c) => (
               <option key={c.slug} value={c.slug}>{' '.repeat(c.depth * 2)}{c.name}</option>
             ))}
           </select>

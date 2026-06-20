@@ -1,5 +1,5 @@
 import type { EntryIndexRow, IndexMeta, IndexPort, IndexQuery } from '@setu/core'
-import { runQuery, selectDistinctTags, selectDistinctLocales, selectDistinctCategories } from '@setu/core'
+import { runQuery, selectDistinctTags, selectDistinctLocales } from '@setu/core'
 
 /** In-memory IndexPort (Map-backed). Value semantics via structuredClone. */
 export function createMemoryIndexPort(): IndexPort {
@@ -32,9 +32,6 @@ export function createMemoryIndexPort(): IndexPort {
     },
     async distinctLocales() {
       return selectDistinctLocales([...rows.values()])
-    },
-    async distinctCategories() {
-      return selectDistinctCategories([...rows.values()])
     },
   }
 }

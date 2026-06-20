@@ -18,10 +18,3 @@ export function selectDistinctLocales(rows: EntryIndexRow[]): string[] {
   return [...set].sort()
 }
 
-/** Distinct category slugs across rows, sorted ascending. Like locales, feeds
- *  a filter dropdown without prefix/limit filtering. */
-export function selectDistinctCategories(rows: EntryIndexRow[]): string[] {
-  const set = new Set<string>()
-  for (const r of rows) for (const c of r.categories) set.add(c)
-  return [...set].sort()
-}

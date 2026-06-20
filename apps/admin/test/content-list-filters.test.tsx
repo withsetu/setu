@@ -17,9 +17,12 @@ function setup(initialEntries = ['/posts']) {
     { collection: 'post', locale: 'en', slug: 'alpha', content: doc('x'), metadata: { title: 'Alpha', status: 'draft', categories: ['guides'], tags: ['react'] } },
     { collection: 'post', locale: 'en', slug: 'beta', content: doc('x'), metadata: { title: 'Beta', status: 'draft', categories: ['news'], tags: ['vue'] } },
   ])
+  const git = createMemoryGitPort([
+    { path: 'taxonomy/categories.yaml', content: '- slug: guides\n  name: Guides\n  parent: null\n- slug: news\n  name: News\n  parent: null\n' },
+  ])
   render(
     <MemoryRouter initialEntries={initialEntries}>
-      <ServicesProvider services={servicesFor(data, createMemoryGitPort())}>
+      <ServicesProvider services={servicesFor(data, git)}>
         <DeployProvider><IndexProvider><TaxonomyProvider>
           <ContentList collection="post" title="Posts" />
         </TaxonomyProvider></IndexProvider></DeployProvider>
@@ -46,6 +49,7 @@ describe('ContentList — filters', () => {
   it('category filter narrows the list', async () => {
     setup()
     await screen.findByText('Alpha')
+    await screen.findByRole('option', { name: /News/i })
     fireEvent.change(screen.getByLabelText('Filter by category'), { target: { value: 'news' } })
     await waitFor(() => expect(screen.queryByText('Alpha')).toBeNull())
     expect(screen.getByText('Beta')).toBeTruthy()

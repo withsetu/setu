@@ -28,6 +28,7 @@ export { extensionFor, contentTypeFor } from './image/format'
 export type { ManifestVariant, MediaManifest } from './image/manifest'
 export { ingestImage } from './image/ingest'
 export type { IngestDeps, IngestInput } from './image/ingest'
+export { mediaSlug, mediaKeyOf, originalKey, variantKey, manifestKey } from './image/media-key'
 
 export type {
   AuthoringService,

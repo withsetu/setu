@@ -60,6 +60,7 @@ export function Categories() {
           {rows.map((node) => (
             <li key={node.slug} className="category-manage-row" style={{ paddingLeft: `${node.depth * 16}px` }}>
               <input
+                key={`name:${node.slug}:${node.name}`}
                 className="category-name-input"
                 defaultValue={node.name}
                 aria-label={`Name of ${node.slug}`}

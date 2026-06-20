@@ -36,4 +36,28 @@ describe('Categories screen', () => {
     fireEvent.blur(nameInput)
     await waitFor(() => expect(screen.getByDisplayValue('Guides')).toBeTruthy())
   })
+
+  it('re-parents a category under another root category', async () => {
+    wrap()
+    // Create two root categories
+    const newInput = screen.getByPlaceholderText('New category')
+    fireEvent.change(newInput, { target: { value: 'Tutorials' } })
+    fireEvent.click(screen.getByText('Add'))
+    await waitFor(() => expect(screen.getByDisplayValue('Tutorials')).toBeTruthy())
+
+    fireEvent.change(newInput, { target: { value: 'React' } })
+    fireEvent.click(screen.getByText('Add'))
+    await waitFor(() => expect(screen.getByDisplayValue('React')).toBeTruthy())
+
+    // Re-parent "React" under "Tutorials"
+    const parentSelect = screen.getByRole('combobox', { name: /parent of react/i })
+    fireEvent.change(parentSelect, { target: { value: 'tutorials' } })
+
+    // The "React" row should now be indented (depth 1 → paddingLeft 16px)
+    await waitFor(() => {
+      const reactInput = screen.getByDisplayValue('React')
+      const row = reactInput.closest('li') as HTMLElement
+      expect(row.style.paddingLeft).toBe('16px')
+    })
+  })
 })

@@ -55,3 +55,6 @@ export type { ContentRow, ListContentEntriesInput } from './content-index/list-e
 export { listContentEntries } from './content-index/list-entries'
 
 export { entryUrlPath, DEFAULT_LOCALE } from './url/entry-url'
+
+export type { EntryIndexRow, SortKey, IndexQuery, IndexMeta, IndexPort } from './index-port/types'
+export { indexKey, projectRow, rowToContentRow } from './index-port/types'

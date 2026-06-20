@@ -11,7 +11,7 @@ import { resolveLocalOwner } from './auth/resolve-actor'
 const dir = process.env.SETU_REPO_DIR ?? process.cwd()
 const port = Number(process.env.SETU_API_PORT ?? 4444)
 const mediaDir = process.env.SETU_MEDIA_DIR ?? `${dir}/.setu/uploads`
-const mediaPublicUrl = process.env.SETU_MEDIA_PUBLIC_URL ?? `http://localhost:${port}/uploads`
+const mediaPublicUrl = process.env.SETU_MEDIA_PUBLIC_URL ?? `http://localhost:${port}/media`
 const imageFormat = process.env.SETU_IMAGE_FORMAT === 'avif' ? 'avif' : 'webp'
 
 const app = new Hono()

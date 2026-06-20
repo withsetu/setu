@@ -16,7 +16,7 @@ export interface ImageMarkupInput {
   resolvedSrc: string
   alt: string
   title?: string
-  /** Resolves a root-relative `/uploads/<key>` to an absolute URL (the #3 resolver). */
+  /** Resolves a root-relative `/media/<key>` to an absolute URL (the #3 resolver). */
   resolveUrl: (rootRelative: string) => string
   sizes: string
 }
@@ -28,7 +28,7 @@ export function imageMarkup(input: ImageMarkupInput): ImageAttrs {
   if (!manifest || manifest.variants.length === 0) {
     return { src: resolvedSrc, alt, title }
   }
-  const srcset = manifest.variants.map((v) => `${resolveUrl(`/uploads/${v.key}`)} ${v.width}w`).join(', ')
+  const srcset = manifest.variants.map((v) => `${resolveUrl(`/media/${v.key}`)} ${v.width}w`).join(', ')
   return {
     src: resolvedSrc,
     alt,

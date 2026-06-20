@@ -6,7 +6,7 @@ const file = new File([new Uint8Array([1, 2])], 'a.png', { type: 'image/png' })
 
 describe('uploadFile', () => {
   it('posts FormData to <apiBase>/media and returns the parsed result', async () => {
-    const result = { id: '1', key: 'media/1/original.png', url: 'http://api/uploads/media/1/original.png', contentType: 'image/png', size: 2, filename: 'a.png' }
+    const result = { id: '2026/06/a', key: '2026/06/a.png', url: 'http://api/media/2026/06/a.png', contentType: 'image/png', size: 2, filename: 'a.png' }
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify(result), { status: 201, headers: { 'content-type': 'application/json' } }),
     )

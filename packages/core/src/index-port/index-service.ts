@@ -3,9 +3,9 @@ import type { GitPort } from '../git/git-port'
 import type { EntryRef } from '../data/types'
 import type { ContentRow } from '../content-index/list-entries'
 import { listContentEntries } from '../content-index/list-entries'
-import { parseContentPath } from '../publish/content-path'
+import { contentPath, parseContentPath } from '../publish/content-path'
 import type { IndexPort, IndexQuery } from './types'
-import { projectRow, rowToContentRow } from './types'
+import { indexKey, projectRow, rowToContentRow } from './types'
 
 export const INDEX_VERSION = 1
 
@@ -47,12 +47,18 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
     if (meta.version !== INDEX_VERSION) await rebuild()
   }
 
-  // reindexEntry + reindexAfterDeploy are added in Task 7.
-  async function reindexEntry(_ref: EntryRef): Promise<void> {
-    throw new Error('not implemented')
+  async function reindexEntry(ref: EntryRef): Promise<void> {
+    const draft = await data.getDraft(ref)
+    const committedStr = await git.readFile(contentPath(ref))
+    const drafts = draft ? [draft] : []
+    const committed = committedStr !== null ? [{ ref, content: committedStr }] : []
+    const rows = listContentEntries({ drafts, committed, deployedAt })
+    if (rows.length === 0) await index.remove(indexKey(ref))
+    else await index.upsert(projectRow(rows[0]!))
   }
+
   async function reindexAfterDeploy(): Promise<void> {
-    throw new Error('not implemented')
+    await rebuild()
   }
 
   async function query(q: IndexQuery): Promise<{ rows: ContentRow[]; total: number }> {

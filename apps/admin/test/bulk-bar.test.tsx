@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import type { ContentRow, TiptapDoc } from '@setu/core'
+import type { ContentRow } from '@setu/core'
 import { contentPath, serializeMdoc } from '@setu/core'
 import { createMemoryGitPort } from '@setu/git-memory'
 import { createMemoryDataPort } from '@setu/db-memory'

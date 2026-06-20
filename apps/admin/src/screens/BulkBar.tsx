@@ -91,7 +91,7 @@ export function BulkBar({
       <button type="button" className="btn btn-sm" disabled={busy} onClick={onClear}>Clear selection</button>
 
       {pendingCount > 0 && (
-        <span className="bulk-note">{pendingCount} of {selected.size} have unpublished changes that will also go live.</span>
+        <span className="bulk-note">{pendingCount} of {selectedRows.length} have unpublished changes that will also go live.</span>
       )}
       {msg && <span className="bulk-msg" role="status">{msg}</span>}
     </div>

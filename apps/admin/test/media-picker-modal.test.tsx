@@ -15,6 +15,8 @@ describe('MediaPickerModal', () => {
     const onPick = vi.fn()
     render(<MediaIndexProvider service={svc}><MediaPickerModal apiBase="http://x" open onClose={() => {}} onPick={onPick} /></MediaIndexProvider>)
     await waitFor(() => expect(screen.getByText('cat.png')).toBeInTheDocument())
+    // Same browse experience as /media: a search box + dropzone live alongside the grid.
+    expect(screen.getByLabelText('Search media')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /cat\.png/i }))
     expect(onPick).toHaveBeenCalledWith('/media/2026/06/cat.png')
   })

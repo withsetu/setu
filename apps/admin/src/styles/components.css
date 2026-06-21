@@ -545,40 +545,30 @@
   min-height: 48px;
 }
 
-.media-picker-tabs {
-  display: flex;
-  gap: 2px;
-  align-items: center;
-}
-
-.media-picker-tabs button {
-  display: inline-flex;
-  align-items: center;
-  height: 32px;
-  padding: 0 12px;
-  border: none;
-  background: transparent;
-  border-radius: var(--r-sm);
-  font-size: 13.5px;
-  font-weight: 550;
-  color: var(--text-2);
-  cursor: pointer;
-  transition: background .12s, color .12s;
-}
-
-.media-picker-tabs button:hover {
-  background: var(--surface-hover);
+.media-picker-title {
+  font-size: 14.5px;
+  font-weight: 600;
   color: var(--text);
-}
-
-.media-picker-tabs button[aria-selected="true"] {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
+  margin: 0;
 }
 
 .media-picker-body {
   flex: 1;
   overflow: auto;
+  padding: 16px 20px 20px;
+}
+
+/* Shared media browser: dropzone on top, toolbar, then grid. */
+.media-browser {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* In the picker the dropzone is a compact band above the library, not a hero. */
+.media-picker-body .media-dropzone {
+  min-height: 0;
+  padding: 18px;
 }
 
 .media-picker-close {

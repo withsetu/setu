@@ -11,7 +11,10 @@ interface ImageBlockStorage {
   apiBase: string
   onUploading?: (busy: boolean) => void
   onError?: (msg: string) => void
-  openPicker?: () => void
+  /** Open the pick-or-upload library modal; the chosen src is handed to `onPick`.
+   *  Wired by Canvas. Undefined in non-Canvas contexts (Replace falls back to a
+   *  direct upload then). */
+  openPicker?: (onPick: (src: string) => void) => void
 }
 
 function ImageBlockView({ node, updateAttributes, editor, getPos }: ReactNodeViewProps) {
@@ -54,8 +57,13 @@ function ImageBlockView({ node, updateAttributes, editor, getPos }: ReactNodeVie
 
   const keepFocus = (e: { preventDefault: () => void }) => e.preventDefault()
   const { ref: toolbarRef, onKeyDown: onToolbarKeyDown } = useToolbarRoving()
-  const onReplace = () =>
-    replaceImage(apiBase, { onUploading: storage?.onUploading, onError: storage?.onError }, (newSrc) => setAttrs({ src: newSrc }))
+  const onReplace = () => {
+    const apply = (newSrc: string) => setAttrs({ src: newSrc })
+    // Prefer the library modal (pick OR upload) when it's wired; otherwise fall
+    // back to a direct upload (e.g. unit tests / non-Canvas contexts).
+    if (storage?.openPicker) storage.openPicker(apply)
+    else replaceImage(apiBase, { onUploading: storage?.onUploading, onError: storage?.onError }, apply)
+  }
 
   return (
     <NodeViewWrapper>

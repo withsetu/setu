@@ -19,12 +19,19 @@ function topBlock(state: EditorState): TopBlock | null {
   return { index: $from.index(0), from: $from.before(1), to: $from.after(1), node: $from.node(1) }
 }
 
-/** Put the caret inside the top-level block now at `index` in the post-move doc.
- *  Computed from the NEW doc (not old-doc neighbor math) so it lands inside the moved
- *  block even when a neighbor is a large container like a callout. */
+/** Re-select the top-level block now at `index` in the post-move doc. Computed from
+ *  the NEW doc (not old-doc neighbor math) so it lands on the moved block even when a
+ *  neighbor is a large container like a callout. Atom blocks (e.g. imageBlock) have no
+ *  inner caret position, so they get a NodeSelection on the node itself — without this,
+ *  the selection escapes to a neighbor after one move and repeated moves stop working. */
 function selectBlockAt(tr: Transaction, index: number): void {
   const start = startOfChild(tr.doc, index)
-  tr.setSelection(TextSelection.near(tr.doc.resolve(start + 1), 1))
+  const node = tr.doc.child(index)
+  if (node.isAtom) {
+    tr.setSelection(NodeSelection.create(tr.doc, start))
+  } else {
+    tr.setSelection(TextSelection.near(tr.doc.resolve(start + 1), 1))
+  }
 }
 
 declare module '@tiptap/core' {

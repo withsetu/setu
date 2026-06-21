@@ -30,6 +30,7 @@ import { FormatBubble } from './FormatBubble'
 import { TableMenu } from './TableMenu'
 import { MediaPickerModal } from './MediaPickerModal'
 import { imageBlockFromSrc } from './image-insert'
+import { useNotify } from '../ui/notify'
 
 const cellAlign = {
   align: {
@@ -51,6 +52,7 @@ export function Canvas({
   onChange: (doc: TiptapDoc) => void
 }) {
   const editorRef = useRef<Editor | null>(null)
+  const notify = useNotify()
 
   const dragHandle = DragHandle.configure({
     onMenu: (view: EditorView, index: number, anchor: HTMLElement) => {
@@ -132,7 +134,6 @@ export function Canvas({
   editorRef.current = editor
 
   const [imgBusy, setImgBusy] = useState(false)
-  const [imgError, setImgError] = useState<string | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
   const apiBase = (import.meta.env.VITE_SETU_API as string) ?? ''
   useEffect(() => {
@@ -141,20 +142,19 @@ export function Canvas({
       image: { onUploading?: (b: boolean) => void; onError?: (m: string) => void }
       imageBlock: { apiBase: string; onUploading?: (b: boolean) => void; onError?: (m: string) => void; openPicker?: () => void }
     }
-    const onUploading = (busy: boolean) => { setImgBusy(busy); if (busy) setImgError(null) }
-    const onError = (msg: string) => setImgError(msg)
+    const onUploading = (busy: boolean) => { setImgBusy(busy) }
+    const onError = (msg: string) => notify.error(msg)
     s.image.onUploading = onUploading
     s.image.onError = onError
     s.imageBlock.apiBase = apiBase
     s.imageBlock.onUploading = onUploading
     s.imageBlock.onError = onError
     s.imageBlock.openPicker = () => setPickerOpen(true)
-  }, [editor, apiBase])
+  }, [editor, apiBase, notify])
 
   return (
     <>
       {imgBusy && <div className="editor-banner">Uploading image…</div>}
-      {imgError && <div className="editor-banner error" role="alert">{imgError}</div>}
       <EditorContent editor={editor} />
       {editor && <FormatBubble editor={editor} />}
       {editor && <TableMenu editor={editor} />}

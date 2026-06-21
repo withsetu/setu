@@ -20,6 +20,7 @@ import { useAutosave } from './useAutosave'
 import type { SaveStatus } from './useAutosave'
 import { onRequestShortcuts } from './editor-events'
 import { NEW_SLUG, mintSlug } from './new-entry'
+import { useNotify } from '../ui/notify'
 
 const EDITOR_ID = 'local'
 const BLANK: TiptapDoc = { type: 'doc', content: [{ type: 'paragraph' }] }
@@ -44,13 +45,14 @@ export function EditorScreen() {
   // `new` is a compose sentinel: nothing is persisted until the first save mints a real slug.
   const composing = slug === NEW_SLUG
 
+  const notify = useNotify()
+
   const [phase, setPhase] = useState<'loading' | 'ready' | 'readonly'>('loading')
   const [initialDoc, setInitialDoc] = useState<TiptapDoc>(BLANK)
   const [metadata, setMetadata] = useState<Record<string, unknown>>({})
   const [status, setStatus] = useState<SaveStatus>('idle')
   const [rev, setRev] = useState(0)
   const [lifecycle, setLifecycle] = useState<Lifecycle>({ state: 'draft' })
-  const [publishMsg, setPublishMsg] = useState<string | null>(null)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
 
   useEffect(() => onRequestShortcuts(() => setShortcutsOpen(true)), [])
@@ -155,7 +157,6 @@ export function EditorScreen() {
   const commit = async () => {
     if (committing.current) return
     committing.current = true
-    setPublishMsg(null)
     try {
       // Save-before-publish: publish reads storage, not the in-memory doc. Always
       // serialize the LATEST metaRef.current (Unpublish/Re-publish mutate it first).
@@ -164,13 +165,11 @@ export function EditorScreen() {
       const r = await publish.publish({ ref, author: OWNER_AUTHOR })
       if (r.status === 'published') {
         baseShaRef.current = r.sha
-        setPublishMsg('Published · ' + r.sha.slice(0, 7))
+        notify.success('Published · ' + r.sha.slice(0, 7))
         reindex(ref)
         await refreshLifecycle()
       } else if (r.status === 'conflict') {
-        setPublishMsg('The published version moved — reload to continue.')
-      } else {
-        setPublishMsg(null)
+        notify.error('The published version moved — reload to continue.')
       }
     } finally {
       committing.current = false
@@ -292,7 +291,6 @@ export function EditorScreen() {
             onUnpublish={onUnpublish}
             onRepublish={onRepublish}
           />
-          {publishMsg && <span className="publish-msg">{publishMsg}</span>}
         </div>
       </div>
       {phase === 'readonly' && (

@@ -11,6 +11,7 @@ import { DeployProvider } from '../src/deploy/deploy'
 import { IndexProvider } from '../src/data/index-store'
 import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { EditorScreen } from '../src/editor/EditorScreen'
+import { NotificationProvider } from '../src/ui/notify'
 
 const doc = (t: string): TiptapDoc => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] })
 const aDraft: Draft = { collection: 'post', locale: 'en', slug: 'p1', content: doc('Hello body'), metadata: { title: 'Hello', status: 'draft' }, baseSha: null, createdAt: 0, updatedAt: 0 }
@@ -40,21 +41,23 @@ function fakeServices(over: Partial<Services> = {}): Services {
 
 function renderEditor(services: Services, path = '/edit/post/en/p1') {
   return render(
-    <MemoryRouter initialEntries={[path]}>
-      <ActorProvider>
-        <ServicesProvider services={services}>
-          <TaxonomyProvider>
-            <DeployProvider>
-              <IndexProvider>
-                <Routes>
-                  <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
-                </Routes>
-              </IndexProvider>
-            </DeployProvider>
-          </TaxonomyProvider>
-        </ServicesProvider>
-      </ActorProvider>
-    </MemoryRouter>,
+    <NotificationProvider>
+      <MemoryRouter initialEntries={[path]}>
+        <ActorProvider>
+          <ServicesProvider services={services}>
+            <TaxonomyProvider>
+              <DeployProvider>
+                <IndexProvider>
+                  <Routes>
+                    <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
+                  </Routes>
+                </IndexProvider>
+              </DeployProvider>
+            </TaxonomyProvider>
+          </ServicesProvider>
+        </ActorProvider>
+      </MemoryRouter>
+    </NotificationProvider>,
   )
 }
 

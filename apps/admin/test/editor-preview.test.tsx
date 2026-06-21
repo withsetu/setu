@@ -7,24 +7,27 @@ import { DeployProvider } from '../src/deploy/deploy'
 import { IndexProvider } from '../src/data/index-store'
 import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { EditorScreen } from '../src/editor/EditorScreen'
+import { NotificationProvider } from '../src/ui/notify'
 
 function renderEditor(path = '/edit/post/en/release-notes') {
   render(
-    <MemoryRouter initialEntries={[path]}>
-      <ActorProvider>
-        <ServicesProvider services={createServices()}>
-          <TaxonomyProvider>
-            <DeployProvider>
-              <IndexProvider>
-                <Routes>
-                  <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
-                </Routes>
-              </IndexProvider>
-            </DeployProvider>
-          </TaxonomyProvider>
-        </ServicesProvider>
-      </ActorProvider>
-    </MemoryRouter>,
+    <NotificationProvider>
+      <MemoryRouter initialEntries={[path]}>
+        <ActorProvider>
+          <ServicesProvider services={createServices()}>
+            <TaxonomyProvider>
+              <DeployProvider>
+                <IndexProvider>
+                  <Routes>
+                    <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
+                  </Routes>
+                </IndexProvider>
+              </DeployProvider>
+            </TaxonomyProvider>
+          </ServicesProvider>
+        </ActorProvider>
+      </MemoryRouter>
+    </NotificationProvider>,
   )
 }
 

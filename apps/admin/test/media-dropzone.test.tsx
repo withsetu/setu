@@ -20,4 +20,17 @@ describe('MediaDropzone', () => {
     await waitFor(() => expect(onUploaded).toHaveBeenCalledWith(result))
     expect(upload).toHaveBeenCalledWith('http://x', file)
   })
+
+  it('uploads files dropped via drag-and-drop (custom getFilesFromEvent, no FS-handle path)', async () => {
+    const upload = vi.fn(async () => result)
+    const onUploaded = vi.fn()
+    render(<MediaDropzone apiBase="http://x" onUploaded={onUploaded} upload={upload} />)
+    const zone = screen.getByTestId('media-dropzone-input').parentElement as HTMLElement
+    const file = new File([new Uint8Array([1])], 'cat.png', { type: 'image/png' })
+    // A drop event carrying files on dataTransfer — the path that hit the
+    // file-selector getAsFileSystemHandle().getFile() NotAllowedError in browsers.
+    fireEvent.drop(zone, { dataTransfer: { files: [file], items: [{ kind: 'file', type: 'image/png', getAsFile: () => file }], types: ['Files'] } })
+    await waitFor(() => expect(onUploaded).toHaveBeenCalledWith(result))
+    expect(upload).toHaveBeenCalledWith('http://x', file)
+  })
 })

@@ -10,6 +10,10 @@ function memStorage() {
     async delete(key) { map.delete(key) },
     async exists(key) { return map.has(key) },
     url(key) { return `/media/${key}` },
+    async list(prefix?: string): Promise<string[]> {
+      const keys = [...map.keys()]
+      return prefix ? keys.filter((k) => k.startsWith(prefix)) : keys
+    },
   }
   return { port, map }
 }

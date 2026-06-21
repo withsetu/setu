@@ -10,6 +10,10 @@ function memStorage(): StoragePort {
     async delete(key) { map.delete(key) },
     async exists(key) { return map.has(key) },
     url(key) { return `http://test/media/${key}` },
+    async list(prefix?: string): Promise<string[]> {
+      const keys = [...map.keys()]
+      return prefix ? keys.filter((k) => k.startsWith(prefix)) : keys
+    },
   }
 }
 const owner: Actor = { id: 'local', role: 'owner' }

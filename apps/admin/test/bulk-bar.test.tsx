@@ -12,7 +12,7 @@ import { BulkBar } from '../src/screens/BulkBar'
 
 const row = (slug: string, over: Partial<ContentRow> = {}): ContentRow => ({
   ref: { collection: 'post', locale: 'en', slug },
-  title: slug, locale: 'en', lifecycle: { state: 'live' }, updatedAt: 1, hasDraft: false, tags: [], categories: [],
+  title: slug, locale: 'en', lifecycle: { state: 'live' }, updatedAt: 1, hasDraft: false, tags: [], categories: [], mediaRefs: [],
   ...over,
 })
 

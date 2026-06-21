@@ -4,7 +4,7 @@ import type { EntryIndexRow } from './types'
 
 const row = (locale: string, slug: string): EntryIndexRow => ({
   key: `post\0${locale}\0${slug}`, collection: 'post', locale, slug,
-  title: slug, titleLower: slug, status: 'draft', updatedAt: 0, hasDraft: true, tags: [], categories: [],
+  title: slug, titleLower: slug, status: 'draft', updatedAt: 0, hasDraft: true, tags: [], categories: [], mediaRefs: [],
 })
 
 describe('selectDistinctLocales', () => {

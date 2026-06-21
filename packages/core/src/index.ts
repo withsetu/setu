@@ -68,6 +68,7 @@ export { deriveLifecycle } from './lifecycle/derive'
 
 export type { ContentRow, ListContentEntriesInput } from './content-index/list-entries'
 export { listContentEntries } from './content-index/list-entries'
+export { extractMediaRefs } from './content-index/extract-media-refs'
 
 export { entryUrlPath, DEFAULT_LOCALE } from './url/entry-url'
 

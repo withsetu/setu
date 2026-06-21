@@ -39,7 +39,7 @@ beforeAll(() => {
       ],
     }),
   )
-  execSync('pnpm build', { cwd: appDir, stdio: 'inherit', env: { ...process.env, SETU_MEDIA_DIR: mediaDir } })
+  execSync('pnpm build', { cwd: appDir, stdio: 'inherit', env: { ...process.env, SETU_MEDIA_DIR: mediaDir, PUBLIC_SETU_MEDIA: 'https://cdn.example.test' } })
   html = page('post/kitchen-sink')
 })
 afterAll(() => {
@@ -210,10 +210,10 @@ describe('default theme — prose typography', () => {
 
 describe('render pipeline — images', () => {
   it('renders an uploaded image responsively from its manifest', () => {
-    // original src resolved against PUBLIC_SETU_MEDIA (default localhost:4444)
-    expect(html).toContain('src="http://localhost:4444/media/2026/06/test-cat.jpg"')
-    expect(html).toContain('http://localhost:4444/media/2026/06/test-cat-400w.webp 400w')
-    expect(html).toContain('http://localhost:4444/media/2026/06/test-cat-1000w.webp 1000w')
+    // src resolved against the configured PUBLIC_SETU_MEDIA origin (set for this build)
+    expect(html).toContain('src="https://cdn.example.test/media/2026/06/test-cat.jpg"')
+    expect(html).toContain('https://cdn.example.test/media/2026/06/test-cat-400w.webp 400w')
+    expect(html).toContain('https://cdn.example.test/media/2026/06/test-cat-1000w.webp 1000w')
     expect(html).toContain('width="1000"')
     expect(html).toContain('height="600"')
     expect(html).toContain('alt="A test cat"')

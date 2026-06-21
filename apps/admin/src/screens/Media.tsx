@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import type { MediaIndexQuery, MediaIndexRow, MediaSortKey } from '@setu/core'
+import type { MediaIndexRow } from '@setu/core'
 import { PageHeader } from '../shell/PageHeader'
-import { MediaGrid } from '../media/MediaGrid'
-import { MediaDropzone } from '../media/MediaDropzone'
+import { MediaBrowser, parseSortValue, sortValueOf } from '../media/MediaBrowser'
+import type { MediaFilters } from '../media/MediaBrowser'
 import { useMediaIndex } from '../data/media-index-store'
 import { useServices } from '../data/store'
 import { deleteMedia } from '../media/media-client'
 import { resolveMediaSrc } from '../editor/media-src'
+import type { UploadResult } from '../media/upload-client'
 import { useNotify } from '../ui/notify'
 
 const apiBase = (import.meta.env.VITE_SETU_API as string | undefined) ?? ''
@@ -18,71 +19,38 @@ function humanSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-type SortOption = { label: string; key: MediaSortKey; dir: 'asc' | 'desc' }
-
-const SORT_OPTIONS: SortOption[] = [
-  { label: 'Newest', key: 'uploadedAt', dir: 'desc' },
-  { label: 'Name', key: 'filename', dir: 'asc' },
-  { label: 'Largest', key: 'bytes', dir: 'desc' },
-]
-
-function parseSort(raw: string | null): { key: MediaSortKey; dir: 'asc' | 'desc' } {
-  if (raw) {
-    const [key, dir] = raw.split('-')
-    const opt = SORT_OPTIONS.find((o) => o.key === key && o.dir === dir)
-    if (opt) return { key: opt.key, dir: opt.dir }
-  }
-  return { key: 'uploadedAt', dir: 'desc' }
-}
-
 export function Media() {
   const mediaIndex = useMediaIndex()
   const { index } = useServices()
-  const [params, setParams] = useSearchParams()
   const notify = useNotify()
+  const [params, setParams] = useSearchParams()
   const [selected, setSelected] = useState<MediaIndexRow | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
-  const q = params.get('q') ?? ''
-  const type = (params.get('type') ?? 'all') as 'image' | 'all'
-  const sortRaw = params.get('sort')
-  const sort = parseSort(sortRaw)
-
-  const setParam = (key: string, value: string) => {
+  // Filter state lives in the URL so a filtered media view is shareable + survives reload.
+  const filters: MediaFilters = {
+    q: params.get('q') ?? '',
+    type: (params.get('type') ?? 'all') as MediaFilters['type'],
+    sort: parseSortValue(params.get('sort')),
+  }
+  const setFilters = (patch: Partial<MediaFilters>) => {
     setParams(
       (prev) => {
         const next = new URLSearchParams(prev)
-        if (value) next.set(key, value)
-        else next.delete(key)
+        if ('q' in patch) { patch.q ? next.set('q', patch.q) : next.delete('q') }
+        if ('type' in patch) { patch.type && patch.type !== 'all' ? next.set('type', patch.type) : next.delete('type') }
+        if ('sort' in patch && patch.sort) {
+          const v = sortValueOf(patch.sort)
+          v === 'uploadedAt-desc' ? next.delete('sort') : next.set('sort', v)
+        }
         return next
       },
       { replace: true },
     )
   }
 
-  // Debounced search: local state → URL `q`
-  const [search, setSearch] = useState(q)
-  useEffect(() => {
-    setSearch(q)
-  }, [q])
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (search !== q) setParam('q', search)
-    }, 200)
-    return () => clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search])
-
-  const query = useMemo<MediaIndexQuery>(
-    () => ({ q: q || undefined, type, sort, offset: 0, limit: 100 }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [q, type, sort.key, sort.dir],
-  )
-
-  const sortValue = `${sort.key}-${sort.dir}`
-
-  function onUploaded(result: { record: import('@setu/core').MediaRecord }) {
+  function onUploaded(result: UploadResult) {
     void mediaIndex.upsertOne(result.record)
     setRefreshKey((k) => k + 1)
     notify.success('Uploaded ' + result.record.filename)
@@ -91,6 +59,7 @@ export function Media() {
   async function onDelete() {
     if (!selected) return
     setDeleting(true)
+    const deletedFilename = selected.filename
     try {
       const used = await index.referencedBy(selected.mediaKey)
       const confirmed =
@@ -105,7 +74,6 @@ export function Media() {
       }
       await deleteMedia(apiBase, selected.mediaKey)
       await mediaIndex.removeOne(selected.mediaKey)
-      const deletedFilename = selected.filename
       setSelected(null)
       setRefreshKey((k) => k + 1)
       notify.success('Deleted ' + deletedFilename)
@@ -128,49 +96,15 @@ export function Media() {
         subtitle="Upload, browse, and manage your media files."
       />
       <div className="page-body">
-        {/* Toolbar */}
-        <div className="list-toolbar">
-          <input
-            type="search"
-            className="list-search"
-            placeholder="Search media"
-            aria-label="Search media"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <select
-            aria-label="Sort"
-            value={sortValue}
-            onChange={(e) => setParam('sort', e.target.value)}
-          >
-            {SORT_OPTIONS.map((o) => (
-              <option key={`${o.key}-${o.dir}`} value={`${o.key}-${o.dir}`}>{o.label}</option>
-            ))}
-          </select>
-          <select
-            aria-label="Filter by type"
-            value={type}
-            onChange={(e) => setParam('type', e.target.value)}
-          >
-            <option value="all">All types</option>
-            <option value="image">Images</option>
-          </select>
-        </div>
-
-        {/* Upload dropzone */}
-        <MediaDropzone
+        <MediaBrowser
           apiBase={apiBase}
+          mode="manage"
+          filters={filters}
+          setFilters={setFilters}
           onUploaded={onUploaded}
           onError={(m) => notify.error(m)}
-        />
-
-        {/* Grid — key={refreshKey} remounts on upload/delete so it re-queries fresh data */}
-        <MediaGrid
-          key={refreshKey}
-          mode="manage"
-          apiBase={apiBase}
-          query={query}
           onSelect={(row) => setSelected(row)}
+          refreshKey={refreshKey}
         />
 
         {/* Detail panel */}

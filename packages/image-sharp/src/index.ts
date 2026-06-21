@@ -16,14 +16,23 @@ export function createSharpImageAdapter(): ImagePort {
   return {
     async metadata(source: Uint8Array): Promise<ImageMeta> {
       const m = await sharp(Buffer.from(source)).metadata()
-      return { width: m.width ?? 0, height: m.height ?? 0, format: String(m.format ?? '') }
+      // EXIF orientation 5-8 are 90°/270° rotations, so the displayed image swaps
+      // width/height vs the stored pixels. Report the *oriented* (display) dims —
+      // matching the auto-rotated variants below and what the browser shows.
+      const swap = (m.orientation ?? 1) >= 5
+      const w = m.width ?? 0
+      const h = m.height ?? 0
+      return { width: swap ? h : w, height: swap ? w : h, format: String(m.format ?? '') }
     },
 
     async generate(source: Uint8Array, specs: VariantSpec[]): Promise<GeneratedVariant[]> {
       const out: GeneratedVariant[] = []
       for (const spec of specs) {
         const quality = spec.quality ?? DEFAULT_QUALITY[spec.format]
-        const resized = sharp(Buffer.from(source)).resize(spec.width, null, { withoutEnlargement: true })
+        // .rotate() with no args auto-orients from EXIF and bakes the rotation into
+        // the pixels (stripping the orientation tag), so variants render upright
+        // everywhere. Without it, phone photos come out sideways on the frontend.
+        const resized = sharp(Buffer.from(source)).rotate().resize(spec.width, null, { withoutEnlargement: true })
         const encoded = resized.toFormat(spec.format, quality !== undefined ? { quality } : {})
         const { data, info } = await encoded.toBuffer({ resolveWithObject: true })
         out.push({

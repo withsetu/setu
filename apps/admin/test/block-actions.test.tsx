@@ -221,4 +221,20 @@ describe('BlockActions — top-level atom (imageBlock)', () => {
     const json = editor.getJSON() as { content: Array<{ type: string }> }
     expect(json.content.filter((n) => n.type === 'imageBlock')).toHaveLength(2)
   })
+
+  it('stays selected on the imageBlock across consecutive moves (down then up)', () => {
+    let editor!: Editor
+    render(<ImageHarness onReady={(e) => (editor = e)} />) // img at index 1
+    const imgIndex = () =>
+      (editor.getJSON() as { content: Array<{ type: string }> }).content.findIndex((n) => n.type === 'imageBlock')
+    selectImageBlock(editor)
+    expect(imgIndex()).toBe(1)
+    act(() => { editor.commands.moveBlockDown() })
+    // The moved atom must stay node-selected, else the next move targets a neighbor.
+    expect(editor.state.selection).toBeInstanceOf(NodeSelection)
+    expect((editor.state.selection as NodeSelection).node.type.name).toBe('imageBlock')
+    expect(imgIndex()).toBe(2)
+    act(() => { editor.commands.moveBlockUp() }) // only moves the image back if the selection stuck
+    expect(imgIndex()).toBe(1)
+  })
 })

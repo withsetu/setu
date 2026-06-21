@@ -1,4 +1,5 @@
 import type { MediaIndexRow, MediaIndexQuery, MediaSortKey } from './types'
+import { mediaKind } from './media-kind'
 
 function compare(a: MediaIndexRow, b: MediaIndexRow, key: MediaSortKey): number {
   if (key === 'filename') return a.filenameLower.localeCompare(b.filenameLower)
@@ -11,7 +12,7 @@ export function runMediaQuery(
   q: MediaIndexQuery,
 ): { rows: MediaIndexRow[]; total: number } {
   let xs = rows
-  if (q.type === 'image') xs = xs.filter((r) => r.isImage)
+  if (q.type && q.type !== 'all') xs = xs.filter((r) => mediaKind(r.contentType) === q.type)
   if (q.q && q.q.length > 0) {
     const needle = q.q.toLowerCase()
     xs = xs.filter((r) => r.filenameLower.includes(needle))

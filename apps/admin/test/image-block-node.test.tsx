@@ -1,18 +1,19 @@
-import { describe, it, expect, afterEach } from 'vitest'
-import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import { describe, it, expect, afterEach, vi } from 'vitest'
+import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
+import type { Editor } from '@tiptap/core'
 import { ImageBlock } from '../src/editor/extensions/ImageBlock'
 
 afterEach(cleanup)
 
-function Harness({ onReady }: { onReady: (getJSON: () => unknown) => void }) {
+function Harness({ onReady, onEditor }: { onReady: (getJSON: () => unknown) => void; onEditor?: (e: Editor) => void }) {
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [StarterKit, ImageBlock],
     content: { type: 'doc', content: [{ type: 'imageBlock', attrs: { mdAttrs: { src: '/uploads/media/abc/original.png', align: 'none' } } }] },
   })
-  if (editor) onReady(() => editor.getJSON())
+  if (editor) { onReady(() => editor.getJSON()); onEditor?.(editor) }
   return <EditorContent editor={editor} />
 }
 
@@ -55,6 +56,22 @@ describe('ImageBlock node view', () => {
     expect(mdAttrsOf(getJSON).alt).toBe('A cat')
     fireEvent.change(alt, { target: { value: '' } })
     expect(mdAttrsOf(getJSON).alt).toBeUndefined()
+  })
+
+  it('Replace opens the library picker (not a direct upload) and applies the chosen src', async () => {
+    let getJSON: () => unknown = () => ({})
+    let editor!: Editor
+    const openPicker = vi.fn()
+    render(<Harness onReady={(g) => (getJSON = g)} onEditor={(e) => (editor = e)} />)
+    // Wire the library modal the way Canvas does in the app.
+    ;(editor.storage as unknown as { imageBlock: { openPicker?: (cb: (src: string) => void) => void } }).imageBlock.openPicker =
+      openPicker as unknown as (cb: (src: string) => void) => void
+    fireEvent.click(await screen.findByText('Replace'))
+    expect(openPicker).toHaveBeenCalledTimes(1) // opened the browser, did NOT open a file dialog
+    // Simulate the user picking an image in the modal.
+    const apply = openPicker.mock.calls[0]![0] as (src: string) => void
+    apply('/media/2026/06/new.png')
+    await waitFor(() => expect(mdAttrsOf(getJSON).src).toBe('/media/2026/06/new.png'))
   })
 
   it('pressing Enter in the caption inserts a new paragraph after the imageBlock', async () => {

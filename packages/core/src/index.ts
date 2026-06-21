@@ -28,7 +28,11 @@ export { extensionFor, contentTypeFor } from './image/format'
 export type { ManifestVariant, MediaManifest } from './image/manifest'
 export { ingestImage } from './image/ingest'
 export type { IngestDeps, IngestInput } from './image/ingest'
-export { mediaSlug, mediaKeyOf, originalKey, variantKey, manifestKey } from './image/media-key'
+export { mediaSlug, mediaKeyOf, originalKey, variantKey, manifestKey, mediaRecordKey } from './image/media-key'
+
+export type { MediaRecord, MediaIndexRow, MediaSortKey, MediaIndexQuery, MediaIndexMeta, MediaIndexPort } from './media-index/types'
+export { mediaRowFromRecord } from './media-index/types'
+export { runMediaQuery } from './media-index/run-media-query'
 
 export type {
   AuthoringService,

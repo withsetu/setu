@@ -35,3 +35,8 @@ export function variantKey(mediaKey: string, width: number, ext: string): string
 export function manifestKey(mediaKey: string): string {
   return `${mediaKey}.manifest.json`
 }
+
+/** Storage key of the per-upload media-record sidecar: `${mediaKey}.media.json`. */
+export function mediaRecordKey(mediaKey: string): string {
+  return `${mediaKey}.media.json`
+}

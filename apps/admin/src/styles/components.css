@@ -565,6 +565,12 @@
   gap: 14px;
 }
 
+.media-loadmore {
+  display: flex;
+  justify-content: center;
+  padding: 18px 0 4px;
+}
+
 /* In the picker the dropzone is a compact band above the library, not a hero. */
 .media-picker-body .media-dropzone {
   min-height: 0;

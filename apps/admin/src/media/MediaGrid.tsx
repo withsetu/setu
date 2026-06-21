@@ -1,7 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { MediaIndexQuery, MediaIndexRow } from '@setu/core'
 import { useMediaIndex } from '../data/media-index-store'
 import { resolveMediaSrc } from '../editor/media-src'
+
+/** Items per page; the grid owns paging (Load more), ignoring any offset/limit
+ *  on the incoming query so both /media and the picker paginate identically. */
+export const MEDIA_PAGE_SIZE = 24
 
 export interface PickPayload {
   src: string
@@ -49,37 +53,53 @@ export function MediaGrid({ mode, apiBase, query, onPick, onSelect }: MediaGridP
   const index = useMediaIndex()
   const [rows, setRows] = useState<MediaIndexRow[] | null>(null)
   const [total, setTotal] = useState(0)
+  const [loadingMore, setLoadingMore] = useState(false)
   const refreshedRef = useRef(false)
 
+  // Query one page (PAGE_SIZE rows from `offset`), overriding any offset/limit the
+  // caller put on `query` so the grid is the single source of paging.
+  const pageAt = useCallback(
+    (offset: number) => index.query({ ...query, offset, limit: MEDIA_PAGE_SIZE }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [index, query.q, query.type, query.sort?.key, query.sort?.dir],
+  )
+
+  // (Re)load the first page whenever the filter changes. SWR: query the cache, then
+  // refresh from the feed once on mount and re-query.
   useEffect(() => {
     let live = true
-
     void (async () => {
       await index.ensureBuilt()
-      const r = await index.query(query)
+      const r = await pageAt(0)
       if (live) {
         setRows(r.rows)
         setTotal(r.total)
       }
-
-      // Stale-while-revalidate: refresh once on mount then re-query
       if (!refreshedRef.current) {
         refreshedRef.current = true
         await index.refresh()
-        const r2 = await index.query(query)
+        const r2 = await pageAt(0)
         if (live) {
           setRows(r2.rows)
           setTotal(r2.total)
         }
       }
     })()
-
     return () => {
       live = false
     }
-    // query object changes drive re-queries; stringify to compare by value
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index, query.q, query.type, query.offset, query.limit, query.sort?.key, query.sort?.dir])
+  }, [index, pageAt])
+
+  const loadMore = async () => {
+    setLoadingMore(true)
+    try {
+      const r = await pageAt(rows?.length ?? 0)
+      setRows((prev) => [...(prev ?? []), ...r.rows])
+      setTotal(r.total)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   const handleTileClick = (row: MediaIndexRow) => {
     if (mode === 'pick') {
@@ -109,6 +129,7 @@ export function MediaGrid({ mode, apiBase, query, onPick, onSelect }: MediaGridP
   }
 
   return (
+    <>
     <div
       className="media-grid"
       data-total={total}
@@ -149,5 +170,13 @@ export function MediaGrid({ mode, apiBase, query, onPick, onSelect }: MediaGridP
         )
       })}
     </div>
+    {rows.length < total && (
+      <div className="media-loadmore">
+        <button type="button" className="btn" onClick={() => void loadMore()} disabled={loadingMore}>
+          {loadingMore ? 'Loading…' : `Load more (${total - rows.length} more)`}
+        </button>
+      </div>
+    )}
+    </>
   )
 }

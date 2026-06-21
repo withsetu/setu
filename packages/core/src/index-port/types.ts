@@ -15,6 +15,7 @@ export interface EntryIndexRow {
   hasDraft: boolean
   tags: string[]
   categories: string[]
+  mediaRefs: string[]
 }
 
 export type SortKey = 'updatedAt' | 'title' | 'status'
@@ -46,6 +47,7 @@ export interface IndexPort {
   setMeta(meta: IndexMeta): Promise<void>
   distinctTags(prefix: string, limit: number): Promise<string[]>
   distinctLocales(): Promise<string[]>
+  referencedBy(mediaKey: string): Promise<import('./referenced-by').MediaUsage[]>
 }
 
 export const indexKey = (ref: EntryRef): string => `${ref.collection}\0${ref.locale}\0${ref.slug}`
@@ -63,6 +65,7 @@ export function projectRow(row: ContentRow): EntryIndexRow {
     hasDraft: row.hasDraft,
     tags: row.tags,
     categories: row.categories,
+    mediaRefs: row.mediaRefs,
   }
   if (row.lifecycle.pending !== undefined) out.pending = row.lifecycle.pending
   return out
@@ -79,5 +82,6 @@ export function rowToContentRow(r: EntryIndexRow): ContentRow {
     hasDraft: r.hasDraft,
     tags: r.tags,
     categories: r.categories,
+    mediaRefs: r.mediaRefs,
   }
 }

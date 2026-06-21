@@ -8,6 +8,7 @@ const row: ContentRow = {
   lifecycle: { state: 'draft' }, updatedAt: 1, hasDraft: true,
   tags: ['react', 'redux'],
   categories: [],
+  mediaRefs: [],
 }
 
 describe('projectRow / rowToContentRow — tags', () => {

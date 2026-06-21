@@ -22,6 +22,10 @@ function createMemoryStorage(baseUrl = '/uploads'): StoragePort {
     url(key) {
       return `${baseUrl}/${key}`
     },
+    async list(prefix?: string): Promise<string[]> {
+      const keys = [...store.keys()]
+      return prefix ? keys.filter((k) => k.startsWith(prefix)) : keys
+    },
   }
 }
 

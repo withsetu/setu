@@ -28,7 +28,13 @@ export { extensionFor, contentTypeFor } from './image/format'
 export type { ManifestVariant, MediaManifest } from './image/manifest'
 export { ingestImage } from './image/ingest'
 export type { IngestDeps, IngestInput } from './image/ingest'
-export { mediaSlug, mediaKeyOf, originalKey, variantKey, manifestKey } from './image/media-key'
+export { mediaSlug, mediaKeyOf, originalKey, variantKey, manifestKey, mediaRecordKey } from './image/media-key'
+
+export type { MediaRecord, MediaIndexRow, MediaSortKey, MediaIndexQuery, MediaIndexMeta, MediaIndexPort } from './media-index/types'
+export { mediaRowFromRecord } from './media-index/types'
+export { runMediaQuery } from './media-index/run-media-query'
+export type { MediaIndexService, MediaIndexServiceDeps } from './media-index/media-index-service'
+export { createMediaIndexService, MEDIA_INDEX_VERSION } from './media-index/media-index-service'
 
 export type {
   AuthoringService,
@@ -62,6 +68,7 @@ export { deriveLifecycle } from './lifecycle/derive'
 
 export type { ContentRow, ListContentEntriesInput } from './content-index/list-entries'
 export { listContentEntries } from './content-index/list-entries'
+export { extractMediaRefs } from './content-index/extract-media-refs'
 
 export { entryUrlPath, DEFAULT_LOCALE } from './url/entry-url'
 
@@ -69,6 +76,8 @@ export type { EntryIndexRow, SortKey, IndexQuery, IndexMeta, IndexPort } from '.
 export { indexKey, projectRow, rowToContentRow } from './index-port/types'
 export { runQuery } from './index-port/run-query'
 export { selectDistinctTags, selectDistinctLocales } from './index-port/distinct-tags'
+export type { MediaUsage } from './index-port/referenced-by'
+export { selectReferencedBy } from './index-port/referenced-by'
 export type { IndexService, IndexServiceDeps } from './index-port/index-service'
 export { createIndexService, INDEX_VERSION } from './index-port/index-service'
 

@@ -11,6 +11,7 @@ const cr: ContentRow = {
   hasDraft: true,
   tags: [],
   categories: [],
+  mediaRefs: [],
 }
 
 describe('index-port projection', () => {
@@ -24,7 +25,7 @@ describe('index-port projection', () => {
       collection: 'post', locale: 'en', slug: 'hello',
       title: 'Hello', titleLower: 'hello',
       status: 'staged', pending: 'edited',
-      updatedAt: 5, hasDraft: true, tags: [], categories: [],
+      updatedAt: 5, hasDraft: true, tags: [], categories: [], mediaRefs: [],
     })
   })
 

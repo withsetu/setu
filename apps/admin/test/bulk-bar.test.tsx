@@ -15,7 +15,7 @@ const TAXONOMY_YAML = `- slug: news\n  name: News\n  parent: null\n`
 
 const row = (slug: string, over: Partial<ContentRow> = {}): ContentRow => ({
   ref: { collection: 'post', locale: 'en', slug },
-  title: slug, locale: 'en', lifecycle: { state: 'live' }, updatedAt: 1, hasDraft: false, tags: [], categories: [],
+  title: slug, locale: 'en', lifecycle: { state: 'live' }, updatedAt: 1, hasDraft: false, tags: [], categories: [], mediaRefs: [],
   ...over,
 })
 

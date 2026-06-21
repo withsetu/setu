@@ -13,6 +13,7 @@ const row: ContentRow = {
   hasDraft: true,
   tags: [],
   categories: [],
+  mediaRefs: [],
 }
 
 describe('RecentEdits', () => {

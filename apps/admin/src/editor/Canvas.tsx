@@ -28,6 +28,8 @@ import { requestLinkEdit } from './editor-events'
 import { LinkTools } from './extensions/LinkTools'
 import { FormatBubble } from './FormatBubble'
 import { TableMenu } from './TableMenu'
+import { MediaPickerModal } from './MediaPickerModal'
+import { imageBlockFromSrc } from './image-insert'
 
 const cellAlign = {
   align: {
@@ -131,20 +133,23 @@ export function Canvas({
 
   const [imgBusy, setImgBusy] = useState(false)
   const [imgError, setImgError] = useState<string | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const apiBase = (import.meta.env.VITE_SETU_API as string) ?? ''
   useEffect(() => {
     if (!editor) return
     const s = editor.storage as unknown as {
       image: { onUploading?: (b: boolean) => void; onError?: (m: string) => void }
-      imageBlock: { apiBase: string; onUploading?: (b: boolean) => void; onError?: (m: string) => void }
+      imageBlock: { apiBase: string; onUploading?: (b: boolean) => void; onError?: (m: string) => void; openPicker?: () => void }
     }
     const onUploading = (busy: boolean) => { setImgBusy(busy); if (busy) setImgError(null) }
     const onError = (msg: string) => setImgError(msg)
     s.image.onUploading = onUploading
     s.image.onError = onError
-    s.imageBlock.apiBase = (import.meta.env.VITE_SETU_API as string) ?? ''
+    s.imageBlock.apiBase = apiBase
     s.imageBlock.onUploading = onUploading
     s.imageBlock.onError = onError
-  }, [editor])
+    s.imageBlock.openPicker = () => setPickerOpen(true)
+  }, [editor, apiBase])
 
   return (
     <>
@@ -153,6 +158,17 @@ export function Canvas({
       <EditorContent editor={editor} />
       {editor && <FormatBubble editor={editor} />}
       {editor && <TableMenu editor={editor} />}
+      {editor && (
+        <MediaPickerModal
+          apiBase={apiBase}
+          open={pickerOpen}
+          onClose={() => setPickerOpen(false)}
+          onPick={(src) => {
+            editor.chain().focus().insertContent(imageBlockFromSrc(src)).run()
+            setPickerOpen(false)
+          }}
+        />
+      )}
     </>
   )
 }

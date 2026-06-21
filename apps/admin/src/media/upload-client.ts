@@ -1,3 +1,5 @@
+import type { MediaRecord } from '@setu/core'
+
 export interface UploadResult {
   id: string
   key: string
@@ -5,6 +7,7 @@ export interface UploadResult {
   contentType: string
   size: number
   filename: string
+  record: MediaRecord
 }
 
 /** POST a file to the upload service and return the stored asset's details. */

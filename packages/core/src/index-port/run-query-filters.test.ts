@@ -5,7 +5,7 @@ import type { EntryIndexRow } from './types'
 const row = (over: Partial<EntryIndexRow>): EntryIndexRow => ({
   key: `post\0en\0${over.slug ?? 'x'}`, collection: 'post', locale: 'en',
   slug: 'x', title: 'X', titleLower: 'x', status: 'draft', updatedAt: 0,
-  hasDraft: true, tags: [], categories: [], ...over,
+  hasDraft: true, tags: [], categories: [], mediaRefs: [], ...over,
 })
 
 describe('runQuery — tag & category filters', () => {

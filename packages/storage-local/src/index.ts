@@ -1,5 +1,5 @@
-import { mkdir, readFile, writeFile, rm, stat } from 'node:fs/promises'
-import { dirname, join, normalize, sep, isAbsolute } from 'node:path'
+import { mkdir, readFile, writeFile, rm, stat, readdir } from 'node:fs/promises'
+import { dirname, join, normalize, sep, isAbsolute, relative } from 'node:path'
 import type { StoragePort, StoredObject } from '@setu/core'
 
 export interface LocalStorageOptions {
@@ -81,6 +81,23 @@ export function createLocalStorage({ dir, baseUrl }: LocalStorageOptions): Stora
     },
     url(key) {
       return `${base}/${key.replace(/^\/+/, '')}`
+    },
+    async list(prefix?: string): Promise<string[]> {
+      const root = normalize(dir)
+      const out: string[] = []
+      async function walk(abs: string): Promise<void> {
+        let entries
+        try { entries = await readdir(abs, { withFileTypes: true }) }
+        catch (e) { if ((e as NodeJS.ErrnoException).code === 'ENOENT') return; throw e }
+        for (const ent of entries) {
+          if (ent.name === META) continue // skip the content-type sidecar namespace
+          const child = join(abs, ent.name)
+          if (ent.isDirectory()) await walk(child)
+          else out.push(relative(root, child).split(sep).join('/'))
+        }
+      }
+      await walk(root)
+      return prefix ? out.filter((k) => k.startsWith(prefix)) : out
     },
   }
 }

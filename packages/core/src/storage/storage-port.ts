@@ -26,4 +26,7 @@ export interface StoragePort {
   /** Public URL at which `key` is served (pure construction). Private/signed URLs are
    *  a later, separate concern. */
   url(key: string): string
+  /** List storage keys (optionally under `prefix`). Excludes adapter-internal
+   *  namespaces (e.g. `.meta`). Keys use forward slashes, no leading slash. */
+  list(prefix?: string): Promise<string[]>
 }

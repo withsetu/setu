@@ -4,7 +4,7 @@ import type { EntryIndexRow } from './types'
 
 const row = (slug: string, tags: string[]): EntryIndexRow => ({
   key: `post\0en\0${slug}`, collection: 'post', locale: 'en', slug,
-  title: slug, titleLower: slug, status: 'draft', updatedAt: 0, hasDraft: true, tags, categories: [],
+  title: slug, titleLower: slug, status: 'draft', updatedAt: 0, hasDraft: true, tags, categories: [], mediaRefs: [],
 })
 
 describe('selectDistinctTags', () => {

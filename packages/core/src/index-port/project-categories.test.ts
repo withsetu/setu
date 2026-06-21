@@ -6,6 +6,7 @@ const row: ContentRow = {
   ref: { collection: 'post', locale: 'en', slug: 'a' },
   title: 'A', locale: 'en', lifecycle: { state: 'draft' }, updatedAt: 1, hasDraft: true,
   tags: [], categories: ['react', 'tutorials'],
+  mediaRefs: [],
 }
 
 describe('projectRow / rowToContentRow — categories', () => {

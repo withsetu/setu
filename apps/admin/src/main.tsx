@@ -7,6 +7,7 @@ import { resetToSampleContent } from './data/reset'
 import { ActorProvider } from './auth/actor'
 import { DeployProvider } from './deploy/deploy'
 import { IndexProvider } from './data/index-store'
+import { AppMediaIndexProvider } from './data/media-index-store'
 import { TaxonomyProvider } from './data/taxonomy-store'
 import { NotificationProvider } from './ui/notify'
 import '@fontsource-variable/hanken-grotesk'
@@ -38,9 +39,11 @@ createRoot(document.getElementById('root')!).render(
           <ActorProvider>
             <DeployProvider>
               <IndexProvider>
-                <TaxonomyProvider>
-                  <App />
-                </TaxonomyProvider>
+                <AppMediaIndexProvider>
+                  <TaxonomyProvider>
+                    <App />
+                  </TaxonomyProvider>
+                </AppMediaIndexProvider>
               </IndexProvider>
             </DeployProvider>
           </ActorProvider>

@@ -1,2 +1,3 @@
 export { createIdbDataPort } from './adapter'
 export { createIdbIndexPort } from './index-port'
+export { createIdbMediaIndexPort } from './media-index-port'

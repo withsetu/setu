@@ -10,11 +10,15 @@ export interface ImageBlockSpec {
   attrs: { mdAttrs: { src: string; align: 'none' } }
 }
 
+export function imageBlockFromSrc(src: string): ImageBlockSpec {
+  return { type: 'imageBlock', attrs: { mdAttrs: { src, align: 'none' } } }
+}
+
 export function imageNodeFromUpload(result: UploadResult): ImageBlockSpec {
   if (!result.contentType.startsWith('image/')) {
     throw new Error(`not an image: ${result.contentType}`)
   }
-  return { type: 'imageBlock', attrs: { mdAttrs: { src: srcFromUploadUrl(result.url), align: 'none' } } }
+  return imageBlockFromSrc(srcFromUploadUrl(result.url))
 }
 
 export interface InsertHandlers {

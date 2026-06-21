@@ -5,6 +5,7 @@ import { contentPath } from '../publish/content-path'
 import { parseMdoc, serializeMdoc } from '../markdoc/frontmatter'
 import { tiptapToMarkdoc } from '../markdoc/to-markdoc'
 import { normalizeTags } from '../tags/normalize'
+import { extractMediaRefs } from './extract-media-refs'
 
 /** One row in the merged content list: an entry that exists as a draft, as a
  *  committed Git file, or both. */
@@ -21,6 +22,8 @@ export interface ContentRow {
   tags: string[]
   /** Category slugs for this entry (draft's win when a draft exists). */
   categories: string[]
+  /** Media keys referenced by the live version of this entry. */
+  mediaRefs: string[]
 }
 
 export interface ListContentEntriesInput {
@@ -83,8 +86,16 @@ export function listContentEntries(input: ListContentEntriesInput): ContentRow[]
       hasDraft: draft !== null,
       tags: tagsOf(draft, committedStr),
       categories: categoriesOf(draft, committedStr),
+      mediaRefs: mediaRefsOf(draftStr, committedStr),
     }
   })
+}
+
+/** Media keys referenced by the live version (draft's serialized doc when a draft
+ *  exists, else the committed file). Whole-doc scan catches body + frontmatter. */
+function mediaRefsOf(draftStr: string | null, committedStr: string | null): string[] {
+  const body = draftStr ?? committedStr
+  return body ? extractMediaRefs(body) : []
 }
 
 function titleOf(draft: Draft | null, committedStr: string | null, slug: string): string {

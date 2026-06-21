@@ -7,13 +7,14 @@ import type {
   DraftInput,
   GitPort,
   IndexPort,
+  MediaIndexService,
   PublishService,
   ReadService,
   TiptapDoc,
 } from '@setu/core'
-import { createAuthoringService, createBulkService, createPublishService, createReadService } from '@setu/core'
+import { createAuthoringService, createBulkService, createMediaIndexService, createPublishService, createReadService } from '@setu/core'
 import { registry } from '../blocks/registry'
-import { createMemoryDataPort, createMemoryIndexPort } from '@setu/db-memory'
+import { createMemoryDataPort, createMemoryIndexPort, createMemoryMediaIndexPort } from '@setu/db-memory'
 import { createMemoryGitPort } from '@setu/git-memory'
 
 /** Editor identity stamped on bulk commits (matches the editor's OWNER_AUTHOR). */
@@ -43,11 +44,17 @@ export interface Services {
   authoring: AuthoringService
   publish: PublishService
   bulk: BulkService
+  mediaIndex: MediaIndexService
 }
 
 /** Build the in-browser services bundle around a DataPort + GitPort. The index
  *  port defaults to in-memory (tests); the app passes the persistent idb one. */
-export function servicesFor(data: DataPort, git: GitPort, index: IndexPort = createMemoryIndexPort()): Services {
+export function servicesFor(
+  data: DataPort,
+  git: GitPort,
+  index: IndexPort = createMemoryIndexPort(),
+  mediaIndex: MediaIndexService = createMediaIndexService({ mediaIndex: createMemoryMediaIndexPort(), fetchRaw: async () => [] }),
+): Services {
   const read = createReadService({ data, git, knownBlockTags: registry.knownBlockTags })
   return {
     data,
@@ -57,6 +64,7 @@ export function servicesFor(data: DataPort, git: GitPort, index: IndexPort = cre
     authoring: createAuthoringService({ data }),
     publish: createPublishService({ data, git }),
     bulk: createBulkService({ data, git, read, author: OWNER_AUTHOR }),
+    mediaIndex,
   }
 }
 
@@ -72,8 +80,8 @@ async function seedIfEmpty(services: Services): Promise<void> {
 /** Assemble the services bundle around any DataPort/GitPort and seed-if-empty.
  *  Adapter-agnostic: the app passes the persistent (idb) adapters, tests pass the
  *  in-memory ones — the same shipped bootstrap logic either way. */
-export async function bootstrapServices(data: DataPort, git: GitPort, index?: IndexPort): Promise<Services> {
-  const services = servicesFor(data, git, index)
+export async function bootstrapServices(data: DataPort, git: GitPort, index?: IndexPort, mediaIndex?: MediaIndexService): Promise<Services> {
+  const services = servicesFor(data, git, index, mediaIndex)
   await seedIfEmpty(services)
   return services
 }

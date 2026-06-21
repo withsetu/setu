@@ -9,7 +9,9 @@ afterEach(() => vi.restoreAllMocks())
 
 const result = (over: Partial<UploadResult> = {}): UploadResult => ({
   id: '2026/06/cat', key: '2026/06/cat.png', url: 'http://localhost:4444/media/2026/06/cat.png',
-  contentType: 'image/png', size: 4, filename: 'cat.png', ...over,
+  contentType: 'image/png', size: 4, filename: 'cat.png',
+  record: { mediaKey: '2026/06/cat', key: '2026/06/cat.png', thumbKey: null, filename: 'cat.png', contentType: 'image/png', isImage: true, width: null, height: null, bytes: 4, uploadedAt: 0 },
+  ...over,
 })
 
 describe('srcFromUploadUrl', () => {

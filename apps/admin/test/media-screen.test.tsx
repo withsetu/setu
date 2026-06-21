@@ -16,6 +16,7 @@ describe('Media screen', () => {
     vi.spyOn(client, 'uploadFile').mockResolvedValue({
       id: '1', key: 'media/1/original.png', url: 'http://api/uploads/media/1/original.png',
       contentType: 'image/png', size: 2, filename: 'a.png',
+      record: { mediaKey: '1', key: 'media/1/original.png', thumbKey: null, filename: 'a.png', contentType: 'image/png', isImage: true, width: null, height: null, bytes: 2, uploadedAt: 0 },
     })
     render(<Media />)
     pickFile()

@@ -8,6 +8,7 @@ import { ActorProvider } from './auth/actor'
 import { DeployProvider } from './deploy/deploy'
 import { IndexProvider } from './data/index-store'
 import { TaxonomyProvider } from './data/taxonomy-store'
+import { NotificationProvider } from './ui/notify'
 import '@fontsource-variable/hanken-grotesk'
 import '@fontsource-variable/newsreader'
 import '@fontsource-variable/jetbrains-mono'
@@ -33,16 +34,18 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Bootstrap>
-        <ActorProvider>
-          <DeployProvider>
-            <IndexProvider>
-              <TaxonomyProvider>
-                <App />
-              </TaxonomyProvider>
-            </IndexProvider>
-          </DeployProvider>
-        </ActorProvider>
-        <DevReset />
+        <NotificationProvider>
+          <ActorProvider>
+            <DeployProvider>
+              <IndexProvider>
+                <TaxonomyProvider>
+                  <App />
+                </TaxonomyProvider>
+              </IndexProvider>
+            </DeployProvider>
+          </ActorProvider>
+          <DevReset />
+        </NotificationProvider>
       </Bootstrap>
     </BrowserRouter>
   </StrictMode>,

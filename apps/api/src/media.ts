@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { createAuthz, DEFAULT_ROLES, ingestImage, mediaSlug, mediaKeyOf, originalKey, manifestKey } from '@setu/core'
-import type { Actor, ImageFormat, ImagePort, MediaManifest, StoragePort } from '@setu/core'
+import { createAuthz, DEFAULT_ROLES, ingestImage, mediaSlug, mediaKeyOf, originalKey, variantKey, manifestKey, mediaRecordKey } from '@setu/core'
+import type { Actor, ImageFormat, ImagePort, MediaManifest, MediaRecord, StoragePort } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
 import type { ResolveActor } from './auth/resolve-actor'
 
@@ -50,6 +50,9 @@ export interface UploadApiOptions {
 
 const authz = createAuthz(DEFAULT_ROLES)
 
+/** Stored media-record sidecar — extends MediaRecord with storage keys needed for deletion. */
+type StoredRecord = MediaRecord & { key: string; thumbKey: string | null }
+
 export function createUploadApi(opts: UploadApiOptions) {
   const maxBytes = opts.limits?.maxBytes ?? DEFAULT_MAX_BYTES
   const allowed = opts.limits?.allowedContentTypes ?? DEFAULT_ALLOWED
@@ -96,6 +99,24 @@ export function createUploadApi(opts: UploadApiOptions) {
       }
     }
 
+    const isImage = file.type.startsWith('image/')
+    const smallest = manifest?.variants.slice().sort((a, b) => a.width - b.width)[0]
+    const record: StoredRecord = {
+      mediaKey,
+      key,
+      thumbKey: smallest ? smallest.key : null,
+      filename: file.name,
+      contentType: file.type,
+      isImage,
+      width: manifest ? manifest.original.width : null,
+      height: manifest ? manifest.original.height : null,
+      bytes: file.size,
+      uploadedAt: Date.now(),
+    }
+    await storage.put(mediaRecordKey(mediaKey), new TextEncoder().encode(JSON.stringify(record)), {
+      contentType: 'application/json',
+    })
+
     return c.json(
       {
         id: mediaKey,
@@ -104,10 +125,44 @@ export function createUploadApi(opts: UploadApiOptions) {
         contentType: file.type,
         size: file.size,
         filename: file.name,
+        record,
         ...(manifest ? { manifest } : {}),
       },
       201,
     )
+  })
+
+  app.get('/media/_index', async (c) => {
+    const keys = await storage.list()
+    const records: StoredRecord[] = []
+    for (const k of keys) {
+      if (!k.endsWith('.media.json')) continue
+      const obj = await storage.get(k)
+      if (!obj) continue
+      try { records.push(JSON.parse(new TextDecoder().decode(obj.body)) as StoredRecord) } catch { /* skip corrupt */ }
+    }
+    return c.json({ records })
+  })
+
+  app.delete('/media/*', authMiddleware(opts.resolveActor), async (c) => {
+    if (!authz.can(c.get('actor'), 'content.create')) return c.json({ error: 'forbidden' }, 403)
+    const mediaKey = decodeURIComponent(c.req.path.slice('/media/'.length))
+    if (mediaKey.split('/').some((seg) => seg === '..' || seg === '')) return c.json({ error: 'not found' }, 404)
+
+    const manRaw = await storage.get(manifestKey(mediaKey))
+    if (manRaw) {
+      const man = JSON.parse(new TextDecoder().decode(manRaw.body)) as MediaManifest
+      await storage.delete(man.original.key)
+      for (const v of man.variants) await storage.delete(v.key)
+      await storage.delete(manifestKey(mediaKey))
+    }
+    const recRaw = await storage.get(mediaRecordKey(mediaKey))
+    if (recRaw) {
+      const rec = JSON.parse(new TextDecoder().decode(recRaw.body)) as StoredRecord
+      await storage.delete(rec.key) // original (covers non-images with no manifest)
+      await storage.delete(mediaRecordKey(mediaKey))
+    }
+    return c.json({ ok: true })
   })
 
   app.get('/media/*', async (c) => {

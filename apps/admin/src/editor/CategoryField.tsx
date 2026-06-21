@@ -23,9 +23,13 @@ export function CategoryField({
 }) {
   const { categories, create } = useTaxonomy()
   const rows = useMemo(() => flatten(buildTree(categories)), [categories])
+  const [filter, setFilter] = useState('')
   const [name, setName] = useState('')
   const [parent, setParent] = useState('')
   const [error, setError] = useState<string | null>(null)
+
+  const fq = filter.trim().toLowerCase()
+  const visible = fq === '' ? rows : rows.filter((n) => n.name.toLowerCase().includes(fq))
 
   const toggle = (slug: string) =>
     onChange(selected.includes(slug) ? selected.filter((s) => s !== slug) : [...selected, slug])
@@ -47,8 +51,19 @@ export function CategoryField({
   return (
     <div className="category-field">
       <div className="category-tree" role="group" aria-label="Categories">
+        {rows.length > 0 && (
+          <input
+            type="text"
+            className="category-filter"
+            placeholder="Filter categories"
+            aria-label="Filter categories"
+            value={filter}
+            disabled={!editable}
+            onChange={(e) => setFilter(e.target.value)}
+          />
+        )}
         {rows.length === 0 && <p className="muted">No categories yet — add one below.</p>}
-        {rows.map((node) => (
+        {visible.map((node) => (
           <label key={node.slug} className="category-row" style={{ paddingLeft: `${node.depth * 16}px` }}>
             <input
               type="checkbox"

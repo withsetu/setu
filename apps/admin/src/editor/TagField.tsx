@@ -1,8 +1,5 @@
-import { useEffect, useState } from 'react'
-import { normalizeTag } from '@setu/core'
-import { useIndex } from '../data/index-store'
-
-const SUGGESTION_LIMIT = 8
+import { useState } from 'react'
+import { TagAutocomplete } from '../ui/TagAutocomplete'
 
 export function TagField({
   selected,
@@ -13,41 +10,7 @@ export function TagField({
   onChange: (next: string[]) => void
   editable: boolean
 }) {
-  const index = useIndex()
   const [input, setInput] = useState('')
-  const [suggestions, setSuggestions] = useState<string[]>([])
-
-  useEffect(() => {
-    const q = input.trim()
-    if (q === '') {
-      setSuggestions([])
-      return
-    }
-    let cancelled = false
-    const timer = setTimeout(() => {
-      void index
-        .distinctTags(q, SUGGESTION_LIMIT)
-        .then((tags) => {
-          if (!cancelled) setSuggestions(tags.filter((t) => !selected.includes(t)))
-        })
-        .catch(() => {
-          if (!cancelled) setSuggestions([])
-        })
-    }, 150)
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [input, index, selected])
-
-  const add = (raw: string) => {
-    const tag = normalizeTag(raw)
-    setInput('')
-    setSuggestions([])
-    if (!tag || selected.includes(tag)) return
-    onChange([...selected, tag])
-  }
-
   const remove = (tag: string) => onChange(selected.filter((t) => t !== tag))
 
   return (
@@ -64,32 +27,18 @@ export function TagField({
           </span>
         ))}
       </div>
-      <div className="tag-input-wrap">
-        <input
-          type="text"
-          className="tag-input"
-          placeholder="Add a tag"
-          aria-label="Add a tag"
-          value={input}
-          disabled={!editable}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault()
-              add(input)
-            }
-          }}
-        />
-        {suggestions.length > 0 && (
-          <div className="tag-suggestions" role="listbox">
-            {suggestions.map((tag) => (
-              <button key={tag} type="button" className="tag-suggestion" role="option" aria-selected={false} onClick={() => add(tag)}>
-                {tag}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      <TagAutocomplete
+        value={input}
+        onChange={setInput}
+        onSubmit={(tag) => {
+          if (!selected.includes(tag)) onChange([...selected, tag])
+          setInput('')
+        }}
+        exclude={selected}
+        placeholder="Add a tag"
+        ariaLabel="Add a tag"
+        disabled={!editable}
+      />
     </div>
   )
 }

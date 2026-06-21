@@ -30,7 +30,7 @@ describe('TagFilter', () => {
     const { onChange } = setup('')
     fireEvent.change(screen.getByLabelText('Filter by tag'), { target: { value: 're' } })
     const opt = await screen.findByRole('option', { name: 'redux' })
-    fireEvent.click(opt)
+    fireEvent.mouseDown(opt)
     expect(onChange).toHaveBeenCalledWith('redux')
   })
 

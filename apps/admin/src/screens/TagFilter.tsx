@@ -1,33 +1,8 @@
-import { useEffect, useState } from 'react'
-import { useIndex } from '../data/index-store'
+import { useState } from 'react'
+import { TagAutocomplete } from '../ui/TagAutocomplete'
 
 export function TagFilter({ value, onChange }: { value: string; onChange: (tag: string) => void }) {
-  const index = useIndex()
   const [input, setInput] = useState('')
-  const [suggestions, setSuggestions] = useState<string[]>([])
-
-  useEffect(() => {
-    const q = input.trim()
-    if (q === '') {
-      setSuggestions([])
-      return
-    }
-    let cancelled = false
-    const timer = setTimeout(() => {
-      void index
-        .distinctTags(q, 8)
-        .then((tags) => {
-          if (!cancelled) setSuggestions(tags)
-        })
-        .catch(() => {
-          if (!cancelled) setSuggestions([])
-        })
-    }, 150)
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [input, index])
 
   if (value) {
     return (
@@ -41,35 +16,15 @@ export function TagFilter({ value, onChange }: { value: string; onChange: (tag: 
   }
 
   return (
-    <div className="tag-filter tag-input-wrap">
-      <input
-        type="text"
-        className="tag-input"
-        placeholder="Filter by tag"
-        aria-label="Filter by tag"
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-      />
-      {suggestions.length > 0 && (
-        <div className="tag-suggestions" role="listbox">
-          {suggestions.map((t) => (
-            <button
-              key={t}
-              type="button"
-              className="tag-suggestion"
-              role="option"
-              aria-selected={false}
-              onClick={() => {
-                onChange(t)
-                setInput('')
-                setSuggestions([])
-              }}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    <TagAutocomplete
+      value={input}
+      onChange={setInput}
+      onSubmit={(tag) => {
+        onChange(tag)
+        setInput('')
+      }}
+      placeholder="Filter by tag"
+      ariaLabel="Filter by tag"
+    />
   )
 }

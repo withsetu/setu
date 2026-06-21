@@ -51,7 +51,7 @@ describe('TagField', () => {
     fireEvent.change(input, { target: { value: 're' } })
     const opt = await screen.findByRole('option', { name: 'redux' })
     expect(screen.queryByRole('option', { name: 'react' })).toBeNull() // already selected
-    fireEvent.click(opt)
+    fireEvent.mouseDown(opt)
     expect(onChange).toHaveBeenCalledWith(['react', 'redux'])
   })
 

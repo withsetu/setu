@@ -9,6 +9,7 @@ import type { MediaRecord, EntryIndexRow } from '@setu/core'
 import { ActorProvider } from '../src/auth/actor'
 import { ServicesProvider, servicesFor } from '../src/data/store'
 import { MediaIndexProvider } from '../src/data/media-index-store'
+import { NotificationProvider } from '../src/ui/notify'
 import { Media } from '../src/screens/Media'
 
 // ── mock media-client so deleteMedia never hits the network ──
@@ -86,7 +87,9 @@ function wrapper(services: ReturnType<typeof servicesFor>, mediaIndex: ReturnTyp
         <ActorProvider>
           <ServicesProvider services={services}>
             <MediaIndexProvider service={mediaIndex}>
-              {children}
+              <NotificationProvider>
+                {children}
+              </NotificationProvider>
             </MediaIndexProvider>
           </ServicesProvider>
         </ActorProvider>
@@ -185,7 +188,7 @@ describe('Media screen', () => {
     expect(screen.getByRole('complementary', { name: /Media details/i })).toBeInTheDocument()
   })
 
-  it('surfaces delete errors via a role=alert element', async () => {
+  it('surfaces delete errors as an error toast notification', async () => {
     vi.mocked(deleteMedia as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('server error'))
     const { services, mediaIndex } = await buildProviders()
     render(<Media />, { wrapper: wrapper(services, mediaIndex) })
@@ -196,6 +199,19 @@ describe('Media screen', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent('server error')
+    })
+  })
+
+  it('surfaces a success toast after a successful delete', async () => {
+    const { services, mediaIndex } = await buildProviders()
+    render(<Media />, { wrapper: wrapper(services, mediaIndex) })
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /cat\.png/i })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: /cat\.png/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Delete cat\.png/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Deleted cat.png')).toBeInTheDocument()
     })
   })
 })

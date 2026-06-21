@@ -8,6 +8,7 @@ import { useMediaIndex } from '../data/media-index-store'
 import { useServices } from '../data/store'
 import { deleteMedia } from '../media/media-client'
 import { resolveMediaSrc } from '../editor/media-src'
+import { useNotify } from '../ui/notify'
 
 const apiBase = (import.meta.env.VITE_SETU_API as string | undefined) ?? ''
 
@@ -38,7 +39,7 @@ export function Media() {
   const mediaIndex = useMediaIndex()
   const { index } = useServices()
   const [params, setParams] = useSearchParams()
-  const [error, setError] = useState<string | null>(null)
+  const notify = useNotify()
   const [selected, setSelected] = useState<MediaIndexRow | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -84,12 +85,12 @@ export function Media() {
   function onUploaded(result: { record: import('@setu/core').MediaRecord }) {
     void mediaIndex.upsertOne(result.record)
     setRefreshKey((k) => k + 1)
+    notify.success('Uploaded ' + result.record.filename)
   }
 
   async function onDelete() {
     if (!selected) return
     setDeleting(true)
-    setError(null)
     try {
       const used = await index.referencedBy(selected.mediaKey)
       const confirmed =
@@ -104,10 +105,12 @@ export function Media() {
       }
       await deleteMedia(apiBase, selected.mediaKey)
       await mediaIndex.removeOne(selected.mediaKey)
+      const deletedFilename = selected.filename
       setSelected(null)
       setRefreshKey((k) => k + 1)
+      notify.success('Deleted ' + deletedFilename)
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      notify.error(err instanceof Error ? err.message : String(err))
     } finally {
       setDeleting(false)
     }
@@ -154,13 +157,11 @@ export function Media() {
           </select>
         </div>
 
-        {error && <p role="alert" className="media-error error">{error}</p>}
-
         {/* Upload dropzone */}
         <MediaDropzone
           apiBase={apiBase}
           onUploaded={onUploaded}
-          onError={setError}
+          onError={(m) => notify.error(m)}
         />
 
         {/* Grid — key={refreshKey} remounts on upload/delete so it re-queries fresh data */}
@@ -169,7 +170,7 @@ export function Media() {
           mode="manage"
           apiBase={apiBase}
           query={query}
-          onSelect={(row) => { setSelected(row); setError(null) }}
+          onSelect={(row) => setSelected(row)}
         />
 
         {/* Detail panel */}
@@ -181,7 +182,7 @@ export function Media() {
                 type="button"
                 className="media-detail-close btn btn-sm"
                 aria-label="Close detail panel"
-                onClick={() => { setSelected(null); setError(null) }}
+                onClick={() => setSelected(null)}
               >
                 ✕
               </button>

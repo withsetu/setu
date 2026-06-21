@@ -195,6 +195,18 @@ export function runIndexPortContract(makeAdapter: () => Promise<IndexPort> | Ind
       ])
       expect(await ix.distinctLocales()).toEqual(['en', 'fr'])
     })
+
+    it('referencedBy: returns entries whose mediaRefs include the key', async () => {
+      await ix.upsertMany([
+        irow({ slug: 'a', title: 'A', mediaRefs: ['2026/06/cat'] }),
+        irow({ slug: 'b', title: 'B', mediaRefs: ['2026/06/dog'] }),
+        irow({ slug: 'c', title: 'C', mediaRefs: ['2026/06/cat', '2026/06/dog'] }),
+      ])
+      const used = await ix.referencedBy('2026/06/cat')
+      expect(used.map((u) => u.slug).sort()).toEqual(['a', 'c'])
+      expect(used[0]).toHaveProperty('title')
+      expect(await ix.referencedBy('2026/06/none')).toEqual([])
+    })
   })
 }
 

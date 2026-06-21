@@ -24,6 +24,7 @@ export interface IndexService {
   query(q: IndexQuery): Promise<{ rows: ContentRow[]; total: number }>
   distinctTags(prefix: string, limit: number): Promise<string[]>
   distinctLocales(): Promise<string[]>
+  referencedBy(mediaKey: string): Promise<import('./referenced-by').MediaUsage[]>
 }
 
 export function createIndexService(deps: IndexServiceDeps): IndexService {
@@ -79,5 +80,9 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
     return index.distinctLocales()
   }
 
-  return { rebuild, ensureBuilt, reindexEntry, reindexAfterDeploy, query, distinctTags, distinctLocales }
+  async function referencedBy(mediaKey: string): Promise<import('./referenced-by').MediaUsage[]> {
+    return index.referencedBy(mediaKey)
+  }
+
+  return { rebuild, ensureBuilt, reindexEntry, reindexAfterDeploy, query, distinctTags, distinctLocales, referencedBy }
 }

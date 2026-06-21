@@ -17,16 +17,9 @@
   /* Writing-canvas face (swapped by Tweaks). Default: humanist serif. */
   --font-canvas: var(--font-serif);
 
-  /* ---- Accent (overridable by Tweaks) ---- */
-  --accent: #4f46e5;
-  --accent-strong: #4338ca;
-  --accent-soft: color-mix(in oklch, var(--accent) 12%, transparent);
-  --accent-softer: color-mix(in oklch, var(--accent) 7%, transparent);
-  --accent-ring: color-mix(in oklch, var(--accent) 38%, transparent);
-  --on-accent: #ffffff;
-
   /* ---- Radius scale (overridable by Tweaks) ---- */
-  --radius-base: 10px;
+  /* --radius-base is now an alias of --radius (set in the light-theme block),
+     so these scale vars keep working unchanged. */
   --r-xs: calc(var(--radius-base) * 0.4);
   --r-sm: calc(var(--radius-base) * 0.6);
   --r-md: var(--radius-base);
@@ -46,42 +39,83 @@
 :root, [data-theme="light"] {
   color-scheme: light;
 
-  --bg: #f7f7f8;          /* app background */
-  --bg-sunken: #f1f1f3;   /* deeper wells */
-  --surface: #ffffff;     /* cards, panels */
-  --surface-2: #fbfbfc;   /* subtle raised */
-  --surface-hover: #f4f4f6;
-  --surface-active: #eeeef1;
-
-  --canvas: #ffffff;      /* editor paper */
-
+  /* ---- shadcn standard tokens (values = Setu palette, copied verbatim) ---- */
+  --background: #f7f7f8;
+  --foreground: #1a1a1f;
+  --card: #ffffff;
+  --card-foreground: #1a1a1f;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1f;
+  --primary: #4f46e5;              /* brand indigo (was --accent) */
+  --primary-foreground: #ffffff;
+  --secondary: #f1f1f3;
+  --secondary-foreground: #1a1a1f;
+  --muted: #f1f1f3;
+  --muted-foreground: #54545d;     /* was --text-2 */
+  --accent: #f4f4f6;               /* shadcn hover/selected surface (was --surface-hover) */
+  --accent-foreground: #1a1a1f;
+  --destructive: #d1453b;
+  --destructive-foreground: #ffffff;
   --border: #e8e8ec;
+  --input: #e8e8ec;
+  --ring: color-mix(in oklch, #4f46e5 38%, transparent);
+  --radius: 10px;
+
+  /* charts (reuse semantic hues) */
+  --chart-1: #4f46e5; --chart-2: #15935a; --chart-3: #b7791f;
+  --chart-4: #2563eb; --chart-5: #d1453b;
+
+  /* sidebar (admin chrome uses app bg/surfaces) */
+  --sidebar: #f1f1f3;
+  --sidebar-foreground: #1a1a1f;
+  --sidebar-primary: #4f46e5;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f4f4f6;
+  --sidebar-accent-foreground: #1a1a1f;
+  --sidebar-border: #e8e8ec;
+  --sidebar-ring: color-mix(in oklch, #4f46e5 38%, transparent);
+
+  /* ---- Setu's one intentional extension: semantic states ---- */
+  --success: #15935a;  --success-foreground: #ffffff;
+  --warning: #b7791f;  --warning-foreground: #ffffff;
+  --info:    #2563eb;  --info-foreground:    #ffffff;
+
+  /* ============================================================
+     TEMPORARY back-compat aliases — removed in the cleanup PR.
+     They point the OLD names at the new standard tokens so every
+     existing bespoke stylesheet renders identically during migration.
+     ============================================================ */
+  --bg: var(--background);
+  --bg-sunken: #f1f1f3;
+  --surface: var(--card);
+  --surface-2: #fbfbfc;
+  --surface-hover: var(--accent);
+  --surface-active: #eeeef1;
+  --canvas: #ffffff;
   --border-strong: #dcdce2;
   --border-faint: #f0f0f3;
+  --text: var(--foreground);
+  --text-2: var(--muted-foreground);
+  --text-3: #8a8a94;
+  --text-4: #b4b4bd;
+  --accent-strong: #4338ca;
+  --accent-soft: color-mix(in oklch, var(--primary) 12%, transparent);
+  --accent-softer: color-mix(in oklch, var(--primary) 7%, transparent);
+  --accent-ring: var(--ring);
+  --on-accent: var(--primary-foreground);
+  --radius-base: var(--radius);
+  --green: var(--success); --green-soft: color-mix(in oklch, var(--success) 12%, transparent);
+  --amber: var(--warning); --amber-soft: color-mix(in oklch, var(--warning) 14%, transparent);
+  --red: var(--destructive); --red-soft: color-mix(in oklch, var(--destructive) 11%, transparent);
+  --blue: var(--info); --blue-soft: color-mix(in oklch, var(--info) 11%, transparent);
+  --pro: #9a6b00; --pro-bg: linear-gradient(180deg, #fff9ec, #fdf3dd); --pro-border: #ecd9a8;
 
-  --text: #1a1a1f;        /* primary ink */
-  --text-2: #54545d;      /* secondary */
-  --text-3: #8a8a94;      /* muted / placeholder */
-  --text-4: #b4b4bd;      /* faintest */
-
+  /* shadow + radius-scale vars (unchanged from original) stay as-is below */
   --shadow-color: 230 12% 20%;
   --shadow-sm: 0 1px 2px hsl(var(--shadow-color) / 0.06), 0 1px 1px hsl(var(--shadow-color) / 0.04);
   --shadow-md: 0 4px 12px -2px hsl(var(--shadow-color) / 0.10), 0 2px 6px -2px hsl(var(--shadow-color) / 0.06);
   --shadow-lg: 0 18px 40px -12px hsl(var(--shadow-color) / 0.20), 0 6px 14px -6px hsl(var(--shadow-color) / 0.10);
   --shadow-pop: 0 24px 50px -12px hsl(var(--shadow-color) / 0.28), 0 8px 18px -8px hsl(var(--shadow-color) / 0.14);
-
-  /* semantic */
-  --green: #15935a;
-  --green-soft: color-mix(in oklch, #15935a 12%, transparent);
-  --amber: #b7791f;
-  --amber-soft: color-mix(in oklch, #b7791f 14%, transparent);
-  --red: #d1453b;
-  --red-soft: color-mix(in oklch, #d1453b 11%, transparent);
-  --blue: #2563eb;
-  --blue-soft: color-mix(in oklch, #2563eb 11%, transparent);
-  --pro: #9a6b00;
-  --pro-bg: linear-gradient(180deg, #fff9ec, #fdf3dd);
-  --pro-border: #ecd9a8;
 }
 
 /* ============================================================
@@ -90,45 +124,53 @@
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --bg: #0c0c0f;
-  --bg-sunken: #08080a;
-  --surface: #16161a;
-  --surface-2: #1b1b20;
-  --surface-hover: #1f1f25;
-  --surface-active: #26262d;
+  --background: #0c0c0f;
+  --foreground: #f2f2f4;
+  --card: #16161a; --card-foreground: #f2f2f4;
+  --popover: #16161a; --popover-foreground: #f2f2f4;
+  --primary: #6e6bf0; --primary-foreground: #ffffff;
+  --secondary: #1b1b20; --secondary-foreground: #f2f2f4;
+  --muted: #1b1b20; --muted-foreground: #a8a8b3;
+  --accent: #1f1f25; --accent-foreground: #f2f2f4;
+  --destructive: #f06a5e; --destructive-foreground: #0c0c0f;
+  --border: #26262d; --input: #26262d;
+  --ring: color-mix(in oklch, #6e6bf0 45%, transparent);
 
+  --chart-1: #6e6bf0; --chart-2: #3ecf8e; --chart-3: #e2b04a;
+  --chart-4: #5b9bff; --chart-5: #f06a5e;
+
+  --sidebar: #08080a; --sidebar-foreground: #f2f2f4;
+  --sidebar-primary: #6e6bf0; --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1f1f25; --sidebar-accent-foreground: #f2f2f4;
+  --sidebar-border: #26262d; --sidebar-ring: color-mix(in oklch, #6e6bf0 45%, transparent);
+
+  --success: #3ecf8e; --success-foreground: #08080a;
+  --warning: #e2b04a; --warning-foreground: #08080a;
+  --info: #5b9bff; --info-foreground: #08080a;
+
+  /* TEMP aliases */
+  --bg: var(--background); --bg-sunken: #08080a;
+  --surface: var(--card); --surface-2: #1b1b20;
+  --surface-hover: var(--accent); --surface-active: #26262d;
   --canvas: #131316;
-
-  --border: #26262d;
-  --border-strong: #34343d;
-  --border-faint: #1d1d22;
-
-  --text: #f2f2f4;
-  --text-2: #a8a8b3;
-  --text-3: #6e6e79;
-  --text-4: #4c4c55;
-
-  --accent: #6e6bf0;
-  --accent-strong: #8482f6;
-  --on-accent: #ffffff;
+  --border-strong: #34343d; --border-faint: #1d1d22;
+  --text: var(--foreground); --text-2: var(--muted-foreground);
+  --text-3: #6e6e79; --text-4: #4c4c55;
+  --accent-strong: #8482f6; --accent-ring: var(--ring); --on-accent: var(--primary-foreground);
+  --accent-soft: color-mix(in oklch, var(--primary) 14%, transparent);
+  --accent-softer: color-mix(in oklch, var(--primary) 9%, transparent);
+  --radius-base: var(--radius);
+  --green: var(--success); --green-soft: color-mix(in oklch, var(--success) 16%, transparent);
+  --amber: var(--warning); --amber-soft: color-mix(in oklch, var(--warning) 16%, transparent);
+  --red: var(--destructive); --red-soft: color-mix(in oklch, var(--destructive) 15%, transparent);
+  --blue: var(--info); --blue-soft: color-mix(in oklch, var(--info) 15%, transparent);
+  --pro: #e6c463; --pro-bg: linear-gradient(180deg, #211c10, #1b1709); --pro-border: #443a1f;
 
   --shadow-color: 240 40% 2%;
   --shadow-sm: 0 1px 2px hsl(var(--shadow-color) / 0.5), 0 1px 1px hsl(var(--shadow-color) / 0.4);
   --shadow-md: 0 6px 16px -4px hsl(var(--shadow-color) / 0.6), 0 2px 6px -2px hsl(var(--shadow-color) / 0.5);
   --shadow-lg: 0 20px 44px -12px hsl(var(--shadow-color) / 0.72), 0 8px 16px -8px hsl(var(--shadow-color) / 0.5);
   --shadow-pop: 0 28px 60px -14px hsl(var(--shadow-color) / 0.8), 0 10px 22px -10px hsl(var(--shadow-color) / 0.6);
-
-  --green: #3ecf8e;
-  --green-soft: color-mix(in oklch, #3ecf8e 16%, transparent);
-  --amber: #e2b04a;
-  --amber-soft: color-mix(in oklch, #e2b04a 16%, transparent);
-  --red: #f06a5e;
-  --red-soft: color-mix(in oklch, #f06a5e 15%, transparent);
-  --blue: #5b9bff;
-  --blue-soft: color-mix(in oklch, #5b9bff 15%, transparent);
-  --pro: #e6c463;
-  --pro-bg: linear-gradient(180deg, #211c10, #1b1709);
-  --pro-border: #443a1f;
 }
 
 /* ============================================================

@@ -26,7 +26,11 @@ export function MediaDropzone({ apiBase, onUploaded, onError, onBusy, disabled, 
     }
   }, [apiBase, onUploaded, onError, onBusy, upload])
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, accept, disabled })
+  // useFsAccessApi:false forces the classic <input type=file> path. The File System
+  // Access API path (the default) throws "NotAllowedError: getFile on
+  // FileSystemFileHandle" in several contexts (non-top-level gesture, some browsers),
+  // breaking click-to-upload. The classic path is universally reliable.
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, accept, disabled, useFsAccessApi: false })
 
   return (
     <div {...getRootProps()} className="media-dropzone" data-drag-active={isDragActive ? '' : undefined}>

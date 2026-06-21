@@ -19,14 +19,14 @@
 .btn-icononly.btn-sm { width: 28px; padding: 0; }
 .btn-icononly.btn-lg { width: 40px; padding: 0; }
 
-.btn-primary { background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-sm), inset 0 1px 0 color-mix(in oklch, white 22%, transparent); }
-.btn-primary:hover { background: color-mix(in oklch, var(--accent) 90%, black 8%); }
+.btn-primary { background: var(--primary); color: var(--on-accent); box-shadow: var(--shadow-sm), inset 0 1px 0 color-mix(in oklch, white 22%, transparent); }
+.btn-primary:hover { background: color-mix(in oklch, var(--primary) 90%, black 8%); }
 .btn-default { background: var(--surface); color: var(--text); border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
 .btn-default:hover { background: var(--surface-hover); border-color: var(--border-strong); }
 .btn-ghost { background: transparent; color: var(--text-2); }
 .btn-ghost:hover { background: var(--surface-hover); color: var(--text); }
 .btn-soft { background: var(--accent-soft); color: var(--accent-strong); }
-.btn-soft:hover { background: color-mix(in oklch, var(--accent) 18%, transparent); }
+.btn-soft:hover { background: color-mix(in oklch, var(--primary) 18%, transparent); }
 .btn-danger { background: var(--red-soft); color: var(--red); }
 .btn-danger:hover { background: color-mix(in oklch, var(--red) 18%, transparent); }
 .btn-quiet { background: transparent; color: var(--text-3); }
@@ -247,7 +247,7 @@
   background: color-mix(in oklch, var(--surface) 94%, var(--red-soft) 6%);
 }
 .notify-info {
-  border-left-color: var(--accent);
+  border-left-color: var(--primary);
   background: color-mix(in oklch, var(--surface) 94%, var(--accent-soft) 6%);
 }
 
@@ -339,7 +339,7 @@
   transition: border-color .14s, box-shadow .14s;
   box-shadow: var(--shadow-sm);
 }
-.media-tile:hover { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-ring); }
+.media-tile:hover { border-color: var(--primary); box-shadow: 0 0 0 2px var(--accent-ring); }
 
 /* Thumbnail area */
 .media-tile-thumb {
@@ -428,9 +428,9 @@
 }
 .media-dropzone:hover,
 .media-dropzone[data-drag-active] {
-  border-color: var(--accent);
+  border-color: var(--primary);
   background: var(--accent-ring);
-  color: var(--accent);
+  color: var(--primary);
 }
 
 /* ---- MEDIA SCREEN LAYOUT ---- */

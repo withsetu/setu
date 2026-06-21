@@ -197,17 +197,17 @@
 }
 
 /* ---- NOTIFICATIONS ---- */
-/* A gentle upward slide/fade — mirrors popIn but rises from bottom-right */
+/* A gentle downward slide/fade — drops in from the top-right */
 @keyframes notifyIn {
-  from { opacity: 0; transform: translateY(8px) scale(.97); }
+  from { opacity: 0; transform: translateY(-8px) scale(.97); }
   to   { opacity: 1; transform: none; }
 }
 
-/* Region: fixed bottom-right column stack; pointer-events disabled on container so
+/* Region: fixed top-right column stack; pointer-events disabled on container so
    clicks fall through the empty gap between toasts */
 .notify-region {
   position: fixed;
-  bottom: 24px;
+  top: 24px;
   right: 24px;
   z-index: 500;
   display: flex;
@@ -495,10 +495,6 @@
   gap: 8px;
   padding: 16px;
   border-top: 1px solid var(--border);
-}
-
-.media-error {
-  margin: 0 20px 8px;
 }
 
 .btn-danger {

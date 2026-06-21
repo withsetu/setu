@@ -18,6 +18,16 @@ vi.mock('../src/media/media-client', async (orig) => ({
   deleteMedia: vi.fn(async () => {}),
 }))
 
+// ── mock upload-client so uploadFile never hits the network ──
+vi.mock('../src/media/upload-client', async (orig) => ({
+  ...(await orig() as object),
+  uploadFile: vi.fn(async () => ({
+    id: '2026/06/dog', key: '2026/06/dog.jpg', url: 'http://x/media/2026/06/dog.jpg',
+    contentType: 'image/jpeg', size: 1, filename: 'dog.jpg',
+    record: { mediaKey: '2026/06/dog', key: '2026/06/dog.jpg', thumbKey: null, filename: 'dog.jpg', contentType: 'image/jpeg', isImage: true, width: null, height: null, bytes: 1, uploadedAt: 0 },
+  })),
+}))
+
 // import the mock so we can assert on it
 import { deleteMedia } from '../src/media/media-client'
 
@@ -213,5 +223,18 @@ describe('Media screen', () => {
     await waitFor(() => {
       expect(screen.getByText('Deleted cat.png')).toBeInTheDocument()
     })
+  })
+
+  it('surfaces an "Uploaded" toast after a successful upload', async () => {
+    const { services, mediaIndex } = await buildProviders()
+    render(<Media />, { wrapper: wrapper(services, mediaIndex) })
+
+    // Wait for the screen to be ready (dropzone is present from the start)
+    const input = await screen.findByTestId('media-dropzone-input') as HTMLInputElement
+    const file = new File([new Uint8Array([1])], 'dog.jpg', { type: 'image/jpeg' })
+    fireEvent.change(input, { target: { files: [file] } })
+
+    // The mocked uploadFile returns filename 'dog.jpg' → toast says 'Uploaded dog.jpg'
+    await screen.findByText(/Uploaded dog\.jpg/)
   })
 })

@@ -9,12 +9,23 @@ import type { MediaRecord, EntryIndexRow } from '@setu/core'
 import { ActorProvider } from '../src/auth/actor'
 import { ServicesProvider, servicesFor } from '../src/data/store'
 import { MediaIndexProvider } from '../src/data/media-index-store'
+import { NotificationProvider } from '../src/ui/notify'
 import { Media } from '../src/screens/Media'
 
 // ── mock media-client so deleteMedia never hits the network ──
 vi.mock('../src/media/media-client', async (orig) => ({
   ...(await orig() as object),
   deleteMedia: vi.fn(async () => {}),
+}))
+
+// ── mock upload-client so uploadFile never hits the network ──
+vi.mock('../src/media/upload-client', async (orig) => ({
+  ...(await orig() as object),
+  uploadFile: vi.fn(async () => ({
+    id: '2026/06/dog', key: '2026/06/dog.jpg', url: 'http://x/media/2026/06/dog.jpg',
+    contentType: 'image/jpeg', size: 1, filename: 'dog.jpg',
+    record: { mediaKey: '2026/06/dog', key: '2026/06/dog.jpg', thumbKey: null, filename: 'dog.jpg', contentType: 'image/jpeg', isImage: true, width: null, height: null, bytes: 1, uploadedAt: 0 },
+  })),
 }))
 
 // import the mock so we can assert on it
@@ -86,7 +97,9 @@ function wrapper(services: ReturnType<typeof servicesFor>, mediaIndex: ReturnTyp
         <ActorProvider>
           <ServicesProvider services={services}>
             <MediaIndexProvider service={mediaIndex}>
-              {children}
+              <NotificationProvider>
+                {children}
+              </NotificationProvider>
             </MediaIndexProvider>
           </ServicesProvider>
         </ActorProvider>
@@ -185,7 +198,7 @@ describe('Media screen', () => {
     expect(screen.getByRole('complementary', { name: /Media details/i })).toBeInTheDocument()
   })
 
-  it('surfaces delete errors via a role=alert element', async () => {
+  it('surfaces delete errors as an error toast notification', async () => {
     vi.mocked(deleteMedia as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('server error'))
     const { services, mediaIndex } = await buildProviders()
     render(<Media />, { wrapper: wrapper(services, mediaIndex) })
@@ -197,5 +210,31 @@ describe('Media screen', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent('server error')
     })
+  })
+
+  it('surfaces a success toast after a successful delete', async () => {
+    const { services, mediaIndex } = await buildProviders()
+    render(<Media />, { wrapper: wrapper(services, mediaIndex) })
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /cat\.png/i })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: /cat\.png/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Delete cat\.png/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Deleted cat.png')).toBeInTheDocument()
+    })
+  })
+
+  it('surfaces an "Uploaded" toast after a successful upload', async () => {
+    const { services, mediaIndex } = await buildProviders()
+    render(<Media />, { wrapper: wrapper(services, mediaIndex) })
+
+    // Wait for the screen to be ready (dropzone is present from the start)
+    const input = await screen.findByTestId('media-dropzone-input') as HTMLInputElement
+    const file = new File([new Uint8Array([1])], 'dog.jpg', { type: 'image/jpeg' })
+    fireEvent.change(input, { target: { files: [file] } })
+
+    // The mocked uploadFile returns filename 'dog.jpg' → toast says 'Uploaded dog.jpg'
+    await screen.findByText(/Uploaded dog\.jpg/)
   })
 })

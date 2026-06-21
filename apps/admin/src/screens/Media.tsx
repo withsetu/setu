@@ -9,6 +9,7 @@ import { useServices } from '../data/store'
 import { deleteMedia } from '../media/media-client'
 import { resolveMediaSrc } from '../editor/media-src'
 import type { UploadResult } from '../media/upload-client'
+import { useNotify } from '../ui/notify'
 
 const apiBase = (import.meta.env.VITE_SETU_API as string | undefined) ?? ''
 
@@ -21,8 +22,8 @@ function humanSize(bytes: number): string {
 export function Media() {
   const mediaIndex = useMediaIndex()
   const { index } = useServices()
+  const notify = useNotify()
   const [params, setParams] = useSearchParams()
-  const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<MediaIndexRow | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -52,12 +53,13 @@ export function Media() {
   function onUploaded(result: UploadResult) {
     void mediaIndex.upsertOne(result.record)
     setRefreshKey((k) => k + 1)
+    notify.success('Uploaded ' + result.record.filename)
   }
 
   async function onDelete() {
     if (!selected) return
     setDeleting(true)
-    setError(null)
+    const deletedFilename = selected.filename
     try {
       const used = await index.referencedBy(selected.mediaKey)
       const confirmed =
@@ -74,8 +76,9 @@ export function Media() {
       await mediaIndex.removeOne(selected.mediaKey)
       setSelected(null)
       setRefreshKey((k) => k + 1)
+      notify.success('Deleted ' + deletedFilename)
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      notify.error(err instanceof Error ? err.message : String(err))
     } finally {
       setDeleting(false)
     }
@@ -93,16 +96,14 @@ export function Media() {
         subtitle="Upload, browse, and manage your media files."
       />
       <div className="page-body">
-        {error && <p role="alert" className="media-error error">{error}</p>}
-
         <MediaBrowser
           apiBase={apiBase}
           mode="manage"
           filters={filters}
           setFilters={setFilters}
           onUploaded={onUploaded}
-          onError={setError}
-          onSelect={(row) => { setSelected(row); setError(null) }}
+          onError={(m) => notify.error(m)}
+          onSelect={(row) => setSelected(row)}
           refreshKey={refreshKey}
         />
 
@@ -115,7 +116,7 @@ export function Media() {
                 type="button"
                 className="media-detail-close btn btn-sm"
                 aria-label="Close detail panel"
-                onClick={() => { setSelected(null); setError(null) }}
+                onClick={() => setSelected(null)}
               >
                 ✕
               </button>

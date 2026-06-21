@@ -7,23 +7,26 @@ import { DeployProvider } from '../src/deploy/deploy'
 import { IndexProvider } from '../src/data/index-store'
 import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { EditorScreen } from '../src/editor/EditorScreen'
+import { NotificationProvider } from '../src/ui/notify'
 
 function renderEditor(path = '/edit/post/en/release-notes') {
   const services = createServices()
   render(
-    <MemoryRouter initialEntries={[path]}>
-      <ActorProvider>
-        <ServicesProvider services={services}>
-          <TaxonomyProvider>
-            <DeployProvider>
-              <IndexProvider>
-                <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
-              </IndexProvider>
-            </DeployProvider>
-          </TaxonomyProvider>
-        </ServicesProvider>
-      </ActorProvider>
-    </MemoryRouter>,
+    <NotificationProvider>
+      <MemoryRouter initialEntries={[path]}>
+        <ActorProvider>
+          <ServicesProvider services={services}>
+            <TaxonomyProvider>
+              <DeployProvider>
+                <IndexProvider>
+                  <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
+                </IndexProvider>
+              </DeployProvider>
+            </TaxonomyProvider>
+          </ServicesProvider>
+        </ActorProvider>
+      </MemoryRouter>
+    </NotificationProvider>,
   )
 }
 
@@ -34,6 +37,7 @@ describe('EditorScreen publish', () => {
     expect(screen.getByText('Draft', { selector: '.badge' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /^publish$/i }))
     await waitFor(() => expect(screen.getByText('Staged', { selector: '.badge' })).toBeInTheDocument())
+    expect(await screen.findByText(/Published ·/)).toBeInTheDocument()
   })
 
   it('gates "View page": disabled before publish, a live link after', async () => {

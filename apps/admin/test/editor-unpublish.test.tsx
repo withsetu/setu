@@ -8,16 +8,19 @@ import { DeployProvider } from '../src/deploy/deploy'
 import { IndexProvider } from '../src/data/index-store'
 import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { EditorScreen } from '../src/editor/EditorScreen'
+import { NotificationProvider } from '../src/ui/notify'
 
 describe('EditorScreen unpublish', () => {
   it('Unpublish commits published:false (reversible, content kept)', async () => {
     const services = createServices()
     render(
-      <MemoryRouter initialEntries={['/edit/post/en/release-notes']}>
-        <ActorProvider><ServicesProvider services={services}><TaxonomyProvider><DeployProvider><IndexProvider>
-          <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
-        </IndexProvider></DeployProvider></TaxonomyProvider></ServicesProvider></ActorProvider>
-      </MemoryRouter>,
+      <NotificationProvider>
+        <MemoryRouter initialEntries={['/edit/post/en/release-notes']}>
+          <ActorProvider><ServicesProvider services={services}><TaxonomyProvider><DeployProvider><IndexProvider>
+            <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
+          </IndexProvider></DeployProvider></TaxonomyProvider></ServicesProvider></ActorProvider>
+        </MemoryRouter>
+      </NotificationProvider>,
     )
     await screen.findByDisplayValue('Release notes')
     fireEvent.click(screen.getByRole('button', { name: /^publish$/i }))

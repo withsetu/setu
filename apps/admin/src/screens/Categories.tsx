@@ -3,6 +3,7 @@ import type { CategoryNode } from '@setu/core'
 import { buildTree } from '@setu/core'
 import { PageHeader } from '../shell/PageHeader'
 import { useTaxonomy } from '../data/taxonomy-store'
+import { useNotify } from '../ui/notify'
 
 function flatten(nodes: CategoryNode[], out: CategoryNode[] = []): CategoryNode[] {
   for (const n of nodes) {
@@ -14,9 +15,9 @@ function flatten(nodes: CategoryNode[], out: CategoryNode[] = []): CategoryNode[
 
 export function Categories() {
   const { categories, create, renameLabel, reparent } = useTaxonomy()
+  const notify = useNotify()
   const rows = useMemo(() => flatten(buildTree(categories)), [categories])
   const [name, setName] = useState('')
-  const [error, setError] = useState<string | null>(null)
 
   const add = async () => {
     const trimmed = name.trim()
@@ -26,18 +27,16 @@ export function Categories() {
   }
 
   const onReparent = async (slug: string, parent: string) => {
-    setError(null)
     try {
       await reparent(slug, parent || null)
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      notify.error(e instanceof Error ? e.message : String(e))
     }
   }
 
   return (
     <section className="categories-screen">
       <PageHeader title="Categories" subtitle="Organize how posts are grouped." />
-      {error && <p role="alert" className="error">{error}</p>}
       <div className="category-new">
         <input
           type="text"

@@ -1,14 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { MediaIndexQuery, MediaIndexRow, MediaSortKey } from '@setu/core'
+import type { MediaIndexQuery, MediaIndexRow, MediaKind, MediaSortKey } from '@setu/core'
 import type { UploadResult } from './upload-client'
 import { MediaGrid } from './MediaGrid'
 import { MediaDropzone } from './MediaDropzone'
 
 export interface MediaFilters {
   q: string
-  type: 'all' | 'image'
+  type: 'all' | MediaKind
   sort: { key: MediaSortKey; dir: 'asc' | 'desc' }
 }
+
+const TYPE_OPTIONS: { value: MediaFilters['type']; label: string }[] = [
+  { value: 'all', label: 'All types' },
+  { value: 'image', label: 'Images' },
+  { value: 'document', label: 'Documents' },
+  { value: 'audio', label: 'Audio' },
+  { value: 'video', label: 'Video' },
+  { value: 'other', label: 'Other' },
+]
 
 const SORT_OPTIONS = [
   { label: 'Newest', key: 'uploadedAt', dir: 'desc' },
@@ -88,9 +97,10 @@ export function MediaBrowser({ apiBase, mode, filters, setFilters, onUploaded, o
             <option key={`${o.key}-${o.dir}`} value={`${o.key}-${o.dir}`}>{o.label}</option>
           ))}
         </select>
-        <select aria-label="Filter by type" value={filters.type} onChange={(e) => setFilters({ type: e.target.value as 'all' | 'image' })}>
-          <option value="all">All types</option>
-          <option value="image">Images</option>
+        <select aria-label="Filter by type" value={filters.type} onChange={(e) => setFilters({ type: e.target.value as MediaFilters['type'] })}>
+          {TYPE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
         </select>
       </div>
       <MediaGrid

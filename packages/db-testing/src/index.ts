@@ -237,10 +237,13 @@ export function runMediaIndexPortContract(makeAdapter: () => Promise<MediaIndexP
       expect(r.total).toBe(3)
       expect(r.rows.map((x) => x.mediaKey)).toEqual(['b', 'c'])
     })
-    it('filters by type=image', async () => {
-      await ix.upsertMany([mrow({ mediaKey: 'img', isImage: true }), mrow({ mediaKey: 'doc', isImage: false })])
-      const r = await ix.query({ type: 'image', offset: 0, limit: 10 })
-      expect(r.rows.map((x) => x.mediaKey)).toEqual(['img'])
+    it('filters by media kind (image vs document)', async () => {
+      await ix.upsertMany([
+        mrow({ mediaKey: 'img', contentType: 'image/png' }),
+        mrow({ mediaKey: 'doc', isImage: false, contentType: 'application/pdf' }),
+      ])
+      expect((await ix.query({ type: 'image', offset: 0, limit: 10 })).rows.map((x) => x.mediaKey)).toEqual(['img'])
+      expect((await ix.query({ type: 'document', offset: 0, limit: 10 })).rows.map((x) => x.mediaKey)).toEqual(['doc'])
     })
     it('remove and clear', async () => {
       await ix.upsertMany([mrow({ mediaKey: 'a' }), mrow({ mediaKey: 'b' })])

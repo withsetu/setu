@@ -30,7 +30,7 @@ export function Media() {
   // Filter state lives in the URL so a filtered media view is shareable + survives reload.
   const filters: MediaFilters = {
     q: params.get('q') ?? '',
-    type: (params.get('type') ?? 'all') as 'image' | 'all',
+    type: (params.get('type') ?? 'all') as MediaFilters['type'],
     sort: parseSortValue(params.get('sort')),
   }
   const setFilters = (patch: Partial<MediaFilters>) => {

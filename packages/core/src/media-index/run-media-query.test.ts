@@ -16,9 +16,15 @@ describe('runMediaQuery', () => {
     expect(r.total).toBe(3)
     expect(r.rows.map((x) => x.mediaKey)).toEqual(['b', 'c'])
   })
-  it('filters by type=image', () => {
-    const rows = [row({ mediaKey: 'img', isImage: true }), row({ mediaKey: 'doc', isImage: false })]
+  it('filters by media kind (image vs document), derived from contentType', () => {
+    const rows = [
+      row({ mediaKey: 'img', contentType: 'image/png' }),
+      row({ mediaKey: 'pdf', contentType: 'application/pdf' }),
+      row({ mediaKey: 'mp3', contentType: 'audio/mpeg' }),
+    ]
     expect(runMediaQuery(rows, { type: 'image', offset: 0, limit: 10 }).rows.map((x) => x.mediaKey)).toEqual(['img'])
+    expect(runMediaQuery(rows, { type: 'document', offset: 0, limit: 10 }).rows.map((x) => x.mediaKey)).toEqual(['pdf'])
+    expect(runMediaQuery(rows, { type: 'all', offset: 0, limit: 10 }).total).toBe(3)
   })
   it('filters by filename substring (case-insensitive)', () => {
     const rows = [row({ mediaKey: 'a', filename: 'Sunset.jpg' }), row({ mediaKey: 'b', filename: 'cat.png' })]

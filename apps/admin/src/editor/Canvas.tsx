@@ -29,7 +29,6 @@ import { LinkTools } from './extensions/LinkTools'
 import { FormatBubble } from './FormatBubble'
 import { TableMenu } from './TableMenu'
 import { MediaPickerModal } from './MediaPickerModal'
-import { imageBlockFromSrc } from './image-insert'
 
 const cellAlign = {
   align: {
@@ -133,13 +132,15 @@ export function Canvas({
 
   const [imgBusy, setImgBusy] = useState(false)
   const [imgError, setImgError] = useState<string | null>(null)
-  const [pickerOpen, setPickerOpen] = useState(false)
+  // The pending pick handler: insert (slash /image) or replace (in-block button)
+  // both open the same modal; the chosen src is routed to whichever set this.
+  const [pendingPick, setPendingPick] = useState<((src: string) => void) | null>(null)
   const apiBase = (import.meta.env.VITE_SETU_API as string) ?? ''
   useEffect(() => {
     if (!editor) return
     const s = editor.storage as unknown as {
       image: { onUploading?: (b: boolean) => void; onError?: (m: string) => void }
-      imageBlock: { apiBase: string; onUploading?: (b: boolean) => void; onError?: (m: string) => void; openPicker?: () => void }
+      imageBlock: { apiBase: string; onUploading?: (b: boolean) => void; onError?: (m: string) => void; openPicker?: (onPick: (src: string) => void) => void }
     }
     const onUploading = (busy: boolean) => { setImgBusy(busy); if (busy) setImgError(null) }
     const onError = (msg: string) => setImgError(msg)
@@ -148,7 +149,7 @@ export function Canvas({
     s.imageBlock.apiBase = apiBase
     s.imageBlock.onUploading = onUploading
     s.imageBlock.onError = onError
-    s.imageBlock.openPicker = () => setPickerOpen(true)
+    s.imageBlock.openPicker = (onPick) => setPendingPick(() => onPick)
   }, [editor, apiBase])
 
   return (
@@ -161,11 +162,11 @@ export function Canvas({
       {editor && (
         <MediaPickerModal
           apiBase={apiBase}
-          open={pickerOpen}
-          onClose={() => setPickerOpen(false)}
+          open={pendingPick !== null}
+          onClose={() => setPendingPick(null)}
           onPick={(src) => {
-            editor.chain().focus().insertContent(imageBlockFromSrc(src)).run()
-            setPickerOpen(false)
+            pendingPick?.(src)
+            setPendingPick(null)
           }}
         />
       )}

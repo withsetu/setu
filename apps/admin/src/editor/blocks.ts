@@ -3,7 +3,7 @@ import { isIconName } from '../ui/Icon'
 import type { IconName } from '../ui/Icon'
 import { registry } from '../blocks/registry'
 import { BLOCK_TYPES } from './block-types'
-import { pickImageAndInsert } from './image-insert'
+import { pickImageAndInsert, imageBlockFromSrc } from './image-insert'
 
 export interface SlashBlock {
   title: string
@@ -35,9 +35,9 @@ const BUILTINS: SlashBlock[] = [
   { title: 'Table', subtitle: 'Table with header row', icon: 'table', run: (e, r) => e.chain().focus().deleteRange(r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
   { title: 'Image', subtitle: 'Pick or upload an image', icon: 'image', run: (e, r) => {
     e.chain().focus().deleteRange(r).run()
-    const storage = (e.storage as unknown as { imageBlock?: { openPicker?: () => void } }).imageBlock
+    const storage = (e.storage as unknown as { imageBlock?: { openPicker?: (onPick: (src: string) => void) => void } }).imageBlock
     if (storage?.openPicker) {
-      storage.openPicker()
+      storage.openPicker((src) => e.chain().focus().insertContent(imageBlockFromSrc(src)).run())
     } else {
       // Fallback: direct upload (no modal wired yet)
       const editor = e as Editor & { storage: { imageBlock?: { onUploading?: (b: boolean) => void; onError?: (m: string) => void } } }

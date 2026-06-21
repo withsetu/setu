@@ -148,3 +148,113 @@
 .badge-soft.badge-amber { background: var(--amber-soft); color: var(--amber); }
 .badge-soft.badge-red { background: var(--red-soft); color: var(--red); }
 .badge-soft.badge-blue { background: var(--blue-soft); color: var(--blue); }
+
+/* ---- MEDIA GRID ---- */
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 12px;
+  padding: 20px;
+}
+
+.media-grid-loading {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 12px;
+  padding: 20px;
+}
+
+.media-grid-empty {
+  padding: 48px 20px;
+  text-align: center;
+  color: var(--text-3);
+  font-size: 13.5px;
+}
+
+/* Tile — shared between pick and manage modes */
+.media-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  cursor: pointer;
+  text-align: left;
+  padding: 0;
+  transition: border-color .14s, box-shadow .14s;
+  box-shadow: var(--shadow-sm);
+}
+.media-tile:hover { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-ring); }
+
+/* Thumbnail area */
+.media-tile-thumb {
+  width: 100%;
+  aspect-ratio: 4/3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.media-tile-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.media-tile-file-icon {
+  color: var(--text-3);
+  opacity: .6;
+}
+
+/* Info strip below thumbnail */
+.media-tile-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px 9px;
+  min-width: 0;
+}
+
+.media-tile-name {
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.media-tile-dims {
+  font-size: 11px;
+  color: var(--text-3);
+  line-height: 1.3;
+}
+
+.media-tile-size {
+  font-size: 11px;
+  color: var(--text-3);
+  line-height: 1.3;
+}
+
+/* Skeleton tiles shown during loading */
+.media-tile-skeleton {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  height: 160px;
+  animation: pulse 1.4s ease-in-out infinite;
+  cursor: default;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .5; }
+}

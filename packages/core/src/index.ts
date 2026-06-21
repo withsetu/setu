@@ -33,6 +33,8 @@ export { mediaSlug, mediaKeyOf, originalKey, variantKey, manifestKey, mediaRecor
 export type { MediaRecord, MediaIndexRow, MediaSortKey, MediaIndexQuery, MediaIndexMeta, MediaIndexPort } from './media-index/types'
 export { mediaRowFromRecord } from './media-index/types'
 export { runMediaQuery } from './media-index/run-media-query'
+export type { MediaIndexService, MediaIndexServiceDeps } from './media-index/media-index-service'
+export { createMediaIndexService, MEDIA_INDEX_VERSION } from './media-index/media-index-service'
 
 export type {
   AuthoringService,

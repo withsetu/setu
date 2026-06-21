@@ -5,6 +5,7 @@ import type { MediaRecord } from './types'
 
 const rec = (mediaKey: string, over: Partial<MediaRecord> = {}): MediaRecord => ({
   mediaKey, filename: `${mediaKey}.jpg`,
+  key: `${mediaKey}.jpg`, thumbKey: null,
   contentType: 'image/jpeg', isImage: true, width: null, height: null, bytes: 0, uploadedAt: 0, ...over,
 })
 

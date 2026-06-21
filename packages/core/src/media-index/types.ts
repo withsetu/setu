@@ -41,6 +41,8 @@ export interface MediaIndexPort {
 /** Minimal media record sidecar (analogous to manifest). */
 export interface MediaRecord {
   mediaKey: string
+  key: string              // storage key of the original, e.g. '2026/06/cat.jpg' -> src is `/media/${key}`
+  thumbKey: string | null  // smallest variant key for the grid thumbnail; null for non-images
   filename: string
   contentType: string
   isImage: boolean
@@ -52,17 +54,5 @@ export interface MediaRecord {
 
 /** Convert a MediaRecord (sidecar) to a MediaIndexRow. */
 export function mediaRowFromRecord(record: MediaRecord): MediaIndexRow {
-  return {
-    mediaKey: record.mediaKey,
-    key: record.mediaKey, // placeholder; will be filled by the storage API
-    thumbKey: null,        // placeholder; will be filled when manifest is read
-    filename: record.filename,
-    filenameLower: record.filename.toLowerCase(),
-    contentType: record.contentType,
-    isImage: record.isImage,
-    width: record.width,
-    height: record.height,
-    bytes: record.bytes,
-    uploadedAt: record.uploadedAt,
-  }
+  return { ...record, filenameLower: record.filename.toLowerCase() }
 }

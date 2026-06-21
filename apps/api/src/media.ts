@@ -50,8 +50,6 @@ export interface UploadApiOptions {
 
 const authz = createAuthz(DEFAULT_ROLES)
 
-/** Stored media-record sidecar — extends MediaRecord with storage keys needed for deletion. */
-type StoredRecord = MediaRecord & { key: string; thumbKey: string | null }
 
 export function createUploadApi(opts: UploadApiOptions) {
   const maxBytes = opts.limits?.maxBytes ?? DEFAULT_MAX_BYTES
@@ -101,7 +99,7 @@ export function createUploadApi(opts: UploadApiOptions) {
 
     const isImage = file.type.startsWith('image/')
     const smallest = manifest?.variants.slice().sort((a, b) => a.width - b.width)[0]
-    const record: StoredRecord = {
+    const record: MediaRecord = {
       mediaKey,
       key,
       thumbKey: smallest ? smallest.key : null,
@@ -134,12 +132,12 @@ export function createUploadApi(opts: UploadApiOptions) {
 
   app.get('/media/_index', async (c) => {
     const keys = await storage.list()
-    const records: StoredRecord[] = []
+    const records: MediaRecord[] = []
     for (const k of keys) {
       if (!k.endsWith('.media.json')) continue
       const obj = await storage.get(k)
       if (!obj) continue
-      try { records.push(JSON.parse(new TextDecoder().decode(obj.body)) as StoredRecord) } catch { /* skip corrupt */ }
+      try { records.push(JSON.parse(new TextDecoder().decode(obj.body)) as MediaRecord) } catch { /* skip corrupt */ }
     }
     return c.json({ records })
   })
@@ -158,7 +156,7 @@ export function createUploadApi(opts: UploadApiOptions) {
     }
     const recRaw = await storage.get(mediaRecordKey(mediaKey))
     if (recRaw) {
-      const rec = JSON.parse(new TextDecoder().decode(recRaw.body)) as StoredRecord
+      const rec = JSON.parse(new TextDecoder().decode(recRaw.body)) as MediaRecord
       await storage.delete(rec.key) // original (covers non-images with no manifest)
       await storage.delete(mediaRecordKey(mediaKey))
     }

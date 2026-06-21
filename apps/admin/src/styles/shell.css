@@ -185,12 +185,6 @@
   white-space: nowrap;
 }
 
-/* Muted result message after an action completes */
-.bulk-msg {
-  font-size: 12px;
-  color: var(--text-3);
-  font-style: italic;
-}
 
 /* ---- FILTER TOOLBAR ---- */
 /* Horizontal, wrapping row of filter controls that sits between the page header and the table */
@@ -243,10 +237,6 @@
   min-width: 160px;
 }
 
-/* Compact the tag-input height to match other toolbar controls */
-.list-toolbar .tag-input {
-  height: 32px;
-}
 
 /* ---- SORTABLE TABLE HEADERS ---- */
 /* ctable-sort: a <button> inside <th> that looks exactly like the plain th text.

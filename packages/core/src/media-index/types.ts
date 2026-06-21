@@ -1,4 +1,5 @@
 // Pure, edge-safe media-index types. No Node/DOM APIs.
+import type { MediaKind } from './media-kind'
 
 export interface MediaIndexRow {
   mediaKey: string        // '2026/06/cat' — identity
@@ -18,7 +19,7 @@ export type MediaSortKey = 'uploadedAt' | 'filename' | 'bytes'
 
 export interface MediaIndexQuery {
   q?: string                              // filename substring
-  type?: 'image' | 'all'                  // default 'all'
+  type?: 'all' | MediaKind                // 'all'/undefined → no kind filter
   sort?: { key: MediaSortKey; dir: 'asc' | 'desc' }
   offset: number
   limit: number

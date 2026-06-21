@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import type { DataPort, TiptapDoc, IndexPort, EntryIndexRow } from '@setu/core'
+import type { DataPort, TiptapDoc, IndexPort, EntryIndexRow, MediaIndexPort, MediaIndexRow } from '@setu/core'
 
 const doc = (text: string): TiptapDoc => ({
   type: 'doc',
@@ -194,6 +194,53 @@ export function runIndexPortContract(makeAdapter: () => Promise<IndexPort> | Ind
         irow({ slug: 'c', locale: 'en' }),
       ])
       expect(await ix.distinctLocales()).toEqual(['en', 'fr'])
+    })
+  })
+}
+
+const mrow = (over: Partial<MediaIndexRow>): MediaIndexRow => {
+  const base = {
+    mediaKey: '2026/06/x', key: '2026/06/x.jpg', thumbKey: null as string | null,
+    filename: 'x.jpg', contentType: 'image/jpeg', isImage: true,
+    width: null as number | null, height: null as number | null, bytes: 0, uploadedAt: 0,
+    ...over,
+  }
+  return { ...base, filenameLower: base.filename.toLowerCase() }
+}
+
+export function runMediaIndexPortContract(makeAdapter: () => Promise<MediaIndexPort> | MediaIndexPort): void {
+  describe('MediaIndexPort contract', () => {
+    let ix: MediaIndexPort
+    beforeEach(async () => { ix = await makeAdapter() })
+
+    it('upserts and queries back a row', async () => {
+      await ix.upsert(mrow({ mediaKey: 'a', filename: 'Alpha.jpg' }))
+      const r = await ix.query({ offset: 0, limit: 10 })
+      expect(r.total).toBe(1)
+      expect(r.rows[0]!.mediaKey).toBe('a')
+    })
+    it('upsertMany, sorts uploadedAt desc, paginates with total', async () => {
+      await ix.upsertMany([mrow({ mediaKey: 'a', uploadedAt: 1 }), mrow({ mediaKey: 'b', uploadedAt: 3 }), mrow({ mediaKey: 'c', uploadedAt: 2 })])
+      const r = await ix.query({ offset: 0, limit: 2 })
+      expect(r.total).toBe(3)
+      expect(r.rows.map((x) => x.mediaKey)).toEqual(['b', 'c'])
+    })
+    it('filters by type=image', async () => {
+      await ix.upsertMany([mrow({ mediaKey: 'img', isImage: true }), mrow({ mediaKey: 'doc', isImage: false })])
+      const r = await ix.query({ type: 'image', offset: 0, limit: 10 })
+      expect(r.rows.map((x) => x.mediaKey)).toEqual(['img'])
+    })
+    it('remove and clear', async () => {
+      await ix.upsertMany([mrow({ mediaKey: 'a' }), mrow({ mediaKey: 'b' })])
+      await ix.remove('a')
+      expect((await ix.query({ offset: 0, limit: 10 })).total).toBe(1)
+      await ix.clear()
+      expect((await ix.query({ offset: 0, limit: 10 })).total).toBe(0)
+    })
+    it('meta round-trips and defaults to version 0', async () => {
+      expect(await ix.getMeta()).toEqual({ version: 0 })
+      await ix.setMeta({ version: 2 })
+      expect(await ix.getMeta()).toEqual({ version: 2 })
     })
   })
 }

@@ -1,11 +1,20 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { ContentRow, EntryRef } from '@setu/core'
-import { bulkAddCategory, bulkRemoveCategory, bulkAddTag, bulkRemoveTag } from '@setu/core'
+import { buildTree, bulkAddCategory, bulkRemoveCategory, bulkAddTag, bulkRemoveTag } from '@setu/core'
 import { useServices } from '../data/store'
 import { useIndex } from '../data/index-store'
+import { useTaxonomy } from '../data/taxonomy-store'
 import { useNotify } from '../ui/notify'
 import { TagAutocomplete } from '../ui/TagAutocomplete'
 import { CategoryPicker } from '../ui/CategoryPicker'
+
+function flattenCats(nodes: ReturnType<typeof buildTree>, out: { slug: string; name: string }[] = []) {
+  for (const n of nodes) {
+    out.push({ slug: n.slug, name: n.name })
+    flattenCats(n.children, out)
+  }
+  return out
+}
 
 export function BulkBar({
   rows,
@@ -21,6 +30,11 @@ export function BulkBar({
   const { bulk } = useServices()
   const index = useIndex()
   const notify = useNotify()
+  const { categories } = useTaxonomy()
+  const nameBySlug = useMemo(
+    () => new Map(flattenCats(buildTree(categories)).map((c) => [c.slug, c.name])),
+    [categories],
+  )
   const [catVal, setCatVal] = useState('')
   const [cat, setCat] = useState('')
   const [tagVal, setTagVal] = useState('')
@@ -70,8 +84,8 @@ export function BulkBar({
       <span className="bulk-group">
         <CategoryPicker
           value={catVal}
-          onChange={setCatVal}
-          onSubmit={(slug) => setCat(slug)}
+          onChange={(text) => { setCatVal(text); setCat('') }}
+          onSubmit={(slug) => { setCat(slug); setCatVal(nameBySlug.get(slug) ?? slug) }}
           ariaLabel="Bulk category"
           disabled={busy}
         />

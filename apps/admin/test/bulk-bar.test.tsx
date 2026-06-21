@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import type { ContentRow } from '@setu/core'
 import { contentPath, serializeMdoc } from '@setu/core'
 import { createMemoryGitPort } from '@setu/git-memory'
@@ -8,6 +8,7 @@ import { ServicesProvider, servicesFor } from '../src/data/store'
 import { DeployProvider } from '../src/deploy/deploy'
 import { IndexProvider } from '../src/data/index-store'
 import { TaxonomyProvider } from '../src/data/taxonomy-store'
+import { NotificationProvider } from '../src/ui/notify'
 import { BulkBar } from '../src/screens/BulkBar'
 
 const row = (slug: string, over: Partial<ContentRow> = {}): ContentRow => ({
@@ -27,7 +28,9 @@ function setup(rows: ContentRow[]) {
   render(
     <ServicesProvider services={services}>
       <DeployProvider><IndexProvider><TaxonomyProvider>
-        <BulkBar rows={rows} selected={selected} onClear={onClear} onDone={onDone} />
+        <NotificationProvider>
+          <BulkBar rows={rows} selected={selected} onClear={onClear} onDone={onDone} />
+        </NotificationProvider>
       </TaxonomyProvider></IndexProvider></DeployProvider>
     </ServicesProvider>,
   )
@@ -35,26 +38,27 @@ function setup(rows: ContentRow[]) {
 }
 
 describe('BulkBar', () => {
-  it('adds a tag to all selected entries and calls onDone', async () => {
-    const { git, onDone } = setup([row('a'), row('b')])
-    fireEvent.change(screen.getByLabelText('Bulk tag'), { target: { value: 'news' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Add tag' }))
-    await waitFor(() => expect(onDone).toHaveBeenCalled())
+  it('adds a tag to all selected entries (Enter) and notifies', async () => {
+    const { git } = setup([row('a'), row('b')])
+    const input = screen.getByLabelText('Bulk tag')
+    fireEvent.change(input, { target: { value: 'news' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(await screen.findByText(/Added .*news.* to 2/i)).toBeTruthy()
     const { parseMdoc } = await import('@setu/core')
     const a = parseMdoc((await git.readFile(contentPath({ collection: 'post', locale: 'en', slug: 'a' })))!)
     expect(a.frontmatter.tags).toEqual(['news'])
   })
 
+  it('deletes selected entries after confirm and notifies', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const { git } = setup([row('a')])
+    fireEvent.click(screen.getByRole('button', { name: /^delete$/i }))
+    expect(await screen.findByText(/Deleted 1/i)).toBeTruthy()
+    expect(await git.readFile(contentPath({ collection: 'post', locale: 'en', slug: 'a' }))).toBeNull()
+  })
+
   it('shows the unpublished-changes heads-up count', () => {
     setup([row('a', { hasDraft: true, lifecycle: { state: 'staged' } }), row('b')])
     expect(screen.getByText(/1 of 2 have unpublished changes/i)).toBeTruthy()
-  })
-
-  it('deletes selected entries after confirm', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
-    const { git, onDone } = setup([row('a')])
-    fireEvent.click(screen.getByRole('button', { name: /delete/i }))
-    await waitFor(() => expect(onDone).toHaveBeenCalled())
-    expect(await git.readFile(contentPath({ collection: 'post', locale: 'en', slug: 'a' }))).toBeNull()
   })
 })

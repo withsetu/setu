@@ -134,7 +134,7 @@
   --accent: #1f1f25; --accent-foreground: #f2f2f4;
   --destructive: #f06a5e; --destructive-foreground: #0c0c0f;
   --border: #26262d; --input: #26262d;
-  --ring: color-mix(in oklch, #6e6bf0 45%, transparent);
+  --ring: color-mix(in oklch, #6e6bf0 38%, transparent);
 
   --chart-1: #6e6bf0; --chart-2: #3ecf8e; --chart-3: #e2b04a;
   --chart-4: #5b9bff; --chart-5: #f06a5e;

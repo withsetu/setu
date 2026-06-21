@@ -100,9 +100,10 @@ export function MediaGrid({ mode, apiBase, query, onPick, onSelect }: MediaGridP
   }
 
   if (rows.length === 0) {
+    const isEmpty = !query.q && query.type !== 'image'
     return (
       <p className="media-grid-empty empty-state">
-        No matches
+        {isEmpty ? 'No media yet' : 'No matches'}
       </p>
     )
   }

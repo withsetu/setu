@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { createAuthz, DEFAULT_ROLES, ingestImage, mediaSlug, mediaKeyOf, originalKey, variantKey, manifestKey, mediaRecordKey } from '@setu/core'
+import { createAuthz, DEFAULT_ROLES, ingestImage, mediaSlug, mediaKeyOf, originalKey, manifestKey, mediaRecordKey } from '@setu/core'
 import type { Actor, ImageFormat, ImagePort, MediaManifest, MediaRecord, StoragePort } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
 import type { ResolveActor } from './auth/resolve-actor'

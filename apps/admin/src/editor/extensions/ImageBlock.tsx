@@ -11,6 +11,7 @@ interface ImageBlockStorage {
   apiBase: string
   onUploading?: (busy: boolean) => void
   onError?: (msg: string) => void
+  openPicker?: () => void
 }
 
 function ImageBlockView({ node, updateAttributes, editor, getPos }: ReactNodeViewProps) {
@@ -115,7 +116,7 @@ export const ImageBlock = Node.create({
     return { mdAttrs: { default: {}, renderHTML: () => ({}), parseHTML: () => ({}) } }
   },
   addStorage(): ImageBlockStorage {
-    return { apiBase: '', onUploading: undefined, onError: undefined }
+    return { apiBase: '', onUploading: undefined, onError: undefined, openPicker: undefined }
   },
   parseHTML() {
     return [{ tag: 'figure[data-setu-image-block]' }]

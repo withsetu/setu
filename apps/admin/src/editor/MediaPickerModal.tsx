@@ -80,6 +80,7 @@ export function MediaPickerModal({ apiBase, open, onClose, onPick }: MediaPicker
           {tab === 'upload' && (
             <MediaDropzone
               apiBase={apiBase}
+              accept={{ 'image/*': [] }}
               onUploaded={(r) => handlePick(srcFromUploadUrl(r.url))}
               onError={(msg) => console.error('upload error:', msg)}
             />

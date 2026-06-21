@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import type { ReactNode } from 'react'
-import { useDropzone, type DropzoneInputProps } from 'react-dropzone'
+import { useDropzone, type Accept, type DropzoneInputProps } from 'react-dropzone'
 import { uploadFile, type UploadResult } from './upload-client'
 
 export interface MediaDropzoneProps {
@@ -11,9 +11,10 @@ export interface MediaDropzoneProps {
   disabled?: boolean
   children?: ReactNode
   upload?: typeof uploadFile
+  accept?: Accept
 }
 
-export function MediaDropzone({ apiBase, onUploaded, onError, onBusy, disabled, children, upload = uploadFile }: MediaDropzoneProps) {
+export function MediaDropzone({ apiBase, onUploaded, onError, onBusy, disabled, children, upload = uploadFile, accept }: MediaDropzoneProps) {
   const onDrop = useCallback(async (files: File[]) => {
     onBusy?.(true)
     try {
@@ -25,7 +26,7 @@ export function MediaDropzone({ apiBase, onUploaded, onError, onBusy, disabled, 
     }
   }, [apiBase, onUploaded, onError, onBusy, upload])
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, accept: { 'image/*': [] }, disabled })
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, accept, disabled })
 
   return (
     <div {...getRootProps()} className="media-dropzone" data-drag-active={isDragActive ? '' : undefined}>

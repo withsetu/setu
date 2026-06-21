@@ -5,6 +5,7 @@ import { createMemoryGitPort } from '@setu/git-memory'
 import { createMemoryDataPort } from '@setu/db-memory'
 import { ServicesProvider, servicesFor } from '../src/data/store'
 import { TaxonomyProvider } from '../src/data/taxonomy-store'
+import { NotificationProvider } from '../src/ui/notify'
 import { Categories } from '../src/screens/Categories'
 
 function wrap() {
@@ -13,7 +14,9 @@ function wrap() {
     <MemoryRouter>
       <ServicesProvider services={services}>
         <TaxonomyProvider>
-          <Categories />
+          <NotificationProvider>
+            <Categories />
+          </NotificationProvider>
         </TaxonomyProvider>
       </ServicesProvider>
     </MemoryRouter>,

@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { MediaGrid } from '../media/MediaGrid'
-import { MediaDropzone } from '../media/MediaDropzone'
+import { MediaBrowser, DEFAULT_SORT } from '../media/MediaBrowser'
+import type { MediaFilters } from '../media/MediaBrowser'
 import { srcFromUploadUrl } from './image-insert'
 
 export interface MediaPickerModalProps {
@@ -10,20 +10,17 @@ export interface MediaPickerModalProps {
   onPick: (src: string) => void
 }
 
-type Tab = 'library' | 'upload'
-
+/** Pick-or-upload library modal: the same browse experience as the /media screen
+ *  (drag-drop upload on top, search/sort/filter, grid) in pick mode. Choosing or
+ *  uploading an image picks it and closes. */
 export function MediaPickerModal({ apiBase, open, onClose, onPick }: MediaPickerModalProps) {
-  const [tab, setTab] = useState<Tab>('library')
+  const [filters, setFilters] = useState<MediaFilters>({ q: '', type: 'all', sort: DEFAULT_SORT })
 
   if (!open) return null
 
-  const handlePick = (src: string) => {
+  const pick = (src: string) => {
     onPick(src)
     onClose()
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') onClose()
   }
 
   return (
@@ -31,7 +28,7 @@ export function MediaPickerModal({ apiBase, open, onClose, onPick }: MediaPicker
       className="media-picker-overlay"
       role="presentation"
       onClick={onClose}
-      onKeyDown={handleKeyDown}
+      onKeyDown={(e) => { if (e.key === 'Escape') onClose() }}
     >
       <div
         role="dialog"
@@ -41,50 +38,21 @@ export function MediaPickerModal({ apiBase, open, onClose, onPick }: MediaPicker
         onClick={(e) => e.stopPropagation()}
       >
         <div className="media-picker-header">
-          <div className="media-picker-tabs" role="tablist">
-            <button
-              role="tab"
-              aria-selected={tab === 'library'}
-              onClick={() => setTab('library')}
-              type="button"
-            >
-              Library
-            </button>
-            <button
-              role="tab"
-              aria-selected={tab === 'upload'}
-              onClick={() => setTab('upload')}
-              type="button"
-            >
-              Upload
-            </button>
-          </div>
-          <button
-            type="button"
-            className="media-picker-close"
-            aria-label="Close"
-            onClick={onClose}
-          >
+          <h2 className="media-picker-title">Add an image</h2>
+          <button type="button" className="media-picker-close" aria-label="Close" onClick={onClose}>
             ✕
           </button>
         </div>
         <div className="media-picker-body">
-          {tab === 'library' && (
-            <MediaGrid
-              mode="pick"
-              apiBase={apiBase}
-              query={{ offset: 0, limit: 100 }}
-              onPick={({ src }) => handlePick(src)}
-            />
-          )}
-          {tab === 'upload' && (
-            <MediaDropzone
-              apiBase={apiBase}
-              accept={{ 'image/*': [] }}
-              onUploaded={(r) => handlePick(srcFromUploadUrl(r.url))}
-              onError={(msg) => console.error('upload error:', msg)}
-            />
-          )}
+          <MediaBrowser
+            apiBase={apiBase}
+            mode="pick"
+            filters={filters}
+            setFilters={(patch) => setFilters((f) => ({ ...f, ...patch }))}
+            onUploaded={(r) => pick(srcFromUploadUrl(r.url))}
+            onError={(msg) => console.error('upload error:', msg)}
+            onPick={pick}
+          />
         </div>
       </div>
     </div>

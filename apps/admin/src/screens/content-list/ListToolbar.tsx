@@ -1,0 +1,48 @@
+import type { ReactNode } from 'react'
+import { Search } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import { TagFilter } from '../TagFilter'
+
+const STATUS_LABELS: Record<string, string> = { draft: 'Draft', staged: 'Staged', live: 'Live', unpublished: 'Unpublished' }
+const STATUSES = ['draft', 'staged', 'live', 'unpublished']
+
+export function ListToolbar({
+  title, search, onSearch, status, onStatus, category, onCategory, catRows, tag, onTag, hasFilters, onClear, columnsMenu,
+}: {
+  title: string
+  search: string; onSearch: (v: string) => void
+  status: string; onStatus: (v: string) => void
+  category: string; onCategory: (v: string) => void; catRows: { slug: string; name: string; depth: number }[]
+  tag: string; onTag: (v: string) => void
+  hasFilters: boolean; onClear: () => void; columnsMenu: ReactNode
+}) {
+  // shadcn Select uses a sentinel for "all" (empty string is not a valid SelectItem value).
+  const ALL = '__all__'
+  return (
+    <div className="flex flex-wrap items-center gap-2 pb-3">
+      <div className="relative min-w-48 flex-1">
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input className="pl-8" placeholder={`Search ${title.toLowerCase()}`} aria-label="Search" value={search} onChange={(e) => onSearch(e.target.value)} />
+      </div>
+      <Select value={status || ALL} onValueChange={(v) => onStatus(v === ALL ? '' : v)}>
+        <SelectTrigger size="sm" aria-label="Filter by status" className="w-36"><SelectValue placeholder="All status" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL}>All status</SelectItem>
+          {STATUSES.map((s) => <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>)}
+        </SelectContent>
+      </Select>
+      <Select value={category || ALL} onValueChange={(v) => onCategory(v === ALL ? '' : v)}>
+        <SelectTrigger size="sm" aria-label="Filter by category" className="w-40"><SelectValue placeholder="All categories" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL}>All categories</SelectItem>
+          {catRows.map((c) => <SelectItem key={c.slug} value={c.slug}><span style={{ paddingLeft: c.depth * 12 }}>{c.name}</span></SelectItem>)}
+        </SelectContent>
+      </Select>
+      <TagFilter value={tag} onChange={onTag} />
+      {hasFilters && <Button variant="ghost" size="sm" onClick={onClear}>Clear filters</Button>}
+      <div className="ml-auto">{columnsMenu}</div>
+    </div>
+  )
+}

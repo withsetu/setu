@@ -63,21 +63,27 @@ export function Dashboard() {
   return (
     <>
       <PageHeader title="Dashboard" subtitle={`${greeting()} — here's your site at a glance.`} actions={<HeaderActions />} />
-      <div className="page-body space-y-5">
-        {error && <p className="text-sm text-destructive">Couldn't load your dashboard. Try refreshing.</p>}
-        {rows === null && !error ? (
-          <DashboardSkeleton />
-        ) : (
-          <>
-            <GettingStarted hasSiteUrl={url !== ''} hasPost={counts.posts > 0} hasDeployed={hasDeployed} />
-            <ResumeEditing rows={recentEntries(rows ?? [], 5)} />
-            <div className="grid gap-3 sm:grid-cols-3">
-              <StatTiles posts={counts.posts} pages={counts.pages} published={counts.published} drafts={counts.drafts} />
-              <SiteDeployCard url={url} deployedSha={deploySha} />
-              <WhosEditing locks={locks} />
-            </div>
-          </>
-        )}
+      <div className="page-body">
+        {/* Gutters align with the page header (.page-header pads 30px); max-width keeps it
+            from sprawling on wide screens. Left-aligned so it tracks the "Dashboard" title. */}
+        <div className="max-w-[1400px] space-y-5 px-[30px] pt-6 pb-10">
+          {error && <p className="text-sm text-destructive">Couldn't load your dashboard. Try refreshing.</p>}
+          {rows === null && !error ? (
+            <DashboardSkeleton />
+          ) : (
+            <>
+              <GettingStarted hasSiteUrl={url !== ''} hasPost={counts.posts > 0} hasDeployed={hasDeployed} />
+              <div className="grid items-start gap-5 lg:grid-cols-2">
+                <div className="space-y-5">
+                  <StatTiles posts={counts.posts} pages={counts.pages} published={counts.published} drafts={counts.drafts} />
+                  <SiteDeployCard url={url} deployedSha={deploySha} />
+                  <WhosEditing locks={locks} />
+                </div>
+                <ResumeEditing rows={recentEntries(rows ?? [], 5)} />
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </>
   )

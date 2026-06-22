@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { statusBadge } from '../src/dashboard/status-badge'
-import { greeting, relativeTime } from '../src/dashboard/format'
+import { statusBadge } from '../src/lib/status-badge'
+import { greeting, relativeTime } from '../src/lib/format'
 
 describe('statusBadge', () => {
   it('maps lifecycle states to badge variants + labels', () => {

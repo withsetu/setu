@@ -51,7 +51,7 @@ Collapsed (rail): icon-only with shadcn tooltips. Footer items (View site `exter
 Every screen rendering `<div className="page-body">` switches to `<PageBody>`:
 - `screens/Dashboard.tsx` — already has the gutter inline; replace its hand-rolled wrapper with `<PageBody>`.
 - `screens/ContentList.tsx`, `screens/Media.tsx`, `screens/Appearance.tsx` — wrap content; remove their per-screen `30px` horizontal padding (e.g. `.categories-screen .category-new`, `.category-manage-list`, list toolbars).
-- `screens/Categories.tsx` — adopt `PageBody`; reconcile its full-height toolbar+list layout (the toolbar gutter comes from `PageBody`, the scroll list stays).
+- `screens/Categories.tsx` — **deferred** to the Categories content PR. It uses a bespoke full-height toolbar+list layout (not `.page-body`) and already aligns at 30px, so it's not visibly broken; reconciling it onto `PageBody` happens when Categories gets its content migration. (Scope trim to keep this PR focused/low-risk.)
 - `editor/EditorScreen.tsx` — **does NOT** use `PageBody` (keeps its full-bleed centered canvas).
 
 Gutter = `30px` (matches the header). Max-width `1400px`, left-aligned (so it tracks the title, not centered). Tokenizing the gutter value is a later refinement.

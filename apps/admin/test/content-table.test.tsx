@@ -35,6 +35,11 @@ describe('ContentTable', () => {
     wrap(<ContentTable {...base} visible={{ ...allCols, tags: false }} rows={[row()]} />)
     expect(screen.queryByText('a')).toBeNull()
   })
+  it('renders pending suffix alongside the status badge when lifecycle.pending is set', () => {
+    wrap(<ContentTable {...base} rows={[row({ lifecycle: { state: 'live', pending: 'edited' } })]} />)
+    expect(screen.getByText('Live')).toBeInTheDocument()
+    expect(screen.getByText(/· edited/)).toBeInTheDocument()
+  })
   it('per-row checkbox + sort header fire callbacks', () => {
     const onToggleRow = vi.fn(); const onSort = vi.fn()
     wrap(<ContentTable {...base} rows={[row()]} onToggleRow={onToggleRow} onSort={onSort} />)

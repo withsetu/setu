@@ -72,7 +72,14 @@ export function ContentTable({
                   )}
                 </span>
               </TableCell>
-              {visible.status && <TableCell><Badge variant={s.variant}>{s.label}</Badge></TableCell>}
+              {visible.status && (
+                <TableCell>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Badge variant={s.variant}>{s.label}</Badge>
+                    {r.lifecycle.pending && <span className="text-xs text-muted-foreground">· {r.lifecycle.pending}</span>}
+                  </span>
+                </TableCell>
+              )}
               {visible.tags && <TableCell><Chips items={r.tags} /></TableCell>}
               {visible.categories && <TableCell><Chips items={r.categories} name={categoryName} /></TableCell>}
               {localeCol && <TableCell className="text-muted-foreground">{r.ref.locale}</TableCell>}

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { MediaIndexRow } from '@setu/core'
 import { PageHeader } from '../shell/PageHeader'
+import { PageBody } from '../shell/PageBody'
 import { MediaBrowser, parseSortValue, sortValueOf } from '../media/MediaBrowser'
 import type { MediaFilters } from '../media/MediaBrowser'
 import { useMediaIndex } from '../data/media-index-store'
@@ -95,7 +96,7 @@ export function Media() {
         title="Media"
         subtitle="Upload, browse, and manage your media files."
       />
-      <div className="page-body">
+      <PageBody>
         <MediaBrowser
           apiBase={apiBase}
           mode="manage"
@@ -148,7 +149,7 @@ export function Media() {
             </div>
           </aside>
         )}
-      </div>
+      </PageBody>
     </section>
   )
 }

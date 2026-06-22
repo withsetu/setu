@@ -4,9 +4,9 @@ import { Plus } from 'lucide-react'
 import type { ContentRow, Lock } from '@setu/core'
 import { useServices } from '../data/store'
 import { useDeploy } from '../deploy/deploy'
-import { useCan } from '../auth/actor'
 import { siteUrl } from '../shell/site-url'
 import { PageHeader } from '../shell/PageHeader'
+import { PageBody } from '../shell/PageBody'
 import { Button } from '@/components/ui/button'
 import { loadDashboardEntries, dashboardCounts, recentEntries, loadActiveLocks } from '../dashboard/entries'
 import { greeting } from '../dashboard/format'
@@ -18,17 +18,10 @@ import { WhosEditing } from '../dashboard/widgets/WhosEditing'
 import { GettingStarted } from '../dashboard/widgets/GettingStarted'
 
 function HeaderActions() {
-  const can = useCan()
-  const { deploy } = useDeploy()
-  const [busy, setBusy] = useState(false)
-  const onDeploy = () => { setBusy(true); void deploy().finally(() => setBusy(false)) }
   return (
     <div className="flex items-center gap-2">
       <Button asChild><Link to="/edit/post/en/new"><Plus className="size-4" />New post</Link></Button>
       <Button asChild variant="outline"><Link to="/edit/page/en/new">New page</Link></Button>
-      {can('site.deploy') && (
-        <Button variant="outline" disabled={busy} onClick={onDeploy}>{busy ? 'Deploying…' : 'Deploy'}</Button>
-      )}
     </div>
   )
 }
@@ -63,28 +56,24 @@ export function Dashboard() {
   return (
     <>
       <PageHeader title="Dashboard" subtitle={`${greeting()} — here's your site at a glance.`} actions={<HeaderActions />} />
-      <div className="page-body">
-        {/* Gutters align with the page header (.page-header pads 30px); max-width keeps it
-            from sprawling on wide screens. Left-aligned so it tracks the "Dashboard" title. */}
-        <div className="max-w-[1400px] space-y-5 px-[30px] pt-6 pb-10">
-          {error && <p className="text-sm text-destructive">Couldn't load your dashboard. Try refreshing.</p>}
-          {rows === null && !error ? (
-            <DashboardSkeleton />
-          ) : (
-            <>
-              <GettingStarted hasSiteUrl={url !== ''} hasPost={counts.posts > 0} hasDeployed={hasDeployed} />
-              <div className="grid items-start gap-5 lg:grid-cols-2">
-                <div className="space-y-5">
-                  <StatTiles posts={counts.posts} pages={counts.pages} published={counts.published} drafts={counts.drafts} />
-                  <SiteDeployCard url={url} deployedSha={deploySha} />
-                  <WhosEditing locks={locks} />
-                </div>
-                <ResumeEditing rows={recentEntries(rows ?? [], 5)} />
+      <PageBody>
+        {error && <p className="text-sm text-destructive">Couldn't load your dashboard. Try refreshing.</p>}
+        {rows === null && !error ? (
+          <DashboardSkeleton />
+        ) : (
+          <>
+            <GettingStarted hasSiteUrl={url !== ''} hasPost={counts.posts > 0} hasDeployed={hasDeployed} />
+            <div className="grid items-start gap-5 lg:grid-cols-2">
+              <div className="space-y-5">
+                <StatTiles posts={counts.posts} pages={counts.pages} published={counts.published} drafts={counts.drafts} />
+                <SiteDeployCard url={url} deployedSha={deploySha} />
+                <WhosEditing locks={locks} />
               </div>
-            </>
-          )}
-        </div>
-      </div>
+              <ResumeEditing rows={recentEntries(rows ?? [], 5)} />
+            </div>
+          </>
+        )}
+      </PageBody>
     </>
   )
 }

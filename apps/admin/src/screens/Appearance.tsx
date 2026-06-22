@@ -4,6 +4,7 @@ import { themeOptions, resolveThemeTokens } from '@setu/theme-default/options'
 import type { ThemeOption } from '@setu/theme-default/options'
 import { Callout } from '@setu/blocks'
 import { PageHeader } from '../shell/PageHeader'
+import { PageBody } from '../shell/PageBody'
 import { useServices } from '../data/store'
 import { useCan } from '../auth/actor'
 
@@ -122,7 +123,7 @@ export function Appearance() {
           </>
         }
       />
-      <div className="page-body">
+      <PageBody>
         <div className="customize">
           <div className="cz-controls" role="group" aria-label="Theme options">
             {themeOptions.map((opt) => (
@@ -161,7 +162,7 @@ export function Appearance() {
             </div>
           </div>
         </div>
-      </div>
+      </PageBody>
     </>
   )
 }

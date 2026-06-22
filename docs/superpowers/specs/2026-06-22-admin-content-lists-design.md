@@ -34,7 +34,7 @@ Sortable headers (lucide arrow indicator): **Title · Status · Updated** (the s
 - **Search** — `Input` with a leading search icon; the existing 200ms debounce → URL `q`.
 - **Status** — `Select` (All status + the four lifecycle states).
 - **Category** — `Combobox` (hierarchical, indented names from the taxonomy).
-- **Tag** — migrate `TagFilter` to a `Combobox` backed by the index's tag suggestions.
+- **Tag** — `TagFilter` keeps the existing index-backed `TagAutocomplete` typeahead (shared with the BulkBar); only its presentation is restyled — the active tag becomes a `Badge` chip and the input is shadcn-styled. (A full `Command`/`Combobox` rebuild of the shared typeahead is out of scope — it would ripple into the BulkBar and `CategoryPicker`.)
 - **Clear filters** — `Button` (shown when filters are active), as today.
 - **Columns** — the `DropdownMenu` picker (§2).
 
@@ -42,7 +42,7 @@ Sortable headers (lucide arrow indicator): **Title · Status · Updated** (the s
 
 - **Table** — shadcn `Table`/`TableHeader`/`TableRow`/`TableHead`/`TableBody`/`TableCell`, inside a bordered card with internal horizontal padding; row hover via tokens.
 - **Selection** — `Checkbox` select-all (current page) + per-row; selection is current-page-scoped and clears on page/filter change (as today). Checkbox click does not trigger the title link.
-- **BulkBar** — rebuilt on shadcn (Buttons + count); same actions/handlers (`onClear`, `onDone` → refresh). Appears when `selected.size > 0`.
+- **BulkBar** — restyled on shadcn (container + Buttons + count); same actions/handlers (`onClear`, `onDone` → refresh) and the same shared `CategoryPicker`/`TagAutocomplete` typeaheads (restyled, not rebuilt). Appears when `selected.size > 0`.
 - **Pager** — shadcn buttons + "`from–to of total`"; Prev/Next disabled at bounds.
 
 ## 6. Animation (restrained)

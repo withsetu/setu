@@ -12,15 +12,17 @@ export function PageHeader({
   actions?: ReactNode
 }) {
   return (
-    <header className="page-header">
-      <div className="page-header-main">
-        <h1 className="page-title">
+    <header className="flex items-end justify-between gap-4 border-b border-border bg-background px-[30px] pt-[22px] pb-4">
+      <div className="min-w-0 flex-1">
+        <h1 className="text-[21px] font-bold tracking-tight text-foreground">
           {title}
-          {count !== undefined && <span className="page-count">{count}</span>}
+          {count !== undefined && (
+            <span className="ml-2.5 align-[3px] rounded-full bg-secondary px-2 py-0.5 text-[13px] font-semibold text-muted-foreground">{count}</span>
+          )}
         </h1>
-        {subtitle && <p className="page-subtitle">{subtitle}</p>}
+        {subtitle && <p className="mt-1.5 max-w-[60ch] text-[13.5px] text-muted-foreground">{subtitle}</p>}
       </div>
-      {actions && <div className="page-actions">{actions}</div>}
+      {actions && <div className="flex flex-shrink-0 items-center gap-2.5">{actions}</div>}
     </header>
   )
 }

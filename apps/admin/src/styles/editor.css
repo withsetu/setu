@@ -76,7 +76,8 @@
 
 /* ---- SLASH MENU ---- */
 .slash { position: absolute; z-index: 80; width: 320px; max-height: 340px; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); box-shadow: var(--shadow-pop); overflow: hidden; animation: popIn .13s ease both; font-family: var(--font-ui); }
-.slash-head { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-4); padding: 11px 13px 6px; }
+.slash-head { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-4); padding: 9px 8px 4px; }
+.slash-list .slash-head:not(:first-child) { margin-top: 4px; border-top: 1px solid var(--border); padding-top: 9px; }
 .slash-list { overflow-y: auto; padding: 0 6px 6px; }
 .slash-item { display: flex; align-items: center; gap: 11px; width: 100%; padding: 8px 8px; border: none; background: transparent; border-radius: var(--r-sm); text-align: left; }
 .slash-item.sel { background: var(--accent-soft); }

@@ -8,15 +8,20 @@ import tippy from 'tippy.js'
 import type { Instance as TippyInstance } from 'tippy.js'
 import { Icon } from '../../ui/Icon'
 import { slashBlocks } from '../blocks'
-import type { SlashBlock } from '../blocks'
+import type { SlashBlock } from '../slash-model'
+import { slashRenderModel } from '../slash-model'
+import type { SlashRow } from '../slash-model'
 
 export interface CommandListHandle {
   onKeyDown: (props: SuggestionKeyDownProps) => boolean
 }
 
 export const CommandList = forwardRef<CommandListHandle, SuggestionProps<SlashBlock>>((props, ref) => {
+  const rows = slashRenderModel(props.items, props.query)
+  const itemRows = rows.filter((r): r is Extract<SlashRow, { kind: 'item' }> => r.kind === 'item')
   const [selected, setSelected] = useState(0)
-  useEffect(() => setSelected(0), [props.items])
+  // Reset the highlight whenever the result set changes (filter or query).
+  useEffect(() => setSelected(0), [props.items, props.query])
 
   // Keep the highlighted item scrolled into view as the user arrows through.
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
@@ -25,18 +30,19 @@ export const CommandList = forwardRef<CommandListHandle, SuggestionProps<SlashBl
   }, [selected])
 
   const pick = (index: number) => {
-    const item = props.items[index]
-    if (item) props.command(item)
+    const row = itemRows[index]
+    if (row) props.command(row.block)
   }
 
   useImperativeHandle(ref, () => ({
     onKeyDown: ({ event }) => {
+      if (itemRows.length === 0) return false
       if (event.key === 'ArrowUp') {
-        setSelected((i) => (i + props.items.length - 1) % props.items.length)
+        setSelected((i) => (i + itemRows.length - 1) % itemRows.length)
         return true
       }
       if (event.key === 'ArrowDown') {
-        setSelected((i) => (i + 1) % props.items.length)
+        setSelected((i) => (i + 1) % itemRows.length)
         return true
       }
       if (event.key === 'Enter') {
@@ -49,29 +55,34 @@ export const CommandList = forwardRef<CommandListHandle, SuggestionProps<SlashBl
 
   return (
     <div className="slash" role="listbox" aria-label="Insert block">
-      <div className="slash-head">Blocks</div>
       <div className="slash-list">
-        {props.items.length === 0 && <div className="slash-empty">No blocks</div>}
-        {props.items.map((item, index) => (
-          <button
-            key={item.title}
-            ref={(el) => {
-              itemRefs.current[index] = el
-            }}
-            type="button"
-            role="option"
-            aria-selected={index === selected}
-            className={`slash-item${index === selected ? ' sel' : ''}`}
-            onMouseEnter={() => setSelected(index)}
-            onClick={() => pick(index)}
-          >
-            <span className="slash-ic"><Icon name={item.icon} size={16} /></span>
-            <span className="slash-text">
-              <span className="slash-label">{item.title}</span>
-              <span className="slash-desc">{item.subtitle}</span>
-            </span>
-          </button>
-        ))}
+        {itemRows.length === 0 && <div className="slash-empty">No blocks</div>}
+        {rows.map((row) =>
+          row.kind === 'header' ? (
+            <div key={`h-${row.category}`} className="slash-head" role="presentation">
+              {row.label}
+            </div>
+          ) : (
+            <button
+              key={row.block.title}
+              ref={(el) => {
+                itemRefs.current[row.itemIndex] = el
+              }}
+              type="button"
+              role="option"
+              aria-selected={row.itemIndex === selected}
+              className={`slash-item${row.itemIndex === selected ? ' sel' : ''}`}
+              onMouseEnter={() => setSelected(row.itemIndex)}
+              onClick={() => pick(row.itemIndex)}
+            >
+              <span className="slash-ic"><Icon name={row.block.icon} size={16} /></span>
+              <span className="slash-text">
+                <span className="slash-label">{row.block.title}</span>
+                <span className="slash-desc">{row.block.subtitle}</span>
+              </span>
+            </button>
+          ),
+        )}
       </div>
     </div>
   )
@@ -87,8 +98,7 @@ export const SlashCommand = Extension.create({
         editor: this.editor,
         char: '/',
         startOfLine: false,
-        items: ({ query }) =>
-          slashBlocks().filter((b) => b.title.toLowerCase().includes(query.toLowerCase())),
+        items: () => slashBlocks(),
         command: ({ editor, range, props }) => props.run(editor as Editor, range as Range),
         render: () => {
           // The ReactRenderer generic params: R=CommandListHandle (ref type),

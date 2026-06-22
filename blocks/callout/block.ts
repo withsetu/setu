@@ -12,7 +12,8 @@ export default defineBlock({
   editor: {
     label: 'Callout',
     icon: 'info',
-    group: 'Blocks',
+    group: 'text',
+    keywords: ['note', 'aside', 'admonition'],
     variants: ['info', 'note', 'success', 'warning', 'danger', 'neutral'],
   },
 })

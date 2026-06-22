@@ -6,5 +6,5 @@ export default defineBlock({
     tone: z.enum(['info', 'warn', 'success']).default('info'),
     title: z.string().optional(),
   }),
-  editor: { label: 'Notice', icon: 'info' },
+  editor: { label: 'Notice', icon: 'info', group: 'text', keywords: ['banner', 'alert'] },
 })

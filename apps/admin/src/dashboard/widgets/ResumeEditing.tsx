@@ -3,8 +3,8 @@ import { motion, useReducedMotion } from 'motion/react'
 import type { ContentRow } from '@setu/core'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { statusBadge } from '../status-badge'
-import { relativeTime } from '../format'
+import { statusBadge } from '@/lib/status-badge'
+import { relativeTime } from '@/lib/format'
 
 export function ResumeEditing({ rows }: { rows: ContentRow[] }) {
   const reduce = useReducedMotion()

@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { X } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { TagAutocomplete } from '../ui/TagAutocomplete'
 
 export function TagFilter({ value, onChange }: { value: string; onChange: (tag: string) => void }) {
@@ -6,12 +8,12 @@ export function TagFilter({ value, onChange }: { value: string; onChange: (tag: 
 
   if (value) {
     return (
-      <span className="tag-chip">
+      <Badge variant="secondary" className="gap-1">
         {value}
-        <button type="button" className="tag-chip-x" aria-label="Clear tag filter" onClick={() => onChange('')}>
-          ×
+        <button type="button" aria-label="Clear tag filter" onClick={() => onChange('')}>
+          <X className="size-3" />
         </button>
-      </span>
+      </Badge>
     )
   }
 

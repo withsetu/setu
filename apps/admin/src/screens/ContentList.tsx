@@ -197,7 +197,7 @@ export function ContentList({ collection, title }: { collection: string; title: 
           catRows={catRows}
           tag={tag}
           onTag={(t) => setParam('tag', t)}
-          hasFilters={hasFilters}
+          hasFilters={hasFilters && (rows === null || rows.length > 0)}
           onClear={clearFilters}
           columnsMenu={<ColumnsMenu visible={visible} toggle={toggle} showLocale={multilingual} />}
         />

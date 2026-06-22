@@ -63,10 +63,9 @@ describe('ContentList — filters', () => {
   it('shows a filtered-empty state with a clear action', async () => {
     setup(['/posts?q=zzzznomatch'])
     expect(await screen.findByText(/match these filters/i)).toBeTruthy()
-    // Two "Clear filters" buttons exist: one in the toolbar (ghost), one in the empty-state (link).
-    // Click either — both trigger clearFilters().
-    const [firstClear] = screen.getAllByRole('button', { name: /clear filters/i })
-    fireEvent.click(firstClear!)
+    // Only one "Clear filters" button shows in the filtered-empty state (toolbar hides its own).
+    const clearBtn = screen.getByRole('button', { name: /clear filters/i })
+    fireEvent.click(clearBtn)
     await waitFor(() => expect(screen.getByText('Alpha')).toBeTruthy())
   })
 })

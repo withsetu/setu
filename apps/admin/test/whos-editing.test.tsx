@@ -1,16 +1,19 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import type { Lock } from '@setu/core'
 import { WhosEditing } from '../src/dashboard/widgets/WhosEditing'
 
-describe('WhosEditing', () => {
-  it('lists each locked entry and its holder', () => {
-    render(<WhosEditing locks={[{ collection: 'post', locale: 'en', slug: 'p1', lockedBy: 'sarah', lockedAt: 0 }]} />)
-    expect(screen.getByText(/p1/)).toBeInTheDocument()
-    expect(screen.getByText(/sarah/)).toBeInTheDocument()
-  })
+const lock = (over: Partial<Lock> = {}): Lock =>
+  ({ collection: 'page', locale: 'en', slug: 'about', lockedBy: 'arjun', lockedAt: 0, ...over } as Lock)
 
-  it('shows an empty state when nothing is being edited', () => {
-    render(<WhosEditing locks={[]} />)
-    expect(screen.getByText(/no one is editing/i)).toBeInTheDocument()
+describe('WhosEditing', () => {
+  it('renders nothing when no one is editing', () => {
+    const { container } = render(<WhosEditing locks={[]} />)
+    expect(container).toBeEmptyDOMElement()
+  })
+  it('lists the lock holder and what they hold', () => {
+    render(<WhosEditing locks={[lock()]} />)
+    expect(screen.getByText('arjun')).toBeInTheDocument()
+    expect(screen.getByText(/about/)).toBeInTheDocument()
   })
 })

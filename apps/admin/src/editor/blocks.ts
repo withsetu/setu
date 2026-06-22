@@ -1,16 +1,14 @@
 import type { Editor, Range } from '@tiptap/core'
 import { isIconName } from '../ui/Icon'
 import type { IconName } from '../ui/Icon'
+import { DEFAULT_BLOCK_CATEGORY } from '@setu/core'
+import type { BlockCategory } from '@setu/core'
 import { registry } from '../blocks/registry'
 import { BLOCK_TYPES } from './block-types'
 import { pickImageAndInsert, imageBlockFromSrc } from './image-insert'
+import type { SlashBlock } from './slash-model'
 
-export interface SlashBlock {
-  title: string
-  subtitle: string
-  icon: IconName
-  run: (editor: Editor, range: Range) => void
-}
+export type { SlashBlock } from './slash-model'
 
 const SUBTITLES: Record<string, string> = {
   paragraph: 'Plain paragraph',
@@ -24,16 +22,31 @@ const SUBTITLES: Record<string, string> = {
   taskList: 'Checklist with checkboxes',
 }
 
+// Per built-in block id: its category + extra search aliases.
+const BUILTIN_META: Record<string, { group: BlockCategory; keywords: string[] }> = {
+  paragraph: { group: 'text', keywords: ['text', 'body', 'p'] },
+  h2: { group: 'text', keywords: ['heading', 'title', 'h2'] },
+  h3: { group: 'text', keywords: ['heading', 'subheading', 'h3'] },
+  h4: { group: 'text', keywords: ['heading', 'h4'] },
+  bulletList: { group: 'text', keywords: ['bullets', 'ul', 'unordered'] },
+  orderedList: { group: 'text', keywords: ['numbered', 'ol'] },
+  blockquote: { group: 'text', keywords: ['quote', 'cite'] },
+  codeBlock: { group: 'text', keywords: ['code', 'pre', 'snippet'] },
+  taskList: { group: 'text', keywords: ['todo', 'checklist', 'checkbox'] },
+}
+
 const BUILTINS: SlashBlock[] = [
   ...BLOCK_TYPES.map((b) => ({
     title: b.label,
     subtitle: SUBTITLES[b.id] ?? b.label,
     icon: b.icon,
+    group: BUILTIN_META[b.id]?.group ?? DEFAULT_BLOCK_CATEGORY,
+    keywords: BUILTIN_META[b.id]?.keywords ?? [],
     run: (e: Editor, r: Range) => b.setOn(e.chain().focus().deleteRange(r)).run(),
   })),
-  { title: 'Divider', subtitle: 'Horizontal rule', icon: 'settings', run: (e, r) => e.chain().focus().deleteRange(r).setHorizontalRule().run() },
-  { title: 'Table', subtitle: 'Table with header row', icon: 'table', run: (e, r) => e.chain().focus().deleteRange(r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
-  { title: 'Image', subtitle: 'Pick or upload an image', icon: 'image', run: (e, r) => {
+  { title: 'Divider', subtitle: 'Horizontal rule', icon: 'divider', group: 'text', keywords: ['hr', 'rule', 'separator', 'line'], run: (e, r) => e.chain().focus().deleteRange(r).setHorizontalRule().run() },
+  { title: 'Table', subtitle: 'Table with header row', icon: 'table', group: 'layout', keywords: ['grid', 'rows', 'columns'], run: (e, r) => e.chain().focus().deleteRange(r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
+  { title: 'Image', subtitle: 'Pick or upload an image', icon: 'image', group: 'media', keywords: ['img', 'photo', 'picture', 'media'], run: (e, r) => {
     e.chain().focus().deleteRange(r).run()
     const storage = (e.storage as unknown as { imageBlock?: { openPicker?: (onPick: (src: string) => void) => void } }).imageBlock
     if (storage?.openPicker) {
@@ -55,13 +68,13 @@ export function slashBlocks(): SlashBlock[] {
     title: b.editor?.label ?? b.tag,
     subtitle: `Insert a ${b.tag} block`,
     icon: toIconName(b.editor?.icon),
+    group: b.editor?.group ?? DEFAULT_BLOCK_CATEGORY,
+    keywords: b.editor?.keywords ?? [],
     run: (e: Editor, r: Range) => {
       const chain = e.chain().focus().deleteRange(r)
       if (b.tag === 'callout') {
-        // Callout has its own dedicated React editor node.
         chain.insertContent({ type: 'callout', attrs: { mdAttrs: { type: 'info' } }, content: [{ type: 'paragraph' }] })
       } else {
-        // Every other folder block uses the generic node, keyed by tag.
         chain.insertContent({ type: 'setuBlock', attrs: { tag: b.tag, mdAttrs: {} }, content: [{ type: 'paragraph' }] })
       }
       chain.run()

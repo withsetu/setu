@@ -1,10 +1,14 @@
 import type { ZodTypeAny } from 'zod'
+import type { BlockCategory } from '../blocks/categories'
 
-/** Editor-facing metadata for a block (consumed by the slash menu later). */
+/** Editor-facing metadata for a block (consumed by the slash menu). */
 export interface BlockEditorMeta {
   label?: string
   icon?: string
-  group?: string
+  /** Block category — drives slash-menu grouping. Defaults to 'text'. */
+  group?: BlockCategory
+  /** Extra search terms / aliases for the slash menu (e.g. ['img','photo']). */
+  keywords?: string[]
   /** Selectable variant values for the block (e.g. callout types), shown in the
    *  editor's variant picker. The editor maps each to a theme tone/icon. */
   variants?: string[]

@@ -110,3 +110,10 @@ export type { BlockContract } from './blocks/define-block'
 export { defineBlock } from './blocks/define-block'
 export type { BlockEntry, BlockRegistry } from './blocks/registry'
 export { buildRegistry } from './blocks/registry'
+export type { BlockCategory } from './blocks/categories'
+export {
+  BLOCK_CATEGORIES,
+  BLOCK_CATEGORY_LABELS,
+  DEFAULT_BLOCK_CATEGORY,
+  isBlockCategory,
+} from './blocks/categories'

@@ -1,20 +1,21 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { SidebarProvider } from '@/components/ui/sidebar'
 import { ActorProvider } from '../src/auth/actor'
-import { ServicesProvider, createServices } from '../src/data/store'
-import { DeployProvider } from '../src/deploy/deploy'
-import { Sidebar } from '../src/shell/Sidebar'
+import { AppSidebar } from '../src/shell/AppSidebar'
+
+vi.mock('../src/deploy/deploy', () => ({
+  useDeploy: () => ({ deployedAt: () => null, sha: null, deploy: () => Promise.resolve() }),
+}))
 
 const renderSidebar = () =>
   render(
     <MemoryRouter>
       <ActorProvider>
-        <ServicesProvider services={createServices()}>
-          <DeployProvider>
-            <Sidebar />
-          </DeployProvider>
-        </ServicesProvider>
+        <SidebarProvider>
+          <AppSidebar />
+        </SidebarProvider>
       </ActorProvider>
     </MemoryRouter>,
   )
@@ -24,7 +25,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('Sidebar', () => {
+describe('AppSidebar (nav coverage)', () => {
   it('renders the admin navigation (PRD §24 IA)', () => {
     renderSidebar()
     for (const label of ['Dashboard', 'Posts', 'Pages', 'Media', 'Forms', 'Appearance', 'Settings']) {

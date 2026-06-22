@@ -19,9 +19,11 @@ function renderDash(data: DataPort, git: GitPort) {
   return render(
     <MemoryRouter>
       <ServicesProvider services={servicesFor(data, git)}>
-        <DeployProvider>
-          <Dashboard />
-        </DeployProvider>
+        <ActorProvider>
+          <DeployProvider>
+            <Dashboard />
+          </DeployProvider>
+        </ActorProvider>
       </ServicesProvider>
     </MemoryRouter>,
   )
@@ -30,10 +32,11 @@ function renderDash(data: DataPort, git: GitPort) {
 describe('Dashboard', () => {
   beforeEach(() => localStorage.clear())
 
-  it('composes the recent edits widget from seeded drafts', async () => {
+  it('shows the greeting and header actions', async () => {
     renderDash(createMemoryDataPort(seed), createMemoryGitPort())
-    expect(await screen.findByText('First Post')).toBeInTheDocument()
-    expect(screen.getByText('Quick actions')).toBeInTheDocument()
+    expect(await screen.findByText(/here's your site at a glance/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /New post/ })).toHaveAttribute('href', '/edit/post/en/new')
+    expect(screen.getByRole('link', { name: /New page/ })).toHaveAttribute('href', '/edit/page/en/new')
   })
 
   it('shows an inline error state when data load fails', async () => {
@@ -56,6 +59,6 @@ describe('admin landing route', () => {
         </ServicesProvider>
       </MemoryRouter>,
     )
-    expect(await screen.findByText('Quick actions')).toBeInTheDocument()
+    expect(await screen.findByText(/here's your site at a glance/)).toBeInTheDocument()
   })
 })

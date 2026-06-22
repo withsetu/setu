@@ -4,7 +4,6 @@
 @import './styles/shell.css';
 @import './styles/editor.css';
 @import './styles/customize.css';
-@import './styles/dashboard.css';
 @import 'tw-animate-css';
 
 @custom-variant dark (&:is([data-theme="dark"] *));

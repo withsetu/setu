@@ -7,6 +7,25 @@
 
 ---
 
+## Git-backed comments (DB buffer → sync to Git) (to revisit — 2026-06-21)
+
+**Idea:** comments as owned, versioned content — `comment → approve → commit`, the exact generalization of the existing `draft → publish → commit`. Validates the Git/DB split rather than straining it: the DB does the runtime work it's good at; Git holds the durable owned record.
+
+**Design (the right model — "DB as buffer, sync to Git"):**
+1. Visitor submits → written to the **DB** immediately (instant display, absorbs volume, moderation queue lives here).
+2. Moderate (approve / spam / delete) entirely in the DB — fast; **spam never touches Git**.
+3. On approve (or batched on a schedule) → `commitFiles()` the approved comments into Git as data files (e.g. `content/<collection>/<locale>/<slug>/comments/<id>.yaml`), **batched** (1 commit/post/day, not 1/comment → no repo bloat / write storm). Moderation-delete → a `commitFiles` delete.
+
+**Why it fits cleanly:** rides rails already built — `DataPort` is the buffer, `GitPort.commitFiles` (atomic multi-file commit **with deletes**) is the sync, `git-http`/`apps/api` is the write path (a static site can't self-write — comment submit needs a serverless write endpoint, NOT a database-as-truth).
+
+**Source-of-truth precision:** Git is canonical for *settled/approved* comments; the DB is truth for *in-flight/pending* (same as draft vs published). Serve reads from the DB (fresh); if the DB is lost, rebuild it from Git — same rule as the content index.
+
+**When NOT to:** real-time/social-scale/heavy-personalization comment volumes → just use a DB or a comments service; the Git-sync only earns its keep when you actually want comments owned + portable + versioned alongside the content (blog/docs/brand sites). Precedent: Staticman (files-in-repo), Giscus/Utterances (GitHub Discussions/Issues store).
+
+**Touches:** a comments `DataPort`-style buffer + moderation; a sync/reconciler using `GitPort.commitFiles`; a write endpoint on `apps/api`; site-side render (baked at build and/or client-fetch JS island); depends on the [[server topology]] write path (see entry below). Same shape as the existing publish flow.
+
+---
+
 ## Single-source content topology + repo/deploy model (to revisit — 2026-06-20)
 
 **Context:** The admin's default browser/IndexedDB mode stores content per-origin, so it appears to "disappear" across ports/worktrees and is disconnected from the real `content/` files. The proper dev stack (`pnpm dev`) already manages a real on-disk content repo via the API (git-local) — so *published* content is single-source on disk. Three deliberate follow-ups surfaced while fixing dev-content confusion:

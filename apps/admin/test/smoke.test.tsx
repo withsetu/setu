@@ -34,6 +34,6 @@ describe('App', () => {
 
   it('redirects / to /dashboard', async () => {
     renderApp('/')
-    expect(await screen.findByText('Quick actions')).toBeInTheDocument()
+    expect(await screen.findByText(/here's your site at a glance/)).toBeInTheDocument()
   })
 })

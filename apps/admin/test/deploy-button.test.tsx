@@ -1,39 +1,41 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import type { ReactNode } from 'react'
 import type { Actor } from '@setu/core'
 import { ActorProvider } from '../src/auth/actor'
-import { ServicesProvider, createServices } from '../src/data/store'
-import { DeployProvider } from '../src/deploy/deploy'
-import { DeployButton } from '../src/shell/DeployButton'
+import { SidebarProvider } from '@/components/ui/sidebar'
+import { AppSidebar } from '../src/shell/AppSidebar'
 
-function wrap(children: ReactNode, actor?: Actor) {
-  const services = createServices()
+// Default: no sha yet, deploy resolves immediately
+let mockDeploy = vi.fn(() => Promise.resolve())
+vi.mock('../src/deploy/deploy', () => ({
+  useDeploy: () => ({ deployedAt: () => null, sha: null, deploy: mockDeploy }),
+}))
+
+function wrap(actor?: Actor) {
   return render(
     <MemoryRouter>
       <ActorProvider {...(actor ? { actor } : {})}>
-        <ServicesProvider services={services}>
-          <DeployProvider>{children}</DeployProvider>
-        </ServicesProvider>
+        <SidebarProvider>
+          <AppSidebar />
+        </SidebarProvider>
       </ActorProvider>
     </MemoryRouter>,
   )
 }
 
-describe('DeployButton', () => {
-  it('renders a Deploy control for an owner and deploying updates the label', async () => {
-    wrap(<DeployButton />)
+describe('DeployFooterButton (via AppSidebar)', () => {
+  it('renders a Deploy control for an owner and clicking does not crash', async () => {
+    wrap()
     const btn = screen.getByRole('button', { name: /deploy site/i })
     expect(btn).toBeInTheDocument()
-    // before deploy: "Deploy site"; after deploy with empty git, sha may be null (nothing committed) -> stays "Deploy site".
     fireEvent.click(btn)
     // The deploy runs without crashing; label remains a deploy control.
     await waitFor(() => expect(screen.getByRole('button', { name: /deploy/i })).toBeInTheDocument())
   })
 
   it('renders nothing for a viewer (no site.deploy permission)', () => {
-    wrap(<DeployButton />, { id: 'v', role: 'viewer' })
+    wrap({ id: 'v', role: 'viewer' })
     expect(screen.queryByRole('button', { name: /deploy/i })).not.toBeInTheDocument()
   })
 })

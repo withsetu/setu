@@ -6,6 +6,7 @@ import { useIndex } from '../data/index-store'
 import { useTaxonomy } from '../data/taxonomy-store'
 import { lifecycleLabel } from '../lifecycle/label'
 import { PageHeader } from '../shell/PageHeader'
+import { PageBody } from '../shell/PageBody'
 import { StatusPill } from '../ui/StatusPill'
 import { Icon } from '../ui/Icon'
 import { siteUrl } from '../shell/site-url'
@@ -166,7 +167,7 @@ export function ContentList({ collection, title }: { collection: string; title: 
           </Link>
         }
       />
-      <div className="page-body">
+      <PageBody>
         <div className="list-toolbar">
           <input
             type="search"
@@ -276,7 +277,7 @@ export function ContentList({ collection, title }: { collection: string; title: 
           </div>
           </>
         )}
-      </div>
+      </PageBody>
     </>
   )
 }

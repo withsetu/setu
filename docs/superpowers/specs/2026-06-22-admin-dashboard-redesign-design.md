@@ -16,15 +16,15 @@ This is genuinely the first PR with a *visible* before/after (the foundation PR 
 Primary user/job: **the daily editor first, site-health second** (work-first, ruthlessly prioritized; onboarding only for a fresh site).
 
 **Header**
-- Greeting (time-based + actor name) + subtitle.
+- Greeting (time-of-day only — the `Actor` model is `{id, role}` with no name yet; per-user identity is a later arc) + subtitle.
 - Primary actions, lifted out of a card: **New post** (primary) · **New page** · **Deploy**.
 
 **Get-to-work**
-- **Resume editing** (hero) — the most-recent edits, richer than today: title · collection chip · status badge · "edited Xh ago" · who. Row click opens the editor.
+- **Resume editing** (hero) — the most-recent edits, richer than today: title · collection chip · status badge · "edited Xh ago". (No author column — `ContentRow` has no author field; not faked.) Row click opens the editor.
 
 **Site-health strip (3 cards)**
 - **At a glance** — Posts · Pages · Published · Drafts. **Drafts is a link → `/posts?status=draft`** (reuses the findability filter). Media tile dropped (separate surface).
-- **Site & deploy** — merges today's SiteStatusCard + Deploy button: live URL, last deploy + SHA, "View site" + "Deploy".
+- **Site & deploy** — from today's SiteStatusCard: live URL, last deploy + SHA, "View site". (The Deploy *action* lives in the header — gated by `site.deploy` — so it isn't duplicated here.)
 - **Who's editing** — active locks, **rendered only when a lock is held**.
 
 **Conditional**
@@ -43,7 +43,7 @@ Primary user/job: **the daily editor first, site-health second** (work-first, ru
 | `screens/Dashboard.tsx` | Layout + data load + greeting + header actions; composes the widgets | header + Button |
 | `dashboard/widgets/ResumeEditing.tsx` | Recent-edits hero list; row → editor; empty state | Card, Badge, motion |
 | `dashboard/widgets/StatTiles.tsx` | 2×2 metric grid; Drafts → filtered list link | Card, metric layout |
-| `dashboard/widgets/SiteDeployCard.tsx` | URL + last deploy + View site/Deploy (merges SiteStatusCard + DeployButton usage) | Card, Button |
+| `dashboard/widgets/SiteDeployCard.tsx` | URL + last deploy/SHA + "View site" link (status only; Deploy action is in the header) | Card, Button |
 | `dashboard/widgets/WhosEditing.tsx` | Active locks; returns null when none | Card, Avatar |
 | `dashboard/widgets/GettingStarted.tsx` | Onboarding checklist; renders only when `!(hasContent && hasDeployed)` | Card |
 | `dashboard/DashboardSkeleton.tsx` | Loading placeholders mirroring the layout | Skeleton |
@@ -64,7 +64,7 @@ No new data layer — reuse `src/dashboard/entries.ts` exactly:
 - `staged` → `info`
 - `live` → `success`
 
-`hasContent` = `counts.posts + counts.pages > 0`; `hasDeployed` = `useDeploy().sha !== null`. Greeting name from the actor context (`useActor`/`auth/actor`).
+`hasContent` = `counts.posts + counts.pages > 0`; `hasDeployed` = `useDeploy().sha !== null`. Greeting is time-of-day only (`Actor` has no name field — not invented).
 
 ## 5. Polish & feel (restrained)
 
@@ -76,9 +76,9 @@ No new data layer — reuse `src/dashboard/entries.ts` exactly:
 ## 6. Testing
 
 Component tests (jsdom + Testing Library), following existing `recent-edits.test.tsx` / `counts-tiles.test.tsx` patterns:
-- `ResumeEditing`: renders rows with title/collection/who; maps each lifecycle.state to the correct Badge variant; row links to the editor route; empty state when no rows.
+- `ResumeEditing`: renders rows with title/collection/relative-time; maps each lifecycle.state to the correct Badge variant; row links to the editor route; empty state when no rows.
 - `StatTiles`: renders the four counts; Drafts is a link to `/posts?status=draft`.
-- `SiteDeployCard`: shows URL + SHA; "View site" uses the site URL; Deploy action present.
+- `SiteDeployCard`: shows URL + SHA; "View site" uses the site URL (no Deploy button — that's header-only).
 - `WhosEditing`: renders a lock holder; returns nothing when there are no locks.
 - `GettingStarted`: visible when `!(hasContent && hasDeployed)`; absent when both are true.
 - `Dashboard`: greeting present; header has New post / New page / Deploy; skeleton shown before data resolves.

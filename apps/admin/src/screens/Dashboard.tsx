@@ -56,7 +56,7 @@ export function Dashboard() {
   return (
     <>
       <PageHeader title="Dashboard" subtitle={`${greeting()} — here's your site at a glance.`} actions={<HeaderActions />} />
-      <PageBody>
+      <PageBody className="space-y-5">
         {error && <p className="text-sm text-destructive">Couldn't load your dashboard. Try refreshing.</p>}
         {rows === null && !error ? (
           <DashboardSkeleton />

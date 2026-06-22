@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
  *  tracks the page title. Screens render their content inside this. */
 export function PageBody({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cn('mx-0 max-w-[1400px] space-y-5 px-[30px] pt-6 pb-10', className)}>
+    <div className={cn('max-w-[1400px] px-[30px] pt-6 pb-10', className)}>
       {children}
     </div>
   )

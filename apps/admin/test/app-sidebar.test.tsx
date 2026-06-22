@@ -1,12 +1,19 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { SidebarProvider } from '@/components/ui/sidebar'
+import { ActorProvider } from '../src/auth/actor'
 import { AppSidebar } from '../src/shell/AppSidebar'
+
+vi.mock('../src/deploy/deploy', () => ({
+  useDeploy: () => ({ deployedAt: () => null, sha: null, deploy: () => Promise.resolve() }),
+}))
 
 const wrap = () => render(
   <MemoryRouter initialEntries={['/dashboard']}>
-    <SidebarProvider><AppSidebar /></SidebarProvider>
+    <ActorProvider>
+      <SidebarProvider><AppSidebar /></SidebarProvider>
+    </ActorProvider>
   </MemoryRouter>,
 )
 

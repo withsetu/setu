@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Moon, Sun } from 'lucide-react'
+import { SidebarMenuButton } from '@/components/ui/sidebar'
 
 function current(): 'light' | 'dark' {
   return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'
@@ -14,9 +15,9 @@ export function ThemeToggle() {
     try { localStorage.setItem('setu-theme', next) } catch { /* private mode */ }
   }
   return (
-    <button onClick={toggle} aria-label="Toggle theme" type="button">
+    <SidebarMenuButton onClick={toggle} aria-label="Toggle theme" tooltip={theme === 'dark' ? 'Light mode' : 'Dark mode'}>
       {theme === 'dark' ? <Sun /> : <Moon />}
       <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
-    </button>
+    </SidebarMenuButton>
   )
 }

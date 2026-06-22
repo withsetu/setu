@@ -7,14 +7,16 @@ import { createAuthz, DEFAULT_ROLES } from '@setu/core'
 // in later (the RBAC arc); every gated action already flows through useCan().
 const OWNER: Actor = { id: 'local', role: 'owner' }
 
-const ActorContext = createContext<Actor>(OWNER)
+const ActorContext = createContext<Actor | null>(null)
 
 export function ActorProvider({ actor = OWNER, children }: { actor?: Actor; children: ReactNode }) {
   return <ActorContext.Provider value={actor}>{children}</ActorContext.Provider>
 }
 
 export function useActor(): Actor {
-  return useContext(ActorContext)
+  const ctx = useContext(ActorContext)
+  if (ctx === null) throw new Error('useActor must be used within an ActorProvider')
+  return ctx
 }
 
 /** Returns a `can(action)` bound to the current actor + the default matrix. */

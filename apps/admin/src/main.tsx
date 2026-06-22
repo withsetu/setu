@@ -10,6 +10,7 @@ import { IndexProvider } from './data/index-store'
 import { AppMediaIndexProvider } from './data/media-index-store'
 import { TaxonomyProvider } from './data/taxonomy-store'
 import { NotificationProvider } from './ui/notify'
+import { Toaster } from '@/components/ui/sonner'
 import '@fontsource-variable/hanken-grotesk'
 import '@fontsource-variable/newsreader'
 import '@fontsource-variable/jetbrains-mono'
@@ -48,6 +49,7 @@ createRoot(document.getElementById('root')!).render(
             </DeployProvider>
           </ActorProvider>
           <DevReset />
+          <Toaster position="bottom-right" />
         </NotificationProvider>
       </Bootstrap>
     </BrowserRouter>

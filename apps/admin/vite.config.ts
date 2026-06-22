@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { createRequire } from 'node:module'
+import { fileURLToPath } from 'node:url'
 
 // block.ts files at the repo-root blocks/ folder are glob-imported into the
 // admin bundle. Vite resolves their imports from *their* on-disk location
@@ -15,6 +16,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
       '@setu/core': require.resolve('@setu/core'),
       'zod': require.resolve('zod'),
     },

@@ -7,6 +7,7 @@ import { useTaxonomy } from '../data/taxonomy-store'
 import { useNotify } from '../ui/notify'
 import { TagAutocomplete } from '../ui/TagAutocomplete'
 import { CategoryPicker } from '../ui/CategoryPicker'
+import { Button } from '@/components/ui/button'
 
 function flattenCats(nodes: ReturnType<typeof buildTree>, out: { slug: string; name: string }[] = []) {
   for (const n of nodes) {
@@ -78,10 +79,10 @@ export function BulkBar({
   }
 
   return (
-    <div className="bulk-bar">
-      <span className="bulk-count">{selected.size} selected</span>
+    <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card px-3 py-2">
+      <span className="text-sm font-medium">{selected.size} selected</span>
 
-      <span className="bulk-group">
+      <span className="flex flex-wrap items-center gap-2">
         <CategoryPicker
           value={catVal}
           onChange={(text) => { setCatVal(text); setCat('') }}
@@ -89,11 +90,11 @@ export function BulkBar({
           ariaLabel="Bulk category"
           disabled={busy}
         />
-        <button type="button" className="btn btn-sm" disabled={busy || !cat} onClick={() => applyCat(bulkAddCategory, 'Added category to')}>Add</button>
-        <button type="button" className="btn btn-sm" disabled={busy || !cat} onClick={() => applyCat(bulkRemoveCategory, 'Removed category from')}>Remove</button>
+        <Button type="button" size="sm" variant="outline" disabled={busy || !cat} onClick={() => applyCat(bulkAddCategory, 'Added category to')}>Add</Button>
+        <Button type="button" size="sm" variant="outline" disabled={busy || !cat} onClick={() => applyCat(bulkRemoveCategory, 'Removed category from')}>Remove</Button>
       </span>
 
-      <span className="bulk-group">
+      <span className="flex flex-wrap items-center gap-2">
         <TagAutocomplete
           value={tagVal}
           onChange={setTagVal}
@@ -102,14 +103,14 @@ export function BulkBar({
           ariaLabel="Bulk tag"
           disabled={busy}
         />
-        <button type="button" className="btn btn-sm" disabled={busy || !tagVal.trim()} onClick={() => applyTag(tagVal, bulkRemoveTag, 'Removed tag from')}>Remove</button>
+        <Button type="button" size="sm" variant="outline" disabled={busy || !tagVal.trim()} onClick={() => applyTag(tagVal, bulkRemoveTag, 'Removed tag from')}>Remove</Button>
       </span>
 
-      <button type="button" className="btn btn-sm btn-danger" disabled={busy} onClick={del}>Delete</button>
-      <button type="button" className="btn btn-sm" disabled={busy} onClick={onClear}>Clear selection</button>
+      <Button type="button" size="sm" variant="destructive" disabled={busy} onClick={del}>Delete</Button>
+      <Button type="button" size="sm" variant="outline" disabled={busy} onClick={onClear}>Clear selection</Button>
 
       {pendingCount > 0 && (
-        <span className="bulk-note">{pendingCount} of {selectedRows.length} have unpublished changes that will also go live.</span>
+        <span className="text-xs text-muted-foreground">{pendingCount} of {selectedRows.length} have unpublished changes that will also go live.</span>
       )}
     </div>
   )

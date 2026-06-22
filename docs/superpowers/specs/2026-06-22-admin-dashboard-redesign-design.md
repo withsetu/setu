@@ -28,7 +28,7 @@ Primary user/job: **the daily editor first, site-health second** (work-first, ru
 - **Who's editing** — active locks, **rendered only when a lock is held**.
 
 **Conditional**
-- **Getting started** — shown **only until `hasContent && hasDeployed`**, then it disappears for good.
+- **Getting started** — a 3-step onboarding checklist (set site URL · create first post · deploy). It **auto-hides once all three steps are done** (`hasSiteUrl && hasPost && hasDeployed`, where `hasPost = posts > 0`, matching the checklist's own "first post" item), or when manually dismissed. (The hide rule tracks the checklist's own items rather than a separate content count, so it stays self-consistent with what it shows.)
 
 **Cut**
 - **TipsDeck** (rotating tips = demo noise in a daily-driver tool).
@@ -45,7 +45,7 @@ Primary user/job: **the daily editor first, site-health second** (work-first, ru
 | `dashboard/widgets/StatTiles.tsx` | 2×2 metric grid; Drafts → filtered list link | Card, metric layout |
 | `dashboard/widgets/SiteDeployCard.tsx` | URL + last deploy/SHA + "View site" link (status only; Deploy action is in the header) | Card, Button |
 | `dashboard/widgets/WhosEditing.tsx` | Active locks; returns null when none | Card, Avatar |
-| `dashboard/widgets/GettingStarted.tsx` | Onboarding checklist; renders only when `!(hasContent && hasDeployed)` | Card |
+| `dashboard/widgets/GettingStarted.tsx` | 3-step onboarding checklist; renders only when `!(hasSiteUrl && hasPost && hasDeployed)` and not dismissed | Card |
 | `dashboard/DashboardSkeleton.tsx` | Loading placeholders mirroring the layout | Skeleton |
 
 **Removed:** `widgets/TipsDeck.tsx`, `widgets/QuickActions.tsx`, `widgets/CountsTiles.tsx` (→ StatTiles), `widgets/RecentEdits.tsx` (→ ResumeEditing), `widgets/SiteStatusCard.tsx` (→ SiteDeployCard). `widgets/WhosEditing.tsx` and `GettingStarted.tsx` are rewritten on shadcn.
@@ -64,7 +64,7 @@ No new data layer — reuse `src/dashboard/entries.ts` exactly:
 - `staged` → `info`
 - `live` → `success`
 
-`hasContent` = `counts.posts + counts.pages > 0`; `hasDeployed` = `useDeploy().sha !== null`. Greeting is time-of-day only (`Actor` has no name field — not invented).
+`hasDeployed` = `useDeploy().sha !== null`; the Getting-started hide rule uses `hasSiteUrl` (`siteUrl() !== ''`), `hasPost` (`counts.posts > 0`), and `hasDeployed` — the three checklist steps. Greeting is time-of-day only (`Actor` has no name field — not invented).
 
 ## 5. Polish & feel (restrained)
 
@@ -80,7 +80,7 @@ Component tests (jsdom + Testing Library), following existing `recent-edits.test
 - `StatTiles`: renders the four counts; Drafts is a link to `/posts?status=draft`.
 - `SiteDeployCard`: shows URL + SHA; "View site" uses the site URL (no Deploy button — that's header-only).
 - `WhosEditing`: renders a lock holder; returns nothing when there are no locks.
-- `GettingStarted`: visible when `!(hasContent && hasDeployed)`; absent when both are true.
+- `GettingStarted`: visible on a fresh site (all three steps incomplete); absent when `hasSiteUrl && hasPost && hasDeployed` are all true.
 - `Dashboard`: greeting present; header has New post / New page / Deploy; skeleton shown before data resolves.
 
 ## 7. Non-goals

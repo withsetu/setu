@@ -19,7 +19,8 @@ interface DeployApi {
   deploy(): Promise<void>
 }
 
-const DeployContext = createContext<DeployApi | null>(null)
+const NULL_DEPLOY: DeployApi = { deployedAt: () => null, sha: null, deploy: () => Promise.resolve() }
+const DeployContext = createContext<DeployApi>(NULL_DEPLOY)
 
 export function DeployProvider({ children }: { children: ReactNode }) {
   const { git } = useServices()
@@ -43,7 +44,5 @@ export function DeployProvider({ children }: { children: ReactNode }) {
 }
 
 export function useDeploy(): DeployApi {
-  const ctx = useContext(DeployContext)
-  if (ctx === null) throw new Error('useDeploy must be used within a DeployProvider')
-  return ctx
+  return useContext(DeployContext)
 }

@@ -1,21 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { Plus } from 'lucide-react'
 import type { CategoryNode, ContentRow, IndexQuery, LifecycleState, SortKey } from '@setu/core'
 import { buildTree } from '@setu/core'
 import { useIndex } from '../data/index-store'
 import { useTaxonomy } from '../data/taxonomy-store'
-import { lifecycleLabel } from '../lifecycle/label'
 import { PageHeader } from '../shell/PageHeader'
 import { PageBody } from '../shell/PageBody'
-import { StatusPill } from '../ui/StatusPill'
-import { Icon } from '../ui/Icon'
-import { siteUrl } from '../shell/site-url'
-import { TagFilter } from './TagFilter'
+import { Button } from '@/components/ui/button'
 import { BulkBar } from './BulkBar'
+import { ListToolbar } from './content-list/ListToolbar'
+import { ColumnsMenu } from './content-list/ColumnsMenu'
+import { ContentTable } from './content-list/ContentTable'
+import { Pager } from './content-list/Pager'
+import { useColumnPrefs } from './content-list/useColumnPrefs'
 
 const PAGE_SIZE = 25
-const STATUSES: LifecycleState[] = ['draft', 'staged', 'live', 'unpublished']
-const STATUS_LABELS: Record<LifecycleState, string> = { draft: 'Draft', staged: 'Staged', live: 'Live', unpublished: 'Unpublished' }
 const SORT_KEYS: SortKey[] = ['updatedAt', 'title', 'status']
 
 function flatten(nodes: CategoryNode[], out: CategoryNode[] = []): CategoryNode[] {
@@ -60,6 +60,23 @@ export function ContentList({ collection, title }: { collection: string; title: 
 
   // Category filter options come from the taxonomy (hierarchy + display names).
   const catRows = useMemo(() => flatten(buildTree(categories)), [categories])
+
+  // Category name lookup for the table display.
+  const categoryNameMap = useMemo(
+    () => new Map(catRows.map((c) => [c.slug, c.name])),
+    [catRows],
+  )
+  const categoryName = (slug: string) => categoryNameMap.get(slug) ?? slug
+
+  // Column visibility preferences.
+  const multilingual = locales.length > 1
+  const { visible, toggle } = useColumnPrefs(multilingual)
+
+  // Animation generation counter — increments on mount + page change only (NOT on filter/sort).
+  const [gen, setGen] = useState(0)
+  useEffect(() => {
+    setGen((g) => g + 1)
+  }, [page])
 
   const setParam = (key: string, value: string) => {
     setParams(
@@ -131,7 +148,6 @@ export function ContentList({ collection, title }: { collection: string; title: 
     const dir = sort.key === key && sort.dir === 'asc' ? 'desc' : 'asc'
     setParam('sort', `${key}-${dir}`)
   }
-  const sortIndicator = (key: SortKey) => (sort.key === key ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : '')
 
   const clearFilters = () => setParams({}, { replace: true })
 
@@ -161,60 +177,44 @@ export function ContentList({ collection, title }: { collection: string; title: 
         count={rows !== null ? total : undefined}
         subtitle={collection === 'post' ? 'Articles, field notes and announcements.' : 'Standalone pages and landing pages.'}
         actions={
-          <Link to={`/edit/${collection}/en/new`} className="btn btn-primary btn-md">
-            <Icon name="plus" size={16} />
-            <span>New {noun}</span>
-          </Link>
+          <Button asChild>
+            <Link to={`/edit/${collection}/en/new`}>
+              <Plus className="size-4" />
+              New {noun}
+            </Link>
+          </Button>
         }
       />
       <PageBody>
-        <div className="list-toolbar">
-          <input
-            type="search"
-            className="list-search"
-            placeholder={`Search ${title.toLowerCase()}`}
-            aria-label="Search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <select aria-label="Filter by status" value={status} onChange={(e) => setParam('status', e.target.value)}>
-            <option value="">All status</option>
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-            ))}
-          </select>
-          <select aria-label="Filter by category" value={category} onChange={(e) => setParam('category', e.target.value)}>
-            <option value="">All categories</option>
-            {catRows.map((c) => (
-              <option key={c.slug} value={c.slug}>{' '.repeat(c.depth * 2)}{c.name}</option>
-            ))}
-          </select>
-          {locales.length > 1 && (
-            <select aria-label="Filter by locale" value={locale} onChange={(e) => setParam('locale', e.target.value)}>
-              <option value="">All locales</option>
-              {locales.map((l) => (
-                <option key={l} value={l}>{l}</option>
-              ))}
-            </select>
-          )}
-          <TagFilter value={tag} onChange={(t) => setParam('tag', t)} />
-          {hasFilters && (rows === null || rows.length > 0) && (
-            // Clear filters also appears in the filtered-empty state below; the toolbar
-            // copy is hidden when results are empty so they never both show. Keep both.
-            <button type="button" className="btn btn-sm" onClick={clearFilters}>Clear filters</button>
-          )}
-        </div>
+        <ListToolbar
+          title={title}
+          search={search}
+          onSearch={setSearch}
+          status={status}
+          onStatus={(v) => setParam('status', v)}
+          category={category}
+          onCategory={(v) => setParam('category', v)}
+          catRows={catRows}
+          tag={tag}
+          onTag={(t) => setParam('tag', t)}
+          hasFilters={hasFilters}
+          onClear={clearFilters}
+          columnsMenu={<ColumnsMenu visible={visible} toggle={toggle} showLocale={multilingual} />}
+        />
         {rows === null ? (
-          <p className="empty-state">Loading…</p>
+          <p className="text-sm text-muted-foreground">Loading…</p>
         ) : rows.length === 0 ? (
           hasFilters ? (
-            <p className="empty-state">No {title.toLowerCase()} match these filters. <button type="button" className="btn btn-sm" onClick={clearFilters}>Clear filters</button></p>
+            <p className="text-sm text-muted-foreground">
+              No {title.toLowerCase()} match these filters.{' '}
+              <Button variant="link" size="sm" onClick={clearFilters}>Clear filters</Button>
+            </p>
           ) : (
-            <p className="empty-state">No {title.toLowerCase()} yet.</p>
+            <p className="text-sm text-muted-foreground">No {title.toLowerCase()} yet.</p>
           )
         ) : (
           <>
-            {selected.size > 0 && rows !== null && (
+            {selected.size > 0 && (
               <BulkBar
                 rows={rows}
                 selected={selected}
@@ -222,59 +222,22 @@ export function ContentList({ collection, title }: { collection: string; title: 
                 onDone={() => { setSelected(new Set()); setRefreshKey((k) => k + 1) }}
               />
             )}
-          <div className="list-wrap">
-            <table className="ctable">
-              <thead>
-                <tr>
-                  <th className="ctable-check">
-                    <input type="checkbox" aria-label="Select all on this page" checked={allSelected} onChange={toggleAll} />
-                  </th>
-                  <th><button type="button" className="ctable-sort" onClick={() => toggleSort('title')}>Title{sortIndicator('title')}</button></th>
-                  <th><button type="button" className="ctable-sort" onClick={() => toggleSort('status')}>Status{sortIndicator('status')}</button></th>
-                  <th>Locale</th>
-                  <th><button type="button" className="ctable-sort" onClick={() => toggleSort('updatedAt')}>Updated{sortIndicator('updatedAt')}</button></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => {
-                  const { label, pending } = lifecycleLabel(row.lifecycle)
-                  return (
-                    <tr key={`${row.ref.collection}/${row.ref.locale}/${row.ref.slug}`}>
-                      <td className="ctable-check">
-                        <input
-                          type="checkbox"
-                          aria-label={`Select ${row.title}`}
-                          checked={selected.has(keyOf(row))}
-                          onChange={() => toggleRow(keyOf(row))}
-                        />
-                      </td>
-                      <td className="ctable-title">
-                        <Link to={`/edit/${row.ref.collection}/${row.ref.locale}/${row.ref.slug}`}>{row.title}</Link>
-                        {(row.lifecycle.state === 'staged' || row.lifecycle.state === 'live') && (
-                          <a className="ctable-view" href={siteUrl(row.ref)} target="_blank" rel="noopener noreferrer" aria-label={`View ${row.title} on site`} title="View on site">
-                            <Icon name="external" size={14} />
-                          </a>
-                        )}
-                      </td>
-                      <td>
-                        <StatusPill status={label} />
-                        {pending !== undefined && <span className="status-pending">· {pending}</span>}
-                      </td>
-                      <td className="ctable-muted">{row.ref.locale}</td>
-                      <td className="ctable-muted">{row.updatedAt === null ? '—' : new Date(row.updatedAt).toLocaleDateString()}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-            {total > 0 && (
-              <div className="list-pager">
-                <span className="ctable-muted">{from}–{to} of {total}</span>
-                <button className="btn btn-sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Prev</button>
-                <button className="btn btn-sm" disabled={to >= total} onClick={() => setPage((p) => p + 1)} aria-label="Next">Next</button>
-              </div>
-            )}
-          </div>
+            <div className="overflow-hidden rounded-lg border">
+              <ContentTable
+                rows={rows}
+                gen={gen}
+                visible={visible}
+                showLocale={multilingual}
+                categoryName={categoryName}
+                selected={selected}
+                allSelected={allSelected}
+                onToggleRow={toggleRow}
+                onToggleAll={toggleAll}
+                sort={sort}
+                onSort={toggleSort}
+              />
+              {total > 0 && <Pager from={from} to={to} total={total} page={page} onPage={setPage} />}
+            </div>
           </>
         )}
       </PageBody>

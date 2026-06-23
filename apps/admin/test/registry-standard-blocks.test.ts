@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { registry } from './registry'
+import { registry } from '../src/blocks/registry'
 
 describe('admin block registry', () => {
   it('includes the button standard block under the layout group', () => {

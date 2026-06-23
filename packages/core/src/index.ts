@@ -120,3 +120,4 @@ export {
 
 export type { StandardBlock } from './blocks/standard/types'
 export { STANDARD_BLOCKS } from './blocks/standard'
+export { mergeBlockSources } from './blocks/merge-sources'

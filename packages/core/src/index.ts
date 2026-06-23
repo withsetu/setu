@@ -78,6 +78,7 @@ export type { EntryIndexRow, SortKey, IndexQuery, IndexMeta, IndexPort } from '.
 export { indexKey, projectRow, rowToContentRow } from './index-port/types'
 export { runQuery } from './index-port/run-query'
 export { selectDistinctTags, selectDistinctLocales } from './index-port/distinct-tags'
+export { selectCategoryCounts } from './index-port/category-counts'
 export type { MediaUsage } from './index-port/referenced-by'
 export { selectReferencedBy } from './index-port/referenced-by'
 export type { IndexService, IndexServiceDeps } from './index-port/index-service'

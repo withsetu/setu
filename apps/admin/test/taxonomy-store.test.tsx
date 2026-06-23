@@ -97,4 +97,57 @@ describe('TaxonomyProvider', () => {
     // counts must not include 'eng'
     expect(result.current.counts['eng']).toBeUndefined()
   })
+
+  it('remove() promotes child categories to top level when parent is deleted', async () => {
+    const indexPort = createMemoryIndexPort()
+    const data = createMemoryDataPort([])
+    const git = createMemoryGitPort()
+
+    // Seed categories.yaml with a parent 'eng' and child 'frontend' (parent: 'eng')
+    const catsYaml = serializeCategories([
+      { slug: 'eng', name: 'Engineering', parent: null },
+      { slug: 'frontend', name: 'Frontend', parent: 'eng' },
+    ])
+    await git.commitFile({ path: 'taxonomy/categories.yaml', content: catsYaml, message: 'seed cats', author: AUTHOR })
+
+    // Build the index so the provider loads correctly
+    const idx = createIndexService({ data, git, index: indexPort, deployedAt: () => null })
+    await idx.rebuild()
+
+    const services = servicesFor(data, git, indexPort)
+
+    function Wrapper({ children }: { children: ReactNode }) {
+      return (
+        <ServicesProvider services={services}>
+          <DeployProvider>
+            <IndexProvider>
+              <TaxonomyProvider>{children}</TaxonomyProvider>
+            </IndexProvider>
+          </DeployProvider>
+        </ServicesProvider>
+      )
+    }
+
+    const { result } = renderHook(() => useTaxonomy(), { wrapper: Wrapper })
+
+    // Wait for both categories to load
+    await waitFor(() => {
+      expect(result.current.categories.some((c) => c.slug === 'eng')).toBe(true)
+      expect(result.current.categories.some((c) => c.slug === 'frontend')).toBe(true)
+    })
+
+    // Confirm 'frontend' starts with parent 'eng'
+    expect(result.current.categories.find((c) => c.slug === 'frontend')?.parent).toBe('eng')
+
+    // Act: delete the parent 'eng'
+    await act(async () => {
+      await result.current.remove('eng')
+    })
+
+    // 'eng' must be gone
+    expect(result.current.categories.find((c) => c.slug === 'eng')).toBeUndefined()
+
+    // 'frontend' must be promoted to top level (parent === null)
+    expect(result.current.categories.find((c) => c.slug === 'frontend')?.parent).toBeNull()
+  })
 })

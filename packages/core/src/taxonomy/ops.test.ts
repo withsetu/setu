@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addCategory, renameLabel, reparent, slugify, TaxonomyError } from './ops'
+import { addCategory, removeCategory, renameLabel, reparent, slugify, TaxonomyError } from './ops'
 import type { Category } from './types'
 
 const cat = (slug: string, parent: string | null = null): Category => ({ slug, name: slug, parent })
@@ -71,5 +71,32 @@ describe('reparent', () => {
   })
   it('throws when parent does not exist', () => {
     expect(() => reparent([cat('a')], 'a', 'ghost')).toThrow(TaxonomyError)
+  })
+})
+
+describe('removeCategory', () => {
+  const base = [
+    { slug: 'eng', name: 'Engineering', parent: null },
+    { slug: 'frontend', name: 'Frontend', parent: 'eng' },
+    { slug: 'react', name: 'React', parent: 'frontend' },
+    { slug: 'news', name: 'News', parent: null },
+  ]
+  it('removes the node and promotes its direct children to the removed node parent', () => {
+    const next = removeCategory(base, 'eng')
+    expect(next.find((c) => c.slug === 'eng')).toBeUndefined()
+    expect(next.find((c) => c.slug === 'frontend')!.parent).toBeNull()
+    // grandchild untouched — still points at its own (surviving) parent
+    expect(next.find((c) => c.slug === 'react')!.parent).toBe('frontend')
+  })
+  it('promotes a mid-tree node children up one level', () => {
+    const next = removeCategory(base, 'frontend')
+    expect(next.find((c) => c.slug === 'frontend')).toBeUndefined()
+    expect(next.find((c) => c.slug === 'react')!.parent).toBe('eng')
+  })
+  it('removes a leaf with no children', () => {
+    expect(removeCategory(base, 'news').map((c) => c.slug)).toEqual(['eng', 'frontend', 'react'])
+  })
+  it('throws not-found for a missing slug', () => {
+    expect(() => removeCategory(base, 'nope')).toThrow('does not exist')
   })
 })

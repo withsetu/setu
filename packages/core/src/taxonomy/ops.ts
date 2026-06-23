@@ -73,3 +73,14 @@ export function reparent(cats: Category[], slug: string, parent: string | null):
   }
   return cats.map((c) => (c.slug === slug ? { ...c, parent } : c))
 }
+
+/** Delete a category and promote its DIRECT children to the deleted node's own
+ *  parent (one level up; null when the deleted node was top-level). Grandchildren
+ *  are untouched. Throws not-found for a missing slug. */
+export function removeCategory(cats: Category[], slug: string): Category[] {
+  const node = cats.find((c) => c.slug === slug)
+  if (node === undefined) throw new TaxonomyError('not-found', `Category "${slug}" does not exist`)
+  return cats
+    .filter((c) => c.slug !== slug)
+    .map((c) => (c.parent === slug ? { ...c, parent: node.parent } : c))
+}

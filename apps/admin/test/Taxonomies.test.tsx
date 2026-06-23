@@ -8,6 +8,7 @@ import { ActorProvider } from '../src/auth/actor'
 import { DeployProvider } from '../src/deploy/deploy'
 import { IndexProvider } from '../src/data/index-store'
 import { TaxonomyProvider } from '../src/data/taxonomy-store'
+import { TagsProvider } from '../src/data/tags-store'
 import { NotificationProvider } from '../src/ui/notify'
 import { App } from '../src/app'
 import { Taxonomies } from '../src/screens/taxonomies/Taxonomies'
@@ -26,9 +27,11 @@ function wrap(initialPath = '/taxonomies') {
           <DeployProvider>
             <IndexProvider>
               <TaxonomyProvider>
-                <NotificationProvider>
-                  <App />
-                </NotificationProvider>
+                <TagsProvider>
+                  <NotificationProvider>
+                    <App />
+                  </NotificationProvider>
+                </TagsProvider>
               </TaxonomyProvider>
             </IndexProvider>
           </DeployProvider>
@@ -46,9 +49,11 @@ function wrapDirect() {
         <DeployProvider>
           <IndexProvider>
             <TaxonomyProvider>
-              <NotificationProvider>
-                <Taxonomies />
-              </NotificationProvider>
+              <TagsProvider>
+                <NotificationProvider>
+                  <Taxonomies />
+                </NotificationProvider>
+              </TagsProvider>
             </TaxonomyProvider>
           </IndexProvider>
         </DeployProvider>
@@ -88,11 +93,10 @@ describe('Taxonomies screen (direct mount)', () => {
     expect(screen.getByRole('heading', { name: /taxonomies/i })).toBeInTheDocument()
   })
 
-  it('Tags tab shows coming-soon copy after activating the tab', () => {
+  it('Tags tab shows empty-state copy after activating the tab (no entries seeded)', () => {
     wrapDirect()
     // Radix Tabs listens to mousedown (not click) for tab switching
     fireEvent.mouseDown(screen.getByRole('tab', { name: /tags/i }))
-    expect(screen.getByText(/Tag management is coming soon/i)).toBeInTheDocument()
-    expect(screen.getByText(/Bulk rename, merge, and cleanup will live here/i)).toBeInTheDocument()
+    expect(screen.getByText(/Tags appear here as you add them to content/i)).toBeInTheDocument()
   })
 })

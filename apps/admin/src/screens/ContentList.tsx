@@ -222,7 +222,7 @@ export function ContentList({ collection, title }: { collection: string; title: 
                 onDone={() => { setSelected(new Set()); setRefreshKey((k) => k + 1) }}
               />
             )}
-            <div className="overflow-hidden rounded-lg border">
+            <div className="overflow-hidden rounded-xl border bg-card shadow-[var(--shadow-card)]">
               <ContentTable
                 rows={rows}
                 gen={gen}

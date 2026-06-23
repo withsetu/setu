@@ -1,333 +1,174 @@
-# Block Library — Foundation B (Block Source Merge + First Core Block) — Design Spec
+# Block Library — Foundation B (Core-Shipped Standard Blocks) — Design Spec
 
-**Status:** Approved design, ready for implementation plan
+**Status:** Approved design (slimmed scope), ready for implementation
 **Date:** 2026-06-22
 **Feature ID:** Block Library program, sub-project #1b
 
 ## Goal
 
-Prove the program's central architecture thesis end-to-end: **the block
-*contract* is canonical in core, the *renderer* belongs to the theme, and a
-single override order resolves which renderer wins.** Concretely:
+Make a block ship **with the product** instead of being hand-made per site.
+Today every block (callout, notice) is a **site-local** folder under `blocks/`.
+For a real block *library*, the standard blocks must live in core so every site
+gets them for free. This sub-project establishes that path and ships the first
+core block, **`button`**.
 
-1. A block contract can be defined as a **standard block in `@setu/core`** (not
-   only as a site-local `blocks/` folder).
-2. `@setu/blocks` ships a **deliberately-plain default renderer** for a standard
-   block.
-3. A **theme can override that renderer** per tag without redeclaring the
-   contract.
-4. A single **precedence resolution** picks, per tag, the winning contract and
-   the winning renderer across the three sources (core standard → theme →
-   site-local `blocks/`).
-5. Ship the **first canonical core block — `button`** — through this pipeline as
-   the working proof.
+Presentation is handled the **same way callout already does it — CSS tokens**
+(`var(--accent, …)`), so a theme restyles the block by setting tokens. That
+mechanism is already proven; we are not rebuilding it.
 
-This keeps Git-stored Markdoc content **portable across themes**: the standard
-block vocabulary lives in core, themes vary only presentation. The
-theme-author-owned-contract model (WordPress lock-in) is what this avoids.
+## Scope decision (and what we explicitly are NOT building)
 
-## Scope decision
+An earlier draft of Foundation B proposed a **per-theme renderer-override
+resolver** (core default → theme renderer → site-local, chosen independently per
+tag). We are **deferring all of that.** Reason: callout already demonstrates
+theme-controlled presentation via tokens, and a `button` is an `<a>` — token
+theming covers it completely. A full renderer-override seam only earns its keep
+for blocks whose **markup structure** differs per theme (hero, pricing,
+testimonial — the later marketing wave). Building it now is YAGNI.
 
-The full block library is a multi-subsystem **program** (see Foundation A's
-roadmap). This spec is **Foundation B only**, and within Foundation B it is
-deliberately scoped to a **minimal vertical slice** that proves the
-core→theme→site override without building a second discovery path.
+This slim scope is a **clean subset** of that future seam: the `@setu/blocks`
+renderer we ship here simply becomes the "default" tier if/when overrides are
+added later. No wasted work, no dead-end.
 
-Explicitly **in scope:**
+**In scope:**
+- A standard block contract living in `@setu/core` (`STANDARD_BLOCKS`).
+- The first core block, `button` (Shape A: structured props, body = label).
+- A single token-themed `.astro` renderer for it in `@setu/blocks`.
+- A small pure `mergeBlockSources()` that unions core standard blocks with
+  site-local `blocks/` (site-local wins on a tag collision).
+- Wiring the two discovery flows that need it: the admin editor registry and the
+  site `gen-blocks` codegen.
+- Adding `packages/core/src/blocks` to `tsconfig.edge.json` (CI-enforced
+  edge-safe contracts).
 
-- Standard block contracts living in `@setu/core` (`STANDARD_BLOCKS`).
-- A pure `resolveBlockSources()` precedence resolver in `@setu/core`, with
-  **contract and renderer resolved independently per tag**.
-- A plain default `.astro` renderer for a standard block in `@setu/blocks`.
-- A theme-provided renderer override in `@setu/theme-default`, detected by
-  convention.
-- Wiring the three existing discovery flows (admin glob registry, `gen-blocks`
-  codegen, site runtime) to consume standard blocks + the resolver.
-- The first core block, `button`, end-to-end: contract, round-trip, default
-  renderer, theme override, neutral editor node.
-- Adding `packages/core/src/blocks` to `tsconfig.edge.json` so the contract +
-  resolver layer is CI-enforced edge-safe.
+**Out of scope (named so reviewers don't flag their absence):**
+- **Per-theme renderer override / precedence resolver / theme-renderer
+  detection** — deferred to the marketing wave, when structural per-theme markup
+  is actually needed.
+- Theme packages shipping their own block `.astro` files.
+- The block inspector (side-panel prop editing); theme-accurate WYSIWYG in the
+  editor (the editor uses the existing neutral generic node); width/breakout /
+  alignment props; any second core block.
 
-Explicitly **out of scope** (named so reviewers don't flag their absence):
+## Architecture decisions inherited (Foundation A ADR)
 
-- **Theme-adds-bespoke-blocks** (a theme contributing *new* block contracts, not
-  just renderer overrides). This is mechanically a second discovery path against
-  a different source directory; it proves nothing new architecturally and is
-  deferred until a theme actually needs it.
-- The **block inspector** (structured side-panel prop editing) — sub-project #4.
-- **Theme-accurate WYSIWYG** rendering inside the editor canvas (the editor uses
-  a neutral node view here).
-- **Editor width / breakout** for layout blocks (sub-project #3); the `button`
-  carries no alignment/size prop in this slice.
-- Any **second core block** or marketing/layout blocks.
-
-## Architecture decisions inherited (from Foundation A ADR)
-
-- **Two block shapes.** *Shape A* = structured, props-driven, theme-rendered, no
-  nesting. *Shape B* = layout containers holding arbitrary blocks. `button` is
-  **Shape A** (its body is inline label text, not arbitrary nested blocks).
-- **Contract in core, renderer in theme.** Honored here, with the practical
-  refinement below (default renderer in `@setu/blocks`, not literally in
-  `@setu/core`).
-- **Block source merge order:** core standard → active theme (overrides renderer
-  per tag) → site-local `blocks/` (overrides both). Implemented here.
+- **Two block shapes.** `button` is **Shape A** (structured props; its body is
+  inline label text, not arbitrary nested blocks).
+- **Contract in core.** Honored: the contract lives in `@setu/core`. The
+  *renderer* lives in `@setu/blocks` (the existing block-presentation package),
+  token-themed — the same place and pattern as callout/notice visuals.
 
 ## Global constraints
 
-- **Cloudflare-Pages / edge compatible.** The contract + resolver layer in
-  `@setu/core` must compile under `tsconfig.edge.json` — pure data, zod, and a
-  pure function only; no React, no DOM, no `.astro`.
-- **Backward compatible.** Existing site-local `blocks/` (callout, notice) keep
-  working unchanged; they simply become the highest-precedence tier. A tag that
-  exists only as site-local resolves exactly as today.
-- **No packaging changes.** No move of the repo-root `blocks/` directory (that
-  deferral stands). Standard blocks and default renderers ship inside existing
-  workspace packages (`@setu/core`, `@setu/blocks`) that are already resolvable
-  by the three flows' existing resolver patch points.
+- **Edge-safe core:** everything under `packages/core/src/blocks` must compile
+  under `tsconfig.edge.json` (`types: []`) — pure data, zod, pure functions only.
+- **Backward compatible:** existing site-local `blocks/` (callout, notice) keep
+  working unchanged; on a tag collision, site-local wins.
+- **No packaging changes:** the repo-root `blocks/` directory does not move.
+- **Cloudflare-Pages compatible:** all resolution is build-time
+  (`gen-blocks`) or admin-build-time (Vite glob); no per-request work.
 
 ---
 
-## Where the default renderer lives (the key fork — decided)
+## How a core block differs from a site-local block
 
-`@setu/core` is deliberately edge-safe TS — no `.astro`, no Astro dependency. So
-the "core ships a plain default renderer" ADR is satisfied **in spirit** by
-splitting along nature, not package name:
+| | site-local (callout/notice) | core standard (button) |
+|---|---|---|
+| Contract (`block.ts`) | `blocks/<tag>/block.ts` | `@setu/core` `STANDARD_BLOCKS` |
+| Renderer (`.astro`) | `blocks/<tag>/<tag>.astro` | `@setu/blocks` (token-themed) |
+| Ships with product? | no (per site) | **yes** |
+| Themed via | CSS tokens | CSS tokens (same) |
 
-- **`@setu/core`** → block *contracts* only (zod props + editor meta + category)
-  and the pure resolver. Stays pure and edge-safe.
-- **`@setu/blocks`** → the *default* `.astro` renderers. This package already
-  owns block presentation (Callout/Notice React cores + CSS), so it is the
-  natural home for the plain default renderer.
-- **theme packages** → override renderers.
+A core block and a site-local block are unioned into one registry; site-local
+wins on a tag collision (so any site can still override a standard block by
+dropping a `blocks/<tag>/` folder).
 
-This sidesteps putting `.astro` into the edge-safe core entirely.
+## The `button` block
 
-### Core vs. site-local blocks differ in renderer model
-
-`callout`/`notice` are site-local blocks with a **single shared visual core**
-(React in `@setu/blocks`) reused by both the editor node view and the site
-`.astro`. A **core block with per-theme renderers deliberately has no single
-shared visual** — that is the entire point. Consequences:
-
-- Its **editor node view is a neutral editing affordance** (auto-form from the
-  contract + inline-editable label), not a theme-accurate preview.
-- The **theme owns the real look**; the `@setu/blocks` default is only the
-  fallback when no theme (or a barebones theme) provides an override.
-
----
-
-## The precedence resolver (`@setu/core`)
-
-**File:** `packages/core/src/blocks/resolve-sources.ts` (new) — a **pure
-function**, the single source of merge truth that the three flows call instead
-of each re-implementing precedence.
-
-Resolution is **per tag, contract and renderer chosen independently:**
-
-- **contract(tag)** = site-local → else standard.
-  (Theme does not define contracts this slice.)
-- **renderer(tag)** = site-local `<tag>.astro` → else theme `blocks/<tag>.astro`
-  → else `@setu/blocks` default `.astro`.
-
-Independent selection is the portability guarantee: a theme overriding the
-renderer **must not** have to redeclare the contract.
-
-```ts
-export interface StandardBlockSource {
-  tag: string
-  contract: BlockContract       // from @setu/core src/blocks/standard
-  defaultRenderer: string       // ref to the @setu/blocks default .astro
-}
-
-export interface LocalBlockSource {
-  tag: string
-  contract: BlockContract
-  renderer: string              // blocks/<tag>/<tag>.astro
-}
-
-export interface ResolvedSiteBlock {
-  tag: string
-  contract: BlockContract       // winning contract (local > standard)
-  attributes: MarkdocAttributes // derived from the winning contract
-  renderer: string              // winning renderer (local > theme > default)
-}
-
-export function resolveBlockSources(input: {
-  standard: StandardBlockSource[]
-  local: LocalBlockSource[]
-  /** tags the active theme provides a renderer for, → renderer ref */
-  themeRenderers: Record<string, string>
-}): ResolvedSiteBlock[]
-```
-
-The **admin** uses a renderer-agnostic slice — it only needs the merged contract
-set (local > standard) for the slash menu, editor nodes, and `knownBlockTags`;
-theme overrides are invisible to it. This can be the same function with empty
-`themeRenderers`, or a thin `resolveBlockContracts({ standard, local })` helper
-that the full resolver also calls. Either way the **precedence rule is written
-once.**
-
-`renderer` refs are opaque strings the caller interprets: the site `gen-blocks`
-flow maps each to a path Astro's `component()` can import; the admin ignores
-them.
-
----
-
-## The three discovery flows, after
-
-### Admin registry — `apps/admin/src/blocks/registry.ts`
-
-Today globs `blocks/*/block.ts`. Change: merge `STANDARD_BLOCKS` (imported from
-`@setu/core`) with the glob results; **local overrides standard by tag**.
-Renderer-agnostic.
-
-Effects:
-- `button` appears in the slash menu under **Layout** (its category).
-- `button` is in `knownBlockTags`, so the round-trip treats it as a known tag.
-- `button` renders in the editor via the **neutral generic block node view**
-  (auto-form from the contract; inline-editable body for the label). No bespoke
-  editor component this slice.
-
-> **Dependency note:** this relies on the generic block node view from the
-> auto-discovery work (#4 Slice B). The implementation plan must confirm the
-> generic node handles a body-bearing standard block; if a gap exists, the
-> fallback is a minimal bespoke `button` node — but the contract-driven generic
-> path is preferred.
-
-### Site codegen — `scripts/gen-blocks.mjs`
-
-Today scans `blocks/` and emits `markdoc.blocks.generated.mjs`. Change:
-
-1. Load `STANDARD_BLOCKS` from `@setu/core` (via the existing jiti alias).
-2. Load local blocks from `blocks/` (as today).
-3. Read the active theme from `setu.config.ts` (`loadConfig(...).theme`,
-   defaulting to `@setu/theme-default`).
-4. **Convention-detect** theme renderer overrides: for each standard tag, try to
-   resolve `<themePkg>/blocks/<tag>.astro`; if resolvable, the theme overrides
-   that tag's renderer.
-5. Call `resolveBlockSources({ standard, local, themeRenderers })`.
-6. Emit the generated config: each tag → `component(<winning renderer path>)` +
-   `attributes` from the winning contract.
-
-Renderer path emission:
-- **site-local** → relative path as today (`../../blocks/<tag>/<tag>.astro`).
-- **theme / default** → a resolved package path the generated config can import.
-  `fs.allow: ['../..']` already permits repo-root + workspace access; the
-  implementation plan verifies whether Astro `component()` accepts a package
-  specifier directly or needs an absolute resolved path, and picks the form that
-  works.
-
-### Site runtime
-
-Unchanged. Astro renders whatever `markdoc.blocks.generated.mjs` points each tag
-at.
-
----
-
-## Theme renderer convention
-
-A theme package exposes block renderers by **convention**: it ships
-`blocks/<tag>.astro` and exports them in its `package.json` `exports`
-(e.g. `"./blocks/button.astro": "./blocks/button.astro"`). Presence of a
-resolvable `<themePkg>/blocks/<tag>.astro` = an override for that tag. No
-manifest field is introduced (lighter, and consistent with how `Layout.astro`
-etc. are already exposed). `@setu/theme-default` ships `blocks/button.astro`.
-
----
-
-## The `button` block, concretely
-
-- **Tag:** `button`  **Category:** `layout`
-- **Markdoc shape (body-bearing — label is the body):**
-  ```
-  {% button href="/signup" variant="primary" %}Get started{% /button %}
-  ```
-  Body-bearing reuses the proven callout/notice round-trip path (lower risk than
-  a bodyless tag) and gives an inline-editable label in the editor.
-- **Props (zod):**
-  - `href: string`
-  - `variant: z.enum(['primary', 'secondary']).default('primary')`
-  - (No alignment/size — deferred to width/breakout, sub-project #3.)
+- **Tag:** `button`  **Category:** `layout`  **Shape:** A (body = label).
+- **Markdoc:** `{% button href="/signup" variant="primary" %}Get started{% /button %}`
+  — body-bearing (reuses the proven callout/notice round-trip path; gives an
+  inline-editable label in the editor).
+- **Props (zod):** `href: string`, `variant: enum('primary','secondary')`
+  default `'primary'`. (No alignment/size — deferred to width/breakout, #3.)
 - **Editor meta:** `label: 'Button'`, `group: 'layout'`,
-  `keywords: ['btn', 'cta', 'link']`, and a CTA-appropriate `icon` that is
-  already a registered `IconName` in the admin icon map (the plan confirms
-  availability and picks one; `link` exists today as a safe fallback).
-- **Default renderer** — `@setu/blocks` `src/button/Button.astro`:
-  `<a href={href} class={`setu-button setu-button--${variant}`}><slot /></a>`
-  with a minimal **unbranded** `button.css` (padding, border, no theme color).
-- **Theme override** — `@setu/theme-default` `blocks/button.astro`: same markup,
-  styled with theme tokens (`--accent`, radius, etc.).
+  `keywords: ['btn','cta','link']`, `icon: 'link'` (a confirmed admin
+  `IconName`; `toIconName` falls back to `sparkle` for any unknown value).
+- **Renderer (`@setu/blocks`):** a single `Button.astro` —
+  `<a href class="setu-button setu-button--{variant}"><slot /></a>` — with a
+  token-themed `button.css` (`var(--accent, …)`), exactly the callout.css
+  pattern. When rendered on the site it picks up the active theme's tokens via
+  the cascade (no theme-specific file needed).
+- **Editor:** the existing generic `setuBlock` node renders it (auto-form from
+  the contract + inline-editable body). No bespoke editor node — confirmed the
+  generic node already supports body-bearing blocks.
 
-The default theme **does** provide the override, so the normal site path renders
-the themed button; removing the override falls back to the `@setu/blocks` plain
-default — both tiers are exercised and tested.
+## The merge (`@setu/core`)
 
----
+`mergeBlockSources({ standard, local })` → `BlockEntry[]` (the existing
+`{ tag, component, contract }` shape that `buildRegistry` already consumes). A
+standard block's `component` is its `@setu/blocks` renderer specifier; a local
+block's `component` is its folder path. Site-local wins on a tag collision. Pure,
+unit-tested, called by both the admin registry and the site codegen so the
+union rule is written once.
+
+## The two flows it touches
+
+- **Admin registry** (`apps/admin/src/blocks/registry.ts`): union
+  `STANDARD_BLOCKS` with the existing `blocks/*/block.ts` glob via
+  `mergeBlockSources`; local wins. Effect: `button` appears in the slash menu
+  (under **Layout**, automatically — `slashBlocks()` maps every registry block)
+  and in `knownBlockTags` (so the round-trip treats `{% button %}` as known).
+- **Site codegen** (`scripts/gen-blocks.mjs`): include `STANDARD_BLOCKS` in the
+  registry it builds (unioned with the local `blocks/` scan), then emit
+  `markdoc.blocks.generated.mjs` as today. The `button` entry points at the
+  `@setu/blocks` renderer (a bare package specifier).
+- **Site runtime:** unchanged.
+
+`generateMarkdocTagsInclude` needs one tweak: renderer paths that are **bare
+package specifiers** (the `@setu/blocks` renderer) are emitted as-is, while
+repo-root `blocks/…` paths keep their `../../` prefix.
 
 ## Files
 
 **Create:**
-- `packages/core/src/blocks/standard/button.ts` — the `button` standard
-  contract.
-- `packages/core/src/blocks/standard/index.ts` — `STANDARD_BLOCKS` array.
-- `packages/core/src/blocks/resolve-sources.ts` — the pure resolver.
-- `packages/blocks/src/button/Button.astro` + `button.css` — plain default
+- `packages/core/src/blocks/standard/types.ts` — `StandardBlock` interface.
+- `packages/core/src/blocks/standard/button.ts` — the `button` standard block.
+- `packages/core/src/blocks/standard/index.ts` — `STANDARD_BLOCKS`.
+- `packages/core/src/blocks/merge-sources.ts` — `mergeBlockSources()`.
+- `packages/blocks/src/button/Button.astro` + `button.css` — token-themed
   renderer.
-- `packages/theme-default/blocks/button.astro` — theme override.
-- Tests: `packages/core/src/blocks/resolve-sources.test.ts`,
-  `packages/core/src/blocks/standard/button.test.ts`, and round-trip + admin
-  registry + gen-blocks tests (see Testing).
+- Tests: core standard-blocks, merge-sources, generate-markdoc, button
+  round-trip; admin registry.
 
 **Modify:**
-- `packages/core/src/index.ts` — export `STANDARD_BLOCKS`, `resolveBlockSources`
-  (+ types).
-- `packages/core/tsconfig.edge.json` — add `src/blocks` to `include`.
+- `packages/core/src/index.ts` — export `StandardBlock`, `STANDARD_BLOCKS`,
+  `mergeBlockSources`.
+- `packages/core/src/blocks/generate-markdoc.ts` — bare-specifier paths.
+- `packages/core/tsconfig.edge.json` — add `src/blocks`.
 - `packages/blocks/package.json` — export `./button.astro`, `./button.css`.
-- `packages/theme-default/package.json` — export `./blocks/button.astro`.
-- `apps/admin/src/blocks/registry.ts` — merge `STANDARD_BLOCKS` with the glob
-  (local wins).
-- `scripts/gen-blocks.mjs` — load standard blocks, detect theme renderers, call
-  the resolver, emit resolved renderer paths.
-
----
+- `apps/admin/src/blocks/registry.ts` — union via `mergeBlockSources`.
+- `scripts/gen-blocks.mjs` — include `STANDARD_BLOCKS` in the registry.
+- `content/post/en/kitchen-sink.mdoc` + `apps/site/test/render.test.ts` — render
+  proof.
 
 ## Testing
 
-**Pure resolver — `resolve-sources.test.ts`:**
-- Tag union across standard + local.
-- Contract precedence: a tag present in both local and standard resolves to the
-  **local** contract.
-- Renderer precedence: local `.astro` > theme `.astro` > `@setu/blocks` default.
-- **Theme overrides renderer without redeclaring contract:** a standard tag with
-  a theme renderer resolves to `{ contract: standard, renderer: theme }`.
-- A standard-only tag with no theme override resolves to the default renderer.
-
-**Button contract — `standard/button.test.ts`:**
-- Zod validates `href` + `variant` (default `'primary'`).
-- Markdoc attributes derive correctly (the existing `markdocAttributesFor`).
-
-**Round-trip:**
-- `{% button href="…" variant="…" %}label{% /button %}` round-trips byte-clean.
-
-**Admin registry:**
-- Merged registry includes `button`; local overrides standard on tag collision.
-- Slash model places `button` under the **Layout** group.
-- `knownBlockTags` includes `button`.
-
-**gen-blocks / site (integration):**
-- With the theme override present, the generated config points `button` at the
-  **theme** renderer.
-- With the theme override removed, it points at the **`@setu/blocks` default**
-  (proves the fallback tier).
-- The site builds; `button` renders (themed) on a page that uses it.
-
-Existing block behavior (callout, notice insert + round-trip + render) must stay
-green — they are unchanged, now resolved as the highest-precedence (site-local)
-tier.
+- **merge-sources:** union of standard + local; local wins on tag collision;
+  standard block carries its `@setu/blocks` renderer as `component`.
+- **button contract:** zod validates `href` + default `variant`; attributes
+  derive correctly.
+- **round-trip:** `{% button %}…{% /button %}` byte-stable.
+- **generate-markdoc:** bare specifier emitted as-is; `blocks/…` prefixed
+  `../../`.
+- **admin registry:** `button` present under `layout`; callout/notice/image
+  still present.
+- **site render:** the kitchen-sink page renders the button `<a>` (token-themed);
+  full repo green; callout/notice unchanged.
 
 ## Open questions
 
-None blocking. The one implementation-time verification (does Astro
-`component()` take a package specifier or need an absolute resolved path for
-theme/default renderers) is a mechanical detail for the plan, with a known
-fallback (resolve to an absolute path).
+The one implementation-time check: does Astro `component()` accept a bare
+package specifier (`@setu/blocks/button.astro`) for the renderer? The site render
+test is the gate; documented fallback is to emit a resolved absolute path
+(`fs.allow: ['../..']` already permits it).

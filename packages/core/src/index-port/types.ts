@@ -48,6 +48,7 @@ export interface IndexPort {
   distinctTags(prefix: string, limit: number): Promise<string[]>
   distinctLocales(): Promise<string[]>
   categoryCounts(): Promise<Record<string, number>>
+  tagCounts(): Promise<Record<string, number>>
   referencedBy(mediaKey: string): Promise<import('./referenced-by').MediaUsage[]>
   entriesByCategory(slug: string): Promise<import('../data/types').EntryRef[]>
 }

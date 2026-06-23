@@ -205,6 +205,14 @@ export function runIndexPortContract(makeAdapter: () => Promise<IndexPort> | Ind
       expect(await port.categoryCounts()).toEqual({ eng: 2, news: 1 })
     })
 
+    it('tagCounts tallies usage across rows', async () => {
+      await ix.upsertMany([
+        { ...irow({ slug: 'a' }), tags: ['react', 'css'] },
+        { ...irow({ slug: 'b' }), tags: ['react'] },
+      ])
+      expect(await ix.tagCounts()).toEqual({ react: 2, css: 1 })
+    })
+
     it('referencedBy: returns entries whose mediaRefs include the key', async () => {
       await ix.upsertMany([
         irow({ slug: 'a', title: 'A', mediaRefs: ['2026/06/cat'] }),

@@ -1,5 +1,5 @@
 import type { EntryIndexRow, IndexMeta, IndexPort, IndexQuery } from '@setu/core'
-import { runQuery, selectDistinctTags, selectDistinctLocales, selectCategoryCounts, selectReferencedBy, selectEntriesByCategory } from '@setu/core'
+import { runQuery, selectDistinctTags, selectDistinctLocales, selectCategoryCounts, selectTagCounts, selectReferencedBy, selectEntriesByCategory } from '@setu/core'
 
 /** In-memory IndexPort (Map-backed). Value semantics via structuredClone. */
 export function createMemoryIndexPort(): IndexPort {
@@ -35,6 +35,9 @@ export function createMemoryIndexPort(): IndexPort {
     },
     async categoryCounts() {
       return selectCategoryCounts([...rows.values()])
+    },
+    async tagCounts() {
+      return selectTagCounts([...rows.values()])
     },
     async referencedBy(mediaKey) { return selectReferencedBy([...rows.values()], mediaKey) },
     async entriesByCategory(slug) { return selectEntriesByCategory([...rows.values()], slug) },

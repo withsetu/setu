@@ -205,6 +205,14 @@ export function runIndexPortContract(makeAdapter: () => Promise<IndexPort> | Ind
       expect(await port.categoryCounts()).toEqual({ eng: 2, news: 1 })
     })
 
+    it('tagCounts tallies usage across rows', async () => {
+      await ix.upsertMany([
+        { ...irow({ slug: 'a' }), tags: ['react', 'css'] },
+        { ...irow({ slug: 'b' }), tags: ['react'] },
+      ])
+      expect(await ix.tagCounts()).toEqual({ react: 2, css: 1 })
+    })
+
     it('referencedBy: returns entries whose mediaRefs include the key', async () => {
       await ix.upsertMany([
         irow({ slug: 'a', title: 'A', mediaRefs: ['2026/06/cat'] }),
@@ -227,6 +235,18 @@ export function runIndexPortContract(makeAdapter: () => Promise<IndexPort> | Ind
       expect(refs.map((r) => r.slug).sort()).toEqual(['a', 'b'])
       expect(refs[0]).toMatchObject({ collection: expect.any(String), locale: expect.any(String), slug: expect.any(String) })
       expect(await ix.entriesByCategory('unknown')).toEqual([])
+    })
+
+    it('entriesByTag: returns refs of entries whose tags include the tag', async () => {
+      await ix.upsertMany([
+        irow({ slug: 'a', collection: 'post', tags: ['react'] }),
+        irow({ slug: 'b', collection: 'page', tags: ['react', 'css'] }),
+        irow({ slug: 'c', collection: 'post', tags: ['css'] }),
+      ])
+      const refs = await ix.entriesByTag('react')
+      expect(refs.map((r) => r.slug).sort()).toEqual(['a', 'b'])
+      expect(refs[0]).toMatchObject({ collection: expect.any(String), locale: expect.any(String), slug: expect.any(String) })
+      expect(await ix.entriesByTag('unknown')).toEqual([])
     })
   })
 }

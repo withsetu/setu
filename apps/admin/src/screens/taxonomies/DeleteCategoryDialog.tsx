@@ -41,8 +41,8 @@ export function DeleteCategoryDialog({
           <AlertDialogTitle>Delete &quot;{node?.name}&quot;?</AlertDialogTitle>
           <AlertDialogDescription>
             {used > 0
-              ? `Used by ${used} ${used === 1 ? 'entry' : 'entries'} — deleting removes it from ${used === 1 ? 'it' : 'them'}.`
-              : 'This category is not used by any content.'}
+              ? `Used by ${used} ${used === 1 ? 'entry' : 'entries'} — deleting removes it from ${used === 1 ? 'that entry' : 'them'}.`
+              : "This category isn't used by any content."}
             {hasChildren ? ' Child categories move up one level.' : ''}
           </AlertDialogDescription>
         </AlertDialogHeader>

@@ -30,7 +30,7 @@
 .list-search::placeholder { color: var(--text-3); }
 .list-search:focus { border-color: var(--accent-ring); }
 
-/* Filter <select>s — match existing .category-parent select sizing/look */
+/* Filter <select>s within the list toolbar */
 .list-toolbar select {
   height: 32px;
   padding: 0 8px;

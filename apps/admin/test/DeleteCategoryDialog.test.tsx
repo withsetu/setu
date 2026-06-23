@@ -6,7 +6,7 @@ import { createMemoryGitPort } from '@setu/git-memory'
 import { ServicesProvider, servicesFor } from '../src/data/store'
 import { DeployProvider } from '../src/deploy/deploy'
 import { IndexProvider } from '../src/data/index-store'
-import { TaxonomyProvider, useTaxonomy } from '../src/data/taxonomy-store'
+import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { NotificationProvider } from '../src/ui/notify'
 import { DeleteCategoryDialog } from '../src/screens/taxonomies/DeleteCategoryDialog'
 import type { CategoryNode } from '@setu/core'
@@ -55,21 +55,6 @@ function Wrapper({ children }: { children: ReactNode }) {
       </DeployProvider>
     </ServicesProvider>
   )
-}
-
-/**
- * Spy-wrapper: captures `remove` from useTaxonomy so we can assert it was called.
- * We also need the remove spy exposed to the test.
- */
-function RemoveSpy({ onRemove }: { onRemove: (slug: string) => void }) {
-  const { remove } = useTaxonomy()
-  // Expose remove via a data-testid so tests can trigger it indirectly,
-  // but the actual capture is via the callback injected at render time.
-  // We patch via wrapping: fire a side-effect-free capture on first render.
-  // Simpler: expose remove on window for spying.
-  ;(window as Record<string, unknown>).__removeSpy = onRemove
-  ;(window as Record<string, unknown>).__remove = remove
-  return null
 }
 
 describe('DeleteCategoryDialog', () => {
@@ -125,7 +110,6 @@ describe('DeleteCategoryDialog', () => {
     // The cleanest approach: mock useTaxonomy in this describe block using vi.spyOn.
 
     const removeFn = vi.fn().mockResolvedValue(undefined)
-    const { useTaxonomy: realUseTaxonomy } = await import('../src/data/taxonomy-store')
     const spy = vi.spyOn(await import('../src/data/taxonomy-store'), 'useTaxonomy').mockReturnValue({
       categories: [],
       counts: { tech: 3 },

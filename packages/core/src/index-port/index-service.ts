@@ -28,6 +28,7 @@ export interface IndexService {
   tagCounts(): Promise<Record<string, number>>
   referencedBy(mediaKey: string): Promise<import('./referenced-by').MediaUsage[]>
   entriesByCategory(slug: string): Promise<import('../data/types').EntryRef[]>
+  entriesByTag(tag: string): Promise<import('../data/types').EntryRef[]>
 }
 
 export function createIndexService(deps: IndexServiceDeps): IndexService {
@@ -99,5 +100,9 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
     return index.entriesByCategory(slug)
   }
 
-  return { rebuild, ensureBuilt, reindexEntry, reindexAfterDeploy, query, distinctTags, distinctLocales, categoryCounts, tagCounts, referencedBy, entriesByCategory }
+  async function entriesByTag(tag: string): Promise<import('../data/types').EntryRef[]> {
+    return index.entriesByTag(tag)
+  }
+
+  return { rebuild, ensureBuilt, reindexEntry, reindexAfterDeploy, query, distinctTags, distinctLocales, categoryCounts, tagCounts, referencedBy, entriesByCategory, entriesByTag }
 }

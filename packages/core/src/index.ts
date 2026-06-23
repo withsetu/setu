@@ -81,6 +81,7 @@ export { selectDistinctTags, selectDistinctLocales } from './index-port/distinct
 export { selectCategoryCounts } from './index-port/category-counts'
 export { selectTagCounts } from './index-port/tag-counts'
 export { selectEntriesByCategory } from './index-port/entries-by-category'
+export { selectEntriesByTag } from './index-port/entries-by-tag'
 export type { MediaUsage } from './index-port/referenced-by'
 export { selectReferencedBy } from './index-port/referenced-by'
 export type { IndexService, IndexServiceDeps } from './index-port/index-service'

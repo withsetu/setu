@@ -3,14 +3,14 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.6rem 1.25rem;
-  border-radius: var(--radius, 8px);
+  border-radius: var(--r-md, 8px);
   font-weight: 600;
   text-decoration: none;
   transition: opacity 0.15s ease;
 }
 .setu-button--primary {
   background: var(--accent, #4f46e5);
-  color: var(--accent-contrast, #ffffff);
+  color: var(--on-accent, #ffffff);
 }
 .setu-button--secondary {
   background: transparent;

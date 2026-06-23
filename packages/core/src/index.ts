@@ -92,6 +92,8 @@ export { addCategory, removeCategory, renameLabel, reparent, slugify, TaxonomyEr
 export type { TaxonomyErrorCode } from './taxonomy/ops'
 export type { TaxonomyService } from './taxonomy/service'
 export { createTaxonomyService, TAXONOMY_PATH } from './taxonomy/service'
+export { createCategoryDeleter } from './taxonomy/delete-service'
+export type { CategoryDeleterDeps } from './taxonomy/delete-service'
 
 export { normalizeTag, normalizeTags } from './tags/normalize'
 

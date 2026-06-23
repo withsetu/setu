@@ -6,9 +6,10 @@ import { createReadService } from '../read/read-service'
 import { createIndexService } from '../index-port/index-service'
 import { serializeCategories } from './parse'
 import { createCategoryDeleter } from './delete-service'
+import type { TiptapDoc } from '../markdoc/types'
 
 const author = { name: 'T', email: 't@x.dev' }
-const doc = (t: string) => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] })
+const doc = (t: string): TiptapDoc => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] })
 
 async function setup() {
   // Seed entries as drafts — both have 'news'; only 'a' has 'eng'
@@ -18,7 +19,7 @@ async function setup() {
   ])
   const git = createMemoryGitPort()
   const index = createMemoryIndexPort()
-  const read = createReadService({ data, git, knownBlockTags: [] })
+  const read = createReadService({ data, git, knownBlockTags: new Set<string>() })
   const idx = createIndexService({ data, git, index, deployedAt: () => null })
 
   // Seed the categories.yaml using the real serializer so parseCategories can read it

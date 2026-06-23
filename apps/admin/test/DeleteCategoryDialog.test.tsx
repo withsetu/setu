@@ -85,7 +85,7 @@ describe('DeleteCategoryDialog', () => {
         <DeleteCategoryDialog node={node} onClose={vi.fn()} />
       </Wrapper>,
     )
-    expect(screen.getByText(/not used by any content/i)).toBeInTheDocument()
+    expect(screen.getByText(/isn't used by any content/i)).toBeInTheDocument()
   })
 
   it('shows "Used by 3 entries" when counts[slug]=3 and children note when node has children', async () => {

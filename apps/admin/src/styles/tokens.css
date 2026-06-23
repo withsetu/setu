@@ -60,6 +60,7 @@
   --input: #e8e8ec;
   --ring: color-mix(in oklch, #4f46e5 38%, transparent);
   --radius: 10px;
+  --shadow-card: 0 1px 2px hsl(230 12% 20% / 0.06), 0 4px 12px -2px hsl(230 12% 20% / 0.08);
 
   /* charts (reuse semantic hues) */
   --chart-1: #4f46e5; --chart-2: #15935a; --chart-3: #b7791f;
@@ -143,6 +144,7 @@
   --sidebar-primary: #6e6bf0; --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #1f1f25; --sidebar-accent-foreground: #f2f2f4;
   --sidebar-border: #26262d; --sidebar-ring: color-mix(in oklch, #6e6bf0 38%, transparent);
+  --shadow-card: 0 2px 6px -2px hsl(240 40% 2% / 0.5), 0 10px 24px -8px hsl(240 40% 2% / 0.45);
 
   --success: #3ecf8e; --success-foreground: #08080a;
   --warning: #e2b04a; --warning-foreground: #08080a;

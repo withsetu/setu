@@ -3,7 +3,7 @@
 // folder name to build the registry. Path is relative to THIS file: blocks -> src ->
 // admin -> apps -> repo root. blocks/ is outside the admin root, so the dev server must
 // allow it (see vite.config.ts server.fs.allow).
-import { buildRegistry } from '@setu/core'
+import { buildRegistry, mergeBlockSources, STANDARD_BLOCKS } from '@setu/core'
 import type { BlockContract, BlockRegistry } from '@setu/core'
 
 const mods = import.meta.glob('../../../../blocks/*/block.ts', { eager: true, import: 'default' }) as Record<
@@ -13,12 +13,13 @@ const mods = import.meta.glob('../../../../blocks/*/block.ts', { eager: true, im
 
 const folderOf = (p: string): string => p.split('/').slice(-2, -1)[0]!
 
-export const registry: BlockRegistry = buildRegistry(
-  Object.entries(mods).map(([path, contract]) => {
-    const tag = folderOf(path)
-    return { tag, component: `blocks/${tag}/${tag}.astro`, contract }
-  }),
-)
+const local = Object.entries(mods).map(([path, contract]) => {
+  const tag = folderOf(path)
+  return { tag, component: `blocks/${tag}/${tag}.astro`, contract }
+})
+
+// Union core standard blocks with site-local folder blocks; local wins on a tag collision.
+export const registry: BlockRegistry = buildRegistry(mergeBlockSources({ standard: STANDARD_BLOCKS, local }))
 
 // `image` has a dedicated editor node (ImageBlock) but is NOT a folder block — its render
 // needs apps/site's build-time manifest read (#5a). Register it as a known editor tag so the

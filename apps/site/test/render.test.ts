@@ -58,6 +58,11 @@ describe('render pipeline — standard nodes', () => {
   it('renders a body subheading (H2, not the title H1)', () => {
     expect(html).toContain('<h2 id="a-subheading">A subheading</h2>')
   })
+  it('renders a button block (token-themed)', () => {
+    expect(html).toContain('class="setu-button setu-button--primary"')
+    expect(html).toContain('href="/signup"')
+    expect(html).toContain('Get started')
+  })
 })
 
 describe('render pipeline — callout', () => {

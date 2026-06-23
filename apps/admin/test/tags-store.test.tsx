@@ -96,8 +96,9 @@ describe('TagsProvider — rename (merge)', () => {
     // Only B actually changes (A already had 'reactjs', bulkAddTag dedupes; both are in entriesByTag('react'))
     // counts['react'] must be gone
     expect(result.current.counts['react']).toBeUndefined()
-    // reactjs must still exist with ≥ 1
-    expect((result.current.counts['reactjs'] ?? 0) >= 1).toBe(true)
+    // reactjs must still exist with exactly 2
+    expect(result.current.counts['reactjs']).toBe(2)
+    expect(res?.applied).toBe(2)
   })
 })
 

@@ -5,6 +5,7 @@ import { useTaxonomy } from '../../data/taxonomy-store'
 import { useNotify } from '../../ui/notify'
 import { NewCategoryForm } from './NewCategoryForm'
 import { CategoryTree, flatten } from './CategoryTree'
+import { DeleteCategoryDialog } from './DeleteCategoryDialog'
 
 export function CategoriesTab() {
   const { categories, counts, renameLabel, reparent } = useTaxonomy()
@@ -25,7 +26,7 @@ export function CategoriesTab() {
             onRename={(slug, name) => void renameLabel(slug, name)}
             onReparent={onReparent}
             onDelete={setPendingDelete} />}
-      {/* DeleteCategoryDialog wired in Task 8 using pendingDelete/setPendingDelete */}
+      <DeleteCategoryDialog node={pendingDelete} onClose={() => setPendingDelete(null)} />
     </div>
   )
 }

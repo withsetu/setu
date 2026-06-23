@@ -24,16 +24,16 @@ function renderAt(path: string, data: DataPort, git: GitPort) {
       <MemoryRouter initialEntries={[path]}>
         <ActorProvider>
           <ServicesProvider services={servicesFor(data, git)}>
-            <TaxonomyProvider>
-              <DeployProvider>
-                <IndexProvider>
+            <DeployProvider>
+              <IndexProvider>
+                <TaxonomyProvider>
                   <Routes>
                     <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
                   </Routes>
                   <LocationProbe />
-                </IndexProvider>
-              </DeployProvider>
-            </TaxonomyProvider>
+                </TaxonomyProvider>
+              </IndexProvider>
+            </DeployProvider>
           </ServicesProvider>
         </ActorProvider>
       </MemoryRouter>

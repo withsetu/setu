@@ -196,6 +196,15 @@ export function runIndexPortContract(makeAdapter: () => Promise<IndexPort> | Ind
       expect(await ix.distinctLocales()).toEqual(['en', 'fr'])
     })
 
+    it('categoryCounts tallies usage across rows', async () => {
+      const port = ix
+      await port.upsertMany([
+        { ...irow({ slug: 'a' }), categories: ['eng', 'news'] },
+        { ...irow({ slug: 'b' }), categories: ['eng'] },
+      ])
+      expect(await port.categoryCounts()).toEqual({ eng: 2, news: 1 })
+    })
+
     it('referencedBy: returns entries whose mediaRefs include the key', async () => {
       await ix.upsertMany([
         irow({ slug: 'a', title: 'A', mediaRefs: ['2026/06/cat'] }),
@@ -206,6 +215,18 @@ export function runIndexPortContract(makeAdapter: () => Promise<IndexPort> | Ind
       expect(used.map((u) => u.slug).sort()).toEqual(['a', 'c'])
       expect(used[0]).toHaveProperty('title')
       expect(await ix.referencedBy('2026/06/none')).toEqual([])
+    })
+
+    it('entriesByCategory: returns refs of entries whose categories include the slug', async () => {
+      await ix.upsertMany([
+        { ...irow({ slug: 'a', collection: 'post' }), categories: ['eng'] },
+        { ...irow({ slug: 'b', collection: 'page' }), categories: ['eng', 'news'] },
+        { ...irow({ slug: 'c', collection: 'post' }), categories: ['news'] },
+      ])
+      const refs = await ix.entriesByCategory('eng')
+      expect(refs.map((r) => r.slug).sort()).toEqual(['a', 'b'])
+      expect(refs[0]).toMatchObject({ collection: expect.any(String), locale: expect.any(String), slug: expect.any(String) })
+      expect(await ix.entriesByCategory('unknown')).toEqual([])
     })
   })
 }

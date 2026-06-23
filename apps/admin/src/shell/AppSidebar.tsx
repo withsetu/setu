@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
-  LayoutDashboard, FileText, Files, Folder, Image, ClipboardList, Palette, Settings,
+  LayoutDashboard, FileText, Files, Tags, Image, ClipboardList, Palette, Settings,
   ExternalLink, Rocket,
 } from 'lucide-react'
 import {
@@ -21,7 +21,7 @@ const NAV: Group[] = [
   { label: 'Content', items: [
     { to: '/posts', label: 'Posts', icon: FileText },
     { to: '/pages', label: 'Pages', icon: Files },
-    { to: '/categories', label: 'Categories', icon: Folder },
+    { to: '/taxonomies', label: 'Taxonomies', icon: Tags },
   ] },
   { label: 'Workspace', items: [
     { to: '/media', label: 'Media', icon: Image },

@@ -4,6 +4,8 @@ import type { TiptapDoc } from '@setu/core'
 import { createMemoryGitPort, type GitSeedFile } from '@setu/git-memory'
 import { createMemoryDataPort } from '@setu/db-memory'
 import { ServicesProvider, servicesFor } from '../src/data/store'
+import { DeployProvider } from '../src/deploy/deploy'
+import { IndexProvider } from '../src/data/index-store'
 import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { CategoryField } from '../src/editor/CategoryField'
 
@@ -12,9 +14,15 @@ const seed: GitSeedFile[] = [{ path: 'taxonomy/categories.yaml', content: '- slu
 function setup() {
   const services = servicesFor(createMemoryDataPort(), createMemoryGitPort(seed))
   render(
-    <ServicesProvider services={services}><TaxonomyProvider>
-      <CategoryField selected={[]} onChange={() => {}} editable />
-    </TaxonomyProvider></ServicesProvider>,
+    <ServicesProvider services={services}>
+      <DeployProvider>
+        <IndexProvider>
+          <TaxonomyProvider>
+            <CategoryField selected={[]} onChange={() => {}} editable />
+          </TaxonomyProvider>
+        </IndexProvider>
+      </DeployProvider>
+    </ServicesProvider>,
   )
 }
 

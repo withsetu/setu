@@ -22,14 +22,14 @@ describe('deploy status', () => {
         <MemoryRouter initialEntries={['/edit/post/en/release-notes']}>
           <ActorProvider>
             <ServicesProvider services={services}>
-              <TaxonomyProvider>
-                <DeployProvider>
-                  <IndexProvider>
+              <DeployProvider>
+                <IndexProvider>
+                  <TaxonomyProvider>
                     <DeployTrigger />
                     <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
-                  </IndexProvider>
-                </DeployProvider>
-              </TaxonomyProvider>
+                  </TaxonomyProvider>
+                </IndexProvider>
+              </DeployProvider>
             </ServicesProvider>
           </ActorProvider>
         </MemoryRouter>

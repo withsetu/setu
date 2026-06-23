@@ -44,9 +44,12 @@ async function loadEntries() {
 }
 
 export async function main() {
-  const { buildRegistry } = await jiti.import('@setu/core')
+  const { buildRegistry, mergeBlockSources, STANDARD_BLOCKS } = await jiti.import('@setu/core')
   const { generateMarkdocTagsInclude } = await jiti.import('@setu/core/node')
-  const registry = buildRegistry(await loadEntries())
+
+  const local = await loadEntries()
+  const entries = mergeBlockSources({ standard: STANDARD_BLOCKS, local })
+  const registry = buildRegistry(entries)
   writeFileSync(OUT, generateMarkdocTagsInclude(registry))
   console.log(`gen-blocks: ${registry.blocks.length} block(s): ${registry.blocks.map((b) => b.tag).join(', ') || '(none)'}`)
 }

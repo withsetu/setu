@@ -12,8 +12,8 @@ describe('mergeBlockSources', () => {
   it('carries a standard block in with its @setu/blocks renderer as component', () => {
     const out = mergeBlockSources({ standard: std, local: [] })
     expect(out).toHaveLength(1)
-    expect(out[0]).toMatchObject({ tag: 'button', component: '@setu/blocks/button.astro' })
-    expect(out[0].contract).toBe(std[0].contract)
+    expect(out[0]!).toMatchObject({ tag: 'button', component: '@setu/blocks/button.astro' })
+    expect(out[0]!.contract).toBe(std[0]!.contract)
   })
 
   it('lets a site-local folder block override a standard block by tag', () => {
@@ -23,8 +23,8 @@ describe('mergeBlockSources', () => {
       local: [{ tag: 'button', component: 'blocks/button/button.astro', contract: localContract }],
     })
     expect(out).toHaveLength(1)
-    expect(out[0].component).toBe('blocks/button/button.astro')
-    expect(out[0].contract).toBe(localContract)
+    expect(out[0]!.component).toBe('blocks/button/button.astro')
+    expect(out[0]!.contract).toBe(localContract)
   })
 
   it('unions standard and local blocks', () => {

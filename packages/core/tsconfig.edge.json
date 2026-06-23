@@ -4,5 +4,5 @@
     "noEmit": true,
     "types": []
   },
-  "include": ["src/markdoc", "src/data", "src/storage", "src/image", "src/authoring", "src/git", "src/publish", "src/read", "src/authz", "src/lifecycle", "src/content-index", "src/url"]
+  "include": ["src/blocks", "src/markdoc", "src/data", "src/storage", "src/image", "src/authoring", "src/git", "src/publish", "src/read", "src/authz", "src/lifecycle", "src/content-index", "src/url"]
 }

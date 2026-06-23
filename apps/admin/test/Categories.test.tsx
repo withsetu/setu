@@ -4,6 +4,8 @@ import { MemoryRouter } from 'react-router-dom'
 import { createMemoryGitPort } from '@setu/git-memory'
 import { createMemoryDataPort } from '@setu/db-memory'
 import { ServicesProvider, servicesFor } from '../src/data/store'
+import { DeployProvider } from '../src/deploy/deploy'
+import { IndexProvider } from '../src/data/index-store'
 import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { NotificationProvider } from '../src/ui/notify'
 import { Categories } from '../src/screens/Categories'
@@ -13,11 +15,15 @@ function wrap() {
   return render(
     <MemoryRouter>
       <ServicesProvider services={services}>
-        <TaxonomyProvider>
-          <NotificationProvider>
-            <Categories />
-          </NotificationProvider>
-        </TaxonomyProvider>
+        <DeployProvider>
+          <IndexProvider>
+            <TaxonomyProvider>
+              <NotificationProvider>
+                <Categories />
+              </NotificationProvider>
+            </TaxonomyProvider>
+          </IndexProvider>
+        </DeployProvider>
       </ServicesProvider>
     </MemoryRouter>,
   )

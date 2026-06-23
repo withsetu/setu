@@ -16,9 +16,9 @@ describe('EditorScreen unpublish', () => {
     render(
       <NotificationProvider>
         <MemoryRouter initialEntries={['/edit/post/en/release-notes']}>
-          <ActorProvider><ServicesProvider services={services}><TaxonomyProvider><DeployProvider><IndexProvider>
+          <ActorProvider><ServicesProvider services={services}><DeployProvider><IndexProvider><TaxonomyProvider>
             <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
-          </IndexProvider></DeployProvider></TaxonomyProvider></ServicesProvider></ActorProvider>
+          </TaxonomyProvider></IndexProvider></DeployProvider></ServicesProvider></ActorProvider>
         </MemoryRouter>
       </NotificationProvider>,
     )

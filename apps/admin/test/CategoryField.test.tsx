@@ -3,6 +3,8 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { createMemoryGitPort } from '@setu/git-memory'
 import { createMemoryDataPort } from '@setu/db-memory'
 import { ServicesProvider, servicesFor } from '../src/data/store'
+import { DeployProvider } from '../src/deploy/deploy'
+import { IndexProvider } from '../src/data/index-store'
 import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { CategoryField } from '../src/editor/CategoryField'
 
@@ -11,9 +13,13 @@ function setup(selected: string[] = []) {
   const services = servicesFor(createMemoryDataPort(), createMemoryGitPort())
   render(
     <ServicesProvider services={services}>
-      <TaxonomyProvider>
-        <CategoryField selected={selected} onChange={onChange} editable />
-      </TaxonomyProvider>
+      <DeployProvider>
+        <IndexProvider>
+          <TaxonomyProvider>
+            <CategoryField selected={selected} onChange={onChange} editable />
+          </TaxonomyProvider>
+        </IndexProvider>
+      </DeployProvider>
     </ServicesProvider>,
   )
   return { onChange }
@@ -37,9 +43,13 @@ describe('CategoryField', () => {
     const onChange = vi.fn()
     const { rerender } = render(
       <ServicesProvider services={services}>
-        <TaxonomyProvider>
-          <CategoryField selected={[]} onChange={onChange} editable />
-        </TaxonomyProvider>
+        <DeployProvider>
+          <IndexProvider>
+            <TaxonomyProvider>
+              <CategoryField selected={[]} onChange={onChange} editable />
+            </TaxonomyProvider>
+          </IndexProvider>
+        </DeployProvider>
       </ServicesProvider>,
     )
     fireEvent.change(screen.getByPlaceholderText('New category'), { target: { value: 'News' } })
@@ -48,9 +58,13 @@ describe('CategoryField', () => {
     onChange.mockClear()
     rerender(
       <ServicesProvider services={services}>
-        <TaxonomyProvider>
-          <CategoryField selected={['news']} onChange={onChange} editable />
-        </TaxonomyProvider>
+        <DeployProvider>
+          <IndexProvider>
+            <TaxonomyProvider>
+              <CategoryField selected={['news']} onChange={onChange} editable />
+            </TaxonomyProvider>
+          </IndexProvider>
+        </DeployProvider>
       </ServicesProvider>,
     )
     fireEvent.click(screen.getByLabelText('News'))

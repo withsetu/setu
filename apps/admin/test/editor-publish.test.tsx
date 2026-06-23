@@ -16,13 +16,13 @@ function renderEditor(path = '/edit/post/en/release-notes') {
       <MemoryRouter initialEntries={[path]}>
         <ActorProvider>
           <ServicesProvider services={services}>
-            <TaxonomyProvider>
-              <DeployProvider>
-                <IndexProvider>
+            <DeployProvider>
+              <IndexProvider>
+                <TaxonomyProvider>
                   <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
-                </IndexProvider>
-              </DeployProvider>
-            </TaxonomyProvider>
+                </TaxonomyProvider>
+              </IndexProvider>
+            </DeployProvider>
           </ServicesProvider>
         </ActorProvider>
       </MemoryRouter>

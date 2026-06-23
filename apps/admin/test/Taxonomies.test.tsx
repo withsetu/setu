@@ -39,9 +39,20 @@ function wrap(initialPath = '/taxonomies') {
 }
 
 function wrapDirect() {
+  const services = servicesFor(createMemoryDataPort(), createMemoryGitPort())
   return render(
     <MemoryRouter>
-      <Taxonomies />
+      <ServicesProvider services={services}>
+        <DeployProvider>
+          <IndexProvider>
+            <TaxonomyProvider>
+              <NotificationProvider>
+                <Taxonomies />
+              </NotificationProvider>
+            </TaxonomyProvider>
+          </IndexProvider>
+        </DeployProvider>
+      </ServicesProvider>
     </MemoryRouter>,
   )
 }

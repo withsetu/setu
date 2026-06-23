@@ -2,6 +2,7 @@ import { PageHeader } from '../../shell/PageHeader'
 import { PageBody } from '../../shell/PageBody'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { TagsTab } from './TagsTab'
+import { CategoriesTab } from './CategoriesTab'
 
 export function Taxonomies() {
   return (
@@ -17,7 +18,7 @@ export function Taxonomies() {
             <TabsTrigger value="tags">Tags</TabsTrigger>
           </TabsList>
           <TabsContent value="categories" className="mt-6">
-            <div>Categories</div>
+            <CategoriesTab />
           </TabsContent>
           <TabsContent value="tags" className="mt-6">
             <TagsTab />

@@ -216,6 +216,18 @@ export function runIndexPortContract(makeAdapter: () => Promise<IndexPort> | Ind
       expect(used[0]).toHaveProperty('title')
       expect(await ix.referencedBy('2026/06/none')).toEqual([])
     })
+
+    it('entriesByCategory: returns refs of entries whose categories include the slug', async () => {
+      await ix.upsertMany([
+        { ...irow({ slug: 'a', collection: 'post' }), categories: ['eng'] },
+        { ...irow({ slug: 'b', collection: 'page' }), categories: ['eng', 'news'] },
+        { ...irow({ slug: 'c', collection: 'post' }), categories: ['news'] },
+      ])
+      const refs = await ix.entriesByCategory('eng')
+      expect(refs.map((r) => r.slug).sort()).toEqual(['a', 'b'])
+      expect(refs[0]).toMatchObject({ collection: expect.any(String), locale: expect.any(String), slug: expect.any(String) })
+      expect(await ix.entriesByCategory('unknown')).toEqual([])
+    })
   })
 }
 

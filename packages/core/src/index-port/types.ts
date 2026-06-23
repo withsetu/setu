@@ -49,6 +49,7 @@ export interface IndexPort {
   distinctLocales(): Promise<string[]>
   categoryCounts(): Promise<Record<string, number>>
   referencedBy(mediaKey: string): Promise<import('./referenced-by').MediaUsage[]>
+  entriesByCategory(slug: string): Promise<import('../data/types').EntryRef[]>
 }
 
 export const indexKey = (ref: EntryRef): string => `${ref.collection}\0${ref.locale}\0${ref.slug}`

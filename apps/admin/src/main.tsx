@@ -9,6 +9,7 @@ import { DeployProvider } from './deploy/deploy'
 import { IndexProvider } from './data/index-store'
 import { AppMediaIndexProvider } from './data/media-index-store'
 import { TaxonomyProvider } from './data/taxonomy-store'
+import { TagsProvider } from './data/tags-store'
 import { NotificationProvider } from './ui/notify'
 import { Toaster } from '@/components/ui/sonner'
 import '@fontsource-variable/hanken-grotesk'
@@ -42,7 +43,9 @@ createRoot(document.getElementById('root')!).render(
               <IndexProvider>
                 <AppMediaIndexProvider>
                   <TaxonomyProvider>
-                    <App />
+                    <TagsProvider>
+                      <App />
+                    </TagsProvider>
                   </TaxonomyProvider>
                 </AppMediaIndexProvider>
               </IndexProvider>

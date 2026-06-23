@@ -1,0 +1,6 @@
+---
+import './button.css'
+const { href, variant = 'primary' } = Astro.props
+---
+
+<a href={href} class={`setu-button setu-button--${variant}`}><slot /></a>

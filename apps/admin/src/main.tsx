@@ -11,6 +11,7 @@ import { AppMediaIndexProvider } from './data/media-index-store'
 import { TaxonomyProvider } from './data/taxonomy-store'
 import { TagsProvider } from './data/tags-store'
 import { NotificationProvider } from './ui/notify'
+import { CommandRegistryProvider } from './command/registry'
 import { Toaster } from '@/components/ui/sonner'
 import '@fontsource-variable/hanken-grotesk'
 import '@fontsource-variable/newsreader'
@@ -44,7 +45,9 @@ createRoot(document.getElementById('root')!).render(
                 <AppMediaIndexProvider>
                   <TaxonomyProvider>
                     <TagsProvider>
-                      <App />
+                      <CommandRegistryProvider>
+                        <App />
+                      </CommandRegistryProvider>
                     </TagsProvider>
                   </TaxonomyProvider>
                 </AppMediaIndexProvider>

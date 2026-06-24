@@ -10,6 +10,7 @@ import { IndexProvider } from '../src/data/index-store'
 import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { TagsProvider } from '../src/data/tags-store'
 import { NotificationProvider } from '../src/ui/notify'
+import { CommandRegistryProvider } from '../src/command/registry'
 import { App } from '../src/app'
 import { Taxonomies } from '../src/screens/taxonomies/Taxonomies'
 
@@ -29,7 +30,9 @@ function wrap(initialPath = '/taxonomies') {
               <TaxonomyProvider>
                 <TagsProvider>
                   <NotificationProvider>
-                    <App />
+                    <CommandRegistryProvider>
+                      <App />
+                    </CommandRegistryProvider>
                   </NotificationProvider>
                 </TagsProvider>
               </TaxonomyProvider>

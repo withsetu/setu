@@ -7,6 +7,8 @@ import type { DataPort, GitPort, DraftInput, TiptapDoc } from '@setu/core'
 import { DeployProvider } from '../src/deploy/deploy'
 import { ServicesProvider, servicesFor } from '../src/data/store'
 import { ActorProvider } from '../src/auth/actor'
+import { NotificationProvider } from '../src/ui/notify'
+import { CommandRegistryProvider } from '../src/command/registry'
 import { Dashboard } from '../src/screens/Dashboard'
 import { App } from '../src/app'
 
@@ -52,9 +54,13 @@ describe('admin landing route', () => {
       <MemoryRouter initialEntries={['/']}>
         <ServicesProvider services={servicesFor(createMemoryDataPort(seed), createMemoryGitPort())}>
           <ActorProvider>
-            <DeployProvider>
-              <App />
-            </DeployProvider>
+            <NotificationProvider>
+              <DeployProvider>
+                <CommandRegistryProvider>
+                  <App />
+                </CommandRegistryProvider>
+              </DeployProvider>
+            </NotificationProvider>
           </ActorProvider>
         </ServicesProvider>
       </MemoryRouter>,

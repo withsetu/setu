@@ -18,6 +18,7 @@ import { ShortcutsDialog } from './ShortcutsDialog'
 import { Tooltip } from './Tooltip'
 import { useAutosave } from './useAutosave'
 import type { SaveStatus } from './useAutosave'
+import { SaveIndicator } from './SaveIndicator'
 import { onRequestShortcuts } from './editor-events'
 import { NEW_SLUG, mintSlug } from './new-entry'
 import { useNotify } from '../ui/notify'
@@ -25,12 +26,6 @@ import { useNotify } from '../ui/notify'
 const EDITOR_ID = 'local'
 const BLANK: TiptapDoc = { type: 'doc', content: [{ type: 'paragraph' }] }
 const OWNER_AUTHOR = { name: 'Local', email: 'local@setu.dev' }
-
-function SaveIndicator({ status, readonly }: { status: SaveStatus; readonly: boolean }) {
-  if (readonly) return <span className="autosave saving">Read-only</span>
-  const label = status === 'saving' ? 'Saving…' : status === 'saved' ? 'Saved' : 'Draft'
-  return <span className={`autosave${status === 'saving' ? ' saving' : ''}`}>{label}</span>
-}
 
 export function EditorScreen() {
   const { collection = '', locale = '', slug = '' } = useParams()

@@ -7,35 +7,8 @@
 @import '@setu/blocks/callout.css';
 @import '@setu/blocks/notice.css';
 
-/* ---- STATUS PENDING ANNOTATION (content list) ---- */
-.status-pending { font-size: 12px; color: var(--text-4); margin-left: 4px; font-weight: 500; }
-
-/* Publish menu (editor top strip) */
-.publish-menu { position: relative; display: inline-flex; align-items: center; gap: 4px; }
-.publish-menu-toggle { padding: 0 8px; min-width: 30px; }
-.publish-menu-list { position: absolute; top: calc(100% + 6px); right: 0; z-index: 60; min-width: 160px; display: flex; flex-direction: column; padding: 5px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-sm); box-shadow: var(--shadow-pop); }
-.publish-menu-item { display: block; width: 100%; text-align: left; padding: 8px 10px; border: none; background: transparent; border-radius: var(--r-xs); font-size: 13px; color: var(--text); cursor: pointer; }
-.publish-menu-item:hover { background: var(--surface-hover); }
-
 /* ---- EDITOR ROOT ---- */
 .editor { display: flex; flex-direction: column; height: 100%; background: var(--canvas); }
-
-/* ---- TOP STRIP ---- */
-.ed-strip { display: flex; align-items: center; gap: 14px; height: 52px; padding: 0 14px 0 12px; border-bottom: 1px solid var(--border); background: color-mix(in oklch, var(--canvas) 86%, var(--bg)); backdrop-filter: saturate(1.2); flex-shrink: 0; z-index: 20; }
-.ed-strip-left { display: flex; align-items: center; gap: 12px; }
-.ed-strip-center { display: flex; align-items: center; gap: 13px; margin: 0 auto; }
-.ed-strip-right { display: flex; align-items: center; gap: 8px; }
-.strip-btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 9px; border: 1px solid transparent; background: transparent; color: var(--text-2); border-radius: var(--r-sm); font-size: 12.5px; font-weight: 550; transition: background .14s, color .14s, border-color .14s; }
-.strip-btn.btn-icononly { width: 32px; padding: 0; justify-content: center; }
-.strip-btn:hover { background: var(--surface-hover); color: var(--text); }
-.strip-btn:disabled { opacity: .45; cursor: not-allowed; }
-/* Wrapper so a tooltip can fire over a disabled button (the button itself eats no hover). */
-.strip-tipwrap { display: inline-flex; }
-.strip-tipwrap > button:disabled { pointer-events: none; }
-.ed-breadcrumb { font-size: 13px; color: var(--text-3); font-weight: 500; }
-.autosave { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 550; color: var(--green); }
-.autosave svg { color: var(--green); }
-.autosave.saving { color: var(--text-3); } .autosave.saving svg { color: var(--text-3); }
 
 /* ---- STAGE / SCROLL ---- */
 .editor-stage { flex: 1; min-height: 0; display: flex; }
@@ -493,19 +466,6 @@
   padding: 1px 2px; border-radius: var(--r-sm, 6px);
 }
 .tippy-box[data-theme~='setu'] .tippy-content { padding: 4px 8px; }
-
-/* Shortcuts cheat-sheet dialog */
-.sc-backdrop { position: fixed; inset: 0; z-index: 300; display: grid; place-items: center; background: color-mix(in oklch, var(--bg) 60%, transparent); }
-.sc-dialog { width: min(440px, 92vw); max-height: 80vh; overflow-y: auto; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); box-shadow: var(--shadow-pop); padding: 18px 20px 20px; font-family: var(--font-ui); }
-.sc-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.sc-title { font-size: 16px; font-weight: 700; color: var(--text); margin: 0; }
-.sc-close { display: grid; place-items: center; width: 28px; height: 28px; border: none; background: transparent; color: var(--text-3); border-radius: var(--r-sm); cursor: pointer; }
-.sc-close:hover { background: var(--surface-2, #f1f3f5); color: var(--text); }
-.sc-group { margin-top: 14px; }
-.sc-group-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-4); margin: 0 0 6px; }
-.sc-row { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; }
-.sc-label { font-size: 14px; color: var(--text); }
-.sc-keys { font-family: var(--font-ui); font-size: 12.5px; color: var(--text-2); background: var(--surface-2, #f1f3f5); border: 1px solid var(--border); border-radius: var(--r-sm, 6px); padding: 2px 7px; }
 
 /* Turn-into block-type switcher (in the format bubble) */
 .ti-wrap { position: relative; display: inline-flex; }

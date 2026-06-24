@@ -59,6 +59,11 @@ const devPreviewRoute = {
 }
 
 export default defineConfig({
+  // Astro 7 changed the compressHTML default from `true` to `'jsx'`, which collapses
+  // whitespace between inline elements using JSX rules. Our blocks + content templates
+  // were authored under the v6 (`true`) model, so pin it to preserve exact prior output.
+  // Revisit per-template if/when we want JSX-style compression.
+  compressHTML: true,
   integrations: [markdoc(), react(), devPreviewRoute],
   vite: {
     resolve: { alias: { '@theme': activeTheme } },

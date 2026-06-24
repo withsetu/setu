@@ -11,6 +11,7 @@ import { IndexProvider } from '../src/data/index-store'
 import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { EditorScreen } from '../src/editor/EditorScreen'
 import { NotificationProvider } from '../src/ui/notify'
+import { TooltipProvider } from '../src/components/ui/tooltip'
 
 const doc = (t: string): TiptapDoc => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] })
 
@@ -20,24 +21,26 @@ function LocationProbe() {
 
 function renderAt(path: string, data: DataPort, git: GitPort) {
   render(
-    <NotificationProvider>
-      <MemoryRouter initialEntries={[path]}>
-        <ActorProvider>
-          <ServicesProvider services={servicesFor(data, git)}>
-            <DeployProvider>
-              <IndexProvider>
-                <TaxonomyProvider>
-                  <Routes>
-                    <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
-                  </Routes>
-                  <LocationProbe />
-                </TaxonomyProvider>
-              </IndexProvider>
-            </DeployProvider>
-          </ServicesProvider>
-        </ActorProvider>
-      </MemoryRouter>
-    </NotificationProvider>,
+    <TooltipProvider>
+      <NotificationProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <ActorProvider>
+            <ServicesProvider services={servicesFor(data, git)}>
+              <DeployProvider>
+                <IndexProvider>
+                  <TaxonomyProvider>
+                    <Routes>
+                      <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
+                    </Routes>
+                    <LocationProbe />
+                  </TaxonomyProvider>
+                </IndexProvider>
+              </DeployProvider>
+            </ServicesProvider>
+          </ActorProvider>
+        </MemoryRouter>
+      </NotificationProvider>
+    </TooltipProvider>,
   )
 }
 

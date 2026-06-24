@@ -8,25 +8,28 @@ import { IndexProvider } from '../src/data/index-store'
 import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { EditorScreen } from '../src/editor/EditorScreen'
 import { NotificationProvider } from '../src/ui/notify'
+import { TooltipProvider } from '../src/components/ui/tooltip'
 
 function renderEditor(path = '/edit/post/en/release-notes') {
   const services = createServices()
   render(
-    <NotificationProvider>
-      <MemoryRouter initialEntries={[path]}>
-        <ActorProvider>
-          <ServicesProvider services={services}>
-            <DeployProvider>
-              <IndexProvider>
-                <TaxonomyProvider>
-                  <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
-                </TaxonomyProvider>
-              </IndexProvider>
-            </DeployProvider>
-          </ServicesProvider>
-        </ActorProvider>
-      </MemoryRouter>
-    </NotificationProvider>,
+    <TooltipProvider>
+      <NotificationProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <ActorProvider>
+            <ServicesProvider services={services}>
+              <DeployProvider>
+                <IndexProvider>
+                  <TaxonomyProvider>
+                    <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
+                  </TaxonomyProvider>
+                </IndexProvider>
+              </DeployProvider>
+            </ServicesProvider>
+          </ActorProvider>
+        </MemoryRouter>
+      </NotificationProvider>
+    </TooltipProvider>,
   )
 }
 

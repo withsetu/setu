@@ -1,70 +1,67 @@
-import { useEffect, useRef } from 'react'
 import { SHORTCUTS, formatKeys, detectMac } from './shortcuts'
 import type { ShortcutGroup } from './shortcuts'
 import { BLOCK_TYPES } from './block-types'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 const GROUP_ORDER: ShortcutGroup[] = ['Formatting', 'Links', 'Blocks', 'Help']
 
-/** The keyboard-shortcuts cheat sheet (modal). Lists the registry grouped; closes
- *  on Esc, backdrop click, or the close button. */
-export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
-  const dialogRef = useRef<HTMLDivElement>(null)
+/** The keyboard-shortcuts cheat sheet (shadcn Dialog). Lists the registry grouped;
+ *  closes on Esc, overlay click, or the built-in close button. */
+export function ShortcutsDialog({
+  open,
+  onClose,
+}: {
+  open: boolean
+  onClose: () => void
+}) {
   const mac = detectMac()
 
-  useEffect(() => {
-    dialogRef.current?.focus()
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        onClose()
-      }
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
-
   return (
-    <div className="sc-backdrop" onMouseDown={onClose}>
-      <div
-        ref={dialogRef}
-        className="sc-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Keyboard shortcuts"
-        tabIndex={-1}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div className="sc-head">
-          <h2 className="sc-title">Keyboard shortcuts</h2>
-          <button type="button" className="sc-close" aria-label="Close" onClick={onClose}>
-            <span aria-hidden>✕</span>
-          </button>
-        </div>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Keyboard shortcuts</DialogTitle>
+        </DialogHeader>
+
         {GROUP_ORDER.map((group) => {
           const items = SHORTCUTS.filter((s) => s.group === group)
           if (items.length === 0) return null
           return (
-            <section key={group} className="sc-group">
-              <h3 className="sc-group-title">{group}</h3>
+            <section key={group} className="space-y-1">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                {group}
+              </h3>
               {items.map((s) => (
-                <div key={s.id} className="sc-row">
-                  <span className="sc-label">{s.label}</span>
-                  <kbd className="sc-keys">{formatKeys(s.keys, mac)}</kbd>
+                <div key={s.id} className="flex items-center justify-between py-1">
+                  <span className="text-sm">{s.label}</span>
+                  <span className="inline-flex items-center rounded border bg-muted px-1.5 text-xs font-mono">
+                    {formatKeys(s.keys, mac)}
+                  </span>
                 </div>
               ))}
             </section>
           )
         })}
-        <section className="sc-group">
-          <h3 className="sc-group-title">Turn a block into</h3>
+
+        <section className="space-y-1">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+            Turn a block into
+          </h3>
           {BLOCK_TYPES.map((b) => (
-            <div key={b.id} className="sc-row">
-              <span className="sc-label">{b.label}</span>
-              <kbd className="sc-keys">{formatKeys(b.keys, mac)}</kbd>
+            <div key={b.id} className="flex items-center justify-between py-1">
+              <span className="text-sm">{b.label}</span>
+              <span className="inline-flex items-center rounded border bg-muted px-1.5 text-xs font-mono">
+                {formatKeys(b.keys, mac)}
+              </span>
             </div>
           ))}
         </section>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

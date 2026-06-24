@@ -6,7 +6,7 @@ afterEach(cleanup)
 
 describe('ShortcutsDialog', () => {
   it('renders a dialog listing representative shortcuts', () => {
-    render(<ShortcutsDialog onClose={vi.fn()} />)
+    render(<ShortcutsDialog open={true} onClose={vi.fn()} />)
     expect(screen.getByRole('dialog', { name: /keyboard shortcuts/i })).toBeInTheDocument()
     expect(screen.getByText('Bold')).toBeInTheDocument()
     expect(screen.getByText('Add or edit link')).toBeInTheDocument()
@@ -14,18 +14,18 @@ describe('ShortcutsDialog', () => {
   })
   it('closes on Escape', () => {
     const onClose = vi.fn()
-    render(<ShortcutsDialog onClose={onClose} />)
+    render(<ShortcutsDialog open={true} onClose={onClose} />)
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onClose).toHaveBeenCalledOnce()
   })
   it('closes when the close button is clicked', () => {
     const onClose = vi.fn()
-    render(<ShortcutsDialog onClose={onClose} />)
+    render(<ShortcutsDialog open={true} onClose={onClose} />)
     fireEvent.click(screen.getByRole('button', { name: /close/i }))
     expect(onClose).toHaveBeenCalledOnce()
   })
   it('lists block-type shortcuts (Heading 2, Quote)', () => {
-    render(<ShortcutsDialog onClose={() => {}} />)
+    render(<ShortcutsDialog open={true} onClose={() => {}} />)
     expect(screen.getByText('Heading 2')).toBeInTheDocument()
     expect(screen.getByText('Quote')).toBeInTheDocument()
   })

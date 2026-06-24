@@ -2,22 +2,23 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { Draft, DraftInput, Lifecycle, TiptapDoc } from '@setu/core'
 import { serializeMdoc, tiptapToMarkdoc } from '@setu/core'
-import { Icon } from '../ui/Icon'
+import { ChevronLeft, ExternalLink, Eye, Keyboard } from 'lucide-react'
 import { useServices } from '../data/store'
 import { useCan } from '../auth/actor'
 import { lifecycleFor } from '../lifecycle/useLifecycle'
-import { lifecycleLabel } from '../lifecycle/label'
 import { useDeploy } from '../deploy/deploy'
-import { StatusPill } from '../ui/StatusPill'
+import { StripStatus } from './StripStatus'
 import { siteUrl } from '../shell/site-url'
 import { useIndex } from '../data/index-store'
 import { Canvas } from './Canvas'
 import { MetaPanel } from './MetaPanel'
 import { PublishMenu } from './PublishMenu'
 import { ShortcutsDialog } from './ShortcutsDialog'
-import { Tooltip } from './Tooltip'
+import { Button } from '../components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip'
 import { useAutosave } from './useAutosave'
 import type { SaveStatus } from './useAutosave'
+import { SaveIndicator } from './SaveIndicator'
 import { onRequestShortcuts } from './editor-events'
 import { NEW_SLUG, mintSlug } from './new-entry'
 import { useNotify } from '../ui/notify'
@@ -25,12 +26,6 @@ import { useNotify } from '../ui/notify'
 const EDITOR_ID = 'local'
 const BLANK: TiptapDoc = { type: 'doc', content: [{ type: 'paragraph' }] }
 const OWNER_AUTHOR = { name: 'Local', email: 'local@setu.dev' }
-
-function SaveIndicator({ status, readonly }: { status: SaveStatus; readonly: boolean }) {
-  if (readonly) return <span className="autosave saving">Read-only</span>
-  const label = status === 'saving' ? 'Saving…' : status === 'saved' ? 'Saved' : 'Draft'
-  return <span className={`autosave${status === 'saving' ? ' saving' : ''}`}>{label}</span>
-}
 
 export function EditorScreen() {
   const { collection = '', locale = '', slug = '' } = useParams()
@@ -220,78 +215,66 @@ export function EditorScreen() {
 
   return (
     <div className="editor">
-      <div className="ed-strip">
-        <div className="ed-strip-left">
-          <Tooltip content="Back to list">
-            <Link className="strip-btn btn-icononly" to={listPath} aria-label="Back to list">
-              <Icon name="chevLeft" size={18} />
-            </Link>
+      <div className="flex h-[52px] items-center gap-2 border-b border-border/60 px-3.5">
+        {/* left */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button asChild variant="ghost" size="icon" aria-label="Back to list">
+              <Link to={listPath}><ChevronLeft className="size-[18px]" /></Link>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Back to list</TooltipContent>
+        </Tooltip>
+        <span className="text-[13.5px] text-muted-foreground">{composing ? `New ${collection}` : `${collection} / ${slug}`}</span>
+
+        {/* center: save state only */}
+        <div className="flex flex-1 justify-center"><SaveIndicator status={status} readonly={phase === 'readonly'} /></div>
+
+        {/* right */}
+        <StripStatus lifecycle={lifecycle} />
+        <span className="mx-1 h-5 w-px bg-border" />
+
+        {lifecycle.state === 'staged' || lifecycle.state === 'live' ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button asChild variant="ghost" size="icon" aria-label="View this page on the live site">
+                <a href={siteUrl(ref)} target="_blank" rel="noopener noreferrer"><ExternalLink className="size-[18px]" /></a>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>View this page on the live site</TooltipContent>
           </Tooltip>
-          <span className="ed-breadcrumb">{composing ? `New ${collection}` : `${collection} / ${slug}`}</span>
-        </div>
-        <div className="ed-strip-center"><SaveIndicator status={status} readonly={phase === 'readonly'} /></div>
-        <div className="ed-strip-right">
-          {(() => { const { label, pending } = lifecycleLabel(lifecycle); return (
-            <span className="ed-status"><StatusPill status={label} />{pending && <span className="status-pending">· {pending}</span>}</span>
-          ) })()}
-          {lifecycle.state === 'staged' || lifecycle.state === 'live' ? (
-            <Tooltip content="View this page on the live site">
-              <a
-                className="strip-btn btn-icononly"
-                href={siteUrl(ref)}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="View this page on the live site"
-              >
-                <Icon name="external" size={18} />
-              </a>
-            </Tooltip>
-          ) : (
-            // Disabled buttons don't fire tippy's hover, so the tooltip targets a wrapper span.
-            <Tooltip content="Not on the site yet — publish to view it live">
-              <span className="strip-tipwrap">
-                <button
-                  type="button"
-                  className="strip-btn btn-icononly"
-                  disabled
-                  aria-label="Not on the site yet — publish to view it live"
-                >
-                  <Icon name="external" size={18} />
-                </button>
-              </span>
-            </Tooltip>
-          )}
-          {previewApi && !composing && (
-            <Tooltip content="Preview the draft in your site theme">
-              <button
-                type="button"
-                className="strip-btn btn-icononly"
-                aria-label="Preview the draft in your site theme"
-                onClick={() => void onPreview()}
-              >
-                <Icon name="eye" size={18} />
-              </button>
-            </Tooltip>
-          )}
-          <Tooltip content="Keyboard shortcuts">
-            <button
-              type="button"
-              className="strip-btn btn-icononly"
-              aria-label="Keyboard shortcuts"
-              onClick={() => setShortcutsOpen(true)}
-            >
-              <Icon name="keyboard" size={18} />
-            </button>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              {/* disabled button can't trigger hover; wrap in span so the tooltip still shows */}
+              <span><Button variant="ghost" size="icon" disabled aria-label="Not on the site yet — publish to view it live"><ExternalLink className="size-[18px]" /></Button></span>
+            </TooltipTrigger>
+            <TooltipContent>Not on the site yet — publish to view it live</TooltipContent>
           </Tooltip>
-          <PublishMenu
-            canPublish={can('content.publish') && phase === 'ready' && !composing}
-            canUnpublish={can('content.unpublish') && phase === 'ready' && !composing}
-            isUnpublished={metadata['published'] === false}
-            onPublish={onPublish}
-            onUnpublish={onUnpublish}
-            onRepublish={onRepublish}
-          />
-        </div>
+        )}
+
+        {previewApi && !composing && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" aria-label="Preview the draft in your site theme" onClick={() => void onPreview()}><Eye className="size-[18px]" /></Button>
+            </TooltipTrigger>
+            <TooltipContent>Preview the draft in your site theme</TooltipContent>
+          </Tooltip>
+        )}
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon" aria-label="Keyboard shortcuts" onClick={() => setShortcutsOpen(true)}><Keyboard className="size-[18px]" /></Button>
+          </TooltipTrigger>
+          <TooltipContent>Keyboard shortcuts</TooltipContent>
+        </Tooltip>
+
+        <PublishMenu
+          canPublish={can('content.publish') && phase === 'ready' && !composing}
+          canUnpublish={can('content.unpublish') && phase === 'ready' && !composing}
+          isUnpublished={metadata['published'] === false}
+          onPublish={onPublish} onUnpublish={onUnpublish} onRepublish={onRepublish}
+        />
       </div>
       {phase === 'readonly' && (
         <div className="ed-banner" role="status">This entry is locked by another editor — viewing read-only.</div>
@@ -312,7 +295,7 @@ export function EditorScreen() {
         </div>
         <MetaPanel metadata={metadata} locale={locale} slug={slug} editable={phase === 'ready'} onChange={onMetaChange} />
       </div>
-      {shortcutsOpen && <ShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
+      <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>
   )
 }

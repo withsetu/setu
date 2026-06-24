@@ -12,6 +12,7 @@ import { IndexProvider } from '../src/data/index-store'
 import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { EditorScreen } from '../src/editor/EditorScreen'
 import { NotificationProvider } from '../src/ui/notify'
+import { TooltipProvider } from '../src/components/ui/tooltip'
 
 const doc = (t: string): TiptapDoc => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] })
 const aDraft: Draft = { collection: 'post', locale: 'en', slug: 'p1', content: doc('Hello body'), metadata: { title: 'Hello', status: 'draft' }, baseSha: null, createdAt: 0, updatedAt: 0 }
@@ -41,23 +42,25 @@ function fakeServices(over: Partial<Services> = {}): Services {
 
 function renderEditor(services: Services, path = '/edit/post/en/p1') {
   return render(
-    <NotificationProvider>
-      <MemoryRouter initialEntries={[path]}>
-        <ActorProvider>
-          <ServicesProvider services={services}>
-            <DeployProvider>
-              <IndexProvider>
-                <TaxonomyProvider>
-                  <Routes>
-                    <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
-                  </Routes>
-                </TaxonomyProvider>
-              </IndexProvider>
-            </DeployProvider>
-          </ServicesProvider>
-        </ActorProvider>
-      </MemoryRouter>
-    </NotificationProvider>,
+    <TooltipProvider>
+      <NotificationProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <ActorProvider>
+            <ServicesProvider services={services}>
+              <DeployProvider>
+                <IndexProvider>
+                  <TaxonomyProvider>
+                    <Routes>
+                      <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
+                    </Routes>
+                  </TaxonomyProvider>
+                </IndexProvider>
+              </DeployProvider>
+            </ServicesProvider>
+          </ActorProvider>
+        </MemoryRouter>
+      </NotificationProvider>
+    </TooltipProvider>,
   )
 }
 
@@ -104,5 +107,21 @@ describe('EditorScreen', () => {
     unmount()
     renderEditor(services, '/edit/post/en/release-notes')
     await waitFor(() => expect(screen.getByRole('button', { name: 'Staged' })).toHaveAttribute('aria-pressed', 'true'))
+  })
+
+  it('strip renders Back link and Keyboard-shortcuts button', async () => {
+    renderEditor(fakeServices())
+    await screen.findByDisplayValue('Hello')
+    // Back to list — rendered as a link (Button asChild + Link)
+    expect(screen.getByRole('link', { name: 'Back to list' })).toBeInTheDocument()
+    // Keyboard shortcuts button
+    expect(screen.getByRole('button', { name: 'Keyboard shortcuts' })).toBeInTheDocument()
+  })
+
+  it('strip shows Publish button when canPublish is true', async () => {
+    renderEditor(fakeServices())
+    await screen.findByDisplayValue('Hello')
+    // PublishMenu renders a Publish button when canPublish is true (default fakeServices grants content.publish)
+    expect(screen.getByRole('button', { name: /^publish$/i })).toBeInTheDocument()
   })
 })

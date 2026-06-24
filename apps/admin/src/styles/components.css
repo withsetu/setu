@@ -192,16 +192,6 @@
   border: 1px solid transparent;
 }
 .badge.pill-md { height: 23px; padding: 0 9px; font-size: 12px; }
-/* pill-sm: compact variant used by StatusPill (not in design source; smaller than default) */
-.badge.pill-sm { height: 19px; padding: 0 7px; font-size: 11px; }
-.badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .9; }
-.badge-soft.badge-neutral { background: var(--surface-active); color: var(--text-2); }
-.badge-soft.badge-accent { background: var(--accent-soft); color: var(--accent-strong); }
-.badge-soft.badge-green { background: var(--green-soft); color: var(--green); }
-.badge-soft.badge-amber { background: var(--amber-soft); color: var(--amber); }
-.badge-soft.badge-red { background: var(--red-soft); color: var(--red); }
-.badge-soft.badge-blue { background: var(--blue-soft); color: var(--blue); }
-
 /* ---- MEDIA GRID ---- */
 .media-grid {
   display: grid;

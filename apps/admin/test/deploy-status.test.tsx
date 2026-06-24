@@ -8,6 +8,7 @@ import { IndexProvider } from '../src/data/index-store'
 import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { EditorScreen } from '../src/editor/EditorScreen'
 import { NotificationProvider } from '../src/ui/notify'
+import { TooltipProvider } from '../src/components/ui/tooltip'
 
 function DeployTrigger() {
   const { deploy } = useDeploy()
@@ -18,27 +19,29 @@ describe('deploy status', () => {
   it('after publish + deploy, the editor status pill shows Live', async () => {
     const services = createServices()
     render(
-      <NotificationProvider>
-        <MemoryRouter initialEntries={['/edit/post/en/release-notes']}>
-          <ActorProvider>
-            <ServicesProvider services={services}>
-              <DeployProvider>
-                <IndexProvider>
-                  <TaxonomyProvider>
-                    <DeployTrigger />
-                    <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
-                  </TaxonomyProvider>
-                </IndexProvider>
-              </DeployProvider>
-            </ServicesProvider>
-          </ActorProvider>
-        </MemoryRouter>
-      </NotificationProvider>,
+      <TooltipProvider>
+        <NotificationProvider>
+          <MemoryRouter initialEntries={['/edit/post/en/release-notes']}>
+            <ActorProvider>
+              <ServicesProvider services={services}>
+                <DeployProvider>
+                  <IndexProvider>
+                    <TaxonomyProvider>
+                      <DeployTrigger />
+                      <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
+                    </TaxonomyProvider>
+                  </IndexProvider>
+                </DeployProvider>
+              </ServicesProvider>
+            </ActorProvider>
+          </MemoryRouter>
+        </NotificationProvider>
+      </TooltipProvider>,
     )
     await screen.findByDisplayValue('Release notes')
     fireEvent.click(screen.getByRole('button', { name: /^publish$/i }))
-    await waitFor(() => expect(screen.getByText('Staged', { selector: '.badge' })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Staged', { selector: '[data-slot="badge"]' })).toBeInTheDocument())
     fireEvent.click(screen.getByText('do-deploy'))
-    await waitFor(() => expect(screen.getByText('Live', { selector: '.badge' })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Live', { selector: '[data-slot="badge"]' })).toBeInTheDocument())
   })
 })

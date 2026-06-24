@@ -16,7 +16,7 @@
     "./options": "./options.ts"
   },
   "peerDependencies": {
-    "astro": "6.4.6"
+    "astro": "^7.0.0"
   },
   "devDependencies": {
     "typescript": "^5.6.3",

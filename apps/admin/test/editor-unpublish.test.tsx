@@ -24,7 +24,7 @@ describe('EditorScreen unpublish', () => {
     )
     await screen.findByDisplayValue('Release notes')
     fireEvent.click(screen.getByRole('button', { name: /^publish$/i }))
-    await waitFor(() => expect(screen.getByText('Staged', { selector: '.badge' })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Staged', { selector: '[data-slot="badge"]' })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: /more publish actions/i }))
     fireEvent.click(screen.getByRole('menuitem', { name: /unpublish/i }))
     await waitFor(async () => {

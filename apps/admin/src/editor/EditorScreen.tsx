@@ -6,9 +6,8 @@ import { Icon } from '../ui/Icon'
 import { useServices } from '../data/store'
 import { useCan } from '../auth/actor'
 import { lifecycleFor } from '../lifecycle/useLifecycle'
-import { lifecycleLabel } from '../lifecycle/label'
 import { useDeploy } from '../deploy/deploy'
-import { StatusPill } from '../ui/StatusPill'
+import { StripStatus } from './StripStatus'
 import { siteUrl } from '../shell/site-url'
 import { useIndex } from '../data/index-store'
 import { Canvas } from './Canvas'
@@ -226,9 +225,7 @@ export function EditorScreen() {
         </div>
         <div className="ed-strip-center"><SaveIndicator status={status} readonly={phase === 'readonly'} /></div>
         <div className="ed-strip-right">
-          {(() => { const { label, pending } = lifecycleLabel(lifecycle); return (
-            <span className="ed-status"><StatusPill status={label} />{pending && <span className="status-pending">· {pending}</span>}</span>
-          ) })()}
+          <StripStatus lifecycle={lifecycle} />
           {lifecycle.state === 'staged' || lifecycle.state === 'live' ? (
             <Tooltip content="View this page on the live site">
               <a

@@ -1,11 +1,11 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { Draft, TiptapDoc } from '@setu/core'
 import { createBulkService, createMediaIndexService } from '@setu/core'
 import { createMemoryIndexPort, createMemoryMediaIndexPort } from '@setu/db-memory'
 import { ActorProvider } from '../src/auth/actor'
-import { ServicesProvider, createServices } from '../src/data/store'
+import { ServicesProvider } from '../src/data/store'
 import type { Services } from '../src/data/store'
 import { DeployProvider } from '../src/deploy/deploy'
 import { IndexProvider } from '../src/data/index-store'
@@ -13,7 +13,7 @@ import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { EditorScreen } from '../src/editor/EditorScreen'
 import { NotificationProvider } from '../src/ui/notify'
 import { TooltipProvider } from '../src/components/ui/tooltip'
-import { CommandRegistryProvider } from '../src/command/registry'
+import { CommandRegistryProvider, useCommandRegistry } from '../src/command/registry'
 
 const doc = (t: string): TiptapDoc => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] })
 const aDraft: Draft = { collection: 'post', locale: 'en', slug: 'p1', content: doc('Hello body'), metadata: { title: 'Hello', status: 'draft' }, baseSha: null, createdAt: 0, updatedAt: 0 }
@@ -41,7 +41,19 @@ function fakeServices(over: Partial<Services> = {}): Services {
   }
 }
 
+// Probe reads the registry at call time (via a callback that captures the live registry).
+// We use a ref-forwarding approach: render a Probe that stores the registry value in a
+// module-level variable so tests can read it imperatively after the component renders.
+let capturedCommands: ReturnType<typeof useCommandRegistry>['commands'] = []
+
+function CommandCapture() {
+  const { commands } = useCommandRegistry()
+  capturedCommands = commands
+  return null
+}
+
 function renderEditor(services: Services, path = '/edit/post/en/p1') {
+  capturedCommands = []
   return render(
     <TooltipProvider>
       <NotificationProvider>
@@ -55,6 +67,7 @@ function renderEditor(services: Services, path = '/edit/post/en/p1') {
                       <Routes>
                         <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
                       </Routes>
+                      <CommandCapture />
                     </CommandRegistryProvider>
                   </TaxonomyProvider>
                 </IndexProvider>
@@ -67,64 +80,57 @@ function renderEditor(services: Services, path = '/edit/post/en/p1') {
   )
 }
 
-afterEach(() => vi.useRealTimers())
-
-describe('EditorScreen', () => {
-  it('loads a draft and renders its title + status', async () => {
+describe('EditorScreen — editor commands', () => {
+  it('registers a Publish command in the Editor group when phase=ready and not composing', async () => {
     renderEditor(fakeServices())
-    expect(await screen.findByDisplayValue('Hello')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Draft' })).toHaveAttribute('aria-pressed', 'true')
-  })
-
-  it('changing the status autosaves and flips the indicator to Saved', async () => {
-    const services = fakeServices()
-    renderEditor(services)
+    // Wait for the editor to load (title becomes visible = phase reached 'ready')
     await screen.findByDisplayValue('Hello')
-    fireEvent.click(screen.getByRole('button', { name: 'Staged' }))
-    await waitFor(() => expect(services.authoring.save).toHaveBeenCalled())
-    const calls = (services.authoring.save as ReturnType<typeof vi.fn>).mock.calls
-    expect(calls.at(-1)?.[0].metadata.status).toBe('staged')
-    await waitFor(() => expect(screen.getByText('Saved')).toBeInTheDocument())
+    // Wait for the Publish command to be registered in the registry
+    await waitFor(() => {
+      const cmd = capturedCommands.find((c) => c.id === 'editor.publish')
+      expect(cmd).toBeDefined()
+    })
+    const publishCmd = capturedCommands.find((c) => c.id === 'editor.publish')!
+    expect(publishCmd.title).toBe('Publish')
+    expect(publishCmd.group).toBe('Editor')
+    // enabled() is a live closure through the ref-delegation in useRegisterCommands:
+    // after phase='ready' and composing=false, it should return true.
+    expect(publishCmd.enabled?.()).toBe(true)
   })
 
-  it('opens a blank canvas for an absent entry', async () => {
-    const services = fakeServices({ read: { loadForEdit: vi.fn(async () => ({ source: 'absent' })) } as unknown as Services['read'] })
-    renderEditor(services, '/edit/post/en/new')
-    expect(await screen.findByLabelText('Title')).toHaveValue('')
+  it('Publish enabled() is false when composing (slug=new)', async () => {
+    // When composing, slug is 'new', so composing===true → enabled() returns false
+    renderEditor(fakeServices(), '/edit/post/en/new')
+    // composing path hits ready synchronously after init; wait for Title input
+    await screen.findByLabelText('Title')
+    await waitFor(() => {
+      const cmd = capturedCommands.find((c) => c.id === 'editor.publish')
+      expect(cmd).toBeDefined()
+    })
+    const publishCmd = capturedCommands.find((c) => c.id === 'editor.publish')!
+    // composing=true → enabled() must be false
+    expect(publishCmd.enabled?.()).toBe(false)
   })
 
-  it('renders read-only with a banner when the lock is blocked', async () => {
-    const services = fakeServices()
-    ;(services.authoring.open as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ granted: false, outcome: 'blocked', lock: { ...aLock, lockedBy: 'someone' }, draft: aDraft })
-    renderEditor(services)
-    expect(await screen.findByText(/locked by another editor/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Draft' })).toBeDisabled()
-  })
-
-  it('persists across a reopen (real services)', async () => {
-    const services = createServices()
-    const { unmount } = renderEditor(services, '/edit/post/en/release-notes')
-    await screen.findByDisplayValue('Release notes')
-    fireEvent.click(screen.getByRole('button', { name: 'Staged' }))
-    await waitFor(() => expect(screen.getByText('Saved')).toBeInTheDocument(), { timeout: 3000 })
-    unmount()
-    renderEditor(services, '/edit/post/en/release-notes')
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Staged' })).toHaveAttribute('aria-pressed', 'true'))
-  })
-
-  it('strip renders Back link and Keyboard-shortcuts button', async () => {
+  it('registers a Preview draft command in the Editor group', async () => {
     renderEditor(fakeServices())
     await screen.findByDisplayValue('Hello')
-    // Back to list — rendered as a link (Button asChild + Link)
-    expect(screen.getByRole('link', { name: 'Back to list' })).toBeInTheDocument()
-    // Keyboard shortcuts button
-    expect(screen.getByRole('button', { name: 'Keyboard shortcuts' })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(capturedCommands.find((c) => c.id === 'editor.preview')).toBeDefined()
+    })
+    const previewCmd = capturedCommands.find((c) => c.id === 'editor.preview')!
+    expect(previewCmd.title).toBe('Preview draft')
+    expect(previewCmd.group).toBe('Editor')
   })
 
-  it('strip shows Publish button when canPublish is true', async () => {
+  it('registers an Unpublish command in the Editor group', async () => {
     renderEditor(fakeServices())
     await screen.findByDisplayValue('Hello')
-    // PublishMenu renders a Publish button when canPublish is true (default fakeServices grants content.publish)
-    expect(screen.getByRole('button', { name: /^publish$/i })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(capturedCommands.find((c) => c.id === 'editor.unpublish')).toBeDefined()
+    })
+    const unpublishCmd = capturedCommands.find((c) => c.id === 'editor.unpublish')!
+    expect(unpublishCmd.title).toBe('Unpublish')
+    expect(unpublishCmd.group).toBe('Editor')
   })
 })

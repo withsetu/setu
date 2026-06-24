@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { AppSidebar } from './AppSidebar'
+import { GlobalCommands } from '../command/GlobalCommands'
+import { CommandPalette } from '../command/CommandPalette'
 
 export function AppShell({ children }: { children: ReactNode }) {
   // Desktop-only: collapse is handled by the SidebarRail (in AppSidebar) + the
@@ -11,6 +13,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       <SidebarInset className="h-screen overflow-hidden">
         <div className="flex h-full min-h-0 flex-col overflow-y-auto">{children}</div>
       </SidebarInset>
+      <GlobalCommands />
+      <CommandPalette />
     </SidebarProvider>
   )
 }

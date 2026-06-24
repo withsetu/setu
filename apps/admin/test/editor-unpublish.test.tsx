@@ -10,6 +10,7 @@ import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { EditorScreen } from '../src/editor/EditorScreen'
 import { NotificationProvider } from '../src/ui/notify'
 import { TooltipProvider } from '../src/components/ui/tooltip'
+import { CommandRegistryProvider } from '../src/command/registry'
 
 // Radix DropdownMenu calls scrollIntoView when it opens — stub it for jsdom.
 beforeAll(() => {
@@ -26,7 +27,9 @@ describe('EditorScreen unpublish', () => {
         <NotificationProvider>
           <MemoryRouter initialEntries={['/edit/post/en/release-notes']}>
             <ActorProvider><ServicesProvider services={services}><DeployProvider><IndexProvider><TaxonomyProvider>
-              <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
+              <CommandRegistryProvider>
+                <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
+              </CommandRegistryProvider>
             </TaxonomyProvider></IndexProvider></DeployProvider></ServicesProvider></ActorProvider>
           </MemoryRouter>
         </NotificationProvider>

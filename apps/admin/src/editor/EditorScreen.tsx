@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { Draft, DraftInput, Lifecycle, TiptapDoc } from '@setu/core'
 import { serializeMdoc, tiptapToMarkdoc } from '@setu/core'
-import { ChevronLeft, ExternalLink, Eye, Keyboard } from 'lucide-react'
+import { ArchiveX, ChevronLeft, ExternalLink, Eye, Keyboard, Rocket } from 'lucide-react'
 import { useServices } from '../data/store'
 import { useCan } from '../auth/actor'
 import { lifecycleFor } from '../lifecycle/useLifecycle'
@@ -22,6 +22,7 @@ import { SaveIndicator } from './SaveIndicator'
 import { onRequestShortcuts } from './editor-events'
 import { NEW_SLUG, mintSlug } from './new-entry'
 import { useNotify } from '../ui/notify'
+import { useRegisterCommands } from '../command/registry'
 
 const EDITOR_ID = 'local'
 const BLANK: TiptapDoc = { type: 'doc', content: [{ type: 'paragraph' }] }
@@ -205,6 +206,24 @@ export function EditorScreen() {
     setMetadata(m)
     void commit()
   }
+
+  useRegisterCommands([
+    {
+      id: 'editor.publish', title: 'Publish', group: 'Editor', icon: Rocket,
+      enabled: () => can('content.publish') && phase === 'ready' && !composing,
+      run: () => onPublish(),
+    },
+    {
+      id: 'editor.preview', title: 'Preview draft', group: 'Editor', icon: Eye,
+      enabled: () => Boolean(previewApi) && !composing,
+      run: () => void onPreview(),
+    },
+    {
+      id: 'editor.unpublish', title: 'Unpublish', group: 'Editor', icon: ArchiveX,
+      enabled: () => can('content.unpublish') && phase === 'ready' && !composing && metadata['published'] !== false,
+      run: () => onUnpublish(),
+    },
+  ])
 
   const title = String(metadata['title'] ?? '')
   const listPath = `/${collection}s`

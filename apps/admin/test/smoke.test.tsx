@@ -7,19 +7,25 @@ import { ActorProvider } from '../src/auth/actor'
 import { DeployProvider } from '../src/deploy/deploy'
 import { IndexProvider } from '../src/data/index-store'
 import { TaxonomyProvider } from '../src/data/taxonomy-store'
+import { NotificationProvider } from '../src/ui/notify'
+import { CommandRegistryProvider } from '../src/command/registry'
 
 function renderApp(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <DataProvider adapter={createAppDataPort()}>
         <ActorProvider>
-          <DeployProvider>
-            <IndexProvider>
-              <TaxonomyProvider>
-                <App />
-              </TaxonomyProvider>
-            </IndexProvider>
-          </DeployProvider>
+          <NotificationProvider>
+            <DeployProvider>
+              <IndexProvider>
+                <TaxonomyProvider>
+                  <CommandRegistryProvider>
+                    <App />
+                  </CommandRegistryProvider>
+                </TaxonomyProvider>
+              </IndexProvider>
+            </DeployProvider>
+          </NotificationProvider>
         </ActorProvider>
       </DataProvider>
     </MemoryRouter>,

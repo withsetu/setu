@@ -9,6 +9,7 @@ import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { EditorScreen } from '../src/editor/EditorScreen'
 import { NotificationProvider } from '../src/ui/notify'
 import { TooltipProvider } from '../src/components/ui/tooltip'
+import { CommandRegistryProvider } from '../src/command/registry'
 
 function DeployTrigger() {
   const { deploy } = useDeploy()
@@ -27,8 +28,10 @@ describe('deploy status', () => {
                 <DeployProvider>
                   <IndexProvider>
                     <TaxonomyProvider>
-                      <DeployTrigger />
-                      <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
+                      <CommandRegistryProvider>
+                        <DeployTrigger />
+                        <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
+                      </CommandRegistryProvider>
                     </TaxonomyProvider>
                   </IndexProvider>
                 </DeployProvider>

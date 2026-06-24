@@ -9,6 +9,7 @@ import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { EditorScreen } from '../src/editor/EditorScreen'
 import { NotificationProvider } from '../src/ui/notify'
 import { TooltipProvider } from '../src/components/ui/tooltip'
+import { CommandRegistryProvider } from '../src/command/registry'
 
 function renderEditor(path = '/edit/post/en/release-notes') {
   render(
@@ -20,9 +21,11 @@ function renderEditor(path = '/edit/post/en/release-notes') {
               <DeployProvider>
                 <IndexProvider>
                   <TaxonomyProvider>
-                    <Routes>
-                      <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
-                    </Routes>
+                    <CommandRegistryProvider>
+                      <Routes>
+                        <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
+                      </Routes>
+                    </CommandRegistryProvider>
                   </TaxonomyProvider>
                 </IndexProvider>
               </DeployProvider>

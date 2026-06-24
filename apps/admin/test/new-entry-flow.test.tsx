@@ -12,6 +12,7 @@ import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { EditorScreen } from '../src/editor/EditorScreen'
 import { NotificationProvider } from '../src/ui/notify'
 import { TooltipProvider } from '../src/components/ui/tooltip'
+import { CommandRegistryProvider } from '../src/command/registry'
 
 const doc = (t: string): TiptapDoc => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] })
 
@@ -29,10 +30,12 @@ function renderAt(path: string, data: DataPort, git: GitPort) {
               <DeployProvider>
                 <IndexProvider>
                   <TaxonomyProvider>
-                    <Routes>
-                      <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
-                    </Routes>
-                    <LocationProbe />
+                    <CommandRegistryProvider>
+                      <Routes>
+                        <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
+                      </Routes>
+                      <LocationProbe />
+                    </CommandRegistryProvider>
                   </TaxonomyProvider>
                 </IndexProvider>
               </DeployProvider>

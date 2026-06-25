@@ -7,6 +7,7 @@ import { EditorScreen } from './editor/EditorScreen'
 import { Dashboard } from './screens/Dashboard'
 import { Media } from './screens/Media'
 import { Taxonomies } from './screens/taxonomies/Taxonomies'
+import { FormsInbox } from './screens/FormsInbox'
 
 export function App() {
   return (
@@ -19,7 +20,7 @@ export function App() {
         <Route path="/taxonomies" element={<Taxonomies />} />
         <Route path="/categories" element={<Navigate to="/taxonomies" replace />} />
         <Route path="/media" element={<Media />} />
-        <Route path="/forms" element={<Placeholder title="Forms" />} />
+        <Route path="/forms" element={<FormsInbox />} />
         <Route path="/appearance" element={<Appearance />} />
         <Route path="/settings" element={<Placeholder title="Settings" />} />
         <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />

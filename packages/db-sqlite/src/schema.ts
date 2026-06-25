@@ -2,6 +2,18 @@
 // dialect-agnostic so that @setu/db-d1 can import it unchanged.
 import { sqliteTable, text, integer, primaryKey } from 'drizzle-orm/sqlite-core'
 
+export const submissions = sqliteTable('submissions', {
+  id: text('id').primaryKey(),
+  formId: text('form_id').notNull(),
+  formLabel: text('form_label'), // nullable
+  fields: text('fields').notNull(), // JSON
+  createdAt: integer('created_at').notNull(), // epoch ms
+  read: integer('read').notNull(), // 0/1
+  sourceUrl: text('source_url'),
+  sourceReferrer: text('source_referrer'),
+  sourceUserAgent: text('source_user_agent'),
+})
+
 export const drafts = sqliteTable(
   'drafts',
   {

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import type { DataPort, TiptapDoc, IndexPort, EntryIndexRow, MediaIndexPort, MediaIndexRow } from '@setu/core'
+import type { DataPort, TiptapDoc, IndexPort, EntryIndexRow, MediaIndexPort, MediaIndexRow, SubmissionPort } from '@setu/core'
 
 const doc = (text: string): TiptapDoc => ({
   type: 'doc',
@@ -297,6 +297,109 @@ export function runMediaIndexPortContract(makeAdapter: () => Promise<MediaIndexP
       expect(await ix.getMeta()).toEqual({ version: 0 })
       await ix.setMeta({ version: 2 })
       expect(await ix.getMeta()).toEqual({ version: 2 })
+    })
+  })
+}
+
+/** Run the SubmissionPort behavioral contract against an adapter. `makeAdapter`
+ *  must return a FRESH, empty adapter on each call. */
+export function runSubmissionPortContract(makeAdapter: () => Promise<SubmissionPort> | SubmissionPort): void {
+  describe('SubmissionPort contract', () => {
+    let db: SubmissionPort
+    beforeEach(async () => {
+      db = await makeAdapter()
+    })
+    afterEach(async () => {
+      await db.close()
+    })
+
+    const input = (over: Partial<Parameters<SubmissionPort['saveSubmission']>[0]> = {}) => ({
+      formId: 'contact',
+      formLabel: 'Contact',
+      fields: { name: 'Ada', email: 'ada@x.com', message: 'hi' },
+      ...over,
+    })
+
+    it('assigns id + createdAt, defaults read=false, round-trips fields', async () => {
+      const saved = await db.saveSubmission(input())
+      expect(saved.id).toBeTypeOf('string')
+      expect(saved.id.length).toBeGreaterThan(0)
+      expect(saved.createdAt).toBeTypeOf('number')
+      expect(saved.read).toBe(false)
+      expect(saved.fields).toEqual({ name: 'Ada', email: 'ada@x.com', message: 'hi' })
+      expect(await db.getSubmission(saved.id)).toEqual(saved)
+    })
+
+    it('returns null for an absent id', async () => {
+      expect(await db.getSubmission('nope')).toBeNull()
+    })
+
+    it('lists newest-first with total', async () => {
+      const a = await db.saveSubmission(input({ fields: { email: 'a@x.com', message: 'first' } }))
+      await new Promise<void>((r) => setTimeout(r, 2))
+      const b = await db.saveSubmission(input({ fields: { email: 'b@x.com', message: 'second' } }))
+      const { rows, total } = await db.listSubmissions()
+      expect(total).toBe(2)
+      expect(rows.map((r) => r.id)).toEqual([b.id, a.id]) // newest first
+    })
+
+    it('filters by formId and by read', async () => {
+      const c = await db.saveSubmission(input({ formId: 'contact' }))
+      await db.saveSubmission(input({ formId: 'apply' }))
+      await db.setRead([c.id], true)
+      expect((await db.listSubmissions({ formId: 'apply' })).total).toBe(1)
+      expect((await db.listSubmissions({ read: true })).rows.map((r) => r.id)).toEqual([c.id])
+      expect((await db.listSubmissions({ read: false })).total).toBe(1)
+    })
+
+    it('searches q over field values (case-insensitive substring)', async () => {
+      await db.saveSubmission(input({ fields: { email: 'a@x.com', message: 'Need a QUOTE please' } }))
+      await db.saveSubmission(input({ fields: { email: 'b@x.com', message: 'just saying hi' } }))
+      const { rows, total } = await db.listSubmissions({ q: 'quote' })
+      expect(total).toBe(1)
+      expect(rows[0]!.fields.message).toContain('QUOTE')
+    })
+
+    it('q matches field values only, not field keys', async () => {
+      await db.saveSubmission(input({ fields: { email: 'a@x.com', message: 'hello' } }))
+      expect((await db.listSubmissions({ q: 'email' })).total).toBe(0) // 'email' is a key, not in any value
+      expect((await db.listSubmissions({ q: 'hello' })).total).toBe(1) // value substring matches
+    })
+
+    it('paginates with limit/offset while total stays unpaged', async () => {
+      for (let i = 0; i < 5; i++) await db.saveSubmission(input({ fields: { email: `u${i}@x.com`, message: `m${i}` } }))
+      const page = await db.listSubmissions({ limit: 2, offset: 2 })
+      expect(page.total).toBe(5)
+      expect(page.rows).toHaveLength(2)
+    })
+
+    it('setRead is idempotent and ignores unknown ids', async () => {
+      const a = await db.saveSubmission(input())
+      await db.setRead([a.id, 'ghost'], true)
+      await db.setRead([a.id], true)
+      expect((await db.getSubmission(a.id))!.read).toBe(true)
+      await db.setRead([a.id], false)
+      expect((await db.getSubmission(a.id))!.read).toBe(false)
+    })
+
+    it('deletes in bulk and ignores unknown ids', async () => {
+      const a = await db.saveSubmission(input())
+      const b = await db.saveSubmission(input())
+      await db.deleteSubmissions([a.id, 'ghost'])
+      expect(await db.getSubmission(a.id)).toBeNull()
+      expect((await db.listSubmissions()).total).toBe(1)
+      expect((await db.listSubmissions()).rows[0]!.id).toBe(b.id)
+    })
+
+    it('distinctForms groups with counts, newest label wins', async () => {
+      await db.saveSubmission(input({ formId: 'contact', formLabel: 'Contact' }))
+      await new Promise<void>((r) => setTimeout(r, 2))
+      await db.saveSubmission(input({ formId: 'contact', formLabel: 'Contact Us' }))
+      await db.saveSubmission(input({ formId: 'apply', formLabel: 'Apply' }))
+      expect(await db.distinctForms()).toEqual([
+        { formId: 'apply', formLabel: 'Apply', count: 1 },
+        { formId: 'contact', formLabel: 'Contact Us', count: 2 },
+      ])
     })
   })
 }

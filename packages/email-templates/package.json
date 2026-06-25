@@ -1,0 +1,23 @@
+{
+  "name": "@setu/email-templates",
+  "version": "0.0.0",
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "test": "vitest run", "typecheck": "tsc --noEmit" },
+  "dependencies": {
+    "@setu/core": "workspace:*",
+    "@react-email/components": "^1.0.12",
+    "@react-email/render": "^2.0.9",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}

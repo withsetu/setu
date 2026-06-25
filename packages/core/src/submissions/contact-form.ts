@@ -1,0 +1,57 @@
+import type { SubmitResult } from './submission-service'
+
+export interface ContactRequired {
+  name: boolean
+  subject: boolean
+  message: boolean
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/** Client-side validation mirroring the server floor. email always required +
+ *  format-checked; name/subject/message per the block's `required` config. */
+export function validateContactFields(
+  fields: Record<string, string>,
+  required: ContactRequired,
+): { ok: boolean; errors: Record<string, string> } {
+  const errors: Record<string, string> = {}
+  const val = (k: string) => (fields[k] ?? '').trim()
+  if (!EMAIL_RE.test(val('email'))) errors.email = 'Enter a valid email address.'
+  if (required.name && val('name') === '') errors.name = 'Required.'
+  if (required.subject && val('subject') === '') errors.subject = 'Required.'
+  if (required.message && val('message') === '') errors.message = 'Required.'
+  return { ok: Object.keys(errors).length === 0, errors }
+}
+
+/** POST a contact submission to the forms API. Network/parse failures map to a
+ *  server error result so the island can show a generic message. */
+export async function submitContact(opts: {
+  apiBase: string
+  formId: string
+  formLabel?: string
+  fields: Record<string, string>
+  turnstileToken: string
+  honeypot?: string
+  pageUrl?: string
+  fetchImpl?: typeof fetch
+}): Promise<SubmitResult> {
+  const f = opts.fetchImpl ?? fetch
+  try {
+    const res = await f(`${opts.apiBase.replace(/\/$/, '')}/forms/submit`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        formId: opts.formId,
+        formLabel: opts.formLabel,
+        fields: opts.fields,
+        turnstileToken: opts.turnstileToken,
+        honeypot: opts.honeypot,
+        source: opts.pageUrl ? { url: opts.pageUrl } : undefined,
+      }),
+    })
+    if (!res.ok && res.status >= 500) return { ok: false, error: 'server' }
+    return (await res.json()) as SubmitResult
+  } catch {
+    return { ok: false, error: 'server' }
+  }
+}

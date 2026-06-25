@@ -21,7 +21,26 @@ export { defaultConfig, defaultKnownBlockTags } from './config/default-config'
 export type { EntryRef, Draft, DraftInput, DraftFilter, Lock } from './data/types'
 export type { DataPort } from './data/data-port'
 
+export type { Submission, SubmissionInput, SubmissionFilter, FormSummary } from './submissions/types'
+export type { SubmissionPort } from './submissions/submission-port'
+export { selectDistinctForms } from './submissions/distinct-forms'
+export { createTurnstileVerifier } from './submissions/turnstile'
+export type { TurnstileVerifier } from './submissions/turnstile'
+export { createSubmissionService } from './submissions/submission-service'
+export type {
+  SubmissionService,
+  SubmissionServiceDeps,
+  SubmitInput,
+  SubmitResult,
+  NotificationContent,
+} from './submissions/submission-service'
+export { validateContactFields, submitContact } from './submissions/contact-form'
+export type { ContactRequired } from './submissions/contact-form'
+export { submissionsToCsv } from './submissions/csv'
+
 export type { StoragePort, PutOptions, StoredObject } from './storage/storage-port'
+
+export type { EmailMessage, EmailPort } from './email/email-port'
 
 export type { ImageFormat, VariantSpec, ImageMeta, GeneratedVariant, ImagePort } from './image/image-port'
 export { extensionFor, contentTypeFor } from './image/format'

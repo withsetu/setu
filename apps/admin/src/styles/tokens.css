@@ -117,6 +117,7 @@
   --shadow-md: 0 4px 12px -2px hsl(var(--shadow-color) / 0.10), 0 2px 6px -2px hsl(var(--shadow-color) / 0.06);
   --shadow-lg: 0 18px 40px -12px hsl(var(--shadow-color) / 0.20), 0 6px 14px -6px hsl(var(--shadow-color) / 0.10);
   --shadow-pop: 0 24px 50px -12px hsl(var(--shadow-color) / 0.28), 0 8px 18px -8px hsl(var(--shadow-color) / 0.14);
+  --shadow-popover: 0 4px 12px -2px hsl(230 12% 20% / 0.10), 0 12px 28px -8px hsl(230 12% 20% / 0.12);
 }
 
 /* ============================================================
@@ -173,6 +174,7 @@
   --shadow-md: 0 6px 16px -4px hsl(var(--shadow-color) / 0.6), 0 2px 6px -2px hsl(var(--shadow-color) / 0.5);
   --shadow-lg: 0 20px 44px -12px hsl(var(--shadow-color) / 0.72), 0 8px 16px -8px hsl(var(--shadow-color) / 0.5);
   --shadow-pop: 0 28px 60px -14px hsl(var(--shadow-color) / 0.8), 0 10px 22px -10px hsl(var(--shadow-color) / 0.6);
+  --shadow-popover: 0 4px 14px -2px hsl(240 40% 2% / 0.5), 0 16px 36px -10px hsl(240 40% 2% / 0.5);
 }
 
 /* ============================================================

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useId } from 'react'
 import { Node, mergeAttributes } from '@tiptap/core'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import type { ReactNodeViewProps } from '@tiptap/react'
@@ -17,6 +17,7 @@ import {
 
 function ContactView({ node, updateAttributes }: ReactNodeViewProps) {
   const mdAttrs = (node.attrs.mdAttrs ?? {}) as Record<string, unknown>
+  const uid = useId()
 
   // Back-compat / insert safety: persist a stable formId if missing.
   useEffect(() => {
@@ -55,18 +56,18 @@ function ContactView({ node, updateAttributes }: ReactNodeViewProps) {
             </PopoverTrigger>
             <PopoverContent align="end" className="w-72 space-y-3">
               <div className="space-y-1">
-                <Label htmlFor="cf-name">Form name</Label>
+                <Label htmlFor={`${uid}-name`}>Form name</Label>
                 <Input
-                  id="cf-name"
+                  id={`${uid}-name`}
                   value={formLabel}
                   placeholder="Contact"
                   onChange={(e) => setAttrs({ formLabel: e.target.value })}
                 />
               </div>
               <div className="flex items-center justify-between">
-                <Label htmlFor="cf-subject">Subject field</Label>
+                <Label htmlFor={`${uid}-subject`}>Subject field</Label>
                 <Switch
-                  id="cf-subject"
+                  id={`${uid}-subject`}
                   checked={subject}
                   onCheckedChange={(v) => setAttrs({ subject: v })}
                 />
@@ -80,18 +81,18 @@ function ContactView({ node, updateAttributes }: ReactNodeViewProps) {
                   <span className="text-muted-foreground">Always</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="cf-name-req">Name</Label>
+                  <Label htmlFor={`${uid}-name-req`}>Name</Label>
                   <Switch
-                    id="cf-name-req"
+                    id={`${uid}-name-req`}
                     checked={nameRequired}
                     onCheckedChange={(v) => setAttrs({ nameRequired: v })}
                   />
                 </div>
                 {subject && (
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="cf-subject-req">Subject</Label>
+                    <Label htmlFor={`${uid}-subject-req`}>Subject</Label>
                     <Switch
-                      id="cf-subject-req"
+                      id={`${uid}-subject-req`}
                       checked={subjectRequired}
                       onCheckedChange={(v) => setAttrs({ subjectRequired: v })}
                     />
@@ -103,9 +104,9 @@ function ContactView({ node, updateAttributes }: ReactNodeViewProps) {
                 </div>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="cf-success">Success message</Label>
+                <Label htmlFor={`${uid}-success`}>Success message</Label>
                 <Input
-                  id="cf-success"
+                  id={`${uid}-success`}
                   value={successMessage}
                   onChange={(e) => setAttrs({ successMessage: e.target.value })}
                 />

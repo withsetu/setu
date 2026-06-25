@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi, beforeAll } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
-import { createMemoryGitPort } from '@setu/git-memory'
+import { createMemoryGitPort, type GitSeedFile } from '@setu/git-memory'
 import { createMemoryDataPort } from '@setu/db-memory'
 import { ServicesProvider, servicesFor } from '../src/data/store'
 import { DeployProvider } from '../src/deploy/deploy'
@@ -8,7 +8,22 @@ import { IndexProvider } from '../src/data/index-store'
 import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { CategoryField } from '../src/editor/CategoryField'
 
-function setup(selected: string[] = []) {
+// Radix Select calls scrollIntoView when the dropdown opens — stub it for jsdom.
+beforeAll(() => {
+  if (typeof window !== 'undefined' && !window.HTMLElement.prototype.scrollIntoView) {
+    window.HTMLElement.prototype.scrollIntoView = () => {}
+  }
+})
+
+const seedWithTwo: GitSeedFile[] = [
+  {
+    path: 'taxonomy/categories.yaml',
+    content:
+      '- slug: engineering\n  name: Engineering\n  parent: null\n- slug: news\n  name: News\n  parent: null\n',
+  },
+]
+
+function setup(selected: string[] = [], editable = true) {
   const onChange = vi.fn()
   const services = servicesFor(createMemoryDataPort(), createMemoryGitPort())
   render(
@@ -16,7 +31,24 @@ function setup(selected: string[] = []) {
       <DeployProvider>
         <IndexProvider>
           <TaxonomyProvider>
-            <CategoryField selected={selected} onChange={onChange} editable />
+            <CategoryField selected={selected} onChange={onChange} editable={editable} />
+          </TaxonomyProvider>
+        </IndexProvider>
+      </DeployProvider>
+    </ServicesProvider>,
+  )
+  return { onChange }
+}
+
+function setupWithSeed(selected: string[] = [], editable = true) {
+  const onChange = vi.fn()
+  const services = servicesFor(createMemoryDataPort(), createMemoryGitPort(seedWithTwo))
+  render(
+    <ServicesProvider services={services}>
+      <DeployProvider>
+        <IndexProvider>
+          <TaxonomyProvider>
+            <CategoryField selected={selected} onChange={onChange} editable={editable} />
           </TaxonomyProvider>
         </IndexProvider>
       </DeployProvider>
@@ -29,11 +61,44 @@ describe('CategoryField', () => {
   it('inline-creates a category and selects it', async () => {
     const { onChange } = setup()
     fireEvent.change(screen.getByPlaceholderText('New category'), { target: { value: 'Tutorials' } })
-    fireEvent.click(screen.getByText('Add'))
-    await waitFor(() => expect(screen.getByLabelText('Tutorials')).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: 'Tutorials' })).toBeTruthy())
     expect(onChange).toHaveBeenCalledWith(['tutorials'])
     // error surface stays clean on success
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('checking a category row calls onChange with the slug added', async () => {
+    const { onChange } = setupWithSeed([])
+    await screen.findByRole('checkbox', { name: 'Engineering' })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Engineering' }))
+    expect(onChange).toHaveBeenCalledWith(['engineering'])
+  })
+
+  it('unchecking a selected category calls onChange with the slug removed', async () => {
+    const { onChange } = setupWithSeed(['engineering', 'news'])
+    await screen.findByRole('checkbox', { name: 'Engineering' })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Engineering' }))
+    expect(onChange).toHaveBeenCalledWith(['news'])
+  })
+
+  it('filter input narrows visible rows', async () => {
+    setupWithSeed()
+    await screen.findByRole('checkbox', { name: 'Engineering' })
+    expect(screen.getByRole('checkbox', { name: 'News' })).toBeTruthy()
+    fireEvent.change(screen.getByPlaceholderText('Filter categories'), { target: { value: 'eng' } })
+    await waitFor(() => expect(screen.queryByRole('checkbox', { name: 'News' })).toBeNull())
+    expect(screen.getByRole('checkbox', { name: 'Engineering' })).toBeTruthy()
+  })
+
+  it('editable=false disables checkboxes and create controls', async () => {
+    setupWithSeed([], false)
+    await screen.findByRole('checkbox', { name: 'Engineering' })
+    expect(screen.getByRole('checkbox', { name: 'Engineering' })).toBeDisabled()
+    expect(screen.getByRole('checkbox', { name: 'News' })).toBeDisabled()
+    expect(screen.getByPlaceholderText('New category')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled()
+    expect(screen.getByPlaceholderText('Filter categories')).toBeDisabled()
   })
 
   it('toggles an existing category off when checked', async () => {
@@ -53,8 +118,8 @@ describe('CategoryField', () => {
       </ServicesProvider>,
     )
     fireEvent.change(screen.getByPlaceholderText('New category'), { target: { value: 'News' } })
-    fireEvent.click(screen.getByText('Add'))
-    await waitFor(() => expect(screen.getByLabelText('News')).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: 'News' })).toBeTruthy())
     onChange.mockClear()
     rerender(
       <ServicesProvider services={services}>
@@ -67,7 +132,7 @@ describe('CategoryField', () => {
         </DeployProvider>
       </ServicesProvider>,
     )
-    fireEvent.click(screen.getByLabelText('News'))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'News' }))
     expect(onChange).toHaveBeenCalledWith([])
   })
 })

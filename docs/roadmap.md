@@ -7,6 +7,26 @@
 
 ---
 
+## Access control: accounts, roles, and a permissions surface (to revisit — 2026-06-25)
+
+**Context:** Surfaced while building basic forms — the inbox let anyone delete submissions, the forms API (and the git API) are unauthenticated, and there's no place for an admin to set who-can-do-what. Setu currently assumes a **single trusted owner** (self-hosted).
+
+**What already exists (the good core):** `packages/core/src/authz/` has a real model — a role→capability matrix (`default-roles.ts`: Owner/Admin = all; Editor = `content.create/edit/delete/publish/unpublish`; Author = `create/edit`) and `authz.can(actor, action)` over actions `content.create|edit|delete|publish|unpublish`. An `Actor` + `authMiddleware` + `resolveLocalOwner` exist on `apps/api`.
+
+**What's missing (the unbuilt subsystem):**
+1. **Accounts + sessions + an auth provider** — there are no users; the admin runs as one hard-coded local Owner.
+2. **Enforcement across write routes** — only `/media` calls `authz.can(...)`; the **git API and forms API are unauthenticated**, and `content.delete` is a defined action that nothing enforces.
+3. **A permissions/roles management UI** — the role matrix is a constant in `default-roles.ts`; no screen to invite users, assign roles, or edit capabilities.
+4. **Admin-UI gating** — affordances (delete, publish, settings) should hide/disable per the actor's capabilities, not just the API.
+
+**Why deferred:** v1 targets single-owner dev/self-hosted; multi-user auth is a large feature (accounts → sessions → role assignment UI → enforce `can()` everywhere → gate UI). The basic-forms final review explicitly flagged "gate the admin CRUD when auth lands."
+
+**Process note (from the same conversation):** when building any *write* surface, actively surface the auth dimension ("is this endpoint/affordance meant to be permission-gated?") rather than silently inheriting the unauthenticated-local convention. The capability primitives already exist; new features should wire `authz.can()` even while single-owner, so enforcement is in place when accounts arrive.
+
+**Touches:** a new auth/accounts package + provider; session middleware on `apps/api`; `authz.can()` calls on every mutating route (git commit/commitFiles, publish, forms CRUD, taxonomy, media — already done); an admin "Users & roles" screen; actor-aware gating in admin components. Its own brainstorm → spec → plan.
+
+---
+
 ## Git-backed comments (DB buffer → sync to Git) (to revisit — 2026-06-21)
 
 **Idea:** comments as owned, versioned content — `comment → approve → commit`, the exact generalization of the existing `draft → publish → commit`. Validates the Git/DB split rather than straining it: the DB does the runtime work it's good at; Git holds the durable owned record.

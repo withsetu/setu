@@ -24,6 +24,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Pager } from './content-list/Pager'
 
 const PAGE_SIZE = 20
@@ -61,6 +71,7 @@ export function FormsInbox() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [active, setActive] = useState<Submission | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [pendingDelete, setPendingDelete] = useState<string[] | null>(null)
 
   const form = params.get('form') ?? ''
   const readParam = params.get('read') ?? '' // '', 'true', 'false'
@@ -275,7 +286,7 @@ export function FormsInbox() {
                 >
                   Mark unread
                 </Button>
-                <Button size="sm" variant="destructive" onClick={() => void removeMany([...selected])}>
+                <Button size="sm" variant="destructive" onClick={() => setPendingDelete([...selected])}>
                   Delete
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
@@ -399,13 +410,46 @@ export function FormsInbox() {
                 <Button size="sm" variant="outline" onClick={() => void toggleRead(active)}>
                   {active.read ? 'Mark unread' : 'Mark read'}
                 </Button>
-                <Button size="sm" variant="destructive" onClick={() => void removeMany([active.id])}>
+                <Button size="sm" variant="destructive" onClick={() => setPendingDelete([active.id])}>
                   Delete
                 </Button>
               </DialogFooter>
             </DialogContent>
           )}
         </Dialog>
+
+        {/* Delete confirmation — guards both single (modal) and bulk delete. */}
+        <AlertDialog
+          open={pendingDelete !== null}
+          onOpenChange={(open) => {
+            if (!open) setPendingDelete(null)
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                Delete {pendingDelete?.length ?? 0} submission{(pendingDelete?.length ?? 0) === 1 ? '' : 's'}?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                This permanently removes{' '}
+                {(pendingDelete?.length ?? 0) === 1 ? 'this submission' : 'these submissions'}. This
+                can&apos;t be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  const ids = pendingDelete ?? []
+                  setPendingDelete(null)
+                  void removeMany(ids)
+                }}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </PageBody>
     </>
   )

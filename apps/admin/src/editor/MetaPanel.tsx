@@ -1,7 +1,14 @@
 import { CategoryField } from './CategoryField'
 import { TagField } from './TagField'
 
-const STATUSES = ['Draft', 'Staged', 'Deployed'] as const
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="border-b border-border/60 px-[18px] py-[18px] last:border-b-0">
+      <h2 className="mb-3 text-[13px] font-medium text-muted-foreground">{title}</h2>
+      {children}
+    </section>
+  )
+}
 
 export function MetaPanel({
   metadata,
@@ -16,47 +23,32 @@ export function MetaPanel({
   editable: boolean
   onChange: (next: Record<string, unknown>) => void
 }) {
-  const current = String(metadata['status'] ?? 'draft').toLowerCase()
   return (
-    <aside className="meta-panel">
-      <section className="meta-section">
-        <h2 className="meta-title">Status</h2>
-        <div className="segmented" role="group" aria-label="Status">
-          {STATUSES.map((s) => (
-            <button
-              key={s}
-              type="button"
-              className={`segmented-opt${current === s.toLowerCase() ? ' on' : ''}`}
-              aria-pressed={current === s.toLowerCase()}
-              disabled={!editable}
-              onClick={() => onChange({ ...metadata, status: s.toLowerCase() })}
-            >
-              {s}
-            </button>
-          ))}
+    <aside className="w-[300px] shrink-0 overflow-y-auto border-l border-border/60">
+      <Section title="Permalink">
+        <div className="flex justify-between py-0.5 text-[13px]">
+          <span className="text-muted-foreground">Slug</span>
+          <span className="font-mono text-muted-foreground">/{slug}</span>
         </div>
-      </section>
-      <section className="meta-section">
-        <h2 className="meta-title">Categories</h2>
+        <div className="flex justify-between py-0.5 text-[13px]">
+          <span className="text-muted-foreground">Locale</span>
+          <span className="font-mono text-muted-foreground">{locale}</span>
+        </div>
+      </Section>
+      <Section title="Categories">
         <CategoryField
           selected={Array.isArray(metadata['categories']) ? (metadata['categories'] as string[]) : []}
           onChange={(next) => onChange({ ...metadata, categories: next })}
           editable={editable}
         />
-      </section>
-      <section className="meta-section">
-        <h2 className="meta-title">Tags</h2>
+      </Section>
+      <Section title="Tags">
         <TagField
           selected={Array.isArray(metadata['tags']) ? (metadata['tags'] as string[]) : []}
           onChange={(next) => onChange({ ...metadata, tags: next })}
           editable={editable}
         />
-      </section>
-      <section className="meta-section">
-        <h2 className="meta-title">Permalink</h2>
-        <div className="meta-row"><span className="meta-label">Slug</span><span className="meta-value">/{slug}</span></div>
-        <div className="meta-row"><span className="meta-label">Locale</span><span className="meta-value">{locale}</span></div>
-      </section>
+      </Section>
     </aside>
   )
 }

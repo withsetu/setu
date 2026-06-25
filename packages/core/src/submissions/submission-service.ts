@@ -85,8 +85,8 @@ export function createSubmissionService(deps: SubmissionServiceDeps): Submission
 
       // 5. Best-effort notify — never fails the submission.
       if (email && notifyTo && notifyFrom) {
-        const content = await render(saved)
         try {
+          const content = await render(saved)
           await email.send({ to: notifyTo, from: notifyFrom, ...content })
         } catch (e) {
           console.error('[submission-service] notify failed', e)

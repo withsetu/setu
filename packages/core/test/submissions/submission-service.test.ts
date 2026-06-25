@@ -66,4 +66,22 @@ describe('createSubmissionService.submit', () => {
     expect(send).toHaveBeenCalledTimes(1)
     expect((await submissions.listSubmissions()).total).toBe(1) // stored regardless
   })
+
+  it('survives an async renderNotification that throws (best-effort)', async () => {
+    const submissions = createMemorySubmissionPort()
+    const email: EmailPort = { send: vi.fn(async () => {}) }
+    const svc = createSubmissionService({
+      submissions,
+      verifyTurnstile: ok,
+      email,
+      notifyTo: 'owner@x.com',
+      notifyFrom: 'site@x.com',
+      renderNotification: async () => {
+        throw new Error('render boom')
+      },
+    })
+    const r = await svc.submit({ ...base })
+    expect(r).toEqual({ ok: true, id: expect.any(String) })
+    expect((await submissions.listSubmissions()).total).toBe(1)
+  })
 })

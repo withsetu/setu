@@ -26,6 +26,14 @@ export type { SubmissionPort } from './submissions/submission-port'
 export { selectDistinctForms } from './submissions/distinct-forms'
 export { createTurnstileVerifier } from './submissions/turnstile'
 export type { TurnstileVerifier } from './submissions/turnstile'
+export { createSubmissionService } from './submissions/submission-service'
+export type {
+  SubmissionService,
+  SubmissionServiceDeps,
+  SubmitInput,
+  SubmitResult,
+  NotificationContent,
+} from './submissions/submission-service'
 
 export type { StoragePort, PutOptions, StoredObject } from './storage/storage-port'
 

@@ -6,6 +6,7 @@ import type { BlockCategory } from '@setu/core'
 import { registry } from '../blocks/registry'
 import { BLOCK_TYPES } from './block-types'
 import { pickImageAndInsert, imageBlockFromSrc } from './image-insert'
+import { ensureFormId, DEFAULT_SUCCESS_MESSAGE } from './extensions/contact-helpers'
 import type { SlashBlock } from './slash-model'
 
 export type { SlashBlock } from './slash-model'
@@ -72,7 +73,21 @@ export function slashBlocks(): SlashBlock[] {
     keywords: b.editor?.keywords ?? [],
     run: (e: Editor, r: Range) => {
       const chain = e.chain().focus().deleteRange(r)
-      if (b.tag === 'callout') {
+      if (b.tag === 'contact') {
+        chain.insertContent({
+          type: 'contactBlock',
+          attrs: {
+            mdAttrs: ensureFormId({
+              formLabel: 'Contact',
+              subject: false,
+              nameRequired: true,
+              subjectRequired: false,
+              messageRequired: true,
+              successMessage: DEFAULT_SUCCESS_MESSAGE,
+            }),
+          },
+        })
+      } else if (b.tag === 'callout') {
         chain.insertContent({ type: 'callout', attrs: { mdAttrs: { type: 'info' } }, content: [{ type: 'paragraph' }] })
       } else {
         chain.insertContent({ type: 'setuBlock', attrs: { tag: b.tag, mdAttrs: {} }, content: [{ type: 'paragraph' }] })

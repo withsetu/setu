@@ -29,6 +29,31 @@ function setup(selected: string[] = []) {
 }
 
 describe('TagField', () => {
+  it('renders a Badge chip per selected tag', () => {
+    setup(['react', 'redux'])
+    expect(screen.getByText('react')).toBeTruthy()
+    expect(screen.getByText('redux')).toBeTruthy()
+    expect(screen.getByLabelText('Remove react')).toBeTruthy()
+    expect(screen.getByLabelText('Remove redux')).toBeTruthy()
+  })
+
+  it('editable=false hides remove buttons', () => {
+    const onChange = vi.fn()
+    const data = createMemoryDataPort([])
+    const services = servicesFor(data, createMemoryGitPort())
+    render(
+      <ServicesProvider services={services}>
+        <DeployProvider>
+          <IndexProvider>
+            <TagField selected={['react']} onChange={onChange} editable={false} />
+          </IndexProvider>
+        </DeployProvider>
+      </ServicesProvider>,
+    )
+    expect(screen.queryByLabelText('Remove react')).toBeNull()
+    expect(screen.getByText('react')).toBeTruthy()
+  })
+
   it('free-creates a normalized tag on Enter', () => {
     const { onChange } = setup()
     const input = screen.getByLabelText('Add a tag')

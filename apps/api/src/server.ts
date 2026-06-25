@@ -9,6 +9,14 @@ import { createSubmissionService, createNoopCaptcha } from '@setu/core'
 import type { CaptchaPort } from '@setu/core'
 import { createTurnstileCaptcha } from '@setu/captcha-turnstile'
 import { createRecaptchaCaptcha } from '@setu/captcha-recaptcha'
+import { createConsoleEmailAdapter } from '@setu/email-console'
+import { createResendEmailAdapter } from '@setu/email-resend'
+import { renderSubmissionEmail } from '@setu/email-templates'
+import { createGitApi } from './app'
+import { createPreviewApi } from './preview'
+import { createUploadApi } from './media'
+import { createFormsApi } from './forms'
+import { resolveLocalOwner } from './auth/resolve-actor'
 
 function resolveCaptcha(provider: string, secret: string): CaptchaPort {
   if (!provider) return createNoopCaptcha() // no provider configured → dev pass-through
@@ -25,14 +33,6 @@ function resolveCaptcha(provider: string, secret: string): CaptchaPort {
     ? createRecaptchaCaptcha({ secret })
     : createTurnstileCaptcha({ secret })
 }
-import { createConsoleEmailAdapter } from '@setu/email-console'
-import { createResendEmailAdapter } from '@setu/email-resend'
-import { renderSubmissionEmail } from '@setu/email-templates'
-import { createGitApi } from './app'
-import { createPreviewApi } from './preview'
-import { createUploadApi } from './media'
-import { createFormsApi } from './forms'
-import { resolveLocalOwner } from './auth/resolve-actor'
 
 const dir = process.env.SETU_REPO_DIR ?? process.cwd()
 const port = Number(process.env.SETU_API_PORT ?? 4444)
@@ -84,3 +84,4 @@ app.route('/', createFormsApi({ submit, submissions, captchaStatus }))
 
 serve({ fetch: app.fetch, port })
 console.log(`api listening on http://localhost:${port} (repo: ${dir}, media: ${mediaDir}, image: ${imageFormat})`)
+console.log(`[captcha] provider=${captchaProvider || '(none)'} secretConfigured=${captchaStatus.secretConfigured}`)

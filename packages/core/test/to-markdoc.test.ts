@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { tiptapToMarkdoc } from '../src/index'
+import { tiptapToMarkdoc, markdocToTiptap } from '../src/index'
 import type { TiptapDoc } from '../src/index'
 
 describe('tiptapToMarkdoc', () => {
@@ -34,6 +34,26 @@ describe('tiptapToMarkdoc', () => {
       content: [{ type: 'passthrough', attrs: { raw: '{% if $x %}\nHi\n{% /if %}', flagged: false } }],
     }
     expect(tiptapToMarkdoc(doc)).toBe('{% if $x %}\nHi\n{% /if %}\n')
+  })
+
+  it('serializes a contactBlock back to a {% contact %} tag and round-trips its attrs', () => {
+    const md = tiptapToMarkdoc({
+      type: 'doc',
+      content: [
+        {
+          type: 'contactBlock',
+          attrs: { mdAttrs: { formId: 'c-1', subject: true, successMessage: 'Thanks' } },
+        },
+      ],
+    })
+    expect(md).toContain('{% contact')
+    const back = markdocToTiptap(md, { knownBlockTags: new Set(['contact']) })
+    expect(back.content[0]!.type).toBe('contactBlock')
+    expect((back.content[0]!.attrs as { mdAttrs: Record<string, unknown> }).mdAttrs).toMatchObject({
+      formId: 'c-1',
+      subject: true,
+      successMessage: 'Thanks',
+    })
   })
 })
 

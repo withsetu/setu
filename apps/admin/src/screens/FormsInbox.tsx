@@ -16,10 +16,39 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Pager } from './content-list/Pager'
 
 const PAGE_SIZE = 20
 const ALL = '__all__'
+
+// Display order for the detail view — subject sits above message regardless of
+// the order fields were stored in. Unknown fields follow, in their stored order.
+const FIELD_ORDER = ['name', 'email', 'subject', 'message']
+const labelOf = (k: string) => k.charAt(0).toUpperCase() + k.slice(1)
+const orderedFields = (fields: Record<string, string>): [string, string][] => {
+  const known = FIELD_ORDER.filter((k) => k in fields)
+  const rest = Object.keys(fields).filter((k) => !FIELD_ORDER.includes(k))
+  return [...known, ...rest].map((k) => [k, fields[k] ?? ''])
+}
+// The page a submission was made from — the relevant column once multiple forms
+// can live on different pages. Shows the path; full URL on hover.
+const pageOf = (s: Submission): string => {
+  const url = s.source?.url
+  if (!url) return '—'
+  try {
+    return new URL(url).pathname
+  } catch {
+    return url
+  }
+}
 
 export function FormsInbox() {
   const { submissions } = useServices()
@@ -256,9 +285,9 @@ export function FormsInbox() {
             )}
 
             {/* Submissions table */}
-            <div className="overflow-hidden rounded-xl border bg-card shadow-[var(--shadow-card)]">
+            <div className="overflow-hidden rounded-lg border border-border/60">
               <table className="w-full text-sm">
-                <thead className="border-b bg-muted/40 text-left text-muted-foreground">
+                <thead className="border-b border-border/60 bg-muted/40 text-left text-muted-foreground">
                   <tr>
                     <th className="w-8 px-3 py-2">
                       <input
@@ -269,7 +298,7 @@ export function FormsInbox() {
                       />
                     </th>
                     <th className="px-3 py-2">From</th>
-                    <th className="px-3 py-2">Form</th>
+                    <th className="px-3 py-2">Page</th>
                     <th className="px-3 py-2">Received</th>
                     <th className="w-24 px-3 py-2" />
                   </tr>
@@ -278,7 +307,7 @@ export function FormsInbox() {
                   {rows.map((s) => (
                     <tr
                       key={s.id}
-                      className={`border-b last:border-0 ${s.read ? '' : 'font-medium'}`}
+                      className={`border-b border-border/40 last:border-0 ${s.read ? '' : 'font-medium'}`}
                     >
                       <td className="px-3 py-2">
                         <input
@@ -299,7 +328,12 @@ export function FormsInbox() {
                         )}
                         {s.fields['email'] ?? s.fields['name'] ?? '(no email)'}
                       </td>
-                      <td className="px-3 py-2">{s.formLabel ?? s.formId}</td>
+                      <td
+                        className="px-3 py-2 text-muted-foreground"
+                        title={s.source?.url ?? undefined}
+                      >
+                        {pageOf(s)}
+                      </td>
                       <td className="px-3 py-2 text-muted-foreground">
                         {new Date(s.createdAt).toLocaleString()}
                       </td>
@@ -319,43 +353,59 @@ export function FormsInbox() {
           </>
         )}
 
-        {/* Detail panel */}
-        {active && (
-          <div className="mt-4 rounded-xl border bg-card p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-base font-semibold">{active.formLabel ?? active.formId}</h2>
-              <div className="flex gap-2">
+        {/* Detail modal — opens centered, body scrolls; works on small screens
+            without scrolling the table away. */}
+        <Dialog
+          open={active !== null}
+          onOpenChange={(open) => {
+            if (!open) setActive(null)
+          }}
+        >
+          {active && (
+            <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>{active.formLabel ?? active.formId}</DialogTitle>
+                <DialogDescription>
+                  {new Date(active.createdAt).toLocaleString()}
+                  {active.source?.url ? ` · ${pageOf(active)}` : ''}
+                </DialogDescription>
+              </DialogHeader>
+              <dl className="grid gap-3">
+                {orderedFields(active.fields).map(([k, v]) => (
+                  <div key={k} className="grid gap-1">
+                    <dt className="text-sm font-semibold text-foreground">{labelOf(k)}</dt>
+                    <dd className="whitespace-pre-wrap break-words text-sm text-muted-foreground">
+                      {v}
+                    </dd>
+                  </div>
+                ))}
+                {active.source?.url && (
+                  <div className="grid gap-1">
+                    <dt className="text-sm font-semibold text-foreground">Page</dt>
+                    <dd className="break-all text-sm">
+                      <a
+                        href={active.source.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-primary underline-offset-2 hover:underline"
+                      >
+                        {active.source.url}
+                      </a>
+                    </dd>
+                  </div>
+                )}
+              </dl>
+              <DialogFooter className="gap-2 sm:justify-between">
                 <Button size="sm" variant="outline" onClick={() => void toggleRead(active)}>
                   {active.read ? 'Mark unread' : 'Mark read'}
                 </Button>
                 <Button size="sm" variant="destructive" onClick={() => void removeMany([active.id])}>
                   Delete
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => setActive(null)}>
-                  Close
-                </Button>
-              </div>
-            </div>
-            <dl className="grid gap-2">
-              {Object.entries(active.fields).map(([k, v]) => (
-                <div key={k} className="grid grid-cols-[8rem_1fr] gap-2">
-                  <dt className="text-muted-foreground">{k}</dt>
-                  <dd className="whitespace-pre-wrap">{v}</dd>
-                </div>
-              ))}
-              <div className="grid grid-cols-[8rem_1fr] gap-2">
-                <dt className="text-muted-foreground">Received</dt>
-                <dd>{new Date(active.createdAt).toLocaleString()}</dd>
-              </div>
-              {active.source?.url && (
-                <div className="grid grid-cols-[8rem_1fr] gap-2">
-                  <dt className="text-muted-foreground">Page</dt>
-                  <dd className="truncate">{active.source.url}</dd>
-                </div>
-              )}
-            </dl>
-          </div>
-        )}
+              </DialogFooter>
+            </DialogContent>
+          )}
+        </Dialog>
       </PageBody>
     </>
   )

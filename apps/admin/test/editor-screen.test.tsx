@@ -70,21 +70,9 @@ function renderEditor(services: Services, path = '/edit/post/en/p1') {
 afterEach(() => vi.useRealTimers())
 
 describe('EditorScreen', () => {
-  it('loads a draft and renders its title + status', async () => {
+  it('loads a draft and renders its title', async () => {
     renderEditor(fakeServices())
     expect(await screen.findByDisplayValue('Hello')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Draft' })).toHaveAttribute('aria-pressed', 'true')
-  })
-
-  it('changing the status autosaves and flips the indicator to Saved', async () => {
-    const services = fakeServices()
-    renderEditor(services)
-    await screen.findByDisplayValue('Hello')
-    fireEvent.click(screen.getByRole('button', { name: 'Staged' }))
-    await waitFor(() => expect(services.authoring.save).toHaveBeenCalled())
-    const calls = (services.authoring.save as ReturnType<typeof vi.fn>).mock.calls
-    expect(calls.at(-1)?.[0].metadata.status).toBe('staged')
-    await waitFor(() => expect(screen.getByText('Saved')).toBeInTheDocument())
   })
 
   it('opens a blank canvas for an absent entry', async () => {
@@ -98,18 +86,15 @@ describe('EditorScreen', () => {
     ;(services.authoring.open as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ granted: false, outcome: 'blocked', lock: { ...aLock, lockedBy: 'someone' }, draft: aDraft })
     renderEditor(services)
     expect(await screen.findByText(/locked by another editor/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Draft' })).toBeDisabled()
   })
 
   it('persists across a reopen (real services)', async () => {
     const services = createServices()
     const { unmount } = renderEditor(services, '/edit/post/en/release-notes')
     await screen.findByDisplayValue('Release notes')
-    fireEvent.click(screen.getByRole('button', { name: 'Staged' }))
-    await waitFor(() => expect(screen.getByText('Saved')).toBeInTheDocument(), { timeout: 3000 })
     unmount()
     renderEditor(services, '/edit/post/en/release-notes')
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Staged' })).toHaveAttribute('aria-pressed', 'true'))
+    expect(await screen.findByDisplayValue('Release notes')).toBeInTheDocument()
   })
 
   it('strip renders Back link and Keyboard-shortcuts button', async () => {

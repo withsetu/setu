@@ -29,4 +29,9 @@ describe('submissionsToCsv', () => {
   it('returns just a header for no rows', () => {
     expect(submissionsToCsv([]).trim().split('\n')).toHaveLength(1)
   })
+
+  it('neutralizes spreadsheet formula injection by prefixing a single quote', () => {
+    const csv = submissionsToCsv([row({ fields: { name: '=HYPERLINK("http://evil")', email: 'x@y.com', message: 'hi' } })])
+    expect(csv).toContain(`"'=HYPERLINK(""http://evil"")"`)
+  })
 })

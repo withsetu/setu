@@ -38,13 +38,16 @@ export interface SubmissionServiceDeps {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
+const escapeHtml = (s: string): string =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+
 const defaultRender = (s: Submission): NotificationContent => {
   const lines = Object.entries(s.fields).map(([k, v]) => `${k}: ${v}`)
   const text = `New submission on "${s.formLabel ?? s.formId}"\n\n${lines.join('\n')}`
   return {
     subject: `New submission: ${s.formLabel ?? s.formId}`,
-    html: `<h2>New submission: ${s.formLabel ?? s.formId}</h2><ul>${Object.entries(s.fields)
-      .map(([k, v]) => `<li><strong>${k}:</strong> ${v}</li>`)
+    html: `<h2>New submission: ${escapeHtml(s.formLabel ?? s.formId)}</h2><ul>${Object.entries(s.fields)
+      .map(([k, v]) => `<li><strong>${escapeHtml(k)}:</strong> ${escapeHtml(v)}</li>`)
       .join('')}</ul>`,
     text,
   }

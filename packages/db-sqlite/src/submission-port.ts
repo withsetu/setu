@@ -1,7 +1,7 @@
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import Database from 'better-sqlite3'
-import { and, desc, eq, like, sql } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import type { SubmissionPort, Submission, SubmissionInput } from '@setu/core'
@@ -68,9 +68,8 @@ export function createSqliteSubmissionPort(file: string): SubmissionPort {
       const conds = []
       if (filter?.formId !== undefined) conds.push(eq(submissions.formId, filter.formId))
       if (filter?.read !== undefined) conds.push(eq(submissions.read, filter.read ? 1 : 0))
-      // q: case-insensitive substring over the JSON fields blob. Good enough for v1
-      // (documented basic search); a column/FTS index is a later optimization.
-      if (filter?.q) conds.push(like(sql`lower(${submissions.fields})`, `%${filter.q.toLowerCase()}%`))
+      // q: case-insensitive substring over field VALUES only (not keys) via json_each.
+      if (filter?.q) conds.push(sql`EXISTS (SELECT 1 FROM json_each(${submissions.fields}) WHERE lower(json_each.value) LIKE ${'%' + filter.q.toLowerCase() + '%'})`)
       const where = conds.length ? and(...conds) : undefined
 
       const totalRow = db

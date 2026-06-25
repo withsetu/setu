@@ -360,6 +360,12 @@ export function runSubmissionPortContract(makeAdapter: () => Promise<SubmissionP
       expect(rows[0]!.fields.message).toContain('QUOTE')
     })
 
+    it('q matches field values only, not field keys', async () => {
+      await db.saveSubmission(input({ fields: { email: 'a@x.com', message: 'hello' } }))
+      expect((await db.listSubmissions({ q: 'email' })).total).toBe(0) // 'email' is a key, not in any value
+      expect((await db.listSubmissions({ q: 'hello' })).total).toBe(1) // value substring matches
+    })
+
     it('paginates with limit/offset while total stays unpaged', async () => {
       for (let i = 0; i < 5; i++) await db.saveSubmission(input({ fields: { email: `u${i}@x.com`, message: `m${i}` } }))
       const page = await db.listSubmissions({ limit: 2, offset: 2 })

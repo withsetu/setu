@@ -1,6 +1,9 @@
 import type { Submission } from './types'
 
-const esc = (v: string): string => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v)
+const esc = (v: string): string => {
+  const guarded = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v
+  return /[",\n]/.test(guarded) ? `"${guarded.replace(/"/g, '""')}"` : guarded
+}
 
 /** Serialize submissions to CSV. Fixed metadata columns + the union of field keys
  *  (sorted). Date is ISO. Excel-safe quoting. */

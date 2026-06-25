@@ -10,11 +10,12 @@ import type {
   MediaIndexService,
   PublishService,
   ReadService,
+  SubmissionPort,
   TiptapDoc,
 } from '@setu/core'
 import { createAuthoringService, createBulkService, createMediaIndexService, createPublishService, createReadService } from '@setu/core'
 import { registry } from '../blocks/registry'
-import { createMemoryDataPort, createMemoryIndexPort, createMemoryMediaIndexPort } from '@setu/db-memory'
+import { createMemoryDataPort, createMemoryIndexPort, createMemoryMediaIndexPort, createMemorySubmissionPort } from '@setu/db-memory'
 import { createMemoryGitPort } from '@setu/git-memory'
 
 /** Editor identity stamped on bulk commits (matches the editor's OWNER_AUTHOR). */
@@ -45,6 +46,7 @@ export interface Services {
   publish: PublishService
   bulk: BulkService
   mediaIndex: MediaIndexService
+  submissions: SubmissionPort
 }
 
 /** Build the in-browser services bundle around a DataPort + GitPort. The index
@@ -54,6 +56,7 @@ export function servicesFor(
   git: GitPort,
   index: IndexPort = createMemoryIndexPort(),
   mediaIndex: MediaIndexService = createMediaIndexService({ mediaIndex: createMemoryMediaIndexPort(), fetchRaw: async () => [] }),
+  submissions: SubmissionPort = createMemorySubmissionPort(),
 ): Services {
   const read = createReadService({ data, git, knownBlockTags: registry.knownBlockTags })
   return {
@@ -65,6 +68,7 @@ export function servicesFor(
     publish: createPublishService({ data, git }),
     bulk: createBulkService({ data, git, read, author: OWNER_AUTHOR }),
     mediaIndex,
+    submissions,
   }
 }
 
@@ -80,8 +84,8 @@ async function seedIfEmpty(services: Services): Promise<void> {
 /** Assemble the services bundle around any DataPort/GitPort and seed-if-empty.
  *  Adapter-agnostic: the app passes the persistent (idb) adapters, tests pass the
  *  in-memory ones — the same shipped bootstrap logic either way. */
-export async function bootstrapServices(data: DataPort, git: GitPort, index?: IndexPort, mediaIndex?: MediaIndexService): Promise<Services> {
-  const services = servicesFor(data, git, index, mediaIndex)
+export async function bootstrapServices(data: DataPort, git: GitPort, index?: IndexPort, mediaIndex?: MediaIndexService, submissions?: SubmissionPort): Promise<Services> {
+  const services = servicesFor(data, git, index, mediaIndex, submissions)
   await seedIfEmpty(services)
   return services
 }

@@ -6,6 +6,7 @@ import { createIdbDataPort, createIdbIndexPort, createIdbMediaIndexPort } from '
 import { createIdbGitPort } from '@setu/git-idb'
 import { createHttpGitPort } from '@setu/git-http'
 import { createMediaIndexService } from '@setu/core'
+import { createHttpSubmissionAdapter } from '@setu/submission-http'
 import { bootstrapServices, ServicesProvider } from './store'
 import type { Services } from './store'
 import { fetchMediaIndex } from '../media/media-client'
@@ -30,7 +31,8 @@ export function Bootstrap({ children }: { children: ReactNode }) {
         const index = await createIdbIndexPort()
         const mediaIndexPort = await createIdbMediaIndexPort()
         const mediaIndex = createMediaIndexService({ mediaIndex: mediaIndexPort, fetchRaw: () => fetchMediaIndex(apiBase) })
-        ready = await bootstrapServices(data, git, index, mediaIndex)
+        const submissions = createHttpSubmissionAdapter({ baseUrl: apiBase })
+        ready = await bootstrapServices(data, git, index, mediaIndex, submissions)
       } else {
         try {
           const data = await createIdbDataPort()

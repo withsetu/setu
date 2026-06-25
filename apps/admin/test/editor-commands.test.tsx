@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { Draft, TiptapDoc } from '@setu/core'
 import { createBulkService, createMediaIndexService } from '@setu/core'
-import { createMemoryIndexPort, createMemoryMediaIndexPort } from '@setu/db-memory'
+import { createMemoryIndexPort, createMemoryMediaIndexPort, createMemorySubmissionPort } from '@setu/db-memory'
 import { ActorProvider } from '../src/auth/actor'
 import { ServicesProvider } from '../src/data/store'
 import type { Services } from '../src/data/store'
@@ -37,6 +37,7 @@ function fakeServices(over: Partial<Services> = {}): Services {
     index: createMemoryIndexPort(),
     bulk: createBulkService({ data, git, read, author: { name: 'T', email: 't@x.com' } }),
     mediaIndex: createMediaIndexService({ mediaIndex: createMemoryMediaIndexPort(), fetchRaw: async () => [] }),
+    submissions: createMemorySubmissionPort(),
     ...over,
   }
 }

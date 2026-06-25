@@ -70,7 +70,7 @@ export default function ContactForm(props: ContactFormProps) {
       ) : (
         <input id={`setu-${formId}-${name}`} name={name} type={type} placeholder={placeholders[name] ?? ''} />
       )}
-      {errors[name] && <span className="setu-contact__error">{errors[name]}</span>}
+      {errors[name] && <span className="setu-contact__error" role="alert">{errors[name]}</span>}
     </div>
   )
 

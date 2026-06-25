@@ -2,6 +2,8 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { GitPort, CommitInput, CommitFilesInput } from '@setu/core'
 
+export { createFormsApi } from './forms'
+
 /** A Hono app exposing a GitPort over HTTP (RPC-style, one route per method).
  *  Pure factory — the caller supplies the GitPort and the listener (server.ts). */
 export function createGitApi(git: GitPort): Hono {

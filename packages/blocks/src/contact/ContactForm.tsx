@@ -98,7 +98,7 @@ export default function ContactForm(props: ContactFormProps) {
       formId,
       formLabel,
       fields,
-      turnstileToken: token,
+      captchaToken: token,
       honeypot: String(fd.get('company') ?? ''), // honeypot field
       pageUrl: typeof window !== 'undefined' ? window.location.href : undefined,
     })

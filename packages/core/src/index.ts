@@ -24,8 +24,6 @@ export type { DataPort } from './data/data-port'
 export type { Submission, SubmissionInput, SubmissionFilter, FormSummary } from './submissions/types'
 export type { SubmissionPort } from './submissions/submission-port'
 export { selectDistinctForms } from './submissions/distinct-forms'
-export { createTurnstileVerifier } from './submissions/turnstile'
-export type { TurnstileVerifier } from './submissions/turnstile'
 export { createSubmissionService } from './submissions/submission-service'
 export type {
   SubmissionService,

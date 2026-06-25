@@ -3,18 +3,18 @@ import { createSubmissionService } from '../../src/submissions/submission-servic
 import { createMemorySubmissionPort } from '@setu/db-memory'
 import type { EmailPort } from '../../src/email/email-port'
 
-const ok = async () => true
+const ok = { verify: async () => true }
 const base = {
   formId: 'contact',
   formLabel: 'Contact',
   fields: { name: 'Ada', email: 'ada@x.com', message: 'hello there' },
-  turnstileToken: 'tok',
+  captchaToken: 'tok',
 }
 
 describe('createSubmissionService.submit', () => {
   it('happy path: persists and returns ok with id', async () => {
     const submissions = createMemorySubmissionPort()
-    const svc = createSubmissionService({ submissions, verifyTurnstile: ok })
+    const svc = createSubmissionService({ submissions, captcha: ok })
     const r = await svc.submit({ ...base })
     expect(r).toEqual({ ok: true, id: expect.any(String) })
     expect((await submissions.listSubmissions()).total).toBe(1)
@@ -22,29 +22,29 @@ describe('createSubmissionService.submit', () => {
 
   it('honeypot filled: silently drops (ok, nothing stored)', async () => {
     const submissions = createMemorySubmissionPort()
-    const svc = createSubmissionService({ submissions, verifyTurnstile: ok })
+    const svc = createSubmissionService({ submissions, captcha: ok })
     const r = await svc.submit({ ...base, honeypot: 'i am a bot' })
     expect(r).toEqual({ ok: true })
     expect((await submissions.listSubmissions()).total).toBe(0)
   })
 
-  it('turnstile fails: returns spam, nothing stored', async () => {
+  it('captcha fails: returns spam, nothing stored', async () => {
     const submissions = createMemorySubmissionPort()
-    const svc = createSubmissionService({ submissions, verifyTurnstile: async () => false })
+    const svc = createSubmissionService({ submissions, captcha: { verify: async () => false } })
     expect(await svc.submit({ ...base })).toEqual({ ok: false, error: 'spam' })
     expect((await submissions.listSubmissions()).total).toBe(0)
   })
 
   it('invalid email: returns invalid, nothing stored', async () => {
     const submissions = createMemorySubmissionPort()
-    const svc = createSubmissionService({ submissions, verifyTurnstile: ok })
+    const svc = createSubmissionService({ submissions, captcha: ok })
     expect(await svc.submit({ ...base, fields: { email: 'nope', message: 'x' } })).toEqual({ ok: false, error: 'invalid' })
     expect((await submissions.listSubmissions()).total).toBe(0)
   })
 
   it('missing message: returns invalid', async () => {
     const submissions = createMemorySubmissionPort()
-    const svc = createSubmissionService({ submissions, verifyTurnstile: ok })
+    const svc = createSubmissionService({ submissions, captcha: ok })
     expect(await svc.submit({ ...base, fields: { email: 'a@x.com', message: '  ' } })).toEqual({ ok: false, error: 'invalid' })
   })
 
@@ -56,7 +56,7 @@ describe('createSubmissionService.submit', () => {
     const email: EmailPort = { send }
     const svc = createSubmissionService({
       submissions,
-      verifyTurnstile: ok,
+      captcha: ok,
       email,
       notifyTo: 'owner@x.com',
       notifyFrom: 'site@x.com',
@@ -72,7 +72,7 @@ describe('createSubmissionService.submit', () => {
     const email: EmailPort = { send: vi.fn(async () => {}) }
     const svc = createSubmissionService({
       submissions,
-      verifyTurnstile: ok,
+      captcha: ok,
       email,
       notifyTo: 'owner@x.com',
       notifyFrom: 'site@x.com',

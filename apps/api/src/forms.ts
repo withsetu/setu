@@ -16,11 +16,11 @@ export function createFormsApi(opts: { submit: SubmissionService; submissions: S
       formId?: string
       formLabel?: string
       fields?: Record<string, string>
-      turnstileToken?: string
+      captchaToken?: string
       honeypot?: string
       source?: { url?: string }
     }
-    if (!body.formId || !body.fields || typeof body.turnstileToken !== 'string') {
+    if (!body.formId || !body.fields || typeof body.captchaToken !== 'string') {
       return c.json({ ok: false, error: 'invalid' }, 400)
     }
     const source = {
@@ -33,7 +33,7 @@ export function createFormsApi(opts: { submit: SubmissionService; submissions: S
       formId: body.formId,
       formLabel: body.formLabel,
       fields: body.fields,
-      turnstileToken: body.turnstileToken,
+      captchaToken: body.captchaToken,
       honeypot: body.honeypot,
       source: Object.keys(source).length ? source : undefined,
       ip,

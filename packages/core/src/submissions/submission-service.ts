@@ -1,13 +1,13 @@
 import type { SubmissionPort } from './submission-port'
 import type { Submission } from './types'
 import type { EmailPort } from '../email/email-port'
-import type { TurnstileVerifier } from './turnstile'
+import type { CaptchaPort } from '../captcha/captcha-port'
 
 export interface SubmitInput {
   formId: string
   formLabel?: string
   fields: Record<string, string>
-  turnstileToken: string
+  captchaToken: string
   honeypot?: string
   source?: Submission['source']
   ip?: string
@@ -27,7 +27,7 @@ export interface SubmissionService {
 
 export interface SubmissionServiceDeps {
   submissions: SubmissionPort
-  verifyTurnstile: TurnstileVerifier
+  captcha: CaptchaPort
   email?: EmailPort
   notifyTo?: string
   notifyFrom?: string
@@ -53,11 +53,11 @@ const defaultRender = (s: Submission): NotificationContent => {
   }
 }
 
-/** The topology-agnostic submit pipeline: honeypot → Turnstile → validate →
+/** The topology-agnostic submit pipeline: honeypot → captcha → validate →
  *  persist → best-effort notify. Runs unchanged behind apps/api today and a
  *  Worker later. */
 export function createSubmissionService(deps: SubmissionServiceDeps): SubmissionService {
-  const { submissions, verifyTurnstile, email, notifyTo, notifyFrom } = deps
+  const { submissions, captcha, email, notifyTo, notifyFrom } = deps
   const render = deps.renderNotification ?? defaultRender
 
   return {
@@ -65,8 +65,8 @@ export function createSubmissionService(deps: SubmissionServiceDeps): Submission
       // 1. Honeypot — bots fill it. Pretend success, store nothing (no signal).
       if (input.honeypot && input.honeypot.trim() !== '') return { ok: true }
 
-      // 2. Turnstile (fails closed inside the verifier).
-      if (!(await verifyTurnstile(input.turnstileToken, input.ip))) return { ok: false, error: 'spam' }
+      // 2. Captcha (fails closed inside the adapter).
+      if (!(await captcha.verify(input.captchaToken, input.ip))) return { ok: false, error: 'spam' }
 
       // 3. Validate server-side floor: a valid email + a non-empty message.
       const emailVal = (input.fields['email'] ?? '').trim()

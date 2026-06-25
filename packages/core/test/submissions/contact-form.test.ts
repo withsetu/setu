@@ -27,7 +27,7 @@ describe('submitContact', () => {
       apiBase: 'https://api.example.com',
       formId: 'contact',
       fields: { email: 'a@x.com', message: 'hi' },
-      turnstileToken: 'tok',
+      captchaToken: 'tok',
       pageUrl: 'https://site/x',
       fetchImpl,
     })
@@ -37,12 +37,12 @@ describe('submitContact', () => {
     if (call) {
       expect(String(call[0])).toBe('https://api.example.com/forms/submit')
       const body = JSON.parse((call[1] as RequestInit).body as string)
-      expect(body).toMatchObject({ formId: 'contact', turnstileToken: 'tok', source: { url: 'https://site/x' } })
+      expect(body).toMatchObject({ formId: 'contact', captchaToken: 'tok', source: { url: 'https://site/x' } })
     }
   })
   it('maps a non-ok HTTP status to a server error result', async () => {
     const fetchImpl = vi.fn(async () => new Response('boom', { status: 500 })) as unknown as typeof fetch
-    const r = await submitContact({ apiBase: 'https://a', formId: 'c', fields: {}, turnstileToken: 't', fetchImpl })
+    const r = await submitContact({ apiBase: 'https://a', formId: 'c', fields: {}, captchaToken: 't', fetchImpl })
     expect(r).toEqual({ ok: false, error: 'server' })
   })
 })

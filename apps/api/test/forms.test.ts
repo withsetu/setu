@@ -5,7 +5,7 @@ import { createFormsApi } from '../src/forms'
 
 function makeApp(verify = async () => true) {
   const submissions = createMemorySubmissionPort()
-  const submit = createSubmissionService({ submissions, verifyTurnstile: verify })
+  const submit = createSubmissionService({ submissions, captcha: { verify } })
   const app = createFormsApi({ submit, submissions })
   return { app, submissions }
 }
@@ -19,23 +19,23 @@ describe('createFormsApi', () => {
     const res = await post(app, '/forms/submit', {
       formId: 'contact',
       fields: { email: 'a@x.com', message: 'hi there' },
-      turnstileToken: 'tok',
+      captchaToken: 'tok',
     })
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ ok: true, id: expect.any(String) })
     expect((await submissions.listSubmissions()).total).toBe(1)
   })
 
-  it('POST /forms/submit returns 403 on turnstile failure', async () => {
+  it('POST /forms/submit returns 403 on captcha failure', async () => {
     const { app } = makeApp(async () => false)
-    const res = await post(app, '/forms/submit', { formId: 'c', fields: { email: 'a@x.com', message: 'x' }, turnstileToken: 't' })
+    const res = await post(app, '/forms/submit', { formId: 'c', fields: { email: 'a@x.com', message: 'x' }, captchaToken: 't' })
     expect(res.status).toBe(403)
     expect(await res.json()).toEqual({ ok: false, error: 'spam' })
   })
 
   it('POST /forms/submit returns 400 on invalid', async () => {
     const { app } = makeApp()
-    const res = await post(app, '/forms/submit', { formId: 'c', fields: { email: 'bad', message: '' }, turnstileToken: 't' })
+    const res = await post(app, '/forms/submit', { formId: 'c', fields: { email: 'bad', message: '' }, captchaToken: 't' })
     expect(res.status).toBe(400)
   })
 

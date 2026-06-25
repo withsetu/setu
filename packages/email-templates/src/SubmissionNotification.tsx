@@ -1,3 +1,4 @@
+import React from 'react'
 import { Html, Head, Body, Container, Heading, Text, Section, Row, Column } from '@react-email/components'
 import type { Submission } from '@setu/core'
 

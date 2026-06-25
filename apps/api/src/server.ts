@@ -7,6 +7,8 @@ import { createSharpImageAdapter } from '@setu/image-sharp'
 import { createSqliteSubmissionPort } from '@setu/db-sqlite'
 import { createSubmissionService, createTurnstileVerifier } from '@setu/core'
 import { createConsoleEmailAdapter } from '@setu/email-console'
+import { createResendEmailAdapter } from '@setu/email-resend'
+import { renderSubmissionEmail } from '@setu/email-templates'
 import { createGitApi } from './app'
 import { createPreviewApi } from './preview'
 import { createUploadApi } from './media'
@@ -33,8 +35,20 @@ const submissions = createSqliteSubmissionPort(submissionsDb)
 const verifyTurnstile = turnstileSecret
   ? createTurnstileVerifier(turnstileSecret)
   : async () => true
-const email = createConsoleEmailAdapter()
-const submit = createSubmissionService({ submissions, verifyTurnstile, email, notifyTo, notifyFrom })
+const emailAdapter = process.env.SETU_EMAIL_ADAPTER ?? 'console'
+const email =
+  emailAdapter === 'resend'
+    ? createResendEmailAdapter({ apiKey: process.env.RESEND_API_KEY ?? '' })
+    : createConsoleEmailAdapter()
+
+const submit = createSubmissionService({
+  submissions,
+  verifyTurnstile,
+  email,
+  notifyTo,
+  notifyFrom,
+  renderNotification: renderSubmissionEmail, // React Email HTML/text
+})
 
 const app = new Hono()
 app.route('/', createGitApi(createLocalGitAdapter({ dir })))

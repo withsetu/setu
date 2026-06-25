@@ -192,6 +192,12 @@ importers:
       '@setu/email-console':
         specifier: workspace:*
         version: link:../../packages/email-console
+      '@setu/email-resend':
+        specifier: workspace:*
+        version: link:../../packages/email-resend
+      '@setu/email-templates':
+        specifier: workspace:*
+        version: link:../../packages/email-templates
       '@setu/git-local':
         specifier: workspace:*
         version: link:../../packages/git-local

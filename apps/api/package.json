@@ -17,6 +17,8 @@
     "@setu/core": "workspace:*",
     "@setu/db-sqlite": "workspace:*",
     "@setu/email-console": "workspace:*",
+    "@setu/email-resend": "workspace:*",
+    "@setu/email-templates": "workspace:*",
     "@setu/git-local": "workspace:*",
     "@setu/image-sharp": "workspace:*",
     "@setu/storage-local": "workspace:*",

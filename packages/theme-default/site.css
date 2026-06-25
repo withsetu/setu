@@ -45,7 +45,7 @@ body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--
 .prose figure.setu-image { margin: 1.75rem 0; }
 .prose figure.setu-image img { display: block; max-width: 100%; height: auto; border-radius: var(--r-md); }
 .prose figure.setu-image figcaption { margin-top: .5rem; font-size: .9rem; color: var(--text-2); text-align: center; }
-.prose figure.setu-image.align-wide { max-width: var(--measure-page); margin-left: 50%; transform: translateX(-50%); }
+.prose figure.setu-image.align-wide { width: min(var(--measure-page), calc(100vw - 2rem)); margin-left: 50%; transform: translateX(-50%); }
 /* wide/full stretch the image to fill their band (matches Gutenberg). Without
    width:100% a source narrower than the band renders at its natural size,
    left-aligned, leaving whitespace on the right. */

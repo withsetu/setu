@@ -118,9 +118,10 @@
 .setu-prose th > p, .setu-prose td > p { margin: 0; padding: 0; font-size: 16px; line-height: 1.5; }
 .setu-prose .selectedCell::after { content: ""; position: absolute; inset: 0; background: color-mix(in oklch, var(--primary) 14%, transparent); pointer-events: none; }
 /* table action menu */
-.table-menu { display: flex; gap: 4px; align-items: center; padding: 4px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-sm); box-shadow: var(--shadow-pop); }
-.table-menu button { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 8px; border: 1px solid transparent; background: transparent; color: var(--text-2); border-radius: var(--r-xs); font-size: 12px; font-weight: 550; cursor: pointer; white-space: nowrap; }
-.table-menu button:hover { background: var(--surface-hover); color: var(--text); }
+.table-menu { display: flex; gap: 4px; align-items: center; padding: 4px; background: var(--popover); border: 1px solid var(--border); border-radius: var(--r-sm); box-shadow: var(--shadow-popover); }
+.table-menu button { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 8px; border: 1px solid transparent; background: transparent; color: var(--muted-foreground); border-radius: var(--r-xs); font-size: 12px; font-weight: 550; cursor: pointer; white-space: nowrap; }
+.table-menu button:hover { background: var(--accent); color: var(--popover-foreground); }
+.table-menu button:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
 .setu-prose blockquote { font-size: 22px; line-height: 1.55; font-style: italic; color: var(--text); padding: 4px 0 4px 22px; border-left: 3px solid var(--primary); margin: 8px 0; }
 .setu-prose pre { background: var(--bg-sunken); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 14px 16px; font-size: 14px; line-height: 1.6; color: var(--text); white-space: pre-wrap; font-family: var(--font-mono); margin: 10px 0; }
 .setu-prose code { font-family: var(--font-mono); font-size: .9em; }
@@ -151,15 +152,15 @@
   cursor: grab;
   border: none;
   background: transparent;
-  color: var(--text-subtle, #9aa0a6);
-  border-radius: var(--r-sm, 6px);
+  color: var(--muted-foreground);
+  border-radius: var(--r-sm);
   font-size: 14px;
   line-height: 1;
   user-select: none;
 }
-.blk-grip:hover { background: var(--surface-2, #f1f3f5); color: var(--text); }
+.blk-grip:hover { background: var(--accent); color: var(--popover-foreground); }
 .blk-grip:active { cursor: grabbing; }
-.blk-grip:focus-visible { outline: 2px solid var(--accent-ring); }
+.blk-grip:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
 
 /* Block actions menu */
 .blk-menu {
@@ -167,10 +168,10 @@
   flex-direction: column;
   min-width: 168px;
   padding: 5px;
-  background: var(--surface);
-  border: 1px solid var(--border-strong, var(--border));
+  background: var(--popover);
+  border: 1px solid var(--border);
   border-radius: var(--r-md);
-  box-shadow: var(--shadow-pop);
+  box-shadow: var(--shadow-popover);
   font-family: var(--font-ui);
 }
 .blk-menu-item {
@@ -180,17 +181,18 @@
   padding: 7px 9px;
   border: none;
   background: transparent;
-  border-radius: var(--r-sm, 6px);
+  border-radius: var(--r-sm);
   font: inherit;
   font-size: 14px;
-  color: var(--text);
+  color: var(--popover-foreground);
   text-align: left;
   cursor: pointer;
 }
-.blk-menu-item.sel,
-.blk-menu-item:hover:not(:disabled) { background: var(--surface-2, #f1f3f5); }
+.blk-menu-item.sel { background: color-mix(in oklch, var(--primary) 12%, transparent); color: var(--primary); }
+.blk-menu-item:hover:not(:disabled) { background: var(--accent); }
+.blk-menu-item:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
 .blk-menu-item:disabled { opacity: 0.4; cursor: default; }
-.blk-menu-key { margin-left: auto; font-size: .72rem; color: var(--text-2, #888); font-family: inherit; }
+.blk-menu-key { margin-left: auto; font-size: .72rem; color: var(--muted-foreground); font-family: inherit; }
 
 /* Selection format bubble */
 .fmt-bubble {

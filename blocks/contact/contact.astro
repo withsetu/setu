@@ -1,0 +1,34 @@
+---
+// blocks/contact/contact.astro
+import ContactForm from '@setu/blocks/ContactForm'
+import '@setu/blocks/contact.css'
+
+const {
+  formId,
+  formLabel,
+  subject = false,
+  nameRequired = true,
+  subjectRequired = false,
+  messageRequired = true,
+  successMessage = 'Thanks — your message has been sent.',
+} = Astro.props
+
+const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? ''
+const apiBase = import.meta.env.PUBLIC_SETU_API_BASE ?? 'http://localhost:4444'
+const required = { name: nameRequired, subject: subjectRequired, message: messageRequired }
+---
+
+<!-- Expose the build-time site key to the island + Turnstile auto-render. -->
+<script is:inline define:vars={{ siteKey }}>
+  window.SETU_TURNSTILE_SITE_KEY = siteKey
+</script>
+<ContactForm
+  client:load
+  formId={formId}
+  formLabel={formLabel}
+  apiBase={apiBase}
+  subject={subject}
+  required={required}
+  successMessage={successMessage}
+/>
+<script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>

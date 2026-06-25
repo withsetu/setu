@@ -70,21 +70,9 @@ function renderEditor(services: Services, path = '/edit/post/en/p1') {
 afterEach(() => vi.useRealTimers())
 
 describe('EditorScreen', () => {
-  it('loads a draft and renders its title + status', async () => {
+  it('loads a draft and renders its title', async () => {
     renderEditor(fakeServices())
     expect(await screen.findByDisplayValue('Hello')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Draft' })).toHaveAttribute('aria-pressed', 'true')
-  })
-
-  it('changing the status autosaves and flips the indicator to Saved', async () => {
-    const services = fakeServices()
-    renderEditor(services)
-    await screen.findByDisplayValue('Hello')
-    fireEvent.click(screen.getByRole('button', { name: 'Staged' }))
-    await waitFor(() => expect(services.authoring.save).toHaveBeenCalled())
-    const calls = (services.authoring.save as ReturnType<typeof vi.fn>).mock.calls
-    expect(calls.at(-1)?.[0].metadata.status).toBe('staged')
-    await waitFor(() => expect(screen.getByText('Saved')).toBeInTheDocument())
   })
 
   it('opens a blank canvas for an absent entry', async () => {
@@ -98,18 +86,39 @@ describe('EditorScreen', () => {
     ;(services.authoring.open as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ granted: false, outcome: 'blocked', lock: { ...aLock, lockedBy: 'someone' }, draft: aDraft })
     renderEditor(services)
     expect(await screen.findByText(/locked by another editor/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Draft' })).toBeDisabled()
+  })
+
+  it('autosave → Saved: editing the title calls authoring.save and shows "Saved"', async () => {
+    vi.useFakeTimers()
+    const services = fakeServices()
+    renderEditor(services)
+    // Wait for the editor to be ready (title renders with its initial value)
+    await vi.waitFor(() => expect(screen.getByLabelText('Title')).toHaveValue('Hello'))
+    const titleInput = screen.getByLabelText('Title')
+    // Simulate a user edit that triggers onMetaChange → rev bump → autosave debounce
+    fireEvent.change(titleInput, { target: { value: 'Hello edited' } })
+    // Advance past the 800 ms debounce so useAutosave fires
+    await vi.advanceTimersByTimeAsync(800)
+    // The save fn must have been called
+    expect(services.authoring.save).toHaveBeenCalled()
+    // After the async save resolves, SaveIndicator must display "Saved"
+    await vi.waitFor(() => expect(screen.getByText('Saved')).toBeInTheDocument())
   })
 
   it('persists across a reopen (real services)', async () => {
     const services = createServices()
     const { unmount } = renderEditor(services, '/edit/post/en/release-notes')
     await screen.findByDisplayValue('Release notes')
-    fireEvent.click(screen.getByRole('button', { name: 'Staged' }))
-    await waitFor(() => expect(screen.getByText('Saved')).toBeInTheDocument(), { timeout: 3000 })
+    // Mutate the title and wait for autosave to persist it before remounting
+    const titleInput = screen.getByLabelText('Title')
+    fireEvent.change(titleInput, { target: { value: 'Release notes v2' } })
+    expect(screen.getByLabelText('Title')).toHaveValue('Release notes v2')
+    // Wait for the autosave to fire and persist the new title value
+    await waitFor(() => expect(screen.getByText('Saved')).toBeInTheDocument(), { timeout: 2000 })
     unmount()
     renderEditor(services, '/edit/post/en/release-notes')
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Staged' })).toHaveAttribute('aria-pressed', 'true'))
+    // The persisted value must survive the remount (real in-memory services reload it)
+    expect(await screen.findByDisplayValue('Release notes v2')).toBeInTheDocument()
   })
 
   it('strip renders Back link and Keyboard-shortcuts button', async () => {

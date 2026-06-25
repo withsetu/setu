@@ -336,6 +336,7 @@ export function runSubmissionPortContract(makeAdapter: () => Promise<SubmissionP
 
     it('lists newest-first with total', async () => {
       const a = await db.saveSubmission(input({ fields: { email: 'a@x.com', message: 'first' } }))
+      await new Promise<void>((r) => setTimeout(r, 2))
       const b = await db.saveSubmission(input({ fields: { email: 'b@x.com', message: 'second' } }))
       const { rows, total } = await db.listSubmissions()
       expect(total).toBe(2)
@@ -386,6 +387,7 @@ export function runSubmissionPortContract(makeAdapter: () => Promise<SubmissionP
 
     it('distinctForms groups with counts, newest label wins', async () => {
       await db.saveSubmission(input({ formId: 'contact', formLabel: 'Contact' }))
+      await new Promise<void>((r) => setTimeout(r, 2))
       await db.saveSubmission(input({ formId: 'contact', formLabel: 'Contact Us' }))
       await db.saveSubmission(input({ formId: 'apply', formLabel: 'Apply' }))
       expect(await db.distinctForms()).toEqual([

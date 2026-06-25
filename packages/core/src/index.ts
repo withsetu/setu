@@ -146,3 +146,6 @@ export {
 export type { StandardBlock } from './blocks/standard/types'
 export { STANDARD_BLOCKS } from './blocks/standard'
 export { mergeBlockSources } from './blocks/merge-sources'
+
+export type { CaptchaPort } from './captcha/captcha-port'
+export { createNoopCaptcha } from './captcha/captcha-port'

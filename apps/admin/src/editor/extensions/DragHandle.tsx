@@ -232,7 +232,17 @@ export const DragHandle = Extension.create<DragHandleOptions>({
                   lineH / 2 -
                   gripH / 2
                 grip.style.top = `${top}px`
-                grip.style.left = '0px'
+                // Follow the block's LEFT edge too: blocks are centered per-block in
+                // the full-pane canvas (the breakout layout), so a hardcoded left:0
+                // stranded the grip at the canvas edge, away from the text (#875).
+                // The .blk-grip negative margin-left (styles/editor.css) then seats it
+                // just left of the block. Enforced:
+                // apps/admin/test-browser/drag-grip-position.test.tsx.
+                const opLeft =
+                  (
+                    grip.offsetParent as HTMLElement | null
+                  )?.getBoundingClientRect().left ?? 0
+                grip.style.left = `${dom.getBoundingClientRect().left - opLeft}px`
               }
               return false
             }

@@ -100,8 +100,13 @@ export function FormsInbox() {
   const openDetail = async (s: Submission) => {
     setActive(s)
     if (!s.read) {
-      await submissions.setRead([s.id], true)
-      refresh()
+      try {
+        await submissions.setRead([s.id], true)
+        setActive((a) => (a && a.id === s.id ? { ...a, read: true } : a))
+        refresh()
+      } catch (e) {
+        notify.error(e instanceof Error ? e.message : String(e))
+      }
     }
   }
 
@@ -110,9 +115,7 @@ export function FormsInbox() {
     notify.success(s.read ? 'Marked unread' : 'Marked read')
     refresh()
     // Keep active panel in sync.
-    if (active && active.id === s.id) {
-      setActive({ ...s, read: !s.read })
-    }
+    setActive((a) => (a && a.id === s.id ? { ...a, read: !s.read } : a))
   }
 
   const removeMany = async (ids: string[]) => {
@@ -216,26 +219,30 @@ export function FormsInbox() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() =>
-                    void submissions.setRead([...selected], true).then(() => {
+                  onClick={() => {
+                    const selectedIds = new Set(selected)
+                    void submissions.setRead([...selectedIds], true).then(() => {
                       notify.success('Marked read')
+                      setActive((a) => (a && selectedIds.has(a.id) ? { ...a, read: true } : a))
                       setSelected(new Set())
                       refresh()
                     })
-                  }
+                  }}
                 >
                   Mark read
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() =>
-                    void submissions.setRead([...selected], false).then(() => {
+                  onClick={() => {
+                    const selectedIds = new Set(selected)
+                    void submissions.setRead([...selectedIds], false).then(() => {
                       notify.success('Marked unread')
+                      setActive((a) => (a && selectedIds.has(a.id) ? { ...a, read: false } : a))
                       setSelected(new Set())
                       refresh()
                     })
-                  }
+                  }}
                 >
                   Mark unread
                 </Button>

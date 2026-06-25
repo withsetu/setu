@@ -15,7 +15,18 @@
 .ed-scroll { flex: 1; min-width: 0; overflow-y: auto; position: relative; scroll-behavior: smooth; }
 
 /* ---- CANVAS ---- */
-.ed-canvas { max-width: 720px; margin: 0 auto; padding: 64px 40px 40vh; position: relative; }
+/* Full-pane canvas: the readable measure is applied PER BLOCK (title + non-aligned
+   prose blocks sit at --measure-post, centered), so aligned figures can break out
+   true-to-life using the pane width — no vw/cqw escape needed. Mirrors the front-end. */
+.ed-canvas { max-width: none; margin: 0; padding: 64px 40px 40vh; position: relative; --measure-post: 38rem; --measure-page: 64rem; }
+.ed-title,
+.setu-prose > :not(.align-left):not(.align-right):not(.align-wide):not(.align-full) {
+  max-width: var(--measure-post); margin-inline: auto;
+}
+.setu-prose > .align-wide  { width: min(var(--measure-page), 100%); margin-inline: auto; }
+.setu-prose > .align-full  { width: 100%; }
+.setu-prose > .align-left  { float: left;  max-width: 50%; margin: .3rem 1.25rem 1rem 0; }
+.setu-prose > .align-right { float: right; max-width: 50%; margin: .3rem 0 1rem 1.25rem; }
 
 /* ---- CALLOUT EDITOR-ONLY CHROME ---- */
 /* Structural callout styles are now in @setu/blocks/callout.css (imported above). */
@@ -300,10 +311,11 @@
    its toolbar in normal flow, always — a control bar above the image. */
 .setu-image-block .block-props { position: static; top: auto; display: flex; flex-wrap: wrap; }
 .setu-image-block .sib-img { display: block; max-width: 100%; height: auto; border-radius: var(--r-md, 8px); }
-.setu-image-block.align-left .sib-img,
-.setu-image-block.align-right .sib-img { max-width: 50%; }
-.setu-image-block.align-left { align-items: flex-start; }
-.setu-image-block.align-right { align-items: flex-end; }
+/* The figure itself now floats/breaks out (see .setu-prose > .align-* above); the
+   image fills its figure. wide/full stretch the image to the broken-out band. */
+.setu-image-block.align-wide .sib-img,
+.setu-image-block.align-full .sib-img { width: 100%; }
+.setu-image-block.align-full .sib-img { border-radius: 0; }
 .setu-image-block .sib-caption {
   border: none; background: transparent; text-align: center; font-size: .9rem;
   color: var(--text-2, #666); width: 100%; padding: .15rem 0;

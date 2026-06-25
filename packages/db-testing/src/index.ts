@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import type { DataPort, TiptapDoc, IndexPort, EntryIndexRow, MediaIndexPort, MediaIndexRow, SubmissionPort } from '@setu/core'
+import type { DataPort, TiptapDoc, IndexPort, EntryIndexRow, MediaIndexPort, MediaIndexRow, SubmissionPort, CaptchaPort } from '@setu/core'
 
 const doc = (text: string): TiptapDoc => ({
   type: 'doc',
@@ -400,6 +400,29 @@ export function runSubmissionPortContract(makeAdapter: () => Promise<SubmissionP
         { formId: 'apply', formLabel: 'Apply', count: 1 },
         { formId: 'contact', formLabel: 'Contact Us', count: 2 },
       ])
+    })
+  })
+}
+
+/** Behavioral contract for any CaptchaPort adapter. `makeAdapter` builds the
+ *  adapter with an injected fetch so the harness controls the provider response. */
+export function runCaptchaPortContract(makeAdapter: (fetchImpl: typeof fetch) => CaptchaPort): void {
+  const fakeFetch = (status: number, body: unknown): typeof fetch =>
+    (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch
+
+  describe('CaptchaPort contract', () => {
+    it('returns true when the provider reports success', async () => {
+      expect(await makeAdapter(fakeFetch(200, { success: true })).verify('tok')).toBe(true)
+    })
+    it('returns false when the provider reports failure', async () => {
+      expect(await makeAdapter(fakeFetch(200, { success: false })).verify('tok')).toBe(false)
+    })
+    it('returns false on a non-OK HTTP status (fail-closed)', async () => {
+      expect(await makeAdapter(fakeFetch(500, {})).verify('tok')).toBe(false)
+    })
+    it('returns false when the request throws (fail-closed)', async () => {
+      const throwing = (() => Promise.reject(new Error('net'))) as unknown as typeof fetch
+      expect(await makeAdapter(throwing).verify('tok')).toBe(false)
     })
   })
 }

@@ -13,7 +13,8 @@ const {
   successMessage = 'Thanks — your message has been sent.',
 } = Astro.props
 
-const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? ''
+const provider = (import.meta.env.PUBLIC_CAPTCHA_PROVIDER ?? 'turnstile') as 'turnstile' | 'recaptcha'
+const siteKey = import.meta.env.PUBLIC_CAPTCHA_SITE_KEY ?? ''
 const apiBase = import.meta.env.PUBLIC_SETU_API_BASE ?? 'http://localhost:4444'
 const required = { name: nameRequired, subject: subjectRequired, message: messageRequired }
 ---
@@ -23,10 +24,9 @@ const required = { name: nameRequired, subject: subjectRequired, message: messag
   formId={formId}
   formLabel={formLabel}
   apiBase={apiBase}
+  provider={provider}
   siteKey={siteKey}
   subject={subject}
   required={required}
   successMessage={successMessage}
 />
-<!-- Explicit-render mode: the island calls turnstile.render() itself once this loads. -->
-<script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>

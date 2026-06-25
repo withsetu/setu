@@ -1,5 +1,5 @@
 // packages/blocks/src/contact/ContactForm.tsx
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { validateContactFields, submitContact, type ContactRequired } from '@setu/core'
 import './contact.css'
 
@@ -7,6 +7,8 @@ export interface ContactFormProps {
   formId: string
   formLabel?: string
   apiBase: string
+  /** Cloudflare Turnstile public site key (rendered into the widget). */
+  siteKey: string
   subject?: boolean
   required: ContactRequired
   labels?: Record<string, string>
@@ -14,10 +16,60 @@ export interface ContactFormProps {
   successMessage: string
 }
 
+/** Minimal shape of the Cloudflare Turnstile JS API we use. */
+interface TurnstileApi {
+  render: (
+    el: HTMLElement,
+    opts: {
+      sitekey: string
+      callback: (token: string) => void
+      'error-callback'?: () => void
+      'expired-callback'?: () => void
+    },
+  ) => string
+  reset: (id?: string) => void
+}
+
+const getTurnstile = (): TurnstileApi | undefined =>
+  (window as unknown as { turnstile?: TurnstileApi }).turnstile
+
 export default function ContactForm(props: ContactFormProps) {
-  const { formId, formLabel, apiBase, subject = false, required, labels = {}, placeholders = {}, successMessage } = props
+  const { formId, formLabel, apiBase, siteKey, subject = false, required, labels = {}, placeholders = {}, successMessage } = props
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [status, setStatus] = useState<'idle' | 'sending' | 'done' | 'error'>('idle')
+  const [token, setToken] = useState('')
+  const widgetRef = useRef<HTMLDivElement>(null)
+  const widgetId = useRef<string | null>(null)
+
+  // Explicit Turnstile render: wait for the async api.js to load, then render the
+  // widget into our ref'd div. Avoids the auto-render race (the auto-renderer scans
+  // on script load, before this island has hydrated its markup).
+  useEffect(() => {
+    if (!siteKey) return
+    let cancelled = false
+    let tries = 0
+    const tryRender = () => {
+      if (cancelled || widgetId.current !== null) return true
+      const ts = getTurnstile()
+      if (!ts || !widgetRef.current) return false
+      widgetId.current = ts.render(widgetRef.current, {
+        sitekey: siteKey,
+        callback: (t) => setToken(t),
+        'error-callback': () => setToken(''),
+        'expired-callback': () => setToken(''),
+      })
+      return true
+    }
+    if (tryRender()) return
+    const interval = setInterval(() => {
+      tries++
+      if (tryRender() || tries > 100) clearInterval(interval) // give up after ~20s
+    }, 200)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [siteKey])
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -34,8 +86,8 @@ export default function ContactForm(props: ContactFormProps) {
     setErrors(v.errors)
     if (!v.ok) return
 
-    const token = String(fd.get('cf-turnstile-response') ?? '')
     if (token === '') {
+      // Widget not solved yet (or failed to load).
       setStatus('error')
       return
     }
@@ -55,6 +107,10 @@ export default function ContactForm(props: ContactFormProps) {
       form.reset()
     } else {
       setStatus('error')
+      // Let the visitor retry: reset the widget + require a fresh token.
+      const ts = getTurnstile()
+      if (ts && widgetId.current !== null) ts.reset(widgetId.current)
+      setToken('')
     }
   }
 
@@ -84,9 +140,8 @@ export default function ContactForm(props: ContactFormProps) {
       <div className="setu-contact__hp" aria-hidden="true">
         <label>Company<input name="company" tabIndex={-1} autoComplete="off" /></label>
       </div>
-      {/* Turnstile renders here (script injected by the .astro); it adds a hidden
-          input named cf-turnstile-response inside this form. */}
-      <div className="cf-turnstile" data-sitekey={(globalThis as { SETU_TURNSTILE_SITE_KEY?: string }).SETU_TURNSTILE_SITE_KEY} />
+      {/* Turnstile renders explicitly into this div once api.js has loaded. */}
+      <div ref={widgetRef} className="setu-contact__turnstile" />
       <button type="submit" disabled={status === 'sending'}>
         {status === 'sending' ? 'Sending…' : 'Send'}
       </button>

@@ -18,17 +18,15 @@ const apiBase = import.meta.env.PUBLIC_SETU_API_BASE ?? 'http://localhost:4444'
 const required = { name: nameRequired, subject: subjectRequired, message: messageRequired }
 ---
 
-<!-- Expose the build-time site key to the island + Turnstile auto-render. -->
-<script is:inline define:vars={{ siteKey }}>
-  window.SETU_TURNSTILE_SITE_KEY = siteKey
-</script>
 <ContactForm
   client:load
   formId={formId}
   formLabel={formLabel}
   apiBase={apiBase}
+  siteKey={siteKey}
   subject={subject}
   required={required}
   successMessage={successMessage}
 />
-<script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<!-- Explicit-render mode: the island calls turnstile.render() itself once this loads. -->
+<script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>

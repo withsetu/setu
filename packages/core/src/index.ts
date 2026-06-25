@@ -27,6 +27,8 @@ export { selectDistinctForms } from './submissions/distinct-forms'
 
 export type { StoragePort, PutOptions, StoredObject } from './storage/storage-port'
 
+export type { EmailMessage, EmailPort } from './email/email-port'
+
 export type { ImageFormat, VariantSpec, ImageMeta, GeneratedVariant, ImagePort } from './image/image-port'
 export { extensionFor, contentTypeFor } from './image/format'
 export type { ManifestVariant, MediaManifest } from './image/manifest'

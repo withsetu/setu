@@ -8,6 +8,7 @@ import { Dashboard } from './screens/Dashboard'
 import { Media } from './screens/Media'
 import { Taxonomies } from './screens/taxonomies/Taxonomies'
 import { FormsInbox } from './screens/FormsInbox'
+import { Settings } from './screens/Settings'
 
 export function App() {
   return (
@@ -22,7 +23,7 @@ export function App() {
         <Route path="/media" element={<Media />} />
         <Route path="/forms" element={<FormsInbox />} />
         <Route path="/appearance" element={<Appearance />} />
-        <Route path="/settings" element={<Placeholder title="Settings" />} />
+        <Route path="/settings" element={<Settings />} />
         <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
         <Route path="*" element={<Placeholder title="Page not found" />} />
       </Routes>

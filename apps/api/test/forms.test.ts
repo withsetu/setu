@@ -52,6 +52,25 @@ describe('createFormsApi', () => {
     ])
   })
 
+  it('GET /forms/captcha-status returns provider + secretConfigured booleans', async () => {
+    const submissions = createMemorySubmissionPort()
+    const submit = createSubmissionService({ submissions, captcha: { verify: async () => true } })
+    const app = createFormsApi({ submit, submissions, captchaStatus: { provider: 'turnstile', secretConfigured: true } })
+    const res = await app.fetch(new Request('http://x/forms/captcha-status'))
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ provider: 'turnstile', secretConfigured: true })
+  })
+
+  it('GET /forms/captcha-status defaults to none when no status is supplied', async () => {
+    const submissions = createMemorySubmissionPort()
+    const submit = createSubmissionService({ submissions, captcha: { verify: async () => true } })
+    const app = createFormsApi({ submit, submissions })
+    expect(await (await app.fetch(new Request('http://x/forms/captcha-status'))).json()).toEqual({
+      provider: '',
+      secretConfigured: false,
+    })
+  })
+
   it('PATCH read and DELETE work', async () => {
     const { app, submissions } = makeApp()
     const s = await submissions.saveSubmission({ formId: 'c', fields: { email: 'a@x.com', message: 'x' } })

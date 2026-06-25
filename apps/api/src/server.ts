@@ -55,6 +55,7 @@ const captchaSecret =
     ? (process.env.SETU_RECAPTCHA_SECRET ?? '')
     : (process.env.SETU_TURNSTILE_SECRET ?? '')
 const captcha = resolveCaptcha(captchaProvider, captchaSecret)
+const captchaStatus = { provider: captchaProvider, secretConfigured: captchaSecret !== '' }
 const emailAdapter = process.env.SETU_EMAIL_ADAPTER ?? 'console'
 const email =
   emailAdapter === 'resend'
@@ -79,7 +80,7 @@ app.route('/', createUploadApi({
   image: createSharpImageAdapter(),
   imageConfig: { format: imageFormat, widths: [400, 800, 1200, 1600] },
 }))
-app.route('/', createFormsApi({ submit, submissions }))
+app.route('/', createFormsApi({ submit, submissions, captchaStatus }))
 
 serve({ fetch: app.fetch, port })
 console.log(`api listening on http://localhost:${port} (repo: ${dir}, media: ${mediaDir}, image: ${imageFormat})`)

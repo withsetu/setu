@@ -5,10 +5,18 @@ import type { SubmissionService, SubmissionPort, SubmissionFilter } from '@setu/
 /** A Hono app exposing the forms submit pipeline + admin CRUD over HTTP. Pure
  *  factory; the caller supplies the service + port (server.ts). No auth — mirrors
  *  createGitApi; the public submit route is gated by Turnstile in the service. */
-export function createFormsApi(opts: { submit: SubmissionService; submissions: SubmissionPort }): Hono {
+export function createFormsApi(opts: {
+  submit: SubmissionService
+  submissions: SubmissionPort
+  captchaStatus?: { provider: string; secretConfigured: boolean }
+}): Hono {
   const { submit, submissions } = opts
+  const captchaStatus = opts.captchaStatus ?? { provider: '', secretConfigured: false }
   const app = new Hono()
   app.use('*', cors())
+
+  // --- status (read-only, no secret) ---
+  app.get('/forms/captcha-status', (c) => c.json(captchaStatus))
 
   // --- public ---
   app.post('/forms/submit', async (c) => {

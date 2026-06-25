@@ -6,7 +6,7 @@ const esc = (v: string): string => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')
  *  (sorted). Date is ISO. Excel-safe quoting. */
 export function submissionsToCsv(rows: Submission[]): string {
   const fieldKeys = [...new Set(rows.flatMap((r) => Object.keys(r.fields)))].sort()
-  const header = ['id', 'date', 'formId', 'formLabel', 'read', ...fieldKeys]
+  const header = ['id', 'date', 'formId', 'formLabel', 'read', ...fieldKeys].map(esc)
   const lines = rows.map((r) =>
     [
       r.id,

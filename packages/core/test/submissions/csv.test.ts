@@ -16,8 +16,7 @@ describe('submissionsToCsv', () => {
   it('emits a header + one row per submission with field columns', () => {
     const csv = submissionsToCsv([row({})])
     const [header, line] = csv.trim().split('\n')
-    expect(header).toContain('id')
-    expect(header).toContain('email')
+    expect(header).toBe('id,date,formId,formLabel,read,email,message,name')
     expect(line).toContain('ada@x.com')
   })
 

@@ -36,6 +36,7 @@ export type {
 } from './submissions/submission-service'
 export { validateContactFields, submitContact } from './submissions/contact-form'
 export type { ContactRequired } from './submissions/contact-form'
+export { submissionsToCsv } from './submissions/csv'
 
 export type { StoragePort, PutOptions, StoredObject } from './storage/storage-port'
 

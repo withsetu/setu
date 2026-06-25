@@ -38,19 +38,20 @@ function ensureScript(provider: CaptchaProvider): void {
 }
 
 /** Inject the provider's script (once), render its widget into `el`, and call
- *  onToken when solved. Returns a reset() handle. Provider-agnostic over
+ *  onToken when solved. Returns a handle with reset() and cleanup(). Provider-agnostic over
  *  Turnstile + reCAPTCHA v2 (both expose a `.render(el, opts)` global). */
 export function mountCaptcha(opts: {
   provider: CaptchaProvider
   siteKey: string
   el: HTMLElement
   onToken: (token: string) => void
-}): { reset: () => void } {
+}): { reset: () => void; cleanup: () => void } {
   const { provider, siteKey, el, onToken } = opts
   ensureScript(provider)
   let widgetId: string | null = null
   let cancelled = false
   let tries = 0
+  let interval: ReturnType<typeof setInterval> | null = null
   const tryRender = (): boolean => {
     if (cancelled || widgetId !== null) return true
     const api = getWidgetApi(provider)
@@ -64,15 +65,21 @@ export function mountCaptcha(opts: {
     return true
   }
   if (!tryRender()) {
-    const interval = setInterval(() => {
+    interval = setInterval(() => {
       tries++
-      if (tryRender() || tries > 100) clearInterval(interval) // give up after ~20s
+      if (tryRender() || tries > 100) {
+        if (interval) clearInterval(interval)
+      }
     }, 200)
   }
   return {
     reset() {
       const api = getWidgetApi(provider)
       if (api && widgetId !== null) api.reset(widgetId)
+    },
+    cleanup() {
+      cancelled = true
+      if (interval) clearInterval(interval)
     },
   }
 }

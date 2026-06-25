@@ -25,11 +25,16 @@ export default function ContactForm(props: ContactFormProps) {
   const [status, setStatus] = useState<'idle' | 'sending' | 'done' | 'error'>('idle')
   const [token, setToken] = useState('')
   const widgetRef = useRef<HTMLDivElement>(null)
-  const captchaRef = useRef<{ reset: () => void } | null>(null)
+  const captchaRef = useRef<{ reset: () => void; cleanup: () => void } | null>(null)
 
   useEffect(() => {
-    if (!siteKey || !widgetRef.current || captchaRef.current) return
-    captchaRef.current = mountCaptcha({ provider, siteKey, el: widgetRef.current, onToken: setToken })
+    if (!siteKey || !widgetRef.current) return
+    const handle = mountCaptcha({ provider, siteKey, el: widgetRef.current, onToken: setToken })
+    captchaRef.current = handle
+    return () => {
+      handle.cleanup()
+      captchaRef.current = null
+    }
   }, [provider, siteKey])
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {

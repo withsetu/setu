@@ -16,7 +16,7 @@ export const heroBlock: StandardBlock = {
     }),
     editor: {
       label: 'Hero',
-      icon: 'layout',
+      icon: 'hero',
       group: 'marketing',
       keywords: ['hero', 'banner', 'cta', 'header'],
       controls: { headline: 'text', subhead: 'textarea', image: 'media', ctaLabel: 'text', ctaHref: 'url', variant: 'select' },

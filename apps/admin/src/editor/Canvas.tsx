@@ -19,6 +19,7 @@ import { DragHandle } from './extensions/DragHandle'
 import { BlockMenu } from './extensions/BlockMenu'
 import { Callout } from './extensions/Callout'
 import { ContactBlock } from './extensions/ContactBlock'
+import { HeroBlock } from './extensions/HeroBlock'
 import { createSetuBlock } from './extensions/SetuBlock'
 import { Image } from './extensions/Image'
 import { ImageBlock } from './extensions/ImageBlock'
@@ -114,6 +115,7 @@ export function Canvas({
       dragHandle,
       Callout,
       ContactBlock,
+      HeroBlock,
       createSetuBlock(registry.blocks, blockCores),
       Passthrough,
       Image,

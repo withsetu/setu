@@ -47,6 +47,8 @@ const BUILTINS: SlashBlock[] = [
   })),
   { title: 'Divider', subtitle: 'Horizontal rule', icon: 'divider', group: 'text', keywords: ['hr', 'rule', 'separator', 'line'], run: (e, r) => e.chain().focus().deleteRange(r).setHorizontalRule().run() },
   { title: 'Table', subtitle: 'Table with header row', icon: 'table', group: 'layout', keywords: ['grid', 'rows', 'columns'], run: (e, r) => e.chain().focus().deleteRange(r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
+  { title: 'Hero', subtitle: 'Headline, subhead, image, CTA', icon: 'hero', group: 'marketing', keywords: ['hero', 'banner', 'cta', 'header'], run: (e, r) =>
+    e.chain().focus().deleteRange(r).insertContent({ type: 'heroBlock', attrs: { mdAttrs: { headline: 'Hero headline', variant: 'center' } } }).run() },
   { title: 'Image', subtitle: 'Pick or upload an image', icon: 'image', group: 'media', keywords: ['img', 'photo', 'picture', 'media'], run: (e, r) => {
     e.chain().focus().deleteRange(r).run()
     const storage = (e.storage as unknown as { imageBlock?: { openPicker?: (onPick: (src: string) => void) => void } }).imageBlock

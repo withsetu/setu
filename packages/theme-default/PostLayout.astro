@@ -18,6 +18,7 @@ const { title, lang = 'en', themeOptions = {}, siteSettings, related = [] } = As
 ---
 
 <Layout title={title} lang={lang} themeOptions={themeOptions} siteSettings={siteSettings}>
+  <slot name="hero" />
   <article class="prose measure-post"><slot /></article>
   <div class="measure-post"><RelatedReading related={related} /></div>
 </Layout>

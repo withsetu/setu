@@ -26,6 +26,9 @@ const { related = [] } = Astro.props
 
 <style>
   .related-reading {
+    /* Align with the post's centered text column (.prose has 1.25rem inline padding);
+       the .measure-post wrapper supplies the max-width + centering. */
+    padding-inline: 1.25rem;
     margin-block-start: 3rem;
     padding-block-start: 1.5rem;
     border-block-start: 1px solid var(--border, #e5e7eb);

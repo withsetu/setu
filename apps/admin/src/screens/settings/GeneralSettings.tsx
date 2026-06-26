@@ -3,6 +3,7 @@ import { parseSettings, DEFAULT_SETTINGS } from '@setu/core'
 import type { GeneralSettings as GeneralValues } from '@setu/core'
 import { useServices, OWNER_AUTHOR } from '../../data/store'
 import { useNotify } from '../../ui/notify'
+import { useRefreshSiteTitle } from '../../shell/site-title'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,6 +20,7 @@ const sameGeneral = (a: GeneralValues, b: GeneralValues) =>
 export function GeneralSettings() {
   const { git } = useServices()
   const notify = useNotify()
+  const refreshSiteTitle = useRefreshSiteTitle()
   // The full raw settings object (preserve unknown future groups on save).
   const [raw, setRaw] = useState<Record<string, unknown> | null>(null)
   const [values, setValues] = useState<GeneralValues>(DEFAULT_SETTINGS.general)
@@ -65,6 +67,7 @@ export function GeneralSettings() {
       setRaw(next)
       setPublished(values)
       notify.success('Settings saved')
+      refreshSiteTitle() // update the admin document title immediately
     } catch (e) {
       notify.error(e instanceof Error ? e.message : String(e))
     } finally {

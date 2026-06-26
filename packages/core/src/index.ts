@@ -133,6 +133,10 @@ export { createBulkService } from './bulk/bulk-service'
 export type { MarkdocAttr } from './blocks/markdoc-attributes'
 export { markdocAttributesFor } from './blocks/markdoc-attributes'
 
+export { resolveControls } from './blocks/resolve-controls'
+export type { ResolvedControl } from './blocks/resolve-controls'
+export type { BlockControl } from './config/types'
+
 export type { BlockContract } from './blocks/define-block'
 export { defineBlock } from './blocks/define-block'
 export type { BlockEntry, BlockRegistry } from './blocks/registry'

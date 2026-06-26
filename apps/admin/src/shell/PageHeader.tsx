@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
+import { useSiteTitle } from './site-title'
 
 export function PageHeader({
   title,
@@ -11,6 +12,14 @@ export function PageHeader({
   subtitle?: string
   actions?: ReactNode
 }) {
+  const siteTitle = useSiteTitle()
+  // Document title: "<Screen> - <Site Title> - Setu" (deduped when no site title is set).
+  useEffect(() => {
+    const product = 'Setu'
+    document.title =
+      siteTitle && siteTitle !== product ? `${title} - ${siteTitle} - ${product}` : `${title} - ${product}`
+  }, [title, siteTitle])
+
   return (
     <header className="flex items-end justify-between gap-4 border-b border-border bg-background px-[30px] pt-[22px] pb-4">
       <div className="min-w-0 flex-1">

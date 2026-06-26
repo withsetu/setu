@@ -19,7 +19,7 @@ import { createMemoryDataPort, createMemoryIndexPort, createMemoryMediaIndexPort
 import { createMemoryGitPort } from '@setu/git-memory'
 
 /** Editor identity stamped on bulk commits (matches the editor's OWNER_AUTHOR). */
-const OWNER_AUTHOR = { name: 'Local', email: 'local@setu.dev' }
+export const OWNER_AUTHOR = { name: 'Local', email: 'local@setu.dev' }
 
 const doc = (text: string): TiptapDoc => ({
   type: 'doc',

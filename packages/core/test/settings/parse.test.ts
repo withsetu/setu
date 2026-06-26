@@ -1,0 +1,37 @@
+import { describe, it, expect } from 'vitest'
+import { parseSettings } from '../../src/settings/schema'
+import { DEFAULT_SETTINGS } from '../../src/settings/defaults'
+
+describe('parseSettings', () => {
+  it('returns defaults for undefined / malformed input', () => {
+    expect(parseSettings(undefined)).toEqual(DEFAULT_SETTINGS)
+    expect(parseSettings('nonsense')).toEqual(DEFAULT_SETTINGS)
+    expect(parseSettings(42)).toEqual(DEFAULT_SETTINGS)
+  })
+
+  it('fills missing general keys from defaults', () => {
+    const out = parseSettings({ general: { title: 'My Blog' } })
+    expect(out.general.title).toBe('My Blog')
+    expect(out.general.tagline).toBe(DEFAULT_SETTINGS.general.tagline)
+    expect(out.general.timezone).toBe(DEFAULT_SETTINGS.general.timezone)
+  })
+
+  it('takes provided general values over defaults', () => {
+    const out = parseSettings({
+      general: { title: 'T', tagline: 'G', description: 'D', timezone: 'America/New_York', dateFormat: 'YYYY-MM-DD' },
+    })
+    expect(out.general).toEqual({
+      title: 'T',
+      tagline: 'G',
+      description: 'D',
+      timezone: 'America/New_York',
+      dateFormat: 'YYYY-MM-DD',
+    })
+  })
+
+  it('preserves unknown future top-level groups (forward-compat)', () => {
+    const out = parseSettings({ general: { title: 'X' }, media: { widths: [400, 800] } }) as unknown as Record<string, unknown>
+    expect(out.media).toEqual({ widths: [400, 800] })
+    expect((out.general as { title: string }).title).toBe('X')
+  })
+})

@@ -7,6 +7,24 @@
 
 ---
 
+## Navigation menus (multi-level) under Appearance (to revisit — 2026-06-26)
+
+**Context:** Surfaced while planning the settings groups. The theme header nav is hardcoded (`Home`, `About` in `packages/theme-default/Layout.astro`). Menus are **structural/presentational** — they belong under **Appearance** (the theme area), not Settings — matching WordPress's *Appearance → Menus*.
+
+**What to build:**
+- Turn **Appearance** into a grouped shell (like the Settings shell): **Theme** (the existing color/font/width customizer, unchanged) + a new **Menus** section.
+- A **multi-level** menu editor: ordered items with **nesting / dropdowns** (the owner explicitly wants multi-level, not a flat list); each item `{ label, href }`; add / remove / reorder. Likely **multiple named menus** later (header, footer, …).
+- The theme `Layout` renders the configured menu(s) in place of the hardcoded nav.
+- Git-backed via the settings spine (a `navigation` group in `settings.json`, which already supports structured/nested data) or a dedicated `navigation.json`.
+
+**Establishes the Appearance ↔ Settings split** (worth keeping consistent as both grow):
+- **Appearance** = presentation/structure → Theme, Menus, site **Identity** (logo, favicon), footer.
+- **Settings** = behavior → General, Content & Reading, Media, Forms, Users & Roles, SEO, Deploy.
+
+**Why deferred:** the multi-level editor (nesting + reorder + render) is its own real piece; the current focus is the behavioral Settings groups. Builds on the shipped settings spine ([[setu-settings]]).
+
+---
+
 ## Access control: accounts, roles, and a permissions surface (to revisit — 2026-06-25)
 
 **Context:** Surfaced while building basic forms — the inbox let anyone delete submissions, the forms API (and the git API) are unauthenticated, and there's no place for an admin to set who-can-do-what. Setu currently assumes a **single trusted owner** (self-hosted).

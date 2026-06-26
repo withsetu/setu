@@ -12,6 +12,7 @@ import { TaxonomyProvider } from './data/taxonomy-store'
 import { TagsProvider } from './data/tags-store'
 import { NotificationProvider } from './ui/notify'
 import { CommandRegistryProvider } from './command/registry'
+import { SiteTitleProvider } from './shell/site-title'
 import { Toaster } from '@/components/ui/sonner'
 import '@fontsource-variable/hanken-grotesk'
 import '@fontsource-variable/newsreader'
@@ -46,7 +47,9 @@ createRoot(document.getElementById('root')!).render(
                   <TaxonomyProvider>
                     <TagsProvider>
                       <CommandRegistryProvider>
-                        <App />
+                        <SiteTitleProvider>
+                          <App />
+                        </SiteTitleProvider>
                       </CommandRegistryProvider>
                     </TagsProvider>
                   </TaxonomyProvider>

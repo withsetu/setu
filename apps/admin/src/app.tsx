@@ -8,7 +8,7 @@ import { Dashboard } from './screens/Dashboard'
 import { Media } from './screens/Media'
 import { Taxonomies } from './screens/taxonomies/Taxonomies'
 import { FormsInbox } from './screens/FormsInbox'
-import { Settings } from './screens/Settings'
+import { Settings } from './screens/settings/Settings'
 
 export function App() {
   return (

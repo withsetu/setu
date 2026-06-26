@@ -30,7 +30,7 @@ const featuredImage = typeof (entry.data as { featuredImage?: unknown }).feature
 ---
 
 <TemplateLayout title={title} lang={locale} themeOptions={themeOptions} siteSettings={siteSettings} related={related}>
-  {featuredImage && (
+  {featuredImage && collection === 'post' && (
     <figure class="post-hero measure-post" slot="hero">
       <Image src={featuredImage} alt={title} sizes="(min-width: 40rem) 38rem, 100vw" />
     </figure>

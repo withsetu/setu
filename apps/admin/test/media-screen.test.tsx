@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
@@ -111,10 +111,6 @@ function wrapper(services: ReturnType<typeof servicesFor>, mediaIndex: ReturnTyp
 // ── tests ─────────────────────────────────────────────────────
 
 describe('Media screen', () => {
-  beforeEach(() => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
-  })
-
   it('renders the media library heading and toolbar', async () => {
     const { services, mediaIndex } = await buildProviders()
     render(<Media />, { wrapper: wrapper(services, mediaIndex) })
@@ -136,12 +132,12 @@ describe('Media screen', () => {
     // wait for tile
     await waitFor(() => expect(screen.getByRole('button', { name: /cat\.png/i })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: /cat\.png/i }))
-    expect(screen.getByRole('complementary', { name: /Media details/i })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: /Media details/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Delete cat\.png/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Copy URL/i })).toBeInTheDocument()
   })
 
-  it('calls window.confirm with the referencing post title and calls deleteMedia on confirm', async () => {
+  it('shows the referencing post title in the confirm and deletes on confirm', async () => {
     const { services, mediaIndex } = await buildProviders()
     render(<Media />, { wrapper: wrapper(services, mediaIndex) })
 
@@ -151,16 +147,14 @@ describe('Media screen', () => {
     // open the detail panel
     fireEvent.click(screen.getByRole('button', { name: /cat\.png/i }))
 
-    // click Delete
-    const deleteBtn = screen.getByRole('button', { name: /Delete cat\.png/i })
-    fireEvent.click(deleteBtn)
+    // click the delete trigger button (opens AlertDialog after async referencedBy)
+    fireEvent.click(screen.getByRole('button', { name: /Delete cat\.png/i }))
 
-    // confirm dialog should mention 'My Post' (the referencing content title)
-    await waitFor(() => {
-      expect(window.confirm).toHaveBeenCalledWith(
-        expect.stringContaining('My Post'),
-      )
-    })
+    // AlertDialog should show the referencing post title
+    await waitFor(() => expect(screen.getByText(/My Post/)).toBeInTheDocument())
+
+    // click the AlertDialog confirm action (exact name match)
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
 
     // deleteMedia should be called with the correct apiBase and mediaKey
     await waitFor(() => {
@@ -174,28 +168,29 @@ describe('Media screen', () => {
 
     await waitFor(() => expect(screen.getByRole('button', { name: /cat\.png/i })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: /cat\.png/i }))
-    expect(screen.getByRole('complementary', { name: /Media details/i })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: /Media details/i })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Delete cat\.png/i }))
+    // wait for AlertDialog to open
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
 
-    await waitFor(() => {
-      expect(screen.queryByRole('complementary', { name: /Media details/i })).not.toBeInTheDocument()
-    })
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /Media details/i })).not.toBeInTheDocument())
   })
 
-  it('does NOT call deleteMedia if user cancels the confirm dialog', async () => {
-    vi.mocked(window.confirm).mockReturnValueOnce(false)
+  it('does NOT delete if user cancels', async () => {
     const { services, mediaIndex } = await buildProviders()
     render(<Media />, { wrapper: wrapper(services, mediaIndex) })
 
     await waitFor(() => expect(screen.getByRole('button', { name: /cat\.png/i })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: /cat\.png/i }))
     fireEvent.click(screen.getByRole('button', { name: /Delete cat\.png/i }))
+    // wait for AlertDialog to open
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
-    await waitFor(() => expect(window.confirm).toHaveBeenCalled())
     expect(deleteMedia).not.toHaveBeenCalled()
-    // panel should still be visible
-    expect(screen.getByRole('complementary', { name: /Media details/i })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: /Media details/i })).toBeInTheDocument()
   })
 
   it('surfaces delete errors as an error toast notification', async () => {
@@ -206,6 +201,9 @@ describe('Media screen', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /cat\.png/i })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: /cat\.png/i }))
     fireEvent.click(screen.getByRole('button', { name: /Delete cat\.png/i }))
+    // wait for AlertDialog to open
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent('server error')
@@ -219,6 +217,9 @@ describe('Media screen', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /cat\.png/i })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: /cat\.png/i }))
     fireEvent.click(screen.getByRole('button', { name: /Delete cat\.png/i }))
+    // wait for AlertDialog to open
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
 
     await waitFor(() => {
       expect(screen.getByText('Deleted cat.png')).toBeInTheDocument()

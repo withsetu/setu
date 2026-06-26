@@ -30,12 +30,25 @@ export function selectedBlockOf(state: EditorState): SelectedBlock | null {
   return null
 }
 
+/** Whether two derived selections refer to the same block in the same state. mdAttrs is
+ *  compared by reference: ProseMirror reuses a node's attrs object until it actually changes,
+ *  so an edit produces a fresh object (≠) while idle transactions keep the same one (=). */
+function sameBlock(a: SelectedBlock | null, b: SelectedBlock | null): boolean {
+  if (a === b) return true
+  if (!a || !b) return false
+  return a.pos === b.pos && a.tag === b.tag && a.mdAttrs === b.mdAttrs
+}
+
 /** React hook: the selected inspectable block + an `update(name,value)` writer. */
 export function useSelectedBlock(editor: Editor | null): (SelectedBlock & { update: (name: string, value: unknown) => void }) | null {
   const [sel, setSel] = useState<SelectedBlock | null>(null)
   useEffect(() => {
     if (!editor) { setSel(null); return }
-    const sync = () => setSel(selectedBlockOf(editor.state))
+    // Only update state when the selected block actually changes. `transaction` fires on
+    // every editor change (incl. focus/IME churn from the inspector's Radix children); without
+    // this guard each fire sets a brand-new object → re-render → Radix re-renders → more churn,
+    // an unbounded "Maximum update depth exceeded" loop that blanks the editor.
+    const sync = () => setSel((prev) => { const next = selectedBlockOf(editor.state); return sameBlock(prev, next) ? prev : next })
     sync()
     editor.on('selectionUpdate', sync)
     editor.on('transaction', sync)

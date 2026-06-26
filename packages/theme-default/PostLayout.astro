@@ -1,9 +1,23 @@
 ---
 import Layout from './Layout.astro'
+import RelatedReading from './RelatedReading.astro'
 import type { SiteSettings } from '@setu/core'
-interface Props { title: string; lang?: string; themeOptions?: Record<string, string>; siteSettings?: SiteSettings }
-const { title, lang = 'en', themeOptions = {}, siteSettings } = Astro.props
+
+interface RelatedItem {
+  title: string
+  href: string
+}
+interface Props {
+  title: string
+  lang?: string
+  themeOptions?: Record<string, string>
+  siteSettings?: SiteSettings
+  related?: RelatedItem[]
+}
+const { title, lang = 'en', themeOptions = {}, siteSettings, related = [] } = Astro.props
 ---
+
 <Layout title={title} lang={lang} themeOptions={themeOptions} siteSettings={siteSettings}>
   <article class="prose measure-post"><slot /></article>
+  <RelatedReading related={related} />
 </Layout>

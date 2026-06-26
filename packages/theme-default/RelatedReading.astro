@@ -1,0 +1,52 @@
+---
+interface RelatedItem {
+  title: string
+  href: string
+}
+interface Props {
+  related?: RelatedItem[]
+}
+const { related = [] } = Astro.props
+---
+
+{
+  related.length > 0 && (
+    <aside class="related-reading" aria-label="Related posts">
+      <h2>Read Next</h2>
+      <ul>
+        {related.map((r) => (
+          <li>
+            <a href={r.href}>{r.title}</a>
+          </li>
+        ))}
+      </ul>
+    </aside>
+  )
+}
+
+<style>
+  .related-reading {
+    margin-block-start: 3rem;
+    padding-block-start: 1.5rem;
+    border-block-start: 1px solid var(--border, #e5e7eb);
+  }
+  .related-reading h2 {
+    font-family: var(--font-heading, inherit);
+    font-size: 1.1rem;
+    margin-block-end: 0.75rem;
+  }
+  .related-reading ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 0.4rem;
+  }
+  .related-reading a {
+    color: var(--accent, #4f46e5);
+    text-decoration: none;
+  }
+  .related-reading a:hover {
+    text-decoration: underline;
+  }
+</style>

@@ -33,6 +33,9 @@ const docTitle = title ? `${title} · ${siteTitle}` : siteTitle
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{docTitle}</title>
     {description && <meta name="description" content={description} />}
+    {siteSettings?.reading.searchEngineVisible === false && (
+      <meta name="robots" content="noindex, nofollow" />
+    )}
     <style is:inline set:html={overrideCss}></style>
   </head>
   <body>

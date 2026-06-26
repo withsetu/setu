@@ -14,8 +14,8 @@ import { ColumnsMenu } from './content-list/ColumnsMenu'
 import { ContentTable } from './content-list/ContentTable'
 import { Pager } from './content-list/Pager'
 import { useColumnPrefs } from './content-list/useColumnPrefs'
+import { useSettings } from '../data/settings-store'
 
-const PAGE_SIZE = 25
 const SORT_KEYS: SortKey[] = ['updatedAt', 'title', 'status']
 
 function flatten(nodes: CategoryNode[], out: CategoryNode[] = []): CategoryNode[] {
@@ -41,6 +41,7 @@ function parseSort(raw: string | null): { key: SortKey; dir: 'asc' | 'desc' } {
 export function ContentList({ collection, title }: { collection: string; title: string }) {
   const index = useIndex()
   const { categories } = useTaxonomy()
+  const pageSize = useSettings().reading.listPageSize
   const [params, setParams] = useSearchParams()
   const [page, setPage] = useState(0)
   const [rows, setRows] = useState<ContentRow[] | null>(null)
@@ -109,6 +110,11 @@ export function ContentList({ collection, title }: { collection: string; title: 
     setSelected(new Set())
   }, [collection, q, status, locale, category, tag, sortRaw])
 
+  // Reset to page 0 when the page size changes.
+  useEffect(() => {
+    setPage(0)
+  }, [pageSize])
+
   // Clear selection when navigating between pages (selection is current-page-scoped).
   useEffect(() => {
     setSelected(new Set())
@@ -129,7 +135,7 @@ export function ContentList({ collection, title }: { collection: string; title: 
     let live = true
     void (async () => {
       await index.ensureBuilt()
-      const query: IndexQuery = { collection, offset: page * PAGE_SIZE, limit: PAGE_SIZE, sort }
+      const query: IndexQuery = { collection, offset: page * pageSize, limit: pageSize, sort }
       if (q) query.q = q
       if (status) query.status = status as LifecycleState
       if (locale) query.locale = locale
@@ -142,7 +148,7 @@ export function ContentList({ collection, title }: { collection: string; title: 
       }
     })()
     return () => { live = false }
-  }, [index, collection, page, q, status, locale, category, tag, sort.key, sort.dir, refreshKey])
+  }, [index, collection, page, pageSize, q, status, locale, category, tag, sort.key, sort.dir, refreshKey])
 
   const toggleSort = (key: SortKey) => {
     const dir = sort.key === key && sort.dir === 'asc' ? 'desc' : 'asc'
@@ -166,8 +172,8 @@ export function ContentList({ collection, title }: { collection: string; title: 
       return new Set(pageKeys)
     })
 
-  const from = total === 0 ? 0 : page * PAGE_SIZE + 1
-  const to = Math.min(total, (page + 1) * PAGE_SIZE)
+  const from = total === 0 ? 0 : page * pageSize + 1
+  const to = Math.min(total, (page + 1) * pageSize)
   const noun = collection
 
   return (

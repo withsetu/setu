@@ -5,6 +5,7 @@ import { getCollection, render } from 'astro:content'
 import { toUrlPath } from '../lib/url'
 import { loadThemeOptions } from '../lib/site-config'
 import { loadSiteSettings } from '../lib/site-settings'
+import relations from '../../.setu/cache/relations.json'
 
 export async function getStaticPaths() {
   const all = await getCollection('entries')
@@ -21,9 +22,10 @@ const [collection, locale = 'en'] = entry.id.split('/')
 const TemplateLayout = collection === 'post' ? PostLayout : PageLayout
 const themeOptions = loadThemeOptions()
 const siteSettings = loadSiteSettings()
+const related = (relations as Record<string, { title: string; href: string }[]>)[entry.id] ?? []
 ---
 
-<TemplateLayout title={title} lang={locale} themeOptions={themeOptions} siteSettings={siteSettings}>
+<TemplateLayout title={title} lang={locale} themeOptions={themeOptions} siteSettings={siteSettings} related={related}>
   <h1>{title}</h1>
   <Content />
 </TemplateLayout>

@@ -102,8 +102,9 @@ a `published` baseline + `dirty` + `saving` state.
 ### 3. `apps/admin` — the Settings screen
 
 - `apps/admin/src/screens/settings/Settings.tsx` — the grouped shell: a left sub-nav (or tabs)
-  listing groups; **General** is the only active group this increment (others shown as a
-  disabled "coming soon" affordance OR simply omitted — see O2). Reads `settings.json` via
+  listing groups; **General** is the only active group this increment, and the future groups
+  (Identity, Content & Reading, Media, Forms, Users & Roles, SEO & Privacy, Deploy) appear as
+  **disabled "coming soon" items** so the nav signals the roadmap. Reads `settings.json` via
   `git.readFile`, holds form state + a `published` baseline, computes `dirty`.
 - `apps/admin/src/screens/settings/GeneralSettings.tsx` — the General form: text inputs for
   title/tagline, a textarea for description, a `<select>` for timezone (a curated list of common
@@ -159,9 +160,8 @@ through this file.
 
 - **O1 — settings file name/shape:** `settings.json` (chosen) vs `site-settings.json`; and the
   grouped object shape above vs a flat map. Leaning `settings.json` + grouped.
-- **O2 — future groups in the nav:** show disabled "coming soon" group items (signals the
-  roadmap) vs only show built groups. Leaning show-General-only for v1 (no dead UI), add groups
-  as they ship.
+- **O2 — RESOLVED:** future groups appear in the nav as **disabled "coming soon" items**
+  (signals the roadmap); only General is active this increment.
 - **O3 — forward-compat on save:** preserve unknown future group keys on write (merge over the
   raw parsed object) vs write only the known shape. Leaning preserve (merge over raw) — cheap
   insurance so a newer file isn't clobbered by an older admin.

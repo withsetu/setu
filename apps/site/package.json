@@ -4,10 +4,11 @@
   "type": "module",
   "version": "0.0.0",
   "scripts": {
-    "predev": "node ../../scripts/gen-blocks.mjs",
+    "predev": "node ../../scripts/gen-blocks.mjs && node ../../scripts/gen-relations.mjs",
     "dev": "astro dev",
-    "prebuild": "node ../../scripts/gen-blocks.mjs",
+    "prebuild": "node ../../scripts/gen-blocks.mjs && node ../../scripts/gen-relations.mjs",
     "build": "astro build",
+    "genrelations": "node ../../scripts/gen-relations.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

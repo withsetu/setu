@@ -47,10 +47,12 @@ export function Canvas({
   initialContent,
   editable,
   onChange,
+  onEditor,
 }: {
   initialContent: TiptapDoc
   editable: boolean
   onChange: (doc: TiptapDoc) => void
+  onEditor?: (e: Editor | null) => void
 }) {
   const editorRef = useRef<Editor | null>(null)
   const notify = useNotify()
@@ -135,6 +137,8 @@ export function Canvas({
     onUpdate: ({ editor }) => onChange(editor.getJSON() as TiptapDoc),
   })
   editorRef.current = editor
+
+  useEffect(() => { onEditor?.(editor); return () => onEditor?.(null) }, [editor, onEditor])
 
   const [imgBusy, setImgBusy] = useState(false)
   // The pending pick handler: insert (slash /image) or replace (in-block button)

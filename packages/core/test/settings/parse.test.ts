@@ -34,4 +34,17 @@ describe('parseSettings', () => {
     expect(out.media).toEqual({ widths: [400, 800] })
     expect((out.general as { title: string }).title).toBe('X')
   })
+
+  it('fills the reading group from defaults when absent', () => {
+    const out = parseSettings({ general: { title: 'X' } })
+    expect(out.reading).toEqual(DEFAULT_SETTINGS.reading)
+  })
+
+  it('deep-merges a partial reading group (incl. nested feed/markdown)', () => {
+    const out = parseSettings({ reading: { homepage: 'page/en/about', feed: { enabled: true } } })
+    expect(out.reading.homepage).toBe('page/en/about')
+    expect(out.reading.searchEngineVisible).toBe(DEFAULT_SETTINGS.reading.searchEngineVisible)
+    expect(out.reading.feed).toEqual({ enabled: true, items: DEFAULT_SETTINGS.reading.feed.items })
+    expect(out.reading.markdown).toEqual(DEFAULT_SETTINGS.reading.markdown)
+  })
 })

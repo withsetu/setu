@@ -8,4 +8,11 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     timezone: 'UTC',
     dateFormat: 'MMM D, YYYY',
   },
+  reading: {
+    homepage: 'page/en/home',
+    searchEngineVisible: true,
+    listPageSize: 25,
+    feed: { enabled: false, items: 20 },
+    markdown: { mode: 'off', style: 'raw' },
+  },
 }

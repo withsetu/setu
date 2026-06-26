@@ -1,6 +1,7 @@
 body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-body); -webkit-font-smoothing: antialiased; }
 .site-header { display: flex; align-items: center; gap: 1.5rem; max-width: var(--measure-page); margin: 0 auto; padding: 1.25rem; }
 .site-header .brand { font-family: var(--font-heading); font-weight: 800; letter-spacing: -.02em; font-size: 1.15rem; color: var(--text); text-decoration: none; }
+.site-header .site-tagline { font-size: .9rem; color: var(--text-2); margin-left: .5rem; }
 .site-header nav { display: flex; gap: 1.1rem; margin-left: auto; font-size: .95rem; }
 .site-header nav a { color: var(--text-2); text-decoration: none; }
 .site-header nav a:hover { color: var(--text); }

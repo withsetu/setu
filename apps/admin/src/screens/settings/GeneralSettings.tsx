@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 
 const SETTINGS_PATH = 'settings.json'
 const TIMEZONES = ['UTC', 'America/New_York', 'America/Los_Angeles', 'Europe/London', 'Europe/Berlin', 'Asia/Kolkata', 'Asia/Tokyo', 'Australia/Sydney']
@@ -88,19 +89,25 @@ export function GeneralSettings() {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label htmlFor="set-tz">Timezone</Label>
-          <select id="set-tz" className="w-full rounded-md border bg-background px-3 py-2 text-sm" value={values.timezone} onChange={(e) => set({ timezone: e.target.value })}>
-            {[values.timezone, ...TIMEZONES.filter((t) => t !== values.timezone)].map((tz) => (
-              <option key={tz} value={tz}>{tz}</option>
-            ))}
-          </select>
+          <Select value={values.timezone} onValueChange={(v) => set({ timezone: v })}>
+            <SelectTrigger id="set-tz" className="w-full"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {[values.timezone, ...TIMEZONES.filter((t) => t !== values.timezone)].map((tz) => (
+                <SelectItem key={tz} value={tz}>{tz}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="set-df">Date format</Label>
-          <select id="set-df" className="w-full rounded-md border bg-background px-3 py-2 text-sm" value={values.dateFormat} onChange={(e) => set({ dateFormat: e.target.value })}>
-            {[values.dateFormat, ...DATE_FORMATS.filter((d) => d !== values.dateFormat)].map((df) => (
-              <option key={df} value={df}>{df}</option>
-            ))}
-          </select>
+          <Select value={values.dateFormat} onValueChange={(v) => set({ dateFormat: v })}>
+            <SelectTrigger id="set-df" className="w-full"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {[values.dateFormat, ...DATE_FORMATS.filter((d) => d !== values.dateFormat)].map((df) => (
+                <SelectItem key={df} value={df}>{df}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
       <Button onClick={() => void save()} disabled={published === null || !dirty || saving}>

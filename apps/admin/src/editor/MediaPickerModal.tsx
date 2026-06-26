@@ -13,7 +13,7 @@ export function MediaPickerModal({ apiBase, open, onClose, onPick }: MediaPicker
   const pick = (src: string) => { onPick(src); onClose() }
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
-      <DialogContent className="max-w-[880px] gap-0 p-0 sm:max-w-[880px]">
+      <DialogContent className="gap-0 p-0 sm:max-w-[880px]">
         <DialogHeader className="border-b px-5 py-3">
           <DialogTitle>Add an image</DialogTitle>
         </DialogHeader>

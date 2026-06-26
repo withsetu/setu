@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import type { ReactNode } from 'react'
 import { useDropzone, type Accept, type DropEvent, type DropzoneInputProps } from 'react-dropzone'
+import { cn } from '@/lib/utils'
 import { uploadFile, type UploadResult } from './upload-client'
 
 /** Read a flat File[] straight from the drop/input event. This REPLACES
@@ -57,9 +58,16 @@ export function MediaDropzone({ apiBase, onUploaded, onError, onBusy, disabled, 
   })
 
   return (
-    <div {...getRootProps()} className="media-dropzone" data-drag-active={isDragActive ? '' : undefined}>
+    <div
+      {...getRootProps()}
+      className={cn(
+        'flex min-h-20 cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-border px-5 text-sm text-muted-foreground transition-colors',
+        'hover:border-primary hover:bg-accent data-[drag-active]:border-primary data-[drag-active]:bg-accent',
+      )}
+      data-drag-active={isDragActive ? '' : undefined}
+    >
       <input {...getInputProps({ 'data-testid': 'media-dropzone-input' } as DropzoneInputProps)} />
-      {children ?? <p className="muted">Drag images here, or click to upload</p>}
+      {children ?? <p>Drag images here, or click to upload</p>}
     </div>
   )
 }

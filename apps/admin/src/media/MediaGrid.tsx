@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { MediaIndexQuery, MediaIndexRow } from '@setu/core'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
 import { useMediaIndex } from '../data/media-index-store'
 import { resolveMediaSrc } from '../editor/media-src'
 
@@ -30,7 +32,7 @@ function humanSize(bytes: number): string {
 function FileIcon() {
   return (
     <svg
-      className="media-tile-file-icon"
+      className="size-10 text-muted-foreground opacity-60"
       viewBox="0 0 24 24"
       width="40"
       height="40"
@@ -111,10 +113,8 @@ export function MediaGrid({ mode, apiBase, query, onPick, onSelect }: MediaGridP
 
   if (rows === null) {
     return (
-      <div className="media-grid-loading" aria-busy="true" aria-label="Loading media">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="media-tile media-tile-skeleton" aria-hidden="true" />
-        ))}
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-3" aria-busy="true" aria-label="Loading media">
+        {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-md" />)}
       </div>
     )
   }
@@ -122,7 +122,7 @@ export function MediaGrid({ mode, apiBase, query, onPick, onSelect }: MediaGridP
   if (rows.length === 0) {
     const isEmpty = !query.q && (!query.type || query.type === 'all')
     return (
-      <p className="media-grid-empty empty-state">
+      <p className="px-5 py-12 text-center text-sm text-muted-foreground">
         {isEmpty ? 'No media yet' : 'No matches'}
       </p>
     )
@@ -131,7 +131,7 @@ export function MediaGrid({ mode, apiBase, query, onPick, onSelect }: MediaGridP
   return (
     <>
     <div
-      className="media-grid"
+      className="grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-3"
       data-total={total}
     >
       {rows.map((row) => {
@@ -143,38 +143,38 @@ export function MediaGrid({ mode, apiBase, query, onPick, onSelect }: MediaGridP
           <button
             key={row.mediaKey}
             type="button"
-            className="media-tile"
             aria-label={row.filename}
             onClick={() => handleTileClick(row)}
+            className="group flex flex-col overflow-hidden rounded-md border border-border bg-card text-left shadow-sm transition-[border-color,box-shadow] hover:border-ring hover:ring-2 hover:ring-ring/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <div className="media-tile-thumb">
+            <div className="flex aspect-[4/3] items-center justify-center overflow-hidden bg-muted">
               {thumbSrc ? (
                 <img
                   src={thumbSrc}
                   alt={row.filename}
                   loading="lazy"
-                  className="media-tile-img"
+                  className="size-full object-cover"
                 />
               ) : (
                 <FileIcon />
               )}
             </div>
-            <div className="media-tile-info">
-              <span className="media-tile-name">{row.filename}</span>
+            <div className="flex min-w-0 flex-col gap-0.5 px-2.5 py-2">
+              <span className="truncate text-xs font-medium">{row.filename}</span>
               {row.isImage && row.width != null && row.height != null && (
-                <span className="media-tile-dims">{row.width}×{row.height}</span>
+                <span className="text-[11px] text-muted-foreground">{row.width}×{row.height}</span>
               )}
-              <span className="media-tile-size">{humanSize(row.bytes)}</span>
+              <span className="text-[11px] text-muted-foreground">{humanSize(row.bytes)}</span>
             </div>
           </button>
         )
       })}
     </div>
     {rows.length < total && (
-      <div className="media-loadmore">
-        <button type="button" className="btn" onClick={() => void loadMore()} disabled={loadingMore}>
+      <div className="flex justify-center pt-4">
+        <Button variant="outline" size="sm" onClick={() => void loadMore()} disabled={loadingMore}>
           {loadingMore ? 'Loading…' : `Load more (${total - rows.length} more)`}
-        </button>
+        </Button>
       </div>
     )}
     </>

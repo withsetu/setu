@@ -4,6 +4,7 @@ import PageLayout from '@theme/PageLayout.astro'
 import { getCollection, render } from 'astro:content'
 import { toUrlPath } from '../lib/url'
 import { loadThemeOptions } from '../lib/site-config'
+import { loadSiteSettings } from '../lib/site-settings'
 
 export async function getStaticPaths() {
   const all = await getCollection('entries')
@@ -18,9 +19,10 @@ const title = (entry.data as { title?: string }).title ?? entry.id
 const [collection, locale = 'en'] = entry.id.split('/')
 const TemplateLayout = collection === 'post' ? PostLayout : PageLayout
 const themeOptions = loadThemeOptions()
+const siteSettings = loadSiteSettings()
 ---
 
-<TemplateLayout title={title} lang={locale} themeOptions={themeOptions}>
+<TemplateLayout title={title} lang={locale} themeOptions={themeOptions} siteSettings={siteSettings}>
   <h1>{title}</h1>
   <Content />
 </TemplateLayout>

@@ -2,14 +2,16 @@
 import PageLayout from '@theme/PageLayout.astro'
 import { getEntry, render } from 'astro:content'
 import { loadThemeOptions } from '../lib/site-config'
+import { loadSiteSettings } from '../lib/site-settings'
 
 const entry = await getEntry('entries', 'page/en/home')
 const { Content } = await render(entry!)
 const title = (entry!.data as { title?: string }).title ?? 'Home'
 const themeOptions = loadThemeOptions()
+const siteSettings = loadSiteSettings()
 ---
 
-<PageLayout title={title} lang="en" themeOptions={themeOptions}>
+<PageLayout title={title} lang="en" themeOptions={themeOptions} siteSettings={siteSettings}>
   <h1>{title}</h1>
   <Content />
 </PageLayout>

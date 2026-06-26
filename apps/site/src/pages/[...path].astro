@@ -8,8 +8,9 @@ import { loadSiteSettings } from '../lib/site-settings'
 
 export async function getStaticPaths() {
   const all = await getCollection('entries')
+  const homepage = loadSiteSettings().reading.homepage
   return all
-    .filter((entry) => entry.id !== 'page/en/home') // home renders at '/' via index.astro
+    .filter((entry) => entry.id !== homepage && entry.id !== 'page/en/home')
     .map((entry) => ({ params: { path: toUrlPath(entry.id) }, props: { entry } }))
 }
 

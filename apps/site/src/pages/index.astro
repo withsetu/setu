@@ -4,14 +4,22 @@ import { getEntry, render } from 'astro:content'
 import { loadThemeOptions } from '../lib/site-config'
 import { loadSiteSettings } from '../lib/site-settings'
 
-const entry = await getEntry('entries', 'page/en/home')
-const { Content } = await render(entry!)
-const title = (entry!.data as { title?: string }).title ?? 'Home'
 const themeOptions = loadThemeOptions()
 const siteSettings = loadSiteSettings()
+const homepageId = siteSettings.reading.homepage
+const entry = (await getEntry('entries', homepageId)) ?? (await getEntry('entries', 'page/en/home'))
+const title = entry ? ((entry.data as { title?: string }).title ?? 'Home') : 'Home'
+const rendered = entry ? await render(entry) : null
+const Content = rendered?.Content
 ---
 
 <PageLayout title={title} lang="en" themeOptions={themeOptions} siteSettings={siteSettings}>
-  <h1>{title}</h1>
-  <Content />
+  {Content ? (
+    <>
+      <h1>{title}</h1>
+      <Content />
+    </>
+  ) : (
+    <p>No homepage is configured yet.</p>
+  )}
 </PageLayout>

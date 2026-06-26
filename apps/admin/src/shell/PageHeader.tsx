@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
-import { useSiteTitle } from './site-title'
+import { useSiteTitle } from '../data/settings-store'
 
 export function PageHeader({
   title,

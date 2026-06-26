@@ -8,8 +8,22 @@ export interface GeneralSettings {
   dateFormat: string
 }
 
+export interface ReadingSettings {
+  /** Entry id served at '/', e.g. 'page/en/home'. */
+  homepage: string
+  /** false → emit a noindex robots meta. */
+  searchEngineVisible: boolean
+  /** Admin content-list page size. */
+  listPageSize: number
+  /** RSS feed config — consumed by a later increment. */
+  feed: { enabled: boolean; items: number }
+  /** Markdown / llms.txt output — consumed by a later increment. */
+  markdown: { mode: 'off' | 'index' | 'pages'; style: 'raw' | 'rendered' }
+}
+
 /** Site settings, grouped so future sections (identity/content/media/forms) add
  *  cleanly. Persisted as a Git-backed settings.json. Never holds secrets. */
 export interface SiteSettings {
   general: GeneralSettings
+  reading: ReadingSettings
 }

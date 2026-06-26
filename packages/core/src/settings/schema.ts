@@ -12,8 +12,22 @@ const generalSchema = z
   })
   .partial()
 
+const readingSchema = z
+  .object({
+    homepage: z.string(),
+    searchEngineVisible: z.boolean(),
+    listPageSize: z.number(),
+    feed: z.object({ enabled: z.boolean(), items: z.number() }).partial(),
+    markdown: z
+      .object({ mode: z.enum(['off', 'index', 'pages']), style: z.enum(['raw', 'rendered']) })
+      .partial(),
+  })
+  .partial()
+
 // passthrough keeps unknown future top-level groups (forward-compat on read/save).
-const settingsSchema = z.object({ general: generalSchema.optional() }).passthrough()
+const settingsSchema = z
+  .object({ general: generalSchema.optional(), reading: readingSchema.optional() })
+  .passthrough()
 
 /** Parse a raw settings value and deep-merge over DEFAULT_SETTINGS. Malformed or
  *  missing input → defaults (never throws). Unknown future top-level groups are
@@ -22,8 +36,16 @@ export function parseSettings(raw: unknown): SiteSettings {
   const parsed = settingsSchema.safeParse(raw)
   const data: Record<string, unknown> = parsed.success ? parsed.data : {}
   const general = (data.general ?? {}) as Partial<SiteSettings['general']>
+  const reading = (data.reading ?? {}) as Partial<SiteSettings['reading']>
+  const rd = DEFAULT_SETTINGS.reading
   return {
     ...data,
     general: { ...DEFAULT_SETTINGS.general, ...general },
+    reading: {
+      ...rd,
+      ...reading,
+      feed: { ...rd.feed, ...(reading.feed ?? {}) },
+      markdown: { ...rd.markdown, ...(reading.markdown ?? {}) },
+    },
   } as SiteSettings
 }

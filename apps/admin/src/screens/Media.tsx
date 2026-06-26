@@ -107,7 +107,7 @@ export function Media() {
       : "This can't be undone."
 
   return (
-    <section className="media-screen">
+    <section className="relative">
       <PageHeader
         title="Media"
         subtitle="Upload, browse, and manage your media files."

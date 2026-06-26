@@ -17,6 +17,7 @@ function setup(props?: Partial<React.ComponentProps<typeof MetaPanel>>) {
     slug: 'my-post',
     editable: true,
     onChange,
+    apiBase: 'http://localhost:4444',
   }
   render(
     <ServicesProvider services={services}>
@@ -33,6 +34,17 @@ function setup(props?: Partial<React.ComponentProps<typeof MetaPanel>>) {
 }
 
 describe('MetaPanel', () => {
+  it('renders a Featured image section between Permalink and Categories', () => {
+    setup()
+    const texts = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
+    const permalinkIdx = texts.indexOf('Permalink')
+    const featuredIdx = texts.indexOf('Featured image')
+    const categoriesIdx = texts.indexOf('Categories')
+    expect(featuredIdx).not.toBe(-1)
+    expect(permalinkIdx).toBeLessThan(featuredIdx)
+    expect(featuredIdx).toBeLessThan(categoriesIdx)
+  })
+
   it('renders section headings in DOM order: Permalink, Categories, Tags', () => {
     setup()
     const headings = screen.getAllByRole('heading', { level: 2 })

@@ -312,7 +312,14 @@ export function EditorScreen() {
             <Canvas key={`${collection}/${locale}/${slug}`} initialContent={initialDoc} editable={phase === 'ready'} onChange={onDocChange} />
           </div>
         </div>
-        <MetaPanel metadata={metadata} locale={locale} slug={slug} editable={phase === 'ready'} onChange={onMetaChange} />
+        <MetaPanel
+          metadata={metadata}
+          locale={locale}
+          slug={slug}
+          editable={phase === 'ready'}
+          onChange={onMetaChange}
+          apiBase={(import.meta.env.VITE_SETU_API as string) ?? ''}
+        />
       </div>
       <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>

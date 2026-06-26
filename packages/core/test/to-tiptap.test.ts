@@ -35,6 +35,19 @@ describe('markdocToTiptap', () => {
     expect((node.attrs as any).mdAttrs).toMatchObject({ type: 'warning' })
   })
 
+  it('maps a known contact tag to a contactBlock node (content-less)', () => {
+    const doc = markdocToTiptap('{% contact formId="c-1" subject=true %}\n{% /contact %}\n', {
+      knownBlockTags: new Set(['contact']),
+    })
+    const node = doc.content[0]!
+    expect(node.type).toBe('contactBlock')
+    expect((node.attrs as { mdAttrs: Record<string, unknown> }).mdAttrs).toMatchObject({
+      formId: 'c-1',
+      subject: true,
+    })
+    expect(node.content ?? []).toHaveLength(0)
+  })
+
   it('treats callout as passthrough when an empty knownBlockTags set is supplied', () => {
     const doc = markdocToTiptap('{% callout type="info" %}\nHi\n{% /callout %}\n', {
       knownBlockTags: new Set<string>(),

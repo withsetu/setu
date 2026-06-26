@@ -1,0 +1,6 @@
+.blk-hero { display: flex; flex-direction: column; gap: 1rem; padding: clamp(2rem, 6vw, 4rem); border-radius: var(--r-md, 8px); background: color-mix(in oklch, var(--accent, #4f46e5) 6%, transparent); }
+.blk-hero.variant-center { align-items: center; text-align: center; }
+.blk-hero-img { width: 100%; max-height: 320px; object-fit: cover; border-radius: var(--r-md, 8px); }
+.blk-hero-headline { margin: 0; font-size: clamp(1.75rem, 4vw, 2.75rem); line-height: 1.1; font-weight: 700; }
+.blk-hero-subhead { margin: 0; font-size: 1.125rem; opacity: 0.8; max-width: 42rem; }
+.blk-hero-cta { display: inline-block; margin-top: 0.5rem; padding: 0.6rem 1.2rem; border-radius: var(--r-md, 8px); background: var(--accent, #4f46e5); color: var(--on-accent, #fff); font-weight: 600; }

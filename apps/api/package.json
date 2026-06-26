@@ -14,6 +14,8 @@
   },
   "dependencies": {
     "@hono/node-server": "2.0.5",
+    "@setu/captcha-recaptcha": "workspace:*",
+    "@setu/captcha-turnstile": "workspace:*",
     "@setu/core": "workspace:*",
     "@setu/db-sqlite": "workspace:*",
     "@setu/email-console": "workspace:*",

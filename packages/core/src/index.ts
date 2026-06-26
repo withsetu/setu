@@ -24,8 +24,6 @@ export type { DataPort } from './data/data-port'
 export type { Submission, SubmissionInput, SubmissionFilter, FormSummary } from './submissions/types'
 export type { SubmissionPort } from './submissions/submission-port'
 export { selectDistinctForms } from './submissions/distinct-forms'
-export { createTurnstileVerifier } from './submissions/turnstile'
-export type { TurnstileVerifier } from './submissions/turnstile'
 export { createSubmissionService } from './submissions/submission-service'
 export type {
   SubmissionService,
@@ -146,3 +144,6 @@ export {
 export type { StandardBlock } from './blocks/standard/types'
 export { STANDARD_BLOCKS } from './blocks/standard'
 export { mergeBlockSources } from './blocks/merge-sources'
+
+export type { CaptchaPort } from './captcha/captcha-port'
+export { createNoopCaptcha } from './captcha/captcha-port'

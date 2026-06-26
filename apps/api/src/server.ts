@@ -5,7 +5,10 @@ import { createLocalGitAdapter } from '@setu/git-local'
 import { createLocalStorage } from '@setu/storage-local'
 import { createSharpImageAdapter } from '@setu/image-sharp'
 import { createSqliteSubmissionPort } from '@setu/db-sqlite'
-import { createSubmissionService, createTurnstileVerifier } from '@setu/core'
+import { createSubmissionService, createNoopCaptcha } from '@setu/core'
+import type { CaptchaPort } from '@setu/core'
+import { createTurnstileCaptcha } from '@setu/captcha-turnstile'
+import { createRecaptchaCaptcha } from '@setu/captcha-recaptcha'
 import { createConsoleEmailAdapter } from '@setu/email-console'
 import { createResendEmailAdapter } from '@setu/email-resend'
 import { renderSubmissionEmail } from '@setu/email-templates'
@@ -15,6 +18,22 @@ import { createUploadApi } from './media'
 import { createFormsApi } from './forms'
 import { resolveLocalOwner } from './auth/resolve-actor'
 
+function resolveCaptcha(provider: string, secret: string): CaptchaPort {
+  if (!provider) return createNoopCaptcha() // no provider configured → dev pass-through
+  if (!secret) {
+    // Provider selected but secret missing.
+    if (process.env.NODE_ENV === 'production') {
+      console.error(`[captcha] provider "${provider}" selected but its secret is unset — rejecting submissions`)
+      return { async verify() { return false } } // fail-closed in prod
+    }
+    console.warn(`[captcha] provider "${provider}" selected but secret unset — dev pass-through`)
+    return createNoopCaptcha()
+  }
+  return provider === 'recaptcha'
+    ? createRecaptchaCaptcha({ secret })
+    : createTurnstileCaptcha({ secret })
+}
+
 const dir = process.env.SETU_REPO_DIR ?? process.cwd()
 const port = Number(process.env.SETU_API_PORT ?? 4444)
 const mediaDir = process.env.SETU_MEDIA_DIR ?? `${dir}/.setu/uploads`
@@ -22,7 +41,6 @@ const mediaPublicUrl = process.env.SETU_MEDIA_PUBLIC_URL ?? `http://localhost:${
 const imageFormat = process.env.SETU_IMAGE_FORMAT === 'avif' ? 'avif' : 'webp'
 
 const submissionsDb = process.env.SETU_SUBMISSIONS_DB ?? `${dir}/.setu/submissions.db`
-const turnstileSecret = process.env.SETU_TURNSTILE_SECRET ?? ''
 const notifyTo = process.env.SETU_FORMS_NOTIFY_TO
 const notifyFrom = process.env.SETU_FORMS_NOTIFY_FROM
 
@@ -30,11 +48,14 @@ const notifyFrom = process.env.SETU_FORMS_NOTIFY_FROM
 mkdirSync(`${dir}/.setu`, { recursive: true })
 
 const submissions = createSqliteSubmissionPort(submissionsDb)
-// No secret configured (dev) → accept all (Turnstile disabled). In prod the secret
-// MUST be set; an unset secret in production should be treated as misconfiguration.
-const verifyTurnstile = turnstileSecret
-  ? createTurnstileVerifier(turnstileSecret)
-  : async () => true
+// Spam protection: select a captcha adapter by env. Secret is env-only.
+const captchaProvider = process.env.SETU_CAPTCHA_PROVIDER ?? '' // 'turnstile' | 'recaptcha' | ''
+const captchaSecret =
+  captchaProvider === 'recaptcha'
+    ? (process.env.SETU_RECAPTCHA_SECRET ?? '')
+    : (process.env.SETU_TURNSTILE_SECRET ?? '')
+const captcha = resolveCaptcha(captchaProvider, captchaSecret)
+const captchaStatus = { provider: captchaProvider, secretConfigured: captchaSecret !== '' }
 const emailAdapter = process.env.SETU_EMAIL_ADAPTER ?? 'console'
 const email =
   emailAdapter === 'resend'
@@ -43,7 +64,7 @@ const email =
 
 const submit = createSubmissionService({
   submissions,
-  verifyTurnstile,
+  captcha,
   email,
   notifyTo,
   notifyFrom,
@@ -59,7 +80,8 @@ app.route('/', createUploadApi({
   image: createSharpImageAdapter(),
   imageConfig: { format: imageFormat, widths: [400, 800, 1200, 1600] },
 }))
-app.route('/', createFormsApi({ submit, submissions }))
+app.route('/', createFormsApi({ submit, submissions, captchaStatus }))
 
 serve({ fetch: app.fetch, port })
 console.log(`api listening on http://localhost:${port} (repo: ${dir}, media: ${mediaDir}, image: ${imageFormat})`)
+console.log(`[captcha] provider=${captchaProvider || '(none)'} secretConfigured=${captchaStatus.secretConfigured}`)

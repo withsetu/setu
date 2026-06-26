@@ -30,7 +30,7 @@ export async function submitContact(opts: {
   formId: string
   formLabel?: string
   fields: Record<string, string>
-  turnstileToken: string
+  captchaToken: string
   honeypot?: string
   pageUrl?: string
   fetchImpl?: typeof fetch
@@ -44,7 +44,7 @@ export async function submitContact(opts: {
         formId: opts.formId,
         formLabel: opts.formLabel,
         fields: opts.fields,
-        turnstileToken: opts.turnstileToken,
+        captchaToken: opts.captchaToken,
         honeypot: opts.honeypot,
         source: opts.pageUrl ? { url: opts.pageUrl } : undefined,
       }),

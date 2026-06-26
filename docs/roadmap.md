@@ -7,6 +7,20 @@
 
 ---
 
+## Blog homepage / posts archive via a "latest posts" dynamic block (to revisit — 2026-06-26)
+
+**Context:** Surfaced designing the Content & Reading settings. The homepage setting is **pages-only** because Setu has **no posts-archive/blog-listing page on the site** — there's nothing to point a "latest posts" homepage or a "blog archive" at.
+
+**The Setu-native model (NOT WordPress's special "posts page"):** showing a list of posts is a **dynamic block** — a "latest posts" (and "related posts") block in the **`dynamic`** category (reserved in the block taxonomy [[setu-block-library]], build-time, reads the content index, zero per-request cost). Then:
+- **Blog homepage** = a page with the latest-posts block, set as the homepage (the homepage stays a normal page — no special setting).
+- **`/blog` archive** = another page with the block (+ pagination).
+
+So the enabler is the **dynamic latest/related-posts block**, not an archive route or a "posts page" setting. Build that, and blog-style listing becomes composable on any page. Pagination for long archives is the one extra piece (site-side pagination, also currently absent).
+
+**Why deferred:** the dynamic block (content-index query block + build-time render + pagination) is its own piece; Content & Reading ships the static-page homepage now.
+
+---
+
 ## Navigation menus (multi-level) under Appearance (to revisit — 2026-06-26)
 
 **Context:** Surfaced while planning the settings groups. The theme header nav is hardcoded (`Home`, `About` in `packages/theme-default/Layout.astro`). Menus are **structural/presentational** — they belong under **Appearance** (the theme area), not Settings — matching WordPress's *Appearance → Menus*.

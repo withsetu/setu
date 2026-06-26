@@ -35,6 +35,9 @@ output generation are out of scope here.
 - Default locale, default category (locale system is bigger; minor).
 - Site-facing archive pagination (the listing page size here is the **admin** content lists,
   not site archives — Setu has no site archives yet).
+- **Blog homepage / posts archive** — the homepage is always a *page*; showing posts is the
+  Setu-native "latest posts" dynamic block on a page, which is **roadmapped** (depends on the
+  dynamic block + site pagination), not a WordPress-style "posts page" setting.
 - Multiple homepages / per-locale homepage.
 
 ## Architecture
@@ -159,15 +162,18 @@ markdown fields sit in the schema, default-off, untouched until #2/#3.
   converter for `style: 'rendered'` and respects the Cloudflare Pages ~20k-file budget via the
   `index`-vs-`pages` mode — see the roadmap notes).
 
-## Open questions (resolve during planning)
+## Open questions (RESOLVED)
 
-- **O1 — homepage Select source:** the content index `query({ collection: 'page' })` (chosen)
-  — confirm the index exposes `id` + a display `title` on its rows (it does for the listing).
-  Pages only (not posts) — leaning pages-only; the stored value is always shown.
-- **O2 — page-size options:** `10 / 25 / 50 / 100` (chosen) vs a free number input. Leaning the
-  curated Select (matches the General timezone/date pattern).
-- **O3 — robots when discouraged:** `noindex, nofollow` (chosen) vs `noindex` only. Leaning
-  `noindex, nofollow` (matches WordPress's discourage behavior).
+- **O1 — RESOLVED:** homepage = a Select of existing **pages** from the content index
+  (`query({ collection: 'page' })`, which exposes `id` + `title`); the stored value is always
+  shown as an option. The homepage is **always a page** — a *blog* homepage / posts archive is
+  the Setu-native "latest posts" **dynamic block** dropped on a page (no special "posts page"
+  setting), which is **roadmapped** (depends on the dynamic block + site pagination). Not this
+  increment.
+- **O2 — RESOLVED:** `listPageSize` is the **admin content-list** page size (not the feed) →
+  a curated `10 / 25 / 50 / 100` Select. (The feed's `items` count is a separate field,
+  deferred to #2.)
+- **O3 — RESOLVED:** robots `noindex, nofollow` when search-engine visibility is discouraged.
 
 ## Decisions log (from brainstorm)
 

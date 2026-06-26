@@ -59,3 +59,7 @@ body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--
   .prose figure.setu-image.align-left,
   .prose figure.setu-image.align-right { float: none; max-width: 100%; margin: 1.75rem 0; }
 }
+
+/* Post lead/hero image (featured-image slot) */
+.post-hero { margin: 2.5rem auto 0; padding: 0 1.25rem; }
+.post-hero img { width: 100%; height: auto; border-radius: var(--r-md); display: block; }

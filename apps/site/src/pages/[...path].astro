@@ -6,6 +6,7 @@ import { toUrlPath } from '../lib/url'
 import { loadThemeOptions } from '../lib/site-config'
 import { loadSiteSettings } from '../lib/site-settings'
 import relations from '../../.setu/cache/relations.json'
+import Image from '../components/Image.astro'
 
 export async function getStaticPaths() {
   const all = await getCollection('entries')
@@ -23,9 +24,17 @@ const TemplateLayout = collection === 'post' ? PostLayout : PageLayout
 const themeOptions = loadThemeOptions()
 const siteSettings = loadSiteSettings()
 const related = (relations as Record<string, { title: string; href: string }[]>)[entry.id] ?? []
+const featuredImage = typeof (entry.data as { featuredImage?: unknown }).featuredImage === 'string'
+  ? (entry.data as { featuredImage: string }).featuredImage
+  : undefined
 ---
 
 <TemplateLayout title={title} lang={locale} themeOptions={themeOptions} siteSettings={siteSettings} related={related}>
+  {featuredImage && (
+    <figure class="post-hero measure-post" slot="hero">
+      <Image src={featuredImage} alt={title} sizes="(min-width: 40rem) 38rem, 100vw" />
+    </figure>
+  )}
   <h1>{title}</h1>
   <Content />
 </TemplateLayout>

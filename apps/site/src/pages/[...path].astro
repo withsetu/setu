@@ -7,6 +7,7 @@ import { loadThemeOptions } from '../lib/site-config'
 import { loadSiteSettings } from '../lib/site-settings'
 import relations from '../../.setu/cache/relations.json'
 import Image from '../components/Image.astro'
+import { resolveMediaBase } from '../lib/media-base'
 
 export async function getStaticPaths() {
   const all = await getCollection('entries')
@@ -23,7 +24,9 @@ const [collection, locale = 'en'] = entry.id.split('/')
 const TemplateLayout = collection === 'post' ? PostLayout : PageLayout
 const themeOptions = loadThemeOptions()
 const siteSettings = loadSiteSettings()
-const mediaBase = (import.meta.env.PUBLIC_SETU_MEDIA as string) ?? ''
+// Reuse the site's single source of truth for media resolution (same as Image.astro):
+// dev → the local media API; prod-unset → relative; trailing slash trimmed.
+const mediaBase = resolveMediaBase(import.meta.env.PUBLIC_SETU_MEDIA, import.meta.env.DEV)
 const resolveImg = (s: string): string =>
   !s || /^https?:\/\//i.test(s) ? s : s.startsWith('/') ? `${mediaBase}${s}` : s
 const rp = siteSettings.reading.relatedPosts

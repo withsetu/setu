@@ -19,7 +19,7 @@ export interface FeedRow {
  *  collapse whitespace, truncate to `max` chars on a word boundary with an ellipsis. */
 export function excerpt(body: string, max = 200): string {
   const text = body
-    .replace(/\{%[^%]*%\}/g, ' ')          // markdoc tags
+    .replace(/\{%[\s\S]*?%\}/g, ' ')        // markdoc tags (lazy: tolerates % / newlines in body)
     .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')  // images
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1') // links → text
     .replace(/[#>*_`~]/g, ' ')              // md punctuation

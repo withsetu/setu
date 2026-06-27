@@ -1,6 +1,8 @@
 import type { ZodTypeAny } from 'zod'
 import type { BlockCategory } from '../blocks/categories'
 
+export type BlockControl = 'text' | 'textarea' | 'number' | 'switch' | 'select' | 'media' | 'url'
+
 /** Editor-facing metadata for a block (consumed by the slash menu). */
 export interface BlockEditorMeta {
   label?: string
@@ -12,6 +14,10 @@ export interface BlockEditorMeta {
   /** Selectable variant values for the block (e.g. callout types), shown in the
    *  editor's variant picker. The editor maps each to a theme tone/icon. */
   variants?: string[]
+  /** Optional per-prop editor control override. When absent for a prop, the control is
+   *  derived from its zod type (Enum→select, Number→number, Boolean→switch, String→text).
+   *  String-backed props may upgrade to 'textarea' | 'media' | 'url'. */
+  controls?: Record<string, BlockControl>
 }
 
 /** A content block as authored in setu.config.ts. */

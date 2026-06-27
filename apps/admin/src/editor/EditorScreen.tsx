@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { Draft, DraftInput, Lifecycle, TiptapDoc } from '@setu/core'
 import { serializeMdoc, tiptapToMarkdoc } from '@setu/core'
 import { ArchiveX, ChevronLeft, ExternalLink, Eye, Keyboard, Rocket } from 'lucide-react'
+import type { Editor } from '@tiptap/core'
 import { useServices } from '../data/store'
 import { useCan } from '../auth/actor'
 import { lifecycleFor } from '../lifecycle/useLifecycle'
@@ -12,6 +13,8 @@ import { siteUrl } from '../shell/site-url'
 import { useIndex } from '../data/index-store'
 import { Canvas } from './Canvas'
 import { MetaPanel } from './MetaPanel'
+import { BlockInspector } from './BlockInspector'
+import { useSelectedBlock } from './useSelectedBlock'
 import { PublishMenu } from './PublishMenu'
 import { ShortcutsDialog } from './ShortcutsDialog'
 import { Button } from '../components/ui/button'
@@ -50,6 +53,9 @@ export function EditorScreen() {
   const [rev, setRev] = useState(0)
   const [lifecycle, setLifecycle] = useState<Lifecycle>({ state: 'draft' })
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [editor, setEditor] = useState<Editor | null>(null)
+  const selectedBlock = useSelectedBlock(editor)
+  const apiBase = (import.meta.env.VITE_SETU_API as string | undefined) ?? ''
 
   useEffect(() => onRequestShortcuts(() => setShortcutsOpen(true)), [])
 
@@ -310,17 +316,26 @@ export function EditorScreen() {
               disabled={phase === 'readonly'}
               onChange={(e) => onMetaChange({ ...metaRef.current, title: e.target.value })}
             />
-            <Canvas key={`${collection}/${locale}/${slug}`} initialContent={initialDoc} editable={phase === 'ready'} onChange={onDocChange} />
+            <Canvas key={`${collection}/${locale}/${slug}`} initialContent={initialDoc} editable={phase === 'ready'} onChange={onDocChange} onEditor={setEditor} />
           </div>
         </div>
-        <MetaPanel
-          metadata={metadata}
-          locale={locale}
-          slug={slug}
-          editable={phase === 'ready'}
-          onChange={onMetaChange}
-          apiBase={(import.meta.env.VITE_SETU_API as string) ?? ''}
-        />
+        {selectedBlock ? (
+          <aside className="w-[300px] shrink-0 overflow-y-auto border-l border-border/60">
+            <div className="flex flex-col gap-3 p-4">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Block · {selectedBlock.tag}</div>
+              <BlockInspector tag={selectedBlock.tag} mdAttrs={selectedBlock.mdAttrs} onChange={selectedBlock.update} apiBase={apiBase} />
+            </div>
+          </aside>
+        ) : (
+          <MetaPanel
+            metadata={metadata}
+            locale={locale}
+            slug={slug}
+            editable={phase === 'ready'}
+            onChange={onMetaChange}
+            apiBase={(import.meta.env.VITE_SETU_API as string) ?? ''}
+          />
+        )}
       </div>
       <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>

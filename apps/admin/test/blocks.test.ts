@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { slashBlocks } from '../src/editor/blocks'
 
 describe('slashBlocks', () => {
@@ -23,5 +23,32 @@ describe('slashBlocks', () => {
 describe('slashBlocks — folder blocks route to the right node', () => {
   it('offers the dependency-free Notice folder block', () => {
     expect(slashBlocks().map((b) => b.title)).toContain('Notice')
+  })
+})
+
+describe('slashBlocks — hero deduplication', () => {
+  it('contains exactly one entry titled "Hero"', () => {
+    const heroEntries = slashBlocks().filter((b) => b.title === 'Hero')
+    expect(heroEntries).toHaveLength(1)
+  })
+
+  it('hero entry inserts a heroBlock node (not a setuBlock)', () => {
+    const heroEntry = slashBlocks().find((b) => b.title === 'Hero')
+    expect(heroEntry).toBeDefined()
+    if (!heroEntry) return
+
+    const insertedContent: unknown[] = []
+    const chain = {
+      focus: () => chain,
+      deleteRange: (_r: unknown) => chain,
+      insertContent: (content: unknown) => { insertedContent.push(content); return chain },
+      run: () => true,
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mockEditor = { chain: () => chain } as any
+    heroEntry.run(mockEditor, { from: 0, to: 0 })
+
+    expect(insertedContent).toHaveLength(1)
+    expect((insertedContent[0] as { type: string }).type).toBe('heroBlock')
   })
 })

@@ -1,0 +1,12 @@
+---
+import './hero.css'
+const { headline, subhead, image, ctaLabel, ctaHref, variant = 'center' } = Astro.props
+---
+<section class={`blk-hero variant-${variant}`}>
+  {image && <img class="blk-hero-img" src={image} alt="" />}
+  <div class="blk-hero-body">
+    <h2 class="blk-hero-headline">{headline}</h2>
+    {subhead && <p class="blk-hero-subhead">{subhead}</p>}
+    {ctaLabel && ctaHref && <a class="blk-hero-cta" href={ctaHref}>{ctaLabel}</a>}
+  </div>
+</section>

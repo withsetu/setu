@@ -19,6 +19,7 @@ import { DragHandle } from './extensions/DragHandle'
 import { BlockMenu } from './extensions/BlockMenu'
 import { Callout } from './extensions/Callout'
 import { ContactBlock } from './extensions/ContactBlock'
+import { HeroBlock } from './extensions/HeroBlock'
 import { createSetuBlock } from './extensions/SetuBlock'
 import { Image } from './extensions/Image'
 import { ImageBlock } from './extensions/ImageBlock'
@@ -46,10 +47,12 @@ export function Canvas({
   initialContent,
   editable,
   onChange,
+  onEditor,
 }: {
   initialContent: TiptapDoc
   editable: boolean
   onChange: (doc: TiptapDoc) => void
+  onEditor?: (e: Editor | null) => void
 }) {
   const editorRef = useRef<Editor | null>(null)
   const notify = useNotify()
@@ -114,6 +117,7 @@ export function Canvas({
       dragHandle,
       Callout,
       ContactBlock,
+      HeroBlock,
       createSetuBlock(registry.blocks, blockCores),
       Passthrough,
       Image,
@@ -133,6 +137,8 @@ export function Canvas({
     onUpdate: ({ editor }) => onChange(editor.getJSON() as TiptapDoc),
   })
   editorRef.current = editor
+
+  useEffect(() => { onEditor?.(editor); return () => onEditor?.(null) }, [editor, onEditor])
 
   const [imgBusy, setImgBusy] = useState(false)
   // The pending pick handler: insert (slash /image) or replace (in-block button)

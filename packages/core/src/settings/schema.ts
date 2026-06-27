@@ -21,6 +21,14 @@ const readingSchema = z
     markdown: z
       .object({ mode: z.enum(['off', 'index', 'pages']), style: z.enum(['raw', 'rendered']) })
       .partial(),
+    relatedPosts: z
+      .object({
+        enabled: z.boolean(),
+        heading: z.string(),
+        count: z.number(),
+        showImage: z.boolean(),
+      })
+      .partial(),
   })
   .partial()
 
@@ -46,6 +54,7 @@ export function parseSettings(raw: unknown): SiteSettings {
       ...reading,
       feed: { ...rd.feed, ...(reading.feed ?? {}) },
       markdown: { ...rd.markdown, ...(reading.markdown ?? {}) },
+      relatedPosts: { ...rd.relatedPosts, ...(reading.relatedPosts ?? {}) },
     },
   } as SiteSettings
 }

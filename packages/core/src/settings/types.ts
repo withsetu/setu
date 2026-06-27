@@ -19,6 +19,8 @@ export interface ReadingSettings {
   feed: { enabled: boolean; items: number }
   /** Markdown / llms.txt output — consumed by a later increment. */
   markdown: { mode: 'off' | 'index' | 'pages'; style: 'raw' | 'rendered' }
+  /** Auto-appended related-posts widget configuration. */
+  relatedPosts: { enabled: boolean; heading: string; count: number; showImage: boolean }
 }
 
 /** Site settings, grouped so future sections (identity/content/media/forms) add

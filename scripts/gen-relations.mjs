@@ -61,19 +61,44 @@ function toRow(file, contentDir) {
   const dateRaw = frontmatter.date ?? frontmatter.updatedAt ?? frontmatter.pubDate
   const parsed = dateRaw != null ? Date.parse(String(dateRaw)) : Number.NaN
   const updatedAt = Number.isNaN(parsed) ? statSync(file).mtimeMs : parsed
-  return { key: id, collection, locale, slug, title, tags, categories, updatedAt }
+  const featuredImage =
+    typeof frontmatter.featuredImage === 'string' ? frontmatter.featuredImage : undefined
+  const relatedOverride =
+    frontmatter.related === false
+      ? false
+      : Array.isArray(frontmatter.related)
+        ? frontmatter.related.filter((x) => typeof x === 'string')
+        : undefined
+  return { key: id, collection, locale, slug, title, tags, categories, updatedAt, featuredImage, relatedOverride }
 }
 
-/** Build the related-posts graph for a content dir: entry-id -> {title, href}[]. */
+/** Build the related-posts graph for a content dir: entry-id -> {title, href, featuredImage?}[]. */
 export function buildRelationsGraph(contentDir) {
   const rows = walk(contentDir).map((f) => toRow(f, contentDir))
-  const graph = selectRelatedPosts(rows, { k: 4, categoryBoost: 0.25 })
+  const byKey = new Map(rows.map((r) => [r.key, r]))
+  const graph = selectRelatedPosts(rows, { k: 6, categoryBoost: 0.25 })
+
+  const refOf = (r) => ({
+    title: r.title,
+    href: '/' + entryUrlPath({ collection: r.collection, locale: r.locale, slug: r.slug }),
+    ...(r.featuredImage ? { featuredImage: r.featuredImage } : {}),
+  })
+
   const out = {}
-  for (const [id, refs] of Object.entries(graph)) {
-    out[id] = refs.map((r) => ({
-      title: r.title,
-      href: '/' + entryUrlPath({ collection: r.collection, locale: r.locale, slug: r.slug }),
-    }))
+  for (const row of rows) {
+    if (row.relatedOverride === false) {
+      out[row.key] = []
+    } else if (Array.isArray(row.relatedOverride)) {
+      out[row.key] = row.relatedOverride
+        .map((slug) => byKey.get(`${row.collection}/${row.locale}/${slug}`))
+        .filter(Boolean)
+        .map(refOf)
+    } else {
+      out[row.key] = (graph[row.key] ?? []).map((ref) => {
+        const full = byKey.get(`${ref.collection}/${ref.locale}/${ref.slug}`)
+        return refOf(full ?? ref)
+      })
+    }
   }
   return out
 }

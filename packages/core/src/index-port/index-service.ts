@@ -51,10 +51,16 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
 
   async function ensureBuilt(): Promise<void> {
     const meta = await index.getMeta()
-    // Gate on version only: indexedSha is null for an empty git repo (the default
-    // local start state), so also gating on `indexedSha === null` would rebuild on
-    // every mount forever. version (default 0 ≠ INDEX_VERSION) covers cold start.
-    if (meta.version !== INDEX_VERSION) await rebuild()
+    // Cold start / schema change → full build.
+    if (meta.version !== INDEX_VERSION) {
+      await rebuild()
+      return
+    }
+    // Import content that changed out-of-band (seeded, directly committed, or the admin
+    // pointed at a different repo): the index is stale when its recorded sha lags the live
+    // HEAD. A null HEAD (empty default repo) never triggers this, so there is no rebuild loop.
+    const head = await git.headSha()
+    if (head !== null && head !== meta.indexedSha) await rebuild()
   }
 
   async function reindexEntry(ref: EntryRef): Promise<void> {
@@ -65,6 +71,18 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
     const rows = listContentEntries({ drafts, committed, deployedAt })
     if (rows.length === 0) await index.remove(indexKey(ref))
     else await index.upsert(projectRow(rows[0]!))
+    // Keep the index's sha marker in step with admin-originated commits (every admin
+    // commit reindexes its changed entries) so ensureBuilt's out-of-band sha-gate does
+    // not trigger a spurious full rebuild after a normal publish/edit. A no-commit draft
+    // save sets it to the unchanged HEAD — a no-op.
+    // KNOWN LIMITATION: this advances indexedSha to HEAD after reindexing ONE entry. If an
+    // out-of-band commit touched several files AND the admin then reindexes only one of
+    // them before reloading, the sha-gate is satisfied and the other files from that commit
+    // are not imported until the next out-of-band commit moves HEAD again. The normal flow
+    // (seed/commit out-of-band → reload) is unaffected; the window is the concurrent
+    // edit-during-out-of-band-import case. A per-commit "mark synced" signal would remove it.
+    const meta = await index.getMeta()
+    await index.setMeta({ ...meta, indexedSha: await git.headSha() })
   }
 
   async function reindexAfterDeploy(): Promise<void> {

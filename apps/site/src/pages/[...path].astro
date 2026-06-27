@@ -23,13 +23,24 @@ const [collection, locale = 'en'] = entry.id.split('/')
 const TemplateLayout = collection === 'post' ? PostLayout : PageLayout
 const themeOptions = loadThemeOptions()
 const siteSettings = loadSiteSettings()
-const related = (relations as Record<string, { title: string; href: string }[]>)[entry.id] ?? []
+const mediaBase = (import.meta.env.PUBLIC_SETU_MEDIA as string) ?? ''
+const resolveImg = (s: string): string =>
+  !s || /^https?:\/\//i.test(s) ? s : s.startsWith('/') ? `${mediaBase}${s}` : s
+const rp = siteSettings.reading.relatedPosts
+const relatedRaw = (relations as Record<string, { title: string; href: string; featuredImage?: string }[]>)[entry.id] ?? []
+const related = rp.enabled
+  ? relatedRaw.slice(0, rp.count).map((r) => ({
+      title: r.title,
+      href: r.href,
+      ...(r.featuredImage ? { image: resolveImg(r.featuredImage) } : {}),
+    }))
+  : []
 const featuredImage = typeof (entry.data as { featuredImage?: unknown }).featuredImage === 'string'
   ? (entry.data as { featuredImage: string }).featuredImage
   : undefined
 ---
 
-<TemplateLayout title={title} lang={locale} themeOptions={themeOptions} siteSettings={siteSettings} related={related}>
+<TemplateLayout title={title} lang={locale} themeOptions={themeOptions} siteSettings={siteSettings} related={related} heading={rp.heading} showImage={rp.showImage}>
   {featuredImage && collection === 'post' && (
     <figure class="post-hero measure-post" slot="hero">
       <Image src={featuredImage} alt={title} sizes="(min-width: 40rem) 38rem, 100vw" />

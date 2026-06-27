@@ -59,6 +59,9 @@ const devPreviewRoute = {
 }
 
 export default defineConfig({
+  // Absolute base URL for builds (used by RSS/sitemap/canonical links). Deployment-specific →
+  // env at build; dev falls back to the local origin. A prod build MUST set SETU_SITE_URL.
+  site: process.env.SETU_SITE_URL ?? 'http://localhost:4321',
   // Astro 7 changed the compressHTML default from `true` to `'jsx'`, which collapses
   // whitespace between inline elements using JSX rules. Our blocks + content templates
   // were authored under the v6 (`true`) model, so pin it to preserve exact prior output.

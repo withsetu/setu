@@ -36,6 +36,9 @@ const docTitle = title ? `${title} · ${siteTitle}` : siteTitle
     {siteSettings?.reading.searchEngineVisible === false && (
       <meta name="robots" content="noindex, nofollow" />
     )}
+    {siteSettings?.reading.feed.enabled && (
+      <link rel="alternate" type="application/rss+xml" title={siteTitle} href="/rss.xml" />
+    )}
     <style is:inline set:html={overrideCss}></style>
   </head>
   <body>

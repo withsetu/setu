@@ -75,6 +75,12 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
     // commit reindexes its changed entries) so ensureBuilt's out-of-band sha-gate does
     // not trigger a spurious full rebuild after a normal publish/edit. A no-commit draft
     // save sets it to the unchanged HEAD — a no-op.
+    // KNOWN LIMITATION: this advances indexedSha to HEAD after reindexing ONE entry. If an
+    // out-of-band commit touched several files AND the admin then reindexes only one of
+    // them before reloading, the sha-gate is satisfied and the other files from that commit
+    // are not imported until the next out-of-band commit moves HEAD again. The normal flow
+    // (seed/commit out-of-band → reload) is unaffected; the window is the concurrent
+    // edit-during-out-of-band-import case. A per-commit "mark synced" signal would remove it.
     const meta = await index.getMeta()
     await index.setMeta({ ...meta, indexedSha: await git.headSha() })
   }

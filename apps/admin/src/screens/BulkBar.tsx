@@ -46,11 +46,15 @@ export function BulkBar({
   const refs: EntryRef[] = selectedRows.map((r) => r.ref)
   const pendingCount = selectedRows.filter((r) => r.hasDraft && r.lifecycle.state !== 'live').length
 
-  const run = async (op: () => Promise<{ applied: EntryRef[]; skipped: { ref: EntryRef }[] }>, label: string) => {
+  const run = async (
+    op: () => Promise<{ committedSha: string | null; applied: EntryRef[]; skipped: { ref: EntryRef }[] }>,
+    label: string,
+  ) => {
     setBusy(true)
     try {
       const r = await op()
       for (const ref of r.applied) await index.reindexEntry(ref).catch(() => {})
+      if (r.committedSha) await index.markSyncedAt(r.committedSha).catch(() => {})
       const skipped = r.skipped.length ? ` · ${r.skipped.length} skipped` : ''
       notify.success(`${label} ${r.applied.length} post${r.applied.length === 1 ? '' : 's'}${skipped}`)
       onDone()

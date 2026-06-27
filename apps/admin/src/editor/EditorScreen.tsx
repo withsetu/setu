@@ -162,7 +162,8 @@ export function EditorScreen() {
       if (r.status === 'published') {
         baseShaRef.current = r.sha
         notify.success('Published · ' + r.sha.slice(0, 7))
-        reindex(ref)
+        await index.reindexEntry(ref).catch(() => {})
+        await index.markSyncedAt(r.sha).catch(() => {})
         await refreshLifecycle()
       } else if (r.status === 'conflict') {
         notify.error('The published version moved — reload to continue.')

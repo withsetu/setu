@@ -36,6 +36,13 @@ const resolveMarkdocFromApp = {
         return null
       }
     }
+    if (id === '@setu/core' || id.startsWith('@setu/core/')) {
+      try {
+        return require.resolve(id)
+      } catch {
+        return null
+      }
+    }
     return null
   },
 }

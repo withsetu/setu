@@ -1,0 +1,82 @@
+---
+import { getCollection } from 'astro:content'
+import { selectPosts, entryUrlPath, DEFAULT_LOCALE, type PostRow } from '@setu/core'
+
+const {
+  collection = 'post',
+  category,
+  tag,
+  locale,
+  limit = 10,
+  offset = 0,
+  sort = 'newest',
+  layout = 'grid',
+  showImage = true,
+} = Astro.props
+
+const mediaBase = (import.meta.env.PUBLIC_SETU_MEDIA as string) ?? ''
+const resolveImg = (s: string): string =>
+  !s || /^https?:\/\//i.test(s) ? s : s.startsWith('/') ? `${mediaBase}${s}` : s
+
+function toPostRow(entry: { id: string; data: Record<string, unknown> }): PostRow {
+  const [col = '', loc = '', ...rest] = entry.id.split('/')
+  const d = entry.data
+  const dateRaw = d['date'] ?? d['pubDate'] ?? d['updatedAt']
+  const parsed =
+    typeof dateRaw === 'string' || typeof dateRaw === 'number' ? Date.parse(String(dateRaw)) : NaN
+  const strArr = (v: unknown): string[] =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
+  return {
+    id: entry.id,
+    collection: col,
+    locale: loc,
+    slug: rest.join('/'),
+    title: typeof d['title'] === 'string' ? (d['title'] as string) : entry.id,
+    date: Number.isNaN(parsed) ? null : parsed,
+    tags: strArr(d['tags']),
+    categories: strArr(d['categories']),
+    featuredImage: typeof d['featuredImage'] === 'string' ? (d['featuredImage'] as string) : undefined,
+  }
+}
+
+const rows = (await getCollection('entries')).map((e) => toPostRow({ id: e.id, data: e.data as Record<string, unknown> }))
+const selected = selectPosts(rows, {
+  collection,
+  locale: locale ?? DEFAULT_LOCALE,
+  category: category ?? undefined,
+  tag: tag ?? undefined,
+  sort,
+  limit,
+  offset,
+})
+const hrefOf = (p: PostRow) => `/${entryUrlPath({ collection: p.collection, locale: p.locale, slug: p.slug })}`
+---
+
+<ul class={`setu-posts setu-posts--${layout}`}>
+  {selected.map((p) => (
+    <li class="setu-post-card">
+      {showImage && p.featuredImage && (
+        <a href={hrefOf(p)} class="setu-post-card__media">
+          <img src={resolveImg(p.featuredImage)} alt={p.title} loading="lazy" />
+        </a>
+      )}
+      <a href={hrefOf(p)} class="setu-post-card__title">{p.title}</a>
+    </li>
+  ))}
+</ul>
+
+<style>
+  .setu-posts { list-style: none; padding: 0; margin: 1.5rem 0; display: grid; gap: 1.25rem; }
+  .setu-posts--grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+  .setu-posts--list { grid-template-columns: 1fr; }
+  .setu-post-card__media img {
+    width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover;
+    border-radius: var(--r-md, 8px); display: block;
+  }
+  .setu-post-card__title {
+    display: inline-block; margin-top: 0.5rem;
+    font-family: var(--font-heading, inherit); font-weight: 600;
+    color: var(--text, inherit); text-decoration: none;
+  }
+  .setu-post-card__title:hover { color: var(--accent, #4f46e5); }
+</style>

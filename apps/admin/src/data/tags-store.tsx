@@ -31,6 +31,7 @@ export function TagsProvider({ children }: { children: ReactNode }) {
       const refs = await index.entriesByTag(from)
       const res = await bulk.applyMetadata(refs, (m) => bulkAddTag(bulkRemoveTag(m, from), target), `tags: rename ${from} → ${target}`)
       for (const ref of res.applied) await index.reindexEntry(ref).catch(() => {})
+      if (res.committedSha) await index.markSyncedAt(res.committedSha).catch(() => {})
       refreshCounts()
       return { applied: res.applied.length, merged }
     },
@@ -42,6 +43,7 @@ export function TagsProvider({ children }: { children: ReactNode }) {
       const refs = await index.entriesByTag(tag)
       const res = await bulk.applyMetadata(refs, (m) => bulkRemoveTag(m, tag), `tags: delete ${tag}`)
       for (const ref of res.applied) await index.reindexEntry(ref).catch(() => {})
+      if (res.committedSha) await index.markSyncedAt(res.committedSha).catch(() => {})
       refreshCounts()
       return { applied: res.applied.length }
     },

@@ -74,6 +74,10 @@ export function createCategoryDeleter(deps: CategoryDeleterDeps) {
         })
         await index.reindexEntry(p.ref)
       }
+      // We just reindexed every entry this atomic commit changed — mark the index synced
+      // at the commit sha so ensureBuilt's out-of-band sha-gate doesn't full-rebuild on the
+      // next load (reindexEntry no longer advances indexedSha itself).
+      await index.markSyncedAt(sha)
 
       return { categories: nextCats, strippedCount: pending.length }
     },

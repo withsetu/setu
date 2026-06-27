@@ -21,6 +21,7 @@ export interface IndexService {
   ensureBuilt(): Promise<void>
   reindexEntry(ref: EntryRef): Promise<void>
   reindexAfterDeploy(): Promise<void>
+  markSyncedAt(sha: string): Promise<void>
   query(q: IndexQuery): Promise<{ rows: ContentRow[]; total: number }>
   distinctTags(prefix: string, limit: number): Promise<string[]>
   distinctLocales(): Promise<string[]>
@@ -71,22 +72,19 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
     const rows = listContentEntries({ drafts, committed, deployedAt })
     if (rows.length === 0) await index.remove(indexKey(ref))
     else await index.upsert(projectRow(rows[0]!))
-    // Keep the index's sha marker in step with admin-originated commits (every admin
-    // commit reindexes its changed entries) so ensureBuilt's out-of-band sha-gate does
-    // not trigger a spurious full rebuild after a normal publish/edit. A no-commit draft
-    // save sets it to the unchanged HEAD — a no-op.
-    // KNOWN LIMITATION: this advances indexedSha to HEAD after reindexing ONE entry. If an
-    // out-of-band commit touched several files AND the admin then reindexes only one of
-    // them before reloading, the sha-gate is satisfied and the other files from that commit
-    // are not imported until the next out-of-band commit moves HEAD again. The normal flow
-    // (seed/commit out-of-band → reload) is unaffected; the window is the concurrent
-    // edit-during-out-of-band-import case. A per-commit "mark synced" signal would remove it.
-    const meta = await index.getMeta()
-    await index.setMeta({ ...meta, indexedSha: await git.headSha() })
   }
 
   async function reindexAfterDeploy(): Promise<void> {
     await rebuild()
+  }
+
+  /** Record that the index now reflects committed content at `sha`. The admin calls this
+   *  ONCE after it has reindexed every entry a publish/bulk commit changed, so ensureBuilt's
+   *  out-of-band sha-gate won't rebuild for that commit. A true out-of-band multi-file commit
+   *  (whose entries the admin never reindexed) leaves indexedSha behind HEAD and is imported. */
+  async function markSyncedAt(sha: string): Promise<void> {
+    const meta = await index.getMeta()
+    await index.setMeta({ ...meta, indexedSha: sha })
   }
 
   async function query(q: IndexQuery): Promise<{ rows: ContentRow[]; total: number }> {
@@ -122,5 +120,5 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
     return index.entriesByTag(tag)
   }
 
-  return { rebuild, ensureBuilt, reindexEntry, reindexAfterDeploy, query, distinctTags, distinctLocales, categoryCounts, tagCounts, referencedBy, entriesByCategory, entriesByTag }
+  return { rebuild, ensureBuilt, reindexEntry, reindexAfterDeploy, markSyncedAt, query, distinctTags, distinctLocales, categoryCounts, tagCounts, referencedBy, entriesByCategory, entriesByTag }
 }

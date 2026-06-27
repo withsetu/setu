@@ -11,10 +11,10 @@ const page = (route: string): string =>
 let html = ''
 beforeAll(() => {
   execSync('pnpm build', { cwd: appDir, stdio: 'inherit' })
-  html = page('page/posts-demo')
+  html = page('page/query-demo')
 })
 
-describe('posts query block', () => {
+describe('query block', () => {
   it('renders a grid of post cards', () => {
     expect(html).toContain('class="setu-posts setu-posts--grid"')
   })

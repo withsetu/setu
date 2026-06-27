@@ -1,7 +1,16 @@
 import type { ZodTypeAny } from 'zod'
 import type { BlockCategory } from '../blocks/categories'
 
-export type BlockControl = 'text' | 'textarea' | 'number' | 'switch' | 'select' | 'media' | 'url'
+export type BlockControl =
+  | 'text'
+  | 'textarea'
+  | 'number'
+  | 'switch'
+  | 'select'
+  | 'media'
+  | 'url'
+  | 'category'
+  | 'tag'
 
 /** Editor-facing metadata for a block (consumed by the slash menu). */
 export interface BlockEditorMeta {

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { MediaPickerModal } from './MediaPickerModal'
 import { resolveMediaSrc } from './media-src'
+import { CategoryControl, TagControl } from './inspector-controls'
 
 export function BlockInspector({
   tag, mdAttrs, onChange, apiBase,
@@ -45,6 +46,10 @@ export function BlockInspector({
                 {mdAttrs[c.name] ? 'Replace' : 'Choose'}
               </Button>
             </div>
+          ) : c.control === 'category' ? (
+            <CategoryControl id={`bi-${c.name}`} value={String(mdAttrs[c.name] ?? '')} onChange={(v) => onChange(c.name, v)} />
+          ) : c.control === 'tag' ? (
+            <TagControl value={String(mdAttrs[c.name] ?? '')} onChange={(v) => onChange(c.name, v)} />
           ) : (
             <Input id={`bi-${c.name}`} aria-label={c.name} type={c.control === 'url' ? 'url' : 'text'} value={String(val(c.name))} onChange={(e) => onChange(c.name, e.target.value)} />
           )}

@@ -14,5 +14,6 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     listPageSize: 25,
     feed: { enabled: false, items: 20 },
     markdown: { mode: 'off', style: 'raw' },
+    relatedPosts: { enabled: true, heading: 'Read Next', count: 3, showImage: true },
   },
 }

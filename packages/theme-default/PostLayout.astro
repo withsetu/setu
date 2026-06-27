@@ -6,6 +6,7 @@ import type { SiteSettings } from '@setu/core'
 interface RelatedItem {
   title: string
   href: string
+  image?: string
 }
 interface Props {
   title: string
@@ -13,12 +14,14 @@ interface Props {
   themeOptions?: Record<string, string>
   siteSettings?: SiteSettings
   related?: RelatedItem[]
+  heading?: string
+  showImage?: boolean
 }
-const { title, lang = 'en', themeOptions = {}, siteSettings, related = [] } = Astro.props
+const { title, lang = 'en', themeOptions = {}, siteSettings, related = [], heading = 'Read Next', showImage = true } = Astro.props
 ---
 
 <Layout title={title} lang={lang} themeOptions={themeOptions} siteSettings={siteSettings}>
   <slot name="hero" />
   <article class="prose measure-post"><slot /></article>
-  <div class="measure-post"><RelatedReading related={related} /></div>
+  <div class="measure-post"><RelatedReading related={related} heading={heading} showImage={showImage} /></div>
 </Layout>

@@ -70,13 +70,30 @@ props: z.object({
     'middle-left','center','middle-right',
     'bottom-left','bottom-center','bottom-right',
   ]).default('center'),
+  overlayColor: z.string().optional(),   // text-backing scrim on the `background` layout — hex8 / rgba (color + alpha)
+  parallax: z.boolean().default(false),  // `background` layout only — scroll parallax via a small JS island
 }),
 editor: { label: 'Hero', icon: 'hero', group: 'marketing',
   keywords: ['hero','banner','cta','header'],
-  controls: { headline:'text', subhead:'textarea', image:'media', ctaLabel:'text', ctaHref:'url', layout:'select', textPosition:'select' } },
+  controls: { headline:'text', subhead:'textarea', image:'media', ctaLabel:'text', ctaHref:'url',
+    layout:'select', textPosition:'select', overlayColor:'color', parallax:'switch' },
+  // Conditional fields: hide a control unless the predicate holds (auto-form filters on it).
+  showWhen: { overlayColor: { layout: 'background' }, parallax: { layout: 'background' } } },
 ```
 (Replaces the current `variant: ['left','center']`.) Markdoc round-trip unchanged in shape (self-
-closing `{% hero ... /%}`); only the attribute set grows.
+closing `{% hero ... /%}`); only the attribute set grows. `ctaHref` (a `url` control) was already in
+the inspector wave — confirmed present.
+
+**New inspector control `color`** (added to `BlockControl`): a swatch + alpha slider that writes an
+`#RRGGBBAA` string. Honest caveat — a hand-picked color is a fixed value, so it won't track theme /
+dark-mode the way tokens do; acceptable for a hero scrim. `resolveControls` adds `color` as a String-
+backed control.
+
+**Conditional fields (`showWhen`)** — a small addition to the inspector substrate: an optional
+`showWhen: Record<prop, Record<otherProp, value | value[]>>` on the editor meta; `resolveControls`
+(or the inspector) drops a control whose predicate isn't satisfied by the current `mdAttrs`. Keeps
+`background`-only props (`overlayColor`, `parallax`) hidden on `centered`/`split-*`. (`textPosition`
+stays always-shown — it's vertical-align for the non-background layouts.)
 
 ### D. Inspector (admin) — auto
 `layout` + `textPosition` are enums → the existing `BlockInspector` renders them as `Select`s with no
@@ -105,6 +122,13 @@ Four archetypes; `textPosition` (9-point) interpreted per layout; all reflow res
   `split-*` → `(min-width: 768px) 50vw, 100vw`; `centered` image → `100vw` (tune in UAT).
 - **Fluid type** via `clamp()`. Positions map to CSS `align-items`/`justify-items` (grid) — no
   absolute coordinates. Free X/Y is **out of scope** (parked; would require per-breakpoint coords).
+- **Overlay color** (`background` layout): the text sits in a scrim whose background is `overlayColor`
+  (`#RRGGBBAA`, so alpha lets the image show through). Default = a sensible dark scrim when unset so
+  text is readable out of the box.
+- **Parallax** (`background` layout, opt-in): the image scroll-parallaxes via a **small JS island** in
+  the renderer. Must respect `prefers-reduced-motion` (no movement) and disable on touch/coarse
+  pointers (parallax is janky on mobile) — degrade to a normal fixed background. This is the hero's
+  one client-JS bit; everything else stays static.
 
 ## Data flow / round-trip
 
@@ -131,17 +155,24 @@ site build parses → `@setu/blocks/hero.astro` renders via `@setu/image-astro <
 ## Decomposition (for the plan)
 
 1. **Extract `@setu/image-astro`** (move render pipeline; repoint `apps/site`; inert) — foundation.
-2. **Hero contract** update in `@setu/core` (layout + textPosition + control hints) + round-trip test.
-3. **Hero renderer** `@setu/blocks/hero.astro` rebuilt (4 archetypes + 9-point + shared `<Image>` +
-   per-layout `sizes` + responsive CSS).
-4. **Hero canvas core** `Hero.tsx` updated to the archetype/position layout (shared CSS).
-5. **Gate + clean-server live UAT** (editor + Preview + site, responsive).
+2. **Inspector substrate additions** (core + admin): add the `color` control to `BlockControl` +
+   `resolveControls`; add `showWhen` conditional-field filtering; render a `color` (swatch + alpha)
+   control in `BlockInspector`. Unit tests.
+3. **Hero contract** (`@setu/core`): `layout`, `textPosition`, `overlayColor`, `parallax` + control
+   hints + `showWhen` + round-trip test.
+4. **Hero renderer** `@setu/blocks/hero.astro` rebuilt (4 archetypes + 9-point + `overlayColor` scrim
+   + shared `<Image>` + per-layout `sizes` + responsive CSS).
+5. **Parallax island** in the renderer (opt-in; `prefers-reduced-motion` + touch-off; degrade to
+   static). *Kept as its own task so it's trivial to defer if we want a leaner v1.*
+6. **Hero canvas core** `Hero.tsx` updated to the archetype/position/overlay layout (shared CSS).
+7. **Gate + clean-server live UAT** (editor + Preview + site, responsive + reduced-motion).
 
 ## Out of scope
 
 Free X/Y positioning (parked); per-theme renderer-override resolver (still deferred); other marketing
 blocks (additive later); `theme-default`'s own `RelatedReading` image (uses a plain `<img>` — separate);
-making `textPosition` conditional in the inspector.
+a separate **text foreground** color control (the `overlayColor` scrim + a default readable text tone
+covers v1 — auto-contrast/explicit text color can come later); video/animated backgrounds.
 
 ## Builds on / supersedes
 

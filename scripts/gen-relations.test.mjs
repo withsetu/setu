@@ -14,6 +14,10 @@ function fixtureDir() {
   write('astro-intro', 'title: Astro Intro\ntags: [astro, cms]\nfeaturedImage: /media/2026/06/a.jpg')
   write('astro-tips', 'title: Astro Tips\ntags: [astro, edge]')
   write('cooking', 'title: Cooking\ntags: [food]')
+  // A French sibling sharing the 'astro' tag — must never leak into an en post's related list.
+  const fr = path.join(dir, 'post', 'fr')
+  mkdirSync(fr, { recursive: true })
+  writeFileSync(path.join(fr, 'bonjour.mdoc'), `---\ntitle: Bonjour\ntags: [astro]\n---\n\nbody\n`)
   return dir
 }
 
@@ -26,6 +30,17 @@ test('builds an entry-id-keyed graph with resolved title + href', () => {
       title: 'Astro Tips',
       href: '/post/astro-tips',
     })
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('never leaks a different-locale post into the related list', () => {
+  const dir = fixtureDir()
+  try {
+    const graph = buildRelationsGraph(dir)
+    for (const refs of Object.values(graph))
+      for (const r of refs) assert.ok(!r.href.includes('/fr/'), `leaked fr post: ${r.href}`)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

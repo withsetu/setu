@@ -6,7 +6,7 @@ const meta = (over = {}) => ({ name: 'headline', apiBase: '', onPickMedia: vi.fn
 
 describe('controlRegistry', () => {
   it('has a component for every control type', () => {
-    for (const t of ['text','textarea','number','switch','select','media','url','color'] as const) {
+    for (const t of ['text','textarea','number','switch','select','media','url','color','position9','align'] as const) {
       expect(controlRegistry[t]).toBeTypeOf('function')
     }
   })

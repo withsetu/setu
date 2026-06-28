@@ -6,10 +6,10 @@ export function MediaControl({ value, onChange, meta }: ControlProps) {
   const src = value ? resolveMediaSrc(String(value), meta.apiBase || undefined) : ''
   if (!src) {
     return (
-      <button type="button" aria-label={meta.name} onClick={() => meta.onPickMedia(meta.name)}
-        className="flex h-24 w-full items-center justify-center rounded-md border border-dashed border-border text-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground">
+      <Button type="button" variant="outline" aria-label={meta.name} onClick={() => meta.onPickMedia(meta.name)}
+        className="h-24 w-full border-dashed text-muted-foreground">
         Choose from library
-      </button>
+      </Button>
     )
   }
   return (

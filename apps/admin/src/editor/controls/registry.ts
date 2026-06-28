@@ -8,6 +8,7 @@ import { SegmentedSelect } from './segmented-select'
 import { ColorControl } from './color'
 import { MediaControl } from './media'
 import { Position9 } from './position9'
+import { AlignControl } from './align'
 
 export const controlRegistry: Record<BlockControl, React.FC<ControlProps>> = {
   text: TextControl,
@@ -18,7 +19,6 @@ export const controlRegistry: Record<BlockControl, React.FC<ControlProps>> = {
   select: SegmentedSelect,
   color: ColorControl,
   media: MediaControl,
-  // position9 + align registered in Tasks 4 & 5:
   position9: Position9,
-  align: SelectControl,
+  align: AlignControl,
 }

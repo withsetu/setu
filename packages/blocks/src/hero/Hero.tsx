@@ -1,4 +1,5 @@
 import './hero.css'
+import { heroClasses, type HeroLayout } from './hero-classes'
 
 export interface HeroProps {
   headline: string
@@ -6,16 +7,35 @@ export interface HeroProps {
   image?: string
   ctaLabel?: string
   ctaHref?: string
-  variant?: 'left' | 'center'
+  layout?: HeroLayout
+  textPosition?: string
+  overlayColor?: string
 }
 
 /** The hero visual core. Rendered read-only in the editor canvas (props from the node's
  *  mdAttrs); the site mirrors this exact class structure in Hero.astro, sharing hero.css. */
-export function Hero({ headline, subhead, image, ctaLabel, ctaHref, variant = 'center' }: HeroProps) {
+export function Hero({
+  headline,
+  subhead,
+  image,
+  ctaLabel,
+  ctaHref,
+  layout = 'centered',
+  textPosition = 'center',
+  overlayColor,
+}: HeroProps) {
+  const style =
+    layout === 'background'
+      ? ({ ['--blk-hero-scrim' as string]: overlayColor ?? 'rgba(15,17,26,0.55)' })
+      : undefined
   return (
-    <section className={`blk-hero variant-${variant}`}>
-      {image ? <img className="blk-hero-img" src={image} alt="" /> : null}
-      <div className="blk-hero-body">
+    <section className={heroClasses(layout, textPosition)} style={style}>
+      {image ? (
+        <div className="blk-hero-media">
+          <img src={image} alt="" />
+        </div>
+      ) : null}
+      <div className="blk-hero-text">
         <h2 className="blk-hero-headline">{headline}</h2>
         {subhead ? <p className="blk-hero-subhead">{subhead}</p> : null}
         {ctaLabel && ctaHref ? <span className="blk-hero-cta">{ctaLabel}</span> : null}

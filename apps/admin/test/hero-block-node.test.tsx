@@ -17,14 +17,14 @@ function Harness({ mdAttrs }: { mdAttrs: Record<string, unknown> }) {
 
 describe('HeroBlock node view', () => {
   it('renders the hero headline read-only in the canvas', async () => {
-    render(<Harness mdAttrs={{ headline: 'Welcome', variant: 'center' }} />)
+    render(<Harness mdAttrs={{ headline: 'Welcome', layout: 'centered' }} />)
     expect(await screen.findByText('Welcome')).toBeTruthy()
     expect(document.querySelector('.blk-hero')).toBeTruthy()
   })
 
-  it('renders the subhead when provided', async () => {
-    render(<Harness mdAttrs={{ headline: 'Hello', subhead: 'Build fast', variant: 'left' }} />)
-    expect(await screen.findByText('Build fast')).toBeTruthy()
-    expect(document.querySelector('.blk-hero.variant-left')).toBeTruthy()
+  it('renders the hero with its layout + headline', async () => {
+    render(<Harness mdAttrs={{ headline: 'Hi', layout: 'background', textPosition: 'bottom-left' }} />)
+    expect(await screen.findByText('Hi')).toBeTruthy()
+    expect(document.querySelector('.blk-hero.layout-background.pos-bottom-left')).toBeTruthy()
   })
 })

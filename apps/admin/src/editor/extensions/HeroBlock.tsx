@@ -2,6 +2,7 @@ import { Node, mergeAttributes } from '@tiptap/core'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { Hero } from '@setu/blocks'
+import type { HeroProps } from '@setu/blocks'
 import { resolveMediaSrc } from '../media-src'
 
 function HeroBlockView({ node, editor }: ReactNodeViewProps) {
@@ -17,7 +18,9 @@ function HeroBlockView({ node, editor }: ReactNodeViewProps) {
           image={image}
           ctaLabel={md['ctaLabel'] ? String(md['ctaLabel']) : undefined}
           ctaHref={md['ctaHref'] ? String(md['ctaHref']) : undefined}
-          variant={(md['variant'] as 'left' | 'center') ?? 'center'}
+          layout={md['layout'] ? String(md['layout']) as HeroProps['layout'] : undefined}
+          textPosition={md['textPosition'] ? String(md['textPosition']) : undefined}
+          overlayColor={md['overlayColor'] ? String(md['overlayColor']) : undefined}
         />
       </div>
     </NodeViewWrapper>

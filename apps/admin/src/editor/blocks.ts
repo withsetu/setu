@@ -90,7 +90,7 @@ export function slashBlocks(): SlashBlock[] {
       } else if (b.tag === 'callout') {
         chain.insertContent({ type: 'callout', attrs: { mdAttrs: { type: 'info' } }, content: [{ type: 'paragraph' }] })
       } else if (b.tag === 'hero') {
-        chain.insertContent({ type: 'heroBlock', attrs: { mdAttrs: { headline: 'Hero headline', variant: 'center' } } })
+        chain.insertContent({ type: 'heroBlock', attrs: { mdAttrs: { headline: 'Hero headline', layout: 'centered' } } })
       } else {
         chain.insertContent({ type: 'setuBlock', attrs: { tag: b.tag, mdAttrs: {} }, content: [{ type: 'paragraph' }] })
       }

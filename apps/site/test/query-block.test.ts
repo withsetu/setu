@@ -16,11 +16,18 @@ beforeAll(() => {
 
 describe('query block', () => {
   it('renders a grid of post cards', () => {
-    expect(html).toContain('class="setu-posts setu-posts--grid"')
+    expect(html).toContain('setu-posts--grid')
   })
-  it('honors the author-set column count', () => {
-    // query-demo uses columns=4 → the grid carries the --setu-cols custom property the CSS reads.
-    expect(html).toMatch(/class="setu-posts setu-posts--grid"[^>]*style="[^"]*--setu-cols:\s*4/)
+  it('honors the author-set column count via a literal-class grid', () => {
+    // query-demo uses columns=4 → the grid gets a literal cols class + literal repeat() track.
+    expect(html).toContain('setu-posts--cols-4')
+    // whitespace-insensitive: the production build minifies the CSS.
+    expect(html).toMatch(/repeat\(\s*4\s*,\s*minmax\(\s*0\s*,\s*1fr\s*\)\s*\)/)
+  })
+  it('uses only literal repeat() counts (Safari/Firefox drop repeat(var(…)) / repeat(min(…)))', () => {
+    // Regression guard: var()/min() as a grid track count is invalid in Safari/Firefox, which
+    // silently collapses the grid to a single column (renders as a list). Never reintroduce it.
+    expect(html).not.toMatch(/repeat\(\s*(?:var|min)\(/)
   })
   it('lists same-default-locale (en) posts and excludes other locales', () => {
     expect(html).toContain('href="/post/kitchen-sink"')

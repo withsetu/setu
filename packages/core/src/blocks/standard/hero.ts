@@ -20,6 +20,7 @@ export const heroBlock: StandardBlock = {
       ctaHref: z.string().optional(),
       layout: z.enum(['centered', 'split-left', 'split-right', 'background']).default('centered'),
       textPosition: z.enum(POSITIONS).default('center'),
+      width: z.enum(['none', 'wide', 'full']).default('none'),
       overlayColor: z.string().optional(),
       parallax: z.boolean().default(false),
     }),
@@ -28,9 +29,14 @@ export const heroBlock: StandardBlock = {
       keywords: ['hero', 'banner', 'cta', 'header'],
       controls: {
         headline: 'text', subhead: 'textarea', image: 'media', ctaLabel: 'text', ctaHref: 'url',
-        layout: 'select', textPosition: 'select', overlayColor: 'color', parallax: 'switch',
+        layout: 'select', textPosition: 'position9', width: 'align', overlayColor: 'color', parallax: 'switch',
       },
       showWhen: { overlayColor: { layout: 'background' }, parallax: { layout: 'background' } },
+      groups: [
+        { id: 'content', label: 'Content', controls: ['headline', 'subhead', 'image', 'ctaLabel', 'ctaHref'] },
+        { id: 'layout', label: 'Layout', controls: ['layout', 'textPosition', 'width'] },
+        { id: 'style', label: 'Style', controls: ['overlayColor', 'parallax'] },
+      ],
     },
   }),
 }

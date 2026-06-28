@@ -37,6 +37,23 @@ A feature is DONE only when EVERY item is true. Green tests are necessary, **nev
 - **Git:** `origin/main` is the hub. Work on a branch in a worktree; PR to `main`; never commit to
   `main` directly. Run `pnpm install` after dep-changing merges.
 
+## Building UI — check shadcn first (admin side)
+
+The admin (`apps/admin`) is built on **shadcn/ui** (React 19). Before hand-rolling ANY admin
+component or control, **query the shadcn MCP server** (`mcp__shadcn__*` — `search_items_in_registries`
+/ `list_items_in_registries` / `view_items_in_registries` to find a component across the registries,
+then `get_add_command_for_items` to install it). Add the official component
+(`npx shadcn add <item>`) and compose from it — do **not** write a custom-CSS lookalike of a control
+that shadcn already provides. This is Definition-of-Done rule 3 (reuse) applied to UI: a known
+control comes from shadcn, not bespoke markup. If the component isn't already in
+`apps/admin/src/components/ui/`, that's a signal to add it via the MCP, not to invent one.
+
+**Admin vs. front-end themes.** This shadcn-first rule governs the **admin** only. Front-end
+**themes** (`apps/site` and user-authored themes) are NOT bound to shadcn — a theme may use its own
+component library, plain semantic HTML + CSS, or shadcn by choice. Don't import admin shadcn
+components into a theme, and don't assume a theme is shadcn; read that theme's own conventions first
+and match them.
+
 ## Where things are
 
 - Specs/plans: `docs/superpowers/{specs,plans}/`

@@ -99,6 +99,13 @@
 .blk-hero.pos-bottom-center { align-content: end; justify-items: center; }
 .blk-hero.pos-bottom-right  { align-content: end; justify-items: end; }
 
+/* ── Parallax island hook ─────────────────────────────────────────────────── */
+.blk-hero.layout-background[data-parallax] { overflow: hidden; }
+.blk-hero.layout-background[data-parallax] .blk-hero-media img { will-change: transform; transition: transform .05s linear; }
+@media (prefers-reduced-motion: reduce) {
+  .blk-hero.layout-background[data-parallax] .blk-hero-media img { transform: none !important; }
+}
+
 /* ── Mobile reflow ────────────────────────────────────────────────────────── */
 @media (max-width: 767px) {
   .blk-hero.layout-split-left,

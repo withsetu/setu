@@ -2,12 +2,13 @@
 import './hero.css'
 import Image from '@setu/image-astro/Image.astro'
 import { heroClasses, sizesForLayout } from './hero-classes'
-const { headline, subhead, image, ctaLabel, ctaHref, layout = 'centered', textPosition = 'center', overlayColor } = Astro.props
+const { headline, subhead, image, ctaLabel, ctaHref, layout = 'centered', textPosition = 'center', overlayColor, parallax } = Astro.props
 const cls = heroClasses(layout, textPosition)
 const sizes = sizesForLayout(layout)
 const scrimStyle = layout === 'background' ? `--blk-hero-scrim: ${overlayColor ?? 'rgba(15,17,26,0.55)'}` : undefined
+const parallaxOn = Boolean(parallax) && layout === 'background'
 ---
-<section class={cls} style={scrimStyle}>
+<section class={cls} style={scrimStyle} data-parallax={parallaxOn ? '' : undefined}>
   {image && (
     <div class="blk-hero-media">
       <Image src={image} alt="" sizes={sizes} />
@@ -19,3 +20,21 @@ const scrimStyle = layout === 'background' ? `--blk-hero-scrim: ${overlayColor ?
     {ctaLabel && ctaHref && <a class="blk-hero-cta" href={ctaHref}>{ctaLabel}</a>}
   </div>
 </section>
+{parallaxOn && (
+  <script>
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
+    const coarse = matchMedia('(pointer: coarse)').matches
+    if (!reduce && !coarse) {
+      for (const el of document.querySelectorAll('[data-parallax] .blk-hero-media img')) {
+        const host = el.closest('[data-parallax]')
+        const onScroll = () => {
+          const r = host.getBoundingClientRect()
+          const offset = Math.max(-40, Math.min(40, (r.top / innerHeight) * -40))
+          el.style.transform = `translate3d(0, ${offset.toFixed(1)}px, 0) scale(1.12)`
+        }
+        addEventListener('scroll', onScroll, { passive: true })
+        onScroll()
+      }
+    }
+  </script>
+)}

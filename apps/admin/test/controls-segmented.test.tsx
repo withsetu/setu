@@ -17,4 +17,14 @@ describe('SegmentedSelect', () => {
     // dropdown renders a combobox trigger, not 5 radios
     expect(screen.queryByRole('radio')).toBeNull()
   })
+
+  it('renders segmented for exactly 4 options', () => {
+    render(<SegmentedSelect value="a" onChange={vi.fn()} meta={meta(['a','b','c','d'])} />)
+    expect(screen.getAllByRole('radio')).toHaveLength(4)
+  })
+
+  it('delegates to dropdown for 0 options', () => {
+    render(<SegmentedSelect value="" onChange={vi.fn()} meta={meta([])} />)
+    expect(screen.queryByRole('radio')).toBeNull()
+  })
 })

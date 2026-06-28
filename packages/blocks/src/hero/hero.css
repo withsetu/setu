@@ -106,10 +106,13 @@
   .blk-hero.layout-background[data-parallax] .blk-hero-media img { transform: none !important; }
 }
 
-/* ── Width (mirrors image block: none = content width, wide = breakout, full = bleed) ── */
-.blk-hero { max-width: 72rem; margin-inline: auto; }
-.blk-hero.w-wide { max-width: 90rem; }
-.blk-hero.w-full { max-width: none; border-radius: 0; }
+/* ── Width ───────────────────────────────────────────────────────────────────
+   Breaking a hero out of a constrained content column (wide/full) is layout-
+   context-specific, so the actual breakout is provided by the theme — see
+   theme-default/site.css (.prose .blk-hero.w-wide / .w-full / .layout-background),
+   mirroring the image block's align breakout. The block itself only drops the
+   corner radius on full-bleed. */
+.blk-hero.w-full { border-radius: 0; }
 
 /* ── Craft ────────────────────────────────────────────────────────────────── */
 .blk-hero-headline { text-wrap: balance; }

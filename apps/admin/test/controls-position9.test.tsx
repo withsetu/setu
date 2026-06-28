@@ -17,4 +17,20 @@ describe('Position9', () => {
     render(<Position9 value="top-left" onChange={vi.fn()} meta={meta} />)
     expect(screen.getByRole('radio', { name: 'top-left' })).toHaveAttribute('aria-checked', 'true')
   })
+
+  it('uses roving tabindex — only the active cell is tabbable', () => {
+    render(<Position9 value="center" onChange={vi.fn()} meta={meta} />)
+    expect(screen.getByRole('radio', { name: 'center' })).toHaveAttribute('tabindex', '0')
+    expect(screen.getByRole('radio', { name: 'top-left' })).toHaveAttribute('tabindex', '-1')
+  })
+
+  it('moves selection with arrow keys (→ next, ↓ next row)', () => {
+    const onChange = vi.fn()
+    render(<Position9 value="center" onChange={onChange} meta={meta} />)
+    const group = screen.getByRole('radiogroup')
+    fireEvent.keyDown(group, { key: 'ArrowRight' })
+    expect(onChange).toHaveBeenCalledWith('middle-right')
+    fireEvent.keyDown(group, { key: 'ArrowDown' })
+    expect(onChange).toHaveBeenCalledWith('bottom-center')
+  })
 })

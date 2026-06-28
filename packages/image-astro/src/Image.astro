@@ -3,9 +3,9 @@
 // width height>; without one (external/non-image/manifest-less) → the plain #3 image.
 // The manifest is read from SETU_MEDIA_DIR at build time; URLs resolve against PUBLIC_SETU_MEDIA
 // (relative when unset in a prod build — never a baked-in localhost URL; see resolveMediaBase).
-import { manifestKeyFromSrc, loadManifest } from '../lib/media-manifest'
-import { imageMarkup } from '../lib/image-markup'
-import { resolveMediaBase } from '../lib/media-base'
+import { manifestKeyFromSrc, loadManifest } from './lib/media-manifest'
+import { imageMarkup } from './lib/image-markup'
+import { resolveMediaBase } from './lib/media-base'
 
 const { src = '', alt = '', title, sizes = '100vw' } = Astro.props
 const base = resolveMediaBase(import.meta.env.PUBLIC_SETU_MEDIA, import.meta.env.DEV)

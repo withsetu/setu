@@ -16,7 +16,8 @@ export interface BlockEditorMeta {
   variants?: string[]
   /** Optional per-prop editor control override. When absent for a prop, the control is
    *  derived from its zod type (Enum→select, Number→number, Boolean→switch, String→text).
-   *  String-backed props may upgrade to 'textarea' | 'media' | 'url' | 'color'. */
+   *  String-backed props may upgrade to 'textarea' | 'media' | 'url' | 'color';
+   *  enum-backed props may upgrade to 'position9' | 'align'. */
   controls?: Record<string, BlockControl>
   /** Hide a control unless every (otherProp → value|values) pair matches the current attrs. */
   showWhen?: Record<string, Record<string, string | string[]>>

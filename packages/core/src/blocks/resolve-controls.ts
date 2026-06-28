@@ -12,6 +12,9 @@ export interface ResolvedControl {
 /** String-backed controls a hint may upgrade a String prop to. */
 const STRING_CONTROLS: ReadonlySet<BlockControl> = new Set(['text', 'textarea', 'media', 'url', 'color'])
 
+/** Controls a hint may upgrade an enum (String with `.matches`) prop to. */
+const ENUM_HINTS: ReadonlySet<BlockControl> = new Set(['select', 'position9', 'align'])
+
 /** Map a block's zod props (+ optional per-prop control hints) to an ordered list of
  *  controls for the inspector. Hints override the zod-derived control but must be
  *  type-compatible; an unknown prop or an incompatible hint throws (never silently lossy,
@@ -32,7 +35,6 @@ export function resolveControls(
       return { name, control: derived, ...(a.default !== undefined ? { default: a.default } : {}), ...(a.matches ? { options: a.matches } : {}) }
     }
     // a hint is only valid if compatible with the zod type
-    const ENUM_HINTS: ReadonlySet<BlockControl> = new Set(['select', 'position9', 'align'])
     const ok =
       (a.matches && ENUM_HINTS.has(hint)) ||
       (a.type === 'Number' && hint === 'number') ||

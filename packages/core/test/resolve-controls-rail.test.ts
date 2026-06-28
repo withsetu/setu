@@ -22,6 +22,7 @@ describe('resolveControls — rail control types', () => {
     expect(out).toHaveLength(1)
     expect(out[0]!.control).toBe('align')
     expect(out[0]!.options).toEqual(['none','wide','full'])
+    expect(out[0]!.default).toBe('none')
   })
 
   it('throws when position9 hints a non-enum String prop', () => {

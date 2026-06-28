@@ -1,10 +1,19 @@
 ---
 import './hero.css'
-const { headline, subhead, image, ctaLabel, ctaHref, variant = 'center' } = Astro.props
+import Image from '@setu/image-astro/Image.astro'
+import { heroClasses, sizesForLayout } from './hero-classes'
+const { headline, subhead, image, ctaLabel, ctaHref, layout = 'centered', textPosition = 'center', overlayColor } = Astro.props
+const cls = heroClasses(layout, textPosition)
+const sizes = sizesForLayout(layout)
+const scrimStyle = layout === 'background' ? `--blk-hero-scrim: ${overlayColor ?? 'rgba(15,17,26,0.55)'}` : undefined
 ---
-<section class={`blk-hero variant-${variant}`}>
-  {image && <img class="blk-hero-img" src={image} alt="" />}
-  <div class="blk-hero-body">
+<section class={cls} style={scrimStyle}>
+  {image && (
+    <div class="blk-hero-media">
+      <Image src={image} alt="" sizes={sizes} />
+    </div>
+  )}
+  <div class="blk-hero-text">
     <h2 class="blk-hero-headline">{headline}</h2>
     {subhead && <p class="blk-hero-subhead">{subhead}</p>}
     {ctaLabel && ctaHref && <a class="blk-hero-cta" href={ctaHref}>{ctaLabel}</a>}

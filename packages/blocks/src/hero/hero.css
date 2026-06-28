@@ -1,6 +1,129 @@
-.blk-hero { display: flex; flex-direction: column; gap: 1rem; padding: clamp(2rem, 6vw, 4rem); border-radius: var(--r-md, 8px); background: color-mix(in oklch, var(--accent, #4f46e5) 6%, transparent); }
-.blk-hero.variant-center { align-items: center; text-align: center; }
-.blk-hero-img { width: 100%; max-height: 320px; object-fit: cover; border-radius: var(--r-md, 8px); }
-.blk-hero-headline { margin: 0; font-size: clamp(1.75rem, 4vw, 2.75rem); line-height: 1.1; font-weight: 700; }
-.blk-hero-subhead { margin: 0; font-size: 1.125rem; opacity: 0.8; max-width: 42rem; }
-.blk-hero-cta { display: inline-block; margin-top: 0.5rem; padding: 0.6rem 1.2rem; border-radius: var(--r-md, 8px); background: var(--accent, #4f46e5); color: var(--on-accent, #fff); font-weight: 600; }
+/* ── Base ─────────────────────────────────────────────────────────────────── */
+.blk-hero {
+  display: grid;
+  gap: clamp(1rem, 3vw, 2rem);
+  padding: clamp(2rem, 6vw, 4rem);
+  border-radius: var(--r-md, 8px);
+}
+
+.blk-hero-headline {
+  margin: 0;
+  font-size: clamp(1.75rem, 4vw, 2.75rem);
+  line-height: 1.1;
+  font-weight: 700;
+}
+
+.blk-hero-subhead {
+  margin: .5rem 0 0;
+  font-size: 1.125rem;
+  opacity: .85;
+  max-width: 42rem;
+}
+
+.blk-hero-cta {
+  display: inline-block;
+  margin-top: 1rem;
+  padding: .6rem 1.2rem;
+  border-radius: var(--r-md, 8px);
+  background: var(--accent, #4f46e5);
+  color: var(--on-accent, #fff);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.blk-hero-media :global(img) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--r-md, 8px);
+  display: block;
+}
+
+/* ── Layout: centered ─────────────────────────────────────────────────────── */
+.blk-hero.layout-centered {
+  justify-items: center;
+  text-align: center;
+}
+
+/* ── Layout: split-left / split-right ────────────────────────────────────── */
+.blk-hero.layout-split-left,
+.blk-hero.layout-split-right {
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+}
+
+/* In split-right the image is the second DOM child but should appear on the left */
+.blk-hero.layout-split-right .blk-hero-media {
+  order: -1;
+}
+
+/* ── Layout: background ───────────────────────────────────────────────────── */
+.blk-hero.layout-background {
+  position: relative;
+  align-content: center;
+  min-height: clamp(320px, 50vh, 560px);
+}
+
+.blk-hero.layout-background .blk-hero-media {
+  position: absolute;
+  inset: 0;
+}
+
+.blk-hero.layout-background .blk-hero-media :global(img) {
+  border-radius: var(--r-md, 8px);
+}
+
+.blk-hero.layout-background .blk-hero-text {
+  position: relative;
+  background: var(--blk-hero-scrim, rgba(15, 17, 26, 0.55));
+  color: #fff;
+  padding: 1.25rem 1.5rem;
+  border-radius: var(--r-md, 8px);
+  max-width: 36rem;
+  width: max-content;
+}
+
+/* ── 9-point text-position rules ─────────────────────────────────────────── */
+/* top row: align-content: start */
+.blk-hero.pos-top-left    { align-content: start; justify-items: start; }
+.blk-hero.pos-top-center  { align-content: start; justify-items: center; }
+.blk-hero.pos-top-right   { align-content: start; justify-items: end; }
+
+/* middle row: align-content: center */
+.blk-hero.pos-middle-left  { align-content: center; justify-items: start; }
+.blk-hero.pos-center       { align-content: center; justify-items: center; }
+.blk-hero.pos-middle-right { align-content: center; justify-items: end; }
+
+/* bottom row: align-content: end */
+.blk-hero.pos-bottom-left   { align-content: end; justify-items: start; }
+.blk-hero.pos-bottom-center { align-content: end; justify-items: center; }
+.blk-hero.pos-bottom-right  { align-content: end; justify-items: end; }
+
+/* ── Mobile reflow ────────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .blk-hero.layout-split-left,
+  .blk-hero.layout-split-right {
+    grid-template-columns: 1fr;
+  }
+
+  /* Reset the visual order override on mobile so image stacks on top */
+  .blk-hero.layout-split-right .blk-hero-media {
+    order: 0;
+  }
+
+  .blk-hero.layout-background {
+    min-height: 0;
+  }
+
+  /* On mobile: un-position the media so it flows in the normal stacking order */
+  .blk-hero.layout-background .blk-hero-media {
+    position: static;
+  }
+
+  /* On mobile: remove the scrim box so text reads against the page background */
+  .blk-hero.layout-background .blk-hero-text {
+    background: transparent;
+    color: inherit;
+    padding: 1rem 0 0;
+  }
+}

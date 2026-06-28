@@ -4,6 +4,7 @@ import { TextControl, UrlControl, NumberControl } from './text'
 import { TextareaControl } from './textarea'
 import { SwitchControl } from './switch'
 import { SelectControl } from './select'
+import { SegmentedSelect } from './segmented-select'
 import { ColorControl } from './color'
 import { MediaControl } from './media'
 
@@ -13,7 +14,7 @@ export const controlRegistry: Record<BlockControl, React.FC<ControlProps>> = {
   number: NumberControl,
   textarea: TextareaControl,
   switch: SwitchControl,
-  select: SelectControl,
+  select: SegmentedSelect,
   color: ColorControl,
   media: MediaControl,
   // position9 + align registered in Tasks 4 & 5:

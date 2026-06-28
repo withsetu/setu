@@ -10,6 +10,7 @@ export interface HeroProps {
   layout?: HeroLayout
   textPosition?: string
   overlayColor?: string
+  width?: string
 }
 
 /** The hero visual core. Rendered read-only in the editor canvas (props from the node's
@@ -23,13 +24,14 @@ export function Hero({
   layout = 'centered',
   textPosition = 'center',
   overlayColor,
+  width,
 }: HeroProps) {
   const style =
     layout === 'background'
       ? ({ ['--blk-hero-scrim' as string]: overlayColor ?? 'rgba(15,17,26,0.55)' })
       : undefined
   return (
-    <section className={heroClasses(layout, textPosition)} style={style}>
+    <section className={heroClasses(layout, textPosition, width)} style={style}>
       {image ? (
         <div className="blk-hero-media">
           <img src={image} alt="" />

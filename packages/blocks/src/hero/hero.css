@@ -106,6 +106,14 @@
   .blk-hero.layout-background[data-parallax] .blk-hero-media img { transform: none !important; }
 }
 
+/* ── Width (mirrors image block: none = content width, wide = breakout, full = bleed) ── */
+.blk-hero { max-width: 72rem; margin-inline: auto; }
+.blk-hero.w-wide { max-width: 90rem; }
+.blk-hero.w-full { max-width: none; border-radius: 0; }
+
+/* ── Craft ────────────────────────────────────────────────────────────────── */
+.blk-hero-headline { text-wrap: balance; }
+
 /* ── Mobile reflow ────────────────────────────────────────────────────────── */
 @media (max-width: 767px) {
   .blk-hero.layout-split-left,

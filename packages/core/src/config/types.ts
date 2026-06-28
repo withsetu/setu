@@ -1,7 +1,7 @@
 import type { ZodTypeAny } from 'zod'
 import type { BlockCategory } from '../blocks/categories'
 
-export type BlockControl = 'text' | 'textarea' | 'number' | 'switch' | 'select' | 'media' | 'url' | 'color'
+export type BlockControl = 'text' | 'textarea' | 'number' | 'switch' | 'select' | 'media' | 'url' | 'color' | 'position9' | 'align'
 
 /** Editor-facing metadata for a block (consumed by the slash menu). */
 export interface BlockEditorMeta {
@@ -16,10 +16,14 @@ export interface BlockEditorMeta {
   variants?: string[]
   /** Optional per-prop editor control override. When absent for a prop, the control is
    *  derived from its zod type (Enum→select, Number→number, Boolean→switch, String→text).
-   *  String-backed props may upgrade to 'textarea' | 'media' | 'url' | 'color'. */
+   *  String-backed props may upgrade to 'textarea' | 'media' | 'url' | 'color';
+   *  enum-backed props may upgrade to 'position9' | 'align'. */
   controls?: Record<string, BlockControl>
   /** Hide a control unless every (otherProp → value|values) pair matches the current attrs. */
   showWhen?: Record<string, Record<string, string | string[]>>
+  /** Optional ordered sections for the inspector rail. Controls not listed in any
+   *  group fall into an implicit leading "Content" section in declaration order. */
+  groups?: Array<{ id: string; label: string; controls: string[] }>
 }
 
 /** A content block as authored in setu.config.ts. */

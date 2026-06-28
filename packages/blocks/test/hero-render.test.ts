@@ -30,6 +30,25 @@ describe('heroClasses', () => {
   })
 })
 
+describe('heroClasses — width param', () => {
+  it('appends w-wide when width is wide', () => {
+    expect(heroClasses('centered', 'center', 'wide')).toBe('blk-hero layout-centered pos-center w-wide')
+  })
+
+  it('appends w-full when width is full', () => {
+    expect(heroClasses('background', 'bottom-left', 'full')).toBe('blk-hero layout-background pos-bottom-left w-full')
+  })
+
+  it('omits w- class when width is none', () => {
+    expect(heroClasses('centered', 'center', 'none')).toBe('blk-hero layout-centered pos-center')
+  })
+
+  it('omits w- class when width is undefined (backwards compat)', () => {
+    expect(heroClasses('centered', 'center', undefined)).toBe('blk-hero layout-centered pos-center')
+    expect(heroClasses('centered', 'center')).toBe('blk-hero layout-centered pos-center')
+  })
+})
+
 describe('sizesForLayout', () => {
   it('picks responsive sizes per layout', () => {
     expect(sizesForLayout('background')).toBe('100vw')

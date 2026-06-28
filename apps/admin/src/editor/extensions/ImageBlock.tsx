@@ -4,8 +4,7 @@ import type { ReactNodeViewProps } from '@tiptap/react'
 import { resolveMediaSrc } from '../media-src'
 import { useToolbarRoving } from '../useToolbarRoving'
 import { replaceImage } from '../image-insert'
-
-const ALIGNMENTS = ['none', 'left', 'right', 'wide', 'full'] as const
+import { AlignControl } from '../controls/align'
 
 interface ImageBlockStorage {
   apiBase: string
@@ -70,20 +69,11 @@ function ImageBlockView({ node, updateAttributes, editor, getPos }: ReactNodeVie
       <figure className={`setu-image-block align-${align}`} contentEditable={false}>
         <div className="block-props" role="toolbar" aria-label="Image" ref={toolbarRef} onKeyDown={onToolbarKeyDown}>
           <span className="bp-label">Align</span>
-          {ALIGNMENTS.map((a) => (
-            <button
-              key={a}
-              type="button"
-              className={`bp-align${align === a ? ' on' : ''}`}
-              aria-label={`Align ${a}`}
-              aria-pressed={align === a}
-              data-toolbar-item
-              onMouseDown={keepFocus}
-              onClick={() => setAttrs({ align: a })}
-            >
-              {a}
-            </button>
-          ))}
+          <AlignControl
+            value={align}
+            onChange={(v) => setAttrs({ align: String(v) })}
+            meta={{ name: 'align', options: ['none', 'left', 'right', 'wide', 'full'], apiBase: '', onPickMedia: () => {} }}
+          />
           <span className="bp-sep" />
           <input
             className="sib-alt"

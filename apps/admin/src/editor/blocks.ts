@@ -91,6 +91,11 @@ export function slashBlocks(): SlashBlock[] {
         chain.insertContent({ type: 'callout', attrs: { mdAttrs: { type: 'info' } }, content: [{ type: 'paragraph' }] })
       } else if (b.tag === 'hero') {
         chain.insertContent({ type: 'heroBlock', attrs: { mdAttrs: { headline: 'Hero headline', variant: 'center' } } })
+      } else if (b.tag === 'query') {
+        chain.insertContent({
+          type: 'queryBlock',
+          attrs: { mdAttrs: { collection: 'post', sort: 'newest', layout: 'grid', columns: 3, limit: 10, showImage: true } },
+        })
       } else {
         chain.insertContent({ type: 'setuBlock', attrs: { tag: b.tag, mdAttrs: {} }, content: [{ type: 'paragraph' }] })
       }

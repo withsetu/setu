@@ -20,6 +20,8 @@ import { BlockMenu } from './extensions/BlockMenu'
 import { Callout } from './extensions/Callout'
 import { ContactBlock } from './extensions/ContactBlock'
 import { HeroBlock } from './extensions/HeroBlock'
+import { QueryBlock } from './extensions/QueryBlock'
+import type { RunQuery } from './QueryPreview'
 import { createSetuBlock } from './extensions/SetuBlock'
 import { Image } from './extensions/Image'
 import { ImageBlock } from './extensions/ImageBlock'
@@ -48,11 +50,13 @@ export function Canvas({
   editable,
   onChange,
   onEditor,
+  runQuery,
 }: {
   initialContent: TiptapDoc
   editable: boolean
   onChange: (doc: TiptapDoc) => void
   onEditor?: (e: Editor | null) => void
+  runQuery?: RunQuery
 }) {
   const editorRef = useRef<Editor | null>(null)
   const notify = useNotify()
@@ -118,6 +122,7 @@ export function Canvas({
       Callout,
       ContactBlock,
       HeroBlock,
+      QueryBlock.configure({ runQuery }),
       createSetuBlock(registry.blocks, blockCores),
       Passthrough,
       Image,

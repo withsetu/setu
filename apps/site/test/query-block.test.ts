@@ -18,6 +18,10 @@ describe('query block', () => {
   it('renders a grid of post cards', () => {
     expect(html).toContain('class="setu-posts setu-posts--grid"')
   })
+  it('honors the author-set column count', () => {
+    // query-demo uses columns=4 → the grid carries the --setu-cols custom property the CSS reads.
+    expect(html).toMatch(/class="setu-posts setu-posts--grid"[^>]*style="[^"]*--setu-cols:\s*4/)
+  })
   it('lists same-default-locale (en) posts and excludes other locales', () => {
     expect(html).toContain('href="/post/kitchen-sink"')
     expect(html).toContain('href="/post/astro-on-the-edge"')

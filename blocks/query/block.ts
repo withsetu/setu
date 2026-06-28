@@ -11,15 +11,17 @@ export default defineBlock({
     offset: z.number().default(0),
     sort: z.enum(['newest', 'oldest', 'title']).default('newest'),
     layout: z.enum(['grid', 'list']).default('grid'),
+    columns: z.number().default(3),
     showImage: z.boolean().default(true),
   }),
   editor: {
-    label: 'Query block',
-    icon: 'info',
+    label: 'Query',
+    icon: 'pages',
     group: 'widget',
-    keywords: ['posts', 'list', 'query', 'archive', 'blog', 'loop'],
-    // Render the taxonomy filters as searchable pickers in the block inspector
-    // (not raw text inputs). collection/sort/layout fall back to selects from their enums.
+    keywords: ['posts', 'list', 'query', 'archive', 'blog', 'loop', 'feed'],
+    // The query block is edited through a dedicated grouped inspector (QueryInspector) with a
+    // live in-canvas preview — not the generic auto-form. These hints stay as the source of
+    // truth for which taxonomy filters the block exposes.
     controls: { category: 'category', tag: 'tag' },
   },
 })

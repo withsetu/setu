@@ -10,12 +10,16 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { MediaPickerModal } from './MediaPickerModal'
 import { resolveMediaSrc } from './media-src'
 import { CategoryControl, TagControl } from './inspector-controls'
+import { QueryInspector } from './QueryInspector'
 
 export function BlockInspector({
   tag, mdAttrs, onChange, apiBase,
 }: { tag: string; mdAttrs: Record<string, unknown>; onChange: (name: string, value: unknown) => void; apiBase: string }) {
   const block = registry.blocks.find((b) => b.tag === tag)
   const [pickFor, setPickFor] = useState<string | null>(null)
+  // The query block has a bespoke grouped inspector (sections + segmented toggle + slider +
+  // taxonomy pickers) rather than the generic auto-form.
+  if (tag === 'query') return <QueryInspector mdAttrs={mdAttrs} onChange={onChange} />
   if (!block) return <p className="px-1 py-2 text-sm text-muted-foreground">No editable properties.</p>
 
   const controls = resolveControls(block.props, block.editor?.controls)

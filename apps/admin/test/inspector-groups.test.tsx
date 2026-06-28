@@ -13,6 +13,27 @@ import { BlockInspector } from '../src/editor/BlockInspector'
  * When layout != 'background', both are hidden — so the Style section must not render.
  */
 describe('inspector groups', () => {
+  /**
+   * Task 7: Rail shell polish — inspector header
+   *
+   * The inspector must render a header "Block · <LABEL>" as the first child of the
+   * outer container. For the hero block, label is "Hero" (block.editor.label).
+   */
+  it('renders a "Block · Hero" rail header for the hero block', () => {
+    render(
+      <BlockInspector
+        tag="hero"
+        mdAttrs={{ headline: 'Hi', layout: 'centered' }}
+        onChange={() => {}}
+        apiBase=""
+      />
+    )
+    // The header text should contain the block label (case-insensitive match for "hero")
+    const header = screen.getByRole('heading', { level: 2 })
+    expect(header).toBeInTheDocument()
+    expect(header.textContent).toMatch(/hero/i)
+  })
+
   it('renders Content and Layout section headers for hero (centered)', () => {
     render(
       <BlockInspector

@@ -68,8 +68,13 @@ export function BlockInspector({
     )
   }
 
+  const blockLabel = block.editor?.label ?? tag
+
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-5">
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        Block · {blockLabel}
+      </h2>
       {groups.map((g) => {
         if (g.controls.length === 0) return null
         return g.label ? (

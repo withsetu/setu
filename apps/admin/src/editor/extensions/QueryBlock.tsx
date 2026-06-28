@@ -8,11 +8,16 @@ function QueryBlockView({ node, editor }: ReactNodeViewProps) {
   const md = (node.attrs.mdAttrs ?? {}) as QueryAttrs
   // runQuery is injected by Canvas from the live IndexProvider (same pattern as
   // imageBlock.apiBase) so the node view stays out of React context.
-  const runQuery = (editor.storage as unknown as { queryBlock?: { runQuery?: RunQuery } }).queryBlock?.runQuery
+  const storage = editor.storage as unknown as {
+    queryBlock?: { runQuery?: RunQuery }
+    imageBlock?: { apiBase?: string }
+  }
+  const runQuery = storage.queryBlock?.runQuery
+  const apiBase = storage.imageBlock?.apiBase
   return (
     <NodeViewWrapper>
       <div className="setu-block" data-tag="query" contentEditable={false}>
-        <QueryPreview attrs={md} runQuery={runQuery} />
+        <QueryPreview attrs={md} runQuery={runQuery} apiBase={apiBase} />
       </div>
     </NodeViewWrapper>
   )

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ImageIcon } from 'lucide-react'
 import type { ContentRow, IndexQuery, SortKey } from '@setu/core'
+import { resolveMediaSrc } from './media-src'
 
 /** The block's attribute bag, as stored on the node (all optional — defaults applied here). */
 export interface QueryAttrs {
@@ -42,7 +43,15 @@ export function queryFromAttrs(a: QueryAttrs): IndexQuery {
 
 /** Live, in-canvas preview of what the query block will render: the real matching entries
  *  from the content index, in the chosen layout / column count. */
-export function QueryPreview({ attrs, runQuery }: { attrs: QueryAttrs; runQuery: RunQuery | undefined }) {
+export function QueryPreview({
+  attrs,
+  runQuery,
+  apiBase,
+}: {
+  attrs: QueryAttrs
+  runQuery: RunQuery | undefined
+  apiBase?: string
+}) {
   const [rows, setRows] = useState<ContentRow[]>([])
   const [total, setTotal] = useState(0)
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -119,11 +128,20 @@ export function QueryPreview({ attrs, runQuery }: { attrs: QueryAttrs; runQuery:
                     <div
                       className={
                         layout === 'list'
-                          ? 'flex aspect-[4/3] w-20 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground'
-                          : 'flex aspect-[16/9] w-full items-center justify-center bg-muted text-muted-foreground'
+                          ? 'flex aspect-[4/3] w-20 shrink-0 items-center justify-center overflow-hidden rounded bg-muted text-muted-foreground'
+                          : 'flex aspect-[16/9] w-full items-center justify-center overflow-hidden bg-muted text-muted-foreground'
                       }
                     >
-                      <ImageIcon className="size-5 opacity-40" />
+                      {row?.featuredImage ? (
+                        <img
+                          src={resolveMediaSrc(row.featuredImage, apiBase || undefined)}
+                          alt=""
+                          className="size-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <ImageIcon className="size-5 opacity-40" />
+                      )}
                     </div>
                   )}
                   <div className={layout === 'list' ? 'min-w-0 flex-1' : 'p-2'}>

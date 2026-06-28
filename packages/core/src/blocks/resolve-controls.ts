@@ -10,7 +10,7 @@ export interface ResolvedControl {
 }
 
 /** String-backed controls a hint may upgrade a String prop to. */
-const STRING_CONTROLS: ReadonlySet<BlockControl> = new Set(['text', 'textarea', 'media', 'url'])
+const STRING_CONTROLS: ReadonlySet<BlockControl> = new Set(['text', 'textarea', 'media', 'url', 'color'])
 
 /** Map a block's zod props (+ optional per-prop control hints) to an ordered list of
  *  controls for the inspector. Hints override the zod-derived control but must be

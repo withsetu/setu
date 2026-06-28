@@ -18,11 +18,20 @@ export function BlockInspector({
   if (!block) return <p className="px-1 py-2 text-sm text-muted-foreground">No editable properties.</p>
 
   const controls = resolveControls(block.props, block.editor?.controls)
+  const showWhen = block.editor?.showWhen ?? {}
+  const visible = controls.filter((c) => {
+    const rule = showWhen[c.name]
+    if (!rule) return true
+    return Object.entries(rule).every(([k, v]) => {
+      const cur = mdAttrs[k]
+      return Array.isArray(v) ? v.includes(cur as string) : cur === v
+    })
+  })
   const val = (name: string, dflt?: unknown) => mdAttrs[name] ?? dflt ?? ''
 
   return (
     <div className="flex flex-col gap-3">
-      {controls.map((c) => (
+      {visible.map((c) => (
         <div key={c.name} className="flex flex-col gap-1.5">
           <Label htmlFor={`bi-${c.name}`} className="capitalize">{c.name}</Label>
           {c.control === 'textarea' ? (
@@ -44,6 +53,20 @@ export function BlockInspector({
               <Button type="button" variant="outline" size="sm" aria-label={c.name} onClick={() => setPickFor(c.name)}>
                 {mdAttrs[c.name] ? 'Replace' : 'Choose'}
               </Button>
+            </div>
+          ) : c.control === 'color' ? (
+            <div className="flex items-center gap-2">
+              <input type="color" aria-label={c.name}
+                value={(String(mdAttrs[c.name] ?? '#000000ff')).slice(0, 7)}
+                onChange={(e) => onChange(c.name, e.target.value + (String(mdAttrs[c.name] ?? '').slice(7) || 'ff'))}
+                className="h-8 w-10 rounded border border-border bg-transparent p-0.5" />
+              <input type="range" min={0} max={100} aria-label={`${c.name} opacity`}
+                value={Math.round((parseInt((String(mdAttrs[c.name] ?? '#000000ff')).slice(7) || 'ff', 16) / 255) * 100)}
+                onChange={(e) => {
+                  const a = Math.round((Number(e.target.value) / 100) * 255).toString(16).padStart(2, '0')
+                  onChange(c.name, (String(mdAttrs[c.name] ?? '#000000ff')).slice(0, 7) + a)
+                }}
+                className="flex-1" />
             </div>
           ) : (
             <Input id={`bi-${c.name}`} aria-label={c.name} type={c.control === 'url' ? 'url' : 'text'} value={String(val(c.name))} onChange={(e) => onChange(c.name, e.target.value)} />

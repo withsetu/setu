@@ -32,8 +32,9 @@ export function resolveControls(
       return { name, control: derived, ...(a.default !== undefined ? { default: a.default } : {}), ...(a.matches ? { options: a.matches } : {}) }
     }
     // a hint is only valid if compatible with the zod type
+    const ENUM_HINTS: ReadonlySet<BlockControl> = new Set(['select', 'position9', 'align'])
     const ok =
-      (a.matches && hint === 'select') ||
+      (a.matches && ENUM_HINTS.has(hint)) ||
       (a.type === 'Number' && hint === 'number') ||
       (a.type === 'Boolean' && hint === 'switch') ||
       (a.type === 'String' && !a.matches && STRING_CONTROLS.has(hint))

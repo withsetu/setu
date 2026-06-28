@@ -21,6 +21,7 @@ function HeroBlockView({ node, editor }: ReactNodeViewProps) {
           layout={md['layout'] ? String(md['layout']) as HeroProps['layout'] : undefined}
           textPosition={md['textPosition'] ? String(md['textPosition']) : undefined}
           overlayColor={md['overlayColor'] ? String(md['overlayColor']) : undefined}
+          width={md['width'] ? String(md['width']) : undefined}
         />
       </div>
     </NodeViewWrapper>

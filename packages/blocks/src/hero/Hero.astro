@@ -2,8 +2,8 @@
 import './hero.css'
 import Image from '@setu/image-astro/Image.astro'
 import { heroClasses, sizesForLayout } from './hero-classes'
-const { headline, subhead, image, ctaLabel, ctaHref, layout = 'centered', textPosition = 'center', overlayColor, parallax } = Astro.props
-const cls = heroClasses(layout, textPosition)
+const { headline, subhead, image, ctaLabel, ctaHref, layout = 'centered', textPosition = 'center', overlayColor, parallax, width } = Astro.props
+const cls = heroClasses(layout, textPosition, width)
 const sizes = sizesForLayout(layout)
 const scrimStyle = layout === 'background' ? `--blk-hero-scrim: ${overlayColor ?? 'rgba(15,17,26,0.55)'}` : undefined
 const parallaxOn = Boolean(parallax) && layout === 'background'

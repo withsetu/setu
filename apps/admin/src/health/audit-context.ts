@@ -3,8 +3,9 @@ import type { GitPort } from '@setu/core'
 
 const COLLECTIONS = ['post', 'page']
 
-/** The site's published content = committed .mdoc files (drafts live only in the DB), minus
- *  entries explicitly marked `published: false`. Mirrors what the site build sees. */
+/** Committed .mdoc files (drafts live only in the DB), intentionally EXCLUDING entries
+ *  marked `published: false`. Audits what should be visible to the public — not a mirror
+ *  of the site build, which currently renders all committed entries regardless of the flag. */
 export async function loadAuditEntries(git: GitPort): Promise<AuditEntry[]> {
   const out: AuditEntry[] = []
   for (const collection of COLLECTIONS) {

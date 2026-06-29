@@ -4,9 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAudit } from '../../health/useAudit'
 
 const BAND: Record<AuditResult['band'], { label: string; cls: string }> = {
-  strong: { label: 'Strong', cls: 'text-green-600' },
-  good: { label: 'Good', cls: 'text-amber-600' },
-  'needs-work': { label: 'Needs work', cls: 'text-red-600' },
+  strong: { label: 'Strong', cls: 'text-foreground' },
+  good: { label: 'Good', cls: 'text-foreground' },
+  'needs-work': { label: 'Needs work', cls: 'text-destructive' },
 }
 
 /** Presentational — takes an audit so it's easy to test. */

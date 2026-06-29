@@ -166,3 +166,6 @@ export type {
 } from './health/types'
 export { RUBRIC } from './health/rubric'
 export { SITE_CAPABILITIES } from './health/capabilities'
+export { scanBody } from './health/scan'
+export { EVALUATORS } from './health/checks'
+export { runAudit } from './health/run-audit'

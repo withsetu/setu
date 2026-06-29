@@ -159,3 +159,10 @@ export { mergeBlockSources } from './blocks/merge-sources'
 
 export type { CaptchaPort } from './captcha/captcha-port'
 export { createNoopCaptcha } from './captcha/captcha-port'
+
+export type {
+  Severity, Owner, CheckStatus, RubricItem, SiteCapabilities,
+  AuditEntry, AuditContext, CheckResult, CategoryScore, AuditResult,
+} from './health/types'
+export { RUBRIC } from './health/rubric'
+export { SITE_CAPABILITIES } from './health/capabilities'

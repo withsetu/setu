@@ -9,6 +9,7 @@ export const RUBRIC: RubricItem[] = [
   { id: 'foundations.charset', category: 'foundations', severity: 'required', title: 'Character encoding', guidance: 'A <meta charset> is declared early in <head>.', url: URL },
   { id: 'foundations.viewport', category: 'foundations', severity: 'required', title: 'Viewport meta', guidance: 'A responsive viewport meta tag is present.', url: URL },
   { id: 'foundations.title', category: 'foundations', severity: 'required', title: 'Site title', guidance: 'A site title is set and used in page titles.', url: URL },
+  { id: 'foundations.entry-title', category: 'foundations', severity: 'required', title: 'Entry titles', guidance: 'Every content entry has a non-empty title.', url: URL },
   { id: 'foundations.description', category: 'foundations', severity: 'recommended', title: 'Meta description', guidance: 'A site description is set for search/social snippets.', url: URL },
   { id: 'foundations.canonical', category: 'foundations', severity: 'required', title: 'Canonical URL', guidance: 'Each page declares a canonical link to avoid duplicate-content issues.', url: URL },
   { id: 'foundations.favicon', category: 'foundations', severity: 'recommended', title: 'Favicon', guidance: 'A favicon/site icon is linked.', url: URL },

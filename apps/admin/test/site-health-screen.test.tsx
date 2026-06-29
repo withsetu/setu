@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import type { AuditResult } from '@setu/core'
 import { SiteHealthView } from '../src/screens/SiteHealth'
 
@@ -19,9 +19,13 @@ describe('SiteHealthView', () => {
     expect(screen.getByText(/fix now/i)).toBeTruthy()
     expect(screen.getByText(/on setu.s roadmap/i)).toBeTruthy()
     expect(screen.getAllByText(/manual/i).length).toBeGreaterThan(0)
-    // a config fail appears under fix-now with its rubric title
-    expect(screen.getByText(/meta description/i)).toBeTruthy()
-    // platform fail appears under roadmap
-    expect(screen.getByText(/canonical url/i)).toBeTruthy()
+    // a config fail appears UNDER the fix-now section (not merely on screen)
+    const fixNow = screen.getByText(/fix now/i).closest('section')!
+    expect(within(fixNow).getByText(/meta description/i)).toBeTruthy()
+    // a platform fail appears UNDER the roadmap section — the core grouping invariant
+    const roadmap = screen.getByText(/on setu.s roadmap/i).closest('section')!
+    expect(within(roadmap).getByText(/canonical url/i)).toBeTruthy()
+    // and the platform fail is NOT misfiled under fix-now
+    expect(within(fixNow).queryByText(/canonical url/i)).toBeNull()
   })
 })

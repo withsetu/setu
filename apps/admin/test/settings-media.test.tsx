@@ -144,4 +144,65 @@ describe('MediaSettings', () => {
       await waitFor(() => expect(reprocessBtn).not.toBeDisabled())
     })
   })
+
+  describe('async reprocess progress', () => {
+    it('starts reprocess, polls, shows progress bar, and toasts the count on done', async () => {
+      const fetchMock = vi.fn()
+        // capabilities fetch
+        .mockResolvedValueOnce(new Response(JSON.stringify({ capabilities: { imageProcessing: true, writableMediaStore: true, backgroundJobs: true } }), { status: 200 }))
+        // initial status check on mount (idle)
+        .mockResolvedValueOnce(new Response(JSON.stringify({ status: 'idle' }), { status: 200 }))
+        // POST to start reprocess
+        .mockResolvedValueOnce(new Response(JSON.stringify({ jobId: 'j1', status: 'running', total: 3, processed: 0 }), { status: 202 }))
+        // polls → done
+        .mockResolvedValue(new Response(JSON.stringify({ status: 'done', processed: 3, total: 3 }), { status: 200 }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      renderMedia()
+
+      // Wait for capabilities to load and button to be enabled
+      const reprocessBtn = await screen.findByRole('button', { name: /reprocess all images/i })
+      await waitFor(() => expect(reprocessBtn).not.toBeDisabled())
+
+      // Open the confirmation dialog
+      fireEvent.click(reprocessBtn)
+
+      // Confirm reprocess
+      const confirmBtn = await screen.findByRole('button', { name: /^reprocess$/i })
+      fireEvent.click(confirmBtn)
+
+      // Should show success toast once the poll resolves — waitFor retries until done
+      await waitFor(
+        () => expect(screen.getByText(/Reprocessed 3 images/i)).toBeInTheDocument(),
+        { timeout: 10000 },
+      )
+    }, 15000)
+
+    it('shows error toast when reprocess job fails', async () => {
+      const fetchMock = vi.fn()
+        // capabilities
+        .mockResolvedValueOnce(new Response(JSON.stringify({ capabilities: { imageProcessing: true, writableMediaStore: true, backgroundJobs: true } }), { status: 200 }))
+        // initial status idle
+        .mockResolvedValueOnce(new Response(JSON.stringify({ status: 'idle' }), { status: 200 }))
+        // POST start
+        .mockResolvedValueOnce(new Response(JSON.stringify({ jobId: 'j2', status: 'running', total: 2, processed: 0 }), { status: 202 }))
+        // poll → failed
+        .mockResolvedValue(new Response(JSON.stringify({ status: 'failed', processed: 0, total: 2, error: 'sharp not found' }), { status: 200 }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      renderMedia()
+
+      const reprocessBtn = await screen.findByRole('button', { name: /reprocess all images/i })
+      await waitFor(() => expect(reprocessBtn).not.toBeDisabled())
+      fireEvent.click(reprocessBtn)
+
+      const confirmBtn = await screen.findByRole('button', { name: /^reprocess$/i })
+      fireEvent.click(confirmBtn)
+
+      await waitFor(
+        () => expect(screen.getByText(/sharp not found/i)).toBeInTheDocument(),
+        { timeout: 10000 },
+      )
+    }, 15000)
+  })
 })

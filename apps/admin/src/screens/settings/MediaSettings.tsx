@@ -3,6 +3,7 @@ import { parseSettings, DEFAULT_SETTINGS } from '@setu/core'
 import type { MediaSettings as MediaValues } from '@setu/core'
 import { useServices, OWNER_AUTHOR } from '../../data/store'
 import { useNotify } from '../../ui/notify'
+import { useCapabilities } from '../../lib/useCapabilities'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -40,12 +41,16 @@ const sameMedia = (a: MediaValues, b: MediaValues) =>
 export function MediaSettings() {
   const { git } = useServices()
   const notify = useNotify()
+  const { caps, loading: capsLoading } = useCapabilities()
 
   const [raw, setRaw] = useState<Record<string, unknown> | null>(null)
   const [values, setValues] = useState<MediaValues>(DEFAULT_SETTINGS.media)
   const [published, setPublished] = useState<MediaValues | null>(null)
   const [saving, setSaving] = useState(false)
   const [reprocessing, setReprocessing] = useState(false)
+
+  const canReprocess = !!caps && caps.imageProcessing && caps.writableMediaStore && caps.backgroundJobs
+  const showUploadsNote = !capsLoading && caps !== null && !(caps.imageProcessing && caps.writableMediaStore)
 
   useEffect(() => {
     let live = true
@@ -162,29 +167,49 @@ export function MediaSettings() {
         <p className="text-xs text-muted-foreground">
           Re-encodes every image in the media library using the current format and LQIP settings.
         </p>
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="outline">Reprocess all images</Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Reprocess all images?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Re-encodes every image with the current format/LQIP settings. This is heavy —
-                especially AVIF — and is best run locally, not on a deployed site.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                disabled={reprocessing}
-                onClick={() => void reprocess()}
-              >
-                {reprocessing ? 'Reprocessing…' : 'Reprocess'}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+
+        {!capsLoading && !canReprocess ? (
+          <>
+            <Button variant="outline" disabled>
+              Reprocess all images
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Image reprocessing runs in local or self-hosted mode. This site is served from the
+              edge — run reprocess from your local Setu or your self-hosted server.
+            </p>
+          </>
+        ) : (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline">Reprocess all images</Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Reprocess all images?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Re-encodes every image with the current format/LQIP settings. This is heavy —
+                  especially AVIF — and is best run locally, not on a deployed site.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={reprocessing}
+                  onClick={() => void reprocess()}
+                >
+                  {reprocessing ? 'Reprocessing…' : 'Reprocess'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+
+        {showUploadsNote && (
+          <p className="text-xs text-muted-foreground">
+            Uploads won't generate variants (WebP/AVIF/LQIP) in this deployment — image
+            processing and writable media storage are not available on the edge.
+          </p>
+        )}
       </div>
     </div>
   )

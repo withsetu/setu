@@ -13,6 +13,20 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+function stubCapabilities(
+  caps: { imageProcessing: boolean; writableMediaStore: boolean; backgroundJobs: boolean },
+  reprocessedCount = 0,
+) {
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (String(url).includes('/api/capabilities')) {
+      return new Response(JSON.stringify({ capabilities: caps }), { status: 200 })
+    }
+    return new Response(JSON.stringify({ reprocessed: reprocessedCount }), { status: 200 })
+  }))
+}
+
+const CAPABLE = { imageProcessing: true, writableMediaStore: true, backgroundJobs: true }
+
 function renderMedia() {
   const git = createMemoryGitPort([])
   const services = servicesFor(createMemoryDataPort([]), git)
@@ -54,17 +68,13 @@ describe('MediaSettings', () => {
   })
 
   it('shows the reprocess button and local-run warning dialog', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ reprocessed: 42 }),
-    } as Response)
-    vi.stubGlobal('fetch', fetchMock)
+    stubCapabilities(CAPABLE, 42)
 
     renderMedia()
 
-    // Reprocess button should be present
+    // Reprocess button should be present and enabled (capable topology)
     const reprocessBtn = await screen.findByRole('button', { name: /reprocess all images/i })
-    expect(reprocessBtn).toBeTruthy()
+    await waitFor(() => expect(reprocessBtn).not.toBeDisabled())
 
     // Click it — alert dialog should open with the local-run warning
     fireEvent.click(reprocessBtn)
@@ -78,14 +88,12 @@ describe('MediaSettings', () => {
   })
 
   it('calls POST /media/reprocess on confirm and toasts the count', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ reprocessed: 7 }),
-    } as Response)
-    vi.stubGlobal('fetch', fetchMock)
+    stubCapabilities(CAPABLE, 7)
+    const fetchSpy = vi.mocked(global.fetch)
 
     renderMedia()
     const reprocessBtn = await screen.findByRole('button', { name: /reprocess all images/i })
+    await waitFor(() => expect(reprocessBtn).not.toBeDisabled())
     fireEvent.click(reprocessBtn)
 
     // Click the confirm action inside the dialog
@@ -93,10 +101,47 @@ describe('MediaSettings', () => {
     fireEvent.click(confirmBtn)
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
+      expect(fetchSpy).toHaveBeenCalledWith(
         expect.stringContaining('/media/reprocess'),
         expect.objectContaining({ method: 'POST' }),
       )
+    })
+  })
+
+  describe('topology gating', () => {
+    it('disables Reprocess button and shows edge message when imageProcessing=false', async () => {
+      stubCapabilities({ imageProcessing: false, writableMediaStore: true, backgroundJobs: true })
+
+      renderMedia()
+
+      // Wait for the edge message to appear (caps loaded + gate applied)
+      const msg = await screen.findByText(/image reprocessing runs in local or self-hosted mode/i)
+      expect(msg).toBeTruthy()
+
+      // Re-query after render stabilises to get the disabled button
+      await waitFor(() => {
+        const btn = screen.getByRole('button', { name: /reprocess all images/i })
+        expect(btn).toBeDisabled()
+      })
+    })
+
+    it('disables Reprocess and shows uploads note when imageProcessing and writableMediaStore are false', async () => {
+      stubCapabilities({ imageProcessing: false, writableMediaStore: false, backgroundJobs: true })
+
+      renderMedia()
+
+      await screen.findByRole('button', { name: /reprocess all images/i })
+      const uploadsNote = await screen.findByText(/uploads won't generate variants/i)
+      expect(uploadsNote).toBeTruthy()
+    })
+
+    it('keeps Reprocess button enabled when all capabilities are true', async () => {
+      stubCapabilities({ imageProcessing: true, writableMediaStore: true, backgroundJobs: true })
+
+      renderMedia()
+
+      const reprocessBtn = await screen.findByRole('button', { name: /reprocess all images/i })
+      await waitFor(() => expect(reprocessBtn).not.toBeDisabled())
     })
   })
 })

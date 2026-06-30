@@ -20,7 +20,7 @@ describe('SiteHealthView', () => {
     render(<SiteHealthView audit={audit} toggle={() => {}} health={emptyHealth} />)
     expect(screen.getByText(/fix now/i)).toBeTruthy()
     expect(screen.getByText(/on setu.s roadmap/i)).toBeTruthy()
-    expect(screen.getAllByText(/manual/i).length).toBeGreaterThan(0)
+    expect(screen.getByText(/to verify/i)).toBeTruthy()
     // a config fail appears UNDER the fix-now section (not merely on screen)
     const fixNow = screen.getByText(/fix now/i).closest('section')!
     expect(within(fixNow).getByText(/meta description/i)).toBeTruthy()

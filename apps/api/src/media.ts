@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { createAuthz, DEFAULT_ROLES, ingestImage, mediaSlug, mediaKeyOf, originalKey, manifestKey, mediaRecordKey } from '@setu/core'
-import type { Actor, ImageFormat, ImagePort, MediaManifest, MediaRecord, MediaSettings, StoragePort } from '@setu/core'
+import type { Actor, ImageFormat, ImagePort, MediaManifest, MediaRecord, MediaSettings, ReprocessJobStore, StoragePort } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
 import type { ResolveActor } from './auth/resolve-actor'
 
@@ -53,6 +53,8 @@ export interface UploadApiOptions {
   /** Current Media settings. Pass a getter (not a snapshot) so uploads and reprocess pick up
    *  setting changes made after boot — the server's settings.json is read at request time. */
   mediaSettings?: MediaSettings | (() => MediaSettings)
+  /** Async reprocess job store + runner. When absent, the /api/media/reprocess routes return 409. */
+  reprocess?: { store: ReprocessJobStore; run: (jobId: string) => void }
 }
 
 const authz = createAuthz(DEFAULT_ROLES)
@@ -143,39 +145,23 @@ export function createUploadApi(opts: UploadApiOptions) {
     )
   })
 
-  app.post('/media/reprocess', authMiddleware(opts.resolveActor), async (c) => {
+  app.post('/api/media/reprocess', authMiddleware(opts.resolveActor), async (c) => {
     if (!authz.can(c.get('actor'), 'content.create')) return c.json({ error: 'forbidden' }, 403)
-    if (!opts.image) return c.json({ reprocessed: 0 })
-    const currentMedia = resolveMedia()
-    const currentWidths = opts.widths ?? DEFAULT_WIDTHS
-    const keys = await storage.list()
-    const manifestKeys = keys.filter((k) => k.endsWith('.manifest.json'))
-    let reprocessed = 0
-    for (const mk of manifestKeys) {
-      const manRaw = await storage.get(mk)
-      if (!manRaw) continue
-      let old: MediaManifest
-      try {
-        old = JSON.parse(new TextDecoder().decode(manRaw.body)) as MediaManifest
-      } catch {
-        continue
-      }
-      const origRaw = await storage.get(old.original.key)
-      if (!origRaw) continue
-      await ingestImage(
-        { image: opts.image, storage },
-        {
-          mediaKey: old.id,
-          bytes: origRaw.body,
-          originalKey: old.original.key,
-          formats: formatsFor(currentMedia.imageFormat),
-          widths: currentWidths,
-          lqip: currentMedia.imageLqip,
-        },
-      )
-      reprocessed += 1
-    }
-    return c.json({ reprocessed })
+    if (!opts.image || !opts.reprocess) return c.json({ error: 'reprocess unavailable in this mode' }, 409)
+    const running = opts.reprocess.store.active()
+    if (running) return c.json({ jobId: running.id, status: running.status, total: running.total, processed: running.processed }, 202)
+    const all = await storage.list()
+    const keys = all.filter((k) => k.endsWith('.manifest.json'))
+    const job = opts.reprocess.store.create(keys, Date.now())
+    opts.reprocess.run(job.id)
+    return c.json({ jobId: job.id, status: job.status, total: job.total, processed: job.processed }, 202)
+  })
+
+  app.get('/api/media/reprocess/status', (c) => {
+    const store = opts.reprocess?.store
+    const job = store?.active() ?? store?.latest()
+    if (!job) return c.json({ status: 'idle' })
+    return c.json({ status: job.status, processed: job.processed, total: job.total, ...(job.error ? { error: job.error } : {}) })
   })
 
   app.get('/media/_index', async (c) => {

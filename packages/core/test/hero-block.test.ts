@@ -16,12 +16,22 @@ describe('hero block', () => {
     expect(hero!.contract.editor?.controls?.image).toBe('media')
   })
 
+  it('hero contract has layout, textPosition, overlay + parallax with conditional fields', () => {
+    const hero = STANDARD_BLOCKS.find((b) => b.tag === 'hero')!
+    const ed = hero.contract.editor!
+    expect(ed.controls!.layout).toBe('select')
+    expect(ed.controls!.overlayColor).toBe('color')
+    expect(ed.controls!.parallax).toBe('switch')
+    expect(ed.showWhen!.overlayColor).toEqual({ layout: 'background' })
+    expect(ed.showWhen!.parallax).toEqual({ layout: 'background' })
+  })
+
   it('round-trips {% hero /%} through tiptap and back', () => {
-    const src = '{% hero headline="Welcome" subhead="Build fast" image="/media/2026/06/x.webp" ctaLabel="Start" ctaHref="/start" variant="center" /%}\n'
+    const src = '{% hero headline="Welcome" subhead="Build fast" image="/media/2026/06/x.webp" ctaLabel="Start" ctaHref="/start" layout="centered" /%}\n'
     const doc = markdocToTiptap(src, KNOWN)
     const hero = doc.content!.find((n) => n.type === 'heroBlock')
     expect(hero).toBeDefined()
-    expect(hero!.attrs!.mdAttrs).toMatchObject({ headline: 'Welcome', variant: 'center', image: '/media/2026/06/x.webp' })
+    expect(hero!.attrs!.mdAttrs).toMatchObject({ headline: 'Welcome', layout: 'centered', image: '/media/2026/06/x.webp' })
     const out = tiptapToMarkdoc(doc)
     expect(out).toContain('{% hero')
     expect(out).toContain('headline="Welcome"')

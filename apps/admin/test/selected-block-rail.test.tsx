@@ -10,7 +10,7 @@ function makeEditor() {
   // A leading paragraph gives the initial cursor a text node to land in, so the
   // default selection is a TextSelection (not a NodeSelection on heroBlock).
   return new Editor({ extensions: [StarterKit, HeroBlock],
-    content: { type: 'doc', content: [{ type: 'paragraph' }, { type: 'heroBlock', attrs: { mdAttrs: { headline: 'Hi', variant: 'center' } } }] } })
+    content: { type: 'doc', content: [{ type: 'paragraph' }, { type: 'heroBlock', attrs: { mdAttrs: { headline: 'Hi', layout: 'centered' } } }] } })
 }
 
 describe('selectedBlockOf', () => {

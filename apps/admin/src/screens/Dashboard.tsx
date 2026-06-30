@@ -16,6 +16,7 @@ import { StatTiles } from '../dashboard/widgets/StatTiles'
 import { SiteDeployCard } from '../dashboard/widgets/SiteDeployCard'
 import { WhosEditing } from '../dashboard/widgets/WhosEditing'
 import { GettingStarted } from '../dashboard/widgets/GettingStarted'
+import { SiteHealthCard } from './dashboard/SiteHealthCard'
 
 function HeaderActions() {
   return (
@@ -67,6 +68,7 @@ export function Dashboard() {
               <div className="space-y-5">
                 <StatTiles posts={counts.posts} pages={counts.pages} published={counts.published} drafts={counts.drafts} />
                 <SiteDeployCard url={url} deployedSha={deploySha} />
+                <SiteHealthCard />
                 <WhosEditing locks={locks} />
               </div>
               <ResumeEditing rows={recentEntries(rows ?? [], 5)} />

@@ -6,8 +6,8 @@ import { toUrlPath } from '../lib/url'
 import { loadThemeOptions } from '../lib/site-config'
 import { loadSiteSettings } from '../lib/site-settings'
 import relations from '../../.setu/cache/relations.json'
-import Image from '../components/Image.astro'
-import { resolveMediaBase } from '../lib/media-base'
+import Image from '@setu/image-astro/Image.astro'
+import { resolveMediaBase } from '@setu/image-astro'
 
 export async function getStaticPaths() {
   const all = await getCollection('entries')

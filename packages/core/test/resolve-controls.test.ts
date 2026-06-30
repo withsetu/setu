@@ -34,4 +34,9 @@ describe('resolveControls', () => {
   it('throws when a hint is incompatible with the zod type (switch on a string)', () => {
     expect(() => resolveControls(props, { headline: 'switch' })).toThrow(/incompatible/i)
   })
+
+  it('accepts a color hint on a string prop', () => {
+    const p = z.object({ scrim: z.string().optional() })
+    expect(resolveControls(p, { scrim: 'color' })).toEqual([{ name: 'scrim', control: 'color' }])
+  })
 })

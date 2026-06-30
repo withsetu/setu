@@ -5,7 +5,7 @@ import { getCollection } from 'astro:content'
 import { selectPosts, entryUrlPath, DEFAULT_LOCALE, type PostRow } from '@setu/core'
 import { loadThemeOptions } from '../../lib/site-config'
 import { loadSiteSettings } from '../../lib/site-settings'
-import { resolveMediaBase } from '../../lib/media-base'
+import { resolveMediaBase } from '@setu/image-astro'
 
 export const getStaticPaths = (async ({ paginate }) => {
   // Posts per archive page comes from the Reading settings (Settings → Reading → Posts per

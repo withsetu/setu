@@ -9,6 +9,10 @@ export type BlockControl =
   | 'select'
   | 'media'
   | 'url'
+  | 'color'
+  | 'position9'
+  | 'align'
+  | 'slider'
   | 'category'
   | 'tag'
 
@@ -25,8 +29,17 @@ export interface BlockEditorMeta {
   variants?: string[]
   /** Optional per-prop editor control override. When absent for a prop, the control is
    *  derived from its zod type (Enum→select, Number→number, Boolean→switch, String→text).
-   *  String-backed props may upgrade to 'textarea' | 'media' | 'url'. */
+   *  String-backed props may upgrade to 'textarea' | 'media' | 'url' | 'color';
+   *  enum-backed props may upgrade to 'position9' | 'align'. */
   controls?: Record<string, BlockControl>
+  /** Optional friendly field labels for the inspector (propName → label). When absent
+   *  for a prop, the label is humanized from the prop name (e.g. textPosition → "Text Position"). */
+  labels?: Record<string, string>
+  /** Hide a control unless every (otherProp → value|values) pair matches the current attrs. */
+  showWhen?: Record<string, Record<string, string | string[]>>
+  /** Optional ordered sections for the inspector rail. Controls not listed in any
+   *  group fall into an implicit leading "Content" section in declaration order. */
+  groups?: Array<{ id: string; label: string; controls: string[] }>
 }
 
 /** A content block as authored in setu.config.ts. */

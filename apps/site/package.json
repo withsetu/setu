@@ -17,6 +17,7 @@
     "@astrojs/react": "6.0.0",
     "@setu/blocks": "workspace:*",
     "@setu/core": "workspace:*",
+    "@setu/image-astro": "workspace:*",
     "@setu/theme-default": "workspace:*",
     "astro": "7.0.2",
     "react": "^19.0.0",

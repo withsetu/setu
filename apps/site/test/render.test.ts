@@ -140,8 +140,10 @@ describe('render pipeline — baseline + passthrough', () => {
     expect(h1s.length).toBe(1)
   })
   it('wires the baseline stylesheet (inlined CSS rule present)', () => {
-    // CSS is inlined by Astro; assert a known rule from @setu/blocks callout.css appears in the built HTML.
-    expect(html).toContain('.blk-callout')
+    // Assert a known rule from @setu/blocks callout.css is wired into the build. Astro inlines
+    // small CSS but externalizes once the combined block CSS crosses ~4 kB, so read via the
+    // themeCss() helper (inline <style> OR the emitted _astro stylesheet) rather than raw html.
+    expect(themeCss()).toContain('.blk-callout')
   })
 })
 

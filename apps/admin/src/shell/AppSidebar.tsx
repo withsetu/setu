@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, Files, Tags, Image, ClipboardList, Palette, Settings,
-  ExternalLink, Rocket,
+  ExternalLink, Rocket, Activity,
 } from 'lucide-react'
 import {
   Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarRail,
@@ -28,6 +28,7 @@ const NAV: Group[] = [
     { to: '/forms', label: 'Forms', icon: ClipboardList },
     { to: '/appearance', label: 'Appearance', icon: Palette },
     { to: '/settings', label: 'Settings', icon: Settings },
+    { to: '/health', label: 'Site Health', icon: Activity },
   ] },
 ]
 

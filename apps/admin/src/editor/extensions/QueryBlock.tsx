@@ -23,7 +23,7 @@ function QueryBlockView({ node, editor }: ReactNodeViewProps) {
   )
 }
 
-/** The `{% query %}` block — atom (props-only, no body); props edited in the QueryInspector
+/** The `{% query %}` block — atom (props-only, no body); props edited in the grouped block-inspector
  *  rail with a live preview here in the canvas. Mirrors HeroBlock/ImageBlock: mdAttrs is
  *  JSON-only, kept out of the DOM, round-tripped by the core converter (to-tiptap maps
  *  query→queryBlock, to-markdoc emits a self-closing {% query … /%}). */

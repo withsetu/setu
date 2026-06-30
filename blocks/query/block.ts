@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 export default defineBlock({
   props: z.object({
-    collection: z.string().default('post'),
+    collection: z.enum(['post', 'page']).default('post'),
     category: z.string().optional(),
     tag: z.string().optional(),
     locale: z.string().optional(),
@@ -19,9 +19,23 @@ export default defineBlock({
     icon: 'pages',
     group: 'widget',
     keywords: ['posts', 'list', 'query', 'archive', 'blog', 'loop', 'feed'],
-    // The query block is edited through a dedicated grouped inspector (QueryInspector) with a
-    // live in-canvas preview — not the generic auto-form. These hints stay as the source of
-    // truth for which taxonomy filters the block exposes.
-    controls: { category: 'category', tag: 'tag' },
+    // collection/sort/layout are enums → SegmentedSelect; category/tag are searchable taxonomy
+    // pickers; columns is a slider (grid-only via showWhen). The live preview is the QueryBlock
+    // node view; this drives the grouped inspector rail.
+    controls: { category: 'category', tag: 'tag', columns: 'slider' },
+    labels: {
+      collection: 'Source',
+      sort: 'Order by',
+      layout: 'Display',
+      showImage: 'Show featured image',
+      limit: 'Number of posts',
+      offset: 'Skip first',
+    },
+    showWhen: { columns: { layout: 'grid' } },
+    groups: [
+      { id: 'content', label: 'Content', controls: ['collection', 'category', 'tag', 'locale', 'sort'] },
+      { id: 'layout', label: 'Layout', controls: ['layout', 'columns', 'showImage'] },
+      { id: 'pagination', label: 'Pagination', controls: ['limit', 'offset'] },
+    ],
   },
 })

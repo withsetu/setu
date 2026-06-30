@@ -136,6 +136,41 @@ export function createUploadApi(opts: UploadApiOptions) {
     )
   })
 
+  app.post('/media/reprocess', authMiddleware(opts.resolveActor), async (c) => {
+    if (!authz.can(c.get('actor'), 'content.create')) return c.json({ error: 'forbidden' }, 403)
+    if (!opts.image) return c.json({ reprocessed: 0 })
+    const currentMedia = opts.mediaSettings ?? DEFAULT_MEDIA_SETTINGS
+    const currentWidths = opts.widths ?? DEFAULT_WIDTHS
+    const keys = await storage.list()
+    const manifestKeys = keys.filter((k) => k.endsWith('.manifest.json'))
+    let reprocessed = 0
+    for (const mk of manifestKeys) {
+      const manRaw = await storage.get(mk)
+      if (!manRaw) continue
+      let old: MediaManifest
+      try {
+        old = JSON.parse(new TextDecoder().decode(manRaw.body)) as MediaManifest
+      } catch {
+        continue
+      }
+      const origRaw = await storage.get(old.original.key)
+      if (!origRaw) continue
+      await ingestImage(
+        { image: opts.image, storage },
+        {
+          mediaKey: old.id,
+          bytes: origRaw.body,
+          originalKey: old.original.key,
+          formats: formatsFor(currentMedia.imageFormat),
+          widths: currentWidths,
+          lqip: currentMedia.imageLqip,
+        },
+      )
+      reprocessed += 1
+    }
+    return c.json({ reprocessed })
+  })
+
   app.get('/media/_index', async (c) => {
     const keys = await storage.list()
     const records: MediaRecord[] = []

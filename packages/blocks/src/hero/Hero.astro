@@ -2,13 +2,16 @@
 import './hero.css'
 import Image from '@setu/image-astro/Image.astro'
 import { heroClasses, sizesForLayout } from './hero-classes'
-const { headline, subhead, image, ctaLabel, ctaHref, layout = 'centered', textPosition = 'center', overlayColor, parallax, width } = Astro.props
-const cls = heroClasses(layout, textPosition, width)
+const { headline, subhead, image, ctaLabel, ctaHref, layout = 'centered', textPosition = 'center', textAlign, overlayColor, textColor, parallax, width } = Astro.props
+const cls = heroClasses(layout, textPosition, width, textAlign)
 const sizes = sizesForLayout(layout)
-const scrimStyle = layout === 'background' ? `--blk-hero-scrim: ${overlayColor ?? 'rgba(15,17,26,0.55)'}` : undefined
+const style = [
+  layout === 'background' ? `--blk-hero-scrim: ${overlayColor ?? 'rgba(15,17,26,0.55)'}` : null,
+  textColor ? `--blk-hero-text-color: ${textColor}` : null,
+].filter(Boolean).join('; ') || undefined
 const parallaxOn = Boolean(parallax) && layout === 'background'
 ---
-<section class={cls} style={scrimStyle} data-parallax={parallaxOn ? '' : undefined}>
+<section class={cls} style={style} data-parallax={parallaxOn ? '' : undefined}>
   {image && (
     <div class="blk-hero-media">
       <Image src={image} alt="" sizes={sizes} />
@@ -17,7 +20,7 @@ const parallaxOn = Boolean(parallax) && layout === 'background'
   <div class="blk-hero-text">
     <h2 class="blk-hero-headline">{headline}</h2>
     {subhead && <p class="blk-hero-subhead">{subhead}</p>}
-    {ctaLabel && ctaHref && <a class="blk-hero-cta" href={ctaHref}>{ctaLabel}</a>}
+    {ctaLabel && <a class="blk-hero-cta" href={ctaHref || '#'}>{ctaLabel}</a>}
   </div>
 </section>
 {parallaxOn && (

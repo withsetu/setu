@@ -1,8 +1,18 @@
 /* ── Base ─────────────────────────────────────────────────────────────────── */
 .blk-hero {
+  /* border-box so the theme's content-centering padding stays INSIDE the bled width
+     (the site has no global border-box reset). */
+  box-sizing: border-box;
   display: grid;
   gap: clamp(1rem, 3vw, 2rem);
-  padding: clamp(2rem, 6vw, 4rem);
+  /* Optional author-set text color (Style → Text Color); falls back to inherit. */
+  color: var(--blk-hero-text-color, inherit);
+  /* A comfortable default gutter. When a hero is bled full-width (background /
+     w-full), the THEME widens this gutter to keep the text aligned with the page's
+     content column (see theme-default/site.css) — that math must use viewport units,
+     since percentage padding resolves against the containing block, not the bled width. */
+  padding-block: clamp(2rem, 6vw, 4rem);
+  padding-inline: clamp(1.5rem, 5vw, 3rem);
   border-radius: var(--r-md, 8px);
 }
 
@@ -19,6 +29,16 @@
   opacity: .85;
   max-width: 42rem;
 }
+
+/* Headline + subhead inherit the hero's text color; the raised specificity (.blk-hero …)
+   beats the editor canvas's .setu-prose h2/p color so the canvas matches the front end. */
+.blk-hero .blk-hero-headline,
+.blk-hero .blk-hero-subhead { color: inherit; }
+
+/* Text alignment — how the lines align inside the text box (overrides the layout default). */
+.blk-hero.ta-left   .blk-hero-text { text-align: left; }
+.blk-hero.ta-center .blk-hero-text { text-align: center; }
+.blk-hero.ta-right  .blk-hero-text { text-align: right; }
 
 .blk-hero-cta {
   display: inline-block;
@@ -52,9 +72,10 @@
   align-items: center;
 }
 
-/* In split-right the image is the second DOM child but should appear on the left */
+/* Media is the FIRST DOM child (before text). split-left leaves it in the left column;
+   split-right pushes it to the right column so the text sits on the left. */
 .blk-hero.layout-split-right .blk-hero-media {
-  order: -1;
+  order: 1;
 }
 
 /* ── Layout: background ───────────────────────────────────────────────────── */
@@ -76,7 +97,7 @@
 .blk-hero.layout-background .blk-hero-text {
   position: relative;
   background: var(--blk-hero-scrim, rgba(15, 17, 26, 0.55));
-  color: #fff;
+  color: var(--blk-hero-text-color, #fff);
   padding: 1.25rem 1.5rem;
   border-radius: var(--r-md, 8px);
   max-width: 36rem;

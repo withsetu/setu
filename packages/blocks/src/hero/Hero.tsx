@@ -9,7 +9,9 @@ export interface HeroProps {
   ctaHref?: string
   layout?: HeroLayout
   textPosition?: string
+  textAlign?: string
   overlayColor?: string
+  textColor?: string
   width?: string
 }
 
@@ -23,15 +25,16 @@ export function Hero({
   ctaHref,
   layout = 'centered',
   textPosition = 'center',
+  textAlign,
   overlayColor,
+  textColor,
   width,
 }: HeroProps) {
-  const style =
-    layout === 'background'
-      ? ({ ['--blk-hero-scrim' as string]: overlayColor ?? 'rgba(15,17,26,0.55)' })
-      : undefined
+  const style: Record<string, string> = {}
+  if (layout === 'background') style['--blk-hero-scrim'] = overlayColor ?? 'rgba(15,17,26,0.55)'
+  if (textColor) style['--blk-hero-text-color'] = textColor
   return (
-    <section className={heroClasses(layout, textPosition, width)} style={style}>
+    <section className={heroClasses(layout, textPosition, width, textAlign)} style={style}>
       {image ? (
         <div className="blk-hero-media">
           <img src={image} alt="" />
@@ -40,7 +43,7 @@ export function Hero({
       <div className="blk-hero-text">
         <h2 className="blk-hero-headline">{headline}</h2>
         {subhead ? <p className="blk-hero-subhead">{subhead}</p> : null}
-        {ctaLabel && ctaHref ? <span className="blk-hero-cta">{ctaLabel}</span> : null}
+        {ctaLabel ? <span className="blk-hero-cta">{ctaLabel}</span> : null}
       </div>
     </section>
   )

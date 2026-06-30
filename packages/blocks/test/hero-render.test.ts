@@ -49,6 +49,16 @@ describe('heroClasses — width param', () => {
   })
 })
 
+describe('heroClasses — textAlign param', () => {
+  it('appends ta-<align> when set, alongside width', () => {
+    expect(heroClasses('centered', 'center', 'full', 'right')).toBe('blk-hero layout-centered pos-center w-full ta-right')
+    expect(heroClasses('centered', 'center', 'none', 'center')).toBe('blk-hero layout-centered pos-center ta-center')
+  })
+  it('omits ta- class when textAlign is undefined', () => {
+    expect(heroClasses('centered', 'center', 'wide')).toBe('blk-hero layout-centered pos-center w-wide')
+  })
+})
+
 describe('sizesForLayout', () => {
   it('picks responsive sizes per layout', () => {
     expect(sizesForLayout('background')).toBe('100vw')

@@ -1,8 +1,10 @@
 export type HeroLayout = 'centered' | 'split-left' | 'split-right' | 'background'
 
-export function heroClasses(layout: HeroLayout, textPosition: string, width?: string): string {
-  const base = `blk-hero layout-${layout} pos-${textPosition}`
-  return width && width !== 'none' ? `${base} w-${width}` : base
+export function heroClasses(layout: HeroLayout, textPosition: string, width?: string, textAlign?: string): string {
+  let cls = `blk-hero layout-${layout} pos-${textPosition}`
+  if (width && width !== 'none') cls += ` w-${width}`
+  if (textAlign) cls += ` ta-${textAlign}`
+  return cls
 }
 
 export function sizesForLayout(layout: HeroLayout): string {

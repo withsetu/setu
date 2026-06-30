@@ -20,8 +20,10 @@ export const heroBlock: StandardBlock = {
       ctaHref: z.string().optional(),
       layout: z.enum(['centered', 'split-left', 'split-right', 'background']).default('centered'),
       textPosition: z.enum(POSITIONS).default('center'),
+      textAlign: z.enum(['left', 'center', 'right']).optional(),
       width: z.enum(['none', 'wide', 'full']).default('none'),
       overlayColor: z.string().optional(),
+      textColor: z.string().optional(),
       parallax: z.boolean().default(false),
     }),
     editor: {
@@ -29,13 +31,14 @@ export const heroBlock: StandardBlock = {
       keywords: ['hero', 'banner', 'cta', 'header'],
       controls: {
         headline: 'text', subhead: 'textarea', image: 'media', ctaLabel: 'text', ctaHref: 'url',
-        layout: 'select', textPosition: 'position9', width: 'align', overlayColor: 'color', parallax: 'switch',
+        layout: 'select', textPosition: 'position9', textAlign: 'select', width: 'align', overlayColor: 'color', textColor: 'color', parallax: 'switch',
       },
+      labels: { ctaLabel: 'Button Text', ctaHref: 'Button Link', textColor: 'Text Color' },
       showWhen: { overlayColor: { layout: 'background' }, parallax: { layout: 'background' } },
       groups: [
         { id: 'content', label: 'Content', controls: ['headline', 'subhead', 'image', 'ctaLabel', 'ctaHref'] },
-        { id: 'layout', label: 'Layout', controls: ['layout', 'textPosition', 'width'] },
-        { id: 'style', label: 'Style', controls: ['overlayColor', 'parallax'] },
+        { id: 'layout', label: 'Layout', controls: ['layout', 'textPosition', 'textAlign', 'width'] },
+        { id: 'style', label: 'Style', controls: ['textColor', 'overlayColor', 'parallax'] },
       ],
     },
   }),

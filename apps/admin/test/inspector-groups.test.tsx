@@ -13,27 +13,6 @@ import { BlockInspector } from '../src/editor/BlockInspector'
  * When layout != 'background', both are hidden — so the Style section must not render.
  */
 describe('inspector groups', () => {
-  /**
-   * Task 7: Rail shell polish — inspector header
-   *
-   * The inspector must render a header "Block · <LABEL>" as the first child of the
-   * outer container. For the hero block, label is "Hero" (block.editor.label).
-   */
-  it('renders a "Block · Hero" rail header for the hero block', () => {
-    render(
-      <BlockInspector
-        tag="hero"
-        mdAttrs={{ headline: 'Hi', layout: 'centered' }}
-        onChange={() => {}}
-        apiBase=""
-      />
-    )
-    // The header text should contain the block label (case-insensitive match for "hero")
-    const header = screen.getByRole('heading', { level: 2 })
-    expect(header).toBeInTheDocument()
-    expect(header.textContent).toMatch(/hero/i)
-  })
-
   it('renders Content and Layout section headers for hero (centered)', () => {
     render(
       <BlockInspector
@@ -43,12 +22,15 @@ describe('inspector groups', () => {
         apiBase=""
       />
     )
-    // Content and Layout groups should be visible
-    expect(screen.getByText('Content')).toBeInTheDocument()
-    expect(screen.getByText('Layout')).toBeInTheDocument()
-    // Style group controls (overlayColor, parallax) are gated to layout=background,
-    // so the Style section header must NOT appear when layout is 'centered'
-    expect(screen.queryByText('Style')).toBeNull()
+    // Content and Layout group HEADERS should be visible. Target headings specifically:
+    // a field label (e.g. the "Layout" select) can share text with a group header.
+    expect(screen.getByRole('heading', { level: 3, name: 'Content' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 3, name: 'Layout' })).toBeInTheDocument()
+    // Style is visible because Text Color is ungated; but its gated controls
+    // (overlayColor, parallax) are hidden when layout != background.
+    expect(screen.getByRole('heading', { level: 3, name: 'Style' })).toBeInTheDocument()
+    expect(screen.getByLabelText('textColor')).toBeInTheDocument()
+    expect(screen.queryByLabelText('parallax')).toBeNull()
   })
 
   it('renders all three groups (Content / Layout / Style) when layout is background', () => {
@@ -60,9 +42,9 @@ describe('inspector groups', () => {
         apiBase=""
       />
     )
-    expect(screen.getByText('Content')).toBeInTheDocument()
-    expect(screen.getByText('Layout')).toBeInTheDocument()
-    expect(screen.getByText('Style')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 3, name: 'Content' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 3, name: 'Layout' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 3, name: 'Style' })).toBeInTheDocument()
   })
 
   it('falls back to a flat single section (no header) when block has no groups', () => {

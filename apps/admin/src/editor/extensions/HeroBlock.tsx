@@ -20,7 +20,9 @@ function HeroBlockView({ node, editor }: ReactNodeViewProps) {
           ctaHref={md['ctaHref'] ? String(md['ctaHref']) : undefined}
           layout={md['layout'] ? String(md['layout']) as HeroProps['layout'] : undefined}
           textPosition={md['textPosition'] ? String(md['textPosition']) : undefined}
+          textAlign={md['textAlign'] ? String(md['textAlign']) : undefined}
           overlayColor={md['overlayColor'] ? String(md['overlayColor']) : undefined}
+          textColor={md['textColor'] ? String(md['textColor']) : undefined}
           width={md['width'] ? String(md['width']) : undefined}
         />
       </div>

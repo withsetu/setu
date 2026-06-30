@@ -6,6 +6,15 @@ import { Label } from '@/components/ui/label'
 import { MediaPickerModal } from './MediaPickerModal'
 import { controlRegistry } from './controls/registry'
 
+/** Fallback field label: split camelCase and Title-Case (textPosition → "Text Position").
+ *  A block can override per-prop via editor.labels. */
+function humanizeLabel(name: string): string {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[-_]/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
 export function BlockInspector({
   tag, mdAttrs, onChange, apiBase,
 }: { tag: string; mdAttrs: Record<string, unknown>; onChange: (name: string, value: unknown) => void; apiBase: string }) {
@@ -58,7 +67,7 @@ export function BlockInspector({
     const Control = controlRegistry[c.control]
     return (
       <div key={c.name} className="flex flex-col gap-1.5">
-        <Label htmlFor={`bi-${c.name}`} className="capitalize">{c.name}</Label>
+        <Label htmlFor={`bi-${c.name}`}>{block.editor?.labels?.[c.name] ?? humanizeLabel(c.name)}</Label>
         <Control
           value={mdAttrs[c.name] ?? c.default}
           onChange={(v) => onChange(c.name, v)}
@@ -68,13 +77,10 @@ export function BlockInspector({
     )
   }
 
-  const blockLabel = block.editor?.label ?? tag
-
+  // The "Block · <Label>" header is rendered by the inspector rail in EditorScreen,
+  // so the inspector body starts directly with the grouped sections.
   return (
     <div className="flex flex-col gap-5">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Block · {blockLabel}
-      </h2>
       {groups.map((g) => {
         if (g.controls.length === 0) return null
         return g.label ? (

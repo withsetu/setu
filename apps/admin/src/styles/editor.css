@@ -25,11 +25,14 @@
    Non-aligned blocks (and wrappers of an align-none figure) cap at the post measure;
    aligned figures break out using the pane width — no vw/cqw escape. */
 .ed-title,
-.setu-prose > :not(:has(.align-left)):not(:has(.align-right)):not(:has(.align-wide)):not(:has(.align-full)):not(.align-left):not(.align-right):not(.align-wide):not(.align-full) {
+.setu-prose > :not(:has(.align-left)):not(:has(.align-right)):not(:has(.align-wide)):not(:has(.align-full)):not(.align-left):not(.align-right):not(.align-wide):not(.align-full):not(:has(.blk-hero.w-wide)):not(:has(.blk-hero.w-full)) {
   max-width: var(--measure-post); margin-inline: auto;
 }
 .setu-prose > :has(.align-wide),  .setu-prose > .align-wide  { width: min(var(--measure-page), 100%); margin-inline: auto; }
 .setu-prose > :has(.align-full),  .setu-prose > .align-full  { width: 100%; }
+/* Hero width breakout in the canvas — mirrors the image align rules so width is WYSIWYG. */
+.setu-prose > :has(.blk-hero.w-wide) { width: min(var(--measure-page), 100%); margin-inline: auto; }
+.setu-prose > :has(.blk-hero.w-full) { width: 100%; }
 .setu-prose > :has(.align-left),  .setu-prose > .align-left  { float: left;  max-width: 50%; margin: .3rem 1.25rem 1rem 0; }
 .setu-prose > :has(.align-right), .setu-prose > .align-right { float: right; max-width: 50%; margin: .3rem 0 1rem 1.25rem; }
 

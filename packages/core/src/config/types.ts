@@ -19,6 +19,9 @@ export interface BlockEditorMeta {
    *  String-backed props may upgrade to 'textarea' | 'media' | 'url' | 'color';
    *  enum-backed props may upgrade to 'position9' | 'align'. */
   controls?: Record<string, BlockControl>
+  /** Optional friendly field labels for the inspector (propName → label). When absent
+   *  for a prop, the label is humanized from the prop name (e.g. textPosition → "Text Position"). */
+  labels?: Record<string, string>
   /** Hide a control unless every (otherProp → value|values) pair matches the current attrs. */
   showWhen?: Record<string, Record<string, string | string[]>>
   /** Optional ordered sections for the inspector rail. Controls not listed in any

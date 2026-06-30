@@ -15,6 +15,8 @@ export interface ReadingSettings {
   searchEngineVisible: boolean
   /** Admin content-list page size. */
   listPageSize: number
+  /** Front-end post-archive (/posts) page size. */
+  postsPerPage: number
   /** RSS feed config — consumed by a later increment. */
   feed: { enabled: boolean; items: number }
   /** Markdown / llms.txt output — consumed by a later increment. */

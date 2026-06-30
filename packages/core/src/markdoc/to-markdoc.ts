@@ -96,6 +96,8 @@ function buildBlock(node: TiptapNode): InstanceType<typeof N> {
       return new N('tag', (attrs['mdAttrs'] ?? {}) as Record<string, unknown>, [], 'contact')
     case 'heroBlock':
       return new N('tag', (attrs['mdAttrs'] ?? {}) as Record<string, unknown>, [], 'hero')
+    case 'queryBlock':
+      return new N('tag', (attrs['mdAttrs'] ?? {}) as Record<string, unknown>, [], 'query')
     case 'setuBlock': {
       const tag = attrs['tag']
       if (typeof tag !== 'string' || tag === '') {

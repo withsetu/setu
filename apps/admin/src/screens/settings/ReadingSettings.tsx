@@ -17,11 +17,13 @@ import {
 
 const SETTINGS_PATH = 'settings.json'
 const PAGE_SIZES = [10, 25, 50, 100]
+const POSTS_PER_PAGE = [3, 6, 9, 12, 24]
 
 const sameReading = (a: ReadingValues, b: ReadingValues) =>
   a.homepage === b.homepage &&
   a.searchEngineVisible === b.searchEngineVisible &&
-  a.listPageSize === b.listPageSize
+  a.listPageSize === b.listPageSize &&
+  a.postsPerPage === b.postsPerPage
 
 export function ReadingSettings() {
   const { git } = useServices()
@@ -158,6 +160,30 @@ export function ReadingSettings() {
               ))}
           </SelectContent>
         </Select>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="rd-posts">Posts per page (archive)</Label>
+        <Select
+          value={String(values.postsPerPage)}
+          onValueChange={(v) => set({ postsPerPage: Number(v) })}
+        >
+          <SelectTrigger id="rd-posts" className="w-32">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {[values.postsPerPage, ...POSTS_PER_PAGE.filter((s) => s !== values.postsPerPage)]
+              .sort((a, b) => a - b)
+              .map((s) => (
+                <SelectItem key={s} value={String(s)}>
+                  {s}
+                </SelectItem>
+              ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          How many posts each page of the <code>/posts</code> archive shows.
+        </p>
       </div>
 
       <Button onClick={() => void save()} disabled={published === null || !dirty || saving}>

@@ -12,6 +12,7 @@ import { StripStatus } from './StripStatus'
 import { siteUrl } from '../shell/site-url'
 import { useIndex } from '../data/index-store'
 import { Canvas } from './Canvas'
+import type { RunQuery } from './QueryPreview'
 import { MetaPanel } from './MetaPanel'
 import { BlockInspector } from './BlockInspector'
 import { useSelectedBlock } from './useSelectedBlock'
@@ -56,6 +57,10 @@ export function EditorScreen() {
   const [editor, setEditor] = useState<Editor | null>(null)
   const selectedBlock = useSelectedBlock(editor)
   const apiBase = (import.meta.env.VITE_SETU_API as string | undefined) ?? ''
+
+  // Feeds the query block's in-canvas live preview with real index results (same query the
+  // published block resolves at build time).
+  const runQuery = useCallback<RunQuery>((q) => index.query(q), [index])
 
   useEffect(() => onRequestShortcuts(() => setShortcutsOpen(true)), [])
 
@@ -316,7 +321,7 @@ export function EditorScreen() {
               disabled={phase === 'readonly'}
               onChange={(e) => onMetaChange({ ...metaRef.current, title: e.target.value })}
             />
-            <Canvas key={`${collection}/${locale}/${slug}`} initialContent={initialDoc} editable={phase === 'ready'} onChange={onDocChange} onEditor={setEditor} />
+            <Canvas key={`${collection}/${locale}/${slug}`} initialContent={initialDoc} editable={phase === 'ready'} onChange={onDocChange} onEditor={setEditor} runQuery={runQuery} />
           </div>
         </div>
         {selectedBlock ? (

@@ -47,4 +47,9 @@ describe('parseSettings', () => {
     expect(out.reading.feed).toEqual({ enabled: true, items: DEFAULT_SETTINGS.reading.feed.items })
     expect(out.reading.markdown).toEqual(DEFAULT_SETTINGS.reading.markdown)
   })
+
+  it('defaults postsPerPage and honors an override', () => {
+    expect(parseSettings({}).reading.postsPerPage).toBe(DEFAULT_SETTINGS.reading.postsPerPage)
+    expect(parseSettings({ reading: { postsPerPage: 9 } }).reading.postsPerPage).toBe(9)
+  })
 })

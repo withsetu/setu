@@ -5,12 +5,18 @@ import type { EditorState } from '@tiptap/pm/state'
 
 /** Block node types whose props are edited in the inspector rail. (callout/image/contact
  *  keep their own bespoke UI and are intentionally NOT inspector-driven.) */
-const INSPECTABLE = new Set(['setuBlock', 'heroBlock'])
+const INSPECTABLE = new Set(['setuBlock', 'heroBlock', 'queryBlock'])
 
 export interface SelectedBlock { tag: string; mdAttrs: Record<string, unknown>; pos: number }
 
 function tagOf(name: string, attrs: Record<string, unknown>): string {
-  return name === 'setuBlock' ? String(attrs.tag ?? '') : name === 'heroBlock' ? 'hero' : ''
+  return name === 'setuBlock'
+    ? String(attrs.tag ?? '')
+    : name === 'heroBlock'
+      ? 'hero'
+      : name === 'queryBlock'
+        ? 'query'
+        : ''
 }
 
 /** Pure: the inspectable block at the current selection, or null. Atom blocks surface via

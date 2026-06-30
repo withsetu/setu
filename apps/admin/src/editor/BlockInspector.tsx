@@ -22,6 +22,8 @@ export function BlockInspector({
   const [pickFor, setPickFor] = useState<string | null>(null)
   if (!block) return <p className="px-1 py-2 text-sm text-muted-foreground">No editable properties.</p>
 
+  // Capture the narrowed editor meta so the (hoisted) renderControl closure keeps the type.
+  const editor = block.editor
   const controls = resolveControls(block.props, block.editor?.controls)
   const showWhen = block.editor?.showWhen ?? {}
   const visible = controls.filter((c) => {
@@ -67,7 +69,7 @@ export function BlockInspector({
     const Control = controlRegistry[c.control]
     return (
       <div key={c.name} className="flex flex-col gap-1.5">
-        <Label htmlFor={`bi-${c.name}`}>{block!.editor?.labels?.[c.name] ?? humanizeLabel(c.name)}</Label>
+        <Label htmlFor={`bi-${c.name}`}>{editor?.labels?.[c.name] ?? humanizeLabel(c.name)}</Label>
         <Control
           value={mdAttrs[c.name] ?? c.default}
           onChange={(v) => onChange(c.name, v)}

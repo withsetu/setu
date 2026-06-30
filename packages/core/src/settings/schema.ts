@@ -17,6 +17,7 @@ const readingSchema = z
     homepage: z.string(),
     searchEngineVisible: z.boolean(),
     listPageSize: z.number(),
+    postsPerPage: z.number(),
     feed: z.object({ enabled: z.boolean(), items: z.number() }).partial(),
     markdown: z
       .object({ mode: z.enum(['off', 'index', 'pages']), style: z.enum(['raw', 'rendered']) })

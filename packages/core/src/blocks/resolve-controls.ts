@@ -9,11 +9,23 @@ export interface ResolvedControl {
   options?: string[]
 }
 
-/** String-backed controls a hint may upgrade a String prop to. */
-const STRING_CONTROLS: ReadonlySet<BlockControl> = new Set(['text', 'textarea', 'media', 'url', 'color'])
+/** String-backed controls a hint may upgrade a (non-enum) String prop to. `category`/`tag`
+ *  render a searchable taxonomy picker in the inspector but store a single slug string. */
+const STRING_CONTROLS: ReadonlySet<BlockControl> = new Set([
+  'text',
+  'textarea',
+  'media',
+  'url',
+  'color',
+  'category',
+  'tag',
+])
 
 /** Controls a hint may upgrade an enum (String with `.matches`) prop to. */
 const ENUM_HINTS: ReadonlySet<BlockControl> = new Set(['select', 'position9', 'align'])
+
+/** Controls a hint may upgrade a Number prop to. */
+const NUMBER_HINTS: ReadonlySet<BlockControl> = new Set(['number', 'slider'])
 
 /** Map a block's zod props (+ optional per-prop control hints) to an ordered list of
  *  controls for the inspector. Hints override the zod-derived control but must be
@@ -37,7 +49,7 @@ export function resolveControls(
     // a hint is only valid if compatible with the zod type
     const ok =
       (a.matches && ENUM_HINTS.has(hint)) ||
-      (a.type === 'Number' && hint === 'number') ||
+      (a.type === 'Number' && NUMBER_HINTS.has(hint)) ||
       (a.type === 'Boolean' && hint === 'switch') ||
       (a.type === 'String' && !a.matches && STRING_CONTROLS.has(hint))
     if (!ok) throw new Error(`resolveControls: hint "${hint}" incompatible with prop "${name}" (zod ${a.type}${a.matches ? ' enum' : ''})`)

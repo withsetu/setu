@@ -23,9 +23,16 @@ export interface ReadingSettings {
   relatedPosts: { enabled: boolean; heading: string; count: number; showImage: boolean }
 }
 
+/** The Media settings group — drives the image pipeline (variant formats + LQIP). */
+export interface MediaSettings {
+  imageFormat: 'webp' | 'avif' | 'both'
+  imageLqip: boolean
+}
+
 /** Site settings, grouped so future sections (identity/content/media/forms) add
  *  cleanly. Persisted as a Git-backed settings.json. Never holds secrets. */
 export interface SiteSettings {
   general: GeneralSettings
   reading: ReadingSettings
+  media: MediaSettings
 }

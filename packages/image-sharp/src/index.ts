@@ -46,5 +46,15 @@ export function createSharpImageAdapter(): ImagePort {
       }
       return out
     },
+
+    async placeholder(source: Uint8Array, width: number): Promise<string> {
+      const buf = await sharp(Buffer.from(source))
+        .rotate()
+        .resize(width, null, { withoutEnlargement: true })
+        .blur(1.2)
+        .webp({ quality: 40 })
+        .toBuffer()
+      return `data:image/webp;base64,${buf.toString('base64')}`
+    },
   }
 }

@@ -67,7 +67,7 @@ export function BlockInspector({
     const Control = controlRegistry[c.control]
     return (
       <div key={c.name} className="flex flex-col gap-1.5">
-        <Label htmlFor={`bi-${c.name}`}>{block.editor?.labels?.[c.name] ?? humanizeLabel(c.name)}</Label>
+        <Label htmlFor={`bi-${c.name}`}>{block!.editor?.labels?.[c.name] ?? humanizeLabel(c.name)}</Label>
         <Control
           value={mdAttrs[c.name] ?? c.default}
           onChange={(v) => onChange(c.name, v)}

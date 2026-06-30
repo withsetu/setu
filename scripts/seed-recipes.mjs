@@ -105,7 +105,13 @@ function toMdoc(meal) {
 
   const frontmatter = { title, tags, categories }
   if (area) frontmatter.area = area
-  if (meal.strMealThumb) frontmatter.image = meal.strMealThumb
+  if (meal.strMealThumb) {
+    frontmatter.image = meal.strMealThumb
+    // The recipe thumbnail doubles as the post's featured image (an external URL — the
+    // render pipeline passes http(s) srcs through unchanged), so the hero + related/posts
+    // card thumbnails all light up against real content.
+    frontmatter.featuredImage = meal.strMealThumb
+  }
   if (meal.strSource) frontmatter.source = meal.strSource
 
   const steps = (meal.strInstructions ?? '')
@@ -113,7 +119,8 @@ function toMdoc(meal) {
     .map((p) => p.trim())
     .filter(Boolean)
   const body = [
-    meal.strMealThumb ? `![${title}](${meal.strMealThumb})` : '',
+    // The thumbnail is the post's featured image (frontmatter), not an inline body image —
+    // so the body stays clean and the image renders once, as the hero / card thumbnail.
     area && meal.strCategory ? `*${meal.strCategory} · ${area} cuisine*` : '',
     '## Ingredients',
     ingredients.map((x) => `- ${[x.measure, x.ing].filter(Boolean).join(' ')}`).join('\n'),

@@ -31,27 +31,46 @@ reusable **topology-capability** seam other Node-only features will share.
 
 ## Architecture
 
-### 1. Capability seam (`apps/api` → admin)
+### 1. Generic capability seam (`apps/api` → admin) — NOT media-scoped
 
-A small **capabilities** endpoint, mirroring the existing `/forms/captcha-status` + admin
-`SpamProtectionStatus` pattern (reuse, not a new pattern):
+Capability is a cross-cutting **topology** fact: a property of *which adapters the api was built
+with*, not a media concern. So the endpoint is **generic and top-level**, composed where the
+adapters are actually wired (`server.ts`), and reused by every Node-only feature — this wave is its
+first consumer.
 
-`GET /media/capabilities` → `{ canReprocess: boolean, reason?: string, imageEncoder: 'sharp' | null, writableStore: boolean }`
+`GET /capabilities` →
+```
+{
+  "mode": "self-hosted",            // optional, human-display only (from env / adapter set)
+  "capabilities": {
+    "imageProcessing": true,        // an ImagePort adapter (sharp) is wired
+    "writableMediaStore": true,     // the storage adapter supports writes (local fs)
+    "backgroundJobs": true          // the runtime can run long async jobs (persistent Node process)
+  }
+}
+```
 
-- `canReprocess` = an image adapter is wired (`opts.image` present) **and** the storage is writable
-  (Node/self-hosted topology). On an edge api (future `git-github` topology, no image port) or a
-  Node api started without an image adapter, this is `false` with a human `reason`.
-- This is the honest "which mode am I in" signal: the admin asks whatever api `VITE_SETU_API`
-  points at. A Node/self-hosted api says yes; an edge api says no.
+- **Fine-grained flags, not a coarse mode guess.** Each feature gates on the *specific* flags it
+  needs — a coarse "node mode" label can lie (a self-hosted api without sharp genuinely can't
+  encode). `mode` is display-only.
+- **Composed in `server.ts`** (a small `apps/api/src/capabilities.ts` → the capability object +
+  `GET /capabilities`), since server.ts is where `image`/`storage`/`git` adapters are wired.
+  `media.ts` does **not** own this; it (and the server) still defensively enforce per request.
+- **YAGNI vocabulary:** only the three flags this wave consumes, in an extensible map. Do not
+  pre-invent capabilities no feature reads.
+- Conceptual successor to the existing `/forms/captcha-status` + `SpamProtectionStatus` pattern,
+  generalized from one feature's status into a shared topology probe.
 
-### 2. Admin gating (Settings → Media)
+### 2. Admin gating (shared hook; Settings → Media is first consumer)
 
-On mount, fetch `/media/capabilities`:
+The admin fetches `/capabilities` **once via a shared `useCapabilities()` hook/context**, so future
+Node-only features reuse it rather than each re-probing. Settings → Media derives:
+- `canReprocess = imageProcessing && writableMediaStore && backgroundJobs`.
 - **canReprocess** → Reprocess enabled, wired to the async job (below).
 - **!canReprocess** → Reprocess **disabled** + a message: *"Image reprocessing runs in local or
   self-hosted mode. This site is served from the edge — run reprocess from your local Setu or your
-  self-hosted server."* Also show a one-line note that **uploads** won't generate variants in this
-  mode (same pipeline).
+  self-hosted server."* Also a one-line note that **uploads** won't generate variants when
+  `imageProcessing && writableMediaStore` is false (same pipeline).
 
 ### 3. Async, chunked, resumable job (`apps/api`)
 
@@ -75,17 +94,24 @@ On mount, fetch `/media/capabilities`:
 
 ## Components & boundaries
 
-- `apps/api/src/media.ts` — `/media/capabilities`; `POST /media/reprocess` → job start; the chunked
-  job runner; `GET /media/reprocess/status`.
+- `apps/api/src/capabilities.ts` — builds the capability object from the wired adapters + `GET
+  /capabilities`. Composed in `server.ts` (which passes in `{ image, storage, … }`). Generic, not
+  media-scoped.
+- `apps/api/src/media.ts` — `POST /media/reprocess` → job start; the chunked job runner; `GET
+  /media/reprocess/status`. Consumes the capability flags / still enforces `opts.image` defensively.
 - `@setu/db-sqlite` (or a small `apps/api` job store) — durable reprocess-job table + resume-on-boot.
-- `apps/admin/src/screens/settings/MediaSettings.tsx` — capability fetch + gate/message; progress
-  bar + polling; reuse the existing `SpamProtectionStatus`-style fetch.
+- `apps/admin/src/lib/useCapabilities.ts` — shared hook/context that fetches `/capabilities` once;
+  reusable by any feature (Media is the first consumer).
+- `apps/admin/src/screens/settings/MediaSettings.tsx` — consume `useCapabilities()` to gate/message;
+  progress bar + polling.
 - `apps/admin/src/components/ui/progress.tsx` — shadcn `Progress` (add via shadcn MCP if absent).
 
 ## Testing
 
-- **Capability**: endpoint reports `canReprocess:false` with reason when no image adapter / store;
-  `true` when both present. Admin disables + messages when false (component test).
+- **Capability**: `GET /capabilities` reports `imageProcessing/writableMediaStore/backgroundJobs`
+  per the wired adapters (false when an adapter is absent, true when present); composed in server.ts.
+  `useCapabilities()` exposes them; Settings → Media disables + messages when the derived
+  `canReprocess` is false (component test).
 - **Async job**: POST returns a jobId + 202; status transitions running→done; processed reaches total;
   the manifest is upgraded (reuse the both+lqip assertion). One-job-at-a-time enforced.
 - **Resumable**: a job persisted mid-run (cursor < total) resumes from the cursor on a fresh api

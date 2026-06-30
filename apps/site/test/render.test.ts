@@ -13,13 +13,15 @@ function page(route: string): string {
 }
 
 function themeCss(): string {
-  const styleBlocks = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join('\n')
-  if (styleBlocks.includes('.prose')) return styleBlocks
+  // All CSS the page carries — inline <style> blocks AND emitted _astro stylesheets — concatenated.
+  // (Either-or breaks once the per-page CSS purge inlines some rules while others stay external.)
+  const inline = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join('\n')
   const astroDir = join(appDir, 'dist', '_astro')
-  return readdirSync(astroDir)
+  const external = readdirSync(astroDir)
     .filter((f) => f.endsWith('.css'))
     .map((f) => readFileSync(join(astroDir, f), 'utf8'))
     .join('\n')
+  return `${inline}\n${external}`
 }
 
 let mediaDir = ''

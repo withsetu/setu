@@ -66,5 +66,10 @@ export function runImagePortContract(makeAdapter: () => Promise<ImagePort> | Ima
     it('returns [] for an empty spec list', async () => {
       expect(await port.generate(source, [])).toEqual([])
     })
+
+    it('placeholder returns a data:image/webp;base64, URI', async () => {
+      const uri = await port.placeholder(source, 20)
+      expect(uri).toMatch(/^data:image\/webp;base64,/)
+    })
   })
 }

@@ -18,7 +18,7 @@ function freshApp() {
     storage,
     resolveActor: () => ({ id: 'local', role: 'owner' }),
     image: createSharpImageAdapter(),
-    imageConfig: { format: 'webp', widths: [400, 800, 1200, 1600] },
+    mediaSettings: { imageFormat: 'webp', imageLqip: false },
   })
   return { app, dir }
 }

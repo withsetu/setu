@@ -26,6 +26,7 @@
   "devDependencies": {
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "purgecss": "^8.0.0",
     "vitest": "^2.1.8"
   }
 }

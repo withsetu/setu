@@ -32,6 +32,15 @@ describe('selectPosts', () => {
     expect(selectPosts(rows, q()).map((r) => r.slug)).toEqual(['a'])
   })
 
+  it('excludes only entries with published:false (absent/true stay)', () => {
+    const rows = [
+      row('a', { published: false }),
+      row('b', { published: true }),
+      row('c'), // absent → published
+    ]
+    expect(selectPosts(rows, q()).map((r) => r.slug)).toEqual(['b', 'c'])
+  })
+
   it('filters by category and tag when provided', () => {
     const rows = [
       row('a', { categories: ['news'], tags: ['x'] }),

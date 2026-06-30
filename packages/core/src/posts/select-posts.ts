@@ -9,6 +9,10 @@ export interface PostRow {
   tags: string[]
   categories: string[]
   featuredImage?: string
+  /** Plain-text excerpt for card display (frontmatter description/summary, else body-derived). */
+  excerpt?: string
+  /** Frontmatter `published`. Absent → published; only an explicit `false` hides the entry. */
+  published?: boolean
 }
 
 export interface PostsQuery {
@@ -33,6 +37,9 @@ export function selectPosts(rows: PostRow[], q: PostsQuery): PostRow[] {
     (r) =>
       r.collection === q.collection &&
       r.locale === q.locale &&
+      // Published = committed and not explicitly unpublished. `published:false` is Setu's only
+      // "not published" signal; absent/true is live. Mirrors the feed + site-health audit.
+      r.published !== false &&
       (q.category === undefined || r.categories.includes(q.category)) &&
       (q.tag === undefined || r.tags.includes(q.tag)),
   )

@@ -54,7 +54,7 @@ single source of truth for status. No exceptions for "small" changes.
 - **Epics** = a tracking issue labeled `epic` with a `- [ ] #child` task-list (e.g. the SEO module
   #75). Multi-increment features get one, with each increment its own child issue + PR.
 - **Labels are the taxonomy:** `area:seo|feed|site-health|identity|editor|admin|media|taxonomy|`
-  `content-index|blocks|forms|settings|theme|infra|docs`, plus `tech-debt` and `epic`.
+  `content-index|blocks|forms|settings|theme|infra|deploy|docs`, plus `tech-debt` and `epic`.
 - The `gh` token has `repo` but **not** `project` scope — manage issues/labels via CLI; the Project
   board (if used) is a view the owner configures.
 - **Topology-impact check — ALWAYS.** Setu is **multi-topology**: the same engine runs as a local
@@ -65,6 +65,14 @@ single source of truth for status. No exceptions for "small" changes.
   the capability at runtime and **degrade or disable gracefully with a clear, mode-aware message**.
   Never offer an action a deployment physically cannot perform, never silently break, and never assume
   "it works locally" means it ships. (See `docs/architecture.md` — Ports & Adapters.)
+- **Saved ≠ live — be honest about the deploy gap.** On a statically-built site (SSG, our default
+  output), committing to Git does **not** update the deployed site — published output only changes on
+  a rebuild/redeploy. So any admin action that mutates published output (settings, publish, taxonomy)
+  must **surface the saved-but-not-yet-live state honestly** — never imply a change is live when it
+  needs a build — and offer **only the deploy mechanism the current topology can actually perform**
+  (local/VPS → in-process `astro build`; edge → git-push to CI or a deploy-hook; an SSR/hybrid
+  topology reads live and needs none). `astro dev` re-reads on demand, so this gap is invisible in
+  dev and bites only in production-static — don't let dev UAT mislead. (Deploy epic #207.)
 
 ## Building UI — check shadcn first (admin side)
 

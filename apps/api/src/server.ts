@@ -18,6 +18,7 @@ import { createPreviewApi } from './preview'
 import { createUploadApi } from './media'
 import { createFormsApi } from './forms'
 import { resolveLocalOwner } from './auth/resolve-actor'
+import { buildCapabilities, createCapabilitiesApi } from './capabilities'
 
 function resolveCaptcha(provider: string, secret: string): CaptchaPort {
   if (!provider) return createNoopCaptcha() // no provider configured → dev pass-through
@@ -81,18 +82,26 @@ const submit = createSubmissionService({
   renderNotification: renderSubmissionEmail, // React Email HTML/text
 })
 
+const imageAdapter = createSharpImageAdapter()
+
 const app = new Hono()
 app.route('/', createGitApi(createLocalGitAdapter({ dir })))
 app.route('/', createPreviewApi())
 app.route('/', createUploadApi({
   storage: createLocalStorage({ dir: mediaDir, baseUrl: mediaPublicUrl }),
   resolveActor: resolveLocalOwner,
-  image: createSharpImageAdapter(),
+  image: imageAdapter,
   // Live getter, not a snapshot: re-read settings.json each request so a Media settings change
   // (format / LQIP) applies to new uploads and Reprocess without restarting the api.
   mediaSettings: () => loadSiteSettings().media,
 }))
 app.route('/', createFormsApi({ submit, submissions, captchaStatus }))
+app.route('/', createCapabilitiesApi(buildCapabilities({
+  image: imageAdapter,            // present in the Node topology
+  writableMediaStore: true,       // local fs storage is writable
+  backgroundJobs: true,           // persistent Node process can run jobs
+  mode: process.env.SETU_MODE ?? 'self-hosted',
+})))
 
 serve({ fetch: app.fetch, port })
 console.log(`api listening on http://localhost:${port} (repo: ${dir}, media: ${mediaDir}, imageFormat: ${siteSettings.media.imageFormat}, lqip: ${siteSettings.media.imageLqip})`)

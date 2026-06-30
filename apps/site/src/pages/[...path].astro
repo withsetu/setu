@@ -10,6 +10,9 @@ import { pageSeo } from '../lib/seo'
 import relations from '../../.setu/cache/relations.json'
 import Image from '@setu/image-astro/Image.astro'
 import { resolveMediaBase } from '@setu/image-astro'
+import TaxonomyChips from '@theme/TaxonomyChips.astro'
+import { categoryNameMap } from '@setu/core'
+import { loadCategories } from '../lib/categories'
 
 export async function getStaticPaths() {
   const all = await getCollection('entries')
@@ -43,6 +46,13 @@ const related = rp.enabled
 const featuredImage = typeof (entry.data as { featuredImage?: unknown }).featuredImage === 'string'
   ? (entry.data as { featuredImage: string }).featuredImage
   : undefined
+const strArr = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
+const catNames = categoryNameMap(loadCategories())
+const postCategories = strArr((entry.data as { categories?: unknown }).categories).map((slug) => ({
+  slug,
+  name: catNames.get(slug) ?? slug,
+}))
+const postTags = strArr((entry.data as { tags?: unknown }).tags)
 const localesForFeed = feedLocales(
   (await getCollection('entries')).map((e) => ({ id: e.id, data: e.data as Record<string, unknown> })),
 )
@@ -70,4 +80,5 @@ const seo = pageSeo(Astro.site, Astro.url.pathname, mediaBase, siteSettings, {
   )}
   <h1>{title}</h1>
   <Content />
+  {collection === 'post' && <TaxonomyChips categories={postCategories} tags={postTags} />}
 </TemplateLayout>

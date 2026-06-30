@@ -50,3 +50,12 @@ describe('tag archive', () => {
     expect(exists('tag/nope')).toBe(false)
   })
 })
+
+describe('post page taxonomy chips', () => {
+  it('links a post to its category (by name) and tag archives', () => {
+    const p = page('post/kitchen-sink')
+    expect(p).toMatch(/href="\/category\/recipes"[^>]*>\s*Recipes\s*</)
+    expect(p).toContain('href="/tag/astro"')
+    expect(p).toContain('href="/tag/cms"')
+  })
+})

@@ -61,3 +61,14 @@ export const EVALUATORS: Record<string, Evaluator> = {
 // `foundations.feed` reflects a capability AND a config toggle; the config evaluator above is
 // the source of truth for v1 (the autodiscovery capability flips when #51 merges). Keep one.
 void SITE_CAPABILITIES
+
+/** Locale = the 2nd id segment (collection/LOCALE/slug). */
+function localeCount(ctx: AuditContext): number {
+  return new Set(ctx.entries.map((e) => e.id.split('/')[1]).filter(Boolean)).size
+}
+
+/** Auto-applicability predicates, keyed by item id OR category. False → the item is N/A (auto). */
+export const APPLIES_WHEN: Record<string, (ctx: AuditContext) => boolean> = {
+  // Internationalisation only matters once the site has more than one content locale.
+  i18n: (ctx) => localeCount(ctx) > 1,
+}

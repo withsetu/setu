@@ -31,8 +31,11 @@ export async function runReprocessJob(
     let processed = job.processed
     for (let i = job.cursor; i < job.keys.length; i += chunk) {
       for (let j = i; j < Math.min(i + chunk, job.keys.length); j++) {
-        await reprocessOne(deps, job.keys[j]!)   // re-ingest is idempotent
-        processed++
+        // Count only images we actually re-encoded. A 'skipped' key (missing/corrupt original) is
+        // still walked — the cursor advances below so resume won't revisit it — but it must not
+        // inflate the user-facing "Reprocessed N" count. cursor (position) and processed (success
+        // count) are tracked independently, so honest counting costs no resume correctness.
+        if ((await reprocessOne(deps, job.keys[j]!)) === 'done') processed++
       }
       store.saveProgress(jobId, processed, Math.min(i + chunk, job.keys.length), now())
     }

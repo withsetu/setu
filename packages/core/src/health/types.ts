@@ -3,7 +3,7 @@ export type HealthCategory =
   | 'foundations' | 'seo' | 'accessibility' | 'security' | 'well-known'
   | 'agent-readiness' | 'performance' | 'privacy' | 'resilience' | 'i18n'
 export type Owner = 'config' | 'content' | 'platform' | 'manual'
-export type CheckStatus = 'pass' | 'fail' | 'manual' | 'pending'
+export type CheckStatus = 'pass' | 'fail' | 'unverified' | 'pending' | 'na'
 
 export interface RubricItem {
   id: string
@@ -31,10 +31,17 @@ export interface AuditEntry {
   body: string                     // raw markdoc body
 }
 
+export interface AttestationRecord { state: 'attested' | 'na'; at: string; by: string }
+export interface HealthState {
+  items: Record<string, AttestationRecord>
+  sections: Record<string, AttestationRecord> // keyed by HealthCategory
+}
+
 export interface AuditContext {
   settings: { general: { title: string; description: string }; reading: { homepage: string; searchEngineVisible: boolean; feed: { enabled: boolean } } }
   entries: AuditEntry[]
   capabilities: SiteCapabilities
+  health: HealthState
 }
 
 export interface CheckResult {
@@ -43,6 +50,10 @@ export interface CheckResult {
   owner: Owner
   detail?: string
   offenders?: { ref: string; note: string }[]
+  /** Non-auto item the admin can attest ("I've verified this"). */
+  attestable?: boolean
+  /** Why an item is N/A: auto-detected vs admin-set. */
+  naSource?: 'auto' | 'manual'
 }
 
 export interface CategoryScore { category: HealthCategory; score: number; pass: number; total: number }

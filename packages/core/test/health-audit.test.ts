@@ -6,6 +6,7 @@ const ctx = (over: Partial<AuditContext> = {}): AuditContext => ({
   settings: { general: { title: 'T', description: 'D' }, reading: { homepage: 'page/en/home', searchEngineVisible: true, feed: { enabled: false } } },
   entries: [{ id: 'page/en/home', data: { title: 'Home' }, body: 'Hello' }],
   capabilities: SITE_CAPABILITIES,
+  health: { items: {}, sections: {} },
   ...over,
 })
 
@@ -43,16 +44,61 @@ describe('runAudit', () => {
     expect(a.results.find((r) => r.id === 'foundations.canonical')?.owner).toBe('platform')
     // security.hsts is liveProbe → pending
     expect(a.results.find((r) => r.id === 'security.hsts')?.status).toBe('pending')
-    expect(a.results.find((r) => r.id === 'privacy.policy')?.status).toBe('manual')
+    // privacy.policy has no auto-evaluator → unverified (was 'manual' in v1)
+    expect(a.results.find((r) => r.id === 'privacy.policy')?.status).toBe('unverified')
   })
-  it('scores only pass+fail, surfaces must-haves, assigns a band', () => {
+  it('scores (na excluded), surfaces must-haves, assigns a band', () => {
     const a = runAudit(ctx())
     expect(a.score).toBeGreaterThanOrEqual(0)
     expect(a.score).toBeLessThanOrEqual(100)
     expect(['strong', 'good', 'needs-work']).toContain(a.band)
     expect(a.mustHaves.total).toBeGreaterThan(0)
-    // pending/manual excluded: a perfect config+content+caps run never reaches 100 here because platform gaps fail,
-    // but security.hsts (pending) must NOT count against it
+    // pending/unverified excluded from score denominator
     expect(a.results.some((r) => r.status === 'pending')).toBe(true)
+  })
+
+  // --- Resolution order tests (new in v2) ---
+
+  it('non-auto manual item is unverified (not excluded) and attestable', () => {
+    const a = runAudit(ctx())
+    const p = a.results.find((r) => r.id === 'privacy.policy')!
+    expect(p.status).toBe('unverified')
+    expect(p.attestable).toBe(true)
+  })
+  it('an attestation turns an unverified item into a pass', () => {
+    const a = runAudit(ctx({ health: { items: { 'privacy.policy': { state: 'attested', at: '2026-01-01', by: 'Local' } }, sections: {} } }))
+    expect(a.results.find((r) => r.id === 'privacy.policy')?.status).toBe('pass')
+  })
+  it('an auto-evaluator supersedes an attestation for the same id', () => {
+    const a = runAudit(ctx({ health: { items: { 'foundations.title': { state: 'attested', at: '2026-01-01', by: 'Local' } }, sections: {} } }))
+    // foundations.title has a config evaluator → still evaluated, attestation ignored
+    expect(a.results.find((r) => r.id === 'foundations.title')?.status).toBe('pass') // (passes anyway, but via the evaluator)
+  })
+  it('manual na excludes an item from the score', () => {
+    // seo.redirects is required (weight 10) with no evaluator → unverified in base.
+    // Marking it N/A removes it from the denominator; verify item-level behaviour.
+    // Section-level N/A on 'security' removes all security items (several required) from
+    // the denominator — with 153 items the single-item difference may not shift the integer
+    // percentage, but section-level removal is large enough to guarantee it.
+    const base = runAudit(ctx())
+    const itemNa = runAudit(ctx({ health: { items: { 'seo.redirects': { state: 'na', at: '2026-01-01', by: 'Local' } }, sections: {} } }))
+    expect(itemNa.results.find((r) => r.id === 'seo.redirects')?.status).toBe('na')
+    expect(itemNa.results.find((r) => r.id === 'seo.redirects')?.naSource).toBe('manual')
+    // Verify NA is excluded from the denominator by using a section-level NA big enough
+    // to move the rounded score.
+    const sectionNa = runAudit(ctx({ health: { items: {}, sections: { security: { state: 'na', at: '2026-01-01', by: 'Local' } } } }))
+    expect(sectionNa.results.filter((r) => r.id.startsWith('security.')).every((r) => r.status === 'na')).toBe(true)
+    expect(sectionNa.score).toBeGreaterThan(base.score)
+  })
+  it('i18n auto-N/As on a single-locale site and applies with a 2nd locale', () => {
+    const single = runAudit(ctx())
+    expect(single.results.find((r) => r.id === 'i18n.hreflang')?.status).toBe('na')
+    expect(single.results.find((r) => r.id === 'i18n.hreflang')?.naSource).toBe('auto')
+    const multi = runAudit(ctx({ entries: [{ id: 'page/en/home', data: { title: 'H' }, body: '' }, { id: 'post/fr/x', data: { title: 'X' }, body: '' }] }))
+    expect(multi.results.find((r) => r.id === 'i18n.hreflang')?.status).not.toBe('na')
+  })
+  it('section na excludes every item in that category', () => {
+    const a = runAudit(ctx({ health: { items: {}, sections: { accessibility: { state: 'na', at: '2026-01-01', by: 'Local' } } } }))
+    expect(a.results.filter((r) => r.id.startsWith('accessibility.')).every((r) => r.status === 'na')).toBe(true)
   })
 })

@@ -7,6 +7,11 @@ export interface FeedItem {
   link: string
   pubDate: Date
   description: string
+  /** Categories + tags on the post (categories first), deduped. */
+  categories: string[]
+  /** Raw `featuredImage` path/URL from frontmatter (e.g. `/media/2026/06/x.jpg` or an external
+   *  http(s) URL). The endpoint resolves this to an absolute URL for `<media:content>`. */
+  image?: string
 }
 
 export interface FeedRow {
@@ -50,10 +55,38 @@ export function selectFeedPosts(rows: FeedRow[], limit: number, locale: string =
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '')
 
+/** Normalize a frontmatter taxonomy field (`string | string[] | undefined`) to a trimmed,
+ *  non-empty string list. */
+function asList(v: unknown): string[] {
+  if (Array.isArray(v)) return v.filter((x): x is string => typeof x === 'string' && x.trim() !== '')
+  if (typeof v === 'string' && v.trim() !== '') return [v]
+  return []
+}
+
+/** Categories then tags, deduped (first occurrence wins), empties dropped. Drives RSS `<category>`. */
+export function feedCategories(data: Record<string, unknown>): string[] {
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const c of [...asList(data.categories), ...asList(data.tags)]) {
+    if (!seen.has(c)) {
+      seen.add(c)
+      out.push(c)
+    }
+  }
+  return out
+}
+
 export function toFeedItem(row: FeedRow): FeedItem {
   const title = str(row.data.title) || row.id.split('/').slice(2).join('/')
   const description = str(row.data.description) || str(row.data.summary) || excerpt(row.body ?? '')
-  return { title, link: `/${toUrlPath(row.id)}`, pubDate: row.date, description }
+  return {
+    title,
+    link: `/${toUrlPath(row.id)}`,
+    pubDate: row.date,
+    description,
+    categories: feedCategories(row.data),
+    image: str(row.data.featuredImage) || undefined,
+  }
 }
 
 /** Wire Astro entries → resolved dates → selection → feed items. */

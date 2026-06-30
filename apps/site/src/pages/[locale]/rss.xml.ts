@@ -4,6 +4,7 @@ import type { APIContext } from 'astro'
 import { DEFAULT_LOCALE } from '@setu/core'
 import { loadSiteSettings } from '../../lib/site-settings'
 import { getFeedPosts, feedLocales } from '../../lib/feed'
+import { buildFeed } from '../../lib/rss-xml'
 
 export const prerender = true
 
@@ -29,11 +30,15 @@ export async function GET(context: APIContext) {
     settings.reading.feed.items,
     locale,
   )
-  return rss({
-    title: `${settings.general.title} (${locale.toUpperCase()})`,
-    description:
-      settings.general.description || settings.general.tagline || settings.general.title,
-    site: context.site ?? 'http://localhost:4321',
-    items,
-  })
+  return rss(
+    buildFeed({
+      title: `${settings.general.title} (${locale.toUpperCase()})`,
+      description:
+        settings.general.description || settings.general.tagline || settings.general.title,
+      site: context.site,
+      locale,
+      feedPath: `${locale}/rss.xml`,
+      items,
+    }),
+  )
 }

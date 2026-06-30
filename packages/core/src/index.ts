@@ -1,3 +1,4 @@
+export { SETU_VERSION, GENERATOR_URL } from './version'
 export type {
   TiptapMark,
   TiptapNode,

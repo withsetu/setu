@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { excerpt, selectFeedPosts, toFeedItem, feedLocales, type FeedRow } from '../src/lib/feed'
+import { excerpt, selectFeedPosts, toFeedItem, feedLocales, feedCategories, type FeedRow } from '../src/lib/feed'
 
 const row = (id: string, date: string, data: Record<string, unknown> = {}, body = ''): FeedRow =>
   ({ id, data: { title: 'T', ...data }, body, date: new Date(date) })
@@ -57,6 +57,37 @@ describe('toFeedItem', () => {
   it('prefers frontmatter description/summary', () => {
     expect(toFeedItem(row('post/en/x', '2024-01-01', { description: 'D' })).description).toBe('D')
     expect(toFeedItem(row('post/en/x', '2024-01-01', { summary: 'S' })).description).toBe('S')
+  })
+  it('carries categories (categories then tags, deduped) and the raw featured image', () => {
+    const item = toFeedItem(
+      row('post/en/x', '2024-01-01', {
+        categories: ['Recipes', 'Dinner'],
+        tags: ['dinner', 'quick'],
+        featuredImage: '/media/2026/06/x.jpg',
+      }),
+    )
+    expect(item.categories).toEqual(['Recipes', 'Dinner', 'dinner', 'quick'])
+    expect(item.image).toBe('/media/2026/06/x.jpg')
+  })
+  it('omits the image when there is no featuredImage', () => {
+    expect(toFeedItem(row('post/en/x', '2024-01-01')).image).toBeUndefined()
+    expect(toFeedItem(row('post/en/x', '2024-01-01')).categories).toEqual([])
+  })
+})
+
+describe('feedCategories', () => {
+  it('merges categories then tags, preserving order', () => {
+    expect(feedCategories({ categories: ['A', 'B'], tags: ['c'] })).toEqual(['A', 'B', 'c'])
+  })
+  it('accepts a bare string for either field', () => {
+    expect(feedCategories({ categories: 'Solo', tags: 'one' })).toEqual(['Solo', 'one'])
+  })
+  it('dedupes across categories and tags, dropping empties', () => {
+    expect(feedCategories({ categories: ['x', '', 'y'], tags: ['y', 'z'] })).toEqual(['x', 'y', 'z'])
+  })
+  it('returns [] when neither field is present', () => {
+    expect(feedCategories({})).toEqual([])
+    expect(feedCategories({ categories: undefined, tags: [] })).toEqual([])
   })
 })
 

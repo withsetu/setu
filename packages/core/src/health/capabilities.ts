@@ -5,7 +5,7 @@ import type { SiteCapabilities } from './types'
 export const SITE_CAPABILITIES: SiteCapabilities = {
   doctype: true, langAttr: true, charset: true, viewport: true,
   title: true, metaDescription: true,
-  canonical: false, favicon: false, openGraph: false, twitterCard: false, themeColor: false,
+  canonical: true, favicon: false, openGraph: true, twitterCard: true, themeColor: false,
   rssAutodiscovery: false,
   sitemap: false, robotsTxt: false, jsonLd: false,
   llmsTxt: false, perPageMarkdown: false,

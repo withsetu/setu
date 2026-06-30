@@ -39,9 +39,11 @@ describe('runAudit', () => {
   })
   it('marks platform gaps as fail and live items as pending', () => {
     const a = runAudit(ctx())
-    // foundations.canonical is a platform capability (canonical: false) → fail
-    expect(a.results.find((r) => r.id === 'foundations.canonical')?.status).toBe('fail')
-    expect(a.results.find((r) => r.id === 'foundations.canonical')?.owner).toBe('platform')
+    // SEO module B (#71) emits canonical in the head → now a passing platform capability.
+    expect(a.results.find((r) => r.id === 'foundations.canonical')?.status).toBe('pass')
+    // foundations.favicon is still a platform gap (favicon: false) → fail.
+    expect(a.results.find((r) => r.id === 'foundations.favicon')?.status).toBe('fail')
+    expect(a.results.find((r) => r.id === 'foundations.favicon')?.owner).toBe('platform')
     // security.hsts is liveProbe → pending
     expect(a.results.find((r) => r.id === 'security.hsts')?.status).toBe('pending')
     // privacy.policy has no auto-evaluator → unverified (was 'manual' in v1)

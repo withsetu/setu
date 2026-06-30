@@ -5,6 +5,7 @@ import { getCollection } from 'astro:content'
 import { selectPosts, entryUrlPath, excerpt, DEFAULT_LOCALE, type PostRow } from '@setu/core'
 import { loadThemeOptions } from '../../lib/site-config'
 import { loadSiteSettings } from '../../lib/site-settings'
+import { pageSeo } from '../../lib/seo'
 import { resolveMediaBase } from '@setu/image-astro'
 
 export const getStaticPaths = (async ({ paginate }) => {
@@ -79,9 +80,14 @@ const fmtDate = (ms: number, loc: string): string =>
 const BASE = '/posts'
 const pageHref = (n: number) => (n <= 1 ? BASE : `${BASE}/${n}`)
 const pageNumbers = Array.from({ length: page.lastPage }, (_, i) => i + 1)
+const seo = pageSeo(Astro.site, Astro.url.pathname, mediaBase, siteSettings, {
+  title: 'Posts',
+  type: 'website',
+  locale: DEFAULT_LOCALE,
+})
 ---
 
-<PageLayout title="Posts" lang="en" themeOptions={themeOptions} siteSettings={siteSettings}>
+<PageLayout title="Posts" lang="en" themeOptions={themeOptions} siteSettings={siteSettings} seo={seo}>
   <h1>Posts</h1>
 
   <ul class="setu-posts setu-posts--grid setu-posts--cols-3">

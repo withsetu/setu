@@ -6,6 +6,7 @@ import { toUrlPath } from '../lib/url'
 import { loadThemeOptions } from '../lib/site-config'
 import { loadSiteSettings } from '../lib/site-settings'
 import { feedLocales } from '../lib/feed'
+import { pageSeo } from '../lib/seo'
 import relations from '../../.setu/cache/relations.json'
 import Image from '@setu/image-astro/Image.astro'
 import { resolveMediaBase } from '@setu/image-astro'
@@ -45,9 +46,23 @@ const featuredImage = typeof (entry.data as { featuredImage?: unknown }).feature
 const localesForFeed = feedLocales(
   (await getCollection('entries')).map((e) => ({ id: e.id, data: e.data as Record<string, unknown> })),
 )
+// Meta description from frontmatter; absent → the site description (resolveSeo fallback). A
+// body-derived excerpt fallback can enrich this once @setu/core's `excerpt` lands on main (#174).
+const d = entry.data as { description?: unknown; summary?: unknown }
+const metaDescription =
+  (typeof d.description === 'string' && d.description) ||
+  (typeof d.summary === 'string' && d.summary) ||
+  undefined
+const seo = pageSeo(Astro.site, Astro.url.pathname, mediaBase, siteSettings, {
+  title,
+  description: metaDescription || undefined,
+  type: collection === 'post' ? 'article' : 'website',
+  locale,
+  imagePath: featuredImage,
+})
 ---
 
-<TemplateLayout title={title} lang={locale} themeOptions={themeOptions} siteSettings={siteSettings} related={related} feedLocales={localesForFeed} heading={rp.heading} showImage={rp.showImage}>
+<TemplateLayout title={title} lang={locale} themeOptions={themeOptions} siteSettings={siteSettings} related={related} feedLocales={localesForFeed} heading={rp.heading} showImage={rp.showImage} seo={seo}>
   {featuredImage && collection === 'post' && (
     <figure class="post-hero measure-post" slot="hero">
       <Image src={featuredImage} alt={title} sizes="(min-width: 40rem) 38rem, 100vw" />

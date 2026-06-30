@@ -4,9 +4,12 @@ import { getCollection, getEntry, render } from 'astro:content'
 import { loadThemeOptions } from '../lib/site-config'
 import { loadSiteSettings } from '../lib/site-settings'
 import { feedLocales } from '../lib/feed'
+import { pageSeo } from '../lib/seo'
+import { resolveMediaBase } from '@setu/image-astro'
 
 const themeOptions = loadThemeOptions()
 const siteSettings = loadSiteSettings()
+const mediaBase = resolveMediaBase(import.meta.env.PUBLIC_SETU_MEDIA, import.meta.env.DEV)
 const homepageId = siteSettings.reading.homepage
 const entry = (await getEntry('entries', homepageId)) ?? (await getEntry('entries', 'page/en/home'))
 const title = entry ? ((entry.data as { title?: string }).title ?? 'Home') : 'Home'
@@ -15,9 +18,11 @@ const Content = rendered?.Content
 const localesForFeed = feedLocales(
   (await getCollection('entries')).map((e) => ({ id: e.id, data: e.data as Record<string, unknown> })),
 )
+// Homepage: <title> is the bare site name (empty page title) — the standard root-page convention.
+const seo = pageSeo(Astro.site, Astro.url.pathname, mediaBase, siteSettings, { title: '', type: 'website', locale: 'en' })
 ---
 
-<PageLayout title={title} lang="en" themeOptions={themeOptions} siteSettings={siteSettings} feedLocales={localesForFeed}>
+<PageLayout title={title} lang="en" themeOptions={themeOptions} siteSettings={siteSettings} feedLocales={localesForFeed} seo={seo}>
   {Content ? (
     <>
       <h1>{title}</h1>

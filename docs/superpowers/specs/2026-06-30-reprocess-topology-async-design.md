@@ -6,7 +6,7 @@ Owner: Mayank
 
 ## Problem / goal
 
-The image wave shipped `POST /media/reprocess` as a **synchronous** request that re-encodes the
+The image wave shipped `POST /api/media/reprocess` as a **synchronous** request that re-encodes the
 whole library and returns a count. Two problems surfaced in UAT:
 
 1. **Topology blindness.** Reprocess (and the upload ingest it shares) runs `sharp` (native libvips)
@@ -38,7 +38,16 @@ with*, not a media concern. So the endpoint is **generic and top-level**, compos
 adapters are actually wired (`server.ts`), and reused by every Node-only feature — this wave is its
 first consumer.
 
-`GET /capabilities` →
+**Path convention (new):** the control-plane API moves to a single reserved prefix **`/api/<name>`**
+(`/api/capabilities`, `/api/media/reprocess`, …). This wave's new routes adopt it from the start;
+migrating the existing bare routes (`/git`, `/forms`, `/preview`, media *operations*) under `/api/*`
+is a separate, deferred cross-cutting task (see [[setu-api-path-convention]]). **`/media/*` stays at
+root** — published media *files* are content (baked into `src="/media/..."`, the media keys, static
+serving), not control plane; only media *operations* (upload/reprocess/index/delete) live under
+`/api/media/*`. So: one reserved control-plane prefix `/api/*`, one content-asset prefix `/media/*`,
+everything else is the user's URL space.
+
+`GET /api/capabilities` →
 ```
 {
   "mode": "self-hosted",            // optional, human-display only (from env / adapter set)
@@ -54,7 +63,7 @@ first consumer.
   needs — a coarse "node mode" label can lie (a self-hosted api without sharp genuinely can't
   encode). `mode` is display-only.
 - **Composed in `server.ts`** (a small `apps/api/src/capabilities.ts` → the capability object +
-  `GET /capabilities`), since server.ts is where `image`/`storage`/`git` adapters are wired.
+  `GET /api/capabilities`), since server.ts is where `image`/`storage`/`git` adapters are wired.
   `media.ts` does **not** own this; it (and the server) still defensively enforce per request.
 - **YAGNI vocabulary:** only the three flags this wave consumes, in an extensible map. Do not
   pre-invent capabilities no feature reads.
@@ -63,7 +72,7 @@ first consumer.
 
 ### 2. Admin gating (shared hook; Settings → Media is first consumer)
 
-The admin fetches `/capabilities` **once via a shared `useCapabilities()` hook/context**, so future
+The admin fetches `/api/capabilities` **once via a shared `useCapabilities()` hook/context**, so future
 Node-only features reuse it rather than each re-probing. Settings → Media derives:
 - `canReprocess = imageProcessing && writableMediaStore && backgroundJobs`.
 - **canReprocess** → Reprocess enabled, wired to the async job (below).
@@ -74,7 +83,7 @@ Node-only features reuse it rather than each re-probing. Settings → Media deri
 
 ### 3. Async, chunked, resumable job (`apps/api`)
 
-- `POST /media/reprocess` no longer blocks: it **starts a job** and returns `{ jobId }` (202).
+- `POST /api/media/reprocess` no longer blocks: it **starts a job** and returns `{ jobId }` (202).
   If a job is already running, return the running job (one job at a time — sufficient; avoids
   concurrent re-encode storms).
 - The job processes the manifest-key list (snapshotted at start, stable order) in **chunks** of N
@@ -87,7 +96,7 @@ Node-only features reuse it rather than each re-probing. Settings → Media deri
 
 ### 4. Progress (admin polls)
 
-- `GET /media/reprocess/status` → the current/last job `{ status, processed, total, current?, error? }`.
+- `GET /api/media/reprocess/status` → the current/last job `{ status, processed, total, current?, error? }`.
 - The admin opens the AlertDialog → on confirm, POST starts the job, then **polls** status (~1s) and
   shows a **shadcn `Progress`** bar with `N of M` until `done` (success toast with count) or `failed`
   (error toast). The dialog/section reflects a resumed job on reload too.
@@ -95,12 +104,12 @@ Node-only features reuse it rather than each re-probing. Settings → Media deri
 ## Components & boundaries
 
 - `apps/api/src/capabilities.ts` — builds the capability object from the wired adapters + `GET
-  /capabilities`. Composed in `server.ts` (which passes in `{ image, storage, … }`). Generic, not
+  /api/capabilities`. Composed in `server.ts` (which passes in `{ image, storage, … }`). Generic, not
   media-scoped.
-- `apps/api/src/media.ts` — `POST /media/reprocess` → job start; the chunked job runner; `GET
-  /media/reprocess/status`. Consumes the capability flags / still enforces `opts.image` defensively.
+- `apps/api/src/media.ts` — `POST /api/media/reprocess` → job start; the chunked job runner; `GET
+  /api/media/reprocess/status`. Consumes the capability flags / still enforces `opts.image` defensively.
 - `@setu/db-sqlite` (or a small `apps/api` job store) — durable reprocess-job table + resume-on-boot.
-- `apps/admin/src/lib/useCapabilities.ts` — shared hook/context that fetches `/capabilities` once;
+- `apps/admin/src/lib/useCapabilities.ts` — shared hook/context that fetches `/api/capabilities` once;
   reusable by any feature (Media is the first consumer).
 - `apps/admin/src/screens/settings/MediaSettings.tsx` — consume `useCapabilities()` to gate/message;
   progress bar + polling.
@@ -108,7 +117,7 @@ Node-only features reuse it rather than each re-probing. Settings → Media deri
 
 ## Testing
 
-- **Capability**: `GET /capabilities` reports `imageProcessing/writableMediaStore/backgroundJobs`
+- **Capability**: `GET /api/capabilities` reports `imageProcessing/writableMediaStore/backgroundJobs`
   per the wired adapters (false when an adapter is absent, true when present); composed in server.ts.
   `useCapabilities()` exposes them; Settings → Media disables + messages when the derived
   `canReprocess` is false (component test).

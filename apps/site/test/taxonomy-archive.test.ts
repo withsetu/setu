@@ -20,14 +20,20 @@ describe('category archive', () => {
     const p = page('category/recipes')
     expect(p).toContain('Category: Recipes')
     expect(p).toContain('setu-posts--grid')
-    expect(p).toContain('>Kitchen Sink<')
+    expect(p).toContain('>Astro on the Edge<')
     expect(p).toContain('>Featured Demo<')
-    expect(p).not.toContain('>Astro on the Edge<') // pushed to page 2 by pageSize 2
+    expect(p).not.toContain('>Kitchen Sink<') // pushed to page 2 by pageSize 2
   })
   it('paginates to /category/recipes/2 with the remaining post', () => {
     const p = page('category/recipes/2')
-    expect(p).toContain('>Astro on the Edge<')
+    expect(p).toContain('>Kitchen Sink<')
     expect(p).toMatch(/rel="prev"/)
+  })
+  it('excludes published:false posts from the archive (drafts do not leak)', () => {
+    // unpublished-demo.mdoc has `categories: [recipes]` + `published: false`; it must never appear
+    // on the category archive, on any page — consistent with /posts hiding it.
+    expect(page('category/recipes')).not.toContain('>Unpublished Demo<')
+    expect(page('category/recipes/2')).not.toContain('>Unpublished Demo<')
   })
   it('does not generate a page for an unknown category', () => {
     expect(exists('category/nope')).toBe(false)

@@ -24,6 +24,9 @@ export function toPostRow(entry: { id: string; data: Record<string, unknown> }):
     slug: rest.join('/'),
     title: typeof d['title'] === 'string' ? (d['title'] as string) : entry.id,
     date: Number.isNaN(parsed) ? null : parsed,
+    // `published:false` is Setu's only "hidden" signal; absent/true is live. Projecting it lets
+    // selectPosts hide drafts from the archives too (mirrors the posts archive + feed + audit).
+    published: d['published'] === false ? false : undefined,
     tags: strArr(d['tags']),
     categories: strArr(d['categories']),
     featuredImage: typeof d['featuredImage'] === 'string' ? (d['featuredImage'] as string) : undefined,

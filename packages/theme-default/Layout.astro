@@ -13,6 +13,8 @@ import '@fontsource-variable/jetbrains-mono'
 import { optionsToCss } from './options'
 import type { SiteSettings } from '@setu/core'
 
+// Mirrors @setu/core's DEFAULT_LOCALE — inlined because theme-default has no runtime dep on
+// @setu/core (only a type import). If the default locale ever becomes config-driven, update both.
 const DEFAULT_LOCALE = 'en'
 
 interface Props {

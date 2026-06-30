@@ -1,3 +1,4 @@
+import { DEFAULT_LOCALE } from '@setu/core'
 import { resolvePostDate, type DatableEntry } from './post-date'
 import { toUrlPath } from './url'
 
@@ -31,12 +32,12 @@ export function excerpt(body: string, max = 200): string {
   return (lastSpace > 0 ? cut.slice(0, lastSpace) : cut) + '…'
 }
 
-/** Pure: keep published default-locale posts, newest first, capped at `limit`. */
-export function selectFeedPosts(rows: FeedRow[], limit: number): FeedRow[] {
+/** Pure: keep published posts for `locale`, newest first, capped at `limit`. */
+export function selectFeedPosts(rows: FeedRow[], limit: number, locale: string = DEFAULT_LOCALE): FeedRow[] {
   return rows
     .filter((r) => {
-      const [collection, locale] = r.id.split('/')
-      if (collection !== 'post' || locale !== 'en') return false
+      const [collection, loc] = r.id.split('/')
+      if (collection !== 'post' || loc !== locale) return false
       // Published = committed (which these rows are) and not explicitly unpublished. `published:false`
       // is Setu's only "not published" signal (lifecycle `hidden()`); a frontmatter `status` field is
       // NOT — committed content is live (drafts are DB-only). Matches the site + the health audit.
@@ -59,6 +60,7 @@ export function toFeedItem(row: FeedRow): FeedItem {
 export function getFeedPosts(
   entries: { id: string; data: Record<string, unknown>; body?: string; filePath?: string }[],
   limit: number,
+  locale: string = DEFAULT_LOCALE,
 ): FeedItem[] {
   const rows: FeedRow[] = entries.map((e) => ({
     id: e.id,
@@ -66,5 +68,19 @@ export function getFeedPosts(
     body: e.body,
     date: resolvePostDate(e as DatableEntry),
   }))
-  return selectFeedPosts(rows, limit).map(toFeedItem)
+  return selectFeedPosts(rows, limit, locale).map(toFeedItem)
+}
+
+/** Distinct locales that have at least one published post, default locale first. */
+export function feedLocales(entries: { id: string; data: Record<string, unknown> }[]): string[] {
+  const set = new Set<string>()
+  for (const e of entries) {
+    const [collection, locale] = e.id.split('/')
+    if (collection !== 'post' || !locale) continue
+    if (e.data.published === false) continue
+    set.add(locale)
+  }
+  return [...set].sort((a, b) =>
+    a === DEFAULT_LOCALE ? -1 : b === DEFAULT_LOCALE ? 1 : a.localeCompare(b),
+  )
 }

@@ -30,8 +30,8 @@ describe('parseSettings', () => {
   })
 
   it('preserves unknown future top-level groups (forward-compat)', () => {
-    const out = parseSettings({ general: { title: 'X' }, media: { widths: [400, 800] } }) as unknown as Record<string, unknown>
-    expect(out.media).toEqual({ widths: [400, 800] })
+    const out = parseSettings({ general: { title: 'X' }, future: { widths: [400, 800] } }) as unknown as Record<string, unknown>
+    expect(out.future).toEqual({ widths: [400, 800] })
     expect((out.general as { title: string }).title).toBe('X')
   })
 
@@ -46,5 +46,10 @@ describe('parseSettings', () => {
     expect(out.reading.searchEngineVisible).toBe(DEFAULT_SETTINGS.reading.searchEngineVisible)
     expect(out.reading.feed).toEqual({ enabled: true, items: DEFAULT_SETTINGS.reading.feed.items })
     expect(out.reading.markdown).toEqual(DEFAULT_SETTINGS.reading.markdown)
+  })
+
+  it('defaults postsPerPage and honors an override', () => {
+    expect(parseSettings({}).reading.postsPerPage).toBe(DEFAULT_SETTINGS.reading.postsPerPage)
+    expect(parseSettings({ reading: { postsPerPage: 9 } }).reading.postsPerPage).toBe(9)
   })
 })

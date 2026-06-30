@@ -1,9 +1,9 @@
 ---
 import Layout from './Layout.astro'
 import type { SiteSettings } from '@setu/core'
-interface Props { title: string; lang?: string; themeOptions?: Record<string, string>; siteSettings?: SiteSettings }
-const { title, lang = 'en', themeOptions = {}, siteSettings } = Astro.props
+interface Props { title: string; lang?: string; themeOptions?: Record<string, string>; siteSettings?: SiteSettings; feedLocales?: string[] }
+const { title, lang = 'en', themeOptions = {}, siteSettings, feedLocales } = Astro.props
 ---
-<Layout title={title} lang={lang} themeOptions={themeOptions} siteSettings={siteSettings}>
+<Layout title={title} lang={lang} themeOptions={themeOptions} siteSettings={siteSettings} feedLocales={feedLocales}>
   <article class="prose measure-page"><slot /></article>
 </Layout>

@@ -15,6 +15,7 @@
   "dependencies": {
     "@astrojs/markdoc": "2.0.0",
     "@astrojs/react": "6.0.0",
+    "@astrojs/rss": "^4.0.18",
     "@setu/blocks": "workspace:*",
     "@setu/core": "workspace:*",
     "@setu/image-astro": "workspace:*",
@@ -26,6 +27,7 @@
   "devDependencies": {
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "purgecss": "^8.0.0",
     "vitest": "^2.1.8"
   }
 }

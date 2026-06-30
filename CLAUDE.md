@@ -37,6 +37,35 @@ A feature is DONE only when EVERY item is true. Green tests are necessary, **nev
 - **Git:** `origin/main` is the hub. Work on a branch in a worktree; PR to `main`; never commit to
   `main` directly. Run `pnpm install` after dep-changing merges.
 
+## Issue tracking — every piece of work has an issue
+
+All work is tracked as **GitHub issues on `withsetu/setu`** (not markdown roadmaps). This is the
+single source of truth for status. No exceptions for "small" changes.
+
+- **Start from an issue.** Before any dev work, there must be an issue for it. If one doesn't exist,
+  create it first (`gh issue create`) with the right `area:*` label, then work against it.
+- **Reference it everywhere.** Branch name, commits, and the PR body cite the issue; the PR closes it
+  (`Closes #N`). A merged PR with no issue is a process miss.
+- **Keep status honest.** Label the active issue `next`/in-progress while working; close it (or let
+  the PR close it) when the Definition of Done is met — not on green tests alone.
+- **Spin off, don't bury.** Deferred scope, follow-ups, and tech-debt you notice become their own
+  issues (labeled `area:*` / `tech-debt`, linked to the parent epic) — never a silent TODO or a note
+  that only lives in a memory file.
+- **Epics** = a tracking issue labeled `epic` with a `- [ ] #child` task-list (e.g. the SEO module
+  #75). Multi-increment features get one, with each increment its own child issue + PR.
+- **Labels are the taxonomy:** `area:seo|feed|site-health|identity|editor|admin|media|taxonomy|`
+  `content-index|blocks|forms|settings|theme|infra|docs`, plus `tech-debt` and `epic`.
+- The `gh` token has `repo` but **not** `project` scope — manage issues/labels via CLI; the Project
+  board (if used) is a view the owner configures.
+- **Topology-impact check — ALWAYS.** Setu is **multi-topology**: the same engine runs as a local
+  app, a self-hosted Node server, or on the edge (Cloudflare Workers/Pages — no filesystem, no native
+  binaries, short request budgets). Before adding ANY function, evaluate how it behaves across those
+  topologies: does it need a native dep (e.g. `sharp`), a filesystem, long-running compute, or
+  persistent local state the edge doesn't have? If so it is a **Node-topology capability** — detect
+  the capability at runtime and **degrade or disable gracefully with a clear, mode-aware message**.
+  Never offer an action a deployment physically cannot perform, never silently break, and never assume
+  "it works locally" means it ships. (See `docs/architecture.md` — Ports & Adapters.)
+
 ## Building UI — check shadcn first (admin side)
 
 The admin (`apps/admin`) is built on **shadcn/ui** (React 19). Before hand-rolling ANY admin

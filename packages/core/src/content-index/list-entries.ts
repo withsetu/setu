@@ -24,6 +24,8 @@ export interface ContentRow {
   categories: string[]
   /** Media keys referenced by the live version of this entry. */
   mediaRefs: string[]
+  /** Featured image src from frontmatter `featuredImage` (for list/preview thumbnails). */
+  featuredImage?: string
 }
 
 export interface ListContentEntriesInput {
@@ -77,6 +79,7 @@ export function listContentEntries(input: ListContentEntriesInput): ContentRow[]
       committed: committedStr,
       deployed: deployedAt(contentPath(ref)),
     })
+    const featuredImage = featuredImageOf(draft, committedStr)
     return {
       ref,
       title: titleOf(draft, committedStr, ref.slug),
@@ -87,8 +90,20 @@ export function listContentEntries(input: ListContentEntriesInput): ContentRow[]
       tags: tagsOf(draft, committedStr),
       categories: categoriesOf(draft, committedStr),
       mediaRefs: mediaRefsOf(draftStr, committedStr),
+      ...(featuredImage !== undefined ? { featuredImage } : {}),
     }
   })
+}
+
+/** Featured image src from the live version's frontmatter `featuredImage` (draft's when a
+ *  draft exists, else committed). Undefined when absent/blank/non-string. */
+function featuredImageOf(draft: Draft | null, committedStr: string | null): string | undefined {
+  const raw = draft
+    ? draft.metadata['featuredImage']
+    : committedStr !== null
+      ? parseMdoc(committedStr).frontmatter['featuredImage']
+      : undefined
+  return typeof raw === 'string' && raw.length > 0 ? raw : undefined
 }
 
 /** Media keys referenced by the live version (draft's serialized doc when a draft

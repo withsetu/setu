@@ -11,8 +11,12 @@ const {
   offset = 0,
   sort = 'newest',
   layout = 'grid',
+  columns = 3,
   showImage = true,
 } = Astro.props
+
+// Grid honors an explicit column count (clamped 1–6); list is always single-column.
+const cols = Math.min(6, Math.max(1, Number(columns) || 3))
 
 const mediaBase = (import.meta.env.PUBLIC_SETU_MEDIA as string) ?? ''
 const resolveImg = (s: string): string =>
@@ -52,7 +56,7 @@ const selected = selectPosts(rows, {
 const hrefOf = (p: PostRow) => `/${entryUrlPath({ collection: p.collection, locale: p.locale, slug: p.slug })}`
 ---
 
-<ul class={`setu-posts setu-posts--${layout}`}>
+<ul class={`setu-posts setu-posts--${layout}${layout === 'grid' ? ` setu-posts--cols-${cols}` : ''}`}>
   {selected.map((p) => (
     <li class="setu-post-card">
       {showImage && p.featuredImage && (
@@ -67,7 +71,17 @@ const hrefOf = (p: PostRow) => `/${entryUrlPath({ collection: p.collection, loca
 
 <style>
   .setu-posts { list-style: none; padding: 0; margin: 1.5rem 0; display: grid; gap: 1.25rem; }
-  .setu-posts--grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+  /* Grid uses the author's column count via LITERAL repeat() counts — not repeat(var(…)) or
+     repeat(min(…)), which Safari/Firefox reject (the declaration is dropped and the grid
+     collapses to one column). Then it steps down responsively: 2-up tablet, 1-up phone. */
+  .setu-posts--cols-1 { grid-template-columns: 1fr; }
+  .setu-posts--cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .setu-posts--cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .setu-posts--cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .setu-posts--cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .setu-posts--cols-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  @media (max-width: 900px) { .setu-posts--grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 560px) { .setu-posts--grid { grid-template-columns: 1fr; } }
   .setu-posts--list { grid-template-columns: 1fr; }
   .setu-post-card__media img {
     width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover;

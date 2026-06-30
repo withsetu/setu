@@ -5,6 +5,7 @@ import { getCollection, render } from 'astro:content'
 import { toUrlPath } from '../lib/url'
 import { loadThemeOptions } from '../lib/site-config'
 import { loadSiteSettings } from '../lib/site-settings'
+import { feedLocales } from '../lib/feed'
 import relations from '../../.setu/cache/relations.json'
 import Image from '@setu/image-astro/Image.astro'
 import { resolveMediaBase } from '@setu/image-astro'
@@ -41,9 +42,12 @@ const related = rp.enabled
 const featuredImage = typeof (entry.data as { featuredImage?: unknown }).featuredImage === 'string'
   ? (entry.data as { featuredImage: string }).featuredImage
   : undefined
+const localesForFeed = feedLocales(
+  (await getCollection('entries')).map((e) => ({ id: e.id, data: e.data as Record<string, unknown> })),
+)
 ---
 
-<TemplateLayout title={title} lang={locale} themeOptions={themeOptions} siteSettings={siteSettings} related={related} heading={rp.heading} showImage={rp.showImage}>
+<TemplateLayout title={title} lang={locale} themeOptions={themeOptions} siteSettings={siteSettings} related={related} feedLocales={localesForFeed} heading={rp.heading} showImage={rp.showImage}>
   {featuredImage && collection === 'post' && (
     <figure class="post-hero measure-post" slot="hero">
       <Image src={featuredImage} alt={title} sizes="(min-width: 40rem) 38rem, 100vw" />

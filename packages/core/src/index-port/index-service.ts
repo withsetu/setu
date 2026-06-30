@@ -7,7 +7,9 @@ import { contentPath, parseContentPath } from '../publish/content-path'
 import type { IndexPort, IndexQuery } from './types'
 import { indexKey, projectRow, rowToContentRow } from './types'
 
-export const INDEX_VERSION = 4
+// v5: rows now carry `featuredImage` (for list/preview thumbnails) — bump forces a rebuild
+// so existing indexes backfill the new field.
+export const INDEX_VERSION = 5
 
 export interface IndexServiceDeps {
   data: DataPort

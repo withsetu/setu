@@ -16,6 +16,7 @@ export interface EntryIndexRow {
   tags: string[]
   categories: string[]
   mediaRefs: string[]
+  featuredImage?: string
 }
 
 export type SortKey = 'updatedAt' | 'title' | 'status'
@@ -72,6 +73,7 @@ export function projectRow(row: ContentRow): EntryIndexRow {
     mediaRefs: row.mediaRefs,
   }
   if (row.lifecycle.pending !== undefined) out.pending = row.lifecycle.pending
+  if (row.featuredImage !== undefined) out.featuredImage = row.featuredImage
   return out
 }
 
@@ -87,5 +89,6 @@ export function rowToContentRow(r: EntryIndexRow): ContentRow {
     tags: r.tags,
     categories: r.categories,
     mediaRefs: r.mediaRefs,
+    ...(r.featuredImage !== undefined ? { featuredImage: r.featuredImage } : {}),
   }
 }

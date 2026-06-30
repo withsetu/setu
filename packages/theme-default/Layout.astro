@@ -2,29 +2,35 @@
 import './theme.css'
 import './site.css'
 
-import '@fontsource-variable/hanken-grotesk'
-import '@fontsource-variable/inter'
-import '@fontsource-variable/source-serif-4'
-import '@fontsource-variable/newsreader'
-import '@fontsource-variable/lora'
-import '@fontsource-variable/space-grotesk'
-import '@fontsource-variable/jetbrains-mono'
+// Only the SELECTED `font` family (+ JetBrains mono) is bundled, not all 7 — the host build
+// resolves the choice and serves this virtual module (see apps/site/astro.config.mjs +
+// ./fonts.ts). A host that doesn't provide it gets an empty module (the theme degrades to
+// system fonts), so the import is always safe.
+import 'virtual:setu-fonts'
 
 import { optionsToCss } from './options'
 import type { SiteSettings } from '@setu/core'
+
+// Mirrors @setu/core's DEFAULT_LOCALE — inlined because theme-default has no runtime dep on
+// @setu/core (only a type import). If the default locale ever becomes config-driven, update both.
+const DEFAULT_LOCALE = 'en'
 
 interface Props {
   title: string
   lang?: string
   themeOptions?: Record<string, string>
   siteSettings?: SiteSettings
+  feedLocales?: string[]
 }
-const { title, lang = 'en', themeOptions = {}, siteSettings } = Astro.props
+const { title, lang = 'en', themeOptions = {}, siteSettings, feedLocales = [] } = Astro.props
 const overrideCss = optionsToCss(themeOptions)
 const siteTitle = siteSettings?.general.title ?? 'Setu'
 const tagline = siteSettings?.general.tagline ?? ''
 const description = siteSettings?.general.description ?? ''
 const docTitle = title ? `${title} · ${siteTitle}` : siteTitle
+const feedLinks = siteSettings?.reading.feed.enabled
+  ? (feedLocales.length ? feedLocales : [DEFAULT_LOCALE])
+  : []
 ---
 
 <html lang={lang}>
@@ -36,6 +42,15 @@ const docTitle = title ? `${title} · ${siteTitle}` : siteTitle
     {siteSettings?.reading.searchEngineVisible === false && (
       <meta name="robots" content="noindex, nofollow" />
     )}
+    {feedLinks.map((loc) => (
+      <link
+        rel="alternate"
+        type="application/rss+xml"
+        title={loc === DEFAULT_LOCALE ? siteTitle : `${siteTitle} (${loc.toUpperCase()})`}
+        href={loc === DEFAULT_LOCALE ? '/rss.xml' : `/${loc}/rss.xml`}
+        hreflang={loc}
+      />
+    ))}
     <style is:inline set:html={overrideCss}></style>
   </head>
   <body>

@@ -15,7 +15,7 @@ import PageLayout from '@theme/PageLayout.astro'
 import CalloutWrapper from '../../../../blocks/callout/callout.astro'
 import NoticeWrapper from '../../../../blocks/notice/notice.astro'
 import ContactWrapper from '../../../../blocks/contact/contact.astro'
-import PostsWrapper from '../../../../blocks/posts/posts.astro'
+import QueryWrapper from '../../../../blocks/query/query.astro'
 import RelatedWrapper from '../../../../blocks/related/related.astro'
 import HeroBlock from '@setu/blocks/hero.astro'
 import ButtonBlock from '@setu/blocks/button.astro'
@@ -48,7 +48,7 @@ markdocConfig.nodes = { ...assetsConfig.nodes, ...markdocConfig.nodes }
 // (Covered by the per-block render-smoke test: apps/site/test/preview-blocks.test.ts.)
 const tagComponentMap = {
   callout: CalloutWrapper, notice: NoticeWrapper, contact: ContactWrapper,
-  posts: PostsWrapper, related: RelatedWrapper, hero: HeroBlock, button: ButtonBlock,
+  query: QueryWrapper, related: RelatedWrapper, hero: HeroBlock, button: ButtonBlock,
   image: ImageFigure, sub: Sub, sup: Sup,
 }
 const nodeComponentMap = { heading: Heading, paragraph: Paragraph, th: Th, td: Td, image: Image }

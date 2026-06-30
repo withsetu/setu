@@ -60,14 +60,18 @@ const blur = a.lqip
        loading="lazy" decoding="async" />
 )}
 
-{/* Finding 2: reveal cached images that fire onload before JS runs or not at all */}
+{/* Reveal blur-up images already `complete` (served from cache) where `load` won't re-fire.
+    Plain browser JS — this is an is:inline script shipped verbatim, so NO TypeScript here.
+    Guarded to run its sweep once per page regardless of how many <Image>s emit it. */}
 <script is:inline>
   (function () {
+    if (window.__setuBlurup) return;
+    window.__setuBlurup = 1;
     function revealLoaded() {
       document.querySelectorAll('.blk-blurup > :is(img, picture > img)').forEach(function (img) {
         var wrapper = img.closest('.blk-blurup');
         if (!wrapper) return;
-        if ((img as HTMLImageElement).complete) {
+        if (img.complete) {
           wrapper.classList.add('is-loaded');
         } else {
           img.addEventListener('load', function () { wrapper.classList.add('is-loaded'); }, { once: true });

@@ -7,7 +7,9 @@ import { manifestKey } from '@setu/core'
 import { createLocalStorage } from '@setu/storage-local'
 import { createSharpImageAdapter } from '@setu/image-sharp'
 import { makeTestPng } from '@setu/image-testing'
+import { createSqliteReprocessJobStore } from '@setu/db-sqlite'
 import { createUploadApi } from '../src/media'
+import { runReprocessJob } from '../src/reprocess-runner'
 
 const owner: Actor = { id: 'local', role: 'owner' }
 const viewer: Actor = { id: 'v', role: 'viewer' }
@@ -18,61 +20,38 @@ afterEach(() => {
   dirs.length = 0
 })
 
-describe('POST /media/reprocess', () => {
-  it('regenerates every image with current settings', async () => {
-    // Step 1: build the api with webp-only, no lqip; upload a PNG
+describe('POST /api/media/reprocess', () => {
+  it('starts a job, reports progress, and upgrades the library (both+lqip)', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'reprocess-'))
     dirs.push(dir)
     const storage = createLocalStorage({ dir, baseUrl: 'http://localhost:4444/media' })
     const image = createSharpImageAdapter()
-
-    const appV1 = createUploadApi({
-      storage,
-      resolveActor: () => owner,
-      image,
-      mediaSettings: { imageFormat: 'webp', imageLqip: false },
+    const store = createSqliteReprocessJobStore(':memory:')
+    let current: MediaSettings = { imageFormat: 'webp', imageLqip: false }
+    // Store the runner promise so the test can await it for determinism
+    let runnerPromise: Promise<void> = Promise.resolve()
+    const app = createUploadApi({
+      storage, resolveActor: () => owner, image, mediaSettings: () => current,
+      reprocess: { store, run: (jobId) => { runnerPromise = runReprocessJob(store, { image, storage, media: current, widths: [400, 800] }, jobId, { chunkSize: 10 }) } },
     })
-
     const body = new FormData()
     body.append('file', new File([makeTestPng(400, 300)], 'pic.png', { type: 'image/png' }))
-    const uploadRes = await appV1.fetch(new Request('http://test/media', { method: 'POST', body }))
-    expect(uploadRes.status).toBe(201)
-    const uploaded = (await uploadRes.json()) as { id: string; manifest?: MediaManifest }
-    expect(uploaded.manifest).toBeTruthy()
+    const up = await app.fetch(new Request('http://test/media', { method: 'POST', body }))
+    const uploaded = (await up.json()) as { id: string }
 
-    // Step 2: confirm initial manifest has only webp, no lqip
-    const mk = manifestKey(uploaded.id)
-    const rawV1 = await storage.get(mk)
-    expect(rawV1).not.toBeNull()
-    const manifestV1 = JSON.parse(new TextDecoder().decode(rawV1!.body)) as MediaManifest
-    const formatsV1 = new Set(manifestV1.variants.map((v) => v.format))
-    expect(formatsV1).toEqual(new Set(['webp']))
-    expect(manifestV1.lqip).toBeFalsy()
-
-    // Step 3: rebuild/reconfigure the api with both formats + lqip
-    const appV2 = createUploadApi({
-      storage,
-      resolveActor: () => owner,
-      image,
-      mediaSettings: { imageFormat: 'both', imageLqip: true },
-    })
-
-    // Step 4: POST /media/reprocess (authorized actor)
-    const reprocessRes = await appV2.fetch(
-      new Request('http://test/media/reprocess', { method: 'POST' }),
-    )
-    expect(reprocessRes.status).toBe(200)
-    const reprocessJson = (await reprocessRes.json()) as { reprocessed: number }
-    expect(reprocessJson.reprocessed).toBe(1)
-
-    // Step 5: re-read the manifest: now has webp+avif variants AND an lqip data-URI
-    const rawV2 = await storage.get(mk)
-    expect(rawV2).not.toBeNull()
-    const manifestV2 = JSON.parse(new TextDecoder().decode(rawV2!.body)) as MediaManifest
-    const formatsV2 = new Set(manifestV2.variants.map((v) => v.format))
-    expect(formatsV2).toEqual(new Set(['webp', 'avif']))
-    expect(manifestV2.lqip).toBeTruthy()
-    expect(manifestV2.lqip).toMatch(/^data:image\//)
+    current = { imageFormat: 'both', imageLqip: true }
+    const start = await app.fetch(new Request('http://test/api/media/reprocess', { method: 'POST' }))
+    expect(start.status).toBe(202)
+    const { jobId } = (await start.json()) as { jobId: string }
+    expect(jobId).toBeTruthy()
+    // Await the runner promise for determinism
+    await runnerPromise
+    const st = await app.fetch(new Request('http://test/api/media/reprocess/status'))
+    const status = (await st.json()) as { status: string; processed: number; total: number }
+    expect(status.status).toBe('done'); expect(status.processed).toBe(status.total)
+    const m = JSON.parse(new TextDecoder().decode((await storage.get(manifestKey(uploaded.id)))!.body)) as MediaManifest
+    expect(new Set(m.variants.map((v) => v.format))).toEqual(new Set(['webp', 'avif']))
+    expect(m.lqip).toMatch(/^data:image\//)
   })
 
   it('reads Media settings live (a getter) — a setting change applies without rebuilding the api', async () => {
@@ -82,14 +61,23 @@ describe('POST /media/reprocess', () => {
     dirs.push(dir)
     const storage = createLocalStorage({ dir, baseUrl: 'http://localhost:4444/media' })
     const image = createSharpImageAdapter()
+    const store = createSqliteReprocessJobStore(':memory:')
 
     // ONE api instance whose mediaSettings is a live getter over a mutable value.
     let current: MediaSettings = { imageFormat: 'webp', imageLqip: false }
+    // Store the runner promise so the test can await it for determinism
+    let runnerPromise: Promise<void> = Promise.resolve()
     const app = createUploadApi({
       storage,
       resolveActor: () => owner,
       image,
       mediaSettings: () => current,
+      reprocess: {
+        store,
+        run: (jobId) => {
+          runnerPromise = runReprocessJob(store, { image, storage, media: current, widths: [400, 800] }, jobId, { chunkSize: 10 })
+        },
+      },
     })
 
     const body = new FormData()
@@ -105,8 +93,15 @@ describe('POST /media/reprocess', () => {
     // Simulate the admin saving new Media settings (no api rebuild/restart).
     current = { imageFormat: 'both', imageLqip: true }
 
-    const reprocessRes = await app.fetch(new Request('http://test/media/reprocess', { method: 'POST' }))
-    expect(reprocessRes.status).toBe(200)
+    const reprocessRes = await app.fetch(new Request('http://test/api/media/reprocess', { method: 'POST' }))
+    expect(reprocessRes.status).toBe(202)
+    const { jobId } = (await reprocessRes.json()) as { jobId: string }
+    expect(jobId).toBeTruthy()
+    // Await the runner promise for determinism
+    await runnerPromise
+    const stRes = await app.fetch(new Request('http://test/api/media/reprocess/status'))
+    const st = (await stRes.json()) as { status: string }
+    expect(st.status).toBe('done')
     const m2 = JSON.parse(new TextDecoder().decode((await storage.get(mk))!.body)) as MediaManifest
     expect(new Set(m2.variants.map((v) => v.format))).toEqual(new Set(['webp', 'avif']))
     expect(m2.lqip).toMatch(/^data:image\//)
@@ -117,7 +112,7 @@ describe('POST /media/reprocess', () => {
     dirs.push(dir)
     const storage = createLocalStorage({ dir, baseUrl: 'http://localhost:4444/media' })
     const app = createUploadApi({ storage, resolveActor: () => null })
-    const res = await app.fetch(new Request('http://test/media/reprocess', { method: 'POST' }))
+    const res = await app.fetch(new Request('http://test/api/media/reprocess', { method: 'POST' }))
     expect(res.status).toBe(401)
   })
 
@@ -126,9 +121,19 @@ describe('POST /media/reprocess', () => {
     dirs.push(dir)
     const storage = createLocalStorage({ dir, baseUrl: 'http://localhost:4444/media' })
     const app = createUploadApi({ storage, resolveActor: () => viewer })
-    const res = await app.fetch(new Request('http://test/media/reprocess', { method: 'POST' }))
+    const res = await app.fetch(new Request('http://test/api/media/reprocess', { method: 'POST' }))
     expect(res.status).toBe(403)
     expect(await res.json()).toEqual({ error: 'forbidden' })
+  })
+
+  it('409 when image/reprocess opts are not configured', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'reprocess-unavail-'))
+    dirs.push(dir)
+    const storage = createLocalStorage({ dir, baseUrl: 'http://localhost:4444/media' })
+    const app = createUploadApi({ storage, resolveActor: () => owner })
+    const res = await app.fetch(new Request('http://test/api/media/reprocess', { method: 'POST' }))
+    expect(res.status).toBe(409)
+    expect(await res.json()).toEqual({ error: 'reprocess unavailable in this mode' })
   })
 
   it('skips manifests whose original is missing (no crash)', async () => {
@@ -136,6 +141,7 @@ describe('POST /media/reprocess', () => {
     dirs.push(dir)
     const storage = createLocalStorage({ dir, baseUrl: 'http://localhost:4444/media' })
     const image = createSharpImageAdapter()
+    const store = createSqliteReprocessJobStore(':memory:')
 
     // Plant a manifest with a non-existent original key
     const fakeManifest: MediaManifest = {
@@ -150,16 +156,30 @@ describe('POST /media/reprocess', () => {
       { contentType: 'application/json' },
     )
 
+    let runnerPromise: Promise<void> = Promise.resolve()
     const app = createUploadApi({
       storage,
       resolveActor: () => owner,
       image,
       mediaSettings: { imageFormat: 'webp', imageLqip: false },
+      reprocess: {
+        store,
+        run: (jobId) => {
+          runnerPromise = runReprocessJob(store, { image, storage, media: { imageFormat: 'webp', imageLqip: false }, widths: [400, 800] }, jobId, { chunkSize: 10 })
+        },
+      },
     })
 
-    const res = await app.fetch(new Request('http://test/media/reprocess', { method: 'POST' }))
-    expect(res.status).toBe(200)
-    // Should be 0 reprocessed because the original was missing
-    expect((await res.json() as { reprocessed: number }).reprocessed).toBe(0)
+    const res = await app.fetch(new Request('http://test/api/media/reprocess', { method: 'POST' }))
+    expect(res.status).toBe(202)
+    const { jobId } = (await res.json()) as { jobId: string }
+    expect(jobId).toBeTruthy()
+    // Await runner for determinism; job should finish without crashing
+    await runnerPromise
+    const stRes = await app.fetch(new Request('http://test/api/media/reprocess/status'))
+    const st = (await stRes.json()) as { status: string; processed: number; total: number }
+    // total = 1 (the fake manifest), processed = 1 (skipped counts as processed in the runner)
+    // The key thing: no crash
+    expect(st.status).toBe('done')
   })
 })

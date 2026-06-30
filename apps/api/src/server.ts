@@ -88,7 +88,9 @@ app.route('/', createUploadApi({
   storage: createLocalStorage({ dir: mediaDir, baseUrl: mediaPublicUrl }),
   resolveActor: resolveLocalOwner,
   image: createSharpImageAdapter(),
-  mediaSettings: siteSettings.media,
+  // Live getter, not a snapshot: re-read settings.json each request so a Media settings change
+  // (format / LQIP) applies to new uploads and Reprocess without restarting the api.
+  mediaSettings: () => loadSiteSettings().media,
 }))
 app.route('/', createFormsApi({ submit, submissions, captchaStatus }))
 

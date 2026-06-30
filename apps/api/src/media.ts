@@ -50,7 +50,9 @@ export interface UploadApiOptions {
   limits?: Partial<UploadLimits>
   image?: ImagePort
   widths?: number[]
-  mediaSettings?: MediaSettings
+  /** Current Media settings. Pass a getter (not a snapshot) so uploads and reprocess pick up
+   *  setting changes made after boot — the server's settings.json is read at request time. */
+  mediaSettings?: MediaSettings | (() => MediaSettings)
 }
 
 const authz = createAuthz(DEFAULT_ROLES)
@@ -60,7 +62,11 @@ export function createUploadApi(opts: UploadApiOptions) {
   const maxBytes = opts.limits?.maxBytes ?? DEFAULT_MAX_BYTES
   const allowed = opts.limits?.allowedContentTypes ?? DEFAULT_ALLOWED
   const { storage } = opts
-  const media = opts.mediaSettings ?? DEFAULT_MEDIA_SETTINGS
+  // Resolve per request so a settings change (Media format/LQIP) takes effect without an api restart.
+  const resolveMedia = (): MediaSettings => {
+    const m = opts.mediaSettings
+    return (typeof m === 'function' ? m() : m) ?? DEFAULT_MEDIA_SETTINGS
+  }
   const widths = opts.widths ?? DEFAULT_WIDTHS
 
   const app = new Hono<{ Variables: { actor: Actor } }>()
@@ -93,6 +99,7 @@ export function createUploadApi(opts: UploadApiOptions) {
 
     let manifest: MediaManifest | undefined
     if (opts.image && GENERATABLE.has(file.type)) {
+      const media = resolveMedia()
       try {
         manifest = await ingestImage(
           { image: opts.image, storage },
@@ -139,7 +146,7 @@ export function createUploadApi(opts: UploadApiOptions) {
   app.post('/media/reprocess', authMiddleware(opts.resolveActor), async (c) => {
     if (!authz.can(c.get('actor'), 'content.create')) return c.json({ error: 'forbidden' }, 403)
     if (!opts.image) return c.json({ reprocessed: 0 })
-    const currentMedia = opts.mediaSettings ?? DEFAULT_MEDIA_SETTINGS
+    const currentMedia = resolveMedia()
     const currentWidths = opts.widths ?? DEFAULT_WIDTHS
     const keys = await storage.list()
     const manifestKeys = keys.filter((k) => k.endsWith('.manifest.json'))

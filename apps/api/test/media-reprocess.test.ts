@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { Actor, MediaManifest } from '@setu/core'
+import type { Actor, MediaManifest, MediaSettings } from '@setu/core'
 import { manifestKey } from '@setu/core'
 import { createLocalStorage } from '@setu/storage-local'
 import { createSharpImageAdapter } from '@setu/image-sharp'
@@ -73,6 +73,43 @@ describe('POST /media/reprocess', () => {
     expect(formatsV2).toEqual(new Set(['webp', 'avif']))
     expect(manifestV2.lqip).toBeTruthy()
     expect(manifestV2.lqip).toMatch(/^data:image\//)
+  })
+
+  it('reads Media settings live (a getter) — a setting change applies without rebuilding the api', async () => {
+    // Regression: settings were captured at boot, so a format/LQIP change made in the admin was
+    // ignored by uploads + reprocess until the api restarted. The api must read settings per request.
+    const dir = mkdtempSync(join(tmpdir(), 'reprocess-live-'))
+    dirs.push(dir)
+    const storage = createLocalStorage({ dir, baseUrl: 'http://localhost:4444/media' })
+    const image = createSharpImageAdapter()
+
+    // ONE api instance whose mediaSettings is a live getter over a mutable value.
+    let current: MediaSettings = { imageFormat: 'webp', imageLqip: false }
+    const app = createUploadApi({
+      storage,
+      resolveActor: () => owner,
+      image,
+      mediaSettings: () => current,
+    })
+
+    const body = new FormData()
+    body.append('file', new File([makeTestPng(400, 300)], 'pic.png', { type: 'image/png' }))
+    const uploadRes = await app.fetch(new Request('http://test/media', { method: 'POST', body }))
+    expect(uploadRes.status).toBe(201)
+    const uploaded = (await uploadRes.json()) as { id: string }
+    const mk = manifestKey(uploaded.id)
+    const m1 = JSON.parse(new TextDecoder().decode((await storage.get(mk))!.body)) as MediaManifest
+    expect(new Set(m1.variants.map((v) => v.format))).toEqual(new Set(['webp']))
+    expect(m1.lqip).toBeFalsy()
+
+    // Simulate the admin saving new Media settings (no api rebuild/restart).
+    current = { imageFormat: 'both', imageLqip: true }
+
+    const reprocessRes = await app.fetch(new Request('http://test/media/reprocess', { method: 'POST' }))
+    expect(reprocessRes.status).toBe(200)
+    const m2 = JSON.parse(new TextDecoder().decode((await storage.get(mk))!.body)) as MediaManifest
+    expect(new Set(m2.variants.map((v) => v.format))).toEqual(new Set(['webp', 'avif']))
+    expect(m2.lqip).toMatch(/^data:image\//)
   })
 
   it('401 when unauthenticated', async () => {

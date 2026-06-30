@@ -1,0 +1,33 @@
+---
+import type { GetStaticPaths, Page } from 'astro'
+import PageLayout from '@theme/PageLayout.astro'
+import ArchiveList from '@theme/ArchiveList.astro'
+import { getCollection } from 'astro:content'
+import { selectPosts, distinctTagSlugs, DEFAULT_LOCALE, type PostRow } from '@setu/core'
+import { loadThemeOptions } from '../../../lib/site-config'
+import { loadSiteSettings } from '../../../lib/site-settings'
+import { toPostRow } from '../../../lib/post-row'
+import { resolveMediaBase } from '@setu/image-astro'
+
+export const getStaticPaths = (async ({ paginate }) => {
+  const perPage = Number(process.env.SETU_ARCHIVE_PER_PAGE) || loadSiteSettings().reading.postsPerPage
+  const rows = (await getCollection('entries')).map((e) => toPostRow({ id: e.id, data: e.data as Record<string, unknown> }))
+  const published = selectPosts(rows, { collection: 'post', locale: DEFAULT_LOCALE, sort: 'newest', limit: rows.length, offset: 0 })
+  return distinctTagSlugs(published, DEFAULT_LOCALE).flatMap((slug) => {
+    const posts = selectPosts(rows, { collection: 'post', locale: DEFAULT_LOCALE, tag: slug, sort: 'newest', limit: rows.length, offset: 0 })
+    return paginate(posts, { params: { slug }, pageSize: perPage })
+  })
+}) satisfies GetStaticPaths
+
+const { page } = Astro.props as { page: Page<PostRow> }
+const { slug } = Astro.params as { slug: string }
+const themeOptions = loadThemeOptions()
+const siteSettings = loadSiteSettings()
+const mediaBase = resolveMediaBase(import.meta.env.PUBLIC_SETU_MEDIA, import.meta.env.DEV)
+const heading = `Tag: ${slug}`
+const basePath = `/tag/${slug}`
+---
+
+<PageLayout title={heading} lang="en" themeOptions={themeOptions} siteSettings={siteSettings}>
+  <ArchiveList page={page} heading={heading} basePath={basePath} mediaBase={mediaBase} />
+</PageLayout>

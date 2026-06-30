@@ -38,3 +38,15 @@ describe('category archive', () => {
     expect(p).not.toMatch(/<script[\s>]/)
   })
 })
+
+describe('tag archive', () => {
+  it('/tag/astro lists posts tagged astro with the tag heading', () => {
+    const p = page('tag/astro')
+    expect(p).toContain('Tag: astro')
+    expect(p).toContain('>Kitchen Sink<')
+    expect(p).toContain('>Astro on the Edge<')
+  })
+  it('does not generate a page for an unknown tag', () => {
+    expect(exists('tag/nope')).toBe(false)
+  })
+})

@@ -76,7 +76,7 @@ export function SiteHealthView({ audit }: { audit: AuditResult }) {
     (r) => r.status === 'fail' && (r.owner === 'config' || r.owner === 'content'),
   )
   const roadmap = audit.results.filter((r) => r.status === 'fail' && r.owner === 'platform')
-  const manual = audit.results.filter((r) => r.status === 'pending' || r.status === 'manual')
+  const manual = audit.results.filter((r) => r.status === 'pending' || r.status === 'unverified')
   const passing = audit.results.filter((r) => r.status === 'pass')
 
   const bandLabel = audit.band === 'strong' ? 'Strong' : audit.band === 'good' ? 'Good' : 'Needs work'

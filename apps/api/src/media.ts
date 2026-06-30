@@ -1,9 +1,13 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { createAuthz, DEFAULT_ROLES, ingestImage, mediaSlug, mediaKeyOf, originalKey, manifestKey, mediaRecordKey } from '@setu/core'
-import type { Actor, ImageFormat, ImagePort, MediaManifest, MediaRecord, StoragePort } from '@setu/core'
+import type { Actor, ImageFormat, ImagePort, MediaManifest, MediaRecord, MediaSettings, StoragePort } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
 import type { ResolveActor } from './auth/resolve-actor'
+
+function formatsFor(setting: 'webp' | 'avif' | 'both'): ImageFormat[] {
+  return setting === 'both' ? ['webp', 'avif'] : [setting]
+}
 
 export const DEFAULT_MAX_BYTES = 25 * 1024 * 1024
 
@@ -33,8 +37,8 @@ export const DEFAULT_ALLOWED: Set<string> = new Set(Object.keys(EXT_BY_TYPE))
 /** Raster image types we generate variants for (gif excluded — animated). */
 const GENERATABLE: Set<string> = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif'])
 
-export interface ImageConfig { format: ImageFormat; widths: number[] }
-const DEFAULT_IMAGE_CONFIG: ImageConfig = { format: 'webp', widths: [400, 800, 1200, 1600] }
+const DEFAULT_WIDTHS: number[] = [400, 800, 1200, 1600]
+const DEFAULT_MEDIA_SETTINGS: MediaSettings = { imageFormat: 'webp', imageLqip: false }
 
 export interface UploadLimits {
   maxBytes: number
@@ -45,7 +49,8 @@ export interface UploadApiOptions {
   resolveActor: ResolveActor
   limits?: Partial<UploadLimits>
   image?: ImagePort
-  imageConfig?: ImageConfig
+  widths?: number[]
+  mediaSettings?: MediaSettings
 }
 
 const authz = createAuthz(DEFAULT_ROLES)
@@ -55,7 +60,8 @@ export function createUploadApi(opts: UploadApiOptions) {
   const maxBytes = opts.limits?.maxBytes ?? DEFAULT_MAX_BYTES
   const allowed = opts.limits?.allowedContentTypes ?? DEFAULT_ALLOWED
   const { storage } = opts
-  const imageConfig = opts.imageConfig ?? DEFAULT_IMAGE_CONFIG
+  const media = opts.mediaSettings ?? DEFAULT_MEDIA_SETTINGS
+  const widths = opts.widths ?? DEFAULT_WIDTHS
 
   const app = new Hono<{ Variables: { actor: Actor } }>()
   app.use('*', cors())
@@ -90,7 +96,7 @@ export function createUploadApi(opts: UploadApiOptions) {
       try {
         manifest = await ingestImage(
           { image: opts.image, storage },
-          { mediaKey, bytes, originalKey: key, format: imageConfig.format, widths: imageConfig.widths },
+          { mediaKey, bytes, originalKey: key, formats: formatsFor(media.imageFormat), widths, lqip: media.imageLqip },
         )
       } catch (err) {
         console.warn(`media ingest failed for ${mediaKey}: ${err instanceof Error ? err.message : String(err)}`)

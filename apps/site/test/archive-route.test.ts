@@ -44,6 +44,11 @@ describe('static archive route', () => {
     expect(p2).not.toContain('Bonjour')
   })
 
+  it('excludes posts marked published:false (#128)', () => {
+    expect(p1).not.toContain('Unpublished Demo')
+    expect(p2).not.toContain('Unpublished Demo')
+  })
+
   it('ships zero JS', () => {
     expect(p1).not.toContain('astro-island')
     expect(p1).not.toMatch(/<script[\s>]/)

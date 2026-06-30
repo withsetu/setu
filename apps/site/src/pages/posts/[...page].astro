@@ -2,7 +2,7 @@
 import type { GetStaticPaths, Page } from 'astro'
 import PageLayout from '@theme/PageLayout.astro'
 import { getCollection } from 'astro:content'
-import { selectPosts, entryUrlPath, DEFAULT_LOCALE, type PostRow } from '@setu/core'
+import { selectPosts, entryUrlPath, excerpt, DEFAULT_LOCALE, type PostRow } from '@setu/core'
 import { loadThemeOptions } from '../../lib/site-config'
 import { loadSiteSettings } from '../../lib/site-settings'
 import { resolveMediaBase } from '@setu/image-astro'
@@ -15,14 +15,21 @@ export const getStaticPaths = (async ({ paginate }) => {
   // the query block uses, so the archive and the block agree on ordering + fields. Defined
   // inside getStaticPaths: Astro runs it in an isolated scope, so module-level helpers aren't
   // visible here.
-  const toPostRow = (entry: { id: string; data: Record<string, unknown> }): PostRow => {
+  const toPostRow = (entry: { id: string; data: Record<string, unknown>; body?: string }): PostRow => {
     const [col = '', loc = '', ...rest] = entry.id.split('/')
     const d = entry.data
     const dateRaw = d['date'] ?? d['pubDate'] ?? d['updatedAt']
+    // YAML parses an unquoted `date: 2026-06-20` into a Date; strings/numbers go through Date.parse.
     const parsed =
-      typeof dateRaw === 'string' || typeof dateRaw === 'number' ? Date.parse(String(dateRaw)) : NaN
+      dateRaw instanceof Date
+        ? dateRaw.getTime()
+        : typeof dateRaw === 'string' || typeof dateRaw === 'number'
+          ? Date.parse(String(dateRaw))
+          : NaN
     const strArr = (v: unknown): string[] =>
       Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
+    const str = (v: unknown): string => (typeof v === 'string' ? v : '')
+    const cardExcerpt = str(d['description']) || str(d['summary']) || excerpt(entry.body ?? '', 160)
     return {
       id: entry.id,
       collection: col,
@@ -33,10 +40,12 @@ export const getStaticPaths = (async ({ paginate }) => {
       tags: strArr(d['tags']),
       categories: strArr(d['categories']),
       featuredImage: typeof d['featuredImage'] === 'string' ? (d['featuredImage'] as string) : undefined,
+      excerpt: cardExcerpt || undefined,
+      published: d['published'] === false ? false : undefined,
     }
   }
   const rows = (await getCollection('entries')).map((e) =>
-    toPostRow({ id: e.id, data: e.data as Record<string, unknown> }),
+    toPostRow({ id: e.id, data: e.data as Record<string, unknown>, body: (e as { body?: string }).body }),
   )
   const posts = selectPosts(rows, {
     collection: 'post',
@@ -56,6 +65,15 @@ const mediaBase = resolveMediaBase(import.meta.env.PUBLIC_SETU_MEDIA, import.met
 const resolveImg = (s: string): string =>
   !s || /^https?:\/\//i.test(s) ? s : s.startsWith('/') ? `${mediaBase}${s}` : s
 const hrefOf = (p: PostRow) => `/${entryUrlPath({ collection: p.collection, locale: p.locale, slug: p.slug })}`
+// Locale-aware short date, rendered in UTC (a frontmatter date is a calendar date, not an
+// instant, so it must not drift across timezones). Full dateFormat/timezone wiring is #157.
+const fmtDate = (ms: number, loc: string): string =>
+  new Date(ms).toLocaleDateString(loc || DEFAULT_LOCALE, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  })
 
 // Page 1 lives at the bare base (/posts); later pages are /posts/N.
 const BASE = '/posts'
@@ -75,6 +93,12 @@ const pageNumbers = Array.from({ length: page.lastPage }, (_, i) => i + 1)
           </a>
         )}
         <a href={hrefOf(p)} class="setu-post-card__title">{p.title}</a>
+        {p.date !== null && (
+          <time class="setu-post-card__date" datetime={new Date(p.date).toISOString().slice(0, 10)}>
+            {fmtDate(p.date, p.locale)}
+          </time>
+        )}
+        {p.excerpt && <p class="setu-post-card__excerpt">{p.excerpt}</p>}
       </li>
     ))}
   </ul>
@@ -129,6 +153,16 @@ const pageNumbers = Array.from({ length: page.lastPage }, (_, i) => i + 1)
     color: var(--text, inherit); text-decoration: none;
   }
   .setu-post-card__title:hover { color: var(--accent, #4f46e5); }
+  .setu-post-card__date {
+    display: block; margin-top: 0.25rem;
+    font-size: 0.8125rem; color: var(--text-muted, #6b7280);
+  }
+  .setu-post-card__excerpt {
+    margin: 0.4rem 0 0; font-size: 0.9375rem; line-height: 1.5;
+    color: var(--text-muted, #4b5563);
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
 
   .setu-pager {
     display: flex; align-items: center; justify-content: center; gap: 0.75rem;

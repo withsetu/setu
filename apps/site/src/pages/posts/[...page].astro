@@ -8,9 +8,9 @@ import { loadSiteSettings } from '../../lib/site-settings'
 import { resolveMediaBase } from '../../lib/media-base'
 
 export const getStaticPaths = (async ({ paginate }) => {
-  // Posts per archive page. A constant by default; overridable via env so tests and demos can
-  // force multiple pages without a large fixture set. (Could graduate to a reading setting.)
-  const perPage = Number(process.env.SETU_ARCHIVE_PER_PAGE) || 6
+  // Posts per archive page comes from the Reading settings (Settings → Reading → Posts per
+  // page). SETU_ARCHIVE_PER_PAGE overrides it for tests/demos without writing settings.json.
+  const perPage = Number(process.env.SETU_ARCHIVE_PER_PAGE) || loadSiteSettings().reading.postsPerPage
   // Map an Astro content entry (id = "collection/locale/slug") to a PostRow — same projection
   // the query block uses, so the archive and the block agree on ordering + fields. Defined
   // inside getStaticPaths: Astro runs it in an isolated scope, so module-level helpers aren't

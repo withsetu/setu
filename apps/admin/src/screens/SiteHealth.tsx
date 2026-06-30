@@ -141,6 +141,15 @@ export function SiteHealthView({ audit, toggle, health }: { audit: AuditResult; 
         <a className="underline" href="https://specification.website/" target="_blank" rel="noreferrer">
           Website Specification
         </a>
+        .{' '}
+        Checklist content &copy;{' '}
+        <a className="underline" href="https://specification.website/" target="_blank" rel="noreferrer">
+          specification.website
+        </a>
+        , licensed{' '}
+        <a className="underline" href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">
+          CC BY 4.0
+        </a>
         .
       </p>
       <p className="mb-6 text-xs text-muted-foreground">

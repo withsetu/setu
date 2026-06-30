@@ -23,7 +23,8 @@ describe('SiteHealthView', () => {
     expect(screen.getByText(/to verify/i)).toBeTruthy()
     // a config fail appears UNDER the fix-now section (not merely on screen)
     const fixNow = screen.getByText(/fix now/i).closest('section')!
-    expect(within(fixNow).getByText(/meta description/i)).toBeTruthy()
+    // title is '<meta name="description">' — match on the "description" keyword
+    expect(within(fixNow).getByText(/meta name="description"/i)).toBeTruthy()
     // a platform fail appears UNDER the roadmap section — the core grouping invariant
     const roadmap = screen.getByText(/on setu.s roadmap/i).closest('section')!
     expect(within(roadmap).getByText(/canonical url/i)).toBeTruthy()

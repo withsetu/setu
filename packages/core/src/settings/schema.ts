@@ -40,12 +40,30 @@ const mediaSchema = z
   })
   .partial()
 
+const identitySchema = z
+  .object({
+    // entityType/socialProfiles are intentionally lenient here so a hand-edited bad value
+    // resets only itself (coerced in the merge below) rather than failing the whole parse
+    // and wiping every other group back to defaults.
+    entityType: z.unknown(),
+    name: z.string(),
+    url: z.string(),
+    logo: z.string(),
+    defaultImage: z.string(),
+    socialProfiles: z.unknown(),
+    twitterHandle: z.string(),
+    titleTemplate: z.string(),
+    titleSeparator: z.string(),
+  })
+  .partial()
+
 // passthrough keeps unknown future top-level groups (forward-compat on read/save).
 const settingsSchema = z
   .object({
     general: generalSchema.optional(),
     reading: readingSchema.optional(),
     media: mediaSchema.optional(),
+    identity: identitySchema.optional(),
   })
   .passthrough()
 
@@ -58,9 +76,14 @@ export function parseSettings(raw: unknown): SiteSettings {
   const general = (data.general ?? {}) as Partial<SiteSettings['general']>
   const reading = (data.reading ?? {}) as Partial<SiteSettings['reading']>
   const media = (data.media ?? {}) as Partial<SiteSettings['media']>
+  const identity = (data.identity ?? {}) as Partial<SiteSettings['identity']>
   const rd = DEFAULT_SETTINGS.reading
+  const id = DEFAULT_SETTINGS.identity
   const validFormat = (['webp', 'avif', 'both'] as const).includes(
     media.imageFormat as SiteSettings['media']['imageFormat'],
+  )
+  const validEntity = (['person', 'organization'] as const).includes(
+    identity.entityType as SiteSettings['identity']['entityType'],
   )
   return {
     ...data,
@@ -80,6 +103,16 @@ export function parseSettings(raw: unknown): SiteSettings {
         typeof media.imageLqip === 'boolean'
           ? media.imageLqip
           : DEFAULT_SETTINGS.media.imageLqip,
+    },
+    identity: {
+      ...id,
+      ...identity,
+      entityType: validEntity
+        ? (identity.entityType as SiteSettings['identity']['entityType'])
+        : id.entityType,
+      socialProfiles: Array.isArray(identity.socialProfiles)
+        ? identity.socialProfiles.filter((s): s is string => typeof s === 'string')
+        : id.socialProfiles,
     },
   } as SiteSettings
 }

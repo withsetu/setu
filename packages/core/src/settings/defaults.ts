@@ -18,4 +18,15 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     relatedPosts: { enabled: true, heading: 'Read Next', count: 3, showImage: true },
   },
   media: { imageFormat: 'webp', imageLqip: false },
+  identity: {
+    entityType: 'organization',
+    name: '',
+    url: '',
+    logo: '',
+    defaultImage: '',
+    socialProfiles: [],
+    twitterHandle: '',
+    titleTemplate: '{{title}} {{separator}} {{site}}',
+    titleSeparator: '·',
+  },
 }

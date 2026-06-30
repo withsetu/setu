@@ -83,7 +83,11 @@ export function buildFeed(opts: {
   feedPath: string
   items: FeedItem[]
 }): RSSOptions {
-  const site = (opts.site ?? 'http://localhost:4321').toString()
+  // Guarantee a trailing slash so the relative `feedPath` (e.g. `rss.xml`, `fr/rss.xml`) resolves
+  // under the site root rather than replacing its last path segment (defensive — Astro normalizes
+  // `context.site` with a trailing slash, but the fallback / a future base path might not).
+  const base = (opts.site ?? 'http://localhost:4321').toString()
+  const site = base.endsWith('/') ? base : `${base}/`
   const mediaBase = resolveMediaBase(import.meta.env.PUBLIC_SETU_MEDIA, import.meta.env.DEV)
   const selfUrl = new URL(opts.feedPath, site).href
   const lastBuild = opts.items.reduce<Date | null>(

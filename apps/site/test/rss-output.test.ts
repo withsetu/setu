@@ -70,4 +70,9 @@ describe('rss output (serialized)', () => {
     expect(xml).toContain('<language>fr</language>')
     expect(xml).toContain('<atom:link href="https://example.dev/fr/rss.xml" rel="self"')
   })
+
+  it('builds a correct self-link even when site lacks a trailing slash', async () => {
+    const xml = await renderFeed({ site: 'https://example.dev', feedPath: 'fr/rss.xml', locale: 'fr' })
+    expect(xml).toContain('<atom:link href="https://example.dev/fr/rss.xml" rel="self"')
+  })
 })

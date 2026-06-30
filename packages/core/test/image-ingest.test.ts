@@ -32,6 +32,9 @@ function stubImage(srcW: number, srcH: number): ImagePort {
         body: new Uint8Array([s.width & 255]),
       }))
     },
+    async placeholder(_source: Uint8Array, _width: number): Promise<string> {
+      return 'data:image/webp;base64,stub'
+    },
   }
 }
 

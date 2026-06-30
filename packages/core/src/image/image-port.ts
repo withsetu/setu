@@ -31,4 +31,6 @@ export interface ImagePort {
   metadata(source: Uint8Array): Promise<ImageMeta>
   /** Produce one output per spec, in order. Never upscales; preserves aspect ratio. */
   generate(source: Uint8Array, specs: VariantSpec[]): Promise<GeneratedVariant[]>
+  /** A tiny (≈`width`px), blurred WebP of the source as a base64 `data:` URI — the LQIP placeholder. */
+  placeholder(source: Uint8Array, width: number): Promise<string>
 }

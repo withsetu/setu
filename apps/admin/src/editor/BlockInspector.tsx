@@ -1,14 +1,19 @@
-import { useState } from 'react'
+import { useState, Fragment } from 'react'
 import { resolveControls } from '@setu/core'
+import type { ResolvedControl } from '@setu/core'
 import { registry } from '../blocks/registry'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { Button } from '@/components/ui/button'
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { MediaPickerModal } from './MediaPickerModal'
-import { resolveMediaSrc } from './media-src'
+import { controlRegistry } from './controls/registry'
+
+/** Fallback field label: split camelCase and Title-Case (textPosition → "Text Position").
+ *  A block can override per-prop via editor.labels. */
+function humanizeLabel(name: string): string {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[-_]/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+}
 
 export function BlockInspector({
   tag, mdAttrs, onChange, apiBase,
@@ -18,38 +23,77 @@ export function BlockInspector({
   if (!block) return <p className="px-1 py-2 text-sm text-muted-foreground">No editable properties.</p>
 
   const controls = resolveControls(block.props, block.editor?.controls)
-  const val = (name: string, dflt?: unknown) => mdAttrs[name] ?? dflt ?? ''
+  const showWhen = block.editor?.showWhen ?? {}
+  const visible = controls.filter((c) => {
+    const rule = showWhen[c.name]
+    if (!rule) return true
+    return Object.entries(rule).every(([k, v]) => {
+      const cur = mdAttrs[k]
+      return Array.isArray(v) ? v.includes(cur as string) : cur === v
+    })
+  })
 
+  // Build a map of name → visible control for fast lookup
+  const visibleByName = new Map(visible.map((c) => [c.name, c]))
+
+  // Compute groups: use declared groups if present, otherwise a single implicit group
+  const declaredGroups = block.editor?.groups
+  let groups: Array<{ label: string; controls: ResolvedControl[] }>
+
+  if (declaredGroups && declaredGroups.length > 0) {
+    // Track which visible controls have been assigned to a declared group
+    const assigned = new Set<string>()
+    const resolved = declaredGroups.map((g) => {
+      const gControls = g.controls.flatMap((name) => {
+        const c = visibleByName.get(name)
+        if (c) { assigned.add(name); return [c] }
+        return []
+      })
+      return { label: g.label, controls: gControls }
+    })
+    // Orphan handling: visible controls not in any declared group go into the first group
+    const orphans = visible.filter((c) => !assigned.has(c.name))
+    if (orphans.length > 0 && resolved.length > 0) {
+      const first = resolved[0]!
+      resolved[0] = { label: first.label, controls: [...orphans, ...first.controls] }
+    }
+    groups = resolved
+  } else {
+    // No declared groups — single implicit group with no label (flat rendering)
+    groups = [{ label: '', controls: visible }]
+  }
+
+  function renderControl(c: ResolvedControl) {
+    const Control = controlRegistry[c.control]
+    return (
+      <div key={c.name} className="flex flex-col gap-1.5">
+        <Label htmlFor={`bi-${c.name}`}>{block.editor?.labels?.[c.name] ?? humanizeLabel(c.name)}</Label>
+        <Control
+          value={mdAttrs[c.name] ?? c.default}
+          onChange={(v) => onChange(c.name, v)}
+          meta={{ name: c.name, options: c.options, default: c.default, apiBase, onPickMedia: setPickFor }}
+        />
+      </div>
+    )
+  }
+
+  // The "Block · <Label>" header is rendered by the inspector rail in EditorScreen,
+  // so the inspector body starts directly with the grouped sections.
   return (
-    <div className="flex flex-col gap-3">
-      {controls.map((c) => (
-        <div key={c.name} className="flex flex-col gap-1.5">
-          <Label htmlFor={`bi-${c.name}`} className="capitalize">{c.name}</Label>
-          {c.control === 'textarea' ? (
-            <Textarea id={`bi-${c.name}`} aria-label={c.name} value={String(val(c.name, c.default))} onChange={(e) => onChange(c.name, e.target.value)} />
-          ) : c.control === 'number' ? (
-            <Input id={`bi-${c.name}`} aria-label={c.name} type="number" value={String(val(c.name, c.default))} onChange={(e) => onChange(c.name, e.target.value === '' ? '' : Number(e.target.value))} />
-          ) : c.control === 'switch' ? (
-            <Switch id={`bi-${c.name}`} aria-label={c.name} checked={Boolean(mdAttrs[c.name] ?? c.default ?? false)} onCheckedChange={(v) => onChange(c.name, v)} />
-          ) : c.control === 'select' ? (
-            <Select value={String(val(c.name, c.default))} onValueChange={(v) => onChange(c.name, v)}>
-              <SelectTrigger id={`bi-${c.name}`} aria-label={c.name}><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {(c.options ?? []).map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          ) : c.control === 'media' ? (
-            <div className="flex items-center gap-2">
-              {mdAttrs[c.name] ? <img src={resolveMediaSrc(String(mdAttrs[c.name]), apiBase || undefined)} alt="" className="size-12 rounded object-cover" /> : null}
-              <Button type="button" variant="outline" size="sm" aria-label={c.name} onClick={() => setPickFor(c.name)}>
-                {mdAttrs[c.name] ? 'Replace' : 'Choose'}
-              </Button>
-            </div>
-          ) : (
-            <Input id={`bi-${c.name}`} aria-label={c.name} type={c.control === 'url' ? 'url' : 'text'} value={String(val(c.name))} onChange={(e) => onChange(c.name, e.target.value)} />
-          )}
-        </div>
-      ))}
+    <div className="flex flex-col gap-5">
+      {groups.map((g) => {
+        if (g.controls.length === 0) return null
+        return g.label ? (
+          <section key={g.label} className="flex flex-col gap-3">
+            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              {g.label}
+            </h3>
+            {g.controls.map(renderControl)}
+          </section>
+        ) : (
+          <Fragment key="__ungrouped">{g.controls.map(renderControl)}</Fragment>
+        )
+      })}
       <MediaPickerModal apiBase={apiBase} open={pickFor !== null} onClose={() => setPickFor(null)}
         onPick={(src) => { if (pickFor) onChange(pickFor, src); setPickFor(null) }} />
     </div>

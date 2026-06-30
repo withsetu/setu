@@ -43,6 +43,13 @@ const resolveMarkdocFromApp = {
         return null
       }
     }
+    if (id === '@setu/image-astro' || id.startsWith('@setu/image-astro/')) {
+      try {
+        return require.resolve(id)
+      } catch {
+        return null
+      }
+    }
     return null
   },
 }

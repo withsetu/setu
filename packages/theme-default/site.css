@@ -53,6 +53,24 @@ body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--
 .prose figure.setu-image.align-wide img { width: 100%; }
 .prose figure.setu-image.align-full { width: 100vw; margin-left: 50%; transform: translateX(-50%); }
 .prose figure.setu-image.align-full img { width: 100%; border-radius: 0; }
+
+/* {% hero %} width — mirrors the image align breakout out of the reading measure.
+   none = column width (no rule); wide = breakout to page measure; full = 100vw bleed.
+   A background hero bleeds full-width by default (it's a banner) unless narrowed to wide. */
+.prose .blk-hero.w-wide { width: min(var(--measure-page), calc(100vw - 2rem)); margin-left: 50%; transform: translateX(-50%); }
+/* Full-bleed hero (Width = Full) spans the viewport, but its TEXT content stays aligned
+   to the page measure column (gutter grows to (100vw - measure)/2). The background image,
+   absolutely positioned, still fills edge-to-edge. Width is consistent for every layout:
+   None = column, Wide = page measure, Full = bleed (background does NOT auto-bleed). */
+.prose .blk-hero.w-full {
+  width: 100vw; margin-left: 50%; transform: translateX(-50%); border-radius: 0;
+}
+/* Only a BACKGROUND hero keeps its text in the measure column (the image bleeds behind
+   it). Split/centered heroes let their content actually widen with the bleed — otherwise
+   full looks identical to wide. */
+.prose .blk-hero.layout-background.w-full {
+  padding-inline: max(clamp(1.5rem, 5vw, 3rem), calc((100vw - var(--measure-page)) / 2));
+}
 .prose figure.setu-image.align-left { float: left; max-width: 50%; margin: .3rem 1.25rem 1rem 0; }
 .prose figure.setu-image.align-right { float: right; max-width: 50%; margin: .3rem 0 1rem 1.25rem; }
 @media (max-width: 38rem) {

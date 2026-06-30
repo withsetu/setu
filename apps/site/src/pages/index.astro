@@ -1,8 +1,9 @@
 ---
 import PageLayout from '@theme/PageLayout.astro'
-import { getEntry, render } from 'astro:content'
+import { getCollection, getEntry, render } from 'astro:content'
 import { loadThemeOptions } from '../lib/site-config'
 import { loadSiteSettings } from '../lib/site-settings'
+import { feedLocales } from '../lib/feed'
 
 const themeOptions = loadThemeOptions()
 const siteSettings = loadSiteSettings()
@@ -11,9 +12,12 @@ const entry = (await getEntry('entries', homepageId)) ?? (await getEntry('entrie
 const title = entry ? ((entry.data as { title?: string }).title ?? 'Home') : 'Home'
 const rendered = entry ? await render(entry) : null
 const Content = rendered?.Content
+const localesForFeed = feedLocales(
+  (await getCollection('entries')).map((e) => ({ id: e.id, data: e.data as Record<string, unknown> })),
+)
 ---
 
-<PageLayout title={title} lang="en" themeOptions={themeOptions} siteSettings={siteSettings}>
+<PageLayout title={title} lang="en" themeOptions={themeOptions} siteSettings={siteSettings} feedLocales={localesForFeed}>
   {Content ? (
     <>
       <h1>{title}</h1>

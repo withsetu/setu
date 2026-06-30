@@ -61,27 +61,31 @@ const blur = a.lqip
 )}
 
 {/* Reveal blur-up images already `complete` (served from cache) where `load` won't re-fire.
+    Emitted ONLY in the blur-up (LQIP) case — a plain image has nothing to reveal, so it keeps
+    Setu's zero-JS default; this reveal island ships only when LQIP is opted in ("JS for dreamers").
     Plain browser JS — this is an is:inline script shipped verbatim, so NO TypeScript here.
     Guarded to run its sweep once per page regardless of how many <Image>s emit it. */}
-<script is:inline>
-  (function () {
-    if (window.__setuBlurup) return;
-    window.__setuBlurup = 1;
-    function revealLoaded() {
-      document.querySelectorAll('.blk-blurup > :is(img, picture > img)').forEach(function (img) {
-        var wrapper = img.closest('.blk-blurup');
-        if (!wrapper) return;
-        if (img.complete) {
-          wrapper.classList.add('is-loaded');
-        } else {
-          img.addEventListener('load', function () { wrapper.classList.add('is-loaded'); }, { once: true });
-        }
-      });
-    }
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', revealLoaded);
-    } else {
-      revealLoaded();
-    }
-  })();
-</script>
+{blur && (
+  <script is:inline>
+    (function () {
+      if (window.__setuBlurup) return;
+      window.__setuBlurup = 1;
+      function revealLoaded() {
+        document.querySelectorAll('.blk-blurup > :is(img, picture > img)').forEach(function (img) {
+          var wrapper = img.closest('.blk-blurup');
+          if (!wrapper) return;
+          if (img.complete) {
+            wrapper.classList.add('is-loaded');
+          } else {
+            img.addEventListener('load', function () { wrapper.classList.add('is-loaded'); }, { once: true });
+          }
+        });
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', revealLoaded);
+      } else {
+        revealLoaded();
+      }
+    })();
+  </script>
+)}

@@ -1,4 +1,4 @@
-import type { AuditResult, CheckResult, HealthCategory, RubricItem } from '@setu/core'
+import type { AuditResult, CheckResult, HealthCategory, HealthState, RubricItem } from '@setu/core'
 import { RUBRIC } from '@setu/core'
 import { PageHeader } from '../shell/PageHeader'
 import { PageBody } from '../shell/PageBody'
@@ -12,6 +12,24 @@ const SEV_LABEL: Record<RubricItem['severity'], string> = {
   avoid: 'Must-not',
   recommended: 'Should',
   optional: 'Nice',
+}
+
+// Derive unique categories that appear in the rubric, in first-appearance order
+const RUBRIC_CATEGORIES: HealthCategory[] = Array.from(
+  new Map(RUBRIC.map((r) => [r.category, r.category])).values()
+)
+
+const CATEGORY_LABEL: Record<HealthCategory, string> = {
+  foundations: 'Foundations',
+  seo: 'SEO',
+  accessibility: 'Accessibility',
+  security: 'Security',
+  'well-known': 'Well-known',
+  'agent-readiness': 'Agent readiness',
+  performance: 'Performance',
+  privacy: 'Privacy',
+  resilience: 'Resilience',
+  i18n: 'Internationalisation',
 }
 
 type Toggle = (kind: 'item' | 'section', id: string, state: 'attested' | 'na' | null) => void
@@ -39,6 +57,9 @@ function Row({ r, toggle }: { r: CheckResult; toggle: Toggle }) {
         <div className="mt-1.5 flex items-center gap-4">
           {r.attestable && (
             <label className="flex items-center gap-1.5 text-xs">
+              {/* An attestable item is by definition not-yet-passing: once the admin attests it,
+                  the engine emits `pass` and the row leaves the "To verify" group entirely.
+                  So checked=false is correct — attesting is a one-way action, not a toggle. */}
               <Checkbox
                 checked={false}
                 onCheckedChange={() => toggle('item', r.id, 'attested')}
@@ -60,24 +81,45 @@ function Row({ r, toggle }: { r: CheckResult; toggle: Toggle }) {
   )
 }
 
-function Section({ title, category, results, toggle }: { title: string; category?: HealthCategory; results: CheckResult[]; toggle: Toggle }) {
+function Section({ title, results, toggle }: { title: string; results: CheckResult[]; toggle: Toggle }) {
   if (results.length === 0) return null
   return (
     <section className="mb-6">
       <div className="mb-2 flex items-center justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{title}</h2>
-        {category && (
-          <button className="text-xs text-muted-foreground hover:underline" onClick={() => toggle('section', category, 'na')}>
-            Skip section
-          </button>
-        )}
       </div>
       {results.map((r) => <Row key={r.id} r={r} toggle={toggle} />)}
     </section>
   )
 }
 
-export function SiteHealthView({ audit, toggle }: { audit: AuditResult; toggle: Toggle }) {
+function SectionApplicabilityPanel({ health, toggle }: { health: HealthState; toggle: Toggle }) {
+  return (
+    <section className="mb-8 rounded-lg border border-border p-4">
+      <h2 className="mb-1 text-sm font-semibold">Sections that apply to your site</h2>
+      <p className="mb-3 text-xs text-muted-foreground">
+        Uncheck a section that doesn't apply to your site — its items won't count toward your score.
+      </p>
+      <div className="space-y-2">
+        {RUBRIC_CATEGORIES.map((cat) => {
+          const skipped = health.sections[cat]?.state === 'na'
+          return (
+            <label key={cat} className="flex items-center gap-2.5 text-sm cursor-pointer">
+              <Checkbox
+                checked={!skipped}
+                onCheckedChange={(checked) => toggle('section', cat, checked ? null : 'na')}
+                aria-label={CATEGORY_LABEL[cat]}
+              />
+              <span>{CATEGORY_LABEL[cat]}</span>
+            </label>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+export function SiteHealthView({ audit, toggle, health }: { audit: AuditResult; toggle: Toggle; health: HealthState }) {
   const fixNow = audit.results.filter((r) => r.status === 'fail' && (r.owner === 'config' || r.owner === 'content'))
   const roadmap = audit.results.filter((r) => r.status === 'fail' && r.owner === 'platform')
   const toVerify = audit.results.filter((r) => r.status === 'unverified' || r.status === 'pending')
@@ -104,6 +146,7 @@ export function SiteHealthView({ audit, toggle }: { audit: AuditResult; toggle: 
       <p className="mb-6 text-xs text-muted-foreground">
         "Not applicable" means it doesn't apply to your site — not "skip the work."
       </p>
+      <SectionApplicabilityPanel health={health} toggle={toggle} />
       <Section title="Fix now (you)" results={fixNow} toggle={toggle} />
       <Section title="On Setu's roadmap" results={roadmap} toggle={toggle} />
       <Section title="To verify (you)" results={toVerify} toggle={toggle} />
@@ -114,13 +157,13 @@ export function SiteHealthView({ audit, toggle }: { audit: AuditResult; toggle: 
 }
 
 export function SiteHealth() {
-  const { audit, toggle } = useAudit()
+  const { audit, toggle, health } = useAudit()
   return (
     <>
       <PageHeader title="Site Health" subtitle="How your site measures up to web best practices" />
       <PageBody>
         {audit ? (
-          <SiteHealthView audit={audit} toggle={(k, i, s) => void toggle(k, i, s)} />
+          <SiteHealthView audit={audit} toggle={(k, i, s) => void toggle(k, i, s)} health={health} />
         ) : (
           <p className="text-sm text-muted-foreground">Checking…</p>
         )}

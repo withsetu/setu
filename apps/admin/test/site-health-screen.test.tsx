@@ -1,7 +1,9 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, within, fireEvent } from '@testing-library/react'
-import type { AuditResult } from '@setu/core'
+import type { AuditResult, HealthState } from '@setu/core'
 import { SiteHealthView } from '../src/screens/SiteHealth'
+
+const emptyHealth: HealthState = { items: {}, sections: {} }
 
 const audit: AuditResult = {
   score: 60, band: 'needs-work', byCategory: [], mustHaves: { done: 3, total: 6 },
@@ -15,7 +17,7 @@ const audit: AuditResult = {
 
 describe('SiteHealthView', () => {
   it('groups failures by owner: fix-now vs roadmap vs manual', () => {
-    render(<SiteHealthView audit={audit} toggle={() => {}} />)
+    render(<SiteHealthView audit={audit} toggle={() => {}} health={emptyHealth} />)
     expect(screen.getByText(/fix now/i)).toBeTruthy()
     expect(screen.getByText(/on setu.s roadmap/i)).toBeTruthy()
     expect(screen.getAllByText(/manual/i).length).toBeGreaterThan(0)
@@ -38,13 +40,42 @@ describe('SiteHealthView', () => {
         { id: 'i18n.hreflang', status: 'na', owner: 'manual', naSource: 'auto' },
       ],
     }
-    render(<SiteHealthView audit={auditWithAttest} toggle={toggle} />)
+    render(<SiteHealthView audit={auditWithAttest} toggle={toggle} health={emptyHealth} />)
     // the unverified item shows an "I've verified this" control under "To verify"
     const verify = screen.getByText(/to verify/i).closest('section')!
     const checkbox = within(verify).getByRole('checkbox', { name: /verified/i })
     fireEvent.click(checkbox)
     expect(toggle).toHaveBeenCalledWith('item', 'privacy.policy', 'attested')
-    // the auto-na item shows in a Not applicable group, greyed (no toggle)
-    expect(screen.getAllByText(/not applicable/i).length).toBeGreaterThan(0)
+    // "Not applicable" section heading is present
+    expect(screen.getByRole('heading', { name: /not applicable/i })).toBeTruthy()
+  })
+
+  it('renders section applicability panel and calls toggle when a category is unchecked', () => {
+    const toggle = vi.fn()
+    // Start with 'seo' already skipped
+    const healthWithSkip: HealthState = {
+      items: {},
+      sections: { seo: { state: 'na', at: '2026-06-30T00:00:00Z', by: 'test' } },
+    }
+    render(<SiteHealthView audit={audit} toggle={toggle} health={healthWithSkip} />)
+
+    // Panel heading is present
+    expect(screen.getByText(/sections that apply to your site/i)).toBeTruthy()
+
+    // SEO checkbox should be unchecked (skipped)
+    const seoCheckbox = screen.getByRole('checkbox', { name: /seo/i })
+    expect((seoCheckbox as HTMLInputElement).getAttribute('data-state')).toBe('unchecked')
+
+    // Foundations checkbox should be checked (not skipped)
+    const foundationsCheckbox = screen.getByRole('checkbox', { name: /foundations/i })
+    expect((foundationsCheckbox as HTMLInputElement).getAttribute('data-state')).toBe('checked')
+
+    // Clicking the SEO checkbox (re-enabling it) calls toggle('section', 'seo', null)
+    fireEvent.click(seoCheckbox)
+    expect(toggle).toHaveBeenCalledWith('section', 'seo', null)
+
+    // Clicking Foundations (disabling it) calls toggle('section', 'foundations', 'na')
+    fireEvent.click(foundationsCheckbox)
+    expect(toggle).toHaveBeenCalledWith('section', 'foundations', 'na')
   })
 })

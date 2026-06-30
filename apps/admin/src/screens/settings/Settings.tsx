@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { GeneralSettings } from './GeneralSettings'
 import { ReadingSettings } from './ReadingSettings'
 import { MediaSettings } from './MediaSettings'
+import { IdentitySettings } from './IdentitySettings'
 
 const apiBase = import.meta.env.VITE_SETU_API as string | undefined
 
@@ -40,14 +41,15 @@ function FormsGroup() {
   )
 }
 
-type GroupId = 'general' | 'reading' | 'media' | 'forms'
+type GroupId = 'general' | 'reading' | 'media' | 'identity' | 'forms'
 const GROUPS: { id: GroupId; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'reading', label: 'Content & Reading' },
   { id: 'media', label: 'Media' },
+  { id: 'identity', label: 'Identity & SEO' },
   { id: 'forms', label: 'Forms' },
 ]
-const COMING_SOON = ['Identity', 'Users & Roles', 'SEO & Privacy', 'Deploy']
+const COMING_SOON = ['Users & Roles', 'Deploy']
 
 export function Settings() {
   const [active, setActive] = useState<GroupId>('general')
@@ -74,7 +76,7 @@ export function Settings() {
             ))}
           </nav>
           <div className="min-w-0 flex-1">
-            {active === 'general' ? <GeneralSettings /> : active === 'reading' ? <ReadingSettings /> : active === 'media' ? <MediaSettings /> : <FormsGroup />}
+            {active === 'general' ? <GeneralSettings /> : active === 'reading' ? <ReadingSettings /> : active === 'media' ? <MediaSettings /> : active === 'identity' ? <IdentitySettings /> : <FormsGroup />}
           </div>
         </div>
       </PageBody>

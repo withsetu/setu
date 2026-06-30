@@ -1,9 +1,13 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { createAuthz, DEFAULT_ROLES, ingestImage, mediaSlug, mediaKeyOf, originalKey, manifestKey, mediaRecordKey } from '@setu/core'
-import type { Actor, ImageFormat, ImagePort, MediaManifest, MediaRecord, StoragePort } from '@setu/core'
+import type { Actor, ImageFormat, ImagePort, MediaManifest, MediaRecord, MediaSettings, ReprocessJobStore, StoragePort } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
 import type { ResolveActor } from './auth/resolve-actor'
+
+function formatsFor(setting: 'webp' | 'avif' | 'both'): ImageFormat[] {
+  return setting === 'both' ? ['webp', 'avif'] : [setting]
+}
 
 export const DEFAULT_MAX_BYTES = 25 * 1024 * 1024
 
@@ -33,8 +37,8 @@ export const DEFAULT_ALLOWED: Set<string> = new Set(Object.keys(EXT_BY_TYPE))
 /** Raster image types we generate variants for (gif excluded — animated). */
 const GENERATABLE: Set<string> = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif'])
 
-export interface ImageConfig { format: ImageFormat; widths: number[] }
-const DEFAULT_IMAGE_CONFIG: ImageConfig = { format: 'webp', widths: [400, 800, 1200, 1600] }
+const DEFAULT_WIDTHS: number[] = [400, 800, 1200, 1600]
+const DEFAULT_MEDIA_SETTINGS: MediaSettings = { imageFormat: 'webp', imageLqip: false }
 
 export interface UploadLimits {
   maxBytes: number
@@ -45,7 +49,12 @@ export interface UploadApiOptions {
   resolveActor: ResolveActor
   limits?: Partial<UploadLimits>
   image?: ImagePort
-  imageConfig?: ImageConfig
+  widths?: number[]
+  /** Current Media settings. Pass a getter (not a snapshot) so uploads and reprocess pick up
+   *  setting changes made after boot — the server's settings.json is read at request time. */
+  mediaSettings?: MediaSettings | (() => MediaSettings)
+  /** Async reprocess job store + runner. When absent, the /api/media/reprocess routes return 409. */
+  reprocess?: { store: ReprocessJobStore; run: (jobId: string) => void }
 }
 
 const authz = createAuthz(DEFAULT_ROLES)
@@ -55,7 +64,12 @@ export function createUploadApi(opts: UploadApiOptions) {
   const maxBytes = opts.limits?.maxBytes ?? DEFAULT_MAX_BYTES
   const allowed = opts.limits?.allowedContentTypes ?? DEFAULT_ALLOWED
   const { storage } = opts
-  const imageConfig = opts.imageConfig ?? DEFAULT_IMAGE_CONFIG
+  // Resolve per request so a settings change (Media format/LQIP) takes effect without an api restart.
+  const resolveMedia = (): MediaSettings => {
+    const m = opts.mediaSettings
+    return (typeof m === 'function' ? m() : m) ?? DEFAULT_MEDIA_SETTINGS
+  }
+  const widths = opts.widths ?? DEFAULT_WIDTHS
 
   const app = new Hono<{ Variables: { actor: Actor } }>()
   app.use('*', cors())
@@ -87,10 +101,11 @@ export function createUploadApi(opts: UploadApiOptions) {
 
     let manifest: MediaManifest | undefined
     if (opts.image && GENERATABLE.has(file.type)) {
+      const media = resolveMedia()
       try {
         manifest = await ingestImage(
           { image: opts.image, storage },
-          { mediaKey, bytes, originalKey: key, format: imageConfig.format, widths: imageConfig.widths },
+          { mediaKey, bytes, originalKey: key, formats: formatsFor(media.imageFormat), widths, lqip: media.imageLqip },
         )
       } catch (err) {
         console.warn(`media ingest failed for ${mediaKey}: ${err instanceof Error ? err.message : String(err)}`)
@@ -128,6 +143,25 @@ export function createUploadApi(opts: UploadApiOptions) {
       },
       201,
     )
+  })
+
+  app.post('/api/media/reprocess', authMiddleware(opts.resolveActor), async (c) => {
+    if (!authz.can(c.get('actor'), 'content.create')) return c.json({ error: 'forbidden' }, 403)
+    if (!opts.image || !opts.reprocess) return c.json({ error: 'reprocess unavailable in this mode' }, 409)
+    const running = opts.reprocess.store.active()
+    if (running) return c.json({ jobId: running.id, status: running.status, total: running.total, processed: running.processed }, 202)
+    const all = await storage.list()
+    const keys = all.filter((k) => k.endsWith('.manifest.json'))
+    const job = opts.reprocess.store.create(keys, Date.now())
+    opts.reprocess.run(job.id)
+    return c.json({ jobId: job.id, status: job.status, total: job.total, processed: job.processed }, 202)
+  })
+
+  app.get('/api/media/reprocess/status', (c) => {
+    const store = opts.reprocess?.store
+    const job = store?.active() ?? store?.latest()
+    if (!job) return c.json({ status: 'idle' })
+    return c.json({ status: job.status, processed: job.processed, total: job.total, ...(job.error ? { error: job.error } : {}) })
   })
 
   app.get('/media/_index', async (c) => {

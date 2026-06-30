@@ -6,6 +6,7 @@ import { join, dirname } from 'node:path'
 import markdoc from '@astrojs/markdoc'
 import react from '@astrojs/react'
 import { loadConfig } from '@setu/core/node'
+import { perPageCssPurge } from './integrations/per-page-css-purge.mjs'
 
 // Read the active theme from setu.config (single source of truth) and alias '@theme'
 // to it, so pages render through whichever theme is configured.
@@ -117,7 +118,9 @@ export default defineConfig({
   // were authored under the v6 (`true`) model, so pin it to preserve exact prior output.
   // Revisit per-template if/when we want JSX-style compression.
   compressHTML: true,
-  integrations: [markdoc(), react(), devPreviewRoute],
+  // perPageCssPurge runs only at `astro build` (astro:build:done) — dev is untouched. It strips
+  // each page's unused block CSS and inlines the rest, so a page only ships the blocks it uses.
+  integrations: [markdoc(), react(), devPreviewRoute, perPageCssPurge()],
   vite: {
     resolve: { alias: { '@theme': activeTheme } },
     plugins: [resolveMarkdocFromApp, virtualFonts],

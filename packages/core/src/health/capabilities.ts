@@ -1,0 +1,13 @@
+import type { SiteCapabilities } from './types'
+
+/** What the default theme + site pipeline emit TODAY. Kept honest by the render test in
+ *  apps/site/test/capabilities.test.ts. Emitter increments flip a flag (and the test enforces it). */
+export const SITE_CAPABILITIES: SiteCapabilities = {
+  doctype: true, langAttr: true, charset: true, viewport: true,
+  title: true, metaDescription: true,
+  canonical: false, favicon: false, openGraph: false, twitterCard: false, themeColor: false,
+  rssAutodiscovery: false,
+  sitemap: false, robotsTxt: false, jsonLd: false,
+  llmsTxt: false, perPageMarkdown: false,
+  hreflang: false, customError: false, skipLink: false, focusStyles: false,
+}

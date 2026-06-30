@@ -13,6 +13,7 @@ import { resolveMediaBase } from '@setu/image-astro'
 import TaxonomyChips from '@theme/TaxonomyChips.astro'
 import { categoryNameMap } from '@setu/core'
 import { loadCategories } from '../lib/categories'
+import { strArr } from '../lib/post-row'
 
 export async function getStaticPaths() {
   const all = await getCollection('entries')
@@ -46,13 +47,12 @@ const related = rp.enabled
 const featuredImage = typeof (entry.data as { featuredImage?: unknown }).featuredImage === 'string'
   ? (entry.data as { featuredImage: string }).featuredImage
   : undefined
-const strArr = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
-const catNames = categoryNameMap(loadCategories())
-const postCategories = strArr((entry.data as { categories?: unknown }).categories).map((slug) => ({
-  slug,
-  name: catNames.get(slug) ?? slug,
-}))
-const postTags = strArr((entry.data as { tags?: unknown }).tags)
+const isPost = collection === 'post'
+const catNames = isPost ? categoryNameMap(loadCategories()) : new Map<string, string>()
+const postCategories = isPost
+  ? strArr((entry.data as { categories?: unknown }).categories).map((slug) => ({ slug, name: catNames.get(slug) ?? slug }))
+  : []
+const postTags = isPost ? strArr((entry.data as { tags?: unknown }).tags) : []
 const localesForFeed = feedLocales(
   (await getCollection('entries')).map((e) => ({ id: e.id, data: e.data as Record<string, unknown> })),
 )

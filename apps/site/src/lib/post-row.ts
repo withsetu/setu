@@ -1,5 +1,9 @@
 import type { PostRow } from '@setu/core'
 
+export function strArr(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
+}
+
 /** Map a raw Astro content entry (id = "collection/locale/slug") to a PostRow.
  *  Used in archive-style getStaticPaths blocks so the projection is defined once
  *  and shared across category, tag, and other taxonomy routes. */
@@ -13,7 +17,6 @@ export function toPostRow(entry: { id: string; data: Record<string, unknown> }):
       : typeof dateRaw === 'string' || typeof dateRaw === 'number'
         ? Date.parse(String(dateRaw))
         : NaN
-  const strArr = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
   return {
     id: entry.id,
     collection: col,

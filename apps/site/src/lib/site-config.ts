@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import config from '../../setu.config'
 
 /** File (Customizer-published) values win over the setu.config defaults. Pure. */
@@ -11,15 +12,11 @@ export function mergeThemeOptions(
 }
 
 /** The committed theme-options file lives at the content-repo root (sibling of `content/`):
- *  in dev that's `<SETU_CONTENT_DIR>/../`, the sandbox root; otherwise this repo's root.
- *  Uses process.cwd() (== apps/site/ at build time) rather than import.meta.url because Astro
- *  prerender bundles the compiled chunk in dist/.prerender/chunks/ — two extra levels deep —
- *  making import.meta.url-based relative paths silently resolve to the wrong directory. */
+ *  in dev that's `<SETU_CONTENT_DIR>/../`, the sandbox root; otherwise this repo's root. */
 function themeOptionsFilePath(): string {
   const contentDir = process.env.SETU_CONTENT_DIR
   if (contentDir) return join(contentDir, '..', 'theme-options.json')
-  // cwd is apps/site/ during `astro build`; go up 2 → repo root.
-  return join(process.cwd(), '..', '..', 'theme-options.json')
+  return fileURLToPath(new URL('../../../../theme-options.json', import.meta.url))
 }
 
 function readFileValues(): Record<string, string> {

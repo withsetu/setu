@@ -21,16 +21,18 @@ describe('selectFeedPosts', () => {
     row('post/en/a', '2024-01-01'),
     row('post/en/b', '2024-03-01'),
     row('page/en/about', '2024-09-01'),            // page → excluded
-    row('post/en/draft', '2024-12-01', { status: 'draft' }), // draft → excluded
-    row('post/en/hidden', '2024-12-01', { published: false }), // hidden → excluded
+    // A vestigial frontmatter `status` field is NOT Setu's draft signal — committed content is
+    // published; drafts live only in the DB. So this stays IN the feed (matches the site + lifecycle).
+    row('post/en/legacy-status', '2024-12-01', { status: 'draft' }),
+    row('post/en/hidden', '2024-12-01', { published: false }), // published:false → excluded (the real signal)
     row('post/fr/c', '2024-12-01'),                // non-en → excluded
   ]
-  it('keeps published en posts only, newest first, capped at limit', () => {
+  it('keeps published en posts (committed, not published:false), newest first, capped at limit', () => {
     const out = selectFeedPosts(rows, 10).map((r) => r.id)
-    expect(out).toEqual(['post/en/b', 'post/en/a'])
+    expect(out).toEqual(['post/en/legacy-status', 'post/en/b', 'post/en/a'])
   })
   it('caps at the limit', () => {
-    expect(selectFeedPosts(rows, 1).map((r) => r.id)).toEqual(['post/en/b'])
+    expect(selectFeedPosts(rows, 1).map((r) => r.id)).toEqual(['post/en/legacy-status'])
   })
 })
 

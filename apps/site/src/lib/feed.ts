@@ -37,7 +37,9 @@ export function selectFeedPosts(rows: FeedRow[], limit: number): FeedRow[] {
     .filter((r) => {
       const [collection, locale] = r.id.split('/')
       if (collection !== 'post' || locale !== 'en') return false
-      if (r.data.status === 'draft') return false
+      // Published = committed (which these rows are) and not explicitly unpublished. `published:false`
+      // is Setu's only "not published" signal (lifecycle `hidden()`); a frontmatter `status` field is
+      // NOT — committed content is live (drafts are DB-only). Matches the site + the health audit.
       if (r.data.published === false) return false
       return true
     })

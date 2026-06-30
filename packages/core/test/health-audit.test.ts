@@ -47,7 +47,7 @@ describe('runAudit', () => {
     // privacy.policy has no auto-evaluator → unverified (was 'manual' in v1)
     expect(a.results.find((r) => r.id === 'privacy.policy')?.status).toBe('unverified')
   })
-  it('scores only pass+fail, surfaces must-haves, assigns a band', () => {
+  it('scores (na excluded), surfaces must-haves, assigns a band', () => {
     const a = runAudit(ctx())
     expect(a.score).toBeGreaterThanOrEqual(0)
     expect(a.score).toBeLessThanOrEqual(100)

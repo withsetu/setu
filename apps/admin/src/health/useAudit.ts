@@ -25,6 +25,7 @@ export function useAudit(): { audit: AuditResult | null } {
           },
           entries,
           capabilities: SITE_CAPABILITIES,
+          health: { items: {}, sections: {} }, // stopgap; Task B wires the persisted health-state
         })
         if (live) setAudit(result)
       } catch {

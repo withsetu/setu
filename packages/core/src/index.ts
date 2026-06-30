@@ -163,11 +163,13 @@ export { createNoopCaptcha } from './captcha/captcha-port'
 export type {
   Severity, HealthCategory, Owner, CheckStatus, RubricItem, SiteCapabilities,
   AuditEntry, AuditContext, CheckResult, CategoryScore, AuditResult,
+  AttestationRecord, HealthState,
 } from './health/types'
 export { RUBRIC } from './health/rubric'
 export { SITE_CAPABILITIES } from './health/capabilities'
 export { scanBody } from './health/scan'
-export { EVALUATORS } from './health/checks'
+export { EVALUATORS, APPLIES_WHEN } from './health/checks'
 export { runAudit } from './health/run-audit'
+export { parseHealthState, setHealthRecord } from './health/health-state'
 
 export type { ReprocessStatus, ReprocessJob, ReprocessJobStore } from './reprocess/job'

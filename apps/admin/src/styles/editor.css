@@ -25,11 +25,14 @@
    Non-aligned blocks (and wrappers of an align-none figure) cap at the post measure;
    aligned figures break out using the pane width — no vw/cqw escape. */
 .ed-title,
-.setu-prose > :not(:has(.align-left)):not(:has(.align-right)):not(:has(.align-wide)):not(:has(.align-full)):not(.align-left):not(.align-right):not(.align-wide):not(.align-full) {
+.setu-prose > :not(:has(.align-left)):not(:has(.align-right)):not(:has(.align-wide)):not(:has(.align-full)):not(.align-left):not(.align-right):not(.align-wide):not(.align-full):not(:has(.blk-hero.w-wide)):not(:has(.blk-hero.w-full)) {
   max-width: var(--measure-post); margin-inline: auto;
 }
 .setu-prose > :has(.align-wide),  .setu-prose > .align-wide  { width: min(var(--measure-page), 100%); margin-inline: auto; }
 .setu-prose > :has(.align-full),  .setu-prose > .align-full  { width: 100%; }
+/* Hero width breakout in the canvas — mirrors the image align rules so width is WYSIWYG. */
+.setu-prose > :has(.blk-hero.w-wide) { width: min(var(--measure-page), 100%); margin-inline: auto; }
+.setu-prose > :has(.blk-hero.w-full) { width: 100%; }
 .setu-prose > :has(.align-left),  .setu-prose > .align-left  { float: left;  max-width: 50%; margin: .3rem 1.25rem 1rem 0; }
 .setu-prose > :has(.align-right), .setu-prose > .align-right { float: right; max-width: 50%; margin: .3rem 0 1rem 1.25rem; }
 
@@ -41,6 +44,14 @@
 /* ---- BLOCK PROPS TOOLBAR (shown when the callout has focus) ---- */
 .block-props { position: absolute; top: -44px; left: 0; display: none; align-items: center; gap: 6px; padding: 6px 9px; background: var(--popover); border: 1px solid var(--border); border-radius: var(--r-sm); box-shadow: var(--shadow-popover); z-index: 40; }
 .blk-callout:focus-within .block-props { display: flex; }
+/* Generic folder blocks (related, posts, notice, …) render the auto-form from their props.
+   Unlike the callout's floating toolbar, these are config UI — show them inline + always, in
+   normal flow, wrapped (a multi-field block doesn't fit the single-row floating bar). Without
+   this, the form is display:none with no reveal rule, so the block looks uneditable. */
+.setu-block > .block-props { position: static; top: auto; display: flex; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 8px; }
+.bp-field { display: inline-flex; align-items: center; gap: 6px; }
+.bp-field > input[type="text"], .bp-field > input[type="number"], .bp-field > select { font-size: 12px; padding: 3px 7px; border: 1px solid var(--border); border-radius: var(--r-xs); background: var(--background); color: var(--foreground); }
+.bp-field > input[type="text"] { min-width: 200px; }
 .bp-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted-foreground); margin-right: 2px; }
 .bp-swatch { width: 18px; height: 18px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
 .bp-swatch.tone-accent { background: var(--primary); }

@@ -18,6 +18,7 @@
     "@astrojs/rss": "^4.0.18",
     "@setu/blocks": "workspace:*",
     "@setu/core": "workspace:*",
+    "@setu/image-astro": "workspace:*",
     "@setu/theme-default": "workspace:*",
     "astro": "7.0.2",
     "react": "^19.0.0",
@@ -26,6 +27,7 @@
   "devDependencies": {
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "purgecss": "^8.0.0",
     "vitest": "^2.1.8"
   }
 }

@@ -1,0 +1,96 @@
+---
+import { getCollection } from 'astro:content'
+import { selectPosts, entryUrlPath, DEFAULT_LOCALE, type PostRow } from '@setu/core'
+
+const {
+  collection = 'post',
+  category,
+  tag,
+  locale,
+  limit = 10,
+  offset = 0,
+  sort = 'newest',
+  layout = 'grid',
+  columns = 3,
+  showImage = true,
+} = Astro.props
+
+// Grid honors an explicit column count (clamped 1–6); list is always single-column.
+const cols = Math.min(6, Math.max(1, Number(columns) || 3))
+
+const mediaBase = (import.meta.env.PUBLIC_SETU_MEDIA as string) ?? ''
+const resolveImg = (s: string): string =>
+  !s || /^https?:\/\//i.test(s) ? s : s.startsWith('/') ? `${mediaBase}${s}` : s
+
+function toPostRow(entry: { id: string; data: Record<string, unknown> }): PostRow {
+  const [col = '', loc = '', ...rest] = entry.id.split('/')
+  const d = entry.data
+  const dateRaw = d['date'] ?? d['pubDate'] ?? d['updatedAt']
+  const parsed =
+    typeof dateRaw === 'string' || typeof dateRaw === 'number' ? Date.parse(String(dateRaw)) : NaN
+  const strArr = (v: unknown): string[] =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
+  return {
+    id: entry.id,
+    collection: col,
+    locale: loc,
+    slug: rest.join('/'),
+    title: typeof d['title'] === 'string' ? (d['title'] as string) : entry.id,
+    date: Number.isNaN(parsed) ? null : parsed,
+    tags: strArr(d['tags']),
+    categories: strArr(d['categories']),
+    featuredImage: typeof d['featuredImage'] === 'string' ? (d['featuredImage'] as string) : undefined,
+  }
+}
+
+const rows = (await getCollection('entries')).map((e) => toPostRow({ id: e.id, data: e.data as Record<string, unknown> }))
+const selected = selectPosts(rows, {
+  collection,
+  locale: locale ?? DEFAULT_LOCALE,
+  category: category ?? undefined,
+  tag: tag ?? undefined,
+  sort,
+  limit,
+  offset,
+})
+const hrefOf = (p: PostRow) => `/${entryUrlPath({ collection: p.collection, locale: p.locale, slug: p.slug })}`
+---
+
+<ul class={`setu-posts setu-posts--${layout}${layout === 'grid' ? ` setu-posts--cols-${cols}` : ''}`}>
+  {selected.map((p) => (
+    <li class="setu-post-card">
+      {showImage && p.featuredImage && (
+        <a href={hrefOf(p)} class="setu-post-card__media">
+          <img src={resolveImg(p.featuredImage)} alt={p.title} loading="lazy" />
+        </a>
+      )}
+      <a href={hrefOf(p)} class="setu-post-card__title">{p.title}</a>
+    </li>
+  ))}
+</ul>
+
+<style>
+  .setu-posts { list-style: none; padding: 0; margin: 1.5rem 0; display: grid; gap: 1.25rem; }
+  /* Grid uses the author's column count via LITERAL repeat() counts — not repeat(var(…)) or
+     repeat(min(…)), which Safari/Firefox reject (the declaration is dropped and the grid
+     collapses to one column). Then it steps down responsively: 2-up tablet, 1-up phone. */
+  .setu-posts--cols-1 { grid-template-columns: 1fr; }
+  .setu-posts--cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .setu-posts--cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .setu-posts--cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .setu-posts--cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .setu-posts--cols-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  @media (max-width: 900px) { .setu-posts--grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 560px) { .setu-posts--grid { grid-template-columns: 1fr; } }
+  .setu-posts--list { grid-template-columns: 1fr; }
+  .setu-post-card__media img {
+    width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover;
+    border-radius: var(--r-md, 8px); display: block;
+  }
+  .setu-post-card__title {
+    display: inline-block; margin-top: 0.5rem;
+    font-family: var(--font-heading, inherit); font-weight: 600;
+    color: var(--text, inherit); text-decoration: none;
+  }
+  .setu-post-card__title:hover { color: var(--accent, #4f46e5); }
+</style>

@@ -1,0 +1,77 @@
+---
+import { getCollection } from 'astro:content'
+import { entryUrlPath, DEFAULT_LOCALE } from '@setu/core'
+
+const { posts = '', heading = 'Related', showImage = true, collection = 'post', locale } = Astro.props
+
+const mediaBase = (import.meta.env.PUBLIC_SETU_MEDIA as string) ?? ''
+const resolveImg = (s: string): string =>
+  !s || /^https?:\/\//i.test(s) ? s : s.startsWith('/') ? `${mediaBase}${s}` : s
+
+const loc = locale ?? DEFAULT_LOCALE
+const byId = new Map((await getCollection('entries')).map((e) => [e.id, e]))
+
+interface Card {
+  title: string
+  href: string
+  image?: string
+}
+
+const cards: Card[] = String(posts)
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean)
+  .map((slug) => byId.get(`${collection}/${loc}/${slug}`))
+  .filter((e): e is NonNullable<typeof e> => Boolean(e))
+  .map((e) => {
+    const d = (e.data ?? {}) as Record<string, unknown>
+    const [col = '', l = '', ...rest] = e.id.split('/')
+    const fi = typeof d['featuredImage'] === 'string' ? (d['featuredImage'] as string) : undefined
+    return {
+      title: typeof d['title'] === 'string' ? (d['title'] as string) : e.id,
+      href: `/${entryUrlPath({ collection: col, locale: l, slug: rest.join('/') })}`,
+      ...(fi ? { image: resolveImg(fi) } : {}),
+    }
+  })
+---
+
+{
+  cards.length > 0 && (
+    <section class="setu-related" aria-label={heading}>
+      <h2>{heading}</h2>
+      <ul class="setu-posts setu-posts--grid">
+        {cards.map((c) => (
+          <li class="setu-post-card">
+            {showImage && c.image && (
+              <a href={c.href} class="setu-post-card__media">
+                <img src={c.image} alt={c.title} loading="lazy" />
+              </a>
+            )}
+            <a href={c.href} class="setu-post-card__title">{c.title}</a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+<style>
+  .setu-related { margin: 2rem 0; }
+  .setu-related h2 {
+    font-family: var(--font-heading, inherit);
+    font-size: 1.1rem;
+    margin-block-end: 0.75rem;
+  }
+  .setu-posts { list-style: none; padding: 0; margin: 0; display: grid; gap: 1.25rem; }
+  .setu-posts--grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+  .setu-post-card__media img {
+    width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover;
+    border-radius: var(--r-md, 8px); display: block;
+  }
+  .setu-post-card__title {
+    display: inline-block; margin-top: 0.5rem;
+    font-family: var(--font-heading, inherit); font-weight: 600;
+    color: var(--text, inherit); text-decoration: none;
+  }
+  .setu-post-card__title:hover { color: var(--accent, #4f46e5); }
+</style>

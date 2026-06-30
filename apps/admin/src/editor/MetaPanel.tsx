@@ -1,5 +1,6 @@
 import { CategoryField } from './CategoryField'
 import { TagField } from './TagField'
+import { FeaturedImageField } from './FeaturedImageField'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -16,12 +17,14 @@ export function MetaPanel({
   slug,
   editable,
   onChange,
+  apiBase,
 }: {
   metadata: Record<string, unknown>
   locale: string
   slug: string
   editable: boolean
   onChange: (next: Record<string, unknown>) => void
+  apiBase: string
 }) {
   return (
     <aside className="w-[300px] shrink-0 overflow-y-auto border-l border-border/60">
@@ -34,6 +37,19 @@ export function MetaPanel({
           <span className="text-muted-foreground">Locale</span>
           <span className="font-mono text-muted-foreground">{locale}</span>
         </div>
+      </Section>
+      <Section title="Featured image">
+        <FeaturedImageField
+          value={typeof metadata['featuredImage'] === 'string' ? (metadata['featuredImage'] as string) : undefined}
+          onChange={(next) => {
+            const m = { ...metadata }
+            if (next) m['featuredImage'] = next
+            else delete m['featuredImage']
+            onChange(m)
+          }}
+          editable={editable}
+          apiBase={apiBase}
+        />
       </Section>
       <Section title="Categories">
         <CategoryField

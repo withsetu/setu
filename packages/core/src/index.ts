@@ -18,7 +18,7 @@ export { defineConfig } from './config/define-config'
 export { resolveConfig } from './config/resolve'
 export { defaultConfig, defaultKnownBlockTags } from './config/default-config'
 
-export type { SiteSettings, GeneralSettings, ReadingSettings } from './settings/types'
+export type { SiteSettings, GeneralSettings, ReadingSettings, MediaSettings } from './settings/types'
 export { DEFAULT_SETTINGS } from './settings/defaults'
 export { parseSettings } from './settings/schema'
 
@@ -105,6 +105,8 @@ export { selectEntriesByCategory } from './index-port/entries-by-category'
 export { selectEntriesByTag } from './index-port/entries-by-tag'
 export type { RelatedRow, RelatedRef, RelatedOpts } from './index-port/related-posts'
 export { selectRelatedPosts } from './index-port/related-posts'
+export type { PostRow, PostsQuery } from './posts/select-posts'
+export { selectPosts } from './posts/select-posts'
 export type { MediaUsage } from './index-port/referenced-by'
 export { selectReferencedBy } from './index-port/referenced-by'
 export type { IndexService, IndexServiceDeps } from './index-port/index-service'
@@ -135,6 +137,10 @@ export { createBulkService } from './bulk/bulk-service'
 export type { MarkdocAttr } from './blocks/markdoc-attributes'
 export { markdocAttributesFor } from './blocks/markdoc-attributes'
 
+export { resolveControls } from './blocks/resolve-controls'
+export type { ResolvedControl } from './blocks/resolve-controls'
+export type { BlockControl } from './config/types'
+
 export type { BlockContract } from './blocks/define-block'
 export { defineBlock } from './blocks/define-block'
 export type { BlockEntry, BlockRegistry } from './blocks/registry'
@@ -153,3 +159,15 @@ export { mergeBlockSources } from './blocks/merge-sources'
 
 export type { CaptchaPort } from './captcha/captcha-port'
 export { createNoopCaptcha } from './captcha/captcha-port'
+
+export type {
+  Severity, HealthCategory, Owner, CheckStatus, RubricItem, SiteCapabilities,
+  AuditEntry, AuditContext, CheckResult, CategoryScore, AuditResult,
+} from './health/types'
+export { RUBRIC } from './health/rubric'
+export { SITE_CAPABILITIES } from './health/capabilities'
+export { scanBody } from './health/scan'
+export { EVALUATORS } from './health/checks'
+export { runAudit } from './health/run-audit'
+
+export type { ReprocessStatus, ReprocessJob, ReprocessJobStore } from './reprocess/job'

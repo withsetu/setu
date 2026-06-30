@@ -89,4 +89,13 @@ describe('createCategoryDeleter', () => {
     const newsRefs = await idx.entriesByCategory('news')
     expect(newsRefs.map((r) => r.slug).sort()).toEqual(['a', 'b'])
   })
+
+  it('marks the index synced at the delete commit so ensureBuilt does not full-rebuild on next load', async () => {
+    const { git, data, read, index, idx } = await setup()
+    const deleter = createCategoryDeleter({ git, data, read, index: idx, author })
+    await deleter.remove('eng')
+    // markSyncedAt advanced the index meta to the delete commit's HEAD, so ensureBuilt's
+    // out-of-band sha-gate (head !== indexedSha) is false → no spurious full rebuild.
+    expect((await index.getMeta()).indexedSha).toBe(await git.headSha())
+  })
 })

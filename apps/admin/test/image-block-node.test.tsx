@@ -34,7 +34,7 @@ describe('ImageBlock node view', () => {
   it('the alignment buttons set mdAttrs.align', async () => {
     let getJSON: () => unknown = () => ({})
     render(<Harness onReady={(g) => (getJSON = g)} />)
-    fireEvent.click(await screen.findByLabelText('Align wide'))
+    fireEvent.click(await screen.findByLabelText('wide'))
     expect(mdAttrsOf(getJSON).align).toBe('wide')
   })
 

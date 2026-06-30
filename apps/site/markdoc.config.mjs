@@ -42,7 +42,7 @@ export default defineMarkdocConfig({
     sub: { render: component('./src/components/Sub.astro') },
     sup: { render: component('./src/components/Sup.astro') },
     image: {
-      render: component('./src/components/ImageFigure.astro'),
+      render: component('@setu/image-astro/ImageFigure.astro'),
       attributes: {
         src: { type: String },
         alt: { type: String },
@@ -68,7 +68,7 @@ export default defineMarkdocConfig({
     },
     image: {
       ...nodes.image,
-      render: component('./src/components/Image.astro'),
+      render: component('@setu/image-astro/Image.astro'),
     },
     th: {
       ...nodes.th,

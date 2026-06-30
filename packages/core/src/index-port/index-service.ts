@@ -7,7 +7,9 @@ import { contentPath, parseContentPath } from '../publish/content-path'
 import type { IndexPort, IndexQuery } from './types'
 import { indexKey, projectRow, rowToContentRow } from './types'
 
-export const INDEX_VERSION = 4
+// v5: rows now carry `featuredImage` (for list/preview thumbnails) — bump forces a rebuild
+// so existing indexes backfill the new field.
+export const INDEX_VERSION = 5
 
 export interface IndexServiceDeps {
   data: DataPort
@@ -21,6 +23,7 @@ export interface IndexService {
   ensureBuilt(): Promise<void>
   reindexEntry(ref: EntryRef): Promise<void>
   reindexAfterDeploy(): Promise<void>
+  markSyncedAt(sha: string): Promise<void>
   query(q: IndexQuery): Promise<{ rows: ContentRow[]; total: number }>
   distinctTags(prefix: string, limit: number): Promise<string[]>
   distinctLocales(): Promise<string[]>
@@ -51,10 +54,16 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
 
   async function ensureBuilt(): Promise<void> {
     const meta = await index.getMeta()
-    // Gate on version only: indexedSha is null for an empty git repo (the default
-    // local start state), so also gating on `indexedSha === null` would rebuild on
-    // every mount forever. version (default 0 ≠ INDEX_VERSION) covers cold start.
-    if (meta.version !== INDEX_VERSION) await rebuild()
+    // Cold start / schema change → full build.
+    if (meta.version !== INDEX_VERSION) {
+      await rebuild()
+      return
+    }
+    // Import content that changed out-of-band (seeded, directly committed, or the admin
+    // pointed at a different repo): the index is stale when its recorded sha lags the live
+    // HEAD. A null HEAD (empty default repo) never triggers this, so there is no rebuild loop.
+    const head = await git.headSha()
+    if (head !== null && head !== meta.indexedSha) await rebuild()
   }
 
   async function reindexEntry(ref: EntryRef): Promise<void> {
@@ -69,6 +78,15 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
 
   async function reindexAfterDeploy(): Promise<void> {
     await rebuild()
+  }
+
+  /** Record that the index now reflects committed content at `sha`. The admin calls this
+   *  ONCE after it has reindexed every entry a publish/bulk commit changed, so ensureBuilt's
+   *  out-of-band sha-gate won't rebuild for that commit. A true out-of-band multi-file commit
+   *  (whose entries the admin never reindexed) leaves indexedSha behind HEAD and is imported. */
+  async function markSyncedAt(sha: string): Promise<void> {
+    const meta = await index.getMeta()
+    await index.setMeta({ ...meta, indexedSha: sha })
   }
 
   async function query(q: IndexQuery): Promise<{ rows: ContentRow[]; total: number }> {
@@ -104,5 +122,5 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
     return index.entriesByTag(tag)
   }
 
-  return { rebuild, ensureBuilt, reindexEntry, reindexAfterDeploy, query, distinctTags, distinctLocales, categoryCounts, tagCounts, referencedBy, entriesByCategory, entriesByTag }
+  return { rebuild, ensureBuilt, reindexEntry, reindexAfterDeploy, markSyncedAt, query, distinctTags, distinctLocales, categoryCounts, tagCounts, referencedBy, entriesByCategory, entriesByTag }
 }

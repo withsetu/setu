@@ -1,6 +1,6 @@
 // apps/admin/test/setu-block-node.test.tsx
 import { describe, it, expect, afterEach } from 'vitest'
-import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import { render, screen, cleanup } from '@testing-library/react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { z } from 'zod'
@@ -35,40 +35,34 @@ function Harness({ tag, onReady }: { tag: string; onReady: (getJSON: () => unkno
 }
 
 describe('setuBlock node view', () => {
-  it('auto-generates an enum <select> (seeded to default) + a text field, writing edits into mdAttrs', async () => {
-    let getJSON: () => unknown = () => ({})
-    render(<Harness tag="notice" onReady={(g) => (getJSON = g)} />)
-    const tone = await screen.findByLabelText('tone') as HTMLSelectElement
-    expect(tone.value).toBe('info') // seeded to the enum default
-    fireEvent.change(await screen.findByLabelText('title'), { target: { value: 'Good news' } })
-    const json = getJSON() as { content: Array<{ type: string; attrs?: { mdAttrs?: Record<string, unknown> } }> }
-    const block = json.content.find((n) => n.type === 'setuBlock')
-    expect(block?.attrs?.mdAttrs?.title).toBe('Good news')
-    expect(block?.attrs?.mdAttrs?.tone).toBeUndefined()
+  it('renders the block label and body chrome for a known tag', async () => {
+    render(<Harness tag="notice" onReady={() => {}} />)
+    // The label is shown in the block head
+    expect(await screen.findByText('Notice')).toBeInTheDocument()
+    // No inline form — props are edited in the inspector rail now
+    expect(document.querySelector('.block-props')).toBeNull()
   })
   it('degrades to body-only (no form, no crash) when the tag has no registry entry', async () => {
     render(<Harness tag="ghost" onReady={() => {}} />)
     expect(await screen.findByText('ghost')).toBeInTheDocument() // label falls back to the tag
-    expect(screen.queryByLabelText('tone')).toBeNull()
+    expect(document.querySelector('.block-props')).toBeNull()
   })
-  it('renders number input and checkbox for Number/Boolean attrs, writing correctly-typed values into mdAttrs', async () => {
+  it('the setuBlock round-trips mdAttrs through getJSON unchanged', async () => {
     let getJSON: () => unknown = () => ({})
-    render(<Harness tag="widget" onReady={(g) => (getJSON = g)} />)
-    const countInput = await screen.findByLabelText('count') as HTMLInputElement
-    const flagInput = await screen.findByLabelText('flag') as HTMLInputElement
-    expect(countInput.type).toBe('number')
-    expect(flagInput.type).toBe('checkbox')
-    // Toggle the checkbox — should write a real boolean true
-    fireEvent.click(flagInput)
-    const json1 = getJSON() as { content: Array<{ type: string; attrs?: { mdAttrs?: Record<string, unknown> } }> }
-    const block1 = json1.content.find((n) => n.type === 'setuBlock')
-    expect(block1?.attrs?.mdAttrs?.flag).toBe(true) // must be boolean, not 'true'
-    // Type into the number field — should write a real number
-    fireEvent.change(countInput, { target: { value: '7' } })
-    const json2 = getJSON() as { content: Array<{ type: string; attrs?: { mdAttrs?: Record<string, unknown> } }> }
-    const block2 = json2.content.find((n) => n.type === 'setuBlock')
-    expect(typeof block2?.attrs?.mdAttrs?.count).toBe('number')
-    expect(block2?.attrs?.mdAttrs?.count).toBe(7)
+    function HarnessWithAttrs() {
+      const editor = useEditor({
+        immediatelyRender: false,
+        extensions: [StarterKit, createSetuBlock([notice])],
+        content: { type: 'doc', content: [{ type: 'setuBlock', attrs: { tag: 'notice', mdAttrs: { tone: 'warn', title: 'Hello' } }, content: [{ type: 'paragraph' }] }] },
+      })
+      if (editor) getJSON = () => editor.getJSON()
+      return <EditorContent editor={editor} />
+    }
+    render(<HarnessWithAttrs />)
+    await screen.findByText('Notice')
+    const json = getJSON() as { content: Array<{ type: string; attrs?: { mdAttrs?: Record<string, unknown> } }> }
+    const block = json.content.find((n) => n.type === 'setuBlock')
+    expect(block?.attrs?.mdAttrs).toEqual({ tone: 'warn', title: 'Hello' })
   })
 })
 
@@ -80,7 +74,7 @@ describe('setuBlock node view — real core rendering', () => {
       component: 'blocks/notice/notice.astro',
       editor: { label: 'Notice' },
     }
-    function Harness() {
+    function HarnessWithCore() {
       const editor = useEditor({
         immediatelyRender: false,
         extensions: [StarterKit, createSetuBlock([noticeBlock], { notice: Notice })],
@@ -88,11 +82,11 @@ describe('setuBlock node view — real core rendering', () => {
       })
       return <EditorContent editor={editor} />
     }
-    const { container } = render(<Harness />)
+    const { container } = render(<HarnessWithCore />)
     expect(await screen.findByText('Hi')).toBeInTheDocument()
     // the REAL core markup is in-canvas (not chrome):
     expect(container.querySelector('aside.notice.notice-success')).toBeTruthy()
-    // the options form is still present:
-    expect(screen.getByLabelText('tone')).toBeInTheDocument()
+    // no inline form — props are edited in the inspector rail
+    expect(container.querySelector('.block-props')).toBeNull()
   })
 })

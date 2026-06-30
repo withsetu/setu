@@ -169,3 +169,5 @@ export { SITE_CAPABILITIES } from './health/capabilities'
 export { scanBody } from './health/scan'
 export { EVALUATORS } from './health/checks'
 export { runAudit } from './health/run-audit'
+
+export type { ReprocessStatus, ReprocessJob, ReprocessJobStore } from './reprocess/job'

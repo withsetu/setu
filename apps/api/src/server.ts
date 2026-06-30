@@ -5,7 +5,7 @@ import { serve } from '@hono/node-server'
 import { createLocalGitAdapter } from '@setu/git-local'
 import { createLocalStorage } from '@setu/storage-local'
 import { createSharpImageAdapter } from '@setu/image-sharp'
-import { createSqliteSubmissionPort } from '@setu/db-sqlite'
+import { createSqliteSubmissionPort, createSqliteReprocessJobStore } from '@setu/db-sqlite'
 import { createSubmissionService, createNoopCaptcha, parseSettings } from '@setu/core'
 import type { CaptchaPort } from '@setu/core'
 import { createTurnstileCaptcha } from '@setu/captcha-turnstile'
@@ -18,6 +18,9 @@ import { createPreviewApi } from './preview'
 import { createUploadApi } from './media'
 import { createFormsApi } from './forms'
 import { resolveLocalOwner } from './auth/resolve-actor'
+import { buildCapabilities, createCapabilitiesApi } from './capabilities'
+import { runReprocessJob } from './reprocess-runner'
+import { resumeActiveJob } from './server-resume'
 
 function resolveCaptcha(provider: string, secret: string): CaptchaPort {
   if (!provider) return createNoopCaptcha() // no provider configured → dev pass-through
@@ -81,19 +84,35 @@ const submit = createSubmissionService({
   renderNotification: renderSubmissionEmail, // React Email HTML/text
 })
 
+const imageAdapter = createSharpImageAdapter()
+const localStorage = createLocalStorage({ dir: mediaDir, baseUrl: mediaPublicUrl })
+const reprocessStore = createSqliteReprocessJobStore(`${dir}/.setu/reprocess.db`)
+const runReprocess = (jobId: string) => {
+  const media = loadSiteSettings().media
+  void runReprocessJob(reprocessStore, { image: imageAdapter, storage: localStorage, media, widths: [400, 800, 1200, 1600] }, jobId)
+}
+
 const app = new Hono()
 app.route('/', createGitApi(createLocalGitAdapter({ dir })))
 app.route('/', createPreviewApi())
 app.route('/', createUploadApi({
-  storage: createLocalStorage({ dir: mediaDir, baseUrl: mediaPublicUrl }),
+  storage: localStorage,
   resolveActor: resolveLocalOwner,
-  image: createSharpImageAdapter(),
+  image: imageAdapter,
   // Live getter, not a snapshot: re-read settings.json each request so a Media settings change
   // (format / LQIP) applies to new uploads and Reprocess without restarting the api.
   mediaSettings: () => loadSiteSettings().media,
+  reprocess: { store: reprocessStore, run: runReprocess },
 }))
 app.route('/', createFormsApi({ submit, submissions, captchaStatus }))
+app.route('/', createCapabilitiesApi(buildCapabilities({
+  image: imageAdapter,            // present in the Node topology
+  writableMediaStore: true,       // local fs storage is writable
+  backgroundJobs: true,           // persistent Node process can run jobs
+  mode: process.env.SETU_MODE ?? 'self-hosted',
+})))
 
 serve({ fetch: app.fetch, port })
 console.log(`api listening on http://localhost:${port} (repo: ${dir}, media: ${mediaDir}, imageFormat: ${siteSettings.media.imageFormat}, lqip: ${siteSettings.media.imageLqip})`)
 console.log(`[captcha] provider=${captchaProvider || '(none)'} secretConfigured=${captchaStatus.secretConfigured}`)
+resumeActiveJob(reprocessStore, runReprocess)

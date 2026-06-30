@@ -36,6 +36,14 @@ A feature is DONE only when EVERY item is true. Green tests are necessary, **nev
   docs/quality-bar.md and include it in every review dispatch.)
 - **Git:** `origin/main` is the hub. Work on a branch in a worktree; PR to `main`; never commit to
   `main` directly. Run `pnpm install` after dep-changing merges.
+- **Topology-impact check — ALWAYS.** Setu is **multi-topology**: the same engine runs as a local
+  app, a self-hosted Node server, or on the edge (Cloudflare Workers/Pages — no filesystem, no native
+  binaries, short request budgets). Before adding ANY function, evaluate how it behaves across those
+  topologies: does it need a native dep (e.g. `sharp`), a filesystem, long-running compute, or
+  persistent local state the edge doesn't have? If so it is a **Node-topology capability** — detect
+  the capability at runtime and **degrade or disable gracefully with a clear, mode-aware message**.
+  Never offer an action a deployment physically cannot perform, never silently break, and never assume
+  "it works locally" means it ships. (See `docs/architecture.md` — Ports & Adapters.)
 
 ## Building UI — check shadcn first (admin side)
 

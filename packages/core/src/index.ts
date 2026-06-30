@@ -18,7 +18,7 @@ export { defineConfig } from './config/define-config'
 export { resolveConfig } from './config/resolve'
 export { defaultConfig, defaultKnownBlockTags } from './config/default-config'
 
-export type { SiteSettings, GeneralSettings, ReadingSettings } from './settings/types'
+export type { SiteSettings, GeneralSettings, ReadingSettings, MediaSettings } from './settings/types'
 export { DEFAULT_SETTINGS } from './settings/defaults'
 export { parseSettings } from './settings/schema'
 

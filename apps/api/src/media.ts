@@ -1,9 +1,13 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { createAuthz, DEFAULT_ROLES, ingestImage, mediaSlug, mediaKeyOf, originalKey, manifestKey, mediaRecordKey } from '@setu/core'
-import type { Actor, ImageFormat, ImagePort, MediaManifest, MediaRecord, StoragePort } from '@setu/core'
+import type { Actor, ImageFormat, ImagePort, MediaManifest, MediaRecord, MediaSettings, StoragePort } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
 import type { ResolveActor } from './auth/resolve-actor'
+
+function formatsFor(setting: 'webp' | 'avif' | 'both'): ImageFormat[] {
+  return setting === 'both' ? ['webp', 'avif'] : [setting]
+}
 
 export const DEFAULT_MAX_BYTES = 25 * 1024 * 1024
 
@@ -33,8 +37,8 @@ export const DEFAULT_ALLOWED: Set<string> = new Set(Object.keys(EXT_BY_TYPE))
 /** Raster image types we generate variants for (gif excluded — animated). */
 const GENERATABLE: Set<string> = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif'])
 
-export interface ImageConfig { format: ImageFormat; widths: number[] }
-const DEFAULT_IMAGE_CONFIG: ImageConfig = { format: 'webp', widths: [400, 800, 1200, 1600] }
+const DEFAULT_WIDTHS: number[] = [400, 800, 1200, 1600]
+const DEFAULT_MEDIA_SETTINGS: MediaSettings = { imageFormat: 'webp', imageLqip: false }
 
 export interface UploadLimits {
   maxBytes: number
@@ -45,7 +49,10 @@ export interface UploadApiOptions {
   resolveActor: ResolveActor
   limits?: Partial<UploadLimits>
   image?: ImagePort
-  imageConfig?: ImageConfig
+  widths?: number[]
+  /** Current Media settings. Pass a getter (not a snapshot) so uploads and reprocess pick up
+   *  setting changes made after boot — the server's settings.json is read at request time. */
+  mediaSettings?: MediaSettings | (() => MediaSettings)
 }
 
 const authz = createAuthz(DEFAULT_ROLES)
@@ -55,7 +62,12 @@ export function createUploadApi(opts: UploadApiOptions) {
   const maxBytes = opts.limits?.maxBytes ?? DEFAULT_MAX_BYTES
   const allowed = opts.limits?.allowedContentTypes ?? DEFAULT_ALLOWED
   const { storage } = opts
-  const imageConfig = opts.imageConfig ?? DEFAULT_IMAGE_CONFIG
+  // Resolve per request so a settings change (Media format/LQIP) takes effect without an api restart.
+  const resolveMedia = (): MediaSettings => {
+    const m = opts.mediaSettings
+    return (typeof m === 'function' ? m() : m) ?? DEFAULT_MEDIA_SETTINGS
+  }
+  const widths = opts.widths ?? DEFAULT_WIDTHS
 
   const app = new Hono<{ Variables: { actor: Actor } }>()
   app.use('*', cors())
@@ -87,10 +99,11 @@ export function createUploadApi(opts: UploadApiOptions) {
 
     let manifest: MediaManifest | undefined
     if (opts.image && GENERATABLE.has(file.type)) {
+      const media = resolveMedia()
       try {
         manifest = await ingestImage(
           { image: opts.image, storage },
-          { mediaKey, bytes, originalKey: key, format: imageConfig.format, widths: imageConfig.widths },
+          { mediaKey, bytes, originalKey: key, formats: formatsFor(media.imageFormat), widths, lqip: media.imageLqip },
         )
       } catch (err) {
         console.warn(`media ingest failed for ${mediaKey}: ${err instanceof Error ? err.message : String(err)}`)
@@ -128,6 +141,41 @@ export function createUploadApi(opts: UploadApiOptions) {
       },
       201,
     )
+  })
+
+  app.post('/media/reprocess', authMiddleware(opts.resolveActor), async (c) => {
+    if (!authz.can(c.get('actor'), 'content.create')) return c.json({ error: 'forbidden' }, 403)
+    if (!opts.image) return c.json({ reprocessed: 0 })
+    const currentMedia = resolveMedia()
+    const currentWidths = opts.widths ?? DEFAULT_WIDTHS
+    const keys = await storage.list()
+    const manifestKeys = keys.filter((k) => k.endsWith('.manifest.json'))
+    let reprocessed = 0
+    for (const mk of manifestKeys) {
+      const manRaw = await storage.get(mk)
+      if (!manRaw) continue
+      let old: MediaManifest
+      try {
+        old = JSON.parse(new TextDecoder().decode(manRaw.body)) as MediaManifest
+      } catch {
+        continue
+      }
+      const origRaw = await storage.get(old.original.key)
+      if (!origRaw) continue
+      await ingestImage(
+        { image: opts.image, storage },
+        {
+          mediaKey: old.id,
+          bytes: origRaw.body,
+          originalKey: old.original.key,
+          formats: formatsFor(currentMedia.imageFormat),
+          widths: currentWidths,
+          lqip: currentMedia.imageLqip,
+        },
+      )
+      reprocessed += 1
+    }
+    return c.json({ reprocessed })
   })
 
   app.get('/media/_index', async (c) => {

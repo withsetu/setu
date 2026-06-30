@@ -13,7 +13,8 @@
     "./PageLayout.astro": "./PageLayout.astro",
     "./theme.css": "./theme.css",
     "./site.css": "./site.css",
-    "./options": "./options.ts"
+    "./options": "./options.ts",
+    "./fonts": "./fonts.ts"
   },
   "peerDependencies": {
     "astro": "^7.0.0"

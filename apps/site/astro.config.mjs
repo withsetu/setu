@@ -1,5 +1,8 @@
 import { defineConfig } from 'astro/config'
 import { createRequire } from 'node:module'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { join, dirname } from 'node:path'
 import markdoc from '@astrojs/markdoc'
 import react from '@astrojs/react'
 import { loadConfig } from '@setu/core/node'
@@ -8,6 +11,42 @@ import { loadConfig } from '@setu/core/node'
 // to it, so pages render through whichever theme is configured.
 const config = await loadConfig(new URL('./setu.config.ts', import.meta.url).pathname)
 const activeTheme = config.theme ?? '@setu/theme-default'
+
+// Bundle ONLY the selected font family (+ mono), not every font the theme offers. The choice
+// lives in setu.config themeOptions / the Customizer-published theme-options.json (file wins,
+// matching loadThemeOptions); the theme's Layout imports `virtual:setu-fonts`, filled here.
+function selectedFontChoice() {
+  let fromFile
+  try {
+    const p = process.env.SETU_CONTENT_DIR
+      ? join(process.env.SETU_CONTENT_DIR, '..', 'theme-options.json')
+      : fileURLToPath(new URL('../../theme-options.json', import.meta.url))
+    fromFile = JSON.parse(readFileSync(p, 'utf8'))?.font
+  } catch {
+    /* no published theme-options.json → fall back to the config / theme default */
+  }
+  return fromFile ?? config.themeOptions?.font
+}
+
+let fontImports = ''
+if (activeTheme === '@setu/theme-default') {
+  const { fontPackagesFor } = await import('@setu/theme-default/fonts')
+  // The fontsource packages are the THEME's deps, and a \0-virtual module has no location to
+  // resolve bare specifiers from — so resolve each to an absolute path from the theme's context.
+  const themeDir = dirname(createRequire(import.meta.url).resolve('@setu/theme-default/theme.css'))
+  const themeRequire = createRequire(join(themeDir, 'package.json'))
+  fontImports = fontPackagesFor(selectedFontChoice())
+    .map((pkg) => `import ${JSON.stringify(themeRequire.resolve(pkg))};`)
+    .join('\n')
+}
+
+// Serve `virtual:setu-fonts` with only the resolved font imports. Empty for a theme that ships
+// its own fonts — the no-op import in such a theme's Layout is then harmless.
+const virtualFonts = {
+  name: 'setu:virtual-fonts',
+  resolveId: (id) => (id === 'virtual:setu-fonts' ? '\0virtual:setu-fonts' : null),
+  load: (id) => (id === '\0virtual:setu-fonts' ? fontImports : null),
+}
 
 // Content lives at repo-root content/ (the publish-engine convention), which is OUTSIDE
 // this app's node_modules scope. The markdoc integration injects bare imports
@@ -81,7 +120,7 @@ export default defineConfig({
   integrations: [markdoc(), react(), devPreviewRoute],
   vite: {
     resolve: { alias: { '@theme': activeTheme } },
-    plugins: [resolveMarkdocFromApp],
+    plugins: [resolveMarkdocFromApp, virtualFonts],
     // The theme Layout self-hosts fonts via `import '@fontsource-variable/...'`, which
     // resolve to .css. In `astro build` Vite bundles these, but in `astro dev` SSR Node's
     // loader tries to load the raw .css as a module and throws "Unknown file extension .css".

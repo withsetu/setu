@@ -2,13 +2,11 @@
 import './theme.css'
 import './site.css'
 
-import '@fontsource-variable/hanken-grotesk'
-import '@fontsource-variable/inter'
-import '@fontsource-variable/source-serif-4'
-import '@fontsource-variable/newsreader'
-import '@fontsource-variable/lora'
-import '@fontsource-variable/space-grotesk'
-import '@fontsource-variable/jetbrains-mono'
+// Only the SELECTED `font` family (+ JetBrains mono) is bundled, not all 7 — the host build
+// resolves the choice and serves this virtual module (see apps/site/astro.config.mjs +
+// ./fonts.ts). A host that doesn't provide it gets an empty module (the theme degrades to
+// system fonts), so the import is always safe.
+import 'virtual:setu-fonts'
 
 import { optionsToCss } from './options'
 import type { SiteSettings } from '@setu/core'

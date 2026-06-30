@@ -1,0 +1,7 @@
+.blk-blurup { display: inline-block; position: relative; overflow: hidden; }
+.blk-blurup > picture > img,
+.blk-blurup > img { display: block; width: 100%; height: auto; opacity: 0; transition: opacity .5s ease; }
+.blk-blurup.is-loaded > picture > img,
+.blk-blurup.is-loaded > img { opacity: 1; }
+/* No-JS / already-cached: if the image is complete before hydration, reveal it. */
+@media (scripting: none) { .blk-blurup > picture > img, .blk-blurup > img { opacity: 1; } }

@@ -1,11 +1,13 @@
 ---
-// Render an image node responsively. With a variant manifest (#4b) → <img srcset sizes
-// width height>; without one (external/non-image/manifest-less) → the plain #3 image.
+// Render an image node responsively. With a variant manifest (#4b) → <picture> (multi-format)
+// or <img srcset sizes width height> (single format); with LQIP → blur-up fade wrapper.
+// Without a manifest (external/non-image/manifest-less) → plain <img>, no wrapper.
 // The manifest is read from SETU_MEDIA_DIR at build time; URLs resolve against PUBLIC_SETU_MEDIA
 // (relative when unset in a prod build — never a baked-in localhost URL; see resolveMediaBase).
 import { manifestKeyFromSrc, loadManifest } from './lib/media-manifest'
 import { imageMarkup } from './lib/image-markup'
 import { resolveMediaBase } from './lib/media-base'
+import './lib/blur-up.css'
 
 const { src = '', alt = '', title, sizes = '100vw' } = Astro.props
 const base = resolveMediaBase(import.meta.env.PUBLIC_SETU_MEDIA, import.meta.env.DEV)
@@ -14,15 +16,37 @@ const resolveUrl = (s: string) => (!s || /^https?:\/\//i.test(s) ? s : s.startsW
 const key = manifestKeyFromSrc(src)
 const manifest = key ? loadManifest(key) : null
 const a = imageMarkup({ manifest, resolvedSrc: resolveUrl(src), alt, title, resolveUrl, sizes })
+const blur = a.lqip
+  ? `background-image:url(${a.lqip});background-size:cover;background-position:center;`
+  : undefined
 ---
-<img
-  src={a.src}
-  srcset={a.srcset}
-  sizes={a.srcset ? a.sizes : undefined}
-  width={a.width}
-  height={a.height}
-  alt={a.alt}
-  title={a.title}
-  loading="lazy"
-  decoding="async"
-/>
+{a.srcset ? (
+  a.sources ? (
+    <span class={blur ? 'setu-img blk-blurup' : 'setu-img'} style={blur} data-blurup={blur ? '' : undefined}>
+      <picture>
+        {a.sources.map((s) => <source type={s.type} srcset={s.srcset} sizes={a.sizes} />)}
+        <img src={a.src} srcset={a.srcset} sizes={a.sizes}
+             width={a.width} height={a.height} alt={a.alt} title={a.title}
+             loading="lazy" decoding="async" onload="this.parentElement.parentElement.classList.add('is-loaded')" />
+      </picture>
+    </span>
+  ) : (
+    <span class={blur ? 'setu-img blk-blurup' : 'setu-img'} style={blur} data-blurup={blur ? '' : undefined}>
+      <img src={a.src} srcset={a.srcset} sizes={a.sizes}
+           width={a.width} height={a.height} alt={a.alt} title={a.title}
+           loading="lazy" decoding="async" onload="this.parentElement.classList.add('is-loaded')" />
+    </span>
+  )
+) : (
+  <img
+    src={a.src}
+    srcset={a.srcset}
+    sizes={a.srcset ? a.sizes : undefined}
+    width={a.width}
+    height={a.height}
+    alt={a.alt}
+    title={a.title}
+    loading="lazy"
+    decoding="async"
+  />
+)}

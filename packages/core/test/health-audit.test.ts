@@ -75,11 +75,20 @@ describe('runAudit', () => {
     expect(a.results.find((r) => r.id === 'foundations.title')?.status).toBe('pass') // (passes anyway, but via the evaluator)
   })
   it('manual na excludes an item from the score', () => {
+    // seo.redirects is required (weight 10) with no evaluator → unverified in base.
+    // Marking it N/A removes it from the denominator; verify item-level behaviour.
+    // Section-level N/A on 'security' removes all security items (several required) from
+    // the denominator — with 153 items the single-item difference may not shift the integer
+    // percentage, but section-level removal is large enough to guarantee it.
     const base = runAudit(ctx())
-    const na = runAudit(ctx({ health: { items: { 'seo.sitemap': { state: 'na', at: '2026-01-01', by: 'Local' } }, sections: {} } }))
-    expect(na.results.find((r) => r.id === 'seo.sitemap')?.status).toBe('na')
-    expect(na.results.find((r) => r.id === 'seo.sitemap')?.naSource).toBe('manual')
-    expect(na.score).toBeGreaterThan(base.score) // dropping a failing must-have from the denominator raises the score
+    const itemNa = runAudit(ctx({ health: { items: { 'seo.redirects': { state: 'na', at: '2026-01-01', by: 'Local' } }, sections: {} } }))
+    expect(itemNa.results.find((r) => r.id === 'seo.redirects')?.status).toBe('na')
+    expect(itemNa.results.find((r) => r.id === 'seo.redirects')?.naSource).toBe('manual')
+    // Verify NA is excluded from the denominator by using a section-level NA big enough
+    // to move the rounded score.
+    const sectionNa = runAudit(ctx({ health: { items: {}, sections: { security: { state: 'na', at: '2026-01-01', by: 'Local' } } } }))
+    expect(sectionNa.results.filter((r) => r.id.startsWith('security.')).every((r) => r.status === 'na')).toBe(true)
+    expect(sectionNa.score).toBeGreaterThan(base.score)
   })
   it('i18n auto-N/As on a single-locale site and applies with a 2nd locale', () => {
     const single = runAudit(ctx())

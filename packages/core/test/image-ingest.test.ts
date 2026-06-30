@@ -56,7 +56,7 @@ describe('ingestImage', () => {
     const { port, map } = memStorage()
     const manifest = await ingestImage(
       { image: stubImage(1000, 500), storage: port },
-      { mediaKey: '2026/06/cat', bytes: new Uint8Array([1]), originalKey: '2026/06/cat.png', format: 'webp', widths: [400, 800, 1200, 1600] },
+      { mediaKey: '2026/06/cat', bytes: new Uint8Array([1]), originalKey: '2026/06/cat.png', formats: ['webp'], widths: [400, 800, 1200, 1600] },
     )
     expect(manifest.id).toBe('2026/06/cat')
     // 1200 & 1600 exceed the 1000px source → dropped; source width 1000 added ⇒ [400, 800, 1000]
@@ -80,9 +80,31 @@ describe('ingestImage', () => {
     const { port } = memStorage()
     const manifest = await ingestImage(
       { image: stubImage(500, 500), storage: port },
-      { mediaKey: '2026/06/photo', bytes: new Uint8Array([1]), originalKey: '2026/06/photo.jpg', format: 'jpeg', widths: [400, 800] },
+      { mediaKey: '2026/06/photo', bytes: new Uint8Array([1]), originalKey: '2026/06/photo.jpg', formats: ['jpeg'], widths: [400, 800] },
     )
     // 800 > 500 source → dropped; 400 kept + source 500 ⇒ [400, 500]
     expect(manifest.variants.map((v) => v.key)).toEqual(['2026/06/photo-400w.jpg', '2026/06/photo-500w.jpg'])
+  })
+
+  it('generates both formats (tagged) when formats=[webp,avif]', async () => {
+    const { port } = memStorage()
+    const m = await ingestImage(
+      { image: stubImage(1000, 500), storage: port },
+      { mediaKey: '2026/06/cat', bytes: new Uint8Array([1]), originalKey: '2026/06/cat.png', formats: ['webp', 'avif'], widths: [400, 800] },
+    )
+    expect(m.format).toBe('webp') // fallback
+    const formats = new Set(m.variants.map((v) => v.format))
+    expect(formats).toEqual(new Set(['webp', 'avif']))
+    // same width appears once per format
+    expect(m.variants.filter((v) => v.width === 400).length).toBe(2)
+  })
+
+  it('attaches an lqip data-URI when lqip=true', async () => {
+    const { port } = memStorage()
+    const m = await ingestImage(
+      { image: stubImage(1000, 500), storage: port },
+      { mediaKey: '2026/06/dog', bytes: new Uint8Array([1]), originalKey: '2026/06/dog.png', formats: ['webp'], widths: [400], lqip: true },
+    )
+    expect(m.lqip).toMatch(/^data:image\/webp;base64,/)
   })
 })

@@ -42,4 +42,16 @@ describe('ReadingSettings', () => {
       expect(JSON.parse(raw as string).reading.searchEngineVisible).toBe(false)
     })
   })
+
+  it('enables the RSS feed and commits reading.feed', async () => {
+    const { git } = renderReading()
+    const toggle = await screen.findByLabelText(/enable rss feed/i)
+    fireEvent.click(toggle)
+    fireEvent.click(screen.getByRole('button', { name: /save/i }))
+    await waitFor(async () => {
+      const raw = await git.readFile('settings.json')
+      expect(raw).not.toBeNull()
+      expect(JSON.parse(raw as string).reading.feed.enabled).toBe(true)
+    })
+  })
 })

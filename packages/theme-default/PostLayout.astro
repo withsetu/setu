@@ -14,13 +14,14 @@ interface Props {
   themeOptions?: Record<string, string>
   siteSettings?: SiteSettings
   related?: RelatedItem[]
+  feedLocales?: string[]
   heading?: string
   showImage?: boolean
 }
-const { title, lang = 'en', themeOptions = {}, siteSettings, related = [], heading = 'Read Next', showImage = true } = Astro.props
+const { title, lang = 'en', themeOptions = {}, siteSettings, related = [], feedLocales, heading = 'Read Next', showImage = true } = Astro.props
 ---
 
-<Layout title={title} lang={lang} themeOptions={themeOptions} siteSettings={siteSettings}>
+<Layout title={title} lang={lang} themeOptions={themeOptions} siteSettings={siteSettings} feedLocales={feedLocales}>
   <slot name="hero" />
   <article class="prose measure-post"><slot /></article>
   <div class="measure-post"><RelatedReading related={related} heading={heading} showImage={showImage} /></div>

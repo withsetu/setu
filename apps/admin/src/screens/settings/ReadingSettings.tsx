@@ -17,12 +17,15 @@ import {
 
 const SETTINGS_PATH = 'settings.json'
 const PAGE_SIZES = [10, 25, 50, 100]
+const FEED_ITEM_COUNTS = [10, 20, 30, 50]
 const POSTS_PER_PAGE = [3, 6, 9, 12, 24]
 
 const sameReading = (a: ReadingValues, b: ReadingValues) =>
   a.homepage === b.homepage &&
   a.searchEngineVisible === b.searchEngineVisible &&
   a.listPageSize === b.listPageSize &&
+  a.feed.enabled === b.feed.enabled &&
+  a.feed.items === b.feed.items &&
   a.postsPerPage === b.postsPerPage
 
 export function ReadingSettings() {
@@ -160,6 +163,37 @@ export function ReadingSettings() {
               ))}
           </SelectContent>
         </Select>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <Label htmlFor="rd-feed">Enable RSS feed</Label>
+        <Switch
+          id="rd-feed"
+          checked={values.feed.enabled}
+          onCheckedChange={(c) => set({ feed: { ...values.feed, enabled: c } })}
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="rd-feed-items">Items in feed</Label>
+        <Select
+          value={String(values.feed.items)}
+          onValueChange={(v) => set({ feed: { ...values.feed, items: Number(v) } })}
+        >
+          <SelectTrigger id="rd-feed-items" className="w-32">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {[values.feed.items, ...FEED_ITEM_COUNTS.filter((n) => n !== values.feed.items)]
+              .sort((a, b) => a - b)
+              .map((n) => (
+                <SelectItem key={n} value={String(n)}>
+                  {n}
+                </SelectItem>
+              ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">Most recent posts included in /rss.xml.</p>
       </div>
 
       <div className="space-y-1.5">

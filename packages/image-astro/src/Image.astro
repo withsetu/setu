@@ -20,33 +20,64 @@ const blur = a.lqip
   ? `background-image:url(${a.lqip});background-size:cover;background-position:center;`
   : undefined
 ---
-{a.srcset ? (
-  a.sources ? (
-    <span class={blur ? 'setu-img blk-blurup' : 'setu-img'} style={blur} data-blurup={blur ? '' : undefined}>
+{!a.srcset ? (
+  /* Case 1: no manifest — bare <img> */
+  <img
+    src={a.src}
+    alt={a.alt}
+    title={a.title}
+    loading="lazy"
+    decoding="async"
+  />
+) : blur ? (
+  /* Case 4: lqip present (single OR multi-format) — blur-up wrapper */
+  <span class="setu-img blk-blurup" style={blur}>
+    {a.sources ? (
       <picture>
         {a.sources.map((s) => <source type={s.type} srcset={s.srcset} sizes={a.sizes} />)}
         <img src={a.src} srcset={a.srcset} sizes={a.sizes}
              width={a.width} height={a.height} alt={a.alt} title={a.title}
              loading="lazy" decoding="async" onload="this.parentElement.parentElement.classList.add('is-loaded')" />
       </picture>
-    </span>
-  ) : (
-    <span class={blur ? 'setu-img blk-blurup' : 'setu-img'} style={blur} data-blurup={blur ? '' : undefined}>
+    ) : (
       <img src={a.src} srcset={a.srcset} sizes={a.sizes}
            width={a.width} height={a.height} alt={a.alt} title={a.title}
            loading="lazy" decoding="async" onload="this.parentElement.classList.add('is-loaded')" />
-    </span>
-  )
+    )}
+  </span>
+) : a.sources ? (
+  /* Case 3: multi-format, no lqip — bare <picture> */
+  <picture>
+    {a.sources.map((s) => <source type={s.type} srcset={s.srcset} sizes={a.sizes} />)}
+    <img src={a.src} srcset={a.srcset} sizes={a.sizes}
+         width={a.width} height={a.height} alt={a.alt} title={a.title}
+         loading="lazy" decoding="async" />
+  </picture>
 ) : (
-  <img
-    src={a.src}
-    srcset={a.srcset}
-    sizes={a.srcset ? a.sizes : undefined}
-    width={a.width}
-    height={a.height}
-    alt={a.alt}
-    title={a.title}
-    loading="lazy"
-    decoding="async"
-  />
+  /* Case 2: single-format, no lqip — bare <img> with srcset */
+  <img src={a.src} srcset={a.srcset} sizes={a.sizes}
+       width={a.width} height={a.height} alt={a.alt} title={a.title}
+       loading="lazy" decoding="async" />
 )}
+
+{/* Finding 2: reveal cached images that fire onload before JS runs or not at all */}
+<script is:inline>
+  (function () {
+    function revealLoaded() {
+      document.querySelectorAll('.blk-blurup > :is(img, picture > img)').forEach(function (img) {
+        var wrapper = img.closest('.blk-blurup');
+        if (!wrapper) return;
+        if ((img as HTMLImageElement).complete) {
+          wrapper.classList.add('is-loaded');
+        } else {
+          img.addEventListener('load', function () { wrapper.classList.add('is-loaded'); }, { once: true });
+        }
+      });
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', revealLoaded);
+    } else {
+      revealLoaded();
+    }
+  })();
+</script>

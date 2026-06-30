@@ -15,10 +15,15 @@ describe('health rubric', () => {
       expect(r.url.startsWith('https://specification.website')).toBe(true)
     }
   })
-  it('starts with the emitted-today capabilities true and the rest false', () => {
+  it('reflects the emitted-today capabilities true and the not-yet-built ones false', () => {
     expect(SITE_CAPABILITIES.title).toBe(true)
     expect(SITE_CAPABILITIES.viewport).toBe(true)
-    expect(SITE_CAPABILITIES.canonical).toBe(false)
+    // SEO module B (#71) emits these in the head:
+    expect(SITE_CAPABILITIES.canonical).toBe(true)
+    expect(SITE_CAPABILITIES.openGraph).toBe(true)
+    expect(SITE_CAPABILITIES.twitterCard).toBe(true)
+    // still not built:
     expect(SITE_CAPABILITIES.sitemap).toBe(false)
+    expect(SITE_CAPABILITIES.jsonLd).toBe(false)
   })
 })

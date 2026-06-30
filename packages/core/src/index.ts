@@ -114,6 +114,8 @@ export type { RelatedRow, RelatedRef, RelatedOpts } from './index-port/related-p
 export { selectRelatedPosts } from './index-port/related-posts'
 export type { PostRow, PostsQuery } from './posts/select-posts'
 export { selectPosts } from './posts/select-posts'
+export type { SeoPage, SeoMetaTag, ResolvedSeo } from './seo/resolve-seo'
+export { resolveSeo } from './seo/resolve-seo'
 export type { MediaUsage } from './index-port/referenced-by'
 export { selectReferencedBy } from './index-port/referenced-by'
 export type { IndexService, IndexServiceDeps } from './index-port/index-service'

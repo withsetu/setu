@@ -1,7 +1,7 @@
 ---
 import Layout from './Layout.astro'
 import RelatedReading from './RelatedReading.astro'
-import type { SiteSettings } from '@setu/core'
+import type { SiteSettings, ResolvedSeo } from '@setu/core'
 
 interface RelatedItem {
   title: string
@@ -17,11 +17,12 @@ interface Props {
   feedLocales?: string[]
   heading?: string
   showImage?: boolean
+  seo?: ResolvedSeo
 }
-const { title, lang = 'en', themeOptions = {}, siteSettings, related = [], feedLocales, heading = 'Read Next', showImage = true } = Astro.props
+const { title, lang = 'en', themeOptions = {}, siteSettings, related = [], feedLocales, heading = 'Read Next', showImage = true, seo } = Astro.props
 ---
 
-<Layout title={title} lang={lang} themeOptions={themeOptions} siteSettings={siteSettings} feedLocales={feedLocales}>
+<Layout title={title} lang={lang} themeOptions={themeOptions} siteSettings={siteSettings} feedLocales={feedLocales} seo={seo}>
   <slot name="hero" />
   <article class="prose measure-post"><slot /></article>
   <div class="measure-post"><RelatedReading related={related} heading={heading} showImage={showImage} /></div>

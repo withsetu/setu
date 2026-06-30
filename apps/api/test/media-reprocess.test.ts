@@ -178,8 +178,11 @@ describe('POST /api/media/reprocess', () => {
     await runnerPromise
     const stRes = await app.fetch(new Request('http://test/api/media/reprocess/status'))
     const st = (await stRes.json()) as { status: string; processed: number; total: number }
-    // total = 1 (the fake manifest), processed = 1 (skipped counts as processed in the runner)
-    // The key thing: no crash
+    // total = 1 (the fake manifest), but processed = 0: a skipped key is NOT a reprocessed image,
+    // so it must not inflate the user-facing count. The job still completes (no crash); the cursor
+    // (not processed) is what guarantees we don't re-walk it on resume.
     expect(st.status).toBe('done')
+    expect(st.total).toBe(1)
+    expect(st.processed).toBe(0)
   })
 })

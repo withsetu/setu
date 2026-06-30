@@ -14,6 +14,11 @@ import PostLayout from '@theme/PostLayout.astro'
 import PageLayout from '@theme/PageLayout.astro'
 import CalloutWrapper from '../../../../blocks/callout/callout.astro'
 import NoticeWrapper from '../../../../blocks/notice/notice.astro'
+import ContactWrapper from '../../../../blocks/contact/contact.astro'
+import PostsWrapper from '../../../../blocks/posts/posts.astro'
+import RelatedWrapper from '../../../../blocks/related/related.astro'
+import HeroBlock from '@setu/blocks/hero.astro'
+import ButtonBlock from '@setu/blocks/button.astro'
 import ImageFigure from '@setu/image-astro/ImageFigure.astro'
 import Image from '@setu/image-astro/Image.astro'
 import Sub from '../components/Sub.astro'
@@ -37,11 +42,30 @@ try {
 // Build the Content component for the draft body, reusing the build's own markdoc runtime.
 markdocConfig.nodes = { ...assetsConfig.nodes, ...markdocConfig.nodes }
 // MUST list every tag AND node that markdoc.config.mjs renders via `component()` — the runtime
-// only resolves the real component for entries present here; a missing one leaks the `component()`
-// descriptor into the renderer and crashes (`$$typeof` undefined). Keep in sync with markdoc.config:
-// tags = generated blocks (callout, notice) + sub/sup/image; nodes = heading/paragraph/th/td/image.
-const tagComponentMap = { callout: CalloutWrapper, notice: NoticeWrapper, image: ImageFigure, sub: Sub, sup: Sup }
+// only resolves the real component for entries present here; a MISSING one leaks the `component()`
+// descriptor into the renderer and crashes with a cryptic "Cannot read properties of undefined
+// (reading 'toString')" from @astrojs/react. Every standard/generated block belongs here.
+// (Covered by the per-block render-smoke test: apps/site/test/preview-blocks.test.ts.)
+const tagComponentMap = {
+  callout: CalloutWrapper, notice: NoticeWrapper, contact: ContactWrapper,
+  posts: PostsWrapper, related: RelatedWrapper, hero: HeroBlock, button: ButtonBlock,
+  image: ImageFigure, sub: Sub, sup: Sup,
+}
 const nodeComponentMap = { heading: Heading, paragraph: Paragraph, th: Th, td: Td, image: Image }
+
+// Guard: if the draft uses a block tag with no registered renderer, fail LOUD and CLEAR
+// (naming the tag) instead of leaking an undefined component into the React renderer.
+const KNOWN_TAGS = new Set([...Object.keys(tagComponentMap), 'if', 'else', 'table', 'tbody', 'thead', 'tr'])
+function assertTagsRegistered(node: { name?: string; tag?: string; children?: unknown[] } | null | undefined): void {
+  if (!node || typeof node !== 'object') return
+  const tag = (node as { tag?: string }).tag
+  if (tag && !KNOWN_TAGS.has(tag)) {
+    throw new Error(`preview: no renderer registered for block "{% ${tag} %}". Add it to tagComponentMap in apps/site/src/preview/preview.astro.`)
+  }
+  for (const child of (node as { children?: unknown[] }).children ?? []) {
+    assertTagsRegistered(child as { name?: string; tag?: string; children?: unknown[] })
+  }
+}
 
 let Content = null
 let title = 'Preview'
@@ -52,9 +76,11 @@ if (draft) {
   title = (frontmatter as { title?: string }).title ?? draft.slug
   lang = draft.locale
   isPost = draft.collection === 'post'
+  const ast = Markdoc.parse(body)
+  assertTagsRegistered(ast as { name?: string; tag?: string; children?: unknown[] })
   Content = createContentComponent(
     Renderer,
-    JSON.stringify(Markdoc.parse(body)),
+    JSON.stringify(ast),
     markdocConfig,
     {},
     tagComponentMap,

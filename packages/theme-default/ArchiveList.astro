@@ -1,0 +1,75 @@
+---
+import { entryUrlPath, type PostRow } from '@setu/core'
+import type { Page } from 'astro'
+
+interface Props {
+  page: Page<PostRow>
+  heading: string
+  basePath: string
+  mediaBase: string
+}
+const { page, heading, basePath, mediaBase } = Astro.props
+
+const resolveImg = (s: string): string =>
+  !s || /^https?:\/\//i.test(s) ? s : s.startsWith('/') ? `${mediaBase}${s}` : s
+const hrefOf = (p: PostRow) => `/${entryUrlPath({ collection: p.collection, locale: p.locale, slug: p.slug })}`
+const pageHref = (n: number) => (n <= 1 ? basePath : `${basePath}/${n}`)
+const pageNumbers = Array.from({ length: page.lastPage }, (_, i) => i + 1)
+---
+
+<h1>{heading}</h1>
+
+<ul class="setu-posts setu-posts--grid setu-posts--cols-3">
+  {page.data.map((p) => (
+    <li class="setu-post-card">
+      {p.featuredImage && (
+        <a href={hrefOf(p)} class="setu-post-card__media">
+          <img src={resolveImg(p.featuredImage)} alt={p.title} loading="lazy" />
+        </a>
+      )}
+      <a href={hrefOf(p)} class="setu-post-card__title">{p.title}</a>
+    </li>
+  ))}
+</ul>
+
+{page.lastPage > 1 && (
+  <nav class="setu-pager" aria-label="Pagination">
+    <a class="setu-pager__step" href={page.url.prev ?? undefined} aria-disabled={page.url.prev ? undefined : 'true'} rel="prev">← Prev</a>
+    <ol class="setu-pager__pages">
+      {pageNumbers.map((n) => (
+        <li>
+          <a href={pageHref(n)} class="setu-pager__page" aria-current={n === page.currentPage ? 'page' : undefined}>{n}</a>
+        </li>
+      ))}
+    </ol>
+    <a class="setu-pager__step" href={page.url.next ?? undefined} aria-disabled={page.url.next ? undefined : 'true'} rel="next">Next →</a>
+  </nav>
+)}
+
+<style>
+  .setu-posts { list-style: none; padding: 0; margin: 1.5rem 0; display: grid; gap: 1.25rem; }
+  .setu-posts--cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  @media (max-width: 900px) { .setu-posts--grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 560px) { .setu-posts--grid { grid-template-columns: 1fr; } }
+  .setu-post-card__media img {
+    width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover;
+    border-radius: var(--r-md, 8px); display: block;
+  }
+  .setu-post-card__title {
+    display: inline-block; margin-top: 0.5rem;
+    font-family: var(--font-heading, inherit); font-weight: 600;
+    color: var(--text, inherit); text-decoration: none;
+  }
+  .setu-post-card__title:hover { color: var(--accent, #4f46e5); }
+  .setu-pager { display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin: 2.5rem 0 1rem; flex-wrap: wrap; }
+  .setu-pager__pages { display: flex; gap: 0.35rem; list-style: none; margin: 0; padding: 0; }
+  .setu-pager__page, .setu-pager__step {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 2rem; height: 2rem; padding: 0 0.6rem;
+    border: 1px solid var(--border, #e5e7eb); border-radius: var(--r-md, 8px);
+    color: var(--text, inherit); text-decoration: none; font-size: 0.95rem;
+  }
+  .setu-pager__page:hover, .setu-pager__step:hover { border-color: var(--accent, #4f46e5); }
+  .setu-pager__page[aria-current='page'] { background: var(--accent, #4f46e5); border-color: var(--accent, #4f46e5); color: #fff; }
+  .setu-pager__step[aria-disabled='true'] { opacity: 0.4; pointer-events: none; }
+</style>

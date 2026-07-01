@@ -39,6 +39,15 @@ describe('static archive route', () => {
     expect(p2).toMatch(/aria-current="page"[^>]*>\s*2\s*</)
   })
 
+  it('emits head <link rel=next/prev> across paginated pages (#74)', () => {
+    // page 1 (first): a rel=next head link → page 2, and NO rel=prev
+    expect(p1).toMatch(/<link rel="next" href="[^"]*\/posts\/2\/?"/)
+    expect(p1).not.toMatch(/<link rel="prev"/)
+    // page 2 (last): a rel=prev head link → the base, and NO rel=next
+    expect(p2).toMatch(/<link rel="prev" href="[^"]*\/posts\/?"/)
+    expect(p2).not.toMatch(/<link rel="next"/)
+  })
+
   it('excludes other-locale posts (fr Bonjour) from the archive', () => {
     expect(p1).not.toContain('Bonjour')
     expect(p2).not.toContain('Bonjour')

@@ -84,6 +84,8 @@ const seo = pageSeo(Astro.site, Astro.url.pathname, mediaBase, siteSettings, {
   title: 'Posts',
   type: 'website',
   locale: DEFAULT_LOCALE,
+  prevPath: page.url.prev ?? undefined,
+  nextPath: page.url.next ?? undefined,
 })
 ---
 

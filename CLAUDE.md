@@ -40,7 +40,7 @@ A feature is DONE only when EVERY item is true. Green tests are necessary, **nev
 ## Issue tracking — every piece of work has an issue
 
 All work is tracked as **GitHub issues on `withsetu/setu`** (not markdown roadmaps). This is the
-single source of truth for status. No exceptions for "small" changes.
+single source of truth for **status and design**. No exceptions for "small" changes.
 
 - **Start from an issue.** Before any dev work, there must be an issue for it. If one doesn't exist,
   create it first (`gh issue create`) with the right `area:*` label, then work against it.
@@ -53,6 +53,15 @@ single source of truth for status. No exceptions for "small" changes.
   that only lives in a memory file.
 - **Epics** = a tracking issue labeled `epic` with a `- [ ] #child` task-list (e.g. the SEO module
   #75). Multi-increment features get one, with each increment its own child issue + PR.
+- **Design lives in the issue, not the repo (decided 2026-07-01).** Do NOT commit design specs/plans
+  to `docs/superpowers/{specs,plans}/`. When a skill (brainstorming / writing-plans) would produce a
+  spec or plan, put that content in the **tracking issue**: the epic body holds the design narrative,
+  child issues hold the increments, comments hold the discussion. Create the epic/issue first if
+  needed. A scratch draft is fine; a committed design doc is not. This deliberately overrides the
+  superpowers default of writing spec/plan files. The only design-adjacent files that stay in-repo are
+  standing **reference** — things the code must uphold, read repeatedly, not a unit of work:
+  `CLAUDE.md`, `plan/prd.md`, `docs/quality-bar.md`, `docs/architecture.md`/ADRs. (Legacy specs under
+  `docs/superpowers/` migrate to issues over time.)
 - **Labels are the taxonomy:** `area:seo|feed|site-health|identity|editor|admin|media|taxonomy|`
   `content-index|blocks|forms|settings|theme|infra|deploy|docs`, plus `tech-debt` and `epic`.
 - The `gh` token has `repo` but **not** `project` scope — manage issues/labels via CLI; the Project
@@ -93,7 +102,9 @@ and match them.
 
 ## Where things are
 
-- Specs/plans: `docs/superpowers/{specs,plans}/`
+- Design & plans: in the **GitHub issue/epic** (not repo docs — see Issue tracking). Standing
+  reference only, in-repo: `plan/prd.md`, `docs/quality-bar.md`, `docs/architecture.md`. (Legacy
+  specs still under `docs/superpowers/{specs,plans}/` until migrated.)
 - Content blocks: repo-root `blocks/<tag>/` (auto-discovered) + `@setu/core` standard blocks
 - Admin editor: `apps/admin/src/editor/` · Site render: `apps/site/` · Core: `packages/core/`
 - Dev stack: `pnpm dev` (api + admin + site against a gitignored `.content-sandbox/`)

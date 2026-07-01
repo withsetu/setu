@@ -18,7 +18,7 @@ Setu DXP bridges the gap between marketing velocity and engineering excellence. 
 
 * **Marketing Autonomy, Zero Bottlenecks:** Marketers can design, edit, and publish rich, component-driven layouts visually without waiting on engineering deployment cycles.
 * **Drastically Lower TCO (Total Cost of Ownership):** Eliminates expensive enterprise seat-licenses and high cloud-compute bills by running serverless at the edge or on cost-effective infrastructure.
-* **Performance-Driven ROI:** Built on a "Zero-JS by default" architecture to guarantee maximum site speed, directly boosting Google Lighthouse scores, organic search traffic, and conversion rates.
+* **Performance-Driven ROI:** A **lean-output, less-JS-by-default** architecture — an aspiration to optimize toward, **not** an absolute or a build gate (legitimate JS like analytics and interactive islands is fully expected) — for fast sites that boost Google Lighthouse scores, organic search traffic, and conversion rates.
 
 ---
 
@@ -129,7 +129,7 @@ To keep Git lean, large binaries never live in Git.
 
 ## 12. Search
 
-* **Public SSG site → Pagefind.** Rust/WASM static index built **in the deploy pipeline** over generated HTML, shipped as static files, queried client-side. Fits the Zero-JS ethos.
+* **Public SSG site → Pagefind.** Rust/WASM static index built **in the deploy pipeline** over generated HTML, shipped as static files, queried client-side. Fits the lean-output ethos.
 * **Public SSR site + all admin search → SQLite/D1 FTS5.** In SSR the public site already reads the derived index per request, so search is an **FTS5 virtual table** over it — live, no lag. The admin always has the index, so admin search is FTS5 in every topology.
 
 ## 13. Forms & Comments
@@ -287,7 +287,7 @@ setu/
 ## 24. Admin UX & Design
 
 * **Aesthetic — Notion-inspired:** minimal, content-first, modern; with **WordPress-familiar information architecture** so refugees feel instantly at home. Bar: Notion/Linear polish + WP familiarity.
-* **The admin is a rich React SPA.** "Zero-JS by default" governs the *output site*, not the admin — the admin can be as rich as it needs to be.
+* **The admin is a rich React SPA.** The **less-JS-by-default** bias governs the *output site*, not the admin — and it is a default to optimize toward, **never a hard gate** (must-have JS like analytics/islands ships when needed). The admin itself can be as rich as it needs to be.
 * **Stack:** **React 18 + Tailwind + shadcn/ui (Radix primitives)** — fast to build, accessibility-first, fully ownable (no proprietary UI dependency; fits the OSS ethos). **Pinned to React 18 (not 19)** because Tiptap's UI Components and Pro extensions (e.g. the drag-handle we want for block reordering + keyboard a11y) are not yet React-19-ready; Tiptap **core** is on v3. Revisit React 19 once Tiptap ships full support. *(Principle: the editor is the most load-bearing dependency — its compatibility matrix overrides "use latest.")*
 * **Information architecture (left sidebar):** Dashboard (recent edits, who's-editing/locks, deploy status) · Content (Posts / Pages / custom collections) · Media · Forms (submission inboxes + export) · Site (preview link, deploy controls, deploy history) · Settings (permalinks · SEO defaults · locales/i18n · users & roles · auth · integrations: email/image/storage · analytics snippet).
 * **The Editor (the heart):** Tiptap canvas with a **slash menu** driven by `setu.config.ts`; drag handles for blocks; a **right context panel** that swaps between page metadata (title, slug, status, author, date, locale, taxonomy, custom fields, SEO) and the selected block's props; a persistent **Draft → Staged → Deployed** state pill; an **autosave indicator**; **lock/presence** ("Sarah is editing"); a **locale switcher**; and a **Preview toggle** that flips to (or splits with) the server-rendered iframe (§10).
@@ -349,7 +349,7 @@ Testing weight follows **risk**: heavy where content/data flows (loss is unaccep
 14. **i18n:** structural (locale dimension, locale routing, hreflang, translatable admin UI) is V1/free; the translation-management workspace is Pro.
 15. **License:** core is AGPL-3.0; keep all code under CLA so dual-licensing and future relicensing stay possible; Pro plugins are proprietary.
 16. **Astro 6.4 & Local Dev:** Astro 6.3+ Cloudflare helpers for env/D1 bindings; first-class Hono for `/api/*`; `platformProxy: { enabled: true }`; secrets in `.dev.vars`.
-17. **Admin UX:** Notion-inspired, React + Tailwind + shadcn/ui; rich SPA (Zero-JS is for output only); slash-menu from config; Pro features visible-but-gated.
+17. **Admin UX:** Notion-inspired, React + Tailwind + shadcn/ui; rich SPA (the less-JS bias applies to output only, and as an aspiration, not a gate); slash-menu from config; Pro features visible-but-gated.
 18. **Accessibility:** Admin targets WCAG 2.1 AA (lean on Radix for chrome; build the slash menu as an ARIA combobox; give drag-reorder a keyboard alternative). Enforce accessible *output*: semantic HTML, required alt-text, heading-structure + a11y linting in the build.
 19. **Testing:** TDD (contract test first). Non-negotiables — property-based round-trip fidelity (`fast-check`) and Port contract suites run against every adapter. Plus integration (Miniflare for edge), Playwright E2E + `axe-core` (WCAG AA), cross-topology runs.
 20. **Security:** CI from day one — SAST, dependency scanning, authz tests (role enforcement, 401s, verified Access JWT), input/abuse fuzzing. `/security-review` per milestone; third-party pen-test before 1.0 GA. Highest bar for the managed-Cloud/multi-tenant path.

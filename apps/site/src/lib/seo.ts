@@ -1,4 +1,4 @@
-import { resolveSeo, type SiteSettings, type ResolvedSeo } from '@setu/core'
+import { resolveSeo, resolveJsonLd, jsonLdScript, type SiteSettings, type ResolvedSeo } from '@setu/core'
 
 export interface PageSeoInput {
   /** Page title (post/page title); empty → homepage (site name only). */
@@ -12,6 +12,18 @@ export interface PageSeoInput {
   /** Raw image path/URL (e.g. frontmatter `featuredImage` `/media/…` or an absolute URL).
    *  Resolved through the media base + absolutized; falls back to identity.defaultImage. */
   imagePath?: string
+  /** ISO 8601 publish date (JSON-LD datePublished, posts). */
+  datePublished?: string
+  /** ISO 8601 modified date (JSON-LD dateModified, posts). */
+  dateModified?: string
+}
+
+/** Media-resolve a raw path (prepend the media base for root-relative `/media/…`) then absolutize
+ *  it against the site origin. Returns undefined for an empty input. */
+const absMedia = (raw: string, mediaBase: string, base: URL): string | undefined => {
+  if (!raw) return undefined
+  const viaMedia = !/^https?:\/\//i.test(raw) && raw.startsWith('/') ? `${mediaBase}${raw}` : raw
+  return new URL(viaMedia, base).href
 }
 
 /**
@@ -31,14 +43,10 @@ export function pageSeo(
   const base = site ?? new URL('http://localhost:4321')
   const canonical = new URL(pathname, base).href
 
-  const rawImage = page.imagePath || settings.identity.defaultImage || ''
-  const viaMedia =
-    rawImage && !/^https?:\/\//i.test(rawImage) && rawImage.startsWith('/')
-      ? `${mediaBase}${rawImage}`
-      : rawImage
-  const image = viaMedia ? new URL(viaMedia, base).href : undefined
+  const image = absMedia(page.imagePath || settings.identity.defaultImage || '', mediaBase, base)
+  const logo = absMedia(settings.identity.logo || '', mediaBase, base)
 
-  return resolveSeo(settings, {
+  const seo = resolveSeo(settings, {
     title: page.title,
     description: page.description,
     type: page.type,
@@ -46,4 +54,18 @@ export function pageSeo(
     image,
     canonical,
   })
+
+  // JSON-LD @graph (#72) — reuses the resolved absolute URLs; attached as an escaped script string.
+  const graph = resolveJsonLd(settings, {
+    siteUrl: base.href,
+    canonical,
+    pageTitle: page.title ?? '',
+    description: (page.description || settings.general.description || '').trim() || undefined,
+    type: page.type || 'website',
+    image,
+    logo,
+    datePublished: page.datePublished,
+    dateModified: page.dateModified,
+  })
+  return { ...seo, jsonLd: jsonLdScript(graph) }
 }

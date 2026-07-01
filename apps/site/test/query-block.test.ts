@@ -56,6 +56,6 @@ describe('query block', () => {
   })
   it('ships zero JS', () => {
     expect(html).not.toContain('astro-island')
-    expect(html).not.toMatch(/<script[\s>]/)
+    expect(html).not.toMatch(/<script(?![^>]*type="application\/ld\+json")[\s>]/)
   })
 })

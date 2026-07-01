@@ -34,6 +34,9 @@ export interface ResolvedSeo {
   canonical: string
   /** Ordered <meta> tags: description, generator, robots, og:*, twitter:*. */
   meta: SeoMetaTag[]
+  /** Escaped JSON-LD string for an inline <script type="application/ld+json"> (#72). Populated by
+   *  the app-level orchestration (pageSeo), not resolveSeo itself, which stays tag-only. */
+  jsonLd?: string
 }
 
 /** Replace {{title}} {{separator}} {{site}} tokens; collapse the whitespace a missing token leaves. */

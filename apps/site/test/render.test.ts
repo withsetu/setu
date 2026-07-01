@@ -76,7 +76,7 @@ describe('render pipeline — callout', () => {
   })
   it('ships zero JS for static content (no hydration island/script)', () => {
     expect(html).not.toContain('astro-island')
-    expect(html).not.toMatch(/<script[\s>]/)
+    expect(html).not.toMatch(/<script(?![^>]*type="application\/ld\+json")[\s>]/)
   })
 })
 
@@ -200,7 +200,7 @@ describe('default theme — shell + tokens', () => {
   })
   it('ships zero JS (no hydration island/script)', () => {
     expect(html).not.toContain('astro-island')
-    expect(html).not.toMatch(/<script[\s>]/)
+    expect(html).not.toMatch(/<script(?![^>]*type="application\/ld\+json")[\s>]/)
   })
 })
 

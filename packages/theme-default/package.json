@@ -11,6 +11,8 @@
     "./Layout.astro": "./Layout.astro",
     "./PostLayout.astro": "./PostLayout.astro",
     "./PageLayout.astro": "./PageLayout.astro",
+    "./ArchiveList.astro": "./ArchiveList.astro",
+    "./TaxonomyChips.astro": "./TaxonomyChips.astro",
     "./theme.css": "./theme.css",
     "./site.css": "./site.css",
     "./options": "./options.ts",

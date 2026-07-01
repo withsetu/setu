@@ -1,0 +1,31 @@
+---
+interface Props {
+  categories: { slug: string; name: string }[]
+  tags: string[]
+}
+const { categories, tags } = Astro.props
+const has = categories.length > 0 || tags.length > 0
+---
+
+{has && (
+  <nav class="setu-taxonomy measure-post" aria-label="Categories and tags">
+    {categories.map((c) => (
+      <a class="setu-chip setu-chip--cat" href={`/category/${c.slug}`}>{c.name}</a>
+    ))}
+    {tags.map((t) => (
+      <a class="setu-chip setu-chip--tag" href={`/tag/${t}`}>#{t}</a>
+    ))}
+  </nav>
+)}
+
+<style>
+  .setu-taxonomy { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1.75rem 0 0.5rem; }
+  .setu-chip {
+    display: inline-flex; align-items: center; height: 1.85rem; padding: 0 0.7rem;
+    border: 1px solid var(--border, #e5e7eb); border-radius: 999px;
+    font-size: 0.85rem; color: var(--text, inherit); text-decoration: none;
+    background: var(--surface, transparent);
+  }
+  .setu-chip--cat { font-weight: 600; }
+  .setu-chip:hover { border-color: var(--accent, #4f46e5); color: var(--accent, #4f46e5); }
+</style>

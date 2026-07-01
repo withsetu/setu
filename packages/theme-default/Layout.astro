@@ -47,6 +47,7 @@ const feedLinks = siteSettings?.reading.feed.enabled
         {seo.meta.map((m) => (
           <meta name={m.name} property={m.property} content={m.content} />
         ))}
+        {seo.jsonLd && <script type="application/ld+json" set:html={seo.jsonLd} />}
       </>
     ) : (
       <>

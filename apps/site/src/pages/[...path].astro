@@ -8,6 +8,7 @@ import { loadSiteSettings } from '../lib/site-settings'
 import { feedLocales } from '../lib/feed'
 import { pageSeo } from '../lib/seo'
 import { parsePageSeoOverride } from '@setu/core'
+import { resolvePostDate, parseDate } from '../lib/post-date'
 import relations from '../../.setu/cache/relations.json'
 import Image from '@setu/image-astro/Image.astro'
 import { resolveMediaBase } from '@setu/image-astro'
@@ -64,6 +65,15 @@ const metaDescription =
   (typeof d.description === 'string' && d.description) ||
   (typeof d.summary === 'string' && d.summary) ||
   undefined
+// Article dates (JSON-LD, posts only): published = frontmatter date → git → mtime; modified =
+// frontmatter updatedAt/modified, else the publish date.
+const entryFile = (entry as { filePath?: string }).filePath
+const published = isPost ? resolvePostDate({ data: entry.data as Record<string, unknown>, filePath: entryFile }) : null
+const modified = isPost
+  ? (parseDate((entry.data as Record<string, unknown>).updatedAt) ??
+     parseDate((entry.data as Record<string, unknown>).modified) ??
+     published)
+  : null
 // Per-page SEO overrides (frontmatter `seo:`, authored in the editor) win over the derived defaults.
 const ov = parsePageSeoOverride(entry.data)
 const seo = pageSeo(Astro.site, Astro.url.pathname, mediaBase, siteSettings, {
@@ -74,6 +84,8 @@ const seo = pageSeo(Astro.site, Astro.url.pathname, mediaBase, siteSettings, {
   imagePath: ov.image || featuredImage,
   noindex: ov.noindex,
   canonical: ov.canonical,
+  datePublished: published?.toISOString(),
+  dateModified: modified?.toISOString(),
 })
 ---
 

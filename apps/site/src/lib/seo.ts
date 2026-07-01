@@ -12,6 +12,10 @@ export interface PageSeoInput {
   /** Raw image path/URL (e.g. frontmatter `featuredImage` `/media/…` or an absolute URL).
    *  Resolved through the media base + absolutized; falls back to identity.defaultImage. */
   imagePath?: string
+  /** Per-page override: force noindex,nofollow. */
+  noindex?: boolean
+  /** Per-page canonical override (absolute or root-relative); replaces the derived canonical. */
+  canonical?: string
 }
 
 /**
@@ -29,7 +33,8 @@ export function pageSeo(
 ): ResolvedSeo {
   // A prod build sets SETU_SITE_URL (→ Astro.site); the localhost fallback mirrors astro.config.
   const base = site ?? new URL('http://localhost:4321')
-  const canonical = new URL(pathname, base).href
+  // A per-page canonical override (absolute or root-relative) wins; else derive from the path.
+  const canonical = new URL(page.canonical || pathname, base).href
 
   const rawImage = page.imagePath || settings.identity.defaultImage || ''
   const viaMedia =
@@ -45,5 +50,6 @@ export function pageSeo(
     locale: page.locale,
     image,
     canonical,
+    noindex: page.noindex,
   })
 }

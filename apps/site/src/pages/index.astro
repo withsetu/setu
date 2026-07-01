@@ -5,6 +5,7 @@ import { loadThemeOptions } from '../lib/site-config'
 import { loadSiteSettings } from '../lib/site-settings'
 import { feedLocales } from '../lib/feed'
 import { pageSeo } from '../lib/seo'
+import { parsePageSeoOverride } from '@setu/core'
 import { resolveMediaBase } from '@setu/image-astro'
 
 const themeOptions = loadThemeOptions()
@@ -18,8 +19,18 @@ const Content = rendered?.Content
 const localesForFeed = feedLocales(
   (await getCollection('entries')).map((e) => ({ id: e.id, data: e.data as Record<string, unknown> })),
 )
-// Homepage: <title> is the bare site name (empty page title) — the standard root-page convention.
-const seo = pageSeo(Astro.site, Astro.url.pathname, mediaBase, siteSettings, { title: '', type: 'website', locale: 'en' })
+// Homepage: <title> is the bare site name (empty page title) — the standard root-page convention —
+// unless the homepage document sets a per-page `seo:` override.
+const ov = entry ? parsePageSeoOverride(entry.data) : {}
+const seo = pageSeo(Astro.site, Astro.url.pathname, mediaBase, siteSettings, {
+  title: ov.title ?? '',
+  description: ov.description,
+  type: 'website',
+  locale: 'en',
+  imagePath: ov.image,
+  noindex: ov.noindex,
+  canonical: ov.canonical,
+})
 ---
 
 <PageLayout title={title} lang="en" themeOptions={themeOptions} siteSettings={siteSettings} feedLocales={localesForFeed} seo={seo}>

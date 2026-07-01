@@ -45,7 +45,25 @@ describe('SEO head emitters (#71)', () => {
     const title = home.match(/<title>([^<]*)<\/title>/)?.[1] ?? ''
     expect(title).not.toContain('·')
   })
-  it('still ships zero JS from the head changes', () => {
-    expect(post).not.toMatch(/<script[\s>]/)
+  it('emits a JSON-LD @graph with an Article for a post (#72)', () => {
+    const m = post.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)
+    expect(m).not.toBeNull()
+    const graph = JSON.parse(m![1])
+    expect(graph['@context']).toBe('https://schema.org')
+    const types = graph['@graph'].map((n: { '@type': string }) => n['@type'])
+    expect(types).toContain('WebSite')
+    expect(types).toContain('WebPage')
+    expect(types).toContain('Article')
+    expect(types.some((t: string) => t === 'Organization' || t === 'Person')).toBe(true)
+  })
+  it('homepage JSON-LD has WebSite + WebPage but no Article', () => {
+    const graph = JSON.parse(home.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)![1])
+    const types = graph['@graph'].map((n: { '@type': string }) => n['@type'])
+    expect(types).toContain('WebSite')
+    expect(types).not.toContain('Article')
+  })
+  it('still ships zero executable JS (the ld+json data block is not JavaScript)', () => {
+    // allow <script type="application/ld+json"> (structured data); reject any executable script.
+    expect(post).not.toMatch(/<script(?![^>]*type="application\/ld\+json")[\s>]/)
   })
 })

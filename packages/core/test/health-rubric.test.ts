@@ -22,8 +22,9 @@ describe('health rubric', () => {
     expect(SITE_CAPABILITIES.canonical).toBe(true)
     expect(SITE_CAPABILITIES.openGraph).toBe(true)
     expect(SITE_CAPABILITIES.twitterCard).toBe(true)
+    // SEO module C (#72) emits JSON-LD structured data:
+    expect(SITE_CAPABILITIES.jsonLd).toBe(true)
     // still not built:
     expect(SITE_CAPABILITIES.sitemap).toBe(false)
-    expect(SITE_CAPABILITIES.jsonLd).toBe(false)
   })
 })

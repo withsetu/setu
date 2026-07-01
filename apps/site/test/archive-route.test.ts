@@ -51,6 +51,6 @@ describe('static archive route', () => {
 
   it('ships zero JS', () => {
     expect(p1).not.toContain('astro-island')
-    expect(p1).not.toMatch(/<script[\s>]/)
+    expect(p1).not.toMatch(/<script(?![^>]*type="application\/ld\+json")[\s>]/)
   })
 })

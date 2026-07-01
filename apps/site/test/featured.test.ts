@@ -50,6 +50,6 @@ describe('featured image — post lead/hero', () => {
   it('ships zero JS', () => {
     const html = page('post/featured-demo')
     expect(html).not.toContain('astro-island')
-    expect(html).not.toMatch(/<script[\s>]/)
+    expect(html).not.toMatch(/<script(?![^>]*type="application\/ld\+json")[\s>]/)
   })
 })

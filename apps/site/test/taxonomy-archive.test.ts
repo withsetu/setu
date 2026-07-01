@@ -41,7 +41,7 @@ describe('category archive', () => {
   it('ships zero JS', () => {
     const p = page('category/recipes')
     expect(p).not.toContain('astro-island')
-    expect(p).not.toMatch(/<script[\s>]/)
+    expect(p).not.toMatch(/<script(?![^>]*type="application\/ld\+json")[\s>]/)
   })
 })
 

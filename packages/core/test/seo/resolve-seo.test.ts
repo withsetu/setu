@@ -60,6 +60,11 @@ describe('resolveSeo', () => {
     expect(content(sSite, { name: 'description' })).toBe('site desc')
   })
 
+  it('a per-page noindex override forces noindex even when the site is search-visible (#73)', () => {
+    const s = resolveSeo(settings(), page({ noindex: true }))
+    expect(content(s, { name: 'robots' })).toBe('noindex, nofollow')
+  })
+
   it('og:type defaults to website and respects article', () => {
     expect(content(resolveSeo(settings(), page()), { property: 'og:type' })).toBe('website')
     expect(content(resolveSeo(settings(), page({ type: 'article' })), { property: 'og:type' })).toBe('article')

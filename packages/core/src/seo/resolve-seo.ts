@@ -18,6 +18,8 @@ export interface SeoPage {
   locale?: string
   /** Absolute canonical URL of this page (og:url + <link rel=canonical>). */
   canonical: string
+  /** Per-page override: force this page to noindex,nofollow even if the site is search-visible. */
+  noindex?: boolean
 }
 
 /** A single <meta> tag — exactly one of `name`/`property` is set (Twitter uses name, OG uses property). */
@@ -72,10 +74,9 @@ export function resolveSeo(settings: SiteSettings, page: SeoPage): ResolvedSeo {
   const meta: SeoMetaTag[] = []
   if (description) meta.push({ name: 'description', content: description })
   meta.push({ name: 'generator', content: GENERATOR_URL })
-  meta.push({
-    name: 'robots',
-    content: reading.searchEngineVisible === false ? 'noindex, nofollow' : 'index, follow',
-  })
+  // A per-page `noindex` override wins; otherwise the site-wide searchEngineVisible setting applies.
+  const noindex = page.noindex === true || reading.searchEngineVisible === false
+  meta.push({ name: 'robots', content: noindex ? 'noindex, nofollow' : 'index, follow' })
 
   // Open Graph
   meta.push({ property: 'og:locale', content: locale })

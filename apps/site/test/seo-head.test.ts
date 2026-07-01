@@ -10,6 +10,7 @@ const head = (html: string): string => html.slice(0, html.indexOf('</head>'))
 
 let post = ''
 let home = ''
+let override = ''
 beforeAll(() => {
   // A fixed site URL makes canonical / og:url deterministic.
   execSync('pnpm build', {
@@ -19,6 +20,7 @@ beforeAll(() => {
   })
   post = head(page('post/astro-on-the-edge'))
   home = head(page(''))
+  override = head(page('page/seo-override-demo'))
 })
 
 describe('SEO head emitters (#71)', () => {
@@ -61,6 +63,15 @@ describe('SEO head emitters (#71)', () => {
     const types = graph['@graph'].map((n: { '@type': string }) => n['@type'])
     expect(types).toContain('WebSite')
     expect(types).not.toContain('Article')
+  })
+  it('per-page seo: overrides win — title, description, noindex, canonical (#73)', () => {
+    expect(override).toMatch(/<title>Custom SEO Title[^<]*<\/title>/)
+    expect(override).toMatch(/<meta property="og:title" content="Custom SEO Title[^"]*">/)
+    expect(override).toContain('<meta name="description" content="A hand-written meta description for search.">')
+    // noindex override applies even though the site is search-visible
+    expect(override).toMatch(/<meta name="robots" content="noindex, nofollow">/)
+    // canonical override replaces the derived URL
+    expect(override).toContain('<link rel="canonical" href="https://example.com/canonical-target">')
   })
   it('still ships zero executable JS (the ld+json data block is not JavaScript)', () => {
     // allow <script type="application/ld+json"> (structured data); reject any executable script.

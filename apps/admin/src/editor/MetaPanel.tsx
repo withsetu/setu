@@ -1,6 +1,7 @@
 import { CategoryField } from './CategoryField'
 import { TagField } from './TagField'
 import { FeaturedImageField } from './FeaturedImageField'
+import { SeoSection } from './SeoSection'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -63,6 +64,15 @@ export function MetaPanel({
           selected={Array.isArray(metadata['tags']) ? (metadata['tags'] as string[]) : []}
           onChange={(next) => onChange({ ...metadata, tags: next })}
           editable={editable}
+        />
+      </Section>
+      <Section title="SEO">
+        <SeoSection
+          metadata={metadata}
+          slug={slug}
+          editable={editable}
+          onChange={onChange}
+          apiBase={apiBase}
         />
       </Section>
     </aside>

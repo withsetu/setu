@@ -7,6 +7,7 @@ import { loadThemeOptions } from '../lib/site-config'
 import { loadSiteSettings } from '../lib/site-settings'
 import { feedLocales } from '../lib/feed'
 import { pageSeo } from '../lib/seo'
+import { parsePageSeoOverride } from '@setu/core'
 import { resolvePostDate, parseDate } from '../lib/post-date'
 import relations from '../../.setu/cache/relations.json'
 import Image from '@setu/image-astro/Image.astro'
@@ -73,12 +74,16 @@ const modified = isPost
      parseDate((entry.data as Record<string, unknown>).modified) ??
      published)
   : null
+// Per-page SEO overrides (frontmatter `seo:`, authored in the editor) win over the derived defaults.
+const ov = parsePageSeoOverride(entry.data)
 const seo = pageSeo(Astro.site, Astro.url.pathname, mediaBase, siteSettings, {
-  title,
-  description: metaDescription || undefined,
+  title: ov.title || title,
+  description: ov.description || metaDescription || undefined,
   type: collection === 'post' ? 'article' : 'website',
   locale,
-  imagePath: featuredImage,
+  imagePath: ov.image || featuredImage,
+  noindex: ov.noindex,
+  canonical: ov.canonical,
   datePublished: published?.toISOString(),
   dateModified: modified?.toISOString(),
 })

@@ -75,6 +75,14 @@ jobs:
             if [ -n "$changed" ] && ! printf '%s\n' "$changed" | grep -qvE '\.mdx?$'; then
               echo "→ docs-only: skipping typecheck + test."
               echo "skip=true" >> "$GITHUB_OUTPUT"
+            elif printf '%s\n' "$changed" | grep -vE '\.mdx?$' | grep -qvE '^(packages|apps)/'; then
+              # Root-impact guard: turbo maps files outside packages/apps (workflows, root
+              # config, scripts/, e2e/, lockfile…) to NO package, so a filtered run would
+              # select ZERO tasks and a broken CI/config change could merge green having
+              # run nothing (found live on PR #315 — run 28623914417 executed 0 tasks for
+              # a ci.yml-only diff). pnpm's #271 filter ran the FULL suite for root files;
+              # restore that conservative semantic: no filter -> full run.
+              echo "→ root-impact change (files outside packages/apps): running the FULL suite."
             else
               echo "since=$since" >> "$GITHUB_OUTPUT"
               echo "turbo's affected scope for '...[${since:0:9}]':"

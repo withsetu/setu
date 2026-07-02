@@ -68,6 +68,12 @@ test.describe('visual baselines', () => {
         // concurrent-publish exposure as StatTiles above — mask the whole card body, not
         // just the timestamp spans, so row identity/order churn can't cause a diff.
         cardByTitle('Resume editing'),
+        // SiteHealthCard ("Site Health"): score/band/must-have counts come from
+        // runAudit() over the SAME server-shared, git-backed entry set as the cards
+        // above (packages/core/src/health/checks.ts aggregates over ctx.entries —
+        // missing-title/H1/homepage checks), so a concurrent publish.spec.ts commit
+        // can shift the score/band mid-run. Same whole-card masking rationale.
+        cardByTitle('Site Health'),
         // WhosEditing: no active lock in this harness (no second session holds one), so
         // it renders null (apps/admin/src/dashboard/widgets/WhosEditing.tsx:10) — nothing
         // to mask there today, but if a lock ever appears the "editing "<slug>"" line and

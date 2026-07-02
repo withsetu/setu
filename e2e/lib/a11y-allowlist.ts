@@ -16,7 +16,7 @@ export interface KnownViolation {
    *  — e.g. a stable `data-*` attribute, class fragment, or text snippet. */
   selectorContains: string
   /** The tracking issue this violation is filed under — '#295' for the known trio, or
-   *  the literal `'FILE-ME'` placeholder for a newly-discovered product violation this
+   *  the literal `'#307'` placeholder for a newly-discovered product violation this
    *  task found but did not yet get a real issue number for (see report). */
   issue: string
   note: string
@@ -30,13 +30,13 @@ export interface KnownViolation {
 // textbox" or "labels concatenated" as WCAG failures on their own, and the shared
 // aria-label is disambiguated by role, which axe accepts. Everything found instead is a
 // single rule, `color-contrast`, across several distinct design-token/component gaps —
-// all NEW real product violations, filed as `issue: 'FILE-ME'` per the brief (the
+// all NEW real product violations, filed as `issue: '#307'` per the brief (the
 // controller will create real issues from this list; see task-1-report.md).
 export const KNOWN_VIOLATIONS: KnownViolation[] = [
   {
     ruleId: 'color-contrast',
     selectorContains: 'data-variant="warning"',
-    issue: 'FILE-ME',
+    issue: '#307',
     note:
       'Badge variant="warning" (e.g. the "Draft" status badge) — light-mode --warning ' +
       '(#b7791f text on a ~15%-alpha warning tile) falls under the AA 4.5:1 text threshold. ' +
@@ -45,7 +45,7 @@ export const KNOWN_VIOLATIONS: KnownViolation[] = [
   {
     ruleId: 'color-contrast',
     selectorContains: 'data-variant="info"',
-    issue: 'FILE-ME',
+    issue: '#307',
     note:
       'Badge variant="info" (e.g. a "Staged" status badge) — light-mode --info (#2563eb ' +
       'text on a ~15%-alpha info tile) falls under the AA 4.5:1 text threshold. Seen in the ' +
@@ -54,7 +54,7 @@ export const KNOWN_VIOLATIONS: KnownViolation[] = [
   {
     ruleId: 'color-contrast',
     selectorContains: 'data-variant="outline"',
-    issue: 'FILE-ME',
+    issue: '#307',
     note:
       'Badge variant="outline" (category/tag chips in the content-list) — the outline ' +
       'badge\'s foreground/border combination falls under the AA 4.5:1 threshold against ' +
@@ -63,7 +63,7 @@ export const KNOWN_VIOLATIONS: KnownViolation[] = [
   {
     ruleId: 'color-contrast',
     selectorContains: 'text-[12.5px] text-muted-foreground',
-    issue: 'FILE-ME',
+    issue: '#307',
     note:
       'ContentTable row subtitle (the slug/path line under a post title) uses ' +
       '--muted-foreground (#54545d) at 12.5px, which falls under AA 4.5:1 against the ' +
@@ -72,7 +72,7 @@ export const KNOWN_VIOLATIONS: KnownViolation[] = [
   {
     ruleId: 'color-contrast',
     selectorContains: 'pr-6 text-right text-muted-foreground',
-    issue: 'FILE-ME',
+    issue: '#307',
     note:
       'ContentTable "Updated" relative-time cell — same --muted-foreground contrast gap ' +
       'as the row subtitle, in the rightmost column.',
@@ -80,7 +80,7 @@ export const KNOWN_VIOLATIONS: KnownViolation[] = [
   {
     ruleId: 'color-contrast',
     selectorContains: '[role=checkbox])]:pr-0 [&amp;&gt;[role=checkbox]]:translate-y-[2px] text-muted-foreground">',
-    issue: 'FILE-ME',
+    issue: '#307',
     note:
       'ContentTable locale cell ("en") — plain text-muted-foreground table cell (no ' +
       '`text-right`, distinguishing it from the "Updated" cell above), same ' +
@@ -89,7 +89,7 @@ export const KNOWN_VIOLATIONS: KnownViolation[] = [
   {
     ruleId: 'color-contrast',
     selectorContains: 'truncate text-[15px] font-medium text-foreground hover:underline',
-    issue: 'FILE-ME',
+    issue: '#307',
     note:
       'ContentTable row title link (text-foreground) — passes AA against the plain ' +
       '--background, but ContentTable.tsx tints alternating rows with `bg-muted/25` ' +
@@ -99,7 +99,7 @@ export const KNOWN_VIOLATIONS: KnownViolation[] = [
   {
     ruleId: 'color-contrast',
     selectorContains: 'text-muted-foreground/50" title="Coming soon"',
-    issue: 'FILE-ME',
+    issue: '#307',
     note:
       'Settings sub-nav "Coming soon" disabled entries (Users & Roles, Deploy) — ' +
       'text-muted-foreground at 50% opacity falls well under the AA 4.5:1 threshold. A ' +
@@ -108,7 +108,7 @@ export const KNOWN_VIOLATIONS: KnownViolation[] = [
   {
     ruleId: 'color-contrast',
     selectorContains: 'class="slash-head" role="presentation"',
-    issue: 'FILE-ME',
+    issue: '#307',
     note:
       'Slash-menu category heading (SlashCommand.tsx, e.g. "Text" grouping the block ' +
       'options) — the `.slash-head` text color falls under the AA 4.5:1 threshold against ' +
@@ -120,7 +120,7 @@ export const KNOWN_VIOLATIONS: KnownViolation[] = [
   {
     ruleId: 'color-contrast',
     selectorContains: 'class="slash-label"',
-    issue: 'FILE-ME',
+    issue: '#307',
     note:
       'Slash-menu option title (SlashCommand.tsx CommandList, e.g. "Text") — the ' +
       '`.slash-label` text color falls under the AA 4.5:1 threshold against the popup ' +
@@ -129,7 +129,7 @@ export const KNOWN_VIOLATIONS: KnownViolation[] = [
   {
     ruleId: 'color-contrast',
     selectorContains: 'class="slash-desc"',
-    issue: 'FILE-ME',
+    issue: '#307',
     note:
       'Slash-menu option subtitle (e.g. "Plain paragraph") — the `.slash-desc` (more muted ' +
       'than `.slash-label`) text color falls under the AA 4.5:1 threshold against the popup ' +

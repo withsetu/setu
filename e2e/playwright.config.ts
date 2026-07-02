@@ -37,16 +37,30 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
 
+  // Baseline screenshots are pixel-sensitive to viewport size and to the browser/platform
+  // metadata Playwright embeds in the snapshot filename by default. We commit
+  // baselines from CI (Linux) artifacts only (see T7 report), so the default
+  // `{testFilePath}-snapshots/{arg}-{projectName}-{platform}{ext}` template is fine as-is —
+  // it's already deterministic per (spec, project, platform) triple and every CI run is the
+  // same platform (linux), so we do not override `snapshotPathTemplate`.
   projects: [
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
       testMatch: '**/*.spec.ts',
+      // The visual project below owns *.visual.spec.ts — without this, chromium's broad
+      // `**/*.spec.ts` would ALSO pick up visual specs and run them a second time (with
+      // ignoreSnapshots still honored, so it wouldn't fail here, but it would double the
+      // work and muddy `--list`/reporting).
+      testIgnore: '**/*.visual.spec.ts',
     },
     {
       name: 'webkit-editor',
       use: { ...devices['Desktop Safari'] },
       testMatch: '**/editor-*.spec.ts',
+      // editor-*.spec.ts never matches *.visual.spec.ts today, but pin it explicitly so a
+      // future editor visual spec doesn't silently double-run here too.
+      testIgnore: '**/*.visual.spec.ts',
     },
     ...(fullMatrix
       ? [
@@ -54,17 +68,30 @@ export default defineConfig({
             name: 'firefox-full',
             use: { ...devices['Desktop Firefox'] },
             testMatch: '**/*.spec.ts',
+            testIgnore: '**/*.visual.spec.ts',
           },
           {
             name: 'webkit-full',
             use: { ...devices['Desktop Safari'] },
             testMatch: '**/*.spec.ts',
+            testIgnore: '**/*.visual.spec.ts',
           },
         ]
       : []),
     {
       name: 'visual',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        // Explicit, not inherited from the device default — a Playwright bump changing
+        // Desktop Chrome's default viewport must not silently reflow every baseline.
+        viewport: { width: 1280, height: 720 },
+        // motion/react's useReducedMotion() (used by ResumeEditing/ContentTable row
+        // entrance animations) reads this media query at runtime and the components
+        // already branch on it to skip their animation entirely — Playwright's built-in
+        // `animations: 'disabled'` (toHaveScreenshot's default) only freezes CSS
+        // animations/transitions, not this JS-driven library, so it can't do this alone.
+        reducedMotion: 'reduce',
+      },
       testMatch: '**/*.visual.spec.ts',
     },
   ],

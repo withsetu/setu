@@ -1,8 +1,11 @@
 name: CI
 
-# Baseline quality gate — typecheck + tests on every PR and on pushes to main.
-# Part of the CI epic (#216); this is the foundation (#217). Lint (no linter configured
-# yet) and security/E2E/a11y layers land in follow-up children of the epic.
+# Baseline quality gate — typecheck + tests.
+#   * On a PR: skip entirely for docs-only (markdown) changes; otherwise run only the
+#     packages changed since the merge-base with the base branch AND their dependents,
+#     via pnpm's `...[<sha>]` affected filter (#271).
+#   * On push to main: no filter → the FULL suite runs, as the post-merge safety net.
+# Foundation: #217 · Affected filtering: #271 · CI epic: #216.
 
 on:
   pull_request:
@@ -20,9 +23,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history so the affected filter can diff against the base branch.
+          fetch-depth: 0
 
       # pnpm must be installed before setup-node so its `cache: pnpm` can find the store.
-      # Version comes from the `packageManager` field in package.json (pnpm@10.33.0).
       - name: Install pnpm
         uses: pnpm/action-setup@v4
 
@@ -35,15 +40,50 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # `pnpm -r typecheck` runs each package's typecheck; @setu/core's also runs
-      # `tsc -p tsconfig.edge.json --noEmit`, so the edge-safe build is covered here.
-      - name: Typecheck (incl. core edge build)
-        run: pnpm -r typecheck
+      # PR: derive a since-SHA (merge-base with the base branch) and a scope mode.
+      #   - docs-only (all changed files are *.md/*.mdx) -> skip typecheck/test.
+      #   - otherwise -> affected: pnpm `...[<sha>]` (changed packages + dependents).
+      # Push: no since-SHA -> full suite. Diagnostics print what will run.
+      - name: Determine affected scope
+        id: scope
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.base_ref }}"
+            git fetch --no-tags --quiet origin "+refs/heads/$base:refs/remotes/origin/$base"
+            since="$(git merge-base "origin/$base" HEAD)"
+            changed="$(git diff --name-only "$since" HEAD)"
+            echo "Base: $base   since: $since"
+            echo "Changed files:"; printf '%s\n' "$changed" | sed 's/^/  /'
+            if [ -n "$changed" ] && ! printf '%s\n' "$changed" | grep -qvE '\.mdx?$'; then
+              echo "→ docs-only: skipping typecheck + test."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "since=$since" >> "$GITHUB_OUTPUT"
+              echo "Packages pnpm selects for '...[${since:0:9}]':"
+              pnpm --filter "...[$since]" -r exec sh -c 'basename "$(pwd)"' 2>/dev/null | sed 's/^/  /' || true
+            fi
+          else
+            echo "Push build — running the full suite."
+          fi
 
-      # Lint: no linter is configured in the repo yet. When one lands, add the step here.
+      # @setu/core's typecheck also runs the edge build (tsconfig.edge.json), so the
+      # edge-safe check is covered whenever core is in scope; push-to-main runs it regardless.
+      - name: Typecheck (incl. core edge build)
+        run: |
+          if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
+          since='${{ steps.scope.outputs.since }}'
+          if [ -n "$since" ]; then pnpm --filter "...[$since]" -r typecheck; else pnpm -r typecheck; fi
+
+      # Lint: no linter is configured in the repo yet (#267). When it lands, add the step here.
 
       - name: Test (workspace)
-        run: pnpm -r test
+        run: |
+          if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
+          since='${{ steps.scope.outputs.since }}'
+          if [ -n "$since" ]; then pnpm --filter "...[$since]" -r test; else pnpm -r test; fi
 
+      # Repo-script tests aren't a workspace package; run unless the change is docs-only.
       - name: Test (repo scripts)
-        run: pnpm test:scripts
+        run: |
+          if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
+          pnpm test:scripts

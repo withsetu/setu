@@ -1,17 +1,9 @@
 import { test, expect } from '@playwright/test'
 import { ContentListPage } from '../pages/ContentListPage'
-
-// Concurrency-safety: chromium and webkit-editor run this spec in parallel
-// against ONE shared sandbox, and the admin has pessimistic post-locking. A
-// title embedding the project name + a random token means the two projects
-// (and any re-run within the same sandbox) never mint the same slug.
-function uniqueTitle() {
-  const token = Math.random().toString(36).slice(2, 8)
-  return `${test.info().project.name} edit-post ${token}`
-}
+import { uniqueTitle } from '../lib/unique-title'
 
 test('create a post, edit it, save, and verify persistence through the UI', async ({ page }) => {
-  const title = uniqueTitle()
+  const title = uniqueTitle('edit-post')
   const body = `Body text for ${title}.`
 
   const list = new ContentListPage(page)

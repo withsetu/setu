@@ -21,25 +21,32 @@
   //     edge, editing packages/core would NOT bust apps/site's cached typecheck/test —
   //     a false green. This is the load-bearing line in this whole config.
   //
-  // PRE-EXISTING CYCLE (found while building this graph, not introduced by it): pnpm
-  // tolerates devDependency cycles; turbo's task DAG does not. Two real cycles exist at
-  // the package level:
-  //   @setu/core (devDep-> for test fixtures) -> @setu/db-memory / @setu/git-memory
-  //     -> (dep->) @setu/core
-  //   @setu/git-http (devDep-> for its integration test) -> @setu/api -> (dep->) @setu/git-http
+  // PRE-EXISTING CYCLE (found while building this graph, not introduced by it — tracked as
+  // #310): pnpm tolerates devDependency cycles; turbo's task DAG does not. `turbo run
+  // --dry-run=json` reports it honestly as ONE connected 7-package cyclic component, not
+  // two separate 2-node cycles:
+  //   @setu/git-testing -> @setu/git-memory -> @setu/db-testing -> @setu/db-memory
+  //     -> @setu/core -> @setu/git-http -> @setu/api -> (devDep->) @setu/git-http
+  // (also: @setu/api -> (devDep->) @setu/db-testing / @setu/git-testing via git-http's and
+  // core's dev-time fixtures — same component, not a second independent cycle). The two
+  // real dep-> back-edges that close the loop are @setu/db-memory/@setu/git-memory -> core
+  // and @setu/api -> git-http; everything else in the component is devDep-only.
   // `^typecheck`/`^test` expands over ALL dependency fields (dep + devDep), so a blanket
-  // topological edge on @setu/core / @setu/git-http makes turbo refuse the graph
+  // topological edge on any node inside this component makes turbo refuse the graph
   // ("Cyclic dependency detected"). Fix applied here: @setu/core has ZERO real (non-
   // cyclic) workspace deps, so it gets no `^` edge at all — its typecheck/test tasks
   // depend on nothing upstream, which is honest (nothing it needs is upstream of it).
   // @setu/git-http's one real dep (@setu/core) is named explicitly via `package#task`
-  // instead of `^`, which sidesteps expanding into the devDep-only @setu/api back-edge.
-  // core#test's fixtures DO really import db-memory/git-memory source (verified: grep
-  // hits in packages/core/{src,test}/**/*.test.ts) — that's covered by explicit `inputs`
-  // globs below (hash-honest) rather than `dependsOn` (which would recreate the cycle).
-  // Root-caused but NOT fixed here (out of scope for T1: adopt turbo without changing
-  // package architecture) — worth a follow-up issue to decouple core's dev-time test
-  // fixtures from db-memory/git-memory, and git-http's contract test from a live @setu/api.
+  // instead of `^`, which sidesteps expanding into the devDep-only @setu/api/git-testing
+  // back-edges. core#test's fixtures DO really import db-memory/git-memory source
+  // (verified: grep hits in packages/core/{src,test}/**/*.test.ts), and git-http#test
+  // genuinely imports @setu/git-testing (verified: packages/git-http/test/contract.test.ts)
+  // — both covered by explicit `inputs` globs below (hash-honest) rather than `dependsOn`
+  // (which would recreate the cycle). Root-caused but NOT fixed here (out of scope for T1:
+  // adopt turbo without changing package architecture) — #310 tracks decoupling core's
+  // dev-time test fixtures from db-memory/git-memory, and git-http's contract test from a
+  // live @setu/api, which would collapse this whole component and let every task here go
+  // back to plain `^typecheck`/`^test`.
   // ---------------------------------------------------------------------------------
 
   "globalDependencies": [
@@ -120,11 +127,18 @@
       "dependsOn": ["@setu/core#typecheck"],
       "outputs": []
     },
+    // git-http's contract test ALSO imports @setu/git-testing (runGitPortContract — verified:
+    // packages/git-http/test/contract.test.ts) — a real devDependency, and part of the same
+    // cyclic component as api (git-testing -> git-memory -> core, and core -> ... -> git-http
+    // -> api -> git-http), so it's covered the same way as core#test's db-memory/git-memory
+    // fixtures: explicit `inputs`, not `dependsOn` (which would recreate the cycle). Without
+    // this glob, editing git-testing's source would NOT bust this task's cache — a false green.
     "@setu/git-http#test": {
       "dependsOn": ["@setu/core#test"],
       "inputs": [
         "$TURBO_DEFAULT$",
-        "../../apps/api/src/**"
+        "../../apps/api/src/**",
+        "../git-testing/src/**"
       ],
       "outputs": []
     },
@@ -133,22 +147,23 @@
     // git-http -> api is real via dependencies). ^typecheck/^test would recreate the
     // same cycle from api's side, so api's edge to git-http is also named explicitly
     // instead of `^`. api's other workspace deps (db-memory, db-sqlite, email-*,
-    // captcha-*, image-sharp, storage-local, git-memory, git-testing, image-testing)
-    // are acyclic and still covered — replacing `^` here loses their auto-discovery, so
-    // they're listed explicitly too (surveyed from apps/api/package.json).
+    // captcha-*, image-sharp, storage-local, git-memory, image-testing) are acyclic and
+    // still covered — replacing `^` here loses their auto-discovery, so they're listed
+    // explicitly too (surveyed from apps/api/package.json's dependencies/devDependencies).
+    // @setu/db-testing and @setu/git-testing are NOT api dependencies (grep confirms
+    // apps/api/package.json has neither, and apps/api/{src,test}/**/*.ts imports neither)
+    // — they were fabricated in an earlier draft of this file and are deliberately absent.
     "@setu/api#typecheck": {
       "dependsOn": [
         "@setu/core#typecheck",
         "@setu/git-http#typecheck",
         "@setu/db-memory#typecheck",
         "@setu/db-sqlite#typecheck",
-        "@setu/db-testing#typecheck",
         "@setu/email-console#typecheck",
         "@setu/email-resend#typecheck",
         "@setu/email-templates#typecheck",
         "@setu/git-local#typecheck",
         "@setu/git-memory#typecheck",
-        "@setu/git-testing#typecheck",
         "@setu/captcha-recaptcha#typecheck",
         "@setu/captcha-turnstile#typecheck",
         "@setu/image-sharp#typecheck",
@@ -163,13 +178,11 @@
         "@setu/git-http#test",
         "@setu/db-memory#test",
         "@setu/db-sqlite#test",
-        "@setu/db-testing#test",
         "@setu/email-console#test",
         "@setu/email-resend#test",
         "@setu/email-templates#test",
         "@setu/git-local#test",
         "@setu/git-memory#test",
-        "@setu/git-testing#test",
         "@setu/captcha-recaptcha#test",
         "@setu/captcha-turnstile#test",
         "@setu/image-sharp#test",

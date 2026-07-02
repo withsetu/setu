@@ -16,3 +16,7 @@ apps/site/markdoc.blocks.generated.mjs
 
 # Uploaded media (local dev storage)
 .setu/
+
+# Playwright E2E output (see e2e/)
+e2e/test-results/
+e2e/playwright-report/

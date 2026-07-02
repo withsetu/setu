@@ -1,16 +1,21 @@
 name: CI
 
-# Baseline quality gate — typecheck + tests.
-#   * On a PR: skip entirely for docs-only (markdown) changes; otherwise run only the
-#     packages changed since the merge-base with the base branch AND their dependents,
-#     via pnpm's `...[<sha>]` affected filter (#271).
-#   * On push to main: no filter → the FULL suite runs, as the post-merge safety net.
-# Foundation: #217 · Affected filtering: #271 · CI epic: #216.
+# Baseline quality gate — typecheck + tests + Playwright E2E.
+#   * On a PR: skip entirely for docs-only (markdown) changes; otherwise the `check` job
+#     runs only the packages changed since the merge-base with the base branch AND their
+#     dependents (pnpm `...[<sha>]` affected filter, #271), and the `e2e` job runs the
+#     PR browser lane (chromium + webkit-on-editor-specs + visual snapshots, #219).
+#   * On push to main + nightly cron: full unit suite AND the full E2E browser matrix
+#     (chromium + firefox + webkit on everything) as the post-merge/overnight safety net.
+# Foundation: #217 · Affected filtering: #271 · E2E: #219 · CI epic: #216.
 
 on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    # Nightly full-matrix safety net (03:17 UTC — off the top-of-hour rush).
+    - cron: '17 3 * * *'
 
 # Cancel superseded runs on the same branch/PR so only the latest commit is checked.
 concurrency:
@@ -87,3 +92,98 @@ jobs:
         run: |
           if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
           pnpm test:scripts
+
+  e2e:
+    name: e2e (playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history for the docs-only check (merge-base diff, same as `check`).
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Docs-only PRs skip E2E, mirroring the `check` job's rule (kept inline in both
+      # jobs deliberately — a shared job would couple the proven affected logic to this
+      # one; revisit if a third consumer appears).
+      - name: Determine scope
+        id: scope
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.base_ref }}"
+            git fetch --no-tags --quiet origin "+refs/heads/$base:refs/remotes/origin/$base"
+            changed="$(git diff --name-only "$(git merge-base "origin/$base" HEAD)" HEAD)"
+            if [ -n "$changed" ] && ! printf '%s\n' "$changed" | grep -qvE '\.mdx?$'; then
+              echo "→ docs-only: skipping e2e."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+          # Full 3-browser matrix on push-to-main and the nightly cron; PR lane otherwise.
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "full=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      # e2e/ is not a workspace package, so `pnpm -r typecheck` never covers it — gate it here.
+      - name: Typecheck e2e
+        run: |
+          if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
+          pnpm exec tsc -p e2e --noEmit
+
+      # Browser binaries are ~400MB; cache on the Playwright version. `--with-deps` system
+      # libraries are NOT cached (apt) — install-deps runs even on cache hit, browsers don't.
+      - name: Resolve Playwright version
+        id: pw
+        run: |
+          if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "version=skipped" >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        if: steps.scope.outputs.skip != 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-${{ steps.scope.outputs.full && 'full' || 'pr' }}
+
+      - name: Install Playwright browsers
+        run: |
+          if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
+          if [ "${{ steps.scope.outputs.full }}" = "1" ]; then
+            pnpm exec playwright install --with-deps chromium webkit firefox
+          else
+            pnpm exec playwright install --with-deps chromium webkit
+          fi
+
+      # PR lane: chromium (all specs) + webkit (editor specs) + visual (chromium snapshots).
+      # Push/nightly: E2E_FULL_MATRIX adds firefox-full + webkit-full over everything.
+      - name: Run E2E
+        run: |
+          if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
+          if [ "${{ steps.scope.outputs.full }}" = "1" ]; then
+            E2E_FULL_MATRIX=1 pnpm e2e
+          else
+            pnpm e2e
+          fi
+
+      # Traces, failure screenshots, and (on missing-baseline bootstrap) the visual
+      # `*-actual.png` candidates all land in test-results — upload them for triage.
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: |
+            e2e/test-results/
+            e2e/playwright-report/
+          retention-days: 7

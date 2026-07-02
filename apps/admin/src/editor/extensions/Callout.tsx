@@ -121,7 +121,7 @@ function CalloutView({ node, updateAttributes, editor, getPos }: ReactNodeViewPr
   return (
     <NodeViewWrapper>
       <CalloutCore tone={variant.tone} icon={icon} toolbar={toolbar} title={titleInput}>
-        <NodeViewContent className="callout-body" />
+        <NodeViewContent className="callout-body" aria-label="Callout text" />
       </CalloutCore>
     </NodeViewWrapper>
   )

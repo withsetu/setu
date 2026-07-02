@@ -17,7 +17,8 @@
     "typecheck": "pnpm -r typecheck",
     "typecheck:turbo": "turbo run typecheck",
     "e2e": "playwright test -c e2e",
-    "e2e:ui": "playwright test -c e2e --ui"
+    "e2e:ui": "playwright test -c e2e --ui",
+    "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",

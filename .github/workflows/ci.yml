@@ -93,6 +93,23 @@ jobs:
             echo "Push build — running the full suite."
           fi
 
+      # pnpm audit (#218 security CI, warn-then-gate ramp): NON-BLOCKING for now — `|| true`
+      # so a new advisory can't red the build while we build a triage habit; the loud
+      # summary keeps it visible in the log either way. Gated on the same docs-only skip
+      # as the steps below (a docs PR doesn't touch the lockfile, so nothing new to audit)
+      # but NOT on the affected-scope filter — audit runs against the single root lockfile,
+      # not turbo's per-package graph, so there's no smaller "scope" to narrow it to.
+      # Ramp: once the current baseline (dev-only vitest/vite/esbuild chain, see #218) is
+      # triaged, flip this to fail on new advisories — file a follow-up issue when that
+      # work starts rather than gating silently in a comment.
+      - name: pnpm audit (non-blocking)
+        run: |
+          if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
+          echo "::group::pnpm audit"
+          pnpm audit || true
+          echo "::endgroup::"
+          echo "⚠️  pnpm audit is NON-BLOCKING for now (#218 warn-then-gate ramp) — see the group above for any findings."
+
       # @setu/core's typecheck also runs the edge build (tsconfig.edge.json), so the
       # edge-safe check is covered whenever core is in scope; push-to-main runs it regardless.
       # typecheck+test run as one turbo invocation per lane (readable, task-graph-ordered

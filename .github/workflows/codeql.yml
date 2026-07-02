@@ -1,0 +1,92 @@
+name: CodeQL
+
+# GitHub-native SAST (OWASP A05 Injection / A08 Integrity — docs/security-standards.md).
+# Single-language repo: JavaScript/TypeScript via the combined `javascript-typescript`
+# analyzer, default query suite (no custom query packs yet).
+# Triggers: PRs (every push to a PR branch), push to main (so main always has a fresh
+# alert baseline), and a weekly cron — offset from ci.yml's nightly 03:17 UTC job so the
+# two don't contend for runner minutes.
+# github/codeql-action is GitHub-owned — tag-pinned (@v4, current major per
+# https://github.com/github/codeql-action/releases), matching ci.yml's convention for
+# github/* and actions/* actions (see .github/workflows/ci.yml).
+# Security CI foundation: #218 · CI epic: #216 · security standards: docs/security-standards.md.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Weekly full-repo scan (05:44 UTC Wednesdays — off-peak, and clear of ci.yml's
+    # daily 03:17 UTC nightly so the two never contend for runner minutes).
+    - cron: '44 5 * * 3'
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: CodeQL analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          # Default query suite — no custom packs configured yet.
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v4
+
+      # `upload: never` — code-scanning upload (the Security tab) requires GHAS on
+      # PRIVATE repos (verified live: the analysis itself ran fine, only the upload was
+      # rejected — run 28626097162). Until the repo goes public (MIT/OSS plan) or GHAS
+      # is bought, we gate on the SARIF directly below instead. When that changes:
+      # remove `upload: never` and the two steps below.
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:javascript-typescript
+          upload: never
+          output: codeql-results
+
+      # The honest substitute for the Security tab on a private/Free repo: fail the
+      # check on any NEW finding. Known findings live in .github/codeql-known-findings.json
+      # (fingerprint = ruleId + file uri; every entry carries a tracking issue — removing
+      # the entry once fixed is that issue's DoD). Same allowlist policy as the axe lanes.
+      - name: Gate on NEW findings (SARIF vs known-findings allowlist)
+        run: |
+          new=$(jq --slurpfile known .github/codeql-known-findings.json '
+            [.runs[].results[]
+             | {ruleId, uri: .locations[0].physicalLocation.artifactLocation.uri, msg: .message.text, line: (.locations[0].physicalLocation.region.startLine // 0)}
+             | select(. as $r | [$known[0].known[] | select(.ruleId == $r.ruleId and .uri == $r.uri)] | length == 0)
+            ]' codeql-results/javascript.sarif)
+          total=$(jq '[.runs[].results[]] | length' codeql-results/javascript.sarif)
+          newcount=$(printf '%s' "$new" | jq 'length')
+          echo "CodeQL findings: $total total, $newcount new (not in the allowlist)"
+          jq -r --slurpfile known .github/codeql-known-findings.json '
+            .runs[].results[]
+            | {ruleId, uri: .locations[0].physicalLocation.artifactLocation.uri, line: (.locations[0].physicalLocation.region.startLine // 0)}
+            | . as $r
+            | (if ([$known[0].known[] | select(.ruleId == $r.ruleId and .uri == $r.uri)] | length) > 0 then "  known " else "  NEW   " end) + "\($r.ruleId): \($r.uri):\($r.line)"' codeql-results/javascript.sarif
+          if [ "$newcount" != "0" ]; then
+            echo "::error::CodeQL found $newcount NEW finding(s) — fix them or triage into .github/codeql-known-findings.json with a tracking issue."
+            printf '%s' "$new" | jq -r '.[] | "  \(.ruleId): \(.uri):\(.line) — \(.msg)"'
+            exit 1
+          fi
+
+      - name: Upload SARIF artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeql-sarif
+          path: codeql-results/
+          retention-days: 14

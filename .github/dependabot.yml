@@ -1,0 +1,36 @@
+# Automated dependency updates (OWASP A03 Supply Chain — docs/security-standards.md).
+# Two ecosystems, both weekly:
+#   - npm: pnpm workspaces are covered under the `npm` package-ecosystem value — Dependabot
+#     reads the root pnpm-lock.yaml/package.json and understands pnpm workspaces natively
+#     (a single root directory covers packages/* and apps/* too; no per-workspace entries
+#     needed — see https://docs.github.com/en/code-security/dependabot/ecosystems-supported-by-dependabot/supported-ecosystems-and-repositories).
+#   - github-actions: keeps our workflow actions (ci.yml, codeql.yml, gitleaks.yml) patched.
+# Updates are GROUPED to cut PR noise: minor+patch land together in one PR per ecosystem;
+# majors are excluded from the group so they still arrive as individual, reviewable PRs.
+# Security CI foundation: #218 · CI epic: #216.
+
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"

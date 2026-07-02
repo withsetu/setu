@@ -46,6 +46,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Turbo remote cache backed by GitHub's own Actions cache (#273): the adapter runs
+      # a localhost server speaking Turbo's cache API and sets TURBO_API/TOKEN/TEAM, so
+      # every `turbo run` below gets CROSS-RUN cache hits on fresh runners. No external
+      # service, no secrets, no owner provisioning; GitHub LRU-evicts old entries (10GB).
+      # Correctness: cache keys are turbo's content hashes (see turbo.json — hash-audited,
+      # kill-shot-proven in #272); changed code always misses and executes. Upgrade path
+      # if we outgrow GitHub's cache: this same action supports `provider: s3` (R2).
+      # Pinned by commit SHA (third-party action, supply-chain hygiene — #281 posture).
+      - name: Turbo remote cache (GitHub Actions cache)
+        uses: rharkor/caching-for-turbo@75f8ebf4a43d2c60b23bc2a27082cfea94ffdad9 # v2.5.0
+
       # PR: derive a since-SHA (merge-base with the base branch) and a scope mode.
       #   - docs-only (all changed files are *.md/*.mdx) -> skip typecheck/test.
       #   - otherwise -> affected: turbo `...[<sha>]` (changed packages + dependents,
@@ -78,8 +89,8 @@ jobs:
       # edge-safe check is covered whenever core is in scope; push-to-main runs it regardless.
       # typecheck+test run as one turbo invocation per lane (readable, task-graph-ordered
       # log output — see turbo.json for the `dependsOn` graph this scope resolves through).
-      # Local cache only for now (turbo's default): CI runs stay cold across separate runs;
-      # #273 adds a remote cache so a later run/job can reuse an earlier one's hashes.
+      # Remote cache via the adapter step above (#273): unchanged task hashes replay from
+      # GitHub's cache across runs; changed code always misses and executes.
       - name: Typecheck + test (incl. core edge build)
         run: |
           if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi

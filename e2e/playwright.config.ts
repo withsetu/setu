@@ -76,12 +76,14 @@ export default defineConfig({
     {
       // Playwright starts webServer BEFORE globalSetup (createGlobalSetupTasks
       // sequences: output-dir cleanup -> webServer plugin setup -> user
-      // globalSetup last) — see e2e/global-setup.ts for the full citation. The
-      // api's health check (`/git/head`) needs a real git repo at
-      // SETU_REPO_DIR to return 200, so the sandbox reset must complete
-      // *before* the api process boots, not in globalSetup. Reset here,
-      // chained with `&&` ahead of the dev command; cwd is repoRoot so the
-      // script's own `process.cwd()`-based root resolution is correct.
+      // globalSetup last) — see e2e/global-setup.ts for the full citation. So
+      // the sandbox reset must run here, `&&`-chained ahead of the api boot,
+      // not in globalSetup. NOTE the `/git/head` health check is only a
+      // process-liveness signal — it returns 200 even for a missing/empty
+      // SETU_REPO_DIR (git-local maps NotFoundError to `{ sha: null }`), so it
+      // does NOT gate on the sandbox being seeded; ordering correctness comes
+      // entirely from the shell `&&`. cwd is repoRoot so the script's own
+      // `process.cwd()`-based root resolution is correct.
       command: 'node scripts/content-sandbox.mjs reset e2e && pnpm --filter @setu/api dev',
       url: apiHealthUrl,
       cwd: repoRoot,

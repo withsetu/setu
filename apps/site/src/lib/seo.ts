@@ -20,6 +20,10 @@ export interface PageSeoInput {
   noindex?: boolean
   /** Per-page canonical override (absolute or root-relative); replaces the derived canonical. */
   canonical?: string
+  /** Previous paginated page path (Astro `page.url.prev`) → <link rel="prev">. */
+  prevPath?: string
+  /** Next paginated page path (Astro `page.url.next`) → <link rel="next">. */
+  nextPath?: string
 }
 
 /** Media-resolve a raw path (prepend the media base for root-relative `/media/…`) then absolutize
@@ -73,5 +77,10 @@ export function pageSeo(
     datePublished: page.datePublished,
     dateModified: page.dateModified,
   })
-  return { ...seo, jsonLd: jsonLdScript(graph) }
+
+  // rel=prev / rel=next for paginated archives (#74) — absolutized against the site origin.
+  const prev = page.prevPath ? new URL(page.prevPath, base).href : undefined
+  const next = page.nextPath ? new URL(page.nextPath, base).href : undefined
+
+  return { ...seo, jsonLd: jsonLdScript(graph), prev, next }
 }

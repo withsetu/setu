@@ -39,6 +39,10 @@ export interface ResolvedSeo {
   /** Escaped JSON-LD string for an inline <script type="application/ld+json"> (#72). Populated by
    *  the app-level orchestration (pageSeo), not resolveSeo itself, which stays tag-only. */
   jsonLd?: string
+  /** Absolute URL of the previous paginated page → <link rel="prev"> (#74). App-populated. */
+  prev?: string
+  /** Absolute URL of the next paginated page → <link rel="next"> (#74). App-populated. */
+  next?: string
 }
 
 /** Replace {{title}} {{separator}} {{site}} tokens; collapse the whitespace a missing token leaves. */

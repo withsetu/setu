@@ -7,6 +7,7 @@ import { selectPosts, distinctTagSlugs, DEFAULT_LOCALE, type PostRow } from '@se
 import { loadThemeOptions } from '../../../lib/site-config'
 import { loadSiteSettings } from '../../../lib/site-settings'
 import { toPostRow } from '../../../lib/post-row'
+import { pageSeo } from '../../../lib/seo'
 import { resolveMediaBase } from '@setu/image-astro'
 
 export const getStaticPaths = (async ({ paginate }) => {
@@ -26,8 +27,15 @@ const siteSettings = loadSiteSettings()
 const mediaBase = resolveMediaBase(import.meta.env.PUBLIC_SETU_MEDIA, import.meta.env.DEV)
 const heading = `Tag: ${slug}`
 const basePath = `/tag/${slug}`
+const seo = pageSeo(Astro.site, Astro.url.pathname, mediaBase, siteSettings, {
+  title: heading,
+  type: 'website',
+  locale: DEFAULT_LOCALE,
+  prevPath: page.url.prev ?? undefined,
+  nextPath: page.url.next ?? undefined,
+})
 ---
 
-<PageLayout title={heading} lang="en" themeOptions={themeOptions} siteSettings={siteSettings}>
+<PageLayout title={heading} lang="en" themeOptions={themeOptions} siteSettings={siteSettings} seo={seo}>
   <ArchiveList page={page} heading={heading} basePath={basePath} mediaBase={mediaBase} />
 </PageLayout>

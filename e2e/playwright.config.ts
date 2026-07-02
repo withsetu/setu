@@ -90,7 +90,10 @@ export default defineConfig({
         // already branch on it to skip their animation entirely — Playwright's built-in
         // `animations: 'disabled'` (toHaveScreenshot's default) only freezes CSS
         // animations/transitions, not this JS-driven library, so it can't do this alone.
-        reducedMotion: 'reduce',
+        // NOTE: `reducedMotion` is NOT a top-level `use` option in Playwright 1.61 — a
+        // bare `use.reducedMotion` typechecks nowhere and is silently ignored at runtime
+        // (caught by the e2e tsc gate, T8); it must go through `contextOptions`.
+        contextOptions: { reducedMotion: 'reduce' },
       },
       testMatch: '**/*.visual.spec.ts',
     },

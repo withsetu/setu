@@ -1,140 +1,141 @@
-# Task 4 Report: /health screen attest/N-A/skip-section UI
+# T4 — Publish flow E2E (issue #219) — report
 
-## What Was Built
+## Status: DONE
 
-Rewrote `apps/admin/src/screens/SiteHealth.tsx` to add:
+## What shipped
 
-1. **`Toggle` type** — `(kind: 'item' | 'section', id: string, state: 'attested' | 'na' | null) => void`
-2. **`SiteHealthView` now takes `{ audit, toggle }`** — fully presentational (test-friendly)
-3. **New grouping** — 5 sections replacing the old 4:
-   - "Fix now (you)" — fail + config/content owner
-   - "On Setu's roadmap" — fail + platform owner
-   - "To verify (you)" — unverified OR pending
-   - "Passing" — pass
-   - "Not applicable" — na
-4. **`Row` component** receives `toggle` and renders:
-   - **Attest Checkbox** (`shadcn Checkbox`) for `r.attestable === true` items → calls `toggle('item', id, 'attested')`
-   - **"Not applicable" button** for skippable items (unverified/pending OR fail+platform) → calls `toggle('item', id, 'na')`
-   - **"Mark applicable" button** for `na` + `naSource:'manual'` → calls `toggle('item', id, null)`
-   - **"Learn more" link** — always present
-5. **`Section` component** — `category` prop optional; when present, shows **"Skip section"** button → `toggle('section', category, 'na')`
-6. **N/A copy note** — added below specification.website attribution: _"Not applicable" means it doesn't apply to your site — not "skip the work."_
-7. **`SiteHealth` (default export)** — passes `toggle` from `useAudit()` to `SiteHealthView`
+- `e2e/specs/publish.spec.ts` — chromium-only, no `editor-` prefix. Journey: create post
+  (title + body via existing `ContentListPage`/`EditorPage` methods + `uniqueTitle('publish')`)
+  → click the real `Publish` button → assert UI post-publish state → assert the saved≠live
+  honesty surface → assert the content list row flips out of "Draft" → assert the real git
+  commit landed in `.content-sandbox/e2e`.
+- `e2e/pages/EditorPage.ts` — added `publishButton`, `publishedToast`, `stagedStatus`
+  getters and a `publish()` intent method.
+- `e2e/pages/DashboardPage.ts` — added `notDeployedYetText` getter for `SiteDeployCard`.
+- `e2e/pages/ContentListPage.ts` — added `rowStatus(title)`, a row-scoped status-badge
+  locator (`getByRole('row', ...).getByText(/^(Draft|Staged|Live|Unpublished)$/)`).
+- `e2e/lib/sandbox-git.ts` (new) — the sanctioned direct-git helper: `sandboxHeadSubject()`
+  (`git log -1 --format=%s`) and `sandboxStatusPorcelain()` (`git status --porcelain --
+  content/`, scoped — see finding below), both executed against `.content-sandbox/e2e`.
 
-## TDD Evidence
+No harness/config/T2/T3 files touched. No `.github/workflows/` changes. No semicolons,
+single quotes throughout, matching repo style.
 
-### RED (before `SiteHealth.tsx` changes)
-Extended `apps/admin/test/site-health-screen.test.tsx` with the attest checkbox test. Running immediately produced:
+## What the real publish UI turned out to be
+
+Explored `apps/admin/src/editor/EditorScreen.tsx` + `PublishMenu.tsx` + the lifecycle seam
+(`apps/admin/src/lifecycle/useLifecycle.ts`, `packages/core/src/lifecycle/derive.ts`) before
+writing any selector.
+
+- **The publish affordance**: `PublishMenu`'s primary `<Button>Publish</Button>` (only
+  rendered once `phase === 'ready' && !composing`, i.e. after the entry's first autosave
+  has minted a real slug — a brand-new "New post" doesn't show it until you've typed and
+  the URL has flipped from `/edit/post/en/new` to `/edit/post/en/<slug>`). Clicking it runs
+  `EditorScreen`'s `commit()`: save-then-`publish.publish()` (a real `git.commitFile`), then
+  `notify.success('Published · ' + sha.slice(0,7))`.
+- **Post-publish UI state**: two independent, corroborating signals —
+  1. A toast, `role="status"` inside a `region "Notifications"` live region
+     (`apps/admin/src/ui/notify.tsx`), auto-dismissing after 4s. Text: `Published · <sha7>`.
+  2. The editor header's `StripStatus` lifecycle badge (a plain `<span>`, no ARIA role)
+     flips from "Draft" to **"Staged"** — `deriveLifecycle`'s state for "committed to Git,
+     never deployed" (`packages/core/src/lifecycle/derive.ts`). The content list's
+     `ContentTable` shows the same badge per-row, so publishing also flips the list row's
+     status away from "Draft" — used for requirement (e).
+
+## The saved≠live honesty surface — what it actually is, and a product finding
+
+Two candidate surfaces exist. One is honest; one is not, and I want to flag that precisely
+per CLAUDE.md's saved≠live rule.
+
+**Honest surface (asserted in the spec): the Dashboard's `SiteDeployCard`.**
+`apps/admin/src/deploy/deploy.tsx`'s `DeployProvider` holds `{ sha: string | null }`,
+starting `null`. It only advances when something calls `useDeploy().deploy()` — and **I
+verified nothing in the app currently calls `deploy()` anywhere** (grepped
+`apps/admin/src` for `.deploy(` — zero call sites outside the definition itself). So
+`SiteDeployCard` (`apps/admin/src/dashboard/widgets/SiteDeployCard.tsx`) reads **"Not
+deployed yet"** before publish, and — because publishing a post is only a Git commit, never
+a deploy — it *still* reads "Not deployed yet" immediately after. The spec asserts this
+explicitly (step d): navigate to `/dashboard`, assert `dashboard.notDeployedYetText` is
+visible, right after publishing. This is the real, currently-shipped saved≠live signal.
+
+**FINDING — a decoy in the editor header.** `EditorScreen.tsx`'s per-entry "view on the
+live site" external-link button toggles between two states purely on
+`lifecycle.state === 'staged' || 'live'`:
+```tsx
+{lifecycle.state === 'staged' || lifecycle.state === 'live' ? (
+  <Button aria-label="View this page on the live site">…</Button>
+) : (
+  <Button disabled aria-label="Not on the site yet — publish to view it live">…</Button>
+)}
+```
+Because a first-ever publish immediately sets `lifecycle.state` to `'staged'` (not `'live'`
+— the code conflates the two for this toggle), this button flips to **enabled**, labeled
+**"View this page on the live site"**, and links to `siteUrl(ref)` — on this very publish,
+before anything has deployed. In the e2e harness the site (port 4321) is intentionally
+never booted, so that link would 404/connection-refuse if clicked; in a real deployment
+it would point at content that isn't there yet. This directly contradicts the CLAUDE.md
+saved≠live rule ("never imply a change is live when it needs a build"): the label says
+"View this page on the live site" for content that is staged-only, not live. The
+"Staged" badge right next to it is accurate — it's the external-link button's *label*
+that overclaims.
+
+I did not fix this (out of scope for a test-authoring task, and it's a product/UX call —
+should the label read differently for `staged` vs `live`?). Recommend the owner spin off an
+`area:editor` issue referencing this report, `packages/core/src/lifecycle/derive.ts`, and
+`EditorScreen.tsx`'s `lifecycle.state === 'staged' || 'live'` toggle, per the CLAUDE.md
+"spin off, don't bury" rule. The `EditorPage.stagedStatus` getter's doc comment also calls
+this out in-code so a future reader of the test doesn't copy the anti-pattern.
+
+## Verification
+
+Ran `pnpm e2e` three times back-to-back, all green, 6/6 (T1 smoke, T2 edit-post ×2
+projects, T3 slash-insert ×2 projects, T4 publish):
 
 ```
-FAIL test/site-health-screen.test.tsx > SiteHealthView > renders an attest checkbox for unverified items and calls toggle on click
-TestingLibraryElementError: Unable to find an element with the text: /to verify/i
+Running 6 tests using 6 workers
+[1/6] [webkit-editor] › editor-slash-insert.spec.ts
+[2/6] [chromium] › editor-edit-post.spec.ts
+[3/6] [chromium] › smoke.spec.ts
+[4/6] [chromium] › publish.spec.ts
+[5/6] [chromium] › editor-slash-insert.spec.ts
+[6/6] [webkit-editor] › editor-edit-post.spec.ts
+  6 passed (6.0s)
 ```
+(repeated twice more — same 6 passed / 0 failed each time)
 
-This confirmed the old `SiteHealthView` had no `toggle` prop and no "To verify" section.
+## Bugs hit + fixed during authoring
 
-### Adaptation: `getByText` → `getAllByText`
-The brief's test used `screen.getByText(/not applicable/i)`. In the actual rendered output, three elements matched the regex:
-1. The N/A copy note paragraph (contains "Not applicable")
-2. The "Not applicable" button on a skippable row
-3. The "Not applicable" section heading
+1. **Toast accessible-name race**: `getByRole('status', { name: /^Published ·/ })` never
+   matched — the status div's computed accessible name gets muddied by the sibling
+   "Dismiss" button, and/or the 4s auto-dismiss window raced the assertion. Fixed by
+   scoping via the stable `region "Notifications"` live region and matching visible text
+   instead of the role's computed name: `getByRole('region', { name: 'Notifications',
+   exact: true }).getByText(/^Published ·/)`.
+2. **`git status --porcelain` not empty after a clean publish**: the sandbox repo always
+   has an untracked `.setu/` (submissions.db, reprocess.db — `apps/api/src/server.ts`
+   creates these under `SETU_REPO_DIR/.setu/` unconditionally, independent of
+   `SETU_MEDIA_DIR`). This is pre-existing harness/api scaffolding noise, not something a
+   publish-correctness check should fail on. Scoped the sanctioned porcelain check to
+   `-- content/` only, which is what publish actually touches — documented inline in
+   `e2e/lib/sandbox-git.ts`.
+3. **Commit-message assertion needed the real slug, not the raw title**: `publish-service.ts`
+   defaults the commit message to `Publish <collection>/<locale>/<slug>`, and the slug is
+   `slugify(title)` (`apps/admin/src/editor/new-entry.ts`) — not exported from `@setu/core`,
+   so re-deriving it in the test risked drift. Instead the spec reads the slug back out of
+   `page.url()` after autosave mints it and navigates (`/edit/post/en/<slug>`), which can't
+   drift from the app's own logic.
 
-`getByText` throws when multiple matches exist. Changed the assertion to `screen.getAllByText(/not applicable/i).length > 0` — semantically equivalent (verifies the N/A group is visible) while handling the multiple-match reality.
+## Concerns
 
-### GREEN (after rework)
-```
-Test Files  133 passed (133)
-Tests       501 passed (501)
-```
-Both the existing grouping test and the new attest checkbox test pass.
-
-## Typecheck
-```
-src/editor/BlockInspector.tsx(70,42): error TS18048: 'block' is possibly 'undefined'.
-```
-Only the pre-existing unrelated error — exactly as documented in the task brief. No new errors from my changes.
-
-## Files Changed
-
-- `apps/admin/src/screens/SiteHealth.tsx` — full rewrite
-- `apps/admin/test/site-health-screen.test.tsx` — extended with new test + `toggle` prop on existing render
-
-## Self-Review
-
-**Grouping partitions correctly:**
-- `na` exclusively in "Not applicable" — not mixed with "To verify"
-- `unverified` and `pending` in "To verify" — not leaked to "Fix now"
-- `fail + platform` in "On Setu's roadmap" — confirmed not misfiled under fix-now (existing test asserts this)
-
-**Attest checkbox:** Uses `shadcn Checkbox` from `@/components/ui/checkbox` — not hand-rolled. `aria-label="I've verified this"` enables the `getByRole('checkbox', { name: /verified/i })` query. `onCheckedChange` triggers `toggle('item', id, 'attested')`.
-
-**N/A controls:**
-- "Not applicable" button shown for `canSkip` items (unverified/pending/fail+platform)
-- "Mark applicable" button for manual-na items only (`naSource:'manual'`)
-- Auto-na items (e.g. `naSource:'auto'`) have no toggle controls — correct
-
-**"Skip section":** Section header renders a "Skip section" button only when `category` prop is passed. Currently no call site passes `category` (not wired in `SiteHealthView`'s `Section` calls), which matches the brief — the skip-section feature is available but sections are rendered without a specific `category` binding for now.
-
-**Note on "Skip section" category wiring:** The brief shows `Section` receives optional `category`. In the current `SiteHealthView`, none of the `Section` calls pass a `category` prop, so the "Skip section" button does not appear. This matches the brief code exactly — the `category` prop exists for future use or for callers who want per-section skip. The toggle wiring is correct when `category` is supplied.
-
-**shadcn compliance:** `Checkbox` from existing `@/components/ui/checkbox`. `Badge` from existing `@/components/ui/badge`. No bespoke CSS lookalikes.
-
-**Presentational `SiteHealthView`:** Takes `toggle` as a prop — fully testable without hooks.
-
-## Commit
-
-```
-b7d882c feat(admin): /health attest checkbox + N/A + skip-section controls
-```
-
----
-
-## Review Fix: Functional Per-Category Section-Skip (2026-06-30)
-
-### Commit
-`07e7192 fix(admin): functional per-category section-skip control (review)`
-
-### What Changed
-
-**Fix 1 — `apps/admin/src/health/useAudit.ts`**
-- Lifted `loadedHealth` into `useState<HealthState>({ items: {}, sections: {} })`; set alongside `setAudit` in the effect.
-- Return signature extended: `{ audit, toggle, health }`.
-
-**Fix 1 — `apps/admin/src/screens/SiteHealth.tsx`**
-- Removed dead `category` prop and "Skip section" button from `Section` component.
-- `SiteHealthView` now accepts `{ audit, toggle, health: HealthState }`.
-- New `SectionApplicabilityPanel` component: renders a `Checkbox` row per unique `HealthCategory` in RUBRIC (in first-appearance order). Checked = applies (default), unchecked = skipped (`health.sections[cat]?.state === 'na'`). `onCheckedChange` calls `toggle('section', cat, null)` to re-enable or `toggle('section', cat, 'na')` to skip. Human-readable labels via `CATEGORY_LABEL` map (e.g. `i18n` → "Internationalisation", `agent-readiness` → "Agent readiness").
-- Panel placed after intro copy, before status groups.
-- `SiteHealth` container passes `health` from `useAudit()` into `SiteHealthView`.
-
-**Fix 2 — Attest Checkbox comment**
-- Added block comment explaining why `checked={false}` is correct: attesting is one-way; the engine emits `pass` and the row leaves "To verify" entirely.
-
-**Fix 3 — `apps/admin/test/site-health-screen.test.tsx`**
-- Replaced `getAllByText(/not applicable/i).length > 0` with `getByRole('heading', { name: /not applicable/i })`.
-- New test `renders section applicability panel and calls toggle when a category is unchecked`: renders with `seo` pre-skipped in health state, asserts SEO checkbox is `data-state="unchecked"`, Foundations is `data-state="checked"`, clicking SEO calls `toggle('section', 'seo', null)`, clicking Foundations calls `toggle('section', 'foundations', 'na')`.
-- All tests receive `health` prop (previously omitted).
-
-### Test / Typecheck Output
-
-**`pnpm --filter @setu/admin test -- site-health-screen`**
-```
-✓ test/site-health-screen.test.tsx (3 tests) 160ms
-Test Files  133 passed (133)
-Tests  502 passed (502)
-```
-All 3 site-health-screen tests pass (2 existing + 1 new).
-
-**`pnpm --filter @setu/admin exec tsc --noEmit`**
-```
-src/editor/BlockInspector.tsx(70,42): error TS18048: 'block' is possibly 'undefined'.
-```
-Only the pre-existing unrelated error. No new type errors introduced.
-
-**`pnpm --filter @setu/admin test` (full suite)**
-```
-Test Files  133 passed (133)
-Tests  502 passed (502)
-Duration  12.53s
-```
-No regressions.
+- The toast's 4s auto-dismiss is a real flakiness risk if publish ever gets slower (e.g. a
+  slow `reindexEntry`/`markSyncedAt` before the assertion runs) — `publish()` currently
+  clicks then immediately asserts, so there's no added delay from this test, but any future
+  caller of `EditorPage.publish()` that inserts an `await` before checking the toast will
+  reintroduce the race. Documented in the getter's comment.
+- The editor-header "View this page on the live site" decoy (see finding above) is a real
+  UX defect I did not fix.
+- `sandboxStatusPorcelain()` is scoped to `content/` rather than repo-wide; if a future
+  publish-adjacent test wants a whole-tree clean check it will need its own reasoning about
+  the `.setu/` noise (not a git-ignore fix I made, since `.content-sandbox/e2e/.gitignore`
+  doesn't exist and adding one felt out of scope for a test-only task — flagging as a
+  possible tiny follow-up for whoever owns the sandbox script).

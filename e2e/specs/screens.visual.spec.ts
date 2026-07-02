@@ -27,6 +27,17 @@ const FIXED_POST_TITLE = 'Visual Baseline Post'
 const FIXED_POST_BODY = 'Fixed body content for the visual regression baseline. Do not change this text.'
 
 test.describe('visual baselines', () => {
+  // Determinism precondition, self-checking: the visual project must deliver
+  // prefers-reduced-motion to the page (motion/react entrance animations branch on it).
+  // This once regressed SILENTLY — `use.reducedMotion` isn't a real Playwright option and
+  // was ignored at runtime (it must ride `contextOptions`); local runs stayed green because
+  // snapshot comparison is CI-only. Assert the media query so a config change that drops it
+  // fails loudly everywhere, not just as CI baseline flake.
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/')
+    expect(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)).toBe(true)
+  })
+
   test('dashboard', async ({ page }) => {
     // Seed one real post first so ResumeEditing/StatTiles render their populated state
     // (not the "No edits yet" empty state) — the empty state is trivial and not worth a

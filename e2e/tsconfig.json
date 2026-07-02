@@ -1,0 +1,11 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // DOM lib: page.evaluate/evaluateHandle callbacks execute in the browser and
+    // reference DOM globals (DataTransfer, document, …) from these files.
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"]
+  },
+  "include": ["**/*.ts"]
+}

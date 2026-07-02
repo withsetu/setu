@@ -7,9 +7,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { SITE_CAPABILITIES } from '@setu/core'
 
 const appDir = fileURLToPath(new URL('..', import.meta.url))
-// settings.json lives at the repo root (4 dirs up from apps/site/src/lib/site-settings.ts,
-// which is the same as 2 dirs up from apps/site/).
-const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
+// settings.json lives at the repo root. This file is at apps/site/test/, so the repo root is
+// three directories up (test/ → site/ → apps/ → root).
+const repoRoot = fileURLToPath(new URL('../../..', import.meta.url))
 const settingsPath = join(repoRoot, 'settings.json')
 let head = ''
 let mediaDir = ''

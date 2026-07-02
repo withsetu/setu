@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import config from '../../setu.config'
+import { contentRepoRoot } from './content-root'
 
 /** File (Customizer-published) values win over the setu.config defaults. Pure. */
 export function mergeThemeOptions(
@@ -11,12 +11,9 @@ export function mergeThemeOptions(
   return { ...configValues, ...fileValues }
 }
 
-/** The committed theme-options file lives at the content-repo root (sibling of `content/`):
- *  in dev that's `<SETU_CONTENT_DIR>/../`, the sandbox root; otherwise this repo's root. */
+/** The committed theme-options file lives at the content-repo root (sibling of `content/`). */
 function themeOptionsFilePath(): string {
-  const contentDir = process.env.SETU_CONTENT_DIR
-  if (contentDir) return join(contentDir, '..', 'theme-options.json')
-  return fileURLToPath(new URL('../../../../theme-options.json', import.meta.url))
+  return join(contentRepoRoot(), 'theme-options.json')
 }
 
 function readFileValues(): Record<string, string> {

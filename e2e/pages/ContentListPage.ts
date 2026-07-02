@@ -20,6 +20,15 @@ export class ContentListPage {
     return this.page.getByRole('link', { name: title, exact: true })
   }
 
+  /** The status Badge cell in the same row as `title` — ContentTable.tsx renders one
+   *  `<tr>` per entry with the title link and status badge as sibling cells; scope
+   *  from the row link's ancestor `<tr>` up to `<table>` (Playwright's default table
+   *  cell/row semantics) so this reads the right row's badge, not just any "Staged"
+   *  text on the page. */
+  rowStatus(title: string) {
+    return this.page.getByRole('row', { name: new RegExp(title) }).getByText(/^(Draft|Staged|Live|Unpublished)$/)
+  }
+
   /** Click "New post" and land on the compose route, wrapped as an EditorPage. */
   async createPost(): Promise<EditorPage> {
     await this.newPostLink.click()

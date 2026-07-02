@@ -31,6 +31,45 @@ export class EditorPage {
     return this.page.getByRole('link', { name: 'Back to list' })
   }
 
+  /** PublishMenu's primary action — `<Button>Publish</Button>` (EditorScreen.tsx),
+   *  only rendered once composing a new entry has minted a slug (canPublish requires
+   *  `phase === 'ready' && !composing`, i.e. after the first autosave). */
+  get publishButton() {
+    return this.page.getByRole('button', { name: 'Publish', exact: true })
+  }
+
+  /** The success toast pushed by `notify.success` on publish — a `role="status"` div
+   *  inside the `region "Notifications"` live region (ui/notify.tsx), with a `.notify-msg`
+   *  span reading `Published · <sha7>`. Match by text within the region rather than the
+   *  status role's computed accessible name — the region also carries a sibling "Dismiss"
+   *  button whose own accessible name can otherwise get folded into the name computation.
+   *  Auto-dismisses after 4s, so callers must assert this right after the triggering
+   *  click, not after other slow awaits. */
+  get publishedToast() {
+    return this.page.getByRole('region', { name: 'Notifications', exact: true }).getByText(/^Published ·/)
+  }
+
+  /** StripStatus lifecycle badge in the editor header — a plain `<span>` (Badge has no
+   *  ARIA role), so match by visible text. `deriveLifecycle` (packages/core/src/lifecycle)
+   *  yields "Staged" for a freshly-published entry that has never been deployed: committed
+   *  to Git but not yet in the deploy snapshot. This badge is the accurate saved≠live signal
+   *  in the editor header for this journey. Finding (see publish.spec.ts + task-4-report.md):
+   *  the header's "View this page on the live site" external-link button is a DECOY here —
+   *  its disabled/enabled toggle is gated on `lifecycle.state === 'staged' || 'live'`, so it
+   *  flips to enabled and live-looking immediately on this first-ever publish even though
+   *  nothing has actually deployed (the e2e harness never boots the site). Don't assert on
+   *  it as an honesty surface; the dashboard's SiteDeployCard "Not deployed yet" text
+   *  (DashboardPage.notDeployedYetText) is the surface that stays honest. */
+  get stagedStatus() {
+    return this.page.getByText('Staged', { exact: true })
+  }
+
+  /** Invoke the real publish affordance and wait for the success toast. */
+  async publish() {
+    await this.publishButton.click()
+    await expect(this.publishedToast).toBeVisible()
+  }
+
   /** The slash-command menu — CommandList in SlashCommand.tsx: `role="listbox"
    *  aria-label="Insert block"`, options are `role="option"`. Rendered into a tippy
    *  popup appended to `document.body`, not inside `.body`, so it's queried page-wide. */

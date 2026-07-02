@@ -31,6 +31,28 @@ export class EditorPage {
     return this.page.getByRole('link', { name: 'Back to list' })
   }
 
+  /** The slash-command menu — CommandList in SlashCommand.tsx: `role="listbox"
+   *  aria-label="Insert block"`, options are `role="option"`. Rendered into a tippy
+   *  popup appended to `document.body`, not inside `.body`, so it's queried page-wide. */
+  get slashMenu() {
+    return this.page.getByRole('listbox', { name: 'Insert block' })
+  }
+
+  /** A slash-menu option by its visible block title (e.g. "Callout"). Each option's
+   *  accessible name is its title + subtitle text concatenated (`.slash-label` +
+   *  `.slash-desc`, e.g. "Callout\nInsert a callout block") — anchor on the title as
+   *  a name prefix rather than `exact: true`, which would never match. */
+  slashOption(blockTitle: string) {
+    return this.slashMenu.getByRole('option', { name: new RegExp(`^${blockTitle}\\b`) })
+  }
+
+  /** An inserted Callout block in the canvas — Callout.tsx's shared core renders
+   *  `<aside aria-label="Callout block">`, used by both the editor node view and the
+   *  site render. */
+  get calloutBlock() {
+    return this.body.getByLabel('Callout block')
+  }
+
   async setTitle(title: string) {
     await this.titleInput.fill(title)
   }
@@ -38,6 +60,24 @@ export class EditorPage {
   async typeInBody(text: string) {
     await this.body.click()
     await this.body.pressSequentially(text)
+  }
+
+  /** Click into the canvas and type `/` to open the slash menu. */
+  async openSlashMenu() {
+    await this.body.click()
+    await this.body.pressSequentially('/')
+    await expect(this.slashMenu).toBeVisible()
+  }
+
+  /** Filter the already-open slash menu to `blockTitle`, then pick it via keyboard
+   *  (Down + Enter) — exercises the same arrow-key selection path a real user takes,
+   *  per T3's requirement to select via keyboard at least once. */
+  async insertBlock(blockTitle: string) {
+    await this.page.keyboard.type(blockTitle)
+    await expect(this.slashOption(blockTitle)).toBeVisible()
+    await this.page.keyboard.press('ArrowDown')
+    await this.page.keyboard.press('Enter')
+    await expect(this.slashMenu).toBeHidden()
   }
 
   /** Wait for autosave to settle: SaveIndicator flips through "Saving…" to "Saved". */

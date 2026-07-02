@@ -23,6 +23,8 @@ export interface ReadingSettings {
   markdown: { mode: 'off' | 'index' | 'pages'; style: 'raw' | 'rendered' }
   /** Auto-appended related-posts widget configuration. */
   relatedPosts: { enabled: boolean; heading: string; count: number; showImage: boolean }
+  /** Sitemap section toggles — which content types + taxonomies the sitemap index includes. */
+  sitemap: { posts: boolean; pages: boolean; categories: boolean; tags: boolean }
 }
 
 /** The Media settings group — drives the image pipeline (variant formats + LQIP). */

@@ -20,13 +20,21 @@ const PAGE_SIZES = [10, 25, 50, 100]
 const FEED_ITEM_COUNTS = [10, 20, 30, 50]
 const POSTS_PER_PAGE = [3, 6, 9, 12, 24]
 
+const SITEMAP_SECTIONS = [
+  { key: 'posts', label: 'Posts' },
+  { key: 'pages', label: 'Pages' },
+  { key: 'categories', label: 'Category archives' },
+  { key: 'tags', label: 'Tag archives' },
+] as const
+
 const sameReading = (a: ReadingValues, b: ReadingValues) =>
   a.homepage === b.homepage &&
   a.searchEngineVisible === b.searchEngineVisible &&
   a.listPageSize === b.listPageSize &&
   a.feed.enabled === b.feed.enabled &&
   a.feed.items === b.feed.items &&
-  a.postsPerPage === b.postsPerPage
+  a.postsPerPage === b.postsPerPage &&
+  SITEMAP_SECTIONS.every((s) => a.sitemap[s.key] === b.sitemap[s.key])
 
 export function ReadingSettings() {
   const { git } = useServices()
@@ -218,6 +226,27 @@ export function ReadingSettings() {
         <p className="text-xs text-muted-foreground">
           How many posts each page of the <code>/posts</code> archive shows.
         </p>
+      </div>
+
+      <div className="space-y-2.5 border-t border-border/60 pt-5">
+        <div className="space-y-0.5">
+          <Label>Sitemap sections</Label>
+          <p className="text-xs text-muted-foreground">
+            Which content types &amp; taxonomies to include in <code>/sitemap.xml</code>.
+          </p>
+        </div>
+        {SITEMAP_SECTIONS.map((s) => (
+          <div key={s.key} className="flex items-center justify-between">
+            <Label htmlFor={`rd-sm-${s.key}`} className="font-normal">
+              {s.label}
+            </Label>
+            <Switch
+              id={`rd-sm-${s.key}`}
+              checked={values.sitemap[s.key]}
+              onCheckedChange={(c) => set({ sitemap: { ...values.sitemap, [s.key]: c } })}
+            />
+          </div>
+        ))}
       </div>
 
       <Button onClick={() => void save()} disabled={published === null || !dirty || saving}>

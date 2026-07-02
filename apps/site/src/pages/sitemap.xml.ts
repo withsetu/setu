@@ -1,22 +1,29 @@
-import { getCollection } from 'astro:content'
 import type { APIContext } from 'astro'
 import { loadSiteSettings } from '../lib/site-settings'
-import { resolvePostDate } from '../lib/post-date'
-import { buildSitemap, type SitemapEntry } from '../lib/sitemap'
+import { loadSitemapEntries } from '../lib/sitemap-entries'
+import { collectSitemapSections, sitemapIndexXml, newestLastmod, type SitemapSectionKey } from '../lib/sitemap'
 
 export const prerender = true
 
-// A prod build sets SETU_SITE_URL (→ context.site); the localhost fallback mirrors astro.config.
 const SITE_FALLBACK = 'http://localhost:4321'
+const FILE: Record<SitemapSectionKey, string> = {
+  post: 'post-sitemap.xml',
+  page: 'page-sitemap.xml',
+  category: 'category-sitemap.xml',
+  tag: 'tag-sitemap.xml',
+}
 
 export async function GET(context: APIContext) {
   const settings = loadSiteSettings()
   const siteUrl = context.site?.href ?? SITE_FALLBACK
-  const entries = await getCollection('entries')
-  const rows: SitemapEntry[] = entries.map((e) => {
-    const data = e.data as Record<string, unknown>
-    return { id: e.id, data, lastmod: resolvePostDate({ data, filePath: e.filePath }).toISOString() }
+  const base = siteUrl.replace(/\/+$/, '')
+  const entries = await loadSitemapEntries()
+  const sections = collectSitemapSections(entries, settings.reading.sitemap, siteUrl, settings.reading.homepage)
+  // Only list sub-sitemaps that are enabled AND have URLs.
+  const index = (Object.keys(sections) as SitemapSectionKey[])
+    .filter((k) => sections[k].length > 0)
+    .map((k) => ({ loc: `${base}/${FILE[k]}`, lastmod: newestLastmod(sections[k]) }))
+  return new Response(sitemapIndexXml(index), {
+    headers: { 'Content-Type': 'application/xml; charset=utf-8' },
   })
-  const xml = buildSitemap(rows, siteUrl, settings.reading.homepage)
-  return new Response(xml, { headers: { 'Content-Type': 'application/xml; charset=utf-8' } })
 }

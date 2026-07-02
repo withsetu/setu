@@ -16,6 +16,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     feed: { enabled: false, items: 20 },
     markdown: { mode: 'off', style: 'raw' },
     relatedPosts: { enabled: true, heading: 'Read Next', count: 3, showImage: true },
+    sitemap: { posts: true, pages: true, categories: true, tags: true },
   },
   media: { imageFormat: 'webp', imageLqip: false },
   identity: {

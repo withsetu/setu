@@ -27,7 +27,7 @@ test('open the slash menu, insert a block, and verify it renders and persists', 
   await expect(editor.calloutBlock).toBeVisible()
 
   // Type into the callout's body so there's real persisted content to assert on.
-  await editor.calloutBlock.locator('.callout-body').click()
+  await editor.calloutBody.click()
   await page.keyboard.type(calloutText)
 
   // e. Save; reload the post; assert the block persisted.

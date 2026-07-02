@@ -53,6 +53,13 @@ export class EditorPage {
     return this.body.getByLabel('Callout block')
   }
 
+  /** The Callout's editable body — `NodeViewContent` in Callout.tsx (the extension)
+   *  renders `aria-label="Callout text"`, giving the contenteditable region an
+   *  accessible handle instead of a `.callout-body` CSS selector. */
+  get calloutBody() {
+    return this.calloutBlock.getByLabel('Callout text')
+  }
+
   async setTitle(title: string) {
     await this.titleInput.fill(title)
   }

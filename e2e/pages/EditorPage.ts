@@ -92,6 +92,98 @@ export class EditorPage {
     return this.body.getByLabel('Callout block')
   }
 
+  /** Top-level block elements in document order — Canvas.tsx renders each ProseMirror
+   *  top-level child as a direct child of `.setu-prose` (editor.css:22's comment
+   *  confirms this is the render contract both the drag handle and `block-reorder.ts`'s
+   *  index math rely on), so `.setu-prose > *` is exactly `doc.child(i)` for every `i`. */
+  get blocks() {
+    return this.body.locator('> *')
+  }
+
+  /** Visible text of each top-level block, in order — the order-assertion primitive
+   *  for reorder specs. Reads the accessible/visible DOM (not Tiptap's JSON model), per
+   *  the brief: a real user only ever sees text, never the document model. */
+  async blockTexts(): Promise<string[]> {
+    return this.blocks.allTextContents()
+  }
+
+  /** The drag-handle grip — DragHandle.tsx's single `<button aria-label="Block
+   *  actions" draggable>` that follows whichever block the pointer is over (it is NOT
+   *  one handle per block; hovering a block first is what makes the grip represent
+   *  it). `getByRole('button', ...)` disambiguates from BlockMenu.tsx's
+   *  `role="menu" aria-label="Block actions"` popup, which shares the same accessible
+   *  name but a different role. Finding: the shared label describes the menu the grip
+   *  opens on click, not its drag affordance — a more specific label (e.g. "Drag to
+   *  reorder block") would be clearer, but role disambiguation is sufficient to
+   *  automate today; not changing product code for this, see task-6-report.md. */
+  get dragHandle() {
+    return this.page.getByRole('button', { name: 'Block actions' })
+  }
+
+  /** Click into the block whose visible text starts with `text`, placing the caret
+   *  inside it — the precondition `Alt-Shift-ArrowUp`/`Down` need, since BlockActions.ts
+   *  moves whichever top-level block contains the current selection. */
+  async clickBlock(text: string) {
+    await this.blocks.filter({ hasText: text }).first().click()
+  }
+
+  /** Move the block containing `text` one slot up via the real keyboard shortcut —
+   *  `Alt-Shift-ArrowUp` (BlockActions.ts / shortcuts.ts's `moveUp`). `Alt` is the
+   *  literal modifier ProseMirror's keymap parses (unlike `Mod`, it is NOT translated
+   *  to Cmd/Option per platform), so the same chord fires on chromium and webkit. */
+  async moveBlockUpByKeyboard(text: string) {
+    await this.clickBlock(text)
+    await this.page.keyboard.press('Alt+Shift+ArrowUp')
+  }
+
+  /** Move the block containing `text` one slot down via `Alt-Shift-ArrowDown`. */
+  async moveBlockDownByKeyboard(text: string) {
+    await this.clickBlock(text)
+    await this.page.keyboard.press('Alt+Shift+ArrowDown')
+  }
+
+  /** Drag the block whose visible text starts with `fromText` and drop it relative to
+   *  the block whose visible text starts with `toText` — `position: 'before'`
+   *  (default) or `'after'` — via the real grip (DragHandle.tsx). Manual hover ->
+   *  dragstart -> dragover -> drop rather than `locator.dragTo`: the grip is a single
+   *  shared element repositioned on `mousemove` (not a per-block handle), so the
+   *  source block must be hovered FIRST to make the grip represent it, and the
+   *  handler is native HTML5 DnD (`dragstart`/`dragover`/`drop` with `dataTransfer`),
+   *  which `dragTo`'s mouse-event simulation does not dispatch — Playwright's
+   *  `dispatchEvent` with a real `DataTransfer` is the documented pattern for HTML5
+   *  DnD (see Playwright's drag-and-drop docs, "programmatic" example).
+   *
+   *  Drop coordinate: `dropTargetIndex` (DragHandle.tsx) treats a block's TOP half as
+   *  "drop before it" and its BOTTOM half as "drop after it" — dropping at the exact
+   *  vertical center is the boundary between those two halves and resolves by
+   *  floating-point comparison, so it is not a reliable signal either way. A point a
+   *  few pixels inside the relevant half is unambiguous. */
+  async dragBlock(fromText: string, toText: string, position: 'before' | 'after' = 'before') {
+    const source = this.blocks.filter({ hasText: fromText }).first()
+    const target = this.blocks.filter({ hasText: toText }).first()
+
+    // Hover the source block so DragHandle's `mousemove` handler sets `hoverIndex`
+    // and positions the grip over it (see DragHandle.tsx's `handleDOMEvents.mousemove`).
+    await source.hover()
+    await expect(this.dragHandle).toBeVisible()
+
+    const targetBox = await target.boundingBox()
+    if (!targetBox) throw new Error(`dragBlock: target block "${toText}" has no bounding box`)
+    const edge = Math.min(4, targetBox.height / 4)
+    const dropY = position === 'before' ? targetBox.y + edge : targetBox.y + targetBox.height - edge
+
+    // Native HTML5 DnD: DragHandle.tsx's `dragstart` listener reads `hoverIndex`
+    // (set by the hover above) and registers document-level `dragover`/`drop`
+    // listeners; the `drop` handler derives the target index purely from
+    // `event.clientY` (dropToIndex in DragHandle.tsx), so only the Y coordinate of
+    // the dispatched events matters, not the exact target element.
+    const dataTransfer = await this.page.evaluateHandle(() => new DataTransfer())
+    await this.dragHandle.dispatchEvent('dragstart', { dataTransfer })
+    await this.page.dispatchEvent('body', 'dragover', { dataTransfer, clientY: dropY })
+    await this.page.dispatchEvent('body', 'drop', { dataTransfer, clientY: dropY })
+    await this.page.dispatchEvent('body', 'dragend', { dataTransfer })
+  }
+
   /** The Callout's editable body — `NodeViewContent` in Callout.tsx (the extension)
    *  renders `aria-label="Callout text"`, giving the contenteditable region an
    *  accessible handle instead of a `.callout-body` CSS selector. */

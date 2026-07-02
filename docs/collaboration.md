@@ -142,3 +142,5 @@ so the other session can see the turf. Keep it short.
 - [ ] Pushed the branch to `origin`; integrated via PR (or via the integrator session).
 - [ ] Synced `origin/main` into the branch **before** shipping, not after a long divergence.
 - [ ] If using subagents: each dispatch verified its **worktree path + branch** before committing.
+
+<!-- docs-skip live proof (temp) -->

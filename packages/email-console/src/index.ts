@@ -8,3 +8,5 @@ export function createConsoleEmailAdapter(log: (line: string) => void = console.
     },
   }
 }
+
+// #273 cross-run cache-hit probe (harmless comment)

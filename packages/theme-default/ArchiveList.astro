@@ -1,5 +1,5 @@
 ---
-import { entryUrlPath, type PostRow } from '@setu/core'
+import { entryUrlPath, DEFAULT_LOCALE, type PostRow } from '@setu/core'
 import type { Page } from 'astro'
 
 interface Props {
@@ -13,6 +13,10 @@ const { page, heading, basePath, mediaBase } = Astro.props
 const resolveImg = (s: string): string =>
   !s || /^https?:\/\//i.test(s) ? s : s.startsWith('/') ? `${mediaBase}${s}` : s
 const hrefOf = (p: PostRow) => `/${entryUrlPath({ collection: p.collection, locale: p.locale, slug: p.slug })}`
+// Locale-aware short date rendered in UTC (a frontmatter date is a calendar date, not an instant,
+// so it must not drift across timezones). Full dateFormat/timezone wiring is #157.
+const fmtDate = (ms: number, loc: string): string =>
+  new Date(ms).toLocaleDateString(loc || DEFAULT_LOCALE, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' })
 const pageHref = (n: number) => (n <= 1 ? basePath : `${basePath}/${n}`)
 const pageNumbers = Array.from({ length: page.lastPage }, (_, i) => i + 1)
 ---
@@ -28,6 +32,12 @@ const pageNumbers = Array.from({ length: page.lastPage }, (_, i) => i + 1)
         </a>
       )}
       <a href={hrefOf(p)} class="setu-post-card__title">{p.title}</a>
+      {p.date !== null && (
+        <time class="setu-post-card__date" datetime={new Date(p.date).toISOString().slice(0, 10)}>
+          {fmtDate(p.date, p.locale)}
+        </time>
+      )}
+      {p.excerpt && <p class="setu-post-card__excerpt">{p.excerpt}</p>}
     </li>
   ))}
 </ul>
@@ -61,6 +71,16 @@ const pageNumbers = Array.from({ length: page.lastPage }, (_, i) => i + 1)
     color: var(--text, inherit); text-decoration: none;
   }
   .setu-post-card__title:hover { color: var(--accent, #4f46e5); }
+  .setu-post-card__date {
+    display: block; margin-top: 0.25rem;
+    font-size: 0.8125rem; color: var(--text-muted, #6b7280);
+  }
+  .setu-post-card__excerpt {
+    margin: 0.4rem 0 0; font-size: 0.9375rem; line-height: 1.5;
+    color: var(--text-muted, #4b5563);
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
   .setu-pager { display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin: 2.5rem 0 1rem; flex-wrap: wrap; }
   .setu-pager__pages { display: flex; gap: 0.35rem; list-style: none; margin: 0; padding: 0; }
   .setu-pager__page, .setu-pager__step {

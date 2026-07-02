@@ -55,6 +55,11 @@ describe('tag archive', () => {
   it('does not generate a page for an unknown tag', () => {
     expect(exists('tag/nope')).toBe(false)
   })
+  it('ships zero JS (JSON-LD aside)', () => {
+    const p = page('tag/astro')
+    expect(p).not.toContain('astro-island')
+    expect(p).not.toMatch(/<script(?![^>]*type="application\/ld\+json")[\s>]/)
+  })
 })
 
 describe('post page taxonomy chips', () => {

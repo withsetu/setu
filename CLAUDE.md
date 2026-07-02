@@ -34,6 +34,12 @@ A feature is DONE only when EVERY item is true. Green tests are necessary, **nev
   reuse existing components? Is it complete, not a skeleton?" — and must **block** anything that fails
   the Definition of Done. A correct-but-skeleton feature does NOT pass review. (See the rubric in
   docs/quality-bar.md and include it in every review dispatch.)
+- **Security standards gate every pick (decided 2026-07-02).** When picking ANY issue, run the
+  pick-time checklist in [docs/security-standards.md](docs/security-standards.md) (mapped to OWASP
+  Top 10:2025) — new route → authz + fail-closed errors; new input → Zod; server-side fetch → the
+  shared safe-fetch helper; new dep → supply-chain check; user content rendered → XSS review.
+  Security-relevant issues carry the **`security` label** and a "Security considerations" section.
+  Reviews **block** on this checklist the same way they block on polish.
 - **Git:** `origin/main` is the hub. Work on a branch in a worktree; PR to `main`; never commit to
   `main` directly. Run `pnpm install` after dep-changing merges.
 
@@ -60,10 +66,11 @@ single source of truth for **status and design**. No exceptions for "small" chan
   needed. A scratch draft is fine; a committed design doc is not. This deliberately overrides the
   superpowers default of writing spec/plan files. The only design-adjacent files that stay in-repo are
   standing **reference** — things the code must uphold, read repeatedly, not a unit of work:
-  `CLAUDE.md`, `plan/prd.md`, `docs/quality-bar.md`, `docs/architecture.md`/ADRs. (Legacy specs under
-  `docs/superpowers/` migrate to issues over time.)
+  `CLAUDE.md`, `plan/prd.md`, `docs/quality-bar.md`, `docs/security-standards.md`,
+  `docs/architecture.md`/ADRs. (Legacy specs under `docs/superpowers/` migrate to issues over time.)
 - **Labels are the taxonomy:** `area:seo|feed|site-health|identity|editor|admin|media|taxonomy|`
-  `content-index|blocks|forms|settings|theme|infra|deploy|docs`, plus `tech-debt` and `epic`.
+  `content-index|blocks|forms|settings|theme|infra|deploy|docs`, plus `tech-debt`, `epic`, and
+  `security` (apply the pick-time checklist in docs/security-standards.md).
 - The `gh` token has `repo` but **not** `project` scope — manage issues/labels via CLI; the Project
   board (if used) is a view the owner configures.
 - **Topology-impact check — ALWAYS.** Setu is **multi-topology**: the same engine runs as a local
@@ -103,7 +110,8 @@ and match them.
 ## Where things are
 
 - Design & plans: in the **GitHub issue/epic** (not repo docs — see Issue tracking). Standing
-  reference only, in-repo: `plan/prd.md`, `docs/quality-bar.md`, `docs/architecture.md`. (Legacy
+  reference only, in-repo: `plan/prd.md`, `docs/quality-bar.md`, `docs/security-standards.md`,
+  `docs/architecture.md`. (Legacy
   specs still under `docs/superpowers/{specs,plans}/` until migrated.)
 - Content blocks: repo-root `blocks/<tag>/` (auto-discovered) + `@setu/core` standard blocks
 - Admin editor: `apps/admin/src/editor/` · Site render: `apps/site/` · Core: `packages/core/`

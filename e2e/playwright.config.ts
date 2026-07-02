@@ -74,7 +74,15 @@ export default defineConfig({
   // dashboard must tolerate it being down.
   webServer: [
     {
-      command: 'pnpm --filter @setu/api dev',
+      // Playwright starts webServer BEFORE globalSetup (createGlobalSetupTasks
+      // sequences: output-dir cleanup -> webServer plugin setup -> user
+      // globalSetup last) — see e2e/global-setup.ts for the full citation. The
+      // api's health check (`/git/head`) needs a real git repo at
+      // SETU_REPO_DIR to return 200, so the sandbox reset must complete
+      // *before* the api process boots, not in globalSetup. Reset here,
+      // chained with `&&` ahead of the dev command; cwd is repoRoot so the
+      // script's own `process.cwd()`-based root resolution is correct.
+      command: 'node scripts/content-sandbox.mjs reset e2e && pnpm --filter @setu/api dev',
       url: apiHealthUrl,
       cwd: repoRoot,
       env: {

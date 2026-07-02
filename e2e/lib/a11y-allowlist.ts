@@ -35,7 +35,7 @@ export interface KnownViolation {
 export const KNOWN_VIOLATIONS: KnownViolation[] = [
   {
     ruleId: 'color-contrast',
-    selectorContains: 'data-variant="warning"',
+    selectorContains: 'data-slot="badge" data-variant="warning"',
     issue: '#307',
     note:
       'Badge variant="warning" (e.g. the "Draft" status badge) — light-mode --warning ' +
@@ -44,7 +44,7 @@ export const KNOWN_VIOLATIONS: KnownViolation[] = [
   },
   {
     ruleId: 'color-contrast',
-    selectorContains: 'data-variant="info"',
+    selectorContains: 'data-slot="badge" data-variant="info"',
     issue: '#307',
     note:
       'Badge variant="info" (e.g. a "Staged" status badge) — light-mode --info (#2563eb ' +
@@ -53,7 +53,7 @@ export const KNOWN_VIOLATIONS: KnownViolation[] = [
   },
   {
     ruleId: 'color-contrast',
-    selectorContains: 'data-variant="outline"',
+    selectorContains: 'data-slot="badge" data-variant="outline"',
     issue: '#307',
     note:
       'Badge variant="outline" (category/tag chips in the content-list) — the outline ' +

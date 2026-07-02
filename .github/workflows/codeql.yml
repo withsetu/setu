@@ -1,0 +1,52 @@
+name: CodeQL
+
+# GitHub-native SAST (OWASP A05 Injection / A08 Integrity — docs/security-standards.md).
+# Single-language repo: JavaScript/TypeScript via the combined `javascript-typescript`
+# analyzer, default query suite (no custom query packs yet).
+# Triggers: PRs (every push to a PR branch), push to main (so main always has a fresh
+# alert baseline), and a weekly cron — offset from ci.yml's nightly 03:17 UTC job so the
+# two don't contend for runner minutes.
+# github/codeql-action is GitHub-owned — tag-pinned (@v4, current major per
+# https://github.com/github/codeql-action/releases), matching ci.yml's convention for
+# github/* and actions/* actions (see .github/workflows/ci.yml).
+# Security CI foundation: #218 · CI epic: #216 · security standards: docs/security-standards.md.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Weekly full-repo scan (05:44 UTC Wednesdays — off-peak, and clear of ci.yml's
+    # daily 03:17 UTC nightly so the two never contend for runner minutes).
+    - cron: '44 5 * * 3'
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: CodeQL analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          # Default query suite — no custom packs configured yet.
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v4
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:javascript-typescript

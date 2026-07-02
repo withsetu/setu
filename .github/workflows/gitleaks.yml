@@ -1,0 +1,42 @@
+name: Gitleaks
+
+# Secret scanning (OWASP A08 Integrity / "secrets involved" line in
+# docs/security-standards.md's pick-time checklist). Full-history scan on every PR and on
+# push to main, so a leaked secret is caught the moment it lands, past or present.
+#
+# Why the gitleaks CLI directly and not `gitleaks/gitleaks-action`: gitleaks-action is a
+# separately-licensed product — free for personal-account repos but it REQUIRES a paid
+# GITLEAKS_LICENSE secret for organization-owned repos (see its README's "Do I need a
+# free license key?" section). withsetu is a GitHub Organization (verified via
+# `gh api orgs/withsetu`), so gitleaks-action would fail closed here without that secret.
+# The underlying `gitleaks/gitleaks` scanner itself is MIT-licensed and free for anyone —
+# this job runs that scanner's official container directly, no license needed.
+# Pinned by image digest (third-party image, supply-chain hygiene — matches ci.yml's
+# SHA-pinning convention for non-GitHub-owned actions).
+# Security CI foundation: #218 · CI epic: #216.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: gitleaks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    name: gitleaks scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history — gitleaks needs every commit to catch secrets that were later removed.
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        run: |
+          docker run --rm \
+            -v "$PWD:/repo" \
+            ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            git /repo --redact -v

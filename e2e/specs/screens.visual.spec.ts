@@ -49,6 +49,14 @@ test.describe('visual baselines', () => {
     await editor.typeInBody(FIXED_POST_BODY)
     await editor.save()
 
+    // The PageHeader subtitle greeting is clock-derived — greeting() branches on
+    // getHours() (apps/admin/src/lib/format.ts: <12 morning / <18 afternoon / evening),
+    // so a daytime PR run and the 03:17 UTC nightly would render different text and
+    // flake the baseline. Freeze the page clock to a fixed afternoon instant (matching
+    // the committed baseline) AFTER the save flow above — setFixedTime pins Date only
+    // (timers stay real), and doing it post-save keeps the editor's debounce/autosave
+    // path on the real clock it was verified under.
+    await page.clock.setFixedTime(new Date('2026-01-15T15:00:00Z'))
     const dashboard = new DashboardPage(page)
     await dashboard.goto()
     await expect(dashboard.heading).toBeVisible()

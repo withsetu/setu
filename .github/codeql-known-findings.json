@@ -1,0 +1,29 @@
+{
+  "_policy": "Known CodeQL findings, allowlisted per the repo's fail-on-NEW gate policy (same shape as the axe allowlists, #220). Each entry matches ruleId + file uri (line numbers drift, deliberately not matched). Every entry MUST carry a tracking issue; removing the entry once fixed is that issue's DoD — the gate then guards the fix forever. Adding an entry requires triage, never convenience.",
+  "known": [
+    {
+      "ruleId": "js/incomplete-multi-character-sanitization",
+      "uri": "apps/site/integrations/per-page-css-purge.mjs",
+      "issue": "#323",
+      "note": "Potential <style injection via single-pass sanitization in the CSS purge build integration — REAL product concern, security-labeled."
+    },
+    {
+      "ruleId": "js/bad-tag-filter",
+      "uri": "apps/site/test/blur-up-island.test.ts",
+      "issue": "#324",
+      "note": "Test-only regex misses uppercase <SCRIPT>."
+    },
+    {
+      "ruleId": "js/incomplete-url-substring-sanitization",
+      "uri": "packages/core/test/health-rubric.test.ts",
+      "issue": "#324",
+      "note": "Test-only URL substring check."
+    },
+    {
+      "ruleId": "js/incomplete-url-substring-sanitization",
+      "uri": "scripts/sync-health-rubric.mjs",
+      "issue": "#324",
+      "note": "Maintainer-script URL substring check."
+    }
+  ]
+}

@@ -59,13 +59,27 @@ jobs:
           output: codeql-results
 
       # The honest substitute for the Security tab on a private/Free repo: fail the
-      # check when CodeQL reports any result, and attach the SARIF for triage.
-      - name: Gate on findings (SARIF)
+      # check on any NEW finding. Known findings live in .github/codeql-known-findings.json
+      # (fingerprint = ruleId + file uri; every entry carries a tracking issue — removing
+      # the entry once fixed is that issue's DoD). Same allowlist policy as the axe lanes.
+      - name: Gate on NEW findings (SARIF vs known-findings allowlist)
         run: |
-          count=$(jq '[.runs[].results[]] | length' codeql-results/javascript.sarif)
-          echo "CodeQL findings: $count"
-          if [ "$count" != "0" ]; then
-            jq -r '.runs[].results[] | "  \(.ruleId): \(.locations[0].physicalLocation.artifactLocation.uri):\(.locations[0].physicalLocation.region.startLine // 0) — \(.message.text)"' codeql-results/javascript.sarif
+          new=$(jq --slurpfile known .github/codeql-known-findings.json '
+            [.runs[].results[]
+             | {ruleId, uri: .locations[0].physicalLocation.artifactLocation.uri, msg: .message.text, line: (.locations[0].physicalLocation.region.startLine // 0)}
+             | select(. as $r | [$known[0].known[] | select(.ruleId == $r.ruleId and .uri == $r.uri)] | length == 0)
+            ]' codeql-results/javascript.sarif)
+          total=$(jq '[.runs[].results[]] | length' codeql-results/javascript.sarif)
+          newcount=$(printf '%s' "$new" | jq 'length')
+          echo "CodeQL findings: $total total, $newcount new (not in the allowlist)"
+          jq -r --slurpfile known .github/codeql-known-findings.json '
+            .runs[].results[]
+            | {ruleId, uri: .locations[0].physicalLocation.artifactLocation.uri, line: (.locations[0].physicalLocation.region.startLine // 0)}
+            | . as $r
+            | (if ([$known[0].known[] | select(.ruleId == $r.ruleId and .uri == $r.uri)] | length) > 0 then "  known " else "  NEW   " end) + "\($r.ruleId): \($r.uri):\($r.line)"' codeql-results/javascript.sarif
+          if [ "$newcount" != "0" ]; then
+            echo "::error::CodeQL found $newcount NEW finding(s) — fix them or triage into .github/codeql-known-findings.json with a tracking issue."
+            printf '%s' "$new" | jq -r '.[] | "  \(.ruleId): \(.uri):\(.line) — \(.msg)"'
             exit 1
           fi
 

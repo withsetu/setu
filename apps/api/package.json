@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@hono/node-server": "2.0.5",
+    "@hono/node-server": "2.0.8",
     "@setu/captcha-recaptcha": "workspace:*",
     "@setu/captcha-turnstile": "workspace:*",
     "@setu/core": "workspace:*",
@@ -24,7 +24,7 @@
     "@setu/git-local": "workspace:*",
     "@setu/image-sharp": "workspace:*",
     "@setu/storage-local": "workspace:*",
-    "hono": "4.12.26"
+    "hono": "4.12.27"
   },
   "devDependencies": {
     "@setu/db-memory": "workspace:*",
@@ -32,8 +32,8 @@
     "@setu/git-memory": "workspace:*",
     "@setu/image-testing": "workspace:*",
     "@types/node": "^22.10.2",
-    "isomorphic-git": "^1.38.4",
-    "tsx": "^4.19.2",
+    "isomorphic-git": "^1.38.6",
+    "tsx": "^4.22.5",
     "typescript": "^5.6.3",
     "vitest": "^2.1.8"
   }

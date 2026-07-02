@@ -46,7 +46,33 @@ jobs:
       - name: Autobuild
         uses: github/codeql-action/autobuild@v4
 
+      # `upload: never` — code-scanning upload (the Security tab) requires GHAS on
+      # PRIVATE repos (verified live: the analysis itself ran fine, only the upload was
+      # rejected — run 28626097162). Until the repo goes public (MIT/OSS plan) or GHAS
+      # is bought, we gate on the SARIF directly below instead. When that changes:
+      # remove `upload: never` and the two steps below.
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v4
         with:
           category: /language:javascript-typescript
+          upload: never
+          output: codeql-results
+
+      # The honest substitute for the Security tab on a private/Free repo: fail the
+      # check when CodeQL reports any result, and attach the SARIF for triage.
+      - name: Gate on findings (SARIF)
+        run: |
+          count=$(jq '[.runs[].results[]] | length' codeql-results/javascript.sarif)
+          echo "CodeQL findings: $count"
+          if [ "$count" != "0" ]; then
+            jq -r '.runs[].results[] | "  \(.ruleId): \(.locations[0].physicalLocation.artifactLocation.uri):\(.locations[0].physicalLocation.region.startLine // 0) — \(.message.text)"' codeql-results/javascript.sarif
+            exit 1
+          fi
+
+      - name: Upload SARIF artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeql-sarif
+          path: codeql-results/
+          retention-days: 14

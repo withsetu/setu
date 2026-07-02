@@ -8,6 +8,7 @@ const has = categories.length > 0 || tags.length > 0
 ---
 
 {has && (
+  /* `measure-post` is PostLayout's reading-column width class — keeps the chips aligned to the article column. */
   <nav class="setu-taxonomy measure-post" aria-label="Categories and tags">
     {categories.map((c) => (
       <a class="setu-chip setu-chip--cat" href={`/category/${c.slug}`}>{c.name}</a>

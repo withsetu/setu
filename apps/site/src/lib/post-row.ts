@@ -1,13 +1,15 @@
-import type { PostRow } from '@setu/core'
+import { excerpt, type PostRow } from '@setu/core'
 
 export function strArr(v: unknown): string[] {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
 }
 
-/** Map a raw Astro content entry (id = "collection/locale/slug") to a PostRow.
- *  Used in archive-style getStaticPaths blocks so the projection is defined once
- *  and shared across category, tag, and other taxonomy routes. */
-export function toPostRow(entry: { id: string; data: Record<string, unknown> }): PostRow {
+const str = (v: unknown): string => (typeof v === 'string' ? v : '')
+
+/** Map a raw Astro content entry (id = "collection/locale/slug") to a PostRow. Single projection
+ *  shared by every archive-style getStaticPaths (posts, category, tag, …) so they agree on fields
+ *  and ordering. Pass `body` to derive a card excerpt (frontmatter description/summary wins). */
+export function toPostRow(entry: { id: string; data: Record<string, unknown>; body?: string }): PostRow {
   const [col = '', loc = '', ...rest] = entry.id.split('/')
   const d = entry.data
   const dateRaw = d['date'] ?? d['pubDate'] ?? d['updatedAt']
@@ -17,6 +19,7 @@ export function toPostRow(entry: { id: string; data: Record<string, unknown> }):
       : typeof dateRaw === 'string' || typeof dateRaw === 'number'
         ? Date.parse(String(dateRaw))
         : NaN
+  const cardExcerpt = str(d['description']) || str(d['summary']) || excerpt(entry.body ?? '', 160)
   return {
     id: entry.id,
     collection: col,
@@ -30,5 +33,6 @@ export function toPostRow(entry: { id: string; data: Record<string, unknown> }):
     tags: strArr(d['tags']),
     categories: strArr(d['categories']),
     featuredImage: typeof d['featuredImage'] === 'string' ? (d['featuredImage'] as string) : undefined,
+    excerpt: cardExcerpt || undefined,
   }
 }

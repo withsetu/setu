@@ -1,0 +1,240 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+
+  // ---------------------------------------------------------------------------------
+  // Setu / turbo.json — task graph for the pnpm workspace (apps/* + packages/*).
+  // e2e/ (Playwright, root-level) is NOT a workspace package and is intentionally untouched
+  // by this graph — it never appears in `tasks` and turbo never schedules it.
+  //
+  // Reality check behind every `dependsOn` below: every package in this repo resolves
+  // its workspace dependencies straight to TS SOURCE (`main`/`types` -> `./src/index.ts`,
+  // no `dist/` in the module graph). There is no compile step whose output another
+  // package's typecheck/test consumes. Because of that:
+  //   - `dependsOn: ["^build"]` would be a LIE here — nothing reads a dependency's build
+  //     output at typecheck/test time, so it's omitted from those tasks.
+  //   - `dependsOn: ["^typecheck"]` / `["^test"]` is still required, NOT for ordering
+  //     source availability (source is already on disk via the workspace symlink), but
+  //     because turbo folds an upstream task's hash into the downstream task's hash only
+  //     through a `dependsOn` edge (see turborepo.dev/docs/crafting-your-repository/
+  //     configuring-tasks — the "check-types: dependsOn ^check-types" example, and the
+  //     ESLint guide's "invalidate whenever dependencies change" pattern). Without this
+  //     edge, editing packages/core would NOT bust apps/site's cached typecheck/test —
+  //     a false green. This is the load-bearing line in this whole config.
+  //
+  // PRE-EXISTING CYCLE (found while building this graph, not introduced by it — tracked as
+  // #310): pnpm tolerates devDependency cycles; turbo's task DAG does not. `turbo run
+  // --dry-run=json` reports it honestly as ONE connected 7-package cyclic component, not
+  // two separate 2-node cycles:
+  //   @setu/git-testing -> @setu/git-memory -> @setu/db-testing -> @setu/db-memory
+  //     -> @setu/core -> @setu/git-http -> @setu/api -> (devDep->) @setu/git-http
+  // (also: @setu/api -> (devDep->) @setu/db-testing / @setu/git-testing via git-http's and
+  // core's dev-time fixtures — same component, not a second independent cycle). The two
+  // real dep-> back-edges that close the loop are @setu/db-memory/@setu/git-memory -> core
+  // and @setu/api -> git-http; everything else in the component is devDep-only.
+  // `^typecheck`/`^test` expands over ALL dependency fields (dep + devDep), so a blanket
+  // topological edge on any node inside this component makes turbo refuse the graph
+  // ("Cyclic dependency detected"). Fix applied here: @setu/core has ZERO real (non-
+  // cyclic) workspace deps, so it gets no `^` edge at all — its typecheck/test tasks
+  // depend on nothing upstream, which is honest (nothing it needs is upstream of it).
+  // @setu/git-http's one real dep (@setu/core) is named explicitly via `package#task`
+  // instead of `^`, which sidesteps expanding into the devDep-only @setu/api/git-testing
+  // back-edges. core#test's fixtures DO really import db-memory/git-memory source
+  // (verified: grep hits in packages/core/{src,test}/**/*.test.ts), and git-http#test
+  // genuinely imports @setu/git-testing (verified: packages/git-http/test/contract.test.ts)
+  // — both covered by explicit `inputs` globs below (hash-honest) rather than `dependsOn`
+  // (which would recreate the cycle). Root-caused but NOT fixed here (out of scope for T1:
+  // adopt turbo without changing package architecture) — #310 tracks decoupling core's
+  // dev-time test fixtures from db-memory/git-memory, and git-http's contract test from a
+  // live @setu/api, which would collapse this whole component and let every task here go
+  // back to plain `^typecheck`/`^test`.
+  // ---------------------------------------------------------------------------------
+
+  "globalDependencies": [
+    "tsconfig.base.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    ".nvmrc"
+  ],
+
+  "tasks": {
+    // ---- typecheck -----------------------------------------------------------------
+    // Plain `tsc --noEmit` (or two tsc passes for core) reads only the package's own
+    // source + its workspace deps' source. `^typecheck` gives correctness (see header);
+    // default inputs (all git-tracked files in the package dir) are trustworthy for the
+    // vanilla case since tsconfig paths/workspace links resolve inside each package dir.
+    "typecheck": {
+      "dependsOn": ["^typecheck"],
+      "outputs": []
+    },
+
+    // @setu/site#typecheck runs gen-blocks + gen-relations + astro sync + tsc (self-
+    // contained per #217 — see apps/site/package.json). Its real inputs reach OUTSIDE
+    // apps/site: repo-root blocks/**, content/** (gen-relations walks SETU_CONTENT_DIR,
+    // default repo-root content/), the two generator scripts, and its own source +
+    // workspace deps (@setu/blocks, @setu/core, @setu/image-astro, @setu/theme-default —
+    // covered by ^typecheck via those packages' own typecheck tasks). $TURBO_DEFAULT$
+    // keeps the package's own default inputs (src/**, package.json, tsconfig, etc.)
+    // in addition to the extra external globs.
+    "@setu/site#typecheck": {
+      "dependsOn": ["^typecheck"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../../blocks/**",
+        "../../content/**",
+        "../../scripts/gen-blocks.mjs",
+        "../../scripts/gen-relations.mjs"
+      ],
+      "outputs": []
+    },
+
+    // @setu/core has NO real (non-cyclic) workspace package deps — its only dependencies
+    // are external npm packages (markdoc, jiti, js-yaml, zod). db-memory/git-memory are
+    // devDependencies used purely as core's own test fixtures, and they depend BACK on
+    // core, so a topological ^typecheck edge here would be cyclic (see header). tsc
+    // reads only core's own source + tsconfig.json + tsconfig.edge.json, all git-tracked
+    // inside packages/core/ and covered by default inputs — no extra globs needed.
+    "@setu/core#typecheck": {
+      "outputs": []
+    },
+
+    // ---- test -----------------------------------------------------------------------
+    "test": {
+      "dependsOn": ["^test"],
+      "outputs": []
+    },
+
+    // Same cycle reasoning as @setu/core#typecheck: no topological `^test` edge (would
+    // be cyclic through db-memory/git-memory). UNLIKE typecheck, core's tests genuinely
+    // import db-memory/git-memory SOURCE as fixtures (verified via grep in
+    // packages/core/{src,test}/**/*.test.ts — e.g. bulk-service.test.ts, taxonomy/
+    // service.test.ts). So their source is added as explicit `inputs` globs — hash-honest
+    // without recreating the dependsOn cycle.
+    "@setu/core#test": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../db-memory/src/**",
+        "../git-memory/src/**"
+      ],
+      "outputs": []
+    },
+
+    // @setu/git-http's one REAL dependency is @setu/core (dependencies, not devDependencies).
+    // @setu/api is a devDependency used only by git-http's own contract test (verified:
+    // packages/git-http/test/contract.test.ts imports @setu/api) and api depends back on
+    // git-http for real — a topological ^typecheck/^test edge would re-enter that cycle.
+    // Named explicitly instead of `^`, which only pulls in the real, acyclic dependency.
+    "@setu/git-http#typecheck": {
+      "dependsOn": ["@setu/core#typecheck"],
+      "outputs": []
+    },
+    // git-http's contract test ALSO imports @setu/git-testing (runGitPortContract — verified:
+    // packages/git-http/test/contract.test.ts) — a real devDependency, and part of the same
+    // cyclic component as api (git-testing -> git-memory -> core, and core -> ... -> git-http
+    // -> api -> git-http), so it's covered the same way as core#test's db-memory/git-memory
+    // fixtures: explicit `inputs`, not `dependsOn` (which would recreate the cycle). Without
+    // this glob, editing git-testing's source would NOT bust this task's cache — a false green.
+    "@setu/git-http#test": {
+      "dependsOn": ["@setu/core#test"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../../apps/api/src/**",
+        "../git-testing/src/**"
+      ],
+      "outputs": []
+    },
+
+    // @setu/api's one cyclic partner is @setu/git-http (devDependency on each side,
+    // git-http -> api is real via dependencies). ^typecheck/^test would recreate the
+    // same cycle from api's side, so api's edge to git-http is also named explicitly
+    // instead of `^`. api's other workspace deps (db-memory, db-sqlite, email-*,
+    // captcha-*, image-sharp, storage-local, git-memory, image-testing) are acyclic and
+    // still covered — replacing `^` here loses their auto-discovery, so they're listed
+    // explicitly too (surveyed from apps/api/package.json's dependencies/devDependencies).
+    // @setu/db-testing and @setu/git-testing are NOT api dependencies (grep confirms
+    // apps/api/package.json has neither, and apps/api/{src,test}/**/*.ts imports neither)
+    // — they were fabricated in an earlier draft of this file and are deliberately absent.
+    "@setu/api#typecheck": {
+      "dependsOn": [
+        "@setu/core#typecheck",
+        "@setu/git-http#typecheck",
+        "@setu/db-memory#typecheck",
+        "@setu/db-sqlite#typecheck",
+        "@setu/email-console#typecheck",
+        "@setu/email-resend#typecheck",
+        "@setu/email-templates#typecheck",
+        "@setu/git-local#typecheck",
+        "@setu/git-memory#typecheck",
+        "@setu/captcha-recaptcha#typecheck",
+        "@setu/captcha-turnstile#typecheck",
+        "@setu/image-sharp#typecheck",
+        "@setu/image-testing#typecheck",
+        "@setu/storage-local#typecheck"
+      ],
+      "outputs": []
+    },
+    "@setu/api#test": {
+      "dependsOn": [
+        "@setu/core#test",
+        "@setu/git-http#test",
+        "@setu/db-memory#test",
+        "@setu/db-sqlite#test",
+        "@setu/email-console#test",
+        "@setu/email-resend#test",
+        "@setu/email-templates#test",
+        "@setu/git-local#test",
+        "@setu/git-memory#test",
+        "@setu/captcha-recaptcha#test",
+        "@setu/captcha-turnstile#test",
+        "@setu/image-sharp#test",
+        "@setu/image-testing#test",
+        "@setu/storage-local#test"
+      ],
+      "outputs": []
+    },
+
+    // @setu/site#test (vitest) runs a REAL `pnpm build` (prebuild codegen + `astro
+    // build`) inside beforeAll (test/theme-options.test.ts, test/a11y.test.ts; several
+    // suites share the one dist/ — vitest.config.ts sets fileParallelism:false on
+    // purpose, do not parallelize this task's internals). That means test's honest
+    // input set is the SAME external surface as typecheck (blocks/, content/, the
+    // generator scripts) plus everything astro build itself reads: theme-default's
+    // rendered .astro/.css (workspace dep, covered by ^test), and this app's own
+    // config/integration files already inside $TURBO_DEFAULT$. Correctness over
+    // speed per the brief: kept cacheable because the input set IS fully enumerable
+    // (nothing dynamic/unbounded), unlike a task reading arbitrary user/network state.
+    "@setu/site#test": {
+      "dependsOn": ["^test", "@setu/site#typecheck"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../../blocks/**",
+        "../../content/**",
+        "../../scripts/gen-blocks.mjs",
+        "../../scripts/gen-relations.mjs"
+      ],
+      "outputs": []
+    },
+
+    // ---- build ------------------------------------------------------------------------
+    // Only @setu/admin (vite build) and @setu/site (astro build) declare a `build` script.
+    // No other package's typecheck/test/build reads apps/admin's or apps/site's build
+    // output (dist/ is a deploy artifact, not consumed by any workspace package's module
+    // graph) — so `build` stays a graph leaf with no dependents wired to it. Declared
+    // here only so `turbo run build` works for these two; outputs point at their real
+    // artifact dirs so a future consumer could cache-restore them.
+    "@setu/admin#build": {
+      "dependsOn": ["^typecheck"],
+      "outputs": ["dist/**"]
+    },
+    "@setu/site#build": {
+      "dependsOn": ["^typecheck"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../../blocks/**",
+        "../../content/**",
+        "../../scripts/gen-blocks.mjs",
+        "../../scripts/gen-relations.mjs"
+      ],
+      "outputs": ["dist/**"]
+    }
+  }
+}

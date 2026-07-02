@@ -3,11 +3,12 @@ name: CI
 # Baseline quality gate — typecheck + tests + Playwright E2E.
 #   * On a PR: skip entirely for docs-only (markdown) changes; otherwise the `check` job
 #     runs only the packages changed since the merge-base with the base branch AND their
-#     dependents (pnpm `...[<sha>]` affected filter, #271), and the `e2e` job runs the
-#     PR browser lane (chromium + webkit-on-editor-specs + visual snapshots, #219).
+#     dependents (turbo `...[<sha>]` affected filter, #271/#272), and the `e2e` job runs
+#     the PR browser lane (chromium + webkit-on-editor-specs + visual snapshots, #219).
 #   * On push to main + nightly cron: full unit suite AND the full E2E browser matrix
 #     (chromium + firefox + webkit on everything) as the post-merge/overnight safety net.
-# Foundation: #217 · Affected filtering: #271 · E2E: #219 · CI epic: #216.
+# Foundation: #217 · Affected filtering: #271 · turbo task graph: #272 · E2E: #219 ·
+# CI epic: #216.
 
 on:
   pull_request:
@@ -47,7 +48,8 @@ jobs:
 
       # PR: derive a since-SHA (merge-base with the base branch) and a scope mode.
       #   - docs-only (all changed files are *.md/*.mdx) -> skip typecheck/test.
-      #   - otherwise -> affected: pnpm `...[<sha>]` (changed packages + dependents).
+      #   - otherwise -> affected: turbo `...[<sha>]` (changed packages + dependents,
+      #     resolved through turbo's own task-graph `dependsOn` edges — see turbo.json).
       # Push: no since-SHA -> full suite. Diagnostics print what will run.
       - name: Determine affected scope
         id: scope
@@ -64,8 +66,9 @@ jobs:
               echo "skip=true" >> "$GITHUB_OUTPUT"
             else
               echo "since=$since" >> "$GITHUB_OUTPUT"
-              echo "Packages pnpm selects for '...[${since:0:9}]':"
-              pnpm --filter "...[$since]" -r exec sh -c 'basename "$(pwd)"' 2>/dev/null | sed 's/^/  /' || true
+              echo "turbo's affected scope for '...[${since:0:9}]':"
+              pnpm exec turbo run typecheck test --filter "...[$since]" --dry-run 2>&1 \
+                | grep -E '^\s+•\s+(Packages in scope|Running)' | sed 's/^/  /' || true
             fi
           else
             echo "Push build — running the full suite."
@@ -73,21 +76,20 @@ jobs:
 
       # @setu/core's typecheck also runs the edge build (tsconfig.edge.json), so the
       # edge-safe check is covered whenever core is in scope; push-to-main runs it regardless.
-      - name: Typecheck (incl. core edge build)
+      # typecheck+test run as one turbo invocation per lane (readable, task-graph-ordered
+      # log output — see turbo.json for the `dependsOn` graph this scope resolves through).
+      # Local cache only for now (turbo's default): CI runs stay cold across separate runs;
+      # #273 adds a remote cache so a later run/job can reuse an earlier one's hashes.
+      - name: Typecheck + test (incl. core edge build)
         run: |
           if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
           since='${{ steps.scope.outputs.since }}'
-          if [ -n "$since" ]; then pnpm --filter "...[$since]" -r typecheck; else pnpm -r typecheck; fi
+          if [ -n "$since" ]; then pnpm exec turbo run typecheck test --filter "...[$since]"; else pnpm exec turbo run typecheck test; fi
 
       # Lint: no linter is configured in the repo yet (#267). When it lands, add the step here.
 
-      - name: Test (workspace)
-        run: |
-          if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
-          since='${{ steps.scope.outputs.since }}'
-          if [ -n "$since" ]; then pnpm --filter "...[$since]" -r test; else pnpm -r test; fi
-
-      # Repo-script tests aren't a workspace package; run unless the change is docs-only.
+      # Repo-script tests aren't a workspace package (not part of turbo's task graph);
+      # run unless the change is docs-only.
       - name: Test (repo scripts)
         run: |
           if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi

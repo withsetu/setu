@@ -4,6 +4,9 @@ dist/
 .DS_Store
 *.log
 
+# Turborepo local cache (task hashes + cached logs/outputs, per-package + root)
+.turbo/
+
 # Superpowers git worktrees (temporary, per-feature copies of the repo)
 .claude/worktrees/
 .superpowers/

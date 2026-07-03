@@ -5,6 +5,7 @@ import { DEFAULT_LOCALE } from '@setu/core'
 import { loadSiteSettings } from '../lib/site-settings'
 import { getFeedPosts } from '../lib/feed'
 import { buildFeed } from '../lib/rss-xml'
+import { permalinkMap } from '../lib/permalinks'
 
 export const prerender = true
 
@@ -14,6 +15,7 @@ export async function GET(context: APIContext) {
     return new Response(null, { status: 404 })
   }
   const entries = await getCollection('entries')
+  const map = await permalinkMap()
   const items = getFeedPosts(
     entries.map((e) => ({
       id: e.id,
@@ -21,7 +23,9 @@ export async function GET(context: APIContext) {
       body: e.body,
       filePath: e.filePath
     })),
-    settings.reading.feed.items
+    settings.reading.feed.items,
+    DEFAULT_LOCALE,
+    (id) => map.get(id) ?? ''
   )
   return rss(
     buildFeed({

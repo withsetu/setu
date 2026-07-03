@@ -1,0 +1,15 @@
+# Mirrors eslint.config.mjs's ignore list, plus formats Prettier shouldn't touch.
+dist/
+node_modules/
+.astro/
+.setu/
+.content-sandbox/
+.turbo/
+pnpm-lock.yaml
+apps/site/markdoc.blocks.generated.mjs
+e2e/test-results/
+e2e/playwright-report/
+e2e/**/*-snapshots/
+prototype/
+content/
+taxonomy/*.yaml

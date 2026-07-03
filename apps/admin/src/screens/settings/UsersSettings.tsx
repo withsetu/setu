@@ -1,0 +1,657 @@
+import { useEffect, useState } from 'react'
+import type { FormEvent } from 'react'
+import * as z from 'zod'
+import type { Role } from '@setu/core'
+import { useActor } from '../../auth/actor'
+import { authClient } from '../../auth/auth-client'
+import type { AdminUser } from '../../auth/auth-client'
+import { useNotify } from '../../ui/notify'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu'
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog'
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
+import { MoreHorizontal } from 'lucide-react'
+
+/** Setu's fixed role set + the one-line descriptions from the authz matrix (packages/core's
+ *  DEFAULT_ROLES) — shown in the invite dialog and the role-change picker so admins pick a role by
+ *  what it can DO, not by memorizing a name. Order is most-to-least privileged (excluding owner,
+ *  which is not offered here — see ROLE_OPTIONS below). */
+const ROLE_DESCRIPTIONS: Record<Role, string> = {
+  owner: 'Full control, including users and settings',
+  publisher: 'Can publish content and deploy the site',
+  editor: 'Can publish content, cannot deploy',
+  author: 'Can create and edit drafts only',
+  viewer: 'Read-only access',
+}
+
+/** Roles offered when inviting/changing a user's role. 'owner' is deliberately excluded — Setu
+ *  ships with exactly one owner (the first-run identity); granting a second owner via this screen
+ *  would blur "the last owner" invariant this screen otherwise protects. Promoting to owner (if
+ *  ever needed) is an explicit, rarer operation this minimal Task 8 scope does not cover. */
+const ROLE_OPTIONS: Role[] = ['publisher', 'editor', 'author', 'viewer']
+
+const inviteSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  email: z.string().email('Enter a valid email'),
+  password: z.string().min(12, 'Password must be at least 12 characters'),
+  role: z.enum(['publisher', 'editor', 'author', 'viewer'] as const, { message: 'Choose a role' }),
+})
+type InviteValues = z.infer<typeof inviteSchema>
+type InviteErrors = Partial<Record<keyof InviteValues, string>>
+
+const passwordSchema = z
+  .object({
+    currentPassword: z.string().optional(),
+    newPassword: z.string().min(12, 'Password must be at least 12 characters'),
+    confirm: z.string(),
+  })
+  .refine((data) => data.newPassword === data.confirm, { message: "Passwords don't match", path: ['confirm'] })
+type PasswordErrors = { currentPassword?: string; newPassword?: string; confirm?: string }
+
+function initialOf(name: string, email: string): string {
+  return (name || email || '?').charAt(0).toUpperCase()
+}
+
+function formatDate(value: Date | string | undefined): string {
+  if (!value) return '—'
+  const d = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+/** True if `role` is one of Setu's five roles — better-auth's `role` field is a loose string. */
+function isKnownRole(role: string | null | undefined): role is Role {
+  return !!role && (['owner', 'publisher', 'editor', 'author', 'viewer'] as const).includes(role as Role)
+}
+
+/** better-auth's admin plugin enforces some guard rails server-side (self-ban is rejected with
+ *  `YOU_CANNOT_BAN_YOURSELF` — verified in node_modules/better-auth/dist/plugins/admin/routes.mjs)
+ *  but NOT self-role-change or "last owner" protection for either role changes or bans — those
+ *  endpoints only check the caller's own permission, not the effect on the target. This screen
+ *  enforces both client-side, computed from the same list already loaded for the table. */
+function isLastOwner(users: AdminUser[], userId: string): boolean {
+  const owners = users.filter((u) => u.role === 'owner')
+  return owners.length === 1 && owners[0]?.id === userId
+}
+
+interface RowGuard {
+  disabled: boolean
+  reason?: string
+}
+
+function roleChangeGuard(user: AdminUser, selfId: string, users: AdminUser[]): RowGuard {
+  if (user.id === selfId) return { disabled: true, reason: 'You cannot change your own role' }
+  if (isLastOwner(users, user.id)) return { disabled: true, reason: 'Cannot demote the last owner' }
+  return { disabled: false }
+}
+
+function disableGuard(user: AdminUser, selfId: string, users: AdminUser[]): RowGuard {
+  if (user.id === selfId) return { disabled: true, reason: 'You cannot disable yourself' }
+  if (isLastOwner(users, user.id)) return { disabled: true, reason: 'Cannot disable the last owner' }
+  return { disabled: false }
+}
+
+function GuardedTrigger({ guard, children }: { guard: RowGuard; children: React.ReactNode }) {
+  if (!guard.disabled) return <>{children}</>
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        {/* span wrapper: Radix Tooltip needs a focusable/hoverable child even when the inner
+         *  control is disabled (disabled elements don't fire pointer events in most browsers). */}
+        <span tabIndex={0} className="inline-flex">
+          {children}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{guard.reason}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+function RoleBadge({ role }: { role: string | null | undefined }) {
+  const known = isKnownRole(role)
+  return (
+    <Badge variant={known && role === 'owner' ? 'default' : 'secondary'} className="capitalize">
+      {known ? role : 'viewer'}
+    </Badge>
+  )
+}
+
+function StatusBadge({ user }: { user: AdminUser }) {
+  if (user.banned) return <Badge variant="destructive">Disabled</Badge>
+  return <Badge variant="success">Active</Badge>
+}
+
+/** The invite/add-user Dialog. Uses the admin plugin's `createUser` — the created user gets a real
+ *  credential account with the temporary password (unlike the passwordless local owner — see
+ *  ensure-local-owner.ts — this path always supplies a password, so the invited user can sign in
+ *  remotely immediately). */
+function InviteUserDialog({ onCreated }: { onCreated: () => void }) {
+  const notify = useNotify()
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [role, setRole] = useState<Role | ''>('')
+  const [errors, setErrors] = useState<InviteErrors>({})
+  const [submitting, setSubmitting] = useState(false)
+
+  function reset() {
+    setName('')
+    setEmail('')
+    setPassword('')
+    setRole('')
+    setErrors({})
+  }
+
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (submitting) return
+    const parsed = inviteSchema.safeParse({ name, email, password, role })
+    if (!parsed.success) {
+      const next: InviteErrors = {}
+      for (const issue of parsed.error.issues) {
+        const key = issue.path[0] as keyof InviteValues | undefined
+        if (key && !next[key]) next[key] = issue.message
+      }
+      setErrors(next)
+      return
+    }
+    setErrors({})
+    setSubmitting(true)
+    try {
+      const { error } = await authClient.admin.createUser({ ...parsed.data })
+      if (error) {
+        notify.error(error.message || 'Could not create user')
+        return
+      }
+      notify.success(`Invited ${parsed.data.name}`)
+      reset()
+      setOpen(false)
+      onCreated()
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next) reset()
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button>Add user</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add user</DialogTitle>
+          <DialogDescription>Creates an account with a temporary password. Share it with them securely.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={(e) => void onSubmit(e)} noValidate className="grid gap-4">
+          <div className="grid gap-1.5">
+            <Label htmlFor="invite-name">Name</Label>
+            <Input id="invite-name" autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} aria-invalid={!!errors.name} />
+            {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="invite-email">Email</Label>
+            <Input
+              id="invite-email"
+              type="email"
+              autoComplete="off"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              aria-invalid={!!errors.email}
+            />
+            {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="invite-password">Temporary password</Label>
+            <Input
+              id="invite-password"
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              aria-invalid={!!errors.password}
+            />
+            {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="invite-role">Role</Label>
+            <Select value={role} onValueChange={(v) => setRole(v as Role)}>
+              <SelectTrigger id="invite-role" className="w-full" aria-invalid={!!errors.role}>
+                <SelectValue placeholder="Choose a role" />
+              </SelectTrigger>
+              <SelectContent>
+                {ROLE_OPTIONS.map((r) => (
+                  <SelectItem key={r} value={r}>
+                    <span className="flex flex-col">
+                      <span className="capitalize">{r}</span>
+                      <span className="text-xs text-muted-foreground">{ROLE_DESCRIPTIONS[r]}</span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.role && <p className="text-sm text-destructive">{errors.role}</p>}
+          </div>
+          <DialogFooter>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? 'Adding…' : 'Add user'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** One row's role-change control + disable/enable menu. Kept together since both need the same
+ *  guard computation (self / last-owner) against the full `users` list. */
+function UserRowActions({
+  user,
+  selfId,
+  users,
+  onChanged,
+}: {
+  user: AdminUser
+  selfId: string
+  users: AdminUser[]
+  onChanged: () => void
+}) {
+  const notify = useNotify()
+  const [changingRole, setChangingRole] = useState(false)
+  const [banning, setBanning] = useState(false)
+  const roleGuard = roleChangeGuard(user, selfId, users)
+  const disableGuardResult = disableGuard(user, selfId, users)
+
+  async function changeRole(next: Role) {
+    if (changingRole || next === user.role) return
+    setChangingRole(true)
+    // Optimistic: the parent list already renders from server state on refetch; we just show the
+    // pending state here and let onChanged() re-fetch to reconcile (or roll back on error).
+    try {
+      const { error } = await authClient.admin.setRole({ userId: user.id, role: next })
+      if (error) {
+        notify.error(error.message || 'Could not change role')
+        return
+      }
+      notify.success(`${user.name || user.email} is now ${next}`)
+      onChanged()
+    } finally {
+      setChangingRole(false)
+    }
+  }
+
+  async function toggleBan() {
+    if (banning) return
+    setBanning(true)
+    try {
+      const action = user.banned ? authClient.admin.unbanUser({ userId: user.id }) : authClient.admin.banUser({ userId: user.id })
+      const { error } = await action
+      if (error) {
+        notify.error(error.message || 'Could not update user status')
+        return
+      }
+      notify.success(user.banned ? `${user.name || user.email} re-enabled` : `${user.name || user.email} disabled`)
+      onChanged()
+    } finally {
+      setBanning(false)
+    }
+  }
+
+  return (
+    <TooltipProvider>
+      <div className="flex items-center justify-end gap-2">
+        <GuardedTrigger guard={roleGuard}>
+          <Select
+            value={isKnownRole(user.role) ? user.role : undefined}
+            onValueChange={(v) => void changeRole(v as Role)}
+            disabled={roleGuard.disabled || changingRole || user.role === 'owner'}
+          >
+            <SelectTrigger size="sm" aria-label={`Change role for ${user.name || user.email}`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(user.role === 'owner' ? (['owner', ...ROLE_OPTIONS] as Role[]) : ROLE_OPTIONS).map((r) => (
+                <SelectItem key={r} value={r} disabled={r === 'owner'}>
+                  <span className="capitalize">{r}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </GuardedTrigger>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" aria-label={`More actions for ${user.name || user.email}`}>
+              <MoreHorizontal className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <AlertDialog>
+              <GuardedTrigger guard={disableGuardResult}>
+                <AlertDialogTrigger asChild disabled={disableGuardResult.disabled}>
+                  <DropdownMenuItem
+                    variant={user.banned ? 'default' : 'destructive'}
+                    disabled={disableGuardResult.disabled}
+                    onSelect={(e) => {
+                      // Always prevent the default close: for "enable" there's no confirm step, so
+                      // toggle immediately; for "disable" the AlertDialogTrigger (wrapping this
+                      // item) needs the dropdown to stay mounted long enough to hand off to the
+                      // alert-dialog it opens — closing first would unmount it before it can show.
+                      e.preventDefault()
+                      if (user.banned) void toggleBan()
+                    }}
+                  >
+                    {user.banned ? 'Enable user' : 'Disable user'}
+                  </DropdownMenuItem>
+                </AlertDialogTrigger>
+              </GuardedTrigger>
+              {!user.banned && (
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Disable {user.name || user.email}?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Their active sessions end immediately and they can no longer sign in until re-enabled.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction disabled={banning} onClick={() => void toggleBan()}>
+                      {banning ? 'Disabling…' : 'Disable'}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              )}
+            </AlertDialog>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </TooltipProvider>
+  )
+}
+
+function UserList() {
+  const actor = useActor()
+  const notify = useNotify()
+  const [users, setUsers] = useState<AdminUser[] | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  async function load() {
+    setLoading(true)
+    try {
+      const { data, error } = await authClient.admin.listUsers({ query: { sortBy: 'createdAt', sortDirection: 'asc' } })
+      if (error) {
+        notify.error(error.message || 'Could not load users')
+        setUsers([])
+        return
+      }
+      setUsers(data?.users ?? [])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <div>
+          <CardTitle className="text-base">Users</CardTitle>
+          <CardDescription>Who can sign in and what they can do.</CardDescription>
+        </div>
+        <InviteUserDialog onCreated={() => void load()} />
+      </CardHeader>
+      <CardContent>
+        {loading || users === null ? (
+          <div className="space-y-3">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="flex items-center gap-3">
+                <Skeleton className="size-8 rounded-full" />
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-4 w-56" />
+                <Skeleton className="h-4 w-20" />
+              </div>
+            ))}
+          </div>
+        ) : users.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No users yet.</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>User</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead className="text-right">Role</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {users.map((user) => (
+                <TableRow key={user.id}>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Avatar size="sm">
+                        {user.image && <AvatarImage src={user.image} alt="" />}
+                        <AvatarFallback>{initialOf(user.name, user.email)}</AvatarFallback>
+                      </Avatar>
+                      <span className="font-medium">{user.name || '—'}</span>
+                      {user.id === actor.id && <span className="text-xs text-muted-foreground">(you)</span>}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{user.email}</TableCell>
+                  <TableCell>
+                    <StatusBadge user={user} />
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{formatDate(user.createdAt)}</TableCell>
+                  <TableCell className="text-right">
+                    <UserRowActions user={user} selfId={actor.id} users={users} onChanged={() => void load()} />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+/** The "remote access" owner-password card. better-auth cannot distinguish "passwordless owner" at
+ *  login (see LoginScreen's mapSignInError comment) — this settings screen is where that honest
+ *  state lives instead: the local owner starts with NO credential account (ensure-local-owner.ts),
+ *  so remote/tunnel sign-in is impossible until a password is set here.
+ *
+ *  "Has a password" is derived from `authClient.listAccounts()` — the base client's `/list-accounts`
+ *  route, already part of every better-auth client (not admin-plugin-specific) — checking for a
+ *  `credential` provider entry. This was chosen over adding a new field to the session/actor payload
+ *  because it is zero new server surface: the route already exists and answers exactly this
+ *  question for the CURRENT session's user, which is all this card needs (it never asks about
+ *  other users' password state). Setting the password itself uses the sanctioned better-auth
+ *  admin path `authClient.admin.setUserPassword({ userId: self, newPassword })` — verified in
+ *  node_modules/better-auth/dist/api/routes/update-user.mjs that the base client's `setPassword`
+ *  endpoint is `createAuthEndpoint.serverOnly`, i.e. NOT reachable over HTTP from this browser
+ *  client at all; the admin endpoint is the only client-reachable route that can set a password
+ *  with no existing credential account. Owners already hold `user:set-password` in the admin
+ *  plugin's role map (packages/auth/src/index.ts), so no new permission is needed. */
+function OwnerPasswordCard() {
+  const actor = useActor()
+  const notify = useNotify()
+  const [hasPassword, setHasPassword] = useState<boolean | null>(null)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [errors, setErrors] = useState<PasswordErrors>({})
+  const [submitting, setSubmitting] = useState(false)
+
+  async function loadHasPassword() {
+    const { data, error } = await authClient.listAccounts()
+    if (error) {
+      setHasPassword(null)
+      return
+    }
+    setHasPassword(!!data?.some((a) => a.providerId === 'credential'))
+  }
+
+  useEffect(() => {
+    void loadHasPassword()
+  }, [])
+
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (submitting) return
+    const parsed = passwordSchema.safeParse({ currentPassword, newPassword, confirm })
+    if (!parsed.success) {
+      const next: PasswordErrors = {}
+      for (const issue of parsed.error.issues) {
+        const key = issue.path[0] as keyof PasswordErrors | undefined
+        if (key && !next[key]) next[key] = issue.message
+      }
+      setErrors(next)
+      return
+    }
+    if (hasPassword && !currentPassword) {
+      setErrors({ currentPassword: 'Current password is required' })
+      return
+    }
+    setErrors({})
+    setSubmitting(true)
+    try {
+      if (hasPassword) {
+        const { error } = await authClient.changePassword({ newPassword, currentPassword })
+        if (error) {
+          notify.error(error.message || 'Could not change password')
+          return
+        }
+      } else {
+        const { error } = await authClient.admin.setUserPassword({ userId: actor.id, newPassword })
+        if (error) {
+          notify.error(error.message || 'Could not set password')
+          return
+        }
+      }
+      notify.success('Remote access enabled')
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirm('')
+      await loadHasPassword()
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Remote access</CardTitle>
+        <CardDescription>
+          {hasPassword === false
+            ? 'Signing in from this machine needs no password. Signing in remotely — over a tunnel or a hosted server — requires one.'
+            : 'Set a password to sign in remotely, or change your existing one.'}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {hasPassword === null ? (
+          <Skeleton className="h-9 w-64" />
+        ) : (
+          <form onSubmit={(e) => void onSubmit(e)} noValidate className="grid max-w-sm gap-4">
+            {hasPassword && (
+              <div className="grid gap-1.5">
+                <Label htmlFor="pw-current">Current password</Label>
+                <Input
+                  id="pw-current"
+                  type="password"
+                  autoComplete="current-password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  aria-invalid={!!errors.currentPassword}
+                />
+                {errors.currentPassword && <p className="text-sm text-destructive">{errors.currentPassword}</p>}
+              </div>
+            )}
+            <div className="grid gap-1.5">
+              <Label htmlFor="pw-new">{hasPassword ? 'New password' : 'Password'}</Label>
+              <Input
+                id="pw-new"
+                type="password"
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                aria-invalid={!!errors.newPassword}
+              />
+              {errors.newPassword && <p className="text-sm text-destructive">{errors.newPassword}</p>}
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="pw-confirm">Confirm password</Label>
+              <Input
+                id="pw-confirm"
+                type="password"
+                autoComplete="new-password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                aria-invalid={!!errors.confirm}
+              />
+              {errors.confirm && <p className="text-sm text-destructive">{errors.confirm}</p>}
+            </div>
+            <Button type="submit" disabled={submitting} className="w-fit">
+              {submitting ? 'Saving…' : hasPassword ? 'Change password' : 'Set password'}
+            </Button>
+          </form>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+/** Task 8: minimal Users & Roles settings group. Gated entirely on `users.manage` — non-owners
+ *  never see this group at all (checked at the Settings shell's group-registration level too, so
+ *  the nav item itself disappears, not just this screen's content). */
+export function UsersSettings() {
+  return (
+    <div className="max-w-3xl space-y-5">
+      <UserList />
+      <OwnerPasswordCard />
+    </div>
+  )
+}

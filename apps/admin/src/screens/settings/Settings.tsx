@@ -6,7 +6,9 @@ import { GeneralSettings } from './GeneralSettings'
 import { ReadingSettings } from './ReadingSettings'
 import { MediaSettings } from './MediaSettings'
 import { IdentitySettings } from './IdentitySettings'
+import { UsersSettings } from './UsersSettings'
 import { apiFetch } from '../../lib/api-fetch'
+import { useCan } from '../../auth/actor'
 
 const apiBase = import.meta.env.VITE_SETU_API as string | undefined
 
@@ -42,25 +44,31 @@ function FormsGroup() {
   )
 }
 
-type GroupId = 'general' | 'reading' | 'media' | 'identity' | 'forms'
-const GROUPS: { id: GroupId; label: string }[] = [
+type GroupId = 'general' | 'reading' | 'media' | 'identity' | 'forms' | 'users'
+const BASE_GROUPS: { id: GroupId; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'reading', label: 'Content & Reading' },
   { id: 'media', label: 'Media' },
   { id: 'identity', label: 'Identity & SEO' },
   { id: 'forms', label: 'Forms' },
 ]
-const COMING_SOON = ['Users & Roles', 'Deploy']
+const COMING_SOON = ['Deploy']
 
 export function Settings() {
   const [active, setActive] = useState<GroupId>('general')
+  const can = useCan()
+  // #248 Task 8: the Users & Roles group is gated on `users.manage` at registration time — an
+  // actor without it never sees the nav item at all (not just a blocked screen behind it), matching
+  // how the rest of Setu's authz gates whole surfaces rather than rendering-then-hiding.
+  const groups = can('users.manage') ? [...BASE_GROUPS, { id: 'users' as const, label: 'Users & Roles' }] : BASE_GROUPS
+
   return (
     <>
       <PageHeader title="Settings" />
       <PageBody>
         <div className="flex gap-6">
           <nav className="w-48 shrink-0 space-y-1" aria-label="Settings sections">
-            {GROUPS.map((g) => (
+            {groups.map((g) => (
               <button
                 key={g.id}
                 type="button"
@@ -77,7 +85,23 @@ export function Settings() {
             ))}
           </nav>
           <div className="min-w-0 flex-1">
-            {active === 'general' ? <GeneralSettings /> : active === 'reading' ? <ReadingSettings /> : active === 'media' ? <MediaSettings /> : active === 'identity' ? <IdentitySettings /> : <FormsGroup />}
+            {active === 'general' ? (
+              <GeneralSettings />
+            ) : active === 'reading' ? (
+              <ReadingSettings />
+            ) : active === 'media' ? (
+              <MediaSettings />
+            ) : active === 'identity' ? (
+              <IdentitySettings />
+            ) : active === 'users' && can('users.manage') ? (
+              <UsersSettings />
+            ) : active === 'users' ? (
+              // Actor lost users.manage (or never had it) after selecting this tab client-side —
+              // fall back to General rather than render a gated screen.
+              <GeneralSettings />
+            ) : (
+              <FormsGroup />
+            )}
           </div>
         </div>
       </PageBody>

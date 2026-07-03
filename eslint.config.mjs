@@ -108,6 +108,17 @@ export default tseslint.config(
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
       ],
+      // TUNED OFF (T2 decision, #267): 194 hits at baseline, every sampled one the same
+      // legitimate pattern — an `async` function with no `await`, written to CONFORM to
+      // an async Port interface or API signature. That's structural to the Ports &
+      // Adapters architecture (docs/architecture.md): in-memory/testing/console adapters
+      // (db-memory, git-memory, storage-testing, email-console, db-idb…) implement async
+      // ports synchronously; prod code ships fail-closed async stubs (createNoopCaptcha,
+      // apps/api server.ts `verify`); tests mock fetch/ports with `vi.fn(async () => …)`.
+      // Sampled ~15 sites across src+test: zero real missing-awaits. A truly forgotten
+      // await is still caught by no-floating-promises / no-misused-promises (both ON via
+      // recommendedTypeChecked).
+      '@typescript-eslint/require-await': 'off',
     },
   },
 

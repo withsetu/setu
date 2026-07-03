@@ -13,3 +13,14 @@ e2e/**/*-snapshots/
 prototype/
 content/
 taxonomy/*.yaml
+
+# Prose + reference artifacts, not code (T2 decision, #267): the repo's markdown
+# (CLAUDE.md, docs/, plan/) was never Prettier-formatted — a wholesale rewrite is
+# hundreds of files of review noise for zero code-quality gain, and Prettier's md
+# normalization (e.g. *em* -> _em_) rewrites carefully-authored prose. design/ is
+# frozen design-mockup artifacts (html/jsx/css snapshots, not product code).
+# .github/ belongs to the CI increment (T3, #267) and includes generated JSON
+# (codeql-known-findings.json) that must stay byte-stable.
+**/*.md
+design/
+.github/

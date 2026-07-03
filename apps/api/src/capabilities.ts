@@ -1,5 +1,4 @@
 import { Hono } from 'hono'
-import { cors } from 'hono/cors'
 
 export interface Capabilities {
   mode?: string
@@ -24,7 +23,6 @@ export function buildCapabilities(opts: {
 
 export function createCapabilitiesApi(caps: Capabilities) {
   const app = new Hono()
-  app.use('*', cors())
   app.get('/api/capabilities', (c) => c.json(caps))
   return app
 }

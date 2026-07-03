@@ -8,7 +8,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { createAuth } from '@setu/auth'
+import { createAuth, ensureLocalOwner } from '@setu/auth'
 import { originGuard, originMatches } from '../src/auth/origin-guard'
 import { allowedOrigins } from '../src/auth/allowed-origins'
 
@@ -16,8 +16,8 @@ const TRUSTED_ORIGIN = 'http://localhost:5173'
 
 /** Builds a Hono app mirroring server.ts's mode=local wiring: mints a boot token exactly like
  *  server.ts does (randomBytes(32).toString('base64url'), held with a consumed flag in module
- *  state), and passes getToken/consume/localUserId into createAuth — with localUserId as the
- *  Task-7-stub that rejects, pinning the wiring order until Task 7 supplies ensureLocalOwner. */
+ *  state), and passes getToken/consume/localUserId into createAuth — with localUserId wired to
+ *  the real ensureLocalOwner (#248 Task 7), exactly as server.ts's boot sequence does. */
 function makeLocalModeApp() {
   const dir = mkdtempSync(join(tmpdir(), 'local-token-exchange-'))
   const dbFile = join(dir, 'auth.db')
@@ -38,9 +38,7 @@ function makeLocalModeApp() {
       consume: () => {
         consumed = true
       },
-      localUserId: async () => {
-        throw new Error('local owner bootstrap lands in Task 7')
-      },
+      localUserId: () => ensureLocalOwner(auth, { email: 'owner@local.test', name: 'Local Owner' }),
     },
   })
 
@@ -83,7 +81,7 @@ function build() {
 }
 
 describe('mode=local wiring exposes /api/auth/local/exchange (server.ts composition)', () => {
-  it('valid token + loopback Host -> reaches the Task-7 stub, which rejects (500-class) AFTER consuming', async () => {
+  it('valid token + loopback Host -> 200, ensureLocalOwner completes the handshake end-to-end (#248 Task 7)', async () => {
     const { app, bootToken, getConsumed } = build()
 
     const res = await app.fetch(
@@ -94,10 +92,8 @@ describe('mode=local wiring exposes /api/auth/local/exchange (server.ts composit
       }),
     )
 
-    // The endpoint exists and the guards pass (not a 404 route-not-found, not a guard-rejection);
-    // the failure is the Task-7 stub throwing inside localUserId(), which better-auth surfaces as
-    // a 500-class response.
-    expect(res.status).toBeGreaterThanOrEqual(500)
+    expect(res.status).toBe(200)
+    expect(res.headers.get('set-cookie')).toMatch(/better-auth/)
     expect(getConsumed()).toBe(true)
   })
 

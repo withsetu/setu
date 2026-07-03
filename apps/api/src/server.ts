@@ -15,7 +15,7 @@ import { createRecaptchaCaptcha } from '@setu/captcha-recaptcha'
 import { createConsoleEmailAdapter } from '@setu/email-console'
 import { createResendEmailAdapter } from '@setu/email-resend'
 import { renderSubmissionEmail } from '@setu/email-templates'
-import { createAuth } from '@setu/auth'
+import { createAuth, ensureLocalOwner } from '@setu/auth'
 import { createGitApi } from './app'
 import { createPreviewApi } from './preview'
 import { createUploadApi } from './media'
@@ -30,6 +30,7 @@ import { buildCapabilities, createCapabilitiesApi, type AuthCapabilities } from 
 import { runReprocessJob } from './reprocess-runner'
 import { resumeActiveJob } from './server-resume'
 import { resolveSetuMode, resolveAuthSecret } from './config'
+import { resolveGitIdentity } from './auth/git-identity'
 
 function resolveCaptcha(provider: string, secret: string): CaptchaPort {
   if (!provider) return createNoopCaptcha() // no provider configured → dev pass-through
@@ -89,23 +90,27 @@ const baseURL = process.env.SETU_BASE_URL ?? `http://localhost:${port}`
 // topology" indistinguishable from "already used"). `consume()` here is a no-op hook for future
 // observability (e.g. logging that the handshake completed); the token remains fixed.
 //
-// `localUserId` is a stub for this task: it REJECTS with a clear error until Task 7 wires up
-// ensureLocalOwner (creating/finding the single local owner account). Structured so Task 7 only
-// needs to swap this one function for the real lookup — nothing else in the handshake changes.
-function buildLocalTokenOptions() {
+// `localUserId` calls `ensureLocalOwner(auth, identity)` (#248 Task 7) — but `auth` doesn't exist
+// yet at this point (createAuth itself takes `localToken` as an option, below). `getAuth` is a
+// forward reference assigned once `auth` is constructed a few lines down; `localUserId` is only
+// ever invoked per-request (on an actual exchange POST), by which time boot has finished and
+// `getAuth()` is populated — never called during construction itself. `identity` is resolved once
+// here (not per-call) via `resolveGitIdentity`, matching "read git config once at boot" from the
+// task brief, not on every exchange attempt.
+function buildLocalTokenOptions(getAuth: () => ReturnType<typeof createAuth>) {
   const token = randomBytes(32).toString('base64url')
+  const identity = resolveGitIdentity()
   return {
     token, // returned ONLY so the caller can log the one-time handoff URL below; never logged elsewhere.
     getToken: () => token,
     consume: () => {},
-    localUserId: async (): Promise<string> => {
-      throw new Error('local owner bootstrap lands in Task 7 (#248) — ensureLocalOwner not wired yet')
-    },
+    localUserId: (): Promise<string> => ensureLocalOwner(getAuth(), identity),
   }
 }
 
 const mode = resolveSetuMode(process.env)
-const localToken = mode === 'local' ? buildLocalTokenOptions() : undefined
+let authRef: ReturnType<typeof createAuth> | undefined
+const localToken = mode === 'local' ? buildLocalTokenOptions(() => authRef!) : undefined
 
 // Fail-closed boot degradation (#248 Task 5). resolveAuthSecret returns null in non-local mode
 // with no SETU_AUTH_SECRET set — NOT a thrown boot error (that was Task 3's behavior; see the
@@ -120,6 +125,17 @@ const localToken = mode === 'local' ? buildLocalTokenOptions() : undefined
 // guard.
 const authSecret = resolveAuthSecret()
 const authConfigured = authSecret !== null
+
+// Non-local topology first-run setup (#248 Task 7): mint a one-time setup token whenever this
+// boot could need first-run setup — auth configured AND zero users yet — mirroring the local-mode
+// loopback token above, but for the guarded `POST /api/auth/setup` route instead. Never minted in
+// local mode (the loopback handshake covers first-run there instead); the serverSetup plugin
+// itself also 404s whenever `getSetupToken()` returns null, so a topology mismatch here and in the
+// plugin's own guard would agree, not silently diverge.
+const setupToken = mode !== 'local' && authConfigured && countUsers(authDb) === 0
+  ? randomBytes(32).toString('base64url')
+  : null
+
 const auth = authConfigured
   ? createAuth({
       db: authDb,
@@ -129,8 +145,10 @@ const auth = authConfigured
       captcha: authCaptchaFromEnv(),
       socialProviders: authSocialProvidersFromEnv(),
       localToken,
+      serverSetup: setupToken !== null ? { getSetupToken: () => setupToken, countUsers: () => countUsers(authDb) } : undefined,
     })
   : undefined
+authRef = auth
 const resolveActor: ResolveActor = auth ? resolveSessionActor(auth) : () => null
 
 // Spam protection: select a captcha adapter by env. Secret is env-only.
@@ -254,5 +272,11 @@ if (localToken) {
   // Never log the token (or this URL) anywhere else.
   const adminOrigin = process.env.SETU_ADMIN_ORIGIN ?? 'http://localhost:5173'
   console.log(`Admin handshake: ${adminOrigin}/#setu-token=${localToken.token}`)
+}
+if (setupToken !== null) {
+  // The ONE place the setup token is ever logged — the intended handoff channel to whoever is
+  // standing up this instance (they paste it into the admin's SetupScreen). Never log it (or a
+  // URL containing it) anywhere else.
+  console.log(`Setup token: ${setupToken}`)
 }
 resumeActiveJob(reprocessStore, runReprocess)

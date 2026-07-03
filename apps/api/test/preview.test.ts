@@ -34,11 +34,7 @@ describe('preview api', () => {
     expect(await (await req(app, '/preview')).json()).toMatchObject({ slug: 'second' })
   })
 
-  it('sets CORS headers (admin posts cross-origin)', async () => {
-    const res = await req(createPreviewApi(), '/preview', {
-      method: 'OPTIONS',
-      headers: { origin: 'http://localhost:5173', 'access-control-request-method': 'POST' },
-    })
-    expect(res.headers.get('access-control-allow-origin')).toBeTruthy()
-  })
+  // CORS is no longer set by this factory standalone — server.ts owns the allowlisted `cors()` +
+  // originGuard centrally once this app is mounted (#248). Verified in
+  // apps/api/test/auth-routes.test.ts / origin-guard.test.ts, not here.
 })

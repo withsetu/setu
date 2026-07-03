@@ -1,10 +1,19 @@
 import { Hono } from 'hono'
-import { cors } from 'hono/cors'
 import type { SubmissionService, SubmissionPort, SubmissionFilter } from '@setu/core'
 
 /** A Hono app exposing the forms submit pipeline + admin CRUD over HTTP. Pure
  *  factory; the caller supplies the service + port (server.ts). No auth — mirrors
- *  createGitApi; the public submit route is gated by Turnstile in the service. */
+ *  createGitApi; the public submit route is gated by Turnstile in the service.
+ *
+ *  CORS/origin policy is owned centrally by server.ts's allowlisted `cors()` + `originGuard`
+ *  (see app.ts's comment on createGitApi) — this factory no longer sets its own permissive
+ *  `cors()`. NOTE (#248 follow-up needed): `/forms/submit` was previously reachable from ANY
+ *  origin by design (an embeddable public form widget, captcha-gated). Once server.ts's
+ *  originGuard is applied globally, `POST /forms/submit` from an origin outside
+ *  SETU_TRUSTED_ORIGINS now gets 403'd by the guard before it reaches Turnstile — this narrows
+ *  "embed anywhere" to "embed only from trusted/admin origins" until a route-level exemption or
+ *  a separate public-forms allowlist is added. Flagged, not silently resolved, in the Task 3
+ *  report. */
 export function createFormsApi(opts: {
   submit: SubmissionService
   submissions: SubmissionPort
@@ -13,7 +22,6 @@ export function createFormsApi(opts: {
   const { submit, submissions } = opts
   const captchaStatus = opts.captchaStatus ?? { provider: '', secretConfigured: false }
   const app = new Hono()
-  app.use('*', cors())
 
   // --- status (read-only, no secret) ---
   app.get('/forms/captcha-status', (c) => c.json(captchaStatus))

@@ -1,11 +1,13 @@
 import { mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { randomBytes } from 'node:crypto'
 import { Hono } from 'hono'
+import { cors } from 'hono/cors'
 import { serve } from '@hono/node-server'
 import { createLocalGitAdapter } from '@setu/git-local'
 import { createLocalStorage } from '@setu/storage-local'
 import { createSharpImageAdapter } from '@setu/image-sharp'
-import { createSqliteSubmissionPort, createSqliteReprocessJobStore } from '@setu/db-sqlite'
+import { createSqliteSubmissionPort, createSqliteReprocessJobStore, openSqliteDb } from '@setu/db-sqlite'
 import { createSubmissionService, createNoopCaptcha, parseSettings } from '@setu/core'
 import type { CaptchaPort } from '@setu/core'
 import { createTurnstileCaptcha } from '@setu/captcha-turnstile'
@@ -13,11 +15,14 @@ import { createRecaptchaCaptcha } from '@setu/captcha-recaptcha'
 import { createConsoleEmailAdapter } from '@setu/email-console'
 import { createResendEmailAdapter } from '@setu/email-resend'
 import { renderSubmissionEmail } from '@setu/email-templates'
+import { createAuth } from '@setu/auth'
 import { createGitApi } from './app'
 import { createPreviewApi } from './preview'
 import { createUploadApi } from './media'
 import { createFormsApi } from './forms'
-import { resolveLocalOwner } from './auth/resolve-actor'
+import { resolveSessionActor } from './auth/resolve-session-actor'
+import { allowedOrigins } from './auth/allowed-origins'
+import { originGuard, originMatches } from './auth/origin-guard'
 import { buildCapabilities, createCapabilitiesApi } from './capabilities'
 import { runReprocessJob } from './reprocess-runner'
 import { resumeActiveJob } from './server-resume'
@@ -36,6 +41,48 @@ function resolveCaptcha(provider: string, secret: string): CaptchaPort {
   return provider === 'recaptcha'
     ? createRecaptchaCaptcha({ secret })
     : createTurnstileCaptcha({ secret })
+}
+
+/** better-auth's captcha plugin option, derived from the same env vars forms captcha reads.
+ *  Omitted entirely when no provider is configured or its secret is unset (fail closed —
+ *  no captcha plugin means better-auth doesn't gate on a check we can't perform). */
+function authCaptchaFromEnv(): { provider: 'cloudflare-turnstile' | 'google-recaptcha'; secretKey: string } | undefined {
+  const provider = process.env.SETU_CAPTCHA_PROVIDER ?? ''
+  if (provider !== 'turnstile' && provider !== 'recaptcha') return undefined
+  const secretKey =
+    provider === 'recaptcha' ? (process.env.SETU_RECAPTCHA_SECRET ?? '') : (process.env.SETU_TURNSTILE_SECRET ?? '')
+  if (!secretKey) return undefined
+  return { provider: provider === 'turnstile' ? 'cloudflare-turnstile' : 'google-recaptcha', secretKey }
+}
+
+/** better-auth's socialProviders option. Each provider is included only when BOTH its client id
+ *  and secret are set — an incomplete pair is omitted (fail closed, not a broken provider). */
+function authSocialProvidersFromEnv(): { github?: { clientId: string; clientSecret: string }; google?: { clientId: string; clientSecret: string } } | undefined {
+  const out: { github?: { clientId: string; clientSecret: string }; google?: { clientId: string; clientSecret: string } } = {}
+  const githubId = process.env.SETU_GITHUB_CLIENT_ID
+  const githubSecret = process.env.SETU_GITHUB_CLIENT_SECRET
+  if (githubId && githubSecret) out.github = { clientId: githubId, clientSecret: githubSecret }
+  const googleId = process.env.SETU_GOOGLE_CLIENT_ID
+  const googleSecret = process.env.SETU_GOOGLE_CLIENT_SECRET
+  if (googleId && googleSecret) out.google = { clientId: googleId, clientSecret: googleSecret }
+  return Object.keys(out).length > 0 ? out : undefined
+}
+
+/** The auth secret. In local topology (SETU_MODE unset or 'local'), fall back to an ephemeral
+ *  per-boot secret when SETU_AUTH_SECRET is unset — sessions reset on restart, which is fine for
+ *  a single local user. In any other topology, a missing secret is a hard boot error: there is no
+ *  safe fallback once auth is meant to be durable across restarts / shared across instances.
+ *  (Task 5 refines the "any other topology" branch into route-level 503s instead of a hard boot
+ *  failure; for this task a clear thrown error is the correct fail-closed behavior.) */
+function resolveAuthSecret(): string {
+  const configured = process.env.SETU_AUTH_SECRET
+  if (configured) return configured
+  const mode = process.env.SETU_MODE ?? 'local'
+  if (mode === 'local') {
+    console.warn('[auth] SETU_AUTH_SECRET is unset — using an ephemeral secret; sessions will reset on restart')
+    return randomBytes(32).toString('hex')
+  }
+  throw new Error(`[auth] SETU_AUTH_SECRET is required when SETU_MODE=${mode} (no ephemeral fallback outside local mode)`)
 }
 
 const dir = process.env.SETU_REPO_DIR ?? process.cwd()
@@ -61,6 +108,21 @@ const notifyFrom = process.env.SETU_FORMS_NOTIFY_FROM
 mkdirSync(`${dir}/.setu`, { recursive: true })
 
 const submissions = createSqliteSubmissionPort(submissionsDb)
+
+// Better Auth's tables live in the SAME sqlite file as submissions (SETU_SUBMISSIONS_DB) — one
+// drizzle handle, shared migrations folder (see packages/db-sqlite/src/open-db.ts).
+const authDb = openSqliteDb(submissionsDb)
+const baseURL = process.env.SETU_BASE_URL ?? `http://localhost:${port}`
+const auth = createAuth({
+  db: authDb,
+  secret: resolveAuthSecret(),
+  baseURL,
+  trustedOrigins: allowedOrigins(process.env),
+  captcha: authCaptchaFromEnv(),
+  socialProviders: authSocialProvidersFromEnv(),
+})
+const resolveActor = resolveSessionActor(auth)
+
 // Spam protection: select a captcha adapter by env. Secret is env-only.
 const captchaProvider = process.env.SETU_CAPTCHA_PROVIDER ?? '' // 'turnstile' | 'recaptcha' | ''
 const captchaSecret =
@@ -93,11 +155,29 @@ const runReprocess = (jobId: string) => {
 }
 
 const app = new Hono()
+
+// CORS allowlist (credentialed) + Host/Origin guard (DNS-rebinding/tunnel-detection), applied
+// globally, before any route — including /api/auth/*.
+app.use(
+  '*',
+  cors({
+    origin: (origin) => {
+      if (!origin) return undefined
+      const allowed = allowedOrigins(process.env)
+      return allowed.some((pattern) => originMatches(origin, pattern)) ? origin : undefined
+    },
+    credentials: true,
+  }),
+)
+app.use('*', originGuard(() => allowedOrigins(process.env)))
+
+app.on(['POST', 'GET'], '/api/auth/*', (c) => auth.handler(c.req.raw))
+
 app.route('/', createGitApi(createLocalGitAdapter({ dir })))
 app.route('/', createPreviewApi())
 app.route('/', createUploadApi({
   storage: localStorage,
-  resolveActor: resolveLocalOwner,
+  resolveActor,
   image: imageAdapter,
   // Live getter, not a snapshot: re-read settings.json each request so a Media settings change
   // (format / LQIP) applies to new uploads and Reprocess without restarting the api.

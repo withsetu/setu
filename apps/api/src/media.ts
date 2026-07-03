@@ -1,5 +1,4 @@
 import { Hono } from 'hono'
-import { cors } from 'hono/cors'
 import { createAuthz, DEFAULT_ROLES, ingestImage, mediaSlug, mediaKeyOf, originalKey, manifestKey, mediaRecordKey } from '@setu/core'
 import type { Actor, ImageFormat, ImagePort, MediaManifest, MediaRecord, MediaSettings, ReprocessJobStore, StoragePort } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
@@ -71,8 +70,9 @@ export function createUploadApi(opts: UploadApiOptions) {
   }
   const widths = opts.widths ?? DEFAULT_WIDTHS
 
+  // CORS/origin policy is owned centrally by server.ts, not this factory — see app.ts's comment
+  // on createGitApi for why a factory-local cors() here would be a security hole once mounted.
   const app = new Hono<{ Variables: { actor: Actor } }>()
-  app.use('*', cors())
 
   app.post('/media', authMiddleware(opts.resolveActor), async (c) => {
     if (!authz.can(c.get('actor'), 'content.create')) return c.json({ error: 'forbidden' }, 403)

@@ -24,7 +24,7 @@ describe('resolveSessionActor', () => {
     const { auth } = makeAuth()
     await auth.api.signUpEmail({ body: { email: 'a@b.co', password: 'hunter2hunter2', name: 'A' } })
     const res = await auth.api.signInEmail({ body: { email: 'a@b.co', password: 'hunter2hunter2' }, asResponse: true })
-    const cookie = res.headers.get('set-cookie')!.split(';')[0]
+    const cookie = res.headers.get('set-cookie')!.split(';')[0]!
     const actor = await resolveSessionActor(auth)(new Request('http://x/', { headers: { cookie } }))
     expect(actor).toEqual({ id: expect.any(String), role: 'viewer' })
   })
@@ -46,7 +46,7 @@ describe('resolveSessionActor', () => {
     const user = await auth.api.signUpEmail({ body: { email: 'a@b.co', password: 'hunter2hunter2', name: 'A' } })
     // Sign in before banning to get a session cookie
     const res = await auth.api.signInEmail({ body: { email: 'a@b.co', password: 'hunter2hunter2' }, asResponse: true })
-    const cookie = res.headers.get('set-cookie')!.split(';')[0]
+    const cookie = res.headers.get('set-cookie')!.split(';')[0]!
     // Ban the user by updating the database
     await db.update(userTable).set({ banned: true }).where(eq(userTable.id, user.user.id))
     // Now try to use the previously valid session with a banned user

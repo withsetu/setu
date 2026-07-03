@@ -1,14 +1,17 @@
 import { Hono } from 'hono'
-import { cors } from 'hono/cors'
 import type { GitPort, CommitInput, CommitFilesInput } from '@setu/core'
 
 export { createFormsApi } from './forms'
 
 /** A Hono app exposing a GitPort over HTTP (RPC-style, one route per method).
- *  Pure factory — the caller supplies the GitPort and the listener (server.ts). */
+ *  Pure factory — the caller supplies the GitPort and the listener (server.ts).
+ *  CORS/origin policy is owned centrally by server.ts (the allowlisted `cors()` +
+ *  `originGuard`), not per-factory — a factory-local permissive `cors()` here would
+ *  be clobbered onto the response after server.ts's allowlist runs, silently
+ *  reopening every route to `*` origins. Tests exercise this app standalone
+ *  (same-origin `.fetch()`), so no CORS headers are needed for those to pass. */
 export function createGitApi(git: GitPort): Hono {
   const app = new Hono()
-  app.use('*', cors())
 
   app.get('/git/head', async (c) => c.json({ sha: await git.headSha() }))
 

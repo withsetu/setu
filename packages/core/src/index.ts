@@ -26,6 +26,15 @@ export type {
   MediaSettings,
   IdentitySettings
 } from './settings/types'
+export {
+  PERMALINK_TOKENS,
+  DEFAULT_PERMALINK_PATTERN,
+  validatePermalinkPattern,
+  permalinkPatternSchema
+} from './permalinks/pattern'
+export { resolvePermalink, type PermalinkRef, type PermalinkOptions, type ResolvedPermalink } from './permalinks/resolve'
+export { resolvePermalinkMap, type PermalinkEntry, type PermalinkMapResult } from './permalinks/resolve-map'
+export { resolvePermalinkConfig, type PermalinksSettings, type ResolvedPermalinkConfig } from './permalinks/config'
 export { DEFAULT_SETTINGS } from './settings/defaults'
 export { parseSettings } from './settings/schema'
 

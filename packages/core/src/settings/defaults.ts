@@ -33,5 +33,6 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     twitterHandle: '',
     titleTemplate: '{{title}} {{separator}} {{site}}',
     titleSeparator: '·'
-  }
+  },
+  permalinks: { patterns: {}, uncategorized: 'uncategorized' }
 }

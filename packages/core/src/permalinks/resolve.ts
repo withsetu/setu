@@ -1,4 +1,4 @@
-import { DEFAULT_LOCALE } from '../url/entry-url'
+import { DEFAULT_LOCALE } from '../url/locale'
 
 /** What the resolver needs to know about one entry. `date` is the frontmatter publish date
  *  (epoch ms) — never updatedAt/git/mtime: an edit must not move a URL. */

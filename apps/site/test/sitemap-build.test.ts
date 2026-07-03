@@ -45,6 +45,11 @@ describe('sub-sitemaps', () => {
     expect(postmap).toMatch(/<loc>https:\/\/example\.com\/post\/astro-on-the-edge\/<\/loc>/)
     expect(postmap).not.toContain('/post/unpublished-demo/')
   })
+  it('emits <image:image> entries for posts with a featured image (#321)', () => {
+    // featured-demo.mdoc has featuredImage: /media/2026/06/test-cat.jpg
+    expect(postmap).toContain('xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"')
+    expect(postmap).toMatch(/<image:loc>[^<]*\/media\/2026\/06\/test-cat\.jpg<\/image:loc>/)
+  })
   it('page-sitemap.xml has the homepage and excludes a seo.noindex page', () => {
     expect(pagemap).toContain('<loc>https://example.com/</loc>')
     // seo-override-demo.mdoc sets seo.noindex → must not be advertised

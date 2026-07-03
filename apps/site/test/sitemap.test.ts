@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   isIndexable,
   entryUrls,
+  entryImages,
   taxonomyUrls,
   collectSitemapSections,
   sitemapIndexXml,
@@ -67,6 +68,41 @@ describe('collectSitemapSections', () => {
     expect(s.page).toEqual([])
     expect(s.category).toEqual([])
     expect(s.tag).toEqual([])
+  })
+})
+
+describe('entryImages', () => {
+  const MEDIA = 'https://media.example.com'
+  it('featured image first, /media/ resolved through the media base', () => {
+    const imgs = entryImages(
+      { id: 'post/en/x', data: { featuredImage: '/media/2026/06/cat.jpg' } },
+      MEDIA,
+      SITE,
+    )
+    expect(imgs).toEqual(['https://media.example.com/media/2026/06/cat.jpg'])
+  })
+  it('collects in-body image URLs (markdown + absolute), deduped, non-images ignored', () => {
+    const imgs = entryImages(
+      {
+        id: 'post/en/x',
+        data: { featuredImage: 'https://cdn.example.com/hero.webp' },
+        body: '![a](/media/2026/06/a.png) and ![b](https://cdn.example.com/hero.webp) plus [doc](/media/2026/06/spec.pdf) and https://example.com/page/',
+      },
+      MEDIA,
+      SITE,
+    )
+    expect(imgs).toEqual([
+      'https://cdn.example.com/hero.webp',
+      'https://media.example.com/media/2026/06/a.png',
+    ])
+  })
+  it('urlSitemapXml emits the image namespace + <image:image> blocks only when images exist', () => {
+    const withImg = urlSitemapXml([{ loc: 'https://example.com/post/x/', images: ['https://cdn/x.jpg'] }])
+    expect(withImg).toContain('xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"')
+    expect(withImg).toContain('<image:image>')
+    expect(withImg).toContain('<image:loc>https://cdn/x.jpg</image:loc>')
+    const without = urlSitemapXml([{ loc: 'https://example.com/post/x/' }])
+    expect(without).not.toContain('xmlns:image')
   })
 })
 

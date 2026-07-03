@@ -8,6 +8,11 @@ export async function loadSitemapEntries(): Promise<SitemapEntry[]> {
   const entries = await getCollection('entries')
   return entries.map((e) => {
     const data = e.data as Record<string, unknown>
-    return { id: e.id, data, lastmod: resolvePostDate({ data, filePath: e.filePath }).toISOString() }
+    return {
+      id: e.id,
+      data,
+      lastmod: resolvePostDate({ data, filePath: e.filePath }).toISOString(),
+      body: e.body,
+    }
   })
 }

@@ -12,6 +12,7 @@ function row(over: Partial<ContentRow> = {}): ContentRow {
     lifecycle: { state: 'draft' },
     updatedAt: Date.now(),
     hasDraft: true,
+    date: null,
     tags: [],
     categories: [],
     mediaRefs: [],

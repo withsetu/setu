@@ -9,6 +9,7 @@ const cr: ContentRow = {
   lifecycle: { state: 'staged', pending: 'edited' },
   updatedAt: 5,
   hasDraft: true,
+  date: null,
   tags: [],
   categories: [],
   mediaRefs: []
@@ -31,6 +32,7 @@ describe('index-port projection', () => {
       pending: 'edited',
       updatedAt: 5,
       hasDraft: true,
+      date: null,
       tags: [],
       categories: [],
       mediaRefs: []

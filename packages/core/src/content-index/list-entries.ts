@@ -18,6 +18,9 @@ export interface ContentRow {
   /** Draft's updatedAt (epoch ms); null for entries that live only in Git. */
   updatedAt: number | null
   hasDraft: boolean
+  /** Frontmatter publish date (`date` ?? `pubDate`), epoch ms; null when absent. URL use only —
+   *  never updatedAt/mtime (an edit must not move a URL). */
+  date: number | null
   /** Normalized, deduped tags for this entry (draft's tags win when a draft exists). */
   tags: string[]
   /** Category slugs for this entry (draft's win when a draft exists). */
@@ -92,6 +95,7 @@ export function listContentEntries(
       lifecycle,
       updatedAt: draft ? draft.updatedAt : null,
       hasDraft: draft !== null,
+      date: dateOf(draft, committedStr),
       tags: tagsOf(draft, committedStr),
       categories: categoriesOf(draft, committedStr),
       mediaRefs: mediaRefsOf(draftStr, committedStr),
@@ -138,6 +142,29 @@ function titleOf(
     if (typeof t === 'string' && t.length > 0) return t
   }
   return slug
+}
+
+/** Frontmatter publish date (date ?? pubDate) from the live version, epoch ms. URL use only —
+ *  never updatedAt/mtime (an edit must not move a URL). */
+function dateOf(
+  draft: Draft | null,
+  committedStr: string | null
+): number | null {
+  const raw = draft
+    ? (draft.metadata['date'] ?? draft.metadata['pubDate'])
+    : committedStr !== null
+      ? (() => {
+          const f = parseMdoc(committedStr).frontmatter
+          return f['date'] ?? f['pubDate']
+        })()
+      : undefined
+  const parsed =
+    raw instanceof Date
+      ? raw.getTime()
+      : typeof raw === 'string' || typeof raw === 'number'
+        ? Date.parse(String(raw))
+        : NaN
+  return Number.isNaN(parsed) ? null : parsed
 }
 
 /** Tags from the live version: the draft's `tags` when a draft exists (even if

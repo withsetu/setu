@@ -12,6 +12,7 @@ const row = (slug: string, tags: string[]): EntryIndexRow => ({
   status: 'draft',
   updatedAt: 0,
   hasDraft: true,
+  date: null,
   tags,
   categories: [],
   mediaRefs: []

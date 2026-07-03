@@ -16,6 +16,7 @@ const row = (
   status: 'draft',
   updatedAt: 0,
   hasDraft: true,
+  date: null,
   tags: [],
   categories,
   mediaRefs: []

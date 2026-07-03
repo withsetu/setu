@@ -13,6 +13,8 @@ export interface EntryIndexRow {
   pending?: LifecyclePending
   updatedAt: number | null
   hasDraft: boolean
+  /** Frontmatter publish date (`date` ?? `pubDate`), epoch ms; null when absent. */
+  date: number | null
   tags: string[]
   categories: string[]
   mediaRefs: string[]
@@ -71,6 +73,7 @@ export function projectRow(row: ContentRow): EntryIndexRow {
     status: row.lifecycle.state,
     updatedAt: row.updatedAt,
     hasDraft: row.hasDraft,
+    date: row.date,
     tags: row.tags,
     categories: row.categories,
     mediaRefs: row.mediaRefs
@@ -92,6 +95,7 @@ export function rowToContentRow(r: EntryIndexRow): ContentRow {
     lifecycle,
     updatedAt: r.updatedAt,
     hasDraft: r.hasDraft,
+    date: r.date,
     tags: r.tags,
     categories: r.categories,
     mediaRefs: r.mediaRefs,

@@ -70,6 +70,7 @@ describe('IndexProvider', () => {
       status: 'draft',
       updatedAt: 1,
       hasDraft: true,
+      date: null,
       tags: [],
       categories: [],
       mediaRefs: []

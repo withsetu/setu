@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { Draft, DraftInput, Lifecycle, TiptapDoc } from '@setu/core'
-import { serializeMdoc, tiptapToMarkdoc } from '@setu/core'
+import {
+  resolvePermalinkConfig,
+  serializeMdoc,
+  tiptapToMarkdoc
+} from '@setu/core'
 import {
   ArchiveX,
   ChevronLeft,
@@ -17,6 +21,7 @@ import { lifecycleFor } from '../lifecycle/useLifecycle'
 import { useDeploy } from '../deploy/deploy'
 import { StripStatus } from './StripStatus'
 import { siteUrl } from '../shell/site-url'
+import { useSettings } from '../data/settings-store'
 import { useIndex } from '../data/index-store'
 import { Canvas } from './Canvas'
 import type { RunQuery } from './QueryPreview'
@@ -49,6 +54,7 @@ export function EditorScreen() {
   const navigate = useNavigate()
   const { read, authoring, data, git, publish } = useServices()
   const { deployedAt, sha: deploySha } = useDeploy()
+  const settings = useSettings()
   const index = useIndex()
   const can = useCan()
   // Best-effort reindex — never lets a failure surface to the editor.
@@ -299,6 +305,26 @@ export function EditorScreen() {
 
   const title = attrString(metadata['title'])
   const listPath = `/${collection}s`
+  // Same date ?? pubDate rule as the content index's dateOf — URL use only, never
+  // updatedAt/mtime (an edit must not move a URL).
+  const frontmatterDate = useMemo(() => {
+    const raw = metadata['date'] ?? metadata['pubDate']
+    const parsed =
+      raw instanceof Date
+        ? raw.getTime()
+        : typeof raw === 'string' || typeof raw === 'number'
+          ? Date.parse(String(raw))
+          : NaN
+    return Number.isNaN(parsed) ? null : parsed
+  }, [metadata])
+  const frontmatterCategories = Array.isArray(metadata['categories'])
+    ? (metadata['categories'] as string[])
+    : []
+  const permalinkConfig = resolvePermalinkConfig(
+    collection,
+    undefined,
+    settings
+  )
 
   if (phase === 'loading') {
     return (
@@ -350,7 +376,14 @@ export function EditorScreen() {
                 aria-label="View this page on the live site"
               >
                 <a
-                  href={siteUrl(ref)}
+                  href={siteUrl(
+                    {
+                      ...ref,
+                      date: frontmatterDate,
+                      categories: frontmatterCategories
+                    },
+                    permalinkConfig
+                  )}
                   target="_blank"
                   rel="noopener noreferrer"
                 >

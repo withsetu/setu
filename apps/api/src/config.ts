@@ -37,3 +37,33 @@ export function resolveAuthSecret(env: NodeJS.ProcessEnv = process.env): string 
   )
   return null
 }
+
+/** Parses a single positive-int env override. Returns `undefined` (never throws) for anything
+ *  that isn't a clean positive integer — unset, empty, non-numeric, zero, negative, or a float all
+ *  fall back to "no override" (createAuth's own default applies), with a warning naming which var
+ *  and value were rejected so a typo'd env is visible in boot logs rather than silently ignored. */
+function parsePositiveIntEnv(name: string, raw: string | undefined): number | undefined {
+  if (raw === undefined || raw === '') return undefined
+  const n = Number(raw)
+  if (!Number.isInteger(n) || n <= 0) {
+    console.warn(`[auth] ${name}=${JSON.stringify(raw)} is not a positive integer — ignoring, default applies`)
+    return undefined
+  }
+  return n
+}
+
+/** Rate-limit env overrides (#248 Task 9) for createAuth's `rateLimit` option. Deliberately
+ *  returns a sparse object (only the keys that parsed) rather than always returning both keys —
+ *  createAuth's own `opts.rateLimit?.window ?? 60` / `?? 100` defaulting (see packages/auth's
+ *  index.ts) already handles "window set, max unset" and vice versa correctly; duplicating that
+ *  fallback logic here would risk the two drifting. Never throws — see parsePositiveIntEnv. */
+export function resolveRateLimitOverrides(
+  env: NodeJS.ProcessEnv = process.env,
+): { window?: number; max?: number } {
+  const window = parsePositiveIntEnv('SETU_AUTH_RATELIMIT_WINDOW', env.SETU_AUTH_RATELIMIT_WINDOW)
+  const max = parsePositiveIntEnv('SETU_AUTH_RATELIMIT_MAX', env.SETU_AUTH_RATELIMIT_MAX)
+  const out: { window?: number; max?: number } = {}
+  if (window !== undefined) out.window = window
+  if (max !== undefined) out.max = max
+  return out
+}

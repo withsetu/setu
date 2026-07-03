@@ -30,7 +30,7 @@ import { authCaptchaFromEnv, authSocialProvidersFromEnv, socialProvidersEnabled,
 import { buildCapabilities, createCapabilitiesApi, type AuthCapabilities } from './capabilities'
 import { runReprocessJob } from './reprocess-runner'
 import { resumeActiveJob } from './server-resume'
-import { resolveSetuMode, resolveAuthSecret } from './config'
+import { resolveSetuMode, resolveAuthSecret, resolveRateLimitOverrides } from './config'
 import { resolveGitIdentity } from './auth/git-identity'
 import { mountAuthWithFailureEvents } from './auth/login-failure-events'
 
@@ -157,6 +157,7 @@ const auth = authConfigured
       localToken,
       serverSetup: setupToken !== null ? { getSetupToken: () => setupToken, countUsers: () => countUsers(authDb) } : undefined,
       onAuthEvent: logAuthEvent,
+      rateLimit: resolveRateLimitOverrides(process.env),
     })
   : undefined
 authRef = auth

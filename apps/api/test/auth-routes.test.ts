@@ -129,6 +129,54 @@ describe('auth routes (server.ts wiring)', () => {
     expect(await res.json()).toEqual({ ok: false, error: 'spam' })
   })
 
+  // Regression coverage for the Task 3 CORS-clobbering bug: several route factories used to carry
+  // their own permissive `app.use('*', cors())`, which — once mounted under this central
+  // allowlisted `cors()` — silently overrode it back to `Access-Control-Allow-Origin: *` for every
+  // route (last-write-wins in Hono's cors middleware). These tests assert the actual header
+  // emission (not just guard status codes) against the forms and media route factories, both of
+  // which previously had their own factory-local `cors()` removed in Task 3.
+  it('trusted Origin -> access-control-allow-origin echoes that origin, with credentials true (forms route)', async () => {
+    const app = build()
+    const res = await app.fetch(
+      new Request('http://test/forms/captcha-status', {
+        headers: { origin: TRUSTED_ORIGIN },
+      }),
+    )
+    expect(res.headers.get('access-control-allow-origin')).toBe(TRUSTED_ORIGIN)
+    expect(res.headers.get('access-control-allow-credentials')).toBe('true')
+  })
+
+  it('untrusted Origin -> access-control-allow-origin is absent (forms route)', async () => {
+    const app = build()
+    const res = await app.fetch(
+      new Request('http://test/forms/captcha-status', {
+        headers: { origin: 'https://evil.example' },
+      }),
+    )
+    expect(res.headers.get('access-control-allow-origin')).toBeNull()
+  })
+
+  it('trusted Origin -> access-control-allow-origin echoes that origin, with credentials true (media route)', async () => {
+    const app = build()
+    const res = await app.fetch(
+      new Request('http://test/media/does-not-exist', {
+        headers: { origin: TRUSTED_ORIGIN },
+      }),
+    )
+    expect(res.headers.get('access-control-allow-origin')).toBe(TRUSTED_ORIGIN)
+    expect(res.headers.get('access-control-allow-credentials')).toBe('true')
+  })
+
+  it('untrusted Origin -> access-control-allow-origin is absent (media route)', async () => {
+    const app = build()
+    const res = await app.fetch(
+      new Request('http://test/media/does-not-exist', {
+        headers: { origin: 'https://evil.example' },
+      }),
+    )
+    expect(res.headers.get('access-control-allow-origin')).toBeNull()
+  })
+
   it('4 rapid sign-in attempts with wrong credentials -> the 4th is rate-limited (429)', async () => {
     const app = build()
     const attempt = () =>

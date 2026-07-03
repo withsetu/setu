@@ -1,6 +1,5 @@
 import { mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { randomBytes } from 'node:crypto'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serve } from '@hono/node-server'
@@ -26,6 +25,7 @@ import { originGuard, originMatches } from './auth/origin-guard'
 import { buildCapabilities, createCapabilitiesApi } from './capabilities'
 import { runReprocessJob } from './reprocess-runner'
 import { resumeActiveJob } from './server-resume'
+import { resolveSetuMode, resolveAuthSecret } from './config'
 
 function resolveCaptcha(provider: string, secret: string): CaptchaPort {
   if (!provider) return createNoopCaptcha() // no provider configured → dev pass-through
@@ -66,23 +66,6 @@ function authSocialProvidersFromEnv(): { github?: { clientId: string; clientSecr
   const googleSecret = process.env.SETU_GOOGLE_CLIENT_SECRET
   if (googleId && googleSecret) out.google = { clientId: googleId, clientSecret: googleSecret }
   return Object.keys(out).length > 0 ? out : undefined
-}
-
-/** The auth secret. In local topology (SETU_MODE unset or 'local'), fall back to an ephemeral
- *  per-boot secret when SETU_AUTH_SECRET is unset — sessions reset on restart, which is fine for
- *  a single local user. In any other topology, a missing secret is a hard boot error: there is no
- *  safe fallback once auth is meant to be durable across restarts / shared across instances.
- *  (Task 5 refines the "any other topology" branch into route-level 503s instead of a hard boot
- *  failure; for this task a clear thrown error is the correct fail-closed behavior.) */
-function resolveAuthSecret(): string {
-  const configured = process.env.SETU_AUTH_SECRET
-  if (configured) return configured
-  const mode = process.env.SETU_MODE ?? 'local'
-  if (mode === 'local') {
-    console.warn('[auth] SETU_AUTH_SECRET is unset — using an ephemeral secret; sessions will reset on restart')
-    return randomBytes(32).toString('hex')
-  }
-  throw new Error(`[auth] SETU_AUTH_SECRET is required when SETU_MODE=${mode} (no ephemeral fallback outside local mode)`)
 }
 
 const dir = process.env.SETU_REPO_DIR ?? process.cwd()
@@ -194,7 +177,7 @@ app.route('/', createCapabilitiesApi(buildCapabilities({
   image: imageAdapter,            // present in the Node topology
   writableMediaStore: true,       // local fs storage is writable
   backgroundJobs: true,           // persistent Node process can run jobs
-  mode: process.env.SETU_MODE ?? 'self-hosted',
+  mode: resolveSetuMode(process.env),
 })))
 
 serve({ fetch: app.fetch, port })

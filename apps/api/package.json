@@ -7,7 +7,7 @@
   "types": "./src/app.ts",
   "exports": { ".": "./src/app.ts" },
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "SETU_MODE=local tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"

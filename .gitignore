@@ -8,7 +8,6 @@ dist/
 .turbo/
 
 # Superpowers git worktrees (temporary, per-feature copies of the repo)
-.claude/worktrees/
 .superpowers/
 
 # Claude Code local session/config state (never shared across machines)

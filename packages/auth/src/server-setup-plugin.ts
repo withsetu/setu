@@ -3,6 +3,7 @@ import { createAuthEndpoint } from 'better-auth/api'
 import { setSessionCookie } from 'better-auth/cookies'
 import * as z from 'zod'
 import { constantTimeTokenEquals } from './local-token-plugin'
+import type { AuthEvent } from './events'
 
 const setupBodySchema = z.object({
   email: z.string().email(),
@@ -19,6 +20,12 @@ export interface ServerSetupOptions {
    *  snapshot) — setup must close the instant the first owner exists, from ANY path (this route,
    *  or e.g. a directly-created user). */
   countUsers: () => number
+  /** #248 Task 9: audit-event emission. Direct emission point, distinct from the generic
+   *  user.created event (databaseHooks.user.create.after fires for ANY user insert, including this
+   *  one) — setup.completed specifically marks "first-run setup finished", a fact the generic hook
+   *  can't express. createAuth wires this to the same onAuthEvent callback threaded through
+   *  CreateAuthOptions; defaults to a no-op when omitted. */
+  onAuthEvent?: (event: AuthEvent) => void
 }
 
 /** Better Auth server plugin exposing `POST /setup` (mounted at `/api/auth/setup` under our
@@ -92,6 +99,7 @@ export function serverSetup(opts: ServerSetupOptions): BetterAuthPlugin {
 
           const session = await ctx.context.internalAdapter.createSession(user.id)
           await setSessionCookie(ctx, { session, user })
+          opts.onAuthEvent?.({ type: 'setup.completed', targetId: user.id })
           return ctx.json({ status: true, user: { id: user.id, email: user.email } })
         },
       ),

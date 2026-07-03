@@ -1,4 +1,5 @@
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
+import type { AuthEvent } from './events'
 
 /** Setu's fixed role set. Default role for new users is 'viewer'. */
 export const SETU_ROLES = ['owner', 'publisher', 'editor', 'author', 'viewer'] as const
@@ -11,6 +12,11 @@ export interface CreateAuthOptions {
   secret: string
   baseURL: string
   trustedOrigins: string[]
+  /** Structured audit-event seam (#248 Task 9). Called once per emission point below — never for
+   *  raw request logging. Defaults to a no-op when omitted (server.ts supplies the real default,
+   *  a `console.info('[auth-event]', ...)` line, so every OTHER caller — e.g. tests — gets total
+   *  silence unless it opts in). */
+  onAuthEvent?: (event: AuthEvent) => void
   captcha?: {
     provider: 'cloudflare-turnstile' | 'google-recaptcha'
     secretKey: string

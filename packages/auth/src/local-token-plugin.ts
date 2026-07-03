@@ -3,6 +3,7 @@ import type { BetterAuthPlugin } from 'better-auth'
 import { createAuthEndpoint } from 'better-auth/api'
 import { setSessionCookie } from 'better-auth/cookies'
 import * as z from 'zod'
+import type { AuthEvent } from './events'
 
 /** true when `host` (a `Host` header value, e.g. `localhost:4444` or `127.0.0.1`) is a loopback
  *  host — localhost/127.0.0.1/[::1], any port. Mirrors the loopback rule in
@@ -34,6 +35,10 @@ export interface LocalTokenOptions {
    *  ensureLocalOwner) — that failure surfaces as a 500-class error, distinct from the guard
    *  failures below, which are all fail-closed 401/403/404. */
   localUserId: () => Promise<string>
+  /** #248 Task 9: audit-event emission. Direct emission point (not a databaseHooks hook) because
+   *  the exchange itself doesn't create/update a user row — createAuth wires this to the same
+   *  onAuthEvent callback threaded through CreateAuthOptions; defaults to a no-op when omitted. */
+  onAuthEvent?: (event: AuthEvent) => void
 }
 
 /** Better Auth server plugin exposing `POST /local/exchange` (mounted at
@@ -90,6 +95,7 @@ export function localToken(opts: LocalTokenOptions): BetterAuthPlugin {
           if (!user) throw ctx.error('INTERNAL_SERVER_ERROR', { message: 'local user not found' })
 
           await setSessionCookie(ctx, { session, user })
+          opts.onAuthEvent?.({ type: 'local.exchange', targetId: userId })
           return ctx.json({ status: true })
         },
       ),

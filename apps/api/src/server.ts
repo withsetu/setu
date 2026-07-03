@@ -15,7 +15,7 @@ import { createRecaptchaCaptcha } from '@setu/captcha-recaptcha'
 import { createConsoleEmailAdapter } from '@setu/email-console'
 import { createResendEmailAdapter } from '@setu/email-resend'
 import { renderSubmissionEmail } from '@setu/email-templates'
-import { createAuth, ensureLocalOwner } from '@setu/auth'
+import { createAuth, ensureLocalOwner, type AuthEvent } from '@setu/auth'
 import { createGitApi } from './app'
 import { createPreviewApi } from './preview'
 import { createUploadApi } from './media'
@@ -32,6 +32,15 @@ import { runReprocessJob } from './reprocess-runner'
 import { resumeActiveJob } from './server-resume'
 import { resolveSetuMode, resolveAuthSecret } from './config'
 import { resolveGitIdentity } from './auth/git-identity'
+import { mountAuthWithFailureEvents } from './auth/login-failure-events'
+
+// #248 Task 9: default audit-event consumer — a single structured log line. The REAL consumer
+// (persistence/alerting) is future issue #290; this is deliberately the dumbest possible sink so
+// nothing here can become a second source of truth once #290 lands. Never logs anything beyond the
+// event itself (see packages/auth/src/events.ts — AuthEvent.meta must never carry a secret).
+function logAuthEvent(event: AuthEvent): void {
+  console.info('[auth-event]', JSON.stringify(event))
+}
 
 function resolveCaptcha(provider: string, secret: string): CaptchaPort {
   if (!provider) return createNoopCaptcha() // no provider configured → dev pass-through
@@ -147,6 +156,7 @@ const auth = authConfigured
       socialProviders: authSocialProvidersFromEnv(),
       localToken,
       serverSetup: setupToken !== null ? { getSetupToken: () => setupToken, countUsers: () => countUsers(authDb) } : undefined,
+      onAuthEvent: logAuthEvent,
     })
   : undefined
 authRef = auth
@@ -221,8 +231,13 @@ app.use('*', originGuard(() => allowedOrigins(process.env), { publicPaths: ['/fo
 // with auth unconfigured, GET /api/auth/* falls through to Hono's default 404 (there is no
 // meaningful "session" endpoint to serve, and capabilities already reports auth.enabled: false so
 // callers know why).
+// #248 Task 9: mountAuthWithFailureEvents wraps the same auth.handler mount as before, adding ONE
+// extra behavior — inspecting POST /api/auth/sign-in/email's response status to emit login.failure
+// (the one audit-event type better-auth's databaseHooks can't observe; see
+// login-failure-events.ts's module comment for the full derivation from source). Every other
+// /api/auth/* route's behavior is unchanged.
 if (auth) {
-  app.on(['POST', 'GET'], '/api/auth/*', (c) => auth.handler(c.req.raw))
+  mountAuthWithFailureEvents(app, auth, logAuthEvent)
 }
 
 app.route('/', createGitApi(createLocalGitAdapter({ dir })))

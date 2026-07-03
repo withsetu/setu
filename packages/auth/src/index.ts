@@ -7,11 +7,14 @@ import { SETU_ROLES, type CreateAuthOptions } from './options'
 import { localToken } from './local-token-plugin'
 import { serverSetup } from './server-setup-plugin'
 import { lastOwnerGuardHook } from './last-owner-guard'
+import { userCreateAfterHook, sessionCreateAfterHook, sessionDeleteAfterHook, userUpdateAfterHook } from './audit-hooks'
+import type { AuthEvent } from './events'
 
 export { SETU_ROLES, type CreateAuthOptions } from './options'
 export { localToken, isLoopbackHost, constantTimeTokenEquals, type LocalTokenOptions } from './local-token-plugin'
 export { serverSetup, type ServerSetupOptions } from './server-setup-plugin'
 export { ensureLocalOwner, type LocalOwnerIdentity } from './ensure-local-owner'
+export type { AuthEvent, AuthEventType } from './events'
 
 // better-auth's admin plugin validates `adminRoles` against the keys of a
 // `roles` access-control map (defaulting to its own `{ admin, user }` map).
@@ -44,6 +47,13 @@ const setuAdminRoles = {
 } satisfies Record<(typeof SETU_ROLES)[number], ReturnType<typeof defaultAc.newRole>>
 
 export function createAuth(opts: CreateAuthOptions) {
+  // Structured audit-event seam (#248 Task 9). Defaults to a no-op so every existing caller of
+  // createAuth (tests, and any future consumer that doesn't opt in) keeps total silence — server.ts
+  // is the one place that supplies the real default (a console.info line). Threaded into the two
+  // plugins below (their own direct emission points — local.exchange / setup.completed) as well as
+  // the databaseHooks wired further down.
+  const emit = opts.onAuthEvent ?? (() => {})
+
   const plugins: BetterAuthPlugin[] = [
     admin({ adminRoles: ['owner'], defaultRole: 'viewer', roles: setuAdminRoles }),
   ]
@@ -51,10 +61,10 @@ export function createAuth(opts: CreateAuthOptions) {
     plugins.push(captcha({ provider: opts.captcha.provider, secretKey: opts.captcha.secretKey }))
   }
   if (opts.localToken) {
-    plugins.push(localToken(opts.localToken))
+    plugins.push(localToken({ ...opts.localToken, onAuthEvent: emit }))
   }
   if (opts.serverSetup) {
-    plugins.push(serverSetup(opts.serverSetup))
+    plugins.push(serverSetup({ ...opts.serverSetup, onAuthEvent: emit }))
   }
 
   return betterAuth({
@@ -72,11 +82,23 @@ export function createAuth(opts: CreateAuthOptions) {
     // the ONLY protection). See last-owner-guard.ts for the full derivation of why this mechanism
     // (databaseHooks.user.update.before) can see the target user id despite not receiving it as an
     // explicit hook argument.
+    //
+    // The four `after` hooks are #248 Task 9's audit-event emission points — see audit-hooks.ts
+    // for the full per-event-type mechanism derivation (user.created / login.success / logout /
+    // role.changed / user.banned / user.unbanned). They run strictly after the last-owner guard's
+    // `before` hook (which may itself abort the update), so an event only ever fires for a change
+    // that actually committed.
     databaseHooks: {
       user: {
+        create: { after: userCreateAfterHook(emit) },
         update: {
           before: lastOwnerGuardHook(),
+          after: userUpdateAfterHook(emit),
         },
+      },
+      session: {
+        create: { after: sessionCreateAfterHook(emit) },
+        delete: { after: sessionDeleteAfterHook(emit) },
       },
     },
     advanced: {

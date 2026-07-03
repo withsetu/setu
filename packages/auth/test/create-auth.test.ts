@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
-import { eq, select } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { user as userTable } from '@setu/db-sqlite/schema'
 import { createAuth } from '../src'
 

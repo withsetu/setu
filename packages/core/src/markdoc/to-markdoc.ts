@@ -139,21 +139,26 @@ function imageBlockToMarkdoc(node: TiptapNode): string {
     const val = mdAttrs[key]
     if (typeof val === 'string') parts.push(`${key}="${escapeAttrString(val)}"`)
     else if (typeof val === 'number' || typeof val === 'boolean') parts.push(`${key}=${val}`)
-    else if (val != null) parts.push(`${key}="${escapeAttrString(String(val))}"`)
+    // Any other JSON value (object/array — not expected in practice for image attrs, but
+    // frontmatter is user-authored/unknown-typed) — JSON.stringify instead of `String(val)`,
+    // which would silently serialize it as the literal text "[object Object]" and corrupt
+    // the persisted Markdoc (@typescript-eslint/no-base-to-string caught this).
+    else if (val != null) parts.push(`${key}="${escapeAttrString(JSON.stringify(val))}"`)
   }
 
   return `{% image ${parts.join(' ')} /%}`
 }
 
 export function tiptapToMarkdoc(doc: TiptapDoc): string {
-  const blocks = doc.content.map((node) =>
-    node.type === 'passthrough'
-      ? String((node.attrs as Record<string, unknown>)?.['raw'] ?? '')
+  const blocks = doc.content.map((node) => {
+    const raw = (node.attrs as Record<string, unknown> | undefined)?.['raw']
+    return node.type === 'passthrough'
+      ? typeof raw === 'string' ? raw : ''
       : node.type === 'table'
         ? tableToGfm(node)
         : node.type === 'imageBlock'
           ? imageBlockToMarkdoc(node)
-          : formatNative(node),
-  )
+          : formatNative(node)
+  })
   return blocks.join('\n\n') + '\n'
 }

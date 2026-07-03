@@ -1,9 +1,9 @@
 import { Button } from '@/components/ui/button'
 import { resolveMediaSrc } from '../media-src'
-import type { ControlProps } from './types'
+import { toDisplayString, type ControlProps } from './types'
 
 export function MediaControl({ value, onChange, meta }: ControlProps) {
-  const src = value ? resolveMediaSrc(String(value), meta.apiBase || undefined) : ''
+  const src = value ? resolveMediaSrc(toDisplayString(value, ''), meta.apiBase || undefined) : ''
   if (!src) {
     return (
       <Button type="button" variant="outline" aria-label={meta.name} onClick={() => meta.onPickMedia(meta.name)}

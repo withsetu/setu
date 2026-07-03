@@ -5,6 +5,7 @@ import { resolveMediaSrc } from '../media-src'
 import { useToolbarRoving } from '../useToolbarRoving'
 import { replaceImage } from '../image-insert'
 import { AlignControl } from '../controls/align'
+import { attrString } from '../attr-string'
 
 interface ImageBlockStorage {
   apiBase: string
@@ -20,10 +21,10 @@ function ImageBlockView({ node, updateAttributes, editor, getPos }: ReactNodeVie
   const storage = (editor.storage as unknown as { imageBlock: ImageBlockStorage }).imageBlock
   const apiBase = storage?.apiBase ?? ''
   const mdAttrs = (node.attrs.mdAttrs ?? {}) as Record<string, unknown>
-  const src = String(mdAttrs['src'] ?? '')
-  const alt = String(mdAttrs['alt'] ?? '')
-  const caption = String(mdAttrs['caption'] ?? '')
-  const align = String(mdAttrs['align'] ?? 'none')
+  const src = attrString(mdAttrs['src'])
+  const alt = attrString(mdAttrs['alt'])
+  const caption = attrString(mdAttrs['caption'])
+  const align = attrString(mdAttrs['align'], 'none')
 
   const setAttrs = (patch: Record<string, unknown>) => {
     const next: Record<string, unknown> = { ...mdAttrs, ...patch }

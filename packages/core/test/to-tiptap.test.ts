@@ -32,7 +32,7 @@ describe('markdocToTiptap', () => {
     })
     const node = doc.content[0]!
     expect(node.type).toBe('callout')
-    expect((node.attrs as any).mdAttrs).toMatchObject({ type: 'warning' })
+    expect((node.attrs as { mdAttrs: Record<string, unknown> }).mdAttrs).toMatchObject({ type: 'warning' })
   })
 
   it('maps a known contact tag to a contactBlock node (content-less)', () => {
@@ -59,9 +59,10 @@ describe('markdocToTiptap', () => {
     const doc = markdocToTiptap('{% if $x %}\nHi\n{% /if %}\n')
     const node = doc.content[0]!
     expect(node.type).toBe('passthrough')
-    expect((node.attrs as any).flagged).toBe(false)
-    expect((node.attrs as any).raw).toContain('{% if $x %}')
-    expect((node.attrs as any).raw).toContain('{% /if %}')
+    const attrs = node.attrs as { flagged: boolean; raw: string }
+    expect(attrs.flagged).toBe(false)
+    expect(attrs.raw).toContain('{% if $x %}')
+    expect(attrs.raw).toContain('{% /if %}')
   })
 
   it('preserves malformed Markdoc as a flagged passthrough (never dropped)', () => {
@@ -69,8 +70,9 @@ describe('markdocToTiptap', () => {
     const doc = markdocToTiptap(src)
     const flagged = doc.content.find((n) => n.type === 'passthrough')!
     expect(flagged).toBeDefined()
-    expect((flagged.attrs as any).flagged).toBe(true)
-    expect((flagged.attrs as any).raw).toContain('{% for $p in $ps %}')
+    const attrs = flagged.attrs as { flagged: boolean; raw: string }
+    expect(attrs.flagged).toBe(true)
+    expect(attrs.raw).toContain('{% for $p in $ps %}')
   })
 })
 

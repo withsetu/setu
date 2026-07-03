@@ -2,10 +2,11 @@ import { Node, mergeAttributes } from '@tiptap/core'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { Icon } from '../../ui/Icon'
+import { attrString } from '../attr-string'
 
 function PassthroughView({ node }: ReactNodeViewProps) {
   const attrs = node.attrs as Record<string, unknown>
-  const raw = String(attrs['raw'] ?? '')
+  const raw = attrString(attrs['raw'])
   const flagged = Boolean(attrs['flagged'])
   return (
     <NodeViewWrapper className={`blk-dynamic${flagged ? ' is-flagged' : ''}`} contentEditable={false} aria-label="Preserved Markdoc block (read-only)">

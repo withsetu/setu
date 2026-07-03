@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { tiptapToMarkdoc, markdocToTiptap } from '../src/index'
-import type { TiptapDoc } from '../src/index'
+import type { TiptapDoc, TiptapNode } from '../src/index'
 
 describe('tiptapToMarkdoc', () => {
   it('serializes a heading', () => {
@@ -58,7 +58,7 @@ describe('tiptapToMarkdoc', () => {
 })
 
 describe('task lists + nesting (tiptapToMarkdoc)', () => {
-  const wrap = (node: any) => tiptapToMarkdoc({ type: 'doc', content: [node] })
+  const wrap = (node: TiptapNode) => tiptapToMarkdoc({ type: 'doc', content: [node] })
 
   it('serializes a taskList with [ ]/[x] markers', () => {
     const md = wrap({
@@ -118,7 +118,7 @@ describe('task lists + nesting (tiptapToMarkdoc)', () => {
 })
 
 describe('text alignment (tiptapToMarkdoc)', () => {
-  const wrap = (node: any) => tiptapToMarkdoc({ type: 'doc', content: [node] })
+  const wrap = (node: TiptapNode) => tiptapToMarkdoc({ type: 'doc', content: [node] })
 
   it('writes a centered paragraph as a node annotation', () => {
     const md = wrap({ type: 'paragraph', attrs: { textAlign: 'center' }, content: [{ type: 'text', text: 'Centered' }] })

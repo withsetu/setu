@@ -27,6 +27,7 @@ import { onRequestShortcuts } from './editor-events'
 import { NEW_SLUG, mintSlug } from './new-entry'
 import { useNotify } from '../ui/notify'
 import { useRegisterCommands } from '../command/registry'
+import { attrString } from './attr-string'
 
 const EDITOR_ID = 'local'
 const BLANK: TiptapDoc = { type: 'doc', content: [{ type: 'paragraph' }] }
@@ -135,7 +136,7 @@ export function EditorScreen() {
       if (composing) {
         // First save of a new entry: mint a real slug from the title, persist under it, and
         // replace the URL so this becomes a normal entry (each "New" → its own draft).
-        const newSlug = await mintSlug(data, git, collection, locale, String(metaRef.current['title'] ?? ''))
+        const newSlug = await mintSlug(data, git, collection, locale, attrString(metaRef.current['title']))
         mintedRef.current = newSlug
         const result = await authoring.save(
           { collection, locale, slug: newSlug, content: input.content, metadata: input.metadata, baseSha: null },
@@ -237,7 +238,7 @@ export function EditorScreen() {
     },
   ])
 
-  const title = String(metadata['title'] ?? '')
+  const title = attrString(metadata['title'])
   const listPath = `/${collection}s`
 
   if (phase === 'loading') {

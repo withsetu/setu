@@ -4,6 +4,17 @@ import { validateContactFields, submitContact, type ContactRequired } from '@set
 import { mountCaptcha, type CaptchaProvider } from './mount-captcha'
 import './contact.css'
 
+// FormData.get() returns `FormDataEntryValue | null` (string | File | null) — every
+// field here is a text/email/textarea/hidden input, never a file input, but the type
+// doesn't know that. A plain `String(fd.get(...))` would silently stringify a File to
+// "[object File]" if that assumption is ever wrong (@typescript-eslint/no-base-to-string
+// catches exactly this class of bug); this keeps the runtime behavior identical for the
+// expected case and fails safe (empty string) for the unexpected one instead of garbage.
+const fieldValue = (fd: FormData, name: string): string => {
+  const v = fd.get(name)
+  return typeof v === 'string' ? v : ''
+}
+
 export interface ContactFormProps {
   formId: string
   formLabel?: string
@@ -42,11 +53,11 @@ export default function ContactForm(props: ContactFormProps) {
     const form = e.currentTarget
     const fd = new FormData(form)
     const fields: Record<string, string> = {
-      name: String(fd.get('name') ?? ''),
-      email: String(fd.get('email') ?? ''),
-      message: String(fd.get('message') ?? ''),
+      name: fieldValue(fd, 'name'),
+      email: fieldValue(fd, 'email'),
+      message: fieldValue(fd, 'message'),
     }
-    if (subject) fields.subject = String(fd.get('subject') ?? '')
+    if (subject) fields.subject = fieldValue(fd, 'subject')
 
     const v = validateContactFields(fields, required)
     setErrors(v.errors)
@@ -65,7 +76,7 @@ export default function ContactForm(props: ContactFormProps) {
       formLabel,
       fields,
       captchaToken: token,
-      honeypot: String(fd.get('company') ?? ''), // honeypot field
+      honeypot: fieldValue(fd, 'company'), // honeypot field
       pageUrl: typeof window !== 'undefined' ? window.location.href : undefined,
     })
     if (result.ok) {

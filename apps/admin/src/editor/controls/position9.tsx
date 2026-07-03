@@ -1,5 +1,5 @@
 import { useRef, type KeyboardEvent } from 'react'
-import type { ControlProps } from './types'
+import { toDisplayString, type ControlProps } from './types'
 
 const CELLS = [
   'top-left','top-center','top-right',
@@ -10,7 +10,7 @@ const CELLS = [
 /** 3×3 position grid. A radiogroup with roving tabindex: one tab stop, arrow
  *  keys move between cells (←/→ by one, ↑/↓ by a row), Home/End jump to ends. */
 export function Position9({ value, onChange, meta }: ControlProps) {
-  const current = String(value ?? 'center')
+  const current = toDisplayString(value, 'center')
   const idx = Math.max(0, CELLS.indexOf(current as (typeof CELLS)[number]))
   const refs = useRef<(HTMLButtonElement | null)[]>([])
 

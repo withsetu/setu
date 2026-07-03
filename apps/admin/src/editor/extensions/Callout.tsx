@@ -5,6 +5,7 @@ import type { ReactNodeViewProps } from '@tiptap/react'
 import { Callout as CalloutCore, BlockIcon, variantFor, calloutVariants, CALLOUT_ICONS, isBlockIconName } from '@setu/blocks'
 import type { BlockIconName } from '@setu/blocks'
 import { useToolbarRoving } from '../useToolbarRoving'
+import { attrString } from '../attr-string'
 
 /** If the caret sits at the very start of a callout's body, move keyboard focus
  *  to that callout's title `<input>`. Returns true when it handled the key (so the
@@ -30,8 +31,8 @@ function focusTitleAtBodyStart(editor: Editor): boolean {
 
 function CalloutView({ node, updateAttributes, editor, getPos }: ReactNodeViewProps) {
   const mdAttrs = (node.attrs.mdAttrs ?? {}) as Record<string, unknown>
-  const type = String(mdAttrs['type'] ?? 'info')
-  const title = String(mdAttrs['title'] ?? '')
+  const type = attrString(mdAttrs['type'], 'info')
+  const title = attrString(mdAttrs['title'])
   const variant = variantFor(type)
   const overrideIcon = mdAttrs['icon']
   const icon: BlockIconName =

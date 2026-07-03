@@ -2,6 +2,14 @@ import Markdoc from '@markdoc/markdoc'
 import type { MdNode, RoundtripOptions, TiptapDoc, TiptapMark, TiptapNode } from './types'
 import { defaultKnownBlockTags } from '../config/default-config'
 
+// Markdoc AST node attributes are `unknown` (parsed, untyped input — see MdNode in
+// ./types). A real `src`/`alt`/`title`/`content` attribute is always a string coming out
+// of the Markdoc parser; a plain `String(x)` on a non-string would silently produce
+// "[object Object]" instead of surfacing the bug (@typescript-eslint/no-base-to-string
+// caught this once MdNode.attributes moved from `any` to `Record<string, unknown>`).
+const attrString = (value: unknown, fallback = ''): string =>
+  typeof value === 'string' ? value : fallback
+
 const hasError = (node: MdNode): boolean =>
   node.type === 'error' || (Array.isArray(node.errors) && node.errors.length > 0)
 
@@ -30,9 +38,9 @@ function inlineToTiptap(node: MdNode, marks: TiptapMark[] = []): TiptapNode[] {
       return [{
         type: 'image',
         attrs: {
-          src: String(node.attributes.src ?? ''),
-          alt: String(node.attributes.alt ?? ''),
-          title: node.attributes.title != null ? String(node.attributes.title) : null,
+          src: attrString(node.attributes.src),
+          alt: attrString(node.attributes.alt),
+          title: node.attributes.title != null ? attrString(node.attributes.title) : null,
         },
       }]
     case 'tag': {

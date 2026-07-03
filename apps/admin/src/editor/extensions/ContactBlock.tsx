@@ -14,6 +14,7 @@ import {
   contactPreviewFields,
   ensureFormId,
 } from './contact-helpers'
+import { attrString } from '../attr-string'
 
 function ContactView({ node, updateAttributes }: ReactNodeViewProps) {
   const mdAttrs = (node.attrs.mdAttrs ?? {}) as Record<string, unknown>
@@ -30,11 +31,11 @@ function ContactView({ node, updateAttributes }: ReactNodeViewProps) {
   const setAttrs = (patch: Record<string, unknown>) =>
     updateAttributes({ mdAttrs: { ...mdAttrs, ...patch } })
 
-  const formLabel = String(mdAttrs.formLabel ?? '')
+  const formLabel = attrString(mdAttrs.formLabel)
   const subject = coerceBool(mdAttrs.subject, false)
   const nameRequired = coerceBool(mdAttrs.nameRequired, true)
   const subjectRequired = coerceBool(mdAttrs.subjectRequired, false)
-  const successMessage = String(mdAttrs.successMessage ?? DEFAULT_SUCCESS_MESSAGE)
+  const successMessage = attrString(mdAttrs.successMessage, DEFAULT_SUCCESS_MESSAGE)
   const fields = contactPreviewFields(mdAttrs)
 
   return (

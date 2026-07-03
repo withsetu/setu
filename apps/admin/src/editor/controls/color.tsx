@@ -1,7 +1,7 @@
-import type { ControlProps } from './types'
+import { toDisplayString, type ControlProps } from './types'
 
 export function ColorControl({ value, onChange, meta }: ControlProps) {
-  const hex = String(value ?? '#000000ff')
+  const hex = toDisplayString(value, '#000000ff')
   const alphaPct = Math.round((parseInt(hex.slice(7) || 'ff', 16) / 255) * 100)
   return (
     <div className="flex items-center gap-2">

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Editor } from '@tiptap/core'
 import { NodeSelection } from '@tiptap/pm/state'
 import type { EditorState } from '@tiptap/pm/state'
+import { attrString } from './attr-string'
 
 /** Block node types whose props are edited in the inspector rail. (callout/image/contact
  *  keep their own bespoke UI and are intentionally NOT inspector-driven.) */
@@ -11,7 +12,7 @@ export interface SelectedBlock { tag: string; mdAttrs: Record<string, unknown>; 
 
 function tagOf(name: string, attrs: Record<string, unknown>): string {
   return name === 'setuBlock'
-    ? String(attrs.tag ?? '')
+    ? attrString(attrs.tag)
     : name === 'heroBlock'
       ? 'hero'
       : name === 'queryBlock'

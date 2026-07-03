@@ -76,11 +76,9 @@ test.describe('visual baselines', () => {
     // — NOT a heading role — so anchor on that data-slot + its text, then walk up to the
     // nearest `[data-slot="card"]` ancestor to get the whole card.
     const cardByTitle = (title: string) =>
-      page
-        .locator('[data-slot="card"]')
-        .filter({
-          has: page.locator('[data-slot="card-title"]', { hasText: title })
-        })
+      page.locator('[data-slot="card"]').filter({
+        has: page.locator('[data-slot="card-title"]', { hasText: title })
+      })
 
     await expect(page).toHaveScreenshot('dashboard.png', {
       fullPage: true,

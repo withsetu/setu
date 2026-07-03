@@ -31,13 +31,11 @@ describe('resolveAuthSecret', () => {
     expect(secret).toMatch(/^[0-9a-f]{64}$/)
   })
 
-  it('THROWS when SETU_MODE is unset and no SETU_AUTH_SECRET is set — fail closed (regression: unset must not be treated as local)', () => {
-    expect(() => resolveAuthSecret({} as NodeJS.ProcessEnv)).toThrow(/SETU_AUTH_SECRET is required/)
+  it('returns null (does NOT throw) when SETU_MODE is unset and no SETU_AUTH_SECRET is set — fail-closed DEGRADATION, not a boot crash (regression: unset must not be treated as local)', () => {
+    expect(resolveAuthSecret({} as NodeJS.ProcessEnv)).toBeNull()
   })
 
-  it('throws when SETU_MODE=self-hosted and no SETU_AUTH_SECRET is set', () => {
-    expect(() => resolveAuthSecret({ SETU_MODE: 'self-hosted' } as NodeJS.ProcessEnv)).toThrow(
-      /SETU_AUTH_SECRET is required/,
-    )
+  it('returns null (does NOT throw) when SETU_MODE=self-hosted and no SETU_AUTH_SECRET is set', () => {
+    expect(resolveAuthSecret({ SETU_MODE: 'self-hosted' } as NodeJS.ProcessEnv)).toBeNull()
   })
 })

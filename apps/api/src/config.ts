@@ -13,11 +13,17 @@ export function resolveSetuMode(env: { SETU_MODE?: string }): SetuMode {
 /** The auth secret. In local topology (SETU_MODE='local', via resolveSetuMode — which itself
  *  fails closed to 'self-hosted' when SETU_MODE is unset), fall back to an ephemeral per-boot
  *  secret when SETU_AUTH_SECRET is unset — sessions reset on restart, which is fine for a single
- *  local user. In any other topology, a missing secret is a hard boot error: there is no safe
- *  fallback once auth is meant to be durable across restarts / shared across instances.
- *  (Task 5 refines the "any other topology" branch into route-level 503s instead of a hard boot
- *  failure; for this task a clear thrown error is the correct fail-closed behavior.) */
-export function resolveAuthSecret(env: NodeJS.ProcessEnv = process.env): string {
+ *  local user. In any other topology, a missing secret means auth cannot be safely constructed:
+ *  there is no ephemeral fallback once auth is meant to be durable across restarts / shared across
+ *  instances (that fallback stays local-only, deliberately).
+ *
+ *  Task 3 made this a hard `throw` at boot. Task 5 replaces that with honest degradation: the
+ *  server MUST still boot and serve public GETs (media, capabilities) even when auth can't be
+ *  configured — an operator should be able to see the server is up and *why* auth is disabled via
+ *  GET /api/capabilities, not have the whole process refuse to start. Returning `null` (rather than
+ *  throwing) lets server.ts skip constructing the auth instance entirely and register a 503
+ *  short-circuit for mutating routes and /api/auth/* instead. */
+export function resolveAuthSecret(env: NodeJS.ProcessEnv = process.env): string | null {
   const configured = env.SETU_AUTH_SECRET
   if (configured) return configured
   const mode = resolveSetuMode(env)
@@ -25,5 +31,9 @@ export function resolveAuthSecret(env: NodeJS.ProcessEnv = process.env): string 
     console.warn('[auth] SETU_AUTH_SECRET is unset — using an ephemeral secret; sessions will reset on restart')
     return randomBytes(32).toString('hex')
   }
-  throw new Error(`[auth] SETU_AUTH_SECRET is required when SETU_MODE=${mode} (no ephemeral fallback outside local mode)`)
+  console.error(
+    `[auth] SETU_AUTH_SECRET is required when SETU_MODE=${mode} (no ephemeral fallback outside local mode) — ` +
+      'auth is DISABLED; the server will boot but mutating routes and /api/auth/* will 503 until it is set',
+  )
+  return null
 }

@@ -18,7 +18,7 @@ describe('siteUrl', () => {
 
   it('keeps a non-default locale segment', () => {
     expect(siteUrl({ collection: 'post', locale: 'fr', slug: 'bonjour' })).toBe(
-      'http://localhost:4321/post/fr/bonjour'
+      'http://localhost:4321/fr/post/bonjour'
     )
   })
 

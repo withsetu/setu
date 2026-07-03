@@ -22,7 +22,10 @@ describe('{% image %} block — round-trip', () => {
     expect(doc.content?.[0]?.type).toBe('imageBlock')
     expect(doc.content?.[0]?.content).toBeUndefined()
     expect(doc.content?.[0]?.attrs?.mdAttrs).toEqual({
-      src: '/media/2026/06/test-cat.jpg', alt: 'A test cat', caption: 'A caption', align: 'wide',
+      src: '/media/2026/06/test-cat.jpg',
+      alt: 'A test cat',
+      caption: 'A caption',
+      align: 'wide'
     })
   })
 

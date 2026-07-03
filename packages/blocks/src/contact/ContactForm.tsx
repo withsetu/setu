@@ -1,6 +1,10 @@
 // packages/blocks/src/contact/ContactForm.tsx
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { validateContactFields, submitContact, type ContactRequired } from '@setu/core'
+import {
+  validateContactFields,
+  submitContact,
+  type ContactRequired
+} from '@setu/core'
 import { mountCaptcha, type CaptchaProvider } from './mount-captcha'
 import './contact.css'
 
@@ -31,16 +35,36 @@ export interface ContactFormProps {
 }
 
 export default function ContactForm(props: ContactFormProps) {
-  const { formId, formLabel, apiBase, provider, siteKey, subject = false, required, labels = {}, placeholders = {}, successMessage } = props
+  const {
+    formId,
+    formLabel,
+    apiBase,
+    provider,
+    siteKey,
+    subject = false,
+    required,
+    labels = {},
+    placeholders = {},
+    successMessage
+  } = props
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [status, setStatus] = useState<'idle' | 'sending' | 'done' | 'error'>('idle')
+  const [status, setStatus] = useState<'idle' | 'sending' | 'done' | 'error'>(
+    'idle'
+  )
   const [token, setToken] = useState('')
   const widgetRef = useRef<HTMLDivElement>(null)
-  const captchaRef = useRef<{ reset: () => void; cleanup: () => void } | null>(null)
+  const captchaRef = useRef<{ reset: () => void; cleanup: () => void } | null>(
+    null
+  )
 
   useEffect(() => {
     if (!siteKey || !widgetRef.current) return
-    const handle = mountCaptcha({ provider, siteKey, el: widgetRef.current, onToken: setToken })
+    const handle = mountCaptcha({
+      provider,
+      siteKey,
+      el: widgetRef.current,
+      onToken: setToken
+    })
     captchaRef.current = handle
     return () => {
       handle.cleanup()
@@ -55,7 +79,7 @@ export default function ContactForm(props: ContactFormProps) {
     const fields: Record<string, string> = {
       name: fieldValue(fd, 'name'),
       email: fieldValue(fd, 'email'),
-      message: fieldValue(fd, 'message'),
+      message: fieldValue(fd, 'message')
     }
     if (subject) fields.subject = fieldValue(fd, 'subject')
 
@@ -77,7 +101,7 @@ export default function ContactForm(props: ContactFormProps) {
       fields,
       captchaToken: token,
       honeypot: fieldValue(fd, 'company'), // honeypot field
-      pageUrl: typeof window !== 'undefined' ? window.location.href : undefined,
+      pageUrl: typeof window !== 'undefined' ? window.location.href : undefined
     })
     if (result.ok) {
       setStatus('done')
@@ -90,18 +114,41 @@ export default function ContactForm(props: ContactFormProps) {
   }
 
   if (status === 'done') {
-    return <p className="setu-contact__success" role="status">{successMessage}</p>
+    return (
+      <p className="setu-contact__success" role="status">
+        {successMessage}
+      </p>
+    )
   }
 
-  const field = (name: 'name' | 'email' | 'subject' | 'message', type: 'text' | 'email' | 'textarea') => (
+  const field = (
+    name: 'name' | 'email' | 'subject' | 'message',
+    type: 'text' | 'email' | 'textarea'
+  ) => (
     <div className="setu-contact__row">
-      <label htmlFor={`setu-${formId}-${name}`}>{labels[name] ?? name[0]!.toUpperCase() + name.slice(1)}</label>
+      <label htmlFor={`setu-${formId}-${name}`}>
+        {labels[name] ?? name[0]!.toUpperCase() + name.slice(1)}
+      </label>
       {type === 'textarea' ? (
-        <textarea id={`setu-${formId}-${name}`} name={name} placeholder={placeholders[name] ?? ''} rows={5} />
+        <textarea
+          id={`setu-${formId}-${name}`}
+          name={name}
+          placeholder={placeholders[name] ?? ''}
+          rows={5}
+        />
       ) : (
-        <input id={`setu-${formId}-${name}`} name={name} type={type} placeholder={placeholders[name] ?? ''} />
+        <input
+          id={`setu-${formId}-${name}`}
+          name={name}
+          type={type}
+          placeholder={placeholders[name] ?? ''}
+        />
       )}
-      {errors[name] && <span className="setu-contact__error" role="alert">{errors[name]}</span>}
+      {errors[name] && (
+        <span className="setu-contact__error" role="alert">
+          {errors[name]}
+        </span>
+      )}
     </div>
   )
 
@@ -113,14 +160,21 @@ export default function ContactForm(props: ContactFormProps) {
       {field('message', 'textarea')}
       {/* Honeypot: visually hidden, bots fill it. */}
       <div className="setu-contact__hp" aria-hidden="true">
-        <label>Company<input name="company" tabIndex={-1} autoComplete="off" /></label>
+        <label>
+          Company
+          <input name="company" tabIndex={-1} autoComplete="off" />
+        </label>
       </div>
       {/* captcha provider renders explicitly into this div once its script has loaded. */}
       <div ref={widgetRef} className="setu-contact__captcha" />
       <button type="submit" disabled={status === 'sending'}>
         {status === 'sending' ? 'Sending…' : 'Send'}
       </button>
-      {status === 'error' && <p className="setu-contact__error" role="alert">Something went wrong. Please try again.</p>}
+      {status === 'error' && (
+        <p className="setu-contact__error" role="alert">
+          Something went wrong. Please try again.
+        </p>
+      )}
     </form>
   )
 }

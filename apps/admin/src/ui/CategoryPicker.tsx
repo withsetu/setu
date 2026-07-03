@@ -4,7 +4,10 @@ import { buildTree } from '@setu/core'
 import { useTaxonomy } from '../data/taxonomy-store'
 import { Combobox } from './Combobox'
 
-function flatten(nodes: CategoryNode[], out: CategoryNode[] = []): CategoryNode[] {
+function flatten(
+  nodes: CategoryNode[],
+  out: CategoryNode[] = []
+): CategoryNode[] {
   for (const n of nodes) {
     out.push(n)
     flatten(n.children, out)
@@ -18,7 +21,7 @@ export function CategoryPicker({
   onSubmit,
   placeholder = 'Category…',
   ariaLabel,
-  disabled = false,
+  disabled = false
 }: {
   value: string
   onChange: (text: string) => void
@@ -31,7 +34,12 @@ export function CategoryPicker({
   const rows = useMemo(() => flatten(buildTree(categories)), [categories])
   const q = value.trim().toLowerCase()
   const items = rows
-    .filter((r) => q === '' || r.name.toLowerCase().includes(q) || r.slug.toLowerCase().includes(q))
+    .filter(
+      (r) =>
+        q === '' ||
+        r.name.toLowerCase().includes(q) ||
+        r.slug.toLowerCase().includes(q)
+    )
     .map((r) => ({ value: r.slug, label: `${'  '.repeat(r.depth)}${r.name}` }))
 
   return (

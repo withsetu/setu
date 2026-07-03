@@ -6,7 +6,8 @@ function serializeAttrs(attrs: Record<string, MarkdocAttr>): string {
   const parts = Object.entries(attrs).map(([name, a]) => {
     const bits = [`type: ${a.type}`] // bare identifier (String/Number/Boolean) — not a string literal
     if (a.matches?.length) bits.push(`matches: ${JSON.stringify(a.matches)}`)
-    if (a.default !== undefined) bits.push(`default: ${JSON.stringify(a.default)}`)
+    if (a.default !== undefined)
+      bits.push(`default: ${JSON.stringify(a.default)}`)
     return `${name}: { ${bits.join(', ')} }`
   })
   return `{ ${parts.join(', ')} }`
@@ -20,7 +21,9 @@ export function generateMarkdocTagsInclude(registry: BlockRegistry): string {
     // Repo-root block folders import relative to apps/site (../../). Package renderers
     // (the @setu/blocks standard renderer) are bare specifiers resolved by Vite/node —
     // emit them unchanged.
-    const ref = b.component.startsWith('blocks/') ? `../../${b.component}` : b.component
+    const ref = b.component.startsWith('blocks/')
+      ? `../../${b.component}`
+      : b.component
     return `  ${b.tag}: {\n    render: component('${ref}'),\n    attributes: ${attrs},\n  },`
   })
   return (

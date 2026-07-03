@@ -9,7 +9,7 @@ export const FONT_PACKAGES: Record<string, string> = {
   'source-serif': '@fontsource-variable/source-serif-4',
   newsreader: '@fontsource-variable/newsreader',
   lora: '@fontsource-variable/lora',
-  space: '@fontsource-variable/space-grotesk',
+  space: '@fontsource-variable/space-grotesk'
 }
 
 /** Mono font for `--font-mono` (code) — not a `font` choice, always loaded. */

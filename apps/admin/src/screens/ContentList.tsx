@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Plus } from 'lucide-react'
-import type { CategoryNode, ContentRow, IndexQuery, LifecycleState, SortKey } from '@setu/core'
+import type {
+  CategoryNode,
+  ContentRow,
+  IndexQuery,
+  LifecycleState,
+  SortKey
+} from '@setu/core'
 import { buildTree } from '@setu/core'
 import { useIndex } from '../data/index-store'
 import { useTaxonomy } from '../data/taxonomy-store'
@@ -18,7 +24,10 @@ import { useSettings } from '../data/settings-store'
 
 const SORT_KEYS: SortKey[] = ['updatedAt', 'title', 'status']
 
-function flatten(nodes: CategoryNode[], out: CategoryNode[] = []): CategoryNode[] {
+function flatten(
+  nodes: CategoryNode[],
+  out: CategoryNode[] = []
+): CategoryNode[] {
   for (const n of nodes) {
     out.push(n)
     flatten(n.children, out)
@@ -26,19 +35,29 @@ function flatten(nodes: CategoryNode[], out: CategoryNode[] = []): CategoryNode[
   return out
 }
 
-const keyOf = (r: ContentRow) => `${r.ref.collection}/${r.ref.locale}/${r.ref.slug}`
+const keyOf = (r: ContentRow) =>
+  `${r.ref.collection}/${r.ref.locale}/${r.ref.slug}`
 
 function parseSort(raw: string | null): { key: SortKey; dir: 'asc' | 'desc' } {
   if (raw) {
     const [key, dir] = raw.split('-')
-    if (SORT_KEYS.includes(key as SortKey) && (dir === 'asc' || dir === 'desc')) {
+    if (
+      SORT_KEYS.includes(key as SortKey) &&
+      (dir === 'asc' || dir === 'desc')
+    ) {
       return { key: key as SortKey, dir }
     }
   }
   return { key: 'updatedAt', dir: 'desc' }
 }
 
-export function ContentList({ collection, title }: { collection: string; title: string }) {
+export function ContentList({
+  collection,
+  title
+}: {
+  collection: string
+  title: string
+}) {
   const index = useIndex()
   const { categories } = useTaxonomy()
   const pageSize = useSettings().reading.listPageSize
@@ -65,7 +84,7 @@ export function ContentList({ collection, title }: { collection: string; title: 
   // Category name lookup for the table display.
   const categoryNameMap = useMemo(
     () => new Map(catRows.map((c) => [c.slug, c.name])),
-    [catRows],
+    [catRows]
   )
   const categoryName = (slug: string) => categoryNameMap.get(slug) ?? slug
 
@@ -87,7 +106,7 @@ export function ContentList({ collection, title }: { collection: string; title: 
         else next.delete(key)
         return next
       },
-      { replace: true },
+      { replace: true }
     )
   }
 
@@ -123,8 +142,15 @@ export function ContentList({ collection, title }: { collection: string; title: 
   // Locale dropdown options.
   useEffect(() => {
     let live = true
-    void index.distinctLocales().then((ls) => { if (live) setLocales(ls) }).catch(() => {})
-    return () => { live = false }
+    void index
+      .distinctLocales()
+      .then((ls) => {
+        if (live) setLocales(ls)
+      })
+      .catch(() => {})
+    return () => {
+      live = false
+    }
   }, [index])
 
   // Run the query.
@@ -135,7 +161,12 @@ export function ContentList({ collection, title }: { collection: string; title: 
     let live = true
     void (async () => {
       await index.ensureBuilt()
-      const query: IndexQuery = { collection, offset: page * pageSize, limit: pageSize, sort }
+      const query: IndexQuery = {
+        collection,
+        offset: page * pageSize,
+        limit: pageSize,
+        sort
+      }
       if (q) query.q = q
       if (status) query.status = status as LifecycleState
       if (locale) query.locale = locale
@@ -147,8 +178,23 @@ export function ContentList({ collection, title }: { collection: string; title: 
         setTotal(r.total)
       }
     })()
-    return () => { live = false }
-  }, [index, collection, page, pageSize, q, status, locale, category, tag, sort.key, sort.dir, refreshKey])
+    return () => {
+      live = false
+    }
+  }, [
+    index,
+    collection,
+    page,
+    pageSize,
+    q,
+    status,
+    locale,
+    category,
+    tag,
+    sort.key,
+    sort.dir,
+    refreshKey
+  ])
 
   const toggleSort = (key: SortKey) => {
     const dir = sort.key === key && sort.dir === 'asc' ? 'desc' : 'asc'
@@ -165,7 +211,8 @@ export function ContentList({ collection, title }: { collection: string; title: 
       return next
     })
   const pageKeys = (rows ?? []).map(keyOf)
-  const allSelected = pageKeys.length > 0 && pageKeys.every((k) => selected.has(k))
+  const allSelected =
+    pageKeys.length > 0 && pageKeys.every((k) => selected.has(k))
   const toggleAll = () =>
     setSelected((prev) => {
       if (pageKeys.every((k) => prev.has(k))) return new Set()
@@ -181,7 +228,11 @@ export function ContentList({ collection, title }: { collection: string; title: 
       <PageHeader
         title={title}
         count={rows !== null ? total : undefined}
-        subtitle={collection === 'post' ? 'Articles, field notes and announcements.' : 'Standalone pages and landing pages.'}
+        subtitle={
+          collection === 'post'
+            ? 'Articles, field notes and announcements.'
+            : 'Standalone pages and landing pages.'
+        }
         actions={
           <Button asChild>
             <Link to={`/edit/${collection}/en/new`}>
@@ -205,7 +256,13 @@ export function ContentList({ collection, title }: { collection: string; title: 
           onTag={(t) => setParam('tag', t)}
           hasFilters={hasFilters && (rows === null || rows.length > 0)}
           onClear={clearFilters}
-          columnsMenu={<ColumnsMenu visible={visible} toggle={toggle} showLocale={multilingual} />}
+          columnsMenu={
+            <ColumnsMenu
+              visible={visible}
+              toggle={toggle}
+              showLocale={multilingual}
+            />
+          }
         />
         {rows === null ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
@@ -213,10 +270,14 @@ export function ContentList({ collection, title }: { collection: string; title: 
           hasFilters ? (
             <p className="text-sm text-muted-foreground">
               No {title.toLowerCase()} match these filters.{' '}
-              <Button variant="link" size="sm" onClick={clearFilters}>Clear filters</Button>
+              <Button variant="link" size="sm" onClick={clearFilters}>
+                Clear filters
+              </Button>
             </p>
           ) : (
-            <p className="text-sm text-muted-foreground">No {title.toLowerCase()} yet.</p>
+            <p className="text-sm text-muted-foreground">
+              No {title.toLowerCase()} yet.
+            </p>
           )
         ) : (
           <>
@@ -225,7 +286,10 @@ export function ContentList({ collection, title }: { collection: string; title: 
                 rows={rows}
                 selected={selected}
                 onClear={() => setSelected(new Set())}
-                onDone={() => { setSelected(new Set()); setRefreshKey((k) => k + 1) }}
+                onDone={() => {
+                  setSelected(new Set())
+                  setRefreshKey((k) => k + 1)
+                }}
               />
             )}
             <div className="overflow-hidden rounded-xl border bg-card shadow-[var(--shadow-card)]">
@@ -242,7 +306,15 @@ export function ContentList({ collection, title }: { collection: string; title: 
                 sort={sort}
                 onSort={toggleSort}
               />
-              {total > 0 && <Pager from={from} to={to} total={total} page={page} onPage={setPage} />}
+              {total > 0 && (
+                <Pager
+                  from={from}
+                  to={to}
+                  total={total}
+                  page={page}
+                  onPage={setPage}
+                />
+              )}
             </div>
           </>
         )}

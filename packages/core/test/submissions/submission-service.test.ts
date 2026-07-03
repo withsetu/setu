@@ -8,7 +8,7 @@ const base = {
   formId: 'contact',
   formLabel: 'Contact',
   fields: { name: 'Ada', email: 'ada@x.com', message: 'hello there' },
-  captchaToken: 'tok',
+  captchaToken: 'tok'
 }
 
 describe('createSubmissionService.submit', () => {
@@ -30,7 +30,10 @@ describe('createSubmissionService.submit', () => {
 
   it('captcha fails: returns spam, nothing stored', async () => {
     const submissions = createMemorySubmissionPort()
-    const svc = createSubmissionService({ submissions, captcha: { verify: async () => false } })
+    const svc = createSubmissionService({
+      submissions,
+      captcha: { verify: async () => false }
+    })
     expect(await svc.submit({ ...base })).toEqual({ ok: false, error: 'spam' })
     expect((await submissions.listSubmissions()).total).toBe(0)
   })
@@ -38,14 +41,18 @@ describe('createSubmissionService.submit', () => {
   it('invalid email: returns invalid, nothing stored', async () => {
     const submissions = createMemorySubmissionPort()
     const svc = createSubmissionService({ submissions, captcha: ok })
-    expect(await svc.submit({ ...base, fields: { email: 'nope', message: 'x' } })).toEqual({ ok: false, error: 'invalid' })
+    expect(
+      await svc.submit({ ...base, fields: { email: 'nope', message: 'x' } })
+    ).toEqual({ ok: false, error: 'invalid' })
     expect((await submissions.listSubmissions()).total).toBe(0)
   })
 
   it('missing message: returns invalid', async () => {
     const submissions = createMemorySubmissionPort()
     const svc = createSubmissionService({ submissions, captcha: ok })
-    expect(await svc.submit({ ...base, fields: { email: 'a@x.com', message: '  ' } })).toEqual({ ok: false, error: 'invalid' })
+    expect(
+      await svc.submit({ ...base, fields: { email: 'a@x.com', message: '  ' } })
+    ).toEqual({ ok: false, error: 'invalid' })
   })
 
   it('notifies on success (best-effort) and survives email failure', async () => {
@@ -59,7 +66,7 @@ describe('createSubmissionService.submit', () => {
       captcha: ok,
       email,
       notifyTo: 'owner@x.com',
-      notifyFrom: 'site@x.com',
+      notifyFrom: 'site@x.com'
     })
     const r = await svc.submit({ ...base })
     expect(r).toEqual({ ok: true, id: expect.any(String) }) // not failed by email error
@@ -78,7 +85,7 @@ describe('createSubmissionService.submit', () => {
       notifyFrom: 'site@x.com',
       renderNotification: async () => {
         throw new Error('render boom')
-      },
+      }
     })
     const r = await svc.submit({ ...base })
     expect(r).toEqual({ ok: true, id: expect.any(String) })

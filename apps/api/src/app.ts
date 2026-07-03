@@ -14,18 +14,19 @@ export function createGitApi(git: GitPort): Hono {
 
   app.get('/git/file', async (c) => {
     const path = c.req.query('path')
-    if (path === undefined || path === '') return c.json({ error: 'path query is required' }, 400)
+    if (path === undefined || path === '')
+      return c.json({ error: 'path query is required' }, 400)
     return c.json({ content: await git.readFile(path) })
   })
 
   app.post('/git/commit', async (c) => {
-    const body = (await c.req.json()) as CommitInput
+    const body = (await c.req.json())
     const { sha } = await git.commitFile(body)
     return c.json({ sha })
   })
 
   app.post('/git/commit-files', async (c) => {
-    const body = (await c.req.json()) as CommitFilesInput
+    const body = (await c.req.json())
     const { sha } = await git.commitFiles(body)
     return c.json({ sha })
   })
@@ -35,6 +36,8 @@ export function createGitApi(git: GitPort): Hono {
     return c.json({ paths: await git.list(prefix) })
   })
 
-  app.onError((err, c) => c.json({ error: err instanceof Error ? err.message : String(err) }, 500))
+  app.onError((err, c) =>
+    c.json({ error: err instanceof Error ? err.message : String(err) }, 500)
+  )
   return app
 }

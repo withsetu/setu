@@ -9,7 +9,11 @@ function Trigger() {
 
 describe('useNotify', () => {
   it('shows a dismissible success notification', async () => {
-    render(<NotificationProvider><Trigger /></NotificationProvider>)
+    render(
+      <NotificationProvider>
+        <Trigger />
+      </NotificationProvider>
+    )
     fireEvent.click(screen.getByText('go'))
     expect(await screen.findByText('Saved 3 posts')).toBeTruthy()
     fireEvent.click(screen.getByLabelText('Dismiss'))

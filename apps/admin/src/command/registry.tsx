@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -27,19 +35,30 @@ export function CommandRegistryProvider({ children }: { children: ReactNode }) {
       for (const a of incoming) next.set(a.id, a)
       return next
     })
-    return () => setMap((prev) => {
-      const next = new Map(prev)
-      for (const a of incoming) next.delete(a.id)
-      return next
-    })
+    return () =>
+      setMap((prev) => {
+        const next = new Map(prev)
+        for (const a of incoming) next.delete(a.id)
+        return next
+      })
   }, [])
-  const value = useMemo<RegistryValue>(() => ({ register, commands: [...map.values()] }), [register, map])
-  return <CommandRegistryContext.Provider value={value}>{children}</CommandRegistryContext.Provider>
+  const value = useMemo<RegistryValue>(
+    () => ({ register, commands: [...map.values()] }),
+    [register, map]
+  )
+  return (
+    <CommandRegistryContext.Provider value={value}>
+      {children}
+    </CommandRegistryContext.Provider>
+  )
 }
 
 export function useCommandRegistry(): RegistryValue {
   const ctx = useContext(CommandRegistryContext)
-  if (ctx === null) throw new Error('useCommandRegistry must be used within a CommandRegistryProvider')
+  if (ctx === null)
+    throw new Error(
+      'useCommandRegistry must be used within a CommandRegistryProvider'
+    )
   return ctx
 }
 
@@ -53,9 +72,13 @@ export function useRegisterCommands(actions: CommandAction[]): void {
   ref.current = actions
   useEffect(() => {
     const wrapped: CommandAction[] = ref.current.map((a) => ({
-      id: a.id, title: a.title, group: a.group, keywords: a.keywords, icon: a.icon,
+      id: a.id,
+      title: a.title,
+      group: a.group,
+      keywords: a.keywords,
+      icon: a.icon,
       run: () => ref.current.find((x) => x.id === a.id)?.run(),
-      enabled: () => ref.current.find((x) => x.id === a.id)?.enabled?.() ?? true,
+      enabled: () => ref.current.find((x) => x.id === a.id)?.enabled?.() ?? true
     }))
     return register(wrapped)
   }, [register])

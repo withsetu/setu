@@ -15,12 +15,21 @@ describe('useAutosave', () => {
     const props = (rev: number) => ({
       enabled: true,
       rev,
-      getInput: () => ({ collection: 'post', locale: 'en', slug: 'x', content: emptyDoc, metadata: {}, baseSha: null }),
+      getInput: () => ({
+        collection: 'post',
+        locale: 'en',
+        slug: 'x',
+        content: emptyDoc,
+        metadata: {},
+        baseSha: null
+      }),
       save,
       onStatus: (s: 'idle' | 'saving' | 'saved') => statuses.push(s),
-      delayMs: 800,
+      delayMs: 800
     })
-    const { rerender } = renderHook((p) => useAutosave(p), { initialProps: props(0) })
+    const { rerender } = renderHook((p) => useAutosave(p), {
+      initialProps: props(0)
+    })
     rerender(props(1))
     await vi.advanceTimersByTimeAsync(800)
     expect(save).toHaveBeenCalledTimes(1)
@@ -31,11 +40,23 @@ describe('useAutosave', () => {
   it('does not save on the initial rev (rev 0)', async () => {
     const save = vi.fn(async () => ({ saved: true }))
     const base = {
-      enabled: true, rev: 0,
-      getInput: () => ({ collection: 'post', locale: 'en', slug: 'x', content: emptyDoc, metadata: {}, baseSha: null }),
-      save, onStatus: () => {}, delayMs: 800,
+      enabled: true,
+      rev: 0,
+      getInput: () => ({
+        collection: 'post',
+        locale: 'en',
+        slug: 'x',
+        content: emptyDoc,
+        metadata: {},
+        baseSha: null
+      }),
+      save,
+      onStatus: () => {},
+      delayMs: 800
     }
-    const { rerender } = renderHook((p) => useAutosave(p), { initialProps: base })
+    const { rerender } = renderHook((p) => useAutosave(p), {
+      initialProps: base
+    })
     rerender({ ...base })
     await vi.advanceTimersByTimeAsync(1000)
     expect(save).not.toHaveBeenCalled()
@@ -46,19 +67,50 @@ describe('useAutosave', () => {
     const onStatus = vi.fn()
     const base = {
       enabled: true,
-      getInput: () => ({ collection: 'post', locale: 'en', slug: 'x', content: emptyDoc, metadata: {}, baseSha: null }),
+      getInput: () => ({
+        collection: 'post',
+        locale: 'en',
+        slug: 'x',
+        content: emptyDoc,
+        metadata: {},
+        baseSha: null
+      }),
       save,
       onStatus,
-      delayMs: 800,
+      delayMs: 800
     }
     // NEW closures each render (mimics EditorScreen) but the same rev.
-    const { rerender } = renderHook((p) => useAutosave(p), { initialProps: { ...base, rev: 0 } })
-    rerender({ ...base, getInput: () => ({ collection: 'post', locale: 'en', slug: 'x', content: emptyDoc, metadata: {}, baseSha: null }), rev: 1 })
+    const { rerender } = renderHook((p) => useAutosave(p), {
+      initialProps: { ...base, rev: 0 }
+    })
+    rerender({
+      ...base,
+      getInput: () => ({
+        collection: 'post',
+        locale: 'en',
+        slug: 'x',
+        content: emptyDoc,
+        metadata: {},
+        baseSha: null
+      }),
+      rev: 1
+    })
     await vi.advanceTimersByTimeAsync(800)
     expect(save).toHaveBeenCalledTimes(1)
     // Idle: keep re-rendering with NEW closures but the SAME rev, advancing time.
     for (let i = 0; i < 4; i++) {
-      rerender({ ...base, getInput: () => ({ collection: 'post', locale: 'en', slug: 'x', content: emptyDoc, metadata: {}, baseSha: null }), rev: 1 })
+      rerender({
+        ...base,
+        getInput: () => ({
+          collection: 'post',
+          locale: 'en',
+          slug: 'x',
+          content: emptyDoc,
+          metadata: {},
+          baseSha: null
+        }),
+        rev: 1
+      })
       await vi.advanceTimersByTimeAsync(800)
     }
     expect(save).toHaveBeenCalledTimes(1) // still exactly one — no idle resave loop
@@ -69,12 +121,21 @@ describe('useAutosave', () => {
     const props = (rev: number) => ({
       enabled: true,
       rev,
-      getInput: () => ({ collection: 'post', locale: 'en', slug: 'x', content: emptyDoc, metadata: {}, baseSha: null }),
+      getInput: () => ({
+        collection: 'post',
+        locale: 'en',
+        slug: 'x',
+        content: emptyDoc,
+        metadata: {},
+        baseSha: null
+      }),
       save,
       onStatus: () => {},
-      delayMs: 800,
+      delayMs: 800
     })
-    const { rerender, unmount } = renderHook((p) => useAutosave(p), { initialProps: props(0) })
+    const { rerender, unmount } = renderHook((p) => useAutosave(p), {
+      initialProps: props(0)
+    })
     rerender(props(1)) // a change is scheduled (debounce pending)
     // Unmount BEFORE advancing the timer — the debounced save never fires on its own.
     unmount()

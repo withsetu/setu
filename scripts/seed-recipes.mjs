@@ -19,7 +19,14 @@
 //   SETU_CONTENT_DIR=$PWD/.content-sandbox/recipes/content pnpm --filter @setu/site build
 //   (gen-relations + the site both honor SETU_CONTENT_DIR)
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, cpSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  rmSync,
+  cpSync
+} from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
@@ -37,13 +44,15 @@ const API = 'https://www.themealdb.com/api/json/v1/1/search.php?f='
 const LETTERS = 'abcdefghijklmnopqrstuvwxyz'.split('')
 
 // Reuse core's frontmatter serializer + tag normalizer (jiti imports the TS source).
-const coreReq = createRequire(path.join(ROOT, 'packages', 'core', 'package.json'))
+const coreReq = createRequire(
+  path.join(ROOT, 'packages', 'core', 'package.json')
+)
 const jiti = createJiti(import.meta.url, {
   alias: {
     '@setu/core': coreReq.resolve('@setu/core'),
     '@setu/core/node': coreReq.resolve('@setu/core/node'),
-    zod: coreReq.resolve('zod'),
-  },
+    zod: coreReq.resolve('zod')
+  }
 })
 const { serializeMdoc, normalizeTags } = await jiti.import('@setu/core')
 
@@ -51,15 +60,32 @@ const { serializeMdoc, normalizeTags } = await jiti.import('@setu/core')
 // cuisine + distinctive ingredients, not "everything shares salt".
 const STOPLIST = new Set(
   normalizeTags([
-    'salt', 'water', 'oil', 'olive oil', 'sugar', 'butter', 'garlic', 'onion', 'onions',
-    'pepper', 'black pepper', 'flour', 'plain flour', 'egg', 'eggs', 'milk', 'vegetable oil',
-  ]),
+    'salt',
+    'water',
+    'oil',
+    'olive oil',
+    'sugar',
+    'butter',
+    'garlic',
+    'onion',
+    'onions',
+    'pepper',
+    'black pepper',
+    'flour',
+    'plain flour',
+    'egg',
+    'eggs',
+    'milk',
+    'vegetable oil'
+  ])
 )
 
 async function loadMeals() {
   if (!refresh && existsSync(CACHE)) {
     const meals = JSON.parse(readFileSync(CACHE, 'utf8'))
-    console.log(`seed-recipes: using cached ${meals.length} meals (${path.relative(ROOT, CACHE)})`)
+    console.log(
+      `seed-recipes: using cached ${meals.length} meals (${path.relative(ROOT, CACHE)})`
+    )
     return meals
   }
   console.log('seed-recipes: fetching from TheMealDB (a–z)…')
@@ -79,7 +105,11 @@ async function loadMeals() {
 }
 
 const slugify = (s) =>
-  s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+  s
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
 
 function ingredientsOf(meal) {
   const out = []
@@ -97,8 +127,8 @@ function toMdoc(meal) {
   const area = (meal.strArea ?? '').trim()
   const rawTags = [
     area,
-    ...((meal.strTags ?? '').split(',')),
-    ...ingredients.map((x) => x.ing),
+    ...(meal.strTags ?? '').split(','),
+    ...ingredients.map((x) => x.ing)
   ].filter(Boolean)
   const tags = normalizeTags(rawTags).filter((t) => !STOPLIST.has(t))
   const categories = normalizeTags([meal.strCategory ?? ''].filter(Boolean))
@@ -123,9 +153,11 @@ function toMdoc(meal) {
     // so the body stays clean and the image renders once, as the hero / card thumbnail.
     area && meal.strCategory ? `*${meal.strCategory} · ${area} cuisine*` : '',
     '## Ingredients',
-    ingredients.map((x) => `- ${[x.measure, x.ing].filter(Boolean).join(' ')}`).join('\n'),
+    ingredients
+      .map((x) => `- ${[x.measure, x.ing].filter(Boolean).join(' ')}`)
+      .join('\n'),
     '## Instructions',
-    ...steps,
+    ...steps
   ]
     .filter(Boolean)
     .join('\n\n')
@@ -143,7 +175,8 @@ async function main() {
   // The site's routes require the canonical baseline pages (home at '/', about) — carry the
   // repo's content/page/ tree over so the build's index.astro home entry exists.
   const pageSrc = path.join(ROOT, 'content', 'page')
-  if (existsSync(pageSrc)) cpSync(pageSrc, path.join(SANDBOX, 'content', 'page'), { recursive: true })
+  if (existsSync(pageSrc))
+    cpSync(pageSrc, path.join(SANDBOX, 'content', 'page'), { recursive: true })
 
   const used = new Set()
   let written = 0
@@ -151,13 +184,22 @@ async function main() {
     let slug = slugify(meal.strMeal) || `meal-${meal.idMeal}`
     if (used.has(slug)) slug = `${slug}-${meal.idMeal}`
     used.add(slug)
-    writeFileSync(path.join(OUT_DIR, `${slug}.mdoc`), serializeMdoc(toMdoc(meal)))
+    writeFileSync(
+      path.join(OUT_DIR, `${slug}.mdoc`),
+      serializeMdoc(toMdoc(meal))
+    )
     written++
   }
-  console.log(`seed-recipes: wrote ${written} .mdoc files to ${path.relative(ROOT, OUT_DIR)}`)
+  console.log(
+    `seed-recipes: wrote ${written} .mdoc files to ${path.relative(ROOT, OUT_DIR)}`
+  )
   console.log(`\nView the related-posts widget against this content:`)
-  console.log(`  SETU_CONTENT_DIR=$PWD/.content-sandbox/${name}/content pnpm --filter @setu/site build`)
-  console.log(`  SETU_CONTENT_DIR=$PWD/.content-sandbox/${name}/content pnpm --filter @setu/site preview`)
+  console.log(
+    `  SETU_CONTENT_DIR=$PWD/.content-sandbox/${name}/content pnpm --filter @setu/site build`
+  )
+  console.log(
+    `  SETU_CONTENT_DIR=$PWD/.content-sandbox/${name}/content pnpm --filter @setu/site preview`
+  )
 }
 
 await main()

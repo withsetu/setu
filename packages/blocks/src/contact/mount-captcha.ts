@@ -15,13 +15,16 @@ interface WidgetApi {
       callback: (token: string) => void
       'expired-callback'?: () => void
       'error-callback'?: () => void
-    },
+    }
   ) => string
   reset: (id?: string) => void
 }
 
 const getWidgetApi = (provider: CaptchaProvider): WidgetApi | undefined => {
-  const w = window as unknown as { turnstile?: WidgetApi; grecaptcha?: WidgetApi }
+  const w = window as unknown as {
+    turnstile?: WidgetApi
+    grecaptcha?: WidgetApi
+  }
   const api = provider === 'recaptcha' ? w.grecaptcha : w.turnstile
   return api && typeof api.render === 'function' ? api : undefined
 }
@@ -60,7 +63,7 @@ export function mountCaptcha(opts: {
       sitekey: siteKey,
       callback: (t) => onToken(t),
       'expired-callback': () => onToken(''),
-      'error-callback': () => onToken(''),
+      'error-callback': () => onToken('')
     })
     return true
   }
@@ -80,6 +83,6 @@ export function mountCaptcha(opts: {
     cleanup() {
       cancelled = true
       if (interval) clearInterval(interval)
-    },
+    }
   }
 }

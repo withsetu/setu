@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { buildTree } from './tree'
 import type { Category } from './types'
 
-const cat = (slug: string, parent: string | null = null): Category => ({ slug, name: slug, parent })
+const cat = (slug: string, parent: string | null = null): Category => ({
+  slug,
+  name: slug,
+  parent
+})
 
 describe('buildTree', () => {
   it('nests children under parents with depth', () => {
@@ -28,6 +32,8 @@ describe('buildTree', () => {
   })
 
   it('preserves input order of roots', () => {
-    expect(buildTree([cat('z'), cat('m'), cat('a')]).map((n) => n.slug)).toEqual(['z', 'm', 'a'])
+    expect(
+      buildTree([cat('z'), cat('m'), cat('a')]).map((n) => n.slug)
+    ).toEqual(['z', 'm', 'a'])
   })
 })

@@ -1,5 +1,12 @@
 import { execSync } from 'node:child_process'
-import { readFileSync, readdirSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import {
+  readFileSync,
+  readdirSync,
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  rmSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -15,7 +22,9 @@ function page(route: string): string {
 function themeCss(): string {
   // All CSS the page carries — inline <style> blocks AND emitted _astro stylesheets — concatenated.
   // (Either-or breaks once the per-page CSS purge inlines some rules while others stay external.)
-  const inline = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join('\n')
+  const inline = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)]
+    .map((m) => m[1])
+    .join('\n')
   const astroDir = join(appDir, 'dist', '_astro')
   const external = readdirSync(astroDir)
     .filter((f) => f.endsWith('.css'))
@@ -32,16 +41,45 @@ beforeAll(() => {
   writeFileSync(
     join(md, 'test-cat.manifest.json'),
     JSON.stringify({
-      id: '2026/06/test-cat', format: 'webp',
-      original: { key: '2026/06/test-cat.jpg', width: 1000, height: 600, format: 'jpeg' },
+      id: '2026/06/test-cat',
+      format: 'webp',
+      original: {
+        key: '2026/06/test-cat.jpg',
+        width: 1000,
+        height: 600,
+        format: 'jpeg'
+      },
       variants: [
-        { width: 400, height: 240, key: '2026/06/test-cat-400w.webp', contentType: 'image/webp' },
-        { width: 800, height: 480, key: '2026/06/test-cat-800w.webp', contentType: 'image/webp' },
-        { width: 1000, height: 600, key: '2026/06/test-cat-1000w.webp', contentType: 'image/webp' },
-      ],
-    }),
+        {
+          width: 400,
+          height: 240,
+          key: '2026/06/test-cat-400w.webp',
+          contentType: 'image/webp'
+        },
+        {
+          width: 800,
+          height: 480,
+          key: '2026/06/test-cat-800w.webp',
+          contentType: 'image/webp'
+        },
+        {
+          width: 1000,
+          height: 600,
+          key: '2026/06/test-cat-1000w.webp',
+          contentType: 'image/webp'
+        }
+      ]
+    })
   )
-  execSync('pnpm build', { cwd: appDir, stdio: 'inherit', env: { ...process.env, SETU_MEDIA_DIR: mediaDir, PUBLIC_SETU_MEDIA: 'https://cdn.example.test' } })
+  execSync('pnpm build', {
+    cwd: appDir,
+    stdio: 'inherit',
+    env: {
+      ...process.env,
+      SETU_MEDIA_DIR: mediaDir,
+      PUBLIC_SETU_MEDIA: 'https://cdn.example.test'
+    }
+  })
   html = page('post/kitchen-sink')
 })
 afterAll(() => {
@@ -76,7 +114,9 @@ describe('render pipeline — callout', () => {
   })
   it('ships zero JS for static content (no hydration island/script)', () => {
     expect(html).not.toContain('astro-island')
-    expect(html).not.toMatch(/<script(?![^>]*type="application\/ld\+json")[\s>]/)
+    expect(html).not.toMatch(
+      /<script(?![^>]*type="application\/ld\+json")[\s>]/
+    )
   })
 })
 
@@ -93,8 +133,12 @@ describe('render pipeline — generic folder block (notice)', () => {
 
 describe('render pipeline — text align', () => {
   it('emits text-align for non-default alignment', () => {
-    expect(html).toContain('<p style="text-align:center">This paragraph is centered.</p>')
-    expect(html).toContain('<p style="text-align:right">This paragraph is right-aligned.</p>')
+    expect(html).toContain(
+      '<p style="text-align:center">This paragraph is centered.</p>'
+    )
+    expect(html).toContain(
+      '<p style="text-align:right">This paragraph is right-aligned.</p>'
+    )
   })
   it('leaves default-aligned paragraphs clean', () => {
     expect(html).toContain('<p>A paragraph with <strong>bold</strong>')
@@ -110,8 +154,12 @@ describe('render pipeline — sub/superscript', () => {
 
 describe('render pipeline — checklist', () => {
   it('renders read-only checkboxes from GFM task markers', () => {
-    expect(html).toContain('<li class="task" data-checked="false"><input type="checkbox" disabled')
-    expect(html).toContain('<li class="task" data-checked="true"><input type="checkbox" checked disabled')
+    expect(html).toContain(
+      '<li class="task" data-checked="false"><input type="checkbox" disabled'
+    )
+    expect(html).toContain(
+      '<li class="task" data-checked="true"><input type="checkbox" checked disabled'
+    )
     expect(html).toContain('A checked task')
   })
   it('does not leak the literal marker text', () => {
@@ -191,7 +239,9 @@ describe('default theme — shell + tokens', () => {
     expect(html).not.toContain('fonts.googleapis.com')
     // Hanken Grotesk self-hosts via @fontsource; family registered as 'Hanken Grotesk Variable'.
     // (Minifier strips quotes in the bundled CSS — match the built form.)
-    expect(themeCss()).toMatch(/font-family:\s*['"]?Hanken Grotesk Variable['"]?/)
+    expect(themeCss()).toMatch(
+      /font-family:\s*['"]?Hanken Grotesk Variable['"]?/
+    )
   })
   it('applies the theme tokens (callout themed, not bare fallback)', () => {
     expect(html).toContain('#4f46e5') // --accent from theme.css
@@ -200,7 +250,9 @@ describe('default theme — shell + tokens', () => {
   })
   it('ships zero JS (no hydration island/script)', () => {
     expect(html).not.toContain('astro-island')
-    expect(html).not.toMatch(/<script(?![^>]*type="application\/ld\+json")[\s>]/)
+    expect(html).not.toMatch(
+      /<script(?![^>]*type="application\/ld\+json")[\s>]/
+    )
   })
 })
 
@@ -220,9 +272,15 @@ describe('default theme — prose typography', () => {
 describe('render pipeline — images', () => {
   it('renders an uploaded image responsively from its manifest', () => {
     // src resolved against the configured PUBLIC_SETU_MEDIA origin (set for this build)
-    expect(html).toContain('src="https://cdn.example.test/media/2026/06/test-cat.jpg"')
-    expect(html).toContain('https://cdn.example.test/media/2026/06/test-cat-400w.webp 400w')
-    expect(html).toContain('https://cdn.example.test/media/2026/06/test-cat-1000w.webp 1000w')
+    expect(html).toContain(
+      'src="https://cdn.example.test/media/2026/06/test-cat.jpg"'
+    )
+    expect(html).toContain(
+      'https://cdn.example.test/media/2026/06/test-cat-400w.webp 400w'
+    )
+    expect(html).toContain(
+      'https://cdn.example.test/media/2026/06/test-cat-1000w.webp 1000w'
+    )
     expect(html).toContain('width="1000"')
     expect(html).toContain('height="600"')
     expect(html).toContain('alt="A test cat"')
@@ -236,7 +294,10 @@ describe('render pipeline — images', () => {
 
 describe('render pipeline — {% image %} figure block', () => {
   it('renders {% image %} as a responsive figure with caption and alignment', () => {
-    const figure = html.match(/<figure class="setu-image align-wide">[\s\S]*?<\/figure>/)?.[0] ?? ''
+    const figure =
+      html.match(
+        /<figure class="setu-image align-wide">[\s\S]*?<\/figure>/
+      )?.[0] ?? ''
     expect(figure).not.toBe('')
     expect(figure).toContain('/media/2026/06/test-cat-400w.webp 400w')
     expect(figure).toContain('/media/2026/06/test-cat-1000w.webp 1000w')

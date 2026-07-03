@@ -6,7 +6,10 @@ export async function fetchMediaIndex(apiBase: string): Promise<MediaRecord[]> {
   return ((await res.json()) as { records: MediaRecord[] }).records
 }
 
-export async function deleteMedia(apiBase: string, mediaKey: string): Promise<void> {
+export async function deleteMedia(
+  apiBase: string,
+  mediaKey: string
+): Promise<void> {
   const res = await fetch(`${apiBase}/media/${mediaKey}`, { method: 'DELETE' })
   if (!res.ok) {
     const detail = (await res.json().catch(() => ({}))) as { error?: string }

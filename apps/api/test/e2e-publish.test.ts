@@ -18,7 +18,7 @@ afterEach(() => {
 
 const doc = (text: string) => ({
   type: 'doc' as const,
-  content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+  content: [{ type: 'paragraph', content: [{ type: 'text', text }] }]
 })
 
 describe('end-to-end: publish over git-http → api → git-local → disk', () => {
@@ -33,18 +33,25 @@ describe('end-to-end: publish over git-http → api → git-local → disk', () 
     // Client: the browser-side GitPort wired (portless) to the in-process app.
     const httpGit = createHttpGitPort({
       baseUrl: 'http://localhost',
-      fetch: (input, init) => Promise.resolve(app.fetch(new Request(input as string, init))),
+      fetch: (input, init) =>
+        Promise.resolve(app.fetch(new Request(input as string, init)))
     })
 
     // Drafts live in-browser (Cut A): a DataPort holding one draft to publish.
     const data = createMemoryDataPort([
-      { collection: 'post', locale: 'en', slug: 'hello', content: doc('Hello world.'), metadata: { title: 'Hello' } },
+      {
+        collection: 'post',
+        locale: 'en',
+        slug: 'hello',
+        content: doc('Hello world.'),
+        metadata: { title: 'Hello' }
+      }
     ])
 
     const publish = createPublishService({ data, git: httpGit })
     const result = await publish.publish({
       ref: { collection: 'post', locale: 'en', slug: 'hello' },
-      author: { name: 'Ed', email: 'ed@example.com' },
+      author: { name: 'Ed', email: 'ed@example.com' }
     })
 
     expect(result.status).toBe('published')

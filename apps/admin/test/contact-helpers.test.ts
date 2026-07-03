@@ -4,7 +4,7 @@ import {
   genFormId,
   ensureFormId,
   contactPreviewFields,
-  DEFAULT_SUCCESS_MESSAGE,
+  DEFAULT_SUCCESS_MESSAGE
 } from '../src/editor/extensions/contact-helpers'
 
 describe('coerceBool', () => {
@@ -45,14 +45,26 @@ describe('contactPreviewFields', () => {
     expect(fields.find((f) => f.name === 'name')!.required).toBe(true)
   })
   it('includes subject when on, and reflects per-field required toggles', () => {
-    const fields = contactPreviewFields({ subject: true, nameRequired: false, subjectRequired: true })
-    expect(fields.map((f) => f.name)).toEqual(['name', 'email', 'subject', 'message'])
+    const fields = contactPreviewFields({
+      subject: true,
+      nameRequired: false,
+      subjectRequired: true
+    })
+    expect(fields.map((f) => f.name)).toEqual([
+      'name',
+      'email',
+      'subject',
+      'message'
+    ])
     expect(fields.find((f) => f.name === 'name')!.required).toBe(false)
     expect(fields.find((f) => f.name === 'subject')!.required).toBe(true)
     expect(fields.find((f) => f.name === 'message')!.type).toBe('textarea')
   })
   it('coerces Markdoc string booleans', () => {
-    const fields = contactPreviewFields({ subject: 'true', nameRequired: 'false' })
+    const fields = contactPreviewFields({
+      subject: 'true',
+      nameRequired: 'false'
+    })
     expect(fields.map((f) => f.name)).toContain('subject')
     expect(fields.find((f) => f.name === 'name')!.required).toBe(false)
   })

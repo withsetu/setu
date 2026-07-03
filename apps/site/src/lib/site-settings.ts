@@ -13,7 +13,9 @@ function settingsFilePath(): string {
  *  published file). Missing/malformed → defaults (never throws). */
 export function loadSiteSettings(): SiteSettings {
   try {
-    return parseSettings(JSON.parse(readFileSync(settingsFilePath(), 'utf8')) as unknown)
+    return parseSettings(
+      JSON.parse(readFileSync(settingsFilePath(), 'utf8')) as unknown
+    )
   } catch {
     return parseSettings(undefined)
   }

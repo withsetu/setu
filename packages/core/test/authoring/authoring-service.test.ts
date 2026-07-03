@@ -1,11 +1,17 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createAuthoringService, DEFAULT_LOCK_TTL_MS } from '../../src/index'
-import type { DataPort, Draft, EntryRef, Lock, TiptapDoc } from '../../src/index'
+import type {
+  DataPort,
+  Draft,
+  EntryRef,
+  Lock,
+  TiptapDoc
+} from '../../src/index'
 
 const key = (r: EntryRef) => `${r.collection} ${r.locale} ${r.slug}`
 const doc = (text: string): TiptapDoc => ({
   type: 'doc',
-  content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+  content: [{ type: 'paragraph', content: [{ type: 'text', text }] }]
 })
 
 /** Minimal in-memory DataPort for testing the service (no cross-package dep). */
@@ -27,7 +33,7 @@ function fakeDataPort(): DataPort {
         metadata: input.metadata,
         baseSha: input.baseSha ?? null,
         createdAt: existing?.createdAt ?? 0,
-        updatedAt: 0,
+        updatedAt: 0
       }
       drafts.set(k, d)
       return d
@@ -37,7 +43,9 @@ function fakeDataPort(): DataPort {
     },
     async listDrafts(filter) {
       const all = [...drafts.values()]
-      return filter?.collection ? all.filter((d) => d.collection === filter.collection) : all
+      return filter?.collection
+        ? all.filter((d) => d.collection === filter.collection)
+        : all
     },
     async getLock(ref) {
       return locks.get(key(ref)) ?? null
@@ -48,7 +56,7 @@ function fakeDataPort(): DataPort {
     async deleteLock(ref) {
       locks.delete(key(ref))
     },
-    async close() {},
+    async close() {}
   }
 }
 
@@ -101,17 +109,26 @@ describe('createAuthoringService', () => {
   })
 
   it('save persists the draft and refreshes the lock', async () => {
-    const r = await svc().save({ ...ref, content: doc('v1'), metadata: { title: 'T' } }, 'a@x.com')
+    const r = await svc().save(
+      { ...ref, content: doc('v1'), metadata: { title: 'T' } },
+      'a@x.com'
+    )
     expect(r.saved).toBe(true)
     expect(r.draft?.content).toEqual(doc('v1'))
-    expect(await data.getLock(ref)).toMatchObject({ lockedBy: 'a@x.com', lockedAt: 5000 })
+    expect(await data.getLock(ref)).toMatchObject({
+      lockedBy: 'a@x.com',
+      lockedAt: 5000
+    })
   })
 
   it('save blocked by another fresh editor does NOT persist', async () => {
     const s = svc()
     await s.open(ref, 'a@x.com') // a holds a fresh lock at 5000
     clock = 5200
-    const r = await s.save({ ...ref, content: doc('intruder'), metadata: {} }, 'b@x.com')
+    const r = await s.save(
+      { ...ref, content: doc('intruder'), metadata: {} },
+      'b@x.com'
+    )
     expect(r.saved).toBe(false)
     expect(r.outcome).toBe('blocked')
     expect(await data.getDraft(ref)).toBeNull() // nothing was written
@@ -140,7 +157,7 @@ describe('createAuthoringService', () => {
     clock = 5500
     expect(await s.status(ref)).toEqual({
       lock: { ...ref, lockedBy: 'a@x.com', lockedAt: 5000 },
-      stale: false,
+      stale: false
     })
     clock = 6001
     expect((await s.status(ref))?.stale).toBe(true)
@@ -155,7 +172,10 @@ describe('createAuthoringService', () => {
     const s = svc()
     await s.open(ref, 'a@x.com') // a locked at 5000
     clock = 6001 // a's lock now stale (age 1001 > ttl 1000)
-    const r = await s.save({ ...ref, content: doc('c-edit'), metadata: {} }, 'c@x.com')
+    const r = await s.save(
+      { ...ref, content: doc('c-edit'), metadata: {} },
+      'c@x.com'
+    )
     expect(r.saved).toBe(true)
     expect(r.outcome).toBe('tookOver')
     expect(r.lock.lockedBy).toBe('c@x.com')

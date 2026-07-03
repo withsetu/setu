@@ -8,5 +8,9 @@ export interface CaptchaPort {
 /** Dev / no-provider pass-through: accepts everything. Named explicitly so it is
  *  never mistaken for a real verifier. */
 export function createNoopCaptcha(): CaptchaPort {
-  return { async verify() { return true } }
+  return {
+    async verify() {
+      return true
+    }
+  }
 }

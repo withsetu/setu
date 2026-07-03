@@ -3,14 +3,24 @@ import type { Editor } from '@tiptap/core'
 import { Icon } from '../ui/Icon'
 import type { IconName } from '../ui/Icon'
 import { useDismiss } from '../ui/useDismiss'
-import { TURN_INTO_GROUPS, currentBlockType, groupContaining } from './block-types'
+import {
+  TURN_INTO_GROUPS,
+  currentBlockType,
+  groupContaining
+} from './block-types'
 import type { BlockType } from './block-types'
 import { registerBubblePopup } from './bubble-popup'
 import { formatKeys, detectMac } from './shortcuts'
 
 type Row =
   | { kind: 'leaf'; type: BlockType }
-  | { kind: 'group'; id: string; label: string; icon: IconName; expanded: boolean }
+  | {
+      kind: 'group'
+      id: string
+      label: string
+      icon: IconName
+      expanded: boolean
+    }
   | { kind: 'item'; type: BlockType }
 
 /** The bubble's block-type switcher. Categorized: Heading/List are groups that expand
@@ -39,8 +49,15 @@ export function TurnIntoMenu({ editor }: { editor: Editor }) {
         out.push({ kind: 'leaf', type: e.type })
       } else {
         const isExp = expanded.has(e.id)
-        out.push({ kind: 'group', id: e.id, label: e.label, icon: e.icon, expanded: isExp })
-        if (isExp) for (const it of e.items) out.push({ kind: 'item', type: it })
+        out.push({
+          kind: 'group',
+          id: e.id,
+          label: e.label,
+          icon: e.icon,
+          expanded: isExp
+        })
+        if (isExp)
+          for (const it of e.items) out.push({ kind: 'item', type: it })
       }
     }
     return out
@@ -55,7 +72,9 @@ export function TurnIntoMenu({ editor }: { editor: Editor }) {
   // On open (after the seeded render commits), focus the active row, else the first.
   useEffect(() => {
     if (!open) return
-    const idx = rows.findIndex((r) => r.kind !== 'group' && r.type.isActive(editor))
+    const idx = rows.findIndex(
+      (r) => r.kind !== 'group' && r.type.isActive(editor)
+    )
     rowRefs.current[idx >= 0 ? idx : 0]?.focus()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
@@ -122,7 +141,13 @@ export function TurnIntoMenu({ editor }: { editor: Editor }) {
         <span aria-hidden>▾</span>
       </button>
       {open && (
-        <div ref={panelRef} className="ti-menu" role="menu" aria-label="Turn into" onKeyDown={onMenuKeyDown}>
+        <div
+          ref={panelRef}
+          className="ti-menu"
+          role="menu"
+          aria-label="Turn into"
+          onKeyDown={onMenuKeyDown}
+        >
           {rows.map((row, i) => {
             const refFn = (el: HTMLButtonElement | null) => {
               rowRefs.current[i] = el
@@ -141,14 +166,18 @@ export function TurnIntoMenu({ editor }: { editor: Editor }) {
                 >
                   <Icon name={row.icon} size={15} />
                   <span>{row.label}</span>
-                  <span className="ti-chev" aria-hidden>▾</span>
+                  <span className="ti-chev" aria-hidden>
+                    ▾
+                  </span>
                 </button>
               )
             }
             const active = row.type.isActive(editor)
             return (
               <button
-                key={row.kind === 'item' ? `i:${row.type.id}` : `l:${row.type.id}`}
+                key={
+                  row.kind === 'item' ? `i:${row.type.id}` : `l:${row.type.id}`
+                }
                 ref={refFn}
                 type="button"
                 role="menuitemradio"
@@ -159,7 +188,9 @@ export function TurnIntoMenu({ editor }: { editor: Editor }) {
               >
                 <Icon name={row.type.icon} size={15} />
                 <span>{row.type.label}</span>
-                <span className="ti-keys">{formatKeys(row.type.keys, mac)}</span>
+                <span className="ti-keys">
+                  {formatKeys(row.type.keys, mac)}
+                </span>
               </button>
             )
           })}

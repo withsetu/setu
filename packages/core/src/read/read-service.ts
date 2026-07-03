@@ -19,12 +19,21 @@ export function createReadService(deps: ReadDeps): ReadService {
       // Git → Tiptap: split YAML frontmatter from the Markdoc body, restoring
       // both metadata and content (the read half of the round-trip).
       const { frontmatter, body } = parseMdoc(published)
-      const content = markdocToTiptap(body, knownBlockTags ? { knownBlockTags } : {})
+      const content = markdocToTiptap(
+        body,
+        knownBlockTags ? { knownBlockTags } : {}
+      )
       const head = await git.headSha()
       // baseContent = the committed file we forked from → the per-file publish guard
       // compares against THIS, so publishing other entries can't trip a false conflict.
-      const draft = await data.saveDraft({ ...ref, content, metadata: frontmatter, baseSha: head, baseContent: published })
+      const draft = await data.saveDraft({
+        ...ref,
+        content,
+        metadata: frontmatter,
+        baseSha: head,
+        baseContent: published
+      })
       return { source: 'forked', draft }
-    },
+    }
   }
 }

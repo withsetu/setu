@@ -14,7 +14,8 @@ afterEach(() => {
 function fixture(settings: unknown): string {
   const root = mkdtempSync(join(tmpdir(), 'setu-settings-'))
   dirs.push(root)
-  if (settings !== undefined) writeFileSync(join(root, 'settings.json'), JSON.stringify(settings))
+  if (settings !== undefined)
+    writeFileSync(join(root, 'settings.json'), JSON.stringify(settings))
   process.env.SETU_CONTENT_DIR = join(root, 'content')
   return root
 }

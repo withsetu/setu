@@ -8,7 +8,7 @@ import type { RefObject } from 'react'
 export function useDismiss(
   ref: RefObject<HTMLElement | null>,
   onClose: () => void,
-  active = true,
+  active = true
 ): void {
   useEffect(() => {
     if (!active) return

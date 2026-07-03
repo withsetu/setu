@@ -8,7 +8,7 @@ export function FeaturedImageField({
   value,
   onChange,
   editable,
-  apiBase,
+  apiBase
 }: {
   value?: string
   onChange: (next: string | undefined) => void
@@ -28,7 +28,12 @@ export function FeaturedImageField({
           />
           {editable && (
             <div className="flex gap-2">
-              <Button type="button" variant="secondary" size="sm" onClick={() => setPickerOpen(true)}>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setPickerOpen(true)}
+              >
                 Change
               </Button>
               <Button
@@ -58,7 +63,10 @@ export function FeaturedImageField({
         apiBase={apiBase}
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
-        onPick={(src) => { onChange(src); setPickerOpen(false) }}
+        onPick={(src) => {
+          onChange(src)
+          setPickerOpen(false)
+        }}
       />
     </div>
   )

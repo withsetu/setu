@@ -8,7 +8,9 @@ describe('ShortcutsDialog (shadcn Dialog, controlled open prop)', () => {
   it('renders title and shortcut rows when open=true', () => {
     render(<ShortcutsDialog open={true} onClose={vi.fn()} />)
     // The DialogTitle renders "Keyboard shortcuts" as an h2
-    expect(screen.getByRole('heading', { name: 'Keyboard shortcuts' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Keyboard shortcuts' })
+    ).toBeInTheDocument()
     expect(screen.getByText('Bold')).toBeInTheDocument()
     expect(screen.getByText('Add or edit link')).toBeInTheDocument()
     expect(screen.getByText('Move block up')).toBeInTheDocument()
@@ -16,7 +18,9 @@ describe('ShortcutsDialog (shadcn Dialog, controlled open prop)', () => {
 
   it('does not render dialog content when open=false', () => {
     render(<ShortcutsDialog open={false} onClose={vi.fn()} />)
-    expect(screen.queryByRole('heading', { name: 'Keyboard shortcuts' })).toBeNull()
+    expect(
+      screen.queryByRole('heading', { name: 'Keyboard shortcuts' })
+    ).toBeNull()
     expect(screen.queryByText('Bold')).toBeNull()
   })
 

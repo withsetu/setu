@@ -9,7 +9,7 @@ const row = (over: Partial<Submission>): Submission => ({
   fields: { name: 'Ada', email: 'ada@x.com', message: 'hi' },
   createdAt: 0,
   read: false,
-  ...over,
+  ...over
 })
 
 describe('submissionsToCsv', () => {
@@ -21,7 +21,11 @@ describe('submissionsToCsv', () => {
   })
 
   it('escapes commas, quotes, and newlines', () => {
-    const csv = submissionsToCsv([row({ fields: { name: 'a,b', email: 'x@y.com', message: 'he said "hi"\nbye' } })])
+    const csv = submissionsToCsv([
+      row({
+        fields: { name: 'a,b', email: 'x@y.com', message: 'he said "hi"\nbye' }
+      })
+    ])
     expect(csv).toContain('"a,b"')
     expect(csv).toContain('"he said ""hi""\nbye"')
   })
@@ -31,7 +35,15 @@ describe('submissionsToCsv', () => {
   })
 
   it('neutralizes spreadsheet formula injection by prefixing a single quote', () => {
-    const csv = submissionsToCsv([row({ fields: { name: '=HYPERLINK("http://evil")', email: 'x@y.com', message: 'hi' } })])
+    const csv = submissionsToCsv([
+      row({
+        fields: {
+          name: '=HYPERLINK("http://evil")',
+          email: 'x@y.com',
+          message: 'hi'
+        }
+      })
+    ])
     expect(csv).toContain(`"'=HYPERLINK(""http://evil"")"`)
   })
 })

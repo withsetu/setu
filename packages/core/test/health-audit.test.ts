@@ -3,16 +3,25 @@ import { runAudit, scanBody, SITE_CAPABILITIES } from '../src/index'
 import type { AuditContext } from '../src/index'
 
 const ctx = (over: Partial<AuditContext> = {}): AuditContext => ({
-  settings: { general: { title: 'T', description: 'D' }, reading: { homepage: 'page/en/home', searchEngineVisible: true, feed: { enabled: false } } },
+  settings: {
+    general: { title: 'T', description: 'D' },
+    reading: {
+      homepage: 'page/en/home',
+      searchEngineVisible: true,
+      feed: { enabled: false }
+    }
+  },
   entries: [{ id: 'page/en/home', data: { title: 'Home' }, body: 'Hello' }],
   capabilities: SITE_CAPABILITIES,
   health: { items: {}, sections: {} },
-  ...over,
+  ...over
 })
 
 describe('scanBody', () => {
   it('flags images without alt and counts h1s', () => {
-    const r = scanBody('# Heading\n\n![](pic.png)\n\n{% image src="x.png" %}{% /image %}')
+    const r = scanBody(
+      '# Heading\n\n![](pic.png)\n\n{% image src="x.png" %}{% /image %}'
+    )
     expect(r.imagesWithoutAlt).toBe(2)
     expect(r.h1Count).toBe(1)
   })
@@ -24,15 +33,32 @@ describe('scanBody', () => {
 describe('runAudit', () => {
   it('passes config checks when settings are complete', () => {
     const a = runAudit(ctx())
-    expect(a.results.find((r) => r.id === 'foundations.title')?.status).toBe('pass')
+    expect(a.results.find((r) => r.id === 'foundations.title')?.status).toBe(
+      'pass'
+    )
     expect(a.results.find((r) => r.id === 'seo.indexable')?.status).toBe('pass')
   })
   it('fails seo.indexable when noindex is set', () => {
-    const a = runAudit(ctx({ settings: { general: { title: 'T', description: 'D' }, reading: { homepage: 'page/en/home', searchEngineVisible: false, feed: { enabled: false } } } }))
+    const a = runAudit(
+      ctx({
+        settings: {
+          general: { title: 'T', description: 'D' },
+          reading: {
+            homepage: 'page/en/home',
+            searchEngineVisible: false,
+            feed: { enabled: false }
+          }
+        }
+      })
+    )
     expect(a.results.find((r) => r.id === 'seo.indexable')?.status).toBe('fail')
   })
   it('fails image-alt with offenders', () => {
-    const a = runAudit(ctx({ entries: [{ id: 'post/en/p', data: { title: 'P' }, body: '![](x.png)' }] }))
+    const a = runAudit(
+      ctx({
+        entries: [{ id: 'post/en/p', data: { title: 'P' }, body: '![](x.png)' }]
+      })
+    )
     const r = a.results.find((x) => x.id === 'accessibility.image-alt')!
     expect(r.status).toBe('fail')
     expect(r.offenders?.[0]?.ref).toBe('post/en/p')
@@ -40,14 +66,24 @@ describe('runAudit', () => {
   it('marks platform gaps as fail and live items as pending', () => {
     const a = runAudit(ctx())
     // SEO module B (#71) emits canonical in the head → now a passing platform capability.
-    expect(a.results.find((r) => r.id === 'foundations.canonical')?.status).toBe('pass')
+    expect(
+      a.results.find((r) => r.id === 'foundations.canonical')?.status
+    ).toBe('pass')
     // foundations.favicon is still a platform gap (favicon: false) → fail.
-    expect(a.results.find((r) => r.id === 'foundations.favicon')?.status).toBe('fail')
-    expect(a.results.find((r) => r.id === 'foundations.favicon')?.owner).toBe('platform')
+    expect(a.results.find((r) => r.id === 'foundations.favicon')?.status).toBe(
+      'fail'
+    )
+    expect(a.results.find((r) => r.id === 'foundations.favicon')?.owner).toBe(
+      'platform'
+    )
     // security.hsts is liveProbe → pending
-    expect(a.results.find((r) => r.id === 'security.hsts')?.status).toBe('pending')
+    expect(a.results.find((r) => r.id === 'security.hsts')?.status).toBe(
+      'pending'
+    )
     // privacy.policy has no auto-evaluator → unverified (was 'manual' in v1)
-    expect(a.results.find((r) => r.id === 'privacy.policy')?.status).toBe('unverified')
+    expect(a.results.find((r) => r.id === 'privacy.policy')?.status).toBe(
+      'unverified'
+    )
   })
   it('scores (na excluded), surfaces must-haves, assigns a band', () => {
     const a = runAudit(ctx())
@@ -68,13 +104,43 @@ describe('runAudit', () => {
     expect(p.attestable).toBe(true)
   })
   it('an attestation turns an unverified item into a pass', () => {
-    const a = runAudit(ctx({ health: { items: { 'privacy.policy': { state: 'attested', at: '2026-01-01', by: 'Local' } }, sections: {} } }))
-    expect(a.results.find((r) => r.id === 'privacy.policy')?.status).toBe('pass')
+    const a = runAudit(
+      ctx({
+        health: {
+          items: {
+            'privacy.policy': {
+              state: 'attested',
+              at: '2026-01-01',
+              by: 'Local'
+            }
+          },
+          sections: {}
+        }
+      })
+    )
+    expect(a.results.find((r) => r.id === 'privacy.policy')?.status).toBe(
+      'pass'
+    )
   })
   it('an auto-evaluator supersedes an attestation for the same id', () => {
-    const a = runAudit(ctx({ health: { items: { 'foundations.title': { state: 'attested', at: '2026-01-01', by: 'Local' } }, sections: {} } }))
+    const a = runAudit(
+      ctx({
+        health: {
+          items: {
+            'foundations.title': {
+              state: 'attested',
+              at: '2026-01-01',
+              by: 'Local'
+            }
+          },
+          sections: {}
+        }
+      })
+    )
     // foundations.title has a config evaluator → still evaluated, attestation ignored
-    expect(a.results.find((r) => r.id === 'foundations.title')?.status).toBe('pass') // (passes anyway, but via the evaluator)
+    expect(a.results.find((r) => r.id === 'foundations.title')?.status).toBe(
+      'pass'
+    ) // (passes anyway, but via the evaluator)
   })
   it('manual na excludes an item from the score', () => {
     // seo.redirects is required (weight 10) with no evaluator → unverified in base.
@@ -83,24 +149,74 @@ describe('runAudit', () => {
     // the denominator — with 153 items the single-item difference may not shift the integer
     // percentage, but section-level removal is large enough to guarantee it.
     const base = runAudit(ctx())
-    const itemNa = runAudit(ctx({ health: { items: { 'seo.redirects': { state: 'na', at: '2026-01-01', by: 'Local' } }, sections: {} } }))
-    expect(itemNa.results.find((r) => r.id === 'seo.redirects')?.status).toBe('na')
-    expect(itemNa.results.find((r) => r.id === 'seo.redirects')?.naSource).toBe('manual')
+    const itemNa = runAudit(
+      ctx({
+        health: {
+          items: {
+            'seo.redirects': { state: 'na', at: '2026-01-01', by: 'Local' }
+          },
+          sections: {}
+        }
+      })
+    )
+    expect(itemNa.results.find((r) => r.id === 'seo.redirects')?.status).toBe(
+      'na'
+    )
+    expect(itemNa.results.find((r) => r.id === 'seo.redirects')?.naSource).toBe(
+      'manual'
+    )
     // Verify NA is excluded from the denominator by using a section-level NA big enough
     // to move the rounded score.
-    const sectionNa = runAudit(ctx({ health: { items: {}, sections: { security: { state: 'na', at: '2026-01-01', by: 'Local' } } } }))
-    expect(sectionNa.results.filter((r) => r.id.startsWith('security.')).every((r) => r.status === 'na')).toBe(true)
+    const sectionNa = runAudit(
+      ctx({
+        health: {
+          items: {},
+          sections: { security: { state: 'na', at: '2026-01-01', by: 'Local' } }
+        }
+      })
+    )
+    expect(
+      sectionNa.results
+        .filter((r) => r.id.startsWith('security.'))
+        .every((r) => r.status === 'na')
+    ).toBe(true)
     expect(sectionNa.score).toBeGreaterThan(base.score)
   })
   it('i18n auto-N/As on a single-locale site and applies with a 2nd locale', () => {
     const single = runAudit(ctx())
-    expect(single.results.find((r) => r.id === 'i18n.hreflang')?.status).toBe('na')
-    expect(single.results.find((r) => r.id === 'i18n.hreflang')?.naSource).toBe('auto')
-    const multi = runAudit(ctx({ entries: [{ id: 'page/en/home', data: { title: 'H' }, body: '' }, { id: 'post/fr/x', data: { title: 'X' }, body: '' }] }))
-    expect(multi.results.find((r) => r.id === 'i18n.hreflang')?.status).not.toBe('na')
+    expect(single.results.find((r) => r.id === 'i18n.hreflang')?.status).toBe(
+      'na'
+    )
+    expect(single.results.find((r) => r.id === 'i18n.hreflang')?.naSource).toBe(
+      'auto'
+    )
+    const multi = runAudit(
+      ctx({
+        entries: [
+          { id: 'page/en/home', data: { title: 'H' }, body: '' },
+          { id: 'post/fr/x', data: { title: 'X' }, body: '' }
+        ]
+      })
+    )
+    expect(
+      multi.results.find((r) => r.id === 'i18n.hreflang')?.status
+    ).not.toBe('na')
   })
   it('section na excludes every item in that category', () => {
-    const a = runAudit(ctx({ health: { items: {}, sections: { accessibility: { state: 'na', at: '2026-01-01', by: 'Local' } } } }))
-    expect(a.results.filter((r) => r.id.startsWith('accessibility.')).every((r) => r.status === 'na')).toBe(true)
+    const a = runAudit(
+      ctx({
+        health: {
+          items: {},
+          sections: {
+            accessibility: { state: 'na', at: '2026-01-01', by: 'Local' }
+          }
+        }
+      })
+    )
+    expect(
+      a.results
+        .filter((r) => r.id.startsWith('accessibility.'))
+        .every((r) => r.status === 'na')
+    ).toBe(true)
   })
 })

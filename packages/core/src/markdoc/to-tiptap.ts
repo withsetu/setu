@@ -1,5 +1,11 @@
 import Markdoc from '@markdoc/markdoc'
-import type { MdNode, RoundtripOptions, TiptapDoc, TiptapMark, TiptapNode } from './types'
+import type {
+  MdNode,
+  RoundtripOptions,
+  TiptapDoc,
+  TiptapMark,
+  TiptapNode
+} from './types'
 import { defaultKnownBlockTags } from '../config/default-config'
 
 // Markdoc AST node attributes are `unknown` (parsed, untyped input — see MdNode in
@@ -11,7 +17,8 @@ const attrString = (value: unknown, fallback = ''): string =>
   typeof value === 'string' ? value : fallback
 
 const hasError = (node: MdNode): boolean =>
-  node.type === 'error' || (Array.isArray(node.errors) && node.errors.length > 0)
+  node.type === 'error' ||
+  (Array.isArray(node.errors) && node.errors.length > 0)
 
 function inlineToTiptap(node: MdNode, marks: TiptapMark[] = []): TiptapNode[] {
   const kids = node.children ?? []
@@ -19,33 +26,67 @@ function inlineToTiptap(node: MdNode, marks: TiptapMark[] = []): TiptapNode[] {
     case 'inline':
       return kids.flatMap((c) => inlineToTiptap(c, marks))
     case 'text':
-      return [{ type: 'text', text: String(node.attributes.content), ...(marks.length ? { marks } : {}) }]
+      return [
+        {
+          type: 'text',
+          text: String(node.attributes.content),
+          ...(marks.length ? { marks } : {})
+        }
+      ]
     case 'strong':
-      return kids.flatMap((c) => inlineToTiptap(c, [...marks, { type: 'bold' }]))
+      return kids.flatMap((c) =>
+        inlineToTiptap(c, [...marks, { type: 'bold' }])
+      )
     case 'em':
-      return kids.flatMap((c) => inlineToTiptap(c, [...marks, { type: 'italic' }]))
+      return kids.flatMap((c) =>
+        inlineToTiptap(c, [...marks, { type: 'italic' }])
+      )
     case 's':
-      return kids.flatMap((c) => inlineToTiptap(c, [...marks, { type: 'strike' }]))
+      return kids.flatMap((c) =>
+        inlineToTiptap(c, [...marks, { type: 'strike' }])
+      )
     case 'code':
-      return [{ type: 'text', text: String(node.attributes.content), marks: [...marks, { type: 'code' }] }]
+      return [
+        {
+          type: 'text',
+          text: String(node.attributes.content),
+          marks: [...marks, { type: 'code' }]
+        }
+      ]
     case 'link':
-      return kids.flatMap((c) => inlineToTiptap(c, [...marks, { type: 'link', attrs: { href: node.attributes.href } }]))
+      return kids.flatMap((c) =>
+        inlineToTiptap(c, [
+          ...marks,
+          { type: 'link', attrs: { href: node.attributes.href } }
+        ])
+      )
     case 'hardbreak':
       return [{ type: 'hardBreak' }]
     case 'softbreak':
       return [{ type: 'text', text: ' ' }]
     case 'image':
-      return [{
-        type: 'image',
-        attrs: {
-          src: attrString(node.attributes.src),
-          alt: attrString(node.attributes.alt),
-          title: node.attributes.title != null ? attrString(node.attributes.title) : null,
-        },
-      }]
+      return [
+        {
+          type: 'image',
+          attrs: {
+            src: attrString(node.attributes.src),
+            alt: attrString(node.attributes.alt),
+            title:
+              node.attributes.title != null
+                ? attrString(node.attributes.title)
+                : null
+          }
+        }
+      ]
     case 'tag': {
-      if (node.tag === 'sub') return kids.flatMap((c) => inlineToTiptap(c, [...marks, { type: 'subscript' }]))
-      if (node.tag === 'sup') return kids.flatMap((c) => inlineToTiptap(c, [...marks, { type: 'superscript' }]))
+      if (node.tag === 'sub')
+        return kids.flatMap((c) =>
+          inlineToTiptap(c, [...marks, { type: 'subscript' }])
+        )
+      if (node.tag === 'sup')
+        return kids.flatMap((c) =>
+          inlineToTiptap(c, [...marks, { type: 'superscript' }])
+        )
       return []
     }
     default:
@@ -76,7 +117,8 @@ function itemInlineNode(item: MdNode): MdNode | undefined {
 function taskMarker(item: MdNode): { checked: boolean } | null {
   const inline = itemInlineNode(item)
   const first = inline?.children?.[0]
-  if (first?.type !== 'text' || typeof first.attributes.content !== 'string') return null
+  if (first?.type !== 'text' || typeof first.attributes.content !== 'string')
+    return null
   const m = TASK_RE.exec(first.attributes.content)
   return m ? { checked: m[1] !== ' ' } : null
 }
@@ -103,18 +145,32 @@ function stripMarker(inline: TiptapNode[]): TiptapNode[] {
  *  item becomes [paragraph, ...nested lists]. */
 function listToTiptap(node: MdNode): TiptapNode {
   const task = isTaskList(node)
-  const listType = task ? 'taskList' : node.attributes.ordered ? 'orderedList' : 'bulletList'
+  const listType = task
+    ? 'taskList'
+    : node.attributes.ordered
+      ? 'orderedList'
+      : 'bulletList'
   return {
     type: listType,
     content: (node.children ?? []).map((item) => {
       const inlineNode = itemInlineNode(item)
       const inline = inlineNode ? inlineToTiptap(inlineNode) : []
-      const nested = (item.children ?? []).filter((c) => c.type === 'list').map(listToTiptap)
-      const paragraph: TiptapNode = { type: 'paragraph', content: task ? stripMarker(inline) : inline }
+      const nested = (item.children ?? [])
+        .filter((c) => c.type === 'list')
+        .map(listToTiptap)
+      const paragraph: TiptapNode = {
+        type: 'paragraph',
+        content: task ? stripMarker(inline) : inline
+      }
       const content = [paragraph, ...nested]
-      if (task) return { type: 'taskItem', attrs: { checked: taskMarker(item)!.checked }, content }
+      if (task)
+        return {
+          type: 'taskItem',
+          attrs: { checked: taskMarker(item)!.checked },
+          content
+        }
       return { type: 'listItem', content }
-    }),
+    })
   }
 }
 
@@ -126,36 +182,59 @@ function isAligned(node: MdNode): boolean {
 
 /** Tiptap textAlign attrs for a block, from a Markdoc node's `align` attribute.
  *  `left`/absent → none (default stays clean). */
-function alignAttr(node: MdNode): { textAlign: string } | Record<string, never> {
+function alignAttr(
+  node: MdNode
+): { textAlign: string } | Record<string, never> {
   return isAligned(node) ? { textAlign: String(node.attributes.align) } : {}
 }
 
 function blockToTiptap(node: MdNode): TiptapNode | null {
   switch (node.type) {
     case 'heading':
-      return { type: 'heading', attrs: { level: node.attributes.level, ...alignAttr(node) }, content: collectInline(node) }
+      return {
+        type: 'heading',
+        attrs: { level: node.attributes.level, ...alignAttr(node) },
+        content: collectInline(node)
+      }
     case 'paragraph':
-      return { type: 'paragraph', ...(isAligned(node) ? { attrs: alignAttr(node) } : {}), content: collectInline(node) }
+      return {
+        type: 'paragraph',
+        ...(isAligned(node) ? { attrs: alignAttr(node) } : {}),
+        content: collectInline(node)
+      }
     case 'list':
       return listToTiptap(node)
     case 'blockquote':
       return {
         type: 'blockquote',
-        content: (node.children ?? []).map(blockToTiptap).filter((n): n is TiptapNode => n !== null),
+        content: (node.children ?? [])
+          .map(blockToTiptap)
+          .filter((n): n is TiptapNode => n !== null)
       }
     case 'fence':
       return {
         type: 'codeBlock',
         attrs: { language: node.attributes.language || null },
-        content: [{ type: 'text', text: String(node.attributes.content).replace(/\n$/, '') }],
+        content: [
+          {
+            type: 'text',
+            text: String(node.attributes.content).replace(/\n$/, '')
+          }
+        ]
       }
     case 'hr':
       return { type: 'horizontalRule' }
     case 'tag': {
       const tag = node.tag ?? ''
-      const kids = (node.children ?? []).map(blockToTiptap).filter((n): n is TiptapNode => n !== null)
+      const kids = (node.children ?? [])
+        .map(blockToTiptap)
+        .filter((n): n is TiptapNode => n !== null)
       if (tag === 'callout') {
-        return { type: 'callout', attrs: { mdAttrs: node.attributes }, content: kids }
+        return {
+          type: 'callout',
+          attrs: { mdAttrs: node.attributes },
+          content: kids
+        }
       }
       if (tag === 'image') {
         return { type: 'imageBlock', attrs: { mdAttrs: node.attributes } }
@@ -169,23 +248,29 @@ function blockToTiptap(node: MdNode): TiptapNode | null {
       if (tag === 'query') {
         return { type: 'queryBlock', attrs: { mdAttrs: node.attributes } }
       }
-      return { type: 'setuBlock', attrs: { tag, mdAttrs: node.attributes }, content: kids }
+      return {
+        type: 'setuBlock',
+        attrs: { tag, mdAttrs: node.attributes },
+        content: kids
+      }
     }
     case 'table': {
-      const cellAlign = (cell: MdNode): string | null => (cell.attributes.align as string) ?? null
+      const cellAlign = (cell: MdNode): string | null =>
+        (cell.attributes.align as string) ?? null
       const cellToTiptap = (cell: MdNode, header: boolean): TiptapNode => ({
         type: header ? 'tableHeader' : 'tableCell',
         attrs: { align: cellAlign(cell) },
-        content: [{ type: 'paragraph', content: collectInline(cell) }],
+        content: [{ type: 'paragraph', content: collectInline(cell) }]
       })
       const rowToTiptap = (tr: MdNode, header: boolean): TiptapNode => ({
         type: 'tableRow',
-        content: (tr.children ?? []).map((c) => cellToTiptap(c, header)),
+        content: (tr.children ?? []).map((c) => cellToTiptap(c, header))
       })
       const rows: TiptapNode[] = []
       for (const section of node.children ?? []) {
         const header = section.type === 'thead'
-        for (const tr of section.children ?? []) rows.push(rowToTiptap(tr, header))
+        for (const tr of section.children ?? [])
+          rows.push(rowToTiptap(tr, header))
       }
       return { type: 'table', content: rows }
     }
@@ -194,7 +279,10 @@ function blockToTiptap(node: MdNode): TiptapNode | null {
   }
 }
 
-export function markdocToTiptap(source: string, opts: RoundtripOptions = {}): TiptapDoc {
+export function markdocToTiptap(
+  source: string,
+  opts: RoundtripOptions = {}
+): TiptapDoc {
   // defaultKnownBlockTags is now empty by default (blocks moved to auto-discovered folders).
   // Real callers (e.g., read-service) inject knownBlockTags from the block registry; without injection, tags pass through.
   const known = opts.knownBlockTags ?? defaultKnownBlockTags
@@ -203,12 +291,16 @@ export function markdocToTiptap(source: string, opts: RoundtripOptions = {}): Ti
 
   const lines = source.split('\n')
   // `location` is supported at runtime (spike-proven) but not in Markdoc's published parse types.
-  const ast = (Markdoc.parse as (s: string, a?: unknown) => MdNode)(source, { location: true })
+  const ast = (Markdoc.parse as (s: string, a?: unknown) => MdNode)(source, {
+    location: true
+  })
   const kids = ast.children ?? []
   const out: TiptapNode[] = []
 
-  const startOf = (i: number): number => kids[i]?.location?.start?.line ?? lines.length
-  const slice = (from: number, to: number): string => lines.slice(from, to).join('\n').replace(/\n+$/, '')
+  const startOf = (i: number): number =>
+    kids[i]?.location?.start?.line ?? lines.length
+  const slice = (from: number, to: number): string =>
+    lines.slice(from, to).join('\n').replace(/\n+$/, '')
 
   for (let i = 0; i < kids.length; ) {
     const node = kids[i]!
@@ -222,7 +314,10 @@ export function markdocToTiptap(source: string, opts: RoundtripOptions = {}): Ti
         }
       }
       const endLine = startOf(j + 1)
-      out.push({ type: 'passthrough', attrs: { raw: slice(startLine, endLine), flagged: hasError(node) } })
+      out.push({
+        type: 'passthrough',
+        attrs: { raw: slice(startLine, endLine), flagged: hasError(node) }
+      })
       i = j + 1
       continue
     }

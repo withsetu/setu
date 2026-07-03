@@ -10,7 +10,7 @@ import {
   statSync,
   readFileSync,
   writeFileSync,
-  mkdirSync,
+  mkdirSync
 } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -18,19 +18,22 @@ import { createRequire } from 'node:module'
 import { createJiti } from 'jiti'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
-const DEFAULT_CONTENT_DIR = process.env.SETU_CONTENT_DIR ?? path.join(ROOT, 'content')
+const DEFAULT_CONTENT_DIR =
+  process.env.SETU_CONTENT_DIR ?? path.join(ROOT, 'content')
 const OUT = path.join(ROOT, 'apps', 'site', '.setu', 'cache', 'relations.json')
 
 // @setu/core (+ /node) and zod are not hoisted to the repo root under pnpm strict
 // hoisting; resolve them from packages/core where they ARE installed. (Same trick as
 // gen-blocks.mjs.)
-const coreReq = createRequire(path.join(ROOT, 'packages', 'core', 'package.json'))
+const coreReq = createRequire(
+  path.join(ROOT, 'packages', 'core', 'package.json')
+)
 const jiti = createJiti(import.meta.url, {
   alias: {
     '@setu/core': coreReq.resolve('@setu/core'),
     '@setu/core/node': coreReq.resolve('@setu/core/node'),
-    zod: coreReq.resolve('zod'),
-  },
+    zod: coreReq.resolve('zod')
+  }
 })
 const { parseMdoc, normalizeTags, entryUrlPath, selectRelatedPosts } =
   await jiti.import('@setu/core')
@@ -47,29 +50,47 @@ function walk(dir) {
   return out
 }
 
-const asStringArray = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string') : [])
+const asStringArray = (v) =>
+  Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []
 
 /** Turn one .mdoc file into a RelatedRow keyed by its Astro entry id. */
 function toRow(file, contentDir) {
-  const id = path.relative(contentDir, file).replace(/\\/g, '/').replace(/\.mdoc$/, '')
+  const id = path
+    .relative(contentDir, file)
+    .replace(/\\/g, '/')
+    .replace(/\.mdoc$/, '')
   const [collection = '', locale = '', ...rest] = id.split('/')
   const slug = rest.join('/')
   const { frontmatter } = parseMdoc(readFileSync(file, 'utf8'))
   const title = typeof frontmatter.title === 'string' ? frontmatter.title : slug
   const tags = normalizeTags(asStringArray(frontmatter.tags))
   const categories = asStringArray(frontmatter.categories)
-  const dateRaw = frontmatter.date ?? frontmatter.updatedAt ?? frontmatter.pubDate
+  const dateRaw =
+    frontmatter.date ?? frontmatter.updatedAt ?? frontmatter.pubDate
   const parsed = dateRaw != null ? Date.parse(String(dateRaw)) : Number.NaN
   const updatedAt = Number.isNaN(parsed) ? statSync(file).mtimeMs : parsed
   const featuredImage =
-    typeof frontmatter.featuredImage === 'string' ? frontmatter.featuredImage : undefined
+    typeof frontmatter.featuredImage === 'string'
+      ? frontmatter.featuredImage
+      : undefined
   const relatedOverride =
     frontmatter.related === false
       ? false
       : Array.isArray(frontmatter.related)
         ? frontmatter.related.filter((x) => typeof x === 'string')
         : undefined
-  return { key: id, collection, locale, slug, title, tags, categories, updatedAt, featuredImage, relatedOverride }
+  return {
+    key: id,
+    collection,
+    locale,
+    slug,
+    title,
+    tags,
+    categories,
+    updatedAt,
+    featuredImage,
+    relatedOverride
+  }
 }
 
 /** Build the related-posts graph for a content dir: entry-id -> {title, href, featuredImage?}[]. */
@@ -80,8 +101,14 @@ export function buildRelationsGraph(contentDir) {
 
   const refOf = (r) => ({
     title: r.title,
-    href: '/' + entryUrlPath({ collection: r.collection, locale: r.locale, slug: r.slug }),
-    ...(r.featuredImage ? { featuredImage: r.featuredImage } : {}),
+    href:
+      '/' +
+      entryUrlPath({
+        collection: r.collection,
+        locale: r.locale,
+        slug: r.slug
+      }),
+    ...(r.featuredImage ? { featuredImage: r.featuredImage } : {})
   })
 
   const out = {}
@@ -105,11 +132,14 @@ export function buildRelationsGraph(contentDir) {
 
 // CLI: write the cache file for the default content dir.
 const isMain =
-  process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+  process.argv[1] &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 if (isMain) {
   const out = buildRelationsGraph(DEFAULT_CONTENT_DIR)
   mkdirSync(path.dirname(OUT), { recursive: true })
   writeFileSync(OUT, JSON.stringify(out, null, 2) + '\n')
   const n = Object.keys(out).length
-  console.log(`gen-relations: ${n} graph key${n === 1 ? '' : 's'} -> apps/site/.setu/cache/relations.json`)
+  console.log(
+    `gen-relations: ${n} graph key${n === 1 ? '' : 's'} -> apps/site/.setu/cache/relations.json`
+  )
 }

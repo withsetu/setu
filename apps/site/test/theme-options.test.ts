@@ -18,9 +18,14 @@ let linkedCss = ''
 
 beforeAll(() => {
   execSync('pnpm build', { cwd: appDir, stdio: 'inherit' })
-  html = readFileSync(join(distDir, 'post', 'kitchen-sink', 'index.html'), 'utf8')
-  linkedCss = [...html.matchAll(/<link[^>]+rel="stylesheet"[^>]+href="([^"]+)"/g)]
-    .map((m) => readFileSync(join(distDir, m[1]!.replace(/^\//, '')), 'utf8'))
+  html = readFileSync(
+    join(distDir, 'post', 'kitchen-sink', 'index.html'),
+    'utf8'
+  )
+  linkedCss = [
+    ...html.matchAll(/<link[^>]+rel="stylesheet"[^>]+href="([^"]+)"/g)
+  ]
+    .map((m) => readFileSync(join(distDir, m[1].replace(/^\//, '')), 'utf8'))
     .join('\n')
 })
 

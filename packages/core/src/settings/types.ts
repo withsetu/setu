@@ -22,7 +22,12 @@ export interface ReadingSettings {
   /** Markdown / llms.txt output — consumed by a later increment. */
   markdown: { mode: 'off' | 'index' | 'pages'; style: 'raw' | 'rendered' }
   /** Auto-appended related-posts widget configuration. */
-  relatedPosts: { enabled: boolean; heading: string; count: number; showImage: boolean }
+  relatedPosts: {
+    enabled: boolean
+    heading: string
+    count: number
+    showImage: boolean
+  }
 }
 
 /** The Media settings group — drives the image pipeline (variant formats + LQIP). */

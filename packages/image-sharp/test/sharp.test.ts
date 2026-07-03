@@ -7,7 +7,14 @@ const source = makeTestPng(200, 120)
 
 /** A 4×2 landscape JPEG tagged EXIF orientation 6 — it *displays* as 2×4 portrait. */
 async function orientedJpeg(): Promise<Uint8Array> {
-  const buf = await sharp({ create: { width: 4, height: 2, channels: 3, background: { r: 200, g: 100, b: 50 } } })
+  const buf = await sharp({
+    create: {
+      width: 4,
+      height: 2,
+      channels: 3,
+      background: { r: 200, g: 100, b: 50 }
+    }
+  })
     .withMetadata({ orientation: 6 })
     .jpeg()
     .toBuffer()
@@ -17,7 +24,9 @@ async function orientedJpeg(): Promise<Uint8Array> {
 describe('createSharpImageAdapter', () => {
   it('encodes AVIF (the slow path) with the right content-type and dims', async () => {
     const port = createSharpImageAdapter()
-    const v = (await port.generate(source, [{ name: 'a', width: 80, format: 'avif' }]))[0]!
+    const v = (
+      await port.generate(source, [{ name: 'a', width: 80, format: 'avif' }])
+    )[0]!
     expect(v.contentType).toBe('image/avif')
     expect(detectFormat(v.body)).toBe('avif')
     expect(v.width).toBe(80)
@@ -26,8 +35,16 @@ describe('createSharpImageAdapter', () => {
 
   it('honours a quality override — lower quality yields a smaller body', async () => {
     const port = createSharpImageAdapter()
-    const lo = (await port.generate(source, [{ name: 'lo', width: 200, format: 'webp', quality: 30 }]))[0]!
-    const hi = (await port.generate(source, [{ name: 'hi', width: 200, format: 'webp', quality: 90 }]))[0]!
+    const lo = (
+      await port.generate(source, [
+        { name: 'lo', width: 200, format: 'webp', quality: 30 }
+      ])
+    )[0]!
+    const hi = (
+      await port.generate(source, [
+        { name: 'hi', width: 200, format: 'webp', quality: 90 }
+      ])
+    )[0]!
     expect(lo.body.length).toBeLessThan(hi.body.length)
   })
 
@@ -42,7 +59,9 @@ describe('createSharpImageAdapter', () => {
     // metadata reports the *display* (oriented) dimensions
     expect(await port.metadata(src)).toMatchObject({ width: 2, height: 4 })
     // the variant is baked upright (2×4 portrait), not the un-rotated 2×1
-    const v = (await port.generate(src, [{ name: 'o', width: 2, format: 'jpeg' }]))[0]!
+    const v = (
+      await port.generate(src, [{ name: 'o', width: 2, format: 'jpeg' }])
+    )[0]!
     expect(v.width).toBe(2)
     expect(v.height).toBe(4)
   })

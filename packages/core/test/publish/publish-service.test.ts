@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { createPublishService, tiptapToMarkdoc, parseMdoc } from '../../src/index'
+import {
+  createPublishService,
+  tiptapToMarkdoc,
+  parseMdoc
+} from '../../src/index'
 import type {
   CommitInput,
   DataPort,
@@ -7,13 +11,13 @@ import type {
   EntryRef,
   GitPort,
   Lock,
-  TiptapDoc,
+  TiptapDoc
 } from '../../src/index'
 
 const key = (r: EntryRef) => `${r.collection} ${r.locale} ${r.slug}`
 const doc = (text: string): TiptapDoc => ({
   type: 'doc',
-  content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+  content: [{ type: 'paragraph', content: [{ type: 'text', text }] }]
 })
 
 /** Minimal in-memory DataPort (full interface). */
@@ -35,9 +39,12 @@ function fakeData(): DataPort {
         metadata: input.metadata,
         baseSha: input.baseSha ?? null,
         // Mirror the real adapters: preserve the fork point across saves that omit it.
-        baseContent: input.baseContent !== undefined ? input.baseContent : (existing?.baseContent ?? null),
+        baseContent:
+          input.baseContent !== undefined
+            ? input.baseContent
+            : (existing?.baseContent ?? null),
         createdAt: existing?.createdAt ?? 0,
-        updatedAt: 0,
+        updatedAt: 0
       }
       drafts.set(k, d)
       return d
@@ -47,7 +54,9 @@ function fakeData(): DataPort {
     },
     async listDrafts(filter) {
       const all = [...drafts.values()]
-      return filter?.collection ? all.filter((d) => d.collection === filter.collection) : all
+      return filter?.collection
+        ? all.filter((d) => d.collection === filter.collection)
+        : all
     },
     async getLock(ref) {
       return locks.get(key(ref)) ?? null
@@ -58,7 +67,7 @@ function fakeData(): DataPort {
     async deleteLock(ref) {
       locks.delete(key(ref))
     },
-    async close() {},
+    async close() {}
   }
 }
 
@@ -71,7 +80,11 @@ function fakeGit(): RecordingGit {
   const commits: CommitInput[] = []
   let counter = 0
   let head: string | null = null
-  const commitFiles: GitPort['commitFiles'] = async ({ changes, message, author }) => {
+  const commitFiles: GitPort['commitFiles'] = async ({
+    changes,
+    message,
+    author
+  }) => {
     let changed = false
     for (const ch of changes) {
       if ('delete' in ch) {
@@ -91,17 +104,23 @@ function fakeGit(): RecordingGit {
       return head
     },
     async readFile(path) {
-      return head === null ? null : files.get(path) ?? null
+      return head === null ? null : (files.get(path) ?? null)
     },
     commitFile(input) {
       commits.push(input)
-      return commitFiles({ changes: [{ path: input.path, content: input.content }], message: input.message, author: input.author })
+      return commitFiles({
+        changes: [{ path: input.path, content: input.content }],
+        message: input.message,
+        author: input.author
+      })
     },
     commitFiles,
     async list(prefix?: string) {
       const all = [...files.keys()]
-      return prefix === undefined ? all : all.filter((p) => p.startsWith(prefix))
-    },
+      return prefix === undefined
+        ? all
+        : all.filter((p) => p.startsWith(prefix))
+    }
   }
 }
 
@@ -124,7 +143,11 @@ describe('createPublishService', () => {
   })
 
   it('first publish commits the compiled markdoc and advances baseSha', async () => {
-    await data.saveDraft({ ...ref, content: doc('hi'), metadata: { title: 'T' } })
+    await data.saveDraft({
+      ...ref,
+      content: doc('hi'),
+      metadata: { title: 'T' }
+    })
     const r = await svc().publish({ ref, author })
     expect(r.status).toBe('published')
     if (r.status !== 'published') throw new Error('unreachable')
@@ -141,7 +164,12 @@ describe('createPublishService', () => {
     expect((await svc().publish({ ref, author })).status).toBe('published')
     const cur = (await data.getDraft(ref))!
     expect(cur.baseSha).toBe('gitsha1')
-    await data.saveDraft({ ...ref, content: doc('v2'), metadata: {}, baseSha: cur.baseSha })
+    await data.saveDraft({
+      ...ref,
+      content: doc('v2'),
+      metadata: {},
+      baseSha: cur.baseSha
+    })
     const second = await svc().publish({ ref, author })
     expect(second.status).toBe('published')
     if (second.status !== 'published') throw new Error('unreachable')
@@ -152,7 +180,12 @@ describe('createPublishService', () => {
   it('an unrelated commit advancing HEAD does NOT block this entry (per-file guard)', async () => {
     // Publishing some OTHER file advances repo HEAD. The guard is per-file, so this
     // entry — whose own file is untouched — must still publish (the bug fix).
-    await git.commitFile({ path: 'other.mdoc', content: 'x', message: 'm', author })
+    await git.commitFile({
+      path: 'other.mdoc',
+      content: 'x',
+      message: 'm',
+      author
+    })
     await data.saveDraft({ ...ref, content: doc('mine'), metadata: {} }) // baseContent null, file absent
     const r = await svc().publish({ ref, author })
     expect(r.status).toBe('published')
@@ -162,8 +195,18 @@ describe('createPublishService', () => {
   it('blocks with conflict when THIS file changed externally since the fork', async () => {
     // Forked with baseContent = the committed file; an external edit to the SAME file
     // must be detected (protection preserved — matters once multi-writer lands).
-    await data.saveDraft({ ...ref, content: doc('mine'), metadata: {}, baseContent: 'forked-from' })
-    await git.commitFile({ path: 'content/post/en/hello.mdoc', content: 'EXTERNAL', message: 'm', author })
+    await data.saveDraft({
+      ...ref,
+      content: doc('mine'),
+      metadata: {},
+      baseContent: 'forked-from'
+    })
+    await git.commitFile({
+      path: 'content/post/en/hello.mdoc',
+      content: 'EXTERNAL',
+      message: 'm',
+      author
+    })
     const r = await svc().publish({ ref, author })
     expect(r.status).toBe('conflict')
     expect(await git.readFile('content/post/en/hello.mdoc')).toBe('EXTERNAL') // not clobbered
@@ -171,7 +214,12 @@ describe('createPublishService', () => {
 
   it('blocks a new entry (null baseSha) whose target file already exists', async () => {
     // external commit creates the SAME file this draft targets
-    await git.commitFile({ path: 'content/post/en/hello.mdoc', content: 'existing', message: 'm', author })
+    await git.commitFile({
+      path: 'content/post/en/hello.mdoc',
+      content: 'existing',
+      message: 'm',
+      author
+    })
     await data.saveDraft({ ...ref, content: doc('mine'), metadata: {} }) // baseSha null
     const r = await svc().publish({ ref, author })
     expect(r).toEqual({ status: 'conflict', baseSha: null, headSha: 'gitsha1' })
@@ -179,12 +227,19 @@ describe('createPublishService', () => {
   })
 
   it('publishes a new entry into a repo that has unrelated content', async () => {
-    await git.commitFile({ path: 'content/post/en/other.mdoc', content: 'x', message: 'm', author }) // head gitsha1
+    await git.commitFile({
+      path: 'content/post/en/other.mdoc',
+      content: 'x',
+      message: 'm',
+      author
+    }) // head gitsha1
     await data.saveDraft({ ...ref, content: doc('new'), metadata: {} }) // baseSha null, target file absent
     const r = await svc().publish({ ref, author })
     expect(r.status).toBe('published')
     if (r.status !== 'published') throw new Error('unreachable')
-    expect(await git.readFile('content/post/en/hello.mdoc')).toBe(tiptapToMarkdoc(doc('new')))
+    expect(await git.readFile('content/post/en/hello.mdoc')).toBe(
+      tiptapToMarkdoc(doc('new'))
+    )
   })
 
   it('uses a default commit message and passes a custom one through', async () => {
@@ -199,7 +254,11 @@ describe('createPublishService', () => {
   })
 
   it('serializes draft metadata as YAML frontmatter in the committed file', async () => {
-    await data.saveDraft({ ...ref, content: doc('hello'), metadata: { title: 'Hello', status: 'published' } })
+    await data.saveDraft({
+      ...ref,
+      content: doc('hello'),
+      metadata: { title: 'Hello', status: 'published' }
+    })
     const r = await svc().publish({ ref, author })
     expect(r.status).toBe('published')
     if (r.status !== 'published') throw new Error('unreachable')

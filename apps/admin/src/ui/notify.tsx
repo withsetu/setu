@@ -1,8 +1,20 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import type { ReactNode } from 'react'
 
 type Kind = 'success' | 'error' | 'info'
-interface Note { id: number; kind: Kind; message: string }
+interface Note {
+  id: number
+  kind: Kind
+  message: string
+}
 export interface NotifyApi {
   success: (message: string) => void
   error: (message: string) => void
@@ -31,9 +43,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     (kind: Kind, message: string) => {
       const id = nextId.current++
       setNotes((ns) => [...ns, { id, kind, message }].slice(-MAX_VISIBLE))
-      timers.current.set(id, setTimeout(() => dismiss(id), AUTODISMISS_MS))
+      timers.current.set(
+        id,
+        setTimeout(() => dismiss(id), AUTODISMISS_MS)
+      )
     },
-    [dismiss],
+    [dismiss]
   )
 
   useEffect(() => {
@@ -47,19 +62,33 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     () => ({
       success: (m) => push('success', m),
       error: (m) => push('error', m),
-      info: (m) => push('info', m),
+      info: (m) => push('info', m)
     }),
-    [push],
+    [push]
   )
 
   return (
     <NotifyContext.Provider value={api}>
       {children}
-      <div className="notify-region" role="region" aria-label="Notifications" aria-live="polite">
+      <div
+        className="notify-region"
+        role="region"
+        aria-label="Notifications"
+        aria-live="polite"
+      >
         {notes.map((n) => (
-          <div key={n.id} className={`notify notify-${n.kind}`} role={n.kind === 'error' ? 'alert' : 'status'}>
+          <div
+            key={n.id}
+            className={`notify notify-${n.kind}`}
+            role={n.kind === 'error' ? 'alert' : 'status'}
+          >
             <span className="notify-msg">{n.message}</span>
-            <button type="button" className="notify-x" aria-label="Dismiss" onClick={() => dismiss(n.id)}>
+            <button
+              type="button"
+              className="notify-x"
+              aria-label="Dismiss"
+              onClick={() => dismiss(n.id)}
+            >
               ×
             </button>
           </div>
@@ -71,6 +100,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
 export function useNotify(): NotifyApi {
   const ctx = useContext(NotifyContext)
-  if (ctx === null) throw new Error('useNotify must be used within a NotificationProvider')
+  if (ctx === null)
+    throw new Error('useNotify must be used within a NotificationProvider')
   return ctx
 }

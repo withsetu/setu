@@ -10,15 +10,15 @@ describe('parsePageSeoOverride', () => {
         description: 'Custom desc',
         image: '/media/2026/06/x.jpg',
         canonical: 'https://example.com/canonical',
-        noindex: true,
-      },
+        noindex: true
+      }
     })
     expect(ov).toEqual({
       title: 'Custom SEO Title',
       description: 'Custom desc',
       image: '/media/2026/06/x.jpg',
       canonical: 'https://example.com/canonical',
-      noindex: true,
+      noindex: true
     })
   })
 
@@ -26,12 +26,18 @@ describe('parsePageSeoOverride', () => {
     expect(parsePageSeoOverride({ title: 'x' })).toEqual({})
     expect(parsePageSeoOverride({ seo: 'nope' })).toEqual({})
     expect(parsePageSeoOverride(null)).toEqual({})
-    expect(parsePageSeoOverride({ seo: { title: '   ', description: '' } })).toEqual({})
+    expect(
+      parsePageSeoOverride({ seo: { title: '   ', description: '' } })
+    ).toEqual({})
   })
 
   it('only sets noindex when it is exactly true (not truthy strings)', () => {
-    expect(parsePageSeoOverride({ seo: { noindex: 'true' } }).noindex).toBeUndefined()
-    expect(parsePageSeoOverride({ seo: { noindex: false } }).noindex).toBeUndefined()
+    expect(
+      parsePageSeoOverride({ seo: { noindex: 'true' } }).noindex
+    ).toBeUndefined()
+    expect(
+      parsePageSeoOverride({ seo: { noindex: false } }).noindex
+    ).toBeUndefined()
     expect(parsePageSeoOverride({ seo: { noindex: true } }).noindex).toBe(true)
   })
 })

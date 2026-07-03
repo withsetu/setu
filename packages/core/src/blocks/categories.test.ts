@@ -3,13 +3,19 @@ import {
   BLOCK_CATEGORIES,
   BLOCK_CATEGORY_LABELS,
   DEFAULT_BLOCK_CATEGORY,
-  isBlockCategory,
+  isBlockCategory
 } from './categories'
 
 describe('block categories', () => {
   it('has exactly the seven canonical categories in display order', () => {
     expect([...BLOCK_CATEGORIES]).toEqual([
-      'text', 'media', 'layout', 'embed', 'dynamic', 'marketing', 'widget',
+      'text',
+      'media',
+      'layout',
+      'embed',
+      'dynamic',
+      'marketing',
+      'widget'
     ])
   })
 

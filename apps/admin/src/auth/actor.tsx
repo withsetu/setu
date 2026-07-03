@@ -9,13 +9,20 @@ const OWNER: Actor = { id: 'local', role: 'owner' }
 
 const ActorContext = createContext<Actor | null>(null)
 
-export function ActorProvider({ actor = OWNER, children }: { actor?: Actor; children: ReactNode }) {
+export function ActorProvider({
+  actor = OWNER,
+  children
+}: {
+  actor?: Actor
+  children: ReactNode
+}) {
   return <ActorContext.Provider value={actor}>{children}</ActorContext.Provider>
 }
 
 export function useActor(): Actor {
   const ctx = useContext(ActorContext)
-  if (ctx === null) throw new Error('useActor must be used within an ActorProvider')
+  if (ctx === null)
+    throw new Error('useActor must be used within an ActorProvider')
   return ctx
 }
 
@@ -23,5 +30,8 @@ export function useActor(): Actor {
 export function useCan(): (action: Action) => boolean {
   const actor = useActor()
   const authz = useMemo(() => createAuthz(DEFAULT_ROLES), [])
-  return useCallback((action: Action) => authz.can(actor, action), [authz, actor])
+  return useCallback(
+    (action: Action) => authz.can(actor, action),
+    [authz, actor]
+  )
 }

@@ -22,13 +22,17 @@ describe('related posts v2 — image cards', () => {
   it('renders a featured-image thumbnail for a related post that has one', () => {
     // featured-demo is related to kitchen-sink and has featuredImage /media/2026/06/test-cat.jpg
     expect(html).toContain('href="/post/featured-demo"')
-    expect(html).toMatch(/class="related-card__media"[\s\S]*?\/media\/2026\/06\/test-cat\.jpg/)
+    expect(html).toMatch(
+      /class="related-card__media"[\s\S]*?\/media\/2026\/06\/test-cat\.jpg/
+    )
   })
   it('still links related posts by title', () => {
     expect(html).toContain('href="/post/astro-on-the-edge"')
   })
   it('ships zero JS', () => {
     expect(html).not.toContain('astro-island')
-    expect(html).not.toMatch(/<script(?![^>]*type="application\/ld\+json")[\s>]/)
+    expect(html).not.toMatch(
+      /<script(?![^>]*type="application\/ld\+json")[\s>]/
+    )
   })
 })

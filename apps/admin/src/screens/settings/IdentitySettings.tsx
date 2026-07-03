@@ -10,10 +10,16 @@ import { resolveMediaSrc } from '../../editor/media-src'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem
+} from '@/components/ui/select'
 
 const SETTINGS_PATH = 'settings.json'
-const apiBase = (import.meta.env.VITE_SETU_API as string | undefined) ?? ''
+const apiBase = (import.meta.env.VITE_SETU_API) ?? ''
 const SEPARATORS = ['·', '-', '–', '—', '|', '•', '/']
 
 const sameIdentity = (a: IdentityValues, b: IdentityValues) =>
@@ -34,7 +40,7 @@ function ImageField({
   hint,
   value,
   variant,
-  onChange,
+  onChange
 }: {
   label: string
   hint?: string
@@ -59,7 +65,12 @@ function ImageField({
             }
           />
           <div className="flex gap-2">
-            <Button type="button" variant="secondary" size="sm" onClick={() => setOpen(true)}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setOpen(true)}
+            >
               Change
             </Button>
             <Button
@@ -74,7 +85,12 @@ function ImageField({
           </div>
         </div>
       ) : (
-        <Button type="button" variant="secondary" size="sm" onClick={() => setOpen(true)}>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={() => setOpen(true)}
+        >
           Choose image
         </Button>
       )}
@@ -96,7 +112,9 @@ export function IdentitySettings() {
   const notify = useNotify()
   const refreshSettings = useRefreshSettings()
   const [raw, setRaw] = useState<Record<string, unknown> | null>(null)
-  const [values, setValues] = useState<IdentityValues>(DEFAULT_SETTINGS.identity)
+  const [values, setValues] = useState<IdentityValues>(
+    DEFAULT_SETTINGS.identity
+  )
   const [published, setPublished] = useState<IdentityValues | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -106,7 +124,9 @@ export function IdentitySettings() {
       const content = await git.readFile(SETTINGS_PATH)
       let parsedRaw: Record<string, unknown> = {}
       try {
-        parsedRaw = content ? (JSON.parse(content) as Record<string, unknown>) : {}
+        parsedRaw = content
+          ? (JSON.parse(content) as Record<string, unknown>)
+          : {}
       } catch {
         parsedRaw = {}
       }
@@ -123,13 +143,21 @@ export function IdentitySettings() {
   }, [git])
 
   const dirty = published !== null && !sameIdentity(values, published)
-  const set = (patch: Partial<IdentityValues>) => setValues((v) => ({ ...v, ...patch }))
+  const set = (patch: Partial<IdentityValues>) =>
+    setValues((v) => ({ ...v, ...patch }))
 
   const setSocial = (i: number, next: string) =>
-    setValues((v) => ({ ...v, socialProfiles: v.socialProfiles.map((p, idx) => (idx === i ? next : p)) }))
-  const addSocial = () => setValues((v) => ({ ...v, socialProfiles: [...v.socialProfiles, ''] }))
+    setValues((v) => ({
+      ...v,
+      socialProfiles: v.socialProfiles.map((p, idx) => (idx === i ? next : p))
+    }))
+  const addSocial = () =>
+    setValues((v) => ({ ...v, socialProfiles: [...v.socialProfiles, ''] }))
   const removeSocial = (i: number) =>
-    setValues((v) => ({ ...v, socialProfiles: v.socialProfiles.filter((_, idx) => idx !== i) }))
+    setValues((v) => ({
+      ...v,
+      socialProfiles: v.socialProfiles.filter((_, idx) => idx !== i)
+    }))
 
   const save = async () => {
     if (saving || !dirty || raw === null) return
@@ -138,15 +166,17 @@ export function IdentitySettings() {
       // Drop blank social rows on save so the stored sameAs stays clean.
       const cleaned: IdentityValues = {
         ...values,
-        socialProfiles: values.socialProfiles.map((p) => p.trim()).filter(Boolean),
-        twitterHandle: values.twitterHandle.replace(/^@+/, '').trim(),
+        socialProfiles: values.socialProfiles
+          .map((p) => p.trim())
+          .filter(Boolean),
+        twitterHandle: values.twitterHandle.replace(/^@+/, '').trim()
       }
       const next = { ...raw, identity: cleaned } // preserve unknown groups
       await git.commitFile({
         path: SETTINGS_PATH,
         content: JSON.stringify(next, null, 2) + '\n',
         message: 'chore(settings): update identity / SEO settings',
-        author: OWNER_AUTHOR,
+        author: OWNER_AUTHOR
       })
       setRaw(next)
       setValues(cleaned)
@@ -168,7 +198,9 @@ export function IdentitySettings() {
           <Label htmlFor="id-type">This site represents a…</Label>
           <Select
             value={values.entityType}
-            onValueChange={(v) => set({ entityType: v as IdentityValues['entityType'] })}
+            onValueChange={(v) =>
+              set({ entityType: v as IdentityValues['entityType'] })
+            }
           >
             <SelectTrigger id="id-type" className="w-full">
               <SelectValue />
@@ -226,7 +258,9 @@ export function IdentitySettings() {
             <Input
               id="id-twitter"
               value={values.twitterHandle}
-              onChange={(e) => set({ twitterHandle: e.target.value.replace(/^@+/, '') })}
+              onChange={(e) =>
+                set({ twitterHandle: e.target.value.replace(/^@+/, '') })
+              }
               placeholder="yoursite"
             />
           </div>
@@ -234,7 +268,8 @@ export function IdentitySettings() {
         <div className="space-y-1.5">
           <Label>Social profiles</Label>
           <p className="text-xs text-muted-foreground">
-            Profile URLs (schema.org <code>sameAs</code>) — e.g. GitHub, LinkedIn, Mastodon.
+            Profile URLs (schema.org <code>sameAs</code>) — e.g. GitHub,
+            LinkedIn, Mastodon.
           </p>
           <div className="space-y-2">
             {values.socialProfiles.map((p, i) => (
@@ -258,14 +293,21 @@ export function IdentitySettings() {
               </div>
             ))}
           </div>
-          <Button type="button" variant="secondary" size="sm" onClick={addSocial}>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={addSocial}
+          >
             Add profile
           </Button>
         </div>
       </section>
 
       <section className="space-y-4">
-        <h3 className="text-sm font-medium text-muted-foreground">Title format</h3>
+        <h3 className="text-sm font-medium text-muted-foreground">
+          Title format
+        </h3>
         <div className="space-y-1.5">
           <Label htmlFor="id-title-tpl">Title template</Label>
           <Input
@@ -275,29 +317,37 @@ export function IdentitySettings() {
             placeholder="{{title}} {{separator}} {{site}}"
           />
           <p className="text-xs text-muted-foreground">
-            Tokens: <code>{'{{title}}'}</code> <code>{'{{separator}}'}</code> <code>{'{{site}}'}</code>
+            Tokens: <code>{'{{title}}'}</code> <code>{'{{separator}}'}</code>{' '}
+            <code>{'{{site}}'}</code>
           </p>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="id-sep">Separator</Label>
-          <Select value={values.titleSeparator} onValueChange={(v) => set({ titleSeparator: v })}>
+          <Select
+            value={values.titleSeparator}
+            onValueChange={(v) => set({ titleSeparator: v })}
+          >
             <SelectTrigger id="id-sep" className="w-28">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {[values.titleSeparator, ...SEPARATORS.filter((s) => s !== values.titleSeparator)].map(
-                (s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
-                  </SelectItem>
-                ),
-              )}
+              {[
+                values.titleSeparator,
+                ...SEPARATORS.filter((s) => s !== values.titleSeparator)
+              ].map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
       </section>
 
-      <Button onClick={() => void save()} disabled={published === null || !dirty || saving}>
+      <Button
+        onClick={() => void save()}
+        disabled={published === null || !dirty || saving}
+      >
         {saving ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}
       </Button>
     </div>

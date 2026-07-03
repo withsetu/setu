@@ -1,6 +1,10 @@
 import type { Category } from './types'
 
-export type TaxonomyErrorCode = 'parent-not-found' | 'not-found' | 'cycle' | 'empty-name'
+export type TaxonomyErrorCode =
+  | 'parent-not-found'
+  | 'not-found'
+  | 'cycle'
+  | 'empty-name'
 
 /** A validation failure from a taxonomy op. `code` lets the UI show a message. */
 export class TaxonomyError extends Error {
@@ -37,37 +41,59 @@ const uniqueSlug = (base: string, taken: Set<string>): string => {
  *  but absent. Returns the new list and the minted slug. */
 export function addCategory(
   cats: Category[],
-  input: { name: string; parent: string | null },
+  input: { name: string; parent: string | null }
 ): { cats: Category[]; slug: string } {
   const trimmed = input.name.trim()
-  if (trimmed === '') throw new TaxonomyError('empty-name', 'Category name cannot be empty')
+  if (trimmed === '')
+    throw new TaxonomyError('empty-name', 'Category name cannot be empty')
   if (input.parent !== null && !cats.some((c) => c.slug === input.parent)) {
-    throw new TaxonomyError('parent-not-found', `Parent "${input.parent}" does not exist`)
+    throw new TaxonomyError(
+      'parent-not-found',
+      `Parent "${input.parent}" does not exist`
+    )
   }
   const slug = uniqueSlug(slugify(trimmed), new Set(cats.map((c) => c.slug)))
-  return { cats: [...cats, { slug, name: trimmed, parent: input.parent }], slug }
+  return {
+    cats: [...cats, { slug, name: trimmed, parent: input.parent }],
+    slug
+  }
 }
 
 /** Change a category's display name only (posts reference the slug, untouched). */
-export function renameLabel(cats: Category[], slug: string, name: string): Category[] {
-  if (!cats.some((c) => c.slug === slug)) throw new TaxonomyError('not-found', `Category "${slug}" does not exist`)
+export function renameLabel(
+  cats: Category[],
+  slug: string,
+  name: string
+): Category[] {
+  if (!cats.some((c) => c.slug === slug))
+    throw new TaxonomyError('not-found', `Category "${slug}" does not exist`)
   const trimmed = name.trim()
-  if (trimmed === '') throw new TaxonomyError('empty-name', 'Category name cannot be empty')
+  if (trimmed === '')
+    throw new TaxonomyError('empty-name', 'Category name cannot be empty')
   return cats.map((c) => (c.slug === slug ? { ...c, name: trimmed } : c))
 }
 
 /** Move a category under a new parent (or null for root). Throws on missing
  *  slug/parent, self-parent, or a move that would create a cycle. */
-export function reparent(cats: Category[], slug: string, parent: string | null): Category[] {
-  if (!cats.some((c) => c.slug === slug)) throw new TaxonomyError('not-found', `Category "${slug}" does not exist`)
+export function reparent(
+  cats: Category[],
+  slug: string,
+  parent: string | null
+): Category[] {
+  if (!cats.some((c) => c.slug === slug))
+    throw new TaxonomyError('not-found', `Category "${slug}" does not exist`)
   if (parent !== null) {
     if (!cats.some((c) => c.slug === parent)) {
-      throw new TaxonomyError('parent-not-found', `Parent "${parent}" does not exist`)
+      throw new TaxonomyError(
+        'parent-not-found',
+        `Parent "${parent}" does not exist`
+      )
     }
     const bySlug = new Map(cats.map((c) => [c.slug, c]))
     let p: string | null = parent
     while (p !== null) {
-      if (p === slug) throw new TaxonomyError('cycle', 'Move would create a cycle')
+      if (p === slug)
+        throw new TaxonomyError('cycle', 'Move would create a cycle')
       p = bySlug.get(p)?.parent ?? null
     }
   }
@@ -79,7 +105,8 @@ export function reparent(cats: Category[], slug: string, parent: string | null):
  *  are untouched. Throws not-found for a missing slug. */
 export function removeCategory(cats: Category[], slug: string): Category[] {
   const node = cats.find((c) => c.slug === slug)
-  if (node === undefined) throw new TaxonomyError('not-found', `Category "${slug}" does not exist`)
+  if (node === undefined)
+    throw new TaxonomyError('not-found', `Category "${slug}" does not exist`)
   return cats
     .filter((c) => c.slug !== slug)
     .map((c) => (c.parent === slug ? { ...c, parent: node.parent } : c))

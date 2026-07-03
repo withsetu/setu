@@ -5,7 +5,7 @@ import {
   CommandList,
   CommandEmpty,
   CommandGroup,
-  CommandItem,
+  CommandItem
 } from '@/components/ui/command'
 import { useCommandRegistry, type CommandAction } from './registry'
 
@@ -16,7 +16,8 @@ function orderedGroups(actions: CommandAction[]): string[] {
   return groups.sort((a, b) => {
     const ia = GROUP_ORDER.indexOf(a)
     const ib = GROUP_ORDER.indexOf(b)
-    if (ia !== -1 || ib !== -1) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib)
+    if (ia !== -1 || ib !== -1)
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib)
     return a.localeCompare(b)
   })
 }
@@ -40,8 +41,11 @@ export function CommandPalette() {
   }, [])
 
   // Re-filter on every open so live `enabled()` values are always current.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const enabled = useMemo(() => commands.filter((a) => a.enabled?.() !== false), [commands, open])
+   
+  const enabled = useMemo(
+    () => commands.filter((a) => a.enabled?.() !== false),
+    [commands, open]
+  )
   const groups = orderedGroups(enabled)
 
   const select = (a: CommandAction) => {

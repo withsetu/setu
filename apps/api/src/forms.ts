@@ -1,6 +1,10 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import type { SubmissionService, SubmissionPort, SubmissionFilter } from '@setu/core'
+import type {
+  SubmissionService,
+  SubmissionPort,
+  SubmissionFilter
+} from '@setu/core'
 
 /** A Hono app exposing the forms submit pipeline + admin CRUD over HTTP. Pure
  *  factory; the caller supplies the service + port (server.ts). No auth — mirrors
@@ -11,7 +15,10 @@ export function createFormsApi(opts: {
   captchaStatus?: { provider: string; secretConfigured: boolean }
 }): Hono {
   const { submit, submissions } = opts
-  const captchaStatus = opts.captchaStatus ?? { provider: '', secretConfigured: false }
+  const captchaStatus = opts.captchaStatus ?? {
+    provider: '',
+    secretConfigured: false
+  }
   const app = new Hono()
   app.use('*', cors())
 
@@ -20,23 +27,21 @@ export function createFormsApi(opts: {
 
   // --- public ---
   app.post('/forms/submit', async (c) => {
-    const body = (await c.req.json()) as {
-      formId?: string
-      formLabel?: string
-      fields?: Record<string, string>
-      captchaToken?: string
-      honeypot?: string
-      source?: { url?: string }
-    }
+    const body = (await c.req.json())
     if (!body.formId || !body.fields || typeof body.captchaToken !== 'string') {
       return c.json({ ok: false, error: 'invalid' }, 400)
     }
     const source = {
       ...(body.source?.url ? { url: body.source.url } : {}),
       ...(c.req.header('referer') ? { referrer: c.req.header('referer') } : {}),
-      ...(c.req.header('user-agent') ? { userAgent: c.req.header('user-agent') } : {}),
+      ...(c.req.header('user-agent')
+        ? { userAgent: c.req.header('user-agent') }
+        : {})
     }
-    const ip = c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? undefined
+    const ip =
+      c.req.header('cf-connecting-ip') ??
+      c.req.header('x-forwarded-for') ??
+      undefined
     const result = await submit.submit({
       formId: body.formId,
       formLabel: body.formLabel,
@@ -44,16 +49,17 @@ export function createFormsApi(opts: {
       captchaToken: body.captchaToken,
       honeypot: body.honeypot,
       source: Object.keys(source).length ? source : undefined,
-      ip,
+      ip
     })
     if (result.ok) return c.json(result, 200)
-    const status = result.error === 'spam' ? 403 : result.error === 'invalid' ? 400 : 500
+    const status =
+      result.error === 'spam' ? 403 : result.error === 'invalid' ? 400 : 500
     return c.json(result, status)
   })
 
   // --- admin CRUD ---
   app.post('/forms/submissions', async (c) => {
-    const body = (await c.req.json()) as Parameters<SubmissionPort['saveSubmission']>[0]
+    const body = (await c.req.json())
     return c.json(await submissions.saveSubmission(body), 201)
   })
 
@@ -69,7 +75,9 @@ export function createFormsApi(opts: {
     return c.json(await submissions.listSubmissions(filter))
   })
 
-  app.get('/forms/forms', async (c) => c.json({ forms: await submissions.distinctForms() }))
+  app.get('/forms/forms', async (c) =>
+    c.json({ forms: await submissions.distinctForms() })
+  )
 
   app.get('/forms/submissions/:id', async (c) => {
     const row = await submissions.getSubmission(c.req.param('id'))
@@ -77,17 +85,19 @@ export function createFormsApi(opts: {
   })
 
   app.patch('/forms/submissions/read', async (c) => {
-    const { ids, read } = (await c.req.json()) as { ids: string[]; read: boolean }
+    const { ids, read } = (await c.req.json())
     await submissions.setRead(ids, read)
     return c.json({ ok: true })
   })
 
   app.delete('/forms/submissions', async (c) => {
-    const { ids } = (await c.req.json()) as { ids: string[] }
+    const { ids } = (await c.req.json())
     await submissions.deleteSubmissions(ids)
     return c.json({ ok: true })
   })
 
-  app.onError((err, c) => c.json({ error: err instanceof Error ? err.message : String(err) }, 500))
+  app.onError((err, c) =>
+    c.json({ error: err instanceof Error ? err.message : String(err) }, 500)
+  )
   return app
 }

@@ -19,7 +19,9 @@ describe('normalizeTag', () => {
 
 describe('normalizeTags', () => {
   it('normalizes, drops empties, dedupes preserving order', () => {
-    expect(normalizeTags(['React', 'react', '!!', 'Next JS', 'next-js'])).toEqual(['react', 'next-js'])
+    expect(
+      normalizeTags(['React', 'react', '!!', 'Next JS', 'next-js'])
+    ).toEqual(['react', 'next-js'])
   })
   it('returns [] for an empty list', () => {
     expect(normalizeTags([])).toEqual([])

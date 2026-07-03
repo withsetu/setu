@@ -1,4 +1,11 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState
+} from 'react'
 import type { ReactNode } from 'react'
 import type { Category } from '@setu/core'
 import { createTaxonomyService, createCategoryDeleter } from '@setu/core'
@@ -23,20 +30,36 @@ const TaxonomyContext = createContext<TaxonomyContextValue | null>(null)
 export function TaxonomyProvider({ children }: { children: ReactNode }) {
   const { git, data, read } = useServices()
   const index = useIndex()
-  const service = useMemo(() => createTaxonomyService({ git, author: TAXONOMY_AUTHOR }), [git])
+  const service = useMemo(
+    () => createTaxonomyService({ git, author: TAXONOMY_AUTHOR }),
+    [git]
+  )
   const deleter = useMemo(
-    () => createCategoryDeleter({ git, data, read, index, author: TAXONOMY_AUTHOR }),
-    [git, data, read, index],
+    () =>
+      createCategoryDeleter({
+        git,
+        data,
+        read,
+        index,
+        author: TAXONOMY_AUTHOR
+      }),
+    [git, data, read, index]
   )
   const [categories, setCategories] = useState<Category[]>([])
   const [counts, setCounts] = useState<Record<string, number>>({})
 
   const refreshCounts = useCallback(() => {
-    void index.categoryCounts().then(setCounts).catch(() => {})
+    void index
+      .categoryCounts()
+      .then(setCounts)
+      .catch(() => {})
   }, [index])
 
   useEffect(() => {
-    void service.read().then(setCategories).catch(() => {})
+    void service
+      .read()
+      .then(setCategories)
+      .catch(() => {})
     refreshCounts()
   }, [service, refreshCounts])
 
@@ -47,15 +70,17 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
       refreshCounts()
       return slug
     },
-    [service, refreshCounts],
+    [service, refreshCounts]
   )
   const renameLabel = useCallback(
-    async (slug: string, name: string) => setCategories(await service.renameLabel(slug, name)),
-    [service],
+    async (slug: string, name: string) =>
+      setCategories(await service.renameLabel(slug, name)),
+    [service]
   )
   const reparent = useCallback(
-    async (slug: string, parent: string | null) => setCategories(await service.reparent(slug, parent)),
-    [service],
+    async (slug: string, parent: string | null) =>
+      setCategories(await service.reparent(slug, parent)),
+    [service]
   )
   const remove = useCallback(
     async (slug: string) => {
@@ -63,18 +88,23 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
       setCategories(next)
       refreshCounts()
     },
-    [deleter, refreshCounts],
+    [deleter, refreshCounts]
   )
 
   const value = useMemo<TaxonomyContextValue>(
     () => ({ categories, counts, create, renameLabel, reparent, remove }),
-    [categories, counts, create, renameLabel, reparent, remove],
+    [categories, counts, create, renameLabel, reparent, remove]
   )
-  return <TaxonomyContext.Provider value={value}>{children}</TaxonomyContext.Provider>
+  return (
+    <TaxonomyContext.Provider value={value}>
+      {children}
+    </TaxonomyContext.Provider>
+  )
 }
 
 export function useTaxonomy(): TaxonomyContextValue {
   const ctx = useContext(TaxonomyContext)
-  if (ctx === null) throw new Error('useTaxonomy must be used within a TaxonomyProvider')
+  if (ctx === null)
+    throw new Error('useTaxonomy must be used within a TaxonomyProvider')
   return ctx
 }

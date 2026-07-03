@@ -23,7 +23,11 @@ import { fileURLToPath } from 'node:url'
 import { JSDOM } from 'jsdom'
 import axeCore from 'axe-core'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { classifyViolations, formatKnownViolations, formatUnexpectedViolations } from './lib/a11y-allowlist'
+import {
+  classifyViolations,
+  formatKnownViolations,
+  formatUnexpectedViolations
+} from './lib/a11y-allowlist'
 
 const appDir = fileURLToPath(new URL('..', import.meta.url))
 const distDir = join(appDir, 'dist')
@@ -36,8 +40,10 @@ const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']
 // own README calls this out by name for color-contrast; the rest follow the same "needs
 // real rendering" reasoning and are disabled for the same cause.
 const DISABLED_RULES = {
-  'color-contrast': 'needs real rendered color — axe-core README documents this as unsupported under JSDOM',
-  'meta-viewport': 'needs real viewport/zoom rendering to evaluate user-scalable behavior',
+  'color-contrast':
+    'needs real rendered color — axe-core README documents this as unsupported under JSDOM',
+  'meta-viewport':
+    'needs real viewport/zoom rendering to evaluate user-scalable behavior'
 }
 
 /** Recursively collect every built HTML document under dist/, skipping non-HTML assets
@@ -63,7 +69,9 @@ async function scanPage(filePath: string, pageLabel: string) {
   try {
     const results = await axeCore.run(dom.window.document.documentElement, {
       runOnly: { type: 'tag', values: TAGS },
-      rules: Object.fromEntries(Object.keys(DISABLED_RULES).map((id) => [id, { enabled: false }])),
+      rules: Object.fromEntries(
+        Object.keys(DISABLED_RULES).map((id) => [id, { enabled: false }])
+      )
     })
     const { known, unexpected } = classifyViolations(results)
     console.log(formatKnownViolations(pageLabel, known))
@@ -81,7 +89,10 @@ beforeAll(() => {
   // real `astro build` into the shared dist/, which vitest.config.ts serializes
   // (fileParallelism: false) so builds across test files never race.
   execSync('pnpm build', { cwd: appDir, stdio: 'inherit' })
-  pages = walkHtmlFiles(distDir).map((filePath) => ({ filePath, route: filePath.slice(distDir.length) }))
+  pages = walkHtmlFiles(distDir).map((filePath) => ({
+    filePath,
+    route: filePath.slice(distDir.length)
+  }))
 }, 180_000)
 
 describe('output-site a11y (axe, structural WCAG 2.1 AA)', () => {
@@ -94,8 +105,12 @@ describe('output-site a11y (axe, structural WCAG 2.1 AA)', () => {
     const failures: string[] = []
     for (const { filePath, route } of pages) {
       const { unexpected } = await scanPage(filePath, route)
-      if (unexpected.length > 0) failures.push(formatUnexpectedViolations(route, unexpected))
+      if (unexpected.length > 0)
+        failures.push(formatUnexpectedViolations(route, unexpected))
     }
-    expect(failures, `${failures.length} page(s) with unexpected axe violations:\n\n${failures.join('\n\n')}`).toEqual([])
+    expect(
+      failures,
+      `${failures.length} page(s) with unexpected axe violations:\n\n${failures.join('\n\n')}`
+    ).toEqual([])
   })
 })

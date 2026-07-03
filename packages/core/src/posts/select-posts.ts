@@ -25,7 +25,8 @@ export interface PostsQuery {
   offset: number
 }
 
-const byId = (a: PostRow, b: PostRow): number => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+const byId = (a: PostRow, b: PostRow): number =>
+  a.id < b.id ? -1 : a.id > b.id ? 1 : 0
 
 /**
  * Filter (collection + locale, optional category/tag) → sort → offset/limit slice.
@@ -41,7 +42,7 @@ export function selectPosts(rows: PostRow[], q: PostsQuery): PostRow[] {
       // "not published" signal; absent/true is live. Mirrors the feed + site-health audit.
       r.published !== false &&
       (q.category === undefined || r.categories.includes(q.category)) &&
-      (q.tag === undefined || r.tags.includes(q.tag)),
+      (q.tag === undefined || r.tags.includes(q.tag))
   )
 
   const sorted = [...filtered].sort((a, b) => {

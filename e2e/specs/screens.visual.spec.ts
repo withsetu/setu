@@ -24,7 +24,8 @@ import { ContentListPage } from '../pages/ContentListPage'
 // "content list" test's fresh context; each test that needs a specific post in view must
 // create it itself, in the same page, and never rely on another test's draft.
 const FIXED_POST_TITLE = 'Visual Baseline Post'
-const FIXED_POST_BODY = 'Fixed body content for the visual regression baseline. Do not change this text.'
+const FIXED_POST_BODY =
+  'Fixed body content for the visual regression baseline. Do not change this text.'
 
 test.describe('visual baselines', () => {
   // Determinism precondition, self-checking: the visual project must deliver
@@ -35,7 +36,11 @@ test.describe('visual baselines', () => {
   // fails loudly everywhere, not just as CI baseline flake.
   test.beforeEach(async ({ page }) => {
     await page.goto('/')
-    expect(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)).toBe(true)
+    expect(
+      await page.evaluate(
+        () => matchMedia('(prefers-reduced-motion: reduce)').matches
+      )
+    ).toBe(true)
   })
 
   test('dashboard', async ({ page }) => {
@@ -63,13 +68,19 @@ test.describe('visual baselines', () => {
     // Settle: StatTiles/ResumeEditing/SiteHealthCard all load async on mount — wait for
     // the row this test just created to actually appear before screenshotting, otherwise
     // we could snapshot mid-fetch on a slower CI runner.
-    await expect(page.getByRole('link', { name: FIXED_POST_TITLE })).toBeVisible()
+    await expect(
+      page.getByRole('link', { name: FIXED_POST_TITLE })
+    ).toBeVisible()
 
     // shadcn's CardTitle is a plain `<div data-slot="card-title">` (components/ui/card.tsx)
     // — NOT a heading role — so anchor on that data-slot + its text, then walk up to the
     // nearest `[data-slot="card"]` ancestor to get the whole card.
     const cardByTitle = (title: string) =>
-      page.locator('[data-slot="card"]').filter({ has: page.locator('[data-slot="card-title"]', { hasText: title }) })
+      page
+        .locator('[data-slot="card"]')
+        .filter({
+          has: page.locator('[data-slot="card-title"]', { hasText: title })
+        })
 
     await expect(page).toHaveScreenshot('dashboard.png', {
       fullPage: true,
@@ -92,12 +103,12 @@ test.describe('visual baselines', () => {
         // above (packages/core/src/health/checks.ts aggregates over ctx.entries —
         // missing-title/H1/homepage checks), so a concurrent publish.spec.ts commit
         // can shift the score/band mid-run. Same whole-card masking rationale.
-        cardByTitle('Site Health'),
+        cardByTitle('Site Health')
         // WhosEditing: no active lock in this harness (no second session holds one), so
         // it renders null (apps/admin/src/dashboard/widgets/WhosEditing.tsx:10) — nothing
         // to mask there today, but if a lock ever appears the "editing "<slug>"" line and
         // avatar initials are content-derived, not clock-derived, so they're stable.
-      ],
+      ]
     })
   })
 
@@ -114,7 +125,7 @@ test.describe('visual baselines', () => {
     await editor.save()
 
     await expect(page).toHaveScreenshot('editor.png', {
-      fullPage: false, // the canvas can grow with content; the fixed viewport frame is stable, full-page scroll height is not guaranteed to be
+      fullPage: false // the canvas can grow with content; the fixed viewport frame is stable, full-page scroll height is not guaranteed to be
     })
   })
 
@@ -130,7 +141,9 @@ test.describe('visual baselines', () => {
     await editor.save()
 
     await list.gotoPosts()
-    await expect(page.getByRole('heading', { level: 1, name: 'Posts' })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Posts' })
+    ).toBeVisible()
 
     // Scope to just this post via the real search box rather than screenshotting the
     // unfiltered list — the unfiltered list's total row count and "N Posts" header count
@@ -141,7 +154,9 @@ test.describe('visual baselines', () => {
     await page.getByRole('textbox', { name: 'Search' }).fill(FIXED_POST_TITLE)
     // Settle the debounced search -> URL `q` -> re-query round-trip (ContentList.tsx: 200ms
     // debounce, then `index.query({ q })`) before asserting on the filtered result.
-    await expect(page.getByRole('link', { name: FIXED_POST_TITLE, exact: true })).toBeVisible()
+    await expect(
+      page.getByRole('link', { name: FIXED_POST_TITLE, exact: true })
+    ).toBeVisible()
     // Exactly this 1 row now — deterministic regardless of what else is in the sandbox.
     await expect(page.locator('table tbody tr')).toHaveCount(1)
 
@@ -151,14 +166,16 @@ test.describe('visual baselines', () => {
         // ContentTable's "Updated" column renders relativeTime(r.updatedAt) for every row
         // (apps/admin/src/screens/content-list/ContentTable.tsx:87) — clock-derived even
         // though the row set itself is now pinned to just the 1 fixed-title post above.
-        page.locator('table tbody tr td:last-child'),
-      ],
+        page.locator('table tbody tr td:last-child')
+      ]
     })
   })
 
   test('settings — media', async ({ page }) => {
     await page.goto('/settings')
-    await expect(page.getByRole('heading', { level: 1, name: 'Settings' })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Settings' })
+    ).toBeVisible()
     await page.getByRole('button', { name: 'Media' }).click()
     // Settle: MediaSettings reads settings.json + polls capabilities async on mount
     // (useCapabilities) — wait for the format select to reflect the loaded value (its
@@ -166,7 +183,9 @@ test.describe('visual baselines', () => {
     // This screen has no content-list/dashboard dependency, so it's immune to any other
     // spec's concurrent activity too.
     await expect(page.getByLabel('Image format')).toBeVisible()
-    await expect(page.getByRole('button', { name: /Reprocess all images/ })).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: /Reprocess all images/ })
+    ).toBeVisible()
 
     await expect(page.getByRole('main')).toHaveScreenshot('settings-media.png')
   })

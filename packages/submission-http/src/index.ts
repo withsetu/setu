@@ -1,8 +1,17 @@
-import type { SubmissionPort, Submission, SubmissionInput, SubmissionFilter, FormSummary } from '@setu/core'
+import type {
+  SubmissionPort,
+  Submission,
+  SubmissionInput,
+  SubmissionFilter,
+  FormSummary
+} from '@setu/core'
 
 /** A SubmissionPort backed by createFormsApi over HTTP. Mirrors git-http: the
  *  browser admin uses this to read/manage submissions stored by apps/api. */
-export function createHttpSubmissionAdapter(opts: { baseUrl: string; fetchImpl?: typeof fetch }): SubmissionPort {
+export function createHttpSubmissionAdapter(opts: {
+  baseUrl: string
+  fetchImpl?: typeof fetch
+}): SubmissionPort {
   const base = opts.baseUrl.replace(/\/$/, '')
   const f = opts.fetchImpl ?? fetch
   const json = async (res: Response) => {
@@ -16,8 +25,8 @@ export function createHttpSubmissionAdapter(opts: { baseUrl: string; fetchImpl?:
         await f(`${base}/forms/submissions`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(input),
-        }),
+          body: JSON.stringify(input)
+        })
       )) as Submission
     },
     async getSubmission(id) {
@@ -33,7 +42,9 @@ export function createHttpSubmissionAdapter(opts: { baseUrl: string; fetchImpl?:
       if (filter?.limit !== undefined) p.set('limit', String(filter.limit))
       if (filter?.offset !== undefined) p.set('offset', String(filter.offset))
       const qs = p.toString()
-      return (await json(await f(`${base}/forms/submissions${qs ? `?${qs}` : ''}`))) as {
+      return (await json(
+        await f(`${base}/forms/submissions${qs ? `?${qs}` : ''}`)
+      )) as {
         rows: Submission[]
         total: number
       }
@@ -43,8 +54,8 @@ export function createHttpSubmissionAdapter(opts: { baseUrl: string; fetchImpl?:
         await f(`${base}/forms/submissions/read`, {
           method: 'PATCH',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ ids, read }),
-        }),
+          body: JSON.stringify({ ids, read })
+        })
       )
     },
     async deleteSubmissions(ids) {
@@ -52,13 +63,15 @@ export function createHttpSubmissionAdapter(opts: { baseUrl: string; fetchImpl?:
         await f(`${base}/forms/submissions`, {
           method: 'DELETE',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ ids }),
-        }),
+          body: JSON.stringify({ ids })
+        })
       )
     },
     async distinctForms() {
-      return ((await json(await f(`${base}/forms/forms`))) as { forms: FormSummary[] }).forms
+      return (
+        (await json(await f(`${base}/forms/forms`))) as { forms: FormSummary[] }
+      ).forms
     },
-    async close() {},
+    async close() {}
   }
 }

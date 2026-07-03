@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-const apiBase = (import.meta.env.VITE_SETU_API as string | undefined) ?? ''
+const apiBase = (import.meta.env.VITE_SETU_API) ?? ''
 
 export interface CapFlags {
   imageProcessing: boolean

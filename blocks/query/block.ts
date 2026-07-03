@@ -12,7 +12,7 @@ export default defineBlock({
     sort: z.enum(['newest', 'oldest', 'title']).default('newest'),
     layout: z.enum(['grid', 'list']).default('grid'),
     columns: z.number().default(3),
-    showImage: z.boolean().default(true),
+    showImage: z.boolean().default(true)
   }),
   editor: {
     label: 'Query',
@@ -29,13 +29,21 @@ export default defineBlock({
       layout: 'Display',
       showImage: 'Show featured image',
       limit: 'Number of posts',
-      offset: 'Skip first',
+      offset: 'Skip first'
     },
     showWhen: { columns: { layout: 'grid' } },
     groups: [
-      { id: 'content', label: 'Content', controls: ['collection', 'category', 'tag', 'locale', 'sort'] },
-      { id: 'layout', label: 'Layout', controls: ['layout', 'columns', 'showImage'] },
-      { id: 'pagination', label: 'Pagination', controls: ['limit', 'offset'] },
-    ],
-  },
+      {
+        id: 'content',
+        label: 'Content',
+        controls: ['collection', 'category', 'tag', 'locale', 'sort']
+      },
+      {
+        id: 'layout',
+        label: 'Layout',
+        controls: ['layout', 'columns', 'showImage']
+      },
+      { id: 'pagination', label: 'Pagination', controls: ['limit', 'offset'] }
+    ]
+  }
 })

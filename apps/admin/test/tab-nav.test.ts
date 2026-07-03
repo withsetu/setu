@@ -2,28 +2,61 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import { TaskList, TaskItem } from '@tiptap/extension-list'
-import { Table, TableRow, TableHeader, TableCell } from '@tiptap/extension-table'
-import { tabActionFor, advanceCellOrAddRow } from '../src/editor/extensions/KeyboardShortcuts'
+import {
+  Table,
+  TableRow,
+  TableHeader,
+  TableCell
+} from '@tiptap/extension-table'
+import {
+  tabActionFor,
+  advanceCellOrAddRow
+} from '../src/editor/extensions/KeyboardShortcuts'
 
 let editor: Editor
 afterEach(() => editor?.destroy())
 
 const make = () =>
   new Editor({
-    extensions: [StarterKit.configure({ link: { openOnClick: false }, underline: false })],
-    content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'hello' }] }] },
+    extensions: [
+      StarterKit.configure({ link: { openOnClick: false }, underline: false })
+    ],
+    content: {
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'hello' }] }
+      ]
+    }
   })
 
 const makeTasks = () =>
   new Editor({
-    extensions: [StarterKit.configure({ link: { openOnClick: false }, underline: false }), TaskList, TaskItem.configure({ nested: true })],
-    content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'task' }] }] },
+    extensions: [
+      StarterKit.configure({ link: { openOnClick: false }, underline: false }),
+      TaskList,
+      TaskItem.configure({ nested: true })
+    ],
+    content: {
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'task' }] }
+      ]
+    }
   })
 
 const makeTable = () => {
   const e = new Editor({
-    extensions: [StarterKit.configure({ link: { openOnClick: false }, underline: false }), Table.configure({ resizable: false }), TableRow, TableHeader, TableCell],
-    content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] },
+    extensions: [
+      StarterKit.configure({ link: { openOnClick: false }, underline: false }),
+      Table.configure({ resizable: false }),
+      TableRow,
+      TableHeader,
+      TableCell
+    ],
+    content: {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }]
+    }
   })
   e.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: true }).run()
   return e

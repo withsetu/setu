@@ -4,7 +4,12 @@ import type { EditorState, Transaction } from '@tiptap/pm/state'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { moveBlock, startOfChild } from '../block-reorder'
 
-interface TopBlock { index: number; from: number; to: number; node: PMNode }
+interface TopBlock {
+  index: number
+  from: number
+  to: number
+  node: PMNode
+}
 
 /** The top-level block targeted by the current selection — works for a text selection
  *  inside a block AND a NodeSelection on a top-level atom (e.g. imageBlock). null if none. */
@@ -12,11 +17,21 @@ function topBlock(state: EditorState): TopBlock | null {
   const sel = state.selection
   if (sel instanceof NodeSelection && sel.$from.depth === 0) {
     const node = sel.node
-    return { index: sel.$from.index(0), from: sel.from, to: sel.from + node.nodeSize, node }
+    return {
+      index: sel.$from.index(0),
+      from: sel.from,
+      to: sel.from + node.nodeSize,
+      node
+    }
   }
   const { $from } = sel
   if ($from.depth < 1) return null
-  return { index: $from.index(0), from: $from.before(1), to: $from.after(1), node: $from.node(1) }
+  return {
+    index: $from.index(0),
+    from: $from.before(1),
+    to: $from.after(1),
+    node: $from.node(1)
+  }
 }
 
 /** Re-select the top-level block now at `index` in the post-move doc. Computed from
@@ -92,13 +107,17 @@ export const BlockActions = Extension.create({
             if (state.doc.childCount > 1) {
               tr.delete(b.from, b.to)
             } else {
-              tr.replaceWith(b.from, b.to, state.schema.nodes.paragraph!.create())
+              tr.replaceWith(
+                b.from,
+                b.to,
+                state.schema.nodes.paragraph!.create()
+              )
             }
             const target = Math.min(b.from + 1, tr.doc.content.size)
             tr.setSelection(TextSelection.near(tr.doc.resolve(target)))
           }
           return true
-        },
+        }
     }
   },
 
@@ -107,7 +126,7 @@ export const BlockActions = Extension.create({
       'Alt-Shift-ArrowUp': () => this.editor.commands.moveBlockUp(),
       'Alt-Shift-ArrowDown': () => this.editor.commands.moveBlockDown(),
       'Alt-Shift-d': () => this.editor.commands.duplicateBlock(),
-      'Alt-Shift-Backspace': () => this.editor.commands.deleteBlock(),
+      'Alt-Shift-Backspace': () => this.editor.commands.deleteBlock()
     }
-  },
+  }
 })

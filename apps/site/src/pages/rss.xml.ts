@@ -19,19 +19,21 @@ export async function GET(context: APIContext) {
       id: e.id,
       data: e.data as Record<string, unknown>,
       body: e.body,
-      filePath: e.filePath,
+      filePath: e.filePath
     })),
-    settings.reading.feed.items,
+    settings.reading.feed.items
   )
   return rss(
     buildFeed({
       title: settings.general.title,
       description:
-        settings.general.description || settings.general.tagline || settings.general.title,
+        settings.general.description ||
+        settings.general.tagline ||
+        settings.general.title,
       site: context.site,
       locale: DEFAULT_LOCALE,
       feedPath: 'rss.xml',
-      items,
-    }),
+      items
+    })
   )
 }

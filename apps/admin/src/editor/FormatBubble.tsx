@@ -24,19 +24,69 @@ interface MarkBtn {
 }
 
 const MARKS: MarkBtn[] = [
-  { name: 'bold', label: 'Bold', icon: 'bold', toggle: (e) => e.chain().focus().toggleBold().run() },
-  { name: 'italic', label: 'Italic', icon: 'italic', toggle: (e) => e.chain().focus().toggleItalic().run() },
-  { name: 'code', label: 'Inline code', icon: 'code', toggle: (e) => e.chain().focus().toggleCode().run() },
-  { name: 'strike', label: 'Strikethrough', icon: 'strike', toggle: (e) => e.chain().focus().toggleStrike().run() },
-  { name: 'subscript', label: 'Subscript', icon: 'subscript', toggle: (e) => e.chain().focus().toggleSubscript().run() },
-  { name: 'superscript', label: 'Superscript', icon: 'superscript', toggle: (e) => e.chain().focus().toggleSuperscript().run() },
+  {
+    name: 'bold',
+    label: 'Bold',
+    icon: 'bold',
+    toggle: (e) => e.chain().focus().toggleBold().run()
+  },
+  {
+    name: 'italic',
+    label: 'Italic',
+    icon: 'italic',
+    toggle: (e) => e.chain().focus().toggleItalic().run()
+  },
+  {
+    name: 'code',
+    label: 'Inline code',
+    icon: 'code',
+    toggle: (e) => e.chain().focus().toggleCode().run()
+  },
+  {
+    name: 'strike',
+    label: 'Strikethrough',
+    icon: 'strike',
+    toggle: (e) => e.chain().focus().toggleStrike().run()
+  },
+  {
+    name: 'subscript',
+    label: 'Subscript',
+    icon: 'subscript',
+    toggle: (e) => e.chain().focus().toggleSubscript().run()
+  },
+  {
+    name: 'superscript',
+    label: 'Superscript',
+    icon: 'superscript',
+    toggle: (e) => e.chain().focus().toggleSuperscript().run()
+  }
 ]
 
-interface AlignBtn { id: string; label: string; icon: IconName; apply: (e: Editor) => void }
+interface AlignBtn {
+  id: string
+  label: string
+  icon: IconName
+  apply: (e: Editor) => void
+}
 const ALIGNS: AlignBtn[] = [
-  { id: 'alignLeft', label: 'Align left', icon: 'alignLeft', apply: (e) => e.chain().focus().unsetTextAlign().run() },
-  { id: 'alignCenter', label: 'Align center', icon: 'alignCenter', apply: (e) => e.chain().focus().setTextAlign('center').run() },
-  { id: 'alignRight', label: 'Align right', icon: 'alignRight', apply: (e) => e.chain().focus().setTextAlign('right').run() },
+  {
+    id: 'alignLeft',
+    label: 'Align left',
+    icon: 'alignLeft',
+    apply: (e) => e.chain().focus().unsetTextAlign().run()
+  },
+  {
+    id: 'alignCenter',
+    label: 'Align center',
+    icon: 'alignCenter',
+    apply: (e) => e.chain().focus().setTextAlign('center').run()
+  },
+  {
+    id: 'alignRight',
+    label: 'Align right',
+    icon: 'alignRight',
+    apply: (e) => e.chain().focus().setTextAlign('right').run()
+  }
 ]
 
 /** Make a user-typed URL absolute: a bare domain like `example.com` becomes
@@ -66,9 +116,21 @@ export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
       alignCenter: e.isActive({ textAlign: 'center' }),
       alignRight: e.isActive({ textAlign: 'right' }),
       from: e.state.selection.from,
-      to: e.state.selection.to,
-    }),
-  }) ?? { bold: false, italic: false, code: false, strike: false, subscript: false, superscript: false, link: false, alignCenter: false, alignRight: false, from: 0, to: 0 }
+      to: e.state.selection.to
+    })
+  }) ?? {
+    bold: false,
+    italic: false,
+    code: false,
+    strike: false,
+    subscript: false,
+    superscript: false,
+    link: false,
+    alignCenter: false,
+    alignRight: false,
+    from: 0,
+    to: 0
+  }
 
   const mac = detectMac()
   const shortcutFor = (id: string) => SHORTCUTS.find((s) => s.id === id)
@@ -99,12 +161,15 @@ export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
   useEffect(
     () =>
       onRequestFocusToolbar(() => {
-        const first = toolbarRef.current?.querySelector<HTMLElement>('[data-toolbar-item]')
+        const first = toolbarRef.current?.querySelector<HTMLElement>(
+          '[data-toolbar-item]'
+        )
         first?.focus()
       }),
-    [toolbarRef],
+    [toolbarRef]
   )
-  const currentHref = (editor.getAttributes('link').href as string | undefined) ?? ''
+  const currentHref =
+    (editor.getAttributes('link').href as string | undefined) ?? ''
 
   if (linking) {
     return (
@@ -112,7 +177,12 @@ export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
         <LinkInput
           initial={currentHref}
           onApply={(href) => {
-            const ok = editor.chain().focus().extendMarkRange('link').setLink({ href: normalizeUrl(href) }).run()
+            const ok = editor
+              .chain()
+              .focus()
+              .extendMarkRange('link')
+              .setLink({ href: normalizeUrl(href) })
+              .run()
             if (ok) setLinking(false)
           }}
           onCancel={() => {
@@ -160,7 +230,12 @@ export function FormatBubbleToolbar({ editor }: { editor: Editor }) {
         </Tooltip>
       ))}
       {ALIGNS.map((a) => {
-        const pressed = a.id === 'alignCenter' ? active.alignCenter : a.id === 'alignRight' ? active.alignRight : !active.alignCenter && !active.alignRight
+        const pressed =
+          a.id === 'alignCenter'
+            ? active.alignCenter
+            : a.id === 'alignRight'
+              ? active.alignRight
+              : !active.alignCenter && !active.alignRight
         return (
           <Tooltip key={a.id} content={tipFor(a.id, a.label)}>
             <button
@@ -215,7 +290,9 @@ export function FormatBubble({ editor }: { editor: Editor }) {
     <BubbleMenu
       editor={editor}
       shouldShow={({ editor: e, state }) =>
-        e.isEditable && state.selection instanceof TextSelection && !state.selection.empty
+        e.isEditable &&
+        state.selection instanceof TextSelection &&
+        !state.selection.empty
       }
     >
       <FormatBubbleToolbar editor={editor} />

@@ -11,14 +11,17 @@ function compare(a: EntryIndexRow, b: EntryIndexRow, key: SortKey): number {
 
 export function runQuery(
   rows: EntryIndexRow[],
-  q: IndexQuery,
+  q: IndexQuery
 ): { rows: EntryIndexRow[]; total: number } {
   let xs = rows.filter((r) => r.collection === q.collection)
   if (q.locale) xs = xs.filter((r) => r.locale === q.locale)
   if (q.status) xs = xs.filter((r) => r.status === q.status)
   if (q.q && q.q.length > 0) {
     const needle = q.q.toLowerCase()
-    xs = xs.filter((r) => r.titleLower.includes(needle) || r.slug.toLowerCase().includes(needle))
+    xs = xs.filter(
+      (r) =>
+        r.titleLower.includes(needle) || r.slug.toLowerCase().includes(needle)
+    )
   }
   if (q.tag) xs = xs.filter((r) => r.tags.includes(q.tag!))
   if (q.category) xs = xs.filter((r) => r.categories.includes(q.category!))

@@ -28,7 +28,7 @@ function renderApp(path: string) {
           </NotificationProvider>
         </ActorProvider>
       </DataProvider>
-    </MemoryRouter>,
+    </MemoryRouter>
   )
 }
 
@@ -40,6 +40,8 @@ describe('App', () => {
 
   it('redirects / to /dashboard', async () => {
     renderApp('/')
-    expect(await screen.findByText(/here's your site at a glance/)).toBeInTheDocument()
+    expect(
+      await screen.findByText(/here's your site at a glance/)
+    ).toBeInTheDocument()
   })
 })

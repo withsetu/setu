@@ -18,7 +18,9 @@ export interface PageSeoOverride {
  *  Missing/malformed → an empty override. Pure. */
 export function parsePageSeoOverride(data: unknown): PageSeoOverride {
   const seo =
-    data && typeof data === 'object' ? (data as Record<string, unknown>)['seo'] : undefined
+    data && typeof data === 'object'
+      ? (data as Record<string, unknown>)['seo']
+      : undefined
   if (!seo || typeof seo !== 'object') return {}
   const s = seo as Record<string, unknown>
   const str = (v: unknown): string | undefined =>

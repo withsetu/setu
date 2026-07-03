@@ -40,7 +40,7 @@ export const KNOWN_VIOLATIONS: KnownViolation[] = [
     note:
       'Badge variant="warning" (e.g. the "Draft" status badge) — light-mode --warning ' +
       '(#b7791f text on a ~15%-alpha warning tile) falls under the AA 4.5:1 text threshold. ' +
-      'Seen in the editor header StripStatus badge and the content-list status column.',
+      'Seen in the editor header StripStatus badge and the content-list status column.'
   },
   {
     ruleId: 'color-contrast',
@@ -49,7 +49,7 @@ export const KNOWN_VIOLATIONS: KnownViolation[] = [
     note:
       'Badge variant="info" (e.g. a "Staged" status badge) — light-mode --info (#2563eb ' +
       'text on a ~15%-alpha info tile) falls under the AA 4.5:1 text threshold. Seen in the ' +
-      'content-list status column.',
+      'content-list status column.'
   },
   {
     ruleId: 'color-contrast',
@@ -57,8 +57,8 @@ export const KNOWN_VIOLATIONS: KnownViolation[] = [
     issue: '#307',
     note:
       'Badge variant="outline" (category/tag chips in the content-list) — the outline ' +
-      'badge\'s foreground/border combination falls under the AA 4.5:1 threshold against ' +
-      'the row background.',
+      "badge's foreground/border combination falls under the AA 4.5:1 threshold against " +
+      'the row background.'
   },
   {
     ruleId: 'color-contrast',
@@ -67,7 +67,7 @@ export const KNOWN_VIOLATIONS: KnownViolation[] = [
     note:
       'ContentTable row subtitle (the slug/path line under a post title) uses ' +
       '--muted-foreground (#54545d) at 12.5px, which falls under AA 4.5:1 against the ' +
-      'table row background (including the zebra-striped bg-muted/25 rows).',
+      'table row background (including the zebra-striped bg-muted/25 rows).'
   },
   {
     ruleId: 'color-contrast',
@@ -75,26 +75,28 @@ export const KNOWN_VIOLATIONS: KnownViolation[] = [
     issue: '#307',
     note:
       'ContentTable "Updated" relative-time cell — same --muted-foreground contrast gap ' +
-      'as the row subtitle, in the rightmost column.',
+      'as the row subtitle, in the rightmost column.'
   },
   {
     ruleId: 'color-contrast',
-    selectorContains: '[role=checkbox])]:pr-0 [&amp;&gt;[role=checkbox]]:translate-y-[2px] text-muted-foreground">',
+    selectorContains:
+      '[role=checkbox])]:pr-0 [&amp;&gt;[role=checkbox]]:translate-y-[2px] text-muted-foreground">',
     issue: '#307',
     note:
       'ContentTable locale cell ("en") — plain text-muted-foreground table cell (no ' +
       '`text-right`, distinguishing it from the "Updated" cell above), same ' +
-      '--muted-foreground contrast gap as the other muted row text.',
+      '--muted-foreground contrast gap as the other muted row text.'
   },
   {
     ruleId: 'color-contrast',
-    selectorContains: 'truncate text-[15px] font-medium text-foreground hover:underline',
+    selectorContains:
+      'truncate text-[15px] font-medium text-foreground hover:underline',
     issue: '#307',
     note:
       'ContentTable row title link (text-foreground) — passes AA against the plain ' +
       '--background, but ContentTable.tsx tints alternating rows with `bg-muted/25` ' +
       '(zebra striping) and selected rows with `bg-primary/10`; against those tinted ' +
-      'backgrounds the same text-foreground color falls under the AA 4.5:1 threshold.',
+      'backgrounds the same text-foreground color falls under the AA 4.5:1 threshold.'
   },
   {
     ruleId: 'color-contrast',
@@ -103,7 +105,7 @@ export const KNOWN_VIOLATIONS: KnownViolation[] = [
     note:
       'Settings sub-nav "Coming soon" disabled entries (Users & Roles, Deploy) — ' +
       'text-muted-foreground at 50% opacity falls well under the AA 4.5:1 threshold. A ' +
-      'disabled/coming-soon affordance still needs to meet contrast if it renders visible text.',
+      'disabled/coming-soon affordance still needs to meet contrast if it renders visible text.'
   },
   {
     ruleId: 'color-contrast',
@@ -115,7 +117,7 @@ export const KNOWN_VIOLATIONS: KnownViolation[] = [
       'the popup background. Found on a second scan run: the popup only renders the ' +
       'category headings for rows currently visible/filtered, so which real elements axe ' +
       'sees varies run to run — not a flaky finding, three distinct real elements in the ' +
-      'same component.',
+      'same component.'
   },
   {
     ruleId: 'color-contrast',
@@ -124,7 +126,7 @@ export const KNOWN_VIOLATIONS: KnownViolation[] = [
     note:
       'Slash-menu option title (SlashCommand.tsx CommandList, e.g. "Text") — the ' +
       '`.slash-label` text color falls under the AA 4.5:1 threshold against the popup ' +
-      'background. Found while scanning the editor with the slash menu open.',
+      'background. Found while scanning the editor with the slash menu open.'
   },
   {
     ruleId: 'color-contrast',
@@ -133,8 +135,8 @@ export const KNOWN_VIOLATIONS: KnownViolation[] = [
     note:
       'Slash-menu option subtitle (e.g. "Plain paragraph") — the `.slash-desc` (more muted ' +
       'than `.slash-label`) text color falls under the AA 4.5:1 threshold against the popup ' +
-      'background. Found while scanning the editor with the slash menu open.',
-  },
+      'background. Found while scanning the editor with the slash menu open.'
+  }
 ]
 
 interface UnexpectedViolation {
@@ -154,11 +156,20 @@ interface ClassifiedViolations {
 }
 
 function nodeSelector(node: NodeResult): string {
-  return node.target.map((t: unknown) => (typeof t === 'string' ? t : JSON.stringify(t))).join(' ')
+  return node.target
+    .map((t: unknown) => (typeof t === 'string' ? t : JSON.stringify(t)))
+    .join(' ')
 }
 
-function findAllowlistEntry(violation: AxeViolation, node: NodeResult): KnownViolation | undefined {
-  return KNOWN_VIOLATIONS.find((entry) => entry.ruleId === violation.id && node.html.includes(entry.selectorContains))
+function findAllowlistEntry(
+  violation: AxeViolation,
+  node: NodeResult
+): KnownViolation | undefined {
+  return KNOWN_VIOLATIONS.find(
+    (entry) =>
+      entry.ruleId === violation.id &&
+      node.html.includes(entry.selectorContains)
+  )
 }
 
 /** Split an axe scan's violations into allowlisted ("known") vs. everything else
@@ -180,7 +191,7 @@ export function classifyViolations(results: AxeResults): ClassifiedViolations {
           help: violation.help,
           helpUrl: violation.helpUrl,
           selector: nodeSelector(node),
-          html: node.html,
+          html: node.html
         })
       }
     }
@@ -190,22 +201,30 @@ export function classifyViolations(results: AxeResults): ClassifiedViolations {
 }
 
 /** A readable multi-line dump of unexpected violations for a failed `expect` message. */
-export function formatUnexpectedViolations(surface: string, unexpected: UnexpectedViolation[]): string {
+export function formatUnexpectedViolations(
+  surface: string,
+  unexpected: UnexpectedViolation[]
+): string {
   const lines = unexpected.map(
     (v, i) =>
       `  ${i + 1}. [${v.impact}] ${v.ruleId} — ${v.help}\n` +
       `     selector: ${v.selector}\n` +
       `     html: ${v.html.slice(0, 200)}\n` +
-      `     help: ${v.helpUrl}`,
+      `     help: ${v.helpUrl}`
   )
   return `${surface}: ${unexpected.length} new (non-allowlisted) axe violation(s):\n${lines.join('\n')}`
 }
 
 /** A readable dump of known (allowlisted) violations, for console reporting. */
-export function formatKnownViolations(surface: string, known: ClassifiedViolations['known']): string {
-  if (known.length === 0) return `${surface}: 0 known (allowlisted) axe violations`
+export function formatKnownViolations(
+  surface: string,
+  known: ClassifiedViolations['known']
+): string {
+  if (known.length === 0)
+    return `${surface}: 0 known (allowlisted) axe violations`
   const lines = known.map(
-    (k, i) => `  ${i + 1}. [${k.entry.issue}] ${k.violation.id} — ${nodeSelector(k.node)} (${k.entry.note})`,
+    (k, i) =>
+      `  ${i + 1}. [${k.entry.issue}] ${k.violation.id} — ${nodeSelector(k.node)} (${k.entry.note})`
   )
   return `${surface}: ${known.length} known (allowlisted) axe violation(s):\n${lines.join('\n')}`
 }

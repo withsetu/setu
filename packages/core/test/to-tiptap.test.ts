@@ -7,8 +7,12 @@ describe('markdocToTiptap', () => {
     expect(doc).toEqual({
       type: 'doc',
       content: [
-        { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'Hello' }] },
-      ],
+        {
+          type: 'heading',
+          attrs: { level: 1 },
+          content: [{ type: 'text', text: 'Hello' }]
+        }
+      ]
     })
   })
 
@@ -22,36 +26,49 @@ describe('markdocToTiptap', () => {
       { type: 'text', text: ' ' },
       { type: 'text', text: 'i', marks: [{ type: 'italic' }] },
       { type: 'text', text: ' ' },
-      { type: 'text', text: 'c', marks: [{ type: 'code' }] },
+      { type: 'text', text: 'c', marks: [{ type: 'code' }] }
     ])
   })
 
   it('maps a known block tag (callout) to a callout node', () => {
-    const doc = markdocToTiptap('{% callout type="warning" %}\nHi\n{% /callout %}\n', {
-      knownBlockTags: new Set(['callout']),
-    })
+    const doc = markdocToTiptap(
+      '{% callout type="warning" %}\nHi\n{% /callout %}\n',
+      {
+        knownBlockTags: new Set(['callout'])
+      }
+    )
     const node = doc.content[0]!
     expect(node.type).toBe('callout')
-    expect((node.attrs as { mdAttrs: Record<string, unknown> }).mdAttrs).toMatchObject({ type: 'warning' })
+    expect(
+      (node.attrs as { mdAttrs: Record<string, unknown> }).mdAttrs
+    ).toMatchObject({ type: 'warning' })
   })
 
   it('maps a known contact tag to a contactBlock node (content-less)', () => {
-    const doc = markdocToTiptap('{% contact formId="c-1" subject=true %}\n{% /contact %}\n', {
-      knownBlockTags: new Set(['contact']),
-    })
+    const doc = markdocToTiptap(
+      '{% contact formId="c-1" subject=true %}\n{% /contact %}\n',
+      {
+        knownBlockTags: new Set(['contact'])
+      }
+    )
     const node = doc.content[0]!
     expect(node.type).toBe('contactBlock')
-    expect((node.attrs as { mdAttrs: Record<string, unknown> }).mdAttrs).toMatchObject({
+    expect(
+      (node.attrs as { mdAttrs: Record<string, unknown> }).mdAttrs
+    ).toMatchObject({
       formId: 'c-1',
-      subject: true,
+      subject: true
     })
     expect(node.content ?? []).toHaveLength(0)
   })
 
   it('treats callout as passthrough when an empty knownBlockTags set is supplied', () => {
-    const doc = markdocToTiptap('{% callout type="info" %}\nHi\n{% /callout %}\n', {
-      knownBlockTags: new Set<string>(),
-    })
+    const doc = markdocToTiptap(
+      '{% callout type="info" %}\nHi\n{% /callout %}\n',
+      {
+        knownBlockTags: new Set<string>()
+      }
+    )
     expect(doc.content[0]!.type).toBe('passthrough')
   })
 
@@ -66,7 +83,8 @@ describe('markdocToTiptap', () => {
   })
 
   it('preserves malformed Markdoc as a flagged passthrough (never dropped)', () => {
-    const src = 'Intro.\n\n{% for $p in $ps %}\n- {% $p.name %}\n{% /for %}\n\nOutro.\n'
+    const src =
+      'Intro.\n\n{% for $p in $ps %}\n- {% $p.name %}\n{% /for %}\n\nOutro.\n'
     const doc = markdocToTiptap(src)
     const flagged = doc.content.find((n) => n.type === 'passthrough')!
     expect(flagged).toBeDefined()
@@ -78,7 +96,9 @@ describe('markdocToTiptap', () => {
 
 describe('subscript/superscript inline tags', () => {
   it('maps {% sub %}/{% sup %} to subscript/superscript marks', () => {
-    const doc = markdocToTiptap('H{% sub %}2{% /sub %}O e=mc{% sup %}2{% /sup %}\n')
+    const doc = markdocToTiptap(
+      'H{% sub %}2{% /sub %}O e=mc{% sup %}2{% /sup %}\n'
+    )
     const json = JSON.stringify(doc)
     expect(json).toContain('"subscript"')
     expect(json).toContain('"superscript"')
@@ -91,9 +111,21 @@ describe('task lists + nesting (markdocToTiptap)', () => {
     expect(doc.content[0]).toEqual({
       type: 'taskList',
       content: [
-        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'todo' }] }] },
-        { type: 'taskItem', attrs: { checked: true }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'done' }] }] },
-      ],
+        {
+          type: 'taskItem',
+          attrs: { checked: false },
+          content: [
+            { type: 'paragraph', content: [{ type: 'text', text: 'todo' }] }
+          ]
+        },
+        {
+          type: 'taskItem',
+          attrs: { checked: true },
+          content: [
+            { type: 'paragraph', content: [{ type: 'text', text: 'done' }] }
+          ]
+        }
+      ]
     })
   })
 
@@ -108,7 +140,7 @@ describe('task lists + nesting (markdocToTiptap)', () => {
     const para = doc.content[0]!.content![0]!.content![0]!
     expect(para.content).toEqual([
       { type: 'text', text: 'do the ' },
-      { type: 'text', text: 'thing', marks: [{ type: 'bold' }] },
+      { type: 'text', text: 'thing', marks: [{ type: 'bold' }] }
     ])
   })
 
@@ -133,10 +165,23 @@ describe('task lists + nesting (markdocToTiptap)', () => {
           type: 'listItem',
           content: [
             { type: 'paragraph', content: [{ type: 'text', text: 'a' }] },
-            { type: 'bulletList', content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'b' }] }] }] },
-          ],
-        },
-      ],
+            {
+              type: 'bulletList',
+              content: [
+                {
+                  type: 'listItem',
+                  content: [
+                    {
+                      type: 'paragraph',
+                      content: [{ type: 'text', text: 'b' }]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
     })
   })
 
@@ -146,7 +191,10 @@ describe('task lists + nesting (markdocToTiptap)', () => {
     expect(outer.type).toBe('bulletList')
     const nested = outer.content![0]!.content![1]!
     expect(nested).toMatchObject({ type: 'taskList' })
-    expect(nested.content![0]).toMatchObject({ type: 'taskItem', attrs: { checked: true } })
+    expect(nested.content![0]).toMatchObject({
+      type: 'taskItem',
+      attrs: { checked: true }
+    })
   })
 
   it('treats a bare "- [ ]" (no text) as an empty unchecked task item', () => {
@@ -161,9 +209,18 @@ describe('task lists + nesting (markdocToTiptap)', () => {
     const doc = markdocToTiptap('- [x] done\n- [ ]\n')
     expect(doc.content[0]!.type).toBe('taskList')
     const items = doc.content[0]!.content!
-    expect(items[0]).toMatchObject({ type: 'taskItem', attrs: { checked: true } })
-    expect(items[0]!.content![0]).toEqual({ type: 'paragraph', content: [{ type: 'text', text: 'done' }] })
-    expect(items[1]).toMatchObject({ type: 'taskItem', attrs: { checked: false } })
+    expect(items[0]).toMatchObject({
+      type: 'taskItem',
+      attrs: { checked: true }
+    })
+    expect(items[0]!.content![0]).toEqual({
+      type: 'paragraph',
+      content: [{ type: 'text', text: 'done' }]
+    })
+    expect(items[1]).toMatchObject({
+      type: 'taskItem',
+      attrs: { checked: false }
+    })
     expect(items[1]!.content![0]).toEqual({ type: 'paragraph', content: [] })
   })
 
@@ -172,9 +229,19 @@ describe('task lists + nesting (markdocToTiptap)', () => {
     expect(doc.content[0]).toEqual({
       type: 'bulletList',
       content: [
-        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'a' }] }] },
-        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'b' }] }] },
-      ],
+        {
+          type: 'listItem',
+          content: [
+            { type: 'paragraph', content: [{ type: 'text', text: 'a' }] }
+          ]
+        },
+        {
+          type: 'listItem',
+          content: [
+            { type: 'paragraph', content: [{ type: 'text', text: 'b' }] }
+          ]
+        }
+      ]
     })
   })
 
@@ -182,27 +249,68 @@ describe('task lists + nesting (markdocToTiptap)', () => {
     const doc = markdocToTiptap('- [ ] a\n\n- [x] b\n')
     expect(doc.content[0]!.type).toBe('taskList')
     const items = doc.content[0]!.content!
-    expect(items[0]).toMatchObject({ type: 'taskItem', attrs: { checked: false } })
-    expect(items[0]!.content![0]).toEqual({ type: 'paragraph', content: [{ type: 'text', text: 'a' }] })
-    expect(items[1]).toMatchObject({ type: 'taskItem', attrs: { checked: true } })
+    expect(items[0]).toMatchObject({
+      type: 'taskItem',
+      attrs: { checked: false }
+    })
+    expect(items[0]!.content![0]).toEqual({
+      type: 'paragraph',
+      content: [{ type: 'text', text: 'a' }]
+    })
+    expect(items[1]).toMatchObject({
+      type: 'taskItem',
+      attrs: { checked: true }
+    })
   })
 })
 
 describe('tables (markdocToTiptap)', () => {
   it('reads a GFM table into a Tiptap table with header cells', () => {
-    const doc = markdocToTiptap('| Name | Role |\n| --- | --- |\n| Ada | Eng |\n')
+    const doc = markdocToTiptap(
+      '| Name | Role |\n| --- | --- |\n| Ada | Eng |\n'
+    )
     expect(doc.content[0]).toEqual({
       type: 'table',
       content: [
-        { type: 'tableRow', content: [
-          { type: 'tableHeader', attrs: { align: null }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Name' }] }] },
-          { type: 'tableHeader', attrs: { align: null }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Role' }] }] },
-        ] },
-        { type: 'tableRow', content: [
-          { type: 'tableCell', attrs: { align: null }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Ada' }] }] },
-          { type: 'tableCell', attrs: { align: null }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Eng' }] }] },
-        ] },
-      ],
+        {
+          type: 'tableRow',
+          content: [
+            {
+              type: 'tableHeader',
+              attrs: { align: null },
+              content: [
+                { type: 'paragraph', content: [{ type: 'text', text: 'Name' }] }
+              ]
+            },
+            {
+              type: 'tableHeader',
+              attrs: { align: null },
+              content: [
+                { type: 'paragraph', content: [{ type: 'text', text: 'Role' }] }
+              ]
+            }
+          ]
+        },
+        {
+          type: 'tableRow',
+          content: [
+            {
+              type: 'tableCell',
+              attrs: { align: null },
+              content: [
+                { type: 'paragraph', content: [{ type: 'text', text: 'Ada' }] }
+              ]
+            },
+            {
+              type: 'tableCell',
+              attrs: { align: null },
+              content: [
+                { type: 'paragraph', content: [{ type: 'text', text: 'Eng' }] }
+              ]
+            }
+          ]
+        }
+      ]
     })
   })
 
@@ -218,28 +326,44 @@ describe('tables (markdocToTiptap)', () => {
   it('reads inline marks inside cells', () => {
     const doc = markdocToTiptap('| a |\n| --- |\n| **b** |\n')
     const bodyCellPara = doc.content[0]!.content![1]!.content![0]!.content![0]!
-    expect(bodyCellPara.content).toEqual([{ type: 'text', text: 'b', marks: [{ type: 'bold' }] }])
+    expect(bodyCellPara.content).toEqual([
+      { type: 'text', text: 'b', marks: [{ type: 'bold' }] }
+    ])
   })
 })
 
 describe('text alignment (markdocToTiptap)', () => {
   it('reads an aligned paragraph into a textAlign attr', () => {
     const doc = markdocToTiptap('Centered{% align="center" %}\n')
-    expect(doc.content[0]).toEqual({ type: 'paragraph', attrs: { textAlign: 'center' }, content: [{ type: 'text', text: 'Centered' }] })
+    expect(doc.content[0]).toEqual({
+      type: 'paragraph',
+      attrs: { textAlign: 'center' },
+      content: [{ type: 'text', text: 'Centered' }]
+    })
   })
 
   it('reads an aligned heading', () => {
     const doc = markdocToTiptap('## Title{% align="right" %}\n')
-    expect(doc.content[0]).toEqual({ type: 'heading', attrs: { level: 2, textAlign: 'right' }, content: [{ type: 'text', text: 'Title' }] })
+    expect(doc.content[0]).toEqual({
+      type: 'heading',
+      attrs: { level: 2, textAlign: 'right' },
+      content: [{ type: 'text', text: 'Title' }]
+    })
   })
 
   it('leaves an unaligned paragraph attr-free (no textAlign)', () => {
     const doc = markdocToTiptap('Plain.\n')
-    expect(doc.content[0]).toEqual({ type: 'paragraph', content: [{ type: 'text', text: 'Plain.' }] })
+    expect(doc.content[0]).toEqual({
+      type: 'paragraph',
+      content: [{ type: 'text', text: 'Plain.' }]
+    })
   })
 
   it('treats align="left" as the default (no textAlign attr)', () => {
     const doc = markdocToTiptap('L{% align="left" %}\n')
-    expect(doc.content[0]).toEqual({ type: 'paragraph', content: [{ type: 'text', text: 'L' }] })
+    expect(doc.content[0]).toEqual({
+      type: 'paragraph',
+      content: [{ type: 'text', text: 'L' }]
+    })
   })
 })

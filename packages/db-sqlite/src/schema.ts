@@ -11,7 +11,7 @@ export const submissions = sqliteTable('submissions', {
   read: integer('read').notNull(), // 0/1
   sourceUrl: text('source_url'),
   sourceReferrer: text('source_referrer'),
-  sourceUserAgent: text('source_user_agent'),
+  sourceUserAgent: text('source_user_agent')
 })
 
 export const drafts = sqliteTable(
@@ -24,9 +24,9 @@ export const drafts = sqliteTable(
     metadata: text('metadata').notNull(), // JSON
     baseSha: text('base_sha'), // nullable
     createdAt: integer('created_at').notNull(), // epoch ms
-    updatedAt: integer('updated_at').notNull(), // epoch ms
+    updatedAt: integer('updated_at').notNull() // epoch ms
   },
-  (t) => [primaryKey({ columns: [t.collection, t.locale, t.slug] })],
+  (t) => [primaryKey({ columns: [t.collection, t.locale, t.slug] })]
 )
 
 export const locks = sqliteTable(
@@ -36,7 +36,7 @@ export const locks = sqliteTable(
     locale: text('locale').notNull(),
     slug: text('slug').notNull(),
     lockedBy: text('locked_by').notNull(),
-    lockedAt: integer('locked_at').notNull(), // epoch ms
+    lockedAt: integer('locked_at').notNull() // epoch ms
   },
-  (t) => [primaryKey({ columns: [t.collection, t.locale, t.slug] })],
+  (t) => [primaryKey({ columns: [t.collection, t.locale, t.slug] })]
 )

@@ -23,14 +23,23 @@ function createFakeGit(): GitPort {
     return { sha: head }
   }
   return {
-    async headSha() { return head },
-    async readFile(path) { return files.has(path) ? files.get(path)! : null },
-    commitFile: (i) => commitFiles({ changes: [{ path: i.path, content: i.content }], message: i.message, author: i.author }),
+    async headSha() {
+      return head
+    },
+    async readFile(path) {
+      return files.has(path) ? files.get(path)! : null
+    },
+    commitFile: (i) =>
+      commitFiles({
+        changes: [{ path: i.path, content: i.content }],
+        message: i.message,
+        author: i.author
+      }),
     commitFiles,
     async list(prefix) {
       const ks = [...files.keys()]
       return prefix === undefined ? ks : ks.filter((k) => k.startsWith(prefix))
-    },
+    }
   }
 }
 

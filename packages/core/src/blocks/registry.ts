@@ -23,13 +23,14 @@ export function buildRegistry(entries: BlockEntry[]): BlockRegistry {
   const blocksByTag = new Map<string, ResolvedBlock>()
   const blocks: ResolvedBlock[] = []
   for (const { tag, component, contract } of entries) {
-    if (blocksByTag.has(tag)) throw new Error(`Duplicate block tag "${tag}" across block folders`)
+    if (blocksByTag.has(tag))
+      throw new Error(`Duplicate block tag "${tag}" across block folders`)
     const block: ResolvedBlock = {
       tag,
       props: contract.props,
       component,
       ...(contract.editor ? { editor: contract.editor } : {}),
-      ...(contract.scope ? { scope: contract.scope } : {}),
+      ...(contract.scope ? { scope: contract.scope } : {})
     }
     blocksByTag.set(tag, block)
     blocks.push(block)

@@ -27,11 +27,16 @@ describe('hero block', () => {
   })
 
   it('round-trips {% hero /%} through tiptap and back', () => {
-    const src = '{% hero headline="Welcome" subhead="Build fast" image="/media/2026/06/x.webp" ctaLabel="Start" ctaHref="/start" layout="centered" /%}\n'
+    const src =
+      '{% hero headline="Welcome" subhead="Build fast" image="/media/2026/06/x.webp" ctaLabel="Start" ctaHref="/start" layout="centered" /%}\n'
     const doc = markdocToTiptap(src, KNOWN)
-    const hero = doc.content!.find((n) => n.type === 'heroBlock')
+    const hero = doc.content.find((n) => n.type === 'heroBlock')
     expect(hero).toBeDefined()
-    expect(hero!.attrs!.mdAttrs).toMatchObject({ headline: 'Welcome', layout: 'centered', image: '/media/2026/06/x.webp' })
+    expect(hero!.attrs!.mdAttrs).toMatchObject({
+      headline: 'Welcome',
+      layout: 'centered',
+      image: '/media/2026/06/x.webp'
+    })
     const out = tiptapToMarkdoc(doc)
     expect(out).toContain('{% hero')
     expect(out).toContain('headline="Welcome"')

@@ -3,10 +3,18 @@ import { TagField } from './TagField'
 import { FeaturedImageField } from './FeaturedImageField'
 import { SeoSection } from './SeoSection'
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  children
+}: {
+  title: string
+  children: React.ReactNode
+}) {
   return (
     <section className="border-b border-border/60 px-[18px] py-[18px] last:border-b-0">
-      <h2 className="mb-3 text-[13px] font-medium text-muted-foreground">{title}</h2>
+      <h2 className="mb-3 text-[13px] font-medium text-muted-foreground">
+        {title}
+      </h2>
       {children}
     </section>
   )
@@ -18,7 +26,7 @@ export function MetaPanel({
   slug,
   editable,
   onChange,
-  apiBase,
+  apiBase
 }: {
   metadata: Record<string, unknown>
   locale: string
@@ -41,7 +49,11 @@ export function MetaPanel({
       </Section>
       <Section title="Featured image">
         <FeaturedImageField
-          value={typeof metadata['featuredImage'] === 'string' ? (metadata['featuredImage'] as string) : undefined}
+          value={
+            typeof metadata['featuredImage'] === 'string'
+              ? (metadata['featuredImage'])
+              : undefined
+          }
           onChange={(next) => {
             const m = { ...metadata }
             if (next) m['featuredImage'] = next
@@ -54,14 +66,22 @@ export function MetaPanel({
       </Section>
       <Section title="Categories">
         <CategoryField
-          selected={Array.isArray(metadata['categories']) ? (metadata['categories'] as string[]) : []}
+          selected={
+            Array.isArray(metadata['categories'])
+              ? (metadata['categories'] as string[])
+              : []
+          }
           onChange={(next) => onChange({ ...metadata, categories: next })}
           editable={editable}
         />
       </Section>
       <Section title="Tags">
         <TagField
-          selected={Array.isArray(metadata['tags']) ? (metadata['tags'] as string[]) : []}
+          selected={
+            Array.isArray(metadata['tags'])
+              ? (metadata['tags'] as string[])
+              : []
+          }
           onChange={(next) => onChange({ ...metadata, tags: next })}
           editable={editable}
         />

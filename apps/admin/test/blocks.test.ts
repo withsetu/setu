@@ -41,8 +41,11 @@ describe('slashBlocks — hero deduplication', () => {
     const chain = {
       focus: () => chain,
       deleteRange: (_r: unknown) => chain,
-      insertContent: (content: unknown) => { insertedContent.push(content); return chain },
-      run: () => true,
+      insertContent: (content: unknown) => {
+        insertedContent.push(content)
+        return chain
+      },
+      run: () => true
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mockEditor = { chain: () => chain } as any

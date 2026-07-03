@@ -1,5 +1,12 @@
 import { execSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -24,7 +31,12 @@ beforeAll(() => {
   if (!existsSync(settingsPath)) {
     writeFileSync(
       settingsPath,
-      JSON.stringify({ general: { title: 'Setu Test', description: 'A test site description for capability assertions.' } }),
+      JSON.stringify({
+        general: {
+          title: 'Setu Test',
+          description: 'A test site description for capability assertions.'
+        }
+      })
     )
     wroteSettings = true
   }
@@ -40,19 +52,44 @@ beforeAll(() => {
   writeFileSync(
     join(md, 'test-cat.manifest.json'),
     JSON.stringify({
-      id: '2026/06/test-cat', format: 'webp',
-      original: { key: '2026/06/test-cat.jpg', width: 1000, height: 600, format: 'jpeg' },
+      id: '2026/06/test-cat',
+      format: 'webp',
+      original: {
+        key: '2026/06/test-cat.jpg',
+        width: 1000,
+        height: 600,
+        format: 'jpeg'
+      },
       variants: [
-        { width: 400, height: 240, key: '2026/06/test-cat-400w.webp', contentType: 'image/webp' },
-        { width: 800, height: 480, key: '2026/06/test-cat-800w.webp', contentType: 'image/webp' },
-        { width: 1000, height: 600, key: '2026/06/test-cat-1000w.webp', contentType: 'image/webp' },
-      ],
-    }),
+        {
+          width: 400,
+          height: 240,
+          key: '2026/06/test-cat-400w.webp',
+          contentType: 'image/webp'
+        },
+        {
+          width: 800,
+          height: 480,
+          key: '2026/06/test-cat-800w.webp',
+          contentType: 'image/webp'
+        },
+        {
+          width: 1000,
+          height: 600,
+          key: '2026/06/test-cat-1000w.webp',
+          contentType: 'image/webp'
+        }
+      ]
+    })
   )
   execSync('pnpm build', {
     cwd: appDir,
     stdio: 'inherit',
-    env: { ...process.env, SETU_MEDIA_DIR: mediaDir, PUBLIC_SETU_MEDIA: 'https://cdn.example.test' },
+    env: {
+      ...process.env,
+      SETU_MEDIA_DIR: mediaDir,
+      PUBLIC_SETU_MEDIA: 'https://cdn.example.test'
+    }
   })
   head = readFileSync(join(appDir, 'dist', 'index.html'), 'utf8')
 }, 180_000)
@@ -60,7 +97,8 @@ beforeAll(() => {
 afterAll(() => {
   if (mediaDir) rmSync(mediaDir, { recursive: true, force: true })
   // Remove the seeded settings.json so the worktree is left clean.
-  if (wroteSettings && existsSync(settingsPath)) rmSync(settingsPath, { force: true })
+  if (wroteSettings && existsSync(settingsPath))
+    rmSync(settingsPath, { force: true })
 })
 
 const has = (re: RegExp) => re.test(head)
@@ -71,7 +109,9 @@ describe('SITE_CAPABILITIES matches real output', () => {
     expect(SITE_CAPABILITIES.doctype).toBe(has(/<!doctype html>/i))
     expect(SITE_CAPABILITIES.langAttr).toBe(has(/<html[^>]*\slang=/i))
     expect(SITE_CAPABILITIES.title).toBe(has(/<title/i))
-    expect(SITE_CAPABILITIES.metaDescription).toBe(has(/<meta\s+name="description"/i))
+    expect(SITE_CAPABILITIES.metaDescription).toBe(
+      has(/<meta\s+name="description"/i)
+    )
     expect(SITE_CAPABILITIES.charset).toBe(has(/<meta charset/i))
     expect(SITE_CAPABILITIES.viewport).toBe(has(/name="viewport"/i))
     expect(SITE_CAPABILITIES.canonical).toBe(has(/rel="canonical"/i))
@@ -80,7 +120,9 @@ describe('SITE_CAPABILITIES matches real output', () => {
     expect(SITE_CAPABILITIES.themeColor).toBe(has(/name="theme-color"/i))
   })
   it('file-based capabilities are accurate', () => {
-    expect(SITE_CAPABILITIES.sitemap).toBe(distHas('sitemap.xml') || distHas('sitemap-index.xml'))
+    expect(SITE_CAPABILITIES.sitemap).toBe(
+      distHas('sitemap.xml') || distHas('sitemap-index.xml')
+    )
     expect(SITE_CAPABILITIES.robotsTxt).toBe(distHas('robots.txt'))
     expect(SITE_CAPABILITIES.customError).toBe(distHas('404.html'))
     expect(SITE_CAPABILITIES.llmsTxt).toBe(distHas('llms.txt'))

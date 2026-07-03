@@ -26,5 +26,5 @@ export const controlRegistry: Record<BlockControl, React.FC<ControlProps>> = {
   align: AlignControl,
   slider: SliderControl,
   category: CategoryControl,
-  tag: TagControl,
+  tag: TagControl
 }

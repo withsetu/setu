@@ -8,17 +8,19 @@ describe('settings — relatedPosts', () => {
       enabled: true,
       heading: 'Read Next',
       count: 3,
-      showImage: true,
+      showImage: true
     })
   })
 
   it('merges a partial relatedPosts override over defaults', () => {
-    const s = parseSettings({ reading: { relatedPosts: { showImage: false, count: 5 } } })
+    const s = parseSettings({
+      reading: { relatedPosts: { showImage: false, count: 5 } }
+    })
     expect(s.reading.relatedPosts).toEqual({
       enabled: true,
       heading: 'Read Next',
       count: 5,
-      showImage: false,
+      showImage: false
     })
   })
 })

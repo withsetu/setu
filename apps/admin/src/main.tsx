@@ -37,7 +37,9 @@ function DevReset() {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <BrowserRouter
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <Bootstrap>
         <NotificationProvider>
           <ActorProvider>
@@ -62,5 +64,5 @@ createRoot(document.getElementById('root')!).render(
         </NotificationProvider>
       </Bootstrap>
     </BrowserRouter>
-  </StrictMode>,
+  </StrictMode>
 )

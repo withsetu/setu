@@ -6,8 +6,15 @@ import { isIconName } from '../src/ui/Icon'
 
 const make = () =>
   new Editor({
-    extensions: [StarterKit.configure({ link: { openOnClick: false }, underline: false })],
-    content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'hello' }] }] },
+    extensions: [
+      StarterKit.configure({ link: { openOnClick: false }, underline: false })
+    ],
+    content: {
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'hello' }] }
+      ]
+    }
   })
 
 describe('BLOCK_TYPES registry', () => {
@@ -22,7 +29,15 @@ describe('BLOCK_TYPES registry', () => {
   })
   it('offers H2/H3/H4 (not H1) and the expected block ids', () => {
     expect(BLOCK_TYPES.map((b) => b.id)).toEqual([
-      'paragraph', 'h2', 'h3', 'h4', 'bulletList', 'orderedList', 'blockquote', 'codeBlock', 'taskList',
+      'paragraph',
+      'h2',
+      'h3',
+      'h4',
+      'bulletList',
+      'orderedList',
+      'blockquote',
+      'codeBlock',
+      'taskList'
     ])
   })
 })
@@ -35,7 +50,10 @@ describe('currentBlockType', () => {
   })
   it('reflects an applied heading and list', () => {
     const e = make()
-    e.chain().setTextSelection({ from: 1, to: 6 }).setNode('heading', { level: 3 }).run()
+    e.chain()
+      .setTextSelection({ from: 1, to: 6 })
+      .setNode('heading', { level: 3 })
+      .run()
     expect(currentBlockType(e).id).toBe('h3')
     e.chain().setNode('paragraph').toggleBulletList().run()
     expect(currentBlockType(e).id).toBe('bulletList')

@@ -23,7 +23,7 @@ export function listenersOf(port, run = lsof) {
 function lsof(port) {
   try {
     return execFileSync('lsof', ['-ti', `tcp:${port}`, '-sTCP:LISTEN'], {
-      stdio: ['ignore', 'pipe', 'ignore'],
+      stdio: ['ignore', 'pipe', 'ignore']
     }).toString()
   } catch {
     // lsof exits non-zero when nothing is listening — that's "no PIDs", not an error.
@@ -63,11 +63,15 @@ export async function stop(pids, kill = process.kill, sleepFn = sleep) {
 async function main() {
   const ports = process.argv.slice(2).filter(Boolean)
   if (ports.length === 0) {
-    console.log('free-ports: no ports given (usage: node scripts/free-ports.mjs 4321 4444 5173)')
+    console.log(
+      'free-ports: no ports given (usage: node scripts/free-ports.mjs 4321 4444 5173)'
+    )
     return
   }
   if (platform() === 'win32') {
-    console.log('free-ports: Windows is unsupported; skipping (start your dev stack manually).')
+    console.log(
+      'free-ports: Windows is unsupported; skipping (start your dev stack manually).'
+    )
     return
   }
   for (const port of ports) {
@@ -77,7 +81,9 @@ async function main() {
       continue
     }
     await stop(pids)
-    console.log(`port ${port}: stopped ${pids.length} listener(s) (pid ${pids.join(', ')})`)
+    console.log(
+      `port ${port}: stopped ${pids.length} listener(s) (pid ${pids.join(', ')})`
+    )
   }
 }
 

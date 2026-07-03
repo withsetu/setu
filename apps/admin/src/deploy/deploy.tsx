@@ -23,7 +23,10 @@ const DeployContext = createContext<DeployApi | null>(null)
 
 export function DeployProvider({ children }: { children: ReactNode }) {
   const { git } = useServices()
-  const [state, setState] = useState<DeployState>({ snapshot: new Map(), sha: null })
+  const [state, setState] = useState<DeployState>({
+    snapshot: new Map(),
+    sha: null
+  })
 
   const deploy = useCallback(async () => {
     const paths = await git.list('content/')
@@ -37,13 +40,21 @@ export function DeployProvider({ children }: { children: ReactNode }) {
     setState({ snapshot: next, sha })
   }, [git])
 
-  const deployedAt = useCallback((path: string) => state.snapshot.get(path) ?? null, [state])
+  const deployedAt = useCallback(
+    (path: string) => state.snapshot.get(path) ?? null,
+    [state]
+  )
 
-  return <DeployContext.Provider value={{ deployedAt, sha: state.sha, deploy }}>{children}</DeployContext.Provider>
+  return (
+    <DeployContext.Provider value={{ deployedAt, sha: state.sha, deploy }}>
+      {children}
+    </DeployContext.Provider>
+  )
 }
 
 export function useDeploy(): DeployApi {
   const ctx = useContext(DeployContext)
-  if (ctx === null) throw new Error('useDeploy must be used within a DeployProvider')
+  if (ctx === null)
+    throw new Error('useDeploy must be used within a DeployProvider')
   return ctx
 }

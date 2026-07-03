@@ -8,9 +8,13 @@ import { attrString, attrStringOrUndefined } from '../attr-string'
 
 function HeroBlockView({ node, editor }: ReactNodeViewProps) {
   const md = (node.attrs.mdAttrs ?? {}) as Record<string, unknown>
-  const apiBase = (editor.storage as unknown as { imageBlock?: { apiBase?: string } }).imageBlock?.apiBase ?? ''
+  const apiBase =
+    (editor.storage as unknown as { imageBlock?: { apiBase?: string } })
+      .imageBlock?.apiBase ?? ''
   const imageAttr = attrStringOrUndefined(md['image'])
-  const image = imageAttr ? resolveMediaSrc(imageAttr, apiBase || undefined) : undefined
+  const image = imageAttr
+    ? resolveMediaSrc(imageAttr, apiBase || undefined)
+    : undefined
   return (
     <NodeViewWrapper>
       <div className="setu-block" data-tag="hero" contentEditable={false}>
@@ -42,15 +46,20 @@ export const HeroBlock = Node.create({
   draggable: true,
   selectable: true,
   addAttributes() {
-    return { mdAttrs: { default: {}, renderHTML: () => ({}), parseHTML: () => ({}) } }
+    return {
+      mdAttrs: { default: {}, renderHTML: () => ({}), parseHTML: () => ({}) }
+    }
   },
   parseHTML() {
     return [{ tag: 'div[data-setu-hero-block]' }]
   },
   renderHTML({ HTMLAttributes }) {
-    return ['div', mergeAttributes(HTMLAttributes, { 'data-setu-hero-block': '' })]
+    return [
+      'div',
+      mergeAttributes(HTMLAttributes, { 'data-setu-hero-block': '' })
+    ]
   },
   addNodeView() {
     return ReactNodeViewRenderer(HeroBlockView)
-  },
+  }
 })

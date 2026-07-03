@@ -5,7 +5,7 @@ import {
   Dialog,
   DialogContent,
   DialogHeader,
-  DialogTitle,
+  DialogTitle
 } from '@/components/ui/dialog'
 
 const GROUP_ORDER: ShortcutGroup[] = ['Formatting', 'Links', 'Blocks', 'Help']
@@ -14,7 +14,7 @@ const GROUP_ORDER: ShortcutGroup[] = ['Formatting', 'Links', 'Blocks', 'Help']
  *  closes on Esc, overlay click, or the built-in close button. */
 export function ShortcutsDialog({
   open,
-  onClose,
+  onClose
 }: {
   open: boolean
   onClose: () => void
@@ -22,7 +22,12 @@ export function ShortcutsDialog({
   const mac = detectMac()
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) onClose()
+      }}
+    >
       <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Keyboard shortcuts</DialogTitle>
@@ -37,7 +42,10 @@ export function ShortcutsDialog({
                 {group}
               </h3>
               {items.map((s) => (
-                <div key={s.id} className="flex items-center justify-between py-1">
+                <div
+                  key={s.id}
+                  className="flex items-center justify-between py-1"
+                >
                   <span className="text-sm">{s.label}</span>
                   <span className="inline-flex items-center rounded border bg-muted px-1.5 text-xs font-mono">
                     {formatKeys(s.keys, mac)}

@@ -6,7 +6,11 @@ import { ActorProvider } from '../src/auth/actor'
 import { AppSidebar } from '../src/shell/AppSidebar'
 
 vi.mock('../src/deploy/deploy', () => ({
-  useDeploy: () => ({ deployedAt: () => null, sha: null, deploy: () => Promise.resolve() }),
+  useDeploy: () => ({
+    deployedAt: () => null,
+    sha: null,
+    deploy: () => Promise.resolve()
+  })
 }))
 
 const renderSidebar = () =>
@@ -17,7 +21,7 @@ const renderSidebar = () =>
           <AppSidebar />
         </SidebarProvider>
       </ActorProvider>
-    </MemoryRouter>,
+    </MemoryRouter>
   )
 
 afterEach(() => {
@@ -28,7 +32,15 @@ afterEach(() => {
 describe('AppSidebar (nav coverage)', () => {
   it('renders the admin navigation (PRD §24 IA)', () => {
     renderSidebar()
-    for (const label of ['Dashboard', 'Posts', 'Pages', 'Media', 'Forms', 'Appearance', 'Settings']) {
+    for (const label of [
+      'Dashboard',
+      'Posts',
+      'Pages',
+      'Media',
+      'Forms',
+      'Appearance',
+      'Settings'
+    ]) {
       expect(screen.getByRole('link', { name: label })).toBeInTheDocument()
     }
   })
@@ -46,7 +58,15 @@ describe('AppSidebar (nav coverage)', () => {
 
   it('renders an icon for every nav item', () => {
     renderSidebar()
-    for (const label of ['Dashboard', 'Posts', 'Pages', 'Media', 'Forms', 'Appearance', 'Settings']) {
+    for (const label of [
+      'Dashboard',
+      'Posts',
+      'Pages',
+      'Media',
+      'Forms',
+      'Appearance',
+      'Settings'
+    ]) {
       const link = screen.getByRole('link', { name: label })
       expect(link.querySelector('svg')).not.toBeNull()
     }

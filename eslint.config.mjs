@@ -43,7 +43,7 @@ const IGNORES = [
   // Frozen pre-rebrand spikes with their own package.json/lockfile — see header comment
   'prototype/**',
   // Not TS/JS — out of scope for this increment (see header comment)
-  '**/*.astro',
+  '**/*.astro'
 ]
 
 export default tseslint.config(
@@ -63,7 +63,7 @@ export default tseslint.config(
       'packages/*/**/*.{ts,tsx}',
       'apps/*/**/*.{ts,tsx}',
       'e2e/**/*.ts',
-      'blocks/*/block.ts',
+      'blocks/*/block.ts'
     ],
     extends: [...tseslint.configs.recommendedTypeChecked],
     languageOptions: {
@@ -84,7 +84,7 @@ export default tseslint.config(
           allowDefaultProject: [
             'packages/*/vitest.config.ts',
             'apps/*/vitest.config.ts',
-            'apps/*/vite.config.ts',
+            'apps/*/vite.config.ts'
           ],
           // 17 packages follow this convention identically (verified by grep — every
           // vitest.config.ts in the repo is a root-level tool config outside its
@@ -93,10 +93,10 @@ export default tseslint.config(
           // file is negligible next to the type-aware program builds this repo already
           // pays for src/test. Opting into the explicit "THIS_WILL_SLOW_DOWN_LINTING"
           // flag rather than silently letting the guard reject the glob.
-          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 20,
+          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 20
         },
-        tsconfigRootDir: import.meta.dirname,
-      },
+        tsconfigRootDir: import.meta.dirname
+      }
     },
     rules: {
       // Repo has no noUnusedLocals/noUnusedParameters in tsconfig.base.json (tracked
@@ -106,7 +106,11 @@ export default tseslint.config(
       // and `(_view, event)` callbacks) so it's the ignore pattern, not a new rule.
       '@typescript-eslint/no-unused-vars': [
         'error',
-        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_'
+        }
       ],
       // TUNED OFF (T2 decision, #267): 194 hits at baseline, every sampled one the same
       // legitimate pattern — an `async` function with no `await`, written to CONFORM to
@@ -118,8 +122,8 @@ export default tseslint.config(
       // Sampled ~15 sites across src+test: zero real missing-awaits. A truly forgotten
       // await is still caught by no-floating-promises / no-misused-promises (both ON via
       // recommendedTypeChecked).
-      '@typescript-eslint/require-await': 'off',
-    },
+      '@typescript-eslint/require-await': 'off'
+    }
   },
 
   // ---- react-hooks + jsx-a11y, admin ONLY (per #267 scope) ----
@@ -127,41 +131,46 @@ export default tseslint.config(
     files: ['apps/admin/src/**/*.{ts,tsx}', 'apps/admin/test/**/*.{ts,tsx}'],
     plugins: {
       'react-hooks': reactHooks,
-      'jsx-a11y': jsxA11y.flatConfigs.recommended.plugins['jsx-a11y'],
+      'jsx-a11y': jsxA11y.flatConfigs.recommended.plugins['jsx-a11y']
     },
     languageOptions: jsxA11y.flatConfigs.recommended.languageOptions,
     rules: {
       ...reactHooks.configs.flat.recommended.rules,
-      ...jsxA11y.flatConfigs.recommended.rules,
-    },
+      ...jsxA11y.flatConfigs.recommended.rules
+    }
   },
 
   // ---- Non-type-aware base for loose root/config scripts (no tsconfig covers these) ----
   {
-    files: ['scripts/*.mjs', '*.mjs', 'apps/*/*.config.mjs', 'apps/*/integrations/**/*.mjs'],
-    languageOptions: { globals: globals.node },
+    files: [
+      'scripts/*.mjs',
+      '*.mjs',
+      'apps/*/*.config.mjs',
+      'apps/*/integrations/**/*.mjs'
+    ],
+    languageOptions: { globals: globals.node }
   },
 
   // ---- Global language options ----
   {
     files: ['**/*.{ts,tsx,mjs,js}'],
     languageOptions: {
-      globals: { ...globals.node },
-    },
+      globals: { ...globals.node }
+    }
   },
   {
     files: ['**/*.test.{ts,tsx}', 'e2e/**/*.ts'],
     languageOptions: {
-      globals: { ...globals.node, ...globals.vitest },
-    },
+      globals: { ...globals.node, ...globals.vitest }
+    }
   },
   {
     files: ['apps/admin/src/**/*.{ts,tsx}', 'apps/site/**/*.{ts,tsx}'],
     languageOptions: {
-      globals: { ...globals.browser },
-    },
+      globals: { ...globals.browser }
+    }
   },
 
   // ---- Prettier last: turn off any ESLint stylistic rule that would fight Prettier ----
-  eslintConfigPrettier,
+  eslintConfigPrettier
 )

@@ -9,14 +9,26 @@ function PassthroughView({ node }: ReactNodeViewProps) {
   const raw = attrString(attrs['raw'])
   const flagged = Boolean(attrs['flagged'])
   return (
-    <NodeViewWrapper className={`blk-dynamic${flagged ? ' is-flagged' : ''}`} contentEditable={false} aria-label="Preserved Markdoc block (read-only)">
+    <NodeViewWrapper
+      className={`blk-dynamic${flagged ? ' is-flagged' : ''}`}
+      contentEditable={false}
+      aria-label="Preserved Markdoc block (read-only)"
+    >
       <div className="dyn-rail" />
       <div className="dyn-head">
-        <span className="dyn-ic"><Icon name="zap" size={15} /></span>
-        <span className="dyn-title">{flagged ? 'Unparsed Markdoc' : 'Advanced Markdoc'}</span>
-        <span className="dyn-lock"><Icon name="lock" size={14} /></span>
+        <span className="dyn-ic">
+          <Icon name="zap" size={15} />
+        </span>
+        <span className="dyn-title">
+          {flagged ? 'Unparsed Markdoc' : 'Advanced Markdoc'}
+        </span>
+        <span className="dyn-lock">
+          <Icon name="lock" size={14} />
+        </span>
       </div>
-      <pre className="dyn-raw"><code>{raw}</code></pre>
+      <pre className="dyn-raw">
+        <code>{raw}</code>
+      </pre>
     </NodeViewWrapper>
   )
 }
@@ -32,7 +44,7 @@ export const Passthrough = Node.create({
   addAttributes() {
     return {
       raw: { default: '', renderHTML: () => ({}), parseHTML: () => ({}) },
-      flagged: { default: false, renderHTML: () => ({}), parseHTML: () => ({}) },
+      flagged: { default: false, renderHTML: () => ({}), parseHTML: () => ({}) }
     }
   },
   parseHTML() {
@@ -43,5 +55,5 @@ export const Passthrough = Node.create({
   },
   addNodeView() {
     return ReactNodeViewRenderer(PassthroughView)
-  },
+  }
 })

@@ -2,7 +2,11 @@ import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createMemoryDataPort } from '@setu/db-memory'
 import { createMemoryGitPort } from '@setu/git-memory'
-import { createIdbDataPort, createIdbIndexPort, createIdbMediaIndexPort } from '@setu/db-idb'
+import {
+  createIdbDataPort,
+  createIdbIndexPort,
+  createIdbMediaIndexPort
+} from '@setu/db-idb'
 import { createIdbGitPort } from '@setu/git-idb'
 import { createHttpGitPort } from '@setu/git-http'
 import { createMediaIndexService } from '@setu/core'
@@ -30,9 +34,18 @@ export function Bootstrap({ children }: { children: ReactNode }) {
         // Persistent, cross-tab content index (shared via IndexedDB).
         const index = await createIdbIndexPort()
         const mediaIndexPort = await createIdbMediaIndexPort()
-        const mediaIndex = createMediaIndexService({ mediaIndex: mediaIndexPort, fetchRaw: () => fetchMediaIndex(apiBase) })
+        const mediaIndex = createMediaIndexService({
+          mediaIndex: mediaIndexPort,
+          fetchRaw: () => fetchMediaIndex(apiBase)
+        })
         const submissions = createHttpSubmissionAdapter({ baseUrl: apiBase })
-        ready = await bootstrapServices(data, git, index, mediaIndex, submissions)
+        ready = await bootstrapServices(
+          data,
+          git,
+          index,
+          mediaIndex,
+          submissions
+        )
       } else {
         try {
           const data = await createIdbDataPort()
@@ -40,11 +53,20 @@ export function Bootstrap({ children }: { children: ReactNode }) {
           // Persistent, cross-tab content index (shared via IndexedDB).
           const index = await createIdbIndexPort()
           const mediaIndexPort = await createIdbMediaIndexPort()
-          const mediaIndex = createMediaIndexService({ mediaIndex: mediaIndexPort, fetchRaw: async () => [] })
+          const mediaIndex = createMediaIndexService({
+            mediaIndex: mediaIndexPort,
+            fetchRaw: async () => []
+          })
           ready = await bootstrapServices(data, git, index, mediaIndex)
         } catch (err) {
-          console.error('IndexedDB unavailable — using in-memory storage for this session.', err)
-          ready = await bootstrapServices(createMemoryDataPort(), createMemoryGitPort())
+          console.error(
+            'IndexedDB unavailable — using in-memory storage for this session.',
+            err
+          )
+          ready = await bootstrapServices(
+            createMemoryDataPort(),
+            createMemoryGitPort()
+          )
         }
       }
       if (live) setServices(ready)

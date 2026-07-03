@@ -1,7 +1,14 @@
 // Smoke test for the content sandbox manager. Runs against a temp repo root (node:test).
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
@@ -37,7 +44,11 @@ test('seed is a no-op when the sandbox already exists', () => {
   const root = makeRoot()
   try {
     seedSandbox(root, 'dev')
-    const marker = path.join(sandboxPath(root, 'dev'), 'content', 'edited-by-uat.mdoc')
+    const marker = path.join(
+      sandboxPath(root, 'dev'),
+      'content',
+      'edited-by-uat.mdoc'
+    )
     writeFileSync(marker, 'x') // simulate UAT-created content
     const second = seedSandbox(root, 'dev')
     assert.equal(second, false, 'second seed is a no-op')
@@ -51,13 +62,25 @@ test('reset wipes UAT changes and re-seeds from canonical', () => {
   const root = makeRoot()
   try {
     seedSandbox(root, 'dev')
-    const marker = path.join(sandboxPath(root, 'dev'), 'content', 'edited-by-uat.mdoc')
+    const marker = path.join(
+      sandboxPath(root, 'dev'),
+      'content',
+      'edited-by-uat.mdoc'
+    )
     writeFileSync(marker, 'x')
     resetSandbox(root, 'dev')
     assert.ok(!existsSync(marker), 'UAT change was blasted')
     assert.ok(
-      existsSync(path.join(sandboxPath(root, 'dev'), 'content', 'post', 'en', 'hello.mdoc')),
-      're-seeded from canonical',
+      existsSync(
+        path.join(
+          sandboxPath(root, 'dev'),
+          'content',
+          'post',
+          'en',
+          'hello.mdoc'
+        )
+      ),
+      're-seeded from canonical'
     )
   } finally {
     rmSync(root, { recursive: true, force: true })

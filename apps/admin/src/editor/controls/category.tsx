@@ -4,7 +4,7 @@ import {
   SelectTrigger,
   SelectValue,
   SelectContent,
-  SelectItem,
+  SelectItem
 } from '@/components/ui/select'
 import type { ControlProps } from './types'
 
@@ -16,7 +16,10 @@ export function CategoryControl({ value, onChange, meta }: ControlProps) {
   const { categories } = useTaxonomy()
   const val = typeof value === 'string' ? value : ''
   return (
-    <Select value={val || ANY} onValueChange={(v) => onChange(v === ANY ? '' : v)}>
+    <Select
+      value={val || ANY}
+      onValueChange={(v) => onChange(v === ANY ? '' : v)}
+    >
       <SelectTrigger id={`bi-${meta.name}`} aria-label={meta.name}>
         <SelectValue placeholder="Any category" />
       </SelectTrigger>

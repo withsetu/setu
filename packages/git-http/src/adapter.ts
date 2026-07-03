@@ -1,4 +1,9 @@
-import type { GitPort, CommitInput, CommitFilesInput, CommitResult } from '@setu/core'
+import type {
+  GitPort,
+  CommitInput,
+  CommitFilesInput,
+  CommitResult
+} from '@setu/core'
 
 export interface HttpGitOptions {
   /** Base URL of the Setu git API (e.g. http://localhost:4444). */
@@ -22,36 +27,47 @@ export function createHttpGitPort(opts: HttpGitOptions): GitPort {
     return (await res.json()) as T
   }
 
-  const commitFiles = async (input: CommitFilesInput): Promise<CommitResult> => {
+  const commitFiles = async (
+    input: CommitFilesInput
+  ): Promise<CommitResult> => {
     const { sha } = await json<{ sha: string }>(
       await doFetch(url('/git/commit-files'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(input),
-      }),
+        body: JSON.stringify(input)
+      })
     )
     return { sha }
   }
 
   return {
     async headSha() {
-      const { sha } = await json<{ sha: string | null }>(await doFetch(url('/git/head')))
+      const { sha } = await json<{ sha: string | null }>(
+        await doFetch(url('/git/head'))
+      )
       return sha
     },
     async readFile(path) {
       const { content } = await json<{ content: string | null }>(
-        await doFetch(url(`/git/file?path=${encodeURIComponent(path)}`)),
+        await doFetch(url(`/git/file?path=${encodeURIComponent(path)}`))
       )
       return content
     },
     commitFile(input: CommitInput): Promise<CommitResult> {
-      return commitFiles({ changes: [{ path: input.path, content: input.content }], message: input.message, author: input.author })
+      return commitFiles({
+        changes: [{ path: input.path, content: input.content }],
+        message: input.message,
+        author: input.author
+      })
     },
     commitFiles,
     async list(prefix?: string) {
-      const q = prefix === undefined ? '' : `?prefix=${encodeURIComponent(prefix)}`
-      const { paths } = await json<{ paths: string[] }>(await doFetch(url(`/git/list${q}`)))
+      const q =
+        prefix === undefined ? '' : `?prefix=${encodeURIComponent(prefix)}`
+      const { paths } = await json<{ paths: string[] }>(
+        await doFetch(url(`/git/list${q}`))
+      )
       return paths
-    },
+    }
   }
 }

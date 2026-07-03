@@ -11,7 +11,9 @@ export function StripStatus({ lifecycle }: { lifecycle: Lifecycle }) {
   return (
     <span className="inline-flex items-center gap-1.5">
       <Badge variant={variant}>{label}</Badge>
-      {pending && <span className="text-xs text-muted-foreground">· {pending}</span>}
+      {pending && (
+        <span className="text-xs text-muted-foreground">· {pending}</span>
+      )}
     </span>
   )
 }

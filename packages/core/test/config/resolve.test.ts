@@ -5,12 +5,14 @@ import { resolveConfig } from '../../src/index'
 const block = (tag: string) => ({
   tag,
   props: z.object({ type: z.string().optional() }),
-  component: `./${tag}.astro`,
+  component: `./${tag}.astro`
 })
 
 describe('resolveConfig', () => {
   it('indexes blocks and derives knownBlockTags from a valid config', () => {
-    const resolved = resolveConfig({ blocks: [block('callout'), block('hero')] })
+    const resolved = resolveConfig({
+      blocks: [block('callout'), block('hero')]
+    })
     expect(resolved.blocks.map((b) => b.tag)).toEqual(['callout', 'hero'])
     expect(resolved.blocksByTag.get('hero')?.component).toBe('./hero.astro')
     expect([...resolved.knownBlockTags]).toEqual(['callout', 'hero'])
@@ -33,13 +35,17 @@ describe('resolveConfig', () => {
   })
 
   it('throws when props is not a Zod schema', () => {
-    const bad = { blocks: [{ tag: 'callout', props: { type: 'string' }, component: './x.astro' }] }
+    const bad = {
+      blocks: [
+        { tag: 'callout', props: { type: 'string' }, component: './x.astro' }
+      ]
+    }
     expect(() => resolveConfig(bad)).toThrow(/zod schema/i)
   })
 
   it('throws on a duplicate block tag, naming the tag', () => {
-    expect(() => resolveConfig({ blocks: [block('callout'), block('callout')] })).toThrow(
-      /Duplicate block tag "callout"/,
-    )
+    expect(() =>
+      resolveConfig({ blocks: [block('callout'), block('callout')] })
+    ).toThrow(/Duplicate block tag "callout"/)
   })
 })

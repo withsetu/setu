@@ -3,7 +3,11 @@ import { useSearchParams } from 'react-router-dom'
 import type { MediaIndexRow, MediaUsage } from '@setu/core'
 import { PageHeader } from '../shell/PageHeader'
 import { PageBody } from '../shell/PageBody'
-import { MediaBrowser, parseSortValue, sortValueOf } from '../media/MediaBrowser'
+import {
+  MediaBrowser,
+  parseSortValue,
+  sortValueOf
+} from '../media/MediaBrowser'
 import type { MediaFilters } from '../media/MediaBrowser'
 import { useMediaIndex } from '../data/media-index-store'
 import { useServices } from '../data/store'
@@ -11,7 +15,12 @@ import { deleteMedia } from '../media/media-client'
 import { resolveMediaSrc } from '../editor/media-src'
 import type { UploadResult } from '../media/upload-client'
 import { useNotify } from '../ui/notify'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle
+} from '@/components/ui/sheet'
 import {
   AlertDialog,
   AlertDialogContent,
@@ -20,11 +29,11 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogCancel,
-  AlertDialogAction,
+  AlertDialogAction
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 
-const apiBase = (import.meta.env.VITE_SETU_API as string | undefined) ?? ''
+const apiBase = (import.meta.env.VITE_SETU_API) ?? ''
 
 function humanSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -47,21 +56,27 @@ export function Media() {
   const filters: MediaFilters = {
     q: params.get('q') ?? '',
     type: (params.get('type') ?? 'all') as MediaFilters['type'],
-    sort: parseSortValue(params.get('sort')),
+    sort: parseSortValue(params.get('sort'))
   }
   const setFilters = (patch: Partial<MediaFilters>) => {
     setParams(
       (prev) => {
         const next = new URLSearchParams(prev)
-        if ('q' in patch) { patch.q ? next.set('q', patch.q) : next.delete('q') }
-        if ('type' in patch) { patch.type && patch.type !== 'all' ? next.set('type', patch.type) : next.delete('type') }
+        if ('q' in patch) {
+          patch.q ? next.set('q', patch.q) : next.delete('q')
+        }
+        if ('type' in patch) {
+          patch.type && patch.type !== 'all'
+            ? next.set('type', patch.type)
+            : next.delete('type')
+        }
         if ('sort' in patch && patch.sort) {
           const v = sortValueOf(patch.sort)
           v === 'uploadedAt-desc' ? next.delete('sort') : next.set('sort', v)
         }
         return next
       },
-      { replace: true },
+      { replace: true }
     )
   }
 
@@ -73,8 +88,11 @@ export function Media() {
 
   async function requestDelete() {
     if (!selected) return
-    try { setUsedBy(await index.referencedBy(selected.mediaKey)) }
-    catch { setUsedBy([]) }
+    try {
+      setUsedBy(await index.referencedBy(selected.mediaKey))
+    } catch {
+      setUsedBy([])
+    }
     setConfirmOpen(true)
   }
 
@@ -124,23 +142,40 @@ export function Media() {
           refreshKey={refreshKey}
         />
 
-        <Sheet open={selected !== null} onOpenChange={(o) => { if (!o) setSelected(null) }}>
+        <Sheet
+          open={selected !== null}
+          onOpenChange={(o) => {
+            if (!o) setSelected(null)
+          }}
+        >
           <SheetContent className="w-80 gap-0 p-0" aria-label="Media details">
             <SheetHeader className="border-b p-4">
               <SheetTitle className="sr-only">Media details</SheetTitle>
-              <h2 className="truncate text-sm font-semibold">{selected?.filename}</h2>
+              <h2 className="truncate text-sm font-semibold">
+                {selected?.filename}
+              </h2>
             </SheetHeader>
             {selected && (
               <>
                 <div className="flex flex-1 flex-col gap-1 overflow-y-auto p-4">
-                  {selected.isImage && selected.width != null && selected.height != null && (
-                    <p className="text-xs text-foreground/80">{selected.width} × {selected.height}px</p>
-                  )}
-                  <p className="text-xs text-foreground/80">{humanSize(selected.bytes)}</p>
-                  <p className="text-xs text-muted-foreground">{selected.contentType}</p>
+                  {selected.isImage &&
+                    selected.width != null &&
+                    selected.height != null && (
+                      <p className="text-xs text-foreground/80">
+                        {selected.width} × {selected.height}px
+                      </p>
+                    )}
+                  <p className="text-xs text-foreground/80">
+                    {humanSize(selected.bytes)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {selected.contentType}
+                  </p>
                 </div>
                 <div className="flex gap-2 border-t p-4">
-                  <Button variant="outline" size="sm" onClick={onCopyUrl}>Copy URL</Button>
+                  <Button variant="outline" size="sm" onClick={onCopyUrl}>
+                    Copy URL
+                  </Button>
                   <Button
                     variant="destructive"
                     size="sm"
@@ -164,7 +199,9 @@ export function Media() {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={() => void confirmDelete()}>Delete</AlertDialogAction>
+              <AlertDialogAction onClick={() => void confirmDelete()}>
+                Delete
+              </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

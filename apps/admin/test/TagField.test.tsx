@@ -8,12 +8,21 @@ import { DeployProvider } from '../src/deploy/deploy'
 import { IndexProvider } from '../src/data/index-store'
 import { TagField } from '../src/editor/TagField'
 
-const doc = (t: string): TiptapDoc => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] })
+const doc = (t: string): TiptapDoc => ({
+  type: 'doc',
+  content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }]
+})
 
 function setup(selected: string[] = []) {
   const onChange = vi.fn()
   const data = createMemoryDataPort([
-    { collection: 'post', locale: 'en', slug: 'seed', content: doc('x'), metadata: { title: 'Seed', tags: ['react', 'redux'] } },
+    {
+      collection: 'post',
+      locale: 'en',
+      slug: 'seed',
+      content: doc('x'),
+      metadata: { title: 'Seed', tags: ['react', 'redux'] }
+    }
   ])
   const services = servicesFor(data, createMemoryGitPort())
   render(
@@ -23,7 +32,7 @@ function setup(selected: string[] = []) {
           <TagField selected={selected} onChange={onChange} editable />
         </IndexProvider>
       </DeployProvider>
-    </ServicesProvider>,
+    </ServicesProvider>
   )
   return { onChange }
 }
@@ -45,10 +54,14 @@ describe('TagField', () => {
       <ServicesProvider services={services}>
         <DeployProvider>
           <IndexProvider>
-            <TagField selected={['react']} onChange={onChange} editable={false} />
+            <TagField
+              selected={['react']}
+              onChange={onChange}
+              editable={false}
+            />
           </IndexProvider>
         </DeployProvider>
-      </ServicesProvider>,
+      </ServicesProvider>
     )
     expect(screen.queryByLabelText('Remove react')).toBeNull()
     expect(screen.getByText('react')).toBeTruthy()

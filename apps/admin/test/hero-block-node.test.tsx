@@ -10,7 +10,10 @@ function Harness({ mdAttrs }: { mdAttrs: Record<string, unknown> }) {
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [StarterKit, HeroBlock],
-    content: { type: 'doc', content: [{ type: 'heroBlock', attrs: { mdAttrs } }] },
+    content: {
+      type: 'doc',
+      content: [{ type: 'heroBlock', attrs: { mdAttrs } }]
+    }
   })
   return <EditorContent editor={editor} />
 }
@@ -23,8 +26,18 @@ describe('HeroBlock node view', () => {
   })
 
   it('renders the hero with its layout + headline', async () => {
-    render(<Harness mdAttrs={{ headline: 'Hi', layout: 'background', textPosition: 'bottom-left' }} />)
+    render(
+      <Harness
+        mdAttrs={{
+          headline: 'Hi',
+          layout: 'background',
+          textPosition: 'bottom-left'
+        }}
+      />
+    )
     expect(await screen.findByText('Hi')).toBeTruthy()
-    expect(document.querySelector('.blk-hero.layout-background.pos-bottom-left')).toBeTruthy()
+    expect(
+      document.querySelector('.blk-hero.layout-background.pos-bottom-left')
+    ).toBeTruthy()
   })
 })

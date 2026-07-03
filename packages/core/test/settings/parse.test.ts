@@ -18,19 +18,28 @@ describe('parseSettings', () => {
 
   it('takes provided general values over defaults', () => {
     const out = parseSettings({
-      general: { title: 'T', tagline: 'G', description: 'D', timezone: 'America/New_York', dateFormat: 'YYYY-MM-DD' },
+      general: {
+        title: 'T',
+        tagline: 'G',
+        description: 'D',
+        timezone: 'America/New_York',
+        dateFormat: 'YYYY-MM-DD'
+      }
     })
     expect(out.general).toEqual({
       title: 'T',
       tagline: 'G',
       description: 'D',
       timezone: 'America/New_York',
-      dateFormat: 'YYYY-MM-DD',
+      dateFormat: 'YYYY-MM-DD'
     })
   })
 
   it('preserves unknown future top-level groups (forward-compat)', () => {
-    const out = parseSettings({ general: { title: 'X' }, future: { widths: [400, 800] } }) as unknown as Record<string, unknown>
+    const out = parseSettings({
+      general: { title: 'X' },
+      future: { widths: [400, 800] }
+    }) as unknown as Record<string, unknown>
     expect(out.future).toEqual({ widths: [400, 800] })
     expect((out.general as { title: string }).title).toBe('X')
   })
@@ -41,15 +50,26 @@ describe('parseSettings', () => {
   })
 
   it('deep-merges a partial reading group (incl. nested feed/markdown)', () => {
-    const out = parseSettings({ reading: { homepage: 'page/en/about', feed: { enabled: true } } })
+    const out = parseSettings({
+      reading: { homepage: 'page/en/about', feed: { enabled: true } }
+    })
     expect(out.reading.homepage).toBe('page/en/about')
-    expect(out.reading.searchEngineVisible).toBe(DEFAULT_SETTINGS.reading.searchEngineVisible)
-    expect(out.reading.feed).toEqual({ enabled: true, items: DEFAULT_SETTINGS.reading.feed.items })
+    expect(out.reading.searchEngineVisible).toBe(
+      DEFAULT_SETTINGS.reading.searchEngineVisible
+    )
+    expect(out.reading.feed).toEqual({
+      enabled: true,
+      items: DEFAULT_SETTINGS.reading.feed.items
+    })
     expect(out.reading.markdown).toEqual(DEFAULT_SETTINGS.reading.markdown)
   })
 
   it('defaults postsPerPage and honors an override', () => {
-    expect(parseSettings({}).reading.postsPerPage).toBe(DEFAULT_SETTINGS.reading.postsPerPage)
-    expect(parseSettings({ reading: { postsPerPage: 9 } }).reading.postsPerPage).toBe(9)
+    expect(parseSettings({}).reading.postsPerPage).toBe(
+      DEFAULT_SETTINGS.reading.postsPerPage
+    )
+    expect(
+      parseSettings({ reading: { postsPerPage: 9 } }).reading.postsPerPage
+    ).toBe(9)
   })
 })

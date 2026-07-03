@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
-import { CommandRegistryProvider, useRegisterCommands, type CommandAction } from '../src/command/registry'
+import {
+  CommandRegistryProvider,
+  useRegisterCommands,
+  type CommandAction
+} from '../src/command/registry'
 import { CommandPalette } from '../src/command/CommandPalette'
 
 // jsdom stubs required by cmdk / Radix:
@@ -38,9 +42,21 @@ afterEach(cleanup)
 /** Seeds three actions across two groups; one is disabled. */
 function Registrar() {
   useRegisterCommands([
-    { id: 'create-post', title: 'Alpha', group: 'Create', run: vi.fn(), keywords: 'new post' },
+    {
+      id: 'create-post',
+      title: 'Alpha',
+      group: 'Create',
+      run: vi.fn(),
+      keywords: 'new post'
+    },
     { id: 'go-home', title: 'Beta', group: 'Go to', run: vi.fn() },
-    { id: 'disabled-action', title: 'Gamma', group: 'Editor', run: vi.fn(), enabled: () => false },
+    {
+      id: 'disabled-action',
+      title: 'Gamma',
+      group: 'Editor',
+      run: vi.fn(),
+      enabled: () => false
+    }
   ])
   return null
 }
@@ -52,9 +68,21 @@ function setup() {
 
   function RegistrarWithSpies() {
     useRegisterCommands([
-      { id: 'create-post', title: 'Alpha', group: 'Create', run: runAlpha, keywords: 'new post' },
+      {
+        id: 'create-post',
+        title: 'Alpha',
+        group: 'Create',
+        run: runAlpha,
+        keywords: 'new post'
+      },
       { id: 'go-home', title: 'Beta', group: 'Go to', run: runBeta },
-      { id: 'disabled-action', title: 'Gamma', group: 'Editor', run: vi.fn(), enabled: () => false },
+      {
+        id: 'disabled-action',
+        title: 'Gamma',
+        group: 'Editor',
+        run: vi.fn(),
+        enabled: () => false
+      }
     ])
     return null
   }
@@ -63,7 +91,7 @@ function setup() {
     <CommandRegistryProvider>
       <RegistrarWithSpies />
       <CommandPalette />
-    </CommandRegistryProvider>,
+    </CommandRegistryProvider>
   )
 
   runSpies['alpha'] = runAlpha
@@ -85,7 +113,12 @@ describe('CommandPalette', () => {
     setup()
     expect(screen.queryByRole('combobox')).toBeNull()
 
-    fireEvent.keyDown(window, { key: 'P', code: 'KeyP', metaKey: true, shiftKey: true })
+    fireEvent.keyDown(window, {
+      key: 'P',
+      code: 'KeyP',
+      metaKey: true,
+      shiftKey: true
+    })
 
     expect(screen.getByRole('combobox')).toBeInTheDocument()
   })

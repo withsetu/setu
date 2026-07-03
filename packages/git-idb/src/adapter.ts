@@ -1,5 +1,10 @@
 import { openDB } from 'idb'
-import type { CommitInput, CommitFilesInput, CommitResult, GitPort } from '@setu/core'
+import type {
+  CommitInput,
+  CommitFilesInput,
+  CommitResult,
+  GitPort
+} from '@setu/core'
 
 // Deterministic 40-char hex digest (no Date.now/Math.random): 5 salted FNV-1a
 // passes. Distinct per commit because the persisted counter is mixed in.
@@ -25,10 +30,12 @@ export async function createIdbGitPort(dbName = 'setu-git'): Promise<GitPort> {
     upgrade(d) {
       d.createObjectStore('files')
       d.createObjectStore('meta')
-    },
+    }
   })
 
-  const commitFiles = async ({ changes }: CommitFilesInput): Promise<CommitResult> => {
+  const commitFiles = async ({
+    changes
+  }: CommitFilesInput): Promise<CommitResult> => {
     const tx = db.transaction(['files', 'meta'], 'readwrite')
     const filesStore = tx.objectStore('files')
     const meta = tx.objectStore('meta')
@@ -39,7 +46,9 @@ export async function createIdbGitPort(dbName = 'setu-git'): Promise<GitPort> {
           await filesStore.delete(ch.path)
           changed = true
         }
-      } else if (((await filesStore.get(ch.path)) as string | undefined) !== ch.content) {
+      } else if (
+        ((await filesStore.get(ch.path)) as string | undefined) !== ch.content
+      ) {
         await filesStore.put(ch.content, ch.path)
         changed = true
       }
@@ -49,8 +58,11 @@ export async function createIdbGitPort(dbName = 'setu-git'): Promise<GitPort> {
       await tx.done
       return { sha: prevHead }
     }
-    const counter = (((await meta.get('counter')) as number | undefined) ?? 0) + 1
-    const sha = sha40(`${counter}\0${prevHead}\0${changes.map((c) => ('delete' in c ? `D:${c.path}` : `W:${c.path}:${c.content}`)).join('\0')}`)
+    const counter =
+      (((await meta.get('counter')) as number | undefined) ?? 0) + 1
+    const sha = sha40(
+      `${counter}\0${prevHead}\0${changes.map((c) => ('delete' in c ? `D:${c.path}` : `W:${c.path}:${c.content}`)).join('\0')}`
+    )
     await meta.put(counter, 'counter')
     await meta.put(sha, 'head')
     await tx.done
@@ -65,12 +77,18 @@ export async function createIdbGitPort(dbName = 'setu-git'): Promise<GitPort> {
       return ((await db.get('files', path)) as string | undefined) ?? null
     },
     commitFile(input: CommitInput): Promise<CommitResult> {
-      return commitFiles({ changes: [{ path: input.path, content: input.content }], message: input.message, author: input.author })
+      return commitFiles({
+        changes: [{ path: input.path, content: input.content }],
+        message: input.message,
+        author: input.author
+      })
     },
     commitFiles,
     async list(prefix?: string) {
       const keys = (await db.getAllKeys('files')) as string[]
-      return prefix === undefined ? keys : keys.filter((k) => k.startsWith(prefix))
-    },
+      return prefix === undefined
+        ? keys
+        : keys.filter((k) => k.startsWith(prefix))
+    }
   }
 }

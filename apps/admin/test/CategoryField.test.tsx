@@ -10,7 +10,10 @@ import { CategoryField } from '../src/editor/CategoryField'
 
 // Radix Select calls scrollIntoView when the dropdown opens — stub it for jsdom.
 beforeAll(() => {
-  if (typeof window !== 'undefined' && !window.HTMLElement.prototype.scrollIntoView) {
+  if (
+    typeof window !== 'undefined' &&
+    !window.HTMLElement.prototype.scrollIntoView
+  ) {
     window.HTMLElement.prototype.scrollIntoView = () => {}
   }
 })
@@ -19,8 +22,8 @@ const seedWithTwo: GitSeedFile[] = [
   {
     path: 'taxonomy/categories.yaml',
     content:
-      '- slug: engineering\n  name: Engineering\n  parent: null\n- slug: news\n  name: News\n  parent: null\n',
-  },
+      '- slug: engineering\n  name: Engineering\n  parent: null\n- slug: news\n  name: News\n  parent: null\n'
+  }
 ]
 
 function setup(selected: string[] = [], editable = true) {
@@ -31,28 +34,39 @@ function setup(selected: string[] = [], editable = true) {
       <DeployProvider>
         <IndexProvider>
           <TaxonomyProvider>
-            <CategoryField selected={selected} onChange={onChange} editable={editable} />
+            <CategoryField
+              selected={selected}
+              onChange={onChange}
+              editable={editable}
+            />
           </TaxonomyProvider>
         </IndexProvider>
       </DeployProvider>
-    </ServicesProvider>,
+    </ServicesProvider>
   )
   return { onChange }
 }
 
 function setupWithSeed(selected: string[] = [], editable = true) {
   const onChange = vi.fn()
-  const services = servicesFor(createMemoryDataPort(), createMemoryGitPort(seedWithTwo))
+  const services = servicesFor(
+    createMemoryDataPort(),
+    createMemoryGitPort(seedWithTwo)
+  )
   render(
     <ServicesProvider services={services}>
       <DeployProvider>
         <IndexProvider>
           <TaxonomyProvider>
-            <CategoryField selected={selected} onChange={onChange} editable={editable} />
+            <CategoryField
+              selected={selected}
+              onChange={onChange}
+              editable={editable}
+            />
           </TaxonomyProvider>
         </IndexProvider>
       </DeployProvider>
-    </ServicesProvider>,
+    </ServicesProvider>
   )
   return { onChange }
 }
@@ -60,9 +74,13 @@ function setupWithSeed(selected: string[] = [], editable = true) {
 describe('CategoryField', () => {
   it('inline-creates a category and selects it', async () => {
     const { onChange } = setup()
-    fireEvent.change(screen.getByPlaceholderText('New category'), { target: { value: 'Tutorials' } })
+    fireEvent.change(screen.getByPlaceholderText('New category'), {
+      target: { value: 'Tutorials' }
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Add' }))
-    await waitFor(() => expect(screen.getByRole('checkbox', { name: 'Tutorials' })).toBeTruthy())
+    await waitFor(() =>
+      expect(screen.getByRole('checkbox', { name: 'Tutorials' })).toBeTruthy()
+    )
     expect(onChange).toHaveBeenCalledWith(['tutorials'])
     // error surface stays clean on success
     expect(screen.queryByRole('alert')).toBeNull()
@@ -86,8 +104,12 @@ describe('CategoryField', () => {
     setupWithSeed()
     await screen.findByRole('checkbox', { name: 'Engineering' })
     expect(screen.getByRole('checkbox', { name: 'News' })).toBeTruthy()
-    fireEvent.change(screen.getByPlaceholderText('Filter categories'), { target: { value: 'eng' } })
-    await waitFor(() => expect(screen.queryByRole('checkbox', { name: 'News' })).toBeNull())
+    fireEvent.change(screen.getByPlaceholderText('Filter categories'), {
+      target: { value: 'eng' }
+    })
+    await waitFor(() =>
+      expect(screen.queryByRole('checkbox', { name: 'News' })).toBeNull()
+    )
     expect(screen.getByRole('checkbox', { name: 'Engineering' })).toBeTruthy()
   })
 
@@ -115,11 +137,15 @@ describe('CategoryField', () => {
             </TaxonomyProvider>
           </IndexProvider>
         </DeployProvider>
-      </ServicesProvider>,
+      </ServicesProvider>
     )
-    fireEvent.change(screen.getByPlaceholderText('New category'), { target: { value: 'News' } })
+    fireEvent.change(screen.getByPlaceholderText('New category'), {
+      target: { value: 'News' }
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Add' }))
-    await waitFor(() => expect(screen.getByRole('checkbox', { name: 'News' })).toBeTruthy())
+    await waitFor(() =>
+      expect(screen.getByRole('checkbox', { name: 'News' })).toBeTruthy()
+    )
     onChange.mockClear()
     rerender(
       <ServicesProvider services={services}>
@@ -130,7 +156,7 @@ describe('CategoryField', () => {
             </TaxonomyProvider>
           </IndexProvider>
         </DeployProvider>
-      </ServicesProvider>,
+      </ServicesProvider>
     )
     fireEvent.click(screen.getByRole('checkbox', { name: 'News' }))
     expect(onChange).toHaveBeenCalledWith([])

@@ -1,5 +1,10 @@
-.muted, .empty-state { color: var(--text-3); }
-.empty-state { padding: 32px 30px; }
+.muted,
+.empty-state {
+  color: var(--text-3);
+}
+.empty-state {
+  padding: 32px 30px;
+}
 
 /* ---- FILTER TOOLBAR ---- */
 /* Horizontal, wrapping row of filter controls used by MediaBrowser and legacy list surfaces */
@@ -25,10 +30,14 @@
   border: 1px solid var(--border-strong);
   border-radius: var(--r-sm);
   outline: none;
-  transition: border-color .14s;
+  transition: border-color 0.14s;
 }
-.list-search::placeholder { color: var(--text-3); }
-.list-search:focus { border-color: var(--accent-ring); }
+.list-search::placeholder {
+  color: var(--text-3);
+}
+.list-search:focus {
+  border-color: var(--accent-ring);
+}
 
 /* Filter <select>s within the list toolbar */
 .list-toolbar select {
@@ -42,13 +51,14 @@
   border-radius: var(--r-sm);
   outline: none;
   cursor: pointer;
-  transition: border-color .14s;
+  transition: border-color 0.14s;
   appearance: auto; /* keep native OS arrow */
 }
-.list-toolbar select:focus { border-color: var(--accent-ring); }
+.list-toolbar select:focus {
+  border-color: var(--accent-ring);
+}
 
 /* tag-filter: the typeahead wrapper needs a fixed width so it doesn't grow unbounded */
 .list-toolbar .tag-filter {
   min-width: 160px;
 }
-

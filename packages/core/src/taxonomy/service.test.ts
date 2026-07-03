@@ -14,10 +14,17 @@ describe('TaxonomyService', () => {
   it('create commits the category and returns the new list + slug', async () => {
     const git = createMemoryGitPort()
     const svc = createTaxonomyService({ git, author })
-    const { categories, slug } = await svc.create({ name: 'Tutorials', parent: null })
+    const { categories, slug } = await svc.create({
+      name: 'Tutorials',
+      parent: null
+    })
     expect(slug).toBe('tutorials')
-    expect(categories).toEqual([{ slug: 'tutorials', name: 'Tutorials', parent: null }])
-    expect(parseCategories((await git.readFile(TAXONOMY_PATH))!)).toEqual(categories)
+    expect(categories).toEqual([
+      { slug: 'tutorials', name: 'Tutorials', parent: null }
+    ])
+    expect(parseCategories((await git.readFile(TAXONOMY_PATH))!)).toEqual(
+      categories
+    )
   })
 
   it('create nests under an existing parent', async () => {
@@ -26,7 +33,9 @@ describe('TaxonomyService', () => {
     await svc.create({ name: 'Tutorials', parent: null })
     const { slug } = await svc.create({ name: 'React', parent: 'tutorials' })
     expect(slug).toBe('react')
-    expect((await svc.read()).find((c) => c.slug === 'react')!.parent).toBe('tutorials')
+    expect((await svc.read()).find((c) => c.slug === 'react')!.parent).toBe(
+      'tutorials'
+    )
   })
 
   it('renameLabel and reparent persist to git', async () => {
@@ -36,9 +45,15 @@ describe('TaxonomyService', () => {
     await svc.create({ name: 'React', parent: null })
     await svc.renameLabel('tutorials', 'Guides')
     const afterReparent = await svc.reparent('react', 'tutorials')
-    expect(afterReparent.find((c) => c.slug === 'tutorials')!.name).toBe('Guides')
-    expect(afterReparent.find((c) => c.slug === 'react')!.parent).toBe('tutorials')
-    expect(parseCategories((await git.readFile(TAXONOMY_PATH))!)).toEqual(afterReparent)
+    expect(afterReparent.find((c) => c.slug === 'tutorials')!.name).toBe(
+      'Guides'
+    )
+    expect(afterReparent.find((c) => c.slug === 'react')!.parent).toBe(
+      'tutorials'
+    )
+    expect(parseCategories((await git.readFile(TAXONOMY_PATH))!)).toEqual(
+      afterReparent
+    )
   })
 
   it('reparent to same parent is a no-op (no new commit)', async () => {

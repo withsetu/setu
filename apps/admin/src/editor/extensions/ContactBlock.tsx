@@ -3,7 +3,11 @@ import { Node, mergeAttributes } from '@tiptap/core'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { Settings } from 'lucide-react'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from '@/components/ui/popover'
 import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,7 +16,7 @@ import {
   DEFAULT_SUCCESS_MESSAGE,
   coerceBool,
   contactPreviewFields,
-  ensureFormId,
+  ensureFormId
 } from './contact-helpers'
 import { attrString } from '../attr-string'
 
@@ -23,7 +27,8 @@ function ContactView({ node, updateAttributes }: ReactNodeViewProps) {
   // Back-compat / insert safety: persist a stable formId if missing.
   useEffect(() => {
     const id = mdAttrs.formId
-    if (typeof id !== 'string' || id === '') updateAttributes({ mdAttrs: ensureFormId(mdAttrs) })
+    if (typeof id !== 'string' || id === '')
+      updateAttributes({ mdAttrs: ensureFormId(mdAttrs) })
     // run once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -35,7 +40,10 @@ function ContactView({ node, updateAttributes }: ReactNodeViewProps) {
   const subject = coerceBool(mdAttrs.subject, false)
   const nameRequired = coerceBool(mdAttrs.nameRequired, true)
   const subjectRequired = coerceBool(mdAttrs.subjectRequired, false)
-  const successMessage = attrString(mdAttrs.successMessage, DEFAULT_SUCCESS_MESSAGE)
+  const successMessage = attrString(
+    mdAttrs.successMessage,
+    DEFAULT_SUCCESS_MESSAGE
+  )
   const fields = contactPreviewFields(mdAttrs)
 
   return (
@@ -169,8 +177,8 @@ export const ContactBlock = Node.create({
       mdAttrs: {
         default: {},
         renderHTML: () => ({}),
-        parseHTML: () => ({}),
-      },
+        parseHTML: () => ({})
+      }
     }
   },
   parseHTML() {
@@ -181,5 +189,5 @@ export const ContactBlock = Node.create({
   },
   addNodeView() {
     return ReactNodeViewRenderer(ContactView)
-  },
+  }
 })

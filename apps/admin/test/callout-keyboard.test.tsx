@@ -14,9 +14,15 @@ function Harness({ onReady }: { onReady: (e: Editor) => void }) {
     content: {
       type: 'doc',
       content: [
-        { type: 'callout', attrs: { mdAttrs: { type: 'info' } }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'body' }] }] },
-      ],
-    },
+        {
+          type: 'callout',
+          attrs: { mdAttrs: { type: 'info' } },
+          content: [
+            { type: 'paragraph', content: [{ type: 'text', text: 'body' }] }
+          ]
+        }
+      ]
+    }
   })
   if (editor) onReady(editor)
   return <EditorContent editor={editor} />

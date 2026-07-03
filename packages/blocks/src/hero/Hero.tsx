@@ -28,13 +28,17 @@ export function Hero({
   textAlign,
   overlayColor,
   textColor,
-  width,
+  width
 }: HeroProps) {
   const style: Record<string, string> = {}
-  if (layout === 'background') style['--blk-hero-scrim'] = overlayColor ?? 'rgba(15,17,26,0.55)'
+  if (layout === 'background')
+    style['--blk-hero-scrim'] = overlayColor ?? 'rgba(15,17,26,0.55)'
   if (textColor) style['--blk-hero-text-color'] = textColor
   return (
-    <section className={heroClasses(layout, textPosition, width, textAlign)} style={style}>
+    <section
+      className={heroClasses(layout, textPosition, width, textAlign)}
+      style={style}
+    >
       {image ? (
         <div className="blk-hero-media">
           <img src={image} alt="" />

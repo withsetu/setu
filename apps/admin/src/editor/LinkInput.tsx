@@ -6,7 +6,7 @@ export function LinkInput({
   initial,
   onApply,
   onCancel,
-  onRemove,
+  onRemove
 }: {
   initial: string
   onApply: (href: string) => void
@@ -48,11 +48,23 @@ export function LinkInput({
           }
         }}
       />
-      <button type="button" className="link-input-apply" aria-label="Apply link" onMouseDown={(e) => e.preventDefault()} onClick={apply}>
+      <button
+        type="button"
+        className="link-input-apply"
+        aria-label="Apply link"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={apply}
+      >
         <span aria-hidden>↵</span>
       </button>
       {initial.length > 0 && (
-        <button type="button" className="link-input-remove" aria-label="Remove link" onMouseDown={(e) => e.preventDefault()} onClick={onRemove}>
+        <button
+          type="button"
+          className="link-input-remove"
+          aria-label="Remove link"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={onRemove}
+        >
           Remove
         </button>
       )}

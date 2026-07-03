@@ -16,4 +16,7 @@ export type { HeroProps } from './hero/Hero'
 
 /** Block tag -> its React visual core, for the editor's in-canvas rendering. Excludes
  *  callout (which keeps its own bespoke editor node view). */
-export const blockCores: Record<string, ComponentType<any>> = { notice: Notice, hero: Hero }
+export const blockCores: Record<string, ComponentType<any>> = {
+  notice: Notice,
+  hero: Hero
+}

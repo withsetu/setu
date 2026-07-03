@@ -11,7 +11,7 @@ function channel() {
     },
     emit(): void {
       for (const l of [...listeners]) l()
-    },
+    }
   }
 }
 

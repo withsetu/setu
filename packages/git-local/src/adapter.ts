@@ -39,7 +39,7 @@ export function createLocalGitAdapter(options: LocalGitOptions): GitPort {
     const run = chain.then(fn, fn)
     chain = run.then(
       () => undefined,
-      () => undefined,
+      () => undefined
     )
     return run
   }
@@ -65,7 +65,11 @@ export function createLocalGitAdapter(options: LocalGitOptions): GitPort {
     return full
   }
 
-  const commitFiles = ({ changes, message, author }: CommitFilesInput): Promise<CommitResult> =>
+  const commitFiles = ({
+    changes,
+    message,
+    author
+  }: CommitFilesInput): Promise<CommitResult> =>
     serialize(async () => {
       const staged: string[] = []
       try {
@@ -94,12 +98,18 @@ export function createLocalGitAdapter(options: LocalGitOptions): GitPort {
           }
         }
         if (staged.length === 0) return { sha: (await headSha()) ?? '' }
-        const sha = await git.commit({ fs, dir, message, author: { name: author.name, email: author.email } })
+        const sha = await git.commit({
+          fs,
+          dir,
+          message,
+          author: { name: author.name, email: author.email }
+        })
         return { sha }
       } catch (e) {
         // Note: working tree may be partially written/unlinked on failure — only
         // the index is reset here, which is what matters for the next commit.
-        for (const p of staged) await git.resetIndex({ fs, dir, filepath: p }).catch(() => {})
+        for (const p of staged)
+          await git.resetIndex({ fs, dir, filepath: p }).catch(() => {})
         throw e
       }
     })
@@ -117,7 +127,9 @@ export function createLocalGitAdapter(options: LocalGitOptions): GitPort {
       const oid = await headSha()
       if (oid === null) return []
       const all = await git.listFiles({ fs, dir, ref: 'HEAD' })
-      return prefix === undefined ? all : all.filter((p) => p.startsWith(prefix))
-    },
+      return prefix === undefined
+        ? all
+        : all.filter((p) => p.startsWith(prefix))
+    }
   }
 }

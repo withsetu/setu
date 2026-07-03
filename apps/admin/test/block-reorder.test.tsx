@@ -7,14 +7,26 @@ import { moveBlock } from '../src/editor/block-reorder'
 
 afterEach(cleanup)
 
-const para = (t: string) => ({ type: 'paragraph', content: [{ type: 'text', text: t }] })
-const docOf = (...texts: string[]) => ({ type: 'doc', content: texts.map(para) })
+const para = (t: string) => ({
+  type: 'paragraph',
+  content: [{ type: 'text', text: t }]
+})
+const docOf = (...texts: string[]) => ({
+  type: 'doc',
+  content: texts.map(para)
+})
 
-function Harness({ texts, onReady }: { texts: string[]; onReady: (e: Editor) => void }) {
+function Harness({
+  texts,
+  onReady
+}: {
+  texts: string[]
+  onReady: (e: Editor) => void
+}) {
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [StarterKit],
-    content: docOf(...texts),
+    content: docOf(...texts)
   })
   if (editor) onReady(editor)
   return <EditorContent editor={editor} />
@@ -25,7 +37,9 @@ function orderAfterMove(editor: Editor, from: number, to: number): string[] {
   const tr = editor.state.tr
   const ok = moveBlock(editor.state.doc, tr, from, to)
   if (ok) editor.view.dispatch(tr)
-  const json = editor.getJSON() as { content: Array<{ content?: Array<{ text?: string }> }> }
+  const json = editor.getJSON() as {
+    content: Array<{ content?: Array<{ text?: string }> }>
+  }
   return json.content.map((n) => n.content?.[0]?.text ?? '')
 }
 

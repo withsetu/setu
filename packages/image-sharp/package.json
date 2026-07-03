@@ -6,9 +6,17 @@
   "license": "AGPL-3.0-only",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
-  "exports": { ".": "./src/index.ts" },
-  "scripts": { "test": "vitest run", "typecheck": "tsc --noEmit" },
-  "dependencies": { "@setu/core": "workspace:*", "sharp": "^0.35.1" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@setu/core": "workspace:*",
+    "sharp": "^0.35.1"
+  },
   "devDependencies": {
     "@setu/image-testing": "workspace:*",
     "@types/node": "^22.10.2",

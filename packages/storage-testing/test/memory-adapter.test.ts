@@ -7,11 +7,16 @@ function createMemoryStorage(baseUrl = '/uploads'): StoragePort {
   const store = new Map<string, StoredObject>()
   return {
     async put(key, body, opts) {
-      store.set(key, { body: new Uint8Array(body), contentType: opts.contentType })
+      store.set(key, {
+        body: new Uint8Array(body),
+        contentType: opts.contentType
+      })
     },
     async get(key) {
       const o = store.get(key)
-      return o ? { body: new Uint8Array(o.body), contentType: o.contentType } : null
+      return o
+        ? { body: new Uint8Array(o.body), contentType: o.contentType }
+        : null
     },
     async delete(key) {
       store.delete(key)
@@ -25,7 +30,7 @@ function createMemoryStorage(baseUrl = '/uploads'): StoragePort {
     async list(prefix?: string): Promise<string[]> {
       const keys = [...store.keys()]
       return prefix ? keys.filter((k) => k.startsWith(prefix)) : keys
-    },
+    }
   }
 }
 

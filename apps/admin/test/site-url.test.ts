@@ -35,4 +35,19 @@ describe('siteUrl', () => {
       'https://example.com/page/about'
     )
   })
+
+  it('honors a permalink config (pattern + date/categories threading)', () => {
+    expect(
+      siteUrl(
+        {
+          collection: 'post',
+          locale: 'en',
+          slug: 'hi',
+          date: Date.UTC(2026, 5, 20),
+          categories: ['news']
+        },
+        { pattern: 'blog/:year/:category/:slug', uncategorized: 'uncategorized' }
+      )
+    ).toBe('http://localhost:4321/blog/2026/news/hi')
+  })
 })

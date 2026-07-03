@@ -43,6 +43,9 @@ export function Position9({ value, onChange, meta }: ControlProps) {
     <div
       role="radiogroup"
       aria-label={meta.name}
+      // Focusable (not tabbable): the radios carry a roving tabIndex; the group itself
+      // must still be focusable for the role (jsx-a11y/interactive-supports-focus).
+      tabIndex={-1}
       onKeyDown={onKeyDown}
       className="grid w-fit grid-cols-3 gap-1 rounded-md border border-border bg-muted/40 p-1"
     >

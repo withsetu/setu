@@ -73,7 +73,7 @@ export function EditorScreen() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [editor, setEditor] = useState<Editor | null>(null)
   const selectedBlock = useSelectedBlock(editor)
-  const apiBase = (import.meta.env.VITE_SETU_API) ?? ''
+  const apiBase = import.meta.env.VITE_SETU_API ?? ''
 
   // Feeds the query block's in-canvas live preview with real index results (same query the
   // published block resolves at build time).

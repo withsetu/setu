@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/select'
 
 const SETTINGS_PATH = 'settings.json'
-const apiBase = (import.meta.env.VITE_SETU_API) ?? ''
+const apiBase = import.meta.env.VITE_SETU_API ?? ''
 const SEPARATORS = ['·', '-', '–', '—', '|', '•', '/']
 
 const sameIdentity = (a: IdentityValues, b: IdentityValues) =>

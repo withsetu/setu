@@ -210,7 +210,7 @@ const GUIDANCE_CAP = 300
  *
  * The spec is CC BY 4.0 so reproducing fuller text is fine.
  */
-function paraphrase(title, specDesc, cat, slug) {
+function paraphrase(title, specDesc, _cat, _slug) {
   const s = specDesc.trim()
   if (s.length <= GUIDANCE_CAP) return s
 
@@ -264,7 +264,7 @@ const EXTRA_ITEMS = [
 
 // Item regex: captures title, severity, description, url
 const ITEM_RE =
-  /^\- \[ \] \*\*(.+?)\*\* _\((\w+)\)_ — (.+?)\n\s+(https:\/\/specification\.website\/spec\/[^\s]+)/gm
+  /^- \[ \] \*\*(.+?)\*\* _\((\w+)\)_ — (.+?)\n\s+(https:\/\/specification\.website\/spec\/[^\s]+)/gm
 
 function parseChecklist(markdown) {
   const sections = markdown.split(/^## /m).filter(Boolean)

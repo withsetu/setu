@@ -51,7 +51,7 @@ export function MetaPanel({
         <FeaturedImageField
           value={
             typeof metadata['featuredImage'] === 'string'
-              ? (metadata['featuredImage'])
+              ? metadata['featuredImage']
               : undefined
           }
           onChange={(next) => {

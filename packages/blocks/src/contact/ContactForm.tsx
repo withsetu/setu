@@ -153,7 +153,11 @@ export default function ContactForm(props: ContactFormProps) {
   )
 
   return (
-    <form className="setu-contact" onSubmit={onSubmit} noValidate>
+    <form
+      className="setu-contact"
+      onSubmit={(e) => void onSubmit(e)}
+      noValidate
+    >
       {field('name', 'text')}
       {field('email', 'email')}
       {subject && field('subject', 'text')}

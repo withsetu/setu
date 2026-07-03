@@ -24,7 +24,7 @@ import { NotificationProvider } from '../src/ui/notify'
 import { TagsTab } from '../src/screens/taxonomies/TagsTab'
 
 vi.mock('../src/deploy/deploy', async (orig) => ({
-  ...((await orig())),
+  ...(await orig()),
   useDeploy: () => ({
     deployedAt: () => null,
     sha: null,
@@ -140,9 +140,7 @@ describe('TagsTab', () => {
     render(<TagsTab />, { wrapper: Wrapper })
 
     // Wait for css input
-    const cssInput = (await screen.findByDisplayValue(
-      'css'
-    ))
+    const cssInput = await screen.findByDisplayValue('css')
 
     // Change value and blur to trigger rename
     fireEvent.change(cssInput, { target: { value: 'styles' } })
@@ -163,9 +161,7 @@ describe('TagsTab', () => {
     render(<TagsTab />, { wrapper: Wrapper })
 
     // Wait for css input
-    const cssInput = (await screen.findByDisplayValue(
-      'css'
-    ))
+    const cssInput = await screen.findByDisplayValue('css')
 
     // Rename css → react (which already exists)
     fireEvent.change(cssInput, { target: { value: 'react' } })

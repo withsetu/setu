@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { createMemoryDataPort } from '@setu/db-memory'

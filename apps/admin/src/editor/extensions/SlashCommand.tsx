@@ -6,7 +6,6 @@ import {
   useState
 } from 'react'
 import { Extension } from '@tiptap/core'
-import type { Editor, Range } from '@tiptap/core'
 import { ReactRenderer } from '@tiptap/react'
 import Suggestion from '@tiptap/suggestion'
 import type {
@@ -114,13 +113,15 @@ export const SlashCommand = Extension.create({
   name: 'slashCommand',
   addProseMirrorPlugins() {
     return [
-      Suggestion<SlashBlock>({
+      // Both generics matter: Suggestion<I, TSelected = any> — TSelected types the
+      // `props` handed to `command`. Leaving it defaulted made `props.run` an
+      // unchecked `any` call (caught by no-unsafe-call, #267).
+      Suggestion<SlashBlock, SlashBlock>({
         editor: this.editor,
         char: '/',
         startOfLine: false,
         items: () => slashBlocks(),
-        command: ({ editor, range, props }) =>
-          props.run(editor, range),
+        command: ({ editor, range, props }) => props.run(editor, range),
         render: () => {
           // The ReactRenderer generic params: R=CommandListHandle (ref type),
           // P=SuggestionProps<SlashBlock> (props type). Tiptap's ComponentType<R,P>

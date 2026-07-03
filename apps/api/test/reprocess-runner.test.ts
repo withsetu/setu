@@ -9,11 +9,7 @@ import { createSharpImageAdapter } from '@setu/image-sharp'
 import { createSqliteReprocessJobStore } from '@setu/db-sqlite'
 import { makeTestPng } from '@setu/image-testing'
 import { createUploadApi } from '../src/media'
-import {
-  reprocessOne,
-  runReprocessJob,
-  type ReprocessDeps
-} from '../src/reprocess-runner'
+import { runReprocessJob, type ReprocessDeps } from '../src/reprocess-runner'
 
 const dirs: string[] = []
 afterEach(() => {

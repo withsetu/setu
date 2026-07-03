@@ -61,7 +61,11 @@ export function TagsTab() {
   return (
     <div>
       <TagToolbar q={q} onQ={setQ} sort={sort} onSort={setSort} />
-      <TagList rows={rows} onRename={onRename} onDelete={setPendingDelete} />
+      <TagList
+        rows={rows}
+        onRename={(from, to) => void onRename(from, to)}
+        onDelete={setPendingDelete}
+      />
       <div className="mt-3.5 flex items-start gap-2 rounded-md border border-border/60 bg-muted/30 px-3.5 py-3 text-[13px] text-muted-foreground">
         Renaming a tag to a name that already exists merges them — you'll be
         asked to confirm first.

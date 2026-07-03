@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import type { TiptapDoc } from '@setu/core'
 import { createMemoryGitPort, type GitSeedFile } from '@setu/git-memory'
 import { createMemoryDataPort } from '@setu/db-memory'
 import { ServicesProvider, servicesFor } from '../src/data/store'

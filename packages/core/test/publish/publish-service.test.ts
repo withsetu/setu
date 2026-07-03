@@ -82,8 +82,8 @@ function fakeGit(): RecordingGit {
   let head: string | null = null
   const commitFiles: GitPort['commitFiles'] = async ({
     changes,
-    message,
-    author
+    message: _message,
+    author: _author
   }) => {
     let changed = false
     for (const ch of changes) {

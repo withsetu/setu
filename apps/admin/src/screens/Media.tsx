@@ -33,7 +33,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 
-const apiBase = (import.meta.env.VITE_SETU_API) ?? ''
+const apiBase = import.meta.env.VITE_SETU_API ?? ''
 
 function humanSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -63,16 +63,17 @@ export function Media() {
       (prev) => {
         const next = new URLSearchParams(prev)
         if ('q' in patch) {
-          patch.q ? next.set('q', patch.q) : next.delete('q')
+          if (patch.q) next.set('q', patch.q)
+          else next.delete('q')
         }
         if ('type' in patch) {
-          patch.type && patch.type !== 'all'
-            ? next.set('type', patch.type)
-            : next.delete('type')
+          if (patch.type && patch.type !== 'all') next.set('type', patch.type)
+          else next.delete('type')
         }
         if ('sort' in patch && patch.sort) {
           const v = sortValueOf(patch.sort)
-          v === 'uploadedAt-desc' ? next.delete('sort') : next.set('sort', v)
+          if (v === 'uploadedAt-desc') next.delete('sort')
+          else next.set('sort', v)
         }
         return next
       },
@@ -116,7 +117,7 @@ export function Media() {
 
   function onCopyUrl() {
     const url = resolveMediaSrc('/media/' + selected!.key, apiBase)
-    navigator.clipboard?.writeText(url)
+    void navigator.clipboard?.writeText(url)
   }
 
   const usedNote =

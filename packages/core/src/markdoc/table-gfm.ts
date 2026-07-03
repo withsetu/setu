@@ -7,8 +7,7 @@ type Align = 'left' | 'center' | 'right' | null
 const SEP: Record<string, string> = { left: ':--', center: ':-:', right: '--:' }
 
 const alignOf = (cell: TiptapNode): Align =>
-  ((cell.attrs)?.['align'] as Align) ??
-  null
+  (cell.attrs?.['align'] as Align) ?? null
 
 /** Render a Tiptap table cell's first paragraph to an escaped GFM table-cell string.
  *  Reuses buildInline + Markdoc to format inline marks, then escapes for a pipe cell. */

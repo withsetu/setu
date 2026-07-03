@@ -14,14 +14,12 @@ describe('uploadFile', () => {
       size: 2,
       filename: 'a.png'
     }
-    const fetchMock = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(
-        new Response(JSON.stringify(result), {
-          status: 201,
-          headers: { 'content-type': 'application/json' }
-        })
-      )
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify(result), {
+        status: 201,
+        headers: { 'content-type': 'application/json' }
+      })
+    )
     const out = await uploadFile('http://api', file)
     expect(out).toEqual(result)
     const [url, init] = fetchMock.mock.calls[0]!

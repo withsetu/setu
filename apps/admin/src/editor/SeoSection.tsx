@@ -51,12 +51,10 @@ export function SeoSection({
       : {}
   ) as SeoOverride
   const docTitle =
-    typeof metadata['title'] === 'string' ? (metadata['title']) : ''
+    typeof metadata['title'] === 'string' ? metadata['title'] : ''
   const docDesc =
-    (typeof metadata['description'] === 'string' &&
-      (metadata['description'])) ||
-    (typeof metadata['summary'] === 'string' &&
-      (metadata['summary'])) ||
+    (typeof metadata['description'] === 'string' && metadata['description']) ||
+    (typeof metadata['summary'] === 'string' && metadata['summary']) ||
     ''
 
   const set = (patch: Partial<SeoOverride>) => {

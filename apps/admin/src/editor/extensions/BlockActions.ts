@@ -1,4 +1,5 @@
 import { Extension } from '@tiptap/core'
+import type { JSONContent } from '@tiptap/core'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import type { EditorState, Transaction } from '@tiptap/pm/state'
 import type { Node as PMNode } from '@tiptap/pm/model'
@@ -95,7 +96,11 @@ export const BlockActions = Extension.create({
         ({ state, chain }) => {
           const b = topBlock(state)
           if (!b) return false
-          return chain().insertContentAt(b.to, b.node.toJSON()).run()
+          // ProseMirror's Node.toJSON() is typed `any`; its documented shape is the
+          // node's JSON representation, which is exactly Tiptap's JSONContent.
+          return chain()
+            .insertContentAt(b.to, b.node.toJSON() as JSONContent)
+            .run()
         },
 
       deleteBlock:

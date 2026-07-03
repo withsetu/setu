@@ -572,7 +572,8 @@ export function runSubmissionPortContract(
 export function runCaptchaPortContract(
   makeAdapter: (fetchImpl: typeof fetch) => CaptchaPort
 ): void {
-  const fakeFetch = (status: number, body: unknown): typeof fetch =>
+  const fakeFetch =
+    (status: number, body: unknown): typeof fetch =>
     async () =>
       new Response(JSON.stringify(body), { status })
 

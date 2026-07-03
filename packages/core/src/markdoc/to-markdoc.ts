@@ -10,7 +10,7 @@ export function buildInline(
   return content.map((t) => {
     if (t.type === 'hardBreak') return new N('hardbreak')
     if (t.type === 'image') {
-      const a = (t.attrs ?? {})
+      const a = t.attrs ?? {}
       const attrs: Record<string, unknown> = {
         src: a.src ?? '',
         alt: a.alt ?? ''
@@ -60,8 +60,7 @@ function buildListItem(
   const firstPara = children.find((c) => c.type === 'paragraph')
   const inlineNodes = buildInline(firstPara?.content ?? [])
   if (task) {
-    const checked =
-      (item.attrs)?.['checked'] === true
+    const checked = item.attrs?.['checked'] === true
     inlineNodes.unshift(new N('text', { content: checked ? '[x] ' : '[ ] ' }))
   }
   const nested = children
@@ -82,7 +81,7 @@ function withAlign(
   built: InstanceType<typeof N>,
   node: TiptapNode
 ): InstanceType<typeof N> {
-  const ta = (node.attrs)?.['textAlign']
+  const ta = node.attrs?.['textAlign']
   if (ta === 'center' || ta === 'right') {
     built.annotations = [{ type: 'attribute', name: 'align', value: ta }]
   }
@@ -90,7 +89,7 @@ function withAlign(
 }
 
 function buildBlock(node: TiptapNode): InstanceType<typeof N> {
-  const attrs = (node.attrs ?? {})
+  const attrs = node.attrs ?? {}
   switch (node.type) {
     case 'heading':
       return withAlign(
@@ -185,7 +184,7 @@ function escapeAttrString(val: string): string {
 /** Serialize an `imageBlock` node to a self-closing {% image ... /%} tag.
  *  Returns the tag WITHOUT a trailing newline — the caller's join('\n\n') supplies it. */
 function imageBlockToMarkdoc(node: TiptapNode): string {
-  const attrs = (node.attrs ?? {})
+  const attrs = node.attrs ?? {}
   const mdAttrs =
     (attrs['mdAttrs'] as Record<string, unknown> | undefined) ?? {}
 
@@ -218,7 +217,7 @@ function imageBlockToMarkdoc(node: TiptapNode): string {
 
 export function tiptapToMarkdoc(doc: TiptapDoc): string {
   const blocks = doc.content.map((node) => {
-    const raw = (node.attrs)?.['raw']
+    const raw = node.attrs?.['raw']
     return node.type === 'passthrough'
       ? typeof raw === 'string'
         ? raw

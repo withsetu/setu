@@ -15,14 +15,16 @@ import { useIndex } from './index-store'
 /** The editor's identity stamped on taxonomy commits (matches the editor's). */
 const TAXONOMY_AUTHOR = { name: 'Local', email: 'local@setu.dev' }
 
+// Function-property syntax (not method syntax): consumers destructure these closures
+// (`const { create } = useTaxonomy()`); method syntax trips unbound-method on every use.
 export interface TaxonomyContextValue {
   categories: Category[]
   counts: Record<string, number>
   /** Create a category; returns the minted slug. */
-  create(input: { name: string; parent: string | null }): Promise<string>
-  renameLabel(slug: string, name: string): Promise<void>
-  reparent(slug: string, parent: string | null): Promise<void>
-  remove(slug: string): Promise<void>
+  create: (input: { name: string; parent: string | null }) => Promise<string>
+  renameLabel: (slug: string, name: string) => Promise<void>
+  reparent: (slug: string, parent: string | null) => Promise<void>
+  remove: (slug: string) => Promise<void>
 }
 
 const TaxonomyContext = createContext<TaxonomyContextValue | null>(null)

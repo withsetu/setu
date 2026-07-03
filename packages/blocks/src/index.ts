@@ -14,9 +14,18 @@ import { Hero } from './hero/Hero'
 export { Hero }
 export type { HeroProps } from './hero/Hero'
 
+/** A block's React visual core. The registry is heterogeneous by design (NoticeProps,
+ *  HeroProps, …) and dispatched dynamically by tag; each block's props are validated by
+ *  its own Zod contract at the Markdoc boundary, not here. `any` is the deliberate
+ *  escape hatch: `ComponentType<unknown>` would reject spreading the (necessarily
+ *  untyped) mdAttrs bag onto the component. Single targeted disable — every consumer
+ *  uses this alias instead of re-spelling ComponentType<any>. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type BlockCore = ComponentType<any>
+
 /** Block tag -> its React visual core, for the editor's in-canvas rendering. Excludes
  *  callout (which keeps its own bespoke editor node view). */
-export const blockCores: Record<string, ComponentType<any>> = {
+export const blockCores: Record<string, BlockCore> = {
   notice: Notice,
   hero: Hero
 }

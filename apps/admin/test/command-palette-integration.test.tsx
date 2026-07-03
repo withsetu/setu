@@ -21,7 +21,6 @@ beforeAll(() => {
     window.HTMLElement.prototype.scrollIntoView = vi.fn()
 
     if (!window.ResizeObserver) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ;(window as any).ResizeObserver = class ResizeObserver {
         observe() {}
         unobserve() {}
@@ -30,7 +29,6 @@ beforeAll(() => {
     }
 
     if (!window.PointerEvent) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ;(window as any).PointerEvent = class PointerEvent extends MouseEvent {
         constructor(type: string, init?: PointerEventInit) {
           super(type, init)

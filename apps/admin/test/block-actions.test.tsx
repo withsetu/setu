@@ -16,8 +16,10 @@ const para = (t: string) => ({
   type: 'paragraph',
   content: [{ type: 'text', text: t }]
 })
-const docOf = (...texts: string[]): TiptapDoc =>
-  ({ type: 'doc', content: texts.map(para) })
+const docOf = (...texts: string[]): TiptapDoc => ({
+  type: 'doc',
+  content: texts.map(para)
+})
 
 function Harness({
   texts,

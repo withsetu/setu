@@ -146,6 +146,9 @@ export function TurnIntoMenu({ editor }: { editor: Editor }) {
           className="ti-menu"
           role="menu"
           aria-label="Turn into"
+          // Focusable (not tabbable): items use a roving tabIndex; the container itself
+          // must still be focusable for the `menu` role (jsx-a11y/interactive-supports-focus).
+          tabIndex={-1}
           onKeyDown={onMenuKeyDown}
         >
           {rows.map((row, i) => {

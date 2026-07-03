@@ -17,12 +17,14 @@ export interface HeroProps {
 
 /** The hero visual core. Rendered read-only in the editor canvas (props from the node's
  *  mdAttrs); the site mirrors this exact class structure in Hero.astro, sharing hero.css. */
+// `ctaHref` stays in HeroProps for parity with Hero.astro (which renders the real
+// <a href>), but the canvas core deliberately renders the CTA as a non-navigating
+// <span> — a live link inside the editor would navigate away mid-edit.
 export function Hero({
   headline,
   subhead,
   image,
   ctaLabel,
-  ctaHref,
   layout = 'centered',
   textPosition = 'center',
   textAlign,

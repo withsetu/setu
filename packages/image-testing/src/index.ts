@@ -37,7 +37,7 @@ export function runImagePortContract(
       const [v] = await port.generate(source, [
         { name: 'a', width: 100, format: 'webp' }
       ])
-       
+
       const variant = v!
       expect(variant.width).toBe(100)
       expect(variant.height).toBe(60) // 120 * 100 / 200
@@ -50,7 +50,7 @@ export function runImagePortContract(
       const [v] = await port.generate(source, [
         { name: 'big', width: 400, format: 'webp' }
       ])
-       
+
       const variant = v!
       expect(variant.width).toBe(200)
       expect(variant.height).toBe(120)
@@ -63,7 +63,6 @@ export function runImagePortContract(
         { name: 'p', width: 80, format: 'png' }
       ])
       for (const v of out) {
-         
         expect(v.contentType).toBe(contentTypeFor(v.format))
         expect(detectFormat(v.body)).toBe(v.format)
       }

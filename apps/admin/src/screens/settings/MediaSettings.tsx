@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/alert-dialog'
 
 const SETTINGS_PATH = 'settings.json'
-const apiBase = (import.meta.env.VITE_SETU_API) ?? ''
+const apiBase = import.meta.env.VITE_SETU_API ?? ''
 
 const FORMAT_OPTIONS: { value: MediaValues['imageFormat']; label: string }[] = [
   { value: 'webp', label: 'WebP' },

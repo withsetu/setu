@@ -18,7 +18,7 @@ import { DeleteCategoryDialog } from '../src/screens/taxonomies/DeleteCategoryDi
 import type { CategoryNode } from '@setu/core'
 
 vi.mock('../src/deploy/deploy', async (orig) => ({
-  ...((await orig())),
+  ...(await orig()),
   useDeploy: () => ({
     deployedAt: () => null,
     sha: null,
@@ -106,29 +106,8 @@ describe('DeleteCategoryDialog', () => {
     const child = childNode()
     const node = makeNode({ children: [child] })
 
-    /** Inner component that patches counts via context: we seed counts directly via a
-     *  hook wrapper that overrides the store — but TaxonomyProvider does not expose a
-     *  setCount API. Instead we provide a mocked value through a thin override provider. */
-    function SeedCounts({
-      counts,
-      children: c
-    }: {
-      counts: Record<string, number>
-      children: ReactNode
-    }) {
-      // We can't easily inject counts into TaxonomyProvider from outside, so we use a
-      // mock module approach: spy on useTaxonomy inside the dialog.
-      // Simplest route: render the dialog inside a component that provides a custom context.
-      // But TaxonomyProvider exports only TaxonomyContext via useTaxonomy.
-      // Best approach: mock useTaxonomy in this test.
-      return <>{c}</>
-    }
-    // We'll mock useTaxonomy for this test suite via vi.mock at module level — not possible
-    // for a subset of tests. Instead: use a forked approach where we render a test component
-    // that directly calls useTaxonomy().remove(), and we verify via the store state after confirm.
-    // For the count/copy assertions, we need the count seeded.
-    // The cleanest approach: mock useTaxonomy in this describe block using vi.spyOn.
-
+    // Counts are seeded by spying on useTaxonomy below (TaxonomyProvider exposes no
+    // setCount API, so mocking the hook is the direct route).
     const removeFn = vi.fn().mockResolvedValue(undefined)
     const spy = vi
       .spyOn(await import('../src/data/taxonomy-store'), 'useTaxonomy')

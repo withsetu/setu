@@ -35,9 +35,7 @@ describe('selectedBlockOf', () => {
   })
   it('returns the hero tag + mdAttrs when the heroBlock node is selected', () => {
     const e = makeEditor()
-    // heroBlock is the second top-level child; its start pos = 1 (para open) + 1 (para close) = 2
-    const heroPos = e.state.doc.resolve(2).before(1) // pos before the heroBlock node
-    // Use NodeSelection.create with the node's position (the para is at pos 0-2, heroBlock at pos 2)
+    // heroBlock is the second top-level child (the para is at pos 0-2, heroBlock at pos 2)
     const nodePos = 2 // after the empty paragraph (open=1, close=2)
     const tr = e.state.tr.setSelection(
       NodeSelection.create(e.state.doc, nodePos)

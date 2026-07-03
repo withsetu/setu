@@ -32,7 +32,7 @@ export function toPostRow(entry: {
     collection: col,
     locale: loc,
     slug: rest.join('/'),
-    title: typeof d['title'] === 'string' ? (d['title']) : entry.id,
+    title: typeof d['title'] === 'string' ? d['title'] : entry.id,
     date: Number.isNaN(parsed) ? null : parsed,
     // `published:false` is Setu's only "hidden" signal; absent/true is live. Projecting it lets
     // selectPosts hide drafts from the archives too (mirrors the posts archive + feed + audit).
@@ -40,9 +40,7 @@ export function toPostRow(entry: {
     tags: strArr(d['tags']),
     categories: strArr(d['categories']),
     featuredImage:
-      typeof d['featuredImage'] === 'string'
-        ? (d['featuredImage'])
-        : undefined,
+      typeof d['featuredImage'] === 'string' ? d['featuredImage'] : undefined,
     excerpt: cardExcerpt || undefined
   }
 }

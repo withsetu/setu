@@ -3,8 +3,7 @@ import {
   coerceBool,
   genFormId,
   ensureFormId,
-  contactPreviewFields,
-  DEFAULT_SUCCESS_MESSAGE
+  contactPreviewFields
 } from '../src/editor/extensions/contact-helpers'
 
 describe('coerceBool', () => {

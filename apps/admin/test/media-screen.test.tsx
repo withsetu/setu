@@ -18,13 +18,13 @@ import { Media } from '../src/screens/Media'
 
 // ── mock media-client so deleteMedia never hits the network ──
 vi.mock('../src/media/media-client', async (orig) => ({
-  ...((await orig())),
+  ...(await orig()),
   deleteMedia: vi.fn(async () => {})
 }))
 
 // ── mock upload-client so uploadFile never hits the network ──
 vi.mock('../src/media/upload-client', async (orig) => ({
-  ...((await orig())),
+  ...(await orig()),
   uploadFile: vi.fn(async () => ({
     id: '2026/06/dog',
     key: '2026/06/dog.jpg',
@@ -303,9 +303,7 @@ describe('Media screen', () => {
     render(<Media />, { wrapper: wrapper(services, mediaIndex) })
 
     // Wait for the screen to be ready (dropzone is present from the start)
-    const input = (await screen.findByTestId(
-      'media-dropzone-input'
-    ))
+    const input = await screen.findByTestId('media-dropzone-input')
     const file = new File([new Uint8Array([1])], 'dog.jpg', {
       type: 'image/jpeg'
     })

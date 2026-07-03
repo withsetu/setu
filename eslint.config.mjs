@@ -81,10 +81,12 @@ export default tseslint.config(
           // vitest.config.ts follows it identically). allowDefaultProject gives
           // projectService a single-file program for just these instead of erroring
           // "not found by the project service".
+          // NOT apps/site/vitest.config.ts: site's tsconfig includes `**/*`, so its
+          // config file IS in a real project already (projectService errors if a file
+          // matches both).
           allowDefaultProject: [
             'packages/*/vitest.config.ts',
-            'apps/*/vitest.config.ts',
-            'apps/*/vite.config.ts'
+            'apps/admin/vite.config.ts'
           ],
           // 17 packages follow this convention identically (verified by grep — every
           // vitest.config.ts in the repo is a root-level tool config outside its
@@ -136,7 +138,56 @@ export default tseslint.config(
     languageOptions: jsxA11y.flatConfigs.recommended.languageOptions,
     rules: {
       ...reactHooks.configs.flat.recommended.rules,
-      ...jsxA11y.flatConfigs.recommended.rules
+      ...jsxA11y.flatConfigs.recommended.rules,
+      // DOWNGRADED to warn (T2 decision, #267): react-hooks v7's React Compiler
+      // diagnostics found ~30 REAL pre-existing issues in the admin (18×
+      // set-state-in-effect — the exact cascading-render class that already bit the
+      // editor once, see useSelectedBlock.ts's loop-guard comment — plus 8× refs, 3×
+      // globals, purity/immutability/memoization singles). These are product findings,
+      // not lint noise, but each needs an individual effect/ref refactor plus a
+      // real-browser editor UAT pass (jsdom green ≠ editor safe — proven previously);
+      // bulk-fixing them inside the linter increment would be reckless. They stay
+      // visible as warnings; the error-gate upgrade happens when the follow-up issue
+      // (filed with the per-site list) burns the backlog down.
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/refs': 'warn',
+      'react-hooks/globals': 'warn',
+      'react-hooks/purity': 'warn',
+      'react-hooks/immutability': 'warn',
+      'react-hooks/preserve-manual-memoization': 'warn',
+      'react-hooks/static-components': 'warn'
+    }
+  },
+
+  // ---- Test files: relax the `any`-hygiene family (T2 decision, #267) ----
+  // Mocks are structurally `any`-producing: vi.fn()/mock helpers, JSON.parse of
+  // fixture payloads, expect.any(...), Tiptap/DOM probing. The unsafe-* rules fired
+  // ~140 times in tests vs ~40 in src at baseline, and every sampled test hit was a
+  // mock/fixture pattern, not a bug. Keeping these ON for src (where they found real
+  // issues — see the T2 hand-fix commits) and OFF for tests keeps the signal without
+  // fighting the test idiom. `unbound-method` is the canonical vitest/jest false
+  // positive (`expect(obj.method)…` is exactly how you assert on spies).
+  // packages/*-testing/src is included: those packages ARE shipped test harnesses
+  // (contract suites + fixtures) and use expect.any() etc. in their source.
+  {
+    files: [
+      '**/*.test.{ts,tsx}',
+      '**/test/**/*.{ts,tsx}',
+      'packages/*-testing/src/**/*.ts',
+      // Tool configs linted via allowDefaultProject get a single-file program that
+      // can't always resolve plugin package types (e.g. @tailwindcss/vite in admin's
+      // vite.config.ts resolves to an error type there) — same relaxation applies.
+      'packages/*/vitest.config.ts',
+      'apps/*/vite.config.ts'
+    ],
+    rules: {
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/unbound-method': 'off'
     }
   },
 
@@ -148,7 +199,18 @@ export default tseslint.config(
       'apps/*/*.config.mjs',
       'apps/*/integrations/**/*.mjs'
     ],
-    languageOptions: { globals: globals.node }
+    languageOptions: { globals: globals.node },
+    rules: {
+      // Same `_`-prefix convention as @typescript-eslint/no-unused-vars above.
+      'no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_'
+        }
+      ]
+    }
   },
 
   // ---- Global language options ----

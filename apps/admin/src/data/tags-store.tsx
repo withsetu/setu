@@ -11,13 +11,15 @@ import { bulkAddTag, bulkRemoveTag, normalizeTag } from '@setu/core'
 import { useServices } from './store'
 import { useIndex } from './index-store'
 
+// Function-property syntax (not method syntax): consumers destructure these closures
+// (`const { rename } = useTags()`); method syntax trips unbound-method on every use.
 export interface TagsContextValue {
   counts: Record<string, number>
-  rename(
+  rename: (
     from: string,
     to: string
-  ): Promise<{ applied: number; merged: boolean }>
-  remove(tag: string): Promise<{ applied: number }>
+  ) => Promise<{ applied: number; merged: boolean }>
+  remove: (tag: string) => Promise<{ applied: number }>
 }
 
 const TagsContext = createContext<TagsContextValue | null>(null)

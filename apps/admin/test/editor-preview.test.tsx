@@ -61,13 +61,11 @@ describe('EditorScreen preview', () => {
       .fn()
       .mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
     vi.stubGlobal('fetch', fetchMock)
-    const openMock = vi
-      .fn()
-      .mockReturnValue({
-        closed: false,
-        focus: vi.fn(),
-        location: { href: '' }
-      })
+    const openMock = vi.fn().mockReturnValue({
+      closed: false,
+      focus: vi.fn(),
+      location: { href: '' }
+    })
     vi.stubGlobal('open', openMock)
 
     renderEditor()

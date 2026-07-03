@@ -21,7 +21,7 @@ import { NotificationProvider } from '../src/ui/notify'
 import { CategoriesTab } from '../src/screens/taxonomies/CategoriesTab'
 
 vi.mock('../src/deploy/deploy', async (orig) => ({
-  ...((await orig())),
+  ...(await orig()),
   useDeploy: () => ({
     deployedAt: () => null,
     sha: null,

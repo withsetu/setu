@@ -33,7 +33,7 @@ export function CategoriesTab() {
           rows={rows}
           counts={counts}
           onRename={(slug, name) => void renameLabel(slug, name)}
-          onReparent={onReparent}
+          onReparent={(slug, parent) => void onReparent(slug, parent)}
           onDelete={setPendingDelete}
         />
       )}

@@ -18,7 +18,7 @@ export function createPreviewApi(): Hono {
   app.use('*', cors())
 
   app.post('/preview', async (c) => {
-    slot = (await c.req.json())
+    slot = await c.req.json()
     return c.json({ ok: true })
   })
 

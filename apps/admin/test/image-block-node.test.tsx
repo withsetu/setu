@@ -54,8 +54,7 @@ function mdAttrsOf(getJSON: () => unknown): Record<string, unknown> {
 
 describe('ImageBlock node view', () => {
   it('renders the preview image with the resolved src', () => {
-    let getJSON: () => unknown = () => ({})
-    render(<Harness onReady={(g) => (getJSON = g)} />)
+    render(<Harness onReady={() => {}} />)
     const img = document.querySelector('.sib-img') as HTMLImageElement
     expect(img).toBeTruthy()
     expect(img.getAttribute('src')).toContain('/uploads/media/abc/original.png')

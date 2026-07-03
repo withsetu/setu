@@ -4,9 +4,7 @@ import type { EmailPort, EmailMessage } from '@setu/core'
 /** Minimal structural type matching what resend SDK v6 exposes for emails.send */
 interface ResendLike {
   emails: {
-    send(
-      args: EmailMessage
-    ): Promise<{
+    send(args: EmailMessage): Promise<{
       data: unknown
       error: { message: string; name: string } | null
     }>
@@ -18,8 +16,7 @@ export function createResendEmailAdapter(opts: {
   apiKey: string
   client?: ResendLike
 }): EmailPort {
-  const client: ResendLike =
-    opts.client ?? (new Resend(opts.apiKey))
+  const client: ResendLike = opts.client ?? new Resend(opts.apiKey)
   return {
     async send(msg: EmailMessage) {
       const { error } = await client.emails.send(msg)

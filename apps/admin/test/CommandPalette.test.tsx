@@ -2,8 +2,7 @@ import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import {
   CommandRegistryProvider,
-  useRegisterCommands,
-  type CommandAction
+  useRegisterCommands
 } from '../src/command/registry'
 import { CommandPalette } from '../src/command/CommandPalette'
 
@@ -17,7 +16,6 @@ beforeAll(() => {
 
     // cmdk uses ResizeObserver internally
     if (!window.ResizeObserver) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ;(window as any).ResizeObserver = class ResizeObserver {
         observe() {}
         unobserve() {}
@@ -27,7 +25,6 @@ beforeAll(() => {
 
     // cmdk uses PointerEvent which may not exist in jsdom
     if (!window.PointerEvent) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ;(window as any).PointerEvent = class PointerEvent extends MouseEvent {
         constructor(type: string, init?: PointerEventInit) {
           super(type, init)
@@ -40,27 +37,6 @@ beforeAll(() => {
 afterEach(cleanup)
 
 /** Seeds three actions across two groups; one is disabled. */
-function Registrar() {
-  useRegisterCommands([
-    {
-      id: 'create-post',
-      title: 'Alpha',
-      group: 'Create',
-      run: vi.fn(),
-      keywords: 'new post'
-    },
-    { id: 'go-home', title: 'Beta', group: 'Go to', run: vi.fn() },
-    {
-      id: 'disabled-action',
-      title: 'Gamma',
-      group: 'Editor',
-      run: vi.fn(),
-      enabled: () => false
-    }
-  ])
-  return null
-}
-
 function setup() {
   const runSpies: Record<string, ReturnType<typeof vi.fn>> = {}
   const runAlpha = vi.fn()

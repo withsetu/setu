@@ -10,13 +10,16 @@ interface DeployState {
   sha: string | null
 }
 
+// Function-property syntax (not method syntax): these are standalone closures consumers
+// destructure freely (`const { deploy } = useDeploy()`), never `this`-bound methods.
+// Method syntax makes @typescript-eslint/unbound-method flag every destructure.
 interface DeployApi {
   /** The live content at a repo path, or null if not deployed. */
-  deployedAt(path: string): string | null
+  deployedAt: (path: string) => string | null
   /** The deployed HEAD sha (null if never deployed). */
   sha: string | null
   /** Snapshot the current Git working set as "live" (the SSG-shaped stand-in). */
-  deploy(): Promise<void>
+  deploy: () => Promise<void>
 }
 
 const DeployContext = createContext<DeployApi | null>(null)

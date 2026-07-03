@@ -15,7 +15,7 @@ import { App } from '../src/app'
 import { Taxonomies } from '../src/screens/taxonomies/Taxonomies'
 
 vi.mock('../src/deploy/deploy', async (orig) => ({
-  ...((await orig())),
+  ...(await orig()),
   useDeploy: () => ({
     deployedAt: () => null,
     sha: null,

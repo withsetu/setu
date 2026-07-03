@@ -5,15 +5,16 @@ import {
   ReactNodeViewRenderer
 } from '@tiptap/react'
 import type { ReactNodeViewProps } from '@tiptap/react'
-import type { ComponentType } from 'react'
 import type { ResolvedBlock } from '@setu/core'
+import type { BlockCore } from '@setu/blocks'
+import { attrString } from '../attr-string'
 
 function viewFor(
   byTag: Record<string, ResolvedBlock>,
-  cores: Record<string, ComponentType<any>>
+  cores: Record<string, BlockCore>
 ) {
   return function SetuBlockView({ node }: ReactNodeViewProps) {
-    const tag = String(node.attrs.tag)
+    const tag = attrString(node.attrs.tag)
     const block = byTag[tag]
     const Core = cores[tag]
     const mdAttrs = (node.attrs.mdAttrs ?? {}) as Record<string, unknown>
@@ -51,7 +52,7 @@ function viewFor(
  *  callout). With a core, the view renders the real visual; otherwise generic chrome. */
 export function createSetuBlock(
   blocks: ResolvedBlock[],
-  cores: Record<string, ComponentType<any>> = {}
+  cores: Record<string, BlockCore> = {}
 ): Node {
   const byTag = Object.fromEntries(blocks.map((b) => [b.tag, b]))
   return Node.create({
@@ -78,7 +79,7 @@ export function createSetuBlock(
         {
           ...HTMLAttributes,
           'data-setu-block': '',
-          'data-tag': node.attrs.tag
+          'data-tag': attrString(node.attrs.tag)
         },
         0
       ]

@@ -69,7 +69,7 @@ export function MediaDropzone({
   )
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
+    onDrop: (files) => void onDrop(files),
     accept,
     disabled,
     getFilesFromEvent: (event) => Promise.resolve(filesFromEvent(event))

@@ -9,7 +9,6 @@ import { IndexProvider } from '../src/data/index-store'
 import { TagsProvider, useTags } from '../src/data/tags-store'
 import type { ReactNode } from 'react'
 
-const AUTHOR = { name: 'T', email: 't@x.dev' }
 const doc = (t: string) => ({
   type: 'doc',
   content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }]

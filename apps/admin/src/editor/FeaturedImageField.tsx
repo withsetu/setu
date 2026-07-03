@@ -23,7 +23,7 @@ export function FeaturedImageField({
         <div className="space-y-2">
           <img
             src={resolveMediaSrc(value, apiBase)}
-            alt="Featured image preview"
+            alt="Featured preview"
             className="aspect-video w-full rounded-md border border-border/60 object-cover"
           />
           {editable && (

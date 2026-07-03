@@ -1,8 +1,19 @@
 import nodeFs from 'node:fs'
-import { dirname, join, resolve, sep } from 'node:path'
+import { dirname, resolve, sep } from 'node:path'
 import * as git from 'isomorphic-git'
 import type { PromiseFsClient } from 'isomorphic-git'
 import type { GitPort, CommitFilesInput, CommitResult } from '@setu/core'
+
+/** The three direct fs.promises calls this adapter makes. isomorphic-git's
+ *  PromiseFsClient types its `promises` members as bare `Function` (its API surface is
+ *  fs-implementation-agnostic), which makes every call an unsafe `Function` invocation
+ *  under type-aware lint. This structural view narrows just what we use — node:fs,
+ *  memfs and lightning-fs all conform. */
+interface FsPromisesUsed {
+  unlink(path: string): Promise<unknown>
+  mkdir(path: string, opts: { recursive: boolean }): Promise<unknown>
+  writeFile(path: string, data: string, encoding: string): Promise<unknown>
+}
 
 export interface LocalGitOptions {
   /** Path to an existing git repository (the caller/test runs `git init`). */
@@ -20,6 +31,7 @@ const isNotFound = (e: unknown): boolean =>
 /** A GitPort backed by a real local git repo via isomorphic-git (T1/T3). */
 export function createLocalGitAdapter(options: LocalGitOptions): GitPort {
   const fs = options.fs ?? nodeFs
+  const fsp = fs.promises as unknown as FsPromisesUsed
   const dir = options.dir
 
   const headSha = async (): Promise<string | null> => {
@@ -82,15 +94,15 @@ export function createLocalGitAdapter(options: LocalGitOptions): GitPort {
           const full = safePath(ch.path)
           if ('delete' in ch) {
             if ((await effective(ch.path)) !== null) {
-              await fs.promises.unlink(full).catch(() => {})
+              await fsp.unlink(full).catch(() => {})
               await git.remove({ fs, dir, filepath: ch.path })
               staged.push(ch.path)
             }
             pending.set(ch.path, null)
           } else {
             if ((await effective(ch.path)) !== ch.content) {
-              await fs.promises.mkdir(dirname(full), { recursive: true })
-              await fs.promises.writeFile(full, ch.content, 'utf8')
+              await fsp.mkdir(dirname(full), { recursive: true })
+              await fsp.writeFile(full, ch.content, 'utf8')
               await git.add({ fs, dir, filepath: ch.path })
               staged.push(ch.path)
             }

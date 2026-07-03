@@ -41,7 +41,7 @@ export function CommandPalette() {
   }, [])
 
   // Re-filter on every open so live `enabled()` values are always current.
-   
+
   const enabled = useMemo(
     () => commands.filter((a) => a.enabled?.() !== false),
     [commands, open]

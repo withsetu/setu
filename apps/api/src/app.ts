@@ -19,14 +19,19 @@ export function createGitApi(git: GitPort): Hono {
     return c.json({ content: await git.readFile(path) })
   })
 
+  // Explicit type argument (json<T>) instead of `as T`: Hono's json() is generic with
+  // an `any` default, so an `as` cast contextually types the call and reads as a
+  // self-cast to no-unnecessary-type-assertion (--fix stripped it and orphaned the
+  // imports). Same declared trust as before — this internal RPC API's input validation
+  // story belongs to the auth epic (#248), not the linter increment.
   app.post('/git/commit', async (c) => {
-    const body = (await c.req.json())
+    const body = await c.req.json<CommitInput>()
     const { sha } = await git.commitFile(body)
     return c.json({ sha })
   })
 
   app.post('/git/commit-files', async (c) => {
-    const body = (await c.req.json())
+    const body = await c.req.json<CommitFilesInput>()
     const { sha } = await git.commitFiles(body)
     return c.json({ sha })
   })

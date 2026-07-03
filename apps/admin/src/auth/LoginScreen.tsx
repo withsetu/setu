@@ -11,16 +11,25 @@ import type { AuthClientError } from './auth-client'
 
 const SOCIAL_LABEL: Record<'github' | 'google', string> = { github: 'GitHub', google: 'Google' }
 
-/** Maps a Better Auth / better-fetch sign-in error to the exact copy this task's brief specifies.
- *  `CREDENTIAL_ACCOUNT_NOT_FOUND` is better-auth's own built-in code for "this account has no
- *  email+password credential row" — exactly the shape a local-owner account created via the
- *  loopback handshake (#248 Task 4/7, no password ever set) will hit if someone tries to sign in
- *  to it remotely with a password. No new server-side error code is needed for this mapping. */
+/** Maps a Better Auth / better-fetch sign-in error to user-facing copy.
+ *
+ *  #248 Task 7 correction: this used to special-case a `CREDENTIAL_ACCOUNT_NOT_FOUND` code as the
+ *  "passwordless owner" signal. Verified against better-auth 1.6.23 source
+ *  (node_modules/better-auth/dist/api/routes/sign-in.mjs) that `/sign-in/email` does NOT
+ *  distinguish "no credential account exists" from "wrong password" — both throw the identical
+ *  `UNAUTHORIZED` / `INVALID_EMAIL_OR_PASSWORD`, deliberately (each branch calls
+ *  `ctx.context.password.hash(password)` before throwing, purely to equalize timing across the
+ *  branches — a textbook anti-user-enumeration measure). `CREDENTIAL_ACCOUNT_NOT_FOUND` DOES exist
+ *  in better-auth's error codes, but is only thrown by `/update-user` (changing your own
+ *  password), never by sign-in — so this mapping could never have matched in production.
+ *
+ *  Per the #248 Task 7 brief, the honest fix is to accept the generic message rather than fake a
+ *  distinction better-auth's own sign-in route does not make: a passwordless local-owner account
+ *  hit with any password now surfaces the same "Email or password is incorrect" as a real wrong
+ *  password. (A local owner should be using the loopback handshake, not password sign-in, anyway
+ *  — this path is only reachable for remote/hosted sign-in attempts against that account.) */
 function mapSignInError(error: AuthClientError): string {
   if (error.status === 429) return 'Too many attempts — wait a moment and try again.'
-  if (error.code === 'CREDENTIAL_ACCOUNT_NOT_FOUND') {
-    return 'Remote access needs an owner password — set it from the local admin (Settings → Users).'
-  }
   if (error.status === 401 || error.code === 'INVALID_EMAIL_OR_PASSWORD') {
     return 'Email or password is incorrect.'
   }

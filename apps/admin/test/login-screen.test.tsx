@@ -92,14 +92,16 @@ describe('LoginScreen', () => {
     expect(await screen.findByText(/too many attempts.*wait a moment/i)).toBeInTheDocument()
   })
 
-  it('maps the passwordless-owner error to the honest Settings->Users message', async () => {
-    mockSignInEmail.mockResolvedValue({ data: null, error: { status: 401, code: 'CREDENTIAL_ACCOUNT_NOT_FOUND', message: 'Credential account not found' } })
+  it('a passwordless-owner sign-in attempt gets the same generic invalid-credentials message as a wrong password (#248 Task 7: better-auth 1.6.23 does not distinguish the two — see mapSignInError\'s comment)', async () => {
+    // better-auth's real /sign-in/email throws INVALID_EMAIL_OR_PASSWORD for "no credential
+    // account" exactly as it does for "wrong password" — there is no distinct code to map here.
+    mockSignInEmail.mockResolvedValue({ data: null, error: { status: 401, code: 'INVALID_EMAIL_OR_PASSWORD', message: 'Invalid email or password' } })
 
     render(<LoginScreen />)
     await fillForm()
     fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
 
-    expect(await screen.findByText(/remote access needs an owner password.*settings.*users/i)).toBeInTheDocument()
+    expect(await screen.findByText(/email or password is incorrect/i)).toBeInTheDocument()
   })
 
   it('shows a generic error for an unrecognized failure', async () => {

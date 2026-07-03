@@ -6,7 +6,7 @@ import { ActorProvider } from './actor'
 import { useCapabilities } from '../lib/useCapabilities'
 import { apiFetch } from '../lib/api-fetch'
 import { LoginScreen } from './LoginScreen'
-import { SetupPending } from './SetupPending'
+import { SetupScreen } from './SetupScreen'
 import { AuthNotConfigured } from './AuthNotConfigured'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -83,6 +83,6 @@ export function SessionGate({ children }: { children: ReactNode }) {
   }
 
   if (!auth?.enabled) return <AuthNotConfigured />
-  if (auth.needsSetup) return <SetupPending />
+  if (auth.needsSetup) return <SetupScreen />
   return <LoginScreen />
 }

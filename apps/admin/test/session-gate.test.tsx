@@ -146,13 +146,13 @@ describe('SessionGate', () => {
     expect(screen.queryByLabelText(/email/i)).not.toBeInTheDocument()
   })
 
-  it('no session + needsSetup: renders SetupPending', async () => {
+  it('no session + needsSetup: renders SetupScreen (#248 Task 7)', async () => {
     stubCapabilities({ enabled: true, providers: [], captcha: null, needsSetup: true })
     mockUseSession.mockReturnValue({ data: null, isPending: false, isRefetching: false, error: null, refetch: vi.fn() } as never)
 
     render(<SessionGate><div>App</div></SessionGate>)
 
-    expect(await screen.findByText(/first-run setup/i)).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /create owner account/i })).toBeInTheDocument()
   })
 
   it('no session, auth enabled, no setup needed: renders LoginScreen', async () => {

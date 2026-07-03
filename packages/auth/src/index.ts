@@ -7,7 +7,13 @@ import { SETU_ROLES, type CreateAuthOptions } from './options'
 import { localToken } from './local-token-plugin'
 import { serverSetup } from './server-setup-plugin'
 import { lastOwnerGuardHook, lastOwnerDeleteGuardHook } from './last-owner-guard'
-import { userCreateAfterHook, sessionCreateAfterHook, sessionDeleteAfterHook, userUpdateAfterHook } from './audit-hooks'
+import {
+  userCreateAfterHook,
+  sessionCreateAfterHook,
+  sessionDeleteAfterHook,
+  userUpdateAfterHook,
+  userDeleteAfterHook,
+} from './audit-hooks'
 import type { AuthEvent } from './events'
 
 export { SETU_ROLES, type CreateAuthOptions } from './options'
@@ -83,11 +89,12 @@ export function createAuth(opts: CreateAuthOptions) {
     // (databaseHooks.user.update.before) can see the target user id despite not receiving it as an
     // explicit hook argument.
     //
-    // The four `after` hooks are #248 Task 9's audit-event emission points — see audit-hooks.ts
+    // The five `after` hooks are #248 Task 9's audit-event emission points — see audit-hooks.ts
     // for the full per-event-type mechanism derivation (user.created / login.success / logout /
-    // role.changed / user.banned / user.unbanned). They run strictly after the last-owner guard's
-    // `before` hook (which may itself abort the update), so an event only ever fires for a change
-    // that actually committed.
+    // role.changed / user.banned / user.unbanned / user.deleted, the last three also covering
+    // /admin/update-user and /admin/remove-user respectively). They run strictly after the
+    // last-owner guard's `before` hooks (which may themselves abort the update/delete), so an
+    // event only ever fires for a change that actually committed.
     databaseHooks: {
       user: {
         create: { after: userCreateAfterHook(emit) },
@@ -100,6 +107,7 @@ export function createAuth(opts: CreateAuthOptions) {
         // entirely. See last-owner-guard.ts's lastOwnerDeleteGuardHook doc for the full mechanism.
         delete: {
           before: lastOwnerDeleteGuardHook(),
+          after: userDeleteAfterHook(emit),
         },
       },
       session: {

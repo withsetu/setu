@@ -135,6 +135,91 @@ describe('auth event emission — onAuthEvent', () => {
     expect(unbanned[0]?.actorId).toBe(owner.id)
   })
 
+  it('fires role.changed exactly once on admin update-user role change', async () => {
+    const { events, auth } = makeAuth()
+    const owner = await makeOwner(auth, 'owner@test.com', 'a-strong-password-12')
+    const target = await makeOwner(auth, 'target@test.com', 'a-strong-password-12')
+    const signin = await auth.api.signInEmail({ body: { email: 'owner@test.com', password: 'a-strong-password-12' }, asResponse: true })
+    const cookie = (signin.headers.get('set-cookie') ?? '').split(';')[0] ?? ''
+    events.length = 0
+
+    const res = await auth.handler(
+      adminRequest('/admin/update-user', cookie, { userId: target.id, data: { role: 'editor' } }),
+    )
+    expect(res.status).toBe(200)
+
+    const changes = events.filter((e) => e.type === 'role.changed')
+    expect(changes).toHaveLength(1)
+    expect(changes[0]?.targetId).toBe(target.id)
+    expect(changes[0]?.actorId).toBe(owner.id)
+    expect(changes[0]?.meta?.role).toBe('editor')
+  })
+
+  it('fires user.banned/user.unbanned exactly once on admin update-user banned toggle', async () => {
+    const { events, auth } = makeAuth()
+    const owner = await makeOwner(auth, 'owner@test.com', 'a-strong-password-12')
+    const target = await makeOwner(auth, 'target@test.com', 'a-strong-password-12')
+    const signin = await auth.api.signInEmail({ body: { email: 'owner@test.com', password: 'a-strong-password-12' }, asResponse: true })
+    const cookie = (signin.headers.get('set-cookie') ?? '').split(';')[0] ?? ''
+    events.length = 0
+
+    const banRes = await auth.handler(
+      adminRequest('/admin/update-user', cookie, { userId: target.id, data: { banned: true } }),
+    )
+    expect(banRes.status).toBe(200)
+    const banned = events.filter((e) => e.type === 'user.banned')
+    expect(banned).toHaveLength(1)
+    expect(banned[0]?.targetId).toBe(target.id)
+    expect(banned[0]?.actorId).toBe(owner.id)
+    expect(events.filter((e) => e.type === 'user.unbanned')).toHaveLength(0)
+    events.length = 0
+
+    const unbanRes = await auth.handler(
+      adminRequest('/admin/update-user', cookie, { userId: target.id, data: { banned: false } }),
+    )
+    expect(unbanRes.status).toBe(200)
+    const unbanned = events.filter((e) => e.type === 'user.unbanned')
+    expect(unbanned).toHaveLength(1)
+    expect(unbanned[0]?.targetId).toBe(target.id)
+    expect(unbanned[0]?.actorId).toBe(owner.id)
+    expect(events.filter((e) => e.type === 'user.banned')).toHaveLength(0)
+  })
+
+  it('fires no role/ban event on an admin update-user call that only touches name', async () => {
+    const { events, auth } = makeAuth()
+    const owner = await makeOwner(auth, 'owner@test.com', 'a-strong-password-12')
+    const target = await makeOwner(auth, 'target@test.com', 'a-strong-password-12')
+    const signin = await auth.api.signInEmail({ body: { email: 'owner@test.com', password: 'a-strong-password-12' }, asResponse: true })
+    const cookie = (signin.headers.get('set-cookie') ?? '').split(';')[0] ?? ''
+    events.length = 0
+
+    const res = await auth.handler(
+      adminRequest('/admin/update-user', cookie, { userId: target.id, data: { name: 'New Name' } }),
+    )
+    expect(res.status).toBe(200)
+
+    expect(events.filter((e) => e.type === 'role.changed')).toHaveLength(0)
+    expect(events.filter((e) => e.type === 'user.banned')).toHaveLength(0)
+    expect(events.filter((e) => e.type === 'user.unbanned')).toHaveLength(0)
+  })
+
+  it('fires user.deleted exactly once on admin remove-user', async () => {
+    const { events, auth } = makeAuth()
+    const owner = await makeOwner(auth, 'owner@test.com', 'a-strong-password-12')
+    const target = await makeOwner(auth, 'target@test.com', 'a-strong-password-12')
+    const signin = await auth.api.signInEmail({ body: { email: 'owner@test.com', password: 'a-strong-password-12' }, asResponse: true })
+    const cookie = (signin.headers.get('set-cookie') ?? '').split(';')[0] ?? ''
+    events.length = 0
+
+    const res = await auth.handler(adminRequest('/admin/remove-user', cookie, { userId: target.id }))
+    expect(res.status).toBe(200)
+
+    const deleted = events.filter((e) => e.type === 'user.deleted')
+    expect(deleted).toHaveLength(1)
+    expect(deleted[0]?.targetId).toBe(target.id)
+    expect(deleted[0]?.actorId).toBe(owner.id)
+  })
+
   it('no emitted event ever carries a password or token substring', async () => {
     const { events, auth } = makeAuth()
     const owner = await makeOwner(auth, 'owner@test.com', 'a-super-secret-password-99')

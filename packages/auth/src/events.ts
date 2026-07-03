@@ -18,6 +18,7 @@ export type AuthEventType =
   | 'role.changed'
   | 'user.banned'
   | 'user.unbanned'
+  | 'user.deleted'
   | 'setup.completed'
   | 'local.exchange'
 

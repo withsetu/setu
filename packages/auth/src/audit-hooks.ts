@@ -25,13 +25,30 @@ import type { AuthEvent } from './events'
  *    carrying `userId`.
  *  - `role.changed` / `user.banned` / `user.unbanned` -> `databaseHooks.user.update.after`, path-
  *    dispatched exactly like last-owner-guard.ts's `before` hook (`/admin/set-role`,
- *    `/admin/ban-user`, `/admin/unban-user`). Unlike the `before` hook, `after`'s 1st argument
- *    (`updated`) is the FULL POST-UPDATE user row (not just the diff) — `updateWithHooks` in
- *    with-hooks.mjs calls `toRun(updated, context)` — so `updated.role`/`updated.banned` can be
- *    read directly rather than reconstructed from `context.body`. `context.body` is still used for
- *    `role.changed`'s meta (the requested role string) and to read `context.context.session` for
- *    the acting admin's id (the same `GenericEndpointContext.context.session` shape the admin
- *    plugin's own routes use internally to authorize the call in the first place). */
+ *    `/admin/ban-user`, `/admin/unban-user`, and — mirroring last-owner-guard.ts's
+ *    `/admin/update-user` coverage — `/admin/update-user` too). Unlike the `before` hook, `after`'s
+ *    1st argument (`updated`) is the FULL POST-UPDATE user row (not just the diff) —
+ *    `updateWithHooks` in with-hooks.mjs calls `toRun(updated, context)` — so
+ *    `updated.role`/`updated.banned` can be read directly rather than reconstructed from
+ *    `context.body`. `context.body` is still used for `role.changed`'s meta (the requested role
+ *    string) and to read `context.context.session` for the acting admin's id (the same
+ *    `GenericEndpointContext.context.session` shape the admin plugin's own routes use internally to
+ *    authorize the call in the first place).
+ *
+ *    `/admin/update-user`'s body is `{ userId, data }` (`adminUpdateUser`,
+ *    `dist/plugins/admin/routes.mjs`, same source last-owner-guard.ts derived its coverage from) —
+ *    so unlike setRole/banUser, the touched fields live under `context.body.data`, not at the body's
+ *    top level. Only a transition that actually TOUCHES `role` or `banned` emits anything (a
+ *    name/email-only update-user call is a no-op here, same discipline as the guard).
+ *
+ *  - `user.deleted` -> `databaseHooks.user.delete.after`, GATED on
+ *    `context.path === '/admin/remove-user'` — the same route last-owner-guard.ts's
+ *    `lastOwnerDeleteGuardHook` already guards via `delete.before`. `deleteWithHooks` in
+ *    with-hooks.mjs calls `toRun(entityToDelete, context)` where `entityToDelete` is the FULL
+ *    target row read BEFORE the delete (see last-owner-guard.ts's delete-guard doc), so `targetId`
+ *    comes directly off that row's `id` — no `context.body` round-trip needed for the id, though
+ *    the actor id still comes from `context.context.session` the same way as the other admin
+ *    events. */
 
 function actorIdFrom(context: GenericEndpointContext): string | undefined {
   const session = (context.context as { session?: { user?: { id?: string } } } | undefined)?.session
@@ -87,6 +104,36 @@ export function userUpdateAfterHook(emit: (e: AuthEvent) => void) {
     }
     if (context.path === '/admin/unban-user') {
       emit({ type: 'user.unbanned', actorId, targetId: updated.id })
+      return
     }
+    if (context.path === '/admin/update-user') {
+      // `data` (the diff) lives under `context.body.data` for this route — see the module doc.
+      const data = (context.body as { data?: Record<string, unknown> } | undefined)?.data
+      if (!data) return
+      const touchesRole = Object.prototype.hasOwnProperty.call(data, 'role')
+      const touchesBanned = Object.prototype.hasOwnProperty.call(data, 'banned')
+      if (touchesRole) {
+        const requestedRole = data.role
+        emit({
+          type: 'role.changed',
+          actorId,
+          targetId: updated.id,
+          meta: { role: typeof requestedRole === 'string' ? requestedRole : String(updated.role ?? '') },
+        })
+      }
+      if (touchesBanned) {
+        emit({ type: updated.banned ? 'user.banned' : 'user.unbanned', actorId, targetId: updated.id })
+      }
+    }
+  }
+}
+
+export function userDeleteAfterHook(emit: (e: AuthEvent) => void) {
+  return async (
+    deleted: { id: string },
+    context: GenericEndpointContext | null,
+  ): Promise<void> => {
+    if (context?.path !== '/admin/remove-user') return
+    emit({ type: 'user.deleted', actorId: actorIdFrom(context), targetId: deleted.id })
   }
 }

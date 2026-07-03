@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 
 export interface LocalOwnerIdentity {
   email: string
@@ -8,7 +8,10 @@ export interface LocalOwnerIdentity {
 const FALLBACK: LocalOwnerIdentity = { email: 'owner@localhost', name: 'Owner' }
 
 function defaultExec(cmd: string): string {
-  return execSync(cmd, { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] })
+  // execFileSync (no shell) — the args are hardcoded literals, but keeping the shell out of the
+  // picture entirely means this stays injection-free even if a caller ever parameterizes it.
+  const [file, ...args] = cmd.split(' ')
+  return execFileSync(file, args, { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] })
 }
 
 /** Resolves the identity to use for the local-topology owner account (fed into

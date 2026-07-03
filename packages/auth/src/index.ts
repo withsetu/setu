@@ -6,7 +6,7 @@ import * as schema from '@setu/db-sqlite/schema'
 import { SETU_ROLES, type CreateAuthOptions } from './options'
 import { localToken } from './local-token-plugin'
 import { serverSetup } from './server-setup-plugin'
-import { lastOwnerGuardHook } from './last-owner-guard'
+import { lastOwnerGuardHook, lastOwnerDeleteGuardHook } from './last-owner-guard'
 import { userCreateAfterHook, sessionCreateAfterHook, sessionDeleteAfterHook, userUpdateAfterHook } from './audit-hooks'
 import type { AuthEvent } from './events'
 
@@ -94,6 +94,12 @@ export function createAuth(opts: CreateAuthOptions) {
         update: {
           before: lastOwnerGuardHook(),
           after: userUpdateAfterHook(emit),
+        },
+        // Deletion is a SEPARATE chokepoint from update (deleteWithHooks, not updateWithHooks) —
+        // `/admin/remove-user` on the last active owner would otherwise bypass the guard above
+        // entirely. See last-owner-guard.ts's lastOwnerDeleteGuardHook doc for the full mechanism.
+        delete: {
+          before: lastOwnerDeleteGuardHook(),
         },
       },
       session: {

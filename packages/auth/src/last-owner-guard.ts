@@ -7,7 +7,7 @@ import type { GenericEndpointContext } from '@better-auth/core'
  *  fields are real, always-present runtime columns once the admin plugin is registered (see
  *  packages/db-sqlite/src/schema.ts's `user` table) — this is a narrow, runtime-verified read, not
  *  an unchecked assumption. */
-interface UserWithAdminFields {
+export interface UserWithAdminFields {
   role?: string | null
   banned?: boolean | null
 }
@@ -46,7 +46,23 @@ interface UserWithAdminFields {
  *  `/admin/ban-user`'s body (`{ userId, banReason?, banExpiresIn? }`). `context.context` is the
  *  real `AuthContext`, carrying `internalAdapter`/`adapter` for the owner-count query below.
  *
- *  `context.path` disambiguates the two guarded routes from any other `user.update` (e.g. a
+ *  ## `/admin/update-user` coverage (gap fix)
+ *
+ *  better-auth's admin plugin ALSO exposes `POST /admin/update-user` (`adminUpdateUser`,
+ *  `dist/plugins/admin/routes.mjs`), a general user-field editor that accepts `role`/`banned`
+ *  directly in its payload — an owner-session curl to it bypassed the guard entirely, since only
+ *  `/admin/set-role` and `/admin/ban-user` were path-gated. Verified from the installed route
+ *  source: its body schema is `{ userId: string, data: Record<string, any> }`, and the handler
+ *  calls `ctx.context.internalAdapter.updateUser(ctx.body.userId, ctx.body.data)` — i.e. it funnels
+ *  through the exact same `internalAdapter.updateUser` -> `updateWithHooks` chokepoint as
+ *  setRole/banUser. That means BOTH shapes this hook already relies on carry over unchanged:
+ *  the hook's `data` argument is `ctx.body.data` (the diff, so `data.role`/`data.banned` are read
+ *  identically to the setRole/banUser case), and `context.body.userId` is still the target id at
+ *  the top level of the full request body (not nested under `data`). So no new extraction logic is
+ *  needed — only the path gate below grows to include this route, reusing the identical
+ *  `removesOwnerStatus`/owner-count logic for all three paths.
+ *
+ *  `context.path` disambiguates the three guarded routes from any other `user.update` (e.g. a
  *  profile-update flow, or Task 7's `ensureLocalOwner`/`serverSetup` — neither of which is reached
  *  through the admin plugin's HTTP dispatch, so `context` is `null` there per `with-hooks.mjs`'s
  *  own `.catch(() => null)` — this hook is a no-op for those non-HTTP internalAdapter call sites,
@@ -55,9 +71,11 @@ interface UserWithAdminFields {
  *
  *  ## Guard logic
  *
- *  Fires only for the two dangerous transitions:
- *   - `/admin/set-role` with a `role` that is not (or does not include) `'owner'` — a demotion.
- *   - `/admin/ban-user` — always sets `banned: true`.
+ *  Fires only for the dangerous transitions:
+ *   - `/admin/set-role` or `/admin/update-user` with a `role` that is not (or does not include)
+ *     `'owner'` — a demotion.
+ *   - `/admin/ban-user` or `/admin/update-user` — either always sets `banned: true` (ban-user), or
+ *     sets `data.banned === true` (update-user).
  *  For either, counts OTHER active owners (role `'owner'` AND NOT banned, excluding the target
  *  user id) via `context.context.adapter.count`. Zero others -> throws `APIError('BAD_REQUEST', {
  *  message: 'cannot remove the last owner' })`, aborting the update before it reaches the DB
@@ -65,10 +83,11 @@ interface UserWithAdminFields {
  *  route's `await` -> caught by `dispatchAuthEndpoint`'s `isAPIError` branch -> a real 400 HTTP
  *  response, verified empirically).
  *
- *  A promotion TOWARD owner (any other `role` value, or `/admin/set-role` setting role to
- *  `'owner'`) is a no-op for this guard — it can only ever increase the active-owner count, so it
- *  is never blocked, including Task 7's first-owner-promotion path. Everything else (name changes,
- *  email changes, non-owner-role sets, unban) passes through untouched. */
+ *  A promotion TOWARD owner (any other `role` value, or setting role to `'owner'`) is a no-op for
+ *  this guard — it can only ever increase the active-owner count, so it is never blocked, including
+ *  Task 7's first-owner-promotion path. Everything else (name changes, email changes, non-owner-
+ *  role sets, unban, an `/admin/update-user` call that touches neither `role` nor `banned`) passes
+ *  through untouched. */
 export function lastOwnerGuardHook() {
   return async (
     data: Record<string, unknown>,
@@ -78,14 +97,23 @@ export function lastOwnerGuardHook() {
     const path = context.path
     const isSetRole = path === '/admin/set-role'
     const isBanUser = path === '/admin/ban-user'
-    if (!isSetRole && !isBanUser) return
+    const isUpdateUser = path === '/admin/update-user'
+    if (!isSetRole && !isBanUser && !isUpdateUser) return
 
     const targetUserId = (context.body as { userId?: unknown } | undefined)?.userId
     if (typeof targetUserId !== 'string' || !targetUserId) return // malformed body — let normal validation reject it
 
+    // update-user's `data` param IS the diff (ctx.body.data, per adminUpdateUser's
+    // `internalAdapter.updateUser(ctx.body.userId, ctx.body.data)` call) — identical shape to
+    // setRole/banUser's `data`, so the same field reads apply across all three paths.
     const removesOwnerStatus = isBanUser
       ? data.banned === true
-      : !roleSetIncludesOwner(data.role)
+      : isSetRole
+        ? !roleSetIncludesOwner(data.role)
+        : // isUpdateUser: only a transition that actually TOUCHES role/banned can remove owner
+          // status — an update-user call that changes name/email only must be a no-op here.
+          (Object.prototype.hasOwnProperty.call(data, 'banned') && data.banned === true) ||
+          (Object.prototype.hasOwnProperty.call(data, 'role') && !roleSetIncludesOwner(data.role))
     if (!removesOwnerStatus) return
 
     // Is the TARGET currently an active owner at all? If not (e.g. banning a non-owner, or
@@ -95,15 +123,7 @@ export function lastOwnerGuardHook() {
       | null
     if (!target || target.role !== 'owner' || target.banned) return
 
-    const otherActiveOwners = await context.context.adapter.count({
-      model: 'user',
-      where: [
-        { field: 'id', operator: 'ne', value: targetUserId },
-        { field: 'role', value: 'owner', connector: 'AND' },
-        { field: 'banned', operator: 'ne', value: true, connector: 'AND' },
-      ],
-    })
-    if (otherActiveOwners === 0) {
+    if (await isLastActiveOwner(context, targetUserId)) {
       throw new APIError('BAD_REQUEST', { message: 'cannot remove the last owner' })
     }
   }
@@ -118,4 +138,69 @@ function roleSetIncludesOwner(role: unknown): boolean {
   if (Array.isArray(role)) return role.includes('owner')
   if (typeof role === 'string') return role.split(',').includes('owner')
   return false
+}
+
+/** Shared by both the update guard (above) and the delete guard (below): counts OTHER active
+ *  owners (role `'owner'` AND NOT banned, excluding `targetUserId`) via `context.context.adapter`
+ *  — the query itself doesn't depend on update vs. delete, only on "who is left besides the
+ *  target". Returns true when the target is the LAST active owner (zero others exist). */
+async function isLastActiveOwner(
+  context: GenericEndpointContext,
+  targetUserId: string,
+): Promise<boolean> {
+  const otherActiveOwners = await context.context.adapter.count({
+    model: 'user',
+    where: [
+      { field: 'id', operator: 'ne', value: targetUserId },
+      { field: 'role', value: 'owner', connector: 'AND' },
+      { field: 'banned', operator: 'ne', value: true, connector: 'AND' },
+    ],
+  })
+  return otherActiveOwners === 0
+}
+
+/** ## Deletion coverage (`/admin/remove-user`)
+ *
+ *  `POST /admin/remove-user` (`removeUser`, `dist/plugins/admin/routes.mjs`) deletes a user via
+ *  `internalAdapter.deleteUser(ctx.body.userId)`, which calls `deleteWithHooks(..., 'user', ...)`
+ *  (`dist/db/internal-adapter.mjs`) — a SEPARATE chokepoint from `updateWithHooks`, so the
+ *  update-guard above never sees a delete. Deleting the last active owner bricks admin access with
+ *  no `user.update.before` firing at all, which is exactly the gap this covers.
+ *
+ *  Confirmed from `@better-auth/core`'s `dist/types/init-options.d.mts` (`databaseHooks.user`):
+ *  a `delete` hook family DOES exist in 1.6.23 — `before?: (user, context) => Promise<boolean |
+ *  void>` / `after?: (user, context) => Promise<void>` — sibling to `create`/`update`. So this is a
+ *  real, typed hook, not a workaround.
+ *
+ *  `deleteWithHooks(where, model)` (`dist/db/with-hooks.mjs`) reads the row FIRST —
+ *  `entityToDelete = adapter.findMany({model, where, limit:1})[0]` — then calls
+ *  `toRun(entityToDelete, context)`, i.e. the hook's 1st argument is the FULL target user row
+ *  (already carrying `role`/`banned`), not a diff and not just a where-clause. That means, unlike
+ *  the update guard, no extra `findUserById` round-trip is needed here — the row is handed to us
+ *  directly. `context.path === '/admin/remove-user'` gates this to the one dangerous delete route
+ *  (`removeUserBodySchema` is `{ userId: string }`, confirmed from the installed route source, and
+ *  `context.body.userId` carries it identically to the update guard's paths).
+ *
+ *  Returning `false` from `delete.before` also aborts the delete (per `with-hooks.mjs`), but this
+ *  throws `APIError('BAD_REQUEST', ...)` instead, matching the update guard's convention/message
+ *  family and giving a real 400 with the same message rather than a silent no-op. */
+export function lastOwnerDeleteGuardHook() {
+  return async (
+    deletedUser: UserWithAdminFields & { id: string } & Record<string, unknown>,
+    context: GenericEndpointContext | null,
+  ): Promise<void> => {
+    if (!context) return // no HTTP request context (e.g. bootstrap/internal calls) — not this guard's concern
+    if (context.path !== '/admin/remove-user') return
+
+    const targetUserId = (context.body as { userId?: unknown } | undefined)?.userId
+    if (typeof targetUserId !== 'string' || !targetUserId || targetUserId !== deletedUser.id) return
+
+    // Is the TARGET currently an active owner at all? If not, deleting them can't be removing
+    // "the" owner.
+    if (deletedUser.role !== 'owner' || deletedUser.banned) return
+
+    if (await isLastActiveOwner(context, targetUserId)) {
+      throw new APIError('BAD_REQUEST', { message: 'cannot remove the last owner' })
+    }
+  }
 }

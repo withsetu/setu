@@ -203,7 +203,7 @@ describe('render pipeline — locale URLs', () => {
     expect(() => page('post/en/kitchen-sink')).toThrow()
   })
   it('keeps a non-default locale segment in the URL', () => {
-    expect(page('post/fr/bonjour')).toContain('<h1>Bonjour</h1>')
+    expect(page('fr/post/bonjour')).toContain('<h1>Bonjour</h1>')
   })
 })
 
@@ -222,7 +222,7 @@ describe('default theme — templates by collection', () => {
     expect(home).toContain('class="prose measure-page"')
   })
   it('carries the entry locale as <html lang>', () => {
-    expect(page('post/fr/bonjour')).toContain('lang="fr"')
+    expect(page('fr/post/bonjour')).toContain('lang="fr"')
     expect(page('post/kitchen-sink')).toContain('lang="en"')
   })
 })

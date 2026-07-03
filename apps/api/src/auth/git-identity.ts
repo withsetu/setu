@@ -10,7 +10,7 @@ const FALLBACK: LocalOwnerIdentity = { email: 'owner@localhost', name: 'Owner' }
 function defaultExec(cmd: string): string {
   // execFileSync (no shell) — the args are hardcoded literals, but keeping the shell out of the
   // picture entirely means this stays injection-free even if a caller ever parameterizes it.
-  const [file, ...args] = cmd.split(' ')
+  const [file = 'git', ...args] = cmd.split(' ')
   return execFileSync(file, args, { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] })
 }
 

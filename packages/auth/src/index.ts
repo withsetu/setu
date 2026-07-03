@@ -5,9 +5,12 @@ import { defaultAc } from 'better-auth/plugins/admin/access'
 import * as schema from '@setu/db-sqlite/schema'
 import { SETU_ROLES, type CreateAuthOptions } from './options'
 import { localToken } from './local-token-plugin'
+import { serverSetup } from './server-setup-plugin'
 
 export { SETU_ROLES, type CreateAuthOptions } from './options'
 export { localToken, isLoopbackHost, constantTimeTokenEquals, type LocalTokenOptions } from './local-token-plugin'
+export { serverSetup, type ServerSetupOptions } from './server-setup-plugin'
+export { ensureLocalOwner, type LocalOwnerIdentity } from './ensure-local-owner'
 
 // better-auth's admin plugin validates `adminRoles` against the keys of a
 // `roles` access-control map (defaulting to its own `{ admin, user }` map).
@@ -48,6 +51,9 @@ export function createAuth(opts: CreateAuthOptions) {
   }
   if (opts.localToken) {
     plugins.push(localToken(opts.localToken))
+  }
+  if (opts.serverSetup) {
+    plugins.push(serverSetup(opts.serverSetup))
   }
 
   return betterAuth({

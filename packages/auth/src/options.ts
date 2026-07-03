@@ -30,4 +30,15 @@ export interface CreateAuthOptions {
     consume: () => void
     localUserId: () => Promise<string>
   }
+  /** Non-local topology only: wires the guarded first-run server setup plugin
+   *  (POST /api/auth/setup). Omitted entirely in local topology — the loopback handshake covers
+   *  local first-run, not this route (see apps/api/src/server.ts). */
+  serverSetup?: {
+    /** The one-time setup token minted at boot when needsSetup is true in non-local mode, or null
+     *  when this topology has no setup route at all (mirrors localToken's getToken contract). */
+    getSetupToken: () => string | null
+    /** Live row count of the user table — checked fresh on every request, not cached, so setup
+     *  closes the instant the first owner exists. */
+    countUsers: () => number
+  }
 }

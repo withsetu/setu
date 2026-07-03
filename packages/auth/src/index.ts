@@ -6,6 +6,7 @@ import * as schema from '@setu/db-sqlite/schema'
 import { SETU_ROLES, type CreateAuthOptions } from './options'
 import { localToken } from './local-token-plugin'
 import { serverSetup } from './server-setup-plugin'
+import { lastOwnerGuardHook } from './last-owner-guard'
 
 export { SETU_ROLES, type CreateAuthOptions } from './options'
 export { localToken, isLoopbackHost, constantTimeTokenEquals, type LocalTokenOptions } from './local-token-plugin'
@@ -64,6 +65,20 @@ export function createAuth(opts: CreateAuthOptions) {
     trustedOrigins: opts.trustedOrigins,
     emailAndPassword: { enabled: true },
     socialProviders: opts.socialProviders,
+    // Server-side last-owner enforcement (#248 Task 8 review, Finding 1): every consumer of this
+    // `auth` instance — our own routes, a future public API, or a raw HTTP call by any owner
+    // session — is covered, not just the admin UI's client-side guard (see UsersSettings.tsx's
+    // roleChangeGuard/disableGuard, which remain as a first line of UX feedback but are no longer
+    // the ONLY protection). See last-owner-guard.ts for the full derivation of why this mechanism
+    // (databaseHooks.user.update.before) can see the target user id despite not receiving it as an
+    // explicit hook argument.
+    databaseHooks: {
+      user: {
+        update: {
+          before: lastOwnerGuardHook(),
+        },
+      },
+    },
     advanced: {
       ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] },
       defaultCookieAttributes: { httpOnly: true, sameSite: 'lax' },

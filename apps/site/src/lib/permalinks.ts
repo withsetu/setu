@@ -1,6 +1,7 @@
 import {
   resolvePermalinkMap,
   resolvePermalinkConfig,
+  parseFrontmatterDate,
   type PermalinkEntry
 } from '@setu/core'
 import config from '../../setu.config'
@@ -14,19 +15,12 @@ export function toPermalinkEntry(entry: {
   data: Record<string, unknown>
 }): PermalinkEntry {
   const [collection = '', locale = '', ...rest] = entry.id.split('/')
-  const raw = entry.data['date'] ?? entry.data['pubDate']
-  const parsed =
-    raw instanceof Date
-      ? raw.getTime()
-      : typeof raw === 'string' || typeof raw === 'number'
-        ? Date.parse(String(raw))
-        : NaN
   return {
     id: entry.id,
     collection,
     locale,
     slug: rest.join('/'),
-    date: Number.isNaN(parsed) ? null : parsed,
+    date: parseFrontmatterDate(entry.data),
     categories: strArr(entry.data['categories'])
   }
 }

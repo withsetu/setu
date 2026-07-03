@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { Draft, DraftInput, Lifecycle, TiptapDoc } from '@setu/core'
 import {
+  parseFrontmatterDate,
   resolvePermalinkConfig,
   serializeMdoc,
   tiptapToMarkdoc
@@ -307,16 +308,10 @@ export function EditorScreen() {
   const listPath = `/${collection}s`
   // Same date ?? pubDate rule as the content index's dateOf — URL use only, never
   // updatedAt/mtime (an edit must not move a URL).
-  const frontmatterDate = useMemo(() => {
-    const raw = metadata['date'] ?? metadata['pubDate']
-    const parsed =
-      raw instanceof Date
-        ? raw.getTime()
-        : typeof raw === 'string' || typeof raw === 'number'
-          ? Date.parse(String(raw))
-          : NaN
-    return Number.isNaN(parsed) ? null : parsed
-  }, [metadata])
+  const frontmatterDate = useMemo(
+    () => parseFrontmatterDate(metadata),
+    [metadata]
+  )
   const frontmatterCategories = Array.isArray(metadata['categories'])
     ? (metadata['categories'] as string[])
     : []

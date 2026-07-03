@@ -41,6 +41,7 @@ const {
   selectRelatedPosts,
   resolvePermalinkMap,
   resolvePermalinkConfig,
+  parseFrontmatterDate,
   parseSettings
 } = await jiti.import('@setu/core')
 
@@ -108,9 +109,6 @@ function toRow(file, contentDir) {
         : undefined
   // `date`/`pubDate` are carried alongside the RelatedRow shape (as `permalinkDate`) purely so
   // the permalink map can be built from the same scan without re-parsing every file.
-  const permalinkDateRaw = frontmatter.date ?? frontmatter.pubDate
-  const permalinkParsed =
-    permalinkDateRaw != null ? Date.parse(String(permalinkDateRaw)) : Number.NaN
   return {
     key: id,
     collection,
@@ -124,7 +122,7 @@ function toRow(file, contentDir) {
     relatedOverride,
     // Frontmatter date ?? pubDate ONLY — never updatedAt/mtime — matching
     // apps/site/src/lib/permalinks.ts's toPermalinkEntry exactly (an edit must not move a URL).
-    permalinkDate: Number.isNaN(permalinkParsed) ? null : permalinkParsed
+    permalinkDate: parseFrontmatterDate(frontmatter)
   }
 }
 

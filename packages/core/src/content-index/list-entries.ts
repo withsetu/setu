@@ -5,6 +5,7 @@ import { contentPath } from '../publish/content-path'
 import { parseMdoc, serializeMdoc } from '../markdoc/frontmatter'
 import { tiptapToMarkdoc } from '../markdoc/to-markdoc'
 import { normalizeTags } from '../tags/normalize'
+import { parseFrontmatterDate } from '../permalinks/frontmatter-date'
 import { extractMediaRefs } from './extract-media-refs'
 
 /** One row in the merged content list: an entry that exists as a draft, as a
@@ -145,26 +146,18 @@ function titleOf(
 }
 
 /** Frontmatter publish date (date ?? pubDate) from the live version, epoch ms. URL use only —
- *  never updatedAt/mtime (an edit must not move a URL). */
+ *  never updatedAt/mtime (an edit must not move a URL). Selects the live frontmatter source
+ *  (draft vs. committed) here; the raw→ms parsing is shared via parseFrontmatterDate. */
 function dateOf(
   draft: Draft | null,
   committedStr: string | null
 ): number | null {
-  const raw = draft
-    ? (draft.metadata['date'] ?? draft.metadata['pubDate'])
+  const frontmatter = draft
+    ? draft.metadata
     : committedStr !== null
-      ? (() => {
-          const f = parseMdoc(committedStr).frontmatter
-          return f['date'] ?? f['pubDate']
-        })()
-      : undefined
-  const parsed =
-    raw instanceof Date
-      ? raw.getTime()
-      : typeof raw === 'string' || typeof raw === 'number'
-        ? Date.parse(String(raw))
-        : NaN
-  return Number.isNaN(parsed) ? null : parsed
+      ? parseMdoc(committedStr).frontmatter
+      : {}
+  return parseFrontmatterDate(frontmatter)
 }
 
 /** Tags from the live version: the draft's `tags` when a draft exists (even if

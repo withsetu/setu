@@ -3,7 +3,10 @@ import { render } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import type { Actor } from '@setu/core'
-import { CommandRegistryProvider, useCommandRegistry } from '../src/command/registry'
+import {
+  CommandRegistryProvider,
+  useCommandRegistry
+} from '../src/command/registry'
 import { ActorProvider } from '../src/auth/actor'
 import { NotificationProvider } from '../src/ui/notify'
 import { GlobalCommands } from '../src/command/GlobalCommands'
@@ -12,7 +15,7 @@ import { GlobalCommands } from '../src/command/GlobalCommands'
 // We only need the deploy() function; capture the mock to verify calls if needed.
 const mockDeploy = vi.fn(() => Promise.resolve())
 vi.mock('../src/deploy/deploy', () => ({
-  useDeploy: () => ({ deployedAt: () => null, sha: null, deploy: mockDeploy }),
+  useDeploy: () => ({ deployedAt: () => null, sha: null, deploy: mockDeploy })
 }))
 
 // Probe component — reads commands from registry and exposes them via data attrs.
@@ -21,7 +24,11 @@ function CommandProbe() {
   return (
     <div data-testid="probe">
       {commands.map((c) => (
-        <div key={c.id} data-testid={`cmd-${c.id}`} data-enabled={String(c.enabled?.() ?? true)}>
+        <div
+          key={c.id}
+          data-testid={`cmd-${c.id}`}
+          data-enabled={String(c.enabled?.() ?? true)}
+        >
           {c.title}
         </div>
       ))}
@@ -67,13 +74,19 @@ describe('GlobalCommands', () => {
 
   it('Deploy site enabled() is true for an owner (default actor)', () => {
     const { getByTestId } = render(<GlobalCommands />, { wrapper: wrap() })
-    expect(getByTestId('cmd-site.deploy').getAttribute('data-enabled')).toBe('true')
+    expect(getByTestId('cmd-site.deploy').getAttribute('data-enabled')).toBe(
+      'true'
+    )
   })
 
   it("Deploy site enabled() is false when the actor cannot 'site.deploy'", () => {
     const viewer: Actor = { id: 'v', role: 'viewer' }
-    const { getByTestId } = render(<GlobalCommands />, { wrapper: wrap(viewer) })
-    expect(getByTestId('cmd-site.deploy').getAttribute('data-enabled')).toBe('false')
+    const { getByTestId } = render(<GlobalCommands />, {
+      wrapper: wrap(viewer)
+    })
+    expect(getByTestId('cmd-site.deploy').getAttribute('data-enabled')).toBe(
+      'false'
+    )
   })
 
   it('renders null (no DOM output from GlobalCommands itself)', () => {
@@ -86,7 +99,7 @@ describe('GlobalCommands', () => {
             </CommandRegistryProvider>
           </NotificationProvider>
         </ActorProvider>
-      </MemoryRouter>,
+      </MemoryRouter>
     )
     // GlobalCommands should not add any DOM elements beyond what providers add
     // The component itself renders null — the container should have only the notification region

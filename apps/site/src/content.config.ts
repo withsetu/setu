@@ -10,6 +10,8 @@ import { glob } from 'astro/loaders'
 // `.content-sandbox/<name>/content`), so the bridge's Publish never touches the tracked
 // fixtures. Unset (build, render tests, prod) → the canonical repo-root content/.
 const contentBase = process.env.SETU_CONTENT_DIR ?? '../../content'
-const entries = defineCollection({ loader: glob({ pattern: '**/*.mdoc', base: contentBase }) })
+const entries = defineCollection({
+  loader: glob({ pattern: '**/*.mdoc', base: contentBase })
+})
 
 export const collections = { entries }

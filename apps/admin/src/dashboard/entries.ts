@@ -7,7 +7,7 @@ export async function loadDashboardEntries(
   data: DataPort,
   git: GitPort,
   deployedAt: (path: string) => string | null,
-  collections: string[] = DEFAULT_COLLECTIONS,
+  collections: string[] = DEFAULT_COLLECTIONS
 ): Promise<ContentRow[]> {
   const all: ContentRow[] = []
   for (const collection of collections) {
@@ -25,14 +25,21 @@ export async function loadDashboardEntries(
 }
 
 export function dashboardCounts(rows: ContentRow[]): {
-  posts: number; pages: number; drafts: number; published: number
+  posts: number
+  pages: number
+  drafts: number
+  published: number
 } {
-  let posts = 0, pages = 0, drafts = 0, published = 0
+  let posts = 0,
+    pages = 0,
+    drafts = 0,
+    published = 0
   for (const r of rows) {
     if (r.ref.collection === 'post') posts++
     else if (r.ref.collection === 'page') pages++
     if (r.lifecycle.state === 'draft') drafts++
-    else if (r.lifecycle.state === 'staged' || r.lifecycle.state === 'live') published++
+    else if (r.lifecycle.state === 'staged' || r.lifecycle.state === 'live')
+      published++
   }
   return { posts, pages, drafts, published }
 }
@@ -41,7 +48,10 @@ export function recentEntries(rows: ContentRow[], limit: number): ContentRow[] {
   return rows.slice(0, limit)
 }
 
-export async function loadActiveLocks(data: DataPort, rows: ContentRow[]): Promise<Lock[]> {
+export async function loadActiveLocks(
+  data: DataPort,
+  rows: ContentRow[]
+): Promise<Lock[]> {
   const locks: Lock[] = []
   for (const r of rows) {
     const lock = await data.getLock(r.ref)

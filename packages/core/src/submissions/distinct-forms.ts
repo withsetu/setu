@@ -3,7 +3,10 @@ import type { Submission, FormSummary } from './types'
 /** Group submissions by formId with counts; the most-recent submission's label
  *  wins; sorted by formId. The single impl shared by every SubmissionPort adapter. */
 export function selectDistinctForms(rows: Submission[]): FormSummary[] {
-  const byId = new Map<string, { label?: string; labelAt: number; count: number }>()
+  const byId = new Map<
+    string,
+    { label?: string; labelAt: number; count: number }
+  >()
   for (const r of rows) {
     const cur = byId.get(r.formId)
     if (!cur) {

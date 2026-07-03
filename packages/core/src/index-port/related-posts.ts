@@ -42,7 +42,7 @@ const refOf = (r: RelatedRow): RelatedRef => ({
   collection: r.collection,
   locale: r.locale,
   slug: r.slug,
-  title: r.title,
+  title: r.title
 })
 
 /** Total order: recency desc (null treated as oldest), then key asc — deterministic. */
@@ -70,7 +70,7 @@ function byRecencyThenKey(a: RelatedRow, b: RelatedRow): number {
  */
 export function selectRelatedPosts(
   rows: RelatedRow[],
-  opts: RelatedOpts = {},
+  opts: RelatedOpts = {}
 ): Record<string, RelatedRef[]> {
   const k = opts.k ?? 4
   const categoryBoost = opts.categoryBoost ?? 0.25
@@ -88,18 +88,23 @@ export function selectRelatedPosts(
 
   for (const src of rows) {
     const inScope = (c: RelatedRow): boolean =>
-      c.key !== src.key && c.collection === src.collection && c.locale === src.locale
+      c.key !== src.key &&
+      c.collection === src.collection &&
+      c.locale === src.locale
 
     // Candidate set: in-scope rows sharing ≥1 tag with src, deduped by key.
     const candByKey = new Map<string, RelatedRow>()
     for (const t of src.tags) {
-      for (const c of byTag.get(t) ?? []) if (inScope(c)) candByKey.set(c.key, c)
+      for (const c of byTag.get(t) ?? [])
+        if (inScope(c)) candByKey.set(c.key, c)
     }
 
     const scored = [...candByKey.values()]
       .map((c) => ({
         c,
-        score: jaccard(src.tags, c.tags) + categoryBoost * jaccard(src.categories, c.categories),
+        score:
+          jaccard(src.tags, c.tags) +
+          categoryBoost * jaccard(src.categories, c.categories)
       }))
       .filter((x) => x.score > 0)
       .sort((a, b) => b.score - a.score || byRecencyThenKey(a.c, b.c))
@@ -112,7 +117,10 @@ export function selectRelatedPosts(
       const srcCats = new Set(src.categories)
       const tier1 = rows
         .filter(
-          (c) => inScope(c) && !pickedKeys.has(c.key) && c.categories.some((g) => srcCats.has(g)),
+          (c) =>
+            inScope(c) &&
+            !pickedKeys.has(c.key) &&
+            c.categories.some((g) => srcCats.has(g))
         )
         .sort(byRecencyThenKey)
       for (const c of tier1) {
@@ -121,7 +129,9 @@ export function selectRelatedPosts(
         pickedKeys.add(c.key)
       }
 
-      const tier2 = rows.filter((c) => inScope(c) && !pickedKeys.has(c.key)).sort(byRecencyThenKey)
+      const tier2 = rows
+        .filter((c) => inScope(c) && !pickedKeys.has(c.key))
+        .sort(byRecencyThenKey)
       for (const c of tier2) {
         if (picked.length >= k) break
         picked.push(c)

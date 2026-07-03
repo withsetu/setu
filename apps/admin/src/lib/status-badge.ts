@@ -7,9 +7,12 @@ const STATE_VARIANT: Record<Lifecycle['state'], StatusVariant> = {
   draft: 'warning',
   staged: 'info',
   live: 'success',
-  unpublished: 'secondary',
+  unpublished: 'secondary'
 }
 
-export function statusBadge(lc: Lifecycle): { label: string; variant: StatusVariant } {
+export function statusBadge(lc: Lifecycle): {
+  label: string
+  variant: StatusVariant
+} {
   return { label: lifecycleLabel(lc).label, variant: STATE_VARIANT[lc.state] }
 }

@@ -5,7 +5,10 @@ import type { StandardBlock } from './standard/types'
  *  buildRegistry. Site-local wins on a tag collision, so any site can override a standard
  *  block by dropping a blocks/<tag>/ folder. A standard block's renderer specifier becomes
  *  its `component`. */
-export function mergeBlockSources(input: { standard: StandardBlock[]; local: BlockEntry[] }): BlockEntry[] {
+export function mergeBlockSources(input: {
+  standard: StandardBlock[]
+  local: BlockEntry[]
+}): BlockEntry[] {
   const { standard, local } = input
   const localTags = new Set(local.map((e) => e.tag))
   const fromStandard: BlockEntry[] = standard

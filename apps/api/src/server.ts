@@ -5,8 +5,15 @@ import { serve } from '@hono/node-server'
 import { createLocalGitAdapter } from '@setu/git-local'
 import { createLocalStorage } from '@setu/storage-local'
 import { createSharpImageAdapter } from '@setu/image-sharp'
-import { createSqliteSubmissionPort, createSqliteReprocessJobStore } from '@setu/db-sqlite'
-import { createSubmissionService, createNoopCaptcha, parseSettings } from '@setu/core'
+import {
+  createSqliteSubmissionPort,
+  createSqliteReprocessJobStore
+} from '@setu/db-sqlite'
+import {
+  createSubmissionService,
+  createNoopCaptcha,
+  parseSettings
+} from '@setu/core'
 import type { CaptchaPort } from '@setu/core'
 import { createTurnstileCaptcha } from '@setu/captcha-turnstile'
 import { createRecaptchaCaptcha } from '@setu/captcha-recaptcha'
@@ -27,10 +34,18 @@ function resolveCaptcha(provider: string, secret: string): CaptchaPort {
   if (!secret) {
     // Provider selected but secret missing.
     if (process.env.NODE_ENV === 'production') {
-      console.error(`[captcha] provider "${provider}" selected but its secret is unset — rejecting submissions`)
-      return { async verify() { return false } } // fail-closed in prod
+      console.error(
+        `[captcha] provider "${provider}" selected but its secret is unset — rejecting submissions`
+      )
+      return {
+        async verify() {
+          return false
+        }
+      } // fail-closed in prod
     }
-    console.warn(`[captcha] provider "${provider}" selected but secret unset — dev pass-through`)
+    console.warn(
+      `[captcha] provider "${provider}" selected but secret unset — dev pass-through`
+    )
     return createNoopCaptcha()
   }
   return provider === 'recaptcha'
@@ -41,7 +56,8 @@ function resolveCaptcha(provider: string, secret: string): CaptchaPort {
 const dir = process.env.SETU_REPO_DIR ?? process.cwd()
 const port = Number(process.env.SETU_API_PORT ?? 4444)
 const mediaDir = process.env.SETU_MEDIA_DIR ?? `${dir}/.setu/uploads`
-const mediaPublicUrl = process.env.SETU_MEDIA_PUBLIC_URL ?? `http://localhost:${port}/media`
+const mediaPublicUrl =
+  process.env.SETU_MEDIA_PUBLIC_URL ?? `http://localhost:${port}/media`
 
 function loadSiteSettings() {
   try {
@@ -53,7 +69,8 @@ function loadSiteSettings() {
 }
 const siteSettings = loadSiteSettings()
 
-const submissionsDb = process.env.SETU_SUBMISSIONS_DB ?? `${dir}/.setu/submissions.db`
+const submissionsDb =
+  process.env.SETU_SUBMISSIONS_DB ?? `${dir}/.setu/submissions.db`
 const notifyTo = process.env.SETU_FORMS_NOTIFY_TO
 const notifyFrom = process.env.SETU_FORMS_NOTIFY_FROM
 
@@ -68,7 +85,10 @@ const captchaSecret =
     ? (process.env.SETU_RECAPTCHA_SECRET ?? '')
     : (process.env.SETU_TURNSTILE_SECRET ?? '')
 const captcha = resolveCaptcha(captchaProvider, captchaSecret)
-const captchaStatus = { provider: captchaProvider, secretConfigured: captchaSecret !== '' }
+const captchaStatus = {
+  provider: captchaProvider,
+  secretConfigured: captchaSecret !== ''
+}
 const emailAdapter = process.env.SETU_EMAIL_ADAPTER ?? 'console'
 const email =
   emailAdapter === 'resend'
@@ -81,38 +101,64 @@ const submit = createSubmissionService({
   email,
   notifyTo,
   notifyFrom,
-  renderNotification: renderSubmissionEmail, // React Email HTML/text
+  renderNotification: renderSubmissionEmail // React Email HTML/text
 })
 
 const imageAdapter = createSharpImageAdapter()
-const localStorage = createLocalStorage({ dir: mediaDir, baseUrl: mediaPublicUrl })
-const reprocessStore = createSqliteReprocessJobStore(`${dir}/.setu/reprocess.db`)
+const localStorage = createLocalStorage({
+  dir: mediaDir,
+  baseUrl: mediaPublicUrl
+})
+const reprocessStore = createSqliteReprocessJobStore(
+  `${dir}/.setu/reprocess.db`
+)
 const runReprocess = (jobId: string) => {
   const media = loadSiteSettings().media
-  void runReprocessJob(reprocessStore, { image: imageAdapter, storage: localStorage, media, widths: [400, 800, 1200, 1600] }, jobId)
+  void runReprocessJob(
+    reprocessStore,
+    {
+      image: imageAdapter,
+      storage: localStorage,
+      media,
+      widths: [400, 800, 1200, 1600]
+    },
+    jobId
+  )
 }
 
 const app = new Hono()
 app.route('/', createGitApi(createLocalGitAdapter({ dir })))
 app.route('/', createPreviewApi())
-app.route('/', createUploadApi({
-  storage: localStorage,
-  resolveActor: resolveLocalOwner,
-  image: imageAdapter,
-  // Live getter, not a snapshot: re-read settings.json each request so a Media settings change
-  // (format / LQIP) applies to new uploads and Reprocess without restarting the api.
-  mediaSettings: () => loadSiteSettings().media,
-  reprocess: { store: reprocessStore, run: runReprocess },
-}))
+app.route(
+  '/',
+  createUploadApi({
+    storage: localStorage,
+    resolveActor: resolveLocalOwner,
+    image: imageAdapter,
+    // Live getter, not a snapshot: re-read settings.json each request so a Media settings change
+    // (format / LQIP) applies to new uploads and Reprocess without restarting the api.
+    mediaSettings: () => loadSiteSettings().media,
+    reprocess: { store: reprocessStore, run: runReprocess }
+  })
+)
 app.route('/', createFormsApi({ submit, submissions, captchaStatus }))
-app.route('/', createCapabilitiesApi(buildCapabilities({
-  image: imageAdapter,            // present in the Node topology
-  writableMediaStore: true,       // local fs storage is writable
-  backgroundJobs: true,           // persistent Node process can run jobs
-  mode: process.env.SETU_MODE ?? 'self-hosted',
-})))
+app.route(
+  '/',
+  createCapabilitiesApi(
+    buildCapabilities({
+      image: imageAdapter, // present in the Node topology
+      writableMediaStore: true, // local fs storage is writable
+      backgroundJobs: true, // persistent Node process can run jobs
+      mode: process.env.SETU_MODE ?? 'self-hosted'
+    })
+  )
+)
 
 serve({ fetch: app.fetch, port })
-console.log(`api listening on http://localhost:${port} (repo: ${dir}, media: ${mediaDir}, imageFormat: ${siteSettings.media.imageFormat}, lqip: ${siteSettings.media.imageLqip})`)
-console.log(`[captcha] provider=${captchaProvider || '(none)'} secretConfigured=${captchaStatus.secretConfigured}`)
+console.log(
+  `api listening on http://localhost:${port} (repo: ${dir}, media: ${mediaDir}, imageFormat: ${siteSettings.media.imageFormat}, lqip: ${siteSettings.media.imageLqip})`
+)
+console.log(
+  `[captcha] provider=${captchaProvider || '(none)'} secretConfigured=${captchaStatus.secretConfigured}`
+)
 resumeActiveJob(reprocessStore, runReprocess)

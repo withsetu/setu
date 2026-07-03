@@ -17,7 +17,13 @@ interface CalloutProps {
 
 /** The single callout visual core — rendered by BOTH the editor node view and the site
  *  wrapper. Owns structure + class contract; consumers inject the editable/dynamic slots. */
-export function Callout({ tone, icon, title, toolbar, children }: CalloutProps) {
+export function Callout({
+  tone,
+  icon,
+  title,
+  toolbar,
+  children
+}: CalloutProps) {
   return (
     <aside className={`blk-callout tone-${tone}`} aria-label="Callout block">
       {toolbar}

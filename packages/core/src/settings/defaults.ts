@@ -6,7 +6,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     tagline: '',
     description: '',
     timezone: 'UTC',
-    dateFormat: 'MMM D, YYYY',
+    dateFormat: 'MMM D, YYYY'
   },
   reading: {
     homepage: 'page/en/home',
@@ -15,7 +15,12 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     postsPerPage: 6,
     feed: { enabled: false, items: 20 },
     markdown: { mode: 'off', style: 'raw' },
-    relatedPosts: { enabled: true, heading: 'Read Next', count: 3, showImage: true },
+    relatedPosts: {
+      enabled: true,
+      heading: 'Read Next',
+      count: 3,
+      showImage: true
+    }
   },
   media: { imageFormat: 'webp', imageLqip: false },
   identity: {
@@ -27,6 +32,6 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     socialProfiles: [],
     twitterHandle: '',
     titleTemplate: '{{title}} {{separator}} {{site}}',
-    titleSeparator: '·',
-  },
+    titleSeparator: '·'
+  }
 }

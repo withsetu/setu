@@ -22,13 +22,19 @@ describe('{% related %} block', () => {
     expect(html).toContain('href="/post/astro-on-the-edge"')
   })
   it('preserves the authored order (featured-demo before astro-on-the-edge)', () => {
-    expect(html.indexOf('/post/featured-demo')).toBeLessThan(html.indexOf('/post/astro-on-the-edge'))
+    expect(html.indexOf('/post/featured-demo')).toBeLessThan(
+      html.indexOf('/post/astro-on-the-edge')
+    )
   })
   it('renders a thumbnail for a curated post that has a featured image', () => {
-    expect(html).toMatch(/class="setu-post-card__media"[\s\S]*?\/media\/2026\/06\/test-cat\.jpg/)
+    expect(html).toMatch(
+      /class="setu-post-card__media"[\s\S]*?\/media\/2026\/06\/test-cat\.jpg/
+    )
   })
   it('ships zero JS', () => {
     expect(html).not.toContain('astro-island')
-    expect(html).not.toMatch(/<script(?![^>]*type="application\/ld\+json")[\s>]/)
+    expect(html).not.toMatch(
+      /<script(?![^>]*type="application\/ld\+json")[\s>]/
+    )
   })
 })

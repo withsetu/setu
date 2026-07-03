@@ -3,9 +3,15 @@
    the editor (apps/admin tokens.css) so @setu/blocks render themed + matching. */
 :root {
   /* ---- Identity knobs (defaults — the customization surface) ---- */
-  --font-heading: 'Hanken Grotesk Variable', 'Hanken Grotesk', ui-sans-serif, system-ui, sans-serif;
-  --font-body: 'Hanken Grotesk Variable', 'Hanken Grotesk', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-heading:
+    'Hanken Grotesk Variable', 'Hanken Grotesk', ui-sans-serif, system-ui,
+    sans-serif;
+  --font-body:
+    'Hanken Grotesk Variable', 'Hanken Grotesk', ui-sans-serif, system-ui,
+    sans-serif;
+  --font-mono:
+    'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo,
+    monospace;
   --text-base: 1.0625rem;
   --h1: 2.5rem;
   --h2: 1.6rem;

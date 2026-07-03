@@ -14,11 +14,21 @@ function Harness({ onReady }: { onReady: (e: Editor) => void }) {
     content: {
       type: 'doc',
       content: [
-        { type: 'paragraph', content: [
-          { type: 'image', attrs: { src: '/uploads/media/x/original.png', alt: 'a cat', title: null } },
-        ] },
-      ],
-    },
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'image',
+              attrs: {
+                src: '/uploads/media/x/original.png',
+                alt: 'a cat',
+                title: null
+              }
+            }
+          ]
+        }
+      ]
+    }
   })
   if (editor) onReady(editor)
   return <EditorContent editor={editor} />
@@ -26,11 +36,12 @@ function Harness({ onReady }: { onReady: (e: Editor) => void }) {
 
 describe('Image node', () => {
   it('renders an <img> whose src is resolved against VITE_SETU_API', async () => {
-    let editor!: Editor
-    render(<Harness onReady={(e) => (editor = e)} />)
+    render(<Harness onReady={() => {}} />)
     const img = (await screen.findAllByRole('img'))[0]!
     // jsdom resolves the src to an absolute URL; assert the path + that it is not the bare root-relative origin
-    expect(img.getAttribute('src')).toMatch(/\/uploads\/media\/x\/original\.png$/)
+    expect(img.getAttribute('src')).toMatch(
+      /\/uploads\/media\/x\/original\.png$/
+    )
     expect(img.getAttribute('alt')).toBe('a cat')
   })
 
@@ -39,6 +50,9 @@ describe('Image node', () => {
     render(<Harness onReady={(e) => (editor = e)} />)
     const json = editor.getJSON()
     const node = json.content?.[0]?.content?.[0]
-    expect(node).toEqual({ type: 'image', attrs: { src: '/uploads/media/x/original.png', alt: 'a cat', title: null } })
+    expect(node).toEqual({
+      type: 'image',
+      attrs: { src: '/uploads/media/x/original.png', alt: 'a cat', title: null }
+    })
   })
 })

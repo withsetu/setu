@@ -10,7 +10,9 @@ export const prerender = true
 
 export async function getStaticPaths() {
   const entries = await getCollection('entries')
-  return feedLocales(entries.map((e) => ({ id: e.id, data: e.data as Record<string, unknown> })))
+  return feedLocales(
+    entries.map((e) => ({ id: e.id, data: e.data as Record<string, unknown> }))
+  )
     .filter((locale) => locale !== DEFAULT_LOCALE)
     .map((locale) => ({ params: { locale } }))
 }
@@ -25,20 +27,22 @@ export async function GET(context: APIContext) {
       id: e.id,
       data: e.data as Record<string, unknown>,
       body: e.body,
-      filePath: e.filePath,
+      filePath: e.filePath
     })),
     settings.reading.feed.items,
-    locale,
+    locale
   )
   return rss(
     buildFeed({
       title: `${settings.general.title} (${locale.toUpperCase()})`,
       description:
-        settings.general.description || settings.general.tagline || settings.general.title,
+        settings.general.description ||
+        settings.general.tagline ||
+        settings.general.title,
       site: context.site,
       locale,
       feedPath: `${locale}/rss.xml`,
-      items,
-    }),
+      items
+    })
   )
 }

@@ -26,15 +26,18 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: [
-    ['html', { open: 'never', outputFolder: path.join(__dirname, 'playwright-report') }],
-    ['line'],
+    [
+      'html',
+      { open: 'never', outputFolder: path.join(__dirname, 'playwright-report') }
+    ],
+    ['line']
   ],
   // Visual baselines are captured on Linux CI; ignore local diffs elsewhere.
   ignoreSnapshots: !process.env.CI,
   use: {
     baseURL: adminUrl,
     trace: 'on-first-retry',
-    screenshot: 'only-on-failure',
+    screenshot: 'only-on-failure'
   },
 
   // Baseline screenshots are pixel-sensitive to viewport size and to the browser/platform
@@ -52,7 +55,7 @@ export default defineConfig({
       // `**/*.spec.ts` would ALSO pick up visual specs and run them a second time (with
       // ignoreSnapshots still honored, so it wouldn't fail here, but it would double the
       // work and muddy `--list`/reporting).
-      testIgnore: '**/*.visual.spec.ts',
+      testIgnore: '**/*.visual.spec.ts'
     },
     {
       name: 'webkit-editor',
@@ -60,7 +63,7 @@ export default defineConfig({
       testMatch: '**/editor-*.spec.ts',
       // editor-*.spec.ts never matches *.visual.spec.ts today, but pin it explicitly so a
       // future editor visual spec doesn't silently double-run here too.
-      testIgnore: '**/*.visual.spec.ts',
+      testIgnore: '**/*.visual.spec.ts'
     },
     ...(fullMatrix
       ? [
@@ -68,14 +71,14 @@ export default defineConfig({
             name: 'firefox-full',
             use: { ...devices['Desktop Firefox'] },
             testMatch: '**/*.spec.ts',
-            testIgnore: '**/*.visual.spec.ts',
+            testIgnore: '**/*.visual.spec.ts'
           },
           {
             name: 'webkit-full',
             use: { ...devices['Desktop Safari'] },
             testMatch: '**/*.spec.ts',
-            testIgnore: '**/*.visual.spec.ts',
-          },
+            testIgnore: '**/*.visual.spec.ts'
+          }
         ]
       : []),
     {
@@ -93,10 +96,10 @@ export default defineConfig({
         // NOTE: `reducedMotion` is NOT a top-level `use` option in Playwright 1.61 — a
         // bare `use.reducedMotion` typechecks nowhere and is silently ignored at runtime
         // (caught by the e2e tsc gate, T8); it must go through `contextOptions`.
-        contextOptions: { reducedMotion: 'reduce' },
+        contextOptions: { reducedMotion: 'reduce' }
       },
-      testMatch: '**/*.visual.spec.ts',
-    },
+      testMatch: '**/*.visual.spec.ts'
+    }
   ],
 
   // Dedicated ports (4446/5175) so a running `pnpm dev` stack (4444/5173) is
@@ -114,16 +117,17 @@ export default defineConfig({
       // does NOT gate on the sandbox being seeded; ordering correctness comes
       // entirely from the shell `&&`. cwd is repoRoot so the script's own
       // `process.cwd()`-based root resolution is correct.
-      command: 'node scripts/content-sandbox.mjs reset e2e && pnpm --filter @setu/api dev',
+      command:
+        'node scripts/content-sandbox.mjs reset e2e && pnpm --filter @setu/api dev',
       url: apiHealthUrl,
       cwd: repoRoot,
       env: {
         SETU_API_PORT: String(API_PORT),
         SETU_REPO_DIR: path.join(repoRoot, '.content-sandbox', 'e2e'),
-        SETU_MEDIA_DIR: path.join(repoRoot, '.setu', 'e2e-uploads'),
+        SETU_MEDIA_DIR: path.join(repoRoot, '.setu', 'e2e-uploads')
       },
       reuseExistingServer: !process.env.CI,
-      timeout: 60_000,
+      timeout: 60_000
     },
     {
       command: `pnpm --filter @setu/admin exec vite --port ${ADMIN_PORT} --strictPort`,
@@ -131,10 +135,10 @@ export default defineConfig({
       cwd: repoRoot,
       env: {
         VITE_SETU_API: apiUrl,
-        VITE_SETU_SITE: 'http://localhost:4321',
+        VITE_SETU_SITE: 'http://localhost:4321'
       },
       reuseExistingServer: !process.env.CI,
-      timeout: 30_000,
-    },
-  ],
+      timeout: 30_000
+    }
+  ]
 })

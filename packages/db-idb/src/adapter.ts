@@ -7,12 +7,14 @@ const keyOf = (r: EntryRef): string => `${r.collection}\0${r.locale}\0${r.slug}`
 /** An IndexedDB-backed DataPort (drafts + locks), behaviorally equivalent to
  *  db-memory (proven by runDataPortContract) but persistent across reloads.
  *  `dbName` is parameterized so tests get a fresh database per run. */
-export async function createIdbDataPort(dbName = 'setu-data'): Promise<DataPort> {
+export async function createIdbDataPort(
+  dbName = 'setu-data'
+): Promise<DataPort> {
   const db = await openDB(dbName, 1, {
     upgrade(d) {
       d.createObjectStore('drafts')
       d.createObjectStore('locks')
-    },
+    }
   })
 
   return {
@@ -32,9 +34,12 @@ export async function createIdbDataPort(dbName = 'setu-data'): Promise<DataPort>
         metadata: input.metadata,
         baseSha: input.baseSha ?? null,
         // Preserve the fork point across saves that omit it (editing must not move it).
-        baseContent: input.baseContent !== undefined ? input.baseContent : (existing?.baseContent ?? null),
+        baseContent:
+          input.baseContent !== undefined
+            ? input.baseContent
+            : (existing?.baseContent ?? null),
         createdAt: existing?.createdAt ?? now,
-        updatedAt: now,
+        updatedAt: now
       }
       await db.put('drafts', stored, k)
       return structuredClone(stored)
@@ -44,7 +49,9 @@ export async function createIdbDataPort(dbName = 'setu-data'): Promise<DataPort>
     },
     async listDrafts(filter) {
       const all = (await db.getAll('drafts')) as Draft[]
-      return filter?.collection ? all.filter((d) => d.collection === filter.collection) : all
+      return filter?.collection
+        ? all.filter((d) => d.collection === filter.collection)
+        : all
     },
     async getLock(ref) {
       const l = (await db.get('locks', keyOf(ref))) as Lock | undefined
@@ -58,6 +65,6 @@ export async function createIdbDataPort(dbName = 'setu-data'): Promise<DataPort>
     },
     async close() {
       db.close()
-    },
+    }
   }
 }

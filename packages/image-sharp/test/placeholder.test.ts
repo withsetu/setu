@@ -3,7 +3,16 @@ import sharp from 'sharp'
 import { createSharpImageAdapter } from '../src/index'
 
 async function pngBytes(w: number, h: number): Promise<Uint8Array> {
-  const buf = await sharp({ create: { width: w, height: h, channels: 3, background: { r: 200, g: 60, b: 60 } } }).png().toBuffer()
+  const buf = await sharp({
+    create: {
+      width: w,
+      height: h,
+      channels: 3,
+      background: { r: 200, g: 60, b: 60 }
+    }
+  })
+    .png()
+    .toBuffer()
   return new Uint8Array(buf)
 }
 

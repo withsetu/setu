@@ -26,9 +26,12 @@ export function createMemoryDataPort(seed: DraftInput[] = []): DataPort {
       metadata: input.metadata,
       baseSha: input.baseSha ?? null,
       // Preserve the fork point across saves that omit it (editing must not move it).
-      baseContent: input.baseContent !== undefined ? input.baseContent : (existing?.baseContent ?? null),
+      baseContent:
+        input.baseContent !== undefined
+          ? input.baseContent
+          : (existing?.baseContent ?? null),
       createdAt: existing?.createdAt ?? now,
-      updatedAt: now,
+      updatedAt: now
     })
     drafts.set(k, stored)
     return structuredClone(stored)
@@ -49,7 +52,9 @@ export function createMemoryDataPort(seed: DraftInput[] = []): DataPort {
     },
     async listDrafts(filter) {
       const all = [...drafts.values()]
-      const filtered = filter?.collection ? all.filter((d) => d.collection === filter.collection) : all
+      const filtered = filter?.collection
+        ? all.filter((d) => d.collection === filter.collection)
+        : all
       return filtered.map((d) => structuredClone(d))
     },
     async getLock(ref) {
@@ -62,6 +67,6 @@ export function createMemoryDataPort(seed: DraftInput[] = []): DataPort {
     async deleteLock(ref) {
       locks.delete(key(ref))
     },
-    async close() {},
+    async close() {}
   }
 }

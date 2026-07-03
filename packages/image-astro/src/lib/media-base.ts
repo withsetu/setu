@@ -11,7 +11,10 @@
  *    site. The localhost fallback is deliberately dev-only so a production build can
  *    never bake a `localhost:4444` URL into the static HTML.
  */
-export function resolveMediaBase(configured: string | undefined, isDev: boolean): string {
+export function resolveMediaBase(
+  configured: string | undefined,
+  isDev: boolean
+): string {
   const raw = configured ?? (isDev ? 'http://localhost:4444' : '')
   return raw.replace(/\/+$/, '')
 }

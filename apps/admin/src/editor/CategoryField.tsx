@@ -6,10 +6,19 @@ import { useTaxonomy } from '../data/taxonomy-store'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem
+} from '@/components/ui/select'
 
 /** Flatten the tree depth-first so it renders as indented checkbox rows. */
-function flatten(nodes: CategoryNode[], out: CategoryNode[] = []): CategoryNode[] {
+function flatten(
+  nodes: CategoryNode[],
+  out: CategoryNode[] = []
+): CategoryNode[] {
   for (const n of nodes) {
     out.push(n)
     flatten(n.children, out)
@@ -20,7 +29,7 @@ function flatten(nodes: CategoryNode[], out: CategoryNode[] = []): CategoryNode[
 export function CategoryField({
   selected,
   onChange,
-  editable,
+  editable
 }: {
   selected: string[]
   onChange: (next: string[]) => void
@@ -34,10 +43,15 @@ export function CategoryField({
   const [error, setError] = useState<string | null>(null)
 
   const fq = filter.trim().toLowerCase()
-  const visible = fq === '' ? rows : rows.filter((n) => n.name.toLowerCase().includes(fq))
+  const visible =
+    fq === '' ? rows : rows.filter((n) => n.name.toLowerCase().includes(fq))
 
   const toggle = (slug: string) =>
-    onChange(selected.includes(slug) ? selected.filter((s) => s !== slug) : [...selected, slug])
+    onChange(
+      selected.includes(slug)
+        ? selected.filter((s) => s !== slug)
+        : [...selected, slug]
+    )
 
   const submit = async () => {
     const trimmed = name.trim()
@@ -69,10 +83,16 @@ export function CategoryField({
         </div>
       )}
       {rows.length === 0 && (
-        <p className="text-sm text-muted-foreground">No categories yet — add one below.</p>
+        <p className="text-sm text-muted-foreground">
+          No categories yet — add one below.
+        </p>
       )}
       {rows.length > 0 && (
-        <div className="max-h-64 space-y-0.5 overflow-y-auto" role="group" aria-label="Categories">
+        <div
+          className="max-h-64 space-y-0.5 overflow-y-auto"
+          role="group"
+          aria-label="Categories"
+        >
           {visible.map((node) => (
             <label
               key={node.slug}
@@ -127,7 +147,9 @@ export function CategoryField({
               <SelectItem value="none">No parent</SelectItem>
               {rows.map((node) => (
                 <SelectItem key={node.slug} value={node.slug}>
-                  <span style={{ paddingLeft: `${node.depth * 12}px` }}>{node.name}</span>
+                  <span style={{ paddingLeft: `${node.depth * 12}px` }}>
+                    {node.name}
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>

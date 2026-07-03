@@ -6,15 +6,34 @@ const css = readFileSync(resolve(__dirname, '../src/styles/tokens.css'), 'utf8')
 
 describe('tokens.css — shadcn standard vocabulary', () => {
   it('defines the core standard tokens', () => {
-    for (const t of ['--background', '--foreground', '--card', '--popover', '--primary',
-      '--secondary', '--muted', '--muted-foreground', '--accent', '--destructive',
-      '--border', '--input', '--ring', '--radius']) {
+    for (const t of [
+      '--background',
+      '--foreground',
+      '--card',
+      '--popover',
+      '--primary',
+      '--secondary',
+      '--muted',
+      '--muted-foreground',
+      '--accent',
+      '--destructive',
+      '--border',
+      '--input',
+      '--ring',
+      '--radius'
+    ]) {
       expect(css, `missing ${t}`).toContain(`${t}:`)
     }
   })
   it('defines the success/warning/info state trio', () => {
-    for (const t of ['--success', '--warning', '--info',
-      '--success-foreground', '--warning-foreground', '--info-foreground']) {
+    for (const t of [
+      '--success',
+      '--warning',
+      '--info',
+      '--success-foreground',
+      '--warning-foreground',
+      '--info-foreground'
+    ]) {
       expect(css, `missing ${t}`).toContain(`${t}:`)
     }
   })

@@ -14,18 +14,24 @@ export function createGitApi(git: GitPort): Hono {
 
   app.get('/git/file', async (c) => {
     const path = c.req.query('path')
-    if (path === undefined || path === '') return c.json({ error: 'path query is required' }, 400)
+    if (path === undefined || path === '')
+      return c.json({ error: 'path query is required' }, 400)
     return c.json({ content: await git.readFile(path) })
   })
 
+  // Explicit type argument (json<T>) instead of `as T`: Hono's json() is generic with
+  // an `any` default, so an `as` cast contextually types the call and reads as a
+  // self-cast to no-unnecessary-type-assertion (--fix stripped it and orphaned the
+  // imports). Same declared trust as before — this internal RPC API's input validation
+  // story belongs to the auth epic (#248), not the linter increment.
   app.post('/git/commit', async (c) => {
-    const body = (await c.req.json()) as CommitInput
+    const body = await c.req.json<CommitInput>()
     const { sha } = await git.commitFile(body)
     return c.json({ sha })
   })
 
   app.post('/git/commit-files', async (c) => {
-    const body = (await c.req.json()) as CommitFilesInput
+    const body = await c.req.json<CommitFilesInput>()
     const { sha } = await git.commitFiles(body)
     return c.json({ sha })
   })
@@ -35,6 +41,8 @@ export function createGitApi(git: GitPort): Hono {
     return c.json({ paths: await git.list(prefix) })
   })
 
-  app.onError((err, c) => c.json({ error: err instanceof Error ? err.message : String(err) }, 500))
+  app.onError((err, c) =>
+    c.json({ error: err instanceof Error ? err.message : String(err) }, 500)
+  )
   return app
 }

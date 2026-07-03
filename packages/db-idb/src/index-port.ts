@@ -1,16 +1,27 @@
 import { openDB } from 'idb'
 import type { EntryIndexRow, IndexMeta, IndexPort } from '@setu/core'
-import { runQuery, selectDistinctTags, selectDistinctLocales, selectCategoryCounts, selectTagCounts, selectReferencedBy, selectEntriesByCategory, selectEntriesByTag } from '@setu/core'
+import {
+  runQuery,
+  selectDistinctTags,
+  selectDistinctLocales,
+  selectCategoryCounts,
+  selectTagCounts,
+  selectReferencedBy,
+  selectEntriesByCategory,
+  selectEntriesByTag
+} from '@setu/core'
 
 /** IndexedDB-backed IndexPort. Rows are tiny (no bodies), so `query` loads the
  *  store and delegates to the shared pure `runQuery` — fast at Slice 1 scale and
  *  identical semantics to db-memory (proven by runIndexPortContract). */
-export async function createIdbIndexPort(dbName = 'setu-index'): Promise<IndexPort> {
+export async function createIdbIndexPort(
+  dbName = 'setu-index'
+): Promise<IndexPort> {
   const db = await openDB(dbName, 1, {
     upgrade(d) {
       d.createObjectStore('entries')
       d.createObjectStore('meta')
-    },
+    }
   })
   return {
     async query(q) {
@@ -31,7 +42,12 @@ export async function createIdbIndexPort(dbName = 'setu-index'): Promise<IndexPo
       await db.clear('entries')
     },
     async getMeta() {
-      return ((await db.get('meta', 'meta')) as IndexMeta | undefined) ?? { indexedSha: null, version: 0 }
+      return (
+        ((await db.get('meta', 'meta')) as IndexMeta | undefined) ?? {
+          indexedSha: null,
+          version: 0
+        }
+      )
     },
     async setMeta(m) {
       await db.put('meta', m, 'meta')
@@ -63,6 +79,6 @@ export async function createIdbIndexPort(dbName = 'setu-index'): Promise<IndexPo
     async entriesByTag(tag) {
       const all = (await db.getAll('entries')) as EntryIndexRow[]
       return selectEntriesByTag(all, tag)
-    },
+    }
   }
 }

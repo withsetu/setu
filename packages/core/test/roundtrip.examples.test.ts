@@ -74,7 +74,7 @@ Outro.
   alignHeading: `## Title{% align="right" %}
 `,
   alignWithMarks: `a **b**{% align="center" %}
-`,
+`
 }
 
 const roundtrip = (s: string) => tiptapToMarkdoc(markdocToTiptap(s))
@@ -120,10 +120,13 @@ describe('byte-fidelity round-trip', () => {
     ['checklist with an empty row', '- [x] done\n- [ ]\n'],
     ['table', '| Name | Role |\n| --- | --- |\n| Ada | Eng |\n'],
     ['table aligned', '| L | C | R |\n| :-- | :-: | --: |\n| a | b | c |\n'],
-    ['table with marks', '| h | l |\n| --- | --- |\n| **b** | [x](https://y.dev) |\n'],
+    [
+      'table with marks',
+      '| h | l |\n| --- | --- |\n| **b** | [x](https://y.dev) |\n'
+    ],
     ['aligned paragraph', 'Centered{% align="center" %}\n'],
     ['aligned heading', '## Title{% align="right" %}\n'],
-    ['align with marks', 'a **b**{% align="center" %}\n'],
+    ['align with marks', 'a **b**{% align="center" %}\n']
   ]
 
   for (const [name, src] of cases) {

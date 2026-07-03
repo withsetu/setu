@@ -36,7 +36,7 @@ describe('IdentitySettings', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /add profile/i }))
     fireEvent.change(screen.getByLabelText('Social profile 1'), {
-      target: { value: 'https://github.com/ada' },
+      target: { value: 'https://github.com/ada' }
     })
 
     fireEvent.click(screen.getByRole('button', { name: /save/i }))
@@ -60,7 +60,7 @@ describe('IdentitySettings', () => {
     fireEvent.click(screen.getByRole('button', { name: /add profile/i }))
     fireEvent.click(screen.getByRole('button', { name: /add profile/i }))
     fireEvent.change(screen.getByLabelText('Social profile 2'), {
-      target: { value: 'https://mastodon.social/@ada' },
+      target: { value: 'https://mastodon.social/@ada' }
     })
     fireEvent.click(screen.getByRole('button', { name: /save/i }))
     await waitFor(async () => {

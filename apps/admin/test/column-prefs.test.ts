@@ -6,7 +6,13 @@ describe('useColumnPrefs', () => {
   beforeEach(() => localStorage.clear())
   it('defaults: content columns on, locale follows multilingual', () => {
     const { result } = renderHook(() => useColumnPrefs(false))
-    expect(result.current.visible).toMatchObject({ status: true, tags: true, categories: true, updated: true, locale: false })
+    expect(result.current.visible).toMatchObject({
+      status: true,
+      tags: true,
+      categories: true,
+      updated: true,
+      locale: false
+    })
     const { result: ml } = renderHook(() => useColumnPrefs(true))
     expect(ml.current.visible.locale).toBe(true)
   })
@@ -14,7 +20,9 @@ describe('useColumnPrefs', () => {
     const { result } = renderHook(() => useColumnPrefs(false))
     act(() => result.current.toggle('tags'))
     expect(result.current.visible.tags).toBe(false)
-    expect(JSON.parse(localStorage.getItem('setu-list-columns')!).tags).toBe(false)
+    expect(JSON.parse(localStorage.getItem('setu-list-columns')!).tags).toBe(
+      false
+    )
   })
   it('persisted choice wins over default on remount', () => {
     localStorage.setItem('setu-list-columns', JSON.stringify({ status: false }))

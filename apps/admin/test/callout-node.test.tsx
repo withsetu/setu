@@ -10,7 +10,16 @@ function Harness({ onReady }: { onReady: (getJSON: () => unknown) => void }) {
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [StarterKit, Callout],
-    content: { type: 'doc', content: [{ type: 'callout', attrs: { mdAttrs: { type: 'info' } }, content: [{ type: 'paragraph' }] }] },
+    content: {
+      type: 'doc',
+      content: [
+        {
+          type: 'callout',
+          attrs: { mdAttrs: { type: 'info' } },
+          content: [{ type: 'paragraph' }]
+        }
+      ]
+    }
   })
   if (editor) onReady(() => editor.getJSON())
   return <EditorContent editor={editor} />
@@ -22,7 +31,12 @@ describe('Callout node view', () => {
     render(<Harness onReady={(g) => (getJSON = g)} />)
     const title = await screen.findByPlaceholderText(/add a title/i)
     fireEvent.change(title, { target: { value: 'Heads up' } })
-    const json = getJSON() as { content: Array<{ type: string; attrs?: { mdAttrs?: Record<string, unknown> } }> }
+    const json = getJSON() as {
+      content: Array<{
+        type: string
+        attrs?: { mdAttrs?: Record<string, unknown> }
+      }>
+    }
     const callout = json.content.find((n) => n.type === 'callout')
     expect(callout?.attrs?.mdAttrs?.title).toBe('Heads up')
   })

@@ -7,13 +7,13 @@ export default defineBlock({
   props: z.object({
     type: z.string().optional(),
     title: z.string().optional(),
-    icon: z.string().optional(),
+    icon: z.string().optional()
   }),
   editor: {
     label: 'Callout',
     icon: 'info',
     group: 'text',
     keywords: ['note', 'aside', 'admonition'],
-    variants: ['info', 'note', 'success', 'warning', 'danger', 'neutral'],
-  },
+    variants: ['info', 'note', 'success', 'warning', 'danger', 'neutral']
+  }
 })

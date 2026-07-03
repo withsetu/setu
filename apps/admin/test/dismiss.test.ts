@@ -17,8 +17,15 @@ describe('collapseSelectionOnEscape', () => {
 
   const make = () =>
     new Editor({
-      extensions: [StarterKit.configure({ link: { openOnClick: false }, underline: false })],
-      content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'hello' }] }] },
+      extensions: [
+        StarterKit.configure({ link: { openOnClick: false }, underline: false })
+      ],
+      content: {
+        type: 'doc',
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: 'hello' }] }
+        ]
+      }
     })
 
   it('collapses a non-empty selection and reports handled', () => {

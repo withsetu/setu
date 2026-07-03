@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { dropTargetIndex, dropToIndex } from '../src/editor/extensions/DragHandle'
+import {
+  dropTargetIndex,
+  dropToIndex
+} from '../src/editor/extensions/DragHandle'
 
 describe('dropTargetIndex', () => {
   const tops = [0, 20, 40] // 3 blocks at y=0,20,40, each 20 tall

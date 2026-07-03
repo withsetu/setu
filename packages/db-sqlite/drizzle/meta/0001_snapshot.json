@@ -68,11 +68,7 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {
         "drafts_collection_locale_slug_pk": {
-          "columns": [
-            "collection",
-            "locale",
-            "slug"
-          ],
+          "columns": ["collection", "locale", "slug"],
           "name": "drafts_collection_locale_slug_pk"
         }
       },
@@ -122,11 +118,7 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {
         "locks_collection_locale_slug_pk": {
-          "columns": [
-            "collection",
-            "locale",
-            "slug"
-          ],
+          "columns": ["collection", "locale", "slug"],
           "name": "locks_collection_locale_slug_pk"
         }
       },

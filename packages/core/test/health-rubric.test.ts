@@ -6,7 +6,18 @@ describe('health rubric', () => {
     const ids = RUBRIC.map((r) => r.id)
     expect(new Set(ids).size).toBe(ids.length)
     const sev = new Set(['required', 'recommended', 'optional', 'avoid'])
-    const cat = new Set(['foundations','seo','accessibility','security','well-known','agent-readiness','performance','privacy','resilience','i18n'])
+    const cat = new Set([
+      'foundations',
+      'seo',
+      'accessibility',
+      'security',
+      'well-known',
+      'agent-readiness',
+      'performance',
+      'privacy',
+      'resilience',
+      'i18n'
+    ])
     for (const r of RUBRIC) {
       expect(sev.has(r.severity)).toBe(true)
       expect(cat.has(r.category)).toBe(true)

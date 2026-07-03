@@ -6,18 +6,28 @@ import { ColumnsMenu } from '../src/screens/content-list/ColumnsMenu'
 beforeAll(() => {
   if (typeof window !== 'undefined' && !window.PointerEvent) {
     class PointerEventStub extends MouseEvent {
-      pointerId: number; isPrimary: boolean
+      pointerId: number
+      isPrimary: boolean
       constructor(type: string, init?: PointerEventInit) {
         super(type, init)
         this.pointerId = init?.pointerId ?? 0
         this.isPrimary = init?.isPrimary ?? true
       }
     }
-    Object.defineProperty(window, 'PointerEvent', { value: PointerEventStub, writable: true })
+    Object.defineProperty(window, 'PointerEvent', {
+      value: PointerEventStub,
+      writable: true
+    })
   }
 })
 
-const visible = { status: true, tags: true, categories: true, updated: true, locale: false }
+const visible = {
+  status: true,
+  tags: true,
+  categories: true,
+  updated: true,
+  locale: false
+}
 
 function openMenu() {
   const trigger = screen.getByRole('button', { name: /columns/i })
@@ -34,7 +44,9 @@ describe('ColumnsMenu', () => {
     expect(toggle).toHaveBeenCalledWith('tags')
   })
   it('hides the Locale item when showLocale is false', () => {
-    render(<ColumnsMenu visible={visible} toggle={() => {}} showLocale={false} />)
+    render(
+      <ColumnsMenu visible={visible} toggle={() => {}} showLocale={false} />
+    )
     openMenu()
     expect(screen.queryByText('Locale')).toBeNull()
   })

@@ -7,9 +7,9 @@ import { SidebarProvider } from '@/components/ui/sidebar'
 import { AppSidebar } from '../src/shell/AppSidebar'
 
 // Default: no sha yet, deploy resolves immediately
-let mockDeploy = vi.fn(() => Promise.resolve())
+const mockDeploy = vi.fn(() => Promise.resolve())
 vi.mock('../src/deploy/deploy', () => ({
-  useDeploy: () => ({ deployedAt: () => null, sha: null, deploy: mockDeploy }),
+  useDeploy: () => ({ deployedAt: () => null, sha: null, deploy: mockDeploy })
 }))
 
 function wrap(actor?: Actor) {
@@ -20,7 +20,7 @@ function wrap(actor?: Actor) {
           <AppSidebar />
         </SidebarProvider>
       </ActorProvider>
-    </MemoryRouter>,
+    </MemoryRouter>
   )
 }
 
@@ -31,11 +31,17 @@ describe('DeployFooterButton (via AppSidebar)', () => {
     expect(btn).toBeInTheDocument()
     fireEvent.click(btn)
     // The deploy runs without crashing; label remains a deploy control.
-    await waitFor(() => expect(screen.getByRole('button', { name: /deploy/i })).toBeInTheDocument())
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: /deploy/i })
+      ).toBeInTheDocument()
+    )
   })
 
   it('renders nothing for a viewer (no site.deploy permission)', () => {
     wrap({ id: 'v', role: 'viewer' })
-    expect(screen.queryByRole('button', { name: /deploy/i })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /deploy/i })
+    ).not.toBeInTheDocument()
   })
 })

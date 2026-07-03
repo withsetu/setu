@@ -1,7 +1,16 @@
-import { variantFor, calloutVariants, CALLOUT_ICONS } from '../src/callout/variants'
+import {
+  variantFor,
+  calloutVariants,
+  CALLOUT_ICONS
+} from '../src/callout/variants'
 
 test('variantFor maps a known type to tone + icon', () => {
-  expect(variantFor('warning')).toEqual({ type: 'warning', label: 'Warning', tone: 'amber', icon: 'alert' })
+  expect(variantFor('warning')).toEqual({
+    type: 'warning',
+    label: 'Warning',
+    tone: 'amber',
+    icon: 'alert'
+  })
 })
 
 test('variantFor neutral-fallbacks an unknown type (keeps the raw type)', () => {
@@ -12,9 +21,25 @@ test('variantFor neutral-fallbacks an unknown type (keeps the raw type)', () => 
 })
 
 test('calloutVariants reflects the default config variant list', () => {
-  expect(calloutVariants().map((v) => v.type)).toEqual(['info', 'note', 'success', 'warning', 'danger', 'neutral'])
+  expect(calloutVariants().map((v) => v.type)).toEqual([
+    'info',
+    'note',
+    'success',
+    'warning',
+    'danger',
+    'neutral'
+  ])
 })
 
 test('CALLOUT_ICONS is the curated picker set', () => {
-  expect(CALLOUT_ICONS).toEqual(['info', 'check', 'alert', 'sparkle', 'zap', 'pin', 'lock', 'settings'])
+  expect(CALLOUT_ICONS).toEqual([
+    'info',
+    'check',
+    'alert',
+    'sparkle',
+    'zap',
+    'pin',
+    'lock',
+    'settings'
+  ])
 })

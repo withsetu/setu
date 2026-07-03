@@ -27,7 +27,11 @@ export function originalKey(mediaKey: string, ext: string): string {
 }
 
 /** Storage key of a width variant: `${mediaKey}-${width}w.${ext}`. */
-export function variantKey(mediaKey: string, width: number, ext: string): string {
+export function variantKey(
+  mediaKey: string,
+  width: number,
+  ext: string
+): string {
   return `${mediaKey}-${width}w.${ext}`
 }
 

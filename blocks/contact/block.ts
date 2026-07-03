@@ -9,12 +9,12 @@ export default defineBlock({
     nameRequired: z.boolean().default(true),
     subjectRequired: z.boolean().default(false),
     messageRequired: z.boolean().default(true),
-    successMessage: z.string().default('Thanks — your message has been sent.'),
+    successMessage: z.string().default('Thanks — your message has been sent.')
   }),
   editor: {
     label: 'Contact form',
     icon: 'mail',
     group: 'widget',
-    keywords: ['form', 'contact', 'email', 'enquiry', 'message'],
-  },
+    keywords: ['form', 'contact', 'email', 'enquiry', 'message']
+  }
 })

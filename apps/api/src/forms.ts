@@ -1,6 +1,24 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import type { SubmissionService, SubmissionPort, SubmissionFilter } from '@setu/core'
+import type {
+  SubmissionService,
+  SubmissionPort,
+  SubmissionFilter,
+  SubmissionInput
+} from '@setu/core'
+
+// c.req.json() returns `any` — untrusted HTTP input flowed straight into typed service
+// calls with only truthiness checks (caught by @typescript-eslint/no-unsafe-* when
+// type-aware linting came online, #267). These narrow to `unknown`-based shapes and
+// fail closed (400) instead. NOTE: proper Zod schemas for this API are the standard
+// per docs/security-standards.md ("new input → Zod") — apps/api has no zod dependency
+// yet, so that upgrade is deliberately left to a follow-up rather than smuggling a new
+// dependency into the linter increment.
+const asRecord = (v: unknown): Record<string, unknown> | null =>
+  typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : null
+
+const isStringArray = (v: unknown): v is string[] =>
+  Array.isArray(v) && v.every((x) => typeof x === 'string')
 
 /** A Hono app exposing the forms submit pipeline + admin CRUD over HTTP. Pure
  *  factory; the caller supplies the service + port (server.ts). No auth — mirrors
@@ -11,7 +29,10 @@ export function createFormsApi(opts: {
   captchaStatus?: { provider: string; secretConfigured: boolean }
 }): Hono {
   const { submit, submissions } = opts
-  const captchaStatus = opts.captchaStatus ?? { provider: '', secretConfigured: false }
+  const captchaStatus = opts.captchaStatus ?? {
+    provider: '',
+    secretConfigured: false
+  }
   const app = new Hono()
   app.use('*', cors())
 
@@ -20,41 +41,81 @@ export function createFormsApi(opts: {
 
   // --- public ---
   app.post('/forms/submit', async (c) => {
-    const body = (await c.req.json()) as {
-      formId?: string
-      formLabel?: string
-      fields?: Record<string, string>
-      captchaToken?: string
-      honeypot?: string
-      source?: { url?: string }
-    }
-    if (!body.formId || !body.fields || typeof body.captchaToken !== 'string') {
+    const body = asRecord(await c.req.json())
+    if (
+      !body ||
+      typeof body['formId'] !== 'string' ||
+      body['formId'] === '' ||
+      !asRecord(body['fields']) ||
+      typeof body['captchaToken'] !== 'string'
+    ) {
       return c.json({ ok: false, error: 'invalid' }, 400)
     }
+    const fields = asRecord(body['fields'])!
+    const bodySourceUrl = asRecord(body['source'])?.['url']
     const source = {
-      ...(body.source?.url ? { url: body.source.url } : {}),
+      ...(typeof bodySourceUrl === 'string' && bodySourceUrl
+        ? { url: bodySourceUrl }
+        : {}),
       ...(c.req.header('referer') ? { referrer: c.req.header('referer') } : {}),
-      ...(c.req.header('user-agent') ? { userAgent: c.req.header('user-agent') } : {}),
+      ...(c.req.header('user-agent')
+        ? { userAgent: c.req.header('user-agent') }
+        : {})
     }
-    const ip = c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for') ?? undefined
+    const ip =
+      c.req.header('cf-connecting-ip') ??
+      c.req.header('x-forwarded-for') ??
+      undefined
     const result = await submit.submit({
-      formId: body.formId,
-      formLabel: body.formLabel,
-      fields: body.fields,
-      captchaToken: body.captchaToken,
-      honeypot: body.honeypot,
+      formId: body['formId'],
+      formLabel:
+        typeof body['formLabel'] === 'string' ? body['formLabel'] : undefined,
+      fields: Object.fromEntries(
+        Object.entries(fields).map(([k, v]) => [
+          k,
+          typeof v === 'string' ? v : ''
+        ])
+      ),
+      captchaToken: body['captchaToken'],
+      honeypot:
+        typeof body['honeypot'] === 'string' ? body['honeypot'] : undefined,
       source: Object.keys(source).length ? source : undefined,
-      ip,
+      ip
     })
     if (result.ok) return c.json(result, 200)
-    const status = result.error === 'spam' ? 403 : result.error === 'invalid' ? 400 : 500
+    const status =
+      result.error === 'spam' ? 403 : result.error === 'invalid' ? 400 : 500
     return c.json(result, status)
   })
 
   // --- admin CRUD ---
   app.post('/forms/submissions', async (c) => {
-    const body = (await c.req.json()) as Parameters<SubmissionPort['saveSubmission']>[0]
-    return c.json(await submissions.saveSubmission(body), 201)
+    const body = asRecord(await c.req.json())
+    const fields = asRecord(body?.['fields'])
+    if (
+      !body ||
+      typeof body['formId'] !== 'string' ||
+      body['formId'] === '' ||
+      !fields
+    ) {
+      return c.json({ error: 'invalid' }, 400)
+    }
+    const input: SubmissionInput = {
+      formId: body['formId'],
+      ...(typeof body['formLabel'] === 'string'
+        ? { formLabel: body['formLabel'] }
+        : {}),
+      fields: Object.fromEntries(
+        Object.entries(fields).map(([k, v]) => [
+          k,
+          typeof v === 'string' ? v : ''
+        ])
+      ),
+      ...(asRecord(body['source'])
+        ? { source: body['source'] as SubmissionInput['source'] }
+        : {})
+    }
+    return c.json(await submissions.saveSubmission(input), 201)
   })
 
   app.get('/forms/submissions', async (c) => {
@@ -69,7 +130,9 @@ export function createFormsApi(opts: {
     return c.json(await submissions.listSubmissions(filter))
   })
 
-  app.get('/forms/forms', async (c) => c.json({ forms: await submissions.distinctForms() }))
+  app.get('/forms/forms', async (c) =>
+    c.json({ forms: await submissions.distinctForms() })
+  )
 
   app.get('/forms/submissions/:id', async (c) => {
     const row = await submissions.getSubmission(c.req.param('id'))
@@ -77,17 +140,28 @@ export function createFormsApi(opts: {
   })
 
   app.patch('/forms/submissions/read', async (c) => {
-    const { ids, read } = (await c.req.json()) as { ids: string[]; read: boolean }
+    const body = asRecord(await c.req.json())
+    const ids = body?.['ids']
+    const read = body?.['read']
+    if (!isStringArray(ids) || typeof read !== 'boolean') {
+      return c.json({ error: 'invalid' }, 400)
+    }
     await submissions.setRead(ids, read)
     return c.json({ ok: true })
   })
 
   app.delete('/forms/submissions', async (c) => {
-    const { ids } = (await c.req.json()) as { ids: string[] }
+    const body = asRecord(await c.req.json())
+    const ids = body?.['ids']
+    if (!isStringArray(ids)) {
+      return c.json({ error: 'invalid' }, 400)
+    }
     await submissions.deleteSubmissions(ids)
     return c.json({ ok: true })
   })
 
-  app.onError((err, c) => c.json({ error: err instanceof Error ? err.message : String(err) }, 500))
+  app.onError((err, c) =>
+    c.json({ error: err instanceof Error ? err.message : String(err) }, 500)
+  )
   return app
 }

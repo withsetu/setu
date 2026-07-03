@@ -10,17 +10,25 @@ describe('resolveThemeTokens', () => {
     expect(t['--font-body']).toBe(t['--font-heading'])
   })
   it('applies a valid color and falls back on an invalid one', () => {
-    expect(resolveThemeTokens({ accent: '#0ea5e9' })['--accent']).toBe('#0ea5e9')
-    expect(resolveThemeTokens({ accent: 'not-a-color' })['--accent']).toBe('#4f46e5')
+    expect(resolveThemeTokens({ accent: '#0ea5e9' })['--accent']).toBe(
+      '#0ea5e9'
+    )
+    expect(resolveThemeTokens({ accent: 'not-a-color' })['--accent']).toBe(
+      '#4f46e5'
+    )
   })
   it('maps a select choice to its token value and both font tokens for fonts', () => {
-    expect(resolveThemeTokens({ width: 'wide' })['--measure-page']).toBe('78rem')
+    expect(resolveThemeTokens({ width: 'wide' })['--measure-page']).toBe(
+      '78rem'
+    )
     const fonts = resolveThemeTokens({ font: 'inter' })
     expect(fonts['--font-body']).toBe(fonts['--font-heading'])
     expect(fonts['--font-body']).toContain('Inter')
   })
   it('falls back to the default choice for an unknown select value', () => {
-    expect(resolveThemeTokens({ width: 'gigantic' })['--measure-page']).toBe('64rem')
+    expect(resolveThemeTokens({ width: 'gigantic' })['--measure-page']).toBe(
+      '64rem'
+    )
   })
   it('agrees with optionsToCss (same source of truth)', () => {
     const values = { accent: '#0ea5e9', font: 'lora', corners: 'sharp' }
@@ -32,7 +40,13 @@ describe('resolveThemeTokens', () => {
 
 describe('theme-default options manifest', () => {
   it('declares the five knobs by key', () => {
-    expect(themeOptions.map((o) => o.key)).toEqual(['accent', 'font', 'width', 'textSize', 'corners'])
+    expect(themeOptions.map((o) => o.key)).toEqual([
+      'accent',
+      'font',
+      'width',
+      'textSize',
+      'corners'
+    ])
   })
   it('every select knob has choices including its default', () => {
     for (const opt of themeOptions) {
@@ -64,10 +78,14 @@ describe('optionsToCss', () => {
     expect(css).toMatch(/--font-heading:[^;]+;/)
   })
   it('falls back to the default for an unknown select value', () => {
-    expect(optionsToCss({ width: 'gigantic' })).toContain('--measure-page: 64rem;')
+    expect(optionsToCss({ width: 'gigantic' })).toContain(
+      '--measure-page: 64rem;'
+    )
   })
   it('falls back to the default for an invalid color', () => {
-    expect(optionsToCss({ accent: 'not-a-color' })).toContain('--accent: #4f46e5;')
+    expect(optionsToCss({ accent: 'not-a-color' })).toContain(
+      '--accent: #4f46e5;'
+    )
   })
   it('all-default values reproduce the current token set', () => {
     const css = optionsToCss({})

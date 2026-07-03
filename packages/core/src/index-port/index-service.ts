@@ -29,7 +29,9 @@ export interface IndexService {
   distinctLocales(): Promise<string[]>
   categoryCounts(): Promise<Record<string, number>>
   tagCounts(): Promise<Record<string, number>>
-  referencedBy(mediaKey: string): Promise<import('./referenced-by').MediaUsage[]>
+  referencedBy(
+    mediaKey: string
+  ): Promise<import('./referenced-by').MediaUsage[]>
   entriesByCategory(slug: string): Promise<import('../data/types').EntryRef[]>
   entriesByTag(tag: string): Promise<import('../data/types').EntryRef[]>
 }
@@ -46,10 +48,15 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
       const content = await git.readFile(p)
       if (content !== null) committed.push({ ref, content })
     }
-    const rows = listContentEntries({ drafts, committed, deployedAt }).map(projectRow)
+    const rows = listContentEntries({ drafts, committed, deployedAt }).map(
+      projectRow
+    )
     await index.clear()
     await index.upsertMany(rows)
-    await index.setMeta({ indexedSha: await git.headSha(), version: INDEX_VERSION })
+    await index.setMeta({
+      indexedSha: await git.headSha(),
+      version: INDEX_VERSION
+    })
   }
 
   async function ensureBuilt(): Promise<void> {
@@ -70,7 +77,8 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
     const draft = await data.getDraft(ref)
     const committedStr = await git.readFile(contentPath(ref))
     const drafts = draft ? [draft] : []
-    const committed = committedStr !== null ? [{ ref, content: committedStr }] : []
+    const committed =
+      committedStr !== null ? [{ ref, content: committedStr }] : []
     const rows = listContentEntries({ drafts, committed, deployedAt })
     if (rows.length === 0) await index.remove(indexKey(ref))
     else await index.upsert(projectRow(rows[0]!))
@@ -89,12 +97,17 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
     await index.setMeta({ ...meta, indexedSha: sha })
   }
 
-  async function query(q: IndexQuery): Promise<{ rows: ContentRow[]; total: number }> {
+  async function query(
+    q: IndexQuery
+  ): Promise<{ rows: ContentRow[]; total: number }> {
     const { rows, total } = await index.query(q)
     return { rows: rows.map(rowToContentRow), total }
   }
 
-  async function distinctTags(prefix: string, limit: number): Promise<string[]> {
+  async function distinctTags(
+    prefix: string,
+    limit: number
+  ): Promise<string[]> {
     return index.distinctTags(prefix, limit)
   }
 
@@ -110,17 +123,37 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
     return index.tagCounts()
   }
 
-  async function referencedBy(mediaKey: string): Promise<import('./referenced-by').MediaUsage[]> {
+  async function referencedBy(
+    mediaKey: string
+  ): Promise<import('./referenced-by').MediaUsage[]> {
     return index.referencedBy(mediaKey)
   }
 
-  async function entriesByCategory(slug: string): Promise<import('../data/types').EntryRef[]> {
+  async function entriesByCategory(
+    slug: string
+  ): Promise<import('../data/types').EntryRef[]> {
     return index.entriesByCategory(slug)
   }
 
-  async function entriesByTag(tag: string): Promise<import('../data/types').EntryRef[]> {
+  async function entriesByTag(
+    tag: string
+  ): Promise<import('../data/types').EntryRef[]> {
     return index.entriesByTag(tag)
   }
 
-  return { rebuild, ensureBuilt, reindexEntry, reindexAfterDeploy, markSyncedAt, query, distinctTags, distinctLocales, categoryCounts, tagCounts, referencedBy, entriesByCategory, entriesByTag }
+  return {
+    rebuild,
+    ensureBuilt,
+    reindexEntry,
+    reindexAfterDeploy,
+    markSyncedAt,
+    query,
+    distinctTags,
+    distinctLocales,
+    categoryCounts,
+    tagCounts,
+    referencedBy,
+    entriesByCategory,
+    entriesByTag
+  }
 }

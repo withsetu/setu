@@ -8,19 +8,30 @@ import { DeployProvider } from '../src/deploy/deploy'
 import { IndexProvider } from '../src/data/index-store'
 import { TagFilter } from '../src/screens/TagFilter'
 
-const doc = (t: string): TiptapDoc => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] })
+const doc = (t: string): TiptapDoc => ({
+  type: 'doc',
+  content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }]
+})
 
 function setup(value: string) {
   const onChange = vi.fn()
   const data = createMemoryDataPort([
-    { collection: 'post', locale: 'en', slug: 'seed', content: doc('x'), metadata: { title: 'Seed', tags: ['react', 'redux'] } },
+    {
+      collection: 'post',
+      locale: 'en',
+      slug: 'seed',
+      content: doc('x'),
+      metadata: { title: 'Seed', tags: ['react', 'redux'] }
+    }
   ])
   render(
     <ServicesProvider services={servicesFor(data, createMemoryGitPort())}>
-      <DeployProvider><IndexProvider>
-        <TagFilter value={value} onChange={onChange} />
-      </IndexProvider></DeployProvider>
-    </ServicesProvider>,
+      <DeployProvider>
+        <IndexProvider>
+          <TagFilter value={value} onChange={onChange} />
+        </IndexProvider>
+      </DeployProvider>
+    </ServicesProvider>
   )
   return { onChange }
 }
@@ -28,7 +39,9 @@ function setup(value: string) {
 describe('TagFilter', () => {
   it('suggests tags from the index and selects one on click', async () => {
     const { onChange } = setup('')
-    fireEvent.change(screen.getByLabelText('Filter by tag'), { target: { value: 're' } })
+    fireEvent.change(screen.getByLabelText('Filter by tag'), {
+      target: { value: 're' }
+    })
     const opt = await screen.findByRole('option', { name: 'redux' })
     fireEvent.mouseDown(opt)
     expect(onChange).toHaveBeenCalledWith('redux')

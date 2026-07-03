@@ -7,9 +7,15 @@ import { ResumeEditing } from '../src/dashboard/widgets/ResumeEditing'
 function row(over: Partial<ContentRow> = {}): ContentRow {
   return {
     ref: { collection: 'post', locale: 'en', slug: 'hello' },
-    title: 'Hello world', locale: 'en', lifecycle: { state: 'draft' },
-    updatedAt: Date.now(), hasDraft: true, tags: [], categories: [], mediaRefs: [],
-    ...over,
+    title: 'Hello world',
+    locale: 'en',
+    lifecycle: { state: 'draft' },
+    updatedAt: Date.now(),
+    hasDraft: true,
+    tags: [],
+    categories: [],
+    mediaRefs: [],
+    ...over
   }
 }
 const wrap = (ui: React.ReactNode) => render(<MemoryRouter>{ui}</MemoryRouter>)
@@ -23,7 +29,10 @@ describe('ResumeEditing', () => {
   })
   it('links each row to its editor route', () => {
     wrap(<ResumeEditing rows={[row()]} />)
-    expect(screen.getByRole('link', { name: /Hello world/ })).toHaveAttribute('href', '/edit/post/en/hello')
+    expect(screen.getByRole('link', { name: /Hello world/ })).toHaveAttribute(
+      'href',
+      '/edit/post/en/hello'
+    )
   })
   it('maps live state to the success badge', () => {
     wrap(<ResumeEditing rows={[row({ lifecycle: { state: 'live' } })]} />)
@@ -32,6 +41,8 @@ describe('ResumeEditing', () => {
   it('shows an empty state with a create link when there are no rows', () => {
     wrap(<ResumeEditing rows={[]} />)
     expect(screen.getByText(/No edits yet/)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /create your first post/ })).toHaveAttribute('href', '/edit/post/en/new')
+    expect(
+      screen.getByRole('link', { name: /create your first post/ })
+    ).toHaveAttribute('href', '/edit/post/en/new')
   })
 })

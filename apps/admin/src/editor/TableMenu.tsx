@@ -19,7 +19,12 @@ export const tableActions = {
         if (!e.isActive('table')) return false
         const rect = selectedRect(state)
         const col = rect.left // column index of the caret's cell (left edge)
-        const positions = rect.map.cellsInRect({ left: col, right: col + 1, top: 0, bottom: rect.map.height })
+        const positions = rect.map.cellsInRect({
+          left: col,
+          right: col + 1,
+          top: 0,
+          bottom: rect.map.height
+        })
         if (dispatch) {
           for (const rel of positions) {
             const pos = rect.tableStart + rel
@@ -29,7 +34,7 @@ export const tableActions = {
         }
         return true
       })
-      .run(),
+      .run()
 }
 
 /** Floating menu for table cell actions. Uses a DISTINCT pluginKey so it coexists
@@ -44,25 +49,60 @@ export function TableMenu({ editor }: { editor: Editor }) {
       options={{ placement: 'top' }}
     >
       <div className="table-menu" role="toolbar" aria-label="Table actions">
-        <button type="button" onClick={() => A.setColumnAlign(editor, 'left')} title="Align column left" aria-label="Align column left">
+        <button
+          type="button"
+          onClick={() => A.setColumnAlign(editor, 'left')}
+          title="Align column left"
+          aria-label="Align column left"
+        >
           <Icon name="alignLeft" size={16} />
         </button>
-        <button type="button" onClick={() => A.setColumnAlign(editor, 'center')} title="Align column center" aria-label="Align column center">
+        <button
+          type="button"
+          onClick={() => A.setColumnAlign(editor, 'center')}
+          title="Align column center"
+          aria-label="Align column center"
+        >
           <Icon name="alignCenter" size={16} />
         </button>
-        <button type="button" onClick={() => A.setColumnAlign(editor, 'right')} title="Align column right" aria-label="Align column right">
+        <button
+          type="button"
+          onClick={() => A.setColumnAlign(editor, 'right')}
+          title="Align column right"
+          aria-label="Align column right"
+        >
           <Icon name="alignRight" size={16} />
         </button>
-        <button type="button" onClick={() => A.addRowAfter(editor)} title="Add row below" aria-label="Add row below">
+        <button
+          type="button"
+          onClick={() => A.addRowAfter(editor)}
+          title="Add row below"
+          aria-label="Add row below"
+        >
           <Icon name="rowAdd" size={16} />
         </button>
-        <button type="button" onClick={() => A.deleteRow(editor)} title="Delete row" aria-label="Delete row">
+        <button
+          type="button"
+          onClick={() => A.deleteRow(editor)}
+          title="Delete row"
+          aria-label="Delete row"
+        >
           <Icon name="rowDelete" size={16} />
         </button>
-        <button type="button" onClick={() => A.addColumnAfter(editor)} title="Add column right" aria-label="Add column right">
+        <button
+          type="button"
+          onClick={() => A.addColumnAfter(editor)}
+          title="Add column right"
+          aria-label="Add column right"
+        >
           <Icon name="columnAdd" size={16} />
         </button>
-        <button type="button" onClick={() => A.deleteColumn(editor)} title="Delete column" aria-label="Delete column">
+        <button
+          type="button"
+          onClick={() => A.deleteColumn(editor)}
+          title="Delete column"
+          aria-label="Delete column"
+        >
           <Icon name="columnDelete" size={16} />
         </button>
       </div>

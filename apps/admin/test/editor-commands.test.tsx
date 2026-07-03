@@ -3,7 +3,11 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { Draft, TiptapDoc } from '@setu/core'
 import { createBulkService, createMediaIndexService } from '@setu/core'
-import { createMemoryIndexPort, createMemoryMediaIndexPort, createMemorySubmissionPort } from '@setu/db-memory'
+import {
+  createMemoryIndexPort,
+  createMemoryMediaIndexPort,
+  createMemorySubmissionPort
+} from '@setu/db-memory'
 import { ActorProvider } from '../src/auth/actor'
 import { ServicesProvider } from '../src/data/store'
 import type { Services } from '../src/data/store'
@@ -13,32 +17,81 @@ import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { EditorScreen } from '../src/editor/EditorScreen'
 import { NotificationProvider } from '../src/ui/notify'
 import { TooltipProvider } from '../src/components/ui/tooltip'
-import { CommandRegistryProvider, useCommandRegistry } from '../src/command/registry'
+import {
+  CommandRegistryProvider,
+  useCommandRegistry
+} from '../src/command/registry'
 
-const doc = (t: string): TiptapDoc => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] })
-const aDraft: Draft = { collection: 'post', locale: 'en', slug: 'p1', content: doc('Hello body'), metadata: { title: 'Hello', status: 'draft' }, baseSha: null, createdAt: 0, updatedAt: 0 }
-const aLock = { collection: 'post', locale: 'en', slug: 'p1', lockedBy: 'local', lockedAt: 0 }
+const doc = (t: string): TiptapDoc => ({
+  type: 'doc',
+  content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }]
+})
+const aDraft: Draft = {
+  collection: 'post',
+  locale: 'en',
+  slug: 'p1',
+  content: doc('Hello body'),
+  metadata: { title: 'Hello', status: 'draft' },
+  baseSha: null,
+  createdAt: 0,
+  updatedAt: 0
+}
+const aLock = {
+  collection: 'post',
+  locale: 'en',
+  slug: 'p1',
+  lockedBy: 'local',
+  lockedAt: 0
+}
 
 function fakeServices(over: Partial<Services> = {}): Services {
-  const save = vi.fn(async (input: { metadata: Record<string, unknown> }) => ({ saved: true, outcome: 'refreshed', lock: aLock, draft: { ...aDraft, ...input } }))
-  const data = { getDraft: vi.fn(async () => aDraft) } as unknown as Services['data']
-  const git = { readFile: vi.fn(async () => null) } as unknown as Services['git']
-  const read = { loadForEdit: vi.fn(async () => ({ source: 'draft', draft: aDraft })) } as unknown as Services['read']
+  const save = vi.fn(async (input: { metadata: Record<string, unknown> }) => ({
+    saved: true,
+    outcome: 'refreshed',
+    lock: aLock,
+    draft: { ...aDraft, ...input }
+  }))
+  const data = {
+    getDraft: vi.fn(async () => aDraft)
+  } as unknown as Services['data']
+  const git = {
+    readFile: vi.fn(async () => null)
+  } as unknown as Services['git']
+  const read = {
+    loadForEdit: vi.fn(async () => ({ source: 'draft', draft: aDraft }))
+  } as unknown as Services['read']
   return {
     data,
     git,
     read,
     authoring: {
-      open: vi.fn(async () => ({ granted: true, outcome: 'acquired', lock: aLock, draft: aDraft })),
+      open: vi.fn(async () => ({
+        granted: true,
+        outcome: 'acquired',
+        lock: aLock,
+        draft: aDraft
+      })),
       save,
-      release: vi.fn(), forceUnlock: vi.fn(), status: vi.fn(),
+      release: vi.fn(),
+      forceUnlock: vi.fn(),
+      status: vi.fn()
     } as unknown as Services['authoring'],
-    publish: { publish: vi.fn(async () => ({ status: 'nothing' as const })) } as unknown as Services['publish'],
+    publish: {
+      publish: vi.fn(async () => ({ status: 'nothing' as const }))
+    },
     index: createMemoryIndexPort(),
-    bulk: createBulkService({ data, git, read, author: { name: 'T', email: 't@x.com' } }),
-    mediaIndex: createMediaIndexService({ mediaIndex: createMemoryMediaIndexPort(), fetchRaw: async () => [] }),
+    bulk: createBulkService({
+      data,
+      git,
+      read,
+      author: { name: 'T', email: 't@x.com' }
+    }),
+    mediaIndex: createMediaIndexService({
+      mediaIndex: createMemoryMediaIndexPort(),
+      fetchRaw: async () => []
+    }),
     submissions: createMemorySubmissionPort(),
-    ...over,
+    ...over
   }
 }
 
@@ -66,7 +119,10 @@ function renderEditor(services: Services, path = '/edit/post/en/p1') {
                   <TaxonomyProvider>
                     <CommandRegistryProvider>
                       <Routes>
-                        <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
+                        <Route
+                          path="/edit/:collection/:locale/:slug"
+                          element={<EditorScreen />}
+                        />
                       </Routes>
                       <CommandCapture />
                     </CommandRegistryProvider>
@@ -77,7 +133,7 @@ function renderEditor(services: Services, path = '/edit/post/en/p1') {
           </ActorProvider>
         </MemoryRouter>
       </NotificationProvider>
-    </TooltipProvider>,
+    </TooltipProvider>
   )
 }
 
@@ -117,7 +173,9 @@ describe('EditorScreen — editor commands', () => {
     renderEditor(fakeServices())
     await screen.findByDisplayValue('Hello')
     await waitFor(() => {
-      expect(capturedCommands.find((c) => c.id === 'editor.preview')).toBeDefined()
+      expect(
+        capturedCommands.find((c) => c.id === 'editor.preview')
+      ).toBeDefined()
     })
     const previewCmd = capturedCommands.find((c) => c.id === 'editor.preview')!
     expect(previewCmd.title).toBe('Preview draft')
@@ -128,9 +186,13 @@ describe('EditorScreen — editor commands', () => {
     renderEditor(fakeServices())
     await screen.findByDisplayValue('Hello')
     await waitFor(() => {
-      expect(capturedCommands.find((c) => c.id === 'editor.unpublish')).toBeDefined()
+      expect(
+        capturedCommands.find((c) => c.id === 'editor.unpublish')
+      ).toBeDefined()
     })
-    const unpublishCmd = capturedCommands.find((c) => c.id === 'editor.unpublish')!
+    const unpublishCmd = capturedCommands.find(
+      (c) => c.id === 'editor.unpublish'
+    )!
     expect(unpublishCmd.title).toBe('Unpublish')
     expect(unpublishCmd.group).toBe('Editor')
   })

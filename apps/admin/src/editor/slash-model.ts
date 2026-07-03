@@ -36,7 +36,10 @@ export function scoreBlock(block: SlashBlock, q: string): number {
 /** Build the slash-menu row list. Empty query → grouped by category in canonical
  *  order (empty categories omitted). Non-empty query → flat list ranked by score,
  *  no headers. `itemIndex` is the selectable-item index for keyboard nav. */
-export function slashRenderModel(blocks: SlashBlock[], query: string): SlashRow[] {
+export function slashRenderModel(
+  blocks: SlashBlock[],
+  query: string
+): SlashRow[] {
   const q = query.trim().toLowerCase()
 
   if (q === '') {
@@ -45,8 +48,13 @@ export function slashRenderModel(blocks: SlashBlock[], query: string): SlashRow[
     for (const category of BLOCK_CATEGORIES) {
       const inGroup = blocks.filter((b) => b.group === category)
       if (inGroup.length === 0) continue
-      rows.push({ kind: 'header', category, label: BLOCK_CATEGORY_LABELS[category] })
-      for (const block of inGroup) rows.push({ kind: 'item', block, itemIndex: itemIndex++ })
+      rows.push({
+        kind: 'header',
+        category,
+        label: BLOCK_CATEGORY_LABELS[category]
+      })
+      for (const block of inGroup)
+        rows.push({ kind: 'item', block, itemIndex: itemIndex++ })
     }
     return rows
   }

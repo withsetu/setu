@@ -3,7 +3,10 @@ import { render, screen, fireEvent, within } from '@testing-library/react'
 
 // Radix Select calls scrollIntoView when the dropdown opens — stub it for jsdom.
 beforeAll(() => {
-  if (typeof window !== 'undefined' && !window.HTMLElement.prototype.scrollIntoView) {
+  if (
+    typeof window !== 'undefined' &&
+    !window.HTMLElement.prototype.scrollIntoView
+  ) {
     window.HTMLElement.prototype.scrollIntoView = () => {}
   }
 })
@@ -18,8 +21,12 @@ import { NotificationProvider } from '../src/ui/notify'
 import { CategoriesTab } from '../src/screens/taxonomies/CategoriesTab'
 
 vi.mock('../src/deploy/deploy', async (orig) => ({
-  ...(await orig() as object),
-  useDeploy: () => ({ deployedAt: () => null, sha: null, deploy: () => Promise.resolve() }),
+  ...(await orig()),
+  useDeploy: () => ({
+    deployedAt: () => null,
+    sha: null,
+    deploy: () => Promise.resolve()
+  })
 }))
 
 // Seed a 2-level tree:
@@ -34,7 +41,9 @@ const SEED_YAML = `- slug: eng
 `
 
 function wrap() {
-  const gitPort = createMemoryGitPort([{ path: 'taxonomy/categories.yaml', content: SEED_YAML }])
+  const gitPort = createMemoryGitPort([
+    { path: 'taxonomy/categories.yaml', content: SEED_YAML }
+  ])
   const services = servicesFor(createMemoryDataPort(), gitPort)
   return render(
     <MemoryRouter>
@@ -49,7 +58,7 @@ function wrap() {
           </IndexProvider>
         </DeployProvider>
       </ServicesProvider>
-    </MemoryRouter>,
+    </MemoryRouter>
   )
 }
 

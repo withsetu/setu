@@ -13,7 +13,9 @@ import { isEscape, collapseSelectionOnEscape } from '../src/editor/dismiss'
 describe('normalizeUrl', () => {
   it('prefixes https:// for a bare domain', () => {
     expect(normalizeUrl('mayankgupta.com')).toBe('https://mayankgupta.com')
-    expect(normalizeUrl('  example.com/path  ')).toBe('https://example.com/path')
+    expect(normalizeUrl('  example.com/path  ')).toBe(
+      'https://example.com/path'
+    )
   })
   it('leaves explicit schemes, root-relative, and anchor links untouched', () => {
     expect(normalizeUrl('https://x.com')).toBe('https://x.com')
@@ -29,11 +31,19 @@ describe('normalizeUrl', () => {
 
 afterEach(cleanup)
 
-const docOf = (text: string) => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] })
-const sk = () => StarterKit.configure({ link: { openOnClick: false }, underline: false })
+const docOf = (text: string) => ({
+  type: 'doc',
+  content: [{ type: 'paragraph', content: [{ type: 'text', text }] }]
+})
+const sk = () =>
+  StarterKit.configure({ link: { openOnClick: false }, underline: false })
 
 function EditorHarness({ onReady }: { onReady: (e: Editor) => void }) {
-  const editor = useEditor({ immediatelyRender: false, extensions: [sk()], content: docOf('hello world') })
+  const editor = useEditor({
+    immediatelyRender: false,
+    extensions: [sk()],
+    content: docOf('hello world')
+  })
   if (editor) onReady(editor)
   return <EditorContent editor={editor} />
 }
@@ -42,7 +52,14 @@ describe('marks + StarterKit config', () => {
   it('bold toggles on a selection and round-trips to Markdoc', () => {
     let editor!: Editor
     render(<EditorHarness onReady={(e) => (editor = e)} />)
-    act(() => { editor.chain().focus().setTextSelection({ from: 1, to: 6 }).toggleBold().run() })
+    act(() => {
+      editor
+        .chain()
+        .focus()
+        .setTextSelection({ from: 1, to: 6 })
+        .toggleBold()
+        .run()
+    })
     expect(editor.isActive('bold')).toBe(true)
     expect(tiptapToMarkdoc(editor.getJSON())).toContain('**hello**')
   })
@@ -56,30 +73,60 @@ describe('marks + StarterKit config', () => {
 
 describe('FormatBubbleToolbar', () => {
   function ToolbarHarness() {
-    const editor = useEditor({ immediatelyRender: false, extensions: [sk()], content: docOf('hello') })
+    const editor = useEditor({
+      immediatelyRender: false,
+      extensions: [sk()],
+      content: docOf('hello')
+    })
     return <>{editor && <FormatBubbleToolbar editor={editor} />}</>
   }
   it('renders mark toggle buttons + a link button in a toolbar', () => {
     render(<ToolbarHarness />)
-    expect(screen.getByRole('toolbar', { name: /text formatting/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('toolbar', { name: /text formatting/i })
+    ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /bold/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /italic/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /inline code/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /strikethrough/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /inline code/i })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /strikethrough/i })
+    ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^link$/i })).toBeInTheDocument()
   })
 
   it('reflects active marks in aria-pressed (re-renders on toggle)', () => {
     let editor!: Editor
     function H() {
-      const e = useEditor({ immediatelyRender: false, extensions: [sk()], content: docOf('hello') })
+      const e = useEditor({
+        immediatelyRender: false,
+        extensions: [sk()],
+        content: docOf('hello')
+      })
       if (e) editor = e
-      return <>{e && <><EditorContent editor={e} /><FormatBubbleToolbar editor={e} /></>}</>
+      return (
+        <>
+          {e && (
+            <>
+              <EditorContent editor={e} />
+              <FormatBubbleToolbar editor={e} />
+            </>
+          )}
+        </>
+      )
     }
     render(<H />)
     const boldBtn = screen.getByRole('button', { name: /bold/i })
     expect(boldBtn).toHaveAttribute('aria-pressed', 'false')
-    act(() => { editor.chain().focus().setTextSelection({ from: 1, to: 6 }).toggleBold().run() })
+    act(() => {
+      editor
+        .chain()
+        .focus()
+        .setTextSelection({ from: 1, to: 6 })
+        .toggleBold()
+        .run()
+    })
     expect(boldBtn).toHaveAttribute('aria-pressed', 'true')
   })
 })
@@ -87,8 +134,14 @@ describe('FormatBubbleToolbar', () => {
 function AlignHarness({ onReady }: { onReady: (e: Editor) => void }) {
   const editor = useEditor({
     immediatelyRender: false,
-    extensions: [sk(), TextAlign.configure({ types: ['heading', 'paragraph'], alignments: ['left', 'center', 'right'] })],
-    content: docOf('hello world'),
+    extensions: [
+      sk(),
+      TextAlign.configure({
+        types: ['heading', 'paragraph'],
+        alignments: ['left', 'center', 'right']
+      })
+    ],
+    content: docOf('hello world')
   })
   if (editor) onReady(editor)
   return <EditorContent editor={editor} />
@@ -98,12 +151,19 @@ describe('alignment buttons', () => {
   it('aligns the current block and reflects aria-pressed', () => {
     let editor!: Editor
     render(<AlignHarness onReady={(e) => (editor = e)} />)
-    act(() => { editor.commands.setTextSelection({ from: 1, to: 6 }) })
+    act(() => {
+      editor.commands.setTextSelection({ from: 1, to: 6 })
+    })
     render(<FormatBubbleToolbar editor={editor} />)
     const centerBtn = screen.getByLabelText('Align center')
-    act(() => { fireEvent.click(centerBtn) })
+    act(() => {
+      fireEvent.click(centerBtn)
+    })
     expect(editor.isActive({ textAlign: 'center' })).toBe(true)
-    expect(screen.getByLabelText('Align center')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByLabelText('Align center')).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
   })
 })
 
@@ -135,7 +195,7 @@ describe('FormatBubble document-level Escape handler', () => {
     const editor = useEditor({
       immediatelyRender: false,
       extensions: [sk()],
-      content: docOf('hello world'),
+      content: docOf('hello world')
     })
     if (editor) onReady(editor)
     return <>{editor && <EscListenerHarness editor={editor} />}</>
@@ -146,11 +206,17 @@ describe('FormatBubble document-level Escape handler', () => {
     render(<H onReady={(e) => (editor = e)} />)
 
     // Establish a non-empty selection so the bubble would be visible
-    act(() => { editor.chain().focus().setTextSelection({ from: 1, to: 6 }).run() })
+    act(() => {
+      editor.chain().focus().setTextSelection({ from: 1, to: 6 }).run()
+    })
     expect(editor.state.selection.empty).toBe(false)
 
     // Fire Escape at the document level (simulates any focus location — callout, toolbar, etc.)
-    act(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })) })
+    act(() => {
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })
+      )
+    })
 
     expect(editor.state.selection.empty).toBe(true)
   })
@@ -160,10 +226,16 @@ describe('FormatBubble document-level Escape handler', () => {
     render(<H onReady={(e) => (editor = e)} />)
 
     // Leave selection as a caret (empty)
-    act(() => { editor.chain().focus().setTextSelection(3).run() })
+    act(() => {
+      editor.chain().focus().setTextSelection(3).run()
+    })
     expect(editor.state.selection.empty).toBe(true)
 
-    act(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })) })
+    act(() => {
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })
+      )
+    })
 
     // Selection stays empty / unchanged
     expect(editor.state.selection.empty).toBe(true)

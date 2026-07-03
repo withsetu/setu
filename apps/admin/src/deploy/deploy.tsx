@@ -10,20 +10,26 @@ interface DeployState {
   sha: string | null
 }
 
+// Function-property syntax (not method syntax): these are standalone closures consumers
+// destructure freely (`const { deploy } = useDeploy()`), never `this`-bound methods.
+// Method syntax makes @typescript-eslint/unbound-method flag every destructure.
 interface DeployApi {
   /** The live content at a repo path, or null if not deployed. */
-  deployedAt(path: string): string | null
+  deployedAt: (path: string) => string | null
   /** The deployed HEAD sha (null if never deployed). */
   sha: string | null
   /** Snapshot the current Git working set as "live" (the SSG-shaped stand-in). */
-  deploy(): Promise<void>
+  deploy: () => Promise<void>
 }
 
 const DeployContext = createContext<DeployApi | null>(null)
 
 export function DeployProvider({ children }: { children: ReactNode }) {
   const { git } = useServices()
-  const [state, setState] = useState<DeployState>({ snapshot: new Map(), sha: null })
+  const [state, setState] = useState<DeployState>({
+    snapshot: new Map(),
+    sha: null
+  })
 
   const deploy = useCallback(async () => {
     const paths = await git.list('content/')
@@ -37,13 +43,21 @@ export function DeployProvider({ children }: { children: ReactNode }) {
     setState({ snapshot: next, sha })
   }, [git])
 
-  const deployedAt = useCallback((path: string) => state.snapshot.get(path) ?? null, [state])
+  const deployedAt = useCallback(
+    (path: string) => state.snapshot.get(path) ?? null,
+    [state]
+  )
 
-  return <DeployContext.Provider value={{ deployedAt, sha: state.sha, deploy }}>{children}</DeployContext.Provider>
+  return (
+    <DeployContext.Provider value={{ deployedAt, sha: state.sha, deploy }}>
+      {children}
+    </DeployContext.Provider>
+  )
 }
 
 export function useDeploy(): DeployApi {
   const ctx = useContext(DeployContext)
-  if (ctx === null) throw new Error('useDeploy must be used within a DeployProvider')
+  if (ctx === null)
+    throw new Error('useDeploy must be used within a DeployProvider')
   return ctx
 }

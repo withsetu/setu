@@ -1,14 +1,23 @@
 import { tiptapToMarkdoc } from '../markdoc/to-markdoc'
 import { serializeMdoc } from '../markdoc/frontmatter'
 import { contentPath } from './content-path'
-import type { PublishDeps, PublishInput, PublishResult, PublishService } from './types'
+import type {
+  PublishDeps,
+  PublishInput,
+  PublishResult,
+  PublishService
+} from './types'
 
 /** Compile a draft to Markdoc and commit it to Git (PRD §2). */
 export function createPublishService(deps: PublishDeps): PublishService {
   const { data, git } = deps
 
   return {
-    async publish({ ref, author, message }: PublishInput): Promise<PublishResult> {
+    async publish({
+      ref,
+      author,
+      message
+    }: PublishInput): Promise<PublishResult> {
       const draft = await data.getDraft(ref)
       if (draft === null) return { status: 'nothing' }
 
@@ -28,9 +37,18 @@ export function createPublishService(deps: PublishDeps): PublishService {
       }
 
       // Serialize metadata → YAML frontmatter + the compiled Markdoc body.
-      const content = serializeMdoc({ frontmatter: draft.metadata, body: tiptapToMarkdoc(draft.content) })
-      const commitMessage = message ?? `Publish ${ref.collection}/${ref.locale}/${ref.slug}`
-      const { sha } = await git.commitFile({ path, content, message: commitMessage, author })
+      const content = serializeMdoc({
+        frontmatter: draft.metadata,
+        body: tiptapToMarkdoc(draft.content)
+      })
+      const commitMessage =
+        message ?? `Publish ${ref.collection}/${ref.locale}/${ref.slug}`
+      const { sha } = await git.commitFile({
+        path,
+        content,
+        message: commitMessage,
+        author
+      })
 
       // Advance the draft's base to the new commit so continued editing forks from
       // the just-published state. NOTE: if this saveDraft throws after the commit
@@ -43,10 +61,10 @@ export function createPublishService(deps: PublishDeps): PublishService {
         metadata: draft.metadata,
         baseSha: sha,
         // The just-committed content becomes this file's new per-file conflict base.
-        baseContent: content,
+        baseContent: content
       })
 
       return { status: 'published', sha, path }
-    },
+    }
   }
 }

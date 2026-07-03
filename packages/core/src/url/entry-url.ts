@@ -16,7 +16,8 @@ export const DEFAULT_LOCALE = 'en'
  *  so the two can never disagree on where a page lives. Pure / Node-free. */
 export function entryUrlPath(ref: EntryRef): string {
   const { collection, locale, slug } = ref
-  if (collection === 'page' && locale === DEFAULT_LOCALE && slug === 'home') return ''
+  if (collection === 'page' && locale === DEFAULT_LOCALE && slug === 'home')
+    return ''
   if (locale === DEFAULT_LOCALE) return `${collection}/${slug}`
   return `${collection}/${locale}/${slug}`
 }

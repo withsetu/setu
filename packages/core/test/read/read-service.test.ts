@@ -1,11 +1,24 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { createReadService, tiptapToMarkdoc, markdocToTiptap, contentPath, serializeMdoc } from '../../src/index'
-import type { DataPort, Draft, EntryRef, GitPort, Lock, TiptapDoc } from '../../src/index'
+import {
+  createReadService,
+  tiptapToMarkdoc,
+  markdocToTiptap,
+  contentPath,
+  serializeMdoc
+} from '../../src/index'
+import type {
+  DataPort,
+  Draft,
+  EntryRef,
+  GitPort,
+  Lock,
+  TiptapDoc
+} from '../../src/index'
 
 const key = (r: EntryRef) => `${r.collection} ${r.locale} ${r.slug}`
 const doc = (text: string): TiptapDoc => ({
   type: 'doc',
-  content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+  content: [{ type: 'paragraph', content: [{ type: 'text', text }] }]
 })
 const author = { name: 'E', email: 'e@x.com' }
 
@@ -28,7 +41,7 @@ function fakeData(): DataPort {
         metadata: input.metadata,
         baseSha: input.baseSha ?? null,
         createdAt: existing?.createdAt ?? 0,
-        updatedAt: 0,
+        updatedAt: 0
       }
       drafts.set(k, d)
       return d
@@ -38,7 +51,9 @@ function fakeData(): DataPort {
     },
     async listDrafts(filter) {
       const all = [...drafts.values()]
-      return filter?.collection ? all.filter((d) => d.collection === filter.collection) : all
+      return filter?.collection
+        ? all.filter((d) => d.collection === filter.collection)
+        : all
     },
     async getLock(ref) {
       return locks.get(key(ref)) ?? null
@@ -49,7 +64,7 @@ function fakeData(): DataPort {
     async deleteLock(ref) {
       locks.delete(key(ref))
     },
-    async close() {},
+    async close() {}
   }
 }
 
@@ -77,14 +92,21 @@ function fakeGit(): GitPort {
       return head
     },
     async readFile(path) {
-      return head === null ? null : files.get(path) ?? null
+      return head === null ? null : (files.get(path) ?? null)
     },
-    commitFile: (input) => commitFiles({ changes: [{ path: input.path, content: input.content }], message: input.message, author: input.author }),
+    commitFile: (input) =>
+      commitFiles({
+        changes: [{ path: input.path, content: input.content }],
+        message: input.message,
+        author: input.author
+      }),
     commitFiles,
     async list(prefix?: string) {
       const all = [...files.keys()]
-      return prefix === undefined ? all : all.filter((p) => p.startsWith(prefix))
-    },
+      return prefix === undefined
+        ? all
+        : all.filter((p) => p.startsWith(prefix))
+    }
   }
 }
 
@@ -100,7 +122,12 @@ describe('createReadService.loadForEdit', () => {
   })
 
   it('returns the existing live draft without forking', async () => {
-    const seeded = await data.saveDraft({ ...ref, content: doc('wip'), metadata: { title: 'WIP' }, baseSha: 'sha0' })
+    const seeded = await data.saveDraft({
+      ...ref,
+      content: doc('wip'),
+      metadata: { title: 'WIP' },
+      baseSha: 'sha0'
+    })
     const r = await svc().loadForEdit(ref)
     expect(r).toEqual({ source: 'draft', draft: seeded })
   })
@@ -111,7 +138,12 @@ describe('createReadService.loadForEdit', () => {
 
   it('forks a draft from published Git content (baseSha = HEAD, empty metadata, persisted)', async () => {
     const md = tiptapToMarkdoc(doc('published body'))
-    const { sha } = await git.commitFile({ path: contentPath(ref), content: md, message: 'm', author })
+    const { sha } = await git.commitFile({
+      path: contentPath(ref),
+      content: md,
+      message: 'm',
+      author
+    })
     const r = await svc().loadForEdit(ref)
     expect(r.source).toBe('forked')
     if (r.source !== 'forked') throw new Error('unreachable')
@@ -124,26 +156,49 @@ describe('createReadService.loadForEdit', () => {
   it('round-trips body content through Git: tiptap → publish → open → tiptap', async () => {
     const original = doc('round trip me')
     const md = tiptapToMarkdoc(original)
-    await git.commitFile({ path: contentPath(ref), content: md, message: 'm', author })
+    await git.commitFile({
+      path: contentPath(ref),
+      content: md,
+      message: 'm',
+      author
+    })
     const r = await svc().loadForEdit(ref)
     if (r.source !== 'forked') throw new Error('unreachable')
     expect(tiptapToMarkdoc(r.draft.content)).toBe(md)
   })
 
   it('forks metadata from a published file with frontmatter', async () => {
-    const file = serializeMdoc({ frontmatter: { title: 'Kept', status: 'published' }, body: tiptapToMarkdoc(doc('body')) })
-    await git.commitFile({ path: contentPath(ref), content: file, message: 'm', author })
+    const file = serializeMdoc({
+      frontmatter: { title: 'Kept', status: 'published' },
+      body: tiptapToMarkdoc(doc('body'))
+    })
+    await git.commitFile({
+      path: contentPath(ref),
+      content: file,
+      message: 'm',
+      author
+    })
     const r = await svc().loadForEdit(ref)
     if (r.source !== 'forked') throw new Error('unreachable')
     expect(r.draft.metadata).toEqual({ title: 'Kept', status: 'published' })
-    expect(r.draft.content).toEqual(markdocToTiptap(tiptapToMarkdoc(doc('body'))))
+    expect(r.draft.content).toEqual(
+      markdocToTiptap(tiptapToMarkdoc(doc('body')))
+    )
   })
 
   it('round-trips content AND metadata through Git (publish shape → open)', async () => {
     const original = doc('full round trip')
     const metadata = { title: 'Round Trip', n: 3 }
-    const file = serializeMdoc({ frontmatter: metadata, body: tiptapToMarkdoc(original) })
-    await git.commitFile({ path: contentPath(ref), content: file, message: 'm', author })
+    const file = serializeMdoc({
+      frontmatter: metadata,
+      body: tiptapToMarkdoc(original)
+    })
+    await git.commitFile({
+      path: contentPath(ref),
+      content: file,
+      message: 'm',
+      author
+    })
     const r = await svc().loadForEdit(ref)
     if (r.source !== 'forked') throw new Error('unreachable')
     expect(r.draft.metadata).toEqual(metadata)

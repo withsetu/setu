@@ -24,7 +24,9 @@ function resolveKey(dir: string, key: string): string {
     throw new Error(`storage-local: key "${key}" escapes the storage dir`)
   }
   if (key.split(/[\\/]/)[0] === META) {
-    throw new Error(`storage-local: key "${key}" uses the reserved "${META}" namespace`)
+    throw new Error(
+      `storage-local: key "${key}" uses the reserved "${META}" namespace`
+    )
   }
   return abs
 }
@@ -33,7 +35,10 @@ function resolveKey(dir: string, key: string): string {
  *  `dir/.meta/<key>` for the content-type, keeping object keys and metadata
  *  in separate on-disk namespaces (no sidecar collision).
  *  Hardened against path traversal and empty keys. */
-export function createLocalStorage({ dir, baseUrl }: LocalStorageOptions): StoragePort {
+export function createLocalStorage({
+  dir,
+  baseUrl
+}: LocalStorageOptions): StoragePort {
   const base = baseUrl.replace(/\/+$/, '')
 
   // key has already passed resolveKey in the calling method (not absolute, no '..', not in .meta)
@@ -54,7 +59,8 @@ export function createLocalStorage({ dir, baseUrl }: LocalStorageOptions): Stora
         const body = await readFile(path)
         let contentType = 'application/octet-stream'
         try {
-          contentType = (await readFile(metaPathFor(key), 'utf8')).trim() || contentType
+          contentType =
+            (await readFile(metaPathFor(key), 'utf8')).trim() || contentType
         } catch (e) {
           if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
           /* meta missing → default content type */
@@ -87,8 +93,12 @@ export function createLocalStorage({ dir, baseUrl }: LocalStorageOptions): Stora
       const out: string[] = []
       async function walk(abs: string): Promise<void> {
         let entries
-        try { entries = await readdir(abs, { withFileTypes: true }) }
-        catch (e) { if ((e as NodeJS.ErrnoException).code === 'ENOENT') return; throw e }
+        try {
+          entries = await readdir(abs, { withFileTypes: true })
+        } catch (e) {
+          if ((e as NodeJS.ErrnoException).code === 'ENOENT') return
+          throw e
+        }
         for (const ent of entries) {
           if (ent.name === META) continue // skip the content-type sidecar namespace
           const child = join(abs, ent.name)
@@ -98,6 +108,6 @@ export function createLocalStorage({ dir, baseUrl }: LocalStorageOptions): Stora
       }
       await walk(root)
       return prefix ? out.filter((k) => k.startsWith(prefix)) : out
-    },
+    }
   }
 }

@@ -15,15 +15,78 @@ export interface BlockType {
 }
 
 export const BLOCK_TYPES: BlockType[] = [
-  { id: 'paragraph', label: 'Text', icon: 'post', keys: ['Mod', 'Alt', '0'], isActive: (e) => e.isActive('paragraph'), setOn: (c) => c.setNode('paragraph') },
-  { id: 'h2', label: 'Heading 2', icon: 'pages', keys: ['Mod', 'Alt', '2'], isActive: (e) => e.isActive('heading', { level: 2 }), setOn: (c) => c.setNode('heading', { level: 2 }) },
-  { id: 'h3', label: 'Heading 3', icon: 'pages', keys: ['Mod', 'Alt', '3'], isActive: (e) => e.isActive('heading', { level: 3 }), setOn: (c) => c.setNode('heading', { level: 3 }) },
-  { id: 'h4', label: 'Heading 4', icon: 'pages', keys: ['Mod', 'Alt', '4'], isActive: (e) => e.isActive('heading', { level: 4 }), setOn: (c) => c.setNode('heading', { level: 4 }) },
-  { id: 'bulletList', label: 'Bullet list', icon: 'forms', keys: ['Mod', 'Shift', '8'], isActive: (e) => e.isActive('bulletList'), setOn: (c) => c.toggleBulletList() },
-  { id: 'orderedList', label: 'Numbered list', icon: 'forms', keys: ['Mod', 'Shift', '7'], isActive: (e) => e.isActive('orderedList'), setOn: (c) => c.toggleOrderedList() },
-  { id: 'blockquote', label: 'Quote', icon: 'post', keys: ['Mod', 'Shift', 'b'], isActive: (e) => e.isActive('blockquote'), setOn: (c) => c.toggleBlockquote() },
-  { id: 'codeBlock', label: 'Code block', icon: 'settings', keys: ['Mod', 'Alt', 'c'], isActive: (e) => e.isActive('codeBlock'), setOn: (c) => c.toggleCodeBlock() },
-  { id: 'taskList', label: 'Checklist', icon: 'check', keys: ['Mod', 'Shift', '9'], isActive: (e) => e.isActive('taskList'), setOn: (c) => c.toggleTaskList() },
+  {
+    id: 'paragraph',
+    label: 'Text',
+    icon: 'post',
+    keys: ['Mod', 'Alt', '0'],
+    isActive: (e) => e.isActive('paragraph'),
+    setOn: (c) => c.setNode('paragraph')
+  },
+  {
+    id: 'h2',
+    label: 'Heading 2',
+    icon: 'pages',
+    keys: ['Mod', 'Alt', '2'],
+    isActive: (e) => e.isActive('heading', { level: 2 }),
+    setOn: (c) => c.setNode('heading', { level: 2 })
+  },
+  {
+    id: 'h3',
+    label: 'Heading 3',
+    icon: 'pages',
+    keys: ['Mod', 'Alt', '3'],
+    isActive: (e) => e.isActive('heading', { level: 3 }),
+    setOn: (c) => c.setNode('heading', { level: 3 })
+  },
+  {
+    id: 'h4',
+    label: 'Heading 4',
+    icon: 'pages',
+    keys: ['Mod', 'Alt', '4'],
+    isActive: (e) => e.isActive('heading', { level: 4 }),
+    setOn: (c) => c.setNode('heading', { level: 4 })
+  },
+  {
+    id: 'bulletList',
+    label: 'Bullet list',
+    icon: 'forms',
+    keys: ['Mod', 'Shift', '8'],
+    isActive: (e) => e.isActive('bulletList'),
+    setOn: (c) => c.toggleBulletList()
+  },
+  {
+    id: 'orderedList',
+    label: 'Numbered list',
+    icon: 'forms',
+    keys: ['Mod', 'Shift', '7'],
+    isActive: (e) => e.isActive('orderedList'),
+    setOn: (c) => c.toggleOrderedList()
+  },
+  {
+    id: 'blockquote',
+    label: 'Quote',
+    icon: 'post',
+    keys: ['Mod', 'Shift', 'b'],
+    isActive: (e) => e.isActive('blockquote'),
+    setOn: (c) => c.toggleBlockquote()
+  },
+  {
+    id: 'codeBlock',
+    label: 'Code block',
+    icon: 'settings',
+    keys: ['Mod', 'Alt', 'c'],
+    isActive: (e) => e.isActive('codeBlock'),
+    setOn: (c) => c.toggleCodeBlock()
+  },
+  {
+    id: 'taskList',
+    label: 'Checklist',
+    icon: 'check',
+    keys: ['Mod', 'Shift', '9'],
+    isActive: (e) => e.isActive('taskList'),
+    setOn: (c) => c.toggleTaskList()
+  }
 ]
 
 /** The block type of the current selection — the first non-Text type that's active
@@ -38,7 +101,13 @@ export function currentBlockType(editor: Editor): BlockType {
  *  transforms/active-state are single-sourced. */
 export type TurnIntoEntry =
   | { kind: 'leaf'; type: BlockType }
-  | { kind: 'group'; id: string; label: string; icon: IconName; items: BlockType[] }
+  | {
+      kind: 'group'
+      id: string
+      label: string
+      icon: IconName
+      items: BlockType[]
+    }
 
 function byId(id: string): BlockType {
   const b = BLOCK_TYPES.find((x) => x.id === id)
@@ -48,17 +117,30 @@ function byId(id: string): BlockType {
 
 export const TURN_INTO_GROUPS: TurnIntoEntry[] = [
   { kind: 'leaf', type: byId('paragraph') },
-  { kind: 'group', id: 'heading', label: 'Heading', icon: 'pages', items: [byId('h2'), byId('h3'), byId('h4')] },
-  { kind: 'group', id: 'list', label: 'List', icon: 'forms', items: [byId('bulletList'), byId('orderedList'), byId('taskList')] },
+  {
+    kind: 'group',
+    id: 'heading',
+    label: 'Heading',
+    icon: 'pages',
+    items: [byId('h2'), byId('h3'), byId('h4')]
+  },
+  {
+    kind: 'group',
+    id: 'list',
+    label: 'List',
+    icon: 'forms',
+    items: [byId('bulletList'), byId('orderedList'), byId('taskList')]
+  },
   { kind: 'leaf', type: byId('blockquote') },
-  { kind: 'leaf', type: byId('codeBlock') },
+  { kind: 'leaf', type: byId('codeBlock') }
 ]
 
 /** The id of the group whose item is currently active (so the menu can pre-expand it),
  *  or null when the active block is a leaf/plain paragraph. */
 export function groupContaining(editor: Editor): string | null {
   for (const e of TURN_INTO_GROUPS) {
-    if (e.kind === 'group' && e.items.some((it) => it.isActive(editor))) return e.id
+    if (e.kind === 'group' && e.items.some((it) => it.isActive(editor)))
+      return e.id
   }
   return null
 }

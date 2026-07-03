@@ -31,12 +31,17 @@ export function deriveLifecycle(snap: {
 
   if (liveOnSite) {
     if (aheadEdited) return { state: 'live', pending: 'edited' }
-    if (committed !== deployed) return { state: 'live', pending: hidden(committed) ? 'unpublishing' : 'staged' }
+    if (committed !== deployed)
+      return {
+        state: 'live',
+        pending: hidden(committed) ? 'unpublishing' : 'staged'
+      }
     return { state: 'live' }
   }
   if (takenDown) {
     if (aheadEdited) return { state: 'unpublished', pending: 'edited' }
-    if (committed !== deployed) return { state: 'unpublished', pending: 'staged' }
+    if (committed !== deployed)
+      return { state: 'unpublished', pending: 'staged' }
     return { state: 'unpublished' }
   }
   // never deployed

@@ -13,7 +13,12 @@ describe('createIdbGitPort persistence', () => {
   it('restores committed content after reopening the same database', async () => {
     const name = freshName()
     const a = await createIdbGitPort(name)
-    await a.commitFile({ path: 'content/post/en/a.mdoc', content: 'A', message: 'm', author })
+    await a.commitFile({
+      path: 'content/post/en/a.mdoc',
+      content: 'A',
+      message: 'm',
+      author
+    })
     const headA = await a.headSha()
 
     const b = await createIdbGitPort(name)

@@ -12,9 +12,18 @@ import { CommandRegistryProvider } from '../src/command/registry'
 import { Dashboard } from '../src/screens/Dashboard'
 import { App } from '../src/app'
 
-const doc = (t: string): TiptapDoc => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] })
+const doc = (t: string): TiptapDoc => ({
+  type: 'doc',
+  content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }]
+})
 const seed: DraftInput[] = [
-  { collection: 'post', locale: 'en', slug: 'p1', content: doc('a'), metadata: { title: 'First Post', status: 'draft' } },
+  {
+    collection: 'post',
+    locale: 'en',
+    slug: 'p1',
+    content: doc('a'),
+    metadata: { title: 'First Post', status: 'draft' }
+  }
 ]
 
 function renderDash(data: DataPort, git: GitPort) {
@@ -27,7 +36,7 @@ function renderDash(data: DataPort, git: GitPort) {
           </DeployProvider>
         </ActorProvider>
       </ServicesProvider>
-    </MemoryRouter>,
+    </MemoryRouter>
   )
 }
 
@@ -36,13 +45,24 @@ describe('Dashboard', () => {
 
   it('shows the greeting and header actions', async () => {
     renderDash(createMemoryDataPort(seed), createMemoryGitPort())
-    expect(await screen.findByText(/here's your site at a glance/)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /New post/ })).toHaveAttribute('href', '/edit/post/en/new')
-    expect(screen.getByRole('link', { name: /New page/ })).toHaveAttribute('href', '/edit/page/en/new')
+    expect(
+      await screen.findByText(/here's your site at a glance/)
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /New post/ })).toHaveAttribute(
+      'href',
+      '/edit/post/en/new'
+    )
+    expect(screen.getByRole('link', { name: /New page/ })).toHaveAttribute(
+      'href',
+      '/edit/page/en/new'
+    )
   })
 
   it('shows an inline error state when data load fails', async () => {
-    const git: GitPort = { ...createMemoryGitPort(), list: () => Promise.reject(new Error('boom')) }
+    const git: GitPort = {
+      ...createMemoryGitPort(),
+      list: () => Promise.reject(new Error('boom'))
+    }
     renderDash(createMemoryDataPort(seed), git)
     expect(await screen.findByText(/couldn't load/i)).toBeInTheDocument()
   })
@@ -52,7 +72,12 @@ describe('admin landing route', () => {
   it('redirects / to the dashboard', async () => {
     render(
       <MemoryRouter initialEntries={['/']}>
-        <ServicesProvider services={servicesFor(createMemoryDataPort(seed), createMemoryGitPort())}>
+        <ServicesProvider
+          services={servicesFor(
+            createMemoryDataPort(seed),
+            createMemoryGitPort()
+          )}
+        >
           <ActorProvider>
             <NotificationProvider>
               <DeployProvider>
@@ -63,8 +88,10 @@ describe('admin landing route', () => {
             </NotificationProvider>
           </ActorProvider>
         </ServicesProvider>
-      </MemoryRouter>,
+      </MemoryRouter>
     )
-    expect(await screen.findByText(/here's your site at a glance/)).toBeInTheDocument()
+    expect(
+      await screen.findByText(/here's your site at a glance/)
+    ).toBeInTheDocument()
   })
 })

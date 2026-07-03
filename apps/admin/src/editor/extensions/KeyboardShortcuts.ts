@@ -1,6 +1,10 @@
 import { Extension } from '@tiptap/core'
 import type { Editor } from '@tiptap/core'
-import { requestLinkEdit, requestShortcuts, requestFocusToolbar } from '../editor-events'
+import {
+  requestLinkEdit,
+  requestShortcuts,
+  requestFocusToolbar
+} from '../editor-events'
 import { collapseSelectionOnEscape } from '../dismiss'
 
 /** What Tab should do in the editor body. Tab is ALWAYS consumed (never allowed to
@@ -11,10 +15,13 @@ import { collapseSelectionOnEscape } from '../dismiss'
  *  - `indent`: caret in a list → sink the list item (a no-op on a first/top item, but
  *    still consumed — so it never escapes).
  *  - `consume`: caret elsewhere → swallow Tab (no-op). Pure. */
-export function tabActionFor(editor: Editor): 'cell' | 'bubble' | 'indent' | 'consume' {
+export function tabActionFor(
+  editor: Editor
+): 'cell' | 'bubble' | 'indent' | 'consume' {
   if (editor.isActive('table')) return 'cell'
   if (!editor.state.selection.empty) return 'bubble'
-  if (editor.isActive('listItem') || editor.isActive('taskItem')) return 'indent'
+  if (editor.isActive('listItem') || editor.isActive('taskItem'))
+    return 'indent'
   return 'consume'
 }
 
@@ -51,7 +58,9 @@ export const KeyboardShortcuts = Extension.create({
         if (action === 'cell') advanceCellOrAddRow(this.editor)
         else if (action === 'bubble') requestFocusToolbar()
         else if (action === 'indent') {
-          const itemType = this.editor.isActive('taskItem') ? 'taskItem' : 'listItem'
+          const itemType = this.editor.isActive('taskItem')
+            ? 'taskItem'
+            : 'listItem'
           this.editor.chain().focus().sinkListItem(itemType).run()
         }
         return true
@@ -61,11 +70,13 @@ export const KeyboardShortcuts = Extension.create({
           this.editor.chain().focus().goToPreviousCell().run()
           return true
         }
-        if (this.editor.isActive('taskItem')) return this.editor.chain().focus().liftListItem('taskItem').run()
-        if (this.editor.isActive('listItem')) return this.editor.chain().focus().liftListItem('listItem').run()
+        if (this.editor.isActive('taskItem'))
+          return this.editor.chain().focus().liftListItem('taskItem').run()
+        if (this.editor.isActive('listItem'))
+          return this.editor.chain().focus().liftListItem('listItem').run()
         return false
       },
-      Escape: () => collapseSelectionOnEscape(this.editor),
+      Escape: () => collapseSelectionOnEscape(this.editor)
     }
-  },
+  }
 })

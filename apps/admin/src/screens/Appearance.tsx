@@ -18,7 +18,10 @@ function defaults(): Record<string, string> {
 }
 
 /** Shallow record equality over the manifest's full value set. */
-function sameValues(a: Record<string, string>, b: Record<string, string>): boolean {
+function sameValues(
+  a: Record<string, string>,
+  b: Record<string, string>
+): boolean {
   const keys = new Set([...Object.keys(a), ...Object.keys(b)])
   for (const k of keys) if (a[k] !== b[k]) return false
   return true
@@ -27,7 +30,8 @@ function sameValues(a: Record<string, string>, b: Record<string, string>): boole
 function loadValues(): Record<string, string> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) return { ...defaults(), ...(JSON.parse(raw) as Record<string, string>) }
+    if (raw)
+      return { ...defaults(), ...(JSON.parse(raw) as Record<string, string>) }
   } catch {
     // ignore (private mode / corrupt) — fall back to defaults
   }
@@ -35,7 +39,8 @@ function loadValues(): Record<string, string> {
 }
 
 /** A hex color is valid if it matches #rgb/#rgba/#rrggbb/#rrggbbaa. */
-const isHex = (v: string) => /^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(v)
+const isHex = (v: string) =>
+  /^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(v)
 
 export function Appearance() {
   const { git } = useServices()
@@ -43,7 +48,9 @@ export function Appearance() {
   const [values, setValues] = useState<Record<string, string>>(loadValues)
   // The currently-published values (what the live site renders). null until the baseline loads;
   // absent file → the live state is the theme defaults.
-  const [published, setPublished] = useState<Record<string, string> | null>(null)
+  const [published, setPublished] = useState<Record<string, string> | null>(
+    null
+  )
   const [publishing, setPublishing] = useState(false)
 
   useEffect(() => {
@@ -53,7 +60,10 @@ export function Appearance() {
       let committed = defaults()
       if (raw) {
         try {
-          committed = { ...defaults(), ...(JSON.parse(raw) as Record<string, string>) }
+          committed = {
+            ...defaults(),
+            ...(JSON.parse(raw) as Record<string, string>)
+          }
         } catch {
           // malformed committed file → treat the live state as defaults
         }
@@ -73,7 +83,8 @@ export function Appearance() {
     }
   }, [values])
 
-  const set = (key: string, value: string) => setValues((v) => ({ ...v, [key]: value }))
+  const set = (key: string, value: string) =>
+    setValues((v) => ({ ...v, [key]: value }))
   const resetKey = (key: string, def: string) => set(key, def)
   const resetAll = () => setValues(defaults())
 
@@ -88,7 +99,7 @@ export function Appearance() {
         path: THEME_OPTIONS_PATH,
         content: JSON.stringify(values, null, 2),
         message: 'Update appearance',
-        author: AUTHOR,
+        author: AUTHOR
       })
       setPublished({ ...values })
     } finally {
@@ -114,10 +125,18 @@ export function Appearance() {
                 disabled={published === null || !dirty || publishing}
                 onClick={() => void onPublish()}
               >
-                {publishing ? 'Publishing…' : dirty ? 'Publish appearance' : 'Published'}
+                {publishing
+                  ? 'Publishing…'
+                  : dirty
+                    ? 'Publish appearance'
+                    : 'Published'}
               </button>
             )}
-            <button type="button" className="btn btn-ghost btn-md" onClick={resetAll}>
+            <button
+              type="button"
+              className="btn btn-ghost btn-md"
+              onClick={resetAll}
+            >
               Reset all
             </button>
           </>
@@ -137,14 +156,18 @@ export function Appearance() {
             ))}
           </div>
           <div className="cz-preview">
-            <div className="cz-preview-card" style={previewStyle} data-testid="cz-preview">
+            <div
+              className="cz-preview-card"
+              style={previewStyle}
+              data-testid="cz-preview"
+            >
               {/* .cz-page's max-width tracks --measure-page (content width) so the column
                   visibly narrows/widens — the gutters around it are the page margins. */}
               <div className="cz-page">
                 <h2 className="cz-h">The quick brown fox</h2>
                 <p className="cz-p">
-                  Jumps over the lazy dog. This is how your body copy reads — the font, size and
-                  rhythm of everyday paragraphs on your site.
+                  Jumps over the lazy dog. This is how your body copy reads —
+                  the font, size and rhythm of everyday paragraphs on your site.
                 </p>
                 <button type="button" className="cz-btn" tabIndex={-1}>
                   Primary button
@@ -171,7 +194,7 @@ function Control({
   opt,
   value,
   onChange,
-  onReset,
+  onReset
 }: {
   opt: ThemeOption
   value: string
@@ -194,13 +217,26 @@ function Control({
       {opt.type === 'color' ? (
         <ColorControl id={`cz-${opt.key}`} value={value} onChange={onChange} />
       ) : (
-        <SelectControl id={`cz-${opt.key}`} opt={opt} value={value} onChange={onChange} />
+        <SelectControl
+          id={`cz-${opt.key}`}
+          opt={opt}
+          value={value}
+          onChange={onChange}
+        />
       )}
     </div>
   )
 }
 
-function ColorControl({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) {
+function ColorControl({
+  id,
+  value,
+  onChange
+}: {
+  id: string
+  value: string
+  onChange: (v: string) => void
+}) {
   // Local draft so the user can type a partial hex freely; commit only when it parses.
   const [text, setText] = useState(value)
   useEffect(() => {
@@ -235,7 +271,7 @@ function SelectControl({
   id,
   opt,
   value,
-  onChange,
+  onChange
 }: {
   id: string
   opt: ThemeOption
@@ -262,7 +298,12 @@ function SelectControl({
     )
   }
   return (
-    <select id={id} className="cz-select" value={value} onChange={(e) => onChange(e.target.value)}>
+    <select
+      id={id}
+      className="cz-select"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    >
       {choices.map((c) => (
         <option key={c.value} value={c.value}>
           {c.label}

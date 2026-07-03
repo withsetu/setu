@@ -5,7 +5,9 @@ import type { Category, CategoryNode } from './types'
  *  never loops on malformed data. Roots keep input order; depth is 0-based. */
 export function buildTree(cats: Category[]): CategoryNode[] {
   const bySlug = new Map(cats.map((c) => [c.slug, c]))
-  const nodes = new Map<string, CategoryNode>(cats.map((c) => [c.slug, { ...c, children: [], depth: 0 }]))
+  const nodes = new Map<string, CategoryNode>(
+    cats.map((c) => [c.slug, { ...c, children: [], depth: 0 }])
+  )
 
   // The parent to attach under: null when root, missing, or reachable-cycle.
   const effectiveParent = (c: Category): string | null => {

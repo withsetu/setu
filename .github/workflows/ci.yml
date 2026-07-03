@@ -110,6 +110,19 @@ jobs:
           echo "::endgroup::"
           echo "⚠️  pnpm audit is NON-BLOCKING for now (#218 warn-then-gate ramp) — see the group above for any findings."
 
+      # Lint + format gate (#267). Repo-wide (one root eslint.config.mjs), so unlike the
+      # turbo step below it is NOT affected-filtered — and therefore needs the site's
+      # generated artifacts (markdoc.blocks.generated.mjs + .astro types) regardless of
+      # whether the PR touched the site; the prep line regenerates them (~1.4s).
+      # Warnings are TOLERATED (no --max-warnings 0): the 34-warning baseline is the
+      # react-hooks/React-Compiler set tracked in #338 — flip to zero-warnings when it lands.
+      - name: Lint + format check
+        run: |
+          if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
+          node scripts/gen-blocks.mjs && node scripts/gen-relations.mjs && pnpm --filter @setu/site exec astro sync
+          pnpm lint
+          pnpm format:check
+
       # @setu/core's typecheck also runs the edge build (tsconfig.edge.json), so the
       # edge-safe check is covered whenever core is in scope; push-to-main runs it regardless.
       # typecheck+test run as one turbo invocation per lane (readable, task-graph-ordered

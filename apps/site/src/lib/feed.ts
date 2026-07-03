@@ -26,7 +26,11 @@ export interface FeedRow {
 }
 
 /** Pure: keep published posts for `locale`, newest first, capped at `limit`. */
-export function selectFeedPosts(rows: FeedRow[], limit: number, locale: string = DEFAULT_LOCALE): FeedRow[] {
+export function selectFeedPosts(
+  rows: FeedRow[],
+  limit: number,
+  locale: string = DEFAULT_LOCALE
+): FeedRow[] {
   return rows
     .filter((r) => {
       const [collection, loc] = r.id.split('/')
@@ -46,7 +50,10 @@ const str = (v: unknown): string => (typeof v === 'string' ? v : '')
 /** Normalize a frontmatter taxonomy field (`string | string[] | undefined`) to a trimmed,
  *  non-empty string list. */
 function asList(v: unknown): string[] {
-  if (Array.isArray(v)) return v.filter((x): x is string => typeof x === 'string' && x.trim() !== '')
+  if (Array.isArray(v))
+    return v.filter(
+      (x): x is string => typeof x === 'string' && x.trim() !== ''
+    )
   if (typeof v === 'string' && v.trim() !== '') return [v]
   return []
 }
@@ -66,34 +73,44 @@ export function feedCategories(data: Record<string, unknown>): string[] {
 
 export function toFeedItem(row: FeedRow): FeedItem {
   const title = str(row.data.title) || row.id.split('/').slice(2).join('/')
-  const description = str(row.data.description) || str(row.data.summary) || excerpt(row.body ?? '')
+  const description =
+    str(row.data.description) ||
+    str(row.data.summary) ||
+    excerpt(row.body ?? '')
   return {
     title,
     link: `/${toUrlPath(row.id)}`,
     pubDate: row.date,
     description,
     categories: feedCategories(row.data),
-    image: str(row.data.featuredImage) || undefined,
+    image: str(row.data.featuredImage) || undefined
   }
 }
 
 /** Wire Astro entries → resolved dates → selection → feed items. */
 export function getFeedPosts(
-  entries: { id: string; data: Record<string, unknown>; body?: string; filePath?: string }[],
+  entries: {
+    id: string
+    data: Record<string, unknown>
+    body?: string
+    filePath?: string
+  }[],
   limit: number,
-  locale: string = DEFAULT_LOCALE,
+  locale: string = DEFAULT_LOCALE
 ): FeedItem[] {
   const rows: FeedRow[] = entries.map((e) => ({
     id: e.id,
     data: e.data,
     body: e.body,
-    date: resolvePostDate(e as DatableEntry),
+    date: resolvePostDate(e as DatableEntry)
   }))
   return selectFeedPosts(rows, limit, locale).map(toFeedItem)
 }
 
 /** Distinct locales that have at least one published post, default locale first. */
-export function feedLocales(entries: { id: string; data: Record<string, unknown> }[]): string[] {
+export function feedLocales(
+  entries: { id: string; data: Record<string, unknown> }[]
+): string[] {
   const set = new Set<string>()
   for (const e of entries) {
     const [collection, locale] = e.id.split('/')
@@ -102,6 +119,6 @@ export function feedLocales(entries: { id: string; data: Record<string, unknown>
     set.add(locale)
   }
   return [...set].sort((a, b) =>
-    a === DEFAULT_LOCALE ? -1 : b === DEFAULT_LOCALE ? 1 : a.localeCompare(b),
+    a === DEFAULT_LOCALE ? -1 : b === DEFAULT_LOCALE ? 1 : a.localeCompare(b)
   )
 }

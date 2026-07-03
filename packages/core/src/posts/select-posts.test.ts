@@ -10,7 +10,7 @@ const row = (slug: string, extra: Partial<PostRow> = {}): PostRow => ({
   date: null,
   tags: [],
   categories: [],
-  ...extra,
+  ...extra
 })
 
 const q = (extra: Partial<import('./select-posts').PostsQuery> = {}) => ({
@@ -19,7 +19,7 @@ const q = (extra: Partial<import('./select-posts').PostsQuery> = {}) => ({
   sort: 'newest' as const,
   limit: 10,
   offset: 0,
-  ...extra,
+  ...extra
 })
 
 describe('selectPosts', () => {
@@ -27,7 +27,7 @@ describe('selectPosts', () => {
     const rows = [
       row('a'),
       { ...row('b'), id: 'post/fr/b', locale: 'fr' },
-      { ...row('c'), id: 'page/en/c', collection: 'page' },
+      { ...row('c'), id: 'page/en/c', collection: 'page' }
     ]
     expect(selectPosts(rows, q()).map((r) => r.slug)).toEqual(['a'])
   })
@@ -36,7 +36,7 @@ describe('selectPosts', () => {
     const rows = [
       row('a', { published: false }),
       row('b', { published: true }),
-      row('c'), // absent → published
+      row('c') // absent → published
     ]
     expect(selectPosts(rows, q()).map((r) => r.slug)).toEqual(['b', 'c'])
   })
@@ -44,33 +44,53 @@ describe('selectPosts', () => {
   it('filters by category and tag when provided', () => {
     const rows = [
       row('a', { categories: ['news'], tags: ['x'] }),
-      row('b', { categories: ['guides'], tags: ['x'] }),
+      row('b', { categories: ['guides'], tags: ['x'] })
     ]
-    expect(selectPosts(rows, q({ category: 'guides' })).map((r) => r.slug)).toEqual(['b'])
-    expect(selectPosts(rows, q({ tag: 'x' })).map((r) => r.slug)).toEqual(['a', 'b'])
+    expect(
+      selectPosts(rows, q({ category: 'guides' })).map((r) => r.slug)
+    ).toEqual(['b'])
+    expect(selectPosts(rows, q({ tag: 'x' })).map((r) => r.slug)).toEqual([
+      'a',
+      'b'
+    ])
   })
 
   it('sorts newest first with null dates last, id tiebreak', () => {
-    const rows = [row('a', { date: 100 }), row('b', { date: null }), row('c', { date: 200 })]
-    expect(selectPosts(rows, q({ sort: 'newest' })).map((r) => r.slug)).toEqual(['c', 'a', 'b'])
+    const rows = [
+      row('a', { date: 100 }),
+      row('b', { date: null }),
+      row('c', { date: 200 })
+    ]
+    expect(selectPosts(rows, q({ sort: 'newest' })).map((r) => r.slug)).toEqual(
+      ['c', 'a', 'b']
+    )
   })
 
   it('sorts oldest first with null dates still last', () => {
-    const rows = [row('a', { date: 100 }), row('b', { date: null }), row('c', { date: 200 })]
-    expect(selectPosts(rows, q({ sort: 'oldest' })).map((r) => r.slug)).toEqual(['a', 'c', 'b'])
+    const rows = [
+      row('a', { date: 100 }),
+      row('b', { date: null }),
+      row('c', { date: 200 })
+    ]
+    expect(selectPosts(rows, q({ sort: 'oldest' })).map((r) => r.slug)).toEqual(
+      ['a', 'c', 'b']
+    )
   })
 
   it('sorts by title', () => {
     const rows = [row('b', { title: 'Banana' }), row('a', { title: 'Apple' })]
-    expect(selectPosts(rows, q({ sort: 'title' })).map((r) => r.title)).toEqual(['Apple', 'Banana'])
+    expect(selectPosts(rows, q({ sort: 'title' })).map((r) => r.title)).toEqual(
+      ['Apple', 'Banana']
+    )
   })
 
   it('applies offset and limit', () => {
     const rows = ['a', 'b', 'c', 'd', 'e'].map((s) => row(s, { title: s }))
-    expect(selectPosts(rows, q({ sort: 'title', offset: 1, limit: 2 })).map((r) => r.slug)).toEqual([
-      'b',
-      'c',
-    ])
+    expect(
+      selectPosts(rows, q({ sort: 'title', offset: 1, limit: 2 })).map(
+        (r) => r.slug
+      )
+    ).toEqual(['b', 'c'])
   })
 
   it('returns [] when offset is past the end', () => {

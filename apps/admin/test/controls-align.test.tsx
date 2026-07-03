@@ -2,12 +2,23 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { AlignControl } from '../src/editor/controls/align'
 
-const meta = (options?: string[]) => ({ name: 'width', options, apiBase: '', onPickMedia: vi.fn() })
+const meta = (options?: string[]) => ({
+  name: 'width',
+  options,
+  apiBase: '',
+  onPickMedia: vi.fn()
+})
 
 describe('AlignControl', () => {
   it('renders the provided options and emits on click', () => {
     const onChange = vi.fn()
-    render(<AlignControl value="none" onChange={onChange} meta={meta(['none','wide','full'])} />)
+    render(
+      <AlignControl
+        value="none"
+        onChange={onChange}
+        meta={meta(['none', 'wide', 'full'])}
+      />
+    )
     fireEvent.click(screen.getByRole('radio', { name: 'full' }))
     expect(onChange).toHaveBeenCalledWith('full')
   })

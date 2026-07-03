@@ -10,18 +10,29 @@ describe('STANDARD_BLOCKS', () => {
   })
 
   it('validates href and defaults variant to primary', () => {
-    expect(button!.contract.props.parse({ href: '/x' })).toEqual({ href: '/x', variant: 'primary' })
+    expect(button!.contract.props.parse({ href: '/x' })).toEqual({
+      href: '/x',
+      variant: 'primary'
+    })
     expect(() => button!.contract.props.parse({})).toThrow()
   })
 
   it('derives markdoc attributes from the props', () => {
     expect(markdocAttributesFor(button!.contract.props)).toEqual({
       href: { type: 'String' },
-      variant: { type: 'String', matches: ['primary', 'secondary'], default: 'primary' },
+      variant: {
+        type: 'String',
+        matches: ['primary', 'secondary'],
+        default: 'primary'
+      }
     })
   })
 
   it('groups the button under layout with a valid icon', () => {
-    expect(button!.contract.editor).toMatchObject({ label: 'Button', group: 'layout', icon: 'link' })
+    expect(button!.contract.editor).toMatchObject({
+      label: 'Button',
+      group: 'layout',
+      icon: 'link'
+    })
   })
 })

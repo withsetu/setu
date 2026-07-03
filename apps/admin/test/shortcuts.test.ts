@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { SHORTCUTS, formatKeys, ariaKeyshortcuts } from '../src/editor/shortcuts'
+import {
+  SHORTCUTS,
+  formatKeys,
+  ariaKeyshortcuts
+} from '../src/editor/shortcuts'
 import type { ShortcutGroup } from '../src/editor/shortcuts'
 
 describe('formatKeys', () => {

@@ -3,8 +3,14 @@ import { render, screen } from '@testing-library/react'
 import type { Lock } from '@setu/core'
 import { WhosEditing } from '../src/dashboard/widgets/WhosEditing'
 
-const lock = (over: Partial<Lock> = {}): Lock =>
-  ({ collection: 'page', locale: 'en', slug: 'about', lockedBy: 'arjun', lockedAt: 0, ...over } as Lock)
+const lock = (over: Partial<Lock> = {}): Lock => ({
+  collection: 'page',
+  locale: 'en',
+  slug: 'about',
+  lockedBy: 'arjun',
+  lockedAt: 0,
+  ...over
+})
 
 describe('WhosEditing', () => {
   it('renders nothing when no one is editing', () => {

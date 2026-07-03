@@ -43,15 +43,20 @@ export const QueryBlock = Node.create<{ runQuery?: RunQuery }>({
     return { runQuery: this.options.runQuery }
   },
   addAttributes() {
-    return { mdAttrs: { default: {}, renderHTML: () => ({}), parseHTML: () => ({}) } }
+    return {
+      mdAttrs: { default: {}, renderHTML: () => ({}), parseHTML: () => ({}) }
+    }
   },
   parseHTML() {
     return [{ tag: 'div[data-setu-query-block]' }]
   },
   renderHTML({ HTMLAttributes }) {
-    return ['div', mergeAttributes(HTMLAttributes, { 'data-setu-query-block': '' })]
+    return [
+      'div',
+      mergeAttributes(HTMLAttributes, { 'data-setu-query-block': '' })
+    ]
   },
   addNodeView() {
     return ReactNodeViewRenderer(QueryBlockView)
-  },
+  }
 })

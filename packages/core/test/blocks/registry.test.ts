@@ -8,9 +8,11 @@ describe('defineBlock + buildRegistry', () => {
     const contract = defineBlock({
       props: z.object({ title: z.string().optional() }),
       editor: { label: 'Card', icon: 'card' },
-      scope: ['post'],
+      scope: ['post']
     })
-    const reg = buildRegistry([{ tag: 'card', component: 'blocks/card/card.astro', contract }])
+    const reg = buildRegistry([
+      { tag: 'card', component: 'blocks/card/card.astro', contract }
+    ])
     expect([...reg.knownBlockTags]).toEqual(['card'])
     const card = reg.blocksByTag.get('card')!
     expect(card.tag).toBe('card')
@@ -23,8 +25,8 @@ describe('defineBlock + buildRegistry', () => {
     expect(() =>
       buildRegistry([
         { tag: 'card', component: 'a', contract: c },
-        { tag: 'card', component: 'b', contract: c },
-      ]),
+        { tag: 'card', component: 'b', contract: c }
+      ])
     ).toThrow(/Duplicate block tag/)
   })
 })

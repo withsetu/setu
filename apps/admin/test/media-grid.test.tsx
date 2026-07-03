@@ -7,12 +7,23 @@ import { MediaGrid, MEDIA_PAGE_SIZE } from '../src/media/MediaGrid'
 import type { MediaRecord } from '@setu/core'
 
 const rec = (mediaKey: string, filename: string): MediaRecord => ({
-  mediaKey, key: `${mediaKey}.png`, thumbKey: `${mediaKey}-400w.webp`, filename,
-  contentType: 'image/png', isImage: true, width: 800, height: 600, bytes: 1234, uploadedAt: 1,
+  mediaKey,
+  key: `${mediaKey}.png`,
+  thumbKey: `${mediaKey}-400w.webp`,
+  filename,
+  contentType: 'image/png',
+  isImage: true,
+  width: 800,
+  height: 600,
+  bytes: 1234,
+  uploadedAt: 1
 })
 
 async function svcWith(recs: MediaRecord[]) {
-  const svc = createMediaIndexService({ mediaIndex: createMemoryMediaIndexPort(), fetchRaw: async () => recs })
+  const svc = createMediaIndexService({
+    mediaIndex: createMemoryMediaIndexPort(),
+    fetchRaw: async () => recs
+  })
   await svc.ensureBuilt()
   return svc
 }
@@ -23,23 +34,38 @@ describe('MediaGrid', () => {
     const onPick = vi.fn()
     render(
       <MediaIndexProvider service={svc}>
-        <MediaGrid mode="pick" apiBase="http://x" onPick={onPick} query={{ offset: 0, limit: 24 }} />
-      </MediaIndexProvider>,
+        <MediaGrid
+          mode="pick"
+          apiBase="http://x"
+          onPick={onPick}
+          query={{ offset: 0, limit: 24 }}
+        />
+      </MediaIndexProvider>
     )
     await waitFor(() => expect(screen.getByText('cat.png')).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: /cat\.png/i }))
-    expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ src: '/media/2026/06/cat.png' }))
+    expect(onPick).toHaveBeenCalledWith(
+      expect.objectContaining({ src: '/media/2026/06/cat.png' })
+    )
   })
 
   it('shows one page, then appends the rest on Load more', async () => {
     const recs = Array.from({ length: MEDIA_PAGE_SIZE + 6 }, (_, i) =>
-      rec(`2026/06/img${String(i).padStart(2, '0')}`, `img${String(i).padStart(2, '0')}.png`),
+      rec(
+        `2026/06/img${String(i).padStart(2, '0')}`,
+        `img${String(i).padStart(2, '0')}.png`
+      )
     )
     const svc = await svcWith(recs)
     render(
       <MediaIndexProvider service={svc}>
-        <MediaGrid mode="manage" apiBase="http://x" query={{ offset: 0, limit: MEDIA_PAGE_SIZE }} onSelect={() => {}} />
-      </MediaIndexProvider>,
+        <MediaGrid
+          mode="manage"
+          apiBase="http://x"
+          query={{ offset: 0, limit: MEDIA_PAGE_SIZE }}
+          onSelect={() => {}}
+        />
+      </MediaIndexProvider>
     )
     const tiles = () => screen.getAllByRole('button', { name: /img\d+\.png/i })
     await waitFor(() => expect(tiles()).toHaveLength(MEDIA_PAGE_SIZE)) // first page only

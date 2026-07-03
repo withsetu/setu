@@ -27,7 +27,7 @@ export interface BulkService {
   applyMetadata(
     refs: EntryRef[],
     mutate: (meta: Record<string, unknown>) => Record<string, unknown>,
-    message?: string,
+    message?: string
   ): Promise<BulkResult>
   /** Delete entries: remove committed files (one commit) + their drafts. */
   deleteEntries(refs: EntryRef[], message?: string): Promise<BulkResult>
@@ -41,7 +41,12 @@ export function createBulkService(deps: BulkDeps): BulkService {
       const applied: EntryRef[] = []
       const skipped: { ref: EntryRef; reason: 'absent' }[] = []
       const changes: FileChange[] = []
-      const pending: { ref: EntryRef; content: TiptapDoc; next: Record<string, unknown>; serialized: string }[] = []
+      const pending: {
+        ref: EntryRef
+        content: TiptapDoc
+        next: Record<string, unknown>
+        serialized: string
+      }[] = []
 
       for (const ref of refs) {
         const loaded = await read.loadForEdit(ref)
@@ -51,7 +56,10 @@ export function createBulkService(deps: BulkDeps): BulkService {
         }
         const draft = loaded.draft
         const next = mutate(draft.metadata)
-        const serialized = serializeMdoc({ frontmatter: next, body: tiptapToMarkdoc(draft.content) })
+        const serialized = serializeMdoc({
+          frontmatter: next,
+          body: tiptapToMarkdoc(draft.content)
+        })
         changes.push({ path: contentPath(ref), content: serialized })
         pending.push({ ref, content: draft.content, next, serialized })
         applied.push(ref)
@@ -61,12 +69,20 @@ export function createBulkService(deps: BulkDeps): BulkService {
 
       const { sha } = await git.commitFiles({
         changes,
-        message: message ?? `Bulk update ${applied.length} entr${applied.length === 1 ? 'y' : 'ies'}`,
-        author,
+        message:
+          message ??
+          `Bulk update ${applied.length} entr${applied.length === 1 ? 'y' : 'ies'}`,
+        author
       })
 
       for (const p of pending) {
-        await data.saveDraft({ ...p.ref, content: p.content, metadata: p.next, baseSha: sha, baseContent: p.serialized })
+        await data.saveDraft({
+          ...p.ref,
+          content: p.content,
+          metadata: p.next,
+          baseSha: sha,
+          baseContent: p.serialized
+        })
       }
 
       return { committedSha: sha, applied, skipped }
@@ -78,7 +94,8 @@ export function createBulkService(deps: BulkDeps): BulkService {
 
       for (const ref of refs) {
         const committed = await git.readFile(contentPath(ref))
-        if (committed !== null) changes.push({ path: contentPath(ref), delete: true })
+        if (committed !== null)
+          changes.push({ path: contentPath(ref), delete: true })
         await data.deleteDraft(ref)
         applied.push(ref)
       }
@@ -87,14 +104,15 @@ export function createBulkService(deps: BulkDeps): BulkService {
       if (changes.length > 0) {
         const { sha } = await git.commitFiles({
           changes,
-          message: message ?? `Bulk delete ${changes.length} entr${changes.length === 1 ? 'y' : 'ies'}`,
-          author,
+          message:
+            message ??
+            `Bulk delete ${changes.length} entr${changes.length === 1 ? 'y' : 'ies'}`,
+          author
         })
         committedSha = sha
       }
 
       return { committedSha, applied, skipped: [] }
-    },
+    }
   }
 }
-

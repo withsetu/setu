@@ -1,17 +1,20 @@
 type Listener = () => void
 
+// Arrow-function properties (not methods): `on`/`emit` are re-exported unbound below
+// (`export const requestLinkEdit = linkEdit.emit`), which unbound-method rightly flags
+// for `this`-dependent methods — these close over `listeners` and never touch `this`.
 function channel() {
   const listeners = new Set<Listener>()
   return {
-    on(cb: Listener): () => void {
+    on: (cb: Listener): (() => void) => {
       listeners.add(cb)
       return () => {
         listeners.delete(cb)
       }
     },
-    emit(): void {
+    emit: (): void => {
       for (const l of [...listeners]) l()
-    },
+    }
   }
 }
 

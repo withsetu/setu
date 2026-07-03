@@ -1,7 +1,11 @@
 import type { PostRow } from './select-posts'
 import type { Category } from '../taxonomy/types'
 
-function distinct(rows: PostRow[], locale: string, pick: (r: PostRow) => string[]): string[] {
+function distinct(
+  rows: PostRow[],
+  locale: string,
+  pick: (r: PostRow) => string[]
+): string[] {
   const set = new Set<string>()
   for (const r of rows) {
     if (r.collection !== 'post' || r.locale !== locale) continue
@@ -11,7 +15,10 @@ function distinct(rows: PostRow[], locale: string, pick: (r: PostRow) => string[
 }
 
 /** Category slugs appearing on a post in `locale`, deduped + sorted. Drives archive getStaticPaths. */
-export function distinctCategorySlugs(rows: PostRow[], locale: string): string[] {
+export function distinctCategorySlugs(
+  rows: PostRow[],
+  locale: string
+): string[] {
   return distinct(rows, locale, (r) => r.categories)
 }
 

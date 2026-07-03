@@ -7,7 +7,9 @@ afterEach(cleanup)
 describe('ShortcutsDialog', () => {
   it('renders a dialog listing representative shortcuts', () => {
     render(<ShortcutsDialog open={true} onClose={vi.fn()} />)
-    expect(screen.getByRole('dialog', { name: /keyboard shortcuts/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('dialog', { name: /keyboard shortcuts/i })
+    ).toBeInTheDocument()
     expect(screen.getByText('Bold')).toBeInTheDocument()
     expect(screen.getByText('Add or edit link')).toBeInTheDocument()
     expect(screen.getByText('Move block up')).toBeInTheDocument()

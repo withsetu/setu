@@ -1,6 +1,11 @@
 import { useCallback } from 'react'
 import type { ReactNode } from 'react'
-import { useDropzone, type Accept, type DropEvent, type DropzoneInputProps } from 'react-dropzone'
+import {
+  useDropzone,
+  type Accept,
+  type DropEvent,
+  type DropzoneInputProps
+} from 'react-dropzone'
 import { cn } from '@/lib/utils'
 import { uploadFile, type UploadResult } from './upload-client'
 
@@ -23,7 +28,8 @@ function filesFromEvent(event: DropEvent): File[] {
     }
   }
   const input = (event as Event & { target: HTMLInputElement | null }).target
-  if (input && input.files && input.files.length > 0) return Array.from(input.files)
+  if (input && input.files && input.files.length > 0)
+    return Array.from(input.files)
   return []
 }
 
@@ -38,23 +44,35 @@ export interface MediaDropzoneProps {
   accept?: Accept
 }
 
-export function MediaDropzone({ apiBase, onUploaded, onError, onBusy, disabled, children, upload = uploadFile, accept }: MediaDropzoneProps) {
-  const onDrop = useCallback(async (files: File[]) => {
-    onBusy?.(true)
-    try {
-      for (const file of files) onUploaded(await upload(apiBase, file))
-    } catch (err) {
-      onError?.(err instanceof Error ? err.message : String(err))
-    } finally {
-      onBusy?.(false)
-    }
-  }, [apiBase, onUploaded, onError, onBusy, upload])
+export function MediaDropzone({
+  apiBase,
+  onUploaded,
+  onError,
+  onBusy,
+  disabled,
+  children,
+  upload = uploadFile,
+  accept
+}: MediaDropzoneProps) {
+  const onDrop = useCallback(
+    async (files: File[]) => {
+      onBusy?.(true)
+      try {
+        for (const file of files) onUploaded(await upload(apiBase, file))
+      } catch (err) {
+        onError?.(err instanceof Error ? err.message : String(err))
+      } finally {
+        onBusy?.(false)
+      }
+    },
+    [apiBase, onUploaded, onError, onBusy, upload]
+  )
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
+    onDrop: (files) => void onDrop(files),
     accept,
     disabled,
-    getFilesFromEvent: (event) => Promise.resolve(filesFromEvent(event)),
+    getFilesFromEvent: (event) => Promise.resolve(filesFromEvent(event))
   })
 
   return (
@@ -62,11 +80,15 @@ export function MediaDropzone({ apiBase, onUploaded, onError, onBusy, disabled, 
       {...getRootProps()}
       className={cn(
         'flex min-h-20 cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-border px-5 text-sm text-muted-foreground transition-colors',
-        'hover:border-primary hover:bg-accent data-[drag-active]:border-primary data-[drag-active]:bg-accent',
+        'hover:border-primary hover:bg-accent data-[drag-active]:border-primary data-[drag-active]:bg-accent'
       )}
       data-drag-active={isDragActive ? '' : undefined}
     >
-      <input {...getInputProps({ 'data-testid': 'media-dropzone-input' } as DropzoneInputProps)} />
+      <input
+        {...getInputProps({
+          'data-testid': 'media-dropzone-input'
+        } as DropzoneInputProps)}
+      />
       {children ?? <p>Drag images here, or click to upload</p>}
     </div>
   )

@@ -3,7 +3,6 @@ import type { ControlProps } from './types'
 import { TextControl, UrlControl, NumberControl } from './text'
 import { TextareaControl } from './textarea'
 import { SwitchControl } from './switch'
-import { SelectControl } from './select'
 import { SegmentedSelect } from './segmented-select'
 import { ColorControl } from './color'
 import { MediaControl } from './media'
@@ -26,5 +25,5 @@ export const controlRegistry: Record<BlockControl, React.FC<ControlProps>> = {
   align: AlignControl,
   slider: SliderControl,
   category: CategoryControl,
-  tag: TagControl,
+  tag: TagControl
 }

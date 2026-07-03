@@ -24,11 +24,17 @@ describe('inspector groups', () => {
     )
     // Content and Layout group HEADERS should be visible. Target headings specifically:
     // a field label (e.g. the "Layout" select) can share text with a group header.
-    expect(screen.getByRole('heading', { level: 3, name: 'Content' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 3, name: 'Layout' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { level: 3, name: 'Content' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { level: 3, name: 'Layout' })
+    ).toBeInTheDocument()
     // Style is visible because Text Color is ungated; but its gated controls
     // (overlayColor, parallax) are hidden when layout != background.
-    expect(screen.getByRole('heading', { level: 3, name: 'Style' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { level: 3, name: 'Style' })
+    ).toBeInTheDocument()
     expect(screen.getByLabelText('textColor')).toBeInTheDocument()
     expect(screen.queryByLabelText('parallax')).toBeNull()
   })
@@ -42,9 +48,15 @@ describe('inspector groups', () => {
         apiBase=""
       />
     )
-    expect(screen.getByRole('heading', { level: 3, name: 'Content' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 3, name: 'Layout' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 3, name: 'Style' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { level: 3, name: 'Content' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { level: 3, name: 'Layout' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { level: 3, name: 'Style' })
+    ).toBeInTheDocument()
   })
 
   it('falls back to a flat single section (no header) when block has no groups', () => {

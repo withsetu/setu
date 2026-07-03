@@ -9,16 +9,17 @@ describe('parseCategories', () => {
   })
 
   it('parses a flat list with parent refs', () => {
-    const yaml = '- slug: tutorials\n  name: Tutorials\n  parent: null\n- slug: react\n  name: React\n  parent: tutorials\n'
+    const yaml =
+      '- slug: tutorials\n  name: Tutorials\n  parent: null\n- slug: react\n  name: React\n  parent: tutorials\n'
     expect(parseCategories(yaml)).toEqual([
       { slug: 'tutorials', name: 'Tutorials', parent: null },
-      { slug: 'react', name: 'React', parent: 'tutorials' },
+      { slug: 'react', name: 'React', parent: 'tutorials' }
     ])
   })
 
   it('defaults a missing parent to null and skips malformed rows', () => {
     expect(parseCategories('- slug: a\n  name: A\n- name: nope\n')).toEqual([
-      { slug: 'a', name: 'A', parent: null },
+      { slug: 'a', name: 'A', parent: null }
     ])
   })
 
@@ -32,7 +33,7 @@ describe('serializeCategories', () => {
   it('round-trips through parseCategories', () => {
     const cats: Category[] = [
       { slug: 'tutorials', name: 'Tutorials', parent: null },
-      { slug: 'react', name: 'React', parent: 'tutorials' },
+      { slug: 'react', name: 'React', parent: 'tutorials' }
     ]
     expect(parseCategories(serializeCategories(cats))).toEqual(cats)
   })

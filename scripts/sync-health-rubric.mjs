@@ -36,14 +36,14 @@ let _sessionId = null
 async function mcpRequest(method, params = {}, id = 1) {
   const headers = {
     'content-type': 'application/json',
-    accept: 'application/json, text/event-stream',
+    accept: 'application/json, text/event-stream'
   }
   if (_sessionId) headers['mcp-session-id'] = _sessionId
 
   const res = await fetch(MCP_URL, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ jsonrpc: '2.0', id, method, params }),
+    body: JSON.stringify({ jsonrpc: '2.0', id, method, params })
   })
 
   if (!res.ok) {
@@ -70,8 +70,15 @@ async function mcpRequest(method, params = {}, id = 1) {
     let found = null
     for (const line of dataLines) {
       let parsed
-      try { parsed = JSON.parse(line) } catch { continue }
-      if (parsed && 'result' in parsed) { found = parsed; break }
+      try {
+        parsed = JSON.parse(line)
+      } catch {
+        continue
+      }
+      if (parsed && 'result' in parsed) {
+        found = parsed
+        break
+      }
     }
     if (!found) {
       // fallback: try the last data line (original behaviour)
@@ -93,12 +100,16 @@ async function mcpInit() {
   await mcpRequest('initialize', {
     protocolVersion: '2024-11-05',
     capabilities: {},
-    clientInfo: { name: 'setu-sync-health-rubric', version: '1.0.0' },
+    clientInfo: { name: 'setu-sync-health-rubric', version: '1.0.0' }
   })
 }
 
 async function getChecklist() {
-  const result = await mcpRequest('tools/call', { name: 'get_checklist', arguments: {} }, 2)
+  const result = await mcpRequest(
+    'tools/call',
+    { name: 'get_checklist', arguments: {} },
+    2
+  )
   const content = result?.content
   if (!Array.isArray(content) || !content[0]?.text) {
     throw new Error('get_checklist returned unexpected structure')
@@ -120,14 +131,14 @@ const SECTION_TO_CATEGORY = {
   Performance: 'performance',
   Privacy: 'privacy',
   Resilience: 'resilience',
-  Internationalisation: 'i18n',
+  Internationalisation: 'i18n'
 }
 
 const SEV_MAP = {
   required: 'required',
   recommended: 'recommended',
   optional: 'optional',
-  avoid: 'avoid',
+  avoid: 'avoid'
 }
 
 // Items that have a live probe in the engine (security headers + CWV)
@@ -137,7 +148,7 @@ const LIVE_PROBE_IDS = new Set([
   'security.hsts',
   'security.csp',
   'security.content-type-options',
-  'performance.core-web-vitals',
+  'performance.core-web-vitals'
 ])
 
 /**
@@ -184,7 +195,7 @@ const ID_OVERRIDES = {
   // resilience
   'resilience.error-pages': 'resilience.custom-404',
   // i18n
-  'i18n.hreflang': 'i18n.hreflang',
+  'i18n.hreflang': 'i18n.hreflang'
 }
 
 const GUIDANCE_CAP = 300
@@ -199,7 +210,7 @@ const GUIDANCE_CAP = 300
  *
  * The spec is CC BY 4.0 so reproducing fuller text is fine.
  */
-function paraphrase(title, specDesc, cat, slug) {
+function paraphrase(title, specDesc, _cat, _slug) {
   const s = specDesc.trim()
   if (s.length <= GUIDANCE_CAP) return s
 
@@ -228,8 +239,9 @@ const EXTRA_ITEMS = [
     category: 'seo',
     severity: 'required',
     title: 'Homepage resolves',
-    guidance: "The homepage you've configured resolves to an existing content entry.",
-    url: 'https://specification.website/spec/seo/url-structure',
+    guidance:
+      "The homepage you've configured resolves to an existing content entry.",
+    url: 'https://specification.website/spec/seo/url-structure'
   },
   {
     id: 'foundations.entry-title',
@@ -237,7 +249,7 @@ const EXTRA_ITEMS = [
     severity: 'required',
     title: 'Entry titles',
     guidance: 'Every content entry has a non-empty title.',
-    url: 'https://specification.website/spec/foundations/title',
+    url: 'https://specification.website/spec/foundations/title'
   },
   {
     id: 'foundations.twitter-card',
@@ -246,13 +258,13 @@ const EXTRA_ITEMS = [
     title: 'Twitter/X Card tags',
     guidance:
       'twitter: card tags refine link previews on X/Twitter (Open Graph covers most cases).',
-    url: 'https://specification.website/spec/foundations/open-graph',
-  },
+    url: 'https://specification.website/spec/foundations/open-graph'
+  }
 ]
 
 // Item regex: captures title, severity, description, url
 const ITEM_RE =
-  /^\- \[ \] \*\*(.+?)\*\* _\((\w+)\)_ — (.+?)\n\s+(https:\/\/specification\.website\/spec\/[^\s]+)/gm
+  /^- \[ \] \*\*(.+?)\*\* _\((\w+)\)_ — (.+?)\n\s+(https:\/\/specification\.website\/spec\/[^\s]+)/gm
 
 function parseChecklist(markdown) {
   const sections = markdown.split(/^## /m).filter(Boolean)
@@ -274,7 +286,9 @@ function parseChecklist(markdown) {
       const [, title, rawSev, specDesc, url] = m
       const severity = SEV_MAP[rawSev.toLowerCase()]
       if (!severity) {
-        console.warn(`  [warn] Unknown severity "${rawSev}" for "${title}" — skipped`)
+        console.warn(
+          `  [warn] Unknown severity "${rawSev}" for "${title}" — skipped`
+        )
         continue
       }
       const urlSlug = url.replace(/\/$/, '').split('/').pop()
@@ -292,7 +306,14 @@ function parseChecklist(markdown) {
       const effectiveCategory = id.includes('.') ? id.split('.')[0] : category
 
       const guidance = paraphrase(title, specDesc, effectiveCategory, urlSlug)
-      const item = { id, category: effectiveCategory, severity, title, guidance, url: url.replace(/\/$/, '') }
+      const item = {
+        id,
+        category: effectiveCategory,
+        severity,
+        title,
+        guidance,
+        url: url.replace(/\/$/, '')
+      }
       if (LIVE_PROBE_IDS.has(id)) {
         item.liveProbe = true
       }
@@ -307,7 +328,12 @@ function parseChecklist(markdown) {
 // Validation
 // ---------------------------------------------------------------------------
 
-const VALID_SEVERITIES = new Set(['required', 'recommended', 'optional', 'avoid'])
+const VALID_SEVERITIES = new Set([
+  'required',
+  'recommended',
+  'optional',
+  'avoid'
+])
 const VALID_CATEGORIES = new Set([
   'foundations',
   'seo',
@@ -318,7 +344,7 @@ const VALID_CATEGORIES = new Set([
   'performance',
   'privacy',
   'resilience',
-  'i18n',
+  'i18n'
 ])
 
 function validate(items) {
@@ -337,9 +363,13 @@ function validate(items) {
     if (!r.guidance || !r.guidance.trim())
       throw new Error(`Empty guidance on item "${r.id}"`)
     if (!r.url.startsWith(SPEC_BASE))
-      throw new Error(`URL "${r.url}" does not start with "${SPEC_BASE}" on item "${r.id}"`)
+      throw new Error(
+        `URL "${r.url}" does not start with "${SPEC_BASE}" on item "${r.id}"`
+      )
   }
-  console.log(`  ✓ Validation passed: ${items.length} items, all ids unique and valid`)
+  console.log(
+    `  ✓ Validation passed: ${items.length} items, all ids unique and valid`
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -353,7 +383,7 @@ function serializeItem(item) {
     `severity: ${JSON.stringify(item.severity)}`,
     `title: ${JSON.stringify(item.title)}`,
     `guidance: ${JSON.stringify(item.guidance)}`,
-    `url: ${JSON.stringify(item.url)}`,
+    `url: ${JSON.stringify(item.url)}`
   ]
   if (item.liveProbe) fields.push('liveProbe: true')
   return `  { ${fields.join(', ')} },`
@@ -370,7 +400,7 @@ function groupByCategory(items) {
     'performance',
     'privacy',
     'resilience',
-    'i18n',
+    'i18n'
   ]
   const map = new Map(order.map((c) => [c, []]))
   for (const item of items) {
@@ -386,11 +416,11 @@ function generateRubricTs(specItems, extraItems, syncedAt) {
     '// AUTO-GENERATED by scripts/sync-health-rubric.mjs — do not edit by hand.',
     `// Source: https://mcp.specification.website/mcp  Synced: ${syncedAt}`,
     '// To regenerate: node scripts/sync-health-rubric.mjs',
-    "// Stable ids (used by EVALUATORS/APPLIES_WHEN in checks.ts) are preserved via ID_OVERRIDES in the script.",
+    '// Stable ids (used by EVALUATORS/APPLIES_WHEN in checks.ts) are preserved via ID_OVERRIDES in the script.',
     '',
     "import type { RubricItem } from './types'",
     '',
-    'export const RUBRIC: RubricItem[] = [',
+    'export const RUBRIC: RubricItem[] = ['
   ]
 
   const PRETTY_SECTION = {
@@ -403,7 +433,7 @@ function generateRubricTs(specItems, extraItems, syncedAt) {
     performance: 'Performance',
     privacy: 'Privacy',
     resilience: 'Resilience',
-    i18n: 'Internationalisation',
+    i18n: 'Internationalisation'
   }
 
   for (const [cat, catItems] of byCategory) {
@@ -430,14 +460,18 @@ function generateRubricTs(specItems, extraItems, syncedAt) {
 // ---------------------------------------------------------------------------
 
 async function main() {
-  console.log('sync-health-rubric: fetching checklist from specification.website MCP…')
+  console.log(
+    'sync-health-rubric: fetching checklist from specification.website MCP…'
+  )
 
   let checklistMarkdown
   try {
     await mcpInit()
     checklistMarkdown = await getChecklist()
   } catch (err) {
-    console.error(`\n[ERROR] Network/MCP failure — rubric.ts NOT modified.\n  ${err.message}`)
+    console.error(
+      `\n[ERROR] Network/MCP failure — rubric.ts NOT modified.\n  ${err.message}`
+    )
     process.exit(1)
   }
 
@@ -447,7 +481,9 @@ async function main() {
   try {
     items = parseChecklist(checklistMarkdown)
   } catch (err) {
-    console.error(`\n[ERROR] Parse failure — rubric.ts NOT modified.\n  ${err.message}`)
+    console.error(
+      `\n[ERROR] Parse failure — rubric.ts NOT modified.\n  ${err.message}`
+    )
     process.exit(1)
   }
 
@@ -456,7 +492,9 @@ async function main() {
   try {
     validate(items)
   } catch (err) {
-    console.error(`\n[ERROR] Validation failure — rubric.ts NOT modified.\n  ${err.message}`)
+    console.error(
+      `\n[ERROR] Validation failure — rubric.ts NOT modified.\n  ${err.message}`
+    )
     process.exit(1)
   }
 
@@ -464,12 +502,16 @@ async function main() {
   const specIds = new Set(items.map((r) => r.id))
   for (const extra of EXTRA_ITEMS) {
     if (specIds.has(extra.id)) {
-      console.warn(`  [warn] EXTRA_ITEMS id "${extra.id}" now exists in the spec — review and remove from EXTRA_ITEMS.`)
+      console.warn(
+        `  [warn] EXTRA_ITEMS id "${extra.id}" now exists in the spec — review and remove from EXTRA_ITEMS.`
+      )
     } else {
       items.push(extra)
     }
   }
-  console.log(`  ✓ Appended ${EXTRA_ITEMS.length} Setu-specific items → total ${items.length}`)
+  console.log(
+    `  ✓ Appended ${EXTRA_ITEMS.length} Setu-specific items → total ${items.length}`
+  )
 
   const syncedAt = new Date().toISOString().slice(0, 10)
   const specItems = items.slice(0, items.length - EXTRA_ITEMS.length)
@@ -484,13 +526,17 @@ async function main() {
   }
 
   console.log(`  ✓ Written: ${RUBRIC_PATH}`)
-  console.log(`\nsync-health-rubric: done — ${items.length} items written to rubric.ts (${specItems.length} spec + ${extraItems.length} Setu-specific)`)
   console.log(
-    '\nNext steps:\n  pnpm --filter @setu/core test -- health-rubric\n  pnpm --filter @setu/core test -- health-audit',
+    `\nsync-health-rubric: done — ${items.length} items written to rubric.ts (${specItems.length} spec + ${extraItems.length} Setu-specific)`
+  )
+  console.log(
+    '\nNext steps:\n  pnpm --filter @setu/core test -- health-rubric\n  pnpm --filter @setu/core test -- health-audit'
   )
 }
 
 main().catch((err) => {
-  console.error(`\n[FATAL] Unexpected error — rubric.ts NOT modified.\n  ${err.stack ?? err}`)
+  console.error(
+    `\n[FATAL] Unexpected error — rubric.ts NOT modified.\n  ${err.stack ?? err}`
+  )
   process.exit(1)
 })

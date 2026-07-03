@@ -1,5 +1,11 @@
 import { execSync } from 'node:child_process'
-import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import {
+  readFileSync,
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  rmSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -19,17 +25,36 @@ beforeAll(() => {
     JSON.stringify({
       id: '2026/06/test-cat',
       format: 'webp',
-      original: { key: '2026/06/test-cat.jpg', width: 1000, height: 600, format: 'jpeg' },
+      original: {
+        key: '2026/06/test-cat.jpg',
+        width: 1000,
+        height: 600,
+        format: 'jpeg'
+      },
       variants: [
-        { width: 400, height: 240, key: '2026/06/test-cat-400w.webp', contentType: 'image/webp' },
-        { width: 1000, height: 600, key: '2026/06/test-cat-1000w.webp', contentType: 'image/webp' },
-      ],
-    }),
+        {
+          width: 400,
+          height: 240,
+          key: '2026/06/test-cat-400w.webp',
+          contentType: 'image/webp'
+        },
+        {
+          width: 1000,
+          height: 600,
+          key: '2026/06/test-cat-1000w.webp',
+          contentType: 'image/webp'
+        }
+      ]
+    })
   )
   execSync('pnpm build', {
     cwd: appDir,
     stdio: 'inherit',
-    env: { ...process.env, SETU_MEDIA_DIR: mediaDir, PUBLIC_SETU_MEDIA: 'https://cdn.example.test' },
+    env: {
+      ...process.env,
+      SETU_MEDIA_DIR: mediaDir,
+      PUBLIC_SETU_MEDIA: 'https://cdn.example.test'
+    }
   })
 })
 afterAll(() => {
@@ -39,10 +64,17 @@ afterAll(() => {
 describe('featured image — post lead/hero', () => {
   it('renders a responsive lead image inside .post-hero for a post that has one', () => {
     const html = page('post/featured-demo')
-    const hero = html.match(/<figure class="post-hero[^"]*"[^>]*>[\s\S]*?<\/figure>/)?.[0] ?? ''
+    const hero =
+      html.match(
+        /<figure class="post-hero[^"]*"[^>]*>[\s\S]*?<\/figure>/
+      )?.[0] ?? ''
     expect(hero).not.toBe('')
-    expect(hero).toContain('https://cdn.example.test/media/2026/06/test-cat.jpg')
-    expect(hero).toContain('https://cdn.example.test/media/2026/06/test-cat-400w.webp 400w')
+    expect(hero).toContain(
+      'https://cdn.example.test/media/2026/06/test-cat.jpg'
+    )
+    expect(hero).toContain(
+      'https://cdn.example.test/media/2026/06/test-cat-400w.webp 400w'
+    )
   })
   it('renders no .post-hero for a post without a featured image', () => {
     expect(page('post/kitchen-sink')).not.toContain('class="post-hero')
@@ -50,6 +82,8 @@ describe('featured image — post lead/hero', () => {
   it('ships zero JS', () => {
     const html = page('post/featured-demo')
     expect(html).not.toContain('astro-island')
-    expect(html).not.toMatch(/<script(?![^>]*type="application\/ld\+json")[\s>]/)
+    expect(html).not.toMatch(
+      /<script(?![^>]*type="application\/ld\+json")[\s>]/
+    )
   })
 })

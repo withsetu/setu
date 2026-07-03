@@ -8,7 +8,7 @@ const generalSchema = z
     tagline: z.string(),
     description: z.string(),
     timezone: z.string(),
-    dateFormat: z.string(),
+    dateFormat: z.string()
   })
   .partial()
 
@@ -20,23 +20,26 @@ const readingSchema = z
     postsPerPage: z.number(),
     feed: z.object({ enabled: z.boolean(), items: z.number() }).partial(),
     markdown: z
-      .object({ mode: z.enum(['off', 'index', 'pages']), style: z.enum(['raw', 'rendered']) })
+      .object({
+        mode: z.enum(['off', 'index', 'pages']),
+        style: z.enum(['raw', 'rendered'])
+      })
       .partial(),
     relatedPosts: z
       .object({
         enabled: z.boolean(),
         heading: z.string(),
         count: z.number(),
-        showImage: z.boolean(),
+        showImage: z.boolean()
       })
-      .partial(),
+      .partial()
   })
   .partial()
 
 const mediaSchema = z
   .object({
     imageFormat: z.enum(['webp', 'avif', 'both']),
-    imageLqip: z.boolean(),
+    imageLqip: z.boolean()
   })
   .partial()
 
@@ -53,7 +56,7 @@ const identitySchema = z
     socialProfiles: z.unknown(),
     twitterHandle: z.string(),
     titleTemplate: z.string(),
-    titleSeparator: z.string(),
+    titleSeparator: z.string()
   })
   .partial()
 
@@ -63,7 +66,7 @@ const settingsSchema = z
     general: generalSchema.optional(),
     reading: readingSchema.optional(),
     media: mediaSchema.optional(),
-    identity: identitySchema.optional(),
+    identity: identitySchema.optional()
   })
   .passthrough()
 
@@ -80,10 +83,10 @@ export function parseSettings(raw: unknown): SiteSettings {
   const rd = DEFAULT_SETTINGS.reading
   const id = DEFAULT_SETTINGS.identity
   const validFormat = (['webp', 'avif', 'both'] as const).includes(
-    media.imageFormat as SiteSettings['media']['imageFormat'],
+    media.imageFormat as SiteSettings['media']['imageFormat']
   )
   const validEntity = (['person', 'organization'] as const).includes(
-    identity.entityType as SiteSettings['identity']['entityType'],
+    identity.entityType as SiteSettings['identity']['entityType']
   )
   return {
     ...data,
@@ -93,7 +96,7 @@ export function parseSettings(raw: unknown): SiteSettings {
       ...reading,
       feed: { ...rd.feed, ...(reading.feed ?? {}) },
       markdown: { ...rd.markdown, ...(reading.markdown ?? {}) },
-      relatedPosts: { ...rd.relatedPosts, ...(reading.relatedPosts ?? {}) },
+      relatedPosts: { ...rd.relatedPosts, ...(reading.relatedPosts ?? {}) }
     },
     media: {
       imageFormat: validFormat
@@ -102,7 +105,7 @@ export function parseSettings(raw: unknown): SiteSettings {
       imageLqip:
         typeof media.imageLqip === 'boolean'
           ? media.imageLqip
-          : DEFAULT_SETTINGS.media.imageLqip,
+          : DEFAULT_SETTINGS.media.imageLqip
     },
     identity: {
       ...id,
@@ -111,8 +114,10 @@ export function parseSettings(raw: unknown): SiteSettings {
         ? (identity.entityType as SiteSettings['identity']['entityType'])
         : id.entityType,
       socialProfiles: Array.isArray(identity.socialProfiles)
-        ? identity.socialProfiles.filter((s): s is string => typeof s === 'string')
-        : id.socialProfiles,
-    },
-  } as SiteSettings
+        ? identity.socialProfiles.filter(
+            (s): s is string => typeof s === 'string'
+          )
+        : id.socialProfiles
+    }
+  }
 }

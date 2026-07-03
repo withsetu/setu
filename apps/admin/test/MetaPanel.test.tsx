@@ -17,7 +17,7 @@ function setup(props?: Partial<React.ComponentProps<typeof MetaPanel>>) {
     slug: 'my-post',
     editable: true,
     onChange,
-    apiBase: 'http://localhost:4444',
+    apiBase: 'http://localhost:4444'
   }
   render(
     <ServicesProvider services={services}>
@@ -28,7 +28,7 @@ function setup(props?: Partial<React.ComponentProps<typeof MetaPanel>>) {
           </TaxonomyProvider>
         </IndexProvider>
       </DeployProvider>
-    </ServicesProvider>,
+    </ServicesProvider>
   )
   return { onChange }
 }
@@ -36,7 +36,9 @@ function setup(props?: Partial<React.ComponentProps<typeof MetaPanel>>) {
 describe('MetaPanel', () => {
   it('renders a Featured image section between Permalink and Categories', () => {
     setup()
-    const texts = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
+    const texts = screen
+      .getAllByRole('heading', { level: 2 })
+      .map((h) => h.textContent)
     const permalinkIdx = texts.indexOf('Permalink')
     const featuredIdx = texts.indexOf('Featured image')
     const categoriesIdx = texts.indexOf('Categories')

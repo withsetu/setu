@@ -26,7 +26,9 @@ export class ContentListPage {
    *  cell/row semantics) so this reads the right row's badge, not just any "Staged"
    *  text on the page. */
   rowStatus(title: string) {
-    return this.page.getByRole('row', { name: new RegExp(title) }).getByText(/^(Draft|Staged|Live|Unpublished)$/)
+    return this.page
+      .getByRole('row', { name: new RegExp(title) })
+      .getByText(/^(Draft|Staged|Live|Unpublished)$/)
   }
 
   /** Click "New post" and land on the compose route, wrapped as an EditorPage. */

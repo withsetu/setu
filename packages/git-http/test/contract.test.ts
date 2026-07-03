@@ -11,6 +11,7 @@ runGitPortContract(() => {
   const app = createGitApi(createMemoryGitPort())
   return createHttpGitPort({
     baseUrl: 'http://localhost',
-    fetch: (input, init) => Promise.resolve(app.fetch(new Request(input as string, init))),
+    fetch: (input, init) =>
+      Promise.resolve(app.fetch(new Request(input as string, init)))
   })
 })

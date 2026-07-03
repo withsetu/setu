@@ -114,8 +114,11 @@ jobs:
       # turbo step below it is NOT affected-filtered — and therefore needs the site's
       # generated artifacts (markdoc.blocks.generated.mjs + .astro types) regardless of
       # whether the PR touched the site; the prep line regenerates them (~1.4s).
-      # Warnings are TOLERATED (no --max-warnings 0): the 34-warning baseline is the
-      # react-hooks/React-Compiler set tracked in #338 — flip to zero-warnings when it lands.
+      # Warnings are TOLERATED (no --max-warnings 0): the 36-warning baseline is the
+      # react-hooks/React-Compiler set tracked in #338 (34) plus 2 in apps/admin/
+      # test-browser/ (#293 — the same render-counting-harness pattern already used by
+      # several apps/admin/test/ files, e.g. test/format-bubble.test.tsx) — flip to
+      # zero-warnings when #338 lands.
       - name: Lint + format check
         run: |
           if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
@@ -123,12 +126,45 @@ jobs:
           pnpm lint
           pnpm format:check
 
+      # Playwright's chromium browser, for apps/admin's real-browser component-test
+      # project (#293 — apps/admin/test-browser/**, vitest.workspace.ts +
+      # vitest.browser.config.ts). Deliberately installed HERE (in `check`, alongside
+      # the rest of the unit-ish suite) rather than moved into the `e2e` job below:
+      # these are component tests (single components/hooks mounted in isolation, no
+      # app server, no journeys) — the "unit-ish tests live in the unit lane" split
+      # stays true, and the browser only needs to be present, not re-verified against
+      # a running app. Same cache key/version-resolution shape as the e2e job's
+      # "Cache Playwright browsers" step below, so a PR that touches both lanes only
+      # pays the ~400MB download once per runner-OS+version combination (shared
+      # ~/.cache/ms-playwright key across jobs on a cache hit).
+      - name: Resolve Playwright version (admin browser tests)
+        id: pw-admin
+        working-directory: apps/admin
+        run: |
+          if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "version=skipped" >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers (admin browser tests)
+        if: steps.scope.outputs.skip != 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw-admin.outputs.version }}-chromium
+
+      - name: Install Playwright chromium (admin browser tests)
+        run: |
+          if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
+          pnpm --filter @setu/admin exec playwright install --with-deps chromium
+
       # @setu/core's typecheck also runs the edge build (tsconfig.edge.json), so the
       # edge-safe check is covered whenever core is in scope; push-to-main runs it regardless.
       # typecheck+test run as one turbo invocation per lane (readable, task-graph-ordered
       # log output — see turbo.json for the `dependsOn` graph this scope resolves through).
       # Remote cache via the adapter step above (#273): unchanged task hashes replay from
-      # GitHub's cache across runs; changed code always misses and executes.
+      # GitHub's cache across runs; changed code always misses and executes. apps/admin#test
+      # is NOT cached by turbo (see turbo.json's admin#test override, #293) so this always
+      # actually launches chromium — no stale-cache risk of silently skipping the browser
+      # suite.
       - name: Typecheck + test (incl. core edge build)
         run: |
           if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi

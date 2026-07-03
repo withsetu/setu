@@ -133,10 +133,10 @@ jobs:
       # these are component tests (single components/hooks mounted in isolation, no
       # app server, no journeys) — the "unit-ish tests live in the unit lane" split
       # stays true, and the browser only needs to be present, not re-verified against
-      # a running app. Same cache key/version-resolution shape as the e2e job's
-      # "Cache Playwright browsers" step below, so a PR that touches both lanes only
-      # pays the ~400MB download once per runner-OS+version combination (shared
-      # ~/.cache/ms-playwright key across jobs on a cache hit).
+      # a running app. Same cache key/version-resolution SHAPE as the e2e job's
+      # "Cache Playwright browsers" step — but the keys are deliberately partitioned
+      # (-chromium here vs -pr/-full there), so the two jobs restore/save independently;
+      # each lane pays its own first-miss download, then hits its own cache thereafter.
       - name: Resolve Playwright version (admin browser tests)
         id: pw-admin
         working-directory: apps/admin

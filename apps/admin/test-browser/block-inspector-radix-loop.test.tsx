@@ -201,6 +201,11 @@ describe('BlockInspector against a real editor — Radix update-loop regression'
     // flat regardless of storm size. A generous bound (well under 1:1 with
     // STORM_SIZE) distinguishes "guard present" from "guard removed/broken" without
     // being brittle to incidental React scheduling renders.
+    // ARCHITECTURE ASSUMPTION (final-review note): this render-count proxy relies on
+    // the rail re-rendering through useSelectedBlock's React state. If selection state
+    // ever moves out of that hook (a different re-render strategy), re-verify this test
+    // still goes RED against a removed guard — don't trust a silent green through that
+    // refactor.
     expect(after - before).toBeLessThan(STORM_SIZE / 2)
     expect(
       consoleErrors.some((e) => /Maximum update depth exceeded/.test(e))

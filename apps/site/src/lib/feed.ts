@@ -97,7 +97,7 @@ export function getFeedPosts(
   }[],
   limit: number,
   locale: string = DEFAULT_LOCALE,
-  pathOf: (id: string) => string = (id) => id
+  pathOf: (id: string) => string
 ): FeedItem[] {
   const rows: FeedRow[] = entries.map((e) => ({
     id: e.id,

@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { randomBytes } from 'node:crypto'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serve } from '@hono/node-server'
@@ -96,6 +97,38 @@ const submissions = createSqliteSubmissionPort(submissionsDb)
 // drizzle handle, shared migrations folder (see packages/db-sqlite/src/open-db.ts).
 const authDb = openSqliteDb(submissionsDb)
 const baseURL = process.env.SETU_BASE_URL ?? `http://localhost:${port}`
+
+// Loopback token handshake (local topology only, #248 Task 4): the process that boots the api
+// mints a ONE-TIME token; the admin exchanges it at POST /api/auth/local/exchange (see
+// @setu/auth's localToken plugin) for a completely normal Better Auth session. Module state here
+// holds the token — this is boot-scoped, per-process state by design (a fresh token every
+// restart), not persisted anywhere.
+//
+// `getToken()` reflects a stable topology-level fact ("local-token capability exists"), so it
+// keeps returning the same token for the process lifetime — it is NOT how single-use is
+// enforced. Single-use is the plugin's own job (its guard order returns 404 only when getToken()
+// is null, and 401 for an already-consumed token — conflating the two would make "wrong
+// topology" indistinguishable from "already used"). `consume()` here is a no-op hook for future
+// observability (e.g. logging that the handshake completed); the token remains fixed.
+//
+// `localUserId` is a stub for this task: it REJECTS with a clear error until Task 7 wires up
+// ensureLocalOwner (creating/finding the single local owner account). Structured so Task 7 only
+// needs to swap this one function for the real lookup — nothing else in the handshake changes.
+function buildLocalTokenOptions() {
+  const token = randomBytes(32).toString('base64url')
+  return {
+    token, // returned ONLY so the caller can log the one-time handoff URL below; never logged elsewhere.
+    getToken: () => token,
+    consume: () => {},
+    localUserId: async (): Promise<string> => {
+      throw new Error('local owner bootstrap lands in Task 7 (#248) — ensureLocalOwner not wired yet')
+    },
+  }
+}
+
+const mode = resolveSetuMode(process.env)
+const localToken = mode === 'local' ? buildLocalTokenOptions() : undefined
+
 const auth = createAuth({
   db: authDb,
   secret: resolveAuthSecret(),
@@ -103,6 +136,7 @@ const auth = createAuth({
   trustedOrigins: allowedOrigins(process.env),
   captcha: authCaptchaFromEnv(),
   socialProviders: authSocialProvidersFromEnv(),
+  localToken,
 })
 const resolveActor = resolveSessionActor(auth)
 
@@ -177,10 +211,16 @@ app.route('/', createCapabilitiesApi(buildCapabilities({
   image: imageAdapter,            // present in the Node topology
   writableMediaStore: true,       // local fs storage is writable
   backgroundJobs: true,           // persistent Node process can run jobs
-  mode: resolveSetuMode(process.env),
+  mode,
 })))
 
 serve({ fetch: app.fetch, port })
 console.log(`api listening on http://localhost:${port} (repo: ${dir}, media: ${mediaDir}, imageFormat: ${siteSettings.media.imageFormat}, lqip: ${siteSettings.media.imageLqip})`)
 console.log(`[captcha] provider=${captchaProvider || '(none)'} secretConfigured=${captchaStatus.secretConfigured}`)
+if (localToken) {
+  // The ONE place the token is ever logged — this is the intended handoff channel to the admin.
+  // Never log the token (or this URL) anywhere else.
+  const adminOrigin = process.env.SETU_ADMIN_ORIGIN ?? 'http://localhost:5173'
+  console.log(`Admin handshake: ${adminOrigin}/#setu-token=${localToken.token}`)
+}
 resumeActiveJob(reprocessStore, runReprocess)

@@ -23,4 +23,11 @@ export interface CreateAuthOptions {
     window?: number
     max?: number
   }
+  /** Local topology only: wires the loopback token handshake plugin (POST /api/auth/local/exchange).
+   *  Omitted entirely outside local topology — see apps/api/src/server.ts. */
+  localToken?: {
+    getToken: () => string | null
+    consume: () => void
+    localUserId: () => Promise<string>
+  }
 }

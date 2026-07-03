@@ -4,8 +4,10 @@ import { admin, captcha } from 'better-auth/plugins'
 import { defaultAc } from 'better-auth/plugins/admin/access'
 import * as schema from '@setu/db-sqlite/schema'
 import { SETU_ROLES, type CreateAuthOptions } from './options'
+import { localToken } from './local-token-plugin'
 
 export { SETU_ROLES, type CreateAuthOptions } from './options'
+export { localToken, isLoopbackHost, constantTimeTokenEquals, type LocalTokenOptions } from './local-token-plugin'
 
 // better-auth's admin plugin validates `adminRoles` against the keys of a
 // `roles` access-control map (defaulting to its own `{ admin, user }` map).
@@ -43,6 +45,9 @@ export function createAuth(opts: CreateAuthOptions) {
   ]
   if (opts.captcha) {
     plugins.push(captcha({ provider: opts.captcha.provider, secretKey: opts.captcha.secretKey }))
+  }
+  if (opts.localToken) {
+    plugins.push(localToken(opts.localToken))
   }
 
   return betterAuth({

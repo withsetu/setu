@@ -172,4 +172,45 @@ describe('capabilities', () => {
       expect(countUsers(db)).toBe(1)
     })
   })
+
+  // #248 Minor 1: server.ts's resolveAuthCapabilities wraps `countUsers(authDb)` in a try/catch so a
+  // DB fault (locked file, disk error) degrades needsSetup to false instead of throwing and 500ing
+  // the whole /api/capabilities response the admin needs to render anything. This mirrors that
+  // guarded-thunk shape directly (server.ts itself is a side-effecting entrypoint never imported in
+  // tests — see fail-closed-boot.test.ts / server-setup-wiring.test.ts for the same mirroring
+  // pattern) against a real sqlite handle, then forces countUsers to throw.
+  describe('needsSetup degrades safe when countUsers throws (fail toward login, never toward setup)', () => {
+    function resolveAuthCapabilitiesLike(authConfigured: boolean, countUsersFn: () => number) {
+      let needsSetup = false
+      if (authConfigured) {
+        try {
+          needsSetup = countUsersFn() === 0
+        } catch {
+          // degrade: needsSetup stays false
+        }
+      }
+      return { enabled: authConfigured, providers: [], captcha: null, needsSetup }
+    }
+
+    it('countUsers throws -> capabilities block still returns, needsSetup: false', () => {
+      const throwingCountUsers = () => {
+        throw new Error('disk I/O error')
+      }
+      const auth = resolveAuthCapabilitiesLike(true, throwingCountUsers)
+      expect(auth).toEqual({ enabled: true, providers: [], captcha: null, needsSetup: false })
+    })
+
+    it('end-to-end: GET /api/capabilities is still 200 with needsSetup:false when the resolver throws', async () => {
+      const base = buildCapabilities({ writableMediaStore: true, backgroundJobs: true, auth: NO_AUTH })
+      const app = createCapabilitiesApi(base, () =>
+        resolveAuthCapabilitiesLike(true, () => {
+          throw new Error('disk I/O error')
+        }),
+      )
+      const res = await app.fetch(new Request('http://test/api/capabilities'))
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as { auth: { needsSetup: boolean } }
+      expect(body.auth.needsSetup).toBe(false)
+    })
+  })
 })

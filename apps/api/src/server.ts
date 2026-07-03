@@ -266,12 +266,30 @@ app.route('/', createUsersApi({ db: authDb, resolveActor }))
 // ARE boot-time-stable (they only depend on env + whether `auth` was constructed), but computing
 // them in the same thunk keeps this one obvious function rather than splitting truly-static vs.
 // per-request fields across two call sites.
-const resolveAuthCapabilities = (): AuthCapabilities => ({
-  enabled: authConfigured,
-  providers: authConfigured ? socialProvidersEnabled(process.env) : [],
-  captcha: authConfigured ? captchaCapabilityFromEnv(process.env) : null,
-  needsSetup: authConfigured && countUsers(authDb) === 0,
-})
+//
+// `countUsers` reads the DB on every request, so a transient DB fault (locked file, disk error)
+// must not 500 the whole capabilities endpoint — the admin needs SOMETHING to render. On a
+// countUsers throw, degrade to `needsSetup: false` (never `true`): failing toward "show login"
+// is safe (worst case, a legitimate operator sees a login form and has to investigate), while
+// failing toward "show setup" would hand an attacker a first-run owner-setup screen precisely
+// because the DB is unhealthy — the opposite of fail-closed. The rest of the block still returns
+// normally; only this one derived field degrades.
+const resolveAuthCapabilities = (): AuthCapabilities => {
+  let needsSetup = false
+  if (authConfigured) {
+    try {
+      needsSetup = countUsers(authDb) === 0
+    } catch (err) {
+      console.error('[auth] countUsers failed while resolving capabilities — degrading needsSetup to false (fail toward login, not setup)', err)
+    }
+  }
+  return {
+    enabled: authConfigured,
+    providers: authConfigured ? socialProvidersEnabled(process.env) : [],
+    captcha: authConfigured ? captchaCapabilityFromEnv(process.env) : null,
+    needsSetup,
+  }
+}
 app.route(
   '/',
   createCapabilitiesApi(

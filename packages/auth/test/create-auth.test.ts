@@ -2,24 +2,36 @@ import { describe, it, expect } from 'vitest'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
+import { eq, select } from 'drizzle-orm'
+import { user as userTable } from '@setu/db-sqlite/schema'
 import { createAuth } from '../src'
 
 function makeAuth() {
   const db = drizzle(new Database(':memory:'))
   migrate(db, { migrationsFolder: '../db-sqlite/drizzle' })
-  return createAuth({
+  return { db, createAuth: () => createAuth({
     db,
     secret: 'test-secret-32-chars-minimum!!!!',
     baseURL: 'http://localhost:4444',
     trustedOrigins: ['http://localhost:5173'],
-  })
+  }) }
 }
 
 describe('createAuth', () => {
   it('signs up and signs in with email/password; default role viewer', async () => {
-    const auth = makeAuth()
+    const { db, createAuth: makeAuthInstance } = makeAuth()
+    const auth = makeAuthInstance()
     const res = await auth.api.signUpEmail({ body: { email: 'a@b.co', password: 'hunter2hunter2', name: 'A' } })
     expect(res.user.email).toBe('a@b.co')
+
+    // Verify the freshly signed-up user has the default role of 'viewer'
+    const persistedUser = await db
+      .select()
+      .from(userTable)
+      .where(eq(userTable.id, res.user.id))
+      .then((rows) => rows[0])
+    expect(persistedUser?.role).toBe('viewer')
+
     const signin = await auth.api.signInEmail({
       body: { email: 'a@b.co', password: 'hunter2hunter2' },
       asResponse: true,
@@ -28,7 +40,8 @@ describe('createAuth', () => {
   })
 
   it('rejects a wrong password', async () => {
-    const auth = makeAuth()
+    const { createAuth: makeAuthInstance } = makeAuth()
+    const auth = makeAuthInstance()
     await auth.api.signUpEmail({ body: { email: 'a@b.co', password: 'hunter2hunter2', name: 'A' } })
     await expect(
       auth.api.signInEmail({ body: { email: 'a@b.co', password: 'nope-nope-nope' } }),

@@ -62,6 +62,10 @@ export function localToken(opts: LocalTokenOptions): BetterAuthPlugin {
         '/local/exchange',
         { method: 'POST', body: exchangeBodySchema },
         async (ctx) => {
+          // INVARIANT: no `await` may occur between the `consumed` check below and the
+          // `consumed = true` write — that synchronous window is what makes single-use
+          // race-free under Node's event loop. An await inserted between them would let
+          // two concurrent exchanges both pass the check.
           const token = opts.getToken()
           if (token === null) throw ctx.error('NOT_FOUND')
 

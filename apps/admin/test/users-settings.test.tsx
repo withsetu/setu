@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach, beforeAll } from 'vitest'
+import { describe, it, expect, vi, afterEach, beforeAll, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { ActorProvider } from '../src/auth/actor'
@@ -85,8 +85,31 @@ function renderAsActor(role: 'owner' | 'editor' | 'viewer', id = 'owner-1') {
   return render(<UsersSettings />, { wrapper })
 }
 
+/** Stubs the global `fetch` (apiFetch's underlying primitive) for GET /api/users/credential-status
+ *  — the endpoint UsersSettings fetches alongside listUsers to render the "No password" row status
+ *  (#248 Task 8 review, Finding 2). Defaults to "everyone has a password" (empty map would mean the
+ *  opposite — absence is the passwordless signal) unless a test overrides it. */
+function stubCredentialStatus(status: Record<string, boolean> = {}) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      if (String(url).includes('/api/users/credential-status')) {
+        return new Response(JSON.stringify(status), { status: 200 })
+      }
+      return new Response('not found', { status: 404 })
+    }),
+  )
+}
+
+beforeEach(() => {
+  // Default: OWNER/EDITOR/VIEWER (the fixtures below) all have credential accounts, matching the
+  // existing tests' assumption that nothing about password state was previously being asserted.
+  stubCredentialStatus({ 'owner-1': true, 'editor-1': true, 'viewer-1': true })
+})
+
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 
 describe('UsersSettings', () => {
@@ -297,6 +320,103 @@ describe('UsersSettings', () => {
         expect(mockChangePassword).toHaveBeenCalledWith({
           newPassword: 'a-new-long-password',
           currentPassword: 'old-password-123',
+        }),
+      )
+    })
+  })
+
+  describe('credential status ("No password" row status)', () => {
+    it('shows a "No password" badge on a row for a user with no credential account', async () => {
+      mockListUsers.mockResolvedValue({ data: { users: [OWNER, EDITOR], total: 2 }, error: null } as never)
+      mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)
+      // Only the owner has a credential account; editor is absent from the map -> passwordless.
+      stubCredentialStatus({ 'owner-1': true })
+
+      renderAsActor('owner')
+      await screen.findByText('Eve Editor')
+
+      const editorRow = screen.getByText('Eve Editor').closest('tr')
+      expect(editorRow).not.toBeNull()
+      expect(within(editorRow as HTMLElement).getByText(/no password/i)).toBeInTheDocument()
+
+      const ownerRow = screen.getByText('Ada Owner').closest('tr')
+      expect(ownerRow).not.toBeNull()
+      expect(within(ownerRow as HTMLElement).queryByText(/no password/i)).not.toBeInTheDocument()
+    })
+
+    it('shows "No password" on the CURRENT user\'s own row too, consistent with the OwnerPasswordCard state', async () => {
+      mockListUsers.mockResolvedValue({ data: { users: [OWNER], total: 1 }, error: null } as never)
+      mockListAccounts.mockResolvedValue({ data: [], error: null } as never)
+      stubCredentialStatus({}) // owner-1 absent -> passwordless
+
+      renderAsActor('owner', 'owner-1')
+      await screen.findByText('Ada Owner')
+
+      const ownerRow = screen.getByText('Ada Owner').closest('tr')
+      expect(within(ownerRow as HTMLElement).getByText(/no password/i)).toBeInTheDocument()
+    })
+
+    it('flips from "No password" to no badge after the credential-status map updates (e.g. after a password is set)', async () => {
+      mockListUsers.mockResolvedValue({ data: { users: [OWNER], total: 1 }, error: null } as never)
+      mockListAccounts.mockResolvedValue({ data: [], error: null } as never)
+      stubCredentialStatus({})
+
+      renderAsActor('owner', 'owner-1')
+      const ownerRow = await screen.findByText('Ada Owner').then((el) => el.closest('tr') as HTMLElement)
+      expect(within(ownerRow).getByText(/no password/i)).toBeInTheDocument()
+
+      // Simulate the status flipping server-side (e.g. after OwnerPasswordCard's setUserPassword
+      // succeeds) and the list being refreshed.
+      stubCredentialStatus({ 'owner-1': true })
+      mockListUsers.mockResolvedValue({ data: { users: [OWNER], total: 1 }, error: null } as never)
+      mockSetUserPassword.mockResolvedValue({ data: { status: true }, error: null } as never)
+
+      fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: 'a-very-long-password' } })
+      fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'a-very-long-password' } })
+      fireEvent.click(screen.getByRole('button', { name: /^set password$/i }))
+
+      await waitFor(() => expect(mockSetUserPassword).toHaveBeenCalled())
+      await waitFor(() => {
+        const row = screen.getByText('Ada Owner').closest('tr') as HTMLElement
+        expect(within(row).queryByText(/no password/i)).not.toBeInTheDocument()
+      })
+    })
+  })
+
+  describe('invite dialog: Enter submits', () => {
+    it('submits the invite form on Enter in a text field, same as clicking Add user', async () => {
+      mockListUsers
+        .mockResolvedValueOnce({ data: { users: [OWNER], total: 1 }, error: null } as never)
+        .mockResolvedValueOnce({ data: { users: [OWNER, EDITOR], total: 2 }, error: null } as never)
+      mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)
+      mockCreateUser.mockResolvedValue({ data: { user: EDITOR }, error: null } as never)
+
+      renderAsActor('owner')
+      await screen.findByText('Ada Owner')
+
+      fireEvent.click(screen.getByRole('button', { name: /add user/i }))
+      const dialog = await screen.findByRole('dialog')
+
+      fireEvent.change(within(dialog).getByLabelText(/^name$/i), { target: { value: 'Eve Editor' } })
+      fireEvent.change(within(dialog).getByLabelText(/^email$/i), { target: { value: 'editor@setu.dev' } })
+      fireEvent.change(within(dialog).getByLabelText(/temporary password/i), { target: { value: 'a-very-long-password' } })
+      fireEvent.click(within(dialog).getByRole('combobox', { name: /role/i }))
+      fireEvent.click(await screen.findByRole('option', { name: /editor/i }))
+
+      // Submit via the <form>'s submit event (what a real Enter keypress in a text field
+      // triggers natively — jsdom doesn't synthesize that from a raw keydown, so fireEvent.submit
+      // on the form itself is the standard RTL way to assert "Enter submits", same mechanism
+      // SetupScreen/LoginScreen rely on per Task 7).
+      const form = dialog.querySelector('form')
+      expect(form).not.toBeNull()
+      fireEvent.submit(form as HTMLFormElement)
+
+      await waitFor(() =>
+        expect(mockCreateUser).toHaveBeenCalledWith({
+          name: 'Eve Editor',
+          email: 'editor@setu.dev',
+          password: 'a-very-long-password',
+          role: 'editor',
         }),
       )
     })

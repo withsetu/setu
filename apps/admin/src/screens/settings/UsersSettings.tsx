@@ -6,6 +6,7 @@ import { useActor } from '../../auth/actor'
 import { authClient } from '../../auth/auth-client'
 import type { AdminUser } from '../../auth/auth-client'
 import { useNotify } from '../../ui/notify'
+import { apiFetch } from '../../lib/api-fetch'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -61,6 +62,27 @@ const ROLE_DESCRIPTIONS: Record<Role, string> = {
  *  would blur "the last owner" invariant this screen otherwise protects. Promoting to owner (if
  *  ever needed) is an explicit, rarer operation this minimal Task 8 scope does not cover. */
 const ROLE_OPTIONS: Role[] = ['publisher', 'editor', 'author', 'viewer']
+
+const apiBase = (import.meta.env.VITE_SETU_API as string | undefined) ?? ''
+
+/** Owner-gated map of userId -> true for every user WITH a credential (password) account (#248
+ *  Task 8 review, Finding 2) — better-auth's admin `listUsers` returns user rows, not their linked
+ *  accounts, so this is a small dedicated endpoint (apps/api/src/users.ts) rather than something
+ *  the admin plugin already exposes. Absence of a key means passwordless (can't sign in remotely)
+ *  — the same contract OwnerPasswordCard already uses for the CURRENT user via
+ *  `authClient.listAccounts()`; this is the multi-user generalization of that same question.
+ *  Returns `{}` (i.e. "no one has a password", the conservative/fail-safe reading — see below) on
+ *  any error rather than throwing, so a transient failure degrades the row status to "unknown
+ *  password state" without breaking the rest of the user list. */
+async function fetchCredentialStatus(): Promise<Record<string, boolean>> {
+  try {
+    const res = await apiFetch(`${apiBase}/api/users/credential-status`)
+    if (!res.ok) return {}
+    return (await res.json()) as Record<string, boolean>
+  } catch {
+    return {}
+  }
+}
 
 const inviteSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -139,18 +161,25 @@ function GuardedTrigger({ guard, children }: { guard: RowGuard; children: React.
   )
 }
 
-function RoleBadge({ role }: { role: string | null | undefined }) {
-  const known = isKnownRole(role)
-  return (
-    <Badge variant={known && role === 'owner' ? 'default' : 'secondary'} className="capitalize">
-      {known ? role : 'viewer'}
-    </Badge>
-  )
-}
-
 function StatusBadge({ user }: { user: AdminUser }) {
   if (user.banned) return <Badge variant="destructive">Disabled</Badge>
   return <Badge variant="success">Active</Badge>
+}
+
+/** The third row status (#248 Task 8 review, Finding 2): a user with no credential (password)
+ *  account can't sign in remotely at all — distinct from Active/Disabled, which are about whether
+ *  a user WHO CAN sign in currently may.
+ *
+ *  Contract (matches apps/api/src/users.ts's endpoint exactly): the credential-status map contains
+ *  `true` ONLY for users WITH a credential account — absence of a key (not an explicit `false`) is
+ *  how "passwordless" is represented. So `hasCredential` here is `true` (has a password) or
+ *  `undefined` (either passwordless, OR the status genuinely hasn't loaded yet/the endpoint
+ *  errored — both cases degrade to the same "don't claim they have a password" reading, which is
+ *  the conservative, security-relevant direction to be wrong in). Renders the badge whenever
+ *  `hasCredential` is not `true`. */
+function NoPasswordBadge({ hasCredential }: { hasCredential: boolean | undefined }) {
+  if (hasCredential === true) return null
+  return <Badge variant="secondary">No password</Badge>
 }
 
 /** The invite/add-user Dialog. Uses the admin plugin's `createUser` — the created user gets a real
@@ -303,8 +332,11 @@ function UserRowActions({
   async function changeRole(next: Role) {
     if (changingRole || next === user.role) return
     setChangingRole(true)
-    // Optimistic: the parent list already renders from server state on refetch; we just show the
-    // pending state here and let onChanged() re-fetch to reconcile (or roll back on error).
+    // NOT optimistic: the Select's displayed value doesn't change until the request resolves.
+    // `changingRole` only disables the control while in flight; on success `onChanged()` re-fetches
+    // the whole list from the server (the source of truth) — including this row's role — and on
+    // error the Select simply re-renders with `user.role` unchanged (nothing to roll back, since
+    // nothing was ever changed client-side ahead of the response).
     try {
       const { error } = await authClient.admin.setRole({ userId: user.id, role: next })
       if (error) {
@@ -407,16 +439,30 @@ function UserRowActions({
   )
 }
 
-function UserList() {
+/** `refreshSignal`: bumped by `UsersSettings` whenever `OwnerPasswordCard` changes the CURRENT
+ *  user's own credential state — without this, a user's own row would keep showing a stale "No
+ *  password" badge after they set a password via that card, since the two are otherwise
+ *  independent components with no shared data. Any value change (not the value itself) re-triggers
+ *  `load()`, mirroring the same "re-fetch from source of truth" pattern `onChanged` already uses
+ *  for role/ban actions. */
+function UserList({ refreshSignal }: { refreshSignal: number }) {
   const actor = useActor()
   const notify = useNotify()
   const [users, setUsers] = useState<AdminUser[] | null>(null)
   const [loading, setLoading] = useState(true)
+  const [credentialStatus, setCredentialStatus] = useState<Record<string, boolean>>({})
 
   async function load() {
     setLoading(true)
     try {
-      const { data, error } = await authClient.admin.listUsers({ query: { sortBy: 'createdAt', sortDirection: 'asc' } })
+      // Fetched alongside listUsers (not sequentially) — the credential-status endpoint (Finding
+      // 2) is an independent read with its own failure mode (handled inside
+      // fetchCredentialStatus itself), so it should never block or fail the user list.
+      const [{ data, error }, status] = await Promise.all([
+        authClient.admin.listUsers({ query: { sortBy: 'createdAt', sortDirection: 'asc' } }),
+        fetchCredentialStatus(),
+      ])
+      setCredentialStatus(status)
       if (error) {
         notify.error(error.message || 'Could not load users')
         setUsers([])
@@ -431,7 +477,7 @@ function UserList() {
   useEffect(() => {
     void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [refreshSignal])
 
   return (
     <Card>
@@ -482,7 +528,10 @@ function UserList() {
                   </TableCell>
                   <TableCell className="text-muted-foreground">{user.email}</TableCell>
                   <TableCell>
-                    <StatusBadge user={user} />
+                    <div className="flex items-center gap-1.5">
+                      <StatusBadge user={user} />
+                      <NoPasswordBadge hasCredential={credentialStatus[user.id]} />
+                    </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{formatDate(user.createdAt)}</TableCell>
                   <TableCell className="text-right">
@@ -515,7 +564,7 @@ function UserList() {
  *  client at all; the admin endpoint is the only client-reachable route that can set a password
  *  with no existing credential account. Owners already hold `user:set-password` in the admin
  *  plugin's role map (packages/auth/src/index.ts), so no new permission is needed. */
-function OwnerPasswordCard() {
+function OwnerPasswordCard({ onChanged }: { onChanged: () => void }) {
   const actor = useActor()
   const notify = useNotify()
   const [hasPassword, setHasPassword] = useState<boolean | null>(null)
@@ -576,6 +625,11 @@ function OwnerPasswordCard() {
       setNewPassword('')
       setConfirm('')
       await loadHasPassword()
+      // Only the "set password" branch (no prior credential) actually flips the credential-status
+      // boolean the Users list reads — "change password" keeps the same true/false state — but
+      // notifying unconditionally is simpler and harmless (an extra re-fetch, not an extra
+      // mutation) and keeps this card from needing to know UserList's internals.
+      onChanged()
     } finally {
       setSubmitting(false)
     }
@@ -648,10 +702,14 @@ function OwnerPasswordCard() {
  *  never see this group at all (checked at the Settings shell's group-registration level too, so
  *  the nav item itself disappears, not just this screen's content). */
 export function UsersSettings() {
+  // Bumped whenever OwnerPasswordCard changes the current user's own credential state, so
+  // UserList's "No password" badge for that same row doesn't go stale within the same page
+  // session (#248 Task 8 review, Finding 2).
+  const [refreshSignal, setRefreshSignal] = useState(0)
   return (
     <div className="max-w-3xl space-y-5">
-      <UserList />
-      <OwnerPasswordCard />
+      <UserList refreshSignal={refreshSignal} />
+      <OwnerPasswordCard onChanged={() => setRefreshSignal((n) => n + 1)} />
     </div>
   )
 }

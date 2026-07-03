@@ -27,6 +27,12 @@ vi.mock('../src/auth/auth-client', () => ({
   },
 }))
 
+// UsersSettings (rendered when navigating to the Users & Roles tab below) fetches
+// GET /api/users/credential-status directly via apiFetch/global fetch (#248 Task 8 review,
+// Finding 2) — stub it so this test doesn't hit the real network; it's not what this test is
+// about (that's users-settings.test.tsx's job), so an empty/no-op response is enough here.
+vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({}), { status: 200 })))
+
 afterEach(() => {
   localStorage.clear()
   vi.restoreAllMocks()

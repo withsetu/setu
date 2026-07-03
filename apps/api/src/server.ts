@@ -20,6 +20,7 @@ import { createGitApi } from './app'
 import { createPreviewApi } from './preview'
 import { createUploadApi } from './media'
 import { createFormsApi } from './forms'
+import { createUsersApi } from './users'
 import { resolveSessionActor } from './auth/resolve-session-actor'
 import type { ResolveActor } from './auth/resolve-actor'
 import { allowedOrigins } from './auth/allowed-origins'
@@ -236,6 +237,11 @@ app.route('/', createUploadApi({
   reprocess: { store: reprocessStore, run: runReprocess },
 }))
 app.route('/', createFormsApi({ submit, submissions, captchaStatus }))
+// #248 Task 8 review, Finding 2: the SAME drizzle handle better-auth's own createAuth uses for
+// its tables (authDb, above) — not a separate connection — so credential-status always reflects
+// live account state. `resolveActor` here already fails closed to null when auth is unconfigured
+// (see its own comment above), which authMiddleware turns into a 401 for this route too.
+app.route('/', createUsersApi({ db: authDb, resolveActor }))
 
 // The auth capability block is computed fresh per request (not baked into the boot-time
 // capabilities object below): `needsSetup` depends on the current user-table row count, which

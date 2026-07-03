@@ -47,6 +47,28 @@ describe('tiptapToMarkdoc', () => {
     expect(tiptapToMarkdoc(doc)).toBe('{% if $x %}\nHi\n{% /if %}\n')
   })
 
+  it('serializes an imageBlock non-primitive mdAttr via JSON.stringify, never "[object Object]"', () => {
+    const md = tiptapToMarkdoc({
+      type: 'doc',
+      content: [
+        {
+          type: 'imageBlock',
+          attrs: {
+            mdAttrs: {
+              src: '/media/2026/07/photo.jpg',
+              alt: 'A photo',
+              focalPoint: { x: 0.5, y: 0.25 }
+            }
+          }
+        }
+      ]
+    })
+    expect(md).not.toContain('[object Object]')
+    expect(md).toBe(
+      '{% image src="/media/2026/07/photo.jpg" alt="A photo" focalPoint="{\\"x\\":0.5,\\"y\\":0.25}" /%}\n'
+    )
+  })
+
   it('serializes a contactBlock back to a {% contact %} tag and round-trips its attrs', () => {
     const md = tiptapToMarkdoc({
       type: 'doc',

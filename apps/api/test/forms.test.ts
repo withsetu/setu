@@ -58,6 +58,104 @@ describe('createFormsApi', () => {
     expect(res.status).toBe(400)
   })
 
+  it('POST /forms/submit returns 400 when formId is missing or empty', async () => {
+    const { app } = makeApp()
+    const missing = await post(app, '/forms/submit', {
+      fields: { email: 'a@x.com', message: 'hi' },
+      captchaToken: 't'
+    })
+    expect(missing.status).toBe(400)
+    expect(await missing.json()).toEqual({ ok: false, error: 'invalid' })
+
+    const empty = await post(app, '/forms/submit', {
+      formId: '',
+      fields: { email: 'a@x.com', message: 'hi' },
+      captchaToken: 't'
+    })
+    expect(empty.status).toBe(400)
+  })
+
+  it('POST /forms/submit returns 400 for a non-object body', async () => {
+    const { app } = makeApp()
+    const res = await post(app, '/forms/submit', 'just a string')
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ ok: false, error: 'invalid' })
+  })
+
+  it('POST /forms/submit coerces non-string field values to empty strings instead of storing them raw', async () => {
+    const { app, submissions } = makeApp()
+    const res = await post(app, '/forms/submit', {
+      formId: 'contact',
+      fields: {
+        email: 'a@x.com',
+        message: 'hi there',
+        age: 42,
+        meta: { nested: true },
+        tags: ['a', 'b']
+      },
+      captchaToken: 'tok'
+    })
+    expect(res.status).toBe(200)
+    const stored = (await submissions.listSubmissions()).rows[0]!
+    expect(stored.fields['age']).toBe('')
+    expect(stored.fields['meta']).toBe('')
+    expect(stored.fields['tags']).toBe('')
+    expect(stored.fields['email']).toBe('a@x.com')
+    expect(stored.fields['message']).toBe('hi there')
+  })
+
+  it('POST /forms/submissions returns 400 when formId or fields are missing/invalid', async () => {
+    const { app } = makeApp()
+    const noFormId = await post(app, '/forms/submissions', {
+      fields: { email: 'a@x.com', message: 'one' }
+    })
+    expect(noFormId.status).toBe(400)
+    expect(await noFormId.json()).toEqual({ error: 'invalid' })
+
+    const emptyFormId = await post(app, '/forms/submissions', {
+      formId: '',
+      fields: { email: 'a@x.com', message: 'one' }
+    })
+    expect(emptyFormId.status).toBe(400)
+
+    const noFields = await post(app, '/forms/submissions', {
+      formId: 'contact'
+    })
+    expect(noFields.status).toBe(400)
+
+    const nonObjectBody = await post(app, '/forms/submissions', 42)
+    expect(nonObjectBody.status).toBe(400)
+  })
+
+  it('POST /forms/submissions coerces non-string field values to empty strings', async () => {
+    const { app, submissions } = makeApp()
+    const res = await post(app, '/forms/submissions', {
+      formId: 'contact',
+      fields: { email: 'a@x.com', count: 7, obj: { a: 1 }, arr: [1, 2] }
+    })
+    expect(res.status).toBe(201)
+    const saved = (await res.json()) as { fields: Record<string, string> }
+    expect(saved.fields['count']).toBe('')
+    expect(saved.fields['obj']).toBe('')
+    expect(saved.fields['arr']).toBe('')
+    expect(saved.fields['email']).toBe('a@x.com')
+    expect((await submissions.listSubmissions()).total).toBe(1)
+  })
+
+  it('PATCH /forms/submissions/read returns 400 for a non-object body', async () => {
+    const { app } = makeApp()
+    const res = await post(app, '/forms/submissions/read', 'nope', 'PATCH')
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'invalid' })
+  })
+
+  it('DELETE /forms/submissions returns 400 for a non-object body', async () => {
+    const { app } = makeApp()
+    const res = await post(app, '/forms/submissions', 'nope', 'DELETE')
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'invalid' })
+  })
+
   it('GET /forms/submissions lists with filters; GET /forms/forms summarizes', async () => {
     const { app, submissions } = makeApp()
     await submissions.saveSubmission({

@@ -15,7 +15,7 @@
   "dependencies": {
     "@setu/core": "workspace:*",
     "@react-email/components": "^1.0.12",
-    "@react-email/render": "^2.0.9",
+    "@react-email/render": "^2.0.10",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

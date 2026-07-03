@@ -17,7 +17,12 @@ export function entryUrlPath(
   ref: EntryRef & { date?: number | null; categories?: string[] },
   cfg?: ResolvedPermalinkConfig
 ): string {
-  if (ref.collection === 'page' && ref.locale === DEFAULT_LOCALE && ref.slug === 'home') return ''
+  if (
+    ref.collection === 'page' &&
+    ref.locale === DEFAULT_LOCALE &&
+    ref.slug === 'home'
+  )
+    return ''
   const { pattern, uncategorized } = cfg ?? {
     pattern: DEFAULT_PERMALINK_PATTERN,
     uncategorized: 'uncategorized'

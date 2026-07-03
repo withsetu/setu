@@ -9,17 +9,32 @@ describe('validatePermalinkPattern', () => {
   it('accepts the default pattern', () => {
     expect(validatePermalinkPattern(DEFAULT_PERMALINK_PATTERN)).toEqual([])
   })
-  it.each([':slug', 'blog/:slug', ':year/:month/:day/:slug', ':category/:slug', 'docs/v2/:slug'])(
-    'accepts %s', (p) => expect(validatePermalinkPattern(p)).toEqual([])
-  )
+  it.each([
+    ':slug',
+    'blog/:slug',
+    ':year/:month/:day/:slug',
+    ':category/:slug',
+    'docs/v2/:slug'
+  ])('accepts %s', (p) => expect(validatePermalinkPattern(p)).toEqual([]))
   it('rejects a pattern without :slug', () => {
-    expect(validatePermalinkPattern('blog/:year')).toContainEqual(expect.stringContaining(':slug'))
+    expect(validatePermalinkPattern('blog/:year')).toContainEqual(
+      expect.stringContaining(':slug')
+    )
   })
   it('rejects unknown tokens', () => {
-    expect(validatePermalinkPattern(':postname/:slug')).toContainEqual(expect.stringContaining(':postname'))
+    expect(validatePermalinkPattern(':postname/:slug')).toContainEqual(
+      expect.stringContaining(':postname')
+    )
   })
-  it.each(['/blog/:slug', 'blog/:slug/', 'blog//:slug', '../:slug', './:slug', ''])(
-    'rejects unsafe/malformed %j', (p) => expect(validatePermalinkPattern(p).length).toBeGreaterThan(0)
+  it.each([
+    '/blog/:slug',
+    'blog/:slug/',
+    'blog//:slug',
+    '../:slug',
+    './:slug',
+    ''
+  ])('rejects unsafe/malformed %j', (p) =>
+    expect(validatePermalinkPattern(p).length).toBeGreaterThan(0)
   )
   it('rejects literal segments with uppercase or unsafe chars', () => {
     expect(validatePermalinkPattern('Blog/:slug').length).toBeGreaterThan(0)

@@ -8,15 +8,27 @@ describe('toPermalinkEntry', () => {
       data: { date: new Date(Date.UTC(2026, 5, 20)), categories: ['recipes'] }
     })
     expect(e).toEqual({
-      id: 'post/en/hello', collection: 'post', locale: 'en', slug: 'hello',
-      date: Date.UTC(2026, 5, 20), categories: ['recipes']
+      id: 'post/en/hello',
+      collection: 'post',
+      locale: 'en',
+      slug: 'hello',
+      date: Date.UTC(2026, 5, 20),
+      categories: ['recipes']
     })
   })
   it('accepts pubDate; NEVER uses updatedAt (URL stability)', () => {
-    expect(toPermalinkEntry({ id: 'post/en/a', data: { pubDate: '2026-01-02' } }).date).toBe(Date.parse('2026-01-02'))
-    expect(toPermalinkEntry({ id: 'post/en/b', data: { updatedAt: '2026-01-02' } }).date).toBeNull()
+    expect(
+      toPermalinkEntry({ id: 'post/en/a', data: { pubDate: '2026-01-02' } })
+        .date
+    ).toBe(Date.parse('2026-01-02'))
+    expect(
+      toPermalinkEntry({ id: 'post/en/b', data: { updatedAt: '2026-01-02' } })
+        .date
+    ).toBeNull()
   })
   it('multi-segment slug survives', () => {
-    expect(toPermalinkEntry({ id: 'page/en/docs/intro', data: {} }).slug).toBe('docs/intro')
+    expect(toPermalinkEntry({ id: 'page/en/docs/intro', data: {} }).slug).toBe(
+      'docs/intro'
+    )
   })
 })

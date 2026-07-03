@@ -46,7 +46,10 @@ describe('siteUrl', () => {
           date: Date.UTC(2026, 5, 20),
           categories: ['news']
         },
-        { pattern: 'blog/:year/:category/:slug', uncategorized: 'uncategorized' }
+        {
+          pattern: 'blog/:year/:category/:slug',
+          uncategorized: 'uncategorized'
+        }
       )
     ).toBe('http://localhost:4321/blog/2026/news/hi')
   })

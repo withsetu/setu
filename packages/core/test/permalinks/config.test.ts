@@ -5,31 +5,54 @@ import { resolveConfig } from '../../src/config/resolve'
 
 describe('resolvePermalinkConfig precedence', () => {
   const config = { permalinks: { post: 'blog/:slug' } }
-  const settings = { permalinks: { patterns: { post: ':year/:slug' }, uncategorized: 'misc' } }
+  const settings = {
+    permalinks: { patterns: { post: ':year/:slug' }, uncategorized: 'misc' }
+  }
   it('settings override wins over config', () => {
-    expect(resolvePermalinkConfig('post', config, settings))
-      .toEqual({ pattern: ':year/:slug', uncategorized: 'misc' })
+    expect(resolvePermalinkConfig('post', config, settings)).toEqual({
+      pattern: ':year/:slug',
+      uncategorized: 'misc'
+    })
   })
   it('config wins over the default', () => {
-    expect(resolvePermalinkConfig('post', config, undefined).pattern).toBe('blog/:slug')
+    expect(resolvePermalinkConfig('post', config, undefined).pattern).toBe(
+      'blog/:slug'
+    )
   })
   it("missing everywhere → today's default (no upgrade break)", () => {
-    expect(resolvePermalinkConfig('page', undefined, undefined))
-      .toEqual({ pattern: ':collection/:slug', uncategorized: 'uncategorized' })
+    expect(resolvePermalinkConfig('page', undefined, undefined)).toEqual({
+      pattern: ':collection/:slug',
+      uncategorized: 'uncategorized'
+    })
   })
   it('an INVALID settings pattern is ignored (falls through to config/default)', () => {
-    const bad = { permalinks: { patterns: { post: '../evil' }, uncategorized: 'uncategorized' } }
-    expect(resolvePermalinkConfig('post', config, bad).pattern).toBe('blog/:slug')
+    const bad = {
+      permalinks: {
+        patterns: { post: '../evil' },
+        uncategorized: 'uncategorized'
+      }
+    }
+    expect(resolvePermalinkConfig('post', config, bad).pattern).toBe(
+      'blog/:slug'
+    )
   })
 })
 
 describe('settings permalinks group', () => {
   it('defaults are present', () => {
     const s = parseSettings(undefined)
-    expect(s.permalinks).toEqual({ patterns: {}, uncategorized: 'uncategorized' })
+    expect(s.permalinks).toEqual({
+      patterns: {},
+      uncategorized: 'uncategorized'
+    })
   })
   it('valid patterns survive the parse; invalid ones are dropped field-level', () => {
-    const s = parseSettings({ permalinks: { patterns: { post: 'blog/:slug', page: '/abs/:slug' }, uncategorized: 'Misc!' } })
+    const s = parseSettings({
+      permalinks: {
+        patterns: { post: 'blog/:slug', page: '/abs/:slug' },
+        uncategorized: 'Misc!'
+      }
+    })
     expect(s.permalinks.patterns).toEqual({ post: 'blog/:slug' })
     expect(s.permalinks.uncategorized).toBe('uncategorized') // invalid slug reset
   })

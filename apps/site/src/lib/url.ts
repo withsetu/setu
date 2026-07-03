@@ -9,6 +9,7 @@ export { DEFAULT_LOCALE }
 export async function urlPathOf(id: string): Promise<string> {
   const map = await permalinkMap()
   const path = map.get(id)
-  if (path === undefined) throw new Error(`[setu] permalinks: unknown entry id "${id}"`)
+  if (path === undefined)
+    throw new Error(`[setu] permalinks: unknown entry id "${id}"`)
   return path
 }

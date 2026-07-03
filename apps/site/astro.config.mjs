@@ -137,7 +137,9 @@ export default defineConfig({
         // How repo-root blocks/ (bare-specifier imports only) reach the site's collision-aware
         // permalink map — same trick as the existing `virtual:setu-fonts`. Nothing imports this
         // yet; Task 6 (block permalink-aware links) is the first consumer.
-        'setu:permalinks': fileURLToPath(new URL('./src/lib/permalinks.ts', import.meta.url))
+        'setu:permalinks': fileURLToPath(
+          new URL('./src/lib/permalinks.ts', import.meta.url)
+        )
       }
     },
     plugins: [resolveMarkdocFromApp, virtualFonts],

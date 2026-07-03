@@ -1,5 +1,11 @@
 import { execSync } from 'node:child_process'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs'
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  rmSync,
+  readFileSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -52,12 +58,21 @@ beforeAll(() => {
     '---\ntitle: Hello World\ndate: 2026-06-20\ncategories: [recipes]\n---\n\nHello world body.\n'
   )
   // post/en/no-date: no date -> pattern has date tokens, so the resolver falls back to bare :slug.
-  write('post/en/no-date.mdoc', '---\ntitle: No Date\n---\n\nA post with no date.\n')
+  write(
+    'post/en/no-date.mdoc',
+    '---\ntitle: No Date\n---\n\nA post with no date.\n'
+  )
   // post/en/about + page/en/about: both date-less, both resolve to "about" under their patterns
   // (post falls back to :slug on no date; page's own pattern is bare :slug) -> collision. The
   // id tiebreak (page/en/about < post/en/about, alphabetically) gives the page the clean URL.
-  write('post/en/about.mdoc', '---\ntitle: About (post)\n---\n\nPost about body.\n')
-  write('page/en/about.mdoc', '---\ntitle: About (page)\n---\n\nPage about body.\n')
+  write(
+    'post/en/about.mdoc',
+    '---\ntitle: About (post)\n---\n\nPost about body.\n'
+  )
+  write(
+    'page/en/about.mdoc',
+    '---\ntitle: About (page)\n---\n\nPage about body.\n'
+  )
 
   // gen-relations runs in prebuild and reads the same content dir — must see the same env.
   const env = { ...process.env, SETU_CONTENT_DIR: join(root, 'content') }

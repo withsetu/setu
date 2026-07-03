@@ -1,5 +1,11 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within
+} from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { createMemoryDataPort } from '@setu/db-memory'
 import { createMemoryGitPort, type GitSeedFile } from '@setu/git-memory'
@@ -66,9 +72,7 @@ describe('PermalinksSettings', () => {
     expect(optionTexts.some((t) => t?.includes('Post name'))).toBe(true)
     expect(optionTexts.some((t) => t?.includes('Day and name'))).toBe(true)
     expect(optionTexts.some((t) => t?.includes('Month and name'))).toBe(true)
-    expect(optionTexts.some((t) => t?.includes('Category and name'))).toBe(
-      true
-    )
+    expect(optionTexts.some((t) => t?.includes('Category and name'))).toBe(true)
     expect(optionTexts).toContain('Custom…')
   })
 

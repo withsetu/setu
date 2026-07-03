@@ -38,7 +38,11 @@ const PRESETS: { id: string; label: string; pattern: string }[] = [
   { id: 'post-name', label: 'Post name', pattern: ':slug' },
   { id: 'day-name', label: 'Day and name', pattern: ':year/:month/:day/:slug' },
   { id: 'month-name', label: 'Month and name', pattern: ':year/:month/:slug' },
-  { id: 'category-name', label: 'Category and name', pattern: ':category/:slug' }
+  {
+    id: 'category-name',
+    label: 'Category and name',
+    pattern: ':category/:slug'
+  }
 ]
 
 const presetForPattern = (pattern: string): string =>
@@ -134,7 +138,8 @@ function CollectionRow({
               aria-invalid={errors.length > 0}
             />
             <p className="text-xs text-muted-foreground">
-              Tokens: {PERMALINK_TOKENS.map((t) => (
+              Tokens:{' '}
+              {PERMALINK_TOKENS.map((t) => (
                 <code key={t} className="mr-1.5">
                   {t}
                 </code>
@@ -236,7 +241,8 @@ export function PermalinksSettings() {
       // "inherit config/default" (see PermalinksSettings brief + resolvePermalinkConfig).
       const patterns: Record<string, string> = {}
       for (const [collection, pattern] of Object.entries(values.patterns)) {
-        if (pattern !== DEFAULT_PERMALINK_PATTERN) patterns[collection] = pattern
+        if (pattern !== DEFAULT_PERMALINK_PATTERN)
+          patterns[collection] = pattern
       }
       const cleaned: PermalinksValues = {
         patterns,
@@ -264,9 +270,9 @@ export function PermalinksSettings() {
   return (
     <div className="max-w-xl space-y-6">
       <p className="text-sm text-muted-foreground">
-        Changing permalinks updates URLs on the next site build/deploy.
-        Existing links keep working after increment C ships automatic
-        redirects — until then, changed URLs are NOT redirected.
+        Changing permalinks updates URLs on the next site build/deploy. Existing
+        links keep working after increment C ships automatic redirects — until
+        then, changed URLs are NOT redirected.
       </p>
 
       <div className="space-y-4">
@@ -292,8 +298,7 @@ export function PermalinksSettings() {
           aria-invalid={uncategorizedError !== null}
         />
         <p className="text-xs text-muted-foreground">
-          Used in place of <code>:category</code> when an entry has no
-          category.
+          Used in place of <code>:category</code> when an entry has no category.
         </p>
         {uncategorizedError && (
           <p className="text-xs text-destructive">{uncategorizedError}</p>

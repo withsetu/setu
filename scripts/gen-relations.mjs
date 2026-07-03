@@ -146,7 +146,8 @@ async function buildPermalinkMap(rows, contentDir) {
   const entries = rows.map(toPermalinkEntry)
   const { paths, warnings } = resolvePermalinkMap(
     entries,
-    (collection) => resolvePermalinkConfig(collection, config, settings).pattern,
+    (collection) =>
+      resolvePermalinkConfig(collection, config, settings).pattern,
     { uncategorized: settings.permalinks.uncategorized }
   )
   for (const w of warnings) console.warn(`[gen-relations] permalinks: ${w}`)

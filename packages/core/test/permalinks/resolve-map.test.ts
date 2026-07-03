@@ -7,8 +7,20 @@ describe('resolvePermalinkMap', () => {
   it('resolves every entry through its collection pattern', () => {
     const { paths } = resolvePermalinkMap(
       [
-        { id: 'post/en/a', collection: 'post', locale: 'en', slug: 'a', date: 1 },
-        { id: 'page/en/b', collection: 'page', locale: 'en', slug: 'b', date: null }
+        {
+          id: 'post/en/a',
+          collection: 'post',
+          locale: 'en',
+          slug: 'a',
+          date: 1
+        },
+        {
+          id: 'page/en/b',
+          collection: 'page',
+          locale: 'en',
+          slug: 'b',
+          date: null
+        }
       ],
       (c) => (c === 'post' ? 'blog/:slug' : ':slug')
     )
@@ -18,9 +30,27 @@ describe('resolvePermalinkMap', () => {
   it('oldest keeps the clean URL; newer collisions get -2, -3 (with warnings)', () => {
     const { paths, warnings } = resolvePermalinkMap(
       [
-        { id: 'post/en/about', collection: 'post', locale: 'en', slug: 'about', date: Date.UTC(2025, 0, 1) },
-        { id: 'page/en/about', collection: 'page', locale: 'en', slug: 'about', date: Date.UTC(2026, 0, 1) },
-        { id: 'doc/en/about', collection: 'doc', locale: 'en', slug: 'about', date: Date.UTC(2026, 5, 1) }
+        {
+          id: 'post/en/about',
+          collection: 'post',
+          locale: 'en',
+          slug: 'about',
+          date: Date.UTC(2025, 0, 1)
+        },
+        {
+          id: 'page/en/about',
+          collection: 'page',
+          locale: 'en',
+          slug: 'about',
+          date: Date.UTC(2026, 0, 1)
+        },
+        {
+          id: 'doc/en/about',
+          collection: 'doc',
+          locale: 'en',
+          slug: 'about',
+          date: Date.UTC(2026, 5, 1)
+        }
       ],
       flat
     )
@@ -32,8 +62,20 @@ describe('resolvePermalinkMap', () => {
   it('date-less entries lose to dated ones; id is the tiebreak', () => {
     const { paths } = resolvePermalinkMap(
       [
-        { id: 'page/en/about', collection: 'page', locale: 'en', slug: 'about', date: null },
-        { id: 'post/en/about', collection: 'post', locale: 'en', slug: 'about', date: Date.UTC(2026, 0, 1) }
+        {
+          id: 'page/en/about',
+          collection: 'page',
+          locale: 'en',
+          slug: 'about',
+          date: null
+        },
+        {
+          id: 'post/en/about',
+          collection: 'post',
+          locale: 'en',
+          slug: 'about',
+          date: Date.UTC(2026, 0, 1)
+        }
       ],
       flat
     )
@@ -43,9 +85,27 @@ describe('resolvePermalinkMap', () => {
   it('a suffixed candidate that is itself taken keeps incrementing', () => {
     const { paths } = resolvePermalinkMap(
       [
-        { id: 'post/en/x', collection: 'post', locale: 'en', slug: 'x', date: 1 },
-        { id: 'post/en/x-2', collection: 'post', locale: 'en', slug: 'x-2', date: 2 },
-        { id: 'page/en/x', collection: 'page', locale: 'en', slug: 'x', date: 3 }
+        {
+          id: 'post/en/x',
+          collection: 'post',
+          locale: 'en',
+          slug: 'x',
+          date: 1
+        },
+        {
+          id: 'post/en/x-2',
+          collection: 'post',
+          locale: 'en',
+          slug: 'x-2',
+          date: 2
+        },
+        {
+          id: 'page/en/x',
+          collection: 'page',
+          locale: 'en',
+          slug: 'x',
+          date: 3
+        }
       ],
       flat
     )
@@ -55,8 +115,20 @@ describe('resolvePermalinkMap', () => {
   })
   it('is deterministic regardless of input order (stability: new entries never move old URLs)', () => {
     const entries = [
-      { id: 'post/en/about', collection: 'post', locale: 'en', slug: 'about', date: Date.UTC(2025, 0, 1) },
-      { id: 'page/en/about', collection: 'page', locale: 'en', slug: 'about', date: Date.UTC(2026, 0, 1) }
+      {
+        id: 'post/en/about',
+        collection: 'post',
+        locale: 'en',
+        slug: 'about',
+        date: Date.UTC(2025, 0, 1)
+      },
+      {
+        id: 'page/en/about',
+        collection: 'page',
+        locale: 'en',
+        slug: 'about',
+        date: Date.UTC(2026, 0, 1)
+      }
     ]
     const a = resolvePermalinkMap(entries, flat).paths
     const b = resolvePermalinkMap([...entries].reverse(), flat).paths

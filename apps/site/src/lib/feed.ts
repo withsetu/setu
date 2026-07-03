@@ -70,7 +70,10 @@ export function feedCategories(data: Record<string, unknown>): string[] {
   return out
 }
 
-export function toFeedItem(row: FeedRow, pathOf: (id: string) => string): FeedItem {
+export function toFeedItem(
+  row: FeedRow,
+  pathOf: (id: string) => string
+): FeedItem {
   const title = str(row.data.title) || row.id.split('/').slice(2).join('/')
   const description =
     str(row.data.description) ||
@@ -105,7 +108,9 @@ export function getFeedPosts(
     body: e.body,
     date: resolvePostDate(e as DatableEntry)
   }))
-  return selectFeedPosts(rows, limit, locale).map((row) => toFeedItem(row, pathOf))
+  return selectFeedPosts(rows, limit, locale).map((row) =>
+    toFeedItem(row, pathOf)
+  )
 }
 
 /** Distinct locales that have at least one published post, default locale first. */

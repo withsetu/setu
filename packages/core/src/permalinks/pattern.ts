@@ -22,22 +22,30 @@ export function validatePermalinkPattern(pattern: string): string[] {
   if (typeof pattern !== 'string' || pattern.trim() === '')
     return ['pattern must be a non-empty string']
   const issues: string[] = []
-  if (pattern.startsWith('/')) issues.push('pattern must be relative — remove the leading "/"')
+  if (pattern.startsWith('/'))
+    issues.push('pattern must be relative — remove the leading "/"')
   if (pattern.endsWith('/')) issues.push('pattern must not end with "/"')
-  if (pattern.includes('//')) issues.push('pattern must not contain empty segments ("//")')
+  if (pattern.includes('//'))
+    issues.push('pattern must not contain empty segments ("//")')
   let hasSlug = false
   for (const seg of pattern.replace(/^\/+|\/+$/g, '').split('/')) {
-    if (seg === '' ) continue // already reported via the checks above
+    if (seg === '') continue // already reported via the checks above
     if (seg === '.' || seg === '..') {
       issues.push(`illegal segment "${seg}"`)
     } else if (seg.startsWith(':')) {
       if (!(PERMALINK_TOKENS as readonly string[]).includes(seg))
-        issues.push(`unknown token "${seg}" — known tokens: ${PERMALINK_TOKENS.join(', ')}`)
+        issues.push(
+          `unknown token "${seg}" — known tokens: ${PERMALINK_TOKENS.join(', ')}`
+        )
       else if (seg === ':slug') hasSlug = true
     } else if (seg.includes(':')) {
-      issues.push(`token must be a whole segment — "${seg}" mixes a token with other characters`)
+      issues.push(
+        `token must be a whole segment — "${seg}" mixes a token with other characters`
+      )
     } else if (!LITERAL.test(seg)) {
-      issues.push(`literal segment "${seg}" must be lowercase letters, digits, or hyphens`)
+      issues.push(
+        `literal segment "${seg}" must be lowercase letters, digits, or hyphens`
+      )
     }
   }
   if (!hasSlug) issues.push('pattern must contain ":slug"')

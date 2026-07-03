@@ -3,13 +3,15 @@ import { parseFrontmatterDate } from '../../src/permalinks/frontmatter-date'
 
 describe('parseFrontmatterDate', () => {
   it('accepts a YAML-parsed Date instance', () => {
-    expect(parseFrontmatterDate({ date: new Date('2026-06-20T00:00:00.000Z') })).toBe(
-      Date.parse('2026-06-20T00:00:00.000Z')
-    )
+    expect(
+      parseFrontmatterDate({ date: new Date('2026-06-20T00:00:00.000Z') })
+    ).toBe(Date.parse('2026-06-20T00:00:00.000Z'))
   })
 
   it('accepts an ISO date string', () => {
-    expect(parseFrontmatterDate({ date: '2026-06-20' })).toBe(Date.parse('2026-06-20'))
+    expect(parseFrontmatterDate({ date: '2026-06-20' })).toBe(
+      Date.parse('2026-06-20')
+    )
   })
 
   it('accepts a numeric value (parsed via String(), matching existing behavior)', () => {
@@ -19,7 +21,9 @@ describe('parseFrontmatterDate', () => {
   })
 
   it('falls back to pubDate when date is absent', () => {
-    expect(parseFrontmatterDate({ pubDate: '2026-01-01' })).toBe(Date.parse('2026-01-01'))
+    expect(parseFrontmatterDate({ pubDate: '2026-01-01' })).toBe(
+      Date.parse('2026-01-01')
+    )
   })
 
   it('prefers date over pubDate when both are present', () => {

@@ -35,8 +35,11 @@ async function build(): Promise<Map<string, string>> {
   const entries = await getCollection('entries')
   const settings = loadSiteSettings()
   const { paths, warnings } = resolvePermalinkMap(
-    entries.map((e) => toPermalinkEntry({ id: e.id, data: e.data as Record<string, unknown> })),
-    (collection) => resolvePermalinkConfig(collection, config, settings).pattern,
+    entries.map((e) =>
+      toPermalinkEntry({ id: e.id, data: e.data as Record<string, unknown> })
+    ),
+    (collection) =>
+      resolvePermalinkConfig(collection, config, settings).pattern,
     { uncategorized: settings.permalinks.uncategorized }
   )
   for (const w of warnings) console.warn(`[setu] permalinks: ${w}`)

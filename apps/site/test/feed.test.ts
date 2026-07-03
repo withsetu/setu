@@ -93,7 +93,8 @@ describe('toFeedItem', () => {
         .description
     ).toBe('D')
     expect(
-      toFeedItem(row('post/en/x', '2024-01-01', { summary: 'S' }), pathOf).description
+      toFeedItem(row('post/en/x', '2024-01-01', { summary: 'S' }), pathOf)
+        .description
     ).toBe('S')
   })
   it('carries categories (categories then tags, deduped) and the raw featured image', () => {
@@ -109,8 +110,12 @@ describe('toFeedItem', () => {
     expect(item.image).toBe('/media/2026/06/x.jpg')
   })
   it('omits the image when there is no featuredImage', () => {
-    expect(toFeedItem(row('post/en/x', '2024-01-01'), pathOf).image).toBeUndefined()
-    expect(toFeedItem(row('post/en/x', '2024-01-01'), pathOf).categories).toEqual([])
+    expect(
+      toFeedItem(row('post/en/x', '2024-01-01'), pathOf).image
+    ).toBeUndefined()
+    expect(
+      toFeedItem(row('post/en/x', '2024-01-01'), pathOf).categories
+    ).toEqual([])
   })
 })
 

@@ -89,7 +89,9 @@ export function parseSettings(raw: unknown): SiteSettings {
   const reading = (data.reading ?? {}) as Partial<SiteSettings['reading']>
   const media = (data.media ?? {}) as Partial<SiteSettings['media']>
   const identity = (data.identity ?? {}) as Partial<SiteSettings['identity']>
-  const permalinks = (data.permalinks ?? {}) as Partial<SiteSettings['permalinks']>
+  const permalinks = (data.permalinks ?? {}) as Partial<
+    SiteSettings['permalinks']
+  >
   const rd = DEFAULT_SETTINGS.reading
   const id = DEFAULT_SETTINGS.identity
   const validFormat = (['webp', 'avif', 'both'] as const).includes(
@@ -106,7 +108,8 @@ export function parseSettings(raw: unknown): SiteSettings {
     !Array.isArray(permalinks.patterns)
   ) {
     for (const [k, v] of Object.entries(permalinks.patterns)) {
-      if (typeof v === 'string' && validatePermalinkPattern(v).length === 0) patterns[k] = v
+      if (typeof v === 'string' && validatePermalinkPattern(v).length === 0)
+        patterns[k] = v
     }
   }
   return {
@@ -143,7 +146,8 @@ export function parseSettings(raw: unknown): SiteSettings {
     permalinks: {
       patterns,
       uncategorized:
-        typeof permalinks.uncategorized === 'string' && validSlug.test(permalinks.uncategorized)
+        typeof permalinks.uncategorized === 'string' &&
+        validSlug.test(permalinks.uncategorized)
           ? permalinks.uncategorized
           : DEFAULT_SETTINGS.permalinks.uncategorized
     }

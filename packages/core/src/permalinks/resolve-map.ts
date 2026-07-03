@@ -1,4 +1,8 @@
-import { resolvePermalink, type PermalinkOptions, type PermalinkRef } from './resolve'
+import {
+  resolvePermalink,
+  type PermalinkOptions,
+  type PermalinkRef
+} from './resolve'
 
 export interface PermalinkEntry extends PermalinkRef {
   /** Content id ("collection/locale/slug") — the map key. */
@@ -39,7 +43,9 @@ export function resolvePermalinkMap(
     let candidate = e.path
     for (let n = 2; taken.has(candidate); n += 1) candidate = `${e.path}-${n}`
     if (candidate !== e.path)
-      warnings.push(`URL collision: ${e.id} → "${e.path}" is already used; serving it at "${candidate}"`)
+      warnings.push(
+        `URL collision: ${e.id} → "${e.path}" is already used; serving it at "${candidate}"`
+      )
     taken.add(candidate)
     paths.set(e.id, candidate)
   }

@@ -10,6 +10,7 @@ import { createHttpSubmissionAdapter } from '@setu/submission-http'
 import { bootstrapServices, ServicesProvider } from './store'
 import type { Services } from './store'
 import { fetchMediaIndex } from '../media/media-client'
+import { apiFetch } from '../lib/api-fetch'
 
 /** Opens the persistent (IndexedDB) adapters, seeds-if-empty, and provides the
  *  services once ready. Falls back to in-memory storage (non-persistent, but the
@@ -26,12 +27,15 @@ export function Bootstrap({ children }: { children: ReactNode }) {
         // Server-backed GitPort (Cut A): Publish commits to the real repo via the API.
         // Drafts stay in-browser (IndexedDB) this cut.
         const data = await createIdbDataPort()
-        const git = createHttpGitPort({ baseUrl: apiBase })
+        // apiFetch threaded in as the adapter's injectable fetch: admin (localhost:5173) and api
+        // (localhost:4444) are cross-origin, so every request must carry `credentials: 'include'`
+        // or the Better Auth session cookie is silently dropped (#248 Task 6 — see lib/api-fetch.ts).
+        const git = createHttpGitPort({ baseUrl: apiBase, fetch: apiFetch })
         // Persistent, cross-tab content index (shared via IndexedDB).
         const index = await createIdbIndexPort()
         const mediaIndexPort = await createIdbMediaIndexPort()
         const mediaIndex = createMediaIndexService({ mediaIndex: mediaIndexPort, fetchRaw: () => fetchMediaIndex(apiBase) })
-        const submissions = createHttpSubmissionAdapter({ baseUrl: apiBase })
+        const submissions = createHttpSubmissionAdapter({ baseUrl: apiBase, fetchImpl: apiFetch })
         ready = await bootstrapServices(data, git, index, mediaIndex, submissions)
       } else {
         try {

@@ -26,6 +26,7 @@ import { SaveIndicator } from './SaveIndicator'
 import { onRequestShortcuts } from './editor-events'
 import { NEW_SLUG, mintSlug } from './new-entry'
 import { useNotify } from '../ui/notify'
+import { apiFetch } from '../lib/api-fetch'
 import { useRegisterCommands } from '../command/registry'
 
 const EDITOR_ID = 'local'
@@ -189,7 +190,7 @@ export function EditorScreen() {
   const onPreview = async () => {
     if (!previewApi) return
     const content = serializeMdoc({ frontmatter: metaRef.current, body: tiptapToMarkdoc(docRef.current) })
-    await fetch(`${previewApi}/preview`, {
+    await apiFetch(`${previewApi}/preview`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ content, collection, locale, slug }),

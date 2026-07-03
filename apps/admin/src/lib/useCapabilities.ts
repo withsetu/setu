@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { apiFetch } from './api-fetch'
 
 const apiBase = (import.meta.env.VITE_SETU_API as string | undefined) ?? ''
 
@@ -16,7 +17,7 @@ export function useCapabilities() {
     let live = true
     void (async () => {
       try {
-        const res = await fetch(`${apiBase}/api/capabilities`)
+        const res = await apiFetch(`${apiBase}/api/capabilities`)
         const data = (await res.json()) as { capabilities?: CapFlags }
         if (live) setCaps(data.capabilities ?? null)
       } catch {

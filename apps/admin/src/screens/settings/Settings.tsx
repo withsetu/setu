@@ -6,6 +6,7 @@ import { GeneralSettings } from './GeneralSettings'
 import { ReadingSettings } from './ReadingSettings'
 import { MediaSettings } from './MediaSettings'
 import { IdentitySettings } from './IdentitySettings'
+import { apiFetch } from '../../lib/api-fetch'
 
 const apiBase = import.meta.env.VITE_SETU_API as string | undefined
 
@@ -13,7 +14,7 @@ const apiBase = import.meta.env.VITE_SETU_API as string | undefined
 function SpamProtectionStatus({ apiBase }: { apiBase: string }) {
   const [status, setStatus] = useState<{ provider: string; secretConfigured: boolean } | null>(null)
   useEffect(() => {
-    void fetch(`${apiBase}/forms/captcha-status`)
+    void apiFetch(`${apiBase}/forms/captcha-status`)
       .then((r) => r.json() as Promise<{ provider: string; secretConfigured: boolean }>)
       .then(setStatus)
       .catch(() => setStatus({ provider: '', secretConfigured: false }))

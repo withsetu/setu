@@ -1,4 +1,5 @@
 import type { MediaRecord } from '@setu/core'
+import { apiFetch } from '../lib/api-fetch'
 
 export interface UploadResult {
   id: string
@@ -14,7 +15,7 @@ export interface UploadResult {
 export async function uploadFile(apiBase: string, file: File): Promise<UploadResult> {
   const body = new FormData()
   body.append('file', file)
-  const res = await fetch(`${apiBase}/media`, { method: 'POST', body })
+  const res = await apiFetch(`${apiBase}/media`, { method: 'POST', body })
   if (!res.ok) {
     const detail = (await res.json().catch(() => ({}))) as { error?: string }
     throw new Error(detail.error ?? `upload failed (${res.status})`)

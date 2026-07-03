@@ -9,7 +9,10 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { createAuth } from '@setu/auth'
 import type { StoragePort, StoredObject } from '@setu/core'
+import { createMemorySubmissionPort } from '@setu/db-memory'
+import { createSubmissionService } from '@setu/core'
 import { createUploadApi } from '../src/media'
+import { createFormsApi } from '../src/forms'
 import { resolveSessionActor } from '../src/auth/resolve-session-actor'
 import { originGuard, originMatches } from '../src/auth/origin-guard'
 import { allowedOrigins } from '../src/auth/allowed-origins'
@@ -61,9 +64,12 @@ function makeApp() {
       credentials: true,
     }),
   )
-  app.use('*', originGuard(allowed))
+  app.use('*', originGuard(allowed, { publicPaths: ['/forms/submit'] }))
   app.on(['POST', 'GET'], '/api/auth/*', (c) => auth.handler(c.req.raw))
   app.route('/', createUploadApi({ storage: memStorage(), resolveActor: resolveSessionActor(auth) }))
+  const submissions = createMemorySubmissionPort()
+  const submit = createSubmissionService({ submissions, captcha: { verify: async () => false } })
+  app.route('/', createFormsApi({ submit, submissions }))
 
   return { app, cleanup: () => { sqlite.close(); rmSync(dir, { recursive: true, force: true }) } }
 }
@@ -105,6 +111,22 @@ describe('auth routes (server.ts wiring)', () => {
     )
     expect(res.status).toBe(403)
     expect(await res.json()).toEqual({ error: 'origin not allowed' })
+  })
+
+  it('POST /forms/submit with a foreign Origin is NOT rejected by the origin guard (reaches the forms handler)', async () => {
+    const app = build()
+    const res = await app.fetch(
+      new Request('http://test/forms/submit', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin: 'https://some-visitor-site.example' },
+        body: JSON.stringify({ formId: 'contact', fields: { email: 'a@x.com' }, captchaToken: 'tok' }),
+      }),
+    )
+    // The guard's 403 body is { error: 'origin not allowed' }; the forms handler's captcha-failure
+    // 403 body is { ok: false, error: 'spam' } — assert we got the latter, i.e. the guard let the
+    // request through and it was the handler (captcha) that rejected it, not the origin guard.
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({ ok: false, error: 'spam' })
   })
 
   it('4 rapid sign-in attempts with wrong credentials -> the 4th is rate-limited (429)', async () => {

@@ -32,20 +32,36 @@ function isLoopbackHost(host: string): boolean {
   return LOOPBACK_HOST_RE.test(host)
 }
 
+/** true when `path` is exactly `publicPath` or sits under it as a
+ *  path-segment prefix (`/forms/submit/x` matches `/forms/submit`, but
+ *  `/forms/submit-other` does not). */
+function pathIsPublic(path: string, publicPaths: string[]): boolean {
+  return publicPaths.some((p) => path === p || path.startsWith(`${p}/`))
+}
+
 /** Origin/Host guard — the DNS-rebinding/tunnel-detection check.
  *
  *  Safe methods (GET/HEAD/OPTIONS) always pass.
  *
  *  Unsafe methods:
+ *   - If the request path matches an entry in `opts.publicPaths` (exact, or
+ *     a path-segment prefix), the origin check is skipped entirely — see the
+ *     invariant comment at the call site in server.ts.
  *   - If an Origin header is present, it must match the allowlist (exact
  *     origin, or a wildcard-subdomain pattern like `https://*.host`).
  *   - If no Origin header is present (curl, server-to-server), pass only if
  *     Host is a loopback host (localhost/127.0.0.1/[::1], optional port) or
  *     matches the host of an allowlisted origin. Otherwise fail closed.
  */
-export function originGuard(allowed: () => string[]) {
+export function originGuard(allowed: () => string[], opts?: { publicPaths?: string[] }) {
+  const publicPaths = opts?.publicPaths ?? []
   return createMiddleware(async (c, next) => {
     if (SAFE_METHODS.has(c.req.method)) {
+      await next()
+      return
+    }
+
+    if (publicPaths.length > 0 && pathIsPublic(c.req.path, publicPaths)) {
       await next()
       return
     }

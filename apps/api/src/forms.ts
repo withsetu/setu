@@ -7,13 +7,10 @@ import type { SubmissionService, SubmissionPort, SubmissionFilter } from '@setu/
  *
  *  CORS/origin policy is owned centrally by server.ts's allowlisted `cors()` + `originGuard`
  *  (see app.ts's comment on createGitApi) — this factory no longer sets its own permissive
- *  `cors()`. NOTE (#248 follow-up needed): `/forms/submit` was previously reachable from ANY
- *  origin by design (an embeddable public form widget, captcha-gated). Once server.ts's
- *  originGuard is applied globally, `POST /forms/submit` from an origin outside
- *  SETU_TRUSTED_ORIGINS now gets 403'd by the guard before it reaches Turnstile — this narrows
- *  "embed anywhere" to "embed only from trusted/admin origins" until a route-level exemption or
- *  a separate public-forms allowlist is added. Flagged, not silently resolved, in the Task 3
- *  report. */
+ *  `cors()`. `POST /forms/submit` is an embeddable public form widget (captcha-gated, no session
+ *  cookies read) reachable from ANY origin by design; server.ts's `originGuard` is configured with
+ *  `publicPaths: ['/forms/submit']` so that route bypasses the origin check while the admin CRUD
+ *  routes below (`/forms/submissions*`, `/forms/forms`) stay behind it (#248). */
 export function createFormsApi(opts: {
   submit: SubmissionService
   submissions: SubmissionPort

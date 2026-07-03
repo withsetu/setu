@@ -108,6 +108,43 @@ describe('originGuard', () => {
   })
 })
 
+describe('originGuard publicPaths', () => {
+  function makeAppWithPublicPaths(allowed: () => string[], publicPaths: string[]) {
+    const app = new Hono()
+    app.use('*', originGuard(allowed, { publicPaths }))
+    app.post('/forms/submit', (c) => c.json({ ok: true }))
+    app.post('/forms/submissions', (c) => c.json({ ok: true }))
+    return app
+  }
+
+  it('a publicPaths request with an untrusted Origin passes through (bypasses the origin check)', async () => {
+    const app = makeAppWithPublicPaths(() => ['https://trusted.example'], ['/forms/submit'])
+    const res = await req(app, '/forms/submit', {
+      method: 'POST',
+      headers: { origin: 'https://evil.example' },
+    })
+    expect(res.status).toBe(200)
+  })
+
+  it('a non-public path with the same untrusted Origin is still 403', async () => {
+    const app = makeAppWithPublicPaths(() => ['https://trusted.example'], ['/forms/submit'])
+    const res = await req(app, '/forms/submissions', {
+      method: 'POST',
+      headers: { origin: 'https://evil.example' },
+    })
+    expect(res.status).toBe(403)
+  })
+
+  it('with opts absent, default behavior is unchanged (untrusted Origin -> 403)', async () => {
+    const app = makeApp(() => ['https://trusted.example'])
+    const res = await req(app, '/ping', {
+      method: 'POST',
+      headers: { origin: 'https://evil.example' },
+    })
+    expect(res.status).toBe(403)
+  })
+})
+
 describe('allowedOrigins', () => {
   it('defaults: admin origin (localhost:5173) + loopback API origins (localhost/127.0.0.1 on SETU_API_PORT default 4444)', () => {
     const origins = allowedOrigins({})

@@ -169,7 +169,12 @@ app.use(
     credentials: true,
   }),
 )
-app.use('*', originGuard(() => allowedOrigins(process.env)))
+// publicPaths: routes that are deliberately public and read NO ambient credentials (no session
+// cookie, no auth check) — captcha is the only gate. `/forms/submit` is an embeddable public form
+// widget (#248 follow-up): it must stay reachable from any visitor origin. Anything reading a
+// session (e.g. the /forms/submissions admin CRUD routes) MUST NOT be listed here — those stay
+// behind the origin check.
+app.use('*', originGuard(() => allowedOrigins(process.env), { publicPaths: ['/forms/submit'] }))
 
 app.on(['POST', 'GET'], '/api/auth/*', (c) => auth.handler(c.req.raw))
 

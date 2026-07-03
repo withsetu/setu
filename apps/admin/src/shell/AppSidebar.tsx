@@ -12,6 +12,7 @@ import { useDeploy } from '../deploy/deploy'
 import { useCan } from '../auth/actor'
 import { siteUrl } from './site-url'
 import { ThemeToggle } from './ThemeToggle'
+import { UserMenu } from './UserMenu'
 
 type Item = { to: string; label: string; icon: React.ComponentType<{ className?: string }> }
 type Group = { label?: string; items: Item[] }
@@ -105,6 +106,7 @@ export function AppSidebar() {
           </SidebarMenuItem>
           <SidebarMenuItem><DeployFooterButton /></SidebarMenuItem>
           <SidebarMenuItem><ThemeToggle /></SidebarMenuItem>
+          <SidebarMenuItem><UserMenu /></SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
       <SidebarRail />

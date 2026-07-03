@@ -9,8 +9,17 @@ export interface CapFlags {
   backgroundJobs: boolean
 }
 
+/** #248 Task 5's auth capability block — mirrors apps/api/src/capabilities.ts's AuthCapabilities. */
+export interface AuthCapabilities {
+  enabled: boolean
+  providers: ('github' | 'google')[]
+  captcha: { provider: 'turnstile' | 'recaptcha'; siteKey: string } | null
+  needsSetup: boolean
+}
+
 export function useCapabilities() {
   const [caps, setCaps] = useState<CapFlags | null>(null)
+  const [auth, setAuth] = useState<AuthCapabilities | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -18,10 +27,16 @@ export function useCapabilities() {
     void (async () => {
       try {
         const res = await apiFetch(`${apiBase}/api/capabilities`)
-        const data = (await res.json()) as { capabilities?: CapFlags }
-        if (live) setCaps(data.capabilities ?? null)
+        const data = (await res.json()) as { capabilities?: CapFlags; auth?: AuthCapabilities }
+        if (live) {
+          setCaps(data.capabilities ?? null)
+          setAuth(data.auth ?? null)
+        }
       } catch {
-        if (live) setCaps(null)
+        if (live) {
+          setCaps(null)
+          setAuth(null)
+        }
       } finally {
         if (live) setLoading(false)
       }
@@ -31,5 +46,5 @@ export function useCapabilities() {
     }
   }, [])
 
-  return { caps, loading }
+  return { caps, auth, loading }
 }

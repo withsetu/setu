@@ -25,4 +25,21 @@ describe('useCapabilities', () => {
     await waitFor(() => expect(result.current.loading).toBe(false))
     expect(result.current.caps).toBeNull()
   })
+
+  it('exposes the auth capability block (#248 Task 6)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      capabilities: { imageProcessing: false, writableMediaStore: true, backgroundJobs: true },
+      auth: { enabled: true, providers: ['github'], captcha: null, needsSetup: false },
+    }), { status: 200 })))
+    const { result } = renderHook(() => useCapabilities())
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    expect(result.current.auth).toEqual({ enabled: true, providers: ['github'], captcha: null, needsSetup: false })
+  })
+
+  it('sets auth=null on fetch failure', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('Network error') }))
+    const { result } = renderHook(() => useCapabilities())
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    expect(result.current.auth).toBeNull()
+  })
 })

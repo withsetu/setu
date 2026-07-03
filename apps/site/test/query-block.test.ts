@@ -32,7 +32,7 @@ describe('query block', () => {
   it('lists same-default-locale (en) posts and excludes other locales', () => {
     expect(html).toContain('href="/post/kitchen-sink"')
     expect(html).toContain('href="/post/astro-on-the-edge"')
-    expect(html).not.toContain('/post/fr/') // the French Bonjour post is excluded by locale default
+    expect(html).not.toContain('/fr/post/') // the French Bonjour post is excluded by locale default
   })
   it('renders a thumbnail for a post that has a featured image', () => {
     // featured-demo.mdoc has featuredImage: /media/2026/06/test-cat.jpg

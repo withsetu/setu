@@ -35,8 +35,35 @@ const jiti = createJiti(import.meta.url, {
     zod: coreReq.resolve('zod')
   }
 })
-const { parseMdoc, normalizeTags, entryUrlPath, selectRelatedPosts } =
-  await jiti.import('@setu/core')
+const {
+  parseMdoc,
+  normalizeTags,
+  selectRelatedPosts,
+  resolvePermalinkMap,
+  resolvePermalinkConfig,
+  parseSettings
+} = await jiti.import('@setu/core')
+
+const SITE_CONFIG_PATH = path.join(ROOT, 'apps', 'site', 'setu.config.ts')
+
+/** settings.json lives at the content-repo root (sibling of the content dir). Missing/malformed
+ *  → defaults, mirroring apps/site/src/lib/site-settings.ts. */
+function loadSettings(contentDir) {
+  const settingsPath = path.join(contentDir, '..', 'settings.json')
+  try {
+    return parseSettings(JSON.parse(readFileSync(settingsPath, 'utf8')))
+  } catch {
+    return parseSettings(undefined)
+  }
+}
+
+/** The site's setu.config.ts default export (permalink pattern overrides). Missing → undefined,
+ *  which resolvePermalinkConfig treats as "no config source". */
+async function loadSiteConfig() {
+  if (!existsSync(SITE_CONFIG_PATH)) return undefined
+  const mod = await jiti.import(SITE_CONFIG_PATH)
+  return mod?.default ?? mod
+}
 
 /** Recursively collect every .mdoc file under dir (absolute paths). */
 function walk(dir) {
@@ -79,6 +106,11 @@ function toRow(file, contentDir) {
       : Array.isArray(frontmatter.related)
         ? frontmatter.related.filter((x) => typeof x === 'string')
         : undefined
+  // `date`/`pubDate` are carried alongside the RelatedRow shape (as `permalinkDate`) purely so
+  // the permalink map can be built from the same scan without re-parsing every file.
+  const permalinkDateRaw = frontmatter.date ?? frontmatter.pubDate
+  const permalinkParsed =
+    permalinkDateRaw != null ? Date.parse(String(permalinkDateRaw)) : Number.NaN
   return {
     key: id,
     collection,
@@ -89,27 +121,60 @@ function toRow(file, contentDir) {
     categories,
     updatedAt,
     featuredImage,
-    relatedOverride
+    relatedOverride,
+    // Frontmatter date ?? pubDate ONLY — never updatedAt/mtime — matching
+    // apps/site/src/lib/permalinks.ts's toPermalinkEntry exactly (an edit must not move a URL).
+    permalinkDate: Number.isNaN(permalinkParsed) ? null : permalinkParsed
   }
 }
 
+/** Project a scanned row to what resolvePermalinkMap needs. */
+function toPermalinkEntry(row) {
+  return {
+    id: row.key,
+    collection: row.collection,
+    locale: row.locale,
+    slug: row.slug,
+    date: row.permalinkDate,
+    categories: row.categories
+  }
+}
+
+/** Build the site-wide id -> URL-path map the same way apps/site/src/lib/permalinks.ts does:
+ *  resolvePermalinkMap over every scanned entry, then the two home overrides. */
+async function buildPermalinkMap(rows, contentDir) {
+  const settings = loadSettings(contentDir)
+  const config = await loadSiteConfig()
+  const entries = rows.map(toPermalinkEntry)
+  const { paths, warnings } = resolvePermalinkMap(
+    entries,
+    (collection) => resolvePermalinkConfig(collection, config, settings).pattern,
+    { uncategorized: settings.permalinks.uncategorized }
+  )
+  for (const w of warnings) console.warn(`[gen-relations] permalinks: ${w}`)
+  paths.set('page/en/home', '')
+  if (settings.reading.homepage) paths.set(settings.reading.homepage, '')
+  return paths
+}
+
 /** Build the related-posts graph for a content dir: entry-id -> {title, href, featuredImage?}[]. */
-export function buildRelationsGraph(contentDir) {
+export async function buildRelationsGraph(contentDir) {
   const rows = walk(contentDir).map((f) => toRow(f, contentDir))
   const byKey = new Map(rows.map((r) => [r.key, r]))
   const graph = selectRelatedPosts(rows, { k: 6, categoryBoost: 0.25 })
+  const map = await buildPermalinkMap(rows, contentDir)
 
-  const refOf = (r) => ({
-    title: r.title,
-    href:
-      '/' +
-      entryUrlPath({
-        collection: r.collection,
-        locale: r.locale,
-        slug: r.slug
-      }),
-    ...(r.featuredImage ? { featuredImage: r.featuredImage } : {})
-  })
+  // `r` may be a full row (has `.key`, from an override lookup) or a bare RelatedRef
+  // (collection/locale/slug/title only, from selectRelatedPosts) — id is reconstructed
+  // either way so the permalink map lookup always hits.
+  const refOf = (r) => {
+    const id = r.key ?? `${r.collection}/${r.locale}/${r.slug}`
+    return {
+      title: r.title,
+      href: '/' + (map.get(id) ?? ''),
+      ...(r.featuredImage ? { featuredImage: r.featuredImage } : {})
+    }
+  }
 
   const out = {}
   for (const row of rows) {
@@ -135,7 +200,7 @@ const isMain =
   process.argv[1] &&
   path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 if (isMain) {
-  const out = buildRelationsGraph(DEFAULT_CONTENT_DIR)
+  const out = await buildRelationsGraph(DEFAULT_CONTENT_DIR)
   mkdirSync(path.dirname(OUT), { recursive: true })
   writeFileSync(OUT, JSON.stringify(out, null, 2) + '\n')
   const n = Object.keys(out).length

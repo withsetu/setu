@@ -13,6 +13,8 @@ export interface PostRow {
   excerpt?: string
   /** Frontmatter `published`. Absent → published; only an explicit `false` hides the entry. */
   published?: boolean
+  /** Collision-aware URL path from the site permalink map (no leading slash; '' = site root). */
+  urlPath?: string
 }
 
 export interface PostsQuery {

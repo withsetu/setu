@@ -12,7 +12,10 @@ const { page, heading, basePath, mediaBase } = Astro.props
 
 const resolveImg = (s: string): string =>
   !s || /^https?:\/\//i.test(s) ? s : s.startsWith('/') ? `${mediaBase}${s}` : s
-const hrefOf = (p: PostRow) => `/${entryUrlPath({ collection: p.collection, locale: p.locale, slug: p.slug })}`
+const hrefOf = (p: PostRow) =>
+  p.urlPath !== undefined
+    ? `/${p.urlPath}`
+    : `/${entryUrlPath({ collection: p.collection, locale: p.locale, slug: p.slug })}`
 // Locale-aware short date rendered in UTC (a frontmatter date is a calendar date, not an instant,
 // so it must not drift across timezones). Full dateFormat/timezone wiring is #157.
 const fmtDate = (ms: number, loc: string): string =>

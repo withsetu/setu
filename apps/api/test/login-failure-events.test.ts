@@ -56,12 +56,24 @@ function signInRequest(email: string, password: string) {
   })
 }
 
+// Public sign-up is disabled (invite-only — see disableSignUp in packages/auth/src/index.ts), so
+// these fixtures create the user server-side via internalAdapter.createUser + linkAccount, the
+// same path first-run setup/ensureLocalOwner/admin-invite use. Mirrors the makeOwner helper in
+// packages/auth/test/auth-events.test.ts.
+async function createUser(auth: ReturnType<typeof createAuth>, email: string, password: string) {
+  const ctx = await auth.$context
+  const user = await ctx.internalAdapter.createUser({ email, name: 'A', role: 'viewer', emailVerified: true })
+  const hashed = await ctx.password.hash(password)
+  await ctx.internalAdapter.linkAccount({ userId: user.id, providerId: 'credential', accountId: user.id, password: hashed })
+  return user
+}
+
 describe('login.failure — wrapper-at-mount fallback (POST /api/auth/sign-in/email, status >= 400)', () => {
   it('fires login.failure exactly once on a wrong password, and does NOT double-fire login.success', async () => {
     const events: AuthEvent[] = []
     const { app, auth } = build((e) => events.push(e))
-    await auth.api.signUpEmail({ body: { email: 'a@b.co', password: 'hunter2hunter2', name: 'A' } })
-    events.length = 0 // clear sign-up noise
+    await createUser(auth, 'a@b.co', 'hunter2hunter2')
+    events.length = 0 // clear user.created noise
 
     const res = await app.fetch(signInRequest('a@b.co', 'totally-wrong-password'))
     expect(res.status).toBe(401)
@@ -74,7 +86,7 @@ describe('login.failure — wrapper-at-mount fallback (POST /api/auth/sign-in/em
   it('does NOT fire login.failure on a successful sign-in', async () => {
     const events: AuthEvent[] = []
     const { app, auth } = build((e) => events.push(e))
-    await auth.api.signUpEmail({ body: { email: 'a@b.co', password: 'hunter2hunter2', name: 'A' } })
+    await createUser(auth, 'a@b.co', 'hunter2hunter2')
     events.length = 0
 
     const res = await app.fetch(signInRequest('a@b.co', 'hunter2hunter2'))
@@ -83,11 +95,9 @@ describe('login.failure — wrapper-at-mount fallback (POST /api/auth/sign-in/em
     expect(events.filter((e) => e.type === 'login.success')).toHaveLength(1)
   })
 
-  it('does NOT fire login.failure for unrelated /api/auth/* 4xx responses (e.g. sign-up duplicate-email)', async () => {
+  it('does NOT fire login.failure for unrelated /api/auth/* 4xx responses (e.g. disabled public sign-up)', async () => {
     const events: AuthEvent[] = []
-    const { app, auth } = build((e) => events.push(e))
-    await auth.api.signUpEmail({ body: { email: 'dup@b.co', password: 'hunter2hunter2', name: 'A' } })
-    events.length = 0
+    const { app } = build((e) => events.push(e))
 
     const res = await app.fetch(
       new Request('http://localhost:4444/api/auth/sign-up/email', {
@@ -103,7 +113,7 @@ describe('login.failure — wrapper-at-mount fallback (POST /api/auth/sign-in/em
   it('the emitted login.failure event never carries the attempted password', async () => {
     const events: AuthEvent[] = []
     const { app, auth } = build((e) => events.push(e))
-    await auth.api.signUpEmail({ body: { email: 'a@b.co', password: 'hunter2hunter2', name: 'A' } })
+    await createUser(auth, 'a@b.co', 'hunter2hunter2')
     events.length = 0
 
     await app.fetch(signInRequest('a@b.co', 'a-secret-guessed-password'))

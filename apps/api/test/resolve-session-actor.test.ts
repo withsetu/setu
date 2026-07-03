@@ -19,10 +19,21 @@ function makeAuth() {
   }) }
 }
 
+// Public sign-up is disabled (invite-only — see disableSignUp in packages/auth/src/index.ts), so
+// this fixture creates the user server-side via internalAdapter.createUser + linkAccount, the same
+// path first-run setup/ensureLocalOwner/admin-invite use.
+async function createUser(auth: ReturnType<typeof createAuth>, email: string, password: string) {
+  const ctx = await auth.$context
+  const user = await ctx.internalAdapter.createUser({ email, name: 'A', role: 'viewer', emailVerified: true })
+  const hashed = await ctx.password.hash(password)
+  await ctx.internalAdapter.linkAccount({ userId: user.id, providerId: 'credential', accountId: user.id, password: hashed })
+  return user
+}
+
 describe('resolveSessionActor', () => {
   it('maps a session to an Actor', async () => {
     const { auth } = makeAuth()
-    await auth.api.signUpEmail({ body: { email: 'a@b.co', password: 'hunter2hunter2', name: 'A' } })
+    await createUser(auth, 'a@b.co', 'hunter2hunter2')
     const res = await auth.api.signInEmail({ body: { email: 'a@b.co', password: 'hunter2hunter2' }, asResponse: true })
     const cookie = res.headers.get('set-cookie')!.split(';')[0]!
     const actor = await resolveSessionActor(auth)(new Request('http://x/', { headers: { cookie } }))
@@ -43,12 +54,12 @@ describe('resolveSessionActor', () => {
 
   it('returns null for banned user', async () => {
     const { db, auth } = makeAuth()
-    const user = await auth.api.signUpEmail({ body: { email: 'a@b.co', password: 'hunter2hunter2', name: 'A' } })
+    const user = await createUser(auth, 'a@b.co', 'hunter2hunter2')
     // Sign in before banning to get a session cookie
     const res = await auth.api.signInEmail({ body: { email: 'a@b.co', password: 'hunter2hunter2' }, asResponse: true })
     const cookie = res.headers.get('set-cookie')!.split(';')[0]!
     // Ban the user by updating the database
-    await db.update(userTable).set({ banned: true }).where(eq(userTable.id, user.user.id))
+    await db.update(userTable).set({ banned: true }).where(eq(userTable.id, user.id))
     // Now try to use the previously valid session with a banned user
     const actor = await resolveSessionActor(auth)(new Request('http://x/', { headers: { cookie } }))
     expect(actor).toBeNull()

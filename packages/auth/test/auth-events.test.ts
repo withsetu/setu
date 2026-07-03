@@ -41,26 +41,25 @@ function adminRequest(path: string, cookie: string, body: Record<string, unknown
 }
 
 describe('auth event emission — onAuthEvent', () => {
-  it('fires user.created exactly once on sign-up', async () => {
+  it('fires user.created exactly once when a user is created (server-side, e.g. first-run setup/invite — public sign-up is disabled)', async () => {
     const { events, auth } = makeAuth()
-    const res = await auth.api.signUpEmail({ body: { email: 'a@b.co', password: 'hunter2hunter2', name: 'A' } })
+    const owner = await makeOwner(auth, 'a@b.co', 'hunter2hunter2')
 
     const created = events.filter((e) => e.type === 'user.created')
     expect(created).toHaveLength(1)
-    expect(created[0]?.targetId).toBe(res.user.id)
+    expect(created[0]?.targetId).toBe(owner.id)
   })
 
-  it('fires login.success exactly once on sign-in (not double-counted with sign-up autoSignIn)', async () => {
+  it('fires login.success exactly once on sign-in', async () => {
     const { events, auth } = makeAuth()
-    const signUp = await auth.api.signUpEmail({ body: { email: 'a@b.co', password: 'hunter2hunter2', name: 'A' } })
-    // sign-up's autoSignIn also creates a session — must NOT be counted as login.success.
-    expect(events.filter((e) => e.type === 'login.success')).toHaveLength(0)
+    const owner = await makeOwner(auth, 'a@b.co', 'hunter2hunter2')
+    events.length = 0 // clear user.created noise from makeOwner
 
     await auth.api.signInEmail({ body: { email: 'a@b.co', password: 'hunter2hunter2' } })
 
     const logins = events.filter((e) => e.type === 'login.success')
     expect(logins).toHaveLength(1)
-    expect(logins[0]?.targetId).toBe(signUp.user.id)
+    expect(logins[0]?.targetId).toBe(owner.id)
   })
 
   it('fires logout exactly once on sign-out (not on admin session revocation)', async () => {
@@ -258,9 +257,9 @@ describe('auth event emission — direct plugin emission points', () => {
         localUserId: async () => localUserId,
       },
     })
-    const signUp = await auth.api.signUpEmail({ body: { email: 'owner@local.test', password: 'hunter2hunter2', name: 'Owner' } })
-    localUserId = signUp.user.id
-    events.length = 0 // clear sign-up's own user.created/login.success noise
+    const owner = await makeOwner(auth, 'owner@local.test', 'hunter2hunter2')
+    localUserId = owner.id
+    events.length = 0 // clear the user.created noise from makeOwner
 
     const res = await auth.handler(
       new Request('http://localhost:4444/api/auth/local/exchange', {

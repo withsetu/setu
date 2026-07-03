@@ -47,11 +47,15 @@ function makeAuth(opts?: { token?: string | null }) {
   }
 }
 
+// Public sign-up is disabled (invite-only — see disableSignUp in ../src/index.ts), so this fixture
+// creates the local user the same way the real local-owner flow does: internalAdapter.createUser +
+// linkAccount, not the public sign-up route. Mirrors auth-events.test.ts's makeOwner helper.
 async function createLocalUser(auth: ReturnType<typeof createAuth>) {
-  const res = await auth.api.signUpEmail({
-    body: { email: 'owner@local.test', password: 'hunter2hunter2', name: 'Owner' },
-  })
-  return res.user.id
+  const ctx = await auth.$context
+  const user = await ctx.internalAdapter.createUser({ email: 'owner@local.test', name: 'Owner', role: 'owner', emailVerified: true })
+  const hashed = await ctx.password.hash('hunter2hunter2')
+  await ctx.internalAdapter.linkAccount({ userId: user.id, providerId: 'credential', accountId: user.id, password: hashed })
+  return user.id
 }
 
 function exchangeRequest(token: string, host = 'localhost:4444') {

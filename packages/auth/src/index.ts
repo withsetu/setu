@@ -79,7 +79,13 @@ export function createAuth(opts: CreateAuthOptions) {
     baseURL: opts.baseURL,
     basePath: '/api/auth',
     trustedOrigins: opts.trustedOrigins,
-    emailAndPassword: { enabled: true },
+    // Setu is invite-only: the owner is created via first-run setup (server-setup-plugin) or
+    // ensureLocalOwner, and every other user is created by an owner/admin through the admin
+    // plugin's createUser — all three go through internalAdapter.createUser directly, never this
+    // route. Public sign-up (`POST /api/auth/sign-up/email`) has no legitimate caller, and leaving
+    // it open lets an anonymous visitor sign up first and permanently pre-empt first-run owner
+    // setup (needsSetup flips to false the moment ANY user row exists, not just the owner's).
+    emailAndPassword: { enabled: true, disableSignUp: true },
     socialProviders: opts.socialProviders,
     // Server-side last-owner enforcement (#248 Task 8 review, Finding 1): every consumer of this
     // `auth` instance — our own routes, a future public API, or a raw HTTP call by any owner

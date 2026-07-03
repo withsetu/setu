@@ -88,6 +88,39 @@ describe('mode!=local wiring exposes POST /api/auth/setup (server.ts composition
     expect(res.status).toBe(401)
     expect(countUsers(authDb)).toBe(0)
   })
+
+  // #248 BLOCKER regression: the empirically-confirmed brick scenario — an anonymous public
+  // sign-up on a fresh (needsSetup=true) instance used to succeed, flip countUsers to 1, and
+  // permanently 403 the operator's own valid setup token ("setup already completed"). Pins the
+  // fix (emailAndPassword.disableSignUp in packages/auth/src/index.ts) closed at the same
+  // composition server.ts uses: fresh instance -> public sign-up rejected -> countUsers still 0
+  // (needsSetup-equivalent still true) -> the SAME valid setup token still succeeds afterwards.
+  it('public sign-up is rejected on a fresh instance, and the operator\'s valid setup token still works afterwards (brick scenario closed)', async () => {
+    const { app, setupToken, authDb } = build()
+
+    const hijackAttempt = await app.fetch(
+      new Request('http://test/api/auth/sign-up/email', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin: TRUSTED_ORIGIN },
+        body: JSON.stringify({ email: 'attacker@evil.example', password: 'a-strong-password-12', name: 'Attacker' }),
+      }),
+    )
+
+    expect(hijackAttempt.status).not.toBe(200)
+    expect(countUsers(authDb)).toBe(0) // needsSetup-equivalent is still true: no anonymous user was created
+
+    const setupRes = await app.fetch(
+      new Request('http://test/api/auth/setup', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin: TRUSTED_ORIGIN },
+        body: JSON.stringify({ email: 'owner@example.com', password: 'a-strong-password-12', name: 'Owner', token: setupToken }),
+      }),
+    )
+
+    expect(setupRes.status).toBe(200)
+    expect(setupRes.headers.get('set-cookie')).toMatch(/better-auth/)
+    expect(countUsers(authDb)).toBe(1)
+  })
 })
 
 describe('mode=local never mints a setup token — POST /api/auth/setup 404s there (loopback handshake covers first-run instead)', () => {

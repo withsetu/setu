@@ -11,6 +11,9 @@ dist/
 .claude/worktrees/
 .superpowers/
 
+# Claude Code local session/config state (never shared across machines)
+.claude/
+
 # Dev/UAT content sandboxes (gitignored throwaway git repos seeded from content/)
 .content-sandbox/
 

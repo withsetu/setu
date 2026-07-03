@@ -84,9 +84,16 @@ export default tseslint.config(
           // NOT apps/site/vitest.config.ts: site's tsconfig includes `**/*`, so its
           // config file IS in a real project already (projectService errors if a file
           // matches both).
+          // apps/admin/vitest.browser.config.ts + vitest.workspace.ts (#293): same
+          // "tool config outside the package's own tsconfig include" shape as the
+          // vitest.config.ts convention above — apps/admin/tsconfig.json's `include`
+          // is `["src", "test", "test-browser"]`, deliberately not the repo root, so
+          // these two files need the same single-file-program treatment.
           allowDefaultProject: [
             'packages/*/vitest.config.ts',
-            'apps/admin/vite.config.ts'
+            'apps/admin/vite.config.ts',
+            'apps/admin/vitest.browser.config.ts',
+            'apps/admin/vitest.workspace.ts'
           ],
           // 17 packages follow this convention identically (verified by grep — every
           // vitest.config.ts in the repo is a root-level tool config outside its
@@ -130,7 +137,11 @@ export default tseslint.config(
 
   // ---- react-hooks + jsx-a11y, admin ONLY (per #267 scope) ----
   {
-    files: ['apps/admin/src/**/*.{ts,tsx}', 'apps/admin/test/**/*.{ts,tsx}'],
+    files: [
+      'apps/admin/src/**/*.{ts,tsx}',
+      'apps/admin/test/**/*.{ts,tsx}',
+      'apps/admin/test-browser/**/*.{ts,tsx}'
+    ],
     plugins: {
       'react-hooks': reactHooks,
       'jsx-a11y': jsxA11y.flatConfigs.recommended.plugins['jsx-a11y']
@@ -173,12 +184,18 @@ export default tseslint.config(
     files: [
       '**/*.test.{ts,tsx}',
       '**/test/**/*.{ts,tsx}',
+      // apps/admin/test-browser/** (#293): same test idiom (mocks, vi.fn(), DOM
+      // probing) as apps/admin/test/**, just running in real chromium instead of
+      // jsdom — not covered by the `test/**` glob above (different directory name).
+      'apps/admin/test-browser/**/*.{ts,tsx}',
       'packages/*-testing/src/**/*.ts',
       // Tool configs linted via allowDefaultProject get a single-file program that
       // can't always resolve plugin package types (e.g. @tailwindcss/vite in admin's
       // vite.config.ts resolves to an error type there) — same relaxation applies.
       'packages/*/vitest.config.ts',
-      'apps/*/vite.config.ts'
+      'apps/*/vite.config.ts',
+      'apps/admin/vitest.browser.config.ts',
+      'apps/admin/vitest.workspace.ts'
     ],
     rules: {
       '@typescript-eslint/no-unsafe-assignment': 'off',

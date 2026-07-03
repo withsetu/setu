@@ -28,7 +28,7 @@ export function validatePermalinkPattern(pattern: string): string[] {
   if (pattern.includes('//'))
     issues.push('pattern must not contain empty segments ("//")')
   let hasSlug = false
-  for (const seg of pattern.replace(/^\/+|\/+$/g, '').split('/')) {
+  for (const seg of pattern.split('/')) {
     if (seg === '') continue // already reported via the checks above
     if (seg === '.' || seg === '..') {
       issues.push(`illegal segment "${seg}"`)

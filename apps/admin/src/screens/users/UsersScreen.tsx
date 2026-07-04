@@ -441,7 +441,7 @@ function UserRowActions({
   )
 }
 
-/** `refreshSignal`: bumped by `UsersSettings` whenever `OwnerPasswordCard` changes the CURRENT
+/** `refreshSignal`: bumped by `UsersScreen` whenever `OwnerPasswordCard` changes the CURRENT
  *  user's own credential state — without this, a user's own row would keep showing a stale "No
  *  password" badge after they set a password via that card, since the two are otherwise
  *  independent components with no shared data. Any value change (not the value itself) re-triggers
@@ -714,7 +714,7 @@ export function UsersScreen() {
     <>
       <PageHeader title="Users & Roles" subtitle="Who can sign in and what they can do." />
       <PageBody>
-        <div className="max-w-3xl space-y-5">
+        <div className="space-y-5">
           <UserList refreshSignal={refreshSignal} />
           <OwnerPasswordCard onChanged={() => setRefreshSignal((n) => n + 1)} />
         </div>

@@ -7,7 +7,7 @@ export const SITE_CAPABILITIES: SiteCapabilities = {
   title: true, metaDescription: true,
   canonical: true, favicon: false, openGraph: true, twitterCard: true, themeColor: false,
   rssAutodiscovery: false,
-  sitemap: true, robotsTxt: true, jsonLd: true,
+  sitemap: true, sitemapIndex: true, imageSitemaps: true, robotsTxt: true, jsonLd: true,
   llmsTxt: false, perPageMarkdown: false,
   hreflang: false, customError: false, skipLink: false, focusStyles: false,
 }

@@ -20,7 +20,7 @@ export interface SiteCapabilities {
   doctype: boolean; langAttr: boolean; charset: boolean; viewport: boolean
   title: boolean; metaDescription: boolean; canonical: boolean; favicon: boolean
   openGraph: boolean; twitterCard: boolean; themeColor: boolean; rssAutodiscovery: boolean
-  sitemap: boolean; robotsTxt: boolean; jsonLd: boolean
+  sitemap: boolean; sitemapIndex: boolean; imageSitemaps: boolean; robotsTxt: boolean; jsonLd: boolean
   llmsTxt: boolean; perPageMarkdown: boolean
   hreflang: boolean; customError: boolean; skipLink: boolean; focusStyles: boolean
 }

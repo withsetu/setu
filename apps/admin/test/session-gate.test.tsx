@@ -125,14 +125,14 @@ describe('SessionGate', () => {
     // Resolve the exchange, then flip useSession to reflect the new session (mimics a refetch).
     resolveExchange(new Response(JSON.stringify({ status: true }), { status: 200 }))
     mockUseSession.mockReturnValue({
-      data: { user: { id: 'u3', role: 'owner' } },
+      data: { user: { id: 'u3', role: 'admin' } },
       isPending: false,
       isRefetching: false,
       error: null,
       refetch: vi.fn(),
     } as never)
 
-    await waitFor(() => expect(screen.getByTestId('actor')).toHaveTextContent('u3:owner'))
+    await waitFor(() => expect(screen.getByTestId('actor')).toHaveTextContent('u3:admin'))
   })
 
   it('no session + auth disabled: renders the honest not-configured state, not a login form', async () => {
@@ -152,7 +152,7 @@ describe('SessionGate', () => {
 
     render(<SessionGate><div>App</div></SessionGate>)
 
-    expect(await screen.findByRole('button', { name: /create owner account/i })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /create admin account/i })).toBeInTheDocument()
   })
 
   it('no session, auth enabled, no setup needed: renders LoginScreen', async () => {

@@ -2,7 +2,7 @@ import type { Actor, Role } from '@setu/core'
 import type { AuthInstance } from '@setu/auth'
 import type { ResolveActor } from './resolve-actor'
 
-const ROLES: readonly string[] = ['owner', 'publisher', 'editor', 'author', 'viewer']
+const ROLES: readonly string[] = ['admin', 'maintainer', 'editor', 'author', 'viewer']
 
 // better-auth's `admin` plugin adds `role`/`banned` to the user record at runtime (and in the
 // actual DB schema — see packages/db-sqlite/src/schema.ts), but `AuthInstance`'s inferred

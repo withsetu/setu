@@ -16,7 +16,7 @@ function freshApp() {
   const storage = createLocalStorage({ dir, baseUrl: 'http://localhost:4444/media' })
   const app = createUploadApi({
     storage,
-    resolveActor: () => ({ id: 'local', role: 'owner' }),
+    resolveActor: () => ({ id: 'local', role: 'admin' }),
     image: createSharpImageAdapter(),
     mediaSettings: { imageFormat: 'webp', imageLqip: false },
   })

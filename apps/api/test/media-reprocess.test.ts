@@ -11,7 +11,7 @@ import { createSqliteReprocessJobStore } from '@setu/db-sqlite'
 import { createUploadApi } from '../src/media'
 import { runReprocessJob } from '../src/reprocess-runner'
 
-const owner: Actor = { id: 'local', role: 'owner' }
+const owner: Actor = { id: 'local', role: 'admin' }
 const viewer: Actor = { id: 'v', role: 'viewer' }
 
 const dirs: string[] = []

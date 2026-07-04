@@ -17,7 +17,7 @@ export interface UsersApiOptions {
   resolveActor: ResolveActor
 }
 
-/** Owner-gated read of "which users have a credential (password) account" — the third row status
+/** `users.view`-gated read of "which users have a credential (password) account" — the third row status
  *  the Users & Roles screen needs (#248 Task 8 review, Finding 2) that better-auth's admin
  *  `listUsers` doesn't expose (it returns user rows, not their linked accounts).
  *
@@ -28,14 +28,14 @@ export interface UsersApiOptions {
  *  is the multi-user generalization of that same question).
  *
  *  Fail-closed, same shape as media.ts's authMiddleware + authz.can gate: no session -> 401
- *  (authMiddleware); session without `users.manage` -> 403; any query failure -> a generic 500
+ *  (authMiddleware); session without `users.view` -> 403; any query failure -> a generic 500
  *  with no leaked detail (mirrors createUploadApi's/createGitApi's own `app.onError`). */
 export function createUsersApi(opts: UsersApiOptions) {
   const { db } = opts
   const app = new Hono<{ Variables: { actor: Actor } }>()
 
   app.get('/api/users/credential-status', authMiddleware(opts.resolveActor), async (c) => {
-    if (!authz.can(c.get('actor'), 'users.manage')) return c.json({ error: 'forbidden' }, 403)
+    if (!authz.can(c.get('actor'), 'users.view')) return c.json({ error: 'forbidden' }, 403)
 
     const rows = await db
       .select({ userId: account.userId })

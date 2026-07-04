@@ -25,7 +25,7 @@ function memStorage(): StoragePort & { map: Map<string, StoredObject> } {
   }
 }
 
-const owner: Actor = { id: 'local', role: 'owner' }
+const owner: Actor = { id: 'local', role: 'admin' }
 const viewer: Actor = { id: 'v', role: 'viewer' }
 
 function makeApp(resolve: () => Actor | null, opts?: { maxBytes?: number; storage?: ReturnType<typeof memStorage> }) {
@@ -177,7 +177,7 @@ describe('POST /media — media settings (both formats + lqip)', () => {
     const storage = createLocalStorage({ dir, baseUrl: 'http://localhost:4444/media' })
     const app = createUploadApi({
       storage,
-      resolveActor: () => ({ id: 'local', role: 'owner' } as Actor),
+      resolveActor: () => ({ id: 'local', role: 'admin' } as Actor),
       image: createSharpImageAdapter(),
       mediaSettings: { imageFormat: 'both', imageLqip: true },
     })

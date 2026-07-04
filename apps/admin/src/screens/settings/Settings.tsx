@@ -55,7 +55,7 @@ const COMING_SOON = ['Deploy']
 export function Settings() {
   const [active, setActive] = useState<GroupId>('general')
   // #248: Users & Roles moved out of Settings to a top-level screen (/users, gated on
-  // `users.manage`) — see AppSidebar/app.tsx/UsersScreen. Settings no longer has a users group.
+  // `users.view`) — see AppSidebar/app.tsx/UsersScreen. Settings no longer has a users group.
   const groups = BASE_GROUPS
 
   return (

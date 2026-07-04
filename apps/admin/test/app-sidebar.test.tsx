@@ -24,7 +24,7 @@ describe('AppSidebar', () => {
     expect(screen.getByRole('link', { name: /Posts/ })).toHaveAttribute('href', '/posts')
     expect(screen.getByRole('link', { name: /Appearance/ })).toHaveAttribute('href', '/appearance')
   })
-  it('renders the Users nav item (owner has users.manage by default) linking to /users', () => {
+  it('renders the Users nav item (admin has users.view by default) linking to /users', () => {
     wrap()
     expect(screen.getByRole('link', { name: /^Users$/ })).toHaveAttribute('href', '/users')
   })

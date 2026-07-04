@@ -8,7 +8,7 @@ import { createHttpSubmissionAdapter } from '../src/index'
 runSubmissionPortContract(() => {
   const submissions = createMemorySubmissionPort()
   const submit = createSubmissionService({ submissions, captcha: { verify: async () => true } })
-  const app = createFormsApi({ submit, submissions })
+  const app = createFormsApi({ submit, submissions, resolveActor: () => ({ id: 'local', role: 'admin' }) })
   const fetchImpl = ((input: Request | string | URL, init?: RequestInit) =>
     app.fetch(new Request(typeof input === 'string' || input instanceof URL ? new URL(input, 'http://x').toString() : input, init))) as typeof fetch
   return createHttpSubmissionAdapter({ baseUrl: 'http://x', fetchImpl })

@@ -26,7 +26,7 @@ function makeAuth() {
 
 async function makeOwner(auth: ReturnType<typeof createAuth>, email: string, password: string) {
   const ctx = await auth.$context
-  const user = await ctx.internalAdapter.createUser({ email, name: 'Owner', role: 'owner', emailVerified: true })
+  const user = await ctx.internalAdapter.createUser({ email, name: 'Owner', role: 'admin', emailVerified: true })
   const hashed = await ctx.password.hash(password)
   await ctx.internalAdapter.linkAccount({ userId: user.id, providerId: 'credential', accountId: user.id, password: hashed })
   return user
@@ -224,7 +224,7 @@ describe('auth event emission — onAuthEvent', () => {
     const owner = await makeOwner(auth, 'owner@test.com', 'a-super-secret-password-99')
     const signin = await auth.api.signInEmail({ body: { email: 'owner@test.com', password: 'a-super-secret-password-99' }, asResponse: true })
     const cookie = (signin.headers.get('set-cookie') ?? '').split(';')[0] ?? ''
-    await auth.handler(adminRequest('/admin/set-role', cookie, { userId: owner.id, role: 'owner' }))
+    await auth.handler(adminRequest('/admin/set-role', cookie, { userId: owner.id, role: 'admin' }))
 
     const serialized = JSON.stringify(events)
     expect(serialized).not.toContain('a-super-secret-password-99')

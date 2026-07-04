@@ -87,7 +87,7 @@ export function serverSetup(opts: ServerSetupOptions): BetterAuthPlugin {
             email: ctx.body.email,
             name: ctx.body.name,
             emailVerified: false,
-            role: 'owner',
+            role: 'admin',
           })
           const hashedPassword = await ctx.context.password.hash(ctx.body.password)
           await ctx.context.internalAdapter.linkAccount({

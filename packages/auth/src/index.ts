@@ -23,15 +23,17 @@ export { ensureLocalOwner, type LocalOwnerIdentity } from './ensure-local-owner'
 export type { AuthEvent, AuthEventType } from './events'
 
 // better-auth's admin plugin validates `adminRoles` against the keys of a
-// `roles` access-control map (defaulting to its own `{ admin, user }` map).
-// Setu's role set (owner|publisher|editor|author|viewer) doesn't overlap with
-// that default, so `adminRoles: ['owner']` throws unless we supply an
-// explicit `roles` map naming all five Setu roles. Only 'owner' is granted
-// admin-plugin permissions (user/session management); the rest are
-// placeholders with no admin-plugin statements — Setu's own authorization
-// (outside better-auth) governs what publisher/editor/author/viewer can do.
+// `roles` access-control map (defaulting to its own `{ admin, user }` map). We
+// supply an explicit `roles` map naming all five Setu roles (admin|maintainer|
+// editor|author|viewer), which REPLACES that default entirely — so even though
+// Setu's top role is now also literally `admin`, it's our `admin` definition
+// below (not better-auth's built-in one) that governs the admin plugin's
+// user/session statements. Only 'admin' is granted admin-plugin permissions
+// (user/session management); the rest are placeholders with no admin-plugin
+// statements — Setu's own authorization (outside better-auth) governs what
+// maintainer/editor/author/viewer can do.
 const setuAdminRoles = {
-  owner: defaultAc.newRole({
+  admin: defaultAc.newRole({
     user: [
       'create',
       'list',
@@ -46,7 +48,7 @@ const setuAdminRoles = {
     ],
     session: ['list', 'revoke', 'delete'],
   }),
-  publisher: defaultAc.newRole({ user: [], session: [] }),
+  maintainer: defaultAc.newRole({ user: [], session: [] }),
   editor: defaultAc.newRole({ user: [], session: [] }),
   author: defaultAc.newRole({ user: [], session: [] }),
   viewer: defaultAc.newRole({ user: [], session: [] }),
@@ -61,7 +63,7 @@ export function createAuth(opts: CreateAuthOptions) {
   const emit = opts.onAuthEvent ?? (() => {})
 
   const plugins: BetterAuthPlugin[] = [
-    admin({ adminRoles: ['owner'], defaultRole: 'viewer', roles: setuAdminRoles }),
+    admin({ adminRoles: ['admin'], defaultRole: 'viewer', roles: setuAdminRoles }),
   ]
   if (opts.captcha) {
     plugins.push(captcha({ provider: opts.captcha.provider, secretKey: opts.captcha.secretKey }))

@@ -50,7 +50,7 @@ export async function ensureLocalOwner(auth: AuthInstance, identity: LocalOwnerI
     email: identity.email,
     name: identity.name,
     emailVerified: false,
-    role: 'owner',
+    role: 'admin',
   })
   return user.id
 }

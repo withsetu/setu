@@ -52,7 +52,7 @@ const OWNER = {
   emailVerified: true,
   createdAt: now,
   updatedAt: now,
-  role: 'owner',
+  role: 'admin',
   banned: false,
 }
 const EDITOR = {
@@ -76,7 +76,7 @@ const VIEWER = {
   banned: true,
 }
 
-function renderAsActor(role: 'owner' | 'editor' | 'viewer', id = 'owner-1') {
+function renderAsActor(role: 'admin' | 'editor' | 'viewer', id = 'owner-1') {
   const wrapper = ({ children }: { children: ReactNode }) => (
     <NotificationProvider>
       <ActorProvider actor={{ id, role }}>{children}</ActorProvider>
@@ -117,7 +117,7 @@ describe('UsersScreen', () => {
     mockListUsers.mockResolvedValue({ data: { users: [OWNER, EDITOR, VIEWER], total: 3 }, error: null } as never)
     mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)
 
-    renderAsActor('owner')
+    renderAsActor('admin')
 
     expect(await screen.findByText('Ada Owner')).toBeInTheDocument()
     expect(screen.getByText('Eve Editor')).toBeInTheDocument()
@@ -131,7 +131,7 @@ describe('UsersScreen', () => {
     mockListUsers.mockReturnValue(new Promise(() => {}) as never)
     mockListAccounts.mockReturnValue(new Promise(() => {}) as never)
 
-    renderAsActor('owner')
+    renderAsActor('admin')
 
     expect(screen.queryByText('Ada Owner')).not.toBeInTheDocument()
   })
@@ -143,7 +143,7 @@ describe('UsersScreen', () => {
     mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)
     mockCreateUser.mockResolvedValue({ data: { user: EDITOR }, error: null } as never)
 
-    renderAsActor('owner')
+    renderAsActor('admin')
     await screen.findByText('Ada Owner')
 
     fireEvent.click(screen.getByRole('button', { name: /add user/i }))
@@ -180,7 +180,7 @@ describe('UsersScreen', () => {
     mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)
     mockSetRole.mockResolvedValue({ data: { user: { ...EDITOR, role: 'viewer' } }, error: null } as never)
 
-    renderAsActor('owner')
+    renderAsActor('admin')
     await screen.findByText('Eve Editor')
 
     const editorRoleSelect = screen.getByRole('combobox', { name: /change role for eve editor/i })
@@ -194,19 +194,19 @@ describe('UsersScreen', () => {
     mockListUsers.mockResolvedValue({ data: { users: [OWNER, EDITOR], total: 2 }, error: null } as never)
     mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)
 
-    renderAsActor('owner', 'owner-1')
+    renderAsActor('admin', 'owner-1')
     await screen.findByText('Ada Owner')
 
     const ownRoleSelect = screen.getByRole('combobox', { name: /change role for ada owner/i })
     expect(ownRoleSelect).toBeDisabled()
   })
 
-  it('disables role-change and disable actions for the last owner', async () => {
+  it('disables role-change and disable actions for the last admin', async () => {
     mockListUsers.mockResolvedValue({ data: { users: [OWNER, EDITOR], total: 2 }, error: null } as never)
     mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)
 
-    // Render as the editor so the owner row is "someone else's row" — but the last-owner guard
-    // should still apply regardless of who's looking, since demoting/disabling the sole owner
+    // Render as the editor so the admin row is "someone else's row" — but the last-admin guard
+    // should still apply regardless of who's looking, since demoting/disabling the sole admin
     // would lock everyone out.
     renderAsActor('editor', 'editor-1')
     await screen.findByText('Ada Owner')
@@ -222,7 +222,7 @@ describe('UsersScreen', () => {
     mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)
     mockBanUser.mockResolvedValue({ data: { user: { ...EDITOR, banned: true } }, error: null } as never)
 
-    renderAsActor('owner')
+    renderAsActor('admin')
     await screen.findByText('Eve Editor')
 
     // Radix DropdownMenu opens on Enter keydown (avoids PointerEvent jsdom issues — matches the
@@ -241,7 +241,7 @@ describe('UsersScreen', () => {
     mockListUsers.mockResolvedValue({ data: { users: [OWNER, EDITOR], total: 2 }, error: null } as never)
     mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)
 
-    renderAsActor('owner', 'owner-1')
+    renderAsActor('admin', 'owner-1')
     await screen.findByText('Ada Owner')
 
     fireEvent.keyDown(screen.getByRole('button', { name: /more actions for ada owner/i }), { key: 'Enter' })
@@ -254,7 +254,7 @@ describe('UsersScreen', () => {
       mockListUsers.mockResolvedValue({ data: { users: [OWNER], total: 1 }, error: null } as never)
       mockListAccounts.mockResolvedValue({ data: [], error: null } as never)
 
-      renderAsActor('owner')
+      renderAsActor('admin')
 
       expect(await screen.findByRole('button', { name: /^set password$/i })).toBeInTheDocument()
       expect(screen.queryByLabelText(/current password/i)).not.toBeInTheDocument()
@@ -264,7 +264,7 @@ describe('UsersScreen', () => {
       mockListUsers.mockResolvedValue({ data: { users: [OWNER], total: 1 }, error: null } as never)
       mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)
 
-      renderAsActor('owner')
+      renderAsActor('admin')
 
       expect(await screen.findByRole('button', { name: /^change password$/i })).toBeInTheDocument()
       expect(screen.getByLabelText(/current password/i)).toBeInTheDocument()
@@ -274,7 +274,7 @@ describe('UsersScreen', () => {
       mockListUsers.mockResolvedValue({ data: { users: [OWNER], total: 1 }, error: null } as never)
       mockListAccounts.mockResolvedValue({ data: [], error: null } as never)
 
-      renderAsActor('owner')
+      renderAsActor('admin')
       const submit = await screen.findByRole('button', { name: /^set password$/i })
 
       fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: 'short' } })
@@ -290,7 +290,7 @@ describe('UsersScreen', () => {
       mockListAccounts.mockResolvedValue({ data: [], error: null } as never)
       mockSetUserPassword.mockResolvedValue({ data: { status: true }, error: null } as never)
 
-      renderAsActor('owner', 'owner-1')
+      renderAsActor('admin', 'owner-1')
       await screen.findByRole('button', { name: /^set password$/i })
 
       fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: 'a-very-long-password' } })
@@ -308,7 +308,7 @@ describe('UsersScreen', () => {
       mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)
       mockChangePassword.mockResolvedValue({ data: { token: null }, error: null } as never)
 
-      renderAsActor('owner')
+      renderAsActor('admin')
       await screen.findByRole('button', { name: /^change password$/i })
 
       fireEvent.change(screen.getByLabelText(/current password/i), { target: { value: 'old-password-123' } })
@@ -332,7 +332,7 @@ describe('UsersScreen', () => {
       // Only the owner has a credential account; editor is absent from the map -> passwordless.
       stubCredentialStatus({ 'owner-1': true })
 
-      renderAsActor('owner')
+      renderAsActor('admin')
       await screen.findByText('Eve Editor')
 
       const editorRow = screen.getByText('Eve Editor').closest('tr')
@@ -349,7 +349,7 @@ describe('UsersScreen', () => {
       mockListAccounts.mockResolvedValue({ data: [], error: null } as never)
       stubCredentialStatus({}) // owner-1 absent -> passwordless
 
-      renderAsActor('owner', 'owner-1')
+      renderAsActor('admin', 'owner-1')
       await screen.findByText('Ada Owner')
 
       const ownerRow = screen.getByText('Ada Owner').closest('tr')
@@ -361,7 +361,7 @@ describe('UsersScreen', () => {
       mockListAccounts.mockResolvedValue({ data: [], error: null } as never)
       stubCredentialStatus({})
 
-      renderAsActor('owner', 'owner-1')
+      renderAsActor('admin', 'owner-1')
       const ownerRow = await screen.findByText('Ada Owner').then((el) => el.closest('tr') as HTMLElement)
       expect(within(ownerRow).getByText(/no password/i)).toBeInTheDocument()
 
@@ -391,7 +391,7 @@ describe('UsersScreen', () => {
       mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)
       mockCreateUser.mockResolvedValue({ data: { user: EDITOR }, error: null } as never)
 
-      renderAsActor('owner')
+      renderAsActor('admin')
       await screen.findByText('Ada Owner')
 
       fireEvent.click(screen.getByRole('button', { name: /add user/i }))

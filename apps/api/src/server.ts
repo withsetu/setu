@@ -241,7 +241,7 @@ if (auth) {
   mountAuthWithFailureEvents(app, auth, logAuthEvent)
 }
 
-app.route('/', createGitApi(createLocalGitAdapter({ dir })))
+app.route('/', createGitApi(createLocalGitAdapter({ dir }), resolveActor))
 app.route('/', createPreviewApi())
 app.route('/', createUploadApi({
   storage: localStorage,
@@ -252,7 +252,7 @@ app.route('/', createUploadApi({
   mediaSettings: () => loadSiteSettings().media,
   reprocess: { store: reprocessStore, run: runReprocess },
 }))
-app.route('/', createFormsApi({ submit, submissions, captchaStatus }))
+app.route('/', createFormsApi({ submit, submissions, captchaStatus, resolveActor }))
 // #248 Task 8 review, Finding 2: the SAME drizzle handle better-auth's own createAuth uses for
 // its tables (authDb, above) — not a separate connection — so credential-status always reflects
 // live account state. `resolveActor` here already fails closed to null when auth is unconfigured

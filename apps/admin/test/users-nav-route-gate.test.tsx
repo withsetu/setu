@@ -15,7 +15,7 @@ import { UsersScreen } from '../src/screens/users/UsersScreen'
 // (/users). This replaces the old settings-shell-users-gate.test.tsx, which asserted the
 // (now-removed) Users group inside the Settings tabs. It now covers the two gate points that
 // matter for a top-level destination: the sidebar nav item (AppSidebar) and the route itself
-// (app.tsx's UsersRoute re-check) — mirroring the same "actor without users.manage never sees it
+// (app.tsx's UsersRoute re-check) — mirroring the same "actor without users.view never sees it
 // at all" contract the old Settings-embedded gate had.
 
 vi.mock('../src/deploy/deploy', () => ({
@@ -51,7 +51,7 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-function renderSidebar(role: 'owner' | 'editor' | 'viewer') {
+function renderSidebar(role: 'admin' | 'editor' | 'viewer') {
   return render(
     <MemoryRouter initialEntries={['/dashboard']}>
       <ActorProvider actor={{ id: 'u1', role }}>
@@ -62,17 +62,17 @@ function renderSidebar(role: 'owner' | 'editor' | 'viewer') {
 }
 
 describe('AppSidebar — Users nav item gating', () => {
-  it('shows "Users" for an owner (has users.manage)', () => {
-    renderSidebar('owner')
+  it('shows "Users" for an admin (has users.view)', () => {
+    renderSidebar('admin')
     expect(screen.getByRole('link', { name: /^Users$/ })).toHaveAttribute('href', '/users')
   })
 
-  it('hides "Users" for an editor (no users.manage)', () => {
+  it('hides "Users" for an editor (no users.view)', () => {
     renderSidebar('editor')
     expect(screen.queryByRole('link', { name: /^Users$/ })).not.toBeInTheDocument()
   })
 
-  it('hides "Users" for a viewer (no users.manage)', () => {
+  it('hides "Users" for a viewer (no users.view)', () => {
     renderSidebar('viewer')
     expect(screen.queryByRole('link', { name: /^Users$/ })).not.toBeInTheDocument()
   })
@@ -82,11 +82,11 @@ describe('AppSidebar — Users nav item gating', () => {
  *  render-time re-check without needing to mount the whole App/AppShell tree. */
 function UsersRoute() {
   const can = useCan()
-  if (!can('users.manage')) return <Navigate to="/dashboard" replace />
+  if (!can('users.view')) return <Navigate to="/dashboard" replace />
   return <UsersScreen />
 }
 
-function renderUsersRoute(role: 'owner' | 'editor' | 'viewer') {
+function renderUsersRoute(role: 'admin' | 'editor' | 'viewer') {
   const services = servicesFor(createMemoryDataPort([]), createMemoryGitPort([]))
   const wrapper = ({ children }: { children: ReactNode }) => (
     <NotificationProvider>
@@ -107,8 +107,8 @@ function renderUsersRoute(role: 'owner' | 'editor' | 'viewer') {
 }
 
 describe('/users route — defense-in-depth gate', () => {
-  it('renders the Users screen for an owner', async () => {
-    renderUsersRoute('owner')
+  it('renders the Users screen for an admin', async () => {
+    renderUsersRoute('admin')
     expect(await screen.findByRole('heading', { name: /users & roles/i })).toBeInTheDocument()
   })
 

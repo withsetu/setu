@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import type { ContentRow, Lock } from '@setu/core'
 import { useServices } from '../data/store'
+import { useCan } from '../auth/actor'
 import { useDeploy } from '../deploy/deploy'
 import { siteUrl } from '../shell/site-url'
 import { PageHeader } from '../shell/PageHeader'
@@ -19,6 +20,10 @@ import { GettingStarted } from '../dashboard/widgets/GettingStarted'
 import { SiteHealthCard } from './dashboard/SiteHealthCard'
 
 function HeaderActions() {
+  // #362: creating content requires content.create — a read-only Viewer gets no "New" buttons
+  // (the server also rejects the resulting git write). Nothing to show without it.
+  const can = useCan()
+  if (!can('content.create')) return null
   return (
     <div className="flex items-center gap-2">
       <Button asChild><Link to="/edit/post/en/new"><Plus className="size-4" />New post</Link></Button>
@@ -29,6 +34,7 @@ function HeaderActions() {
 
 export function Dashboard() {
   const { data, git } = useServices()
+  const can = useCan()
   const { deployedAt, sha: deploySha } = useDeploy()
   const [rows, setRows] = useState<ContentRow[] | null>(null)
   const [locks, setLocks] = useState<Lock[]>([])
@@ -67,8 +73,10 @@ export function Dashboard() {
             <div className="grid items-start gap-5 lg:grid-cols-2">
               <div className="space-y-5">
                 <StatTiles posts={counts.posts} pages={counts.pages} published={counts.published} drafts={counts.drafts} />
-                <SiteDeployCard url={url} deployedSha={deploySha} />
-                <SiteHealthCard />
+                {/* #362: deploy + site-health are Maintainer+/Admin concerns (site.deploy /
+                    sitehealth.view) — hide the cards for content roles rather than leak ops data. */}
+                {can('site.deploy') && <SiteDeployCard url={url} deployedSha={deploySha} />}
+                {can('sitehealth.view') && <SiteHealthCard />}
                 <WhosEditing locks={locks} />
               </div>
               <ResumeEditing rows={recentEntries(rows ?? [], 5)} />

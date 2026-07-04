@@ -75,7 +75,7 @@ export function createUploadApi(opts: UploadApiOptions) {
   const app = new Hono<{ Variables: { actor: Actor } }>()
 
   app.post('/media', authMiddleware(opts.resolveActor), async (c) => {
-    if (!authz.can(c.get('actor'), 'content.create')) return c.json({ error: 'forbidden' }, 403)
+    if (!authz.can(c.get('actor'), 'media.upload')) return c.json({ error: 'forbidden' }, 403)
 
     const form = await c.req.formData()
     const file = form.get('file')
@@ -146,7 +146,7 @@ export function createUploadApi(opts: UploadApiOptions) {
   })
 
   app.post('/api/media/reprocess', authMiddleware(opts.resolveActor), async (c) => {
-    if (!authz.can(c.get('actor'), 'content.create')) return c.json({ error: 'forbidden' }, 403)
+    if (!authz.can(c.get('actor'), 'media.edit')) return c.json({ error: 'forbidden' }, 403)
     if (!opts.image || !opts.reprocess) return c.json({ error: 'reprocess unavailable in this mode' }, 409)
     const running = opts.reprocess.store.active()
     if (running) return c.json({ jobId: running.id, status: running.status, total: running.total, processed: running.processed }, 202)
@@ -177,7 +177,7 @@ export function createUploadApi(opts: UploadApiOptions) {
   })
 
   app.delete('/media/*', authMiddleware(opts.resolveActor), async (c) => {
-    if (!authz.can(c.get('actor'), 'content.create')) return c.json({ error: 'forbidden' }, 403)
+    if (!authz.can(c.get('actor'), 'media.delete')) return c.json({ error: 'forbidden' }, 403)
     const mediaKey = decodeURIComponent(c.req.path.slice('/media/'.length))
     if (mediaKey.split('/').some((seg) => seg === '..' || seg === '')) return c.json({ error: 'not found' }, 404)
 

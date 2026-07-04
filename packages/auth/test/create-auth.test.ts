@@ -21,7 +21,7 @@ function makeAuth() {
 // user is created server-side via internalAdapter.createUser (first-run setup, ensureLocalOwner,
 // or the admin plugin's createUser), never through the public sign-up route. Tests that merely
 // need *a user to exist* create one this way, mirroring auth-events.test.ts's makeOwner helper.
-async function createUser(auth: ReturnType<typeof createAuth>, email: string, password: string, role: 'viewer' | 'owner' = 'viewer') {
+async function createUser(auth: ReturnType<typeof createAuth>, email: string, password: string, role: 'viewer' | 'admin' = 'viewer') {
   const ctx = await auth.$context
   const user = await ctx.internalAdapter.createUser({ email, name: 'A', role, emailVerified: true })
   const hashed = await ctx.password.hash(password)

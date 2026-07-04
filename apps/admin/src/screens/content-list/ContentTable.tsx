@@ -27,13 +27,16 @@ function SortHead({ label, k, sort, onSort }: {
 
 export function ContentTable({
   rows, gen, visible, showLocale, categoryName,
-  selected, allSelected, onToggleRow, onToggleAll, sort, onSort,
+  selected, allSelected, onToggleRow, onToggleAll, sort, onSort, selectable = true,
 }: {
   rows: ContentRow[]; gen: number
   visible: Record<ColumnKey, boolean>; showLocale: boolean; categoryName: (slug: string) => string
   selected: Set<string>; allSelected: boolean
   onToggleRow: (k: string) => void; onToggleAll: () => void
   sort: { key: SortKey; dir: 'asc' | 'desc' }; onSort: (k: SortKey) => void
+  // #362: a read-only role (Viewer — no content.edit) gets no selection column, so it has no path
+  // to the bulk actions. Defaults true; ContentList passes the actor's content.edit capability.
+  selectable?: boolean
 }) {
   const reduce = useReducedMotion()
   const localeCol = visible.locale && showLocale
@@ -41,7 +44,7 @@ export function ContentTable({
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead className="w-10 pl-6"><Checkbox aria-label="Select all on this page" checked={allSelected} onCheckedChange={onToggleAll} /></TableHead>
+          {selectable && <TableHead className="w-10 pl-6"><Checkbox aria-label="Select all on this page" checked={allSelected} onCheckedChange={onToggleAll} /></TableHead>}
           <TableHead><SortHead label="Title" k="title" sort={sort} onSort={onSort} /></TableHead>
           {visible.status && <TableHead className="w-32"><SortHead label="Status" k="status" sort={sort} onSort={onSort} /></TableHead>}
           {visible.tags && <TableHead className="w-44">Tags</TableHead>}
@@ -63,7 +66,7 @@ export function ContentTable({
               className={`border-b border-border/40 transition-colors ${i % 2 === 1 ? 'bg-muted/25' : ''} hover:bg-muted/50 data-[state=selected]:bg-primary/10`}
               data-state={selected.has(k) ? 'selected' : undefined}
             >
-              <TableCell className="pl-6"><Checkbox aria-label={`Select ${r.title}`} checked={selected.has(k)} onCheckedChange={() => onToggleRow(k)} /></TableCell>
+              {selectable && <TableCell className="pl-6"><Checkbox aria-label={`Select ${r.title}`} checked={selected.has(k)} onCheckedChange={() => onToggleRow(k)} /></TableCell>}
               <TableCell>
                 <div className="flex items-center gap-1.5">
                   <Link to={`/edit/${r.ref.collection}/${r.ref.locale}/${r.ref.slug}`} className="truncate text-[15px] font-medium text-foreground hover:underline">{r.title}</Link>

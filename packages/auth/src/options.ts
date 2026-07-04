@@ -1,8 +1,9 @@
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import type { AuthEvent } from './events'
 
-/** Setu's fixed role set. Default role for new users is 'viewer'. */
-export const SETU_ROLES = ['owner', 'publisher', 'editor', 'author', 'viewer'] as const
+/** Setu's fixed role set (epic #359: `owner`→`admin`, `publisher`→`maintainer`).
+ *  Default role for new users is 'viewer'. */
+export const SETU_ROLES = ['admin', 'maintainer', 'editor', 'author', 'viewer'] as const
 
 export type SetuRole = (typeof SETU_ROLES)[number]
 

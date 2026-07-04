@@ -12,7 +12,7 @@ function freshApp() {
   const dir = mkdtempSync(join(tmpdir(), 'media-'))
   dirs.push(dir)
   const storage = createLocalStorage({ dir, baseUrl: 'http://localhost:4444/media' })
-  return { app: createUploadApi({ storage, resolveActor: () => ({ id: 'local', role: 'owner' }) }), dir, storage }
+  return { app: createUploadApi({ storage, resolveActor: () => ({ id: 'local', role: 'admin' }) }), dir, storage }
 }
 
 describe('media upload e2e (real storage-local on disk)', () => {

@@ -46,7 +46,7 @@ const VALID_BODY = {
 }
 
 describe('serverSetup plugin — POST /api/auth/setup', () => {
-  it('valid token + zero users -> 200, creates an owner user with a real session cookie', async () => {
+  it('valid token + zero users -> 200, creates an admin user with a real session cookie', async () => {
     const { db, auth } = makeAuth()
 
     const res = await auth.handler(setupRequest(VALID_BODY))
@@ -63,7 +63,7 @@ describe('serverSetup plugin — POST /api/auth/setup', () => {
     const cookieHeader = (setCookie ?? '').split(';')[0] ?? ''
     const session = await auth.api.getSession({ headers: new Headers({ cookie: cookieHeader }) })
     expect(session?.user.email).toBe('owner@example.com')
-    expect((session?.user as { role?: string })?.role).toBe('owner')
+    expect((session?.user as { role?: string })?.role).toBe('admin')
 
     // The user can now sign in normally with the password they set.
     const signin = await auth.api.signInEmail({
@@ -116,7 +116,7 @@ describe('serverSetup plugin — POST /api/auth/setup', () => {
     expect(countUsers(db)).toBe(0)
   })
 
-  it('concurrent setup posts -> exactly one owner is created (in-process race guard)', async () => {
+  it('concurrent setup posts -> exactly one admin is created (in-process race guard)', async () => {
     const { db, auth } = makeAuth()
 
     const [a, b] = await Promise.all([

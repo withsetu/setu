@@ -69,7 +69,7 @@ function makeApp() {
   app.route('/', createUploadApi({ storage: memStorage(), resolveActor: resolveSessionActor(auth) }))
   const submissions = createMemorySubmissionPort()
   const submit = createSubmissionService({ submissions, captcha: { verify: async () => false } })
-  app.route('/', createFormsApi({ submit, submissions }))
+  app.route('/', createFormsApi({ submit, submissions, resolveActor: resolveSessionActor(auth) }))
 
   return { app, cleanup: () => { sqlite.close(); rmSync(dir, { recursive: true, force: true }) } }
 }

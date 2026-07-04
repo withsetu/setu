@@ -10,7 +10,7 @@ import { SetupScreen } from './SetupScreen'
 import { AuthNotConfigured } from './AuthNotConfigured'
 import { Skeleton } from '@/components/ui/skeleton'
 
-const ROLES: readonly string[] = ['owner', 'publisher', 'editor', 'author', 'viewer']
+const ROLES: readonly string[] = ['admin', 'maintainer', 'editor', 'author', 'viewer']
 const apiBase = (import.meta.env.VITE_SETU_API as string | undefined) ?? ''
 
 const HASH_TOKEN_RE = /^#setu-token=(.+)$/

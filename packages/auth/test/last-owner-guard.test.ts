@@ -80,30 +80,30 @@ function adminRequest(path: string, cookie: string, body: Record<string, unknown
 describe('server-side last-owner enforcement (databaseHooks.user.update.before)', () => {
   it('rejects demoting the last (sole) owner via admin setRole', async () => {
     const { db, auth } = makeAuth()
-    const owner = await makeUser(auth, { email: 'owner@test.com', name: 'Owner', role: 'owner', password: 'a-strong-password-12' })
+    const owner = await makeUser(auth, { email: 'owner@test.com', name: 'Owner', role: 'admin', password: 'a-strong-password-12' })
     const cookie = await signInCookie(auth, 'owner@test.com', 'a-strong-password-12')
 
     const res = await auth.handler(adminRequest('/admin/set-role', cookie, { userId: owner.id, role: 'viewer' }))
     expect(res.status).toBe(400)
     const body = (await res.json()) as { message: string }
-    expect(body.message).toMatch(/last owner/i)
+    expect(body.message).toMatch(/last admin/i)
 
     const persisted = await findUserRow(db, owner.id)
-    expect(persisted?.role).toBe('owner')
+    expect(persisted?.role).toBe('admin')
   })
 
   it('rejects banning the last (sole) owner via admin banUser', async () => {
     const { db, auth } = makeAuth()
-    // Note: in Setu, ONLY the 'owner' role carries admin-plugin ban permission (see
+    // Note: in Setu, ONLY the 'admin' role carries admin-plugin ban permission (see
     // packages/auth/src/index.ts's setuAdminRoles) and better-auth itself rejects self-ban
     // (YOU_CANNOT_BAN_YOURSELF) — so with an honest permission model, a caller banning "the last
     // owner" always implies at least one other owner (the caller) survives. All three owners are
     // created UP FRONT (not minted mid-scenario, which would silently inflate the "other owners"
     // count at the moment of the final ban) so the sequence models a real timeline: three owners
     // exist from the start, and get banned down one at a time.
-    const ownerA = await makeUser(auth, { email: 'a@test.com', name: 'A', role: 'owner', password: 'a-strong-password-12' })
-    const ownerB = await makeUser(auth, { email: 'b@test.com', name: 'B', role: 'owner', password: 'a-strong-password-12' })
-    const ownerC = await makeUser(auth, { email: 'c@test.com', name: 'C', role: 'owner', password: 'a-strong-password-12' })
+    const ownerA = await makeUser(auth, { email: 'a@test.com', name: 'A', role: 'admin', password: 'a-strong-password-12' })
+    const ownerB = await makeUser(auth, { email: 'b@test.com', name: 'B', role: 'admin', password: 'a-strong-password-12' })
+    const ownerC = await makeUser(auth, { email: 'c@test.com', name: 'C', role: 'admin', password: 'a-strong-password-12' })
     const cookieA = await signInCookie(auth, 'a@test.com', 'a-strong-password-12')
     const cookieB = await signInCookie(auth, 'b@test.com', 'a-strong-password-12')
 
@@ -135,8 +135,8 @@ describe('server-side last-owner enforcement (databaseHooks.user.update.before)'
     // race-safety note) — asserting the outcome here documents the same class of caveat, not a new
     // one: at most one of the two concurrent bans may succeed, so the surviving state must have at
     // least one active owner.
-    const ownerA = await makeUser(auth, { email: 'a@test.com', name: 'A', role: 'owner', password: 'a-strong-password-12' })
-    const ownerB = await makeUser(auth, { email: 'b@test.com', name: 'B', role: 'owner', password: 'a-strong-password-12' })
+    const ownerA = await makeUser(auth, { email: 'a@test.com', name: 'A', role: 'admin', password: 'a-strong-password-12' })
+    const ownerB = await makeUser(auth, { email: 'b@test.com', name: 'B', role: 'admin', password: 'a-strong-password-12' })
     const cookieA = await signInCookie(auth, 'a@test.com', 'a-strong-password-12')
     const cookieB = await signInCookie(auth, 'b@test.com', 'a-strong-password-12')
 
@@ -146,7 +146,7 @@ describe('server-side last-owner enforcement (databaseHooks.user.update.before)'
     ])
 
     const [persistedA, persistedB] = await Promise.all([findUserRow(db, ownerA.id), findUserRow(db, ownerB.id)])
-    const activeOwners = [persistedA, persistedB].filter((u) => u?.role === 'owner' && !u?.banned)
+    const activeOwners = [persistedA, persistedB].filter((u) => u?.role === 'admin' && !u?.banned)
     // Document the actual guarantee: at least one active owner must survive. (Both requests
     // returning 200 in an unlucky interleaving is the known in-process, read-then-write race
     // window — same caveat class as Task 7's serverSetup guard — not silently claimed airtight.)
@@ -157,8 +157,8 @@ describe('server-side last-owner enforcement (databaseHooks.user.update.before)'
 
   it('allows demoting one of two owners (not the last one)', async () => {
     const { db, auth } = makeAuth()
-    const ownerA = await makeUser(auth, { email: 'a@test.com', name: 'A', role: 'owner', password: 'a-strong-password-12' })
-    await makeUser(auth, { email: 'b@test.com', name: 'B', role: 'owner', password: 'a-strong-password-12' })
+    const ownerA = await makeUser(auth, { email: 'a@test.com', name: 'A', role: 'admin', password: 'a-strong-password-12' })
+    await makeUser(auth, { email: 'b@test.com', name: 'B', role: 'admin', password: 'a-strong-password-12' })
     const cookie = await signInCookie(auth, 'a@test.com', 'a-strong-password-12')
 
     const res = await auth.handler(adminRequest('/admin/set-role', cookie, { userId: ownerA.id, role: 'editor' }))
@@ -170,9 +170,9 @@ describe('server-side last-owner enforcement (databaseHooks.user.update.before)'
 
   it('allows banning the second-to-last owner, then rejects a subsequent self-demote of the final remaining one', async () => {
     const { db, auth } = makeAuth()
-    const ownerA = await makeUser(auth, { email: 'a@test.com', name: 'A', role: 'owner', password: 'a-strong-password-12' })
-    const ownerB = await makeUser(auth, { email: 'b@test.com', name: 'B', role: 'owner', password: 'a-strong-password-12' })
-    const ownerC = await makeUser(auth, { email: 'c@test.com', name: 'C', role: 'owner', password: 'a-strong-password-12' })
+    const ownerA = await makeUser(auth, { email: 'a@test.com', name: 'A', role: 'admin', password: 'a-strong-password-12' })
+    const ownerB = await makeUser(auth, { email: 'b@test.com', name: 'B', role: 'admin', password: 'a-strong-password-12' })
+    const ownerC = await makeUser(auth, { email: 'c@test.com', name: 'C', role: 'admin', password: 'a-strong-password-12' })
     const cookieA = await signInCookie(auth, 'a@test.com', 'a-strong-password-12')
 
     // Three active owners -> ban B: two remain (A, C) -> allowed.
@@ -191,7 +191,7 @@ describe('server-side last-owner enforcement (databaseHooks.user.update.before)'
 
     const persisted = await findUserRow(db, ownerA.id)
     expect(persisted?.banned).toBeFalsy()
-    expect(persisted?.role).toBe('owner')
+    expect(persisted?.role).toBe('admin')
   })
 
   it('setup-time promotion to owner (the FIRST owner) still succeeds — a transition TOWARD owner is never blocked', async () => {
@@ -203,16 +203,16 @@ describe('server-side last-owner enforcement (databaseHooks.user.update.before)'
     const bootstrapOwner = await makeUser(auth, {
       email: 'bootstrap@test.com',
       name: 'Bootstrap Owner',
-      role: 'owner',
+      role: 'admin',
       password: 'a-strong-password-12',
     })
     const cookie = await signInCookie(auth, 'bootstrap@test.com', 'a-strong-password-12')
     const newUser = await makeUser(auth, { email: 'newowner@test.com', name: 'New Owner', role: 'viewer', password: 'a-strong-password-12' })
 
-    const promote = await auth.handler(adminRequest('/admin/set-role', cookie, { userId: newUser.id, role: 'owner' }))
+    const promote = await auth.handler(adminRequest('/admin/set-role', cookie, { userId: newUser.id, role: 'admin' }))
     expect(promote.status).toBe(200)
     const persistedNew = await findUserRow(db, newUser.id)
-    expect(persistedNew?.role).toBe('owner')
+    expect(persistedNew?.role).toBe('admin')
 
     // Now two owners exist — demoting the original bootstrap owner is fine too.
     const demoteBootstrap = await auth.handler(adminRequest('/admin/set-role', cookie, { userId: bootstrapOwner.id, role: 'editor' }))
@@ -221,7 +221,7 @@ describe('server-side last-owner enforcement (databaseHooks.user.update.before)'
 
   it('a normal profile update (name change) on the last owner is unaffected', async () => {
     const { db, auth } = makeAuth()
-    const owner = await makeUser(auth, { email: 'owner@test.com', name: 'Owner', role: 'owner', password: 'a-strong-password-12' })
+    const owner = await makeUser(auth, { email: 'owner@test.com', name: 'Owner', role: 'admin', password: 'a-strong-password-12' })
 
     // Direct internalAdapter.updateUser, the same primitive a profile-update flow uses — must NOT
     // be blocked by the last-owner guard since it neither changes role away from owner nor sets
@@ -235,15 +235,15 @@ describe('server-side last-owner enforcement (databaseHooks.user.update.before)'
 
   it('a banned/non-owner user does not count toward the active-owner total (demoting the sole ACTIVE owner is blocked even if a banned owner-role row exists)', async () => {
     const { auth } = makeAuth()
-    const activeOwner = await makeUser(auth, { email: 'active@test.com', name: 'Active', role: 'owner', password: 'a-strong-password-12' })
-    const bannedOwnerLikeRow = await makeUser(auth, { email: 'ghost@test.com', name: 'Ghost', role: 'owner', password: 'a-strong-password-12' })
+    const activeOwner = await makeUser(auth, { email: 'active@test.com', name: 'Active', role: 'admin', password: 'a-strong-password-12' })
+    const bannedOwnerLikeRow = await makeUser(auth, { email: 'ghost@test.com', name: 'Ghost', role: 'admin', password: 'a-strong-password-12' })
     const cookie = await signInCookie(auth, 'active@test.com', 'a-strong-password-12')
 
     // Ban the second owner first (allowed: two active owners exist beforehand).
     const ban = await auth.handler(adminRequest('/admin/ban-user', cookie, { userId: bannedOwnerLikeRow.id }))
     expect(ban.status).toBe(200)
 
-    // Now `ghost` still has role:'owner' in the DB but is banned — it must NOT count as an active
+    // Now `ghost` still has role:'admin' in the DB but is banned — it must NOT count as an active
     // owner. Demoting the sole remaining ACTIVE owner must be rejected.
     const demote = await auth.handler(adminRequest('/admin/set-role', cookie, { userId: activeOwner.id, role: 'viewer' }))
     expect(demote.status).toBe(400)
@@ -256,7 +256,7 @@ describe('server-side last-owner enforcement (databaseHooks.user.update.before)'
 
   it('rejects demoting the last (sole) owner via admin update-user (role in the data payload)', async () => {
     const { db, auth } = makeAuth()
-    const owner = await makeUser(auth, { email: 'owner@test.com', name: 'Owner', role: 'owner', password: 'a-strong-password-12' })
+    const owner = await makeUser(auth, { email: 'owner@test.com', name: 'Owner', role: 'admin', password: 'a-strong-password-12' })
     const cookie = await signInCookie(auth, 'owner@test.com', 'a-strong-password-12')
 
     const res = await auth.handler(
@@ -264,10 +264,10 @@ describe('server-side last-owner enforcement (databaseHooks.user.update.before)'
     )
     expect(res.status).toBe(400)
     const body = (await res.json()) as { message: string }
-    expect(body.message).toMatch(/last owner/i)
+    expect(body.message).toMatch(/last admin/i)
 
     const persisted = await findUserRow(db, owner.id)
-    expect(persisted?.role).toBe('owner')
+    expect(persisted?.role).toBe('admin')
   })
 
   it('rejects banning the last (sole) owner via admin update-user (banned:true in the data payload)', async () => {
@@ -275,9 +275,9 @@ describe('server-side last-owner enforcement (databaseHooks.user.update.before)'
     // adminUpdateUser has its OWN self-ban check (`YOU_CANNOT_BAN_YOURSELF`, same as banUser's),
     // so a THIRD owner is used to act on the sole survivor without tripping that unrelated rule —
     // isolating the last-owner guard itself, mirroring the existing three-owner banUser test.
-    const ownerA = await makeUser(auth, { email: 'a@test.com', name: 'A', role: 'owner', password: 'a-strong-password-12' })
-    const ownerB = await makeUser(auth, { email: 'b@test.com', name: 'B', role: 'owner', password: 'a-strong-password-12' })
-    const ownerC = await makeUser(auth, { email: 'c@test.com', name: 'C', role: 'owner', password: 'a-strong-password-12' })
+    const ownerA = await makeUser(auth, { email: 'a@test.com', name: 'A', role: 'admin', password: 'a-strong-password-12' })
+    const ownerB = await makeUser(auth, { email: 'b@test.com', name: 'B', role: 'admin', password: 'a-strong-password-12' })
+    const ownerC = await makeUser(auth, { email: 'c@test.com', name: 'C', role: 'admin', password: 'a-strong-password-12' })
     const cookieA = await signInCookie(auth, 'a@test.com', 'a-strong-password-12')
     const cookieB = await signInCookie(auth, 'b@test.com', 'a-strong-password-12')
 
@@ -301,8 +301,8 @@ describe('server-side last-owner enforcement (databaseHooks.user.update.before)'
 
   it('allows demoting one of two owners via admin update-user (not the last one)', async () => {
     const { db, auth } = makeAuth()
-    const ownerA = await makeUser(auth, { email: 'a@test.com', name: 'A', role: 'owner', password: 'a-strong-password-12' })
-    await makeUser(auth, { email: 'b@test.com', name: 'B', role: 'owner', password: 'a-strong-password-12' })
+    const ownerA = await makeUser(auth, { email: 'a@test.com', name: 'A', role: 'admin', password: 'a-strong-password-12' })
+    await makeUser(auth, { email: 'b@test.com', name: 'B', role: 'admin', password: 'a-strong-password-12' })
     const cookie = await signInCookie(auth, 'a@test.com', 'a-strong-password-12')
 
     const res = await auth.handler(
@@ -316,7 +316,7 @@ describe('server-side last-owner enforcement (databaseHooks.user.update.before)'
 
   it('a name-only update via admin update-user on the last owner succeeds (no false positive)', async () => {
     const { db, auth } = makeAuth()
-    const owner = await makeUser(auth, { email: 'owner@test.com', name: 'Owner', role: 'owner', password: 'a-strong-password-12' })
+    const owner = await makeUser(auth, { email: 'owner@test.com', name: 'Owner', role: 'admin', password: 'a-strong-password-12' })
     const cookie = await signInCookie(auth, 'owner@test.com', 'a-strong-password-12')
 
     const res = await auth.handler(
@@ -326,7 +326,7 @@ describe('server-side last-owner enforcement (databaseHooks.user.update.before)'
 
     const persisted = await findUserRow(db, owner.id)
     expect(persisted?.name).toBe('Owner Renamed')
-    expect(persisted?.role).toBe('owner')
+    expect(persisted?.role).toBe('admin')
   })
 
   // --- /admin/remove-user coverage (delete guard) ----------------------------------------------
@@ -335,7 +335,7 @@ describe('server-side last-owner enforcement (databaseHooks.user.update.before)'
   // (confirmed from @better-auth/core's init-options types) and is registered as its own guard.
   //
   // Same reachability shape as the existing ban-user tests above: `removeUser` blocks self-removal
-  // (`YOU_CANNOT_REMOVE_YOURSELF`), and only the 'owner' role carries admin `user:delete`
+  // (`YOU_CANNOT_REMOVE_YOURSELF`), and only the 'admin' role carries admin `user:delete`
   // permission in Setu's model — so a DISTINCT acting session capable of calling remove-user is
   // itself always an active owner. That means the true "target is the last active owner AND zero
   // others exist" state is only reachable via the same live-read-then-write race the ban-user race
@@ -345,8 +345,8 @@ describe('server-side last-owner enforcement (databaseHooks.user.update.before)'
 
   it('allows removing one of two owners (not the last one)', async () => {
     const { db, auth } = makeAuth()
-    const ownerA = await makeUser(auth, { email: 'a@test.com', name: 'A', role: 'owner', password: 'a-strong-password-12' })
-    const ownerB = await makeUser(auth, { email: 'b@test.com', name: 'B', role: 'owner', password: 'a-strong-password-12' })
+    const ownerA = await makeUser(auth, { email: 'a@test.com', name: 'A', role: 'admin', password: 'a-strong-password-12' })
+    const ownerB = await makeUser(auth, { email: 'b@test.com', name: 'B', role: 'admin', password: 'a-strong-password-12' })
     const cookieA = await signInCookie(auth, 'a@test.com', 'a-strong-password-12')
 
     const res = await auth.handler(adminRequest('/admin/remove-user', cookieA, { userId: ownerB.id }))
@@ -354,7 +354,7 @@ describe('server-side last-owner enforcement (databaseHooks.user.update.before)'
     expect(await findUserRow(db, ownerB.id)).toBeUndefined()
 
     const persistedA = await findUserRow(db, ownerA.id)
-    expect(persistedA?.role).toBe('owner')
+    expect(persistedA?.role).toBe('admin')
   })
 
   it('rejects a concurrent race where two owners remove each other simultaneously, leaving zero', async () => {
@@ -363,8 +363,8 @@ describe('server-side last-owner enforcement (databaseHooks.user.update.before)'
     // remove-user against each other at the same time. Each request's guard check reads a live
     // count before the delete commits — the surviving state must still have at least one active
     // owner (at most one of the two concurrent removals may actually succeed).
-    const ownerA = await makeUser(auth, { email: 'a@test.com', name: 'A', role: 'owner', password: 'a-strong-password-12' })
-    const ownerB = await makeUser(auth, { email: 'b@test.com', name: 'B', role: 'owner', password: 'a-strong-password-12' })
+    const ownerA = await makeUser(auth, { email: 'a@test.com', name: 'A', role: 'admin', password: 'a-strong-password-12' })
+    const ownerB = await makeUser(auth, { email: 'b@test.com', name: 'B', role: 'admin', password: 'a-strong-password-12' })
     const cookieA = await signInCookie(auth, 'a@test.com', 'a-strong-password-12')
     const cookieB = await signInCookie(auth, 'b@test.com', 'a-strong-password-12')
 
@@ -374,7 +374,7 @@ describe('server-side last-owner enforcement (databaseHooks.user.update.before)'
     ])
 
     const [persistedA, persistedB] = await Promise.all([findUserRow(db, ownerA.id), findUserRow(db, ownerB.id)])
-    const survivingActiveOwners = [persistedA, persistedB].filter((u) => u && u.role === 'owner' && !u.banned)
+    const survivingActiveOwners = [persistedA, persistedB].filter((u) => u && u.role === 'admin' && !u.banned)
     expect(survivingActiveOwners.length).toBeGreaterThanOrEqual(1)
     void resAtoB
     void resBtoA

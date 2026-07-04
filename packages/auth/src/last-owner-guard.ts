@@ -1,6 +1,12 @@
 import { APIError } from '@better-auth/core/error'
 import type { GenericEndpointContext } from '@better-auth/core'
 
+// NB (#362 rename): the top role is now `admin` (was `owner`). This guard's *identifiers* keep the
+// "owner" name — it protects "the last account of the top role", a concept #364 generalizes to a
+// rank hierarchy (last-Admin via rank, not a hard-coded string). The role *literals* and the
+// user-facing message below are `admin`; the "Owner"/"owner" in function names and prose is that
+// historical concept, not a live role value.
+
 /** better-auth's core `User` type predates the admin plugin's schema extension, so
  *  `internalAdapter.findUserById`'s inferred return type doesn't carry `role`/`banned` — the same
  *  typing gap Task 7 documented for `auth.api` (plugin-added fields erased by the base type). Both
@@ -109,11 +115,11 @@ export function lastOwnerGuardHook() {
     const removesOwnerStatus = isBanUser
       ? data.banned === true
       : isSetRole
-        ? !roleSetIncludesOwner(data.role)
-        : // isUpdateUser: only a transition that actually TOUCHES role/banned can remove owner
+        ? !roleSetIncludesAdmin(data.role)
+        : // isUpdateUser: only a transition that actually TOUCHES role/banned can remove admin
           // status — an update-user call that changes name/email only must be a no-op here.
           (Object.prototype.hasOwnProperty.call(data, 'banned') && data.banned === true) ||
-          (Object.prototype.hasOwnProperty.call(data, 'role') && !roleSetIncludesOwner(data.role))
+          (Object.prototype.hasOwnProperty.call(data, 'role') && !roleSetIncludesAdmin(data.role))
     if (!removesOwnerStatus) return
 
     // Is the TARGET currently an active owner at all? If not (e.g. banning a non-owner, or
@@ -121,10 +127,10 @@ export function lastOwnerGuardHook() {
     const target = (await context.context.internalAdapter.findUserById(targetUserId)) as
       | (UserWithAdminFields & Record<string, unknown>)
       | null
-    if (!target || target.role !== 'owner' || target.banned) return
+    if (!target || target.role !== 'admin' || target.banned) return
 
     if (await isLastActiveOwner(context, targetUserId)) {
-      throw new APIError('BAD_REQUEST', { message: 'cannot remove the last owner' })
+      throw new APIError('BAD_REQUEST', { message: 'cannot remove the last admin' })
     }
   }
 }
@@ -134,9 +140,9 @@ export function lastOwnerGuardHook() {
  *  persisting) — but the persisted `data.role` this hook actually receives is ALWAYS the
  *  already-joined string form (see admin/routes.mjs: `updateUser(userId, { role: parseRoles(...) })`).
  *  Still defensive here in case a future/direct caller passes an array through some other path. */
-function roleSetIncludesOwner(role: unknown): boolean {
-  if (Array.isArray(role)) return role.includes('owner')
-  if (typeof role === 'string') return role.split(',').includes('owner')
+function roleSetIncludesAdmin(role: unknown): boolean {
+  if (Array.isArray(role)) return role.includes('admin')
+  if (typeof role === 'string') return role.split(',').includes('admin')
   return false
 }
 
@@ -152,7 +158,7 @@ async function isLastActiveOwner(
     model: 'user',
     where: [
       { field: 'id', operator: 'ne', value: targetUserId },
-      { field: 'role', value: 'owner', connector: 'AND' },
+      { field: 'role', value: 'admin', connector: 'AND' },
       { field: 'banned', operator: 'ne', value: true, connector: 'AND' },
     ],
   })
@@ -197,10 +203,10 @@ export function lastOwnerDeleteGuardHook() {
 
     // Is the TARGET currently an active owner at all? If not, deleting them can't be removing
     // "the" owner.
-    if (deletedUser.role !== 'owner' || deletedUser.banned) return
+    if (deletedUser.role !== 'admin' || deletedUser.banned) return
 
     if (await isLastActiveOwner(context, targetUserId)) {
-      throw new APIError('BAD_REQUEST', { message: 'cannot remove the last owner' })
+      throw new APIError('BAD_REQUEST', { message: 'cannot remove the last admin' })
     }
   }
 }

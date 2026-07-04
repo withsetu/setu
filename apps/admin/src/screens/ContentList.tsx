@@ -5,6 +5,7 @@ import type { CategoryNode, ContentRow, IndexQuery, LifecycleState, SortKey } fr
 import { buildTree } from '@setu/core'
 import { useIndex } from '../data/index-store'
 import { useTaxonomy } from '../data/taxonomy-store'
+import { useCan } from '../auth/actor'
 import { PageHeader } from '../shell/PageHeader'
 import { PageBody } from '../shell/PageBody'
 import { Button } from '@/components/ui/button'
@@ -41,6 +42,10 @@ function parseSort(raw: string | null): { key: SortKey; dir: 'asc' | 'desc' } {
 export function ContentList({ collection, title }: { collection: string; title: string }) {
   const index = useIndex()
   const { categories } = useTaxonomy()
+  const can = useCan()
+  // #362: a read-only Viewer (no content.edit) gets no selection column or bulk bar, and no "New"
+  // affordance without content.create. The server re-enforces both (git-write is content.edit).
+  const canEdit = can('content.edit')
   const pageSize = useSettings().reading.listPageSize
   const [params, setParams] = useSearchParams()
   const [page, setPage] = useState(0)
@@ -183,12 +188,14 @@ export function ContentList({ collection, title }: { collection: string; title: 
         count={rows !== null ? total : undefined}
         subtitle={collection === 'post' ? 'Articles, field notes and announcements.' : 'Standalone pages and landing pages.'}
         actions={
-          <Button asChild>
-            <Link to={`/edit/${collection}/en/new`}>
-              <Plus className="size-4" />
-              New {noun}
-            </Link>
-          </Button>
+          can('content.create') ? (
+            <Button asChild>
+              <Link to={`/edit/${collection}/en/new`}>
+                <Plus className="size-4" />
+                New {noun}
+              </Link>
+            </Button>
+          ) : undefined
         }
       />
       <PageBody>
@@ -220,7 +227,7 @@ export function ContentList({ collection, title }: { collection: string; title: 
           )
         ) : (
           <>
-            {selected.size > 0 && (
+            {canEdit && selected.size > 0 && (
               <BulkBar
                 rows={rows}
                 selected={selected}
@@ -241,6 +248,7 @@ export function ContentList({ collection, title }: { collection: string; title: 
                 onToggleAll={toggleAll}
                 sort={sort}
                 onSort={toggleSort}
+                selectable={canEdit}
               />
               {total > 0 && <Pager from={from} to={to} total={total} page={page} onPage={setPage} />}
             </div>

@@ -5,5 +5,5 @@ import type { Actor } from '@setu/core'
  *  touching any route. */
 export type ResolveActor = (req: Request) => Actor | null | Promise<Actor | null>
 
-/** Dev resolver — the single local owner the admin already assumes. */
-export const resolveLocalOwner: ResolveActor = () => ({ id: 'local', role: 'owner' })
+/** Dev resolver — the single local admin the admin UI already assumes. */
+export const resolveLocalOwner: ResolveActor = () => ({ id: 'local', role: 'admin' })

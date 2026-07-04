@@ -44,7 +44,7 @@ function mapSetupError(status: number, message: string | undefined): { message: 
   return { message: message || 'Something went wrong completing setup — please try again.', alreadyCompleted: false }
 }
 
-/** First-run server setup (#248 Task 7): the guarded one-time owner-creation flow for non-local
+/** First-run server setup (#248 Task 7): the guarded one-time admin-creation flow for non-local
  *  topologies, replacing SetupPending in SessionGate's `needsSetup` branch. Same visual family as
  *  LoginScreen (shadcn login-01: centered Card, wordmark) per the task brief. */
 export function SetupScreen() {
@@ -119,7 +119,7 @@ export function SetupScreen() {
             </svg>
           </span>
           <CardTitle className="text-xl">Set up your Setu instance</CardTitle>
-          <CardDescription>Create the owner account to finish first-run setup.</CardDescription>
+          <CardDescription>Create the admin account to finish first-run setup.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={(e) => void onSubmit(e)} noValidate className="grid gap-4">
@@ -199,7 +199,7 @@ export function SetupScreen() {
 
             <Button type="submit" className="w-full" disabled={submitting}>
               {submitting && <span aria-hidden className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />}
-              {submitting ? 'Creating account…' : 'Create owner account'}
+              {submitting ? 'Creating account…' : 'Create admin account'}
             </Button>
           </form>
         </CardContent>

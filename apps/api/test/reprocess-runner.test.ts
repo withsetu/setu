@@ -15,7 +15,7 @@ const dirs: string[] = []
 afterEach(() => { for (const d of dirs) rmSync(d, { recursive: true, force: true }); dirs.length = 0 })
 
 async function seedWebpOnly(storage: ReturnType<typeof createLocalStorage>, image: ReturnType<typeof createSharpImageAdapter>) {
-  const app = createUploadApi({ storage, resolveActor: () => ({ id: 'o', role: 'owner' }), image, mediaSettings: { imageFormat: 'webp', imageLqip: false } })
+  const app = createUploadApi({ storage, resolveActor: () => ({ id: 'o', role: 'admin' }), image, mediaSettings: { imageFormat: 'webp', imageLqip: false } })
   const body = new FormData()
   body.append('file', new File([makeTestPng(400, 300)], 'p.png', { type: 'image/png' }))
   const r = await app.fetch(new Request('http://test/media', { method: 'POST', body }))

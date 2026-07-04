@@ -52,7 +52,7 @@ function makeAuth(opts?: { token?: string | null }) {
 // linkAccount, not the public sign-up route. Mirrors auth-events.test.ts's makeOwner helper.
 async function createLocalUser(auth: ReturnType<typeof createAuth>) {
   const ctx = await auth.$context
-  const user = await ctx.internalAdapter.createUser({ email: 'owner@local.test', name: 'Owner', role: 'owner', emailVerified: true })
+  const user = await ctx.internalAdapter.createUser({ email: 'owner@local.test', name: 'Owner', role: 'admin', emailVerified: true })
   const hashed = await ctx.password.hash('hunter2hunter2')
   await ctx.internalAdapter.linkAccount({ userId: user.id, providerId: 'credential', accountId: user.id, password: hashed })
   return user.id

@@ -20,7 +20,7 @@ function makeAuth() {
 }
 
 describe('ensureLocalOwner', () => {
-  it('creates an owner-role user with no credential account on first call', async () => {
+  it('creates an admin-role user with no credential account on first call', async () => {
     const { db, auth } = makeAuth()
 
     const userId = await ensureLocalOwner(auth, { email: 'owner@local.test', name: 'Owner Person' })
@@ -29,7 +29,7 @@ describe('ensureLocalOwner', () => {
     expect(rows).toHaveLength(1)
     expect(rows[0]?.email).toBe('owner@local.test')
     expect(rows[0]?.name).toBe('Owner Person')
-    expect(rows[0]?.role).toBe('owner')
+    expect(rows[0]?.role).toBe('admin')
 
     const accounts = await db.select().from(accountTable).where(eq(accountTable.userId, userId))
     expect(accounts).toHaveLength(0) // no credential/password account was created

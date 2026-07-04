@@ -49,25 +49,26 @@ import { MoreHorizontal } from 'lucide-react'
 
 /** Setu's fixed role set + the one-line descriptions from the authz matrix (packages/core's
  *  DEFAULT_ROLES) — shown in the invite dialog and the role-change picker so admins pick a role by
- *  what it can DO, not by memorizing a name. Order is most-to-least privileged (excluding owner,
+ *  what it can DO, not by memorizing a name. Order is most-to-least privileged (excluding admin,
  *  which is not offered here — see ROLE_OPTIONS below). */
 const ROLE_DESCRIPTIONS: Record<Role, string> = {
-  owner: 'Full control, including users and settings',
-  publisher: 'Can publish content and deploy the site',
-  editor: 'Can publish content, cannot deploy',
-  author: 'Can create and edit drafts only',
+  admin: 'Full control — settings, users, and roles',
+  maintainer: 'Runs the site day-to-day: content, forms, deploy, theme',
+  editor: 'Full content lifecycle; no forms, ops, or config',
+  author: 'Creates and manages their own content',
   viewer: 'Read-only access',
 }
 
-/** Roles offered when inviting/changing a user's role. 'owner' is deliberately excluded — Setu
- *  ships with exactly one owner (the first-run identity); granting a second owner via this screen
- *  would blur "the last owner" invariant this screen otherwise protects. Promoting to owner (if
- *  ever needed) is an explicit, rarer operation this minimal Task 8 scope does not cover. */
-const ROLE_OPTIONS: Role[] = ['publisher', 'editor', 'author', 'viewer']
+/** Roles offered when inviting/changing a user's role. 'admin' is deliberately excluded — Setu
+ *  ships with exactly one admin (the first-run identity); granting a second admin via this screen
+ *  would blur "the last admin" invariant this screen otherwise protects. Promoting to admin (if
+ *  ever needed) is an explicit, rarer operation this minimal scope does not cover — rank-scoped
+ *  invite/role management (Maintainer manages below its own rank) is epic #359 increment #364. */
+const ROLE_OPTIONS: Role[] = ['maintainer', 'editor', 'author', 'viewer']
 
 const apiBase = (import.meta.env.VITE_SETU_API as string | undefined) ?? ''
 
-/** Owner-gated map of userId -> true for every user WITH a credential (password) account (#248
+/** `users.view`-gated map of userId -> true for every user WITH a credential (password) account (#248
  *  Task 8 review, Finding 2) — better-auth's admin `listUsers` returns user rows, not their linked
  *  accounts, so this is a small dedicated endpoint (apps/api/src/users.ts) rather than something
  *  the admin plugin already exposes. Absence of a key means passwordless (can't sign in remotely)
@@ -90,7 +91,7 @@ const inviteSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   email: z.string().email('Enter a valid email'),
   password: z.string().min(12, 'Password must be at least 12 characters'),
-  role: z.enum(['publisher', 'editor', 'author', 'viewer'] as const, { message: 'Choose a role' }),
+  role: z.enum(['maintainer', 'editor', 'author', 'viewer'] as const, { message: 'Choose a role' }),
 })
 type InviteValues = z.infer<typeof inviteSchema>
 type InviteErrors = Partial<Record<keyof InviteValues, string>>
@@ -117,17 +118,17 @@ function formatDate(value: Date | string | undefined): string {
 
 /** True if `role` is one of Setu's five roles — better-auth's `role` field is a loose string. */
 function isKnownRole(role: string | null | undefined): role is Role {
-  return !!role && (['owner', 'publisher', 'editor', 'author', 'viewer'] as const).includes(role as Role)
+  return !!role && (['admin', 'maintainer', 'editor', 'author', 'viewer'] as const).includes(role as Role)
 }
 
 /** better-auth's admin plugin enforces some guard rails server-side (self-ban is rejected with
  *  `YOU_CANNOT_BAN_YOURSELF` — verified in node_modules/better-auth/dist/plugins/admin/routes.mjs)
- *  but NOT self-role-change or "last owner" protection for either role changes or bans — those
+ *  but NOT self-role-change or "last admin" protection for either role changes or bans — those
  *  endpoints only check the caller's own permission, not the effect on the target. This screen
  *  enforces both client-side, computed from the same list already loaded for the table. */
-function isLastOwner(users: AdminUser[], userId: string): boolean {
-  const owners = users.filter((u) => u.role === 'owner')
-  return owners.length === 1 && owners[0]?.id === userId
+function isLastAdmin(users: AdminUser[], userId: string): boolean {
+  const admins = users.filter((u) => u.role === 'admin')
+  return admins.length === 1 && admins[0]?.id === userId
 }
 
 interface RowGuard {
@@ -137,13 +138,13 @@ interface RowGuard {
 
 function roleChangeGuard(user: AdminUser, selfId: string, users: AdminUser[]): RowGuard {
   if (user.id === selfId) return { disabled: true, reason: 'You cannot change your own role' }
-  if (isLastOwner(users, user.id)) return { disabled: true, reason: 'Cannot demote the last owner' }
+  if (isLastAdmin(users, user.id)) return { disabled: true, reason: 'Cannot demote the last admin' }
   return { disabled: false }
 }
 
 function disableGuard(user: AdminUser, selfId: string, users: AdminUser[]): RowGuard {
   if (user.id === selfId) return { disabled: true, reason: 'You cannot disable yourself' }
-  if (isLastOwner(users, user.id)) return { disabled: true, reason: 'Cannot disable the last owner' }
+  if (isLastAdmin(users, user.id)) return { disabled: true, reason: 'Cannot disable the last admin' }
   return { disabled: false }
 }
 
@@ -376,14 +377,14 @@ function UserRowActions({
           <Select
             value={isKnownRole(user.role) ? user.role : undefined}
             onValueChange={(v) => void changeRole(v as Role)}
-            disabled={roleGuard.disabled || changingRole || user.role === 'owner'}
+            disabled={roleGuard.disabled || changingRole || user.role === 'admin'}
           >
             <SelectTrigger size="sm" aria-label={`Change role for ${user.name || user.email}`}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {(user.role === 'owner' ? (['owner', ...ROLE_OPTIONS] as Role[]) : ROLE_OPTIONS).map((r) => (
-                <SelectItem key={r} value={r} disabled={r === 'owner'}>
+              {(user.role === 'admin' ? (['admin', ...ROLE_OPTIONS] as Role[]) : ROLE_OPTIONS).map((r) => (
+                <SelectItem key={r} value={r} disabled={r === 'admin'}>
                   <span className="capitalize">{r}</span>
                 </SelectItem>
               ))}
@@ -702,7 +703,7 @@ function OwnerPasswordCard({ onChanged }: { onChanged: () => void }) {
 
 /** #248: Users & Roles as a first-class top-level screen (promoted out of Settings) — same
  *  full-width PageHeader/PageBody shell Posts/Pages use (ContentList), not the narrow centered
- *  Settings panel. Gated entirely on `users.manage`: the sidebar nav item is gated at
+ *  Settings panel. Gated entirely on `users.view`: the sidebar nav item is gated at
  *  registration (AppSidebar), and the route itself re-checks (app.tsx), so this component only
  *  ever renders for an actor who already has the permission — no internal gate needed here. */
 export function UsersScreen() {

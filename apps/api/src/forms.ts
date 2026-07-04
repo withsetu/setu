@@ -1,29 +1,48 @@
 import { Hono } from 'hono'
-import type { SubmissionService, SubmissionPort, SubmissionFilter } from '@setu/core'
+import { createMiddleware } from 'hono/factory'
+import { createAuthz, DEFAULT_ROLES } from '@setu/core'
+import type { Action, Actor, SubmissionService, SubmissionPort, SubmissionFilter } from '@setu/core'
+import { authMiddleware } from './auth/middleware'
+import type { ResolveActor } from './auth/resolve-actor'
+
+const authz = createAuthz(DEFAULT_ROLES)
+
+/** Capability gate: 403 when the (already-authenticated) actor lacks `action`. Pairs with
+ *  `authMiddleware` (which sets the actor / 401s), mirroring media.ts's inline `authz.can` check. */
+function requireCan(action: Action) {
+  return createMiddleware<{ Variables: { actor: Actor } }>(async (c, next) => {
+    if (!authz.can(c.get('actor'), action)) return c.json({ error: 'forbidden' }, 403)
+    await next()
+  })
+}
 
 /** A Hono app exposing the forms submit pipeline + admin CRUD over HTTP. Pure
- *  factory; the caller supplies the service + port (server.ts). No auth — mirrors
- *  createGitApi; the public submit route is gated by Turnstile in the service.
+ *  factory; the caller supplies the service + port (server.ts).
+ *
+ *  Authz (#362, OWASP A01): form submissions contain visitor PII, so the admin CRUD routes are
+ *  gated — reads require `forms.view`, mutations `forms.manage` (Maintainer+/Admin per epic #359),
+ *  via the same `authMiddleware` + `authz.can` pattern media.ts/users.ts use. The server is the
+ *  enforcement boundary; the admin's `useCan` is UX only. The two PUBLIC embed routes are exempt by
+ *  design: `POST /forms/submit` is a captcha-gated widget reachable from ANY origin (no session
+ *  cookies read — server.ts's `originGuard` lists it in `publicPaths`), and `/forms/captcha-status`
+ *  exposes only two booleans, no PII.
  *
  *  CORS/origin policy is owned centrally by server.ts's allowlisted `cors()` + `originGuard`
- *  (see app.ts's comment on createGitApi) — this factory no longer sets its own permissive
- *  `cors()`. `POST /forms/submit` is an embeddable public form widget (captcha-gated, no session
- *  cookies read) reachable from ANY origin by design; server.ts's `originGuard` is configured with
- *  `publicPaths: ['/forms/submit']` so that route bypasses the origin check while the admin CRUD
- *  routes below (`/forms/submissions*`, `/forms/forms`) stay behind it (#248). */
+ *  (see app.ts's comment on createGitApi) — this factory sets none of its own. */
 export function createFormsApi(opts: {
   submit: SubmissionService
   submissions: SubmissionPort
+  resolveActor: ResolveActor
   captchaStatus?: { provider: string; secretConfigured: boolean }
-}): Hono {
-  const { submit, submissions } = opts
+}) {
+  const { submit, submissions, resolveActor } = opts
   const captchaStatus = opts.captchaStatus ?? { provider: '', secretConfigured: false }
-  const app = new Hono()
+  const app = new Hono<{ Variables: { actor: Actor } }>()
 
-  // --- status (read-only, no secret) ---
+  // --- status (read-only, no secret, no PII) ---
   app.get('/forms/captcha-status', (c) => c.json(captchaStatus))
 
-  // --- public ---
+  // --- public (captcha-gated embeddable widget; no session) ---
   app.post('/forms/submit', async (c) => {
     const body = (await c.req.json()) as {
       formId?: string
@@ -56,13 +75,17 @@ export function createFormsApi(opts: {
     return c.json(result, status)
   })
 
-  // --- admin CRUD ---
-  app.post('/forms/submissions', async (c) => {
+  // --- admin CRUD — authenticated + capability-gated (visitor PII) ---
+  const auth = authMiddleware(resolveActor)
+  const canView = requireCan('forms.view')
+  const canManage = requireCan('forms.manage')
+
+  app.post('/forms/submissions', auth, canManage, async (c) => {
     const body = (await c.req.json()) as Parameters<SubmissionPort['saveSubmission']>[0]
     return c.json(await submissions.saveSubmission(body), 201)
   })
 
-  app.get('/forms/submissions', async (c) => {
+  app.get('/forms/submissions', auth, canView, async (c) => {
     const q = c.req.query()
     const filter: SubmissionFilter = {}
     if (q['formId']) filter.formId = q['formId']
@@ -74,20 +97,20 @@ export function createFormsApi(opts: {
     return c.json(await submissions.listSubmissions(filter))
   })
 
-  app.get('/forms/forms', async (c) => c.json({ forms: await submissions.distinctForms() }))
+  app.get('/forms/forms', auth, canView, async (c) => c.json({ forms: await submissions.distinctForms() }))
 
-  app.get('/forms/submissions/:id', async (c) => {
+  app.get('/forms/submissions/:id', auth, canView, async (c) => {
     const row = await submissions.getSubmission(c.req.param('id'))
     return row ? c.json(row) : c.json({ error: 'not found' }, 404)
   })
 
-  app.patch('/forms/submissions/read', async (c) => {
+  app.patch('/forms/submissions/read', auth, canManage, async (c) => {
     const { ids, read } = (await c.req.json()) as { ids: string[]; read: boolean }
     await submissions.setRead(ids, read)
     return c.json({ ok: true })
   })
 
-  app.delete('/forms/submissions', async (c) => {
+  app.delete('/forms/submissions', auth, canManage, async (c) => {
     const { ids } = (await c.req.json()) as { ids: string[] }
     await submissions.deleteSubmissions(ids)
     return c.json({ ok: true })

@@ -8,6 +8,7 @@ import { ServicesProvider, servicesFor } from '../src/data/store'
 import { DeployProvider } from '../src/deploy/deploy'
 import { IndexProvider } from '../src/data/index-store'
 import { TaxonomyProvider } from '../src/data/taxonomy-store'
+import { ActorProvider } from '../src/auth/actor'
 import { ContentList } from '../src/screens/ContentList'
 
 const doc = (t: string): TiptapDoc => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] })
@@ -24,7 +25,7 @@ function setup(initialEntries = ['/posts']) {
     <MemoryRouter initialEntries={initialEntries}>
       <ServicesProvider services={servicesFor(data, git)}>
         <DeployProvider><IndexProvider><TaxonomyProvider>
-          <ContentList collection="post" title="Posts" />
+          <ActorProvider><ContentList collection="post" title="Posts" /></ActorProvider>
         </TaxonomyProvider></IndexProvider></DeployProvider>
       </ServicesProvider>
     </MemoryRouter>,

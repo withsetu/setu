@@ -49,7 +49,7 @@ describe('SetupScreen', () => {
     expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/confirm password/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/setup token/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /create owner account|complete setup/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /create admin account|complete setup/i })).toBeInTheDocument()
   })
 
   it('shows the "printed in your server logs at boot" helper text under the setup-token field', async () => {
@@ -63,7 +63,7 @@ describe('SetupScreen', () => {
     render(<SetupScreen />)
 
     await fillForm({ password: 'short', confirm: 'short' })
-    fireEvent.click(screen.getByRole('button', { name: /create owner account|complete setup/i }))
+    fireEvent.click(screen.getByRole('button', { name: /create admin account|complete setup/i }))
 
     expect(await screen.findByText(/at least 12 characters/i)).toBeInTheDocument()
     expect(fetchSpy).not.toHaveBeenCalled()
@@ -75,7 +75,7 @@ describe('SetupScreen', () => {
     render(<SetupScreen />)
 
     await fillForm({ password: 'a-strong-password-12', confirm: 'a-different-password' })
-    fireEvent.click(screen.getByRole('button', { name: /create owner account|complete setup/i }))
+    fireEvent.click(screen.getByRole('button', { name: /create admin account|complete setup/i }))
 
     expect(await screen.findByText(/passwords (do not|don't) match/i)).toBeInTheDocument()
     expect(fetchSpy).not.toHaveBeenCalled()
@@ -87,7 +87,7 @@ describe('SetupScreen', () => {
     render(<SetupScreen />)
 
     await fillForm()
-    fireEvent.submit(screen.getByRole('button', { name: /create owner account|complete setup/i }).closest('form')!)
+    fireEvent.submit(screen.getByRole('button', { name: /create admin account|complete setup/i }).closest('form')!)
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalled())
     const [url, init] = fetchSpy.mock.calls[0]!
@@ -110,7 +110,7 @@ describe('SetupScreen', () => {
     render(<SetupScreen />)
 
     await fillForm()
-    const button = screen.getByRole('button', { name: /create owner account|complete setup/i })
+    const button = screen.getByRole('button', { name: /create admin account|complete setup/i })
     fireEvent.click(button)
 
     await waitFor(() => expect(button).toBeDisabled())
@@ -122,7 +122,7 @@ describe('SetupScreen', () => {
     render(<SetupScreen />)
 
     await fillForm()
-    fireEvent.click(screen.getByRole('button', { name: /create owner account|complete setup/i }))
+    fireEvent.click(screen.getByRole('button', { name: /create admin account|complete setup/i }))
 
     expect(await screen.findByText(/setup token doesn't match.*server logs/i)).toBeInTheDocument()
   })
@@ -132,7 +132,7 @@ describe('SetupScreen', () => {
     render(<SetupScreen />)
 
     await fillForm()
-    fireEvent.click(screen.getByRole('button', { name: /create owner account|complete setup/i }))
+    fireEvent.click(screen.getByRole('button', { name: /create admin account|complete setup/i }))
 
     expect(await screen.findByText(/setup.*already.*complet/i)).toBeInTheDocument()
   })
@@ -144,7 +144,7 @@ describe('SetupScreen', () => {
 
     render(<SetupScreen />)
     await fillForm()
-    fireEvent.click(screen.getByRole('button', { name: /create owner account|complete setup/i }))
+    fireEvent.click(screen.getByRole('button', { name: /create admin account|complete setup/i }))
 
     await waitFor(() => expect(refetch).toHaveBeenCalled())
   })

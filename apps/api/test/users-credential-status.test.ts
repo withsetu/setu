@@ -87,7 +87,7 @@ describe('GET /api/users/credential-status', () => {
     expect(res.status).toBe(401)
   })
 
-  it('403s for a session lacking users.manage (a non-owner)', async () => {
+  it('403s for a session lacking users.view (a non-admin)', async () => {
     const { app, auth } = build()
     await makeUser(auth, { email: 'editor@test.com', name: 'Editor', role: 'editor', password: 'a-strong-password-12' })
     const cookie = await signInCookie(auth, 'editor@test.com', 'a-strong-password-12')
@@ -96,9 +96,9 @@ describe('GET /api/users/credential-status', () => {
     expect(res.status).toBe(403)
   })
 
-  it('owner session -> 200 with a map of userId -> true only for users WITH a credential account', async () => {
+  it('admin session -> 200 with a map of userId -> true only for users WITH a credential account', async () => {
     const { app, auth } = build()
-    const owner = await makeUser(auth, { email: 'owner@test.com', name: 'Owner', role: 'owner', password: 'a-strong-password-12' })
+    const owner = await makeUser(auth, { email: 'owner@test.com', name: 'Owner', role: 'admin', password: 'a-strong-password-12' })
     // Passwordless user: created with no linkAccount call at all (mirrors ensure-local-owner.ts's
     // shape for the local owner, or any admin-created "magic link only" user).
     const passwordless = await makeUser(auth, { email: 'ghost@test.com', name: 'Ghost', role: 'viewer' })
@@ -113,7 +113,7 @@ describe('GET /api/users/credential-status', () => {
 
   it('does not leak internal errors: a thrown query surfaces as a generic 500', async () => {
     const { auth } = makeApp()
-    const owner = await makeUser(auth, { email: 'owner@test.com', name: 'Owner', role: 'owner', password: 'a-strong-password-12' })
+    const owner = await makeUser(auth, { email: 'owner@test.com', name: 'Owner', role: 'admin', password: 'a-strong-password-12' })
     void owner
     const cookie = await signInCookie(auth, 'owner@test.com', 'a-strong-password-12')
 

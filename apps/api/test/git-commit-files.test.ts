@@ -6,7 +6,7 @@ const author = { name: 'T', email: 't@x.com' }
 
 describe('POST /git/commit-files', () => {
   it('commits writes + deletes in one request and reflects them', async () => {
-    const app = createGitApi(createMemoryGitPort())
+    const app = createGitApi(createMemoryGitPort(), () => ({ id: 'local', role: 'admin' }))
     // seed a file to delete
     await app.fetch(new Request('http://x/git/commit', {
       method: 'POST', headers: { 'content-type': 'application/json' },

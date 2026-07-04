@@ -34,7 +34,7 @@ describe('UserMenu', () => {
 
   it('shows the user name/email and a sign-out action when a session exists', async () => {
     mockUseSession.mockReturnValue({
-      data: { user: { id: 'u1', name: 'Ada Lovelace', email: 'ada@setu.dev', role: 'owner' } },
+      data: { user: { id: 'u1', name: 'Ada Lovelace', email: 'ada@setu.dev', role: 'admin' } },
       isPending: false,
       isRefetching: false,
       error: null,

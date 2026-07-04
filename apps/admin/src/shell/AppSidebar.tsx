@@ -8,13 +8,19 @@ import {
   Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarRail,
   SidebarGroup, SidebarGroupLabel, SidebarMenu, SidebarMenuItem, SidebarMenuButton,
 } from '@/components/ui/sidebar'
+import type { Action } from '@setu/core'
 import { useDeploy } from '../deploy/deploy'
 import { useCan } from '../auth/actor'
 import { siteUrl } from './site-url'
 import { ThemeToggle } from './ThemeToggle'
 import { UserMenu } from './UserMenu'
 
-type Item = { to: string; label: string; icon: React.ComponentType<{ className?: string }> }
+// `can` is the capability required to SEE this nav item (#362). Omitted = visible to every signed-in
+// role (Posts/Pages/Taxonomies/Media stay visible to content roles; their destructive actions gate
+// inside the screen). The gated screens map to the epic #359 table: Forms → forms.view, Users →
+// users.view, Appearance → theme.manage, Settings → settings.view, Site Health → sitehealth.view —
+// all Maintainer+/Admin. The server re-enforces each of these; this hiding is UX only.
+type Item = { to: string; label: string; icon: React.ComponentType<{ className?: string }>; can?: Action }
 type Group = { label?: string; items: Item[] }
 
 const BASE_NAV: Group[] = [
@@ -26,15 +32,13 @@ const BASE_NAV: Group[] = [
   ] },
   { label: 'Workspace', items: [
     { to: '/media', label: 'Media', icon: Image },
-    { to: '/forms', label: 'Forms', icon: ClipboardList },
-    { to: '/appearance', label: 'Appearance', icon: Palette },
-    { to: '/settings', label: 'Settings', icon: Settings },
-    { to: '/health', label: 'Site Health', icon: Activity },
+    { to: '/forms', label: 'Forms', icon: ClipboardList, can: 'forms.view' },
+    { to: '/users', label: 'Users', icon: Users, can: 'users.view' },
+    { to: '/appearance', label: 'Appearance', icon: Palette, can: 'theme.manage' },
+    { to: '/settings', label: 'Settings', icon: Settings, can: 'settings.view' },
+    { to: '/health', label: 'Site Health', icon: Activity, can: 'sitehealth.view' },
   ] },
 ]
-// "Users" (#248): admin-only, spliced into the Workspace group right before Settings when the
-// actor has `users.manage` — see AppSidebar()'s `nav` construction below.
-const USERS_ITEM: Item = { to: '/users', label: 'Users', icon: Users }
 
 function DeployFooterButton() {
   const can = useCan()
@@ -55,16 +59,13 @@ function DeployFooterButton() {
 
 export function AppSidebar() {
   const can = useCan()
-  // #248: "Users" is a first-class top-level destination (promoted out of Settings), gated on
-  // `users.manage` at registration time — an actor without it never sees the nav item at all
-  // (mirrors how Settings' own gated groups used to disappear rather than render-then-hide).
-  const nav: Group[] = can('users.manage')
-    ? BASE_NAV.map((g) =>
-        g.label === 'Workspace'
-          ? { ...g, items: g.items.flatMap((it) => (it.to === '/settings' ? [USERS_ITEM, it] : [it])) }
-          : g,
-      )
-    : BASE_NAV
+  // #362: each item declares the capability required to see it; drop the ones this actor lacks, then
+  // drop any group left empty. An actor never sees a nav item for a screen it can't enter (mirrors
+  // how gated groups disappear rather than render-then-hide). Route-level guards in app.tsx
+  // re-check the same capability for direct-URL visits; the server is the real enforcement boundary.
+  const nav: Group[] = BASE_NAV.map((g) => ({ ...g, items: g.items.filter((it) => !it.can || can(it.can)) })).filter(
+    (g) => g.items.length > 0,
+  )
 
   return (
     <Sidebar collapsible="icon">

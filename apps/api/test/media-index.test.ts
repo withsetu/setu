@@ -13,7 +13,7 @@ function memStorage(): StoragePort {
     async list(prefix?: string) { const ks = [...map.keys()]; return prefix ? ks.filter((k) => k.startsWith(prefix)) : ks },
   }
 }
-const owner: Actor = { id: 'local', role: 'owner' }
+const owner: Actor = { id: 'local', role: 'admin' }
 
 async function upload(app: ReturnType<typeof createUploadApi>, file: File) {
   const body = new FormData(); body.append('file', file)

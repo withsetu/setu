@@ -44,6 +44,23 @@ vi.mock('@setu/db-idb', () => ({
   createIdbMediaIndexPort: vi.fn().mockResolvedValue({}),
 }))
 
+// The apiBase fallback keeps the server-backed GitPort (only the IDB-backed pieces degrade to
+// memory), and `bootstrapServices` → `seedIfEmpty` calls `git.headSha()` before it can render. The
+// real `@setu/git-http` port would fire that at http://localhost:4444 — unreachable under test, so
+// the fetch throws `ECONNREFUSED`, propagates out of Bootstrap's async effect unguarded, and
+// `setServices` never runs (app stuck on "Loading…", no toast). That network round-trip is NOT the
+// behavior these tests exercise (IDB resilience + toast ordering), so we stub the HTTP GitPort the
+// same way the IDB ports above are stubbed — headSha resolves empty so seeding proceeds in-memory.
+vi.mock('@setu/git-http', () => ({
+  createHttpGitPort: vi.fn(() => ({
+    headSha: vi.fn().mockResolvedValue(null),
+    readFile: vi.fn().mockResolvedValue(null),
+    commitFile: vi.fn().mockResolvedValue({ sha: 'stub' }),
+    commitFiles: vi.fn().mockResolvedValue({ sha: 'stub' }),
+    list: vi.fn().mockResolvedValue([]),
+  })),
+}))
+
 // Real `sonner` verified LIVE (not just in jsdom) that a toast() fired before `<Toaster/>` has
 // ever mounted is silently dropped (sonner 2.0.7: Toaster seeds its own `toasts` state as `[]` and
 // only starts receiving via `ToastState.subscribe` inside its own mount effect — zero subscribers

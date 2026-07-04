@@ -100,7 +100,7 @@ export interface SetuAuthClient {
   // Base (non-plugin) better-auth client surface used by the owner-password section (Task 8):
   // `changePassword` requires the caller's current password; `listAccounts` is how we detect
   // whether the current user already has a `credential` account (i.e. "has a password" at all) —
-  // see UsersSettings.tsx's `useHasPassword` for why this, rather than a new endpoint, was chosen.
+  // see UsersScreen.tsx's `useHasPassword` for why this, rather than a new endpoint, was chosen.
   changePassword: (data: {
     newPassword: string
     currentPassword: string
@@ -118,7 +118,7 @@ export interface SetuAuthClient {
  *  than construct a relative string it would reject.
  *
  *  The `adminClient` plugin is wired now (rather than left for Task 8) because it must match the
- *  server's `admin` plugin registration one-for-one; Task 8 (user management, UsersSettings.tsx)
+ *  server's `admin` plugin registration one-for-one; Task 8 (user management, UsersScreen.tsx)
  *  just calls the actions this already exposes (authClient.admin.*) — nothing to add here later.
  *  Task 8 also reads `changePassword`/`listAccounts` off the client's BASE surface (not a plugin —
  *  every better-auth client gets these for free from the core email/password + account routes).
@@ -136,7 +136,7 @@ export interface SetuAuthClient {
  *  `setuAdminRoles`). The assertion is the intentional escape hatch already implied by this
  *  comment block: SetuAuthClient IS the source of truth for what this app may call, verified
  *  against the installed better-auth 1.6.23 source/types directly (see AdminClientSurface's and
- *  UsersSettings.tsx's comments), not inferred. */
+ *  UsersScreen.tsx's comments), not inferred. */
 export const authClient = createAuthClient({
   ...(apiBase ? { baseURL: `${apiBase}/api/auth` } : {}),
   plugins: [adminClient()],

@@ -7,6 +7,8 @@ import { authClient } from '../../auth/auth-client'
 import type { AdminUser } from '../../auth/auth-client'
 import { useNotify } from '../../ui/notify'
 import { apiFetch } from '../../lib/api-fetch'
+import { PageHeader } from '../../shell/PageHeader'
+import { PageBody } from '../../shell/PageBody'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -698,18 +700,25 @@ function OwnerPasswordCard({ onChanged }: { onChanged: () => void }) {
   )
 }
 
-/** Task 8: minimal Users & Roles settings group. Gated entirely on `users.manage` — non-owners
- *  never see this group at all (checked at the Settings shell's group-registration level too, so
- *  the nav item itself disappears, not just this screen's content). */
-export function UsersSettings() {
+/** #248: Users & Roles as a first-class top-level screen (promoted out of Settings) — same
+ *  full-width PageHeader/PageBody shell Posts/Pages use (ContentList), not the narrow centered
+ *  Settings panel. Gated entirely on `users.manage`: the sidebar nav item is gated at
+ *  registration (AppSidebar), and the route itself re-checks (app.tsx), so this component only
+ *  ever renders for an actor who already has the permission — no internal gate needed here. */
+export function UsersScreen() {
   // Bumped whenever OwnerPasswordCard changes the current user's own credential state, so
   // UserList's "No password" badge for that same row doesn't go stale within the same page
   // session (#248 Task 8 review, Finding 2).
   const [refreshSignal, setRefreshSignal] = useState(0)
   return (
-    <div className="max-w-3xl space-y-5">
-      <UserList refreshSignal={refreshSignal} />
-      <OwnerPasswordCard onChanged={() => setRefreshSignal((n) => n + 1)} />
-    </div>
+    <>
+      <PageHeader title="Users & Roles" subtitle="Who can sign in and what they can do." />
+      <PageBody>
+        <div className="max-w-3xl space-y-5">
+          <UserList refreshSignal={refreshSignal} />
+          <OwnerPasswordCard onChanged={() => setRefreshSignal((n) => n + 1)} />
+        </div>
+      </PageBody>
+    </>
   )
 }

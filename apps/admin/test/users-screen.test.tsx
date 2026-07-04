@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import type { ReactNode } from 'react'
 import { ActorProvider } from '../src/auth/actor'
 import { NotificationProvider } from '../src/ui/notify'
-import { UsersSettings } from '../src/screens/settings/UsersSettings'
+import { UsersScreen } from '../src/screens/users/UsersScreen'
 import { authClient } from '../src/auth/auth-client'
 
 // Radix Select/DropdownMenu/Tooltip call scrollIntoView / use PointerEvent APIs jsdom lacks.
@@ -82,11 +82,11 @@ function renderAsActor(role: 'owner' | 'editor' | 'viewer', id = 'owner-1') {
       <ActorProvider actor={{ id, role }}>{children}</ActorProvider>
     </NotificationProvider>
   )
-  return render(<UsersSettings />, { wrapper })
+  return render(<UsersScreen />, { wrapper })
 }
 
 /** Stubs the global `fetch` (apiFetch's underlying primitive) for GET /api/users/credential-status
- *  — the endpoint UsersSettings fetches alongside listUsers to render the "No password" row status
+ *  — the endpoint UsersScreen fetches alongside listUsers to render the "No password" row status
  *  (#248 Task 8 review, Finding 2). Defaults to "everyone has a password" (empty map would mean the
  *  opposite — absence is the passwordless signal) unless a test overrides it. */
 function stubCredentialStatus(status: Record<string, boolean> = {}) {
@@ -112,7 +112,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('UsersSettings', () => {
+describe('UsersScreen', () => {
   it('renders the user list with role badges, status, and created date', async () => {
     mockListUsers.mockResolvedValue({ data: { users: [OWNER, EDITOR, VIEWER], total: 3 }, error: null } as never)
     mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)

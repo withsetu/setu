@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, Files, Tags, Image, ClipboardList, Palette, Settings,
-  ExternalLink, Rocket, Activity,
+  ExternalLink, Rocket, Activity, Users,
 } from 'lucide-react'
 import {
   Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarRail,
@@ -17,7 +17,7 @@ import { UserMenu } from './UserMenu'
 type Item = { to: string; label: string; icon: React.ComponentType<{ className?: string }> }
 type Group = { label?: string; items: Item[] }
 
-const NAV: Group[] = [
+const BASE_NAV: Group[] = [
   { items: [{ to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard }] },
   { label: 'Content', items: [
     { to: '/posts', label: 'Posts', icon: FileText },
@@ -32,6 +32,9 @@ const NAV: Group[] = [
     { to: '/health', label: 'Site Health', icon: Activity },
   ] },
 ]
+// "Users" (#248): admin-only, spliced into the Workspace group right before Settings when the
+// actor has `users.manage` — see AppSidebar()'s `nav` construction below.
+const USERS_ITEM: Item = { to: '/users', label: 'Users', icon: Users }
 
 function DeployFooterButton() {
   const can = useCan()
@@ -51,6 +54,18 @@ function DeployFooterButton() {
 }
 
 export function AppSidebar() {
+  const can = useCan()
+  // #248: "Users" is a first-class top-level destination (promoted out of Settings), gated on
+  // `users.manage` at registration time — an actor without it never sees the nav item at all
+  // (mirrors how Settings' own gated groups used to disappear rather than render-then-hide).
+  const nav: Group[] = can('users.manage')
+    ? BASE_NAV.map((g) =>
+        g.label === 'Workspace'
+          ? { ...g, items: g.items.flatMap((it) => (it.to === '/settings' ? [USERS_ITEM, it] : [it])) }
+          : g,
+      )
+    : BASE_NAV
+
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
@@ -75,7 +90,7 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        {NAV.map((g, i) => (
+        {nav.map((g, i) => (
           <SidebarGroup key={g.label ?? `g${i}`}>
             {g.label && <SidebarGroupLabel>{g.label}</SidebarGroupLabel>}
             <SidebarMenu>

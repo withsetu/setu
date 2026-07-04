@@ -1,5 +1,14 @@
 import type { DataPort, GitPort } from '@setu/core'
-import { parseContentPath } from '@setu/core'
+import { parseContentPath, formatFrontmatterDate } from '@setu/core'
+
+/** Frontmatter a freshly-composed entry starts with. New posts are auto-stamped with
+ *  today's date so date-pattern permalinks resolve by default; the author can clear it
+ *  back to date-less in the editor. `now` is injectable for tests. */
+export function composeInitialMetadata(
+  now: Date = new Date()
+): Record<string, unknown> {
+  return { date: formatFrontmatterDate(now) }
+}
 
 /** Sentinel slug for the "compose a new entry" route (`/edit/<collection>/<locale>/new`). */
 export const NEW_SLUG = 'new'

@@ -79,6 +79,7 @@ const catRef: EntryIndexRow = {
   status: 'draft',
   updatedAt: null,
   hasDraft: true,
+  date: null,
   tags: [],
   categories: [],
   mediaRefs: ['2026/06/cat']

@@ -207,6 +207,7 @@ const irow = (over: Partial<EntryIndexRow>): EntryIndexRow => {
     status: 'draft' as const,
     updatedAt: 0,
     hasDraft: true,
+    date: null as number | null,
     tags: [] as string[],
     categories: [] as string[],
     mediaRefs: [] as string[],

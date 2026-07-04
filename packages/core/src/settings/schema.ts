@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { DEFAULT_SETTINGS } from './defaults'
 import type { SiteSettings } from './types'
+import { validatePermalinkPattern } from '../permalinks/pattern'
 
 const generalSchema = z
   .object({
@@ -60,13 +61,21 @@ const identitySchema = z
   })
   .partial()
 
+// patterns/uncategorized are intentionally lenient (z.unknown/z.string) here — a bad
+// pattern or slug is dropped field-level in the merge below rather than failing the
+// whole parse and wiping every other group back to defaults.
+const permalinksSchema = z
+  .object({ patterns: z.unknown(), uncategorized: z.string() })
+  .partial()
+
 // passthrough keeps unknown future top-level groups (forward-compat on read/save).
 const settingsSchema = z
   .object({
     general: generalSchema.optional(),
     reading: readingSchema.optional(),
     media: mediaSchema.optional(),
-    identity: identitySchema.optional()
+    identity: identitySchema.optional(),
+    permalinks: permalinksSchema.optional()
   })
   .passthrough()
 
@@ -80,6 +89,9 @@ export function parseSettings(raw: unknown): SiteSettings {
   const reading = (data.reading ?? {}) as Partial<SiteSettings['reading']>
   const media = (data.media ?? {}) as Partial<SiteSettings['media']>
   const identity = (data.identity ?? {}) as Partial<SiteSettings['identity']>
+  const permalinks = (data.permalinks ?? {}) as Partial<
+    SiteSettings['permalinks']
+  >
   const rd = DEFAULT_SETTINGS.reading
   const id = DEFAULT_SETTINGS.identity
   const validFormat = (['webp', 'avif', 'both'] as const).includes(
@@ -88,6 +100,18 @@ export function parseSettings(raw: unknown): SiteSettings {
   const validEntity = (['person', 'organization'] as const).includes(
     identity.entityType as SiteSettings['identity']['entityType']
   )
+  const validSlug = /^[a-z0-9-]+$/
+  const patterns: Record<string, string> = {}
+  if (
+    permalinks.patterns &&
+    typeof permalinks.patterns === 'object' &&
+    !Array.isArray(permalinks.patterns)
+  ) {
+    for (const [k, v] of Object.entries(permalinks.patterns)) {
+      if (typeof v === 'string' && validatePermalinkPattern(v).length === 0)
+        patterns[k] = v
+    }
+  }
   return {
     ...data,
     general: { ...DEFAULT_SETTINGS.general, ...general },
@@ -118,6 +142,14 @@ export function parseSettings(raw: unknown): SiteSettings {
             (s): s is string => typeof s === 'string'
           )
         : id.socialProfiles
+    },
+    permalinks: {
+      patterns,
+      uncategorized:
+        typeof permalinks.uncategorized === 'string' &&
+        validSlug.test(permalinks.uncategorized)
+          ? permalinks.uncategorized
+          : DEFAULT_SETTINGS.permalinks.uncategorized
     }
   }
 }

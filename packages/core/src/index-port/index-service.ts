@@ -9,7 +9,9 @@ import { indexKey, projectRow, rowToContentRow } from './types'
 
 // v5: rows now carry `featuredImage` (for list/preview thumbnails) — bump forces a rebuild
 // so existing indexes backfill the new field.
-export const INDEX_VERSION = 5
+// v6: rows now carry `date` (frontmatter date ?? pubDate, for pattern-aware URLs) — bump
+// forces a rebuild so existing indexes backfill the new field.
+export const INDEX_VERSION = 6
 
 export interface IndexServiceDeps {
   data: DataPort

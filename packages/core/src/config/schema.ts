@@ -1,4 +1,5 @@
 import { z, type ZodTypeAny } from 'zod'
+import { permalinkPatternSchema } from '../permalinks/pattern'
 
 /** Duck-typed Zod-schema check (avoids dual-instance instanceof pitfalls). */
 const isZodSchema = (val: unknown): val is ZodTypeAny =>
@@ -26,5 +27,6 @@ const blockSchema = z.object({
 export const configSchema = z.object({
   blocks: z.array(blockSchema).optional().default([]),
   theme: z.string().optional(),
-  themeOptions: z.record(z.string(), z.string()).optional()
+  themeOptions: z.record(z.string(), z.string()).optional(),
+  permalinks: z.record(z.string(), permalinkPatternSchema).optional()
 })

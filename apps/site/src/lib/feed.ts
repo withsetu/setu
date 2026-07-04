@@ -1,6 +1,5 @@
 import { DEFAULT_LOCALE, excerpt } from '@setu/core'
 import { resolvePostDate, type DatableEntry } from './post-date'
-import { toUrlPath } from './url'
 
 // `excerpt` now lives in @setu/core (shared with the posts/query block render). Re-exported so
 // existing importers (and feed.test) keep their `from './feed'` path unchanged.
@@ -71,7 +70,10 @@ export function feedCategories(data: Record<string, unknown>): string[] {
   return out
 }
 
-export function toFeedItem(row: FeedRow): FeedItem {
+export function toFeedItem(
+  row: FeedRow,
+  pathOf: (id: string) => string
+): FeedItem {
   const title = str(row.data.title) || row.id.split('/').slice(2).join('/')
   const description =
     str(row.data.description) ||
@@ -79,7 +81,7 @@ export function toFeedItem(row: FeedRow): FeedItem {
     excerpt(row.body ?? '')
   return {
     title,
-    link: `/${toUrlPath(row.id)}`,
+    link: `/${pathOf(row.id)}`,
     pubDate: row.date,
     description,
     categories: feedCategories(row.data),
@@ -87,7 +89,8 @@ export function toFeedItem(row: FeedRow): FeedItem {
   }
 }
 
-/** Wire Astro entries → resolved dates → selection → feed items. */
+/** Wire Astro entries → resolved dates → selection → feed items. `pathOf` resolves a content id
+ *  to its URL path (the site-wide permalink map); injected so this stays pure/testable. */
 export function getFeedPosts(
   entries: {
     id: string
@@ -96,7 +99,8 @@ export function getFeedPosts(
     filePath?: string
   }[],
   limit: number,
-  locale: string = DEFAULT_LOCALE
+  locale: string = DEFAULT_LOCALE,
+  pathOf: (id: string) => string
 ): FeedItem[] {
   const rows: FeedRow[] = entries.map((e) => ({
     id: e.id,
@@ -104,7 +108,9 @@ export function getFeedPosts(
     body: e.body,
     date: resolvePostDate(e as DatableEntry)
   }))
-  return selectFeedPosts(rows, limit, locale).map(toFeedItem)
+  return selectFeedPosts(rows, limit, locale).map((row) =>
+    toFeedItem(row, pathOf)
+  )
 }
 
 /** Distinct locales that have at least one published post, default locale first. */

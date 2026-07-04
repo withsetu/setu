@@ -17,3 +17,11 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+// Vite alias (see astro.config.mjs) resolving repo-root `blocks/*.astro` bare-specifier imports
+// to this app's collision-aware permalink map, without blocks importing site libs by relative
+// path. Declared here (rather than inferred from the aliased file) because `tsc` never resolves
+// bundler-only virtual/aliased specifiers on its own.
+declare module 'setu:permalinks' {
+  export function permalinkMap(): Promise<Map<string, string>>
+}

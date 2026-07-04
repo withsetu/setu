@@ -1,3 +1,6 @@
+import type { PermalinksSettings } from '../permalinks/config'
+export type { PermalinksSettings }
+
 /** The General settings group. title/tagline/description are consumed by the
  *  site; timezone/dateFormat are stored now and consumed when date display lands. */
 export interface GeneralSettings {
@@ -68,4 +71,5 @@ export interface SiteSettings {
   reading: ReadingSettings
   media: MediaSettings
   identity: IdentitySettings
+  permalinks: PermalinksSettings
 }

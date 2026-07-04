@@ -73,21 +73,28 @@ describe('selectFeedPosts — non-default locale', () => {
   })
 })
 
+// Stub id → path resolver standing in for the real permalink map (injected so `toFeedItem`
+// stays pure/testable without astro:content). Mirrors the pre-permalink-patterns default
+// pattern's shape (locale dropped, collection/slug kept).
+const pathOf = (id: string): string => id.replace(/^([^/]+)\/[^/]+\//, '$1/')
+
 describe('toFeedItem', () => {
   it('builds an absolute-path link and falls back to excerpt for description', () => {
     const item = toFeedItem(
-      row('post/en/my-post', '2024-01-01', {}, 'Body text here.')
+      row('post/en/my-post', '2024-01-01', {}, 'Body text here.'),
+      pathOf
     )
     expect(item.link).toBe('/post/my-post')
     expect(item.description).toBe('Body text here.')
   })
   it('prefers frontmatter description/summary', () => {
     expect(
-      toFeedItem(row('post/en/x', '2024-01-01', { description: 'D' }))
+      toFeedItem(row('post/en/x', '2024-01-01', { description: 'D' }), pathOf)
         .description
     ).toBe('D')
     expect(
-      toFeedItem(row('post/en/x', '2024-01-01', { summary: 'S' })).description
+      toFeedItem(row('post/en/x', '2024-01-01', { summary: 'S' }), pathOf)
+        .description
     ).toBe('S')
   })
   it('carries categories (categories then tags, deduped) and the raw featured image', () => {
@@ -96,14 +103,19 @@ describe('toFeedItem', () => {
         categories: ['Recipes', 'Dinner'],
         tags: ['dinner', 'quick'],
         featuredImage: '/media/2026/06/x.jpg'
-      })
+      }),
+      pathOf
     )
     expect(item.categories).toEqual(['Recipes', 'Dinner', 'dinner', 'quick'])
     expect(item.image).toBe('/media/2026/06/x.jpg')
   })
   it('omits the image when there is no featuredImage', () => {
-    expect(toFeedItem(row('post/en/x', '2024-01-01')).image).toBeUndefined()
-    expect(toFeedItem(row('post/en/x', '2024-01-01')).categories).toEqual([])
+    expect(
+      toFeedItem(row('post/en/x', '2024-01-01'), pathOf).image
+    ).toBeUndefined()
+    expect(
+      toFeedItem(row('post/en/x', '2024-01-01'), pathOf).categories
+    ).toEqual([])
   })
 })
 

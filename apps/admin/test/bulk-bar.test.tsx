@@ -20,6 +20,7 @@ const row = (slug: string, over: Partial<ContentRow> = {}): ContentRow => ({
   lifecycle: { state: 'live' },
   updatedAt: 1,
   hasDraft: false,
+  date: null,
   tags: [],
   categories: [],
   mediaRefs: [],

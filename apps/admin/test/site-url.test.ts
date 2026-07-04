@@ -18,7 +18,7 @@ describe('siteUrl', () => {
 
   it('keeps a non-default locale segment', () => {
     expect(siteUrl({ collection: 'post', locale: 'fr', slug: 'bonjour' })).toBe(
-      'http://localhost:4321/post/fr/bonjour'
+      'http://localhost:4321/fr/post/bonjour'
     )
   })
 
@@ -34,5 +34,23 @@ describe('siteUrl', () => {
     expect(siteUrl({ collection: 'page', locale: 'en', slug: 'about' })).toBe(
       'https://example.com/page/about'
     )
+  })
+
+  it('honors a permalink config (pattern + date/categories threading)', () => {
+    expect(
+      siteUrl(
+        {
+          collection: 'post',
+          locale: 'en',
+          slug: 'hi',
+          date: Date.UTC(2026, 5, 20),
+          categories: ['news']
+        },
+        {
+          pattern: 'blog/:year/:category/:slug',
+          uncategorized: 'uncategorized'
+        }
+      )
+    ).toBe('http://localhost:4321/blog/2026/news/hi')
   })
 })

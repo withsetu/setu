@@ -11,11 +11,14 @@ const str = (v: unknown): string => (typeof v === 'string' ? v : '')
 /** Map a raw Astro content entry (id = "collection/locale/slug") to a PostRow. Single projection
  *  shared by every archive-style getStaticPaths (posts, category, tag, …) so they agree on fields
  *  and ordering. Pass `body` to derive a card excerpt (frontmatter description/summary wins). */
-export function toPostRow(entry: {
-  id: string
-  data: Record<string, unknown>
-  body?: string
-}): PostRow {
+export function toPostRow(
+  entry: {
+    id: string
+    data: Record<string, unknown>
+    body?: string
+  },
+  urlPath?: string
+): PostRow {
   const [col = '', loc = '', ...rest] = entry.id.split('/')
   const d = entry.data
   const dateRaw = d['date'] ?? d['pubDate'] ?? d['updatedAt']
@@ -41,6 +44,7 @@ export function toPostRow(entry: {
     categories: strArr(d['categories']),
     featuredImage:
       typeof d['featuredImage'] === 'string' ? d['featuredImage'] : undefined,
-    excerpt: cardExcerpt || undefined
+    excerpt: cardExcerpt || undefined,
+    ...(urlPath !== undefined ? { urlPath } : {})
   }
 }

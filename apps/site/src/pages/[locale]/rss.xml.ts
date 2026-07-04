@@ -5,6 +5,7 @@ import { DEFAULT_LOCALE } from '@setu/core'
 import { loadSiteSettings } from '../../lib/site-settings'
 import { getFeedPosts, feedLocales } from '../../lib/feed'
 import { buildFeed } from '../../lib/rss-xml'
+import { permalinkMap } from '../../lib/permalinks'
 
 export const prerender = true
 
@@ -22,6 +23,7 @@ export async function GET(context: APIContext) {
   if (!settings.reading.feed.enabled) return new Response(null, { status: 404 })
   const locale = context.params.locale as string
   const entries = await getCollection('entries')
+  const map = await permalinkMap()
   const items = getFeedPosts(
     entries.map((e) => ({
       id: e.id,
@@ -30,7 +32,8 @@ export async function GET(context: APIContext) {
       filePath: e.filePath
     })),
     settings.reading.feed.items,
-    locale
+    locale,
+    (id) => map.get(id) ?? ''
   )
   return rss(
     buildFeed({

@@ -1,6 +1,7 @@
 ---
 import { getCollection } from 'astro:content'
 import { selectPosts, entryUrlPath, excerpt, DEFAULT_LOCALE, type PostRow } from '@setu/core'
+import { permalinkMap } from 'setu:permalinks'
 
 const {
   collection = 'post',
@@ -65,7 +66,9 @@ const selected = selectPosts(rows, {
   limit,
   offset,
 })
-const hrefOf = (p: PostRow) => `/${entryUrlPath({ collection: p.collection, locale: p.locale, slug: p.slug })}`
+const map = await permalinkMap()
+const hrefOf = (p: PostRow) =>
+  `/${map.get(p.id) ?? entryUrlPath({ collection: p.collection, locale: p.locale, slug: p.slug })}`
 
 // Locale-aware short date ("Jun 30, 2026"). Full dateFormat/timezone setting wiring is #157;
 // this honors the entry locale for month names and matches the stored default ('MMM D, YYYY').

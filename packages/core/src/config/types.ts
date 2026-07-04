@@ -64,6 +64,8 @@ export interface SetuConfig {
   theme?: string
   /** Chosen values for the active theme's declared options (key → value). Optional. */
   themeOptions?: Record<string, string>
+  /** Per-collection permalink pattern overrides (key → pattern). Optional. */
+  permalinks?: Record<string, string>
 }
 
 /** A block after resolution (distinct type for future derived fields). */
@@ -81,4 +83,6 @@ export interface ResolvedConfig {
   theme?: string
   /** Theme option values, passed through from the authored config. */
   themeOptions?: Record<string, string>
+  /** Per-collection permalink pattern overrides, passed through from the authored config. */
+  permalinks?: Record<string, string>
 }

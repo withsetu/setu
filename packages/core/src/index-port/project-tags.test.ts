@@ -9,6 +9,7 @@ const row: ContentRow = {
   lifecycle: { state: 'draft' },
   updatedAt: 1,
   hasDraft: true,
+  date: null,
   tags: ['react', 'redux'],
   categories: [],
   mediaRefs: []

@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'motion/react'
 import { ArrowDown, ArrowUp, ExternalLink } from 'lucide-react'
 import type { ContentRow, SortKey } from '@setu/core'
+import { resolvePermalinkConfig } from '@setu/core'
 import {
   Table,
   TableHeader,
@@ -15,6 +16,7 @@ import { Badge } from '@/components/ui/badge'
 import { statusBadge } from '@/lib/status-badge'
 import { relativeTime } from '@/lib/format'
 import { siteUrl } from '../../shell/site-url'
+import { useSettings } from '../../data/settings-store'
 import { Chips } from './Chips'
 import type { ColumnKey } from './useColumnPrefs'
 
@@ -77,6 +79,7 @@ export function ContentTable({
 }) {
   const reduce = useReducedMotion()
   const localeCol = visible.locale && showLocale
+  const settings = useSettings()
   return (
     <Table>
       <TableHeader>
@@ -148,7 +151,14 @@ export function ContentTable({
                   </Link>
                   {published && (
                     <a
-                      href={siteUrl(r.ref)}
+                      href={siteUrl(
+                        { ...r.ref, date: r.date, categories: r.categories },
+                        resolvePermalinkConfig(
+                          r.ref.collection,
+                          undefined,
+                          settings
+                        )
+                      )}
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-label={`View ${r.title} on site`}

@@ -1,6 +1,7 @@
 ---
 import { getCollection } from 'astro:content'
 import { entryUrlPath, DEFAULT_LOCALE } from '@setu/core'
+import { permalinkMap } from 'setu:permalinks'
 
 const { posts = '', heading = 'Related', showImage = true, collection = 'post', locale } = Astro.props
 
@@ -10,6 +11,7 @@ const resolveImg = (s: string): string =>
 
 const loc = locale ?? DEFAULT_LOCALE
 const byId = new Map((await getCollection('entries')).map((e) => [e.id, e]))
+const map = await permalinkMap()
 
 interface Card {
   title: string
@@ -29,7 +31,7 @@ const cards: Card[] = String(posts)
     const fi = typeof d['featuredImage'] === 'string' ? (d['featuredImage'] as string) : undefined
     return {
       title: typeof d['title'] === 'string' ? (d['title'] as string) : e.id,
-      href: `/${entryUrlPath({ collection: col, locale: l, slug: rest.join('/') })}`,
+      href: `/${map.get(e.id) ?? entryUrlPath({ collection: col, locale: l, slug: rest.join('/') })}`,
       ...(fi ? { image: resolveImg(fi) } : {}),
     }
   })

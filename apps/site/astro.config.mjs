@@ -7,6 +7,7 @@ import markdoc from '@astrojs/markdoc'
 import react from '@astrojs/react'
 import { loadConfig } from '@setu/core/node'
 import { perPageCssPurge } from './integrations/per-page-css-purge.mjs'
+import { settingsWatcher } from './integrations/settings-watcher.mjs'
 
 // Read the active theme from setu.config (single source of truth) and alias '@theme'
 // to it, so pages render through whichever theme is configured.
@@ -129,9 +130,25 @@ export default defineConfig({
   compressHTML: true,
   // perPageCssPurge runs only at `astro build` (astro:build:done) — dev is untouched. It strips
   // each page's unused block CSS and inlines the rest, so a page only ships the blocks it uses.
-  integrations: [markdoc(), react(), devPreviewRoute, perPageCssPurge()],
+  integrations: [
+    markdoc(),
+    react(),
+    devPreviewRoute,
+    perPageCssPurge(),
+    settingsWatcher()
+  ],
   vite: {
-    resolve: { alias: { '@theme': activeTheme } },
+    resolve: {
+      alias: {
+        '@theme': activeTheme,
+        // How repo-root blocks/ (bare-specifier imports only) reach the site's collision-aware
+        // permalink map — same trick as the existing `virtual:setu-fonts`. Nothing imports this
+        // yet; Task 6 (block permalink-aware links) is the first consumer.
+        'setu:permalinks': fileURLToPath(
+          new URL('./src/lib/permalinks.ts', import.meta.url)
+        )
+      }
+    },
     plugins: [resolveMarkdocFromApp, virtualFonts],
     // The theme Layout self-hosts fonts via `import '@fontsource-variable/...'`, which
     // resolve to .css. In `astro build` Vite bundles these, but in `astro dev` SSR Node's

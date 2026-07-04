@@ -6,6 +6,7 @@ import { GeneralSettings } from './GeneralSettings'
 import { ReadingSettings } from './ReadingSettings'
 import { MediaSettings } from './MediaSettings'
 import { IdentitySettings } from './IdentitySettings'
+import { PermalinksSettings } from './PermalinksSettings'
 
 const apiBase = import.meta.env.VITE_SETU_API
 
@@ -55,12 +56,19 @@ function FormsGroup() {
   )
 }
 
-type GroupId = 'general' | 'reading' | 'media' | 'identity' | 'forms'
+type GroupId =
+  | 'general'
+  | 'reading'
+  | 'media'
+  | 'identity'
+  | 'permalinks'
+  | 'forms'
 const GROUPS: { id: GroupId; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'reading', label: 'Content & Reading' },
   { id: 'media', label: 'Media' },
   { id: 'identity', label: 'Identity & SEO' },
+  { id: 'permalinks', label: 'Permalinks' },
   { id: 'forms', label: 'Forms' }
 ]
 const COMING_SOON = ['Users & Roles', 'Deploy']
@@ -105,6 +113,8 @@ export function Settings() {
               <MediaSettings />
             ) : active === 'identity' ? (
               <IdentitySettings />
+            ) : active === 'permalinks' ? (
+              <PermalinksSettings />
             ) : (
               <FormsGroup />
             )}

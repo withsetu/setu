@@ -1,5 +1,6 @@
-/* Callout structural + tone styles. Themeless-safe via var(--token, fallback): the admin
-   provides the tokens (themed/dark-mode), the site uses the fallbacks until #3 tokenizes it.
+/* Callout structural + tone styles. Blocks read only contract tokens (see src/tokens.ts +
+   docs/block-styling-contract.md); the base tokens.css layer guarantees every token is
+   defined, so no inline var(--token, fallback) defaults are needed here.
    Editor-only chrome (.block-props/.bp-*) lives in the admin's editor.css, not here. */
 .blk-callout {
   position: relative;
@@ -7,27 +8,27 @@
   flex-direction: column;
   gap: 6px;
   padding: 15px 16px;
-  border-radius: var(--r-md, 10px);
+  border-radius: var(--r-md);
   margin: 12px 0;
-  font-family: var(--font-ui, system-ui, sans-serif);
+  font-family: var(--font-ui);
 }
 .blk-callout.tone-accent {
-  background: var(--accent-soft, #eef2ff);
+  background: var(--accent-soft);
 }
 .blk-callout.tone-green {
-  background: var(--green-soft, #f0fdf4);
+  background: var(--green-soft);
 }
 .blk-callout.tone-amber {
-  background: var(--amber-soft, #fff7ed);
+  background: var(--amber-soft);
 }
 .blk-callout.tone-red {
-  background: var(--red-soft, #fef2f2);
+  background: var(--red-soft);
 }
 .blk-callout.tone-neutral {
-  background: var(--surface-2, #f3f4f6);
+  background: var(--surface-2);
 }
 .blk-callout.tone-slate {
-  background: color-mix(in oklch, var(--text, #111827) 88%, var(--bg, #fff));
+  background: color-mix(in oklch, var(--text) 88%, var(--bg));
   color: #fff;
 }
 
@@ -40,26 +41,26 @@
   flex-shrink: 0;
   width: 30px;
   height: 30px;
-  border-radius: var(--r-sm, 7px);
+  border-radius: var(--r-sm);
   display: grid;
   place-items: center;
   border: none;
-  background: color-mix(in oklch, var(--canvas, #fff) 55%, transparent);
+  background: color-mix(in oklch, var(--canvas) 55%, transparent);
 }
 .tone-accent .callout-ic {
-  color: var(--accent-strong, #4f46e5);
+  color: var(--accent-strong);
 }
 .tone-green .callout-ic {
-  color: var(--green, #16a34a);
+  color: var(--green);
 }
 .tone-amber .callout-ic {
-  color: var(--amber, #d97706);
+  color: var(--amber);
 }
 .tone-red .callout-ic {
-  color: var(--red, #dc2626);
+  color: var(--red);
 }
 .tone-neutral .callout-ic {
-  color: var(--text-2, #4b5563);
+  color: var(--text-2);
 }
 .tone-slate .callout-ic {
   color: #fff;
@@ -72,7 +73,7 @@
   border: none;
   background: transparent;
   outline: none;
-  font-family: var(--font-ui, system-ui, sans-serif);
+  font-family: var(--font-ui);
   font-size: 18px;
   font-weight: 700;
   letter-spacing: -0.01em;

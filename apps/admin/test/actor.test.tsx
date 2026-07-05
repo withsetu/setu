@@ -16,10 +16,11 @@ describe('actor context', () => {
     expect(result.current('site.deploy')).toBe(true)
   })
   it('gates a non-admin actor by their role', () => {
-    const viewerWrap = ({ children }: { children: ReactNode }) => (
-      <ActorProvider actor={{ id: 'v', role: 'viewer' }}>{children}</ActorProvider>
+    // #379: author is the lowest staff role — holds neither content.publish nor site.deploy.
+    const authorWrap = ({ children }: { children: ReactNode }) => (
+      <ActorProvider actor={{ id: 'a', role: 'author' }}>{children}</ActorProvider>
     )
-    const { result } = renderHook(() => useCan(), { wrapper: viewerWrap })
+    const { result } = renderHook(() => useCan(), { wrapper: authorWrap })
     expect(result.current('content.publish')).toBe(false)
     expect(result.current('site.deploy')).toBe(false)
   })

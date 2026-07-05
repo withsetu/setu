@@ -56,7 +56,6 @@ const ROLE_DESCRIPTIONS: Record<Role, string> = {
   maintainer: 'Runs the site day-to-day: content, forms, deploy, theme',
   editor: 'Full content lifecycle; no forms, ops, or config',
   author: 'Creates and manages their own content',
-  viewer: 'Read-only access',
 }
 
 /** Roles offered when inviting/changing a user's role. 'admin' is deliberately excluded — Setu
@@ -64,7 +63,7 @@ const ROLE_DESCRIPTIONS: Record<Role, string> = {
  *  would blur "the last admin" invariant this screen otherwise protects. Promoting to admin (if
  *  ever needed) is an explicit, rarer operation this minimal scope does not cover — rank-scoped
  *  invite/role management (Maintainer manages below its own rank) is epic #359 increment #364. */
-const ROLE_OPTIONS: Role[] = ['maintainer', 'editor', 'author', 'viewer']
+const ROLE_OPTIONS: Role[] = ['maintainer', 'editor', 'author']
 
 const apiBase = (import.meta.env.VITE_SETU_API as string | undefined) ?? ''
 
@@ -91,7 +90,7 @@ const inviteSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   email: z.string().email('Enter a valid email'),
   password: z.string().min(12, 'Password must be at least 12 characters'),
-  role: z.enum(['maintainer', 'editor', 'author', 'viewer'] as const, { message: 'Choose a role' }),
+  role: z.enum(['maintainer', 'editor', 'author'] as const, { message: 'Choose a role' }),
 })
 type InviteValues = z.infer<typeof inviteSchema>
 type InviteErrors = Partial<Record<keyof InviteValues, string>>
@@ -116,9 +115,9 @@ function formatDate(value: Date | string | undefined): string {
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-/** True if `role` is one of Setu's five roles — better-auth's `role` field is a loose string. */
+/** True if `role` is one of Setu's four staff roles — better-auth's `role` field is a loose string. */
 function isKnownRole(role: string | null | undefined): role is Role {
-  return !!role && (['admin', 'maintainer', 'editor', 'author', 'viewer'] as const).includes(role as Role)
+  return !!role && (['admin', 'maintainer', 'editor', 'author'] as const).includes(role as Role)
 }
 
 /** better-auth's admin plugin enforces some guard rails server-side (self-ban is rejected with

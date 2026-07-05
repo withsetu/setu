@@ -51,7 +51,7 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-function renderSidebar(role: 'admin' | 'editor' | 'viewer') {
+function renderSidebar(role: 'admin' | 'editor' | 'author') {
   return render(
     <MemoryRouter initialEntries={['/dashboard']}>
       <ActorProvider actor={{ id: 'u1', role }}>
@@ -72,8 +72,8 @@ describe('AppSidebar — Users nav item gating', () => {
     expect(screen.queryByRole('link', { name: /^Users$/ })).not.toBeInTheDocument()
   })
 
-  it('hides "Users" for a viewer (no users.view)', () => {
-    renderSidebar('viewer')
+  it('hides "Users" for an author (no users.view)', () => {
+    renderSidebar('author')
     expect(screen.queryByRole('link', { name: /^Users$/ })).not.toBeInTheDocument()
   })
 })
@@ -86,7 +86,7 @@ function UsersRoute() {
   return <UsersScreen />
 }
 
-function renderUsersRoute(role: 'admin' | 'editor' | 'viewer') {
+function renderUsersRoute(role: 'admin' | 'editor' | 'author') {
   const services = servicesFor(createMemoryDataPort([]), createMemoryGitPort([]))
   const wrapper = ({ children }: { children: ReactNode }) => (
     <NotificationProvider>
@@ -118,8 +118,8 @@ describe('/users route — defense-in-depth gate', () => {
     expect(screen.queryByRole('heading', { name: /users & roles/i })).not.toBeInTheDocument()
   })
 
-  it('redirects a viewer too', () => {
-    renderUsersRoute('viewer')
+  it('redirects an author too', () => {
+    renderUsersRoute('author')
     expect(screen.getByText(/dashboard fallback/i)).toBeInTheDocument()
   })
 })

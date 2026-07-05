@@ -72,7 +72,7 @@ describe('SessionGate', () => {
     await waitFor(() => expect(screen.getByTestId('actor')).toHaveTextContent('u1:editor'))
   })
 
-  it('defaults an unknown/missing role to viewer', async () => {
+  it('defaults an unknown/missing role to author (#379: least-privileged staff role)', async () => {
     stubCapabilities(ENABLED_NO_SETUP)
     mockUseSession.mockReturnValue({
       data: { user: { id: 'u2', role: undefined } },
@@ -84,7 +84,7 @@ describe('SessionGate', () => {
 
     render(<SessionGate><ActorProbe /></SessionGate>)
 
-    await waitFor(() => expect(screen.getByTestId('actor')).toHaveTextContent('u2:viewer'))
+    await waitFor(() => expect(screen.getByTestId('actor')).toHaveTextContent('u2:author'))
   })
 
   it('with a #setu-token in the hash: exchanges it, scrubs the hash before the response resolves, then renders children after session', async () => {

@@ -23,7 +23,7 @@ export type Action =
   | 'users.view' | 'users.invite' | 'users.setRole' | 'users.disable' | 'users.delete'
   | 'roles.manage'
 
-export type Role = 'admin' | 'maintainer' | 'editor' | 'author' | 'viewer'
+export type Role = 'admin' | 'maintainer' | 'editor' | 'author'
 
 export interface Actor {
   id: string

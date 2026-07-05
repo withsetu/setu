@@ -23,12 +23,12 @@ function requireCan(action: Action) {
  *
  *  Authz (#362, OWASP A01): /git/* is the repository write API — an ungated `POST /git/commit`
  *  let an anonymous caller rewrite any file in the content repo. The WRITE routes now require
- *  `content.edit` (held by Author/Editor/Maintainer/Admin; NOT Viewer) via the same `authMiddleware`
+ *  `content.edit` (held by Author/Editor/Maintainer/Admin) via the same `authMiddleware`
  *  + `authz.can` pattern as media.ts. The gate is coarse by design: /git/commit is a shared
  *  low-level primitive (posts, taxonomy, settings all funnel through it), so it can't distinguish a
  *  post-edit from a settings-write. That only over-trusts already-authenticated content staff (per
  *  epic #359); path-scoped git permissions are a later/Pro increment. The security-critical property
- *  closed here is that an unauthenticated or Viewer actor cannot write to the repo. The admin's
+ *  closed here is that an unauthenticated actor cannot write to the repo. The admin's
  *  HttpGitPort carries the session cookie (credentials: 'include' via apiFetch —
  *  apps/admin/src/data/Bootstrap.tsx).
  *

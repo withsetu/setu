@@ -10,7 +10,7 @@ import { SetupScreen } from './SetupScreen'
 import { AuthNotConfigured } from './AuthNotConfigured'
 import { Skeleton } from '@/components/ui/skeleton'
 
-const ROLES: readonly string[] = ['admin', 'maintainer', 'editor', 'author', 'viewer']
+const ROLES: readonly string[] = ['admin', 'maintainer', 'editor', 'author']
 const apiBase = (import.meta.env.VITE_SETU_API as string | undefined) ?? ''
 
 const HASH_TOKEN_RE = /^#setu-token=(.+)$/
@@ -78,7 +78,10 @@ export function SessionGate({ children }: { children: ReactNode }) {
 
   const user = session.data?.user as { id: string; role?: string | null } | undefined
   if (user) {
-    const role: Role = ROLES.includes(user.role ?? '') ? (user.role as Role) : 'viewer'
+    // #379: unknown/audience roles get no back-office access — the real admin.access gate is
+    // deferred to #379; the server already fails closed. This UI fallback is UX-only (server
+    // enforces) and uses the least-privileged staff role.
+    const role: Role = ROLES.includes(user.role ?? '') ? (user.role as Role) : 'author'
     return <ActorProvider actor={{ id: user.id, role }}>{children}</ActorProvider>
   }
 

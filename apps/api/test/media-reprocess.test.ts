@@ -12,7 +12,6 @@ import { createUploadApi } from '../src/media'
 import { runReprocessJob } from '../src/reprocess-runner'
 
 const owner: Actor = { id: 'local', role: 'admin' }
-const viewer: Actor = { id: 'v', role: 'viewer' }
 
 const dirs: string[] = []
 afterEach(() => {
@@ -108,22 +107,14 @@ describe('POST /api/media/reprocess', () => {
   })
 
   it('401 when unauthenticated', async () => {
+    // #379: reprocess is gated on media.edit, which every current staff role holds — so the only
+    // deny path left is the unauthenticated one (no actor → 401). The old Viewer 403 case is gone.
     const dir = mkdtempSync(join(tmpdir(), 'reprocess-auth-'))
     dirs.push(dir)
     const storage = createLocalStorage({ dir, baseUrl: 'http://localhost:4444/media' })
     const app = createUploadApi({ storage, resolveActor: () => null })
     const res = await app.fetch(new Request('http://test/api/media/reprocess', { method: 'POST' }))
     expect(res.status).toBe(401)
-  })
-
-  it('403 when the actor lacks content.create', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'reprocess-authz-'))
-    dirs.push(dir)
-    const storage = createLocalStorage({ dir, baseUrl: 'http://localhost:4444/media' })
-    const app = createUploadApi({ storage, resolveActor: () => viewer })
-    const res = await app.fetch(new Request('http://test/api/media/reprocess', { method: 'POST' }))
-    expect(res.status).toBe(403)
-    expect(await res.json()).toEqual({ error: 'forbidden' })
   })
 
   it('409 when image/reprocess opts are not configured', async () => {

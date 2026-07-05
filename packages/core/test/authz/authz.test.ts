@@ -42,9 +42,6 @@ const MATRIX: Record<Role, Action[]> = {
     'taxonomy.view', 'taxonomy.create',
     'media.view', 'media.upload', 'media.edit',
   ],
-  viewer: [
-    'content.view', 'taxonomy.view', 'media.view',
-  ],
 }
 
 const ALL_ACTIONS: Action[] = [
@@ -87,19 +84,21 @@ describe('the Forms-submissions PII gate (the #362 hole)', () => {
       expect(authz.can(actor(role), 'forms.manage')).toBe(true)
     }
   })
-  it('editor, author, and viewer cannot touch form submissions', () => {
-    for (const role of ['editor', 'author', 'viewer'] as Role[]) {
+  it('editor and author cannot touch form submissions', () => {
+    for (const role of ['editor', 'author'] as Role[]) {
       expect(authz.can(actor(role), 'forms.view')).toBe(false)
       expect(authz.can(actor(role), 'forms.manage')).toBe(false)
     }
   })
 })
 
-describe('content-write gate (the Git-write hole — Viewer must be denied)', () => {
-  it('every content role can edit; viewer cannot', () => {
+describe('content-write gate (the Git-write hole)', () => {
+  // #379: with the read-only viewer role removed, every staff role holds content.edit — so the
+  // Git-write denial now lives at the unauthenticated boundary (no actor → 401), asserted in
+  // apps/api/test/git-authz.test.ts, not in the role matrix.
+  it('every staff role can edit', () => {
     for (const role of ['admin', 'maintainer', 'editor', 'author'] as Role[]) {
       expect(authz.can(actor(role), 'content.edit')).toBe(true)
     }
-    expect(authz.can(actor('viewer'), 'content.edit')).toBe(false)
   })
 })

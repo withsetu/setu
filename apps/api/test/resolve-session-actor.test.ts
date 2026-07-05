@@ -22,9 +22,9 @@ function makeAuth() {
 // Public sign-up is disabled (invite-only — see disableSignUp in packages/auth/src/index.ts), so
 // this fixture creates the user server-side via internalAdapter.createUser + linkAccount, the same
 // path first-run setup/ensureLocalOwner/admin-invite use.
-async function createUser(auth: ReturnType<typeof createAuth>, email: string, password: string) {
+async function createUser(auth: ReturnType<typeof createAuth>, email: string, password: string, role = 'author') {
   const ctx = await auth.$context
-  const user = await ctx.internalAdapter.createUser({ email, name: 'A', role: 'viewer', emailVerified: true })
+  const user = await ctx.internalAdapter.createUser({ email, name: 'A', role, emailVerified: true })
   const hashed = await ctx.password.hash(password)
   await ctx.internalAdapter.linkAccount({ userId: user.id, providerId: 'credential', accountId: user.id, password: hashed })
   return user
@@ -37,7 +37,18 @@ describe('resolveSessionActor', () => {
     const res = await auth.api.signInEmail({ body: { email: 'a@b.co', password: 'hunter2hunter2' }, asResponse: true })
     const cookie = res.headers.get('set-cookie')!.split(';')[0]!
     const actor = await resolveSessionActor(auth)(new Request('http://x/', { headers: { cookie } }))
-    expect(actor).toEqual({ id: expect.any(String), role: 'viewer' })
+    expect(actor).toEqual({ id: expect.any(String), role: 'author' })
+  })
+
+  it('returns null for an unrecognized (non-staff) role — fails closed (#379)', async () => {
+    const { auth } = makeAuth()
+    // A future audience/read-only role that isn't in the staff ladder must NOT resolve to a
+    // default staff actor — the caller then 401s.
+    await createUser(auth, 'a@b.co', 'hunter2hunter2', 'subscriber')
+    const res = await auth.api.signInEmail({ body: { email: 'a@b.co', password: 'hunter2hunter2' }, asResponse: true })
+    const cookie = res.headers.get('set-cookie')!.split(';')[0]!
+    const actor = await resolveSessionActor(auth)(new Request('http://x/', { headers: { cookie } }))
+    expect(actor).toBeNull()
   })
 
   it('returns null for no cookie', async () => {

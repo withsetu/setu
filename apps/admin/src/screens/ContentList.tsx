@@ -43,8 +43,10 @@ export function ContentList({ collection, title }: { collection: string; title: 
   const index = useIndex()
   const { categories } = useTaxonomy()
   const can = useCan()
-  // #362: a read-only Viewer (no content.edit) gets no selection column or bulk bar, and no "New"
-  // affordance without content.create. The server re-enforces both (git-write is content.edit).
+  // #362: an actor without content.edit gets no selection column or bulk bar, and no "New"
+  // affordance without content.create. Every current staff role holds these, so the gate is
+  // defensive (future audience/read-only roles land in #379). The server re-enforces both
+  // (git-write is content.edit).
   const canEdit = can('content.edit')
   const pageSize = useSettings().reading.listPageSize
   const [params, setParams] = useSearchParams()

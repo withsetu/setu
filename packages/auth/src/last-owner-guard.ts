@@ -47,7 +47,7 @@ export interface UserWithAdminFields {
  *  request body) and `context.path` (the route being dispatched) — NOT just adapter/db access.
  *
  *  Empirically confirmed (not just traced from types): a debug hook logging `context.body` for a
- *  real `POST /admin/set-role` request printed `{ userId: '...', role: 'viewer' }` — the exact
+ *  real `POST /admin/set-role` request printed `{ userId: '...', role: 'author' }` — the exact
  *  target id and requested role, straight off `context.body`. Same shape confirmed for
  *  `/admin/ban-user`'s body (`{ userId, banReason?, banExpiresIn? }`). `context.context` is the
  *  real `AuthContext`, carrying `internalAdapter`/`adapter` for the owner-count query below.

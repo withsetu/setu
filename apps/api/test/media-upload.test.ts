@@ -26,7 +26,6 @@ function memStorage(): StoragePort & { map: Map<string, StoredObject> } {
 }
 
 const owner: Actor = { id: 'local', role: 'admin' }
-const viewer: Actor = { id: 'v', role: 'viewer' }
 
 function makeApp(resolve: () => Actor | null, opts?: { maxBytes?: number; storage?: ReturnType<typeof memStorage> }) {
   const storage = opts?.storage ?? memStorage()
@@ -117,15 +116,10 @@ describe('POST /media', () => {
   })
 
   it('401 when unauthenticated', async () => {
+    // #379: upload is gated on media.upload, which every current staff role holds — so the only
+    // deny path left is the unauthenticated one (no actor → 401). The old Viewer 403 case is gone.
     const { app } = makeApp(() => null)
     expect((await post(app, png())).status).toBe(401)
-  })
-
-  it('403 when the actor lacks content.create', async () => {
-    const { app } = makeApp(() => viewer)
-    const res = await post(app, png())
-    expect(res.status).toBe(403)
-    expect(await res.json()).toEqual({ error: 'forbidden' })
   })
 
   it('400 when no file field is present', async () => {

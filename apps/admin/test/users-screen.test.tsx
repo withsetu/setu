@@ -65,18 +65,20 @@ const EDITOR = {
   role: 'editor',
   banned: false,
 }
-const VIEWER = {
-  id: 'viewer-1',
-  email: 'viewer@setu.dev',
-  name: 'Val Viewer',
+// #379: a disabled author fixture (viewer role removed) — exercises the "Disabled" row badge with
+// a real staff role.
+const DISABLED_AUTHOR = {
+  id: 'author-1',
+  email: 'author@setu.dev',
+  name: 'Al Author',
   emailVerified: true,
   createdAt: now,
   updatedAt: now,
-  role: 'viewer',
+  role: 'author',
   banned: true,
 }
 
-function renderAsActor(role: 'admin' | 'editor' | 'viewer', id = 'owner-1') {
+function renderAsActor(role: 'admin' | 'editor' | 'author', id = 'owner-1') {
   const wrapper = ({ children }: { children: ReactNode }) => (
     <NotificationProvider>
       <ActorProvider actor={{ id, role }}>{children}</ActorProvider>
@@ -102,9 +104,9 @@ function stubCredentialStatus(status: Record<string, boolean> = {}) {
 }
 
 beforeEach(() => {
-  // Default: OWNER/EDITOR/VIEWER (the fixtures below) all have credential accounts, matching the
-  // existing tests' assumption that nothing about password state was previously being asserted.
-  stubCredentialStatus({ 'owner-1': true, 'editor-1': true, 'viewer-1': true })
+  // Default: OWNER/EDITOR/DISABLED_AUTHOR (the fixtures below) all have credential accounts, matching
+  // the existing tests' assumption that nothing about password state was previously being asserted.
+  stubCredentialStatus({ 'owner-1': true, 'editor-1': true, 'author-1': true })
 })
 
 afterEach(() => {
@@ -114,14 +116,14 @@ afterEach(() => {
 
 describe('UsersScreen', () => {
   it('renders the user list with role badges, status, and created date', async () => {
-    mockListUsers.mockResolvedValue({ data: { users: [OWNER, EDITOR, VIEWER], total: 3 }, error: null } as never)
+    mockListUsers.mockResolvedValue({ data: { users: [OWNER, EDITOR, DISABLED_AUTHOR], total: 3 }, error: null } as never)
     mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)
 
     renderAsActor('admin')
 
     expect(await screen.findByText('Ada Owner')).toBeInTheDocument()
     expect(screen.getByText('Eve Editor')).toBeInTheDocument()
-    expect(screen.getByText('Val Viewer')).toBeInTheDocument()
+    expect(screen.getByText('Al Author')).toBeInTheDocument()
     expect(screen.getByText('editor@setu.dev')).toBeInTheDocument()
     expect(screen.getAllByText('Disabled').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Active').length).toBeGreaterThan(0)
@@ -178,16 +180,16 @@ describe('UsersScreen', () => {
   it('changes a user role via setRole', async () => {
     mockListUsers.mockResolvedValue({ data: { users: [OWNER, EDITOR], total: 2 }, error: null } as never)
     mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)
-    mockSetRole.mockResolvedValue({ data: { user: { ...EDITOR, role: 'viewer' } }, error: null } as never)
+    mockSetRole.mockResolvedValue({ data: { user: { ...EDITOR, role: 'author' } }, error: null } as never)
 
     renderAsActor('admin')
     await screen.findByText('Eve Editor')
 
     const editorRoleSelect = screen.getByRole('combobox', { name: /change role for eve editor/i })
     fireEvent.click(editorRoleSelect)
-    fireEvent.click(await screen.findByRole('option', { name: /^viewer$/i }))
+    fireEvent.click(await screen.findByRole('option', { name: /^author$/i }))
 
-    await waitFor(() => expect(mockSetRole).toHaveBeenCalledWith({ userId: 'editor-1', role: 'viewer' }))
+    await waitFor(() => expect(mockSetRole).toHaveBeenCalledWith({ userId: 'editor-1', role: 'author' }))
   })
 
   it('disables the role-change control for your own row (cannot change your own role)', async () => {

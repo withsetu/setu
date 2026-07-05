@@ -83,7 +83,7 @@ describe('server-side last-owner enforcement (databaseHooks.user.update.before)'
     const owner = await makeUser(auth, { email: 'owner@test.com', name: 'Owner', role: 'admin', password: 'a-strong-password-12' })
     const cookie = await signInCookie(auth, 'owner@test.com', 'a-strong-password-12')
 
-    const res = await auth.handler(adminRequest('/admin/set-role', cookie, { userId: owner.id, role: 'viewer' }))
+    const res = await auth.handler(adminRequest('/admin/set-role', cookie, { userId: owner.id, role: 'author' }))
     expect(res.status).toBe(400)
     const body = (await res.json()) as { message: string }
     expect(body.message).toMatch(/last admin/i)
@@ -186,7 +186,7 @@ describe('server-side last-owner enforcement (databaseHooks.user.update.before)'
     // A is now the SOLE active owner. better-auth's setRole has NO self-change guard (unlike ban,
     // which blocks self-ban) — so A demoting A directly proves the LAST-OWNER hook itself is what
     // fires here, not merely better-auth's own self-protection.
-    const selfDemote = await auth.handler(adminRequest('/admin/set-role', cookieA, { userId: ownerA.id, role: 'viewer' }))
+    const selfDemote = await auth.handler(adminRequest('/admin/set-role', cookieA, { userId: ownerA.id, role: 'author' }))
     expect(selfDemote.status).toBe(400)
 
     const persisted = await findUserRow(db, ownerA.id)
@@ -207,7 +207,7 @@ describe('server-side last-owner enforcement (databaseHooks.user.update.before)'
       password: 'a-strong-password-12',
     })
     const cookie = await signInCookie(auth, 'bootstrap@test.com', 'a-strong-password-12')
-    const newUser = await makeUser(auth, { email: 'newowner@test.com', name: 'New Owner', role: 'viewer', password: 'a-strong-password-12' })
+    const newUser = await makeUser(auth, { email: 'newowner@test.com', name: 'New Owner', role: 'author', password: 'a-strong-password-12' })
 
     const promote = await auth.handler(adminRequest('/admin/set-role', cookie, { userId: newUser.id, role: 'admin' }))
     expect(promote.status).toBe(200)
@@ -245,7 +245,7 @@ describe('server-side last-owner enforcement (databaseHooks.user.update.before)'
 
     // Now `ghost` still has role:'admin' in the DB but is banned — it must NOT count as an active
     // owner. Demoting the sole remaining ACTIVE owner must be rejected.
-    const demote = await auth.handler(adminRequest('/admin/set-role', cookie, { userId: activeOwner.id, role: 'viewer' }))
+    const demote = await auth.handler(adminRequest('/admin/set-role', cookie, { userId: activeOwner.id, role: 'author' }))
     expect(demote.status).toBe(400)
   })
 
@@ -260,7 +260,7 @@ describe('server-side last-owner enforcement (databaseHooks.user.update.before)'
     const cookie = await signInCookie(auth, 'owner@test.com', 'a-strong-password-12')
 
     const res = await auth.handler(
-      adminRequest('/admin/update-user', cookie, { userId: owner.id, data: { role: 'viewer' } }),
+      adminRequest('/admin/update-user', cookie, { userId: owner.id, data: { role: 'author' } }),
     )
     expect(res.status).toBe(400)
     const body = (await res.json()) as { message: string }

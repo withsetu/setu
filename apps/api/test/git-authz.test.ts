@@ -5,9 +5,10 @@ import type { Role } from '@setu/core'
 import type { ResolveActor } from '../src/auth/resolve-actor'
 
 // #362 — /git/* is the repository write API and had NO authz gate (OWASP A01): an anonymous POST
-// /git/commit could rewrite any file in the content repo. WRITES now require `content.edit` (every
-// content role has it; Viewer does not). READS (head/file/list) stay ungated on purpose: the admin
-// bootstrap reads git.headSha() before a session exists, so gating reads would hang the app on
+// /git/commit could rewrite any file in the content repo. WRITES now require `content.edit`. With
+// the read-only viewer role removed (#379) every staff role holds content.edit, so the only deny
+// path left is the unauthenticated one (no actor → 401). READS (head/file/list) stay ungated on
+// purpose: the admin bootstrap reads git.headSha() before a session exists, so gating reads would hang the app on
 // "Loading…" (caught in live UAT) — read-gating is deferred to #110 (bootstrap must defer its read).
 // The server is the enforcement boundary; the admin's HttpGitPort carries the session cookie
 // (credentials: 'include' via apiFetch — see apps/admin/src/data/Bootstrap.tsx).
@@ -36,11 +37,6 @@ describe('createGitApi — authz enforcement (#362, the Git-write hole)', () => 
   it('rejects an UNAUTHENTICATED caller on WRITES with 401', async () => {
     const a = app(unauthenticated)
     for (const [path, body] of WRITE_ROUTES) expect((await write(a, path, body)).status, `POST ${path}`).toBe(401)
-  })
-
-  it('rejects a VIEWER on writes with 403 (no content.edit)', async () => {
-    const a = app(asRole('viewer'))
-    for (const [path, body] of WRITE_ROUTES) expect((await write(a, path, body)).status, `POST ${path}`).toBe(403)
   })
 
   it('leaves READS ungated — even an unauthenticated caller gets 200 (bootstrap reads pre-session; see #110)', async () => {

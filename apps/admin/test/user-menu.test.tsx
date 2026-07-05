@@ -55,7 +55,7 @@ describe('UserMenu', () => {
 
   it('falls back to email initial when name is absent', () => {
     mockUseSession.mockReturnValue({
-      data: { user: { id: 'u2', name: '', email: 'viewer@setu.dev', role: 'viewer' } },
+      data: { user: { id: 'u2', name: '', email: 'author@setu.dev', role: 'author' } },
       isPending: false,
       isRefetching: false,
       error: null,
@@ -63,6 +63,6 @@ describe('UserMenu', () => {
     } as never)
 
     renderMenu()
-    expect(screen.getByText('viewer@setu.dev')).toBeInTheDocument()
+    expect(screen.getByText('author@setu.dev')).toBeInTheDocument()
   })
 })

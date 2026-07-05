@@ -53,8 +53,8 @@ export const user = sqliteTable('user', {
   email: text('email').notNull().unique(),
   emailVerified: integer('email_verified', { mode: 'boolean' }).notNull().default(false),
   image: text('image'),
-  // Added by the admin plugin. Setu roles: owner|publisher|editor|author|viewer.
-  role: text('role').notNull().default('viewer'),
+  // Added by the admin plugin. Setu staff roles: admin|maintainer|editor|author.
+  role: text('role').notNull().default('author'),
   banned: integer('banned', { mode: 'boolean' }).notNull().default(false),
   banReason: text('ban_reason'),
   banExpires: integer('ban_expires', { mode: 'timestamp_ms' }),

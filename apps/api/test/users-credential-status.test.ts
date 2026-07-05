@@ -101,7 +101,7 @@ describe('GET /api/users/credential-status', () => {
     const owner = await makeUser(auth, { email: 'owner@test.com', name: 'Owner', role: 'admin', password: 'a-strong-password-12' })
     // Passwordless user: created with no linkAccount call at all (mirrors ensure-local-owner.ts's
     // shape for the local owner, or any admin-created "magic link only" user).
-    const passwordless = await makeUser(auth, { email: 'ghost@test.com', name: 'Ghost', role: 'viewer' })
+    const passwordless = await makeUser(auth, { email: 'ghost@test.com', name: 'Ghost', role: 'author' })
     const cookie = await signInCookie(auth, 'owner@test.com', 'a-strong-password-12')
 
     const res = await app.fetch(new Request('http://test/api/users/credential-status', { headers: { cookie } }))

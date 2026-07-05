@@ -1,11 +1,11 @@
 import type { Action, PermissionMatrix } from './types'
 
 // Building blocks, composed bottom-up so each role visibly extends the one below
-// it (viewer ⊂ author ⊂ editor ⊂ maintainer ⊂ admin, with a couple of exceptions
-// the matrix in epic #359 spells out). Coarse form only — ownership (#363) and
+// it (author ⊂ editor ⊂ maintainer ⊂ admin, with a couple of exceptions the
+// matrix in epic #359 spells out). Coarse form only — ownership (#363) and
 // rank-scoping (#364) are not modelled here.
 
-/** Viewer — read-only across the surfaces a signed-in user can see. */
+/** Shared read access — the view actions every staff role holds. */
 const VIEW: Action[] = ['content.view', 'taxonomy.view', 'media.view']
 
 /** Author — creates and manages content + media (edit/delete coarse until #363),
@@ -53,5 +53,4 @@ export const DEFAULT_ROLES: PermissionMatrix = {
   maintainer: new Set(MAINTAINER),
   editor: new Set(EDITOR),
   author: new Set(AUTHOR),
-  viewer: new Set(VIEW),
 }

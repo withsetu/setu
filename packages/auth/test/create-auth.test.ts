@@ -21,7 +21,7 @@ function makeAuth() {
 // user is created server-side via internalAdapter.createUser (first-run setup, ensureLocalOwner,
 // or the admin plugin's createUser), never through the public sign-up route. Tests that merely
 // need *a user to exist* create one this way, mirroring auth-events.test.ts's makeOwner helper.
-async function createUser(auth: ReturnType<typeof createAuth>, email: string, password: string, role: 'viewer' | 'admin' = 'viewer') {
+async function createUser(auth: ReturnType<typeof createAuth>, email: string, password: string, role: 'author' | 'admin' = 'author') {
   const ctx = await auth.$context
   const user = await ctx.internalAdapter.createUser({ email, name: 'A', role, emailVerified: true })
   const hashed = await ctx.password.hash(password)
@@ -38,19 +38,19 @@ describe('createAuth', () => {
     ).rejects.toThrow(/sign up is not enabled/i)
   })
 
-  it('signs in with email/password for a server-created user; default role viewer', async () => {
+  it('signs in with email/password for a server-created user; default role author', async () => {
     const { db, createAuth: makeAuthInstance } = makeAuth()
     const auth = makeAuthInstance()
     const created = await createUser(auth, 'a@b.co', 'hunter2hunter2')
     expect(created.email).toBe('a@b.co')
 
-    // Verify the persisted user has the default role of 'viewer'
+    // Verify the persisted user has the default role of 'author' (#379: viewer removed)
     const persistedUser = await db
       .select()
       .from(userTable)
       .where(eq(userTable.id, created.id))
       .then((rows) => rows[0])
-    expect(persistedUser?.role).toBe('viewer')
+    expect(persistedUser?.role).toBe('author')
 
     const signin = await auth.api.signInEmail({
       body: { email: 'a@b.co', password: 'hunter2hunter2' },

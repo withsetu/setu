@@ -62,7 +62,7 @@ function signInRequest(email: string, password: string) {
 // packages/auth/test/auth-events.test.ts.
 async function createUser(auth: ReturnType<typeof createAuth>, email: string, password: string) {
   const ctx = await auth.$context
-  const user = await ctx.internalAdapter.createUser({ email, name: 'A', role: 'viewer', emailVerified: true })
+  const user = await ctx.internalAdapter.createUser({ email, name: 'A', role: 'author', emailVerified: true })
   const hashed = await ctx.password.hash(password)
   await ctx.internalAdapter.linkAccount({ userId: user.id, providerId: 'credential', accountId: user.id, password: hashed })
   return user

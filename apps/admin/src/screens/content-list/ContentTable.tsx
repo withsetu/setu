@@ -34,8 +34,10 @@ export function ContentTable({
   selected: Set<string>; allSelected: boolean
   onToggleRow: (k: string) => void; onToggleAll: () => void
   sort: { key: SortKey; dir: 'asc' | 'desc' }; onSort: (k: SortKey) => void
-  // #362: a read-only role (Viewer — no content.edit) gets no selection column, so it has no path
-  // to the bulk actions. Defaults true; ContentList passes the actor's content.edit capability.
+  // #362: an actor without content.edit gets no selection column, so it has no path to the bulk
+  // actions. Every current staff role holds content.edit, so this is defensive (future
+  // audience/read-only roles land in #379). Defaults true; ContentList passes the actor's
+  // content.edit capability.
   selectable?: boolean
 }) {
   const reduce = useReducedMotion()

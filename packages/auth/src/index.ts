@@ -24,14 +24,14 @@ export type { AuthEvent, AuthEventType } from './events'
 
 // better-auth's admin plugin validates `adminRoles` against the keys of a
 // `roles` access-control map (defaulting to its own `{ admin, user }` map). We
-// supply an explicit `roles` map naming all five Setu roles (admin|maintainer|
-// editor|author|viewer), which REPLACES that default entirely — so even though
+// supply an explicit `roles` map naming all four Setu roles (admin|maintainer|
+// editor|author), which REPLACES that default entirely — so even though
 // Setu's top role is now also literally `admin`, it's our `admin` definition
 // below (not better-auth's built-in one) that governs the admin plugin's
 // user/session statements. Only 'admin' is granted admin-plugin permissions
 // (user/session management); the rest are placeholders with no admin-plugin
 // statements — Setu's own authorization (outside better-auth) governs what
-// maintainer/editor/author/viewer can do.
+// maintainer/editor/author can do.
 const setuAdminRoles = {
   admin: defaultAc.newRole({
     user: [
@@ -51,7 +51,6 @@ const setuAdminRoles = {
   maintainer: defaultAc.newRole({ user: [], session: [] }),
   editor: defaultAc.newRole({ user: [], session: [] }),
   author: defaultAc.newRole({ user: [], session: [] }),
-  viewer: defaultAc.newRole({ user: [], session: [] }),
 } satisfies Record<(typeof SETU_ROLES)[number], ReturnType<typeof defaultAc.newRole>>
 
 export function createAuth(opts: CreateAuthOptions) {
@@ -63,7 +62,7 @@ export function createAuth(opts: CreateAuthOptions) {
   const emit = opts.onAuthEvent ?? (() => {})
 
   const plugins: BetterAuthPlugin[] = [
-    admin({ adminRoles: ['admin'], defaultRole: 'viewer', roles: setuAdminRoles }),
+    admin({ adminRoles: ['admin'], defaultRole: 'author', roles: setuAdminRoles }),
   ]
   if (opts.captcha) {
     plugins.push(captcha({ provider: opts.captcha.provider, secretKey: opts.captcha.secretKey }))

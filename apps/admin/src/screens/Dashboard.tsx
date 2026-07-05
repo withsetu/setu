@@ -20,8 +20,9 @@ import { GettingStarted } from '../dashboard/widgets/GettingStarted'
 import { SiteHealthCard } from './dashboard/SiteHealthCard'
 
 function HeaderActions() {
-  // #362: creating content requires content.create — a read-only Viewer gets no "New" buttons
-  // (the server also rejects the resulting git write). Nothing to show without it.
+  // #362: creating content requires content.create — an actor without it gets no "New" buttons
+  // (the server also rejects the resulting git write). Every current staff role holds it, so the
+  // gate is defensive (future audience/read-only roles land in #379). Nothing to show without it.
   const can = useCan()
   if (!can('content.create')) return null
   return (

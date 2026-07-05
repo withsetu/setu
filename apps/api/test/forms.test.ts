@@ -113,8 +113,9 @@ describe('createFormsApi — authz enforcement (#362, the PII hole)', () => {
     }
   })
 
-  it('rejects a VIEWER (no forms.* capability) with 403 on every admin CRUD route', async () => {
-    const { app } = makeApp({ resolveActor: asRole('viewer') })
+  it('rejects an AUTHOR (no forms.* capability) with 403 on every admin CRUD route', async () => {
+    // #379: author is the lowest staff role and holds no forms.* — form PII is Maintainer+ only.
+    const { app } = makeApp({ resolveActor: asRole('author') })
     for (const [path, init] of [...READ_ROUTES, ...WRITE_ROUTES]) {
       expect((await call(app, path, init)).status, `${init.method} ${path}`).toBe(403)
     }

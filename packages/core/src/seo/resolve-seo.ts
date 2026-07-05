@@ -14,6 +14,14 @@ export interface SeoPage {
   type?: 'website' | 'article'
   /** Absolute URL of this page's share image; falls back to identity.defaultImage. */
   image?: string
+  /** Intrinsic width of the share image in px (from the media manifest) → og:image:width. */
+  imageWidth?: number
+  /** Intrinsic height of the share image in px (from the media manifest) → og:image:height. */
+  imageHeight?: number
+  /** MIME type of the share image (e.g. 'image/jpeg') → og:image:type. */
+  imageType?: string
+  /** Alt text for the share image → og:image:alt (the theme uses the page title). */
+  imageAlt?: string
   /** BCP-47 locale for og:locale (e.g. 'en'). Default 'en'. */
   locale?: string
   /** Absolute canonical URL of this page (og:url + <link rel=canonical>). */
@@ -101,7 +109,25 @@ export function resolveSeo(settings: SiteSettings, page: SeoPage): ResolvedSeo {
     meta.push({ property: 'og:description', content: description })
   meta.push({ property: 'og:url', content: page.canonical })
   meta.push({ property: 'og:site_name', content: siteName })
-  if (image) meta.push({ property: 'og:image', content: image })
+  if (image) {
+    meta.push({ property: 'og:image', content: image })
+    // Dimensions/type/alt only when known (media-manifest images); external URLs emit the bare
+    // og:image. Width/height let a card render without reflow; type/alt are Rank-Math-shaped extras.
+    if (page.imageWidth)
+      meta.push({
+        property: 'og:image:width',
+        content: String(page.imageWidth)
+      })
+    if (page.imageHeight)
+      meta.push({
+        property: 'og:image:height',
+        content: String(page.imageHeight)
+      })
+    if (page.imageType)
+      meta.push({ property: 'og:image:type', content: page.imageType })
+    if (page.imageAlt)
+      meta.push({ property: 'og:image:alt', content: page.imageAlt })
+  }
 
   // Twitter cards
   meta.push({
@@ -116,6 +142,8 @@ export function resolveSeo(settings: SiteSettings, page: SeoPage): ResolvedSeo {
   if (description)
     meta.push({ name: 'twitter:description', content: description })
   if (image) meta.push({ name: 'twitter:image', content: image })
+  if (image && page.imageAlt)
+    meta.push({ name: 'twitter:image:alt', content: page.imageAlt })
 
   return { title, canonical: page.canonical, meta }
 }

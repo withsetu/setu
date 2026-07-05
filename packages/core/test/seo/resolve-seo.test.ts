@@ -133,6 +133,44 @@ describe('resolveSeo', () => {
     expect(content(noImg, { name: 'twitter:card' })).toBe('summary')
   })
 
+  it('emits og:image:width/height/type/alt when the caller supplies them (#215)', () => {
+    const s = resolveSeo(
+      settings(),
+      page({
+        title: 'Hello',
+        image: 'https://cdn/x.jpg',
+        imageWidth: 1200,
+        imageHeight: 630,
+        imageType: 'image/jpeg',
+        imageAlt: 'Hello'
+      })
+    )
+    expect(content(s, { property: 'og:image' })).toBe('https://cdn/x.jpg')
+    expect(content(s, { property: 'og:image:width' })).toBe('1200')
+    expect(content(s, { property: 'og:image:height' })).toBe('630')
+    expect(content(s, { property: 'og:image:type' })).toBe('image/jpeg')
+    expect(content(s, { property: 'og:image:alt' })).toBe('Hello')
+    expect(content(s, { name: 'twitter:image:alt' })).toBe('Hello')
+  })
+
+  it('omits og:image dimension tags when the image has no known manifest (#215)', () => {
+    const s = resolveSeo(settings(), page({ image: 'https://cdn/ext.jpg' }))
+    expect(content(s, { property: 'og:image' })).toBe('https://cdn/ext.jpg')
+    expect(content(s, { property: 'og:image:width' })).toBeUndefined()
+    expect(content(s, { property: 'og:image:height' })).toBeUndefined()
+    expect(content(s, { property: 'og:image:type' })).toBeUndefined()
+    expect(content(s, { property: 'og:image:alt' })).toBeUndefined()
+  })
+
+  it('never emits og:image:* dimension tags without an og:image (#215)', () => {
+    const s = resolveSeo(
+      settings(),
+      page({ imageWidth: 1200, imageHeight: 630, imageAlt: 'x' })
+    )
+    expect(content(s, { property: 'og:image:width' })).toBeUndefined()
+    expect(content(s, { property: 'og:image:alt' })).toBeUndefined()
+  })
+
   it('normalizes the twitter handle with a single @', () => {
     const s = resolveSeo(
       settings({

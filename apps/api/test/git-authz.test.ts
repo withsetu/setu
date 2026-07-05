@@ -91,3 +91,34 @@ describe('createGitApi — settings-path write gate (settings.json → settings.
     expect((await write(app(asRole('maintainer')), '/git/commit', commitBody)).status).toBe(200)
   })
 })
+
+// UAT 2026-07-05 — content.publish was enforced only in the admin UI (PublishMenu); the server gate
+// checked content.edit, so an author could publish by POSTing live content to the raw git API. The
+// gate now inspects the committed frontmatter: a content post going live requires content.publish, a
+// `published: false` draft only content.edit.
+describe('createGitApi — content publish gate (live → content.publish, draft → content.edit)', () => {
+  const CPATH = 'content/post/en/hello.mdoc'
+  const liveBody = JSON.stringify({ path: CPATH, content: '---\ntitle: Hello\n---\n\nHi', message: 'm', author })
+  const draftBody = JSON.stringify({ path: CPATH, content: '---\ntitle: Hello\npublished: false\n---\n\nHi', message: 'm', author })
+  const liveFiles = JSON.stringify({ changes: [{ path: CPATH, content: '---\ntitle: H\n---\n\nHi' }], message: 'm', author })
+  const draftFiles = JSON.stringify({ changes: [{ path: CPATH, content: '---\ntitle: H\npublished: false\n---\n\nHi' }], message: 'm', author })
+
+  it('rejects an AUTHOR publishing live content with 403 (needs content.publish)', async () => {
+    expect((await write(app(asRole('author')), '/git/commit', liveBody)).status).toBe(403)
+    expect((await write(app(asRole('author')), '/git/commit-files', liveFiles)).status).toBe(403)
+  })
+
+  it('allows an AUTHOR to commit a draft (published:false) → 200 (content.edit)', async () => {
+    expect((await write(app(asRole('author')), '/git/commit', draftBody)).status).toBe(200)
+    expect((await write(app(asRole('author')), '/git/commit-files', draftFiles)).status).toBe(200)
+  })
+
+  it('allows an EDITOR (has content.publish) to publish live content → 200', async () => {
+    expect((await write(app(asRole('editor')), '/git/commit', liveBody)).status).toBe(200)
+  })
+
+  it('leaves non-content paths (taxonomy) at content.edit — an author can still write them', async () => {
+    const taxBody = JSON.stringify({ path: 'categories.yaml', content: 'cats: []', message: 'm', author })
+    expect((await write(app(asRole('author')), '/git/commit', taxBody)).status).toBe(200)
+  })
+})

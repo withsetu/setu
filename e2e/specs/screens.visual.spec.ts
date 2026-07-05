@@ -111,6 +111,10 @@ test.describe('visual baselines', () => {
   })
 
   test('editor with content', async ({ page }) => {
+    // #365 auto-stamps `new Date()` into the new post's Published field at creation, so
+    // pin the clock BEFORE createPost() to keep that stamped date a stable baseline pixel
+    // (setFixedTime pins Date only; timers stay real, so autosave debounce is unaffected).
+    await page.clock.setFixedTime(new Date('2026-01-15T15:00:00Z'))
     const list = new ContentListPage(page)
     await list.gotoPosts()
     const editor = await list.createPost()

@@ -9,9 +9,10 @@ const KNOWN = { knownBlockTags: new Set(['query']) }
 
 describe('query block round-trip', () => {
   it('maps {% query /%} to a leaf queryBlock node (no body)', () => {
-    const src = '{% query collection="post" category="news" tag="astro" sort="oldest" layout="grid" columns=4 limit=6 offset=2 showImage=false /%}\n'
+    const src =
+      '{% query collection="post" category="news" tag="astro" sort="oldest" layout="grid" columns=4 limit=6 offset=2 showImage=false /%}\n'
     const doc = markdocToTiptap(src, KNOWN)
-    const block = doc.content!.find((n) => n.type === 'queryBlock')
+    const block = doc.content.find((n) => n.type === 'queryBlock')
     expect(block).toBeDefined()
     expect(block!.content).toBeUndefined()
     expect(block!.attrs!.mdAttrs).toMatchObject({
@@ -23,12 +24,13 @@ describe('query block round-trip', () => {
       columns: 4,
       limit: 6,
       offset: 2,
-      showImage: false,
+      showImage: false
     })
   })
 
   it('re-emits a self-closing {% query … /%} with attributes preserved', () => {
-    const src = '{% query collection="post" layout="grid" columns=3 limit=10 /%}\n'
+    const src =
+      '{% query collection="post" layout="grid" columns=3 limit=10 /%}\n'
     const out = tiptapToMarkdoc(markdocToTiptap(src, KNOWN))
     expect(out).toContain('{% query')
     expect(out).toContain('columns=3')

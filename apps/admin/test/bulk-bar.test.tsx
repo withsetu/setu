@@ -15,28 +15,51 @@ const TAXONOMY_YAML = `- slug: news\n  name: News\n  parent: null\n`
 
 const row = (slug: string, over: Partial<ContentRow> = {}): ContentRow => ({
   ref: { collection: 'post', locale: 'en', slug },
-  title: slug, locale: 'en', lifecycle: { state: 'live' }, updatedAt: 1, hasDraft: false, tags: [], categories: [], mediaRefs: [],
-  ...over,
+  title: slug,
+  locale: 'en',
+  lifecycle: { state: 'live' },
+  updatedAt: 1,
+  hasDraft: false,
+  date: null,
+  tags: [],
+  categories: [],
+  mediaRefs: [],
+  ...over
 })
 
 function setup(rows: ContentRow[], { withTaxonomy = false } = {}) {
-  const seed = rows.map((r) => ({ path: contentPath(r.ref), content: serializeMdoc({ frontmatter: { title: r.title }, body: 'x' }) }))
-  if (withTaxonomy) seed.push({ path: 'taxonomy/categories.yaml', content: TAXONOMY_YAML })
+  const seed = rows.map((r) => ({
+    path: contentPath(r.ref),
+    content: serializeMdoc({ frontmatter: { title: r.title }, body: 'x' })
+  }))
+  if (withTaxonomy)
+    seed.push({ path: 'taxonomy/categories.yaml', content: TAXONOMY_YAML })
   // seed committed files so loadForEdit can fork them
   const git = createMemoryGitPort(seed)
   const data = createMemoryDataPort()
   const services = servicesFor(data, git)
   const onDone = vi.fn()
   const onClear = vi.fn()
-  const selected = new Set(rows.map((r) => `${r.ref.collection}/${r.ref.locale}/${r.ref.slug}`))
+  const selected = new Set(
+    rows.map((r) => `${r.ref.collection}/${r.ref.locale}/${r.ref.slug}`)
+  )
   render(
     <ServicesProvider services={services}>
-      <DeployProvider><IndexProvider><TaxonomyProvider>
-        <NotificationProvider>
-          <BulkBar rows={rows} selected={selected} onClear={onClear} onDone={onDone} />
-        </NotificationProvider>
-      </TaxonomyProvider></IndexProvider></DeployProvider>
-    </ServicesProvider>,
+      <DeployProvider>
+        <IndexProvider>
+          <TaxonomyProvider>
+            <NotificationProvider>
+              <BulkBar
+                rows={rows}
+                selected={selected}
+                onClear={onClear}
+                onDone={onDone}
+              />
+            </NotificationProvider>
+          </TaxonomyProvider>
+        </IndexProvider>
+      </DeployProvider>
+    </ServicesProvider>
   )
   return { git, data, onDone, onClear }
 }
@@ -49,7 +72,11 @@ describe('BulkBar', () => {
     fireEvent.keyDown(input, { key: 'Enter' })
     expect(await screen.findByText(/Added .*news.* to 2/i)).toBeTruthy()
     const { parseMdoc } = await import('@setu/core')
-    const a = parseMdoc((await git.readFile(contentPath({ collection: 'post', locale: 'en', slug: 'a' })))!)
+    const a = parseMdoc(
+      (await git.readFile(
+        contentPath({ collection: 'post', locale: 'en', slug: 'a' })
+      ))!
+    )
     expect(a.frontmatter.tags).toEqual(['news'])
   })
 
@@ -58,11 +85,18 @@ describe('BulkBar', () => {
     const { git } = setup([row('a')])
     fireEvent.click(screen.getByRole('button', { name: /^delete$/i }))
     expect(await screen.findByText(/Deleted 1/i)).toBeTruthy()
-    expect(await git.readFile(contentPath({ collection: 'post', locale: 'en', slug: 'a' }))).toBeNull()
+    expect(
+      await git.readFile(
+        contentPath({ collection: 'post', locale: 'en', slug: 'a' })
+      )
+    ).toBeNull()
   })
 
   it('shows the unpublished-changes heads-up count', () => {
-    setup([row('a', { hasDraft: true, lifecycle: { state: 'staged' } }), row('b')])
+    setup([
+      row('a', { hasDraft: true, lifecycle: { state: 'staged' } }),
+      row('b')
+    ])
     expect(screen.getByText(/1 of 2 have unpublished changes/i)).toBeTruthy()
   })
 
@@ -87,7 +121,11 @@ describe('BulkBar', () => {
     expect(await screen.findByText(/Added category to 2/i)).toBeTruthy()
 
     const { parseMdoc } = await import('@setu/core')
-    const a = parseMdoc((await git.readFile(contentPath({ collection: 'post', locale: 'en', slug: 'a' })))!)
+    const a = parseMdoc(
+      (await git.readFile(
+        contentPath({ collection: 'post', locale: 'en', slug: 'a' })
+      ))!
+    )
     expect(a.frontmatter.categories).toEqual(['news'])
   })
 })

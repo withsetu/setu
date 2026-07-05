@@ -1,12 +1,23 @@
 import { describe, it, expect } from 'vitest'
 import { Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
-import { isBubblePopupOpen, registerBubblePopup, bubbleEscapeShouldCollapse } from '../src/editor/bubble-popup'
+import {
+  isBubblePopupOpen,
+  registerBubblePopup,
+  bubbleEscapeShouldCollapse
+} from '../src/editor/bubble-popup'
 
 const make = () =>
   new Editor({
-    extensions: [StarterKit.configure({ link: { openOnClick: false }, underline: false })],
-    content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'hello' }] }] },
+    extensions: [
+      StarterKit.configure({ link: { openOnClick: false }, underline: false })
+    ],
+    content: {
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'hello' }] }
+      ]
+    }
   })
 
 describe('bubble-popup guard', () => {

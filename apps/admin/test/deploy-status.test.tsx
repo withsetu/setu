@@ -30,7 +30,12 @@ describe('deploy status', () => {
                     <TaxonomyProvider>
                       <CommandRegistryProvider>
                         <DeployTrigger />
-                        <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
+                        <Routes>
+                          <Route
+                            path="/edit/:collection/:locale/:slug"
+                            element={<EditorScreen />}
+                          />
+                        </Routes>
                       </CommandRegistryProvider>
                     </TaxonomyProvider>
                   </IndexProvider>
@@ -39,12 +44,20 @@ describe('deploy status', () => {
             </ActorProvider>
           </MemoryRouter>
         </NotificationProvider>
-      </TooltipProvider>,
+      </TooltipProvider>
     )
     await screen.findByDisplayValue('Release notes')
     fireEvent.click(screen.getByRole('button', { name: /^publish$/i }))
-    await waitFor(() => expect(screen.getByText('Staged', { selector: '[data-slot="badge"]' })).toBeInTheDocument())
+    await waitFor(() =>
+      expect(
+        screen.getByText('Staged', { selector: '[data-slot="badge"]' })
+      ).toBeInTheDocument()
+    )
     fireEvent.click(screen.getByText('do-deploy'))
-    await waitFor(() => expect(screen.getByText('Live', { selector: '[data-slot="badge"]' })).toBeInTheDocument())
+    await waitFor(() =>
+      expect(
+        screen.getByText('Live', { selector: '[data-slot="badge"]' })
+      ).toBeInTheDocument()
+    )
   })
 })

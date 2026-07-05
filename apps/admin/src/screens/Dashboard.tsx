@@ -8,7 +8,12 @@ import { siteUrl } from '../shell/site-url'
 import { PageHeader } from '../shell/PageHeader'
 import { PageBody } from '../shell/PageBody'
 import { Button } from '@/components/ui/button'
-import { loadDashboardEntries, dashboardCounts, recentEntries, loadActiveLocks } from '../dashboard/entries'
+import {
+  loadDashboardEntries,
+  dashboardCounts,
+  recentEntries,
+  loadActiveLocks
+} from '../dashboard/entries'
 import { greeting } from '../lib/format'
 import { DashboardSkeleton } from '../dashboard/DashboardSkeleton'
 import { ResumeEditing } from '../dashboard/widgets/ResumeEditing'
@@ -21,8 +26,15 @@ import { SiteHealthCard } from './dashboard/SiteHealthCard'
 function HeaderActions() {
   return (
     <div className="flex items-center gap-2">
-      <Button asChild><Link to="/edit/post/en/new"><Plus className="size-4" />New post</Link></Button>
-      <Button asChild variant="outline"><Link to="/edit/page/en/new">New page</Link></Button>
+      <Button asChild>
+        <Link to="/edit/post/en/new">
+          <Plus className="size-4" />
+          New post
+        </Link>
+      </Button>
+      <Button asChild variant="outline">
+        <Link to="/edit/page/en/new">New page</Link>
+      </Button>
     </div>
   )
 }
@@ -47,7 +59,9 @@ export function Dashboard() {
         if (live) setError(true)
       }
     })()
-    return () => { live = false }
+    return () => {
+      live = false
+    }
   }, [data, git, deployedAt, deploySha])
 
   const counts = dashboardCounts(rows ?? [])
@@ -56,17 +70,34 @@ export function Dashboard() {
 
   return (
     <>
-      <PageHeader title="Dashboard" subtitle={`${greeting()} — here's your site at a glance.`} actions={<HeaderActions />} />
+      <PageHeader
+        title="Dashboard"
+        subtitle={`${greeting()} — here's your site at a glance.`}
+        actions={<HeaderActions />}
+      />
       <PageBody className="space-y-5">
-        {error && <p className="text-sm text-destructive">Couldn't load your dashboard. Try refreshing.</p>}
+        {error && (
+          <p className="text-sm text-destructive">
+            Couldn't load your dashboard. Try refreshing.
+          </p>
+        )}
         {rows === null && !error ? (
           <DashboardSkeleton />
         ) : (
           <>
-            <GettingStarted hasSiteUrl={url !== ''} hasPost={counts.posts > 0} hasDeployed={hasDeployed} />
+            <GettingStarted
+              hasSiteUrl={url !== ''}
+              hasPost={counts.posts > 0}
+              hasDeployed={hasDeployed}
+            />
             <div className="grid items-start gap-5 lg:grid-cols-2">
               <div className="space-y-5">
-                <StatTiles posts={counts.posts} pages={counts.pages} published={counts.published} drafts={counts.drafts} />
+                <StatTiles
+                  posts={counts.posts}
+                  pages={counts.pages}
+                  published={counts.published}
+                  drafts={counts.drafts}
+                />
                 <SiteDeployCard url={url} deployedSha={deploySha} />
                 <SiteHealthCard />
                 <WhosEditing locks={locks} />

@@ -10,11 +10,11 @@ const mdoc = `---\ntitle: X\n---\n{% callout type="info" %}\nHi.\n{% /callout %}
 function ports(): { data: DataPort; git: GitPort } {
   const data = {
     getDraft: async () => null,
-    saveDraft: async (d: unknown) => ({ ...(d as object), id: '1' }),
+    saveDraft: async (d: unknown) => ({ ...(d as object), id: '1' })
   } as unknown as DataPort
   const git = {
     readFile: async () => mdoc,
-    headSha: async () => 'sha',
+    headSha: async () => 'sha'
   } as unknown as GitPort
   return { data, git }
 }
@@ -22,16 +22,24 @@ function ports(): { data: DataPort; git: GitPort } {
 describe('read-service knownBlockTags injection', () => {
   it('treats callout as a block node when its tag is injected', async () => {
     const { data, git } = ports()
-    const svc = createReadService({ data, git, knownBlockTags: new Set(['callout']) })
+    const svc = createReadService({
+      data,
+      git,
+      knownBlockTags: new Set(['callout'])
+    })
     const res = await svc.loadForEdit(ref)
-    const content = (res as { draft: { content: { content: Array<{ type: string }> } } }).draft.content
+    const content = (
+      res as { draft: { content: { content: Array<{ type: string }> } } }
+    ).draft.content
     expect(content.content.some((n) => n.type === 'callout')).toBe(true)
   })
   it('falls back to passthrough when no tags are injected (default empty after Task 7)', async () => {
     const { data, git } = ports()
     const svc = createReadService({ data, git, knownBlockTags: new Set() })
     const res = await svc.loadForEdit(ref)
-    const content = (res as { draft: { content: { content: Array<{ type: string }> } } }).draft.content
+    const content = (
+      res as { draft: { content: { content: Array<{ type: string }> } } }
+    ).draft.content
     expect(content.content.some((n) => n.type === 'passthrough')).toBe(true)
   })
 })

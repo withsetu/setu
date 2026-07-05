@@ -1,25 +1,98 @@
 /* Callout structural + tone styles. Themeless-safe via var(--token, fallback): the admin
    provides the tokens (themed/dark-mode), the site uses the fallbacks until #3 tokenizes it.
    Editor-only chrome (.block-props/.bp-*) lives in the admin's editor.css, not here. */
-.blk-callout { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 15px 16px; border-radius: var(--r-md, 10px); margin: 12px 0; font-family: var(--font-ui, system-ui, sans-serif); }
-.blk-callout.tone-accent  { background: var(--accent-soft, #eef2ff); }
-.blk-callout.tone-green   { background: var(--green-soft, #f0fdf4); }
-.blk-callout.tone-amber   { background: var(--amber-soft, #fff7ed); }
-.blk-callout.tone-red     { background: var(--red-soft, #fef2f2); }
-.blk-callout.tone-neutral { background: var(--surface-2, #f3f4f6); }
-.blk-callout.tone-slate   { background: color-mix(in oklch, var(--text, #111827) 88%, var(--bg, #fff)); color: #fff; }
+.blk-callout {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 15px 16px;
+  border-radius: var(--r-md, 10px);
+  margin: 12px 0;
+  font-family: var(--font-ui, system-ui, sans-serif);
+}
+.blk-callout.tone-accent {
+  background: var(--accent-soft, #eef2ff);
+}
+.blk-callout.tone-green {
+  background: var(--green-soft, #f0fdf4);
+}
+.blk-callout.tone-amber {
+  background: var(--amber-soft, #fff7ed);
+}
+.blk-callout.tone-red {
+  background: var(--red-soft, #fef2f2);
+}
+.blk-callout.tone-neutral {
+  background: var(--surface-2, #f3f4f6);
+}
+.blk-callout.tone-slate {
+  background: color-mix(in oklch, var(--text, #111827) 88%, var(--bg, #fff));
+  color: #fff;
+}
 
-.callout-head { display: flex; align-items: center; gap: 10px; }
-.callout-ic { flex-shrink: 0; width: 30px; height: 30px; border-radius: var(--r-sm, 7px); display: grid; place-items: center; border: none; background: color-mix(in oklch, var(--canvas, #fff) 55%, transparent); }
-.tone-accent  .callout-ic { color: var(--accent-strong, #4f46e5); }
-.tone-green   .callout-ic { color: var(--green, #16a34a); }
-.tone-amber   .callout-ic { color: var(--amber, #d97706); }
-.tone-red     .callout-ic { color: var(--red, #dc2626); }
-.tone-neutral .callout-ic { color: var(--text-2, #4b5563); }
-.tone-slate   .callout-ic { color: #fff; background: color-mix(in oklch, #fff 16%, transparent); }
+.callout-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.callout-ic {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-sm, 7px);
+  display: grid;
+  place-items: center;
+  border: none;
+  background: color-mix(in oklch, var(--canvas, #fff) 55%, transparent);
+}
+.tone-accent .callout-ic {
+  color: var(--accent-strong, #4f46e5);
+}
+.tone-green .callout-ic {
+  color: var(--green, #16a34a);
+}
+.tone-amber .callout-ic {
+  color: var(--amber, #d97706);
+}
+.tone-red .callout-ic {
+  color: var(--red, #dc2626);
+}
+.tone-neutral .callout-ic {
+  color: var(--text-2, #4b5563);
+}
+.tone-slate .callout-ic {
+  color: #fff;
+  background: color-mix(in oklch, #fff 16%, transparent);
+}
 
-.callout-title { flex: 1; min-width: 0; border: none; background: transparent; outline: none; font-family: var(--font-ui, system-ui, sans-serif); font-size: 18px; font-weight: 700; letter-spacing: -.01em; color: inherit; padding: 0; }
+.callout-title {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-family: var(--font-ui, system-ui, sans-serif);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: inherit;
+  padding: 0;
+}
 
-.callout-body { font-size: 16px; line-height: 1.6; color: inherit; outline: none; }
-.callout-body p { font-size: 16px; line-height: 1.6; margin: 0; padding: 2px 0; color: inherit; }
-.callout-body > [data-node-view-content-react] { min-width: 0; }
+.callout-body {
+  font-size: 16px;
+  line-height: 1.6;
+  color: inherit;
+  outline: none;
+}
+.callout-body p {
+  font-size: 16px;
+  line-height: 1.6;
+  margin: 0;
+  padding: 2px 0;
+  color: inherit;
+}
+.callout-body > [data-node-view-content-react] {
+  min-width: 0;
+}

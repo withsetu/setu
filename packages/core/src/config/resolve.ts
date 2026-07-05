@@ -27,5 +27,6 @@ export function resolveConfig(raw: unknown): ResolvedConfig {
     knownBlockTags: new Set(blocksByTag.keys()),
     theme: parsed.data.theme,
     themeOptions: parsed.data.themeOptions,
+    permalinks: parsed.data.permalinks
   }
 }

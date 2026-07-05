@@ -7,8 +7,12 @@ export type ImageAlign = 'none' | 'left' | 'right' | 'wide' | 'full'
 const CONTENT_PX = 608 // 38rem — the prose content column (--measure-post)
 const PAGE_PX = 1024 // 64rem — the page width (--measure-page)
 
-/** `sizes` hint for the given alignment. Unknown/empty align is treated as 'none'; never throws. */
-export function sizesForAlign(align: ImageAlign | string | undefined): string {
+/** `sizes` hint for the given alignment. Unknown/empty align is treated as 'none'; never throws.
+ *  `(string & {})` keeps the ImageAlign literals visible in autocomplete without the union
+ *  collapsing to plain `string` (no-redundant-type-constituents). */
+export function sizesForAlign(
+  align: ImageAlign | (string & {}) | undefined
+): string {
   switch (align) {
     case 'full':
       return '100vw'

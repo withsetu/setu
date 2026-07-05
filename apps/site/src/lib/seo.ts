@@ -1,4 +1,10 @@
-import { resolveSeo, resolveJsonLd, jsonLdScript, type SiteSettings, type ResolvedSeo } from '@setu/core'
+import {
+  resolveSeo,
+  resolveJsonLd,
+  jsonLdScript,
+  type SiteSettings,
+  type ResolvedSeo
+} from '@setu/core'
 
 export interface PageSeoInput {
   /** Page title (post/page title); empty → homepage (site name only). */
@@ -28,9 +34,16 @@ export interface PageSeoInput {
 
 /** Media-resolve a raw path (prepend the media base for root-relative `/media/…`) then absolutize
  *  it against the site origin. Returns undefined for an empty input. */
-const absMedia = (raw: string, mediaBase: string, base: URL): string | undefined => {
+const absMedia = (
+  raw: string,
+  mediaBase: string,
+  base: URL
+): string | undefined => {
   if (!raw) return undefined
-  const viaMedia = !/^https?:\/\//i.test(raw) && raw.startsWith('/') ? `${mediaBase}${raw}` : raw
+  const viaMedia =
+    !/^https?:\/\//i.test(raw) && raw.startsWith('/')
+      ? `${mediaBase}${raw}`
+      : raw
   return new URL(viaMedia, base).href
 }
 
@@ -45,14 +58,18 @@ export function pageSeo(
   pathname: string,
   mediaBase: string,
   settings: SiteSettings,
-  page: PageSeoInput = {},
+  page: PageSeoInput = {}
 ): ResolvedSeo {
   // A prod build sets SETU_SITE_URL (→ Astro.site); the localhost fallback mirrors astro.config.
   const base = site ?? new URL('http://localhost:4321')
   // A per-page canonical override (absolute or root-relative) wins; else derive from the path.
   const canonical = new URL(page.canonical || pathname, base).href
 
-  const image = absMedia(page.imagePath || settings.identity.defaultImage || '', mediaBase, base)
+  const image = absMedia(
+    page.imagePath || settings.identity.defaultImage || '',
+    mediaBase,
+    base
+  )
   const logo = absMedia(settings.identity.logo || '', mediaBase, base)
 
   const seo = resolveSeo(settings, {
@@ -62,7 +79,7 @@ export function pageSeo(
     locale: page.locale,
     image,
     canonical,
-    noindex: page.noindex,
+    noindex: page.noindex
   })
 
   // JSON-LD @graph (#72) — reuses the resolved absolute URLs; attached as an escaped script string.
@@ -70,12 +87,14 @@ export function pageSeo(
     siteUrl: base.href,
     canonical,
     pageTitle: page.title ?? '',
-    description: (page.description || settings.general.description || '').trim() || undefined,
+    description:
+      (page.description || settings.general.description || '').trim() ||
+      undefined,
     type: page.type || 'website',
     image,
     logo,
     datePublished: page.datePublished,
-    dateModified: page.dateModified,
+    dateModified: page.dateModified
   })
 
   // rel=prev / rel=next for paginated archives (#74) — absolutized against the site origin.

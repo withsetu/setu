@@ -32,8 +32,8 @@ export const KNOWN_VIOLATIONS: KnownViolation[] = [
       'disabled="">` (unchecked) or `<input type="checkbox" checked="" disabled="">` ' +
       '(checked), so `disabled=""` is the substring common to both. Scoped to the `label` ' +
       'rule, so this only allowlists label-less DISABLED inputs — a future interactive ' +
-      '(non-disabled) control missing a label would not match and would still fail.',
-  },
+      '(non-disabled) control missing a label would not match and would still fail.'
+  }
 ]
 
 interface UnexpectedViolation {
@@ -53,11 +53,20 @@ interface ClassifiedViolations {
 }
 
 function nodeSelector(node: NodeResult): string {
-  return node.target.map((t: unknown) => (typeof t === 'string' ? t : JSON.stringify(t))).join(' ')
+  return node.target
+    .map((t: unknown) => (typeof t === 'string' ? t : JSON.stringify(t)))
+    .join(' ')
 }
 
-function findAllowlistEntry(violation: AxeViolation, node: NodeResult): KnownViolation | undefined {
-  return KNOWN_VIOLATIONS.find((entry) => entry.ruleId === violation.id && node.html.includes(entry.selectorContains))
+function findAllowlistEntry(
+  violation: AxeViolation,
+  node: NodeResult
+): KnownViolation | undefined {
+  return KNOWN_VIOLATIONS.find(
+    (entry) =>
+      entry.ruleId === violation.id &&
+      node.html.includes(entry.selectorContains)
+  )
 }
 
 /** Split an axe scan's violations into allowlisted ("known") vs. everything else
@@ -79,7 +88,7 @@ export function classifyViolations(results: AxeResults): ClassifiedViolations {
           help: violation.help,
           helpUrl: violation.helpUrl,
           selector: nodeSelector(node),
-          html: node.html,
+          html: node.html
         })
       }
     }
@@ -89,22 +98,29 @@ export function classifyViolations(results: AxeResults): ClassifiedViolations {
 }
 
 /** A readable multi-line dump of unexpected violations for a failed `expect` message. */
-export function formatUnexpectedViolations(page: string, unexpected: UnexpectedViolation[]): string {
+export function formatUnexpectedViolations(
+  page: string,
+  unexpected: UnexpectedViolation[]
+): string {
   const lines = unexpected.map(
     (v, i) =>
       `  ${i + 1}. [${v.impact}] ${v.ruleId} — ${v.help}\n` +
       `     selector: ${v.selector}\n` +
       `     html: ${v.html.slice(0, 200)}\n` +
-      `     help: ${v.helpUrl}`,
+      `     help: ${v.helpUrl}`
   )
   return `${page}: ${unexpected.length} new (non-allowlisted) axe violation(s):\n${lines.join('\n')}`
 }
 
 /** A readable dump of known (allowlisted) violations, for console reporting. */
-export function formatKnownViolations(page: string, known: ClassifiedViolations['known']): string {
+export function formatKnownViolations(
+  page: string,
+  known: ClassifiedViolations['known']
+): string {
   if (known.length === 0) return `${page}: 0 known (allowlisted) axe violations`
   const lines = known.map(
-    (k, i) => `  ${i + 1}. [${k.entry.issue}] ${k.violation.id} — ${nodeSelector(k.node)} (${k.entry.note})`,
+    (k, i) =>
+      `  ${i + 1}. [${k.entry.issue}] ${k.violation.id} — ${nodeSelector(k.node)} (${k.entry.note})`
   )
   return `${page}: ${known.length} known (allowlisted) axe violation(s):\n${lines.join('\n')}`
 }

@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { ServicesProvider, createServices, useServices, useData } from '../src/data/store'
+import {
+  ServicesProvider,
+  createServices,
+  useServices,
+  useData
+} from '../src/data/store'
 
 describe('services context', () => {
   it('exposes data + git + read + authoring from one provider', () => {

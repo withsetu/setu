@@ -8,17 +8,27 @@ const actions = () => ({
   moveUp: vi.fn(),
   moveDown: vi.fn(),
   duplicate: vi.fn(),
-  remove: vi.fn(),
+  remove: vi.fn()
 })
 
 describe('BlockMenu', () => {
   it('renders the four actions as a role=menu', () => {
-    render(<BlockMenu actions={actions()} canMoveUp canMoveDown onClose={vi.fn()} />)
+    render(
+      <BlockMenu actions={actions()} canMoveUp canMoveDown onClose={vi.fn()} />
+    )
     expect(screen.getByRole('menu')).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: /move up/i })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: /move down/i })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: /duplicate/i })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: /delete/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('menuitem', { name: /move up/i })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('menuitem', { name: /move down/i })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('menuitem', { name: /duplicate/i })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('menuitem', { name: /delete/i })
+    ).toBeInTheDocument()
   })
 
   it('invokes the action and closes on click', () => {
@@ -32,21 +42,29 @@ describe('BlockMenu', () => {
 
   it('disables Move up at the first block and Move down at the last', () => {
     const a = actions()
-    render(<BlockMenu actions={a} canMoveUp={false} canMoveDown onClose={vi.fn()} />)
+    render(
+      <BlockMenu actions={a} canMoveUp={false} canMoveDown onClose={vi.fn()} />
+    )
     expect(screen.getByRole('menuitem', { name: /move up/i })).toBeDisabled()
-    expect(screen.getByRole('menuitem', { name: /move down/i })).not.toBeDisabled()
+    expect(
+      screen.getByRole('menuitem', { name: /move down/i })
+    ).not.toBeDisabled()
   })
 
   it('closes on Escape', () => {
     const onClose = vi.fn()
-    render(<BlockMenu actions={actions()} canMoveUp canMoveDown onClose={onClose} />)
+    render(
+      <BlockMenu actions={actions()} canMoveUp canMoveDown onClose={onClose} />
+    )
     fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
     expect(onClose).toHaveBeenCalledOnce()
   })
 
   it('closes on a pointerdown outside the menu', () => {
     const onClose = vi.fn()
-    render(<BlockMenu actions={actions()} canMoveUp canMoveDown onClose={onClose} />)
+    render(
+      <BlockMenu actions={actions()} canMoveUp canMoveDown onClose={onClose} />
+    )
     fireEvent.pointerDown(document.body)
     expect(onClose).toHaveBeenCalledOnce()
   })
@@ -64,7 +82,9 @@ describe('BlockMenu', () => {
   })
 
   it('renders a non-empty shortcut kbd for each of the four menu items', () => {
-    render(<BlockMenu actions={actions()} canMoveUp canMoveDown onClose={vi.fn()} />)
+    render(
+      <BlockMenu actions={actions()} canMoveUp canMoveDown onClose={vi.fn()} />
+    )
     const kbds = document.querySelectorAll('.blk-menu-key')
     expect(kbds).toHaveLength(4)
     kbds.forEach((kbd) => {
@@ -73,7 +93,9 @@ describe('BlockMenu', () => {
   })
 
   it('shows duplicate and delete shortcut text in menu items', () => {
-    render(<BlockMenu actions={actions()} canMoveUp canMoveDown onClose={vi.fn()} />)
+    render(
+      <BlockMenu actions={actions()} canMoveUp canMoveDown onClose={vi.fn()} />
+    )
     const kbds = Array.from(document.querySelectorAll('.blk-menu-key'))
     // duplicate is 3rd item (index 2), delete is 4th (index 3)
     // On non-Mac (jsdom) we expect PC label format

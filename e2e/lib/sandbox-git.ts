@@ -12,7 +12,10 @@ const sandboxDir = path.join(repoRoot, '.content-sandbox', 'e2e')
 
 /** The sandbox content repo's HEAD commit subject line (`git log -1 --format=%s`). */
 export function sandboxHeadSubject(): string {
-  return execSync('git log -1 --format=%s', { cwd: sandboxDir, encoding: 'utf8' }).trim()
+  return execSync('git log -1 --format=%s', {
+    cwd: sandboxDir,
+    encoding: 'utf8'
+  }).trim()
 }
 
 /** The sandbox content repo's working-tree status for `content/` only
@@ -22,5 +25,8 @@ export function sandboxHeadSubject(): string {
  *  `SETU_REPO_DIR`, which is sandbox scaffolding noise unrelated to publish, not something
  *  a publish-correctness check should fail on. */
 export function sandboxStatusPorcelain(): string {
-  return execSync('git status --porcelain -- content/', { cwd: sandboxDir, encoding: 'utf8' }).trim()
+  return execSync('git status --porcelain -- content/', {
+    cwd: sandboxDir,
+    encoding: 'utf8'
+  }).trim()
 }

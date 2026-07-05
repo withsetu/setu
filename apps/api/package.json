@@ -5,7 +5,9 @@
   "type": "module",
   "main": "./src/app.ts",
   "types": "./src/app.ts",
-  "exports": { ".": "./src/app.ts" },
+  "exports": {
+    ".": "./src/app.ts"
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",

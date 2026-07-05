@@ -46,6 +46,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Turbo remote cache backed by GitHub's own Actions cache (#273): the adapter runs
+      # a localhost server speaking Turbo's cache API and sets TURBO_API/TOKEN/TEAM, so
+      # every `turbo run` below gets CROSS-RUN cache hits on fresh runners. No external
+      # service, no secrets, no owner provisioning; GitHub LRU-evicts old entries (10GB).
+      # Correctness: cache keys are turbo's content hashes (see turbo.json — hash-audited,
+      # kill-shot-proven in #272); changed code always misses and executes. Upgrade path
+      # if we outgrow GitHub's cache: this same action supports `provider: s3` (R2).
+      # Pinned by commit SHA (third-party action, supply-chain hygiene — #281 posture).
+      - name: Turbo remote cache (GitHub Actions cache)
+        uses: rharkor/caching-for-turbo@75f8ebf4a43d2c60b23bc2a27082cfea94ffdad9 # v2.5.0
+
       # PR: derive a since-SHA (merge-base with the base branch) and a scope mode.
       #   - docs-only (all changed files are *.md/*.mdx) -> skip typecheck/test.
       #   - otherwise -> affected: turbo `...[<sha>]` (changed packages + dependents,
@@ -64,6 +75,14 @@ jobs:
             if [ -n "$changed" ] && ! printf '%s\n' "$changed" | grep -qvE '\.mdx?$'; then
               echo "→ docs-only: skipping typecheck + test."
               echo "skip=true" >> "$GITHUB_OUTPUT"
+            elif printf '%s\n' "$changed" | grep -vE '\.mdx?$' | grep -qvE '^(packages|apps)/'; then
+              # Root-impact guard: turbo maps files outside packages/apps (workflows, root
+              # config, scripts/, e2e/, lockfile…) to NO package, so a filtered run would
+              # select ZERO tasks and a broken CI/config change could merge green having
+              # run nothing (found live on PR #315 — run 28623914417 executed 0 tasks for
+              # a ci.yml-only diff). pnpm's #271 filter ran the FULL suite for root files;
+              # restore that conservative semantic: no filter -> full run.
+              echo "→ root-impact change (files outside packages/apps): running the FULL suite."
             else
               echo "since=$since" >> "$GITHUB_OUTPUT"
               echo "turbo's affected scope for '...[${since:0:9}]':"
@@ -74,12 +93,78 @@ jobs:
             echo "Push build — running the full suite."
           fi
 
+      # pnpm audit (#218 security CI, warn-then-gate ramp): NON-BLOCKING for now — `|| true`
+      # so a new advisory can't red the build while we build a triage habit; the loud
+      # summary keeps it visible in the log either way. Gated on the same docs-only skip
+      # as the steps below (a docs PR doesn't touch the lockfile, so nothing new to audit)
+      # but NOT on the affected-scope filter — audit runs against the single root lockfile,
+      # not turbo's per-package graph, so there's no smaller "scope" to narrow it to.
+      # Ramp: once the current baseline (dev-only vitest/vite/esbuild chain, see #218) is
+      # triaged, flip this to fail on new advisories — file a follow-up issue when that
+      # work starts rather than gating silently in a comment.
+      - name: pnpm audit (non-blocking)
+        run: |
+          if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
+          echo "::group::pnpm audit"
+          pnpm audit || true
+          echo "::endgroup::"
+          echo "⚠️  pnpm audit is NON-BLOCKING for now (#218 warn-then-gate ramp) — see the group above for any findings."
+
+      # Lint + format gate (#267). Repo-wide (one root eslint.config.mjs), so unlike the
+      # turbo step below it is NOT affected-filtered — and therefore needs the site's
+      # generated artifacts (markdoc.blocks.generated.mjs + .astro types) regardless of
+      # whether the PR touched the site; the prep line regenerates them (~1.4s).
+      # Warnings are TOLERATED (no --max-warnings 0): the 36-warning baseline is the
+      # react-hooks/React-Compiler set tracked in #338 (34) plus 2 in apps/admin/
+      # test-browser/ (#293 — the same render-counting-harness pattern already used by
+      # several apps/admin/test/ files, e.g. test/format-bubble.test.tsx) — flip to
+      # zero-warnings when #338 lands.
+      - name: Lint + format check
+        run: |
+          if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
+          node scripts/gen-blocks.mjs && node scripts/gen-relations.mjs && pnpm --filter @setu/site exec astro sync
+          pnpm lint
+          pnpm format:check
+
+      # Playwright's chromium browser, for apps/admin's real-browser component-test
+      # project (#293 — apps/admin/test-browser/**, vitest.workspace.ts +
+      # vitest.browser.config.ts). Deliberately installed HERE (in `check`, alongside
+      # the rest of the unit-ish suite) rather than moved into the `e2e` job below:
+      # these are component tests (single components/hooks mounted in isolation, no
+      # app server, no journeys) — the "unit-ish tests live in the unit lane" split
+      # stays true, and the browser only needs to be present, not re-verified against
+      # a running app. Same cache key/version-resolution SHAPE as the e2e job's
+      # "Cache Playwright browsers" step — but the keys are deliberately partitioned
+      # (-chromium here vs -pr/-full there), so the two jobs restore/save independently;
+      # each lane pays its own first-miss download, then hits its own cache thereafter.
+      - name: Resolve Playwright version (admin browser tests)
+        id: pw-admin
+        working-directory: apps/admin
+        run: |
+          if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "version=skipped" >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers (admin browser tests)
+        if: steps.scope.outputs.skip != 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw-admin.outputs.version }}-chromium
+
+      - name: Install Playwright chromium (admin browser tests)
+        run: |
+          if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
+          pnpm --filter @setu/admin exec playwright install --with-deps chromium
+
       # @setu/core's typecheck also runs the edge build (tsconfig.edge.json), so the
       # edge-safe check is covered whenever core is in scope; push-to-main runs it regardless.
       # typecheck+test run as one turbo invocation per lane (readable, task-graph-ordered
       # log output — see turbo.json for the `dependsOn` graph this scope resolves through).
-      # Local cache only for now (turbo's default): CI runs stay cold across separate runs;
-      # #273 adds a remote cache so a later run/job can reuse an earlier one's hashes.
+      # Remote cache via the adapter step above (#273): unchanged task hashes replay from
+      # GitHub's cache across runs; changed code always misses and executes. apps/admin#test
+      # is NOT cached by turbo (see turbo.json's admin#test override, #293) so this always
+      # actually launches chromium — no stale-cache risk of silently skipping the browser
+      # suite.
       - name: Typecheck + test (incl. core edge build)
         run: |
           if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi

@@ -4,7 +4,11 @@ import { DashboardPage } from '../pages/DashboardPage'
 import { ContentListPage } from '../pages/ContentListPage'
 import { SettingsPage } from '../pages/SettingsPage'
 import { uniqueTitle } from '../lib/unique-title'
-import { classifyViolations, formatUnexpectedViolations, formatKnownViolations } from '../lib/a11y-allowlist'
+import {
+  classifyViolations,
+  formatUnexpectedViolations,
+  formatKnownViolations
+} from '../lib/a11y-allowlist'
 
 // No `editor-` prefix: chromium-only per e2e/playwright.config.ts testMatch — axe results
 // are DOM-semantic (the accessibility tree axe-core builds from computed ARIA/role/name),
@@ -17,7 +21,10 @@ const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']
  *  the known ones to the console (product-gap visibility even when they don't fail), and
  *  fail with a readable dump if anything new/unallowlisted was found. Scope: full page,
  *  nothing globally disabled, per the brief. */
-async function scanAndAssert(page: import('@playwright/test').Page, surface: string) {
+async function scanAndAssert(
+  page: import('@playwright/test').Page,
+  surface: string
+) {
   const results = await new AxeBuilder({ page })
     .withTags(TAGS)
     // `.dev-reset` (main.tsx's "Reset to sample content" button) only exists because
@@ -29,7 +36,9 @@ async function scanAndAssert(page: import('@playwright/test').Page, surface: str
     .analyze()
   const { known, unexpected } = classifyViolations(results)
   console.log(formatKnownViolations(surface, known))
-  expect(unexpected, formatUnexpectedViolations(surface, unexpected)).toEqual([])
+  expect(unexpected, formatUnexpectedViolations(surface, unexpected)).toEqual(
+    []
+  )
 }
 
 test.describe('admin a11y (axe, WCAG 2.1 AA)', () => {
@@ -56,7 +65,9 @@ test.describe('admin a11y (axe, WCAG 2.1 AA)', () => {
     await scanAndAssert(page, 'content list')
   })
 
-  test('editor with content (title + body + callout block)', async ({ page }) => {
+  test('editor with content (title + body + callout block)', async ({
+    page
+  }) => {
     const title = uniqueTitle('a11y-editor')
     const body = `Body text for ${title}.`
     const calloutText = `Callout body for ${title}.`
@@ -107,7 +118,9 @@ test.describe('admin a11y (axe, WCAG 2.1 AA)', () => {
     await editor.blocks.filter({ hasText: body }).first().hover()
     await expect(editor.dragHandle).toBeVisible()
     await editor.dragHandle.click()
-    await expect(page.getByRole('menu', { name: 'Block actions' })).toBeVisible()
+    await expect(
+      page.getByRole('menu', { name: 'Block actions' })
+    ).toBeVisible()
 
     await scanAndAssert(page, 'editor with block-actions menu open')
   })

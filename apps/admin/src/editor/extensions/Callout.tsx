@@ -1,10 +1,22 @@
 import { Node, mergeAttributes } from '@tiptap/core'
 import type { Editor } from '@tiptap/core'
-import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
+import {
+  NodeViewContent,
+  NodeViewWrapper,
+  ReactNodeViewRenderer
+} from '@tiptap/react'
 import type { ReactNodeViewProps } from '@tiptap/react'
-import { Callout as CalloutCore, BlockIcon, variantFor, calloutVariants, CALLOUT_ICONS, isBlockIconName } from '@setu/blocks'
+import {
+  Callout as CalloutCore,
+  BlockIcon,
+  variantFor,
+  calloutVariants,
+  CALLOUT_ICONS,
+  isBlockIconName
+} from '@setu/blocks'
 import type { BlockIconName } from '@setu/blocks'
 import { useToolbarRoving } from '../useToolbarRoving'
+import { attrString } from '../attr-string'
 
 /** If the caret sits at the very start of a callout's body, move keyboard focus
  *  to that callout's title `<input>`. Returns true when it handled the key (so the
@@ -20,7 +32,10 @@ function focusTitleAtBodyStart(editor: Editor): boolean {
     // Caret must be in the callout's first child (body start).
     if (sel.from > calloutPos + 2) return false
     const dom = editor.view.nodeDOM(calloutPos)
-    const input = dom instanceof HTMLElement ? dom.querySelector<HTMLInputElement>('.callout-title') : null
+    const input =
+      dom instanceof HTMLElement
+        ? dom.querySelector<HTMLInputElement>('.callout-title')
+        : null
     if (!input) return false
     input.focus()
     return true
@@ -28,14 +43,21 @@ function focusTitleAtBodyStart(editor: Editor): boolean {
   return false
 }
 
-function CalloutView({ node, updateAttributes, editor, getPos }: ReactNodeViewProps) {
+function CalloutView({
+  node,
+  updateAttributes,
+  editor,
+  getPos
+}: ReactNodeViewProps) {
   const mdAttrs = (node.attrs.mdAttrs ?? {}) as Record<string, unknown>
-  const type = String(mdAttrs['type'] ?? 'info')
-  const title = String(mdAttrs['title'] ?? '')
+  const type = attrString(mdAttrs['type'], 'info')
+  const title = attrString(mdAttrs['title'])
   const variant = variantFor(type)
   const overrideIcon = mdAttrs['icon']
   const icon: BlockIconName =
-    typeof overrideIcon === 'string' && isBlockIconName(overrideIcon) ? overrideIcon : variant.icon
+    typeof overrideIcon === 'string' && isBlockIconName(overrideIcon)
+      ? overrideIcon
+      : variant.icon
 
   const setAttrs = (patch: Record<string, unknown>) => {
     const next: Record<string, unknown> = { ...mdAttrs, ...patch }
@@ -60,7 +82,10 @@ function CalloutView({ node, updateAttributes, editor, getPos }: ReactNodeViewPr
           e.preventDefault()
           const pos = getPos()
           if (typeof pos === 'number') {
-            editor.chain().setTextSelection(pos + 2).run()
+            editor
+              .chain()
+              .setTextSelection(pos + 2)
+              .run()
             editor.view.focus()
           }
         }
@@ -108,7 +133,10 @@ function CalloutView({ node, updateAttributes, editor, getPos }: ReactNodeViewPr
           e.preventDefault()
           const pos = getPos()
           if (typeof pos === 'number') {
-            editor.chain().setTextSelection(pos + 2).run()
+            editor
+              .chain()
+              .setTextSelection(pos + 2)
+              .run()
             editor.view.focus()
           }
           return
@@ -120,7 +148,12 @@ function CalloutView({ node, updateAttributes, editor, getPos }: ReactNodeViewPr
 
   return (
     <NodeViewWrapper>
-      <CalloutCore tone={variant.tone} icon={icon} toolbar={toolbar} title={titleInput}>
+      <CalloutCore
+        tone={variant.tone}
+        icon={icon}
+        toolbar={toolbar}
+        title={titleInput}
+      >
         <NodeViewContent className="callout-body" aria-label="Callout text" />
       </CalloutCore>
     </NodeViewWrapper>
@@ -142,14 +175,14 @@ export const Callout = Node.create({
       mdAttrs: {
         default: {},
         renderHTML: () => ({}),
-        parseHTML: () => ({}),
-      },
+        parseHTML: () => ({})
+      }
     }
   },
   addKeyboardShortcuts() {
     return {
       // ArrowUp at the very start of a callout body lifts focus to its title input.
-      ArrowUp: () => focusTitleAtBodyStart(this.editor),
+      ArrowUp: () => focusTitleAtBodyStart(this.editor)
     }
   },
   parseHTML() {
@@ -160,5 +193,5 @@ export const Callout = Node.create({
   },
   addNodeView() {
     return ReactNodeViewRenderer(CalloutView)
-  },
+  }
 })

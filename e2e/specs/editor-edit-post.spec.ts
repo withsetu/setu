@@ -2,7 +2,9 @@ import { test, expect } from '@playwright/test'
 import { ContentListPage } from '../pages/ContentListPage'
 import { uniqueTitle } from '../lib/unique-title'
 
-test('create a post, edit it, save, and verify persistence through the UI', async ({ page }) => {
+test('create a post, edit it, save, and verify persistence through the UI', async ({
+  page
+}) => {
   const title = uniqueTitle('edit-post')
   const body = `Body text for ${title}.`
 

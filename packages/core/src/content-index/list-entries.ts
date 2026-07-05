@@ -5,6 +5,7 @@ import { contentPath } from '../publish/content-path'
 import { parseMdoc, serializeMdoc } from '../markdoc/frontmatter'
 import { tiptapToMarkdoc } from '../markdoc/to-markdoc'
 import { normalizeTags } from '../tags/normalize'
+import { parseFrontmatterDate } from '../permalinks/frontmatter-date'
 import { extractMediaRefs } from './extract-media-refs'
 
 /** One row in the merged content list: an entry that exists as a draft, as a
@@ -18,6 +19,9 @@ export interface ContentRow {
   /** Draft's updatedAt (epoch ms); null for entries that live only in Git. */
   updatedAt: number | null
   hasDraft: boolean
+  /** Frontmatter publish date (`date` ?? `pubDate`), epoch ms; null when absent. URL use only —
+   *  never updatedAt/mtime (an edit must not move a URL). */
+  date: number | null
   /** Normalized, deduped tags for this entry (draft's tags win when a draft exists). */
   tags: string[]
   /** Category slugs for this entry (draft's win when a draft exists). */
@@ -42,7 +46,9 @@ const keyOf = (r: EntryRef): string => `${r.collection}\0${r.locale}\0${r.slug}`
 /** Merge DB drafts with committed Git entries into one status-aware list. The
  *  draft is the identity holder (an entry with both yields a single row). Pure —
  *  the reindex derivation; topology supplies `deployedAt`. */
-export function listContentEntries(input: ListContentEntriesInput): ContentRow[] {
+export function listContentEntries(
+  input: ListContentEntriesInput
+): ContentRow[] {
   const { drafts, committed, deployedAt } = input
 
   const draftByKey = new Map<string, Draft>()
@@ -72,12 +78,15 @@ export function listContentEntries(input: ListContentEntriesInput): ContentRow[]
     const draft = draftByKey.get(keyOf(ref)) ?? null
     const committedStr = committedByKey.get(keyOf(ref)) ?? null
     const draftStr = draft
-      ? serializeMdoc({ frontmatter: draft.metadata, body: tiptapToMarkdoc(draft.content) })
+      ? serializeMdoc({
+          frontmatter: draft.metadata,
+          body: tiptapToMarkdoc(draft.content)
+        })
       : null
     const lifecycle = deriveLifecycle({
       draft: draftStr,
       committed: committedStr,
-      deployed: deployedAt(contentPath(ref)),
+      deployed: deployedAt(contentPath(ref))
     })
     const featuredImage = featuredImageOf(draft, committedStr)
     return {
@@ -87,17 +96,21 @@ export function listContentEntries(input: ListContentEntriesInput): ContentRow[]
       lifecycle,
       updatedAt: draft ? draft.updatedAt : null,
       hasDraft: draft !== null,
+      date: dateOf(draft, committedStr),
       tags: tagsOf(draft, committedStr),
       categories: categoriesOf(draft, committedStr),
       mediaRefs: mediaRefsOf(draftStr, committedStr),
-      ...(featuredImage !== undefined ? { featuredImage } : {}),
+      ...(featuredImage !== undefined ? { featuredImage } : {})
     }
   })
 }
 
 /** Featured image src from the live version's frontmatter `featuredImage` (draft's when a
  *  draft exists, else committed). Undefined when absent/blank/non-string. */
-function featuredImageOf(draft: Draft | null, committedStr: string | null): string | undefined {
+function featuredImageOf(
+  draft: Draft | null,
+  committedStr: string | null
+): string | undefined {
   const raw = draft
     ? draft.metadata['featuredImage']
     : committedStr !== null
@@ -108,12 +121,19 @@ function featuredImageOf(draft: Draft | null, committedStr: string | null): stri
 
 /** Media keys referenced by the live version (draft's serialized doc when a draft
  *  exists, else the committed file). Whole-doc scan catches body + frontmatter. */
-function mediaRefsOf(draftStr: string | null, committedStr: string | null): string[] {
+function mediaRefsOf(
+  draftStr: string | null,
+  committedStr: string | null
+): string[] {
   const body = draftStr ?? committedStr
   return body ? extractMediaRefs(body) : []
 }
 
-function titleOf(draft: Draft | null, committedStr: string | null, slug: string): string {
+function titleOf(
+  draft: Draft | null,
+  committedStr: string | null,
+  slug: string
+): string {
   if (draft) {
     const t = draft.metadata['title']
     if (typeof t === 'string' && t.length > 0) return t
@@ -125,12 +145,28 @@ function titleOf(draft: Draft | null, committedStr: string | null, slug: string)
   return slug
 }
 
+/** Frontmatter publish date (date ?? pubDate) from the live version, epoch ms. URL use only —
+ *  never updatedAt/mtime (an edit must not move a URL). Selects the live frontmatter source
+ *  (draft vs. committed) here; the raw→ms parsing is shared via parseFrontmatterDate. */
+function dateOf(
+  draft: Draft | null,
+  committedStr: string | null
+): number | null {
+  const frontmatter = draft
+    ? draft.metadata
+    : committedStr !== null
+      ? parseMdoc(committedStr).frontmatter
+      : {}
+  return parseFrontmatterDate(frontmatter)
+}
+
 /** Tags from the live version: the draft's `tags` when a draft exists (even if
  *  empty — the editor may have cleared them), else the committed frontmatter's.
  *  Normalized + deduped; tolerant of absent/non-array. */
 function tagsOf(draft: Draft | null, committedStr: string | null): string[] {
   if (draft) return normalizeFrom(draft.metadata['tags'])
-  if (committedStr !== null) return normalizeFrom(parseMdoc(committedStr).frontmatter['tags'])
+  if (committedStr !== null)
+    return normalizeFrom(parseMdoc(committedStr).frontmatter['tags'])
   return []
 }
 
@@ -142,7 +178,10 @@ function normalizeFrom(raw: unknown): string[] {
 /** Category slugs from the live version: the draft's when a draft exists, else
  *  committed frontmatter. Slugs are already canonical (no normalization);
  *  deduped, first-seen order; tolerant of absent/non-array. */
-function categoriesOf(draft: Draft | null, committedStr: string | null): string[] {
+function categoriesOf(
+  draft: Draft | null,
+  committedStr: string | null
+): string[] {
   const raw = draft
     ? draft.metadata['categories']
     : committedStr !== null

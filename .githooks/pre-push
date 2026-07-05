@@ -1,0 +1,64 @@
+#!/bin/sh
+# gitleaks pre-push hook (#325) — blocks secrets BEFORE they enter shared history.
+# Interim for GitHub push protection (GHAS-gated on this private repo; see #218).
+#
+# Scans only the commit ranges being pushed. Scanner preference:
+#   1. local `gitleaks` binary (fast)
+#   2. the same digest-pinned Docker image CI uses (.github/workflows/gitleaks.yml)
+#   3. neither available -> WARN LOUDLY but allow the push (a hook that hard-fails on
+#      missing tooling would block contributors who never installed anything; CI's
+#      gitleaks job remains the backstop).
+#
+# Worktree note: pushes often happen from linked worktrees (.claude/worktrees/*) where
+# $PWD/.git is a file. Objects and branch refs live in the MAIN checkout's .git, so the
+# Docker fallback mounts the main repository root — SHA ranges resolve there regardless
+# of which worktree initiated the push.
+# Bypass (emergencies only): git push --no-verify
+
+set -u
+
+IMAGE='ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f'
+ZERO=0000000000000000000000000000000000000000
+
+# Main repository root (parent of the common .git dir) — correct in worktrees too.
+common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0
+repo_root=$(dirname "$common_dir")
+
+scan_range() {
+  range="$1"
+  if command -v gitleaks >/dev/null 2>&1; then
+    gitleaks git --redact --exit-code 1 --log-opts "$range" "$repo_root"
+  elif command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+    docker run --rm -v "$repo_root:/repo" "$IMAGE" git --redact --exit-code 1 --log-opts "$range" /repo
+  else
+    echo "" >&2
+    echo "⚠️  gitleaks pre-push: NO scanner available (no gitleaks binary, no Docker)." >&2
+    echo "⚠️  Push allowed UNSCANNED — CI's gitleaks job is the only secret gate now." >&2
+    echo "⚠️  Fix: brew install gitleaks   (or start Docker)" >&2
+    echo "" >&2
+    return 0
+  fi
+}
+
+status=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$ZERO" ] && continue # branch deletion — nothing to scan
+  if [ "$remote_sha" = "$ZERO" ]; then
+    # New remote branch: scan commits not already on any remote-tracking ref.
+    range="$local_sha --not --remotes"
+  else
+    range="$remote_sha..$local_sha"
+  fi
+  if ! scan_range "$range"; then
+    status=1
+  fi
+done
+
+if [ "$status" -ne 0 ]; then
+  echo "" >&2
+  echo "✗ push blocked: gitleaks found potential secret(s) in the outgoing commits." >&2
+  echo "  Remove the secret AND rewrite the affected commits (amend/rebase) — simply" >&2
+  echo "  deleting it in a new commit still leaks it in history. Then rotate the value." >&2
+  echo "  (Emergency bypass: git push --no-verify — CI gitleaks will still catch it.)" >&2
+fi
+exit "$status"

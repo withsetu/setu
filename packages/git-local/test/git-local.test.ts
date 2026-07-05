@@ -24,7 +24,7 @@ describe('git-local adapter (on-disk)', () => {
       path: 'content/hello.mdoc',
       content: '# Hi',
       message: 'add hello',
-      author: { name: 'Ed', email: 'ed@x.com' },
+      author: { name: 'Ed', email: 'ed@x.com' }
     })
     expect(sha).toMatch(/^[0-9a-f]{40}$/)
 
@@ -38,7 +38,12 @@ describe('git-local adapter (on-disk)', () => {
     await git.init({ fs: nodeFs, dir, defaultBranch: 'main' })
     const a = createLocalGitAdapter({ dir })
     await expect(
-      a.commitFile({ path: '../escape.mdoc', content: 'X', message: 'm', author: { name: 'E', email: 'e@x.com' } }),
+      a.commitFile({
+        path: '../escape.mdoc',
+        content: 'X',
+        message: 'm',
+        author: { name: 'E', email: 'e@x.com' }
+      })
     ).rejects.toThrow(/escape/i)
   })
 
@@ -47,8 +52,18 @@ describe('git-local adapter (on-disk)', () => {
     await git.init({ fs: nodeFs, dir, defaultBranch: 'main' })
     const a = createLocalGitAdapter({ dir })
     await Promise.all([
-      a.commitFile({ path: 'x.mdoc', content: 'X', message: 'mx', author: { name: 'E', email: 'e@x.com' } }),
-      a.commitFile({ path: 'y.mdoc', content: 'Y', message: 'my', author: { name: 'E', email: 'e@x.com' } }),
+      a.commitFile({
+        path: 'x.mdoc',
+        content: 'X',
+        message: 'mx',
+        author: { name: 'E', email: 'e@x.com' }
+      }),
+      a.commitFile({
+        path: 'y.mdoc',
+        content: 'Y',
+        message: 'my',
+        author: { name: 'E', email: 'e@x.com' }
+      })
     ])
     expect(await a.readFile('x.mdoc')).toBe('X')
     expect(await a.readFile('y.mdoc')).toBe('Y')

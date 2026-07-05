@@ -14,19 +14,33 @@ export function CategoriesTab() {
   const [pendingDelete, setPendingDelete] = useState<CategoryNode | null>(null)
 
   const onReparent = async (slug: string, parent: string | null) => {
-    try { await reparent(slug, parent) } catch (e) { notify.error(e instanceof Error ? e.message : String(e)) }
+    try {
+      await reparent(slug, parent)
+    } catch (e) {
+      notify.error(e instanceof Error ? e.message : String(e))
+    }
   }
 
   return (
     <div>
       <NewCategoryForm />
-      {rows.length === 0
-        ? <p className="text-sm text-muted-foreground">No categories yet — add one above.</p>
-        : <CategoryTree rows={rows} counts={counts}
-            onRename={(slug, name) => void renameLabel(slug, name)}
-            onReparent={onReparent}
-            onDelete={setPendingDelete} />}
-      <DeleteCategoryDialog node={pendingDelete} onClose={() => setPendingDelete(null)} />
+      {rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No categories yet — add one above.
+        </p>
+      ) : (
+        <CategoryTree
+          rows={rows}
+          counts={counts}
+          onRename={(slug, name) => void renameLabel(slug, name)}
+          onReparent={(slug, parent) => void onReparent(slug, parent)}
+          onDelete={setPendingDelete}
+        />
+      )}
+      <DeleteCategoryDialog
+        node={pendingDelete}
+        onClose={() => setPendingDelete(null)}
+      />
     </div>
   )
 }

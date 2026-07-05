@@ -47,7 +47,10 @@ export interface ResolvedSeo {
 
 /** Replace {{title}} {{separator}} {{site}} tokens; collapse the whitespace a missing token leaves. */
 const fillTemplate = (tpl: string, map: Record<string, string>): string =>
-  tpl.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k: string) => map[k] ?? '').replace(/\s+/g, ' ').trim()
+  tpl
+    .replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k: string) => map[k] ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
 
 /**
  * Resolve the full SEO head for a page from site settings + page context — Rank-Math-shaped:
@@ -62,43 +65,56 @@ export function resolveSeo(settings: SiteSettings, page: SeoPage): ResolvedSeo {
   const sep = identity.titleSeparator || '·'
   const pageTitle = (page.title ?? '').trim()
   const title = pageTitle
-    ? fillTemplate(identity.titleTemplate || '{{title}} {{separator}} {{site}}', {
-        title: pageTitle,
-        separator: sep,
-        site: siteName,
-      })
+    ? fillTemplate(
+        identity.titleTemplate || '{{title}} {{separator}} {{site}}',
+        {
+          title: pageTitle,
+          separator: sep,
+          site: siteName
+        }
+      )
     : siteName
 
   const description = (page.description || general.description || '').trim()
   const locale = page.locale || 'en'
   const type = page.type || 'website'
   const image = page.image || identity.defaultImage || ''
-  const handle = identity.twitterHandle ? `@${identity.twitterHandle.replace(/^@+/, '')}` : ''
+  const handle = identity.twitterHandle
+    ? `@${identity.twitterHandle.replace(/^@+/, '')}`
+    : ''
 
   const meta: SeoMetaTag[] = []
   if (description) meta.push({ name: 'description', content: description })
   meta.push({ name: 'generator', content: GENERATOR_URL })
   // A per-page `noindex` override wins; otherwise the site-wide searchEngineVisible setting applies.
   const noindex = page.noindex === true || reading.searchEngineVisible === false
-  meta.push({ name: 'robots', content: noindex ? 'noindex, nofollow' : 'index, follow' })
+  meta.push({
+    name: 'robots',
+    content: noindex ? 'noindex, nofollow' : 'index, follow'
+  })
 
   // Open Graph
   meta.push({ property: 'og:locale', content: locale })
   meta.push({ property: 'og:type', content: type })
   meta.push({ property: 'og:title', content: title })
-  if (description) meta.push({ property: 'og:description', content: description })
+  if (description)
+    meta.push({ property: 'og:description', content: description })
   meta.push({ property: 'og:url', content: page.canonical })
   meta.push({ property: 'og:site_name', content: siteName })
   if (image) meta.push({ property: 'og:image', content: image })
 
   // Twitter cards
-  meta.push({ name: 'twitter:card', content: image ? 'summary_large_image' : 'summary' })
+  meta.push({
+    name: 'twitter:card',
+    content: image ? 'summary_large_image' : 'summary'
+  })
   if (handle) {
     meta.push({ name: 'twitter:site', content: handle })
     meta.push({ name: 'twitter:creator', content: handle })
   }
   meta.push({ name: 'twitter:title', content: title })
-  if (description) meta.push({ name: 'twitter:description', content: description })
+  if (description)
+    meta.push({ name: 'twitter:description', content: description })
   if (image) meta.push({ name: 'twitter:image', content: image })
 
   return { title, canonical: page.canonical, meta }

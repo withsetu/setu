@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { slashBlocks } from '../src/editor/blocks'
 
 describe('slashBlocks', () => {
@@ -41,10 +41,12 @@ describe('slashBlocks — hero deduplication', () => {
     const chain = {
       focus: () => chain,
       deleteRange: (_r: unknown) => chain,
-      insertContent: (content: unknown) => { insertedContent.push(content); return chain },
-      run: () => true,
+      insertContent: (content: unknown) => {
+        insertedContent.push(content)
+        return chain
+      },
+      run: () => true
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mockEditor = { chain: () => chain } as any
     heroEntry.run(mockEditor, { from: 0, to: 0 })
 

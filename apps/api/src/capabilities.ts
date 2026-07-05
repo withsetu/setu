@@ -3,7 +3,11 @@ import { cors } from 'hono/cors'
 
 export interface Capabilities {
   mode?: string
-  capabilities: { imageProcessing: boolean; writableMediaStore: boolean; backgroundJobs: boolean }
+  capabilities: {
+    imageProcessing: boolean
+    writableMediaStore: boolean
+    backgroundJobs: boolean
+  }
 }
 
 export function buildCapabilities(opts: {
@@ -17,8 +21,8 @@ export function buildCapabilities(opts: {
     capabilities: {
       imageProcessing: !!opts.image,
       writableMediaStore: opts.writableMediaStore,
-      backgroundJobs: opts.backgroundJobs,
-    },
+      backgroundJobs: opts.backgroundJobs
+    }
   }
 }
 

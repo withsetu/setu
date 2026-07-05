@@ -32,7 +32,7 @@ export function pickAndUploadImage(
   apiBase: string,
   handlers: InsertHandlers,
   onResult: (result: UploadResult) => void,
-  upload: typeof uploadFile = uploadFile,
+  upload: typeof uploadFile = uploadFile
 ): void {
   const input = document.createElement('input')
   input.type = 'file'
@@ -57,11 +57,16 @@ export function pickImageAndInsert(
   editor: Editor,
   apiBase: string,
   handlers: InsertHandlers = {},
-  upload: typeof uploadFile = uploadFile,
+  upload: typeof uploadFile = uploadFile
 ): void {
-  pickAndUploadImage(apiBase, handlers, (result) => {
-    editor.chain().focus().insertContent(imageNodeFromUpload(result)).run()
-  }, upload)
+  pickAndUploadImage(
+    apiBase,
+    handlers,
+    (result) => {
+      editor.chain().focus().insertContent(imageNodeFromUpload(result)).run()
+    },
+    upload
+  )
 }
 
 /** Pick + upload, then hand the new path-only src to `onSrc` (the node-view Replace action). */
@@ -69,13 +74,18 @@ export function replaceImage(
   apiBase: string,
   handlers: InsertHandlers,
   onSrc: (src: string) => void,
-  upload: typeof uploadFile = uploadFile,
+  upload: typeof uploadFile = uploadFile
 ): void {
-  pickAndUploadImage(apiBase, handlers, (result) => {
-    if (!result.contentType.startsWith('image/')) {
-      handlers.onError?.(`not an image: ${result.contentType}`)
-      return
-    }
-    onSrc(srcFromUploadUrl(result.url))
-  }, upload)
+  pickAndUploadImage(
+    apiBase,
+    handlers,
+    (result) => {
+      if (!result.contentType.startsWith('image/')) {
+        handlers.onError?.(`not an image: ${result.contentType}`)
+        return
+      }
+      onSrc(srcFromUploadUrl(result.url))
+    },
+    upload
+  )
 }

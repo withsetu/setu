@@ -5,7 +5,7 @@ export function LinkPopup({
   href,
   onEdit,
   onRemove,
-  editable,
+  editable
 }: {
   href: string
   onEdit: () => void

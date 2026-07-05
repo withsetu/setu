@@ -17,8 +17,8 @@ describe('identity settings', () => {
         name: 'Ada Lovelace',
         url: 'https://ada.dev',
         twitterHandle: 'ada',
-        socialProfiles: ['https://github.com/ada'],
-      },
+        socialProfiles: ['https://github.com/ada']
+      }
     })
     expect(s.identity.entityType).toBe('person')
     expect(s.identity.name).toBe('Ada Lovelace')
@@ -26,7 +26,9 @@ describe('identity settings', () => {
     expect(s.identity.twitterHandle).toBe('ada')
     expect(s.identity.socialProfiles).toEqual(['https://github.com/ada'])
     // untouched fields keep their defaults
-    expect(s.identity.titleTemplate).toBe(DEFAULT_SETTINGS.identity.titleTemplate)
+    expect(s.identity.titleTemplate).toBe(
+      DEFAULT_SETTINGS.identity.titleTemplate
+    )
   })
 
   it('falls back to the default entityType on an invalid value', () => {
@@ -35,7 +37,9 @@ describe('identity settings', () => {
   })
 
   it('coerces a non-array / dirty socialProfiles to a clean string[]', () => {
-    const s = parseSettings({ identity: { socialProfiles: ['a', 2, null, 'b'] } })
+    const s = parseSettings({
+      identity: { socialProfiles: ['a', 2, null, 'b'] }
+    })
     expect(s.identity.socialProfiles).toEqual(['a', 'b'])
     const s2 = parseSettings({ identity: { socialProfiles: 'nope' } })
     expect(s2.identity.socialProfiles).toEqual([])

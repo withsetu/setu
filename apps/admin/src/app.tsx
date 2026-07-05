@@ -17,16 +17,28 @@ export function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/posts" element={<ContentList collection="post" title="Posts" />} />
-        <Route path="/pages" element={<ContentList collection="page" title="Pages" />} />
+        <Route
+          path="/posts"
+          element={<ContentList collection="post" title="Posts" />}
+        />
+        <Route
+          path="/pages"
+          element={<ContentList collection="page" title="Pages" />}
+        />
         <Route path="/taxonomies" element={<Taxonomies />} />
-        <Route path="/categories" element={<Navigate to="/taxonomies" replace />} />
+        <Route
+          path="/categories"
+          element={<Navigate to="/taxonomies" replace />}
+        />
         <Route path="/media" element={<Media />} />
         <Route path="/forms" element={<FormsInbox />} />
         <Route path="/appearance" element={<Appearance />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/health" element={<SiteHealth />} />
-        <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
+        <Route
+          path="/edit/:collection/:locale/:slug"
+          element={<EditorScreen />}
+        />
         <Route path="*" element={<Placeholder title="Page not found" />} />
       </Routes>
     </AppShell>

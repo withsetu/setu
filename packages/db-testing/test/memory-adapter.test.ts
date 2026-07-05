@@ -24,7 +24,7 @@ function createMemoryAdapter(): DataPort {
         metadata: input.metadata,
         baseSha: input.baseSha ?? null,
         createdAt: existing?.createdAt ?? now,
-        updatedAt: now,
+        updatedAt: now
       }
       // test double: stores/returns the same object reference (fine for tests; a
       // production in-memory adapter would clone to prevent caller mutation).
@@ -36,7 +36,9 @@ function createMemoryAdapter(): DataPort {
     },
     async listDrafts(filter) {
       const all = [...drafts.values()]
-      return filter?.collection ? all.filter((d) => d.collection === filter.collection) : all
+      return filter?.collection
+        ? all.filter((d) => d.collection === filter.collection)
+        : all
     },
     async getLock(ref) {
       return locks.get(key(ref)) ?? null
@@ -47,7 +49,7 @@ function createMemoryAdapter(): DataPort {
     async deleteLock(ref) {
       locks.delete(key(ref))
     },
-    async close() {},
+    async close() {}
   }
 }
 

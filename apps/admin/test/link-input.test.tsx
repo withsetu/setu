@@ -13,7 +13,14 @@ afterEach(cleanup)
 describe('LinkInput', () => {
   it('applies a URL on Enter', () => {
     const onApply = vi.fn()
-    render(<LinkInput initial="" onApply={onApply} onCancel={vi.fn()} onRemove={vi.fn()} />)
+    render(
+      <LinkInput
+        initial=""
+        onApply={onApply}
+        onCancel={vi.fn()}
+        onRemove={vi.fn()}
+      />
+    )
     const field = screen.getByRole('textbox', { name: /url/i })
     fireEvent.change(field, { target: { value: 'https://x.com' } })
     fireEvent.keyDown(field, { key: 'Enter' })
@@ -22,59 +29,147 @@ describe('LinkInput', () => {
 
   it('cancels on Escape', () => {
     const onCancel = vi.fn()
-    render(<LinkInput initial="" onApply={vi.fn()} onCancel={onCancel} onRemove={vi.fn()} />)
-    fireEvent.keyDown(screen.getByRole('textbox', { name: /url/i }), { key: 'Escape' })
+    render(
+      <LinkInput
+        initial=""
+        onApply={vi.fn()}
+        onCancel={onCancel}
+        onRemove={vi.fn()}
+      />
+    )
+    fireEvent.keyDown(screen.getByRole('textbox', { name: /url/i }), {
+      key: 'Escape'
+    })
     expect(onCancel).toHaveBeenCalledOnce()
   })
 
   it('does not apply an empty/whitespace URL', () => {
     const onApply = vi.fn()
-    render(<LinkInput initial="  " onApply={onApply} onCancel={vi.fn()} onRemove={vi.fn()} />)
-    fireEvent.keyDown(screen.getByRole('textbox', { name: /url/i }), { key: 'Enter' })
+    render(
+      <LinkInput
+        initial="  "
+        onApply={onApply}
+        onCancel={vi.fn()}
+        onRemove={vi.fn()}
+      />
+    )
+    fireEvent.keyDown(screen.getByRole('textbox', { name: /url/i }), {
+      key: 'Enter'
+    })
     expect(onApply).not.toHaveBeenCalled()
   })
 
   it('shows Remove only when initial is non-empty (editing an existing link)', () => {
     const onRemove = vi.fn()
-    const { rerender } = render(<LinkInput initial="" onApply={vi.fn()} onCancel={vi.fn()} onRemove={onRemove} />)
-    expect(screen.queryByRole('button', { name: /remove/i })).not.toBeInTheDocument()
-    rerender(<LinkInput initial="https://x.com" onApply={vi.fn()} onCancel={vi.fn()} onRemove={onRemove} />)
+    const { rerender } = render(
+      <LinkInput
+        initial=""
+        onApply={vi.fn()}
+        onCancel={vi.fn()}
+        onRemove={onRemove}
+      />
+    )
+    expect(
+      screen.queryByRole('button', { name: /remove/i })
+    ).not.toBeInTheDocument()
+    rerender(
+      <LinkInput
+        initial="https://x.com"
+        onApply={vi.fn()}
+        onCancel={vi.fn()}
+        onRemove={onRemove}
+      />
+    )
     fireEvent.click(screen.getByRole('button', { name: /remove/i }))
     expect(onRemove).toHaveBeenCalledOnce()
   })
 })
 
-const sk = () => StarterKit.configure({ link: { openOnClick: false }, underline: false })
+const sk = () =>
+  StarterKit.configure({ link: { openOnClick: false }, underline: false })
 
 describe('FormatBubbleToolbar link flow', () => {
   it('creates a link over the selection and round-trips to Markdoc', () => {
     let editor!: Editor
     function H() {
-      const e = useEditor({ immediatelyRender: false, extensions: [sk()], content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'hello' }] }] } })
+      const e = useEditor({
+        immediatelyRender: false,
+        extensions: [sk()],
+        content: {
+          type: 'doc',
+          content: [
+            { type: 'paragraph', content: [{ type: 'text', text: 'hello' }] }
+          ]
+        }
+      })
       if (e) editor = e
-      return <>{e && <><EditorContent editor={e} /><FormatBubbleToolbar editor={e} /></>}</>
+      return (
+        <>
+          {e && (
+            <>
+              <EditorContent editor={e} />
+              <FormatBubbleToolbar editor={e} />
+            </>
+          )}
+        </>
+      )
     }
     render(<H />)
-    act(() => { editor.chain().focus().setTextSelection({ from: 1, to: 6 }).run() })
+    act(() => {
+      editor.chain().focus().setTextSelection({ from: 1, to: 6 }).run()
+    })
     fireEvent.click(screen.getByRole('button', { name: /^link$/i }))
     const field = screen.getByRole('textbox', { name: /url/i })
     fireEvent.change(field, { target: { value: 'https://x.com' } })
     fireEvent.keyDown(field, { key: 'Enter' })
     expect(editor.isActive('link')).toBe(true)
-    expect(tiptapToMarkdoc(editor.getJSON())).toContain('[hello](https://x.com)')
+    expect(tiptapToMarkdoc(editor.getJSON())).toContain(
+      '[hello](https://x.com)'
+    )
   })
 
   it('editing an existing link updates the whole href and round-trips', () => {
     let editor!: Editor
     function H() {
-      const e = useEditor({ immediatelyRender: false, extensions: [sk()], content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'hello', marks: [{ type: 'link', attrs: { href: 'https://old.com' } }] }] }] } })
+      const e = useEditor({
+        immediatelyRender: false,
+        extensions: [sk()],
+        content: {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                {
+                  type: 'text',
+                  text: 'hello',
+                  marks: [{ type: 'link', attrs: { href: 'https://old.com' } }]
+                }
+              ]
+            }
+          ]
+        }
+      })
       if (e) editor = e
-      return <>{e && <><EditorContent editor={e} /><FormatBubbleToolbar editor={e} /></>}</>
+      return (
+        <>
+          {e && (
+            <>
+              <EditorContent editor={e} />
+              <FormatBubbleToolbar editor={e} />
+            </>
+          )}
+        </>
+      )
     }
     render(<H />)
-    act(() => { editor.chain().focus().setTextSelection({ from: 2, to: 4 }).run() }) // caret inside the link
+    act(() => {
+      editor.chain().focus().setTextSelection({ from: 2, to: 4 }).run()
+    }) // caret inside the link
     fireEvent.click(screen.getByRole('button', { name: /^link$/i }))
-    const field = screen.getByRole('textbox', { name: /url/i }) as HTMLInputElement
+    const field = screen.getByRole<HTMLInputElement>('textbox', {
+      name: /url/i
+    })
     expect(field.value).toBe('https://old.com') // pre-filled with the existing href
     fireEvent.change(field, { target: { value: 'https://new.com' } })
     fireEvent.keyDown(field, { key: 'Enter' })
@@ -86,12 +181,41 @@ describe('FormatBubbleToolbar link flow', () => {
   it('removing a link via the toolbar unlinks the text', () => {
     let editor!: Editor
     function H() {
-      const e = useEditor({ immediatelyRender: false, extensions: [sk()], content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'hello', marks: [{ type: 'link', attrs: { href: 'https://x.com' } }] }] }] } })
+      const e = useEditor({
+        immediatelyRender: false,
+        extensions: [sk()],
+        content: {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                {
+                  type: 'text',
+                  text: 'hello',
+                  marks: [{ type: 'link', attrs: { href: 'https://x.com' } }]
+                }
+              ]
+            }
+          ]
+        }
+      })
       if (e) editor = e
-      return <>{e && <><EditorContent editor={e} /><FormatBubbleToolbar editor={e} /></>}</>
+      return (
+        <>
+          {e && (
+            <>
+              <EditorContent editor={e} />
+              <FormatBubbleToolbar editor={e} />
+            </>
+          )}
+        </>
+      )
     }
     render(<H />)
-    act(() => { editor.chain().focus().setTextSelection({ from: 2, to: 4 }).run() })
+    act(() => {
+      editor.chain().focus().setTextSelection({ from: 2, to: 4 }).run()
+    })
     fireEvent.click(screen.getByRole('button', { name: /^link$/i }))
     fireEvent.click(screen.getByRole('button', { name: /remove link/i }))
     expect(editor.isActive('link')).toBe(false)
@@ -101,15 +225,42 @@ describe('FormatBubbleToolbar link flow', () => {
   it('changing the selection closes an open link input (no stale target)', () => {
     let editor!: Editor
     function H() {
-      const e = useEditor({ immediatelyRender: false, extensions: [sk()], content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'alpha beta' }] }] } })
+      const e = useEditor({
+        immediatelyRender: false,
+        extensions: [sk()],
+        content: {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: 'alpha beta' }]
+            }
+          ]
+        }
+      })
       if (e) editor = e
-      return <>{e && <><EditorContent editor={e} /><FormatBubbleToolbar editor={e} /></>}</>
+      return (
+        <>
+          {e && (
+            <>
+              <EditorContent editor={e} />
+              <FormatBubbleToolbar editor={e} />
+            </>
+          )}
+        </>
+      )
     }
     render(<H />)
-    act(() => { editor.chain().focus().setTextSelection({ from: 1, to: 6 }).run() }) // "alpha"
+    act(() => {
+      editor.chain().focus().setTextSelection({ from: 1, to: 6 }).run()
+    }) // "alpha"
     fireEvent.click(screen.getByRole('button', { name: /^link$/i }))
     expect(screen.getByRole('textbox', { name: /url/i })).toBeInTheDocument()
-    act(() => { editor.chain().focus().setTextSelection({ from: 7, to: 11 }).run() }) // "beta"
-    expect(screen.queryByRole('textbox', { name: /url/i })).not.toBeInTheDocument() // input closed
+    act(() => {
+      editor.chain().focus().setTextSelection({ from: 7, to: 11 }).run()
+    }) // "beta"
+    expect(
+      screen.queryByRole('textbox', { name: /url/i })
+    ).not.toBeInTheDocument() // input closed
   })
 })

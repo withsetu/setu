@@ -3,12 +3,27 @@ import { selectDistinctTags } from './distinct-tags'
 import type { EntryIndexRow } from './types'
 
 const row = (slug: string, tags: string[]): EntryIndexRow => ({
-  key: `post\0en\0${slug}`, collection: 'post', locale: 'en', slug,
-  title: slug, titleLower: slug, status: 'draft', updatedAt: 0, hasDraft: true, tags, categories: [], mediaRefs: [],
+  key: `post\0en\0${slug}`,
+  collection: 'post',
+  locale: 'en',
+  slug,
+  title: slug,
+  titleLower: slug,
+  status: 'draft',
+  updatedAt: 0,
+  hasDraft: true,
+  date: null,
+  tags,
+  categories: [],
+  mediaRefs: []
 })
 
 describe('selectDistinctTags', () => {
-  const rows = [row('a', ['react', 'nextjs']), row('b', ['react', 'redux']), row('c', ['vue'])]
+  const rows = [
+    row('a', ['react', 'nextjs']),
+    row('b', ['react', 'redux']),
+    row('c', ['vue'])
+  ]
   it('prefix-filters, dedupes across rows, sorts ascending', () => {
     expect(selectDistinctTags(rows, 're', 10)).toEqual(['react', 'redux'])
   })

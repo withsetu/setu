@@ -9,7 +9,11 @@ describe('mediaKind', () => {
     expect(mediaKind('audio/mpeg')).toBe('audio')
     expect(mediaKind('application/pdf')).toBe('document')
     expect(mediaKind('text/markdown')).toBe('document')
-    expect(mediaKind('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')).toBe('document')
+    expect(
+      mediaKind(
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      )
+    ).toBe('document')
     expect(mediaKind('application/zip')).toBe('other')
     expect(mediaKind('application/octet-stream')).toBe('other')
   })

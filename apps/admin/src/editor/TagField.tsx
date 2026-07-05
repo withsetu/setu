@@ -6,7 +6,7 @@ import { TagAutocomplete } from '../ui/TagAutocomplete'
 export function TagField({
   selected,
   onChange,
-  editable,
+  editable
 }: {
   selected: string[]
   onChange: (next: string[]) => void
@@ -20,7 +20,11 @@ export function TagField({
       {selected.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {selected.map((tag) => (
-            <Badge key={tag} variant="secondary" className="gap-1 pr-1 font-normal">
+            <Badge
+              key={tag}
+              variant="secondary"
+              className="gap-1 pr-1 font-normal"
+            >
               {tag}
               {editable && (
                 <button

@@ -18,11 +18,15 @@ const STRING_CONTROLS: ReadonlySet<BlockControl> = new Set([
   'url',
   'color',
   'category',
-  'tag',
+  'tag'
 ])
 
 /** Controls a hint may upgrade an enum (String with `.matches`) prop to. */
-const ENUM_HINTS: ReadonlySet<BlockControl> = new Set(['select', 'position9', 'align'])
+const ENUM_HINTS: ReadonlySet<BlockControl> = new Set([
+  'select',
+  'position9',
+  'align'
+])
 
 /** Controls a hint may upgrade a Number prop to. */
 const NUMBER_HINTS: ReadonlySet<BlockControl> = new Set(['number', 'slider'])
@@ -33,18 +37,30 @@ const NUMBER_HINTS: ReadonlySet<BlockControl> = new Set(['number', 'slider'])
  *  mirroring markdocAttributesFor). */
 export function resolveControls(
   props: ZodTypeAny,
-  hints: Record<string, BlockControl> = {},
+  hints: Record<string, BlockControl> = {}
 ): ResolvedControl[] {
   const attrs = markdocAttributesFor(props)
   for (const prop of Object.keys(hints)) {
-    if (!(prop in attrs)) throw new Error(`resolveControls: hint for unknown prop "${prop}"`)
+    if (!(prop in attrs))
+      throw new Error(`resolveControls: hint for unknown prop "${prop}"`)
   }
   return Object.entries(attrs).map(([name, a]) => {
     // zod-derived default control
-    const derived: BlockControl = a.matches ? 'select' : a.type === 'Number' ? 'number' : a.type === 'Boolean' ? 'switch' : 'text'
+    const derived: BlockControl = a.matches
+      ? 'select'
+      : a.type === 'Number'
+        ? 'number'
+        : a.type === 'Boolean'
+          ? 'switch'
+          : 'text'
     const hint = hints[name]
     if (hint === undefined) {
-      return { name, control: derived, ...(a.default !== undefined ? { default: a.default } : {}), ...(a.matches ? { options: a.matches } : {}) }
+      return {
+        name,
+        control: derived,
+        ...(a.default !== undefined ? { default: a.default } : {}),
+        ...(a.matches ? { options: a.matches } : {})
+      }
     }
     // a hint is only valid if compatible with the zod type
     const ok =
@@ -52,7 +68,15 @@ export function resolveControls(
       (a.type === 'Number' && NUMBER_HINTS.has(hint)) ||
       (a.type === 'Boolean' && hint === 'switch') ||
       (a.type === 'String' && !a.matches && STRING_CONTROLS.has(hint))
-    if (!ok) throw new Error(`resolveControls: hint "${hint}" incompatible with prop "${name}" (zod ${a.type}${a.matches ? ' enum' : ''})`)
-    return { name, control: hint, ...(a.default !== undefined ? { default: a.default } : {}), ...(a.matches ? { options: a.matches } : {}) }
+    if (!ok)
+      throw new Error(
+        `resolveControls: hint "${hint}" incompatible with prop "${name}" (zod ${a.type}${a.matches ? ' enum' : ''})`
+      )
+    return {
+      name,
+      control: hint,
+      ...(a.default !== undefined ? { default: a.default } : {}),
+      ...(a.matches ? { options: a.matches } : {})
+    }
   })
 }

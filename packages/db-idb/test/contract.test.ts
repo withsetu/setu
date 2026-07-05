@@ -16,13 +16,22 @@ describe('createIdbDataPort persistence', () => {
       collection: 'post',
       locale: 'en',
       slug: 'persisted',
-      content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'kept' }] }] },
-      metadata: { title: 'Persisted' },
+      content: {
+        type: 'doc',
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: 'kept' }] }
+        ]
+      },
+      metadata: { title: 'Persisted' }
     })
     await a.close()
 
     const b = await createIdbDataPort(name)
-    const got = await b.getDraft({ collection: 'post', locale: 'en', slug: 'persisted' })
+    const got = await b.getDraft({
+      collection: 'post',
+      locale: 'en',
+      slug: 'persisted'
+    })
     expect(got?.metadata.title).toBe('Persisted')
     await b.close()
   })

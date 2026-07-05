@@ -11,7 +11,8 @@ function appWith(resolve: ResolveActor) {
   app.get('/whoami', (c) => c.json({ actor: c.get('actor') }))
   return app
 }
-const req = (app: Hono<any>, path: string) => app.fetch(new Request(`http://test${path}`))
+const req = (app: Hono<any>, path: string) =>
+  app.fetch(new Request(`http://test${path}`))
 
 describe('authMiddleware', () => {
   it('sets the actor and continues when the resolver returns one', async () => {
@@ -21,12 +22,18 @@ describe('authMiddleware', () => {
   })
 
   it('returns 401 when the resolver returns null', async () => {
-    const res = await req(appWith(() => null), '/whoami')
+    const res = await req(
+      appWith(() => null),
+      '/whoami'
+    )
     expect(res.status).toBe(401)
     expect(await res.json()).toEqual({ error: 'unauthenticated' })
   })
 
   it('resolveLocalOwner is the single local owner', () => {
-    expect(resolveLocalOwner(new Request('http://test/'))).toEqual({ id: 'local', role: 'owner' })
+    expect(resolveLocalOwner(new Request('http://test/'))).toEqual({
+      id: 'local',
+      role: 'owner'
+    })
   })
 })

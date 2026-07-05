@@ -1,5 +1,10 @@
 import { Extension } from '@tiptap/core'
-import { NodeSelection, Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
+import {
+  NodeSelection,
+  Plugin,
+  PluginKey,
+  TextSelection
+} from '@tiptap/pm/state'
 import type { EditorView } from '@tiptap/pm/view'
 import { moveBlock } from '../block-reorder'
 
@@ -8,7 +13,11 @@ export const dragHandleKey = new PluginKey('setuDragHandle')
 /** Insertion slot for a pointer at `y`: the index of the gap the block should drop
  *  into — `i` for the top half of block `i`, `i+1` for its bottom half, and
  *  `tops.length` past the end. Range `[0, tops.length]`. Pure — unit-tested. */
-export function dropTargetIndex(tops: number[], height: number, y: number): number {
+export function dropTargetIndex(
+  tops: number[],
+  height: number,
+  y: number
+): number {
   if (tops.length === 0) return 0
   for (let i = 0; i < tops.length; i += 1) {
     const top = tops[i]!
@@ -22,7 +31,12 @@ export function dropTargetIndex(tops: number[], height: number, y: number): numb
  *  Removing the source shifts later slots left by one, so a slot past the source
  *  maps to slot-1. Dropping on the source's own gaps yields the source index
  *  (a no-op move). Pure — unit-tested. */
-export function dropToIndex(tops: number[], height: number, y: number, fromIndex: number): number {
+export function dropToIndex(
+  tops: number[],
+  height: number,
+  y: number,
+  fromIndex: number
+): number {
   const slot = dropTargetIndex(tops, height, y)
   return slot > fromIndex ? slot - 1 : slot
 }
@@ -51,7 +65,11 @@ function blockIndexAtY(view: EditorView, clientY: number): number | null {
 /** Reorder: move the dragged block (`fromIndex`) to wherever `clientY` points.
  *  Derives the target purely from the pointer Y + the blocks' rects, so a drop
  *  anywhere on the page (the gutter, not just over content) reorders correctly. */
-function performBlockDrop(view: EditorView, fromIndex: number, clientY: number): void {
+function performBlockDrop(
+  view: EditorView,
+  fromIndex: number,
+  clientY: number
+): void {
   const tops: number[] = []
   let pos = 0
   let height = 20
@@ -111,9 +129,15 @@ export const DragHandle = Extension.create<DragHandleOptions>({
           }
 
           const openMenu = () => {
-            if (hoverIndex === null || grip === null || options.onMenu === undefined) return
+            if (
+              hoverIndex === null ||
+              grip === null ||
+              options.onMenu === undefined
+            )
+              return
             let pos = 0
-            for (let i = 0; i < hoverIndex; i += 1) pos += view.state.doc.child(i).nodeSize
+            for (let i = 0; i < hoverIndex; i += 1)
+              pos += view.state.doc.child(i).nodeSize
             const node = view.state.doc.child(hoverIndex)
             const tr = view.state.tr
             const sel = node.isAtom
@@ -133,7 +157,10 @@ export const DragHandle = Extension.create<DragHandleOptions>({
           grip.addEventListener('dragstart', (e) => {
             if (hoverIndex === null) return
             const fromIndex = hoverIndex
-            e.dataTransfer?.setData('application/x-setu-block', String(fromIndex))
+            e.dataTransfer?.setData(
+              'application/x-setu-block',
+              String(fromIndex)
+            )
             if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
             // Handle the drop at the document level (capture phase) so releasing the
             // grip anywhere — the empty gutter included, not just over content —
@@ -162,7 +189,7 @@ export const DragHandle = Extension.create<DragHandleOptions>({
             destroy() {
               grip?.remove()
               grip = null
-            },
+            }
           }
         },
         props: {
@@ -176,7 +203,8 @@ export const DragHandle = Extension.create<DragHandleOptions>({
                 return false
               }
               let pos = 0
-              for (let i = 0; i < index; i += 1) pos += view.state.doc.child(i).nodeSize
+              for (let i = 0; i < index; i += 1)
+                pos += view.state.doc.child(i).nodeSize
               const dom = view.nodeDOM(pos)
               if (dom instanceof HTMLElement) {
                 grip.style.display = 'flex'
@@ -184,23 +212,33 @@ export const DragHandle = Extension.create<DragHandleOptions>({
                 // ancestor is positioned) rather than assuming it's the editor
                 // wrapper — keeps the grip aligned to the block regardless of the
                 // surrounding layout. offsetParent is only valid once visible.
-                const opTop = (grip.offsetParent as HTMLElement | null)?.getBoundingClientRect().top ?? 0
+                const opTop =
+                  (
+                    grip.offsetParent as HTMLElement | null
+                  )?.getBoundingClientRect().top ?? 0
                 // Center the grip on the block's first text line (using the block's
                 // own line-height + top padding) so it aligns with the text rather
                 // than the block's very top edge.
                 const cs = getComputedStyle(dom)
                 const padTop = parseFloat(cs.paddingTop) || 0
-                const lineH = parseFloat(cs.lineHeight) || dom.getBoundingClientRect().height
+                const lineH =
+                  parseFloat(cs.lineHeight) ||
+                  dom.getBoundingClientRect().height
                 const gripH = grip.offsetHeight || 24
-                const top = dom.getBoundingClientRect().top - opTop + padTop + lineH / 2 - gripH / 2
+                const top =
+                  dom.getBoundingClientRect().top -
+                  opTop +
+                  padTop +
+                  lineH / 2 -
+                  gripH / 2
                 grip.style.top = `${top}px`
                 grip.style.left = '0px'
               }
               return false
-            },
-          },
-        },
-      }),
+            }
+          }
+        }
+      })
     ]
-  },
+  }
 })

@@ -4,7 +4,9 @@ import { uniqueTitle } from '../lib/unique-title'
 
 // editor-* prefix: runs on chromium AND webkit-editor (see e2e/playwright.config.ts
 // testMatch) — slash-menu + contenteditable is exactly where WebKit diverges.
-test('open the slash menu, insert a block, and verify it renders and persists', async ({ page }) => {
+test('open the slash menu, insert a block, and verify it renders and persists', async ({
+  page
+}) => {
   const title = uniqueTitle('slash-insert')
   const calloutText = `Callout body for ${title}.`
 

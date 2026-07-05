@@ -5,7 +5,7 @@ describe('frontmatter — featuredImage round-trip', () => {
   it('serializes and parses metadata.featuredImage unchanged', () => {
     const file = {
       frontmatter: { title: 'X', featuredImage: '/media/2026/06/hero.jpg' },
-      body: 'A body paragraph.\n',
+      body: 'A body paragraph.\n'
     }
     const round = parseMdoc(serializeMdoc(file))
     expect(round.frontmatter['featuredImage']).toBe('/media/2026/06/hero.jpg')

@@ -14,7 +14,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
+  SelectValue
 } from '@/components/ui/select'
 import {
   Dialog,
@@ -22,7 +22,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
+  DialogTitle
 } from '@/components/ui/dialog'
 import {
   AlertDialog,
@@ -32,7 +32,7 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle,
+  AlertDialogTitle
 } from '@/components/ui/alert-dialog'
 import { Pager } from './content-list/Pager'
 
@@ -85,7 +85,7 @@ export function FormsInbox() {
         else next.delete(key)
         return next
       },
-      { replace: true },
+      { replace: true }
     )
 
   // Debounced search: local input → URL `q`.
@@ -118,7 +118,7 @@ export function FormsInbox() {
     void (async () => {
       const filter: Parameters<typeof submissions.listSubmissions>[0] = {
         offset: page * PAGE_SIZE,
-        limit: PAGE_SIZE,
+        limit: PAGE_SIZE
       }
       if (form) filter.formId = form
       if (readParam === 'true') filter.read = true
@@ -161,7 +161,9 @@ export function FormsInbox() {
   const removeMany = async (ids: string[]) => {
     if (ids.length === 0) return
     await submissions.deleteSubmissions(ids)
-    notify.success(`Deleted ${ids.length} submission${ids.length === 1 ? '' : 's'}`)
+    notify.success(
+      `Deleted ${ids.length} submission${ids.length === 1 ? '' : 's'}`
+    )
     setSelected(new Set())
     if (active && ids.includes(active.id)) setActive(null)
     refresh()
@@ -169,7 +171,9 @@ export function FormsInbox() {
 
   const exportCsv = async () => {
     // Export the full filtered set, not just the current page.
-    const filter: Parameters<typeof submissions.listSubmissions>[0] = { limit: 100000 }
+    const filter: Parameters<typeof submissions.listSubmissions>[0] = {
+      limit: 100000
+    }
     if (form) filter.formId = form
     if (readParam === 'true') filter.read = true
     if (readParam === 'false') filter.read = false
@@ -182,16 +186,21 @@ export function FormsInbox() {
     a.download = 'submissions.csv'
     a.click()
     URL.revokeObjectURL(url)
-    notify.success(`Exported ${all.rows.length} submission${all.rows.length === 1 ? '' : 's'}`)
+    notify.success(
+      `Exported ${all.rows.length} submission${all.rows.length === 1 ? '' : 's'}`
+    )
   }
 
   const pageKeys = (rows ?? []).map((r) => r.id)
-  const allSelected = pageKeys.length > 0 && pageKeys.every((k) => selected.has(k))
-  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(pageKeys))
+  const allSelected =
+    pageKeys.length > 0 && pageKeys.every((k) => selected.has(k))
+  const toggleAll = () =>
+    setSelected(allSelected ? new Set() : new Set(pageKeys))
   const toggleRow = (id: string) =>
     setSelected((prev) => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
 
@@ -204,7 +213,12 @@ export function FormsInbox() {
         title="Forms"
         count={rows !== null ? total : undefined}
         actions={
-          <Button variant="outline" size="sm" onClick={() => void exportCsv()} disabled={total === 0}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void exportCsv()}
+            disabled={total === 0}
+          >
             Export CSV
           </Button>
         }
@@ -218,7 +232,10 @@ export function FormsInbox() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <Select value={form || ALL} onValueChange={(v) => setParam('form', v === ALL ? '' : v)}>
+          <Select
+            value={form || ALL}
+            onValueChange={(v) => setParam('form', v === ALL ? '' : v)}
+          >
             <SelectTrigger size="sm" className="w-44">
               <SelectValue placeholder="All forms" />
             </SelectTrigger>
@@ -231,7 +248,10 @@ export function FormsInbox() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={readParam || ALL} onValueChange={(v) => setParam('read', v === ALL ? '' : v)}>
+          <Select
+            value={readParam || ALL}
+            onValueChange={(v) => setParam('read', v === ALL ? '' : v)}
+          >
             <SelectTrigger size="sm" className="w-36">
               <SelectValue placeholder="All" />
             </SelectTrigger>
@@ -248,25 +268,32 @@ export function FormsInbox() {
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No submissions{form || readParam || q ? ' match your filters' : ' yet'}.
+            No submissions
+            {form || readParam || q ? ' match your filters' : ' yet'}.
           </p>
         ) : (
           <>
             {/* Bulk action bar */}
             {selected.size > 0 && (
               <div className="mb-2 flex items-center gap-2 rounded-lg border bg-card px-3 py-2">
-                <span className="text-sm font-medium">{selected.size} selected</span>
+                <span className="text-sm font-medium">
+                  {selected.size} selected
+                </span>
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => {
                     const selectedIds = new Set(selected)
-                    void submissions.setRead([...selectedIds], true).then(() => {
-                      notify.success('Marked read')
-                      setActive((a) => (a && selectedIds.has(a.id) ? { ...a, read: true } : a))
-                      setSelected(new Set())
-                      refresh()
-                    })
+                    void submissions
+                      .setRead([...selectedIds], true)
+                      .then(() => {
+                        notify.success('Marked read')
+                        setActive((a) =>
+                          a && selectedIds.has(a.id) ? { ...a, read: true } : a
+                        )
+                        setSelected(new Set())
+                        refresh()
+                      })
                   }}
                 >
                   Mark read
@@ -276,20 +303,32 @@ export function FormsInbox() {
                   variant="outline"
                   onClick={() => {
                     const selectedIds = new Set(selected)
-                    void submissions.setRead([...selectedIds], false).then(() => {
-                      notify.success('Marked unread')
-                      setActive((a) => (a && selectedIds.has(a.id) ? { ...a, read: false } : a))
-                      setSelected(new Set())
-                      refresh()
-                    })
+                    void submissions
+                      .setRead([...selectedIds], false)
+                      .then(() => {
+                        notify.success('Marked unread')
+                        setActive((a) =>
+                          a && selectedIds.has(a.id) ? { ...a, read: false } : a
+                        )
+                        setSelected(new Set())
+                        refresh()
+                      })
                   }}
                 >
                   Mark unread
                 </Button>
-                <Button size="sm" variant="destructive" onClick={() => setPendingDelete([...selected])}>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => setPendingDelete([...selected])}
+                >
                   Delete
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setSelected(new Set())}
+                >
                   Clear
                 </Button>
               </div>
@@ -349,7 +388,11 @@ export function FormsInbox() {
                         {new Date(s.createdAt).toLocaleString()}
                       </td>
                       <td className="px-3 py-2">
-                        <Button size="sm" variant="ghost" onClick={() => void toggleRead(s)}>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => void toggleRead(s)}
+                        >
                           {s.read ? 'Unread' : 'Read'}
                         </Button>
                       </td>
@@ -358,7 +401,13 @@ export function FormsInbox() {
                 </tbody>
               </table>
               {total > 0 && (
-                <Pager from={from} to={to} total={total} page={page} onPage={setPage} />
+                <Pager
+                  from={from}
+                  to={to}
+                  total={total}
+                  page={page}
+                  onPage={setPage}
+                />
               )}
             </div>
           </>
@@ -384,7 +433,9 @@ export function FormsInbox() {
               <dl className="grid gap-3">
                 {orderedFields(active.fields).map(([k, v]) => (
                   <div key={k} className="grid gap-1">
-                    <dt className="text-sm font-semibold text-foreground">{labelOf(k)}</dt>
+                    <dt className="text-sm font-semibold text-foreground">
+                      {labelOf(k)}
+                    </dt>
                     <dd className="whitespace-pre-wrap break-words text-sm text-muted-foreground">
                       {v}
                     </dd>
@@ -392,7 +443,9 @@ export function FormsInbox() {
                 ))}
                 {active.source?.url && (
                   <div className="grid gap-1">
-                    <dt className="text-sm font-semibold text-foreground">Page</dt>
+                    <dt className="text-sm font-semibold text-foreground">
+                      Page
+                    </dt>
                     <dd className="break-all text-sm">
                       <a
                         href={active.source.url}
@@ -407,10 +460,18 @@ export function FormsInbox() {
                 )}
               </dl>
               <DialogFooter className="gap-2 sm:justify-between">
-                <Button size="sm" variant="outline" onClick={() => void toggleRead(active)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void toggleRead(active)}
+                >
                   {active.read ? 'Mark unread' : 'Mark read'}
                 </Button>
-                <Button size="sm" variant="destructive" onClick={() => setPendingDelete([active.id])}>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => setPendingDelete([active.id])}
+                >
                   Delete
                 </Button>
               </DialogFooter>
@@ -428,12 +489,15 @@ export function FormsInbox() {
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>
-                Delete {pendingDelete?.length ?? 0} submission{(pendingDelete?.length ?? 0) === 1 ? '' : 's'}?
+                Delete {pendingDelete?.length ?? 0} submission
+                {(pendingDelete?.length ?? 0) === 1 ? '' : 's'}?
               </AlertDialogTitle>
               <AlertDialogDescription>
                 This permanently removes{' '}
-                {(pendingDelete?.length ?? 0) === 1 ? 'this submission' : 'these submissions'}. This
-                can&apos;t be undone.
+                {(pendingDelete?.length ?? 0) === 1
+                  ? 'this submission'
+                  : 'these submissions'}
+                . This can&apos;t be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

@@ -6,7 +6,7 @@ export const BLOCK_CATEGORIES = [
   'embed',
   'dynamic',
   'marketing',
-  'widget',
+  'widget'
 ] as const
 
 export type BlockCategory = (typeof BLOCK_CATEGORIES)[number]
@@ -19,7 +19,7 @@ export const BLOCK_CATEGORY_LABELS: Record<BlockCategory, string> = {
   embed: 'Embeds',
   dynamic: 'Dynamic',
   marketing: 'Marketing',
-  widget: 'Widgets',
+  widget: 'Widgets'
 }
 
 /** Fallback category for a block that declares no group. */

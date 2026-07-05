@@ -6,15 +6,22 @@ import { GeneralSettings } from './GeneralSettings'
 import { ReadingSettings } from './ReadingSettings'
 import { MediaSettings } from './MediaSettings'
 import { IdentitySettings } from './IdentitySettings'
+import { PermalinksSettings } from './PermalinksSettings'
 
-const apiBase = import.meta.env.VITE_SETU_API as string | undefined
+const apiBase = import.meta.env.VITE_SETU_API
 
 // Moved verbatim from the previous flat Settings.tsx (captcha PR).
 function SpamProtectionStatus({ apiBase }: { apiBase: string }) {
-  const [status, setStatus] = useState<{ provider: string; secretConfigured: boolean } | null>(null)
+  const [status, setStatus] = useState<{
+    provider: string
+    secretConfigured: boolean
+  } | null>(null)
   useEffect(() => {
     void fetch(`${apiBase}/forms/captcha-status`)
-      .then((r) => r.json() as Promise<{ provider: string; secretConfigured: boolean }>)
+      .then(
+        (r) =>
+          r.json() as Promise<{ provider: string; secretConfigured: boolean }>
+      )
       .then(setStatus)
       .catch(() => setStatus({ provider: '', secretConfigured: false }))
   }, [apiBase])
@@ -34,20 +41,35 @@ function FormsGroup() {
         <CardTitle className="text-base">Spam protection</CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
-        {apiBase ? <SpamProtectionStatus apiBase={apiBase} /> : <p className="text-sm text-muted-foreground">Spam protection: not configured</p>}
-        <p className="text-xs text-muted-foreground">More form settings coming soon.</p>
+        {apiBase ? (
+          <SpamProtectionStatus apiBase={apiBase} />
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Spam protection: not configured
+          </p>
+        )}
+        <p className="text-xs text-muted-foreground">
+          More form settings coming soon.
+        </p>
       </CardContent>
     </Card>
   )
 }
 
-type GroupId = 'general' | 'reading' | 'media' | 'identity' | 'forms'
+type GroupId =
+  | 'general'
+  | 'reading'
+  | 'media'
+  | 'identity'
+  | 'permalinks'
+  | 'forms'
 const GROUPS: { id: GroupId; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'reading', label: 'Content & Reading' },
   { id: 'media', label: 'Media' },
   { id: 'identity', label: 'Identity & SEO' },
-  { id: 'forms', label: 'Forms' },
+  { id: 'permalinks', label: 'Permalinks' },
+  { id: 'forms', label: 'Forms' }
 ]
 const COMING_SOON = ['Users & Roles', 'Deploy']
 
@@ -58,7 +80,10 @@ export function Settings() {
       <PageHeader title="Settings" />
       <PageBody>
         <div className="flex gap-6">
-          <nav className="w-48 shrink-0 space-y-1" aria-label="Settings sections">
+          <nav
+            className="w-48 shrink-0 space-y-1"
+            aria-label="Settings sections"
+          >
             {GROUPS.map((g) => (
               <button
                 key={g.id}
@@ -70,13 +95,29 @@ export function Settings() {
               </button>
             ))}
             {COMING_SOON.map((label) => (
-              <span key={label} className="block cursor-not-allowed rounded-md px-3 py-1.5 text-left text-sm text-muted-foreground/50" title="Coming soon">
+              <span
+                key={label}
+                className="block cursor-not-allowed rounded-md px-3 py-1.5 text-left text-sm text-muted-foreground/50"
+                title="Coming soon"
+              >
                 {label}
               </span>
             ))}
           </nav>
           <div className="min-w-0 flex-1">
-            {active === 'general' ? <GeneralSettings /> : active === 'reading' ? <ReadingSettings /> : active === 'media' ? <MediaSettings /> : active === 'identity' ? <IdentitySettings /> : <FormsGroup />}
+            {active === 'general' ? (
+              <GeneralSettings />
+            ) : active === 'reading' ? (
+              <ReadingSettings />
+            ) : active === 'media' ? (
+              <MediaSettings />
+            ) : active === 'identity' ? (
+              <IdentitySettings />
+            ) : active === 'permalinks' ? (
+              <PermalinksSettings />
+            ) : (
+              <FormsGroup />
+            )}
           </div>
         </div>
       </PageBody>

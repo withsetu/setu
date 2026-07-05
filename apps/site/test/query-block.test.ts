@@ -32,7 +32,7 @@ describe('query block', () => {
   it('lists same-default-locale (en) posts and excludes other locales', () => {
     expect(html).toContain('href="/post/kitchen-sink"')
     expect(html).toContain('href="/post/astro-on-the-edge"')
-    expect(html).not.toContain('/post/fr/') // the French Bonjour post is excluded by locale default
+    expect(html).not.toContain('/fr/post/') // the French Bonjour post is excluded by locale default
   })
   it('renders a thumbnail for a post that has a featured image', () => {
     // featured-demo.mdoc has featuredImage: /media/2026/06/test-cat.jpg
@@ -46,16 +46,22 @@ describe('query block', () => {
   })
   it('shows a formatted date on cards that have one (#129)', () => {
     // astro-on-the-edge.mdoc has date: 2026-06-20 → a <time> with a locale-formatted label.
-    expect(html).toMatch(/<time class="setu-post-card__date"[^>]*datetime="2026-06-20"/)
+    expect(html).toMatch(
+      /<time class="setu-post-card__date"[^>]*datetime="2026-06-20"/
+    )
     expect(html).toMatch(/Jun\s+20,\s+2026/)
   })
   it('shows a body-derived excerpt on cards (#129)', () => {
     expect(html).toContain('setu-post-card__excerpt')
     // astro-on-the-edge body → plain-text snippet, markdoc/markdown stripped.
-    expect(html).toContain('A short companion post about running Astro content at the edge.')
+    expect(html).toContain(
+      'A short companion post about running Astro content at the edge.'
+    )
   })
   it('ships zero JS', () => {
     expect(html).not.toContain('astro-island')
-    expect(html).not.toMatch(/<script(?![^>]*type="application\/ld\+json")[\s>]/)
+    expect(html).not.toMatch(
+      /<script(?![^>]*type="application\/ld\+json")[\s>]/
+    )
   })
 })

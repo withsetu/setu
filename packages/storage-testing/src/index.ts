@@ -6,7 +6,9 @@ const text = (b: Uint8Array): string => new TextDecoder().decode(b)
 
 /** Run the StoragePort behavioural contract against an adapter. `makeAdapter` must
  *  return a FRESH, empty store on each call. */
-export function runStoragePortContract(makeAdapter: () => Promise<StoragePort> | StoragePort): void {
+export function runStoragePortContract(
+  makeAdapter: () => Promise<StoragePort> | StoragePort
+): void {
   describe('StoragePort contract', () => {
     let s: StoragePort
     beforeEach(async () => {
@@ -50,13 +52,15 @@ export function runStoragePortContract(makeAdapter: () => Promise<StoragePort> |
       const a = await s.get('a')
       const act = await s.get('a.ctype')
       expect(text(a!.body)).toBe('A-body')
-      expect(a!.contentType).toBe('image/png')   // NOT clobbered by put('a.ctype')
-      expect(text(act!.body)).toBe('CT-body')    // a real object, not a's content-type string
+      expect(a!.contentType).toBe('image/png') // NOT clobbered by put('a.ctype')
+      expect(text(act!.body)).toBe('CT-body') // a real object, not a's content-type string
       expect(act!.contentType).toBe('text/plain')
     })
 
     it('url(key) contains the key', async () => {
-      expect(s.url('media/abc/original.jpg')).toContain('media/abc/original.jpg')
+      expect(s.url('media/abc/original.jpg')).toContain(
+        'media/abc/original.jpg'
+      )
     })
   })
 }

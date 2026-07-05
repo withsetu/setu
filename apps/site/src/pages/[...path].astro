@@ -2,7 +2,7 @@
 import PostLayout from '@theme/PostLayout.astro'
 import PageLayout from '@theme/PageLayout.astro'
 import { getCollection, render } from 'astro:content'
-import { toUrlPath } from '../lib/url'
+import { permalinkMap } from '../lib/permalinks'
 import { loadThemeOptions } from '../lib/site-config'
 import { loadSiteSettings } from '../lib/site-settings'
 import { feedLocales } from '../lib/feed'
@@ -20,9 +20,10 @@ import { strArr } from '../lib/post-row'
 export async function getStaticPaths() {
   const all = await getCollection('entries')
   const homepage = loadSiteSettings().reading.homepage
+  const map = await permalinkMap()
   return all
     .filter((entry) => entry.id !== homepage && entry.id !== 'page/en/home')
-    .map((entry) => ({ params: { path: toUrlPath(entry.id) }, props: { entry } }))
+    .map((entry) => ({ params: { path: map.get(entry.id) }, props: { entry } }))
 }
 
 const { entry } = Astro.props

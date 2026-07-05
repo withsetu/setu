@@ -4,7 +4,14 @@ import { calloutVariants, variantFor, CALLOUT_ICONS } from '@setu/blocks'
 describe('callout variants', () => {
   it('derives one variant per config editor.variants entry, with tone+icon+label', () => {
     const vs = calloutVariants()
-    expect(vs.map((v) => v.type)).toEqual(['info', 'note', 'success', 'warning', 'danger', 'neutral'])
+    expect(vs.map((v) => v.type)).toEqual([
+      'info',
+      'note',
+      'success',
+      'warning',
+      'danger',
+      'neutral'
+    ])
     const success = vs.find((v) => v.type === 'success')
     expect(success?.tone).toBe('green')
     expect(typeof success?.icon).toBe('string')

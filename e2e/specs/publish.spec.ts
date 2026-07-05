@@ -7,7 +7,9 @@ import { sandboxHeadSubject, sandboxStatusPorcelain } from '../lib/sandbox-git'
 // No `editor-` prefix: chromium-only per e2e/playwright.config.ts testMatch — publishing
 // is a button/toast/badge flow, not a contenteditable surface, so it doesn't need the
 // webkit-editor lane reserved for editor input quirks.
-test('create a post, publish it, and verify the commit + the saved-not-live surface', async ({ page }) => {
+test('create a post, publish it, and verify the commit + the saved-not-live surface', async ({
+  page
+}) => {
   const title = uniqueTitle('publish')
   const body = `Body text for ${title}.`
 
@@ -25,7 +27,8 @@ test('create a post, publish it, and verify the commit + the saved-not-live surf
   // from `/edit/post/en/new` to `/edit/post/en/<slug>` — read it back rather than
   // re-deriving the slugify transform here, so this test can't drift from that logic.
   const slugMatch = /\/edit\/post\/en\/([^/?#]+)/.exec(page.url())
-  if (!slugMatch) throw new Error(`expected a minted slug in the URL, got: ${page.url()}`)
+  if (!slugMatch)
+    throw new Error(`expected a minted slug in the URL, got: ${page.url()}`)
   const slug = slugMatch[1]
 
   // b. Invoke the real publish affordance — PublishMenu's primary "Publish" button

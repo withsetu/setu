@@ -1,12 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within
+} from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { createMemoryDataPort } from '@setu/db-memory'
 import { createMemoryGitPort } from '@setu/git-memory'
 import type { GitPort } from '@setu/core'
 import { themeOptions } from '@setu/theme-default/options'
 import { ActorProvider } from '../src/auth/actor'
-import { ServicesProvider, createServices, servicesFor } from '../src/data/store'
+import {
+  ServicesProvider,
+  createServices,
+  servicesFor
+} from '../src/data/store'
 import { Appearance } from '../src/screens/Appearance'
 
 beforeEach(() => localStorage.clear())
@@ -41,7 +51,7 @@ describe('Appearance (Customizer)', () => {
   it('a valid accent hex flows into the preview; an invalid one is ignored', () => {
     renderAppearance()
     const preview = screen.getByTestId('cz-preview')
-    const hex = screen.getByLabelText('Hex value') as HTMLInputElement
+    const hex = screen.getByLabelText('Hex value')
     fireEvent.change(hex, { target: { value: '#0ea5e9' } })
     expect(preview.style.getPropertyValue('--accent')).toBe('#0ea5e9')
     fireEvent.change(hex, { target: { value: 'nonsense' } })
@@ -51,10 +61,16 @@ describe('Appearance (Customizer)', () => {
   it('per-knob reset restores the default and hides the reset affordance', () => {
     renderAppearance()
     fireEvent.click(screen.getByRole('button', { name: 'Wide' }))
-    const widthField = screen.getByText('Content width').closest('.cz-field') as HTMLElement
+    const widthField = screen
+      .getByText('Content width')
+      .closest('.cz-field') as HTMLElement
     fireEvent.click(within(widthField).getByRole('button', { name: 'Reset' }))
-    expect(screen.getByTestId('cz-preview').style.getPropertyValue('--measure-page')).toBe('64rem')
-    expect(within(widthField).queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument()
+    expect(
+      screen.getByTestId('cz-preview').style.getPropertyValue('--measure-page')
+    ).toBe('64rem')
+    expect(
+      within(widthField).queryByRole('button', { name: 'Reset' })
+    ).not.toBeInTheDocument()
   })
 
   it('"Reset all" returns every knob to its default', () => {
@@ -72,7 +88,9 @@ describe('Appearance (Customizer)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Wide' }))
     unmount()
     renderAppearance()
-    expect(screen.getByTestId('cz-preview').style.getPropertyValue('--measure-page')).toBe('78rem')
+    expect(
+      screen.getByTestId('cz-preview').style.getPropertyValue('--measure-page')
+    ).toBe('78rem')
   })
 })
 
@@ -86,18 +104,30 @@ describe('Appearance — Publish to site', () => {
     const { services } = withGit()
     renderAppearance(services)
     // baseline loads (no file → defaults) → nothing to publish
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Published' })).toBeDisabled())
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Published' })).toBeDisabled()
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Wide' }))
-    expect(screen.getByRole('button', { name: 'Publish appearance' })).toBeEnabled()
+    expect(
+      screen.getByRole('button', { name: 'Publish appearance' })
+    ).toBeEnabled()
   })
 
   it('commits the chosen values to theme-options.json and settles to "Published"', async () => {
     const { git, services } = withGit()
     renderAppearance(services)
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Published' })).toBeInTheDocument())
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Published' })
+      ).toBeInTheDocument()
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Wide' }))
     fireEvent.click(screen.getByRole('button', { name: 'Publish appearance' }))
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Published' })).toBeInTheDocument())
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Published' })
+      ).toBeInTheDocument()
+    )
     const committed = await git.readFile('theme-options.json')
     expect(committed).not.toBeNull()
     expect(JSON.parse(committed as string)).toMatchObject({ width: 'wide' })
@@ -107,13 +137,21 @@ describe('Appearance — Publish to site', () => {
     const { git, services } = withGit()
     await git.commitFile({
       path: 'theme-options.json',
-      content: JSON.stringify({ ...Object.fromEntries(themeOptions.map((o) => [o.key, o.default])), width: 'wide' }),
+      content: JSON.stringify({
+        ...Object.fromEntries(themeOptions.map((o) => [o.key, o.default])),
+        width: 'wide'
+      }),
       message: 'seed',
-      author: { name: 'x', email: 'x@y.z' },
+      author: { name: 'x', email: 'x@y.z' }
     })
     // working copy already matches the committed (published) width
-    localStorage.setItem('setu-theme-options', JSON.stringify({ width: 'wide' }))
+    localStorage.setItem(
+      'setu-theme-options',
+      JSON.stringify({ width: 'wide' })
+    )
     renderAppearance(services)
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Published' })).toBeDisabled())
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Published' })).toBeDisabled()
+    )
   })
 })

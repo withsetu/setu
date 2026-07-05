@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import type { DataPort, Draft, DraftInput, EntryRef, Lock } from '../../src/index'
+import type {
+  DataPort,
+  Draft,
+  DraftInput,
+  EntryRef,
+  Lock
+} from '../../src/index'
 
 describe('DataPort domain types', () => {
   it('Draft / DraftInput / Lock shapes compile and carry the expected fields', () => {
@@ -10,11 +16,19 @@ describe('DataPort domain types', () => {
       metadata: { title: 'T' },
       baseSha: null,
       createdAt: 1,
-      updatedAt: 2,
+      updatedAt: 2
     }
-    const input: DraftInput = { ...ref, content: { type: 'doc', content: [] }, metadata: {} }
+    const input: DraftInput = {
+      ...ref,
+      content: { type: 'doc', content: [] },
+      metadata: {}
+    }
     const lock: Lock = { ...ref, lockedBy: 'a@x.com', lockedAt: 1 }
-    expect([draft.slug, input.collection, lock.lockedBy]).toEqual(['x', 'post', 'a@x.com'])
+    expect([draft.slug, input.collection, lock.lockedBy]).toEqual([
+      'x',
+      'post',
+      'a@x.com'
+    ])
   })
 
   it('DataPort is structurally implementable', () => {

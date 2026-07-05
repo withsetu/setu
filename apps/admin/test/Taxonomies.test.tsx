@@ -15,8 +15,12 @@ import { App } from '../src/app'
 import { Taxonomies } from '../src/screens/taxonomies/Taxonomies'
 
 vi.mock('../src/deploy/deploy', async (orig) => ({
-  ...(await orig() as object),
-  useDeploy: () => ({ deployedAt: () => null, sha: null, deploy: () => Promise.resolve() }),
+  ...(await orig()),
+  useDeploy: () => ({
+    deployedAt: () => null,
+    sha: null,
+    deploy: () => Promise.resolve()
+  })
 }))
 
 function wrap(initialPath = '/taxonomies') {
@@ -40,7 +44,7 @@ function wrap(initialPath = '/taxonomies') {
           </DeployProvider>
         </ServicesProvider>
       </ActorProvider>
-    </MemoryRouter>,
+    </MemoryRouter>
   )
 }
 
@@ -61,7 +65,7 @@ function wrapDirect() {
           </IndexProvider>
         </DeployProvider>
       </ServicesProvider>
-    </MemoryRouter>,
+    </MemoryRouter>
   )
 }
 
@@ -74,7 +78,9 @@ describe('Taxonomies screen (via App router)', () => {
 
   it('shows the page heading at /taxonomies', () => {
     wrap()
-    expect(screen.getByRole('heading', { name: /taxonomies/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: /taxonomies/i })
+    ).toBeInTheDocument()
   })
 
   it('/categories redirects to /taxonomies and shows the tabs', () => {
@@ -93,13 +99,17 @@ describe('Taxonomies screen (direct mount)', () => {
 
   it('shows the page heading', () => {
     wrapDirect()
-    expect(screen.getByRole('heading', { name: /taxonomies/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: /taxonomies/i })
+    ).toBeInTheDocument()
   })
 
   it('Tags tab shows empty-state copy after activating the tab (no entries seeded)', () => {
     wrapDirect()
     // Radix Tabs listens to mousedown (not click) for tab switching
     fireEvent.mouseDown(screen.getByRole('tab', { name: /tags/i }))
-    expect(screen.getByText(/Tags appear here as you add them to content/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/Tags appear here as you add them to content/i)
+    ).toBeInTheDocument()
   })
 })

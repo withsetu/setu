@@ -1,5 +1,12 @@
 import { describe, it, expect, vi } from 'vitest'
-import { onRequestLinkEdit, requestLinkEdit, onRequestShortcuts, requestShortcuts, onRequestFocusToolbar, requestFocusToolbar } from '../src/editor/editor-events'
+import {
+  onRequestLinkEdit,
+  requestLinkEdit,
+  onRequestShortcuts,
+  requestShortcuts,
+  onRequestFocusToolbar,
+  requestFocusToolbar
+} from '../src/editor/editor-events'
 
 describe('editor-events', () => {
   it('notifies link-edit subscribers and stops after unsubscribe', () => {

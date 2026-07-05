@@ -16,11 +16,24 @@ function humanizeLabel(name: string): string {
 }
 
 export function BlockInspector({
-  tag, mdAttrs, onChange, apiBase,
-}: { tag: string; mdAttrs: Record<string, unknown>; onChange: (name: string, value: unknown) => void; apiBase: string }) {
+  tag,
+  mdAttrs,
+  onChange,
+  apiBase
+}: {
+  tag: string
+  mdAttrs: Record<string, unknown>
+  onChange: (name: string, value: unknown) => void
+  apiBase: string
+}) {
   const block = registry.blocks.find((b) => b.tag === tag)
   const [pickFor, setPickFor] = useState<string | null>(null)
-  if (!block) return <p className="px-1 py-2 text-sm text-muted-foreground">No editable properties.</p>
+  if (!block)
+    return (
+      <p className="px-1 py-2 text-sm text-muted-foreground">
+        No editable properties.
+      </p>
+    )
 
   // Capture the narrowed editor meta so the (hoisted) renderControl closure keeps the type.
   const editor = block.editor
@@ -48,7 +61,10 @@ export function BlockInspector({
     const resolved = declaredGroups.map((g) => {
       const gControls = g.controls.flatMap((name) => {
         const c = visibleByName.get(name)
-        if (c) { assigned.add(name); return [c] }
+        if (c) {
+          assigned.add(name)
+          return [c]
+        }
         return []
       })
       return { label: g.label, controls: gControls }
@@ -57,7 +73,10 @@ export function BlockInspector({
     const orphans = visible.filter((c) => !assigned.has(c.name))
     if (orphans.length > 0 && resolved.length > 0) {
       const first = resolved[0]!
-      resolved[0] = { label: first.label, controls: [...orphans, ...first.controls] }
+      resolved[0] = {
+        label: first.label,
+        controls: [...orphans, ...first.controls]
+      }
     }
     groups = resolved
   } else {
@@ -69,11 +88,19 @@ export function BlockInspector({
     const Control = controlRegistry[c.control]
     return (
       <div key={c.name} className="flex flex-col gap-1.5">
-        <Label htmlFor={`bi-${c.name}`}>{editor?.labels?.[c.name] ?? humanizeLabel(c.name)}</Label>
+        <Label htmlFor={`bi-${c.name}`}>
+          {editor?.labels?.[c.name] ?? humanizeLabel(c.name)}
+        </Label>
         <Control
           value={mdAttrs[c.name] ?? c.default}
           onChange={(v) => onChange(c.name, v)}
-          meta={{ name: c.name, options: c.options, default: c.default, apiBase, onPickMedia: setPickFor }}
+          meta={{
+            name: c.name,
+            options: c.options,
+            default: c.default,
+            apiBase,
+            onPickMedia: setPickFor
+          }}
         />
       </div>
     )
@@ -96,8 +123,15 @@ export function BlockInspector({
           <Fragment key="__ungrouped">{g.controls.map(renderControl)}</Fragment>
         )
       })}
-      <MediaPickerModal apiBase={apiBase} open={pickFor !== null} onClose={() => setPickFor(null)}
-        onPick={(src) => { if (pickFor) onChange(pickFor, src); setPickFor(null) }} />
+      <MediaPickerModal
+        apiBase={apiBase}
+        open={pickFor !== null}
+        onClose={() => setPickFor(null)}
+        onPick={(src) => {
+          if (pickFor) onChange(pickFor, src)
+          setPickFor(null)
+        }}
+      />
     </div>
   )
 }

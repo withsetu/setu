@@ -17,24 +17,30 @@ export interface HeroProps {
 
 /** The hero visual core. Rendered read-only in the editor canvas (props from the node's
  *  mdAttrs); the site mirrors this exact class structure in Hero.astro, sharing hero.css. */
+// `ctaHref` stays in HeroProps for parity with Hero.astro (which renders the real
+// <a href>), but the canvas core deliberately renders the CTA as a non-navigating
+// <span> — a live link inside the editor would navigate away mid-edit.
 export function Hero({
   headline,
   subhead,
   image,
   ctaLabel,
-  ctaHref,
   layout = 'centered',
   textPosition = 'center',
   textAlign,
   overlayColor,
   textColor,
-  width,
+  width
 }: HeroProps) {
   const style: Record<string, string> = {}
-  if (layout === 'background') style['--blk-hero-scrim'] = overlayColor ?? 'rgba(15,17,26,0.55)'
+  if (layout === 'background')
+    style['--blk-hero-scrim'] = overlayColor ?? 'rgba(15,17,26,0.55)'
   if (textColor) style['--blk-hero-text-color'] = textColor
   return (
-    <section className={heroClasses(layout, textPosition, width, textAlign)} style={style}>
+    <section
+      className={heroClasses(layout, textPosition, width, textAlign)}
+      style={style}
+    >
       {image ? (
         <div className="blk-hero-media">
           <img src={image} alt="" />

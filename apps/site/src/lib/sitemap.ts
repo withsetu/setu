@@ -1,9 +1,27 @@
-import { parsePageSeoOverride, distinctCategorySlugs, distinctTagSlugs, DEFAULT_LOCALE } from '@setu/core'
-import { toUrlPath } from './url'
+import {
+  parsePageSeoOverride,
+  distinctCategorySlugs,
+  distinctTagSlugs,
+  DEFAULT_LOCALE,
+  entryUrlPath
+} from '@setu/core'
 import { toPostRow } from './post-row'
 
+/** URL-path resolver: content id → path (no leading/trailing slash), or undefined if the id
+ *  has no page. Callers that see the whole site (the sitemap endpoints) pass the collision-aware
+ *  permalink map so the sitemap lists the SAME URLs the pages are actually served at. */
+export type UrlPathResolver = (id: string) => string | undefined
+
+/** Default resolver — the legacy ':collection/:slug' scheme, upgrade-safe and used by the unit
+ *  tests. Endpoints override it with the permalink map (which honors configured patterns). */
+const defaultUrlPath: UrlPathResolver = (id) => {
+  const [collection = '', locale = '', ...rest] = id.split('/')
+  return entryUrlPath({ collection, locale, slug: rest.join('/') })
+}
+
 /** Each sitemap references the stylesheet so browsers render it as a styled page (see public/sitemap.xsl). */
-export const SITEMAP_XSL = '<?xml-stylesheet type="text/xsl" href="/sitemap.xsl"?>'
+export const SITEMAP_XSL =
+  '<?xml-stylesheet type="text/xsl" href="/sitemap.xsl"?>'
 
 const NS = 'http://www.sitemaps.org/schemas/sitemap/0.9'
 const IMAGE_NS = 'http://www.google.com/schemas/sitemap-image/1.1'
@@ -22,11 +40,18 @@ export interface SitemapSection {
 }
 
 const xmlEscape = (s: string): string =>
-  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
 
 const locBlock = (tag: 'url' | 'sitemap', item: SitemapUrl): string => {
   const images = (item.images ?? [])
-    .map((img) => `\n    <image:image>\n      <image:loc>${xmlEscape(img)}</image:loc>\n    </image:image>`)
+    .map(
+      (img) =>
+        `\n    <image:image>\n      <image:loc>${xmlEscape(img)}</image:loc>\n    </image:image>`
+    )
     .join('')
   return `  <${tag}>\n    <loc>${xmlEscape(item.loc)}</loc>${item.lastmod ? `\n    <lastmod>${item.lastmod}</lastmod>` : ''}${images}\n  </${tag}>`
 }
@@ -66,11 +91,17 @@ const BODY_URL = /(?:https?:\/\/[^\s"')<>]+|\/media\/[^\s"')<>]+)/g
 /** All image URLs for an entry — the featured image + in-body images — resolved to absolute
  *  (`/media/…` through the media base, then everything against the site origin). Deduped, ordered
  *  featured-first. Feeds `<image:image>` entries (Google image sitemap). */
-export function entryImages(e: SitemapEntry, mediaBase: string, siteUrl: string): string[] {
+export function entryImages(
+  e: SitemapEntry,
+  mediaBase: string,
+  siteUrl: string
+): string[] {
   const base = siteUrl.replace(/\/+$/, '')
   const resolve = (raw: string): string => {
     const viaMedia = raw.startsWith('/media/') ? `${mediaBase}${raw}` : raw
-    return /^https?:\/\//i.test(viaMedia) ? viaMedia : `${base}${viaMedia.startsWith('/') ? '' : '/'}${viaMedia}`
+    return /^https?:\/\//i.test(viaMedia)
+      ? viaMedia
+      : `${base}${viaMedia.startsWith('/') ? '' : '/'}${viaMedia}`
   }
   const out: string[] = []
   const seen = new Set<string>()
@@ -96,6 +127,7 @@ export function entryUrls(
   siteUrl: string,
   homepageId: string,
   mediaBase = '',
+  urlPath: UrlPathResolver = defaultUrlPath
 ): SitemapUrl[] {
   const base = siteUrl.replace(/\/+$/, '')
   const urls: SitemapUrl[] = []
@@ -104,16 +136,24 @@ export function entryUrls(
     if (e.id === homepageId || e.id === 'page/en/home') continue // already at '/'
     if (e.id.split('/')[0] !== collection) continue
     if (!isIndexable(e.data)) continue
-    const path = toUrlPath(e.id)
+    const path = urlPath(e.id)
     if (!path) continue
     const images = entryImages(e, mediaBase, siteUrl)
-    urls.push({ loc: `${base}/${path}/`, lastmod: e.lastmod, ...(images.length ? { images } : {}) })
+    urls.push({
+      loc: `${base}/${path}/`,
+      lastmod: e.lastmod,
+      ...(images.length ? { images } : {})
+    })
   }
   return urls
 }
 
 /** Absolute taxonomy-archive URLs (category or tag) from a list of slugs. */
-export function taxonomyUrls(slugs: string[], kind: 'category' | 'tag', siteUrl: string): SitemapUrl[] {
+export function taxonomyUrls(
+  slugs: string[],
+  kind: 'category' | 'tag',
+  siteUrl: string
+): SitemapUrl[] {
   const base = siteUrl.replace(/\/+$/, '')
   return slugs.map((slug) => ({ loc: `${base}/${kind}/${slug}/` }))
 }
@@ -144,23 +184,37 @@ export function collectSitemapSections(
   siteUrl: string,
   homepageId: string,
   mediaBase = '',
+  urlPath: UrlPathResolver = defaultUrlPath
 ): Record<SitemapSectionKey, SitemapUrl[]> {
   const postRows = entries
     .filter((e) => e.id.split('/')[0] === 'post' && isIndexable(e.data))
     .map((e) => toPostRow({ id: e.id, data: e.data }))
   return {
-    post: cfg.posts ? entryUrls(entries, 'post', siteUrl, homepageId, mediaBase) : [],
-    page: cfg.pages ? entryUrls(entries, 'page', siteUrl, homepageId, mediaBase) : [],
-    category: cfg.categories
-      ? taxonomyUrls(distinctCategorySlugs(postRows, DEFAULT_LOCALE), 'category', siteUrl)
+    post: cfg.posts
+      ? entryUrls(entries, 'post', siteUrl, homepageId, mediaBase, urlPath)
       : [],
-    tag: cfg.tags ? taxonomyUrls(distinctTagSlugs(postRows, DEFAULT_LOCALE), 'tag', siteUrl) : [],
+    page: cfg.pages
+      ? entryUrls(entries, 'page', siteUrl, homepageId, mediaBase, urlPath)
+      : [],
+    category: cfg.categories
+      ? taxonomyUrls(
+          distinctCategorySlugs(postRows, DEFAULT_LOCALE),
+          'category',
+          siteUrl
+        )
+      : [],
+    tag: cfg.tags
+      ? taxonomyUrls(distinctTagSlugs(postRows, DEFAULT_LOCALE), 'tag', siteUrl)
+      : []
   }
 }
 
 /** Build the /robots.txt body. Search-hidden sites disallow all; visible sites allow all and
  *  advertise the sitemap index. `siteUrl` is the absolute site base. */
-export function buildRobotsTxt(searchEngineVisible: boolean, siteUrl: string): string {
+export function buildRobotsTxt(
+  searchEngineVisible: boolean,
+  siteUrl: string
+): string {
   if (!searchEngineVisible) return 'User-agent: *\nDisallow: /\n'
   const base = siteUrl.replace(/\/+$/, '')
   return `User-agent: *\nAllow: /\n\nSitemap: ${base}/sitemap.xml\n`

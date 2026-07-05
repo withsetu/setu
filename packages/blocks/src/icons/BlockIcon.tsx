@@ -5,7 +5,7 @@ export function BlockIcon({
   name,
   size = 18,
   stroke = 1.75,
-  className = '',
+  className = ''
 }: {
   name: BlockIconName
   size?: number

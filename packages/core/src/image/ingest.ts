@@ -27,7 +27,10 @@ export interface IngestInput {
 /** Generate a responsive multi-format width ladder for an already-stored original,
  *  persist each variant + a manifest to storage, and return the manifest. Edge-safe —
  *  pure orchestration over the injected ImagePort + StoragePort. */
-export async function ingestImage(deps: IngestDeps, input: IngestInput): Promise<MediaManifest> {
+export async function ingestImage(
+  deps: IngestDeps,
+  input: IngestInput
+): Promise<MediaManifest> {
   const { image, storage } = deps
   const { mediaKey, bytes, originalKey, formats, widths, lqip } = input
 
@@ -35,10 +38,14 @@ export async function ingestImage(deps: IngestDeps, input: IngestInput): Promise
 
   // Effective widths: configured widths below the source, plus the source width (cap).
   // Never upscale; dedupe; ascending — so each spec width equals its actual output width.
-  const effective = [...new Set([...widths.filter((w) => w < meta.width), meta.width])].sort((a, b) => a - b)
+  const effective = [
+    ...new Set([...widths.filter((w) => w < meta.width), meta.width])
+  ].sort((a, b) => a - b)
 
   // One spec per (format × width).
-  const specs = formats.flatMap((fmt) => effective.map((w) => ({ name: `w${w}-${fmt}`, width: w, format: fmt })))
+  const specs = formats.flatMap((fmt) =>
+    effective.map((w) => ({ name: `w${w}-${fmt}`, width: w, format: fmt }))
+  )
   const generated = await image.generate(bytes, specs)
 
   const manifestVariants: ManifestVariant[] = []
@@ -47,18 +54,33 @@ export async function ingestImage(deps: IngestDeps, input: IngestInput): Promise
     const contentType = contentTypeFor(v.format)
     const key = variantKey(mediaKey, v.width, ext)
     await storage.put(key, v.body, { contentType })
-    manifestVariants.push({ width: v.width, height: v.height, key, contentType, format: v.format })
+    manifestVariants.push({
+      width: v.width,
+      height: v.height,
+      key,
+      contentType,
+      format: v.format
+    })
   }
 
   const manifest: MediaManifest = {
     id: mediaKey,
     format: formats[0]!,
-    original: { key: originalKey, width: meta.width, height: meta.height, format: meta.format },
+    original: {
+      key: originalKey,
+      width: meta.width,
+      height: meta.height,
+      format: meta.format
+    },
     variants: manifestVariants,
-    ...(lqip ? { lqip: await image.placeholder(bytes, 20) } : {}),
+    ...(lqip ? { lqip: await image.placeholder(bytes, 20) } : {})
   }
-  await storage.put(manifestKey(mediaKey), new TextEncoder().encode(JSON.stringify(manifest)), {
-    contentType: 'application/json',
-  })
+  await storage.put(
+    manifestKey(mediaKey),
+    new TextEncoder().encode(JSON.stringify(manifest)),
+    {
+      contentType: 'application/json'
+    }
+  )
   return manifest
 }

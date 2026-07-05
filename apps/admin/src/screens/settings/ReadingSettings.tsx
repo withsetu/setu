@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react'
-import { parseSettings, DEFAULT_SETTINGS, type ReadingSettings as ReadingValues } from '@setu/core'
+import {
+  parseSettings,
+  DEFAULT_SETTINGS,
+  type ReadingSettings as ReadingValues
+} from '@setu/core'
 import { useServices, OWNER_AUTHOR } from '../../data/store'
 import { useRefreshSettings } from '../../data/settings-store'
 import { useIndex } from '../../data/index-store'
@@ -12,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
   SelectContent,
-  SelectItem,
+  SelectItem
 } from '@/components/ui/select'
 
 const SETTINGS_PATH = 'settings.json'
@@ -24,7 +28,7 @@ const SITEMAP_SECTIONS = [
   { key: 'posts', label: 'Posts' },
   { key: 'pages', label: 'Pages' },
   { key: 'categories', label: 'Category archives' },
-  { key: 'tags', label: 'Tag archives' },
+  { key: 'tags', label: 'Tag archives' }
 ] as const
 
 const sameReading = (a: ReadingValues, b: ReadingValues) =>
@@ -53,7 +57,9 @@ export function ReadingSettings() {
       const content = await git.readFile(SETTINGS_PATH)
       let parsedRaw: Record<string, unknown> = {}
       try {
-        parsedRaw = content ? (JSON.parse(content) as Record<string, unknown>) : {}
+        parsedRaw = content
+          ? (JSON.parse(content) as Record<string, unknown>)
+          : {}
       } catch {
         parsedRaw = {}
       }
@@ -77,14 +83,14 @@ export function ReadingSettings() {
         collection: 'page',
         offset: 0,
         limit: 1000,
-        sort: { key: 'title', dir: 'asc' },
+        sort: { key: 'title', dir: 'asc' }
       })
       if (live) {
         setPages(
           r.rows.map((row) => ({
             id: `${row.ref.collection}/${row.ref.locale}/${row.ref.slug}`,
-            title: row.title,
-          })),
+            title: row.title
+          }))
         )
       }
     })()
@@ -94,7 +100,8 @@ export function ReadingSettings() {
   }, [index])
 
   const dirty = published !== null && !sameReading(values, published)
-  const set = (patch: Partial<ReadingValues>) => setValues((v) => ({ ...v, ...patch }))
+  const set = (patch: Partial<ReadingValues>) =>
+    setValues((v) => ({ ...v, ...patch }))
 
   const save = async () => {
     if (saving || !dirty || raw === null) return
@@ -105,7 +112,7 @@ export function ReadingSettings() {
         path: SETTINGS_PATH,
         content: JSON.stringify(next, null, 2) + '\n',
         message: 'chore(settings): update reading settings',
-        author: OWNER_AUTHOR,
+        author: OWNER_AUTHOR
       })
       setRaw(next)
       setPublished(values)
@@ -128,7 +135,10 @@ export function ReadingSettings() {
     <div className="max-w-xl space-y-5">
       <div className="space-y-1.5">
         <Label htmlFor="rd-home">Homepage</Label>
-        <Select value={values.homepage} onValueChange={(v) => set({ homepage: v })}>
+        <Select
+          value={values.homepage}
+          onValueChange={(v) => set({ homepage: v })}
+        >
           <SelectTrigger id="rd-home">
             <SelectValue placeholder="Choose a page" />
           </SelectTrigger>
@@ -140,11 +150,15 @@ export function ReadingSettings() {
             ))}
           </SelectContent>
         </Select>
-        <p className="text-xs text-muted-foreground">The page shown at your site root (/).</p>
+        <p className="text-xs text-muted-foreground">
+          The page shown at your site root (/).
+        </p>
       </div>
 
       <div className="flex items-center justify-between">
-        <Label htmlFor="rd-noindex">Discourage search engines from indexing</Label>
+        <Label htmlFor="rd-noindex">
+          Discourage search engines from indexing
+        </Label>
         <Switch
           id="rd-noindex"
           checked={!values.searchEngineVisible}
@@ -162,7 +176,10 @@ export function ReadingSettings() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {[values.listPageSize, ...PAGE_SIZES.filter((s) => s !== values.listPageSize)]
+            {[
+              values.listPageSize,
+              ...PAGE_SIZES.filter((s) => s !== values.listPageSize)
+            ]
               .sort((a, b) => a - b)
               .map((s) => (
                 <SelectItem key={s} value={String(s)}>
@@ -186,13 +203,18 @@ export function ReadingSettings() {
         <Label htmlFor="rd-feed-items">Items in feed</Label>
         <Select
           value={String(values.feed.items)}
-          onValueChange={(v) => set({ feed: { ...values.feed, items: Number(v) } })}
+          onValueChange={(v) =>
+            set({ feed: { ...values.feed, items: Number(v) } })
+          }
         >
           <SelectTrigger id="rd-feed-items" className="w-32">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {[values.feed.items, ...FEED_ITEM_COUNTS.filter((n) => n !== values.feed.items)]
+            {[
+              values.feed.items,
+              ...FEED_ITEM_COUNTS.filter((n) => n !== values.feed.items)
+            ]
               .sort((a, b) => a - b)
               .map((n) => (
                 <SelectItem key={n} value={String(n)}>
@@ -201,7 +223,9 @@ export function ReadingSettings() {
               ))}
           </SelectContent>
         </Select>
-        <p className="text-xs text-muted-foreground">Most recent posts included in /rss.xml.</p>
+        <p className="text-xs text-muted-foreground">
+          Most recent posts included in /rss.xml.
+        </p>
       </div>
 
       <div className="space-y-1.5">
@@ -214,7 +238,10 @@ export function ReadingSettings() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {[values.postsPerPage, ...POSTS_PER_PAGE.filter((s) => s !== values.postsPerPage)]
+            {[
+              values.postsPerPage,
+              ...POSTS_PER_PAGE.filter((s) => s !== values.postsPerPage)
+            ]
               .sort((a, b) => a - b)
               .map((s) => (
                 <SelectItem key={s} value={String(s)}>
@@ -232,7 +259,8 @@ export function ReadingSettings() {
         <div className="space-y-0.5">
           <Label>Sitemap sections</Label>
           <p className="text-xs text-muted-foreground">
-            Which content types &amp; taxonomies to include in <code>/sitemap.xml</code>.
+            Which content types &amp; taxonomies to include in{' '}
+            <code>/sitemap.xml</code>.
           </p>
         </div>
         {SITEMAP_SECTIONS.map((s) => (
@@ -243,13 +271,18 @@ export function ReadingSettings() {
             <Switch
               id={`rd-sm-${s.key}`}
               checked={values.sitemap[s.key]}
-              onCheckedChange={(c) => set({ sitemap: { ...values.sitemap, [s.key]: c } })}
+              onCheckedChange={(c) =>
+                set({ sitemap: { ...values.sitemap, [s.key]: c } })
+              }
             />
           </div>
         ))}
       </div>
 
-      <Button onClick={() => void save()} disabled={published === null || !dirty || saving}>
+      <Button
+        onClick={() => void save()}
+        disabled={published === null || !dirty || saving}
+      >
         {saving ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}
       </Button>
     </div>

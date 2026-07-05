@@ -7,10 +7,13 @@ import markdoc from '@astrojs/markdoc'
 import react from '@astrojs/react'
 import { loadConfig } from '@setu/core/node'
 import { perPageCssPurge } from './integrations/per-page-css-purge.mjs'
+import { settingsWatcher } from './integrations/settings-watcher.mjs'
 
 // Read the active theme from setu.config (single source of truth) and alias '@theme'
 // to it, so pages render through whichever theme is configured.
-const config = await loadConfig(new URL('./setu.config.ts', import.meta.url).pathname)
+const config = await loadConfig(
+  new URL('./setu.config.ts', import.meta.url).pathname
+)
 const activeTheme = config.theme ?? '@setu/theme-default'
 
 // Bundle ONLY the selected font family (+ mono), not every font the theme offers. The choice
@@ -34,7 +37,9 @@ if (activeTheme === '@setu/theme-default') {
   const { fontPackagesFor } = await import('@setu/theme-default/fonts')
   // The fontsource packages are the THEME's deps, and a \0-virtual module has no location to
   // resolve bare specifiers from — so resolve each to an absolute path from the theme's context.
-  const themeDir = dirname(createRequire(import.meta.url).resolve('@setu/theme-default/theme.css'))
+  const themeDir = dirname(
+    createRequire(import.meta.url).resolve('@setu/theme-default/theme.css')
+  )
   const themeRequire = createRequire(join(themeDir, 'package.json'))
   fontImports = fontPackagesFor(selectedFontChoice())
     .map((pkg) => `import ${JSON.stringify(themeRequire.resolve(pkg))};`)
@@ -45,8 +50,9 @@ if (activeTheme === '@setu/theme-default') {
 // its own fonts — the no-op import in such a theme's Layout is then harmless.
 const virtualFonts = {
   name: 'setu:virtual-fonts',
-  resolveId: (id) => (id === 'virtual:setu-fonts' ? '\0virtual:setu-fonts' : null),
-  load: (id) => (id === '\0virtual:setu-fonts' ? fontImports : null),
+  resolveId: (id) =>
+    id === 'virtual:setu-fonts' ? '\0virtual:setu-fonts' : null,
+  load: (id) => (id === '\0virtual:setu-fonts' ? fontImports : null)
 }
 
 // Content lives at repo-root content/ (the publish-engine convention), which is OUTSIDE
@@ -91,7 +97,7 @@ const resolveMarkdocFromApp = {
       }
     }
     return null
-  },
+  }
 }
 
 // Inject the in-editor preview route ONLY in `astro dev`, from outside src/pages so it never
@@ -104,12 +110,13 @@ const devPreviewRoute = {
       if (command === 'dev') {
         injectRoute({
           pattern: '/preview',
-          entrypoint: new URL('./src/preview/preview.astro', import.meta.url).pathname,
-          prerender: false,
+          entrypoint: new URL('./src/preview/preview.astro', import.meta.url)
+            .pathname,
+          prerender: false
         })
       }
-    },
-  },
+    }
+  }
 }
 
 export default defineConfig({
@@ -123,9 +130,25 @@ export default defineConfig({
   compressHTML: true,
   // perPageCssPurge runs only at `astro build` (astro:build:done) — dev is untouched. It strips
   // each page's unused block CSS and inlines the rest, so a page only ships the blocks it uses.
-  integrations: [markdoc(), react(), devPreviewRoute, perPageCssPurge()],
+  integrations: [
+    markdoc(),
+    react(),
+    devPreviewRoute,
+    perPageCssPurge(),
+    settingsWatcher()
+  ],
   vite: {
-    resolve: { alias: { '@theme': activeTheme } },
+    resolve: {
+      alias: {
+        '@theme': activeTheme,
+        // How repo-root blocks/ (bare-specifier imports only) reach the site's collision-aware
+        // permalink map — same trick as the existing `virtual:setu-fonts`. Nothing imports this
+        // yet; Task 6 (block permalink-aware links) is the first consumer.
+        'setu:permalinks': fileURLToPath(
+          new URL('./src/lib/permalinks.ts', import.meta.url)
+        )
+      }
+    },
     plugins: [resolveMarkdocFromApp, virtualFonts],
     // The theme Layout self-hosts fonts via `import '@fontsource-variable/...'`, which
     // resolve to .css. In `astro build` Vite bundles these, but in `astro dev` SSR Node's
@@ -133,6 +156,6 @@ export default defineConfig({
     // Force Vite to bundle the fontsource packages for SSR too.
     ssr: { noExternal: [/^@fontsource-variable\//, /^@fontsource\//] },
     // Allow Vite to serve/process files from the repo root (blocks/ live outside apps/site).
-    server: { fs: { allow: ['../..'] } },
-  },
+    server: { fs: { allow: ['../..'] } }
+  }
 })

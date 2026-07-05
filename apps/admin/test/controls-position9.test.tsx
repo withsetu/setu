@@ -15,13 +15,22 @@ describe('Position9', () => {
 
   it('marks the active cell', () => {
     render(<Position9 value="top-left" onChange={vi.fn()} meta={meta} />)
-    expect(screen.getByRole('radio', { name: 'top-left' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('radio', { name: 'top-left' })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    )
   })
 
   it('uses roving tabindex — only the active cell is tabbable', () => {
     render(<Position9 value="center" onChange={vi.fn()} meta={meta} />)
-    expect(screen.getByRole('radio', { name: 'center' })).toHaveAttribute('tabindex', '0')
-    expect(screen.getByRole('radio', { name: 'top-left' })).toHaveAttribute('tabindex', '-1')
+    expect(screen.getByRole('radio', { name: 'center' })).toHaveAttribute(
+      'tabindex',
+      '0'
+    )
+    expect(screen.getByRole('radio', { name: 'top-left' })).toHaveAttribute(
+      'tabindex',
+      '-1'
+    )
   })
 
   it('moves selection with arrow keys (→ next, ↓ next row)', () => {

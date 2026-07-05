@@ -1,0 +1,71 @@
+{
+  "_policy": "Known CodeQL findings, allowlisted per the repo's fail-on-NEW gate policy (same shape as the axe allowlists, #220). Each entry matches ruleId + file uri (line numbers drift, deliberately not matched). Every entry MUST carry a tracking issue; removing the entry once fixed is that issue's DoD \u2014 the gate then guards the fix forever. Adding an entry requires triage, never convenience. KNOWN BLIND SPOT: the ruleId+uri fingerprint means a genuinely NEW instance of an allowlisted rule IN THE SAME FILE is also swallowed until that file's entry is removed \u2014 bounded to the 4 tracked files, self-healing as #323/#324 land; deliberate trade vs line-drift false-reds.",
+  "known": [
+    {
+      "ruleId": "js/incomplete-multi-character-sanitization",
+      "uri": "apps/site/integrations/per-page-css-purge.mjs",
+      "issue": "#323",
+      "note": "Potential <style injection via single-pass sanitization in the CSS purge build integration \u2014 REAL product concern, security-labeled."
+    },
+    {
+      "ruleId": "js/bad-tag-filter",
+      "uri": "apps/site/test/blur-up-island.test.ts",
+      "issue": "#324",
+      "note": "Test-only regex misses uppercase <SCRIPT>."
+    },
+    {
+      "ruleId": "js/incomplete-url-substring-sanitization",
+      "uri": "packages/core/test/health-rubric.test.ts",
+      "issue": "#324",
+      "note": "Test-only URL substring check."
+    },
+    {
+      "ruleId": "js/incomplete-url-substring-sanitization",
+      "uri": "scripts/sync-health-rubric.mjs",
+      "issue": "#324",
+      "note": "Maintainer-script URL substring check."
+    },
+    {
+      "ruleId": "js/polynomial-redos",
+      "uri": "packages/core/src/content/excerpt.ts",
+      "issue": "#340",
+      "note": "Pre-existing regex, surfaced by the 2026-07-03 CodeQL query-pack update (markdoc/image-stripper regexes; author-controlled input (site build))."
+    },
+    {
+      "ruleId": "js/polynomial-redos",
+      "uri": "packages/core/src/submissions/contact-form.ts",
+      "issue": "#340",
+      "note": "Pre-existing regex, surfaced by the 2026-07-03 CodeQL query-pack update (untrusted form input \u2014 PRIORITY)."
+    },
+    {
+      "ruleId": "js/polynomial-redos",
+      "uri": "packages/core/src/submissions/submission-service.ts",
+      "issue": "#340",
+      "note": "Pre-existing regex, surfaced by the 2026-07-03 CodeQL query-pack update (untrusted form input \u2014 PRIORITY)."
+    },
+    {
+      "ruleId": "js/polynomial-redos",
+      "uri": "packages/core/src/tags/normalize.ts",
+      "issue": "#340",
+      "note": "Pre-existing regex, surfaced by the 2026-07-03 CodeQL query-pack update (tag canonicalization, user input \u2014 PRIORITY)."
+    },
+    {
+      "ruleId": "js/polynomial-redos",
+      "uri": "packages/core/src/taxonomy/ops.ts",
+      "issue": "#340",
+      "note": "Pre-existing regex, surfaced by the 2026-07-03 CodeQL query-pack update (taxonomy ops)."
+    },
+    {
+      "ruleId": "js/polynomial-redos",
+      "uri": "packages/image-astro/src/lib/media-base.ts",
+      "issue": "#340",
+      "note": "Pre-existing regex, surfaced by the 2026-07-03 CodeQL query-pack update (media base url handling)."
+    },
+    {
+      "ruleId": "js/polynomial-redos",
+      "uri": "packages/storage-local/src/index.ts",
+      "issue": "#340",
+      "note": "Pre-existing regex, surfaced by the 2026-07-03 CodeQL query-pack update (storage key handling)."
+    }
+  ]
+}

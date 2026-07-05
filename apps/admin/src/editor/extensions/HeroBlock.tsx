@@ -4,26 +4,32 @@ import type { ReactNodeViewProps } from '@tiptap/react'
 import { Hero } from '@setu/blocks'
 import type { HeroProps } from '@setu/blocks'
 import { resolveMediaSrc } from '../media-src'
+import { attrString, attrStringOrUndefined } from '../attr-string'
 
 function HeroBlockView({ node, editor }: ReactNodeViewProps) {
   const md = (node.attrs.mdAttrs ?? {}) as Record<string, unknown>
-  const apiBase = (editor.storage as unknown as { imageBlock?: { apiBase?: string } }).imageBlock?.apiBase ?? ''
-  const image = md['image'] ? resolveMediaSrc(String(md['image']), apiBase || undefined) : undefined
+  const apiBase =
+    (editor.storage as unknown as { imageBlock?: { apiBase?: string } })
+      .imageBlock?.apiBase ?? ''
+  const imageAttr = attrStringOrUndefined(md['image'])
+  const image = imageAttr
+    ? resolveMediaSrc(imageAttr, apiBase || undefined)
+    : undefined
   return (
     <NodeViewWrapper>
       <div className="setu-block" data-tag="hero" contentEditable={false}>
         <Hero
-          headline={String(md['headline'] ?? 'Hero headline')}
-          subhead={md['subhead'] ? String(md['subhead']) : undefined}
+          headline={attrString(md['headline'], 'Hero headline')}
+          subhead={attrStringOrUndefined(md['subhead'])}
           image={image}
-          ctaLabel={md['ctaLabel'] ? String(md['ctaLabel']) : undefined}
-          ctaHref={md['ctaHref'] ? String(md['ctaHref']) : undefined}
-          layout={md['layout'] ? String(md['layout']) as HeroProps['layout'] : undefined}
-          textPosition={md['textPosition'] ? String(md['textPosition']) : undefined}
-          textAlign={md['textAlign'] ? String(md['textAlign']) : undefined}
-          overlayColor={md['overlayColor'] ? String(md['overlayColor']) : undefined}
-          textColor={md['textColor'] ? String(md['textColor']) : undefined}
-          width={md['width'] ? String(md['width']) : undefined}
+          ctaLabel={attrStringOrUndefined(md['ctaLabel'])}
+          ctaHref={attrStringOrUndefined(md['ctaHref'])}
+          layout={attrStringOrUndefined(md['layout']) as HeroProps['layout']}
+          textPosition={attrStringOrUndefined(md['textPosition'])}
+          textAlign={attrStringOrUndefined(md['textAlign'])}
+          overlayColor={attrStringOrUndefined(md['overlayColor'])}
+          textColor={attrStringOrUndefined(md['textColor'])}
+          width={attrStringOrUndefined(md['width'])}
         />
       </div>
     </NodeViewWrapper>
@@ -40,15 +46,20 @@ export const HeroBlock = Node.create({
   draggable: true,
   selectable: true,
   addAttributes() {
-    return { mdAttrs: { default: {}, renderHTML: () => ({}), parseHTML: () => ({}) } }
+    return {
+      mdAttrs: { default: {}, renderHTML: () => ({}), parseHTML: () => ({}) }
+    }
   },
   parseHTML() {
     return [{ tag: 'div[data-setu-hero-block]' }]
   },
   renderHTML({ HTMLAttributes }) {
-    return ['div', mergeAttributes(HTMLAttributes, { 'data-setu-hero-block': '' })]
+    return [
+      'div',
+      mergeAttributes(HTMLAttributes, { 'data-setu-hero-block': '' })
+    ]
   },
   addNodeView() {
     return ReactNodeViewRenderer(HeroBlockView)
-  },
+  }
 })

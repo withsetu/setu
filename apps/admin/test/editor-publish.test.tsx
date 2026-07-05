@@ -23,7 +23,12 @@ function renderEditor(path = '/edit/post/en/release-notes') {
                 <IndexProvider>
                   <TaxonomyProvider>
                     <CommandRegistryProvider>
-                      <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
+                      <Routes>
+                        <Route
+                          path="/edit/:collection/:locale/:slug"
+                          element={<EditorScreen />}
+                        />
+                      </Routes>
                     </CommandRegistryProvider>
                   </TaxonomyProvider>
                 </IndexProvider>
@@ -32,7 +37,7 @@ function renderEditor(path = '/edit/post/en/release-notes') {
           </ActorProvider>
         </MemoryRouter>
       </NotificationProvider>
-    </TooltipProvider>,
+    </TooltipProvider>
   )
 }
 
@@ -40,9 +45,15 @@ describe('EditorScreen publish', () => {
   it('shows a Publish button and publishing makes the status Staged', async () => {
     renderEditor()
     await screen.findByDisplayValue('Release notes')
-    expect(screen.getByText('Draft', { selector: '[data-slot="badge"]' })).toBeInTheDocument()
+    expect(
+      screen.getByText('Draft', { selector: '[data-slot="badge"]' })
+    ).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /^publish$/i }))
-    await waitFor(() => expect(screen.getByText('Staged', { selector: '[data-slot="badge"]' })).toBeInTheDocument())
+    await waitFor(() =>
+      expect(
+        screen.getByText('Staged', { selector: '[data-slot="badge"]' })
+      ).toBeInTheDocument()
+    )
     expect(await screen.findByText(/Published ·/)).toBeInTheDocument()
   })
 
@@ -50,12 +61,21 @@ describe('EditorScreen publish', () => {
     renderEditor()
     await screen.findByDisplayValue('Release notes')
     // Draft → there is no live page yet: the control is a disabled button, not a link.
-    expect(screen.queryByRole('link', { name: /view this page on the live site/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /not on the site yet/i })).toBeDisabled()
+    expect(
+      screen.queryByRole('link', { name: /view this page on the live site/i })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /not on the site yet/i })
+    ).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: /^publish$/i }))
     await waitFor(() => {
-      const link = screen.getByRole('link', { name: /view this page on the live site/i })
-      expect(link).toHaveAttribute('href', 'http://localhost:4321/post/release-notes')
+      const link = screen.getByRole('link', {
+        name: /view this page on the live site/i
+      })
+      expect(link).toHaveAttribute(
+        'href',
+        'http://localhost:4321/post/release-notes'
+      )
       expect(link).toHaveAttribute('target', '_blank')
     })
   })

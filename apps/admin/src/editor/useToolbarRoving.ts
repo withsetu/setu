@@ -11,8 +11,11 @@ export function useToolbarRoving() {
   const [active, setActive] = useState(0)
 
   const items = useCallback(
-    () => Array.from(ref.current?.querySelectorAll<HTMLElement>('[data-toolbar-item]') ?? []),
-    [],
+    () =>
+      Array.from(
+        ref.current?.querySelectorAll<HTMLElement>('[data-toolbar-item]') ?? []
+      ),
+    []
   )
 
   // Sync tabIndex to the active index on every render (cheap; keeps a single tab stop).
@@ -40,7 +43,7 @@ export function useToolbarRoving() {
       setActive(next)
       els[next]?.focus()
     },
-    [items],
+    [items]
   )
 
   return { ref, onKeyDown }

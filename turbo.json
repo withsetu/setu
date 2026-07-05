@@ -103,6 +103,20 @@
       "outputs": []
     },
 
+    // @setu/admin#test (#293) now runs TWO vitest projects via vitest.workspace.ts: the
+    // existing jsdom suite (vite.config.ts) plus a real-chromium component-test project
+    // (vitest.browser.config.ts, apps/admin/test-browser/**) via the playwright provider.
+    // Deliberately NOT special-cased with `cache: false` here — turbo's cache key hashes
+    // this package's SOURCE (the plain `test` task's default inputs already cover
+    // apps/admin's own tree), which is exactly the same contract every other task in this
+    // graph relies on; it was never turbo's job to hash "is chromium installed" any more
+    // than it hashes "is Node installed". A cache hit means "this exact source already
+    // passed", identical to how the jsdom half of this same task behaves today — adding a
+    // browser project doesn't change that contract, so no override is needed. (CI installs
+    // chromium fresh every run before invoking turbo — see ci.yml's `check` job — so this
+    // is a non-issue there regardless; the reasoning above is about local/cache-hit honesty
+    // in general, not a CI-specific workaround.)
+
     // Same cycle reasoning as @setu/core#typecheck: no topological `^test` edge (would
     // be cyclic through db-memory/git-memory). UNLIKE typecheck, core's tests genuinely
     // import db-memory/git-memory SOURCE as fixtures (verified via grep in

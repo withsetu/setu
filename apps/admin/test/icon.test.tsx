@@ -21,7 +21,12 @@ describe('Icon', () => {
   })
 
   it('renders the row/column action icons', () => {
-    for (const name of ['rowAdd', 'rowDelete', 'columnAdd', 'columnDelete'] as const) {
+    for (const name of [
+      'rowAdd',
+      'rowDelete',
+      'columnAdd',
+      'columnDelete'
+    ] as const) {
       expect(isIconName(name)).toBe(true)
       const { container } = render(<Icon name={name} />)
       const svg = container.querySelector('svg')

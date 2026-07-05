@@ -7,9 +7,19 @@ import { createHttpSubmissionAdapter } from '../src/index'
 // Wire the http adapter's fetch straight at the in-memory app (no network).
 runSubmissionPortContract(() => {
   const submissions = createMemorySubmissionPort()
-  const submit = createSubmissionService({ submissions, captcha: { verify: async () => true } })
+  const submit = createSubmissionService({
+    submissions,
+    captcha: { verify: async () => true }
+  })
   const app = createFormsApi({ submit, submissions })
   const fetchImpl = ((input: Request | string | URL, init?: RequestInit) =>
-    app.fetch(new Request(typeof input === 'string' || input instanceof URL ? new URL(input, 'http://x').toString() : input, init))) as typeof fetch
+    app.fetch(
+      new Request(
+        typeof input === 'string' || input instanceof URL
+          ? new URL(input, 'http://x').toString()
+          : input,
+        init
+      )
+    )) as typeof fetch
   return createHttpSubmissionAdapter({ baseUrl: 'http://x', fetchImpl })
 })

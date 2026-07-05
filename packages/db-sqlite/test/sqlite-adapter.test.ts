@@ -23,13 +23,17 @@ describe('sqlite adapter (on-disk)', () => {
       locale: 'en',
       slug: 'persisted',
       content: { type: 'doc', content: [] },
-      metadata: { title: 'Kept' },
+      metadata: { title: 'Kept' }
     })
     await a.close()
 
     // Reopen a FRESH adapter on the same file: migrate() must be idempotent and the row must remain.
     const b = createSqliteAdapter(file)
-    const got = await b.getDraft({ collection: 'post', locale: 'en', slug: 'persisted' })
+    const got = await b.getDraft({
+      collection: 'post',
+      locale: 'en',
+      slug: 'persisted'
+    })
     expect(got?.metadata).toEqual({ title: 'Kept' })
     await b.close()
   })

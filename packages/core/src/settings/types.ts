@@ -1,3 +1,6 @@
+import type { PermalinksSettings } from '../permalinks/config'
+export type { PermalinksSettings }
+
 /** The General settings group. title/tagline/description are consumed by the
  *  site; timezone/dateFormat are stored now and consumed when date display lands. */
 export interface GeneralSettings {
@@ -22,9 +25,19 @@ export interface ReadingSettings {
   /** Markdown / llms.txt output — consumed by a later increment. */
   markdown: { mode: 'off' | 'index' | 'pages'; style: 'raw' | 'rendered' }
   /** Auto-appended related-posts widget configuration. */
-  relatedPosts: { enabled: boolean; heading: string; count: number; showImage: boolean }
+  relatedPosts: {
+    enabled: boolean
+    heading: string
+    count: number
+    showImage: boolean
+  }
   /** Sitemap section toggles — which content types + taxonomies the sitemap index includes. */
-  sitemap: { posts: boolean; pages: boolean; categories: boolean; tags: boolean }
+  sitemap: {
+    posts: boolean
+    pages: boolean
+    categories: boolean
+    tags: boolean
+  }
 }
 
 /** The Media settings group — drives the image pipeline (variant formats + LQIP). */
@@ -65,4 +78,5 @@ export interface SiteSettings {
   reading: ReadingSettings
   media: MediaSettings
   identity: IdentitySettings
+  permalinks: PermalinksSettings
 }

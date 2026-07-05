@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  cleanup
+} from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { createMemoryDataPort } from '@setu/db-memory'
 import { createMemoryGitPort } from '@setu/git-memory'
@@ -12,8 +18,12 @@ import { DeleteCategoryDialog } from '../src/screens/taxonomies/DeleteCategoryDi
 import type { CategoryNode } from '@setu/core'
 
 vi.mock('../src/deploy/deploy', async (orig) => ({
-  ...(await orig() as object),
-  useDeploy: () => ({ deployedAt: () => null, sha: null, deploy: () => Promise.resolve() }),
+  ...(await orig()),
+  useDeploy: () => ({
+    deployedAt: () => null,
+    sha: null,
+    deploy: () => Promise.resolve()
+  })
 }))
 
 // jsdom does not implement scrollIntoView — stub it.
@@ -30,12 +40,18 @@ function makeNode(overrides: Partial<CategoryNode> = {}): CategoryNode {
     parent: null,
     depth: 0,
     children: [],
-    ...overrides,
+    ...overrides
   }
 }
 
 function childNode(): CategoryNode {
-  const child: CategoryNode = { slug: 'js', name: 'JavaScript', parent: 'tech', depth: 1, children: [] }
+  const child: CategoryNode = {
+    slug: 'js',
+    name: 'JavaScript',
+    parent: 'tech',
+    depth: 1,
+    children: []
+  }
   return child
 }
 
@@ -47,9 +63,7 @@ function Wrapper({ children }: { children: ReactNode }) {
       <DeployProvider>
         <IndexProvider>
           <TaxonomyProvider>
-            <NotificationProvider>
-              {children}
-            </NotificationProvider>
+            <NotificationProvider>{children}</NotificationProvider>
           </TaxonomyProvider>
         </IndexProvider>
       </DeployProvider>
@@ -62,7 +76,7 @@ describe('DeleteCategoryDialog', () => {
     render(
       <Wrapper>
         <DeleteCategoryDialog node={null} onClose={vi.fn()} />
-      </Wrapper>,
+      </Wrapper>
     )
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   })
@@ -72,7 +86,7 @@ describe('DeleteCategoryDialog', () => {
     render(
       <Wrapper>
         <DeleteCategoryDialog node={node} onClose={vi.fn()} />
-      </Wrapper>,
+      </Wrapper>
     )
     expect(screen.getByRole('alertdialog')).toBeInTheDocument()
     expect(screen.getByText(/delete "Tech"/i)).toBeInTheDocument()
@@ -83,7 +97,7 @@ describe('DeleteCategoryDialog', () => {
     render(
       <Wrapper>
         <DeleteCategoryDialog node={node} onClose={vi.fn()} />
-      </Wrapper>,
+      </Wrapper>
     )
     expect(screen.getByText(/isn't used by any content/i)).toBeInTheDocument()
   })
@@ -92,38 +106,25 @@ describe('DeleteCategoryDialog', () => {
     const child = childNode()
     const node = makeNode({ children: [child] })
 
-    /** Inner component that patches counts via context: we seed counts directly via a
-     *  hook wrapper that overrides the store — but TaxonomyProvider does not expose a
-     *  setCount API. Instead we provide a mocked value through a thin override provider. */
-    function SeedCounts({ counts, children: c }: { counts: Record<string, number>; children: ReactNode }) {
-      // We can't easily inject counts into TaxonomyProvider from outside, so we use a
-      // mock module approach: spy on useTaxonomy inside the dialog.
-      // Simplest route: render the dialog inside a component that provides a custom context.
-      // But TaxonomyProvider exports only TaxonomyContext via useTaxonomy.
-      // Best approach: mock useTaxonomy in this test.
-      return <>{c}</>
-    }
-    // We'll mock useTaxonomy for this test suite via vi.mock at module level — not possible
-    // for a subset of tests. Instead: use a forked approach where we render a test component
-    // that directly calls useTaxonomy().remove(), and we verify via the store state after confirm.
-    // For the count/copy assertions, we need the count seeded.
-    // The cleanest approach: mock useTaxonomy in this describe block using vi.spyOn.
-
+    // Counts are seeded by spying on useTaxonomy below (TaxonomyProvider exposes no
+    // setCount API, so mocking the hook is the direct route).
     const removeFn = vi.fn().mockResolvedValue(undefined)
-    const spy = vi.spyOn(await import('../src/data/taxonomy-store'), 'useTaxonomy').mockReturnValue({
-      categories: [],
-      counts: { tech: 3 },
-      create: vi.fn(),
-      renameLabel: vi.fn(),
-      reparent: vi.fn(),
-      remove: removeFn,
-    })
+    const spy = vi
+      .spyOn(await import('../src/data/taxonomy-store'), 'useTaxonomy')
+      .mockReturnValue({
+        categories: [],
+        counts: { tech: 3 },
+        create: vi.fn(),
+        renameLabel: vi.fn(),
+        reparent: vi.fn(),
+        remove: removeFn
+      })
 
     try {
       render(
         <Wrapper>
           <DeleteCategoryDialog node={node} onClose={vi.fn()} />
-        </Wrapper>,
+        </Wrapper>
       )
       expect(screen.getByText(/used by 3 entries/i)).toBeInTheDocument()
       expect(screen.getByText(/move up one level/i)).toBeInTheDocument()
@@ -135,19 +136,21 @@ describe('DeleteCategoryDialog', () => {
   it('singular: shows "Used by 1 entry" when count is 1', async () => {
     const node = makeNode()
     const removeFn = vi.fn().mockResolvedValue(undefined)
-    const spy = vi.spyOn(await import('../src/data/taxonomy-store'), 'useTaxonomy').mockReturnValue({
-      categories: [],
-      counts: { tech: 1 },
-      create: vi.fn(),
-      renameLabel: vi.fn(),
-      reparent: vi.fn(),
-      remove: removeFn,
-    })
+    const spy = vi
+      .spyOn(await import('../src/data/taxonomy-store'), 'useTaxonomy')
+      .mockReturnValue({
+        categories: [],
+        counts: { tech: 1 },
+        create: vi.fn(),
+        renameLabel: vi.fn(),
+        reparent: vi.fn(),
+        remove: removeFn
+      })
     try {
       render(
         <Wrapper>
           <DeleteCategoryDialog node={node} onClose={vi.fn()} />
-        </Wrapper>,
+        </Wrapper>
       )
       expect(screen.getByText(/used by 1 entry/i)).toBeInTheDocument()
     } finally {
@@ -159,19 +162,21 @@ describe('DeleteCategoryDialog', () => {
     const node = makeNode()
     const removeFn = vi.fn().mockResolvedValue(undefined)
     const onClose = vi.fn()
-    const spy = vi.spyOn(await import('../src/data/taxonomy-store'), 'useTaxonomy').mockReturnValue({
-      categories: [],
-      counts: {},
-      create: vi.fn(),
-      renameLabel: vi.fn(),
-      reparent: vi.fn(),
-      remove: removeFn,
-    })
+    const spy = vi
+      .spyOn(await import('../src/data/taxonomy-store'), 'useTaxonomy')
+      .mockReturnValue({
+        categories: [],
+        counts: {},
+        create: vi.fn(),
+        renameLabel: vi.fn(),
+        reparent: vi.fn(),
+        remove: removeFn
+      })
     try {
       render(
         <Wrapper>
           <DeleteCategoryDialog node={node} onClose={onClose} />
-        </Wrapper>,
+        </Wrapper>
       )
       fireEvent.click(screen.getByRole('button', { name: /delete/i }))
       await waitFor(() => expect(removeFn).toHaveBeenCalledWith('tech'))
@@ -187,19 +192,21 @@ describe('DeleteCategoryDialog', () => {
     const node = makeNode()
     const removeFn = vi.fn()
     const onClose = vi.fn()
-    const spy = vi.spyOn(await import('../src/data/taxonomy-store'), 'useTaxonomy').mockReturnValue({
-      categories: [],
-      counts: {},
-      create: vi.fn(),
-      renameLabel: vi.fn(),
-      reparent: vi.fn(),
-      remove: removeFn,
-    })
+    const spy = vi
+      .spyOn(await import('../src/data/taxonomy-store'), 'useTaxonomy')
+      .mockReturnValue({
+        categories: [],
+        counts: {},
+        create: vi.fn(),
+        renameLabel: vi.fn(),
+        reparent: vi.fn(),
+        remove: removeFn
+      })
     try {
       render(
         <Wrapper>
           <DeleteCategoryDialog node={node} onClose={onClose} />
-        </Wrapper>,
+        </Wrapper>
       )
       fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
       await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
@@ -211,19 +218,21 @@ describe('DeleteCategoryDialog', () => {
 
   it('no children: does not show "move up one level" copy', async () => {
     const node = makeNode({ children: [] })
-    const spy = vi.spyOn(await import('../src/data/taxonomy-store'), 'useTaxonomy').mockReturnValue({
-      categories: [],
-      counts: { tech: 2 },
-      create: vi.fn(),
-      renameLabel: vi.fn(),
-      reparent: vi.fn(),
-      remove: vi.fn().mockResolvedValue(undefined),
-    })
+    const spy = vi
+      .spyOn(await import('../src/data/taxonomy-store'), 'useTaxonomy')
+      .mockReturnValue({
+        categories: [],
+        counts: { tech: 2 },
+        create: vi.fn(),
+        renameLabel: vi.fn(),
+        reparent: vi.fn(),
+        remove: vi.fn().mockResolvedValue(undefined)
+      })
     try {
       render(
         <Wrapper>
           <DeleteCategoryDialog node={node} onClose={vi.fn()} />
-        </Wrapper>,
+        </Wrapper>
       )
       expect(screen.queryByText(/move up one level/i)).not.toBeInTheDocument()
     } finally {

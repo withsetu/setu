@@ -9,7 +9,9 @@ import { uniqueTitle } from '../lib/unique-title'
 // relying on the OS-level native drag Playwright's `locator.dragTo` needs — so it
 // sidesteps WebKit's well-known native-drag-simulation flakiness entirely. Verified
 // green on both chromium and webkit-editor, twice back-to-back (task-6-report.md).
-test('reorder blocks via keyboard and drag, then verify order persists', async ({ page }) => {
+test('reorder blocks via keyboard and drag, then verify order persists', async ({
+  page
+}) => {
   const title = uniqueTitle('reorder')
   const first = `First ${title}`
   const second = `Second ${title}`

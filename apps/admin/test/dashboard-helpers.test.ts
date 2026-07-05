@@ -4,10 +4,22 @@ import { greeting, relativeTime } from '../src/lib/format'
 
 describe('statusBadge', () => {
   it('maps lifecycle states to badge variants + labels', () => {
-    expect(statusBadge({ state: 'draft' })).toEqual({ label: 'Draft', variant: 'warning' })
-    expect(statusBadge({ state: 'staged' })).toEqual({ label: 'Staged', variant: 'info' })
-    expect(statusBadge({ state: 'live' })).toEqual({ label: 'Live', variant: 'success' })
-    expect(statusBadge({ state: 'unpublished' })).toEqual({ label: 'Unpublished', variant: 'secondary' })
+    expect(statusBadge({ state: 'draft' })).toEqual({
+      label: 'Draft',
+      variant: 'warning'
+    })
+    expect(statusBadge({ state: 'staged' })).toEqual({
+      label: 'Staged',
+      variant: 'info'
+    })
+    expect(statusBadge({ state: 'live' })).toEqual({
+      label: 'Live',
+      variant: 'success'
+    })
+    expect(statusBadge({ state: 'unpublished' })).toEqual({
+      label: 'Unpublished',
+      variant: 'secondary'
+    })
   })
 })
 

@@ -11,23 +11,42 @@ import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { NotificationProvider } from '../src/ui/notify'
 import { ContentList } from '../src/screens/ContentList'
 
-const doc = (t: string): TiptapDoc => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] })
+const doc = (t: string): TiptapDoc => ({
+  type: 'doc',
+  content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }]
+})
 
 function setup() {
   const data = createMemoryDataPort([
-    { collection: 'post', locale: 'en', slug: 'alpha', content: doc('x'), metadata: { title: 'Alpha' } },
-    { collection: 'post', locale: 'en', slug: 'beta', content: doc('x'), metadata: { title: 'Beta' } },
+    {
+      collection: 'post',
+      locale: 'en',
+      slug: 'alpha',
+      content: doc('x'),
+      metadata: { title: 'Alpha' }
+    },
+    {
+      collection: 'post',
+      locale: 'en',
+      slug: 'beta',
+      content: doc('x'),
+      metadata: { title: 'Beta' }
+    }
   ])
   render(
     <MemoryRouter initialEntries={['/posts']}>
       <ServicesProvider services={servicesFor(data, createMemoryGitPort())}>
-        <DeployProvider><IndexProvider><TaxonomyProvider>
-          <NotificationProvider>
-            <ContentList collection="post" title="Posts" />
-          </NotificationProvider>
-        </TaxonomyProvider></IndexProvider></DeployProvider>
+        <DeployProvider>
+          <IndexProvider>
+            <TaxonomyProvider>
+              <NotificationProvider>
+                <ContentList collection="post" title="Posts" />
+              </NotificationProvider>
+            </TaxonomyProvider>
+          </IndexProvider>
+        </DeployProvider>
       </ServicesProvider>
-    </MemoryRouter>,
+    </MemoryRouter>
   )
 }
 

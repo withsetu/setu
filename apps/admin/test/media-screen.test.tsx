@@ -2,7 +2,11 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
-import { createMemoryDataPort, createMemoryIndexPort, createMemoryMediaIndexPort } from '@setu/db-memory'
+import {
+  createMemoryDataPort,
+  createMemoryIndexPort,
+  createMemoryMediaIndexPort
+} from '@setu/db-memory'
 import { createMemoryGitPort } from '@setu/git-memory'
 import { createMediaIndexService } from '@setu/core'
 import type { MediaRecord, EntryIndexRow } from '@setu/core'
@@ -14,18 +18,33 @@ import { Media } from '../src/screens/Media'
 
 // ── mock media-client so deleteMedia never hits the network ──
 vi.mock('../src/media/media-client', async (orig) => ({
-  ...(await orig() as object),
-  deleteMedia: vi.fn(async () => {}),
+  ...(await orig()),
+  deleteMedia: vi.fn(async () => {})
 }))
 
 // ── mock upload-client so uploadFile never hits the network ──
 vi.mock('../src/media/upload-client', async (orig) => ({
-  ...(await orig() as object),
+  ...(await orig()),
   uploadFile: vi.fn(async () => ({
-    id: '2026/06/dog', key: '2026/06/dog.jpg', url: 'http://x/media/2026/06/dog.jpg',
-    contentType: 'image/jpeg', size: 1, filename: 'dog.jpg',
-    record: { mediaKey: '2026/06/dog', key: '2026/06/dog.jpg', thumbKey: null, filename: 'dog.jpg', contentType: 'image/jpeg', isImage: true, width: null, height: null, bytes: 1, uploadedAt: 0 },
-  })),
+    id: '2026/06/dog',
+    key: '2026/06/dog.jpg',
+    url: 'http://x/media/2026/06/dog.jpg',
+    contentType: 'image/jpeg',
+    size: 1,
+    filename: 'dog.jpg',
+    record: {
+      mediaKey: '2026/06/dog',
+      key: '2026/06/dog.jpg',
+      thumbKey: null,
+      filename: 'dog.jpg',
+      contentType: 'image/jpeg',
+      isImage: true,
+      width: null,
+      height: null,
+      bytes: 1,
+      uploadedAt: 0
+    }
+  }))
 }))
 
 // import the mock so we can assert on it
@@ -46,7 +65,7 @@ const catRecord: MediaRecord = {
   width: 800,
   height: 600,
   bytes: 12345,
-  uploadedAt: Date.now(),
+  uploadedAt: Date.now()
 }
 
 /** One seeded content index row that references the cat image. */
@@ -60,9 +79,10 @@ const catRef: EntryIndexRow = {
   status: 'draft',
   updatedAt: null,
   hasDraft: true,
+  date: null,
   tags: [],
   categories: [],
-  mediaRefs: ['2026/06/cat'],
+  mediaRefs: ['2026/06/cat']
 }
 
 /** Build providers seeded with `catRecord` and a content index row referencing it. */
@@ -75,7 +95,7 @@ async function buildProviders() {
   const mediaIndexPort = createMemoryMediaIndexPort()
   const mediaIndex = createMediaIndexService({
     mediaIndex: mediaIndexPort,
-    fetchRaw: async () => [catRecord],
+    fetchRaw: async () => [catRecord]
   })
   await mediaIndex.ensureBuilt()
 
@@ -84,22 +104,23 @@ async function buildProviders() {
     createMemoryDataPort([]),
     createMemoryGitPort(),
     indexPort,
-    mediaIndex,
+    mediaIndex
   )
 
   return { services, mediaIndex }
 }
 
-function wrapper(services: ReturnType<typeof servicesFor>, mediaIndex: ReturnType<typeof createMediaIndexService>) {
+function wrapper(
+  services: ReturnType<typeof servicesFor>,
+  mediaIndex: ReturnType<typeof createMediaIndexService>
+) {
   return function Wrapper({ children }: { children: ReactNode }) {
     return (
       <MemoryRouter>
         <ActorProvider>
           <ServicesProvider services={services}>
             <MediaIndexProvider service={mediaIndex}>
-              <NotificationProvider>
-                {children}
-              </NotificationProvider>
+              <NotificationProvider>{children}</NotificationProvider>
             </MediaIndexProvider>
           </ServicesProvider>
         </ActorProvider>
@@ -116,8 +137,12 @@ describe('Media screen', () => {
     render(<Media />, { wrapper: wrapper(services, mediaIndex) })
     expect(screen.getByRole('heading', { name: /Media/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /Sort/i })).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: /Filter by type/i })).toBeInTheDocument()
-    expect(screen.getByRole('searchbox', { name: /Search media/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('combobox', { name: /Filter by type/i })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('searchbox', { name: /Search media/i })
+    ).toBeInTheDocument()
   })
 
   it('shows the cat.png tile from the seeded media index', async () => {
@@ -130,11 +155,21 @@ describe('Media screen', () => {
     const { services, mediaIndex } = await buildProviders()
     render(<Media />, { wrapper: wrapper(services, mediaIndex) })
     // wait for tile
-    await waitFor(() => expect(screen.getByRole('button', { name: /cat\.png/i })).toBeInTheDocument())
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: /cat\.png/i })
+      ).toBeInTheDocument()
+    )
     fireEvent.click(screen.getByRole('button', { name: /cat\.png/i }))
-    expect(screen.getByRole('dialog', { name: /Media details/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Delete cat\.png/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Copy URL/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('dialog', { name: /Media details/i })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /Delete cat\.png/i })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /Copy URL/i })
+    ).toBeInTheDocument()
   })
 
   it('shows the referencing post title in the confirm and deletes on confirm', async () => {
@@ -142,7 +177,11 @@ describe('Media screen', () => {
     render(<Media />, { wrapper: wrapper(services, mediaIndex) })
 
     // wait for tile to appear
-    await waitFor(() => expect(screen.getByRole('button', { name: /cat\.png/i })).toBeInTheDocument())
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: /cat\.png/i })
+      ).toBeInTheDocument()
+    )
 
     // open the detail panel
     fireEvent.click(screen.getByRole('button', { name: /cat\.png/i }))
@@ -166,43 +205,71 @@ describe('Media screen', () => {
     const { services, mediaIndex } = await buildProviders()
     render(<Media />, { wrapper: wrapper(services, mediaIndex) })
 
-    await waitFor(() => expect(screen.getByRole('button', { name: /cat\.png/i })).toBeInTheDocument())
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: /cat\.png/i })
+      ).toBeInTheDocument()
+    )
     fireEvent.click(screen.getByRole('button', { name: /cat\.png/i }))
-    expect(screen.getByRole('dialog', { name: /Media details/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('dialog', { name: /Media details/i })
+    ).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Delete cat\.png/i }))
     // wait for AlertDialog to open
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument())
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
 
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: /Media details/i })).not.toBeInTheDocument())
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', { name: /Media details/i })
+      ).not.toBeInTheDocument()
+    )
   })
 
   it('does NOT delete if user cancels', async () => {
     const { services, mediaIndex } = await buildProviders()
     render(<Media />, { wrapper: wrapper(services, mediaIndex) })
 
-    await waitFor(() => expect(screen.getByRole('button', { name: /cat\.png/i })).toBeInTheDocument())
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: /cat\.png/i })
+      ).toBeInTheDocument()
+    )
     fireEvent.click(screen.getByRole('button', { name: /cat\.png/i }))
     fireEvent.click(screen.getByRole('button', { name: /Delete cat\.png/i }))
     // wait for AlertDialog to open
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument())
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
     expect(deleteMedia).not.toHaveBeenCalled()
-    expect(screen.getByRole('dialog', { name: /Media details/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('dialog', { name: /Media details/i })
+    ).toBeInTheDocument()
   })
 
   it('surfaces delete errors as an error toast notification', async () => {
-    vi.mocked(deleteMedia as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('server error'))
+    vi.mocked(deleteMedia as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error('server error')
+    )
     const { services, mediaIndex } = await buildProviders()
     render(<Media />, { wrapper: wrapper(services, mediaIndex) })
 
-    await waitFor(() => expect(screen.getByRole('button', { name: /cat\.png/i })).toBeInTheDocument())
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: /cat\.png/i })
+      ).toBeInTheDocument()
+    )
     fireEvent.click(screen.getByRole('button', { name: /cat\.png/i }))
     fireEvent.click(screen.getByRole('button', { name: /Delete cat\.png/i }))
     // wait for AlertDialog to open
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument())
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
 
     await waitFor(() => {
@@ -214,11 +281,17 @@ describe('Media screen', () => {
     const { services, mediaIndex } = await buildProviders()
     render(<Media />, { wrapper: wrapper(services, mediaIndex) })
 
-    await waitFor(() => expect(screen.getByRole('button', { name: /cat\.png/i })).toBeInTheDocument())
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: /cat\.png/i })
+      ).toBeInTheDocument()
+    )
     fireEvent.click(screen.getByRole('button', { name: /cat\.png/i }))
     fireEvent.click(screen.getByRole('button', { name: /Delete cat\.png/i }))
     // wait for AlertDialog to open
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument())
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
 
     await waitFor(() => {
@@ -231,8 +304,10 @@ describe('Media screen', () => {
     render(<Media />, { wrapper: wrapper(services, mediaIndex) })
 
     // Wait for the screen to be ready (dropzone is present from the start)
-    const input = await screen.findByTestId('media-dropzone-input') as HTMLInputElement
-    const file = new File([new Uint8Array([1])], 'dog.jpg', { type: 'image/jpeg' })
+    const input = await screen.findByTestId('media-dropzone-input')
+    const file = new File([new Uint8Array([1])], 'dog.jpg', {
+      type: 'image/jpeg'
+    })
     fireEvent.change(input, { target: { files: [file] } })
 
     // The mocked uploadFile returns filename 'dog.jpg' → toast says 'Uploaded dog.jpg'

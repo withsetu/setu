@@ -20,9 +20,9 @@ export function IndexProvider({ children }: { children: ReactNode }) {
         data,
         git,
         index,
-        deployedAt: (path: string) => deployedAtRef.current(path),
+        deployedAt: (path: string) => deployedAtRef.current(path)
       }),
-    [data, git, index],
+    [data, git, index]
   )
   useEffect(() => {
     void service.ensureBuilt().catch(() => {})
@@ -30,11 +30,14 @@ export function IndexProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (deploy.sha !== null) void service.reindexAfterDeploy().catch(() => {})
   }, [deploy.sha, service])
-  return <IndexContext.Provider value={service}>{children}</IndexContext.Provider>
+  return (
+    <IndexContext.Provider value={service}>{children}</IndexContext.Provider>
+  )
 }
 
 export function useIndex(): IndexService {
   const ctx = useContext(IndexContext)
-  if (ctx === null) throw new Error('useIndex must be used within an IndexProvider')
+  if (ctx === null)
+    throw new Error('useIndex must be used within an IndexProvider')
   return ctx
 }

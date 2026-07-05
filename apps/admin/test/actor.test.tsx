@@ -3,7 +3,9 @@ import { renderHook } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { ActorProvider, useActor, useCan } from '../src/auth/actor'
 
-const wrap = ({ children }: { children: ReactNode }) => <ActorProvider>{children}</ActorProvider>
+const wrap = ({ children }: { children: ReactNode }) => (
+  <ActorProvider>{children}</ActorProvider>
+)
 
 describe('actor context', () => {
   it('provides a current actor (owner by default)', () => {
@@ -17,7 +19,9 @@ describe('actor context', () => {
   })
   it('gates a non-owner actor by their role', () => {
     const viewerWrap = ({ children }: { children: ReactNode }) => (
-      <ActorProvider actor={{ id: 'v', role: 'viewer' }}>{children}</ActorProvider>
+      <ActorProvider actor={{ id: 'v', role: 'viewer' }}>
+        {children}
+      </ActorProvider>
     )
     const { result } = renderHook(() => useCan(), { wrapper: viewerWrap })
     expect(result.current('content.publish')).toBe(false)

@@ -5,7 +5,10 @@ export function greeting(now: Date = new Date()): string {
   return 'Good evening'
 }
 
-export function relativeTime(updatedAt: number | null, now: number = Date.now()): string {
+export function relativeTime(
+  updatedAt: number | null,
+  now: number = Date.now()
+): string {
   if (updatedAt === null) return '—'
   const mins = Math.max(0, Math.round((now - updatedAt) / 60_000))
   if (mins < 1) return 'just now'

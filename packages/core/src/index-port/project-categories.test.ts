@@ -4,9 +4,15 @@ import type { ContentRow } from '../content-index/list-entries'
 
 const row: ContentRow = {
   ref: { collection: 'post', locale: 'en', slug: 'a' },
-  title: 'A', locale: 'en', lifecycle: { state: 'draft' }, updatedAt: 1, hasDraft: true,
-  tags: [], categories: ['react', 'tutorials'],
-  mediaRefs: [],
+  title: 'A',
+  locale: 'en',
+  lifecycle: { state: 'draft' },
+  updatedAt: 1,
+  hasDraft: true,
+  date: null,
+  tags: [],
+  categories: ['react', 'tutorials'],
+  mediaRefs: []
 }
 
 describe('projectRow / rowToContentRow — categories', () => {
@@ -14,6 +20,9 @@ describe('projectRow / rowToContentRow — categories', () => {
     expect(projectRow(row).categories).toEqual(['react', 'tutorials'])
   })
   it('round-trips categories back to a content row', () => {
-    expect(rowToContentRow(projectRow(row)).categories).toEqual(['react', 'tutorials'])
+    expect(rowToContentRow(projectRow(row)).categories).toEqual([
+      'react',
+      'tutorials'
+    ])
   })
 })

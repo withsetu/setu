@@ -15,7 +15,7 @@ describe('image round-trip', () => {
     expect(para?.type).toBe('paragraph')
     expect(para?.content?.[0]).toEqual({
       type: 'image',
-      attrs: { src: '/media/2026/06/my-cat.jpg', alt: 'A cat', title: null },
+      attrs: { src: '/media/2026/06/my-cat.jpg', alt: 'A cat', title: null }
     })
   })
 

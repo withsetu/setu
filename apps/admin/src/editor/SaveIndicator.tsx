@@ -3,7 +3,13 @@ import type { SaveStatus } from './useAutosave'
 
 /** Quiet save-state indicator for the editor strip center. Shows ONLY persistence
  *  state — lifecycle status lives in the strip Badge, not here. */
-export function SaveIndicator({ status, readonly }: { status: SaveStatus; readonly: boolean }) {
+export function SaveIndicator({
+  status,
+  readonly
+}: {
+  status: SaveStatus
+  readonly: boolean
+}) {
   if (readonly) {
     return (
       <span className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground">

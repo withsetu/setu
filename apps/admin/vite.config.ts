@@ -18,14 +18,14 @@ export default defineConfig({
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
       '@setu/core': require.resolve('@setu/core'),
-      'zod': require.resolve('zod'),
-    },
+      zod: require.resolve('zod')
+    }
   },
   server: { fs: { allow: ['../..'] } },
   test: {
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./test/setup.ts'],
-    include: ['test/**/*.test.{ts,tsx}'],
-  },
+    include: ['test/**/*.test.{ts,tsx}']
+  }
 })

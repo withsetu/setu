@@ -14,7 +14,10 @@ import { CommandRegistryProvider } from '../src/command/registry'
 
 // Radix DropdownMenu calls scrollIntoView when it opens — stub it for jsdom.
 beforeAll(() => {
-  if (typeof window !== 'undefined' && !window.HTMLElement.prototype.scrollIntoView) {
+  if (
+    typeof window !== 'undefined' &&
+    !window.HTMLElement.prototype.scrollIntoView
+  ) {
     window.HTMLElement.prototype.scrollIntoView = () => {}
   }
 })
@@ -26,32 +29,59 @@ describe('EditorScreen unpublish', () => {
       <TooltipProvider>
         <NotificationProvider>
           <MemoryRouter initialEntries={['/edit/post/en/release-notes']}>
-            <ActorProvider><ServicesProvider services={services}><DeployProvider><IndexProvider><TaxonomyProvider>
-              <CommandRegistryProvider>
-                <Routes><Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} /></Routes>
-              </CommandRegistryProvider>
-            </TaxonomyProvider></IndexProvider></DeployProvider></ServicesProvider></ActorProvider>
+            <ActorProvider>
+              <ServicesProvider services={services}>
+                <DeployProvider>
+                  <IndexProvider>
+                    <TaxonomyProvider>
+                      <CommandRegistryProvider>
+                        <Routes>
+                          <Route
+                            path="/edit/:collection/:locale/:slug"
+                            element={<EditorScreen />}
+                          />
+                        </Routes>
+                      </CommandRegistryProvider>
+                    </TaxonomyProvider>
+                  </IndexProvider>
+                </DeployProvider>
+              </ServicesProvider>
+            </ActorProvider>
           </MemoryRouter>
         </NotificationProvider>
-      </TooltipProvider>,
+      </TooltipProvider>
     )
     await screen.findByDisplayValue('Release notes')
     fireEvent.click(screen.getByRole('button', { name: /^publish$/i }))
-    await waitFor(() => expect(screen.getByText('Staged', { selector: '[data-slot="badge"]' })).toBeInTheDocument())
+    await waitFor(() =>
+      expect(
+        screen.getByText('Staged', { selector: '[data-slot="badge"]' })
+      ).toBeInTheDocument()
+    )
     // Radix DropdownMenu opens on Enter keydown in jsdom (PointerEvent not available)
-    fireEvent.keyDown(screen.getByRole('button', { name: /more publish actions/i }), { key: 'Enter' })
+    fireEvent.keyDown(
+      screen.getByRole('button', { name: /more publish actions/i }),
+      { key: 'Enter' }
+    )
     fireEvent.click(screen.getByRole('menuitem', { name: /unpublish/i }))
     await waitFor(async () => {
-      const file = await services.git.readFile(contentPath({ collection: 'post', locale: 'en', slug: 'release-notes' }))
+      const file = await services.git.readFile(
+        contentPath({ collection: 'post', locale: 'en', slug: 'release-notes' })
+      )
       expect(file).not.toBeNull()
       expect(parseMdoc(file as string).frontmatter['published']).toBe(false)
     })
 
     // Re-publish: flag-based menu now shows Re-publish; committing clears published:false.
-    fireEvent.keyDown(screen.getByRole('button', { name: /more publish actions/i }), { key: 'Enter' })
+    fireEvent.keyDown(
+      screen.getByRole('button', { name: /more publish actions/i }),
+      { key: 'Enter' }
+    )
     fireEvent.click(screen.getByRole('menuitem', { name: /re-publish/i }))
     await waitFor(async () => {
-      const file = await services.git.readFile(contentPath({ collection: 'post', locale: 'en', slug: 'release-notes' }))
+      const file = await services.git.readFile(
+        contentPath({ collection: 'post', locale: 'en', slug: 'release-notes' })
+      )
       expect(file).not.toBeNull()
       expect(parseMdoc(file as string).frontmatter['published']).not.toBe(false)
     })

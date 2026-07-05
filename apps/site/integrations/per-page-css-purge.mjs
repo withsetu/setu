@@ -41,11 +41,14 @@ export async function loadBlockSafelist(blocksDir) {
  *  @param {{ css: string, html: string, js?: string[], safelist?: (string|RegExp)[] }} args */
 export async function purgeCss({ css, html, js = [], safelist = [] }) {
   const scanHtml = html.replace(/<style\b[^>]*>[\s\S]*?<\/style>/g, '')
-  const content = [{ raw: scanHtml, extension: 'html' }, ...js.map((raw) => ({ raw, extension: 'js' }))]
+  const content = [
+    { raw: scanHtml, extension: 'html' },
+    ...js.map((raw) => ({ raw, extension: 'js' }))
+  ]
   const [res] = await new PurgeCSS().purge({
     content,
     css: [{ raw: css }],
-    safelist: { standard: safelist.map(toMatcher).filter(Boolean) },
+    safelist: { standard: safelist.map(toMatcher).filter(Boolean) }
     // Defaults keep @font-face + @keyframes; we only strip unused class rules.
   })
   return res.css
@@ -76,13 +79,20 @@ export function perPageCssPurge(opts = {}) {
     hooks: {
       'astro:build:done': async ({ dir, logger }) => {
         const distRoot = fileURLToPath(dir)
-        const blocksDir = fileURLToPath(new URL('../../../blocks', import.meta.url))
-        const safelist = [...(opts.safelist ?? []), ...(await loadBlockSafelist(blocksDir))]
+        const blocksDir = fileURLToPath(
+          new URL('../../../blocks', import.meta.url)
+        )
+        const safelist = [
+          ...(opts.safelist ?? []),
+          ...(await loadBlockSafelist(blocksDir))
+        ]
 
         const all = await walk(distRoot)
         const htmlFiles = all.filter((f) => f.endsWith('.html'))
         // Any class a runtime island references must survive — scan ALL emitted JS as content.
-        const js = await Promise.all(all.filter((f) => f.endsWith('.js')).map((f) => readFile(f, 'utf8')))
+        const js = await Promise.all(
+          all.filter((f) => f.endsWith('.js')).map((f) => readFile(f, 'utf8'))
+        )
 
         // Map each linked stylesheet → how many pages reference it. Files referenced by 2+ pages
         // are shared (fonts/theme); leave them external + cached. Single-referrer files are the
@@ -91,8 +101,13 @@ export function perPageCssPurge(opts = {}) {
         const pages = []
         for (const file of htmlFiles) {
           const html = await readFile(file, 'utf8')
-          const links = [...html.matchAll(/<link\b[^>]*\brel="stylesheet"[^>]*\bhref="([^"]+\.css)"[^>]*>/g)]
-          for (const m of links) refCount.set(m[1], (refCount.get(m[1]) ?? 0) + 1)
+          const links = [
+            ...html.matchAll(
+              /<link\b[^>]*\brel="stylesheet"[^>]*\bhref="([^"]+\.css)"[^>]*>/g
+            )
+          ]
+          for (const m of links)
+            refCount.set(m[1], (refCount.get(m[1]) ?? 0) + 1)
           pages.push({ file, html, links })
         }
 
@@ -103,13 +118,17 @@ export function perPageCssPurge(opts = {}) {
         for (const { file, html, links } of pages) {
           // 1) Purge the original inline <style> blocks first (scan against `html`, not the
           //    mutated output, so the per-page links we inline below aren't re-processed).
-          let out = await replaceAsync(html, /<style\b[^>]*>([\s\S]*?)<\/style>/g, async (whole, body) => {
-            if (!body.trim()) return whole
-            before += body.length
-            const purged = await purgeCss({ css: body, html, js, safelist })
-            after += purged.length
-            return `<style>${purged}</style>`
-          })
+          let out = await replaceAsync(
+            html,
+            /<style\b[^>]*>([\s\S]*?)<\/style>/g,
+            async (whole, body) => {
+              if (!body.trim()) return whole
+              before += body.length
+              const purged = await purgeCss({ css: body, html, js, safelist })
+              after += purged.length
+              return `<style>${purged}</style>`
+            }
+          )
 
           // 2) Purge each per-page (single-referrer) external stylesheet → inline the result.
           for (const m of links) {
@@ -133,10 +152,10 @@ export function perPageCssPurge(opts = {}) {
 
         const pct = before > 0 ? Math.round((1 - after / before) * 100) : 0
         logger.info(
-          `per-page CSS purge: ${kb(before)} → ${kb(after)} (-${pct}%) inlined across ${pages.length} pages`,
+          `per-page CSS purge: ${kb(before)} → ${kb(after)} (-${pct}%) inlined across ${pages.length} pages`
         )
-      },
-    },
+      }
+    }
   }
 }
 

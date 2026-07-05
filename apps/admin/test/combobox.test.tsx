@@ -13,7 +13,7 @@ function setup(over: Partial<Parameters<typeof Combobox>[0]> = {}) {
       items={over.items ?? [{ value: 'react' }, { value: 'redux' }]}
       allowFreeText={over.allowFreeText}
       ariaLabel="Test combo"
-    />,
+    />
   )
   return { onSubmit, onChange }
 }
@@ -28,13 +28,21 @@ describe('Combobox', () => {
   })
 
   it('Enter with no highlight commits typed text when allowFreeText', () => {
-    const { onSubmit } = setup({ value: 'brandnew', items: [], allowFreeText: true })
+    const { onSubmit } = setup({
+      value: 'brandnew',
+      items: [],
+      allowFreeText: true
+    })
     fireEvent.keyDown(screen.getByLabelText('Test combo'), { key: 'Enter' })
     expect(onSubmit).toHaveBeenCalledWith('brandnew')
   })
 
   it('Enter with no highlight commits the top match when NOT allowFreeText', () => {
-    const { onSubmit } = setup({ value: 'gu', items: [{ value: 'guides' }], allowFreeText: false })
+    const { onSubmit } = setup({
+      value: 'gu',
+      items: [{ value: 'guides' }],
+      allowFreeText: false
+    })
     fireEvent.keyDown(screen.getByLabelText('Test combo'), { key: 'Enter' })
     expect(onSubmit).toHaveBeenCalledWith('guides')
   })
@@ -47,7 +55,9 @@ describe('Combobox', () => {
   })
 
   it('renders item.label but commits item.value', () => {
-    const { onSubmit } = setup({ items: [{ value: 'tut', label: '  Tutorials' }] })
+    const { onSubmit } = setup({
+      items: [{ value: 'tut', label: '  Tutorials' }]
+    })
     fireEvent.focus(screen.getByLabelText('Test combo'))
     fireEvent.mouseDown(screen.getByText('Tutorials'))
     expect(onSubmit).toHaveBeenCalledWith('tut')

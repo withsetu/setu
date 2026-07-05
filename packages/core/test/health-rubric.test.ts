@@ -3,10 +3,17 @@ import { RUBRIC, SITE_CAPABILITIES, runAudit } from '../src/index'
 import type { AuditContext } from '../src/health/types'
 
 const auditCtx = (): AuditContext => ({
-  settings: { general: { title: 'T', description: 'D' }, reading: { homepage: '', searchEngineVisible: true, feed: { enabled: true } } },
+  settings: {
+    general: { title: 'T', description: 'D' },
+    reading: {
+      homepage: '',
+      searchEngineVisible: true,
+      feed: { enabled: true }
+    }
+  },
   entries: [],
   capabilities: SITE_CAPABILITIES,
-  health: { items: {}, sections: {} },
+  health: { items: {}, sections: {} }
 })
 
 describe('health rubric', () => {
@@ -14,7 +21,18 @@ describe('health rubric', () => {
     const ids = RUBRIC.map((r) => r.id)
     expect(new Set(ids).size).toBe(ids.length)
     const sev = new Set(['required', 'recommended', 'optional', 'avoid'])
-    const cat = new Set(['foundations','seo','accessibility','security','well-known','agent-readiness','performance','privacy','resilience','i18n'])
+    const cat = new Set([
+      'foundations',
+      'seo',
+      'accessibility',
+      'security',
+      'well-known',
+      'agent-readiness',
+      'performance',
+      'privacy',
+      'resilience',
+      'i18n'
+    ])
     for (const r of RUBRIC) {
       expect(sev.has(r.severity)).toBe(true)
       expect(cat.has(r.category)).toBe(true)
@@ -40,7 +58,12 @@ describe('health rubric', () => {
   })
   it('marks the whole sitemap family pass under the emitted capabilities (#318/#367)', () => {
     const byId = new Map(runAudit(auditCtx()).results.map((r) => [r.id, r]))
-    for (const id of ['seo.sitemap', 'seo.sitemap-index', 'seo.image-sitemaps', 'seo.robots-txt']) {
+    for (const id of [
+      'seo.sitemap',
+      'seo.sitemap-index',
+      'seo.image-sitemaps',
+      'seo.robots-txt'
+    ]) {
       expect(byId.get(id)?.status, id).toBe('pass')
     }
     // image-sitemaps honestly discloses that video extensions are not yet emitted.

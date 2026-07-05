@@ -12,23 +12,45 @@ afterEach(cleanup)
 
 const notice: ResolvedBlock = {
   tag: 'notice',
-  props: z.object({ tone: z.enum(['info', 'warn', 'success']).default('info'), title: z.string().optional() }),
+  props: z.object({
+    tone: z.enum(['info', 'warn', 'success']).default('info'),
+    title: z.string().optional()
+  }),
   component: 'blocks/notice/notice.astro',
-  editor: { label: 'Notice', icon: 'info' },
+  editor: { label: 'Notice', icon: 'info' }
 }
 
 const widget: ResolvedBlock = {
   tag: 'widget',
-  props: z.object({ count: z.number().default(1), flag: z.boolean().default(false), label: z.string().optional() }),
+  props: z.object({
+    count: z.number().default(1),
+    flag: z.boolean().default(false),
+    label: z.string().optional()
+  }),
   component: 'blocks/widget/widget.astro',
-  editor: { label: 'Widget' },
+  editor: { label: 'Widget' }
 }
 
-function Harness({ tag, onReady }: { tag: string; onReady: (getJSON: () => unknown) => void }) {
+function Harness({
+  tag,
+  onReady
+}: {
+  tag: string
+  onReady: (getJSON: () => unknown) => void
+}) {
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [StarterKit, createSetuBlock([notice, widget])],
-    content: { type: 'doc', content: [{ type: 'setuBlock', attrs: { tag, mdAttrs: {} }, content: [{ type: 'paragraph' }] }] },
+    content: {
+      type: 'doc',
+      content: [
+        {
+          type: 'setuBlock',
+          attrs: { tag, mdAttrs: {} },
+          content: [{ type: 'paragraph' }]
+        }
+      ]
+    }
   })
   if (editor) onReady(() => editor.getJSON())
   return <EditorContent editor={editor} />
@@ -53,32 +75,67 @@ describe('setuBlock node view', () => {
       const editor = useEditor({
         immediatelyRender: false,
         extensions: [StarterKit, createSetuBlock([notice])],
-        content: { type: 'doc', content: [{ type: 'setuBlock', attrs: { tag: 'notice', mdAttrs: { tone: 'warn', title: 'Hello' } }, content: [{ type: 'paragraph' }] }] },
+        content: {
+          type: 'doc',
+          content: [
+            {
+              type: 'setuBlock',
+              attrs: {
+                tag: 'notice',
+                mdAttrs: { tone: 'warn', title: 'Hello' }
+              },
+              content: [{ type: 'paragraph' }]
+            }
+          ]
+        }
       })
       if (editor) getJSON = () => editor.getJSON()
       return <EditorContent editor={editor} />
     }
     render(<HarnessWithAttrs />)
     await screen.findByText('Notice')
-    const json = getJSON() as { content: Array<{ type: string; attrs?: { mdAttrs?: Record<string, unknown> } }> }
+    const json = getJSON() as {
+      content: Array<{
+        type: string
+        attrs?: { mdAttrs?: Record<string, unknown> }
+      }>
+    }
     const block = json.content.find((n) => n.type === 'setuBlock')
     expect(block?.attrs?.mdAttrs).toEqual({ tone: 'warn', title: 'Hello' })
   })
 })
 
 describe('setuBlock node view — real core rendering', () => {
-  it('renders the block\'s real React core in-canvas when a core is registered', async () => {
+  it("renders the block's real React core in-canvas when a core is registered", async () => {
     const noticeBlock: ResolvedBlock = {
       tag: 'notice',
-      props: z.object({ tone: z.enum(['info', 'warn', 'success']).default('info'), title: z.string().optional() }),
+      props: z.object({
+        tone: z.enum(['info', 'warn', 'success']).default('info'),
+        title: z.string().optional()
+      }),
       component: 'blocks/notice/notice.astro',
-      editor: { label: 'Notice' },
+      editor: { label: 'Notice' }
     }
     function HarnessWithCore() {
       const editor = useEditor({
         immediatelyRender: false,
-        extensions: [StarterKit, createSetuBlock([noticeBlock], { notice: Notice })],
-        content: { type: 'doc', content: [{ type: 'setuBlock', attrs: { tag: 'notice', mdAttrs: { tone: 'success', title: 'Hi' } }, content: [{ type: 'paragraph' }] }] },
+        extensions: [
+          StarterKit,
+          createSetuBlock([noticeBlock], { notice: Notice })
+        ],
+        content: {
+          type: 'doc',
+          content: [
+            {
+              type: 'setuBlock',
+              attrs: {
+                tag: 'notice',
+                mdAttrs: { tone: 'success', title: 'Hi' }
+              },
+              content: [{ type: 'paragraph' }]
+            }
+          ]
+        }
       })
       return <EditorContent editor={editor} />
     }

@@ -33,7 +33,7 @@ export async function existingSlugs(
   data: DataPort,
   git: GitPort,
   collection: string,
-  locale: string,
+  locale: string
 ): Promise<Set<string>> {
   const taken = new Set<string>([NEW_SLUG])
   for (const d of await data.listDrafts({ collection })) {
@@ -52,7 +52,10 @@ export async function mintSlug(
   git: GitPort,
   collection: string,
   locale: string,
-  title: string,
+  title: string
 ): Promise<string> {
-  return uniqueSlug(slugify(title), await existingSlugs(data, git, collection, locale))
+  return uniqueSlug(
+    slugify(title),
+    await existingSlugs(data, git, collection, locale)
+  )
 }

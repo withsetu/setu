@@ -46,7 +46,9 @@ export class EditorPage {
    *  Auto-dismisses after 4s, so callers must assert this right after the triggering
    *  click, not after other slow awaits. */
   get publishedToast() {
-    return this.page.getByRole('region', { name: 'Notifications', exact: true }).getByText(/^Published ·/)
+    return this.page
+      .getByRole('region', { name: 'Notifications', exact: true })
+      .getByText(/^Published ·/)
   }
 
   /** StripStatus lifecycle badge in the editor header — a plain `<span>` (Badge has no
@@ -82,7 +84,9 @@ export class EditorPage {
    *  `.slash-desc`, e.g. "Callout\nInsert a callout block") — anchor on the title as
    *  a name prefix rather than `exact: true`, which would never match. */
   slashOption(blockTitle: string) {
-    return this.slashMenu.getByRole('option', { name: new RegExp(`^${blockTitle}\\b`) })
+    return this.slashMenu.getByRole('option', {
+      name: new RegExp(`^${blockTitle}\\b`)
+    })
   }
 
   /** An inserted Callout block in the canvas — Callout.tsx's shared core renders
@@ -158,7 +162,11 @@ export class EditorPage {
    *  vertical center is the boundary between those two halves and resolves by
    *  floating-point comparison, so it is not a reliable signal either way. A point a
    *  few pixels inside the relevant half is unambiguous. */
-  async dragBlock(fromText: string, toText: string, position: 'before' | 'after' = 'before') {
+  async dragBlock(
+    fromText: string,
+    toText: string,
+    position: 'before' | 'after' = 'before'
+  ) {
     const source = this.blocks.filter({ hasText: fromText }).first()
     const target = this.blocks.filter({ hasText: toText }).first()
 
@@ -168,19 +176,31 @@ export class EditorPage {
     await expect(this.dragHandle).toBeVisible()
 
     const targetBox = await target.boundingBox()
-    if (!targetBox) throw new Error(`dragBlock: target block "${toText}" has no bounding box`)
+    if (!targetBox)
+      throw new Error(`dragBlock: target block "${toText}" has no bounding box`)
     const edge = Math.min(4, targetBox.height / 4)
-    const dropY = position === 'before' ? targetBox.y + edge : targetBox.y + targetBox.height - edge
+    const dropY =
+      position === 'before'
+        ? targetBox.y + edge
+        : targetBox.y + targetBox.height - edge
 
     // Native HTML5 DnD: DragHandle.tsx's `dragstart` listener reads `hoverIndex`
     // (set by the hover above) and registers document-level `dragover`/`drop`
     // listeners; the `drop` handler derives the target index purely from
     // `event.clientY` (dropToIndex in DragHandle.tsx), so only the Y coordinate of
     // the dispatched events matters, not the exact target element.
-    const dataTransfer = await this.page.evaluateHandle(() => new DataTransfer())
+    const dataTransfer = await this.page.evaluateHandle(
+      () => new DataTransfer()
+    )
     await this.dragHandle.dispatchEvent('dragstart', { dataTransfer })
-    await this.page.dispatchEvent('body', 'dragover', { dataTransfer, clientY: dropY })
-    await this.page.dispatchEvent('body', 'drop', { dataTransfer, clientY: dropY })
+    await this.page.dispatchEvent('body', 'dragover', {
+      dataTransfer,
+      clientY: dropY
+    })
+    await this.page.dispatchEvent('body', 'drop', {
+      dataTransfer,
+      clientY: dropY
+    })
     await this.page.dispatchEvent('body', 'dragend', { dataTransfer })
   }
 

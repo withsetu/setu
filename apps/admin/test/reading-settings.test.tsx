@@ -54,4 +54,15 @@ describe('ReadingSettings', () => {
       expect(JSON.parse(raw as string).reading.feed.enabled).toBe(true)
     })
   })
+
+  it('excludes a sitemap section (Tag archives) → commits reading.sitemap.tags=false', async () => {
+    const { git } = renderReading()
+    const toggle = await screen.findByLabelText('Tag archives')
+    fireEvent.click(toggle) // default on → off
+    fireEvent.click(screen.getByRole('button', { name: /save/i }))
+    await waitFor(async () => {
+      const raw = await git.readFile('settings.json')
+      expect(JSON.parse(raw as string).reading.sitemap.tags).toBe(false)
+    })
+  })
 })

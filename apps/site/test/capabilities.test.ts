@@ -103,6 +103,9 @@ afterAll(() => {
 
 const has = (re: RegExp) => re.test(head)
 const distHas = (p: string) => existsSync(join(appDir, 'dist', p))
+const distReadHas = (p: string, re: RegExp) =>
+  existsSync(join(appDir, 'dist', p)) &&
+  re.test(readFileSync(join(appDir, 'dist', p), 'utf8'))
 
 describe('SITE_CAPABILITIES matches real output', () => {
   it('head-tag capabilities are accurate', () => {
@@ -122,6 +125,14 @@ describe('SITE_CAPABILITIES matches real output', () => {
   it('file-based capabilities are accurate', () => {
     expect(SITE_CAPABILITIES.sitemap).toBe(
       distHas('sitemap.xml') || distHas('sitemap-index.xml')
+    )
+    // sitemap.xml is a <sitemapindex> of per-type sub-sitemaps (not a flat <urlset>).
+    expect(SITE_CAPABILITIES.sitemapIndex).toBe(
+      distReadHas('sitemap.xml', /<sitemapindex/)
+    )
+    // post-sitemap carries Google image-extension entries for entries with images.
+    expect(SITE_CAPABILITIES.imageSitemaps).toBe(
+      distReadHas('post-sitemap.xml', /<image:image>/)
     )
     expect(SITE_CAPABILITIES.robotsTxt).toBe(distHas('robots.txt'))
     expect(SITE_CAPABILITIES.customError).toBe(distHas('404.html'))

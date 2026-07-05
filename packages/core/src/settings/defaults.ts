@@ -20,7 +20,8 @@ export const DEFAULT_SETTINGS: SiteSettings = {
       heading: 'Read Next',
       count: 3,
       showImage: true
-    }
+    },
+    sitemap: { posts: true, pages: true, categories: true, tags: true }
   },
   media: { imageFormat: 'webp', imageLqip: false },
   identity: {

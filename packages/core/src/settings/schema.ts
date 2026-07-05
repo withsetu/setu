@@ -33,6 +33,14 @@ const readingSchema = z
         count: z.number(),
         showImage: z.boolean()
       })
+      .partial(),
+    sitemap: z
+      .object({
+        posts: z.boolean(),
+        pages: z.boolean(),
+        categories: z.boolean(),
+        tags: z.boolean()
+      })
       .partial()
   })
   .partial()
@@ -120,7 +128,8 @@ export function parseSettings(raw: unknown): SiteSettings {
       ...reading,
       feed: { ...rd.feed, ...(reading.feed ?? {}) },
       markdown: { ...rd.markdown, ...(reading.markdown ?? {}) },
-      relatedPosts: { ...rd.relatedPosts, ...(reading.relatedPosts ?? {}) }
+      relatedPosts: { ...rd.relatedPosts, ...(reading.relatedPosts ?? {}) },
+      sitemap: { ...rd.sitemap, ...(reading.sitemap ?? {}) }
     },
     media: {
       imageFormat: validFormat

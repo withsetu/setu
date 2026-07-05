@@ -31,6 +31,13 @@ export interface ReadingSettings {
     count: number
     showImage: boolean
   }
+  /** Sitemap section toggles — which content types + taxonomies the sitemap index includes. */
+  sitemap: {
+    posts: boolean
+    pages: boolean
+    categories: boolean
+    tags: boolean
+  }
 }
 
 /** The Media settings group — drives the image pipeline (variant formats + LQIP). */

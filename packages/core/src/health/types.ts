@@ -38,6 +38,8 @@ export interface SiteCapabilities {
   themeColor: boolean
   rssAutodiscovery: boolean
   sitemap: boolean
+  sitemapIndex: boolean
+  imageSitemaps: boolean
   robotsTxt: boolean
   jsonLd: boolean
   llmsTxt: boolean

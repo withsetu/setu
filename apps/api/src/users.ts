@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
-import { eq } from 'drizzle-orm'
+import { asc, eq } from 'drizzle-orm'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
-import { account } from '@setu/db-sqlite/schema'
+import { account, user } from '@setu/db-sqlite/schema'
 import { createAuthz, DEFAULT_ROLES } from '@setu/core'
 import type { Actor } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
@@ -33,6 +33,38 @@ export interface UsersApiOptions {
 export function createUsersApi(opts: UsersApiOptions) {
   const { db } = opts
   const app = new Hono<{ Variables: { actor: Actor } }>()
+
+  /** `users.view`-gated user roster. The admin Users screen previously listed via better-auth's admin
+   *  plugin (`authClient.admin.listUsers` → `/api/auth/admin/list-users`), which authorizes against
+   *  the plugin's OWN role map where only `admin` holds `user:list` — so a maintainer, who DOES hold
+   *  Setu's `users.view` and sees the nav/screen, got "not allowed to list users" (UAT 2026-07-05:
+   *  the two authz systems disagreed). This Setu-owned route authorizes against the SAME `authz`
+   *  matrix that gates the nav/route, so `users.view` "just works" for maintainer+. User MANAGEMENT
+   *  (invite/setRole/disable/delete) stays on the admin plugin (admin-only) until #364 wires
+   *  maintainer's rank-scoped management to the matrix. Fail-closed: no session -> 401; session
+   *  without `users.view` -> 403. */
+  app.get('/api/users', authMiddleware(opts.resolveActor), async (c) => {
+    if (!authz.can(c.get('actor'), 'users.view')) return c.json({ error: 'forbidden' }, 403)
+
+    const users = await db
+      .select({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        emailVerified: user.emailVerified,
+        image: user.image,
+        role: user.role,
+        banned: user.banned,
+        banReason: user.banReason,
+        banExpires: user.banExpires,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      })
+      .from(user)
+      .orderBy(asc(user.createdAt))
+
+    return c.json({ users })
+  })
 
   app.get('/api/users/credential-status', authMiddleware(opts.resolveActor), async (c) => {
     if (!authz.can(c.get('actor'), 'users.view')) return c.json({ error: 'forbidden' }, 403)

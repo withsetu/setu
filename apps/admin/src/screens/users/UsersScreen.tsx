@@ -454,23 +454,34 @@ function UserList({ refreshSignal }: { refreshSignal: number }) {
   const [loading, setLoading] = useState(true)
   const [credentialStatus, setCredentialStatus] = useState<Record<string, boolean>>({})
 
+  // Full user management (invite / change role / disable) still routes through better-auth's admin
+  // plugin, which only authorizes `admin`. Maintainer holds `users.view` (so it lists + this screen
+  // renders) but its rank-scoped management is epic #359 increment #364 — so for now management
+  // controls are admin-only, and a maintainer sees a clean read-only roster instead of buttons that
+  // would 403.
+  const canManage = actor.role === 'admin'
+
   async function load() {
     setLoading(true)
     try {
-      // Fetched alongside listUsers (not sequentially) — the credential-status endpoint (Finding
-      // 2) is an independent read with its own failure mode (handled inside
-      // fetchCredentialStatus itself), so it should never block or fail the user list.
-      const [{ data, error }, status] = await Promise.all([
-        authClient.admin.listUsers({ query: { sortBy: 'createdAt', sortDirection: 'asc' } }),
+      // The roster comes from Setu's own `users.view`-gated route (apps/api/src/users.ts), NOT
+      // better-auth's admin `listUsers` — the plugin authorizes list against its own admin-only role
+      // map, which denied a maintainer who holds `users.view` (UAT 2026-07-05). credential-status is
+      // fetched alongside (an independent read whose own failure mode is handled in
+      // fetchCredentialStatus), so it never blocks or fails the user list.
+      const [listRes, status] = await Promise.all([
+        apiFetch(`${apiBase}/api/users`),
         fetchCredentialStatus(),
       ])
       setCredentialStatus(status)
-      if (error) {
-        notify.error(error.message || 'Could not load users')
+      if (!listRes.ok) {
+        notify.error(listRes.status === 403 ? 'You are not allowed to view users' : 'Could not load users')
         setUsers([])
         return
       }
-      setUsers(data?.users ?? [])
+      // Dates arrive as ISO strings over JSON (formatDate handles both string and Date).
+      const data = (await listRes.json()) as { users: AdminUser[] }
+      setUsers(data.users ?? [])
     } finally {
       setLoading(false)
     }
@@ -488,7 +499,7 @@ function UserList({ refreshSignal }: { refreshSignal: number }) {
           <CardTitle className="text-base">Users</CardTitle>
           <CardDescription>Who can sign in and what they can do.</CardDescription>
         </div>
-        <InviteUserDialog onCreated={() => void load()} />
+        {canManage && <InviteUserDialog onCreated={() => void load()} />}
       </CardHeader>
       <CardContent>
         {loading || users === null ? (
@@ -537,7 +548,11 @@ function UserList({ refreshSignal }: { refreshSignal: number }) {
                   </TableCell>
                   <TableCell className="text-muted-foreground">{formatDate(user.createdAt)}</TableCell>
                   <TableCell className="text-right">
-                    <UserRowActions user={user} selfId={actor.id} users={users} onChanged={() => void load()} />
+                    {canManage ? (
+                      <UserRowActions user={user} selfId={actor.id} users={users} onChanged={() => void load()} />
+                    ) : (
+                      <span className="text-sm capitalize text-muted-foreground">{user.role}</span>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

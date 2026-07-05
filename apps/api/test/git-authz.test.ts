@@ -56,3 +56,38 @@ describe('createGitApi — authz enforcement (#362, the Git-write hole)', () => 
     expect((await write(a, '/git/commit-files', commitFilesBody)).status).toBe(200)
   })
 })
+
+// UAT 2026-07-05 — settings persist as `settings.json` through this same git primitive (no dedicated
+// settings route), so a `content.edit` holder (maintainer/editor/author) could rewrite settings.json,
+// bypassing the admin-only `settings.manage`. The write gate is now path-aware.
+describe('createGitApi — settings-path write gate (settings.json → settings.manage)', () => {
+  const settingsCommit = JSON.stringify({ path: 'settings.json', content: '{}', message: 'm', author })
+  const settingsFiles = JSON.stringify({ changes: [{ path: 'settings.json', content: '{}' }], message: 'm', author })
+  const mixedFiles = JSON.stringify({ changes: [{ path: 'p.mdoc', content: 'X' }, { path: 'settings.json', content: '{}' }], message: 'm', author })
+  const dotSlashSettings = JSON.stringify({ path: './settings.json', content: '{}', message: 'm', author })
+
+  it('rejects MAINTAINER/EDITOR/AUTHOR writing settings.json with 403 (settings.manage is admin-only)', async () => {
+    for (const role of ['maintainer', 'editor', 'author'] as Role[]) {
+      expect((await write(app(asRole(role)), '/git/commit', settingsCommit)).status, `${role} commit`).toBe(403)
+      expect((await write(app(asRole(role)), '/git/commit-files', settingsFiles)).status, `${role} commit-files`).toBe(403)
+    }
+  })
+
+  it('allows an ADMIN to write settings.json (settings.manage)', async () => {
+    const a = app(asRole('admin'))
+    expect((await write(a, '/git/commit', settingsCommit)).status).toBe(200)
+    expect((await write(a, '/git/commit-files', settingsFiles)).status).toBe(200)
+  })
+
+  it('fails closed on a MIXED commit touching settings.json → 403 for maintainer (no smuggling)', async () => {
+    expect((await write(app(asRole('maintainer')), '/git/commit-files', mixedFiles)).status).toBe(403)
+  })
+
+  it('normalizes ./settings.json so the gate cannot be bypassed → 403 for maintainer', async () => {
+    expect((await write(app(asRole('maintainer')), '/git/commit', dotSlashSettings)).status).toBe(403)
+  })
+
+  it('still allows a MAINTAINER to write ordinary content (content.edit)', async () => {
+    expect((await write(app(asRole('maintainer')), '/git/commit', commitBody)).status).toBe(200)
+  })
+})

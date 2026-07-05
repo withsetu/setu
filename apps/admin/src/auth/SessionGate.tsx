@@ -29,10 +29,20 @@ function readHashToken(): string | null {
  *  app directly under the existing local-owner ActorProvider default, never wrapped in this gate.
  *  That decision lives in main.tsx, not here. */
 export function SessionGate({ children }: { children: ReactNode }) {
-  const { auth, loading: capsLoading } = useCapabilities()
+  const { auth, mode, loading: capsLoading, refetch: refetchCaps } = useCapabilities()
   const session = authClient.useSession()
   const [exchanging, setExchanging] = useState(() => readHashToken() !== null)
   const exchangeStarted = useRef(false)
+
+  // Re-read capabilities on the signed-in → signed-out transition so `needsSetup` reflects the CURRENT
+  // user count. Without this, a stale `needsSetup:true` (cached at boot when the instance had 0 users)
+  // survives across logout and routes the admin to the SetupScreen instead of LoginScreen (UAT).
+  const signedIn = !!session.data?.user
+  const wasSignedIn = useRef(signedIn)
+  useEffect(() => {
+    if (wasSignedIn.current && !signedIn) void refetchCaps()
+    wasSignedIn.current = signedIn
+  }, [signedIn, refetchCaps])
 
   useEffect(() => {
     const token = readHashToken()
@@ -86,6 +96,10 @@ export function SessionGate({ children }: { children: ReactNode }) {
   }
 
   if (!auth?.enabled) return <AuthNotConfigured />
-  if (auth.needsSetup) return <SetupScreen />
+  // SetupScreen POSTs to /api/auth/setup, which is ONLY mounted in non-local topologies (local mode
+  // has no setup token — packages/auth server-setup-plugin). So never route to it in local mode: a
+  // signed-out local admin belongs on the LoginScreen (or the loopback handshake), not a setup form
+  // whose submit can only 404.
+  if (auth.needsSetup && mode !== 'local') return <SetupScreen />
   return <LoginScreen />
 }

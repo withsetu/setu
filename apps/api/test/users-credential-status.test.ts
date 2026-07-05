@@ -131,3 +131,45 @@ describe('GET /api/users/credential-status', () => {
     expect(body.error).not.toMatch(/leaking internal detail/)
   })
 })
+
+// UAT 2026-07-05 — the Users screen listed via better-auth's admin plugin (admin-only), so a
+// maintainer (who holds Setu's `users.view` and sees the screen) got "not allowed to list users".
+// This Setu-owned route authorizes against the same `users.view` matrix that gates the nav/route.
+describe('GET /api/users', () => {
+  it('401s with no session', async () => {
+    const { app } = build()
+    expect((await app.fetch(new Request('http://test/api/users'))).status).toBe(401)
+  })
+
+  it('403s for a session lacking users.view (author/editor)', async () => {
+    for (const role of ['author', 'editor']) {
+      const { app, auth } = build()
+      await makeUser(auth, { email: `${role}@test.com`, name: role, role, password: 'a-strong-password-12' })
+      const cookie = await signInCookie(auth, `${role}@test.com`, 'a-strong-password-12')
+      const res = await app.fetch(new Request('http://test/api/users', { headers: { cookie } }))
+      expect(res.status, role).toBe(403)
+    }
+  })
+
+  it('MAINTAINER session -> 200 with the full roster (the reported bug: maintainer holds users.view)', async () => {
+    const { app, auth } = build()
+    await makeUser(auth, { email: 'maint@test.com', name: 'Maint', role: 'maintainer', password: 'a-strong-password-12' })
+    await makeUser(auth, { email: 'someone@test.com', name: 'Someone', role: 'author' })
+    const cookie = await signInCookie(auth, 'maint@test.com', 'a-strong-password-12')
+
+    const res = await app.fetch(new Request('http://test/api/users', { headers: { cookie } }))
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { users: Array<{ email: string; role: string; banned: boolean }> }
+    expect(body.users.map((u) => u.email).sort()).toEqual(['maint@test.com', 'someone@test.com'])
+    expect(body.users.find((u) => u.email === 'someone@test.com')?.role).toBe('author')
+  })
+
+  it('ADMIN session -> 200 with the roster', async () => {
+    const { app, auth } = build()
+    await makeUser(auth, { email: 'owner@test.com', name: 'Owner', role: 'admin', password: 'a-strong-password-12' })
+    const cookie = await signInCookie(auth, 'owner@test.com', 'a-strong-password-12')
+    const res = await app.fetch(new Request('http://test/api/users', { headers: { cookie } }))
+    expect(res.status).toBe(200)
+    expect(((await res.json()) as { users: unknown[] }).users.length).toBe(1)
+  })
+})

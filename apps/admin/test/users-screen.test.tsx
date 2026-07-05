@@ -78,7 +78,7 @@ const DISABLED_AUTHOR = {
   banned: true,
 }
 
-function renderAsActor(role: 'admin' | 'editor' | 'author', id = 'owner-1') {
+function renderAsActor(role: 'admin' | 'maintainer' | 'editor' | 'author', id = 'owner-1') {
   const wrapper = ({ children }: { children: ReactNode }) => (
     <NotificationProvider>
       <ActorProvider actor={{ id, role }}>{children}</ActorProvider>
@@ -87,16 +87,27 @@ function renderAsActor(role: 'admin' | 'editor' | 'author', id = 'owner-1') {
   return render(<UsersScreen />, { wrapper })
 }
 
-/** Stubs the global `fetch` (apiFetch's underlying primitive) for GET /api/users/credential-status
- *  — the endpoint UsersScreen fetches alongside listUsers to render the "No password" row status
- *  (#248 Task 8 review, Finding 2). Defaults to "everyone has a password" (empty map would mean the
- *  opposite — absence is the passwordless signal) unless a test overrides it. */
+/** Stubs the global `fetch` (apiFetch's underlying primitive) for the two GETs UsersScreen makes:
+ *  - `/api/users/credential-status` → the "No password" row status (#248 Task 8, Finding 2). Defaults
+ *    to "everyone has a password" (empty map means the opposite — absence is the passwordless signal).
+ *  - `/api/users` → the roster. Since #2 (UAT 2026-07-05) the list loads from Setu's own route, not
+ *    better-auth's admin `listUsers`; this stub SOURCES the roster from the still-mocked
+ *    `authClient.admin.listUsers` so every test keeps configuring fixtures + asserting call counts /
+ *    resolved-value sequences via `mockListUsers`, exactly as before. */
 function stubCredentialStatus(status: Record<string, boolean> = {}) {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) => {
-      if (String(url).includes('/api/users/credential-status')) {
+      const u = String(url)
+      if (u.includes('/api/users/credential-status')) {
         return new Response(JSON.stringify(status), { status: 200 })
+      }
+      if (u.includes('/api/users')) {
+        const { data, error } = await authClient.admin.listUsers({
+          query: { sortBy: 'createdAt', sortDirection: 'asc' },
+        } as never)
+        if (error || !data) return new Response(JSON.stringify({ error: 'forbidden' }), { status: 403 })
+        return new Response(JSON.stringify({ users: data.users }), { status: 200 })
       }
       return new Response('not found', { status: 404 })
     }),
@@ -127,6 +138,22 @@ describe('UsersScreen', () => {
     expect(screen.getByText('editor@setu.dev')).toBeInTheDocument()
     expect(screen.getAllByText('Disabled').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Active').length).toBeGreaterThan(0)
+  })
+
+  // #2 (UAT 2026-07-05): a maintainer holds `users.view` (so the roster loads) but NOT full user
+  // management — that's rank-scoped and lands in #364. So a maintainer sees a read-only roster: no
+  // "Add user", no per-row role Select or actions menu.
+  it('a maintainer sees a read-only roster (list loads; no add/manage controls)', async () => {
+    mockListUsers.mockResolvedValue({ data: { users: [OWNER, EDITOR], total: 2 }, error: null } as never)
+    mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)
+
+    renderAsActor('maintainer', 'maint-1')
+    await screen.findByText('Ada Owner')
+
+    expect(screen.getByText('Eve Editor')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /add user/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: /change role/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /more actions/i })).not.toBeInTheDocument()
   })
 
   it('shows a loading skeleton before users resolve', () => {
@@ -203,19 +230,11 @@ describe('UsersScreen', () => {
     expect(ownRoleSelect).toBeDisabled()
   })
 
-  it('disables role-change and disable actions for the last admin', async () => {
-    mockListUsers.mockResolvedValue({ data: { users: [OWNER, EDITOR], total: 2 }, error: null } as never)
-    mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)
-
-    // Render as the editor so the admin row is "someone else's row" — but the last-admin guard
-    // should still apply regardless of who's looking, since demoting/disabling the sole admin
-    // would lock everyone out.
-    renderAsActor('editor', 'editor-1')
-    await screen.findByText('Ada Owner')
-
-    const ownerRoleSelect = screen.getByRole('combobox', { name: /change role for ada owner/i })
-    expect(ownerRoleSelect).toBeDisabled()
-  })
+  // (Removed 2026-07-05) The old "last admin guarded regardless of viewer" test rendered the screen
+  // as an editor — but management controls are now admin-only (#2), so a non-admin viewer has no
+  // controls to guard, and the scenario is unreachable in a valid state anyway (a sole admin can only
+  // be viewed by a non-admin). The sole admin's own-row self-guards (below) plus the server-side
+  // last-owner-guard (packages/auth last-owner-guard.test.ts) are the real coverage.
 
   it('disable user: confirms via alert-dialog, then calls banUser and refreshes', async () => {
     mockListUsers

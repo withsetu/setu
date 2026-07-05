@@ -23,12 +23,13 @@ function stubCapabilities(auth: {
   providers: ('github' | 'google')[]
   captcha: { provider: 'turnstile' | 'recaptcha'; siteKey: string } | null
   needsSetup: boolean
-}) {
+}, mode?: string) {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     if (String(url).includes('/api/capabilities')) {
       return new Response(JSON.stringify({
         capabilities: { imageProcessing: false, writableMediaStore: true, backgroundJobs: true },
         auth,
+        ...(mode ? { mode } : {}),
       }), { status: 200 })
     }
     return new Response('{}', { status: 200 })
@@ -162,5 +163,53 @@ describe('SessionGate', () => {
     render(<SessionGate><div>App</div></SessionGate>)
 
     expect(await screen.findByRole('button', { name: /sign in/i })).toBeInTheDocument()
+  })
+
+  // UAT 2026-07-05: in local mode /api/auth/setup is never mounted (no setup token), so the SetupScreen
+  // can only 404 on submit. A signed-out local admin must land on the LoginScreen even if needsSetup is
+  // (stale) true.
+  it('local mode never routes to SetupScreen — shows LoginScreen even when needsSetup is true', async () => {
+    stubCapabilities({ enabled: true, providers: [], captcha: null, needsSetup: true }, 'local')
+    mockUseSession.mockReturnValue({ data: null, isPending: false, isRefetching: false, error: null, refetch: vi.fn() } as never)
+
+    render(<SessionGate><div>App</div></SessionGate>)
+
+    expect(await screen.findByRole('button', { name: /sign in/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /create admin account/i })).not.toBeInTheDocument()
+  })
+
+  // UAT 2026-07-05: the instance booted at 0 users → capabilities cached needsSetup:true. After the
+  // admin creates users and signs out (no page reload), the gate must RE-FETCH capabilities, not reuse
+  // the stale flag — otherwise it strands the admin on the SetupScreen instead of the LoginScreen.
+  it('re-fetches capabilities on sign-out so a stale needsSetup:true does not strand the admin on SetupScreen', async () => {
+    let calls = 0
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (String(url).includes('/api/capabilities')) {
+        calls++
+        // Boot-time fetch reports needsSetup:true (0 users); the post-signout refetch reports false.
+        const needsSetup = calls === 1
+        return new Response(JSON.stringify({
+          capabilities: { imageProcessing: false, writableMediaStore: true, backgroundJobs: true },
+          auth: { enabled: true, providers: [], captcha: null, needsSetup },
+          mode: 'self-hosted',
+        }), { status: 200 })
+      }
+      return new Response('{}', { status: 200 })
+    }))
+
+    // Signed in first, so the gate observes a live session…
+    mockUseSession.mockReturnValue({
+      data: { user: { id: 'u1', role: 'admin' } }, isPending: false, isRefetching: false, error: null, refetch: vi.fn(),
+    } as never)
+    const { rerender } = render(<SessionGate><div>App</div></SessionGate>)
+    await screen.findByText('App')
+
+    // …then sign out. The gate must refetch and land on LoginScreen, not SetupScreen.
+    mockUseSession.mockReturnValue({ data: null, isPending: false, isRefetching: false, error: null, refetch: vi.fn() } as never)
+    rerender(<SessionGate><div>App</div></SessionGate>)
+
+    expect(await screen.findByRole('button', { name: /sign in/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /create admin account/i })).not.toBeInTheDocument()
+    expect(calls).toBeGreaterThanOrEqual(2)
   })
 })

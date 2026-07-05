@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { parseFrontmatterDate } from '../../src/permalinks/frontmatter-date'
+import {
+  parseFrontmatterDate,
+  formatFrontmatterDate
+} from '../../src/permalinks/frontmatter-date'
 
 describe('parseFrontmatterDate', () => {
   it('accepts a YAML-parsed Date instance', () => {
@@ -42,5 +45,40 @@ describe('parseFrontmatterDate', () => {
 
   it('returns null for an unparseable value', () => {
     expect(parseFrontmatterDate({ date: 'not-a-date' })).toBeNull()
+  })
+})
+
+describe('formatFrontmatterDate', () => {
+  it('formats a Date as YYYY-MM-DD (month is 0-indexed: 6 = July)', () => {
+    expect(formatFrontmatterDate(new Date(2026, 6, 4, 12, 0))).toBe(
+      '2026-07-04'
+    )
+  })
+
+  it('zero-pads single-digit month and day', () => {
+    expect(formatFrontmatterDate(new Date(2026, 0, 9, 0, 0))).toBe('2026-01-09')
+  })
+
+  it("uses the Date's LOCAL calendar parts, not its UTC parts", () => {
+    // The author picks/stamps a wall-clock day; storing the UTC day instead
+    // would shift the URL by one for an evening edit west of UTC. Asserting
+    // against the Date's own local getters pins the contract regardless of the
+    // runner's timezone.
+    const d = new Date(2026, 6, 4, 23, 30)
+    const [y, m, day] = formatFrontmatterDate(d).split('-').map(Number)
+    expect(y).toBe(d.getFullYear())
+    expect(m).toBe(d.getMonth() + 1)
+    expect(day).toBe(d.getDate())
+  })
+
+  it('round-trips through the UTC-reading resolver to the same calendar day', () => {
+    // format (local) → bare date string → parse (UTC midnight) → the resolver's
+    // getUTCDate must land on the day the author picked.
+    const ms = parseFrontmatterDate({
+      date: formatFrontmatterDate(new Date(2026, 6, 4, 23, 30))
+    })!
+    expect(new Date(ms).getUTCFullYear()).toBe(2026)
+    expect(new Date(ms).getUTCMonth()).toBe(6)
+    expect(new Date(ms).getUTCDate()).toBe(4)
   })
 })

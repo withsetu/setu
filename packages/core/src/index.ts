@@ -48,7 +48,10 @@ export {
   type PermalinksSettings,
   type ResolvedPermalinkConfig
 } from './permalinks/config'
-export { parseFrontmatterDate } from './permalinks/frontmatter-date'
+export {
+  parseFrontmatterDate,
+  formatFrontmatterDate
+} from './permalinks/frontmatter-date'
 export { DEFAULT_SETTINGS } from './settings/defaults'
 export { parseSettings } from './settings/schema'
 

@@ -41,7 +41,7 @@ import { useAutosave } from './useAutosave'
 import type { SaveStatus } from './useAutosave'
 import { SaveIndicator } from './SaveIndicator'
 import { onRequestShortcuts } from './editor-events'
-import { NEW_SLUG, mintSlug } from './new-entry'
+import { NEW_SLUG, mintSlug, composeInitialMetadata } from './new-entry'
 import { useNotify } from '../ui/notify'
 import { useRegisterCommands } from '../command/registry'
 import { attrString } from './attr-string'
@@ -108,13 +108,15 @@ export function EditorScreen() {
     setPhase('loading')
     void (async () => {
       if (composing) {
-        // Blank, editable, nothing persisted / no lock until the first save mints a slug.
+        // Blank body, editable, nothing persisted / no lock until the first save mints a
+        // slug — but auto-stamp today's date so date-pattern permalinks resolve by default.
+        const initialMeta = composeInitialMetadata()
         docRef.current = BLANK
-        metaRef.current = {}
+        metaRef.current = initialMeta
         baseShaRef.current = null
         if (!live) return
         setInitialDoc(BLANK)
-        setMetadata({})
+        setMetadata(initialMeta)
         setRev(0)
         setStatus('idle')
         setLifecycle({ state: 'draft' })

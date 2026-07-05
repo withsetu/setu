@@ -1,7 +1,18 @@
 import { CategoryField } from './CategoryField'
 import { TagField } from './TagField'
 import { FeaturedImageField } from './FeaturedImageField'
+import { DateField } from './DateField'
 import { SeoSection } from './SeoSection'
+
+/** The frontmatter value that feeds the permalink date tokens: `date` ?? `pubDate`. */
+function dateValue(metadata: Record<string, unknown>): string | undefined {
+  const raw = metadata['date'] ?? metadata['pubDate']
+  return typeof raw === 'string'
+    ? raw
+    : raw instanceof Date
+      ? raw.toISOString()
+      : undefined
+}
 
 function Section({
   title,
@@ -46,6 +57,18 @@ export function MetaPanel({
           <span className="text-muted-foreground">Locale</span>
           <span className="font-mono text-muted-foreground">{locale}</span>
         </div>
+      </Section>
+      <Section title="Published">
+        <DateField
+          value={dateValue(metadata)}
+          onChange={(next) => {
+            const m = { ...metadata }
+            if (next) m['date'] = next
+            else delete m['date']
+            onChange(m)
+          }}
+          editable={editable}
+        />
       </Section>
       <Section title="Featured image">
         <FeaturedImageField

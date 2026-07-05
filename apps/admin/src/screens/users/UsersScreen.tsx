@@ -637,7 +637,7 @@ function OwnerPasswordCard({ onChanged }: { onChanged: () => void }) {
           return
         }
       }
-      notify.success('Remote access enabled')
+      notify.success(hasPassword ? 'Password changed' : 'Remote access enabled')
       setCurrentPassword('')
       setNewPassword('')
       setConfirm('')
@@ -655,11 +655,11 @@ function OwnerPasswordCard({ onChanged }: { onChanged: () => void }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Remote access</CardTitle>
+        <CardTitle className="text-base">{hasPassword ? 'Change password' : 'Remote access'}</CardTitle>
         <CardDescription>
           {hasPassword === false
             ? 'Signing in from this machine needs no password. Signing in remotely — over a tunnel or a hosted server — requires one.'
-            : 'Set a password to sign in remotely, or change your existing one.'}
+            : 'Update the password you use to sign in.'}
         </CardDescription>
       </CardHeader>
       <CardContent>

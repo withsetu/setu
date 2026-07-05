@@ -7,6 +7,7 @@ import { ReadingSettings } from './ReadingSettings'
 import { MediaSettings } from './MediaSettings'
 import { IdentitySettings } from './IdentitySettings'
 import { apiFetch } from '../../lib/api-fetch'
+import { useCan } from '../../auth/actor'
 
 const apiBase = import.meta.env.VITE_SETU_API as string | undefined
 
@@ -57,6 +58,12 @@ export function Settings() {
   // #248: Users & Roles moved out of Settings to a top-level screen (/users, gated on
   // `users.view`) — see AppSidebar/app.tsx/UsersScreen. Settings no longer has a users group.
   const groups = BASE_GROUPS
+  // Settings is visible to `settings.view` (maintainer+) but only editable by `settings.manage`
+  // (admin). The server already enforces this on the write path (the settings-aware git gate in
+  // apps/api/src/app.ts) — so a maintainer save would 403. Rather than let them edit and hit that
+  // error, present the whole surface read-only via a disabled <fieldset> (which natively disables
+  // every nested control, including the Save buttons in each group).
+  const canManage = useCan()('settings.manage')
 
   return (
     <>
@@ -81,17 +88,24 @@ export function Settings() {
             ))}
           </nav>
           <div className="min-w-0 flex-1">
-            {active === 'general' ? (
-              <GeneralSettings />
-            ) : active === 'reading' ? (
-              <ReadingSettings />
-            ) : active === 'media' ? (
-              <MediaSettings />
-            ) : active === 'identity' ? (
-              <IdentitySettings />
-            ) : (
-              <FormsGroup />
+            {!canManage && (
+              <div className="mb-4 rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                You have view-only access to settings. Only an admin can change them.
+              </div>
             )}
+            <fieldset disabled={!canManage} className="m-0 min-w-0 border-0 p-0">
+              {active === 'general' ? (
+                <GeneralSettings />
+              ) : active === 'reading' ? (
+                <ReadingSettings />
+              ) : active === 'media' ? (
+                <MediaSettings />
+              ) : active === 'identity' ? (
+                <IdentitySettings />
+              ) : (
+                <FormsGroup />
+              )}
+            </fieldset>
           </div>
         </div>
       </PageBody>

@@ -218,6 +218,51 @@ The cardinal rule. A CMS that loses your writing is worthless, so several mechan
 
 ---
 
+## Block theming: token contract now, supports sequenced, no GUI
+
+**The problem.** With only 7 blocks shipped, block CSS had already invented ~22 different
+ad-hoc CSS custom-property names (`--accent`, `--r-md`, `--on-accent`, one-off names like
+`--blk-hero-scrim`…), each with its own hand-picked `var(--x, fallback)` default. The default
+theme defined a *different* vocabulary again (`--blue-background`, `--large-padding`…). Blocks
+and the theme weren't speaking the same language — blocks only looked right because their
+fallbacks happened to be plausible. The vocabulary was implicitly synced across three places
+(block CSS, the theme, whatever the next block author guessed) with nothing enforcing agreement,
+and it was already drifting. Left alone, that becomes unmanageable across the ~23 default blocks
+queued for the block-library epic, and a theme author gets no single surface to re-skin against.
+
+**The decision.** Setu's editor-quality bet leans on blocks being *structured and
+introspectable*, the same way Gutenberg's design system separates a token vocabulary, a
+`supports` mechanism that auto-generates controls/CSS from declared axes, and a Global-Styles GUI
+on top. We build only the **load-bearing** first layer now: a single, named, documented set of
+~19 style tokens (`@setu/blocks`' `BLOCK_TOKENS`, detailed in
+[docs/block-styling-contract.md](block-styling-contract.md)) that every standard block must read
+and every theme can override in one place. Alongside it, each block contract can declare *which*
+style axes it's themeable on (`BlockEditorMeta.style.themeable`) — carried as data, not enforced
+— so the declaration exists before anything consumes it.
+
+We deliberately **defer** the second layer: an auto-CSS generator that would turn a declared
+"themeable on `accent`" into generated CSS the way Gutenberg's `supports` does. Its only real
+payoff is an MCP agent that can introspect and act on that data, and there's no MCP consumer yet
+([#301](https://github.com/withsetu/setu/issues/301)) — building the generator first would be
+building for a consumer that doesn't exist.
+
+We **decline** the third layer outright: a `theme.json`-style config or a Global-Styles
+click-to-edit GUI. Setu theme authors are developers — or AI agents — who edit theme CSS
+directly; a GUI to configure tokens is the wrong interface for that audience, not a missing
+feature we haven't gotten to.
+
+**The consequence.** Block CSS written today is forward-compatible with a future generator: a
+hand-written `background: var(--accent)` is byte-for-byte what a `supports`-style generator would
+emit, so adding that generator later is just a new *producer* of output blocks already consume —
+no block has to change when it lands. There is exactly one source of token defaults
+(`@setu/blocks/tokens.css`), imported by every theme and enforced by a CI test
+(`packages/blocks/test/token-contract.test.ts`) that fails the build on an undeclared token read
+or a hardcoded brand color. Full vocabulary, authoring rules, and the three theme-override hatches
+are in [docs/block-styling-contract.md](block-styling-contract.md); the design rationale behind
+sequencing is in [issue #369](https://github.com/withsetu/setu/issues/369).
+
+---
+
 ## Where to go next
 
 - The full product spec: [../plan/prd.md](../plan/prd.md)

@@ -7,7 +7,7 @@ import { loadThemeOptions } from '../lib/site-config'
 import { loadSiteSettings } from '../lib/site-settings'
 import { feedLocales } from '../lib/feed'
 import { pageSeo } from '../lib/seo'
-import { parsePageSeoOverride } from '@setu/core'
+import { parsePageSeoOverride, localeAlternates } from '@setu/core'
 import { resolvePostDate, parseDate } from '../lib/post-date'
 import relations from '../../.setu/cache/relations.json'
 import Image from '@setu/image-astro/Image.astro'
@@ -56,9 +56,19 @@ const postCategories = isPost
   ? strArr((entry.data as { categories?: unknown }).categories).map((slug) => ({ slug, name: catNames.get(slug) ?? slug }))
   : []
 const postTags = isPost ? strArr((entry.data as { tags?: unknown }).tags) : []
+const allEntries = await getCollection('entries')
 const localesForFeed = feedLocales(
-  (await getCollection('entries')).map((e) => ({ id: e.id, data: e.data as Record<string, unknown> })),
+  allEntries.map((e) => ({ id: e.id, data: e.data as Record<string, unknown> })),
 )
+// hreflang alternates (#227): locale variants sharing this entry's collection+slug. Only
+// published, routable variants are advertised; fewer than 2 → pageSeo emits no hreflang.
+const permalinks = await permalinkMap()
+const alternates = localeAlternates(entry.id, allEntries.map((e) => e.id))
+  .filter((a) => {
+    const e = allEntries.find((x) => x.id === a.id)
+    return !!e && (e.data as { published?: unknown }).published !== false && permalinks.has(a.id)
+  })
+  .map((a) => ({ locale: a.locale, path: `/${permalinks.get(a.id)!}` }))
 // Meta description from frontmatter; absent → the site description (resolveSeo fallback). A
 // body-derived excerpt fallback can enrich this once @setu/core's `excerpt` lands on main (#174).
 const d = entry.data as { description?: unknown; summary?: unknown }
@@ -87,6 +97,7 @@ const seo = pageSeo(Astro.site, Astro.url.pathname, mediaBase, siteSettings, {
   canonical: ov.canonical,
   datePublished: published?.toISOString(),
   dateModified: modified?.toISOString(),
+  alternates,
 })
 ---
 

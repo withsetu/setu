@@ -46,6 +46,9 @@ const feedLinks = siteSettings?.reading.feed.enabled
         <link rel="canonical" href={seo.canonical} />
         {seo.prev && <link rel="prev" href={seo.prev} />}
         {seo.next && <link rel="next" href={seo.next} />}
+        {seo.alternates?.map((a) => (
+          <link rel="alternate" hreflang={a.hreflang} href={a.href} />
+        ))}
         {seo.meta.map((m) => (
           <meta name={m.name} property={m.property} content={m.content} />
         ))}

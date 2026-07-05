@@ -137,5 +137,12 @@ describe('SITE_CAPABILITIES matches real output', () => {
     expect(SITE_CAPABILITIES.robotsTxt).toBe(distHas('robots.txt'))
     expect(SITE_CAPABILITIES.customError).toBe(distHas('404.html'))
     expect(SITE_CAPABILITIES.llmsTxt).toBe(distHas('llms.txt'))
+    // Translated entries (post/en/kitchen-sink ↔ post/fr/kitchen-sink) emit hreflang alternates.
+    expect(SITE_CAPABILITIES.hreflang).toBe(
+      distReadHas(
+        'post/kitchen-sink/index.html',
+        /rel="alternate"\s+hreflang="fr"/
+      )
+    )
   })
 })

@@ -53,8 +53,10 @@ describe('health rubric', () => {
     // SEO modules F/G (#225/#226) emit sitemap.xml + robots.txt:
     expect(SITE_CAPABILITIES.sitemap).toBe(true)
     expect(SITE_CAPABILITIES.robotsTxt).toBe(true)
+    // SEO module H (#227) emits per-entry hreflang alternates for translated entries:
+    expect(SITE_CAPABILITIES.hreflang).toBe(true)
     // still not built:
-    expect(SITE_CAPABILITIES.hreflang).toBe(false)
+    expect(SITE_CAPABILITIES.llmsTxt).toBe(false)
   })
   it('marks the whole sitemap family pass under the emitted capabilities (#318/#367)', () => {
     const byId = new Map(runAudit(auditCtx()).results.map((r) => [r.id, r]))

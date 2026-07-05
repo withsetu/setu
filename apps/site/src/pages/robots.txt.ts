@@ -10,5 +10,7 @@ export function GET(context: APIContext) {
   const settings = loadSiteSettings()
   const siteUrl = context.site?.href ?? SITE_FALLBACK
   const body = buildRobotsTxt(settings.reading.searchEngineVisible, siteUrl)
-  return new Response(body, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
+  return new Response(body, {
+    headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+  })
 }

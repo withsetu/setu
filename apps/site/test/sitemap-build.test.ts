@@ -5,7 +5,10 @@ import { fileURLToPath } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
 
 const appDir = fileURLToPath(new URL('..', import.meta.url))
-const read = (f: string) => (existsSync(join(appDir, 'dist', f)) ? readFileSync(join(appDir, 'dist', f), 'utf8') : '')
+const read = (f: string) =>
+  existsSync(join(appDir, 'dist', f))
+    ? readFileSync(join(appDir, 'dist', f), 'utf8')
+    : ''
 
 let index = ''
 let postmap = ''
@@ -16,7 +19,7 @@ beforeAll(() => {
   execSync('pnpm build', {
     cwd: appDir,
     stdio: 'inherit',
-    env: { ...process.env, SETU_SITE_URL: 'https://example.com' },
+    env: { ...process.env, SETU_SITE_URL: 'https://example.com' }
   })
   index = read('sitemap.xml')
   postmap = read('post-sitemap.xml')
@@ -28,7 +31,9 @@ beforeAll(() => {
 describe('sitemap index (#225)', () => {
   it('/sitemap.xml is a styled sitemap index referencing the sub-sitemaps', () => {
     expect(index).toContain('<sitemapindex')
-    expect(index).toContain('<?xml-stylesheet type="text/xsl" href="/sitemap.xsl"?>')
+    expect(index).toContain(
+      '<?xml-stylesheet type="text/xsl" href="/sitemap.xsl"?>'
+    )
     expect(index).toContain('<loc>https://example.com/post-sitemap.xml</loc>')
     expect(index).toContain('<loc>https://example.com/page-sitemap.xml</loc>')
   })
@@ -42,13 +47,19 @@ describe('sitemap index (#225)', () => {
 describe('sub-sitemaps', () => {
   it('post-sitemap.xml lists published posts and excludes published:false', () => {
     expect(postmap).toContain('<urlset')
-    expect(postmap).toMatch(/<loc>https:\/\/example\.com\/post\/astro-on-the-edge\/<\/loc>/)
+    expect(postmap).toMatch(
+      /<loc>https:\/\/example\.com\/post\/astro-on-the-edge\/<\/loc>/
+    )
     expect(postmap).not.toContain('/post/unpublished-demo/')
   })
   it('emits <image:image> entries for posts with a featured image (#321)', () => {
     // featured-demo.mdoc has featuredImage: /media/2026/06/test-cat.jpg
-    expect(postmap).toContain('xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"')
-    expect(postmap).toMatch(/<image:loc>[^<]*\/media\/2026\/06\/test-cat\.jpg<\/image:loc>/)
+    expect(postmap).toContain(
+      'xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"'
+    )
+    expect(postmap).toMatch(
+      /<image:loc>[^<]*\/media\/2026\/06\/test-cat\.jpg<\/image:loc>/
+    )
   })
   it('page-sitemap.xml has the homepage and excludes a seo.noindex page', () => {
     expect(pagemap).toContain('<loc>https://example.com/</loc>')

@@ -12,7 +12,7 @@ export async function loadSitemapEntries(): Promise<SitemapEntry[]> {
       id: e.id,
       data,
       lastmod: resolvePostDate({ data, filePath: e.filePath }).toISOString(),
-      body: e.body,
+      body: e.body
     }
   })
 }

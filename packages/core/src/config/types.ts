@@ -16,6 +16,17 @@ export type BlockControl =
   | 'category'
   | 'tag'
 
+/** Style axes a block may be re-themed on (color/surface/etc). Carried as data for MCP
+ *  introspection + future auto-CSS; NOT enforced at runtime. Mirrors @setu/blocks'
+ *  BlockStyleAxis, redeclared here to keep @setu/core free of a @setu/blocks dependency. */
+export type BlockStyleAxis =
+  | 'accent'
+  | 'surface'
+  | 'text'
+  | 'tone'
+  | 'radius'
+  | 'typography'
+
 /** Editor-facing metadata for a block (consumed by the slash menu). */
 export interface BlockEditorMeta {
   label?: string
@@ -40,6 +51,9 @@ export interface BlockEditorMeta {
   /** Optional ordered sections for the inspector rail. Controls not listed in any
    *  group fall into an implicit leading "Content" section in declaration order. */
   groups?: Array<{ id: string; label: string; controls: string[] }>
+  /** Which style axes this block is themeable on — introspectable metadata for the MCP /
+   *  future auto-CSS layer. Carried, not enforced. */
+  style?: { themeable?: BlockStyleAxis[] }
 }
 
 /** A content block as authored in setu.config.ts. */

@@ -39,6 +39,7 @@ export const heroBlock: StandardBlock = {
       icon: 'hero',
       group: 'marketing',
       keywords: ['hero', 'banner', 'cta', 'header'],
+      style: { themeable: ['accent', 'surface', 'text', 'typography'] },
       controls: {
         headline: 'text',
         subhead: 'textarea',

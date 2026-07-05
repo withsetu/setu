@@ -14,7 +14,8 @@ export const buttonBlock: StandardBlock = {
       label: 'Button',
       icon: 'link',
       group: 'layout',
-      keywords: ['btn', 'cta', 'link']
+      keywords: ['btn', 'cta', 'link'],
+      style: { themeable: ['accent', 'radius'] }
     }
   })
 }

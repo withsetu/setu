@@ -166,7 +166,10 @@ so it can't silently drift as more blocks land:
   shared vocabulary.
 - **No block CSS may hardcode a color literal** other than the allowed neutrals
   (`#fff`/`#ffffff`/`#000`/`#000000`). Any other hex value fails the test, forcing the author to
-  route it through a token.
+  route it through a token. This literal-color check is scoped to hex values in
+  `packages/blocks/src` block CSS only — it doesn't scan `rgb()`/`hsl()` literals, and it
+  deliberately doesn't touch site-local `blocks/<tag>/` folders, which are user content, not the
+  shared contract.
 
 ---
 

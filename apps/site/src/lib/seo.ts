@@ -5,6 +5,7 @@ import {
   type SiteSettings,
   type ResolvedSeo
 } from '@setu/core'
+import { manifestKeyFromSrc, loadManifest } from '@setu/image-astro'
 
 export interface PageSeoInput {
   /** Page title (post/page title); empty → homepage (site name only). */
@@ -65,12 +66,15 @@ export function pageSeo(
   // A per-page canonical override (absolute or root-relative) wins; else derive from the path.
   const canonical = new URL(page.canonical || pathname, base).href
 
-  const image = absMedia(
-    page.imagePath || settings.identity.defaultImage || '',
-    mediaBase,
-    base
-  )
+  const rawImage = page.imagePath || settings.identity.defaultImage || ''
+  const image = absMedia(rawImage, mediaBase, base)
   const logo = absMedia(settings.identity.logo || '', mediaBase, base)
+
+  // Intrinsic dimensions + type for og:image:* come from the media manifest (build-time fs read);
+  // external/non-media images have no manifest, so the bare og:image is emitted. Alt mirrors the
+  // theme's featured-image convention (alt = page title). See #215.
+  const key = manifestKeyFromSrc(rawImage)
+  const manifest = key ? loadManifest(key) : null
 
   const seo = resolveSeo(settings, {
     title: page.title,
@@ -78,6 +82,10 @@ export function pageSeo(
     type: page.type,
     locale: page.locale,
     image,
+    imageWidth: manifest?.original.width,
+    imageHeight: manifest?.original.height,
+    imageType: manifest ? `image/${manifest.original.format}` : undefined,
+    imageAlt: image && page.title ? page.title : undefined,
     canonical,
     noindex: page.noindex
   })

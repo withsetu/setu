@@ -1,6 +1,10 @@
 /* Setu default theme — token layer. Every taste choice is a knob with a default;
    change a token and the site restyles. Block tokens (names + values) are shared with
-   the editor (apps/admin tokens.css) so @setu/blocks render themed + matching. */
+   the editor (apps/admin tokens.css) so @setu/blocks render themed + matching. The
+   themeless-safe defaults for all block-contract tokens come from the base layer
+   imported below; this file only keeps genuine overrides. */
+@import '@setu/blocks/tokens.css';
+
 :root {
   /* ---- Identity knobs (defaults — the customization surface) ---- */
   --font-heading:
@@ -20,27 +24,7 @@
   --measure-page: 64rem;
   --radius-base: 10px;
 
-  /* ---- Accent ---- */
-  --accent: #4f46e5;
-  --accent-strong: color-mix(in oklch, var(--accent) 82%, black);
-  --accent-soft: color-mix(in oklch, var(--accent) 12%, transparent);
-  --on-accent: #ffffff;
-
-  /* ---- Block tokens (shared names+values with the editor so blocks match) ---- */
-  --bg: #f7f7f8;
-  --surface-2: #fbfbfc;
-  --canvas: #ffffff;
-  --border: #e8e8ec;
-  --text: #1a1a1f;
-  --text-2: #54545d;
-  --green: #15935a;
-  --green-soft: color-mix(in oklch, #15935a 12%, transparent);
-  --amber: #b7791f;
-  --amber-soft: color-mix(in oklch, #b7791f 14%, transparent);
-  --red: #d1453b;
-  --red-soft: color-mix(in oklch, #d1453b 11%, transparent);
-
-  /* ---- Radius (consumed by blocks) ---- */
+  /* ---- Radius (consumed by blocks; base default doesn't derive from --radius-base) ---- */
   --r-md: var(--radius-base);
   --r-sm: calc(var(--radius-base) * 0.6);
 

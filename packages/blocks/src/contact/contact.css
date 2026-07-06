@@ -15,7 +15,7 @@
 .setu-contact input,
 .setu-contact textarea {
   padding: 0.6rem 0.7rem;
-  border: 1px solid var(--border, #d4d4d8);
+  border: 1px solid var(--border);
   border-radius: 0.5rem;
   font: inherit;
 }
@@ -24,7 +24,7 @@
   padding: 0.6rem 1.1rem;
   border: 0;
   border-radius: 0.5rem;
-  background: var(--accent, #18181b);
+  background: var(--accent);
   color: #fff;
   font: inherit;
   cursor: pointer;
@@ -34,14 +34,14 @@
   cursor: default;
 }
 .setu-contact__error {
-  color: #b91c1c;
+  color: var(--red);
   font-size: 0.85rem;
 }
 .setu-contact__success {
   padding: 1rem;
-  border: 1px solid #16a34a;
+  border: 1px solid var(--green);
   border-radius: 0.5rem;
-  color: #166534;
+  color: color-mix(in oklch, var(--green) 70%, black);
 }
 .setu-contact__hp {
   position: absolute;

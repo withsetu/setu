@@ -4,6 +4,12 @@
    One confident accent (indigo) over a cool-neutral base.
    ============================================================ */
 
+/* Block-contract token defaults (the themeless-safe base every @setu/blocks token
+   falls back to) come from the shared base layer. This file keeps only the admin's
+   own chrome tokens plus the contract-token values that genuinely differ from the
+   base default (e.g. tokens that alias to shadcn vars, or that change in dark mode). */
+@import '@setu/blocks/tokens.css';
+
 /* Fonts are self-hosted via @fontsource (side-effect imports in src/main.tsx) — a
    CSS @import here does not survive the Tailwind v4 build (it lands after @layer
    rules and is dropped), so the faces are imported from the JS entry instead. */
@@ -102,10 +108,8 @@
   --bg: var(--background);
   --bg-sunken: #f1f1f3;
   --surface: var(--card);
-  --surface-2: #fbfbfc;
   --surface-hover: var(--accent);
   --surface-active: #eeeef1;
-  --canvas: #ffffff;
   --border-strong: #dcdce2;
   --border-faint: #f0f0f3;
   --text: var(--foreground);

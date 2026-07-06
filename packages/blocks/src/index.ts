@@ -29,3 +29,6 @@ export const blockCores: Record<string, BlockCore> = {
   notice: Notice,
   hero: Hero
 }
+
+export { BLOCK_TOKENS, TOKENS_BY_AXIS } from './tokens'
+export type { BlockStyleAxis, BlockToken } from './tokens'

@@ -2,6 +2,7 @@ import {
   resolveSeo,
   resolveJsonLd,
   jsonLdScript,
+  DEFAULT_LOCALE,
   type SiteSettings,
   type ResolvedSeo
 } from '@setu/core'
@@ -31,6 +32,26 @@ export interface PageSeoInput {
   prevPath?: string
   /** Next paginated page path (Astro `page.url.next`) → <link rel="next">. */
   nextPath?: string
+  /** Locale variants of this same entry (same collection+slug) → <link rel="alternate" hreflang>.
+   *  Each `path` is a root-relative permalink (absolutized here). Fewer than 2 → no hreflang. */
+  alternates?: { locale: string; path: string }[]
+}
+
+/** Build absolute hreflang alternate links from an entry's locale variants, appending an
+ *  `x-default` pointing at the default-locale variant (or the first, if the default is absent).
+ *  Fewer than 2 variants → undefined (a lone hreflang is meaningless). */
+const buildAlternates = (
+  variants: { locale: string; path: string }[] | undefined,
+  base: URL
+): { hreflang: string; href: string }[] | undefined => {
+  if (!variants || variants.length < 2) return undefined
+  const links = variants.map((v) => ({
+    hreflang: v.locale,
+    href: new URL(v.path, base).href
+  }))
+  const def = variants.find((v) => v.locale === DEFAULT_LOCALE) ?? variants[0]
+  links.push({ hreflang: 'x-default', href: new URL(def.path, base).href })
+  return links
 }
 
 /** Media-resolve a raw path (prepend the media base for root-relative `/media/…`) then absolutize
@@ -108,6 +129,7 @@ export function pageSeo(
   // rel=prev / rel=next for paginated archives (#74) — absolutized against the site origin.
   const prev = page.prevPath ? new URL(page.prevPath, base).href : undefined
   const next = page.nextPath ? new URL(page.nextPath, base).href : undefined
+  const alternates = buildAlternates(page.alternates, base)
 
-  return { ...seo, jsonLd: jsonLdScript(graph), prev, next }
+  return { ...seo, jsonLd: jsonLdScript(graph), prev, next, alternates }
 }

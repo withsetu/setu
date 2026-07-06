@@ -22,7 +22,7 @@ export const SITE_CAPABILITIES: SiteCapabilities = {
   jsonLd: true,
   llmsTxt: false,
   perPageMarkdown: false,
-  hreflang: false,
+  hreflang: true,
   customError: false,
   skipLink: false,
   focusStyles: false

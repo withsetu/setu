@@ -51,6 +51,9 @@ export interface ResolvedSeo {
   prev?: string
   /** Absolute URL of the next paginated page → <link rel="next"> (#74). App-populated. */
   next?: string
+  /** Per-locale alternate links → <link rel="alternate" hreflang> (#227). Includes an `x-default`.
+   *  Only present when the entry has translations (≥2 locale variants). App-populated. */
+  alternates?: { hreflang: string; href: string }[]
 }
 
 /** Replace {{title}} {{separator}} {{site}} tokens; collapse the whitespace a missing token leaves. */

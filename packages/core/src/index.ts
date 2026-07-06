@@ -197,6 +197,9 @@ export { extractMediaRefs } from './content-index/extract-media-refs'
 export { entryUrlPath, DEFAULT_LOCALE } from './url/entry-url'
 export { localeAlternates } from './url/locale-alternates'
 export type { LocaleAlternate } from './url/locale-alternates'
+export { diffRedirects } from './redirects/diff'
+export type { Redirect } from './redirects/diff'
+export { newCid, isCid } from './content-id/cid'
 
 export type {
   EntryIndexRow,

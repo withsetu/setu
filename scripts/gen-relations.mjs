@@ -120,6 +120,8 @@ function toRow(file, contentDir) {
     updatedAt,
     featuredImage,
     relatedOverride,
+    // Stable content id (#389): survives a slug rename, so the redirect map keys on it.
+    cid: typeof frontmatter.cid === 'string' ? frontmatter.cid : undefined,
     // Frontmatter date ?? pubDate ONLY — never updatedAt/mtime — matching
     // apps/site/src/lib/permalinks.ts's toPermalinkEntry exactly (an edit must not move a URL).
     permalinkDate: parseFrontmatterDate(frontmatter)
@@ -154,6 +156,24 @@ async function buildPermalinkMap(rows, contentDir) {
   paths.set('page/en/home', '')
   if (settings.reading.homepage) paths.set(settings.reading.homepage, '')
   return paths
+}
+
+/** The site-wide **cid -> URL-path** map, leading-slash-normalized (home → '/'), for redirect
+ *  diffing (#252). Keyed by the stable content id (#389), not the slug-derived Astro id, so a
+ *  slug rename keeps the key and the diff sees a path change (→ a 301) instead of a delete+add.
+ *  Entries without a cid (not yet backfilled) are skipped — untracked until stamped. Same scan +
+ *  resolver the routing and related graph use, so a URL here is byte-identical to what ships. */
+export async function buildUrlMap(contentDir) {
+  const rows = walk(contentDir).map((f) => toRow(f, contentDir))
+  const idMap = await buildPermalinkMap(rows, contentDir)
+  const out = {}
+  for (const row of rows) {
+    if (!row.cid) continue
+    const p = idMap.get(row.key)
+    if (p === undefined) continue
+    out[row.cid] = p === '' ? '/' : '/' + p
+  }
+  return out
 }
 
 /** Build the related-posts graph for a content dir: entry-id -> {title, href, featuredImage?}[]. */

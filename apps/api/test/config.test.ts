@@ -89,4 +89,18 @@ describe('resolveRateLimitOverrides (#248 Task 9)', () => {
       resolveRateLimitOverrides({ SETU_AUTH_RATELIMIT_WINDOW: '', SETU_AUTH_RATELIMIT_MAX: 'NaN' } as NodeJS.ProcessEnv),
     ).not.toThrow()
   })
+
+  it('disables the limiter ONLY for an explicit SETU_AUTH_RATELIMIT_ENABLED=false (e2e lane)', () => {
+    expect(resolveRateLimitOverrides({ SETU_AUTH_RATELIMIT_ENABLED: 'false' } as NodeJS.ProcessEnv)).toEqual({
+      enabled: false,
+    })
+  })
+
+  it('leaves the limiter ON (no enabled key) for any other value of the flag, including unset', () => {
+    // Fail-safe: only the literal string 'false' disables it — 'true'/'0'/'no'/unset all leave the
+    // limiter at createAuth's default-on, so a typo can never silently open the door in production.
+    expect(resolveRateLimitOverrides({} as NodeJS.ProcessEnv)).toEqual({})
+    expect(resolveRateLimitOverrides({ SETU_AUTH_RATELIMIT_ENABLED: 'true' } as NodeJS.ProcessEnv)).toEqual({})
+    expect(resolveRateLimitOverrides({ SETU_AUTH_RATELIMIT_ENABLED: '0' } as NodeJS.ProcessEnv)).toEqual({})
+  })
 })

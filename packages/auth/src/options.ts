@@ -27,6 +27,9 @@ export interface CreateAuthOptions {
     google?: { clientId: string; clientSecret: string }
   }
   rateLimit?: {
+    /** Master switch. Defaults to `true`; only an explicit `false` (e.g. the e2e topology, for a
+     *  deterministic auth lane) turns the limiter off. Never disable in a real deployment. */
+    enabled?: boolean
     window?: number
     max?: number
   }

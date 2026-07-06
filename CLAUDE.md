@@ -40,6 +40,15 @@ A feature is DONE only when EVERY item is true. Green tests are necessary, **nev
   shared safe-fetch helper; new dep → supply-chain check; user content rendered → XSS review.
   Security-relevant issues carry the **`security` label** and a "Security considerations" section.
   Reviews **block** on this checklist the same way they block on polish.
+- **Gate-parity + flow-proof (decided 2026-07-06).** When a change adds or alters an auth or authz
+  gate, you MUST (a) update the e2e harness to authenticate and (b) add an e2e proving the **right
+  actor is admitted and the wrong actor is blocked**. A new top-level user flow (login / publish /
+  upload) needs one browser e2e. For auth specifically, *"drove it in the running app"* means a real
+  cross-origin browser login — **not** the local auto-owner shortcut. Green unit tests are necessary,
+  never sufficient: every UAT bug on #371 (settings writable by maintainer, maintainer users-list,
+  logout→setup, author can't save) lived in a seam no unit test crossed. Reviews **block** a
+  security/authz PR that cannot point at the e2e which blocks the wrong actor — no such e2e → BLOCK.
+  (Harness + pattern: `e2e/specs/auth-*.spec.ts`, `e2e/auth.setup.ts`; gap history in #391.)
 - **Git:** `origin/main` is the hub. Work on a branch in a worktree; PR to `main`; never commit to
   `main` directly. Run `pnpm install` after dep-changing merges.
 

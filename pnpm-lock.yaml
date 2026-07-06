@@ -14,6 +14,12 @@ importers:
       '@playwright/test':
         specifier: ^1.61.1
         version: 1.61.1
+      '@setu/auth':
+        specifier: workspace:*
+        version: link:packages/auth
+      '@setu/db-sqlite':
+        specifier: workspace:*
+        version: link:packages/db-sqlite
       '@types/node':
         specifier: ^22.19.21
         version: 22.20.0

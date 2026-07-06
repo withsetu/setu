@@ -63,6 +63,11 @@ The whole-branch review must return a **polish + UAT verdict** in addition to sp
   missing or deferred?
 - **Table-stakes UX?** Any raw text inputs for known/enumerable values? Any place the user must type
   what they should pick? Any missing live preview?
+- **Gate-parity (auth/authz PRs only) — BLOCK if missing.** If the change adds or alters an auth or
+  authz gate, does it point at an e2e that **admits the right actor and blocks the wrong actor** (a
+  real cross-origin browser login, not the local auto-owner)? Green unit tests do not satisfy this —
+  every #371 UAT bug lived in a seam no unit test crossed. No such e2e → `Needs fixes`. (See
+  `e2e/specs/auth-*.spec.ts`; the CLAUDE.md "Gate-parity + flow-proof" rule; gap history #391.)
 
 A correct, well-tested, **skeleton** feature is `Needs fixes`, not `Approved`.
 

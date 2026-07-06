@@ -59,10 +59,13 @@ function parsePositiveIntEnv(name: string, raw: string | undefined): number | un
  *  fallback logic here would risk the two drifting. Never throws — see parsePositiveIntEnv. */
 export function resolveRateLimitOverrides(
   env: NodeJS.ProcessEnv = process.env,
-): { window?: number; max?: number } {
+): { enabled?: boolean; window?: number; max?: number } {
   const window = parsePositiveIntEnv('SETU_AUTH_RATELIMIT_WINDOW', env.SETU_AUTH_RATELIMIT_WINDOW)
   const max = parsePositiveIntEnv('SETU_AUTH_RATELIMIT_MAX', env.SETU_AUTH_RATELIMIT_MAX)
-  const out: { window?: number; max?: number } = {}
+  const out: { enabled?: boolean; window?: number; max?: number } = {}
+  // Default ON; only an explicit SETU_AUTH_RATELIMIT_ENABLED=false disables it (the e2e topology,
+  // for a deterministic auth lane). Any other value — including unset — leaves the limiter on.
+  if (env.SETU_AUTH_RATELIMIT_ENABLED === 'false') out.enabled = false
   if (window !== undefined) out.window = window
   if (max !== undefined) out.max = max
   return out

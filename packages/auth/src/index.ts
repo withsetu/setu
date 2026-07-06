@@ -127,7 +127,7 @@ export function createAuth(opts: CreateAuthOptions) {
       defaultCookieAttributes: { httpOnly: true, sameSite: 'lax' },
     },
     rateLimit: {
-      enabled: true,
+      enabled: opts.rateLimit?.enabled ?? true,
       storage: 'database',
       window: opts.rateLimit?.window ?? 60,
       max: opts.rateLimit?.max ?? 100,

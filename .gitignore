@@ -25,3 +25,4 @@ apps/site/markdoc.blocks.generated.mjs
 # Playwright E2E output (see e2e/)
 e2e/test-results/
 e2e/playwright-report/
+e2e/.auth/

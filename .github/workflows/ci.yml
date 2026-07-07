@@ -93,22 +93,24 @@ jobs:
             echo "Push build — running the full suite."
           fi
 
-      # pnpm audit (#218 security CI, warn-then-gate ramp): NON-BLOCKING for now — `|| true`
-      # so a new advisory can't red the build while we build a triage habit; the loud
-      # summary keeps it visible in the log either way. Gated on the same docs-only skip
-      # as the steps below (a docs PR doesn't touch the lockfile, so nothing new to audit)
-      # but NOT on the affected-scope filter — audit runs against the single root lockfile,
-      # not turbo's per-package graph, so there's no smaller "scope" to narrow it to.
-      # Ramp: once the current baseline (dev-only vitest/vite/esbuild chain, see #218) is
-      # triaged, flip this to fail on new advisories — file a follow-up issue when that
-      # work starts rather than gating silently in a comment.
-      - name: pnpm audit (non-blocking)
+      # pnpm audit (#218 security CI): now GATING at --audit-level=high. Flipped from the
+      # non-blocking warn phase in #403, once the baseline was triaged — vitest bumped 2→3
+      # (cleared the CVE-2026-47429 chain) and the dead prototype spike lockfiles removed. A
+      # new high/critical advisory now reds the build; moderate/low are printed above for
+      # visibility but do not gate. Consciously-accepted dev-only advisories are allowlisted
+      # in root package.json `pnpm.auditConfig.ignoreGhsas` — today only GHSA-67mh-4wv8-2f99
+      # (esbuild dev-server SSRF): a dev-only transitive via drizzle-kit with no fix path,
+      # and esbuild's dev server is never run or exposed here. Gated on the same docs-only
+      # skip as the steps below (a docs PR doesn't touch the lockfile); NOT affected-scope
+      # filtered — audit runs against the single root lockfile, not turbo's per-package graph.
+      - name: 'pnpm audit (gate: high)'
         run: |
           if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
-          echo "::group::pnpm audit"
+          echo "::group::pnpm audit (full — informational, all severities)"
           pnpm audit || true
           echo "::endgroup::"
-          echo "⚠️  pnpm audit is NON-BLOCKING for now (#218 warn-then-gate ramp) — see the group above for any findings."
+          echo "Gating on high+ severity (moderate/low above are informational):"
+          pnpm audit --audit-level=high
 
       # Lint + format gate (#267). Repo-wide (one root eslint.config.mjs), so unlike the
       # turbo step below it is NOT affected-filtered — and therefore needs the site's
@@ -120,6 +122,13 @@ jobs:
       # several apps/admin/test/ files, e.g. test/format-bubble.test.tsx) — flip to
       # zero-warnings when #338 lands.
       - name: Lint + format check
+        # Raise the V8 old-space above the ~2GB default: `eslint .` runs typescript-eslint's
+        # type-aware rules, which build a TS program per tsconfig. Since vitest 3's types pull
+        # lib.dom into every package's program (the leak tracked in #405), each program now
+        # also loads lib.dom.d.ts, and the repo-wide lint tipped past 2GB and OOM'd (SIGABRT).
+        # 4GB restores headroom; drop this once #405 stops the lib.dom leak.
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: |
           if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
           node scripts/gen-blocks.mjs && node scripts/gen-relations.mjs && pnpm --filter @setu/site exec astro sync

@@ -54,15 +54,15 @@ export default defineConfig({
     browser: {
       enabled: true,
       provider: 'playwright',
-      // vitest 2.1.x's browser config is single-instance (`name`, not the `instances[]`
-      // array vitest 3 introduced) — this repo is on vitest ^2.1.8; verified against the
-      // installed @vitest/browser@2.1.9 type definitions before writing this file.
-      name: 'chromium',
       headless: true,
-      // CI's Playwright browser cache (.github/workflows/ci.yml e2e job) already covers
-      // chromium; this project reuses that same cache key/binary rather than a second
+      // vitest 3 replaced the single-instance `name: 'chromium'` with an `instances[]`
+      // array (one Vite server serves all instances — better caching than the old
+      // workspace split). CI's Playwright browser cache (.github/workflows/ci.yml)
+      // already covers chromium; this reuses that same binary rather than a second
       // browser-install step.
-      viewport: { width: 1280, height: 800 }
+      instances: [
+        { browser: 'chromium', viewport: { width: 1280, height: 800 } }
+      ]
     }
   }
 })

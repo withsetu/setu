@@ -14,9 +14,13 @@ export function createHttpSubmissionAdapter(opts: {
 }): SubmissionPort {
   const base = opts.baseUrl.replace(/\/$/, '')
   const f = opts.fetchImpl ?? fetch
-  const json = async (res: Response) => {
+  // Returns `unknown` — every caller narrows the parsed body with an explicit `as` below.
+  // Annotated (not inferred) so the return type is stable whether `Response.json()` resolves
+  // to `Promise<unknown>` (undici) or `Promise<any>` (lib.dom, which vitest's types pull into
+  // this program via the test files); the cast keeps `no-unsafe-return` happy either way.
+  const json = async (res: Response): Promise<unknown> => {
     if (!res.ok) throw new Error(`forms api ${res.status}`)
-    return res.json()
+    return res.json() as Promise<unknown>
   }
 
   return {

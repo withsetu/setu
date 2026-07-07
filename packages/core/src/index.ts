@@ -198,6 +198,19 @@ export { entryUrlPath, DEFAULT_LOCALE } from './url/entry-url'
 export { localeAlternates } from './url/locale-alternates'
 export type { LocaleAlternate } from './url/locale-alternates'
 
+export {
+  matchProvider,
+  oembedEndpoint,
+  OEMBED_PROVIDERS
+} from './oembed/providers'
+export type { OembedProvider, OembedType } from './oembed/providers'
+export { resolveOembed } from './oembed/resolve'
+export type {
+  NormalizedOembed,
+  OembedResult,
+  OembedFailure
+} from './oembed/resolve'
+
 export type {
   EntryIndexRow,
   SortKey,

@@ -122,6 +122,13 @@ jobs:
       # several apps/admin/test/ files, e.g. test/format-bubble.test.tsx) — flip to
       # zero-warnings when #338 lands.
       - name: Lint + format check
+        # Raise the V8 old-space above the ~2GB default: `eslint .` runs typescript-eslint's
+        # type-aware rules, which build a TS program per tsconfig. Since vitest 3's types pull
+        # lib.dom into every package's program (the leak tracked in #405), each program now
+        # also loads lib.dom.d.ts, and the repo-wide lint tipped past 2GB and OOM'd (SIGABRT).
+        # 4GB restores headroom; drop this once #405 stops the lib.dom leak.
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: |
           if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
           node scripts/gen-blocks.mjs && node scripts/gen-relations.mjs && pnpm --filter @setu/site exec astro sync

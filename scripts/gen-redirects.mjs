@@ -10,7 +10,7 @@
 //   redirects.json — accumulated [{from,to}] 301s, chains collapsed to their terminal target
 // Both are written here and ride the normal deploy/commit flow. The generated `_redirects` under
 // apps/site/public/ is a disposable artifact (gitignored); astro copies public/* into dist/.
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'

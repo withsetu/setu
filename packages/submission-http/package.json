@@ -21,6 +21,6 @@
     "@setu/db-memory": "workspace:*",
     "@setu/db-testing": "workspace:*",
     "typescript": "^5.6.3",
-    "vitest": "^2.1.8"
+    "vitest": "^3.2.6"
   }
 }

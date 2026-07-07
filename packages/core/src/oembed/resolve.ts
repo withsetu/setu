@@ -19,8 +19,12 @@ export interface NormalizedOembed {
   oembedType: string
   title: string
   authorName?: string
-  /** Provider embed HTML — third-party markup, rendered ONLY inside a sandboxed iframe. Capped. */
+  /** Provider embed HTML — third-party markup, rendered ONLY inside a sandboxed iframe. Capped.
+   *  Kept as the fallback for script-based embeds (tweets) that aren't a single iframe. */
   html?: string
+  /** The player/iframe URL extracted from `html` — a clean cross-origin src for a sandboxed
+   *  `<iframe src>` (no fragile html-in-attribute) and the `player_loc` the video sitemap needs. */
+  embedUrl?: string
   width?: number
   height?: number
   /** Poster/thumbnail (video providers → the video thumbnail #367 needs). */
@@ -89,6 +93,25 @@ export async function resolveOembed(
   return data ? { ok: true, data } : { ok: false, reason: 'invalid_response' }
 }
 
+const IFRAME_SRC = /<iframe[^>]*\ssrc=["']([^"']+)["']/i
+
+/** Pull the iframe `src` out of provider embed HTML → a clean player URL. Protocol-relative
+ *  `//host/…` is normalized to https; only http(s) results are kept. undefined when there's no
+ *  single-iframe embed (e.g. a tweet blockquote). */
+function extractEmbedUrl(html: string | undefined): string | undefined {
+  if (!html) return undefined
+  const src = IFRAME_SRC.exec(html)?.[1]
+  if (!src) return undefined
+  try {
+    const u = new URL(src, 'https://_')
+    return u.protocol === 'https:' || u.protocol === 'http:'
+      ? u.href
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
 const str = (v: unknown): string | undefined =>
   typeof v === 'string' ? v : undefined
 const num = (v: unknown): number | undefined =>
@@ -120,6 +143,7 @@ function normalize(
     title: str(o.title) ?? '',
     authorName: str(o.author_name),
     html,
+    embedUrl: extractEmbedUrl(html),
     width: num(o.width),
     height: num(o.height),
     thumbnailUrl:

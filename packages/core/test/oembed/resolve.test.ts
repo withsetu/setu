@@ -58,6 +58,43 @@ describe('resolveOembed', () => {
     expect(r.data.html).toContain('<iframe')
   })
 
+  it('extracts a clean embedUrl (player_loc) from the provider iframe html', async () => {
+    const fetchImpl = vi.fn(async () => jsonRes(YT))
+    const r = await resolveOembed('https://youtu.be/abc', { fetchImpl })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.data.embedUrl).toBe('https://www.youtube.com/embed/abc')
+  })
+
+  it('normalizes a protocol-relative iframe src to https', async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonRes({
+        type: 'video',
+        title: 't',
+        html: '<iframe src="//player.vimeo.com/video/1"></iframe>'
+      })
+    )
+    const r = await resolveOembed('https://vimeo.com/1', { fetchImpl })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.data.embedUrl).toBe('https://player.vimeo.com/video/1')
+  })
+
+  it('leaves embedUrl undefined for a non-iframe (script) embed', async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonRes({
+        type: 'rich',
+        title: 'tweet',
+        html: '<blockquote>hi</blockquote><script src="https://x"></script>'
+      })
+    )
+    const r = await resolveOembed('https://x.com/u/status/1', { fetchImpl })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.data.embedUrl).toBeUndefined()
+    expect(r.data.html).toContain('blockquote')
+  })
+
   it('uses the photo `url` as the thumbnail when no thumbnail_url is given', async () => {
     const fetchImpl = vi.fn(async () =>
       jsonRes({

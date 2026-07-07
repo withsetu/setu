@@ -1,0 +1,84 @@
+.blk-embed {
+  margin: 1.5rem 0;
+}
+.blk-embed-frame {
+  position: relative;
+  width: 100%;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.blk-embed-iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.blk-embed-photo {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--r-md);
+}
+/* Click-to-load facade — no provider cookies/JS until the visitor plays. */
+.blk-embed-facade {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--surface-2);
+}
+.blk-embed-thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.blk-embed-play {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 4rem;
+  height: 4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  transition: background 0.15s ease;
+}
+.blk-embed-facade:hover .blk-embed-play,
+.blk-embed-facade:focus-visible .blk-embed-play {
+  background: var(--accent);
+}
+.blk-embed-play svg {
+  width: 1.75rem;
+  height: 1.75rem;
+  fill: currentColor;
+  margin-left: 0.15rem;
+}
+.blk-embed-badge {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: var(--r-sm);
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font: 500 0.75rem var(--font-ui);
+}
+.blk-embed-caption {
+  margin-top: 0.5rem;
+  font: 0.875rem var(--font-ui);
+  color: var(--text-2);
+  text-align: center;
+}
+.blk-embed-fallback {
+  color: var(--accent);
+}

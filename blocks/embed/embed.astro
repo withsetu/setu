@@ -1,0 +1,153 @@
+---
+import './embed.css'
+
+interface Props {
+  url: string
+  provider?: string
+  providerLabel?: string
+  mediaType?: 'video' | 'audio' | 'photo' | 'rich'
+  oembedType?: string
+  title?: string
+  authorName?: string
+  embedUrl?: string
+  html?: string
+  thumbnailUrl?: string
+  width?: number
+  height?: number
+  caption?: string
+  ratio?: string
+  align?: 'none' | 'wide' | 'full'
+}
+
+const {
+  url,
+  provider,
+  providerLabel,
+  mediaType = 'rich',
+  title,
+  embedUrl,
+  html,
+  thumbnailUrl,
+  width,
+  height,
+  caption,
+  ratio = 'auto',
+  align = 'none'
+} = Astro.props as Props
+
+const RATIOS: Record<string, string> = {
+  '16:9': '16 / 9',
+  '4:3': '4 / 3',
+  '1:1': '1 / 1',
+  '21:9': '21 / 9'
+}
+const aspect =
+  ratio !== 'auto' && RATIOS[ratio]
+    ? RATIOS[ratio]
+    : width && height
+      ? `${width} / ${height}`
+      : '16 / 9'
+
+const label = providerLabel ?? provider ?? 'embed'
+const alignClass = align === 'wide' ? 'align-wide' : align === 'full' ? 'align-full' : ''
+const isPhoto = mediaType === 'photo'
+const hasFacade = Boolean(thumbnailUrl) && Boolean(embedUrl || html)
+---
+
+<figure class:list={['blk-embed', alignClass]}>
+  {
+    isPhoto && thumbnailUrl ? (
+      <img
+        class="blk-embed-photo"
+        src={thumbnailUrl}
+        alt={title ?? ''}
+        loading="lazy"
+        decoding="async"
+      />
+    ) : hasFacade ? (
+      <button
+        type="button"
+        class="blk-embed-facade"
+        style={`aspect-ratio:${aspect}`}
+        data-embed-url={embedUrl ?? ''}
+        data-embed-html={embedUrl ? '' : (html ?? '')}
+        aria-label={`Play ${title ?? label}`}
+      >
+        <img
+          class="blk-embed-thumb"
+          src={thumbnailUrl}
+          alt={title ?? ''}
+          loading="lazy"
+          decoding="async"
+        />
+        <span class="blk-embed-play" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+        </span>
+        <span class="blk-embed-badge">{label}</span>
+      </button>
+    ) : embedUrl ? (
+      <div class="blk-embed-frame" style={`aspect-ratio:${aspect}`}>
+        <iframe
+          class="blk-embed-iframe"
+          src={embedUrl}
+          title={title ?? label}
+          loading="lazy"
+          sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
+          allowfullscreen
+        />
+      </div>
+    ) : html ? (
+      <div class="blk-embed-frame" style={`aspect-ratio:${aspect}`}>
+        <iframe
+          class="blk-embed-iframe"
+          srcdoc={html}
+          title={title ?? label}
+          loading="lazy"
+          sandbox="allow-scripts allow-popups allow-presentation"
+        />
+      </div>
+    ) : (
+      <a class="blk-embed-fallback" href={url} rel="noopener noreferrer">
+        {title ?? url}
+      </a>
+    )
+  }
+  {caption && <figcaption class="blk-embed-caption">{caption}</figcaption>}
+</figure>
+
+<script>
+  // Facade → click-to-load: swap the poster for the player only on interaction, so no provider
+  // cookies/JS load until the visitor chooses to play (privacy + performance).
+  // Security: a cross-origin `src` iframe runs in the provider's own origin (allow-same-origin is
+  // safe — it can't reach THIS page); a `srcdoc` iframe is same-origin by default, so its sandbox
+  // OMITS allow-same-origin → an opaque origin that cannot touch this page's DOM.
+  document.querySelectorAll<HTMLButtonElement>('.blk-embed-facade').forEach((btn) => {
+    btn.addEventListener(
+      'click',
+      () => {
+        const src = btn.dataset.embedUrl
+        const doc = btn.dataset.embedHtml
+        const frame = document.createElement('div')
+        frame.className = 'blk-embed-frame'
+        frame.style.aspectRatio = btn.style.aspectRatio
+        const iframe = document.createElement('iframe')
+        iframe.className = 'blk-embed-iframe'
+        iframe.setAttribute('allowfullscreen', '')
+        if (src) {
+          iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation allow-popups')
+          iframe.src = src.includes('?') ? `${src}&autoplay=1` : `${src}?autoplay=1`
+        } else if (doc) {
+          iframe.setAttribute('sandbox', 'allow-scripts allow-popups allow-presentation')
+          iframe.srcdoc = doc
+        } else {
+          return
+        }
+        btn.replaceWith(frame)
+        frame.appendChild(iframe)
+      },
+      { once: true }
+    )
+  })
+</script>

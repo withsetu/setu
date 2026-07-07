@@ -11,7 +11,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset className="h-screen overflow-hidden">
-        <div className="flex h-full min-h-0 flex-col overflow-y-auto">{children}</div>
+        <div className="flex h-full min-h-0 flex-col overflow-y-auto">
+          {children}
+        </div>
       </SidebarInset>
       <GlobalCommands />
       <CommandPalette />

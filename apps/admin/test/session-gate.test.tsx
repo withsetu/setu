@@ -7,36 +7,58 @@ import { authClient } from '../src/auth/auth-client'
 vi.mock('../src/auth/auth-client', () => ({
   authClient: {
     useSession: vi.fn(),
-    signOut: vi.fn(),
-  },
+    signOut: vi.fn()
+  }
 }))
 
 const mockUseSession = vi.mocked(authClient.useSession)
 
 function ActorProbe() {
   const actor = useActor()
-  return <div data-testid="actor">{actor.id}:{actor.role}</div>
+  return (
+    <div data-testid="actor">
+      {actor.id}:{actor.role}
+    </div>
+  )
 }
 
-function stubCapabilities(auth: {
-  enabled: boolean
-  providers: ('github' | 'google')[]
-  captcha: { provider: 'turnstile' | 'recaptcha'; siteKey: string } | null
-  needsSetup: boolean
-}, mode?: string) {
-  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-    if (String(url).includes('/api/capabilities')) {
-      return new Response(JSON.stringify({
-        capabilities: { imageProcessing: false, writableMediaStore: true, backgroundJobs: true },
-        auth,
-        ...(mode ? { mode } : {}),
-      }), { status: 200 })
-    }
-    return new Response('{}', { status: 200 })
-  }))
+function stubCapabilities(
+  auth: {
+    enabled: boolean
+    providers: ('github' | 'google')[]
+    captcha: { provider: 'turnstile' | 'recaptcha'; siteKey: string } | null
+    needsSetup: boolean
+  },
+  mode?: string
+) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      if (String(url).includes('/api/capabilities')) {
+        return new Response(
+          JSON.stringify({
+            capabilities: {
+              imageProcessing: false,
+              writableMediaStore: true,
+              backgroundJobs: true
+            },
+            auth,
+            ...(mode ? { mode } : {})
+          }),
+          { status: 200 }
+        )
+      }
+      return new Response('{}', { status: 200 })
+    })
+  )
 }
 
-const ENABLED_NO_SETUP = { enabled: true, providers: [] as ('github' | 'google')[], captcha: null, needsSetup: false }
+const ENABLED_NO_SETUP = {
+  enabled: true,
+  providers: [] as ('github' | 'google')[],
+  captcha: null,
+  needsSetup: false
+}
 
 beforeEach(() => {
   window.location.hash = ''
@@ -50,9 +72,19 @@ afterEach(() => {
 describe('SessionGate', () => {
   it('shows a centered loading state while capabilities/session are resolving (no app flash)', () => {
     stubCapabilities(ENABLED_NO_SETUP)
-    mockUseSession.mockReturnValue({ data: null, isPending: true, isRefetching: false, error: null, refetch: vi.fn() } as never)
+    mockUseSession.mockReturnValue({
+      data: null,
+      isPending: true,
+      isRefetching: false,
+      error: null,
+      refetch: vi.fn()
+    })
 
-    render(<SessionGate><div>App</div></SessionGate>)
+    render(
+      <SessionGate>
+        <div>App</div>
+      </SessionGate>
+    )
 
     expect(screen.queryByText('App')).not.toBeInTheDocument()
     expect(screen.getByRole('status')).toBeInTheDocument()
@@ -65,12 +97,18 @@ describe('SessionGate', () => {
       isPending: false,
       isRefetching: false,
       error: null,
-      refetch: vi.fn(),
+      refetch: vi.fn()
     } as never)
 
-    render(<SessionGate><ActorProbe /></SessionGate>)
+    render(
+      <SessionGate>
+        <ActorProbe />
+      </SessionGate>
+    )
 
-    await waitFor(() => expect(screen.getByTestId('actor')).toHaveTextContent('u1:editor'))
+    await waitFor(() =>
+      expect(screen.getByTestId('actor')).toHaveTextContent('u1:editor')
+    )
   })
 
   it('defaults an unknown/missing role to author (#379: least-privileged staff role)', async () => {
@@ -80,12 +118,18 @@ describe('SessionGate', () => {
       isPending: false,
       isRefetching: false,
       error: null,
-      refetch: vi.fn(),
+      refetch: vi.fn()
     } as never)
 
-    render(<SessionGate><ActorProbe /></SessionGate>)
+    render(
+      <SessionGate>
+        <ActorProbe />
+      </SessionGate>
+    )
 
-    await waitFor(() => expect(screen.getByTestId('actor')).toHaveTextContent('u2:author'))
+    await waitFor(() =>
+      expect(screen.getByTestId('actor')).toHaveTextContent('u2:author')
+    )
   })
 
   it('with a #setu-token in the hash: exchanges it, scrubs the hash before the response resolves, then renders children after session', async () => {
@@ -93,24 +137,49 @@ describe('SessionGate', () => {
     window.location.hash = '#setu-token=abc123'
 
     let resolveExchange!: (v: Response) => void
-    const exchangeFetch = vi.fn((_url: string, _init?: RequestInit) => new Promise<Response>((resolve) => { resolveExchange = resolve }))
-    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
-      if (String(url).includes('/api/capabilities')) {
-        return new Response(JSON.stringify({
-          capabilities: { imageProcessing: false, writableMediaStore: true, backgroundJobs: true },
-          auth: ENABLED_NO_SETUP,
-        }), { status: 200 })
-      }
-      if (String(url).includes('/local/exchange')) {
-        return exchangeFetch(url, init)
-      }
-      return new Response('{}', { status: 200 })
-    }))
+    const exchangeFetch = vi.fn(
+      (_url: string, _init?: RequestInit) =>
+        new Promise<Response>((resolve) => {
+          resolveExchange = resolve
+        })
+    )
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (String(url).includes('/api/capabilities')) {
+          return new Response(
+            JSON.stringify({
+              capabilities: {
+                imageProcessing: false,
+                writableMediaStore: true,
+                backgroundJobs: true
+              },
+              auth: ENABLED_NO_SETUP
+            }),
+            { status: 200 }
+          )
+        }
+        if (String(url).includes('/local/exchange')) {
+          return exchangeFetch(url, init)
+        }
+        return new Response('{}', { status: 200 })
+      })
+    )
 
     // No session until after the exchange completes.
-    mockUseSession.mockReturnValue({ data: null, isPending: false, isRefetching: false, error: null, refetch: vi.fn() } as never)
+    mockUseSession.mockReturnValue({
+      data: null,
+      isPending: false,
+      isRefetching: false,
+      error: null,
+      refetch: vi.fn()
+    })
 
-    render(<SessionGate><ActorProbe /></SessionGate>)
+    render(
+      <SessionGate>
+        <ActorProbe />
+      </SessionGate>
+    )
 
     // The hash must be scrubbed BEFORE the exchange response resolves.
     await waitFor(() => expect(exchangeFetch).toHaveBeenCalled())
@@ -120,62 +189,129 @@ describe('SessionGate', () => {
     expect(exchangeInit).toMatchObject({
       method: 'POST',
       credentials: 'include',
-      body: JSON.stringify({ token: 'abc123' }),
+      body: JSON.stringify({ token: 'abc123' })
     })
 
     // Resolve the exchange, then flip useSession to reflect the new session (mimics a refetch).
-    resolveExchange(new Response(JSON.stringify({ status: true }), { status: 200 }))
+    resolveExchange(
+      new Response(JSON.stringify({ status: true }), { status: 200 })
+    )
     mockUseSession.mockReturnValue({
       data: { user: { id: 'u3', role: 'admin' } },
       isPending: false,
       isRefetching: false,
       error: null,
-      refetch: vi.fn(),
+      refetch: vi.fn()
     } as never)
 
-    await waitFor(() => expect(screen.getByTestId('actor')).toHaveTextContent('u3:admin'))
+    await waitFor(() =>
+      expect(screen.getByTestId('actor')).toHaveTextContent('u3:admin')
+    )
   })
 
   it('no session + auth disabled: renders the honest not-configured state, not a login form', async () => {
-    stubCapabilities({ enabled: false, providers: [], captcha: null, needsSetup: false })
-    mockUseSession.mockReturnValue({ data: null, isPending: false, isRefetching: false, error: null, refetch: vi.fn() } as never)
+    stubCapabilities({
+      enabled: false,
+      providers: [],
+      captcha: null,
+      needsSetup: false
+    })
+    mockUseSession.mockReturnValue({
+      data: null,
+      isPending: false,
+      isRefetching: false,
+      error: null,
+      refetch: vi.fn()
+    })
 
-    render(<SessionGate><div>App</div></SessionGate>)
+    render(
+      <SessionGate>
+        <div>App</div>
+      </SessionGate>
+    )
 
-    expect(await screen.findByText(/auth (is )?not configured/i)).toBeInTheDocument()
+    expect(
+      await screen.findByText(/auth (is )?not configured/i)
+    ).toBeInTheDocument()
     expect(screen.getByText(/SETU_AUTH_SECRET/)).toBeInTheDocument()
     expect(screen.queryByLabelText(/email/i)).not.toBeInTheDocument()
   })
 
   it('no session + needsSetup: renders SetupScreen (#248 Task 7)', async () => {
-    stubCapabilities({ enabled: true, providers: [], captcha: null, needsSetup: true })
-    mockUseSession.mockReturnValue({ data: null, isPending: false, isRefetching: false, error: null, refetch: vi.fn() } as never)
+    stubCapabilities({
+      enabled: true,
+      providers: [],
+      captcha: null,
+      needsSetup: true
+    })
+    mockUseSession.mockReturnValue({
+      data: null,
+      isPending: false,
+      isRefetching: false,
+      error: null,
+      refetch: vi.fn()
+    })
 
-    render(<SessionGate><div>App</div></SessionGate>)
+    render(
+      <SessionGate>
+        <div>App</div>
+      </SessionGate>
+    )
 
-    expect(await screen.findByRole('button', { name: /create admin account/i })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: /create admin account/i })
+    ).toBeInTheDocument()
   })
 
   it('no session, auth enabled, no setup needed: renders LoginScreen', async () => {
     stubCapabilities(ENABLED_NO_SETUP)
-    mockUseSession.mockReturnValue({ data: null, isPending: false, isRefetching: false, error: null, refetch: vi.fn() } as never)
+    mockUseSession.mockReturnValue({
+      data: null,
+      isPending: false,
+      isRefetching: false,
+      error: null,
+      refetch: vi.fn()
+    })
 
-    render(<SessionGate><div>App</div></SessionGate>)
+    render(
+      <SessionGate>
+        <div>App</div>
+      </SessionGate>
+    )
 
-    expect(await screen.findByRole('button', { name: /sign in/i })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: /sign in/i })
+    ).toBeInTheDocument()
   })
 
   // UAT 2026-07-05: in local mode /api/auth/setup is never mounted (no setup token), so the SetupScreen
   // can only 404 on submit. A signed-out local admin must land on the LoginScreen even if needsSetup is
   // (stale) true.
   it('local mode never routes to SetupScreen — shows LoginScreen even when needsSetup is true', async () => {
-    stubCapabilities({ enabled: true, providers: [], captcha: null, needsSetup: true }, 'local')
-    mockUseSession.mockReturnValue({ data: null, isPending: false, isRefetching: false, error: null, refetch: vi.fn() } as never)
+    stubCapabilities(
+      { enabled: true, providers: [], captcha: null, needsSetup: true },
+      'local'
+    )
+    mockUseSession.mockReturnValue({
+      data: null,
+      isPending: false,
+      isRefetching: false,
+      error: null,
+      refetch: vi.fn()
+    })
 
-    render(<SessionGate><div>App</div></SessionGate>)
+    render(
+      <SessionGate>
+        <div>App</div>
+      </SessionGate>
+    )
 
-    expect(await screen.findByRole('button', { name: /sign in/i })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /create admin account/i })).not.toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: /sign in/i })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /create admin account/i })
+    ).not.toBeInTheDocument()
   })
 
   // UAT 2026-07-05: the instance booted at 0 users → capabilities cached needsSetup:true. After the
@@ -183,33 +319,65 @@ describe('SessionGate', () => {
   // the stale flag — otherwise it strands the admin on the SetupScreen instead of the LoginScreen.
   it('re-fetches capabilities on sign-out so a stale needsSetup:true does not strand the admin on SetupScreen', async () => {
     let calls = 0
-    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      if (String(url).includes('/api/capabilities')) {
-        calls++
-        // Boot-time fetch reports needsSetup:true (0 users); the post-signout refetch reports false.
-        const needsSetup = calls === 1
-        return new Response(JSON.stringify({
-          capabilities: { imageProcessing: false, writableMediaStore: true, backgroundJobs: true },
-          auth: { enabled: true, providers: [], captcha: null, needsSetup },
-          mode: 'self-hosted',
-        }), { status: 200 })
-      }
-      return new Response('{}', { status: 200 })
-    }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (String(url).includes('/api/capabilities')) {
+          calls++
+          // Boot-time fetch reports needsSetup:true (0 users); the post-signout refetch reports false.
+          const needsSetup = calls === 1
+          return new Response(
+            JSON.stringify({
+              capabilities: {
+                imageProcessing: false,
+                writableMediaStore: true,
+                backgroundJobs: true
+              },
+              auth: { enabled: true, providers: [], captcha: null, needsSetup },
+              mode: 'self-hosted'
+            }),
+            { status: 200 }
+          )
+        }
+        return new Response('{}', { status: 200 })
+      })
+    )
 
     // Signed in first, so the gate observes a live session…
     mockUseSession.mockReturnValue({
-      data: { user: { id: 'u1', role: 'admin' } }, isPending: false, isRefetching: false, error: null, refetch: vi.fn(),
+      data: { user: { id: 'u1', role: 'admin' } },
+      isPending: false,
+      isRefetching: false,
+      error: null,
+      refetch: vi.fn()
     } as never)
-    const { rerender } = render(<SessionGate><div>App</div></SessionGate>)
+    const { rerender } = render(
+      <SessionGate>
+        <div>App</div>
+      </SessionGate>
+    )
     await screen.findByText('App')
 
     // …then sign out. The gate must refetch and land on LoginScreen, not SetupScreen.
-    mockUseSession.mockReturnValue({ data: null, isPending: false, isRefetching: false, error: null, refetch: vi.fn() } as never)
-    rerender(<SessionGate><div>App</div></SessionGate>)
+    mockUseSession.mockReturnValue({
+      data: null,
+      isPending: false,
+      isRefetching: false,
+      error: null,
+      refetch: vi.fn()
+    })
+    rerender(
+      <SessionGate>
+        <div>App</div>
+      </SessionGate>
+    )
 
-    expect(await screen.findByRole('button', { name: /sign in/i })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /create admin account/i })).not.toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: /sign in/i })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /create admin account/i })
+    ).not.toBeInTheDocument()
     expect(calls).toBeGreaterThanOrEqual(2)
   })
 })

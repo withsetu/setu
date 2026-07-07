@@ -5,8 +5,8 @@ import { authClient } from '../src/auth/auth-client'
 
 vi.mock('../src/auth/auth-client', () => ({
   authClient: {
-    signIn: { email: vi.fn(), social: vi.fn() },
-  },
+    signIn: { email: vi.fn(), social: vi.fn() }
+  }
 }))
 
 const mockSignInEmail = vi.mocked(authClient.signIn.email)
@@ -19,13 +19,31 @@ interface AuthCaps {
   needsSetup: boolean
 }
 
-const NO_PROVIDERS_NO_CAPTCHA: AuthCaps = { enabled: true, providers: [], captcha: null, needsSetup: false }
+const NO_PROVIDERS_NO_CAPTCHA: AuthCaps = {
+  enabled: true,
+  providers: [],
+  captcha: null,
+  needsSetup: false
+}
 
 function stubCapabilities(auth: AuthCaps) {
-  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
-    capabilities: { imageProcessing: false, writableMediaStore: true, backgroundJobs: true },
-    auth,
-  }), { status: 200 })))
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            capabilities: {
+              imageProcessing: false,
+              writableMediaStore: true,
+              backgroundJobs: true
+            },
+            auth
+          }),
+          { status: 200 }
+        )
+    )
+  )
 }
 
 beforeEach(() => {
@@ -36,8 +54,12 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks())
 
 async function fillForm(email = 'ada@setu.dev', password = 'hunter2') {
-  fireEvent.change(await screen.findByLabelText(/email/i), { target: { value: email } })
-  fireEvent.change(screen.getByLabelText(/password/i), { target: { value: password } })
+  fireEvent.change(await screen.findByLabelText(/email/i), {
+    target: { value: email }
+  })
+  fireEvent.change(screen.getByLabelText(/password/i), {
+    target: { value: password }
+  })
 }
 
 describe('LoginScreen', () => {
@@ -51,16 +73,24 @@ describe('LoginScreen', () => {
   it('submits on Enter inside the password field', async () => {
     render(<LoginScreen />)
     await fillForm()
-    fireEvent.submit(screen.getByRole('button', { name: /sign in/i }).closest('form')!)
-    await waitFor(() => expect(mockSignInEmail).toHaveBeenCalledWith(
-      { email: 'ada@setu.dev', password: 'hunter2' },
-      undefined,
-    ))
+    fireEvent.submit(
+      screen.getByRole('button', { name: /sign in/i }).closest('form')!
+    )
+    await waitFor(() =>
+      expect(mockSignInEmail).toHaveBeenCalledWith(
+        { email: 'ada@setu.dev', password: 'hunter2' },
+        undefined
+      )
+    )
   })
 
   it('disables the submit button and shows a spinner while signing in', async () => {
     let resolveSignIn!: (v: { data: unknown; error: null }) => void
-    mockSignInEmail.mockReturnValue(new Promise((resolve) => { resolveSignIn = resolve }))
+    mockSignInEmail.mockReturnValue(
+      new Promise((resolve) => {
+        resolveSignIn = resolve
+      })
+    )
 
     render(<LoginScreen />)
     await fillForm()
@@ -73,39 +103,65 @@ describe('LoginScreen', () => {
   })
 
   it('maps invalid credentials to a friendly field/form error', async () => {
-    mockSignInEmail.mockResolvedValue({ data: null, error: { status: 401, code: 'INVALID_EMAIL_OR_PASSWORD', message: 'Invalid email or password' } })
+    mockSignInEmail.mockResolvedValue({
+      data: null,
+      error: {
+        status: 401,
+        code: 'INVALID_EMAIL_OR_PASSWORD',
+        message: 'Invalid email or password'
+      }
+    })
 
     render(<LoginScreen />)
     await fillForm()
     fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
 
-    expect(await screen.findByText(/email or password is incorrect/i)).toBeInTheDocument()
+    expect(
+      await screen.findByText(/email or password is incorrect/i)
+    ).toBeInTheDocument()
   })
 
   it('maps a 429 rate-limit error to a wait-a-moment message', async () => {
-    mockSignInEmail.mockResolvedValue({ data: null, error: { status: 429, message: 'Too many requests' } })
+    mockSignInEmail.mockResolvedValue({
+      data: null,
+      error: { status: 429, message: 'Too many requests' }
+    })
 
     render(<LoginScreen />)
     await fillForm()
     fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
 
-    expect(await screen.findByText(/too many attempts.*wait a moment/i)).toBeInTheDocument()
+    expect(
+      await screen.findByText(/too many attempts.*wait a moment/i)
+    ).toBeInTheDocument()
   })
 
-  it('a passwordless-owner sign-in attempt gets the same generic invalid-credentials message as a wrong password (#248 Task 7: better-auth 1.6.23 does not distinguish the two — see mapSignInError\'s comment)', async () => {
+  it("a passwordless-owner sign-in attempt gets the same generic invalid-credentials message as a wrong password (#248 Task 7: better-auth 1.6.23 does not distinguish the two — see mapSignInError's comment)", async () => {
     // better-auth's real /sign-in/email throws INVALID_EMAIL_OR_PASSWORD for "no credential
     // account" exactly as it does for "wrong password" — there is no distinct code to map here.
-    mockSignInEmail.mockResolvedValue({ data: null, error: { status: 401, code: 'INVALID_EMAIL_OR_PASSWORD', message: 'Invalid email or password' } })
+    mockSignInEmail.mockResolvedValue({
+      data: null,
+      error: {
+        status: 401,
+        code: 'INVALID_EMAIL_OR_PASSWORD',
+        message: 'Invalid email or password'
+      }
+    })
 
     render(<LoginScreen />)
     await fillForm()
     fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
 
-    expect(await screen.findByText(/email or password is incorrect/i)).toBeInTheDocument()
+    expect(
+      await screen.findByText(/email or password is incorrect/i)
+    ).toBeInTheDocument()
   })
 
   it('shows a generic error for an unrecognized failure', async () => {
-    mockSignInEmail.mockResolvedValue({ data: null, error: { status: 500, message: 'boom' } })
+    mockSignInEmail.mockResolvedValue({
+      data: null,
+      error: { status: 500, message: 'boom' }
+    })
 
     render(<LoginScreen />)
     await fillForm()
@@ -117,23 +173,43 @@ describe('LoginScreen', () => {
   it('renders no social buttons when capabilities.auth.providers is empty', async () => {
     render(<LoginScreen />)
     await screen.findByLabelText(/email/i)
-    expect(screen.queryByRole('button', { name: /continue with github/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /continue with google/i })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /continue with github/i })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /continue with google/i })
+    ).not.toBeInTheDocument()
   })
 
   it('renders only the enabled social provider buttons and calls signIn.social', async () => {
-    stubCapabilities({ enabled: true, providers: ['github'], captcha: null, needsSetup: false })
+    stubCapabilities({
+      enabled: true,
+      providers: ['github'],
+      captcha: null,
+      needsSetup: false
+    })
     render(<LoginScreen />)
 
-    const githubBtn = await screen.findByRole('button', { name: /continue with github/i })
-    expect(screen.queryByRole('button', { name: /continue with google/i })).not.toBeInTheDocument()
+    const githubBtn = await screen.findByRole('button', {
+      name: /continue with github/i
+    })
+    expect(
+      screen.queryByRole('button', { name: /continue with google/i })
+    ).not.toBeInTheDocument()
 
     fireEvent.click(githubBtn)
-    await waitFor(() => expect(mockSignInSocial).toHaveBeenCalledWith({ provider: 'github' }))
+    await waitFor(() =>
+      expect(mockSignInSocial).toHaveBeenCalledWith({ provider: 'github' })
+    )
   })
 
   it('keeps submit disabled with a hint when captcha is configured but no token yet', async () => {
-    stubCapabilities({ enabled: true, providers: [], captcha: { provider: 'turnstile', siteKey: 'site-key-1' }, needsSetup: false })
+    stubCapabilities({
+      enabled: true,
+      providers: [],
+      captcha: { provider: 'turnstile', siteKey: 'site-key-1' },
+      needsSetup: false
+    })
     render(<LoginScreen />)
 
     await fillForm()
@@ -143,7 +219,12 @@ describe('LoginScreen', () => {
   })
 
   it('threads the captcha token as x-captcha-response once the widget resolves one', async () => {
-    stubCapabilities({ enabled: true, providers: [], captcha: { provider: 'turnstile', siteKey: 'site-key-1' }, needsSetup: false })
+    stubCapabilities({
+      enabled: true,
+      providers: [],
+      captcha: { provider: 'turnstile', siteKey: 'site-key-1' },
+      needsSetup: false
+    })
     // Stub the global widget API the mount-captcha helper looks for, and have render()
     // synchronously invoke the callback with a token (simulating a solved challenge).
     ;(window as unknown as { turnstile: unknown }).turnstile = {
@@ -151,7 +232,7 @@ describe('LoginScreen', () => {
         opts.callback('captcha-token-xyz')
         return 'widget-1'
       },
-      reset: vi.fn(),
+      reset: vi.fn()
     }
 
     render(<LoginScreen />)
@@ -161,10 +242,16 @@ describe('LoginScreen', () => {
     await waitFor(() => expect(button).not.toBeDisabled())
 
     fireEvent.click(button)
-    await waitFor(() => expect(mockSignInEmail).toHaveBeenCalledWith(
-      { email: 'ada@setu.dev', password: 'hunter2' },
-      expect.objectContaining({ headers: expect.objectContaining({ 'x-captcha-response': 'captcha-token-xyz' }) }),
-    ))
+    await waitFor(() =>
+      expect(mockSignInEmail).toHaveBeenCalledWith(
+        { email: 'ada@setu.dev', password: 'hunter2' },
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'x-captcha-response': 'captcha-token-xyz'
+          })
+        })
+      )
+    )
 
     delete (window as unknown as { turnstile?: unknown }).turnstile
   })

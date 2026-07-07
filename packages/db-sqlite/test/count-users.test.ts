@@ -23,8 +23,24 @@ describe('countUsers', () => {
     dir = mkdtempSync(join(tmpdir(), 'setu-count-users-'))
     const db = openSqliteDb(join(dir, 'auth.db'))
     const now = new Date()
-    db.insert(user).values({ id: 'a', name: 'A', email: 'a@example.com', createdAt: now, updatedAt: now }).run()
-    db.insert(user).values({ id: 'b', name: 'B', email: 'b@example.com', createdAt: now, updatedAt: now }).run()
+    db.insert(user)
+      .values({
+        id: 'a',
+        name: 'A',
+        email: 'a@example.com',
+        createdAt: now,
+        updatedAt: now
+      })
+      .run()
+    db.insert(user)
+      .values({
+        id: 'b',
+        name: 'B',
+        email: 'b@example.com',
+        createdAt: now,
+        updatedAt: now
+      })
+      .run()
     expect(countUsers(db)).toBe(2)
   })
 })

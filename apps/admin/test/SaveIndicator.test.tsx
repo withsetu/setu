@@ -16,7 +16,9 @@ describe('SaveIndicator', () => {
     expect(screen.getByText('Read-only')).toBeInTheDocument()
   })
   it('renders nothing when idle', () => {
-    const { container } = render(<SaveIndicator status="idle" readonly={false} />)
+    const { container } = render(
+      <SaveIndicator status="idle" readonly={false} />
+    )
     expect(container.textContent).toBe('')
   })
 })

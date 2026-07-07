@@ -38,11 +38,16 @@ function makeLocalModeApp() {
       consume: () => {
         consumed = true
       },
-      localUserId: () => ensureLocalOwner(auth, { email: 'owner@local.test', name: 'Local Owner' }),
-    },
+      localUserId: () =>
+        ensureLocalOwner(auth, {
+          email: 'owner@local.test',
+          name: 'Local Owner'
+        })
+    }
   })
 
-  const allowed = () => allowedOrigins({ SETU_ADMIN_ORIGIN: TRUSTED_ORIGIN, SETU_API_PORT: '4444' })
+  const allowed = () =>
+    allowedOrigins({ SETU_ADMIN_ORIGIN: TRUSTED_ORIGIN, SETU_API_PORT: '4444' })
 
   const app = new Hono()
   app.use(
@@ -50,10 +55,12 @@ function makeLocalModeApp() {
     cors({
       origin: (origin) => {
         if (!origin) return undefined
-        return allowed().some((pattern) => originMatches(origin, pattern)) ? origin : undefined
+        return allowed().some((pattern) => originMatches(origin, pattern))
+          ? origin
+          : undefined
       },
-      credentials: true,
-    }),
+      credentials: true
+    })
   )
   app.use('*', originGuard(allowed, { publicPaths: ['/forms/submit'] }))
   app.on(['POST', 'GET'], '/api/auth/*', (c) => auth.handler(c.req.raw))
@@ -65,7 +72,7 @@ function makeLocalModeApp() {
     cleanup: () => {
       sqlite.close()
       rmSync(dir, { recursive: true, force: true })
-    },
+    }
   }
 }
 
@@ -88,8 +95,8 @@ describe('mode=local wiring exposes /api/auth/local/exchange (server.ts composit
       new Request('http://test/api/auth/local/exchange', {
         method: 'POST',
         headers: { 'content-type': 'application/json', host: 'localhost:4444' },
-        body: JSON.stringify({ token: bootToken }),
-      }),
+        body: JSON.stringify({ token: bootToken })
+      })
     )
 
     expect(res.status).toBe(200)
@@ -104,8 +111,8 @@ describe('mode=local wiring exposes /api/auth/local/exchange (server.ts composit
       new Request('http://test/api/auth/local/exchange', {
         method: 'POST',
         headers: { 'content-type': 'application/json', host: 'localhost:4444' },
-        body: JSON.stringify({ token: 'not-the-boot-token' }),
-      }),
+        body: JSON.stringify({ token: 'not-the-boot-token' })
+      })
     )
 
     expect(res.status).toBe(401)

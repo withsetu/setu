@@ -9,32 +9,53 @@ const settings = (over: Partial<SiteSettings> = {}): SiteSettings => ({
   ...over,
   general: { ...DEFAULT_SETTINGS.general, ...(over.general ?? {}) },
   reading: { ...DEFAULT_SETTINGS.reading, ...(over.reading ?? {}) },
-  identity: { ...DEFAULT_SETTINGS.identity, ...(over.identity ?? {}) },
+  identity: { ...DEFAULT_SETTINGS.identity, ...(over.identity ?? {}) }
 })
 
 const page = (over: Partial<SeoPage> = {}): SeoPage => ({
   canonical: 'https://example.com/post/hello',
-  ...over,
+  ...over
 })
 
-const content = (s: ReturnType<typeof resolveSeo>, key: { name?: string; property?: string }) =>
-  s.meta.find((m) => (key.name ? m.name === key.name : m.property === key.property))?.content
+const content = (
+  s: ReturnType<typeof resolveSeo>,
+  key: { name?: string; property?: string }
+) =>
+  s.meta.find((m) =>
+    key.name ? m.name === key.name : m.property === key.property
+  )?.content
 
 describe('resolveSeo', () => {
   it('resolves the title through identity.titleTemplate (site = general.title)', () => {
-    const s = resolveSeo(settings({ general: { ...DEFAULT_SETTINGS.general, title: 'Setu Press' } }), page({ title: 'Hello' }))
+    const s = resolveSeo(
+      settings({
+        general: { ...DEFAULT_SETTINGS.general, title: 'Setu Press' }
+      }),
+      page({ title: 'Hello' })
+    )
     expect(s.title).toBe('Hello · Setu Press')
   })
 
   it('homepage (no page title) uses the bare site name', () => {
-    const s = resolveSeo(settings({ general: { ...DEFAULT_SETTINGS.general, title: 'Setu Press' } }), page({ title: '' }))
+    const s = resolveSeo(
+      settings({
+        general: { ...DEFAULT_SETTINGS.general, title: 'Setu Press' }
+      }),
+      page({ title: '' })
+    )
     expect(s.title).toBe('Setu Press')
   })
 
   it('honors a custom title template + separator', () => {
     const s = resolveSeo(
-      settings({ identity: { ...DEFAULT_SETTINGS.identity, titleTemplate: '{{site}} {{separator}} {{title}}', titleSeparator: '|' } }),
-      page({ title: 'About' }),
+      settings({
+        identity: {
+          ...DEFAULT_SETTINGS.identity,
+          titleTemplate: '{{site}} {{separator}} {{title}}',
+          titleSeparator: '|'
+        }
+      }),
+      page({ title: 'About' })
     )
     expect(s.title).toBe('Setu | About')
   })
@@ -43,20 +64,37 @@ describe('resolveSeo', () => {
     const s = resolveSeo(settings(), page({ title: 'X' }))
     expect(content(s, { name: 'generator' })).toBe(GENERATOR_URL)
     expect(s.canonical).toBe('https://example.com/post/hello')
-    expect(content(s, { property: 'og:url' })).toBe('https://example.com/post/hello')
+    expect(content(s, { property: 'og:url' })).toBe(
+      'https://example.com/post/hello'
+    )
     expect(content(s, { name: 'robots' })).toBe('index, follow')
   })
 
   it('emits noindex,nofollow when the site is hidden from search', () => {
-    const s = resolveSeo(settings({ reading: { ...DEFAULT_SETTINGS.reading, searchEngineVisible: false } }), page())
+    const s = resolveSeo(
+      settings({
+        reading: { ...DEFAULT_SETTINGS.reading, searchEngineVisible: false }
+      }),
+      page()
+    )
     expect(content(s, { name: 'robots' })).toBe('noindex, nofollow')
   })
 
   it('description falls back from page → site', () => {
-    const sPage = resolveSeo(settings({ general: { ...DEFAULT_SETTINGS.general, description: 'site desc' } }), page({ description: 'page desc' }))
+    const sPage = resolveSeo(
+      settings({
+        general: { ...DEFAULT_SETTINGS.general, description: 'site desc' }
+      }),
+      page({ description: 'page desc' })
+    )
     expect(content(sPage, { name: 'description' })).toBe('page desc')
     expect(content(sPage, { property: 'og:description' })).toBe('page desc')
-    const sSite = resolveSeo(settings({ general: { ...DEFAULT_SETTINGS.general, description: 'site desc' } }), page())
+    const sSite = resolveSeo(
+      settings({
+        general: { ...DEFAULT_SETTINGS.general, description: 'site desc' }
+      }),
+      page()
+    )
     expect(content(sSite, { name: 'description' })).toBe('site desc')
   })
 
@@ -66,21 +104,80 @@ describe('resolveSeo', () => {
   })
 
   it('og:type defaults to website and respects article', () => {
-    expect(content(resolveSeo(settings(), page()), { property: 'og:type' })).toBe('website')
-    expect(content(resolveSeo(settings(), page({ type: 'article' })), { property: 'og:type' })).toBe('article')
+    expect(
+      content(resolveSeo(settings(), page()), { property: 'og:type' })
+    ).toBe('website')
+    expect(
+      content(resolveSeo(settings(), page({ type: 'article' })), {
+        property: 'og:type'
+      })
+    ).toBe('article')
   })
 
   it('image falls back to identity.defaultImage; twitter:card scales with image presence', () => {
-    const withImg = resolveSeo(settings({ identity: { ...DEFAULT_SETTINGS.identity, defaultImage: 'https://cdn/x.jpg' } }), page())
+    const withImg = resolveSeo(
+      settings({
+        identity: {
+          ...DEFAULT_SETTINGS.identity,
+          defaultImage: 'https://cdn/x.jpg'
+        }
+      }),
+      page()
+    )
     expect(content(withImg, { property: 'og:image' })).toBe('https://cdn/x.jpg')
-    expect(content(withImg, { name: 'twitter:card' })).toBe('summary_large_image')
+    expect(content(withImg, { name: 'twitter:card' })).toBe(
+      'summary_large_image'
+    )
     const noImg = resolveSeo(settings(), page())
     expect(content(noImg, { property: 'og:image' })).toBeUndefined()
     expect(content(noImg, { name: 'twitter:card' })).toBe('summary')
   })
 
+  it('emits og:image:width/height/type/alt when the caller supplies them (#215)', () => {
+    const s = resolveSeo(
+      settings(),
+      page({
+        title: 'Hello',
+        image: 'https://cdn/x.jpg',
+        imageWidth: 1200,
+        imageHeight: 630,
+        imageType: 'image/jpeg',
+        imageAlt: 'Hello'
+      })
+    )
+    expect(content(s, { property: 'og:image' })).toBe('https://cdn/x.jpg')
+    expect(content(s, { property: 'og:image:width' })).toBe('1200')
+    expect(content(s, { property: 'og:image:height' })).toBe('630')
+    expect(content(s, { property: 'og:image:type' })).toBe('image/jpeg')
+    expect(content(s, { property: 'og:image:alt' })).toBe('Hello')
+    expect(content(s, { name: 'twitter:image:alt' })).toBe('Hello')
+  })
+
+  it('omits og:image dimension tags when the image has no known manifest (#215)', () => {
+    const s = resolveSeo(settings(), page({ image: 'https://cdn/ext.jpg' }))
+    expect(content(s, { property: 'og:image' })).toBe('https://cdn/ext.jpg')
+    expect(content(s, { property: 'og:image:width' })).toBeUndefined()
+    expect(content(s, { property: 'og:image:height' })).toBeUndefined()
+    expect(content(s, { property: 'og:image:type' })).toBeUndefined()
+    expect(content(s, { property: 'og:image:alt' })).toBeUndefined()
+  })
+
+  it('never emits og:image:* dimension tags without an og:image (#215)', () => {
+    const s = resolveSeo(
+      settings(),
+      page({ imageWidth: 1200, imageHeight: 630, imageAlt: 'x' })
+    )
+    expect(content(s, { property: 'og:image:width' })).toBeUndefined()
+    expect(content(s, { property: 'og:image:alt' })).toBeUndefined()
+  })
+
   it('normalizes the twitter handle with a single @', () => {
-    const s = resolveSeo(settings({ identity: { ...DEFAULT_SETTINGS.identity, twitterHandle: 'setupress' } }), page())
+    const s = resolveSeo(
+      settings({
+        identity: { ...DEFAULT_SETTINGS.identity, twitterHandle: 'setupress' }
+      }),
+      page()
+    )
     expect(content(s, { name: 'twitter:site' })).toBe('@setupress')
     expect(content(s, { name: 'twitter:creator' })).toBe('@setupress')
   })

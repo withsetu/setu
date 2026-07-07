@@ -28,7 +28,7 @@ import './index.css'
 // to authenticate against, so the gate is skipped entirely and ActorProvider keeps its existing
 // single local-owner default. Toggling this per-build (not per-request) is intentional: which
 // topology the admin is compiled for is a build-time fact, not something that changes at runtime.
-const hasApi = !!(import.meta.env.VITE_SETU_API as string | undefined)
+const hasApi = !!import.meta.env.VITE_SETU_API
 
 /** Wraps children in SessionGate only in the API-connected topology; otherwise passes children
  *  through under the existing local-owner ActorProvider untouched. */
@@ -55,7 +55,9 @@ function DevReset() {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <BrowserRouter
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <Bootstrap>
         <NotificationProvider>
           <AuthBoundary>
@@ -80,5 +82,5 @@ createRoot(document.getElementById('root')!).render(
         </NotificationProvider>
       </Bootstrap>
     </BrowserRouter>
-  </StrictMode>,
+  </StrictMode>
 )

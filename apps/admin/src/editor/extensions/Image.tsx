@@ -4,11 +4,15 @@ import type { NodeViewProps } from '@tiptap/react'
 import { resolveMediaSrc } from '../media-src'
 
 function ImageView({ node, updateAttributes, selected }: NodeViewProps) {
-  const apiBase = import.meta.env.VITE_SETU_API as string | undefined
+  const apiBase = import.meta.env.VITE_SETU_API
   const src = String(node.attrs.src ?? '')
   const alt = String(node.attrs.alt ?? '')
   return (
-    <NodeViewWrapper as="span" className={`setu-image${selected ? ' is-selected' : ''}`} contentEditable={false}>
+    <NodeViewWrapper
+      as="span"
+      className={`setu-image${selected ? ' is-selected' : ''}`}
+      contentEditable={false}
+    >
       <img src={resolveMediaSrc(src, apiBase)} alt={alt} />
       {selected && (
         <input
@@ -34,12 +38,15 @@ export const Image = Node.create({
     return {
       src: { default: '' },
       alt: { default: '' },
-      title: { default: null },
+      title: { default: null }
     }
   },
 
   addStorage() {
-    return { onUploading: undefined as ((busy: boolean) => void) | undefined, onError: undefined as ((msg: string) => void) | undefined }
+    return {
+      onUploading: undefined as ((busy: boolean) => void) | undefined,
+      onError: undefined as ((msg: string) => void) | undefined
+    }
   },
 
   parseHTML() {
@@ -52,5 +59,5 @@ export const Image = Node.create({
 
   addNodeView() {
     return ReactNodeViewRenderer(ImageView)
-  },
+  }
 })

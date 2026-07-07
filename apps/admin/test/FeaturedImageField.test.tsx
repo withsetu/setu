@@ -4,12 +4,18 @@ import { FeaturedImageField } from '../src/editor/FeaturedImageField'
 
 // Stub the picker so the field's open→pick wiring is deterministic and network-free.
 vi.mock('../src/editor/MediaPickerModal', () => ({
-  MediaPickerModal: ({ open, onPick }: { open: boolean; onPick: (s: string) => void }) =>
+  MediaPickerModal: ({
+    open,
+    onPick
+  }: {
+    open: boolean
+    onPick: (s: string) => void
+  }) =>
     open ? (
       <button type="button" onClick={() => onPick('/media/2026/06/hero.jpg')}>
         mock-pick
       </button>
-    ) : null,
+    ) : null
 }))
 
 const base = 'http://localhost:4444'
@@ -17,7 +23,9 @@ const base = 'http://localhost:4444'
 describe('FeaturedImageField', () => {
   it('shows a "Set featured image" button when empty', () => {
     render(<FeaturedImageField onChange={() => {}} editable apiBase={base} />)
-    expect(screen.getByRole('button', { name: 'Set featured image' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Set featured image' })
+    ).toBeInTheDocument()
     expect(screen.queryByRole('img')).toBeNull()
   })
 
@@ -32,17 +40,30 @@ describe('FeaturedImageField', () => {
   it('with a value shows a resolved preview and a Remove that clears it', () => {
     const onChange = vi.fn()
     render(
-      <FeaturedImageField value="/media/2026/06/hero.jpg" onChange={onChange} editable apiBase={base} />,
+      <FeaturedImageField
+        value="/media/2026/06/hero.jpg"
+        onChange={onChange}
+        editable
+        apiBase={base}
+      />
     )
     const img = screen.getByRole('img')
-    expect(img).toHaveAttribute('src', 'http://localhost:4444/media/2026/06/hero.jpg')
+    expect(img).toHaveAttribute(
+      'src',
+      'http://localhost:4444/media/2026/06/hero.jpg'
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
     expect(onChange).toHaveBeenCalledWith(undefined)
   })
 
   it('hides Change/Remove controls when not editable', () => {
     render(
-      <FeaturedImageField value="/media/2026/06/hero.jpg" onChange={() => {}} editable={false} apiBase={base} />,
+      <FeaturedImageField
+        value="/media/2026/06/hero.jpg"
+        onChange={() => {}}
+        editable={false}
+        apiBase={base}
+      />
     )
     expect(screen.getByRole('img')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull()

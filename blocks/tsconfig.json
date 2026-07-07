@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"],
+    "paths": {
+      "@setu/core": ["../packages/core/src/index.ts"],
+      "zod": ["../packages/core/node_modules/zod"]
+    }
+  },
+  "include": ["*/block.ts"]
+}

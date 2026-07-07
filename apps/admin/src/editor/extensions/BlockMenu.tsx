@@ -15,7 +15,7 @@ const SHORTCUT_ID: Record<keyof BlockMenuActions, string> = {
   moveUp: 'moveUp',
   moveDown: 'moveDown',
   duplicate: 'duplicateBlock',
-  remove: 'deleteBlock',
+  remove: 'deleteBlock'
 }
 
 const keysFor = (k: keyof BlockMenuActions, mac: boolean): string => {
@@ -34,7 +34,7 @@ export function BlockMenu({
   actions,
   canMoveUp,
   canMoveDown,
-  onClose,
+  onClose
 }: {
   actions: BlockMenuActions
   canMoveUp: boolean
@@ -43,9 +43,14 @@ export function BlockMenu({
 }) {
   const items: Item[] = [
     { key: 'moveUp', label: 'Move up', icon: 'chevUp', disabled: !canMoveUp },
-    { key: 'moveDown', label: 'Move down', icon: 'chevDown', disabled: !canMoveDown },
+    {
+      key: 'moveDown',
+      label: 'Move down',
+      icon: 'chevDown',
+      disabled: !canMoveDown
+    },
     { key: 'duplicate', label: 'Duplicate', icon: 'copy' },
-    { key: 'remove', label: 'Delete', icon: 'trash' },
+    { key: 'remove', label: 'Delete', icon: 'trash' }
   ]
   const mac = detectMac()
   const [active, setActive] = useState(0)
@@ -77,7 +82,14 @@ export function BlockMenu({
   }
 
   return (
-    <div ref={ref} className="blk-menu" role="menu" aria-label="Block actions" tabIndex={-1} onKeyDown={onKeyDown}>
+    <div
+      ref={ref}
+      className="blk-menu"
+      role="menu"
+      aria-label="Block actions"
+      tabIndex={-1}
+      onKeyDown={onKeyDown}
+    >
       {items.map((item, i) => (
         <button
           key={item.key}

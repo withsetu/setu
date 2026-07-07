@@ -97,7 +97,7 @@ export interface UserWithAdminFields {
 export function lastOwnerGuardHook() {
   return async (
     data: Record<string, unknown>,
-    context: GenericEndpointContext | null,
+    context: GenericEndpointContext | null
   ): Promise<void> => {
     if (!context) return // no HTTP request context (e.g. bootstrap/internal calls) — not this guard's concern
     const path = context.path
@@ -106,7 +106,8 @@ export function lastOwnerGuardHook() {
     const isUpdateUser = path === '/admin/update-user'
     if (!isSetRole && !isBanUser && !isUpdateUser) return
 
-    const targetUserId = (context.body as { userId?: unknown } | undefined)?.userId
+    const targetUserId = (context.body as { userId?: unknown } | undefined)
+      ?.userId
     if (typeof targetUserId !== 'string' || !targetUserId) return // malformed body — let normal validation reject it
 
     // update-user's `data` param IS the diff (ctx.body.data, per adminUpdateUser's
@@ -118,19 +119,23 @@ export function lastOwnerGuardHook() {
         ? !roleSetIncludesAdmin(data.role)
         : // isUpdateUser: only a transition that actually TOUCHES role/banned can remove admin
           // status — an update-user call that changes name/email only must be a no-op here.
-          (Object.prototype.hasOwnProperty.call(data, 'banned') && data.banned === true) ||
-          (Object.prototype.hasOwnProperty.call(data, 'role') && !roleSetIncludesAdmin(data.role))
+          (Object.prototype.hasOwnProperty.call(data, 'banned') &&
+            data.banned === true) ||
+          (Object.prototype.hasOwnProperty.call(data, 'role') &&
+            !roleSetIncludesAdmin(data.role))
     if (!removesOwnerStatus) return
 
     // Is the TARGET currently an active owner at all? If not (e.g. banning a non-owner, or
     // demoting someone who isn't currently owner), this transition can't be removing "the" owner.
-    const target = (await context.context.internalAdapter.findUserById(targetUserId)) as
-      | (UserWithAdminFields & Record<string, unknown>)
-      | null
+    const target = (await context.context.internalAdapter.findUserById(
+      targetUserId
+    )) as (UserWithAdminFields & Record<string, unknown>) | null
     if (!target || target.role !== 'admin' || target.banned) return
 
     if (await isLastActiveOwner(context, targetUserId)) {
-      throw new APIError('BAD_REQUEST', { message: 'cannot remove the last admin' })
+      throw new APIError('BAD_REQUEST', {
+        message: 'cannot remove the last admin'
+      })
     }
   }
 }
@@ -152,15 +157,15 @@ function roleSetIncludesAdmin(role: unknown): boolean {
  *  target". Returns true when the target is the LAST active owner (zero others exist). */
 async function isLastActiveOwner(
   context: GenericEndpointContext,
-  targetUserId: string,
+  targetUserId: string
 ): Promise<boolean> {
   const otherActiveOwners = await context.context.adapter.count({
     model: 'user',
     where: [
       { field: 'id', operator: 'ne', value: targetUserId },
       { field: 'role', value: 'admin', connector: 'AND' },
-      { field: 'banned', operator: 'ne', value: true, connector: 'AND' },
-    ],
+      { field: 'banned', operator: 'ne', value: true, connector: 'AND' }
+    ]
   })
   return otherActiveOwners === 0
 }
@@ -193,20 +198,28 @@ async function isLastActiveOwner(
 export function lastOwnerDeleteGuardHook() {
   return async (
     deletedUser: UserWithAdminFields & { id: string } & Record<string, unknown>,
-    context: GenericEndpointContext | null,
+    context: GenericEndpointContext | null
   ): Promise<void> => {
     if (!context) return // no HTTP request context (e.g. bootstrap/internal calls) — not this guard's concern
     if (context.path !== '/admin/remove-user') return
 
-    const targetUserId = (context.body as { userId?: unknown } | undefined)?.userId
-    if (typeof targetUserId !== 'string' || !targetUserId || targetUserId !== deletedUser.id) return
+    const targetUserId = (context.body as { userId?: unknown } | undefined)
+      ?.userId
+    if (
+      typeof targetUserId !== 'string' ||
+      !targetUserId ||
+      targetUserId !== deletedUser.id
+    )
+      return
 
     // Is the TARGET currently an active owner at all? If not, deleting them can't be removing
     // "the" owner.
     if (deletedUser.role !== 'admin' || deletedUser.banned) return
 
     if (await isLastActiveOwner(context, targetUserId)) {
-      throw new APIError('BAD_REQUEST', { message: 'cannot remove the last admin' })
+      throw new APIError('BAD_REQUEST', {
+        message: 'cannot remove the last admin'
+      })
     }
   }
 }

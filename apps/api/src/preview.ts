@@ -18,11 +18,13 @@ export function createPreviewApi(): Hono {
   const app = new Hono()
 
   app.post('/preview', async (c) => {
-    slot = (await c.req.json()) as PreviewDraft
+    slot = await c.req.json()
     return c.json({ ok: true })
   })
 
-  app.get('/preview', (c) => (slot ? c.json(slot) : c.json({ error: 'no preview draft' }, 404)))
+  app.get('/preview', (c) =>
+    slot ? c.json(slot) : c.json({ error: 'no preview draft' }, 404)
+  )
 
   return app
 }

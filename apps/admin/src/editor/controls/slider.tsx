@@ -21,7 +21,9 @@ export function SliderControl({ value, onChange, meta }: ControlProps) {
         onValueChange={([v]) => onChange(v)}
         className="flex-1"
       />
-      <span className="w-6 text-right text-sm tabular-nums text-muted-foreground">{n}</span>
+      <span className="w-6 text-right text-sm tabular-nums text-muted-foreground">
+        {n}
+      </span>
     </div>
   )
 }

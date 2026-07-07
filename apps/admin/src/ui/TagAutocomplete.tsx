@@ -10,7 +10,7 @@ export function TagAutocomplete({
   exclude = [],
   placeholder,
   ariaLabel,
-  disabled = false,
+  disabled = false
 }: {
   value: string
   onChange: (text: string) => void

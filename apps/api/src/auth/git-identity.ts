@@ -11,7 +11,10 @@ function defaultExec(cmd: string): string {
   // execFileSync (no shell) — the args are hardcoded literals, but keeping the shell out of the
   // picture entirely means this stays injection-free even if a caller ever parameterizes it.
   const [file = 'git', ...args] = cmd.split(' ')
-  return execFileSync(file, args, { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] })
+  return execFileSync(file, args, {
+    encoding: 'utf-8',
+    stdio: ['ignore', 'pipe', 'ignore']
+  })
 }
 
 /** Resolves the identity to use for the local-topology owner account (fed into
@@ -25,7 +28,9 @@ function defaultExec(cmd: string): string {
  *
  *  `exec` is injectable (defaults to a real `child_process.execSync` call) purely so tests don't
  *  need a real git binary / configured identity on the CI machine running this suite. */
-export function resolveGitIdentity(opts?: { exec?: (cmd: string) => string }): LocalOwnerIdentity {
+export function resolveGitIdentity(opts?: {
+  exec?: (cmd: string) => string
+}): LocalOwnerIdentity {
   const exec = opts?.exec ?? defaultExec
   const read = (cmd: string): string | null => {
     try {
@@ -37,6 +42,6 @@ export function resolveGitIdentity(opts?: { exec?: (cmd: string) => string }): L
   }
   return {
     email: read('git config user.email') ?? FALLBACK.email,
-    name: read('git config user.name') ?? FALLBACK.name,
+    name: read('git config user.name') ?? FALLBACK.name
   }
 }

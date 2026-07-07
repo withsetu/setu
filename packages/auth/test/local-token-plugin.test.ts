@@ -16,7 +16,8 @@ function makeAuth(opts?: { token?: string | null }) {
   const db = drizzle(new Database(':memory:'))
   migrate(db, { migrationsFolder: '../db-sqlite/drizzle' })
 
-  const token: string | null = opts?.token === undefined ? 'test-loopback-token-abc123' : opts.token
+  const token: string | null =
+    opts?.token === undefined ? 'test-loopback-token-abc123' : opts.token
   let consumeCallCount = 0
   let localUserId = ''
 
@@ -33,8 +34,8 @@ function makeAuth(opts?: { token?: string | null }) {
       localUserId: async () => {
         if (!localUserId) throw new Error('local owner not set for this test')
         return localUserId
-      },
-    },
+      }
+    }
   })
 
   return {
@@ -43,7 +44,7 @@ function makeAuth(opts?: { token?: string | null }) {
     setLocalUserId: (id: string) => {
       localUserId = id
     },
-    getConsumed: () => consumeCallCount > 0,
+    getConsumed: () => consumeCallCount > 0
   }
 }
 
@@ -52,9 +53,19 @@ function makeAuth(opts?: { token?: string | null }) {
 // linkAccount, not the public sign-up route. Mirrors auth-events.test.ts's makeOwner helper.
 async function createLocalUser(auth: ReturnType<typeof createAuth>) {
   const ctx = await auth.$context
-  const user = await ctx.internalAdapter.createUser({ email: 'owner@local.test', name: 'Owner', role: 'admin', emailVerified: true })
+  const user = await ctx.internalAdapter.createUser({
+    email: 'owner@local.test',
+    name: 'Owner',
+    role: 'admin',
+    emailVerified: true
+  })
   const hashed = await ctx.password.hash('hunter2hunter2')
-  await ctx.internalAdapter.linkAccount({ userId: user.id, providerId: 'credential', accountId: user.id, password: hashed })
+  await ctx.internalAdapter.linkAccount({
+    userId: user.id,
+    providerId: 'credential',
+    accountId: user.id,
+    password: hashed
+  })
   return user.id
 }
 
@@ -62,7 +73,7 @@ function exchangeRequest(token: string, host = 'localhost:4444') {
   return new Request('http://localhost:4444/api/auth/local/exchange', {
     method: 'POST',
     headers: { 'content-type': 'application/json', host },
-    body: JSON.stringify({ token }),
+    body: JSON.stringify({ token })
   })
 }
 
@@ -72,7 +83,9 @@ describe('localToken plugin — POST /api/auth/local/exchange', () => {
     const userId = await createLocalUser(auth)
     setLocalUserId(userId)
 
-    const res = await auth.handler(exchangeRequest('test-loopback-token-abc123'))
+    const res = await auth.handler(
+      exchangeRequest('test-loopback-token-abc123')
+    )
     expect(res.status).toBe(200)
 
     const setCookie = res.headers.get('set-cookie')
@@ -82,7 +95,9 @@ describe('localToken plugin — POST /api/auth/local/exchange', () => {
     // Follow up: use the returned cookie to fetch the session, proving it's a real session row —
     // not a bypass — recognized by better-auth's own getSession.
     const cookieHeader = (setCookie ?? '').split(';')[0] ?? ''
-    const session = await auth.api.getSession({ headers: new Headers({ cookie: cookieHeader }) })
+    const session = await auth.api.getSession({
+      headers: new Headers({ cookie: cookieHeader })
+    })
     expect(session?.user.id).toBe(userId)
   })
 
@@ -91,10 +106,14 @@ describe('localToken plugin — POST /api/auth/local/exchange', () => {
     const userId = await createLocalUser(auth)
     setLocalUserId(userId)
 
-    const first = await auth.handler(exchangeRequest('test-loopback-token-abc123'))
+    const first = await auth.handler(
+      exchangeRequest('test-loopback-token-abc123')
+    )
     expect(first.status).toBe(200)
 
-    const second = await auth.handler(exchangeRequest('test-loopback-token-abc123'))
+    const second = await auth.handler(
+      exchangeRequest('test-loopback-token-abc123')
+    )
     expect([401, 403]).toContain(second.status)
   })
 
@@ -107,7 +126,9 @@ describe('localToken plugin — POST /api/auth/local/exchange', () => {
     expect([401, 403]).toContain(wrong.status)
     expect(getConsumed()).toBe(false)
 
-    const valid = await auth.handler(exchangeRequest('test-loopback-token-abc123'))
+    const valid = await auth.handler(
+      exchangeRequest('test-loopback-token-abc123')
+    )
     expect(valid.status).toBe(200)
   })
 
@@ -116,12 +137,16 @@ describe('localToken plugin — POST /api/auth/local/exchange', () => {
     const userId = await createLocalUser(auth)
     setLocalUserId(userId)
 
-    const res = await auth.handler(exchangeRequest('test-loopback-token-abc123', 'xyz.trycloudflare.com'))
+    const res = await auth.handler(
+      exchangeRequest('test-loopback-token-abc123', 'xyz.trycloudflare.com')
+    )
     expect(res.status).toBe(403)
     expect(getConsumed()).toBe(false)
 
     // Ordering matters: the token must still be valid afterwards.
-    const valid = await auth.handler(exchangeRequest('test-loopback-token-abc123'))
+    const valid = await auth.handler(
+      exchangeRequest('test-loopback-token-abc123')
+    )
     expect(valid.status).toBe(200)
   })
 
@@ -135,15 +160,21 @@ describe('localToken plugin — POST /api/auth/local/exchange', () => {
 
 describe('constantTimeTokenEquals', () => {
   it('returns true for equal strings', () => {
-    expect(constantTimeTokenEquals('same-token-value', 'same-token-value')).toBe(true)
+    expect(
+      constantTimeTokenEquals('same-token-value', 'same-token-value')
+    ).toBe(true)
   })
 
   it('returns false for unequal strings', () => {
-    expect(constantTimeTokenEquals('same-token-value', 'different-token')).toBe(false)
+    expect(constantTimeTokenEquals('same-token-value', 'different-token')).toBe(
+      false
+    )
   })
 
   it('returns false for unequal-length strings without throwing', () => {
-    expect(constantTimeTokenEquals('short', 'a-much-longer-token-value')).toBe(false)
+    expect(constantTimeTokenEquals('short', 'a-much-longer-token-value')).toBe(
+      false
+    )
   })
 
   it('is constant-time-shaped: hashes both sides to equal-length buffers before comparing (structural check via source)', async () => {
@@ -153,7 +184,9 @@ describe('constantTimeTokenEquals', () => {
     // (non-configurable) crypto module export.
     const { readFileSync } = await import('node:fs')
     const { fileURLToPath } = await import('node:url')
-    const srcPath = fileURLToPath(new URL('../src/local-token-plugin.ts', import.meta.url))
+    const srcPath = fileURLToPath(
+      new URL('../src/local-token-plugin.ts', import.meta.url)
+    )
     const source = readFileSync(srcPath, 'utf-8')
     expect(source).toMatch(/timingSafeEqual/)
     expect(source).toMatch(/createHash\(['"]sha256['"]\)/)

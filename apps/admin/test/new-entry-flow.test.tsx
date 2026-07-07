@@ -14,7 +14,10 @@ import { NotificationProvider } from '../src/ui/notify'
 import { TooltipProvider } from '../src/components/ui/tooltip'
 import { CommandRegistryProvider } from '../src/command/registry'
 
-const doc = (t: string): TiptapDoc => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] })
+const doc = (t: string): TiptapDoc => ({
+  type: 'doc',
+  content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }]
+})
 
 function LocationProbe() {
   return <div data-testid="loc">{useLocation().pathname}</div>
@@ -32,7 +35,10 @@ function renderAt(path: string, data: DataPort, git: GitPort) {
                   <TaxonomyProvider>
                     <CommandRegistryProvider>
                       <Routes>
-                        <Route path="/edit/:collection/:locale/:slug" element={<EditorScreen />} />
+                        <Route
+                          path="/edit/:collection/:locale/:slug"
+                          element={<EditorScreen />}
+                        />
                       </Routes>
                       <LocationProbe />
                     </CommandRegistryProvider>
@@ -43,7 +49,7 @@ function renderAt(path: string, data: DataPort, git: GitPort) {
           </ActorProvider>
         </MemoryRouter>
       </NotificationProvider>
-    </TooltipProvider>,
+    </TooltipProvider>
   )
 }
 
@@ -59,33 +65,65 @@ describe('New-entry compose flow', () => {
 
     // autosave debounce (~800ms) → mint + save + redirect
     await waitFor(
-      () => expect(screen.getByTestId('loc')).toHaveTextContent('/edit/post/en/post-test'),
-      { timeout: 2500 },
+      () =>
+        expect(screen.getByTestId('loc')).toHaveTextContent(
+          '/edit/post/en/post-test'
+        ),
+      { timeout: 2500 }
     )
-    expect(await data.getDraft({ collection: 'post', locale: 'en', slug: 'post-test' })).not.toBeNull()
+    expect(
+      await data.getDraft({
+        collection: 'post',
+        locale: 'en',
+        slug: 'post-test'
+      })
+    ).not.toBeNull()
     // nothing was ever persisted under the "new" sentinel
-    expect(await data.getDraft({ collection: 'post', locale: 'en', slug: 'new' })).toBeNull()
+    expect(
+      await data.getDraft({ collection: 'post', locale: 'en', slug: 'new' })
+    ).toBeNull()
   })
 
   it('opens a blank compose even when other drafts already exist (each New is distinct)', async () => {
     const seed: DraftInput[] = [
-      { collection: 'post', locale: 'en', slug: 'post-test', content: doc('existing'), metadata: { title: 'Post Test' } },
+      {
+        collection: 'post',
+        locale: 'en',
+        slug: 'post-test',
+        content: doc('existing'),
+        metadata: { title: 'Post Test' }
+      }
     ]
-    renderAt('/edit/post/en/new', createMemoryDataPort(seed), createMemoryGitPort([]))
+    renderAt(
+      '/edit/post/en/new',
+      createMemoryDataPort(seed),
+      createMemoryGitPort([])
+    )
     const titleInput = await screen.findByLabelText('Title')
     expect((titleInput as HTMLInputElement).value).toBe('')
   })
 
   it('bumps the slug when the title collides with an existing entry', async () => {
     const seed: DraftInput[] = [
-      { collection: 'post', locale: 'en', slug: 'post-test', content: doc('existing'), metadata: { title: 'Post Test' } },
+      {
+        collection: 'post',
+        locale: 'en',
+        slug: 'post-test',
+        content: doc('existing'),
+        metadata: { title: 'Post Test' }
+      }
     ]
     const data = createMemoryDataPort(seed)
     renderAt('/edit/post/en/new', data, createMemoryGitPort([]))
-    fireEvent.change(await screen.findByLabelText('Title'), { target: { value: 'Post Test' } })
+    fireEvent.change(await screen.findByLabelText('Title'), {
+      target: { value: 'Post Test' }
+    })
     await waitFor(
-      () => expect(screen.getByTestId('loc')).toHaveTextContent('/edit/post/en/post-test-2'),
-      { timeout: 2500 },
+      () =>
+        expect(screen.getByTestId('loc')).toHaveTextContent(
+          '/edit/post/en/post-test-2'
+        ),
+      { timeout: 2500 }
     )
   })
 })

@@ -1,21 +1,28 @@
-import type { Actor, Role } from '@setu/core'
+import type { Role } from '@setu/core'
 import type { AuthInstance } from '@setu/auth'
 import type { ResolveActor } from './resolve-actor'
 
 const ROLES: readonly string[] = ['admin', 'maintainer', 'editor', 'author']
 
-// better-auth's `admin` plugin adds `role`/`banned` to the user record at runtime (and in the
-// actual DB schema — see packages/db-sqlite/src/schema.ts), but `AuthInstance`'s inferred
-// `api.getSession()` return type doesn't carry plugin-added user fields through this generic
-// instantiation. Narrow with a local type rather than `any`/`as unknown as` — the fields are
-// guaranteed present by the admin plugin's schema, not a runtime assumption.
-type SessionUser = NonNullable<Awaited<ReturnType<AuthInstance['api']['getSession']>>>['user']
-type SessionUserWithAdminFields = SessionUser & { banned?: boolean | null; role?: string | null }
+// better-auth's `admin` plugin adds `role`/`banned` to the user record at runtime (and in the DB
+// schema — packages/db-sqlite/src/schema.ts), but `AuthInstance`'s inferred `getSession()` return
+// type doesn't carry those plugin-added fields, so we narrow with a local type.
+type SessionUser = NonNullable<
+  Awaited<ReturnType<AuthInstance['api']['getSession']>>
+>['user']
+type SessionUserWithAdminFields = SessionUser & {
+  banned?: boolean | null
+  role?: string | null
+}
 
 export function resolveSessionActor(auth: AuthInstance): ResolveActor {
   return async (req) => {
     try {
       const session = await auth.api.getSession({ headers: req.headers })
+      // The optional-prop intersection reads as a no-op to no-unnecessary-type-assertion, but the
+      // cast is required for tsc to permit the `.banned`/`.role` access below (SessionUser lacks
+      // them) — so the rule is a false positive here.
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
       const user = session?.user as SessionUserWithAdminFields | undefined
       if (!user || user.banned) return null
       // #379: an unrecognized (e.g. future audience) role is not staff — resolve to no actor (fail

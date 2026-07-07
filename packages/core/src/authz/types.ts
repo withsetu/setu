@@ -8,19 +8,37 @@
  *  authenticated content staff, it is not a PII/authz hole. */
 export type Action =
   // Content — posts & pages
-  | 'content.view' | 'content.create' | 'content.edit' | 'content.delete'
-  | 'content.publish' | 'content.unpublish'
+  | 'content.view'
+  | 'content.create'
+  | 'content.edit'
+  | 'content.delete'
+  | 'content.publish'
+  | 'content.unpublish'
   // Taxonomy — categories & tags
-  | 'taxonomy.view' | 'taxonomy.create' | 'taxonomy.edit' | 'taxonomy.delete'
+  | 'taxonomy.view'
+  | 'taxonomy.create'
+  | 'taxonomy.edit'
+  | 'taxonomy.delete'
   // Media library
-  | 'media.view' | 'media.upload' | 'media.edit' | 'media.delete'
+  | 'media.view'
+  | 'media.upload'
+  | 'media.edit'
+  | 'media.delete'
   // Forms — submissions contain visitor PII
-  | 'forms.view' | 'forms.manage'
+  | 'forms.view'
+  | 'forms.manage'
   // Operations & configuration
-  | 'sitehealth.view' | 'site.deploy' | 'theme.manage'
-  | 'settings.view' | 'settings.manage'
+  | 'sitehealth.view'
+  | 'site.deploy'
+  | 'theme.manage'
+  | 'settings.view'
+  | 'settings.manage'
   // Users & roles
-  | 'users.view' | 'users.invite' | 'users.setRole' | 'users.disable' | 'users.delete'
+  | 'users.view'
+  | 'users.invite'
+  | 'users.setRole'
+  | 'users.disable'
+  | 'users.delete'
   | 'roles.manage'
 
 export type Role = 'admin' | 'maintainer' | 'editor' | 'author'

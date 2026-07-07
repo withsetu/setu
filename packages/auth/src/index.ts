@@ -6,18 +6,24 @@ import * as schema from '@setu/db-sqlite/schema'
 import { SETU_ROLES, type CreateAuthOptions } from './options'
 import { localToken } from './local-token-plugin'
 import { serverSetup } from './server-setup-plugin'
-import { lastOwnerGuardHook, lastOwnerDeleteGuardHook } from './last-owner-guard'
+import {
+  lastOwnerGuardHook,
+  lastOwnerDeleteGuardHook
+} from './last-owner-guard'
 import {
   userCreateAfterHook,
   sessionCreateAfterHook,
   sessionDeleteAfterHook,
   userUpdateAfterHook,
-  userDeleteAfterHook,
+  userDeleteAfterHook
 } from './audit-hooks'
-import type { AuthEvent } from './events'
-
 export { SETU_ROLES, type CreateAuthOptions } from './options'
-export { localToken, isLoopbackHost, constantTimeTokenEquals, type LocalTokenOptions } from './local-token-plugin'
+export {
+  localToken,
+  isLoopbackHost,
+  constantTimeTokenEquals,
+  type LocalTokenOptions
+} from './local-token-plugin'
 export { serverSetup, type ServerSetupOptions } from './server-setup-plugin'
 export { ensureLocalOwner, type LocalOwnerIdentity } from './ensure-local-owner'
 export type { AuthEvent, AuthEventType } from './events'
@@ -44,14 +50,17 @@ const setuAdminRoles = {
       'set-password',
       'set-email',
       'get',
-      'update',
+      'update'
     ],
-    session: ['list', 'revoke', 'delete'],
+    session: ['list', 'revoke', 'delete']
   }),
   maintainer: defaultAc.newRole({ user: [], session: [] }),
   editor: defaultAc.newRole({ user: [], session: [] }),
-  author: defaultAc.newRole({ user: [], session: [] }),
-} satisfies Record<(typeof SETU_ROLES)[number], ReturnType<typeof defaultAc.newRole>>
+  author: defaultAc.newRole({ user: [], session: [] })
+} satisfies Record<
+  (typeof SETU_ROLES)[number],
+  ReturnType<typeof defaultAc.newRole>
+>
 
 export function createAuth(opts: CreateAuthOptions) {
   // Structured audit-event seam (#248 Task 9). Defaults to a no-op so every existing caller of
@@ -62,10 +71,19 @@ export function createAuth(opts: CreateAuthOptions) {
   const emit = opts.onAuthEvent ?? (() => {})
 
   const plugins: BetterAuthPlugin[] = [
-    admin({ adminRoles: ['admin'], defaultRole: 'author', roles: setuAdminRoles }),
+    admin({
+      adminRoles: ['admin'],
+      defaultRole: 'author',
+      roles: setuAdminRoles
+    })
   ]
   if (opts.captcha) {
-    plugins.push(captcha({ provider: opts.captcha.provider, secretKey: opts.captcha.secretKey }))
+    plugins.push(
+      captcha({
+        provider: opts.captcha.provider,
+        secretKey: opts.captcha.secretKey
+      })
+    )
   }
   if (opts.localToken) {
     plugins.push(localToken({ ...opts.localToken, onAuthEvent: emit }))
@@ -107,33 +125,33 @@ export function createAuth(opts: CreateAuthOptions) {
         create: { after: userCreateAfterHook(emit) },
         update: {
           before: lastOwnerGuardHook(),
-          after: userUpdateAfterHook(emit),
+          after: userUpdateAfterHook(emit)
         },
         // Deletion is a SEPARATE chokepoint from update (deleteWithHooks, not updateWithHooks) —
         // `/admin/remove-user` on the last active owner would otherwise bypass the guard above
         // entirely. See last-owner-guard.ts's lastOwnerDeleteGuardHook doc for the full mechanism.
         delete: {
           before: lastOwnerDeleteGuardHook(),
-          after: userDeleteAfterHook(emit),
-        },
+          after: userDeleteAfterHook(emit)
+        }
       },
       session: {
         create: { after: sessionCreateAfterHook(emit) },
-        delete: { after: sessionDeleteAfterHook(emit) },
-      },
+        delete: { after: sessionDeleteAfterHook(emit) }
+      }
     },
     advanced: {
       ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] },
-      defaultCookieAttributes: { httpOnly: true, sameSite: 'lax' },
+      defaultCookieAttributes: { httpOnly: true, sameSite: 'lax' }
     },
     rateLimit: {
       enabled: opts.rateLimit?.enabled ?? true,
       storage: 'database',
       window: opts.rateLimit?.window ?? 60,
       max: opts.rateLimit?.max ?? 100,
-      customRules: { '/sign-in/email': { window: 10, max: 3 } },
+      customRules: { '/sign-in/email': { window: 10, max: 3 } }
     },
-    plugins,
+    plugins
   })
 }
 

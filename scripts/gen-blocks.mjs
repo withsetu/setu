@@ -16,15 +16,15 @@ const OUT = path.join(ROOT, 'apps', 'site', 'markdoc.blocks.generated.mjs')
 // hoisting). Resolve them from packages/core where they ARE installed as dependencies.
 // Anchors Node module resolution to the @setu/core package location; assumes the packages/core repo layout.
 const coreReq = createRequire(
-  path.join(ROOT, 'packages', 'core', 'package.json'),
+  path.join(ROOT, 'packages', 'core', 'package.json')
 )
 
 const jiti = createJiti(import.meta.url, {
   alias: {
     '@setu/core': coreReq.resolve('@setu/core'),
     '@setu/core/node': coreReq.resolve('@setu/core/node'),
-    zod: coreReq.resolve('zod'),
-  },
+    zod: coreReq.resolve('zod')
+  }
 })
 
 async function loadEntries() {
@@ -36,7 +36,8 @@ async function loadEntries() {
     const blockTs = path.join(folder, 'block.ts')
     if (!existsSync(blockTs)) continue
     const astro = path.join(folder, `${tag}.astro`)
-    if (!existsSync(astro)) throw new Error(`block "${tag}": missing ${tag}.astro`)
+    if (!existsSync(astro))
+      throw new Error(`block "${tag}": missing ${tag}.astro`)
     const contract = await jiti.import(blockTs, { default: true })
     entries.push({ tag, component: `blocks/${tag}/${tag}.astro`, contract })
   }
@@ -44,14 +45,21 @@ async function loadEntries() {
 }
 
 export async function main() {
-  const { buildRegistry, mergeBlockSources, STANDARD_BLOCKS } = await jiti.import('@setu/core')
+  const { buildRegistry, mergeBlockSources, STANDARD_BLOCKS } =
+    await jiti.import('@setu/core')
   const { generateMarkdocTagsInclude } = await jiti.import('@setu/core/node')
 
   const local = await loadEntries()
   const entries = mergeBlockSources({ standard: STANDARD_BLOCKS, local })
   const registry = buildRegistry(entries)
   writeFileSync(OUT, generateMarkdocTagsInclude(registry))
-  console.log(`gen-blocks: ${registry.blocks.length} block(s): ${registry.blocks.map((b) => b.tag).join(', ') || '(none)'}`)
+  console.log(
+    `gen-blocks: ${registry.blocks.length} block(s): ${registry.blocks.map((b) => b.tag).join(', ') || '(none)'}`
+  )
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) main()
+if (
+  process.argv[1] &&
+  fileURLToPath(import.meta.url) === path.resolve(process.argv[1])
+)
+  main()

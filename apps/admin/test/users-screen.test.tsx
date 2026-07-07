@@ -1,5 +1,19 @@
-import { describe, it, expect, vi, afterEach, beforeAll, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  afterEach,
+  beforeAll,
+  beforeEach
+} from 'vitest'
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within
+} from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { ActorProvider } from '../src/auth/actor'
 import { NotificationProvider } from '../src/ui/notify'
@@ -8,13 +22,22 @@ import { authClient } from '../src/auth/auth-client'
 
 // Radix Select/DropdownMenu/Tooltip call scrollIntoView / use PointerEvent APIs jsdom lacks.
 beforeAll(() => {
-  if (typeof window !== 'undefined' && !window.HTMLElement.prototype.scrollIntoView) {
+  if (
+    typeof window !== 'undefined' &&
+    !window.HTMLElement.prototype.scrollIntoView
+  ) {
     window.HTMLElement.prototype.scrollIntoView = () => {}
   }
-  if (typeof window !== 'undefined' && !window.HTMLElement.prototype.hasPointerCapture) {
+  if (
+    typeof window !== 'undefined' &&
+    !window.HTMLElement.prototype.hasPointerCapture
+  ) {
     window.HTMLElement.prototype.hasPointerCapture = () => false
   }
-  if (typeof window !== 'undefined' && !window.HTMLElement.prototype.releasePointerCapture) {
+  if (
+    typeof window !== 'undefined' &&
+    !window.HTMLElement.prototype.releasePointerCapture
+  ) {
     window.HTMLElement.prototype.releasePointerCapture = () => {}
   }
 })
@@ -27,18 +50,17 @@ vi.mock('../src/auth/auth-client', () => ({
       setRole: vi.fn(),
       banUser: vi.fn(),
       unbanUser: vi.fn(),
-      setUserPassword: vi.fn(),
+      setUserPassword: vi.fn()
     },
     changePassword: vi.fn(),
-    listAccounts: vi.fn(),
-  },
+    listAccounts: vi.fn()
+  }
 }))
 
 const mockListUsers = vi.mocked(authClient.admin.listUsers)
 const mockCreateUser = vi.mocked(authClient.admin.createUser)
 const mockSetRole = vi.mocked(authClient.admin.setRole)
 const mockBanUser = vi.mocked(authClient.admin.banUser)
-const mockUnbanUser = vi.mocked(authClient.admin.unbanUser)
 const mockSetUserPassword = vi.mocked(authClient.admin.setUserPassword)
 const mockChangePassword = vi.mocked(authClient.changePassword)
 const mockListAccounts = vi.mocked(authClient.listAccounts)
@@ -53,7 +75,7 @@ const OWNER = {
   createdAt: now,
   updatedAt: now,
   role: 'admin',
-  banned: false,
+  banned: false
 }
 const EDITOR = {
   id: 'editor-1',
@@ -63,7 +85,7 @@ const EDITOR = {
   createdAt: now,
   updatedAt: now,
   role: 'editor',
-  banned: false,
+  banned: false
 }
 // #379: a disabled author fixture (viewer role removed) — exercises the "Disabled" row badge with
 // a real staff role.
@@ -75,10 +97,13 @@ const DISABLED_AUTHOR = {
   createdAt: now,
   updatedAt: now,
   role: 'author',
-  banned: true,
+  banned: true
 }
 
-function renderAsActor(role: 'admin' | 'maintainer' | 'editor' | 'author', id = 'owner-1') {
+function renderAsActor(
+  role: 'admin' | 'maintainer' | 'editor' | 'author',
+  id = 'owner-1'
+) {
   const wrapper = ({ children }: { children: ReactNode }) => (
     <NotificationProvider>
       <ActorProvider actor={{ id, role }}>{children}</ActorProvider>
@@ -104,13 +129,18 @@ function stubCredentialStatus(status: Record<string, boolean> = {}) {
       }
       if (u.includes('/api/users')) {
         const { data, error } = await authClient.admin.listUsers({
-          query: { sortBy: 'createdAt', sortDirection: 'asc' },
+          query: { sortBy: 'createdAt', sortDirection: 'asc' }
         } as never)
-        if (error || !data) return new Response(JSON.stringify({ error: 'forbidden' }), { status: 403 })
-        return new Response(JSON.stringify({ users: data.users }), { status: 200 })
+        if (error || !data)
+          return new Response(JSON.stringify({ error: 'forbidden' }), {
+            status: 403
+          })
+        return new Response(JSON.stringify({ users: data.users }), {
+          status: 200
+        })
       }
       return new Response('not found', { status: 404 })
-    }),
+    })
   )
 }
 
@@ -127,8 +157,14 @@ afterEach(() => {
 
 describe('UsersScreen', () => {
   it('renders the user list with role badges, status, and created date', async () => {
-    mockListUsers.mockResolvedValue({ data: { users: [OWNER, EDITOR, DISABLED_AUTHOR], total: 3 }, error: null } as never)
-    mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)
+    mockListUsers.mockResolvedValue({
+      data: { users: [OWNER, EDITOR, DISABLED_AUTHOR], total: 3 },
+      error: null
+    })
+    mockListAccounts.mockResolvedValue({
+      data: [{ id: 'a1', providerId: 'credential' }],
+      error: null
+    })
 
     renderAsActor('admin')
 
@@ -144,16 +180,28 @@ describe('UsersScreen', () => {
   // management — that's rank-scoped and lands in #364. So a maintainer sees a read-only roster: no
   // "Add user", no per-row role Select or actions menu.
   it('a maintainer sees a read-only roster (list loads; no add/manage controls)', async () => {
-    mockListUsers.mockResolvedValue({ data: { users: [OWNER, EDITOR], total: 2 }, error: null } as never)
-    mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)
+    mockListUsers.mockResolvedValue({
+      data: { users: [OWNER, EDITOR], total: 2 },
+      error: null
+    })
+    mockListAccounts.mockResolvedValue({
+      data: [{ id: 'a1', providerId: 'credential' }],
+      error: null
+    })
 
     renderAsActor('maintainer', 'maint-1')
     await screen.findByText('Ada Owner')
 
     expect(screen.getByText('Eve Editor')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /add user/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('combobox', { name: /change role/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /more actions/i })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /add user/i })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('combobox', { name: /change role/i })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /more actions/i })
+    ).not.toBeInTheDocument()
   })
 
   it('shows a loading skeleton before users resolve', () => {
@@ -167,10 +215,22 @@ describe('UsersScreen', () => {
 
   it('invite dialog validates fields and calls createUser, then refreshes the list', async () => {
     mockListUsers
-      .mockResolvedValueOnce({ data: { users: [OWNER], total: 1 }, error: null } as never)
-      .mockResolvedValueOnce({ data: { users: [OWNER, EDITOR], total: 2 }, error: null } as never)
-    mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)
-    mockCreateUser.mockResolvedValue({ data: { user: EDITOR }, error: null } as never)
+      .mockResolvedValueOnce({
+        data: { users: [OWNER], total: 1 },
+        error: null
+      })
+      .mockResolvedValueOnce({
+        data: { users: [OWNER, EDITOR], total: 2 },
+        error: null
+      })
+    mockListAccounts.mockResolvedValue({
+      data: [{ id: 'a1', providerId: 'credential' }],
+      error: null
+    })
+    mockCreateUser.mockResolvedValue({
+      data: { user: EDITOR },
+      error: null
+    })
 
     renderAsActor('admin')
     await screen.findByText('Ada Owner')
@@ -180,12 +240,20 @@ describe('UsersScreen', () => {
     // Submitting empty should surface validation errors, not call createUser.
     const dialog = await screen.findByRole('dialog')
     fireEvent.click(within(dialog).getByRole('button', { name: /^add user$/i }))
-    expect(await within(dialog).findByText(/name is required/i)).toBeInTheDocument()
+    expect(
+      await within(dialog).findByText(/name is required/i)
+    ).toBeInTheDocument()
     expect(mockCreateUser).not.toHaveBeenCalled()
 
-    fireEvent.change(within(dialog).getByLabelText(/^name$/i), { target: { value: 'Eve Editor' } })
-    fireEvent.change(within(dialog).getByLabelText(/^email$/i), { target: { value: 'editor@setu.dev' } })
-    fireEvent.change(within(dialog).getByLabelText(/temporary password/i), { target: { value: 'a-very-long-password' } })
+    fireEvent.change(within(dialog).getByLabelText(/^name$/i), {
+      target: { value: 'Eve Editor' }
+    })
+    fireEvent.change(within(dialog).getByLabelText(/^email$/i), {
+      target: { value: 'editor@setu.dev' }
+    })
+    fireEvent.change(within(dialog).getByLabelText(/temporary password/i), {
+      target: { value: 'a-very-long-password' }
+    })
 
     // Choose a role via the Select.
     fireEvent.click(within(dialog).getByRole('combobox', { name: /role/i }))
@@ -198,35 +266,59 @@ describe('UsersScreen', () => {
         name: 'Eve Editor',
         email: 'editor@setu.dev',
         password: 'a-very-long-password',
-        role: 'editor',
-      }),
+        role: 'editor'
+      })
     )
     await waitFor(() => expect(mockListUsers).toHaveBeenCalledTimes(2))
   })
 
   it('changes a user role via setRole', async () => {
-    mockListUsers.mockResolvedValue({ data: { users: [OWNER, EDITOR], total: 2 }, error: null } as never)
-    mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)
-    mockSetRole.mockResolvedValue({ data: { user: { ...EDITOR, role: 'author' } }, error: null } as never)
+    mockListUsers.mockResolvedValue({
+      data: { users: [OWNER, EDITOR], total: 2 },
+      error: null
+    })
+    mockListAccounts.mockResolvedValue({
+      data: [{ id: 'a1', providerId: 'credential' }],
+      error: null
+    })
+    mockSetRole.mockResolvedValue({
+      data: { user: { ...EDITOR, role: 'author' } },
+      error: null
+    })
 
     renderAsActor('admin')
     await screen.findByText('Eve Editor')
 
-    const editorRoleSelect = screen.getByRole('combobox', { name: /change role for eve editor/i })
+    const editorRoleSelect = screen.getByRole('combobox', {
+      name: /change role for eve editor/i
+    })
     fireEvent.click(editorRoleSelect)
     fireEvent.click(await screen.findByRole('option', { name: /^author$/i }))
 
-    await waitFor(() => expect(mockSetRole).toHaveBeenCalledWith({ userId: 'editor-1', role: 'author' }))
+    await waitFor(() =>
+      expect(mockSetRole).toHaveBeenCalledWith({
+        userId: 'editor-1',
+        role: 'author'
+      })
+    )
   })
 
   it('disables the role-change control for your own row (cannot change your own role)', async () => {
-    mockListUsers.mockResolvedValue({ data: { users: [OWNER, EDITOR], total: 2 }, error: null } as never)
-    mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)
+    mockListUsers.mockResolvedValue({
+      data: { users: [OWNER, EDITOR], total: 2 },
+      error: null
+    })
+    mockListAccounts.mockResolvedValue({
+      data: [{ id: 'a1', providerId: 'credential' }],
+      error: null
+    })
 
     renderAsActor('admin', 'owner-1')
     await screen.findByText('Ada Owner')
 
-    const ownRoleSelect = screen.getByRole('combobox', { name: /change role for ada owner/i })
+    const ownRoleSelect = screen.getByRole('combobox', {
+      name: /change role for ada owner/i
+    })
     expect(ownRoleSelect).toBeDisabled()
   })
 
@@ -238,118 +330,214 @@ describe('UsersScreen', () => {
 
   it('disable user: confirms via alert-dialog, then calls banUser and refreshes', async () => {
     mockListUsers
-      .mockResolvedValueOnce({ data: { users: [OWNER, EDITOR], total: 2 }, error: null } as never)
-      .mockResolvedValueOnce({ data: { users: [OWNER, { ...EDITOR, banned: true }], total: 2 }, error: null } as never)
-    mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)
-    mockBanUser.mockResolvedValue({ data: { user: { ...EDITOR, banned: true } }, error: null } as never)
+      .mockResolvedValueOnce({
+        data: { users: [OWNER, EDITOR], total: 2 },
+        error: null
+      })
+      .mockResolvedValueOnce({
+        data: { users: [OWNER, { ...EDITOR, banned: true }], total: 2 },
+        error: null
+      })
+    mockListAccounts.mockResolvedValue({
+      data: [{ id: 'a1', providerId: 'credential' }],
+      error: null
+    })
+    mockBanUser.mockResolvedValue({
+      data: { user: { ...EDITOR, banned: true } },
+      error: null
+    })
 
     renderAsActor('admin')
     await screen.findByText('Eve Editor')
 
     // Radix DropdownMenu opens on Enter keydown (avoids PointerEvent jsdom issues — matches the
     // pattern already used by UserMenu's/PublishMenu's tests).
-    fireEvent.keyDown(screen.getByRole('button', { name: /more actions for eve editor/i }), { key: 'Enter' })
-    fireEvent.click(await screen.findByRole('menuitem', { name: /disable user/i }))
+    fireEvent.keyDown(
+      screen.getByRole('button', { name: /more actions for eve editor/i }),
+      { key: 'Enter' }
+    )
+    fireEvent.click(
+      await screen.findByRole('menuitem', { name: /disable user/i })
+    )
 
     const confirmDialog = await screen.findByRole('alertdialog')
-    fireEvent.click(within(confirmDialog).getByRole('button', { name: /^disable$/i }))
+    fireEvent.click(
+      within(confirmDialog).getByRole('button', { name: /^disable$/i })
+    )
 
-    await waitFor(() => expect(mockBanUser).toHaveBeenCalledWith({ userId: 'editor-1' }))
+    await waitFor(() =>
+      expect(mockBanUser).toHaveBeenCalledWith({ userId: 'editor-1' })
+    )
     await waitFor(() => expect(mockListUsers).toHaveBeenCalledTimes(2))
   })
 
   it('cannot disable yourself: the disable action is guarded on your own row', async () => {
-    mockListUsers.mockResolvedValue({ data: { users: [OWNER, EDITOR], total: 2 }, error: null } as never)
-    mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)
+    mockListUsers.mockResolvedValue({
+      data: { users: [OWNER, EDITOR], total: 2 },
+      error: null
+    })
+    mockListAccounts.mockResolvedValue({
+      data: [{ id: 'a1', providerId: 'credential' }],
+      error: null
+    })
 
     renderAsActor('admin', 'owner-1')
     await screen.findByText('Ada Owner')
 
-    fireEvent.keyDown(screen.getByRole('button', { name: /more actions for ada owner/i }), { key: 'Enter' })
-    const disableItem = await screen.findByRole('menuitem', { name: /disable user/i })
+    fireEvent.keyDown(
+      screen.getByRole('button', { name: /more actions for ada owner/i }),
+      { key: 'Enter' }
+    )
+    const disableItem = await screen.findByRole('menuitem', {
+      name: /disable user/i
+    })
     expect(disableItem).toHaveAttribute('aria-disabled', 'true')
   })
 
   describe('owner password / remote access', () => {
     it('shows "Set password" when the current user has no credential account', async () => {
-      mockListUsers.mockResolvedValue({ data: { users: [OWNER], total: 1 }, error: null } as never)
-      mockListAccounts.mockResolvedValue({ data: [], error: null } as never)
+      mockListUsers.mockResolvedValue({
+        data: { users: [OWNER], total: 1 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({ data: [], error: null })
 
       renderAsActor('admin')
 
-      expect(await screen.findByRole('button', { name: /^set password$/i })).toBeInTheDocument()
-      expect(screen.queryByLabelText(/current password/i)).not.toBeInTheDocument()
+      expect(
+        await screen.findByRole('button', { name: /^set password$/i })
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByLabelText(/current password/i)
+      ).not.toBeInTheDocument()
     })
 
     it('shows "Change password" (with current-password field) when a credential account exists', async () => {
-      mockListUsers.mockResolvedValue({ data: { users: [OWNER], total: 1 }, error: null } as never)
-      mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)
+      mockListUsers.mockResolvedValue({
+        data: { users: [OWNER], total: 1 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({
+        data: [{ id: 'a1', providerId: 'credential' }],
+        error: null
+      })
 
       renderAsActor('admin')
 
-      expect(await screen.findByRole('button', { name: /^change password$/i })).toBeInTheDocument()
+      expect(
+        await screen.findByRole('button', { name: /^change password$/i })
+      ).toBeInTheDocument()
       expect(screen.getByLabelText(/current password/i)).toBeInTheDocument()
     })
 
     it('validates password length + confirmation match before calling setUserPassword', async () => {
-      mockListUsers.mockResolvedValue({ data: { users: [OWNER], total: 1 }, error: null } as never)
-      mockListAccounts.mockResolvedValue({ data: [], error: null } as never)
+      mockListUsers.mockResolvedValue({
+        data: { users: [OWNER], total: 1 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({ data: [], error: null })
 
       renderAsActor('admin')
-      const submit = await screen.findByRole('button', { name: /^set password$/i })
+      const submit = await screen.findByRole('button', {
+        name: /^set password$/i
+      })
 
-      fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: 'short' } })
-      fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'short' } })
+      fireEvent.change(screen.getByLabelText(/^password$/i), {
+        target: { value: 'short' }
+      })
+      fireEvent.change(screen.getByLabelText(/confirm password/i), {
+        target: { value: 'short' }
+      })
       fireEvent.click(submit)
 
-      expect(await screen.findByText(/at least 12 characters/i)).toBeInTheDocument()
+      expect(
+        await screen.findByText(/at least 12 characters/i)
+      ).toBeInTheDocument()
       expect(mockSetUserPassword).not.toHaveBeenCalled()
     })
 
     it('sets the owner password via admin.setUserPassword and shows the success toast', async () => {
-      mockListUsers.mockResolvedValue({ data: { users: [OWNER], total: 1 }, error: null } as never)
-      mockListAccounts.mockResolvedValue({ data: [], error: null } as never)
-      mockSetUserPassword.mockResolvedValue({ data: { status: true }, error: null } as never)
+      mockListUsers.mockResolvedValue({
+        data: { users: [OWNER], total: 1 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({ data: [], error: null })
+      mockSetUserPassword.mockResolvedValue({
+        data: { status: true },
+        error: null
+      })
 
       renderAsActor('admin', 'owner-1')
       await screen.findByRole('button', { name: /^set password$/i })
 
-      fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: 'a-very-long-password' } })
-      fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'a-very-long-password' } })
+      fireEvent.change(screen.getByLabelText(/^password$/i), {
+        target: { value: 'a-very-long-password' }
+      })
+      fireEvent.change(screen.getByLabelText(/confirm password/i), {
+        target: { value: 'a-very-long-password' }
+      })
       fireEvent.click(screen.getByRole('button', { name: /^set password$/i }))
 
       await waitFor(() =>
-        expect(mockSetUserPassword).toHaveBeenCalledWith({ userId: 'owner-1', newPassword: 'a-very-long-password' }),
+        expect(mockSetUserPassword).toHaveBeenCalledWith({
+          userId: 'owner-1',
+          newPassword: 'a-very-long-password'
+        })
       )
-      expect(await screen.findByText(/remote access enabled/i)).toBeInTheDocument()
+      expect(
+        await screen.findByText(/remote access enabled/i)
+      ).toBeInTheDocument()
     })
 
     it('changes an existing password via authClient.changePassword', async () => {
-      mockListUsers.mockResolvedValue({ data: { users: [OWNER], total: 1 }, error: null } as never)
-      mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)
-      mockChangePassword.mockResolvedValue({ data: { token: null }, error: null } as never)
+      mockListUsers.mockResolvedValue({
+        data: { users: [OWNER], total: 1 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({
+        data: [{ id: 'a1', providerId: 'credential' }],
+        error: null
+      })
+      mockChangePassword.mockResolvedValue({
+        data: { token: null },
+        error: null
+      })
 
       renderAsActor('admin')
       await screen.findByRole('button', { name: /^change password$/i })
 
-      fireEvent.change(screen.getByLabelText(/current password/i), { target: { value: 'old-password-123' } })
-      fireEvent.change(screen.getByLabelText(/new password/i), { target: { value: 'a-new-long-password' } })
-      fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'a-new-long-password' } })
-      fireEvent.click(screen.getByRole('button', { name: /^change password$/i }))
+      fireEvent.change(screen.getByLabelText(/current password/i), {
+        target: { value: 'old-password-123' }
+      })
+      fireEvent.change(screen.getByLabelText(/new password/i), {
+        target: { value: 'a-new-long-password' }
+      })
+      fireEvent.change(screen.getByLabelText(/confirm password/i), {
+        target: { value: 'a-new-long-password' }
+      })
+      fireEvent.click(
+        screen.getByRole('button', { name: /^change password$/i })
+      )
 
       await waitFor(() =>
         expect(mockChangePassword).toHaveBeenCalledWith({
           newPassword: 'a-new-long-password',
-          currentPassword: 'old-password-123',
-        }),
+          currentPassword: 'old-password-123'
+        })
       )
     })
   })
 
   describe('credential status ("No password" row status)', () => {
     it('shows a "No password" badge on a row for a user with no credential account', async () => {
-      mockListUsers.mockResolvedValue({ data: { users: [OWNER, EDITOR], total: 2 }, error: null } as never)
-      mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)
+      mockListUsers.mockResolvedValue({
+        data: { users: [OWNER, EDITOR], total: 2 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({
+        data: [{ id: 'a1', providerId: 'credential' }],
+        error: null
+      })
       // Only the owner has a credential account; editor is absent from the map -> passwordless.
       stubCredentialStatus({ 'owner-1': true })
 
@@ -358,42 +546,66 @@ describe('UsersScreen', () => {
 
       const editorRow = screen.getByText('Eve Editor').closest('tr')
       expect(editorRow).not.toBeNull()
-      expect(within(editorRow as HTMLElement).getByText(/no password/i)).toBeInTheDocument()
+      expect(
+        within(editorRow as HTMLElement).getByText(/no password/i)
+      ).toBeInTheDocument()
 
       const ownerRow = screen.getByText('Ada Owner').closest('tr')
       expect(ownerRow).not.toBeNull()
-      expect(within(ownerRow as HTMLElement).queryByText(/no password/i)).not.toBeInTheDocument()
+      expect(
+        within(ownerRow as HTMLElement).queryByText(/no password/i)
+      ).not.toBeInTheDocument()
     })
 
     it('shows "No password" on the CURRENT user\'s own row too, consistent with the OwnerPasswordCard state', async () => {
-      mockListUsers.mockResolvedValue({ data: { users: [OWNER], total: 1 }, error: null } as never)
-      mockListAccounts.mockResolvedValue({ data: [], error: null } as never)
+      mockListUsers.mockResolvedValue({
+        data: { users: [OWNER], total: 1 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({ data: [], error: null })
       stubCredentialStatus({}) // owner-1 absent -> passwordless
 
       renderAsActor('admin', 'owner-1')
       await screen.findByText('Ada Owner')
 
       const ownerRow = screen.getByText('Ada Owner').closest('tr')
-      expect(within(ownerRow as HTMLElement).getByText(/no password/i)).toBeInTheDocument()
+      expect(
+        within(ownerRow as HTMLElement).getByText(/no password/i)
+      ).toBeInTheDocument()
     })
 
     it('flips from "No password" to no badge after the credential-status map updates (e.g. after a password is set)', async () => {
-      mockListUsers.mockResolvedValue({ data: { users: [OWNER], total: 1 }, error: null } as never)
-      mockListAccounts.mockResolvedValue({ data: [], error: null } as never)
+      mockListUsers.mockResolvedValue({
+        data: { users: [OWNER], total: 1 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({ data: [], error: null })
       stubCredentialStatus({})
 
       renderAsActor('admin', 'owner-1')
-      const ownerRow = await screen.findByText('Ada Owner').then((el) => el.closest('tr') as HTMLElement)
+      const ownerRow = await screen
+        .findByText('Ada Owner')
+        .then((el) => el.closest('tr') as HTMLElement)
       expect(within(ownerRow).getByText(/no password/i)).toBeInTheDocument()
 
       // Simulate the status flipping server-side (e.g. after OwnerPasswordCard's setUserPassword
       // succeeds) and the list being refreshed.
       stubCredentialStatus({ 'owner-1': true })
-      mockListUsers.mockResolvedValue({ data: { users: [OWNER], total: 1 }, error: null } as never)
-      mockSetUserPassword.mockResolvedValue({ data: { status: true }, error: null } as never)
+      mockListUsers.mockResolvedValue({
+        data: { users: [OWNER], total: 1 },
+        error: null
+      })
+      mockSetUserPassword.mockResolvedValue({
+        data: { status: true },
+        error: null
+      })
 
-      fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: 'a-very-long-password' } })
-      fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'a-very-long-password' } })
+      fireEvent.change(screen.getByLabelText(/^password$/i), {
+        target: { value: 'a-very-long-password' }
+      })
+      fireEvent.change(screen.getByLabelText(/confirm password/i), {
+        target: { value: 'a-very-long-password' }
+      })
       fireEvent.click(screen.getByRole('button', { name: /^set password$/i }))
 
       await waitFor(() => expect(mockSetUserPassword).toHaveBeenCalled())
@@ -407,10 +619,22 @@ describe('UsersScreen', () => {
   describe('invite dialog: Enter submits', () => {
     it('submits the invite form on Enter in a text field, same as clicking Add user', async () => {
       mockListUsers
-        .mockResolvedValueOnce({ data: { users: [OWNER], total: 1 }, error: null } as never)
-        .mockResolvedValueOnce({ data: { users: [OWNER, EDITOR], total: 2 }, error: null } as never)
-      mockListAccounts.mockResolvedValue({ data: [{ id: 'a1', providerId: 'credential' }], error: null } as never)
-      mockCreateUser.mockResolvedValue({ data: { user: EDITOR }, error: null } as never)
+        .mockResolvedValueOnce({
+          data: { users: [OWNER], total: 1 },
+          error: null
+        })
+        .mockResolvedValueOnce({
+          data: { users: [OWNER, EDITOR], total: 2 },
+          error: null
+        })
+      mockListAccounts.mockResolvedValue({
+        data: [{ id: 'a1', providerId: 'credential' }],
+        error: null
+      })
+      mockCreateUser.mockResolvedValue({
+        data: { user: EDITOR },
+        error: null
+      })
 
       renderAsActor('admin')
       await screen.findByText('Ada Owner')
@@ -418,9 +642,15 @@ describe('UsersScreen', () => {
       fireEvent.click(screen.getByRole('button', { name: /add user/i }))
       const dialog = await screen.findByRole('dialog')
 
-      fireEvent.change(within(dialog).getByLabelText(/^name$/i), { target: { value: 'Eve Editor' } })
-      fireEvent.change(within(dialog).getByLabelText(/^email$/i), { target: { value: 'editor@setu.dev' } })
-      fireEvent.change(within(dialog).getByLabelText(/temporary password/i), { target: { value: 'a-very-long-password' } })
+      fireEvent.change(within(dialog).getByLabelText(/^name$/i), {
+        target: { value: 'Eve Editor' }
+      })
+      fireEvent.change(within(dialog).getByLabelText(/^email$/i), {
+        target: { value: 'editor@setu.dev' }
+      })
+      fireEvent.change(within(dialog).getByLabelText(/temporary password/i), {
+        target: { value: 'a-very-long-password' }
+      })
       fireEvent.click(within(dialog).getByRole('combobox', { name: /role/i }))
       fireEvent.click(await screen.findByRole('option', { name: /editor/i }))
 
@@ -437,8 +667,8 @@ describe('UsersScreen', () => {
           name: 'Eve Editor',
           email: 'editor@setu.dev',
           password: 'a-very-long-password',
-          role: 'editor',
-        }),
+          role: 'editor'
+        })
       )
     })
   })

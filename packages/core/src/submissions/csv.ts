@@ -8,8 +8,17 @@ const esc = (v: string): string => {
 /** Serialize submissions to CSV. Fixed metadata columns + the union of field keys
  *  (sorted). Date is ISO. Excel-safe quoting. */
 export function submissionsToCsv(rows: Submission[]): string {
-  const fieldKeys = [...new Set(rows.flatMap((r) => Object.keys(r.fields)))].sort()
-  const header = ['id', 'date', 'formId', 'formLabel', 'read', ...fieldKeys].map(esc)
+  const fieldKeys = [
+    ...new Set(rows.flatMap((r) => Object.keys(r.fields)))
+  ].sort()
+  const header = [
+    'id',
+    'date',
+    'formId',
+    'formLabel',
+    'read',
+    ...fieldKeys
+  ].map(esc)
   const lines = rows.map((r) =>
     [
       r.id,
@@ -17,10 +26,10 @@ export function submissionsToCsv(rows: Submission[]): string {
       r.formId,
       r.formLabel ?? '',
       String(r.read),
-      ...fieldKeys.map((k) => r.fields[k] ?? ''),
+      ...fieldKeys.map((k) => r.fields[k] ?? '')
     ]
       .map((v) => esc(String(v)))
-      .join(','),
+      .join(',')
   )
   return [header.join(','), ...lines].join('\n')
 }

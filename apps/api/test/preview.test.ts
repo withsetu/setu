@@ -1,10 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { createPreviewApi } from '../src/preview'
 
-const req = (app: ReturnType<typeof createPreviewApi>, path: string, init?: RequestInit) =>
-  app.fetch(new Request(`http://test${path}`, init))
+const req = (
+  app: ReturnType<typeof createPreviewApi>,
+  path: string,
+  init?: RequestInit
+) => app.fetch(new Request(`http://test${path}`, init))
 
-const draft = { content: '---\ntitle: Hi\n---\nHello', collection: 'post', locale: 'en', slug: 'hi' }
+const draft = {
+  content: '---\ntitle: Hi\n---\nHello',
+  collection: 'post',
+  locale: 'en',
+  slug: 'hi'
+}
 
 describe('preview api', () => {
   it('404 when no draft has been pushed', async () => {
@@ -17,7 +25,7 @@ describe('preview api', () => {
     const post = await req(app, '/preview', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(draft),
+      body: JSON.stringify(draft)
     })
     expect(post.status).toBe(200)
     const res = await req(app, '/preview')
@@ -28,10 +36,16 @@ describe('preview api', () => {
   it('the latest POST wins (single slot)', async () => {
     const app = createPreviewApi()
     const send = (d: typeof draft) =>
-      req(app, '/preview', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(d) })
+      req(app, '/preview', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(d)
+      })
     await send(draft)
     await send({ ...draft, slug: 'second', content: 'second body' })
-    expect(await (await req(app, '/preview')).json()).toMatchObject({ slug: 'second' })
+    expect(await (await req(app, '/preview')).json()).toMatchObject({
+      slug: 'second'
+    })
   })
 
   // CORS is no longer set by this factory standalone — server.ts owns the allowlisted `cors()` +

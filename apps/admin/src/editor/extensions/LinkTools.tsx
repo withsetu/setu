@@ -16,7 +16,7 @@ export function shouldShowLinkCard(
   selectionEmpty: boolean,
   linkActive: boolean,
   href: string,
-  dismissed = false,
+  dismissed = false
 ): boolean {
   return selectionEmpty && linkActive && href.length > 0 && !dismissed
 }
@@ -92,10 +92,16 @@ export const LinkTools = Extension.create<LinkToolsOptions>({
           },
           onRemove: () => {
             const pos = editor.view.posAtDOM(anchor, 0)
-            editor.chain().focus().setTextSelection(pos).extendMarkRange('link').unsetLink().run()
+            editor
+              .chain()
+              .focus()
+              .setTextSelection(pos)
+              .extendMarkRange('link')
+              .unsetLink()
+              .run()
             hide()
-          },
-        },
+          }
+        }
       })
       popup = tippy(document.body, {
         getReferenceClientRect: () => anchor.getBoundingClientRect(),
@@ -104,7 +110,7 @@ export const LinkTools = Extension.create<LinkToolsOptions>({
         showOnCreate: true,
         interactive: true,
         trigger: 'manual',
-        placement: 'top',
+        placement: 'top'
       })
       // Keep the card alive while the pointer is over it (so its buttons are clickable).
       popup.popper.addEventListener('mouseenter', cancelHide)
@@ -117,7 +123,8 @@ export const LinkTools = Extension.create<LinkToolsOptions>({
         props: {
           handleKeyDown(_view, event) {
             if (isEscape(event) && popup) {
-              dismissedHref = (editor.getAttributes('link').href as string | undefined) ?? ''
+              dismissedHref =
+                (editor.getAttributes('link').href as string | undefined) ?? ''
               hide()
               return true
             }
@@ -144,26 +151,37 @@ export const LinkTools = Extension.create<LinkToolsOptions>({
               // Links never navigate from inside the editor (Tiptap's openOnClick is
               // unreliable — issue #6865). Clicking places the caret + shows the card;
               // the card's "Open ↗" is the deliberate way to follow the link.
-              if ((event.target as HTMLElement | null)?.closest('a')) event.preventDefault()
+              if ((event.target as HTMLElement | null)?.closest('a'))
+                event.preventDefault()
               return false
-            },
-          },
+            }
+          }
         },
         view() {
           return {
             update() {
               const { state } = editor
-              const href = (editor.getAttributes('link').href as string | undefined) ?? ''
+              const href =
+                (editor.getAttributes('link').href as string | undefined) ?? ''
               const inSameDismissedLink =
                 dismissedHref !== null &&
                 editor.isActive('link') &&
                 state.selection.empty &&
                 href === dismissedHref
-              if (dismissedHref !== null && !inSameDismissedLink) dismissedHref = null // caret left → re-arm
-              if (shouldShowLinkCard(state.selection.empty, editor.isActive('link'), href, inSameDismissedLink)) {
+              if (dismissedHref !== null && !inSameDismissedLink)
+                dismissedHref = null // caret left → re-arm
+              if (
+                shouldShowLinkCard(
+                  state.selection.empty,
+                  editor.isActive('link'),
+                  href,
+                  inSameDismissedLink
+                )
+              ) {
                 const domAt = editor.view.domAtPos(state.selection.from)
                 const node = domAt.node
-                const el = node instanceof HTMLElement ? node : node.parentElement
+                const el =
+                  node instanceof HTMLElement ? node : node.parentElement
                 const a = el?.closest('a')
                 if (a instanceof HTMLAnchorElement) showFor(a, href)
               } else if (popup && !popup.popper.matches(':hover')) {
@@ -173,10 +191,10 @@ export const LinkTools = Extension.create<LinkToolsOptions>({
             },
             destroy() {
               hide()
-            },
+            }
           }
-        },
-      }),
+        }
+      })
     ]
-  },
+  }
 })

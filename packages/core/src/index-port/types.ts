@@ -13,6 +13,8 @@ export interface EntryIndexRow {
   pending?: LifecyclePending
   updatedAt: number | null
   hasDraft: boolean
+  /** Frontmatter publish date (`date` ?? `pubDate`), epoch ms; null when absent. */
+  date: number | null
   tags: string[]
   categories: string[]
   mediaRefs: string[]
@@ -50,12 +52,15 @@ export interface IndexPort {
   distinctLocales(): Promise<string[]>
   categoryCounts(): Promise<Record<string, number>>
   tagCounts(): Promise<Record<string, number>>
-  referencedBy(mediaKey: string): Promise<import('./referenced-by').MediaUsage[]>
+  referencedBy(
+    mediaKey: string
+  ): Promise<import('./referenced-by').MediaUsage[]>
   entriesByCategory(slug: string): Promise<import('../data/types').EntryRef[]>
   entriesByTag(tag: string): Promise<import('../data/types').EntryRef[]>
 }
 
-export const indexKey = (ref: EntryRef): string => `${ref.collection}\0${ref.locale}\0${ref.slug}`
+export const indexKey = (ref: EntryRef): string =>
+  `${ref.collection}\0${ref.locale}\0${ref.slug}`
 
 export function projectRow(row: ContentRow): EntryIndexRow {
   const out: EntryIndexRow = {
@@ -68,9 +73,10 @@ export function projectRow(row: ContentRow): EntryIndexRow {
     status: row.lifecycle.state,
     updatedAt: row.updatedAt,
     hasDraft: row.hasDraft,
+    date: row.date,
     tags: row.tags,
     categories: row.categories,
-    mediaRefs: row.mediaRefs,
+    mediaRefs: row.mediaRefs
   }
   if (row.lifecycle.pending !== undefined) out.pending = row.lifecycle.pending
   if (row.featuredImage !== undefined) out.featuredImage = row.featuredImage
@@ -78,7 +84,10 @@ export function projectRow(row: ContentRow): EntryIndexRow {
 }
 
 export function rowToContentRow(r: EntryIndexRow): ContentRow {
-  const lifecycle = r.pending !== undefined ? { state: r.status, pending: r.pending } : { state: r.status }
+  const lifecycle =
+    r.pending !== undefined
+      ? { state: r.status, pending: r.pending }
+      : { state: r.status }
   return {
     ref: { collection: r.collection, locale: r.locale, slug: r.slug },
     title: r.title,
@@ -86,9 +95,10 @@ export function rowToContentRow(r: EntryIndexRow): ContentRow {
     lifecycle,
     updatedAt: r.updatedAt,
     hasDraft: r.hasDraft,
+    date: r.date,
     tags: r.tags,
     categories: r.categories,
     mediaRefs: r.mediaRefs,
-    ...(r.featuredImage !== undefined ? { featuredImage: r.featuredImage } : {}),
+    ...(r.featuredImage !== undefined ? { featuredImage: r.featuredImage } : {})
   }
 }

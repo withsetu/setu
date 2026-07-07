@@ -15,9 +15,28 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription
+} from '@/components/ui/card'
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell
+} from '@/components/ui/table'
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem
+} from '@/components/ui/select'
 import {
   Dialog,
   DialogTrigger,
@@ -25,13 +44,13 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
+  DialogFooter
 } from '@/components/ui/dialog'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
-  DropdownMenuItem,
+  DropdownMenuItem
 } from '@/components/ui/dropdown-menu'
 import {
   AlertDialog,
@@ -42,9 +61,14 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogAction,
-  AlertDialogCancel,
+  AlertDialogCancel
 } from '@/components/ui/alert-dialog'
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider
+} from '@/components/ui/tooltip'
 import { MoreHorizontal } from 'lucide-react'
 
 /** Setu's fixed role set + the one-line descriptions from the authz matrix (packages/core's
@@ -55,7 +79,7 @@ const ROLE_DESCRIPTIONS: Record<Role, string> = {
   admin: 'Full control — settings, users, and roles',
   maintainer: 'Runs the site day-to-day: content, forms, deploy, theme',
   editor: 'Full content lifecycle; no forms, ops, or config',
-  author: 'Creates and manages their own content',
+  author: 'Creates and manages their own content'
 }
 
 /** Roles offered when inviting/changing a user's role. 'admin' is deliberately excluded — Setu
@@ -65,7 +89,7 @@ const ROLE_DESCRIPTIONS: Record<Role, string> = {
  *  invite/role management (Maintainer manages below its own rank) is epic #359 increment #364. */
 const ROLE_OPTIONS: Role[] = ['maintainer', 'editor', 'author']
 
-const apiBase = (import.meta.env.VITE_SETU_API as string | undefined) ?? ''
+const apiBase = import.meta.env.VITE_SETU_API ?? ''
 
 /** `users.view`-gated map of userId -> true for every user WITH a credential (password) account (#248
  *  Task 8 review, Finding 2) — better-auth's admin `listUsers` returns user rows, not their linked
@@ -90,7 +114,9 @@ const inviteSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   email: z.string().email('Enter a valid email'),
   password: z.string().min(12, 'Password must be at least 12 characters'),
-  role: z.enum(['maintainer', 'editor', 'author'] as const, { message: 'Choose a role' }),
+  role: z.enum(['maintainer', 'editor', 'author'] as const, {
+    message: 'Choose a role'
+  })
 })
 type InviteValues = z.infer<typeof inviteSchema>
 type InviteErrors = Partial<Record<keyof InviteValues, string>>
@@ -99,10 +125,17 @@ const passwordSchema = z
   .object({
     currentPassword: z.string().optional(),
     newPassword: z.string().min(12, 'Password must be at least 12 characters'),
-    confirm: z.string(),
+    confirm: z.string()
   })
-  .refine((data) => data.newPassword === data.confirm, { message: "Passwords don't match", path: ['confirm'] })
-type PasswordErrors = { currentPassword?: string; newPassword?: string; confirm?: string }
+  .refine((data) => data.newPassword === data.confirm, {
+    message: "Passwords don't match",
+    path: ['confirm']
+  })
+type PasswordErrors = {
+  currentPassword?: string
+  newPassword?: string
+  confirm?: string
+}
 
 function initialOf(name: string, email: string): string {
   return (name || email || '?').charAt(0).toUpperCase()
@@ -112,12 +145,21 @@ function formatDate(value: Date | string | undefined): string {
   if (!value) return '—'
   const d = value instanceof Date ? value : new Date(value)
   if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+  return d.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  })
 }
 
 /** True if `role` is one of Setu's four staff roles — better-auth's `role` field is a loose string. */
 function isKnownRole(role: string | null | undefined): role is Role {
-  return !!role && (['admin', 'maintainer', 'editor', 'author'] as const).includes(role as Role)
+  return (
+    !!role &&
+    (['admin', 'maintainer', 'editor', 'author'] as const).includes(
+      role as Role
+    )
+  )
 }
 
 /** better-auth's admin plugin enforces some guard rails server-side (self-ban is rejected with
@@ -135,25 +177,44 @@ interface RowGuard {
   reason?: string
 }
 
-function roleChangeGuard(user: AdminUser, selfId: string, users: AdminUser[]): RowGuard {
-  if (user.id === selfId) return { disabled: true, reason: 'You cannot change your own role' }
-  if (isLastAdmin(users, user.id)) return { disabled: true, reason: 'Cannot demote the last admin' }
+function roleChangeGuard(
+  user: AdminUser,
+  selfId: string,
+  users: AdminUser[]
+): RowGuard {
+  if (user.id === selfId)
+    return { disabled: true, reason: 'You cannot change your own role' }
+  if (isLastAdmin(users, user.id))
+    return { disabled: true, reason: 'Cannot demote the last admin' }
   return { disabled: false }
 }
 
-function disableGuard(user: AdminUser, selfId: string, users: AdminUser[]): RowGuard {
-  if (user.id === selfId) return { disabled: true, reason: 'You cannot disable yourself' }
-  if (isLastAdmin(users, user.id)) return { disabled: true, reason: 'Cannot disable the last admin' }
+function disableGuard(
+  user: AdminUser,
+  selfId: string,
+  users: AdminUser[]
+): RowGuard {
+  if (user.id === selfId)
+    return { disabled: true, reason: 'You cannot disable yourself' }
+  if (isLastAdmin(users, user.id))
+    return { disabled: true, reason: 'Cannot disable the last admin' }
   return { disabled: false }
 }
 
-function GuardedTrigger({ guard, children }: { guard: RowGuard; children: React.ReactNode }) {
+function GuardedTrigger({
+  guard,
+  children
+}: {
+  guard: RowGuard
+  children: React.ReactNode
+}) {
   if (!guard.disabled) return <>{children}</>
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         {/* span wrapper: Radix Tooltip needs a focusable/hoverable child even when the inner
          *  control is disabled (disabled elements don't fire pointer events in most browsers). */}
+        {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex */}
         <span tabIndex={0} className="inline-flex">
           {children}
         </span>
@@ -179,7 +240,11 @@ function StatusBadge({ user }: { user: AdminUser }) {
  *  errored — both cases degrade to the same "don't claim they have a password" reading, which is
  *  the conservative, security-relevant direction to be wrong in). Renders the badge whenever
  *  `hasCredential` is not `true`. */
-function NoPasswordBadge({ hasCredential }: { hasCredential: boolean | undefined }) {
+function NoPasswordBadge({
+  hasCredential
+}: {
+  hasCredential: boolean | undefined
+}) {
   if (hasCredential === true) return null
   return <Badge variant="secondary">No password</Badge>
 }
@@ -250,13 +315,28 @@ function InviteUserDialog({ onCreated }: { onCreated: () => void }) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Add user</DialogTitle>
-          <DialogDescription>Creates an account with a temporary password. Share it with them securely.</DialogDescription>
+          <DialogDescription>
+            Creates an account with a temporary password. Share it with them
+            securely.
+          </DialogDescription>
         </DialogHeader>
-        <form onSubmit={(e) => void onSubmit(e)} noValidate className="grid gap-4">
+        <form
+          onSubmit={(e) => void onSubmit(e)}
+          noValidate
+          className="grid gap-4"
+        >
           <div className="grid gap-1.5">
             <Label htmlFor="invite-name">Name</Label>
-            <Input id="invite-name" autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} aria-invalid={!!errors.name} />
-            {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
+            <Input
+              id="invite-name"
+              autoComplete="off"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              aria-invalid={!!errors.name}
+            />
+            {errors.name && (
+              <p className="text-sm text-destructive">{errors.name}</p>
+            )}
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="invite-email">Email</Label>
@@ -268,7 +348,9 @@ function InviteUserDialog({ onCreated }: { onCreated: () => void }) {
               onChange={(e) => setEmail(e.target.value)}
               aria-invalid={!!errors.email}
             />
-            {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+            {errors.email && (
+              <p className="text-sm text-destructive">{errors.email}</p>
+            )}
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="invite-password">Temporary password</Label>
@@ -280,12 +362,18 @@ function InviteUserDialog({ onCreated }: { onCreated: () => void }) {
               onChange={(e) => setPassword(e.target.value)}
               aria-invalid={!!errors.password}
             />
-            {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+            {errors.password && (
+              <p className="text-sm text-destructive">{errors.password}</p>
+            )}
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="invite-role">Role</Label>
             <Select value={role} onValueChange={(v) => setRole(v as Role)}>
-              <SelectTrigger id="invite-role" className="w-full" aria-invalid={!!errors.role}>
+              <SelectTrigger
+                id="invite-role"
+                className="w-full"
+                aria-invalid={!!errors.role}
+              >
                 <SelectValue placeholder="Choose a role" />
               </SelectTrigger>
               <SelectContent>
@@ -293,13 +381,17 @@ function InviteUserDialog({ onCreated }: { onCreated: () => void }) {
                   <SelectItem key={r} value={r}>
                     <span className="flex flex-col">
                       <span className="capitalize">{r}</span>
-                      <span className="text-xs text-muted-foreground">{ROLE_DESCRIPTIONS[r]}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {ROLE_DESCRIPTIONS[r]}
+                      </span>
                     </span>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {errors.role && <p className="text-sm text-destructive">{errors.role}</p>}
+            {errors.role && (
+              <p className="text-sm text-destructive">{errors.role}</p>
+            )}
           </div>
           <DialogFooter>
             <Button type="submit" disabled={submitting}>
@@ -318,7 +410,7 @@ function UserRowActions({
   user,
   selfId,
   users,
-  onChanged,
+  onChanged
 }: {
   user: AdminUser
   selfId: string
@@ -340,7 +432,10 @@ function UserRowActions({
     // error the Select simply re-renders with `user.role` unchanged (nothing to roll back, since
     // nothing was ever changed client-side ahead of the response).
     try {
-      const { error } = await authClient.admin.setRole({ userId: user.id, role: next })
+      const { error } = await authClient.admin.setRole({
+        userId: user.id,
+        role: next
+      })
       if (error) {
         notify.error(error.message || 'Could not change role')
         return
@@ -356,13 +451,19 @@ function UserRowActions({
     if (banning) return
     setBanning(true)
     try {
-      const action = user.banned ? authClient.admin.unbanUser({ userId: user.id }) : authClient.admin.banUser({ userId: user.id })
+      const action = user.banned
+        ? authClient.admin.unbanUser({ userId: user.id })
+        : authClient.admin.banUser({ userId: user.id })
       const { error } = await action
       if (error) {
         notify.error(error.message || 'Could not update user status')
         return
       }
-      notify.success(user.banned ? `${user.name || user.email} re-enabled` : `${user.name || user.email} disabled`)
+      notify.success(
+        user.banned
+          ? `${user.name || user.email} re-enabled`
+          : `${user.name || user.email} disabled`
+      )
       onChanged()
     } finally {
       setBanning(false)
@@ -376,13 +477,21 @@ function UserRowActions({
           <Select
             value={isKnownRole(user.role) ? user.role : undefined}
             onValueChange={(v) => void changeRole(v as Role)}
-            disabled={roleGuard.disabled || changingRole || user.role === 'admin'}
+            disabled={
+              roleGuard.disabled || changingRole || user.role === 'admin'
+            }
           >
-            <SelectTrigger size="sm" aria-label={`Change role for ${user.name || user.email}`}>
+            <SelectTrigger
+              size="sm"
+              aria-label={`Change role for ${user.name || user.email}`}
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {(user.role === 'admin' ? (['admin', ...ROLE_OPTIONS] as Role[]) : ROLE_OPTIONS).map((r) => (
+              {(user.role === 'admin'
+                ? (['admin', ...ROLE_OPTIONS] as Role[])
+                : ROLE_OPTIONS
+              ).map((r) => (
                 <SelectItem key={r} value={r} disabled={r === 'admin'}>
                   <span className="capitalize">{r}</span>
                 </SelectItem>
@@ -393,14 +502,21 @@ function UserRowActions({
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label={`More actions for ${user.name || user.email}`}>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={`More actions for ${user.name || user.email}`}
+            >
               <MoreHorizontal className="size-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <AlertDialog>
               <GuardedTrigger guard={disableGuardResult}>
-                <AlertDialogTrigger asChild disabled={disableGuardResult.disabled}>
+                <AlertDialogTrigger
+                  asChild
+                  disabled={disableGuardResult.disabled}
+                >
                   <DropdownMenuItem
                     variant={user.banned ? 'default' : 'destructive'}
                     disabled={disableGuardResult.disabled}
@@ -420,14 +536,20 @@ function UserRowActions({
               {!user.banned && (
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Disable {user.name || user.email}?</AlertDialogTitle>
+                    <AlertDialogTitle>
+                      Disable {user.name || user.email}?
+                    </AlertDialogTitle>
                     <AlertDialogDescription>
-                      Their active sessions end immediately and they can no longer sign in until re-enabled.
+                      Their active sessions end immediately and they can no
+                      longer sign in until re-enabled.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction disabled={banning} onClick={() => void toggleBan()}>
+                    <AlertDialogAction
+                      disabled={banning}
+                      onClick={() => void toggleBan()}
+                    >
                       {banning ? 'Disabling…' : 'Disable'}
                     </AlertDialogAction>
                   </AlertDialogFooter>
@@ -452,7 +574,9 @@ function UserList({ refreshSignal }: { refreshSignal: number }) {
   const notify = useNotify()
   const [users, setUsers] = useState<AdminUser[] | null>(null)
   const [loading, setLoading] = useState(true)
-  const [credentialStatus, setCredentialStatus] = useState<Record<string, boolean>>({})
+  const [credentialStatus, setCredentialStatus] = useState<
+    Record<string, boolean>
+  >({})
 
   // Full user management (invite / change role / disable) still routes through better-auth's admin
   // plugin, which only authorizes `admin`. Maintainer holds `users.view` (so it lists + this screen
@@ -471,11 +595,15 @@ function UserList({ refreshSignal }: { refreshSignal: number }) {
       // fetchCredentialStatus), so it never blocks or fails the user list.
       const [listRes, status] = await Promise.all([
         apiFetch(`${apiBase}/api/users`),
-        fetchCredentialStatus(),
+        fetchCredentialStatus()
       ])
       setCredentialStatus(status)
       if (!listRes.ok) {
-        notify.error(listRes.status === 403 ? 'You are not allowed to view users' : 'Could not load users')
+        notify.error(
+          listRes.status === 403
+            ? 'You are not allowed to view users'
+            : 'Could not load users'
+        )
         setUsers([])
         return
       }
@@ -497,7 +625,9 @@ function UserList({ refreshSignal }: { refreshSignal: number }) {
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <div>
           <CardTitle className="text-base">Users</CardTitle>
-          <CardDescription>Who can sign in and what they can do.</CardDescription>
+          <CardDescription>
+            Who can sign in and what they can do.
+          </CardDescription>
         </div>
         {canManage && <InviteUserDialog onCreated={() => void load()} />}
       </CardHeader>
@@ -533,25 +663,44 @@ function UserList({ refreshSignal }: { refreshSignal: number }) {
                     <div className="flex items-center gap-2">
                       <Avatar size="sm">
                         {user.image && <AvatarImage src={user.image} alt="" />}
-                        <AvatarFallback>{initialOf(user.name, user.email)}</AvatarFallback>
+                        <AvatarFallback>
+                          {initialOf(user.name, user.email)}
+                        </AvatarFallback>
                       </Avatar>
                       <span className="font-medium">{user.name || '—'}</span>
-                      {user.id === actor.id && <span className="text-xs text-muted-foreground">(you)</span>}
+                      {user.id === actor.id && (
+                        <span className="text-xs text-muted-foreground">
+                          (you)
+                        </span>
+                      )}
                     </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{user.email}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {user.email}
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1.5">
                       <StatusBadge user={user} />
-                      <NoPasswordBadge hasCredential={credentialStatus[user.id]} />
+                      <NoPasswordBadge
+                        hasCredential={credentialStatus[user.id]}
+                      />
                     </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{formatDate(user.createdAt)}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {formatDate(user.createdAt)}
+                  </TableCell>
                   <TableCell className="text-right">
                     {canManage ? (
-                      <UserRowActions user={user} selfId={actor.id} users={users} onChanged={() => void load()} />
+                      <UserRowActions
+                        user={user}
+                        selfId={actor.id}
+                        users={users}
+                        onChanged={() => void load()}
+                      />
                     ) : (
-                      <span className="text-sm capitalize text-muted-foreground">{user.role}</span>
+                      <span className="text-sm capitalize text-muted-foreground">
+                        {user.role}
+                      </span>
                     )}
                   </TableCell>
                 </TableRow>
@@ -607,7 +756,11 @@ function OwnerPasswordCard({ onChanged }: { onChanged: () => void }) {
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (submitting) return
-    const parsed = passwordSchema.safeParse({ currentPassword, newPassword, confirm })
+    const parsed = passwordSchema.safeParse({
+      currentPassword,
+      newPassword,
+      confirm
+    })
     if (!parsed.success) {
       const next: PasswordErrors = {}
       for (const issue of parsed.error.issues) {
@@ -625,13 +778,19 @@ function OwnerPasswordCard({ onChanged }: { onChanged: () => void }) {
     setSubmitting(true)
     try {
       if (hasPassword) {
-        const { error } = await authClient.changePassword({ newPassword, currentPassword })
+        const { error } = await authClient.changePassword({
+          newPassword,
+          currentPassword
+        })
         if (error) {
           notify.error(error.message || 'Could not change password')
           return
         }
       } else {
-        const { error } = await authClient.admin.setUserPassword({ userId: actor.id, newPassword })
+        const { error } = await authClient.admin.setUserPassword({
+          userId: actor.id,
+          newPassword
+        })
         if (error) {
           notify.error(error.message || 'Could not set password')
           return
@@ -655,7 +814,9 @@ function OwnerPasswordCard({ onChanged }: { onChanged: () => void }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">{hasPassword ? 'Change password' : 'Remote access'}</CardTitle>
+        <CardTitle className="text-base">
+          {hasPassword ? 'Change password' : 'Remote access'}
+        </CardTitle>
         <CardDescription>
           {hasPassword === false
             ? 'Signing in from this machine needs no password. Signing in remotely — over a tunnel or a hosted server — requires one.'
@@ -666,7 +827,11 @@ function OwnerPasswordCard({ onChanged }: { onChanged: () => void }) {
         {hasPassword === null ? (
           <Skeleton className="h-9 w-64" />
         ) : (
-          <form onSubmit={(e) => void onSubmit(e)} noValidate className="grid max-w-sm gap-4">
+          <form
+            onSubmit={(e) => void onSubmit(e)}
+            noValidate
+            className="grid max-w-sm gap-4"
+          >
             {hasPassword && (
               <div className="grid gap-1.5">
                 <Label htmlFor="pw-current">Current password</Label>
@@ -678,11 +843,17 @@ function OwnerPasswordCard({ onChanged }: { onChanged: () => void }) {
                   onChange={(e) => setCurrentPassword(e.target.value)}
                   aria-invalid={!!errors.currentPassword}
                 />
-                {errors.currentPassword && <p className="text-sm text-destructive">{errors.currentPassword}</p>}
+                {errors.currentPassword && (
+                  <p className="text-sm text-destructive">
+                    {errors.currentPassword}
+                  </p>
+                )}
               </div>
             )}
             <div className="grid gap-1.5">
-              <Label htmlFor="pw-new">{hasPassword ? 'New password' : 'Password'}</Label>
+              <Label htmlFor="pw-new">
+                {hasPassword ? 'New password' : 'Password'}
+              </Label>
               <Input
                 id="pw-new"
                 type="password"
@@ -691,7 +862,9 @@ function OwnerPasswordCard({ onChanged }: { onChanged: () => void }) {
                 onChange={(e) => setNewPassword(e.target.value)}
                 aria-invalid={!!errors.newPassword}
               />
-              {errors.newPassword && <p className="text-sm text-destructive">{errors.newPassword}</p>}
+              {errors.newPassword && (
+                <p className="text-sm text-destructive">{errors.newPassword}</p>
+              )}
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="pw-confirm">Confirm password</Label>
@@ -703,10 +876,16 @@ function OwnerPasswordCard({ onChanged }: { onChanged: () => void }) {
                 onChange={(e) => setConfirm(e.target.value)}
                 aria-invalid={!!errors.confirm}
               />
-              {errors.confirm && <p className="text-sm text-destructive">{errors.confirm}</p>}
+              {errors.confirm && (
+                <p className="text-sm text-destructive">{errors.confirm}</p>
+              )}
             </div>
             <Button type="submit" disabled={submitting} className="w-fit">
-              {submitting ? 'Saving…' : hasPassword ? 'Change password' : 'Set password'}
+              {submitting
+                ? 'Saving…'
+                : hasPassword
+                  ? 'Change password'
+                  : 'Set password'}
             </Button>
           </form>
         )}
@@ -727,7 +906,10 @@ export function UsersScreen() {
   const [refreshSignal, setRefreshSignal] = useState(0)
   return (
     <>
-      <PageHeader title="Users & Roles" subtitle="Who can sign in and what they can do." />
+      <PageHeader
+        title="Users & Roles"
+        subtitle="Who can sign in and what they can do."
+      />
       <PageBody>
         <div className="space-y-5">
           <UserList refreshSignal={refreshSignal} />

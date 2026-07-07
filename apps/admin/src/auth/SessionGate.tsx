@@ -11,7 +11,7 @@ import { AuthNotConfigured } from './AuthNotConfigured'
 import { Skeleton } from '@/components/ui/skeleton'
 
 const ROLES: readonly string[] = ['admin', 'maintainer', 'editor', 'author']
-const apiBase = (import.meta.env.VITE_SETU_API as string | undefined) ?? ''
+const apiBase = import.meta.env.VITE_SETU_API ?? ''
 
 const HASH_TOKEN_RE = /^#setu-token=(.+)$/
 
@@ -29,7 +29,12 @@ function readHashToken(): string | null {
  *  app directly under the existing local-owner ActorProvider default, never wrapped in this gate.
  *  That decision lives in main.tsx, not here. */
 export function SessionGate({ children }: { children: ReactNode }) {
-  const { auth, mode, loading: capsLoading, refetch: refetchCaps } = useCapabilities()
+  const {
+    auth,
+    mode,
+    loading: capsLoading,
+    refetch: refetchCaps
+  } = useCapabilities()
   const session = authClient.useSession()
   const [exchanging, setExchanging] = useState(() => readHashToken() !== null)
   const exchangeStarted = useRef(false)
@@ -62,7 +67,7 @@ export function SessionGate({ children }: { children: ReactNode }) {
         await apiFetch(`${apiBase}/api/auth/local/exchange`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ token }),
+          body: JSON.stringify({ token })
         })
       } finally {
         // Whether the exchange succeeded or failed, stop showing the loading state and let
@@ -80,19 +85,29 @@ export function SessionGate({ children }: { children: ReactNode }) {
 
   if (resolving) {
     return (
-      <div className="flex min-h-svh items-center justify-center p-6" role="status" aria-live="polite">
+      <div
+        className="flex min-h-svh items-center justify-center p-6"
+        role="status"
+        aria-live="polite"
+      >
         <Skeleton className="size-10 rounded-full" />
       </div>
     )
   }
 
-  const user = session.data?.user as { id: string; role?: string | null } | undefined
+  const user = session.data?.user as
+    | { id: string; role?: string | null }
+    | undefined
   if (user) {
     // #379: unknown/audience roles get no back-office access — the real admin.access gate is
     // deferred to #379; the server already fails closed. This UI fallback is UX-only (server
     // enforces) and uses the least-privileged staff role.
-    const role: Role = ROLES.includes(user.role ?? '') ? (user.role as Role) : 'author'
-    return <ActorProvider actor={{ id: user.id, role }}>{children}</ActorProvider>
+    const role: Role = ROLES.includes(user.role ?? '')
+      ? (user.role as Role)
+      : 'author'
+    return (
+      <ActorProvider actor={{ id: user.id, role }}>{children}</ActorProvider>
+    )
   }
 
   if (!auth?.enabled) return <AuthNotConfigured />

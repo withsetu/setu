@@ -10,8 +10,11 @@ dist/
 # Superpowers git worktrees (temporary, per-feature copies of the repo)
 .superpowers/
 
-# Claude Code local session/config state (never shared across machines)
-.claude/
+# Claude Code local session/config state (never shared across machines) —
+# except .claude/skills/, which is versioned team knowledge (see CLAUDE.md)
+.claude/*
+!.claude/skills/
+!.claude/skills/**
 
 # Dev/UAT content sandboxes (gitignored throwaway git repos seeded from content/)
 .content-sandbox/
@@ -26,3 +29,6 @@ apps/site/markdoc.blocks.generated.mjs
 e2e/test-results/
 e2e/playwright-report/
 e2e/.auth/
+
+# vitest browser-mode failure screenshots (#293 — apps/admin/test-browser/**)
+apps/admin/test-browser/__screenshots__/

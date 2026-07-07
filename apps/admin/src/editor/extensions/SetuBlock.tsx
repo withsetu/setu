@@ -1,12 +1,20 @@
 import { Node } from '@tiptap/core'
-import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
+import {
+  NodeViewContent,
+  NodeViewWrapper,
+  ReactNodeViewRenderer
+} from '@tiptap/react'
 import type { ReactNodeViewProps } from '@tiptap/react'
-import type { ComponentType } from 'react'
 import type { ResolvedBlock } from '@setu/core'
+import type { BlockCore } from '@setu/blocks'
+import { attrString } from '../attr-string'
 
-function viewFor(byTag: Record<string, ResolvedBlock>, cores: Record<string, ComponentType<any>>) {
+function viewFor(
+  byTag: Record<string, ResolvedBlock>,
+  cores: Record<string, BlockCore>
+) {
   return function SetuBlockView({ node }: ReactNodeViewProps) {
-    const tag = String(node.attrs.tag)
+    const tag = attrString(node.attrs.tag)
     const block = byTag[tag]
     const Core = cores[tag]
     const mdAttrs = (node.attrs.mdAttrs ?? {}) as Record<string, unknown>
@@ -42,7 +50,10 @@ function viewFor(byTag: Record<string, ResolvedBlock>, cores: Record<string, Com
 /** The generic folder-block node. `tag` selects the registry entry + (optionally) a React
  *  core; `mdAttrs` is the round-tripped attribute bag (JSON-only, kept out of the DOM like
  *  callout). With a core, the view renders the real visual; otherwise generic chrome. */
-export function createSetuBlock(blocks: ResolvedBlock[], cores: Record<string, ComponentType<any>> = {}): Node {
+export function createSetuBlock(
+  blocks: ResolvedBlock[],
+  cores: Record<string, BlockCore> = {}
+): Node {
   const byTag = Object.fromEntries(blocks.map((b) => [b.tag, b]))
   return Node.create({
     name: 'setuBlock',
@@ -51,18 +62,30 @@ export function createSetuBlock(blocks: ResolvedBlock[], cores: Record<string, C
     defining: true,
     addAttributes() {
       return {
-        tag: { default: '', renderHTML: () => ({}), parseHTML: (el: HTMLElement) => el.getAttribute('data-tag') ?? '' },
-        mdAttrs: { default: {}, renderHTML: () => ({}), parseHTML: () => ({}) },
+        tag: {
+          default: '',
+          renderHTML: () => ({}),
+          parseHTML: (el: HTMLElement) => el.getAttribute('data-tag') ?? ''
+        },
+        mdAttrs: { default: {}, renderHTML: () => ({}), parseHTML: () => ({}) }
       }
     },
     parseHTML() {
       return [{ tag: 'div[data-setu-block]' }]
     },
     renderHTML({ HTMLAttributes, node }) {
-      return ['div', { ...HTMLAttributes, 'data-setu-block': '', 'data-tag': node.attrs.tag }, 0]
+      return [
+        'div',
+        {
+          ...HTMLAttributes,
+          'data-setu-block': '',
+          'data-tag': attrString(node.attrs.tag)
+        },
+        0
+      ]
     },
     addNodeView() {
       return ReactNodeViewRenderer(viewFor(byTag, cores))
-    },
+    }
   })
 }

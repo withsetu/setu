@@ -5,11 +5,15 @@ import { LoginPage } from '../pages/LoginPage'
 // render the app; it must hold the visitor at the login wall.
 test.use({ storageState: { cookies: [], origins: [] } })
 
-test('an unauthenticated visitor is held at the login wall', async ({ page }) => {
+test('an unauthenticated visitor is held at the login wall', async ({
+  page
+}) => {
   const login = new LoginPage(page)
 
   await page.goto('/dashboard')
 
   await expect(login.heading).toBeVisible()
-  await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeHidden()
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Dashboard' })
+  ).toBeHidden()
 })

@@ -13,6 +13,9 @@ describe('StatTiles', () => {
   })
   it('links Drafts to the filtered list', () => {
     wrap(<StatTiles posts={1} pages={1} published={1} drafts={5} />)
-    expect(screen.getByRole('link', { name: /Drafts/ })).toHaveAttribute('href', '/posts?status=draft')
+    expect(screen.getByRole('link', { name: /Drafts/ })).toHaveAttribute(
+      'href',
+      '/posts?status=draft'
+    )
   })
 })

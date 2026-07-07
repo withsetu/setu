@@ -16,7 +16,11 @@ export function parseCategories(raw: string): Category[] {
     if (row === null || typeof row !== 'object') continue
     const r = row as Record<string, unknown>
     if (typeof r.slug !== 'string' || typeof r.name !== 'string') continue
-    out.push({ slug: r.slug, name: r.name, parent: typeof r.parent === 'string' ? r.parent : null })
+    out.push({
+      slug: r.slug,
+      name: r.name,
+      parent: typeof r.parent === 'string' ? r.parent : null
+    })
   }
   return out
 }
@@ -24,5 +28,7 @@ export function parseCategories(raw: string): Category[] {
 /** Serialize categories to YAML. Empty list → empty string (no file content). */
 export function serializeCategories(cats: Category[]): string {
   if (cats.length === 0) return ''
-  return dump(cats.map((c) => ({ slug: c.slug, name: c.name, parent: c.parent })))
+  return dump(
+    cats.map((c) => ({ slug: c.slug, name: c.name, parent: c.parent }))
+  )
 }

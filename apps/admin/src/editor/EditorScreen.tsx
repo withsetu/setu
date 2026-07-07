@@ -1,8 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { Draft, DraftInput, Lifecycle, TiptapDoc } from '@setu/core'
-import { serializeMdoc, tiptapToMarkdoc } from '@setu/core'
-import { ArchiveX, ChevronLeft, ExternalLink, Eye, Keyboard, Rocket } from 'lucide-react'
+import {
+  parseFrontmatterDate,
+  resolvePermalinkConfig,
+  serializeMdoc,
+  tiptapToMarkdoc
+} from '@setu/core'
+import {
+  ArchiveX,
+  ChevronLeft,
+  ExternalLink,
+  Eye,
+  Keyboard,
+  Rocket
+} from 'lucide-react'
 import type { Editor } from '@tiptap/core'
 import { useServices } from '../data/store'
 import { useCan } from '../auth/actor'
@@ -10,6 +22,7 @@ import { lifecycleFor } from '../lifecycle/useLifecycle'
 import { useDeploy } from '../deploy/deploy'
 import { StripStatus } from './StripStatus'
 import { siteUrl } from '../shell/site-url'
+import { useSettings } from '../data/settings-store'
 import { useIndex } from '../data/index-store'
 import { Canvas } from './Canvas'
 import type { RunQuery } from './QueryPreview'
@@ -19,15 +32,20 @@ import { useSelectedBlock } from './useSelectedBlock'
 import { PublishMenu } from './PublishMenu'
 import { ShortcutsDialog } from './ShortcutsDialog'
 import { Button } from '../components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger
+} from '../components/ui/tooltip'
 import { useAutosave } from './useAutosave'
 import type { SaveStatus } from './useAutosave'
 import { SaveIndicator } from './SaveIndicator'
 import { onRequestShortcuts } from './editor-events'
-import { NEW_SLUG, mintSlug } from './new-entry'
+import { NEW_SLUG, mintSlug, composeInitialMetadata } from './new-entry'
 import { useNotify } from '../ui/notify'
 import { apiFetch } from '../lib/api-fetch'
 import { useRegisterCommands } from '../command/registry'
+import { attrString } from './attr-string'
 
 const EDITOR_ID = 'local'
 const BLANK: TiptapDoc = { type: 'doc', content: [{ type: 'paragraph' }] }
@@ -38,17 +56,23 @@ export function EditorScreen() {
   const navigate = useNavigate()
   const { read, authoring, data, git, publish } = useServices()
   const { deployedAt, sha: deploySha } = useDeploy()
+  const settings = useSettings()
   const index = useIndex()
   const can = useCan()
   // Best-effort reindex — never lets a failure surface to the editor.
   const reindex = (r: typeof ref) => void index.reindexEntry(r).catch(() => {})
-  const ref = useMemo(() => ({ collection, locale, slug }), [collection, locale, slug])
+  const ref = useMemo(
+    () => ({ collection, locale, slug }),
+    [collection, locale, slug]
+  )
   // `new` is a compose sentinel: nothing is persisted until the first save mints a real slug.
   const composing = slug === NEW_SLUG
 
   const notify = useNotify()
 
-  const [phase, setPhase] = useState<'loading' | 'ready' | 'readonly'>('loading')
+  const [phase, setPhase] = useState<'loading' | 'ready' | 'readonly'>(
+    'loading'
+  )
   const [initialDoc, setInitialDoc] = useState<TiptapDoc>(BLANK)
   const [metadata, setMetadata] = useState<Record<string, unknown>>({})
   const [status, setStatus] = useState<SaveStatus>('idle')
@@ -57,7 +81,7 @@ export function EditorScreen() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [editor, setEditor] = useState<Editor | null>(null)
   const selectedBlock = useSelectedBlock(editor)
-  const apiBase = (import.meta.env.VITE_SETU_API as string | undefined) ?? ''
+  const apiBase = import.meta.env.VITE_SETU_API ?? ''
 
   // Feeds the query block's in-canvas live preview with real index results (same query the
   // published block resolves at build time).
@@ -73,7 +97,7 @@ export function EditorScreen() {
   const mintedRef = useRef<string | null>(null)
   const previewWin = useRef<Window | null>(null)
   const previewNonce = useRef(0)
-  const previewApi = import.meta.env.VITE_SETU_API as string | undefined
+  const previewApi = import.meta.env.VITE_SETU_API
 
   const refreshLifecycle = useCallback(async () => {
     const d = await data.getDraft(ref)
@@ -85,13 +109,15 @@ export function EditorScreen() {
     setPhase('loading')
     void (async () => {
       if (composing) {
-        // Blank, editable, nothing persisted / no lock until the first save mints a slug.
+        // Blank body, editable, nothing persisted / no lock until the first save mints a
+        // slug — but auto-stamp today's date so date-pattern permalinks resolve by default.
+        const initialMeta = composeInitialMetadata()
         docRef.current = BLANK
-        metaRef.current = {}
+        metaRef.current = initialMeta
         baseShaRef.current = null
         if (!live) return
         setInitialDoc(BLANK)
-        setMetadata({})
+        setMetadata(initialMeta)
         setRev(0)
         setStatus('idle')
         setLifecycle({ state: 'draft' })
@@ -99,7 +125,8 @@ export function EditorScreen() {
         return
       }
       const result = await read.loadForEdit(ref)
-      const draft: Draft | null = result.source === 'absent' ? null : result.draft
+      const draft: Draft | null =
+        result.source === 'absent' ? null : result.draft
       const open = await authoring.open(ref, EDITOR_ID)
       if (!live) return
       // Just minted this slug from a compose save: the in-memory doc/meta is canonical (may hold
@@ -131,16 +158,34 @@ export function EditorScreen() {
   useAutosave({
     enabled: phase === 'ready',
     rev,
-    getInput: (): DraftInput => ({ ...ref, content: docRef.current, metadata: metaRef.current, baseSha: baseShaRef.current }),
+    getInput: (): DraftInput => ({
+      ...ref,
+      content: docRef.current,
+      metadata: metaRef.current,
+      baseSha: baseShaRef.current
+    }),
     save: async (input) => {
       if (composing) {
         // First save of a new entry: mint a real slug from the title, persist under it, and
         // replace the URL so this becomes a normal entry (each "New" → its own draft).
-        const newSlug = await mintSlug(data, git, collection, locale, String(metaRef.current['title'] ?? ''))
+        const newSlug = await mintSlug(
+          data,
+          git,
+          collection,
+          locale,
+          attrString(metaRef.current['title'])
+        )
         mintedRef.current = newSlug
         const result = await authoring.save(
-          { collection, locale, slug: newSlug, content: input.content, metadata: input.metadata, baseSha: null },
-          EDITOR_ID,
+          {
+            collection,
+            locale,
+            slug: newSlug,
+            content: input.content,
+            metadata: input.metadata,
+            baseSha: null
+          },
+          EDITOR_ID
         )
         navigate(`/edit/${collection}/${locale}/${newSlug}`, { replace: true })
         reindex({ collection, locale, slug: newSlug })
@@ -150,7 +195,7 @@ export function EditorScreen() {
       reindex(ref)
       return result
     },
-    onStatus: setStatus,
+    onStatus: setStatus
   })
 
   const onDocChange = (doc: TiptapDoc) => {
@@ -168,7 +213,15 @@ export function EditorScreen() {
     try {
       // Save-before-publish: publish reads storage, not the in-memory doc. Always
       // serialize the LATEST metaRef.current (Unpublish/Re-publish mutate it first).
-      await authoring.save({ ...ref, content: docRef.current, metadata: metaRef.current, baseSha: baseShaRef.current }, EDITOR_ID)
+      await authoring.save(
+        {
+          ...ref,
+          content: docRef.current,
+          metadata: metaRef.current,
+          baseSha: baseShaRef.current
+        },
+        EDITOR_ID
+      )
       reindex(ref)
       const r = await publish.publish({ ref, author: OWNER_AUTHOR })
       if (r.status === 'published') {
@@ -189,11 +242,14 @@ export function EditorScreen() {
   // compile it the same way publish does, push it to the api's preview slot, open/refresh the tab.
   const onPreview = async () => {
     if (!previewApi) return
-    const content = serializeMdoc({ frontmatter: metaRef.current, body: tiptapToMarkdoc(docRef.current) })
+    const content = serializeMdoc({
+      frontmatter: metaRef.current,
+      body: tiptapToMarkdoc(docRef.current)
+    })
     await apiFetch(`${previewApi}/preview`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ content, collection, locale, slug }),
+      body: JSON.stringify({ content, collection, locale, slug })
     })
     // A changing nonce forces the named tab to navigate → re-fetch the just-pushed draft.
     const url = `${siteUrl()}/preview?n=${(previewNonce.current += 1)}`
@@ -222,27 +278,58 @@ export function EditorScreen() {
 
   useRegisterCommands([
     {
-      id: 'editor.publish', title: 'Publish', group: 'Editor', icon: Rocket,
+      id: 'editor.publish',
+      title: 'Publish',
+      group: 'Editor',
+      icon: Rocket,
       enabled: () => can('content.publish') && phase === 'ready' && !composing,
-      run: () => onPublish(),
+      run: () => onPublish()
     },
     {
-      id: 'editor.preview', title: 'Preview draft', group: 'Editor', icon: Eye,
+      id: 'editor.preview',
+      title: 'Preview draft',
+      group: 'Editor',
+      icon: Eye,
       enabled: () => Boolean(previewApi) && !composing,
-      run: () => void onPreview(),
+      run: () => void onPreview()
     },
     {
-      id: 'editor.unpublish', title: 'Unpublish', group: 'Editor', icon: ArchiveX,
-      enabled: () => can('content.unpublish') && phase === 'ready' && !composing && metadata['published'] !== false,
-      run: () => onUnpublish(),
-    },
+      id: 'editor.unpublish',
+      title: 'Unpublish',
+      group: 'Editor',
+      icon: ArchiveX,
+      enabled: () =>
+        can('content.unpublish') &&
+        phase === 'ready' &&
+        !composing &&
+        metadata['published'] !== false,
+      run: () => onUnpublish()
+    }
   ])
 
-  const title = String(metadata['title'] ?? '')
+  const title = attrString(metadata['title'])
   const listPath = `/${collection}s`
+  // Same date ?? pubDate rule as the content index's dateOf — URL use only, never
+  // updatedAt/mtime (an edit must not move a URL).
+  const frontmatterDate = useMemo(
+    () => parseFrontmatterDate(metadata),
+    [metadata]
+  )
+  const frontmatterCategories = Array.isArray(metadata['categories'])
+    ? (metadata['categories'] as string[])
+    : []
+  const permalinkConfig = resolvePermalinkConfig(
+    collection,
+    undefined,
+    settings
+  )
 
   if (phase === 'loading') {
-    return <div className="editor"><p className="empty-state">Loading…</p></div>
+    return (
+      <div className="editor">
+        <p className="empty-state">Loading…</p>
+      </div>
+    )
   }
 
   return (
@@ -251,16 +338,27 @@ export function EditorScreen() {
         {/* left */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button asChild variant="ghost" size="icon" aria-label="Back to list">
-              <Link to={listPath}><ChevronLeft className="size-[18px]" /></Link>
+            <Button
+              asChild
+              variant="ghost"
+              size="icon"
+              aria-label="Back to list"
+            >
+              <Link to={listPath}>
+                <ChevronLeft className="size-[18px]" />
+              </Link>
             </Button>
           </TooltipTrigger>
           <TooltipContent>Back to list</TooltipContent>
         </Tooltip>
-        <span className="text-[13.5px] text-muted-foreground">{composing ? `New ${collection}` : `${collection} / ${slug}`}</span>
+        <span className="text-[13.5px] text-muted-foreground">
+          {composing ? `New ${collection}` : `${collection} / ${slug}`}
+        </span>
 
         {/* center: save state only */}
-        <div className="flex flex-1 justify-center"><SaveIndicator status={status} readonly={phase === 'readonly'} /></div>
+        <div className="flex flex-1 justify-center">
+          <SaveIndicator status={status} readonly={phase === 'readonly'} />
+        </div>
 
         {/* right */}
         <StripStatus lifecycle={lifecycle} />
@@ -269,8 +367,26 @@ export function EditorScreen() {
         {lifecycle.state === 'staged' || lifecycle.state === 'live' ? (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button asChild variant="ghost" size="icon" aria-label="View this page on the live site">
-                <a href={siteUrl(ref)} target="_blank" rel="noopener noreferrer"><ExternalLink className="size-[18px]" /></a>
+              <Button
+                asChild
+                variant="ghost"
+                size="icon"
+                aria-label="View this page on the live site"
+              >
+                <a
+                  href={siteUrl(
+                    {
+                      ...ref,
+                      date: frontmatterDate,
+                      categories: frontmatterCategories
+                    },
+                    permalinkConfig
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <ExternalLink className="size-[18px]" />
+                </a>
               </Button>
             </TooltipTrigger>
             <TooltipContent>View this page on the live site</TooltipContent>
@@ -279,37 +395,70 @@ export function EditorScreen() {
           <Tooltip>
             <TooltipTrigger asChild>
               {/* disabled button can't trigger hover; wrap in span so the tooltip still shows */}
-              <span><Button variant="ghost" size="icon" disabled aria-label="Not on the site yet — publish to view it live"><ExternalLink className="size-[18px]" /></Button></span>
+              <span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  disabled
+                  aria-label="Not on the site yet — publish to view it live"
+                >
+                  <ExternalLink className="size-[18px]" />
+                </Button>
+              </span>
             </TooltipTrigger>
-            <TooltipContent>Not on the site yet — publish to view it live</TooltipContent>
+            <TooltipContent>
+              Not on the site yet — publish to view it live
+            </TooltipContent>
           </Tooltip>
         )}
 
         {previewApi && !composing && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="Preview the draft in your site theme" onClick={() => void onPreview()}><Eye className="size-[18px]" /></Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Preview the draft in your site theme"
+                onClick={() => void onPreview()}
+              >
+                <Eye className="size-[18px]" />
+              </Button>
             </TooltipTrigger>
-            <TooltipContent>Preview the draft in your site theme</TooltipContent>
+            <TooltipContent>
+              Preview the draft in your site theme
+            </TooltipContent>
           </Tooltip>
         )}
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Keyboard shortcuts" onClick={() => setShortcutsOpen(true)}><Keyboard className="size-[18px]" /></Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Keyboard shortcuts"
+              onClick={() => setShortcutsOpen(true)}
+            >
+              <Keyboard className="size-[18px]" />
+            </Button>
           </TooltipTrigger>
           <TooltipContent>Keyboard shortcuts</TooltipContent>
         </Tooltip>
 
         <PublishMenu
           canPublish={can('content.publish') && phase === 'ready' && !composing}
-          canUnpublish={can('content.unpublish') && phase === 'ready' && !composing}
+          canUnpublish={
+            can('content.unpublish') && phase === 'ready' && !composing
+          }
           isUnpublished={metadata['published'] === false}
-          onPublish={onPublish} onUnpublish={onUnpublish} onRepublish={onRepublish}
+          onPublish={onPublish}
+          onUnpublish={onUnpublish}
+          onRepublish={onRepublish}
         />
       </div>
       {phase === 'readonly' && (
-        <div className="ed-banner" role="status">This entry is locked by another editor — viewing read-only.</div>
+        <div className="ed-banner" role="status">
+          This entry is locked by another editor — viewing read-only.
+        </div>
       )}
       <div className="editor-stage">
         <div className="ed-scroll">
@@ -320,16 +469,32 @@ export function EditorScreen() {
               placeholder="Untitled"
               value={title}
               disabled={phase === 'readonly'}
-              onChange={(e) => onMetaChange({ ...metaRef.current, title: e.target.value })}
+              onChange={(e) =>
+                onMetaChange({ ...metaRef.current, title: e.target.value })
+              }
             />
-            <Canvas key={`${collection}/${locale}/${slug}`} initialContent={initialDoc} editable={phase === 'ready'} onChange={onDocChange} onEditor={setEditor} runQuery={runQuery} />
+            <Canvas
+              key={`${collection}/${locale}/${slug}`}
+              initialContent={initialDoc}
+              editable={phase === 'ready'}
+              onChange={onDocChange}
+              onEditor={setEditor}
+              runQuery={runQuery}
+            />
           </div>
         </div>
         {selectedBlock ? (
           <aside className="w-[300px] shrink-0 overflow-y-auto border-l border-border/60">
             <div className="flex flex-col gap-3 p-4">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Block · {selectedBlock.tag}</div>
-              <BlockInspector tag={selectedBlock.tag} mdAttrs={selectedBlock.mdAttrs} onChange={selectedBlock.update} apiBase={apiBase} />
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Block · {selectedBlock.tag}
+              </div>
+              <BlockInspector
+                tag={selectedBlock.tag}
+                mdAttrs={selectedBlock.mdAttrs}
+                onChange={selectedBlock.update}
+                apiBase={apiBase}
+              />
             </div>
           </aside>
         ) : (
@@ -343,7 +508,10 @@ export function EditorScreen() {
           />
         )}
       </div>
-      <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      <ShortcutsDialog
+        open={shortcutsOpen}
+        onClose={() => setShortcutsOpen(false)}
+      />
     </div>
   )
 }

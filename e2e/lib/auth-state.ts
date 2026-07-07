@@ -8,4 +8,5 @@ const dirname = path.dirname(fileURLToPath(import.meta.url))
  *  logging in through the UI in auth.setup.ts) is saved. Gitignored; regenerated each run. */
 export const authDir = path.resolve(dirname, '..', '.auth')
 
-export const storageStateFor = (role: E2ERole): string => path.join(authDir, `${role}.json`)
+export const storageStateFor = (role: E2ERole): string =>
+  path.join(authDir, `${role}.json`)

@@ -5,7 +5,7 @@ export function PageHeader({
   title,
   count,
   subtitle,
-  actions,
+  actions
 }: {
   title: string
   count?: number
@@ -17,7 +17,9 @@ export function PageHeader({
   useEffect(() => {
     const product = 'Setu'
     document.title =
-      siteTitle && siteTitle !== product ? `${title} - ${siteTitle} - ${product}` : `${title} - ${product}`
+      siteTitle && siteTitle !== product
+        ? `${title} - ${siteTitle} - ${product}`
+        : `${title} - ${product}`
   }, [title, siteTitle])
 
   return (
@@ -26,12 +28,20 @@ export function PageHeader({
         <h1 className="text-[21px] font-bold tracking-tight text-foreground">
           {title}
           {count !== undefined && (
-            <span className="ml-2.5 align-[3px] rounded-full bg-secondary px-2 py-0.5 text-[13px] font-semibold text-muted-foreground">{count}</span>
+            <span className="ml-2.5 align-[3px] rounded-full bg-secondary px-2 py-0.5 text-[13px] font-semibold text-muted-foreground">
+              {count}
+            </span>
           )}
         </h1>
-        {subtitle && <p className="mt-1.5 max-w-[60ch] text-[13.5px] text-muted-foreground">{subtitle}</p>}
+        {subtitle && (
+          <p className="mt-1.5 max-w-[60ch] text-[13.5px] text-muted-foreground">
+            {subtitle}
+          </p>
+        )}
       </div>
-      {actions && <div className="flex flex-shrink-0 items-center gap-2.5">{actions}</div>}
+      {actions && (
+        <div className="flex flex-shrink-0 items-center gap-2.5">{actions}</div>
+      )}
     </header>
   )
 }

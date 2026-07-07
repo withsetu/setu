@@ -5,7 +5,12 @@ import Placeholder from '@tiptap/extension-placeholder'
 import { Subscript } from '@tiptap/extension-subscript'
 import { Superscript } from '@tiptap/extension-superscript'
 import { TaskList, TaskItem } from '@tiptap/extension-list'
-import { Table, TableRow, TableHeader, TableCell } from '@tiptap/extension-table'
+import {
+  Table,
+  TableRow,
+  TableHeader,
+  TableCell
+} from '@tiptap/extension-table'
 import { TextAlign } from '@tiptap/extension-text-align'
 import type { Editor } from '@tiptap/core'
 import type { EditorView } from '@tiptap/pm/view'
@@ -39,18 +44,27 @@ const cellAlign = {
   align: {
     default: null as string | null,
     parseHTML: (el: HTMLElement) => el.style.textAlign || null,
-    renderHTML: (attrs: { align?: string | null }) => (attrs.align ? { style: `text-align: ${attrs.align}` } : {}),
-  },
+    renderHTML: (attrs: { align?: string | null }) =>
+      attrs.align ? { style: `text-align: ${attrs.align}` } : {}
+  }
 }
-const AlignTableHeader = TableHeader.extend({ addAttributes() { return { ...this.parent?.(), ...cellAlign } } })
-const AlignTableCell = TableCell.extend({ addAttributes() { return { ...this.parent?.(), ...cellAlign } } })
+const AlignTableHeader = TableHeader.extend({
+  addAttributes() {
+    return { ...this.parent?.(), ...cellAlign }
+  }
+})
+const AlignTableCell = TableCell.extend({
+  addAttributes() {
+    return { ...this.parent?.(), ...cellAlign }
+  }
+})
 
 export function Canvas({
   initialContent,
   editable,
   onChange,
   onEditor,
-  runQuery,
+  runQuery
 }: {
   initialContent: TiptapDoc
   editable: boolean
@@ -82,9 +96,9 @@ export function Canvas({
             moveUp: () => editorRef.current?.commands.moveBlockUp(),
             moveDown: () => editorRef.current?.commands.moveBlockDown(),
             duplicate: () => editorRef.current?.commands.duplicateBlock(),
-            remove: () => editorRef.current?.commands.deleteBlock(),
-          },
-        },
+            remove: () => editorRef.current?.commands.deleteBlock()
+          }
+        }
       })
       popup = tippy('body', {
         getReferenceClientRect: () => anchor.getBoundingClientRect(),
@@ -94,9 +108,9 @@ export function Canvas({
         interactive: true,
         trigger: 'manual',
         placement: 'bottom-start',
-        onHidden: close,
+        onHidden: close
       })
-    },
+    }
   })
 
   const editor = useEditor({
@@ -115,7 +129,10 @@ export function Canvas({
       TableRow,
       AlignTableHeader,
       AlignTableCell,
-      TextAlign.configure({ types: ['heading', 'paragraph'], alignments: ['left', 'center', 'right'] }),
+      TextAlign.configure({
+        types: ['heading', 'paragraph'],
+        alignments: ['left', 'center', 'right']
+      }),
       BlockActions,
       KeyboardShortcuts,
       dragHandle,
@@ -134,29 +151,46 @@ export function Canvas({
           // Open the URL field directly (not just the bubble): defer so the bubble
           // has mounted + subscribed to onRequestLinkEdit after the selection change.
           setTimeout(() => requestLinkEdit(), 0)
-        },
-      }),
+        }
+      })
     ],
     content: initialContent,
-    editorProps: { attributes: { class: 'setu-prose', 'aria-label': 'Content editor' } },
-    onUpdate: ({ editor }) => onChange(editor.getJSON() as TiptapDoc),
+    editorProps: {
+      attributes: { class: 'setu-prose', 'aria-label': 'Content editor' }
+    },
+    onUpdate: ({ editor }) => onChange(editor.getJSON() as TiptapDoc)
   })
   editorRef.current = editor
 
-  useEffect(() => { onEditor?.(editor); return () => onEditor?.(null) }, [editor, onEditor])
+  useEffect(() => {
+    onEditor?.(editor)
+    return () => onEditor?.(null)
+  }, [editor, onEditor])
 
   const [imgBusy, setImgBusy] = useState(false)
   // The pending pick handler: insert (slash /image) or replace (in-block button)
   // both open the same modal; the chosen src is routed to whichever set this.
-  const [pendingPick, setPendingPick] = useState<((src: string) => void) | null>(null)
+  const [pendingPick, setPendingPick] = useState<
+    ((src: string) => void) | null
+  >(null)
   const apiBase = (import.meta.env.VITE_SETU_API as string) ?? ''
   useEffect(() => {
     if (!editor) return
     const s = editor.storage as unknown as {
-      image: { onUploading?: (b: boolean) => void; onError?: (m: string) => void }
-      imageBlock: { apiBase: string; onUploading?: (b: boolean) => void; onError?: (m: string) => void; openPicker?: (onPick: (src: string) => void) => void }
+      image: {
+        onUploading?: (b: boolean) => void
+        onError?: (m: string) => void
+      }
+      imageBlock: {
+        apiBase: string
+        onUploading?: (b: boolean) => void
+        onError?: (m: string) => void
+        openPicker?: (onPick: (src: string) => void) => void
+      }
     }
-    const onUploading = (busy: boolean) => { setImgBusy(busy) }
+    const onUploading = (busy: boolean) => {
+      setImgBusy(busy)
+    }
     const onError = (msg: string) => notify.error(msg)
     s.image.onUploading = onUploading
     s.image.onError = onError

@@ -12,18 +12,29 @@ const VIEW: Action[] = ['content.view', 'taxonomy.view', 'media.view']
  *  can create tags, but cannot publish, edit taxonomy, or delete media. */
 const AUTHOR: Action[] = [
   ...VIEW,
-  'content.create', 'content.edit', 'content.delete',
+  'content.create',
+  'content.edit',
+  'content.delete',
   'taxonomy.create',
-  'media.upload', 'media.edit',
+  'media.upload',
+  'media.edit'
 ]
 
 /** Editor — full content lifecycle across any author's work + full taxonomy +
  *  full media. No forms, site health, ops, or config. */
 const EDITOR: Action[] = [
   ...VIEW,
-  'content.create', 'content.edit', 'content.delete', 'content.publish', 'content.unpublish',
-  'taxonomy.create', 'taxonomy.edit', 'taxonomy.delete',
-  'media.upload', 'media.edit', 'media.delete',
+  'content.create',
+  'content.edit',
+  'content.delete',
+  'content.publish',
+  'content.unpublish',
+  'taxonomy.create',
+  'taxonomy.edit',
+  'taxonomy.delete',
+  'media.upload',
+  'media.edit',
+  'media.delete'
 ]
 
 /** Maintainer — runs the site day-to-day: everything Editor can do, plus forms,
@@ -32,10 +43,16 @@ const EDITOR: Action[] = [
  *  on same-or-higher rank). */
 const MAINTAINER: Action[] = [
   ...EDITOR,
-  'forms.view', 'forms.manage',
-  'sitehealth.view', 'site.deploy', 'theme.manage',
+  'forms.view',
+  'forms.manage',
+  'sitehealth.view',
+  'site.deploy',
+  'theme.manage',
   'settings.view',
-  'users.view', 'users.invite', 'users.setRole', 'users.disable',
+  'users.view',
+  'users.invite',
+  'users.setRole',
+  'users.disable'
 ]
 
 /** Admin — full control. Maintainer + the four Admin-only levers. */
@@ -43,7 +60,7 @@ const ADMIN: Action[] = [
   ...MAINTAINER,
   'settings.manage',
   'users.delete',
-  'roles.manage',
+  'roles.manage'
 ]
 
 /** Default role → permissions (epic #359 approved table, 2026-07-04). This is the
@@ -52,5 +69,5 @@ export const DEFAULT_ROLES: PermissionMatrix = {
   admin: new Set(ADMIN),
   maintainer: new Set(MAINTAINER),
   editor: new Set(EDITOR),
-  author: new Set(AUTHOR),
+  author: new Set(AUTHOR)
 }

@@ -8,8 +8,14 @@ export const buttonBlock: StandardBlock = {
   contract: defineBlock({
     props: z.object({
       href: z.string(),
-      variant: z.enum(['primary', 'secondary']).default('primary'),
+      variant: z.enum(['primary', 'secondary']).default('primary')
     }),
-    editor: { label: 'Button', icon: 'link', group: 'layout', keywords: ['btn', 'cta', 'link'] },
-  }),
+    editor: {
+      label: 'Button',
+      icon: 'link',
+      group: 'layout',
+      keywords: ['btn', 'cta', 'link'],
+      style: { themeable: ['accent', 'radius'] }
+    }
+  })
 }

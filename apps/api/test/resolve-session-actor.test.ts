@@ -11,22 +11,40 @@ function makeAuth() {
   const sqlite = new Database(':memory:')
   const db = drizzle(sqlite)
   migrate(db, { migrationsFolder: '../../packages/db-sqlite/drizzle' })
-  return { db, auth: createAuth({
+  return {
     db,
-    secret: 'test-secret-32-chars-minimum!!!!',
-    baseURL: 'http://localhost:4444',
-    trustedOrigins: ['http://localhost:5173'],
-  }) }
+    auth: createAuth({
+      db,
+      secret: 'test-secret-32-chars-minimum!!!!',
+      baseURL: 'http://localhost:4444',
+      trustedOrigins: ['http://localhost:5173']
+    })
+  }
 }
 
 // Public sign-up is disabled (invite-only — see disableSignUp in packages/auth/src/index.ts), so
 // this fixture creates the user server-side via internalAdapter.createUser + linkAccount, the same
 // path first-run setup/ensureLocalOwner/admin-invite use.
-async function createUser(auth: ReturnType<typeof createAuth>, email: string, password: string, role = 'author') {
+async function createUser(
+  auth: ReturnType<typeof createAuth>,
+  email: string,
+  password: string,
+  role = 'author'
+) {
   const ctx = await auth.$context
-  const user = await ctx.internalAdapter.createUser({ email, name: 'A', role, emailVerified: true })
+  const user = await ctx.internalAdapter.createUser({
+    email,
+    name: 'A',
+    role,
+    emailVerified: true
+  })
   const hashed = await ctx.password.hash(password)
-  await ctx.internalAdapter.linkAccount({ userId: user.id, providerId: 'credential', accountId: user.id, password: hashed })
+  await ctx.internalAdapter.linkAccount({
+    userId: user.id,
+    providerId: 'credential',
+    accountId: user.id,
+    password: hashed
+  })
   return user
 }
 
@@ -34,9 +52,14 @@ describe('resolveSessionActor', () => {
   it('maps a session to an Actor', async () => {
     const { auth } = makeAuth()
     await createUser(auth, 'a@b.co', 'hunter2hunter2')
-    const res = await auth.api.signInEmail({ body: { email: 'a@b.co', password: 'hunter2hunter2' }, asResponse: true })
+    const res = await auth.api.signInEmail({
+      body: { email: 'a@b.co', password: 'hunter2hunter2' },
+      asResponse: true
+    })
     const cookie = res.headers.get('set-cookie')!.split(';')[0]!
-    const actor = await resolveSessionActor(auth)(new Request('http://x/', { headers: { cookie } }))
+    const actor = await resolveSessionActor(auth)(
+      new Request('http://x/', { headers: { cookie } })
+    )
     expect(actor).toEqual({ id: expect.any(String), role: 'author' })
   })
 
@@ -45,21 +68,30 @@ describe('resolveSessionActor', () => {
     // A future audience/read-only role that isn't in the staff ladder must NOT resolve to a
     // default staff actor — the caller then 401s.
     await createUser(auth, 'a@b.co', 'hunter2hunter2', 'subscriber')
-    const res = await auth.api.signInEmail({ body: { email: 'a@b.co', password: 'hunter2hunter2' }, asResponse: true })
+    const res = await auth.api.signInEmail({
+      body: { email: 'a@b.co', password: 'hunter2hunter2' },
+      asResponse: true
+    })
     const cookie = res.headers.get('set-cookie')!.split(';')[0]!
-    const actor = await resolveSessionActor(auth)(new Request('http://x/', { headers: { cookie } }))
+    const actor = await resolveSessionActor(auth)(
+      new Request('http://x/', { headers: { cookie } })
+    )
     expect(actor).toBeNull()
   })
 
   it('returns null for no cookie', async () => {
     const { auth } = makeAuth()
-    const actor = await resolveSessionActor(auth)(new Request('http://x/', { headers: {} }))
+    const actor = await resolveSessionActor(auth)(
+      new Request('http://x/', { headers: {} })
+    )
     expect(actor).toBeNull()
   })
 
   it('returns null for garbage cookie', async () => {
     const { auth } = makeAuth()
-    const actor = await resolveSessionActor(auth)(new Request('http://x/', { headers: { cookie: 'garbage=value' } }))
+    const actor = await resolveSessionActor(auth)(
+      new Request('http://x/', { headers: { cookie: 'garbage=value' } })
+    )
     expect(actor).toBeNull()
   })
 
@@ -67,12 +99,20 @@ describe('resolveSessionActor', () => {
     const { db, auth } = makeAuth()
     const user = await createUser(auth, 'a@b.co', 'hunter2hunter2')
     // Sign in before banning to get a session cookie
-    const res = await auth.api.signInEmail({ body: { email: 'a@b.co', password: 'hunter2hunter2' }, asResponse: true })
+    const res = await auth.api.signInEmail({
+      body: { email: 'a@b.co', password: 'hunter2hunter2' },
+      asResponse: true
+    })
     const cookie = res.headers.get('set-cookie')!.split(';')[0]!
     // Ban the user by updating the database
-    await db.update(userTable).set({ banned: true }).where(eq(userTable.id, user.id))
+    await db
+      .update(userTable)
+      .set({ banned: true })
+      .where(eq(userTable.id, user.id))
     // Now try to use the previously valid session with a banned user
-    const actor = await resolveSessionActor(auth)(new Request('http://x/', { headers: { cookie } }))
+    const actor = await resolveSessionActor(auth)(
+      new Request('http://x/', { headers: { cookie } })
+    )
     expect(actor).toBeNull()
   })
 })

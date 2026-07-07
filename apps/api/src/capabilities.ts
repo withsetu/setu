@@ -9,7 +9,11 @@ export interface AuthCapabilities {
 
 export interface Capabilities {
   mode?: string
-  capabilities: { imageProcessing: boolean; writableMediaStore: boolean; backgroundJobs: boolean }
+  capabilities: {
+    imageProcessing: boolean
+    writableMediaStore: boolean
+    backgroundJobs: boolean
+  }
   auth: AuthCapabilities
 }
 
@@ -25,9 +29,9 @@ export function buildCapabilities(opts: {
     capabilities: {
       imageProcessing: !!opts.image,
       writableMediaStore: opts.writableMediaStore,
-      backgroundJobs: opts.backgroundJobs,
+      backgroundJobs: opts.backgroundJobs
     },
-    auth: opts.auth,
+    auth: opts.auth
   }
 }
 
@@ -38,7 +42,7 @@ export function buildCapabilities(opts: {
  *  baking a snapshot into the response returned once at boot. */
 export function createCapabilitiesApi(
   base: Omit<Capabilities, 'auth'>,
-  resolveAuth: () => AuthCapabilities,
+  resolveAuth: () => AuthCapabilities
 ) {
   const app = new Hono()
   app.get('/api/capabilities', (c) => c.json({ ...base, auth: resolveAuth() }))

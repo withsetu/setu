@@ -8,7 +8,7 @@ const sub: Submission = {
   formLabel: 'Contact',
   fields: { name: 'Ada', email: 'ada@x.com', message: 'hello world' },
   createdAt: 0,
-  read: false,
+  read: false
 }
 
 describe('renderSubmissionEmail', () => {

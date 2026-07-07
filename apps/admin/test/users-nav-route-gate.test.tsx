@@ -19,7 +19,11 @@ import { UsersScreen } from '../src/screens/users/UsersScreen'
 // at all" contract the old Settings-embedded gate had.
 
 vi.mock('../src/deploy/deploy', () => ({
-  useDeploy: () => ({ deployedAt: () => null, sha: null, deploy: () => Promise.resolve() }),
+  useDeploy: () => ({
+    deployedAt: () => null,
+    sha: null,
+    deploy: () => Promise.resolve()
+  })
 }))
 
 vi.mock('../src/auth/auth-client', () => ({
@@ -27,21 +31,32 @@ vi.mock('../src/auth/auth-client', () => ({
     // AppSidebar renders UserMenu in its footer, which calls useSession() unconditionally — mock
     // it to "no real session" (the no-API local-owner shape) so mounting the sidebar in isolation
     // doesn't blow up; these tests aren't about UserMenu.
-    useSession: vi.fn().mockReturnValue({ data: null, isPending: false, isRefetching: false, error: null, refetch: vi.fn() }),
+    useSession: vi.fn().mockReturnValue({
+      data: null,
+      isPending: false,
+      isRefetching: false,
+      error: null,
+      refetch: vi.fn()
+    }),
     admin: {
-      listUsers: vi.fn().mockResolvedValue({ data: { users: [] }, error: null }),
+      listUsers: vi
+        .fn()
+        .mockResolvedValue({ data: { users: [] }, error: null }),
       createUser: vi.fn(),
       setRole: vi.fn(),
       banUser: vi.fn(),
       unbanUser: vi.fn(),
-      setUserPassword: vi.fn(),
+      setUserPassword: vi.fn()
     },
     changePassword: vi.fn(),
-    listAccounts: vi.fn().mockResolvedValue({ data: [], error: null }),
-  },
+    listAccounts: vi.fn().mockResolvedValue({ data: [], error: null })
+  }
 }))
 
-vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({}), { status: 200 })))
+vi.stubGlobal(
+  'fetch',
+  vi.fn(async () => new Response(JSON.stringify({}), { status: 200 }))
+)
 
 afterEach(() => {
   // clearAllMocks (not restoreAllMocks): the auth-client mock's default return values
@@ -55,26 +70,35 @@ function renderSidebar(role: 'admin' | 'editor' | 'author') {
   return render(
     <MemoryRouter initialEntries={['/dashboard']}>
       <ActorProvider actor={{ id: 'u1', role }}>
-        <SidebarProvider><AppSidebar /></SidebarProvider>
+        <SidebarProvider>
+          <AppSidebar />
+        </SidebarProvider>
       </ActorProvider>
-    </MemoryRouter>,
+    </MemoryRouter>
   )
 }
 
 describe('AppSidebar — Users nav item gating', () => {
   it('shows "Users" for an admin (has users.view)', () => {
     renderSidebar('admin')
-    expect(screen.getByRole('link', { name: /^Users$/ })).toHaveAttribute('href', '/users')
+    expect(screen.getByRole('link', { name: /^Users$/ })).toHaveAttribute(
+      'href',
+      '/users'
+    )
   })
 
   it('hides "Users" for an editor (no users.view)', () => {
     renderSidebar('editor')
-    expect(screen.queryByRole('link', { name: /^Users$/ })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: /^Users$/ })
+    ).not.toBeInTheDocument()
   })
 
   it('hides "Users" for an author (no users.view)', () => {
     renderSidebar('author')
-    expect(screen.queryByRole('link', { name: /^Users$/ })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: /^Users$/ })
+    ).not.toBeInTheDocument()
   })
 })
 
@@ -87,7 +111,10 @@ function UsersRoute() {
 }
 
 function renderUsersRoute(role: 'admin' | 'editor' | 'author') {
-  const services = servicesFor(createMemoryDataPort([]), createMemoryGitPort([]))
+  const services = servicesFor(
+    createMemoryDataPort([]),
+    createMemoryGitPort([])
+  )
   const wrapper = ({ children }: { children: ReactNode }) => (
     <NotificationProvider>
       <ActorProvider actor={{ id: 'u1', role }}>
@@ -102,20 +129,24 @@ function renderUsersRoute(role: 'admin' | 'editor' | 'author') {
         <Route path="/dashboard" element={<div>Dashboard fallback</div>} />
       </Routes>
     </MemoryRouter>,
-    { wrapper },
+    { wrapper }
   )
 }
 
 describe('/users route — defense-in-depth gate', () => {
   it('renders the Users screen for an admin', async () => {
     renderUsersRoute('admin')
-    expect(await screen.findByRole('heading', { name: /users & roles/i })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: /users & roles/i })
+    ).toBeInTheDocument()
   })
 
   it('redirects a non-permitted actor (editor) to the dashboard instead of rendering the screen', () => {
     renderUsersRoute('editor')
     expect(screen.getByText(/dashboard fallback/i)).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: /users & roles/i })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: /users & roles/i })
+    ).not.toBeInTheDocument()
   })
 
   it('redirects an author too', () => {

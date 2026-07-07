@@ -8,33 +8,54 @@
  *  Omitted entirely when no provider is configured or its secret is unset (fail closed — no
  *  captcha plugin means better-auth doesn't gate on a check we can't perform). */
 export function authCaptchaFromEnv(
-  env: NodeJS.ProcessEnv = process.env,
-): { provider: 'cloudflare-turnstile' | 'google-recaptcha'; secretKey: string } | undefined {
+  env: NodeJS.ProcessEnv = process.env
+):
+  | { provider: 'cloudflare-turnstile' | 'google-recaptcha'; secretKey: string }
+  | undefined {
   const provider = env.SETU_CAPTCHA_PROVIDER ?? ''
   if (provider !== 'turnstile' && provider !== 'recaptcha') return undefined
-  const secretKey = provider === 'recaptcha' ? (env.SETU_RECAPTCHA_SECRET ?? '') : (env.SETU_TURNSTILE_SECRET ?? '')
+  const secretKey =
+    provider === 'recaptcha'
+      ? (env.SETU_RECAPTCHA_SECRET ?? '')
+      : (env.SETU_TURNSTILE_SECRET ?? '')
   if (!secretKey) return undefined
-  return { provider: provider === 'turnstile' ? 'cloudflare-turnstile' : 'google-recaptcha', secretKey }
+  return {
+    provider:
+      provider === 'turnstile' ? 'cloudflare-turnstile' : 'google-recaptcha',
+    secretKey
+  }
 }
 
 /** better-auth's socialProviders option. Each provider is included only when BOTH its client id
  *  and secret are set — an incomplete pair is omitted (fail closed, not a broken provider). */
 export function authSocialProvidersFromEnv(
-  env: NodeJS.ProcessEnv = process.env,
-): { github?: { clientId: string; clientSecret: string }; google?: { clientId: string; clientSecret: string } } | undefined {
-  const out: { github?: { clientId: string; clientSecret: string }; google?: { clientId: string; clientSecret: string } } = {}
+  env: NodeJS.ProcessEnv = process.env
+):
+  | {
+      github?: { clientId: string; clientSecret: string }
+      google?: { clientId: string; clientSecret: string }
+    }
+  | undefined {
+  const out: {
+    github?: { clientId: string; clientSecret: string }
+    google?: { clientId: string; clientSecret: string }
+  } = {}
   const githubId = env.SETU_GITHUB_CLIENT_ID
   const githubSecret = env.SETU_GITHUB_CLIENT_SECRET
-  if (githubId && githubSecret) out.github = { clientId: githubId, clientSecret: githubSecret }
+  if (githubId && githubSecret)
+    out.github = { clientId: githubId, clientSecret: githubSecret }
   const googleId = env.SETU_GOOGLE_CLIENT_ID
   const googleSecret = env.SETU_GOOGLE_CLIENT_SECRET
-  if (googleId && googleSecret) out.google = { clientId: googleId, clientSecret: googleSecret }
+  if (googleId && googleSecret)
+    out.google = { clientId: googleId, clientSecret: googleSecret }
   return Object.keys(out).length > 0 ? out : undefined
 }
 
 /** Which social providers (as capabilities reports them) have a complete env pair. Reuses
  *  authSocialProvidersFromEnv rather than re-parsing env vars a third way. */
-export function socialProvidersEnabled(env: NodeJS.ProcessEnv = process.env): ('github' | 'google')[] {
+export function socialProvidersEnabled(
+  env: NodeJS.ProcessEnv = process.env
+): ('github' | 'google')[] {
   const providers = authSocialProvidersFromEnv(env)
   const out: ('github' | 'google')[] = []
   if (providers?.github) out.push('github')
@@ -55,12 +76,16 @@ export function socialProvidersEnabled(env: NodeJS.ProcessEnv = process.env): ('
  *  SETU_TURNSTILE_SECRET/SETU_RECAPTCHA_SECRET naming convention.
  */
 export function captchaCapabilityFromEnv(
-  env: NodeJS.ProcessEnv = process.env,
+  env: NodeJS.ProcessEnv = process.env
 ): { provider: 'turnstile' | 'recaptcha'; siteKey: string } | null {
   const serverConfigured = authCaptchaFromEnv(env)
   if (!serverConfigured) return null
-  const provider = serverConfigured.provider === 'google-recaptcha' ? 'recaptcha' : 'turnstile'
-  const siteKey = provider === 'recaptcha' ? (env.SETU_RECAPTCHA_SITE_KEY ?? '') : (env.SETU_TURNSTILE_SITE_KEY ?? '')
+  const provider =
+    serverConfigured.provider === 'google-recaptcha' ? 'recaptcha' : 'turnstile'
+  const siteKey =
+    provider === 'recaptcha'
+      ? (env.SETU_RECAPTCHA_SITE_KEY ?? '')
+      : (env.SETU_TURNSTILE_SITE_KEY ?? '')
   if (!siteKey) return null
   return { provider, siteKey }
 }

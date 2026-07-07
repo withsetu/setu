@@ -11,48 +11,120 @@ const actor = (role: Role): Actor => ({ id: 'u', role })
 // scope here (increments #363/#364) — the coarse, unscoped action form is used.
 const MATRIX: Record<Role, Action[]> = {
   admin: [
-    'content.view', 'content.create', 'content.edit', 'content.delete', 'content.publish', 'content.unpublish',
-    'taxonomy.view', 'taxonomy.create', 'taxonomy.edit', 'taxonomy.delete',
-    'media.view', 'media.upload', 'media.edit', 'media.delete',
-    'forms.view', 'forms.manage',
-    'sitehealth.view', 'site.deploy', 'theme.manage',
-    'settings.view', 'settings.manage',
-    'users.view', 'users.invite', 'users.setRole', 'users.disable', 'users.delete',
-    'roles.manage',
+    'content.view',
+    'content.create',
+    'content.edit',
+    'content.delete',
+    'content.publish',
+    'content.unpublish',
+    'taxonomy.view',
+    'taxonomy.create',
+    'taxonomy.edit',
+    'taxonomy.delete',
+    'media.view',
+    'media.upload',
+    'media.edit',
+    'media.delete',
+    'forms.view',
+    'forms.manage',
+    'sitehealth.view',
+    'site.deploy',
+    'theme.manage',
+    'settings.view',
+    'settings.manage',
+    'users.view',
+    'users.invite',
+    'users.setRole',
+    'users.disable',
+    'users.delete',
+    'roles.manage'
   ],
   maintainer: [
-    'content.view', 'content.create', 'content.edit', 'content.delete', 'content.publish', 'content.unpublish',
-    'taxonomy.view', 'taxonomy.create', 'taxonomy.edit', 'taxonomy.delete',
-    'media.view', 'media.upload', 'media.edit', 'media.delete',
-    'forms.view', 'forms.manage',
-    'sitehealth.view', 'site.deploy', 'theme.manage',
+    'content.view',
+    'content.create',
+    'content.edit',
+    'content.delete',
+    'content.publish',
+    'content.unpublish',
+    'taxonomy.view',
+    'taxonomy.create',
+    'taxonomy.edit',
+    'taxonomy.delete',
+    'media.view',
+    'media.upload',
+    'media.edit',
+    'media.delete',
+    'forms.view',
+    'forms.manage',
+    'sitehealth.view',
+    'site.deploy',
+    'theme.manage',
     'settings.view',
-    'users.view', 'users.invite', 'users.setRole', 'users.disable',
+    'users.view',
+    'users.invite',
+    'users.setRole',
+    'users.disable'
     // NOT: settings.manage, users.delete, roles.manage — the four Admin-only levers.
   ],
   editor: [
-    'content.view', 'content.create', 'content.edit', 'content.delete', 'content.publish', 'content.unpublish',
-    'taxonomy.view', 'taxonomy.create', 'taxonomy.edit', 'taxonomy.delete',
-    'media.view', 'media.upload', 'media.edit', 'media.delete',
+    'content.view',
+    'content.create',
+    'content.edit',
+    'content.delete',
+    'content.publish',
+    'content.unpublish',
+    'taxonomy.view',
+    'taxonomy.create',
+    'taxonomy.edit',
+    'taxonomy.delete',
+    'media.view',
+    'media.upload',
+    'media.edit',
+    'media.delete'
     // No forms, site health, ops, config, or users.
   ],
   author: [
     // Coarse form: edit/delete are unscoped until ownership lands (#363). No publish.
-    'content.view', 'content.create', 'content.edit', 'content.delete',
-    'taxonomy.view', 'taxonomy.create',
-    'media.view', 'media.upload', 'media.edit',
-  ],
+    'content.view',
+    'content.create',
+    'content.edit',
+    'content.delete',
+    'taxonomy.view',
+    'taxonomy.create',
+    'media.view',
+    'media.upload',
+    'media.edit'
+  ]
 }
 
 const ALL_ACTIONS: Action[] = [
-  'content.view', 'content.create', 'content.edit', 'content.delete', 'content.publish', 'content.unpublish',
-  'taxonomy.view', 'taxonomy.create', 'taxonomy.edit', 'taxonomy.delete',
-  'media.view', 'media.upload', 'media.edit', 'media.delete',
-  'forms.view', 'forms.manage',
-  'sitehealth.view', 'site.deploy', 'theme.manage',
-  'settings.view', 'settings.manage',
-  'users.view', 'users.invite', 'users.setRole', 'users.disable', 'users.delete',
-  'roles.manage',
+  'content.view',
+  'content.create',
+  'content.edit',
+  'content.delete',
+  'content.publish',
+  'content.unpublish',
+  'taxonomy.view',
+  'taxonomy.create',
+  'taxonomy.edit',
+  'taxonomy.delete',
+  'media.view',
+  'media.upload',
+  'media.edit',
+  'media.delete',
+  'forms.view',
+  'forms.manage',
+  'sitehealth.view',
+  'site.deploy',
+  'theme.manage',
+  'settings.view',
+  'settings.manage',
+  'users.view',
+  'users.invite',
+  'users.setRole',
+  'users.disable',
+  'users.delete',
+  'roles.manage'
 ]
 
 describe('DEFAULT_ROLES matrix (epic #359 approved table)', () => {
@@ -68,7 +140,11 @@ describe('DEFAULT_ROLES matrix (epic #359 approved table)', () => {
 })
 
 describe('the four Admin-only levers (everything else Maintainer can do)', () => {
-  const adminOnly: Action[] = ['settings.manage', 'users.delete', 'roles.manage']
+  const adminOnly: Action[] = [
+    'settings.manage',
+    'users.delete',
+    'roles.manage'
+  ]
   for (const action of adminOnly) {
     it(`only admin has ${action}`, () => {
       expect(authz.can(actor('admin'), action)).toBe(true)

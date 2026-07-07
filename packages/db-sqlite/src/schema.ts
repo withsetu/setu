@@ -11,7 +11,7 @@ export const submissions = sqliteTable('submissions', {
   read: integer('read').notNull(), // 0/1
   sourceUrl: text('source_url'),
   sourceReferrer: text('source_referrer'),
-  sourceUserAgent: text('source_user_agent'),
+  sourceUserAgent: text('source_user_agent')
 })
 
 export const drafts = sqliteTable(
@@ -24,9 +24,9 @@ export const drafts = sqliteTable(
     metadata: text('metadata').notNull(), // JSON
     baseSha: text('base_sha'), // nullable
     createdAt: integer('created_at').notNull(), // epoch ms
-    updatedAt: integer('updated_at').notNull(), // epoch ms
+    updatedAt: integer('updated_at').notNull() // epoch ms
   },
-  (t) => [primaryKey({ columns: [t.collection, t.locale, t.slug] })],
+  (t) => [primaryKey({ columns: [t.collection, t.locale, t.slug] })]
 )
 
 export const locks = sqliteTable(
@@ -36,9 +36,9 @@ export const locks = sqliteTable(
     locale: text('locale').notNull(),
     slug: text('slug').notNull(),
     lockedBy: text('locked_by').notNull(),
-    lockedAt: integer('locked_at').notNull(), // epoch ms
+    lockedAt: integer('locked_at').notNull() // epoch ms
   },
-  (t) => [primaryKey({ columns: [t.collection, t.locale, t.slug] })],
+  (t) => [primaryKey({ columns: [t.collection, t.locale, t.slug] })]
 )
 
 // Better Auth tables (#248). Columns reconciled against `npx @better-auth/cli
@@ -51,7 +51,9 @@ export const user = sqliteTable('user', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   email: text('email').notNull().unique(),
-  emailVerified: integer('email_verified', { mode: 'boolean' }).notNull().default(false),
+  emailVerified: integer('email_verified', { mode: 'boolean' })
+    .notNull()
+    .default(false),
   image: text('image'),
   // Added by the admin plugin. Setu staff roles: admin|maintainer|editor|author.
   role: text('role').notNull().default('author'),
@@ -59,7 +61,7 @@ export const user = sqliteTable('user', {
   banReason: text('ban_reason'),
   banExpires: integer('ban_expires', { mode: 'timestamp_ms' }),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
 })
 
 export const session = sqliteTable('session', {
@@ -74,7 +76,7 @@ export const session = sqliteTable('session', {
   // Added by the admin plugin (impersonation support).
   impersonatedBy: text('impersonated_by'),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
 })
 
 export const account = sqliteTable('account', {
@@ -86,13 +88,17 @@ export const account = sqliteTable('account', {
   providerId: text('provider_id').notNull(),
   accessToken: text('access_token'),
   refreshToken: text('refresh_token'),
-  accessTokenExpiresAt: integer('access_token_expires_at', { mode: 'timestamp_ms' }),
-  refreshTokenExpiresAt: integer('refresh_token_expires_at', { mode: 'timestamp_ms' }),
+  accessTokenExpiresAt: integer('access_token_expires_at', {
+    mode: 'timestamp_ms'
+  }),
+  refreshTokenExpiresAt: integer('refresh_token_expires_at', {
+    mode: 'timestamp_ms'
+  }),
   scope: text('scope'),
   idToken: text('id_token'),
   password: text('password'),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
 })
 
 export const verification = sqliteTable('verification', {
@@ -101,12 +107,12 @@ export const verification = sqliteTable('verification', {
   value: text('value').notNull(),
   expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
 })
 
 export const rateLimit = sqliteTable('rate_limit', {
   id: text('id').primaryKey(),
   key: text('key').notNull().unique(),
   count: integer('count').notNull(),
-  lastRequest: integer('last_request').notNull(),
+  lastRequest: integer('last_request').notNull()
 })

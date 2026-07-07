@@ -8,7 +8,10 @@ import type { SubmissionPort, Submission, SubmissionInput } from '@setu/core'
 import { selectDistinctForms } from '@setu/core'
 import { submissions } from './schema'
 
-const migrationsFolder = join(dirname(fileURLToPath(import.meta.url)), '../drizzle')
+const migrationsFolder = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '../drizzle'
+)
 
 type Row = typeof submissions.$inferSelect
 
@@ -18,7 +21,7 @@ const rowToSubmission = (r: Row): Submission => {
       ? {
           ...(r.sourceUrl ? { url: r.sourceUrl } : {}),
           ...(r.sourceReferrer ? { referrer: r.sourceReferrer } : {}),
-          ...(r.sourceUserAgent ? { userAgent: r.sourceUserAgent } : {}),
+          ...(r.sourceUserAgent ? { userAgent: r.sourceUserAgent } : {})
         }
       : undefined
   return {
@@ -28,7 +31,7 @@ const rowToSubmission = (r: Row): Submission => {
     fields: JSON.parse(r.fields) as Record<string, string>,
     createdAt: r.createdAt,
     read: r.read === 1,
-    ...(source ? { source } : {}),
+    ...(source ? { source } : {})
   }
 }
 
@@ -39,7 +42,11 @@ export function createSqliteSubmissionPort(file: string): SubmissionPort {
   migrate(db, { migrationsFolder })
 
   const read = (id: string): Submission | null => {
-    const row = db.select().from(submissions).where(eq(submissions.id, id)).get()
+    const row = db
+      .select()
+      .from(submissions)
+      .where(eq(submissions.id, id))
+      .get()
     return row ? rowToSubmission(row) : null
   }
 
@@ -56,7 +63,7 @@ export function createSqliteSubmissionPort(file: string): SubmissionPort {
           read: 0,
           sourceUrl: input.source?.url ?? null,
           sourceReferrer: input.source?.referrer ?? null,
-          sourceUserAgent: input.source?.userAgent ?? null,
+          sourceUserAgent: input.source?.userAgent ?? null
         })
         .run()
       return read(id)!
@@ -66,10 +73,15 @@ export function createSqliteSubmissionPort(file: string): SubmissionPort {
     },
     async listSubmissions(filter) {
       const conds = []
-      if (filter?.formId !== undefined) conds.push(eq(submissions.formId, filter.formId))
-      if (filter?.read !== undefined) conds.push(eq(submissions.read, filter.read ? 1 : 0))
+      if (filter?.formId !== undefined)
+        conds.push(eq(submissions.formId, filter.formId))
+      if (filter?.read !== undefined)
+        conds.push(eq(submissions.read, filter.read ? 1 : 0))
       // q: case-insensitive substring over field VALUES only (not keys) via json_each.
-      if (filter?.q) conds.push(sql`EXISTS (SELECT 1 FROM json_each(${submissions.fields}) WHERE lower(json_each.value) LIKE ${'%' + filter.q.toLowerCase() + '%'})`)
+      if (filter?.q)
+        conds.push(
+          sql`EXISTS (SELECT 1 FROM json_each(${submissions.fields}) WHERE lower(json_each.value) LIKE ${'%' + filter.q.toLowerCase() + '%'})`
+        )
       const where = conds.length ? and(...conds) : undefined
 
       const totalRow = db
@@ -79,23 +91,35 @@ export function createSqliteSubmissionPort(file: string): SubmissionPort {
         .get()
       const total = totalRow?.n ?? 0
 
-      let qy = db.select().from(submissions).where(where).orderBy(desc(submissions.createdAt), desc(submissions.id)).$dynamic()
+      let qy = db
+        .select()
+        .from(submissions)
+        .where(where)
+        .orderBy(desc(submissions.createdAt), desc(submissions.id))
+        .$dynamic()
       if (filter?.limit !== undefined) qy = qy.limit(filter.limit)
       if (filter?.offset !== undefined) qy = qy.offset(filter.offset)
       return { rows: qy.all().map(rowToSubmission), total }
     },
     async setRead(ids, readFlag) {
       if (ids.length === 0) return
-      for (const id of ids) db.update(submissions).set({ read: readFlag ? 1 : 0 }).where(eq(submissions.id, id)).run()
+      for (const id of ids)
+        db.update(submissions)
+          .set({ read: readFlag ? 1 : 0 })
+          .where(eq(submissions.id, id))
+          .run()
     },
     async deleteSubmissions(ids) {
-      for (const id of ids) db.delete(submissions).where(eq(submissions.id, id)).run()
+      for (const id of ids)
+        db.delete(submissions).where(eq(submissions.id, id)).run()
     },
     async distinctForms() {
-      return selectDistinctForms(db.select().from(submissions).all().map(rowToSubmission))
+      return selectDistinctForms(
+        db.select().from(submissions).all().map(rowToSubmission)
+      )
     },
     async close() {
       sqlite.close()
-    },
+    }
   }
 }

@@ -51,7 +51,9 @@ import type { AuthEvent } from './events'
  *    events. */
 
 function actorIdFrom(context: GenericEndpointContext): string | undefined {
-  const session = (context.context as { session?: { user?: { id?: string } } } | undefined)?.session
+  const session = (
+    context.context as { session?: { user?: { id?: string } } } | undefined
+  )?.session
   return session?.user?.id
 }
 
@@ -64,7 +66,7 @@ export function userCreateAfterHook(emit: (e: AuthEvent) => void) {
 export function sessionCreateAfterHook(emit: (e: AuthEvent) => void) {
   return async (
     session: { userId: string },
-    context: GenericEndpointContext | null,
+    context: GenericEndpointContext | null
   ): Promise<void> => {
     if (context?.path !== '/sign-in/email') return
     emit({ type: 'login.success', targetId: session.userId })
@@ -74,7 +76,7 @@ export function sessionCreateAfterHook(emit: (e: AuthEvent) => void) {
 export function sessionDeleteAfterHook(emit: (e: AuthEvent) => void) {
   return async (
     session: { userId: string },
-    context: GenericEndpointContext | null,
+    context: GenericEndpointContext | null
   ): Promise<void> => {
     if (context?.path !== '/sign-out') return
     emit({ type: 'logout', targetId: session.userId })
@@ -84,17 +86,23 @@ export function sessionDeleteAfterHook(emit: (e: AuthEvent) => void) {
 export function userUpdateAfterHook(emit: (e: AuthEvent) => void) {
   return async (
     updated: { id: string; role?: string | null; banned?: boolean | null },
-    context: GenericEndpointContext | null,
+    context: GenericEndpointContext | null
   ): Promise<void> => {
     if (!context) return
     const actorId = actorIdFrom(context)
     if (context.path === '/admin/set-role') {
-      const requestedRole = (context.body as { role?: unknown } | undefined)?.role
+      const requestedRole = (context.body as { role?: unknown } | undefined)
+        ?.role
       emit({
         type: 'role.changed',
         actorId,
         targetId: updated.id,
-        meta: { role: typeof requestedRole === 'string' ? requestedRole : String(updated.role ?? '') },
+        meta: {
+          role:
+            typeof requestedRole === 'string'
+              ? requestedRole
+              : String(updated.role ?? '')
+        }
       })
       return
     }
@@ -108,7 +116,9 @@ export function userUpdateAfterHook(emit: (e: AuthEvent) => void) {
     }
     if (context.path === '/admin/update-user') {
       // `data` (the diff) lives under `context.body.data` for this route — see the module doc.
-      const data = (context.body as { data?: Record<string, unknown> } | undefined)?.data
+      const data = (
+        context.body as { data?: Record<string, unknown> } | undefined
+      )?.data
       if (!data) return
       const touchesRole = Object.prototype.hasOwnProperty.call(data, 'role')
       const touchesBanned = Object.prototype.hasOwnProperty.call(data, 'banned')
@@ -118,11 +128,20 @@ export function userUpdateAfterHook(emit: (e: AuthEvent) => void) {
           type: 'role.changed',
           actorId,
           targetId: updated.id,
-          meta: { role: typeof requestedRole === 'string' ? requestedRole : String(updated.role ?? '') },
+          meta: {
+            role:
+              typeof requestedRole === 'string'
+                ? requestedRole
+                : String(updated.role ?? '')
+          }
         })
       }
       if (touchesBanned) {
-        emit({ type: updated.banned ? 'user.banned' : 'user.unbanned', actorId, targetId: updated.id })
+        emit({
+          type: updated.banned ? 'user.banned' : 'user.unbanned',
+          actorId,
+          targetId: updated.id
+        })
       }
     }
   }
@@ -131,9 +150,13 @@ export function userUpdateAfterHook(emit: (e: AuthEvent) => void) {
 export function userDeleteAfterHook(emit: (e: AuthEvent) => void) {
   return async (
     deleted: { id: string },
-    context: GenericEndpointContext | null,
+    context: GenericEndpointContext | null
   ): Promise<void> => {
     if (context?.path !== '/admin/remove-user') return
-    emit({ type: 'user.deleted', actorId: actorIdFrom(context), targetId: deleted.id })
+    emit({
+      type: 'user.deleted',
+      actorId: actorIdFrom(context),
+      targetId: deleted.id
+    })
   }
 }

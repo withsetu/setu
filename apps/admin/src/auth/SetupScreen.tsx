@@ -2,14 +2,20 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { toast } from 'sonner'
 import * as z from 'zod'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription
+} from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { apiFetch } from '../lib/api-fetch'
 import { authClient } from './auth-client'
 
-const apiBase = (import.meta.env.VITE_SETU_API as string | undefined) ?? ''
+const apiBase = import.meta.env.VITE_SETU_API ?? ''
 
 const setupSchema = z
   .object({
@@ -17,11 +23,11 @@ const setupSchema = z
     email: z.string().email('Enter a valid email'),
     password: z.string().min(12, 'Password must be at least 12 characters'),
     confirm: z.string(),
-    token: z.string().min(1, 'Setup token is required'),
+    token: z.string().min(1, 'Setup token is required')
   })
   .refine((data) => data.password === data.confirm, {
     message: "Passwords don't match",
-    path: ['confirm'],
+    path: ['confirm']
   })
 
 type SetupFormValues = z.infer<typeof setupSchema>
@@ -31,17 +37,34 @@ type FieldErrors = Partial<Record<keyof SetupFormValues, string>>
  *  `/api/auth/setup` is a plain better-auth-plugin endpoint (not part of the authClient's typed
  *  surface — see server-setup-plugin.ts), so this reads the raw JSON body/status directly rather
  *  than going through better-fetch's error shape. */
-function mapSetupError(status: number, message: string | undefined): { message: string; alreadyCompleted: boolean } {
+function mapSetupError(
+  status: number,
+  message: string | undefined
+): { message: string; alreadyCompleted: boolean } {
   if (status === 403) {
-    return { message: 'Setup has already been completed on this instance — taking you to sign in…', alreadyCompleted: true }
+    return {
+      message:
+        'Setup has already been completed on this instance — taking you to sign in…',
+      alreadyCompleted: true
+    }
   }
   if (status === 401) {
-    return { message: "Setup token doesn't match — check your server logs", alreadyCompleted: false }
+    return {
+      message: "Setup token doesn't match — check your server logs",
+      alreadyCompleted: false
+    }
   }
   if (status === 404) {
-    return { message: 'Setup isn’t available on this instance.', alreadyCompleted: false }
+    return {
+      message: 'Setup isn’t available on this instance.',
+      alreadyCompleted: false
+    }
   }
-  return { message: message || 'Something went wrong completing setup — please try again.', alreadyCompleted: false }
+  return {
+    message:
+      message || 'Something went wrong completing setup — please try again.',
+    alreadyCompleted: false
+  }
 }
 
 /** First-run server setup (#248 Task 7): the guarded one-time admin-creation flow for non-local
@@ -63,7 +86,13 @@ export function SetupScreen() {
     if (submitting) return
     setFormError(null)
 
-    const parsed = setupSchema.safeParse({ name, email, password, confirm, token })
+    const parsed = setupSchema.safeParse({
+      name,
+      email,
+      password,
+      confirm,
+      token
+    })
     if (!parsed.success) {
       const errors: FieldErrors = {}
       for (const issue of parsed.error.issues) {
@@ -80,10 +109,12 @@ export function SetupScreen() {
       const res = await apiFetch(`${apiBase}/api/auth/setup`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name, email, password, token }),
+        body: JSON.stringify({ name, email, password, token })
       })
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string }
+        const body = (await res.json().catch(() => ({}))) as {
+          message?: string
+        }
         const mapped = mapSetupError(res.status, body.message)
         setFormError(mapped.message)
         if (mapped.alreadyCompleted) {
@@ -106,9 +137,19 @@ export function SetupScreen() {
     <div className="flex min-h-svh items-center justify-center p-6">
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
-          <span aria-hidden className="mb-2 flex size-10 items-center justify-center">
+          <span
+            aria-hidden
+            className="mb-2 flex size-10 items-center justify-center"
+          >
             <svg viewBox="0 0 32 32" width={36} height={36} fill="none">
-              <rect x="1" y="1" width="30" height="30" rx="9" fill="var(--primary)" />
+              <rect
+                x="1"
+                y="1"
+                width="30"
+                height="30"
+                rx="9"
+                fill="var(--primary)"
+              />
               <path
                 d="M21.5 11.5c-1-1.4-2.8-2.2-4.9-2.2-3 0-5 1.5-5 3.8 0 2 1.4 3 4.3 3.6l1.6.4c1.5.3 2.1.8 2.1 1.6 0 1-1 1.7-2.6 1.7-1.6 0-2.8-.7-3.4-1.9"
                 stroke="var(--primary-foreground)"
@@ -119,10 +160,16 @@ export function SetupScreen() {
             </svg>
           </span>
           <CardTitle className="text-xl">Set up your Setu instance</CardTitle>
-          <CardDescription>Create the admin account to finish first-run setup.</CardDescription>
+          <CardDescription>
+            Create the admin account to finish first-run setup.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={(e) => void onSubmit(e)} noValidate className="grid gap-4">
+          <form
+            onSubmit={(e) => void onSubmit(e)}
+            noValidate
+            className="grid gap-4"
+          >
             <div className="grid gap-2">
               <Label htmlFor="setup-name">Name</Label>
               <Input
@@ -134,7 +181,9 @@ export function SetupScreen() {
                 onChange={(e) => setName(e.target.value)}
                 aria-invalid={!!fieldErrors.name}
               />
-              {fieldErrors.name && <p className="text-sm text-destructive">{fieldErrors.name}</p>}
+              {fieldErrors.name && (
+                <p className="text-sm text-destructive">{fieldErrors.name}</p>
+              )}
             </div>
             <div className="grid gap-2">
               <Label htmlFor="setup-email">Email</Label>
@@ -148,7 +197,9 @@ export function SetupScreen() {
                 onChange={(e) => setEmail(e.target.value)}
                 aria-invalid={!!fieldErrors.email}
               />
-              {fieldErrors.email && <p className="text-sm text-destructive">{fieldErrors.email}</p>}
+              {fieldErrors.email && (
+                <p className="text-sm text-destructive">{fieldErrors.email}</p>
+              )}
             </div>
             <div className="grid gap-2">
               <Label htmlFor="setup-password">Password</Label>
@@ -162,7 +213,11 @@ export function SetupScreen() {
                 onChange={(e) => setPassword(e.target.value)}
                 aria-invalid={!!fieldErrors.password}
               />
-              {fieldErrors.password && <p className="text-sm text-destructive">{fieldErrors.password}</p>}
+              {fieldErrors.password && (
+                <p className="text-sm text-destructive">
+                  {fieldErrors.password}
+                </p>
+              )}
             </div>
             <div className="grid gap-2">
               <Label htmlFor="setup-confirm">Confirm password</Label>
@@ -176,7 +231,11 @@ export function SetupScreen() {
                 onChange={(e) => setConfirm(e.target.value)}
                 aria-invalid={!!fieldErrors.confirm}
               />
-              {fieldErrors.confirm && <p className="text-sm text-destructive">{fieldErrors.confirm}</p>}
+              {fieldErrors.confirm && (
+                <p className="text-sm text-destructive">
+                  {fieldErrors.confirm}
+                </p>
+              )}
             </div>
             <div className="grid gap-2">
               <Label htmlFor="setup-token">Setup token</Label>
@@ -189,16 +248,27 @@ export function SetupScreen() {
                 onChange={(e) => setToken(e.target.value)}
                 aria-invalid={!!fieldErrors.token}
               />
-              <p className="text-xs text-muted-foreground">Printed in your server logs at boot.</p>
-              {fieldErrors.token && <p className="text-sm text-destructive">{fieldErrors.token}</p>}
+              <p className="text-xs text-muted-foreground">
+                Printed in your server logs at boot.
+              </p>
+              {fieldErrors.token && (
+                <p className="text-sm text-destructive">{fieldErrors.token}</p>
+              )}
             </div>
 
             {formError && (
-              <p role="alert" className="text-sm text-destructive">{formError}</p>
+              <p role="alert" className="text-sm text-destructive">
+                {formError}
+              </p>
             )}
 
             <Button type="submit" className="w-full" disabled={submitting}>
-              {submitting && <span aria-hidden className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />}
+              {submitting && (
+                <span
+                  aria-hidden
+                  className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                />
+              )}
               {submitting ? 'Creating account…' : 'Create admin account'}
             </Button>
           </form>

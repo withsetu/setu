@@ -9,7 +9,7 @@ import { AppShell } from '../src/shell/AppShell'
 // Mock useDeploy — the real DeployProvider depends on ServicesProvider which is heavy.
 const mockDeploy = vi.fn(() => Promise.resolve())
 vi.mock('../src/deploy/deploy', () => ({
-  useDeploy: () => ({ deployedAt: () => null, sha: null, deploy: mockDeploy }),
+  useDeploy: () => ({ deployedAt: () => null, sha: null, deploy: mockDeploy })
 }))
 
 // jsdom stubs required by cmdk / Radix (same as CommandPalette.test.tsx):
@@ -21,7 +21,6 @@ beforeAll(() => {
     window.HTMLElement.prototype.scrollIntoView = vi.fn()
 
     if (!window.ResizeObserver) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ;(window as any).ResizeObserver = class ResizeObserver {
         observe() {}
         unobserve() {}
@@ -30,7 +29,6 @@ beforeAll(() => {
     }
 
     if (!window.PointerEvent) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ;(window as any).PointerEvent = class PointerEvent extends MouseEvent {
         constructor(type: string, init?: PointerEventInit) {
           super(type, init)
@@ -59,7 +57,7 @@ function renderShell() {
           </CommandRegistryProvider>
         </NotificationProvider>
       </ActorProvider>
-    </MemoryRouter>,
+    </MemoryRouter>
   )
 }
 

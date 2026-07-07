@@ -9,25 +9,49 @@ import { createCategoryDeleter } from './delete-service'
 import type { TiptapDoc } from '../markdoc/types'
 
 const author = { name: 'T', email: 't@x.dev' }
-const doc = (t: string): TiptapDoc => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] })
+const doc = (t: string): TiptapDoc => ({
+  type: 'doc',
+  content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }]
+})
 
 async function setup() {
   // Seed entries as drafts — both have 'news'; only 'a' has 'eng'
   const data = createMemoryDataPort([
-    { collection: 'post', locale: 'en', slug: 'a', content: doc('a'), metadata: { title: 'A', categories: ['eng', 'news'] } },
-    { collection: 'post', locale: 'en', slug: 'b', content: doc('b'), metadata: { title: 'B', categories: ['news'] } },
+    {
+      collection: 'post',
+      locale: 'en',
+      slug: 'a',
+      content: doc('a'),
+      metadata: { title: 'A', categories: ['eng', 'news'] }
+    },
+    {
+      collection: 'post',
+      locale: 'en',
+      slug: 'b',
+      content: doc('b'),
+      metadata: { title: 'B', categories: ['news'] }
+    }
   ])
   const git = createMemoryGitPort()
   const index = createMemoryIndexPort()
-  const read = createReadService({ data, git, knownBlockTags: new Set<string>() })
+  const read = createReadService({
+    data,
+    git,
+    knownBlockTags: new Set<string>()
+  })
   const idx = createIndexService({ data, git, index, deployedAt: () => null })
 
   // Seed the categories.yaml using the real serializer so parseCategories can read it
   const catsYaml = serializeCategories([
     { slug: 'eng', name: 'Engineering', parent: null },
-    { slug: 'news', name: 'News', parent: null },
+    { slug: 'news', name: 'News', parent: null }
   ])
-  await git.commitFile({ path: 'taxonomy/categories.yaml', content: catsYaml, message: 'seed categories', author })
+  await git.commitFile({
+    path: 'taxonomy/categories.yaml',
+    content: catsYaml,
+    message: 'seed categories',
+    author
+  })
 
   // Build the index AFTER seeding data so entriesByCategory finds the entries
   await idx.rebuild()
@@ -40,7 +64,13 @@ describe('createCategoryDeleter', () => {
     const { data, git, read, idx } = await setup()
 
     const before = await git.headSha()
-    const deleter = createCategoryDeleter({ git, data, read, index: idx, author })
+    const deleter = createCategoryDeleter({
+      git,
+      data,
+      read,
+      index: idx,
+      author
+    })
     const res = await deleter.remove('eng')
 
     // Only entry 'a' referenced 'eng'
@@ -76,9 +106,19 @@ describe('createCategoryDeleter', () => {
     // Before: 'a' is in the 'eng' category
     const beforeRefs = await idx.entriesByCategory('eng')
     expect(beforeRefs).toHaveLength(1)
-    expect(beforeRefs[0]).toMatchObject({ collection: 'post', locale: 'en', slug: 'a' })
+    expect(beforeRefs[0]).toMatchObject({
+      collection: 'post',
+      locale: 'en',
+      slug: 'a'
+    })
 
-    const deleter = createCategoryDeleter({ git, data, read, index: idx, author })
+    const deleter = createCategoryDeleter({
+      git,
+      data,
+      read,
+      index: idx,
+      author
+    })
     await deleter.remove('eng')
 
     // After: 'a' is no longer in 'eng'
@@ -92,7 +132,13 @@ describe('createCategoryDeleter', () => {
 
   it('marks the index synced at the delete commit so ensureBuilt does not full-rebuild on next load', async () => {
     const { git, data, read, index, idx } = await setup()
-    const deleter = createCategoryDeleter({ git, data, read, index: idx, author })
+    const deleter = createCategoryDeleter({
+      git,
+      data,
+      read,
+      index: idx,
+      author
+    })
     await deleter.remove('eng')
     // markSyncedAt advanced the index meta to the delete commit's HEAD, so ensureBuilt's
     // out-of-band sha-gate (head !== indexedSha) is false → no spurious full rebuild.

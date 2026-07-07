@@ -15,12 +15,18 @@ import { Settings } from '../src/screens/settings/Settings'
 // aware git gate); this asserts the client presents the surface READ-ONLY so a maintainer never
 // triggers that error — the matching UI half of the enforcement.
 
-vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({}), { status: 200 })))
+vi.stubGlobal(
+  'fetch',
+  vi.fn(async () => new Response(JSON.stringify({}), { status: 200 }))
+)
 
 afterEach(() => vi.clearAllMocks())
 
 function renderSettings(role: 'admin' | 'maintainer') {
-  const services = servicesFor(createMemoryDataPort([]), createMemoryGitPort([]))
+  const services = servicesFor(
+    createMemoryDataPort([]),
+    createMemoryGitPort([])
+  )
   const wrapper = ({ children }: { children: ReactNode }) => (
     <MemoryRouter>
       <NotificationProvider>
@@ -38,7 +44,9 @@ function renderSettings(role: 'admin' | 'maintainer') {
 describe('Settings — settings.manage gate (view-only for maintainer)', () => {
   it('locks the whole settings surface for a maintainer (settings.view, no settings.manage)', () => {
     const { container } = renderSettings('maintainer')
-    expect(screen.getByText(/view-only access to settings/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/view-only access to settings/i)
+    ).toBeInTheDocument()
     const fieldset = container.querySelector('fieldset')
     expect(fieldset).not.toBeNull()
     expect(fieldset).toBeDisabled()
@@ -46,7 +54,9 @@ describe('Settings — settings.manage gate (view-only for maintainer)', () => {
 
   it('leaves settings editable for an admin (settings.manage)', () => {
     const { container } = renderSettings('admin')
-    expect(screen.queryByText(/view-only access to settings/i)).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(/view-only access to settings/i)
+    ).not.toBeInTheDocument()
     const fieldset = container.querySelector('fieldset')
     expect(fieldset).not.toBeNull()
     expect(fieldset).not.toBeDisabled()

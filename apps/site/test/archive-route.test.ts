@@ -5,13 +5,18 @@ import { fileURLToPath } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
 
 const appDir = fileURLToPath(new URL('..', import.meta.url))
-const page = (route: string): string => readFileSync(join(appDir, 'dist', route, 'index.html'), 'utf8')
+const page = (route: string): string =>
+  readFileSync(join(appDir, 'dist', route, 'index.html'), 'utf8')
 
 let p1 = ''
 let p2 = ''
 beforeAll(() => {
   // 2 posts/page forces the 3 en-locale fixtures into two pages so we can exercise paging.
-  execSync('pnpm build', { cwd: appDir, stdio: 'inherit', env: { ...process.env, SETU_ARCHIVE_PER_PAGE: '2' } })
+  execSync('pnpm build', {
+    cwd: appDir,
+    stdio: 'inherit',
+    env: { ...process.env, SETU_ARCHIVE_PER_PAGE: '2' }
+  })
   p1 = page('posts')
   p2 = page('posts/2')
 })

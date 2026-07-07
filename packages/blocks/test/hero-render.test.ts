@@ -3,59 +3,91 @@ import { heroClasses, sizesForLayout } from '../src/hero/hero-classes'
 
 describe('heroClasses', () => {
   it('maps layout + position to classes', () => {
-    expect(heroClasses('background', 'bottom-left')).toBe('blk-hero layout-background pos-bottom-left')
+    expect(heroClasses('background', 'bottom-left')).toBe(
+      'blk-hero layout-background pos-bottom-left'
+    )
   })
 
   it('handles centered layout with center position', () => {
-    expect(heroClasses('centered', 'center')).toBe('blk-hero layout-centered pos-center')
+    expect(heroClasses('centered', 'center')).toBe(
+      'blk-hero layout-centered pos-center'
+    )
   })
 
   it('handles split-left layout with top-right position', () => {
-    expect(heroClasses('split-left', 'top-right')).toBe('blk-hero layout-split-left pos-top-right')
+    expect(heroClasses('split-left', 'top-right')).toBe(
+      'blk-hero layout-split-left pos-top-right'
+    )
   })
 
   it('handles split-right layout with middle-left position', () => {
-    expect(heroClasses('split-right', 'middle-left')).toBe('blk-hero layout-split-right pos-middle-left')
+    expect(heroClasses('split-right', 'middle-left')).toBe(
+      'blk-hero layout-split-right pos-middle-left'
+    )
   })
 
   it('handles all 9 text positions for background layout', () => {
     const positions = [
-      'top-left', 'top-center', 'top-right',
-      'middle-left', 'center', 'middle-right',
-      'bottom-left', 'bottom-center', 'bottom-right',
+      'top-left',
+      'top-center',
+      'top-right',
+      'middle-left',
+      'center',
+      'middle-right',
+      'bottom-left',
+      'bottom-center',
+      'bottom-right'
     ]
     for (const pos of positions) {
-      expect(heroClasses('background', pos)).toBe(`blk-hero layout-background pos-${pos}`)
+      expect(heroClasses('background', pos)).toBe(
+        `blk-hero layout-background pos-${pos}`
+      )
     }
   })
 })
 
 describe('heroClasses — width param', () => {
   it('appends w-wide when width is wide', () => {
-    expect(heroClasses('centered', 'center', 'wide')).toBe('blk-hero layout-centered pos-center w-wide')
+    expect(heroClasses('centered', 'center', 'wide')).toBe(
+      'blk-hero layout-centered pos-center w-wide'
+    )
   })
 
   it('appends w-full when width is full', () => {
-    expect(heroClasses('background', 'bottom-left', 'full')).toBe('blk-hero layout-background pos-bottom-left w-full')
+    expect(heroClasses('background', 'bottom-left', 'full')).toBe(
+      'blk-hero layout-background pos-bottom-left w-full'
+    )
   })
 
   it('omits w- class when width is none', () => {
-    expect(heroClasses('centered', 'center', 'none')).toBe('blk-hero layout-centered pos-center')
+    expect(heroClasses('centered', 'center', 'none')).toBe(
+      'blk-hero layout-centered pos-center'
+    )
   })
 
   it('omits w- class when width is undefined (backwards compat)', () => {
-    expect(heroClasses('centered', 'center', undefined)).toBe('blk-hero layout-centered pos-center')
-    expect(heroClasses('centered', 'center')).toBe('blk-hero layout-centered pos-center')
+    expect(heroClasses('centered', 'center', undefined)).toBe(
+      'blk-hero layout-centered pos-center'
+    )
+    expect(heroClasses('centered', 'center')).toBe(
+      'blk-hero layout-centered pos-center'
+    )
   })
 })
 
 describe('heroClasses — textAlign param', () => {
   it('appends ta-<align> when set, alongside width', () => {
-    expect(heroClasses('centered', 'center', 'full', 'right')).toBe('blk-hero layout-centered pos-center w-full ta-right')
-    expect(heroClasses('centered', 'center', 'none', 'center')).toBe('blk-hero layout-centered pos-center ta-center')
+    expect(heroClasses('centered', 'center', 'full', 'right')).toBe(
+      'blk-hero layout-centered pos-center w-full ta-right'
+    )
+    expect(heroClasses('centered', 'center', 'none', 'center')).toBe(
+      'blk-hero layout-centered pos-center ta-center'
+    )
   })
   it('omits ta- class when textAlign is undefined', () => {
-    expect(heroClasses('centered', 'center', 'wide')).toBe('blk-hero layout-centered pos-center w-wide')
+    expect(heroClasses('centered', 'center', 'wide')).toBe(
+      'blk-hero layout-centered pos-center w-wide'
+    )
   })
 })
 

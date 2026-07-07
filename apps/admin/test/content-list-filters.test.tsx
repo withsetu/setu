@@ -11,24 +11,59 @@ import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { ActorProvider } from '../src/auth/actor'
 import { ContentList } from '../src/screens/ContentList'
 
-const doc = (t: string): TiptapDoc => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] })
+const doc = (t: string): TiptapDoc => ({
+  type: 'doc',
+  content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }]
+})
 
 function setup(initialEntries = ['/posts']) {
   const data = createMemoryDataPort([
-    { collection: 'post', locale: 'en', slug: 'alpha', content: doc('x'), metadata: { title: 'Alpha', status: 'draft', categories: ['guides'], tags: ['react'] } },
-    { collection: 'post', locale: 'en', slug: 'beta', content: doc('x'), metadata: { title: 'Beta', status: 'draft', categories: ['news'], tags: ['vue'] } },
+    {
+      collection: 'post',
+      locale: 'en',
+      slug: 'alpha',
+      content: doc('x'),
+      metadata: {
+        title: 'Alpha',
+        status: 'draft',
+        categories: ['guides'],
+        tags: ['react']
+      }
+    },
+    {
+      collection: 'post',
+      locale: 'en',
+      slug: 'beta',
+      content: doc('x'),
+      metadata: {
+        title: 'Beta',
+        status: 'draft',
+        categories: ['news'],
+        tags: ['vue']
+      }
+    }
   ])
   const git = createMemoryGitPort([
-    { path: 'taxonomy/categories.yaml', content: '- slug: guides\n  name: Guides\n  parent: null\n- slug: news\n  name: News\n  parent: null\n' },
+    {
+      path: 'taxonomy/categories.yaml',
+      content:
+        '- slug: guides\n  name: Guides\n  parent: null\n- slug: news\n  name: News\n  parent: null\n'
+    }
   ])
   render(
     <MemoryRouter initialEntries={initialEntries}>
       <ServicesProvider services={servicesFor(data, git)}>
-        <DeployProvider><IndexProvider><TaxonomyProvider>
-          <ActorProvider><ContentList collection="post" title="Posts" /></ActorProvider>
-        </TaxonomyProvider></IndexProvider></DeployProvider>
+        <DeployProvider>
+          <IndexProvider>
+            <TaxonomyProvider>
+              <ActorProvider>
+                <ContentList collection="post" title="Posts" />
+              </ActorProvider>
+            </TaxonomyProvider>
+          </IndexProvider>
+        </DeployProvider>
       </ServicesProvider>
-    </MemoryRouter>,
+    </MemoryRouter>
   )
 }
 
@@ -42,7 +77,9 @@ describe('ContentList — filters', () => {
   it('search box narrows the list', async () => {
     setup()
     await screen.findByText('Alpha')
-    fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'alph' } })
+    fireEvent.change(screen.getByLabelText('Search'), {
+      target: { value: 'alph' }
+    })
     await waitFor(() => expect(screen.queryByText('Beta')).toBeNull())
     expect(screen.getByText('Alpha')).toBeTruthy()
   })
@@ -58,7 +95,7 @@ describe('ContentList — filters', () => {
     setup(['/posts?status=draft&q=beta'])
     await waitFor(() => expect(screen.getByText('Beta')).toBeTruthy())
     expect(screen.queryByText('Alpha')).toBeNull()
-    expect((screen.getByLabelText('Search') as HTMLInputElement).value).toBe('beta')
+    expect(screen.getByLabelText<HTMLInputElement>('Search').value).toBe('beta')
   })
 
   it('shows a filtered-empty state with a clear action', async () => {

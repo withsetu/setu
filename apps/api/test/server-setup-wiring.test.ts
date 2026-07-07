@@ -25,25 +25,36 @@ function makeNonLocalModeApp() {
     secret: 'test-secret-32-chars-minimum!!!!',
     baseURL: 'http://localhost:4444',
     trustedOrigins: [TRUSTED_ORIGIN],
-    serverSetup: { getSetupToken: () => setupToken, countUsers: () => countUsers(authDb) },
+    serverSetup: {
+      getSetupToken: () => setupToken,
+      countUsers: () => countUsers(authDb)
+    }
   })
 
-  const allowed = () => allowedOrigins({ SETU_ADMIN_ORIGIN: TRUSTED_ORIGIN, SETU_API_PORT: '4444' })
+  const allowed = () =>
+    allowedOrigins({ SETU_ADMIN_ORIGIN: TRUSTED_ORIGIN, SETU_API_PORT: '4444' })
   const app = new Hono()
   app.use(
     '*',
     cors({
       origin: (origin) => {
         if (!origin) return undefined
-        return allowed().some((pattern) => originMatches(origin, pattern)) ? origin : undefined
+        return allowed().some((pattern) => originMatches(origin, pattern))
+          ? origin
+          : undefined
       },
-      credentials: true,
-    }),
+      credentials: true
+    })
   )
   app.use('*', originGuard(allowed, { publicPaths: ['/forms/submit'] }))
   app.on(['POST', 'GET'], '/api/auth/*', (c) => auth.handler(c.req.raw))
 
-  return { app, setupToken, authDb, cleanup: () => rmSync(dir, { recursive: true, force: true }) }
+  return {
+    app,
+    setupToken,
+    authDb,
+    cleanup: () => rmSync(dir, { recursive: true, force: true })
+  }
 }
 
 const cleanups: Array<() => void> = []
@@ -65,8 +76,13 @@ describe('mode!=local wiring exposes POST /api/auth/setup (server.ts composition
       new Request('http://test/api/auth/setup', {
         method: 'POST',
         headers: { 'content-type': 'application/json', origin: TRUSTED_ORIGIN },
-        body: JSON.stringify({ email: 'owner@example.com', password: 'a-strong-password-12', name: 'Owner', token: setupToken }),
-      }),
+        body: JSON.stringify({
+          email: 'owner@example.com',
+          password: 'a-strong-password-12',
+          name: 'Owner',
+          token: setupToken
+        })
+      })
     )
 
     expect(res.status).toBe(200)
@@ -81,8 +97,13 @@ describe('mode!=local wiring exposes POST /api/auth/setup (server.ts composition
       new Request('http://test/api/auth/setup', {
         method: 'POST',
         headers: { 'content-type': 'application/json', origin: TRUSTED_ORIGIN },
-        body: JSON.stringify({ email: 'owner@example.com', password: 'a-strong-password-12', name: 'Owner', token: 'wrong' }),
-      }),
+        body: JSON.stringify({
+          email: 'owner@example.com',
+          password: 'a-strong-password-12',
+          name: 'Owner',
+          token: 'wrong'
+        })
+      })
     )
 
     expect(res.status).toBe(401)
@@ -95,15 +116,19 @@ describe('mode!=local wiring exposes POST /api/auth/setup (server.ts composition
   // fix (emailAndPassword.disableSignUp in packages/auth/src/index.ts) closed at the same
   // composition server.ts uses: fresh instance -> public sign-up rejected -> countUsers still 0
   // (needsSetup-equivalent still true) -> the SAME valid setup token still succeeds afterwards.
-  it('public sign-up is rejected on a fresh instance, and the operator\'s valid setup token still works afterwards (brick scenario closed)', async () => {
+  it("public sign-up is rejected on a fresh instance, and the operator's valid setup token still works afterwards (brick scenario closed)", async () => {
     const { app, setupToken, authDb } = build()
 
     const hijackAttempt = await app.fetch(
       new Request('http://test/api/auth/sign-up/email', {
         method: 'POST',
         headers: { 'content-type': 'application/json', origin: TRUSTED_ORIGIN },
-        body: JSON.stringify({ email: 'attacker@evil.example', password: 'a-strong-password-12', name: 'Attacker' }),
-      }),
+        body: JSON.stringify({
+          email: 'attacker@evil.example',
+          password: 'a-strong-password-12',
+          name: 'Attacker'
+        })
+      })
     )
 
     expect(hijackAttempt.status).not.toBe(200)
@@ -113,8 +138,13 @@ describe('mode!=local wiring exposes POST /api/auth/setup (server.ts composition
       new Request('http://test/api/auth/setup', {
         method: 'POST',
         headers: { 'content-type': 'application/json', origin: TRUSTED_ORIGIN },
-        body: JSON.stringify({ email: 'owner@example.com', password: 'a-strong-password-12', name: 'Owner', token: setupToken }),
-      }),
+        body: JSON.stringify({
+          email: 'owner@example.com',
+          password: 'a-strong-password-12',
+          name: 'Owner',
+          token: setupToken
+        })
+      })
     )
 
     expect(setupRes.status).toBe(200)
@@ -132,15 +162,20 @@ describe('mode=local never mints a setup token — POST /api/auth/setup 404s the
         db: authDb,
         secret: 'test-secret-32-chars-minimum!!!!',
         baseURL: 'http://localhost:4444',
-        trustedOrigins: [TRUSTED_ORIGIN],
+        trustedOrigins: [TRUSTED_ORIGIN]
         // serverSetup omitted — mirrors server.ts when mode === 'local' (setupToken stays null).
       })
       const res = await auth.handler(
         new Request('http://localhost:4444/api/auth/setup', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ email: 'a@b.co', password: 'a-strong-password-12', name: 'A', token: 'anything' }),
-        }),
+          body: JSON.stringify({
+            email: 'a@b.co',
+            password: 'a-strong-password-12',
+            name: 'A',
+            token: 'anything'
+          })
+        })
       )
       expect(res.status).toBe(404)
     } finally {

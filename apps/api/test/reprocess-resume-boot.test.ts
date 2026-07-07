@@ -15,7 +15,11 @@ describe('resume on boot', () => {
   })
   it('swallows a store error so a corrupt DB cannot crash boot', () => {
     const run = vi.fn()
-    const store = { active: () => { throw new Error('db corrupt') } } as any
+    const store = {
+      active: () => {
+        throw new Error('db corrupt')
+      }
+    } as any
     expect(() => resumeActiveJob(store, run)).not.toThrow()
     expect(run).not.toHaveBeenCalled()
   })

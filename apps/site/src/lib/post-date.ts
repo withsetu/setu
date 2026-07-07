@@ -15,7 +15,7 @@ function gitCommitDate(absPath: string): Date | null {
     const out = execFileSync(
       'git',
       ['-C', dirname(absPath), 'log', '-1', '--format=%cI', '--', absPath],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
     ).trim()
     return out ? parseDate(out) : null
   } catch {

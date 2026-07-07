@@ -7,8 +7,17 @@ import { serve } from '@hono/node-server'
 import { createLocalGitAdapter } from '@setu/git-local'
 import { createLocalStorage } from '@setu/storage-local'
 import { createSharpImageAdapter } from '@setu/image-sharp'
-import { createSqliteSubmissionPort, createSqliteReprocessJobStore, openSqliteDb, countUsers } from '@setu/db-sqlite'
-import { createSubmissionService, createNoopCaptcha, parseSettings } from '@setu/core'
+import {
+  createSqliteSubmissionPort,
+  createSqliteReprocessJobStore,
+  openSqliteDb,
+  countUsers
+} from '@setu/db-sqlite'
+import {
+  createSubmissionService,
+  createNoopCaptcha,
+  parseSettings
+} from '@setu/core'
 import type { CaptchaPort } from '@setu/core'
 import { createTurnstileCaptcha } from '@setu/captcha-turnstile'
 import { createRecaptchaCaptcha } from '@setu/captcha-recaptcha'
@@ -26,11 +35,24 @@ import type { ResolveActor } from './auth/resolve-actor'
 import { allowedOrigins } from './auth/allowed-origins'
 import { originGuard, originMatches } from './auth/origin-guard'
 import { authUnconfiguredGuard } from './auth/auth-unconfigured-guard'
-import { authCaptchaFromEnv, authSocialProvidersFromEnv, socialProvidersEnabled, captchaCapabilityFromEnv } from './auth/env'
-import { buildCapabilities, createCapabilitiesApi, type AuthCapabilities } from './capabilities'
+import {
+  authCaptchaFromEnv,
+  authSocialProvidersFromEnv,
+  socialProvidersEnabled,
+  captchaCapabilityFromEnv
+} from './auth/env'
+import {
+  buildCapabilities,
+  createCapabilitiesApi,
+  type AuthCapabilities
+} from './capabilities'
 import { runReprocessJob } from './reprocess-runner'
 import { resumeActiveJob } from './server-resume'
-import { resolveSetuMode, resolveAuthSecret, resolveRateLimitOverrides } from './config'
+import {
+  resolveSetuMode,
+  resolveAuthSecret,
+  resolveRateLimitOverrides
+} from './config'
 import { resolveGitIdentity } from './auth/git-identity'
 import { mountAuthWithFailureEvents } from './auth/login-failure-events'
 
@@ -47,10 +69,18 @@ function resolveCaptcha(provider: string, secret: string): CaptchaPort {
   if (!secret) {
     // Provider selected but secret missing.
     if (process.env.NODE_ENV === 'production') {
-      console.error(`[captcha] provider "${provider}" selected but its secret is unset — rejecting submissions`)
-      return { async verify() { return false } } // fail-closed in prod
+      console.error(
+        `[captcha] provider "${provider}" selected but its secret is unset — rejecting submissions`
+      )
+      return {
+        async verify() {
+          return false
+        }
+      } // fail-closed in prod
     }
-    console.warn(`[captcha] provider "${provider}" selected but secret unset — dev pass-through`)
+    console.warn(
+      `[captcha] provider "${provider}" selected but secret unset — dev pass-through`
+    )
     return createNoopCaptcha()
   }
   return provider === 'recaptcha'
@@ -61,7 +91,8 @@ function resolveCaptcha(provider: string, secret: string): CaptchaPort {
 const dir = process.env.SETU_REPO_DIR ?? process.cwd()
 const port = Number(process.env.SETU_API_PORT ?? 4444)
 const mediaDir = process.env.SETU_MEDIA_DIR ?? `${dir}/.setu/uploads`
-const mediaPublicUrl = process.env.SETU_MEDIA_PUBLIC_URL ?? `http://localhost:${port}/media`
+const mediaPublicUrl =
+  process.env.SETU_MEDIA_PUBLIC_URL ?? `http://localhost:${port}/media`
 
 function loadSiteSettings() {
   try {
@@ -73,7 +104,8 @@ function loadSiteSettings() {
 }
 const siteSettings = loadSiteSettings()
 
-const submissionsDb = process.env.SETU_SUBMISSIONS_DB ?? `${dir}/.setu/submissions.db`
+const submissionsDb =
+  process.env.SETU_SUBMISSIONS_DB ?? `${dir}/.setu/submissions.db`
 const notifyTo = process.env.SETU_FORMS_NOTIFY_TO
 const notifyFrom = process.env.SETU_FORMS_NOTIFY_FROM
 
@@ -114,13 +146,17 @@ function buildLocalTokenOptions(getAuth: () => ReturnType<typeof createAuth>) {
     token, // returned ONLY so the caller can log the one-time handoff URL below; never logged elsewhere.
     getToken: () => token,
     consume: () => {},
-    localUserId: (): Promise<string> => ensureLocalOwner(getAuth(), identity),
+    localUserId: (): Promise<string> => ensureLocalOwner(getAuth(), identity)
   }
 }
 
 const mode = resolveSetuMode(process.env)
+// Forward reference: `authRef` is read inside the localToken closure (built just below) but only
+// assigned once `auth` exists further down — a deliberate `let`, not a reassign-once const case.
+// eslint-disable-next-line prefer-const
 let authRef: ReturnType<typeof createAuth> | undefined
-const localToken = mode === 'local' ? buildLocalTokenOptions(() => authRef!) : undefined
+const localToken =
+  mode === 'local' ? buildLocalTokenOptions(() => authRef!) : undefined
 
 // Fail-closed boot degradation (#248 Task 5). resolveAuthSecret returns null in non-local mode
 // with no SETU_AUTH_SECRET set — NOT a thrown boot error (that was Task 3's behavior; see the
@@ -142,9 +178,10 @@ const authConfigured = authSecret !== null
 // local mode (the loopback handshake covers first-run there instead); the serverSetup plugin
 // itself also 404s whenever `getSetupToken()` returns null, so a topology mismatch here and in the
 // plugin's own guard would agree, not silently diverge.
-const setupToken = mode !== 'local' && authConfigured && countUsers(authDb) === 0
-  ? randomBytes(32).toString('base64url')
-  : null
+const setupToken =
+  mode !== 'local' && authConfigured && countUsers(authDb) === 0
+    ? randomBytes(32).toString('base64url')
+    : null
 
 const auth = authConfigured
   ? createAuth({
@@ -155,9 +192,15 @@ const auth = authConfigured
       captcha: authCaptchaFromEnv(),
       socialProviders: authSocialProvidersFromEnv(),
       localToken,
-      serverSetup: setupToken !== null ? { getSetupToken: () => setupToken, countUsers: () => countUsers(authDb) } : undefined,
+      serverSetup:
+        setupToken !== null
+          ? {
+              getSetupToken: () => setupToken,
+              countUsers: () => countUsers(authDb)
+            }
+          : undefined,
       onAuthEvent: logAuthEvent,
-      rateLimit: resolveRateLimitOverrides(process.env),
+      rateLimit: resolveRateLimitOverrides(process.env)
     })
   : undefined
 authRef = auth
@@ -170,7 +213,10 @@ const captchaSecret =
     ? (process.env.SETU_RECAPTCHA_SECRET ?? '')
     : (process.env.SETU_TURNSTILE_SECRET ?? '')
 const captcha = resolveCaptcha(captchaProvider, captchaSecret)
-const captchaStatus = { provider: captchaProvider, secretConfigured: captchaSecret !== '' }
+const captchaStatus = {
+  provider: captchaProvider,
+  secretConfigured: captchaSecret !== ''
+}
 const emailAdapter = process.env.SETU_EMAIL_ADAPTER ?? 'console'
 const email =
   emailAdapter === 'resend'
@@ -183,15 +229,29 @@ const submit = createSubmissionService({
   email,
   notifyTo,
   notifyFrom,
-  renderNotification: renderSubmissionEmail, // React Email HTML/text
+  renderNotification: renderSubmissionEmail // React Email HTML/text
 })
 
 const imageAdapter = createSharpImageAdapter()
-const localStorage = createLocalStorage({ dir: mediaDir, baseUrl: mediaPublicUrl })
-const reprocessStore = createSqliteReprocessJobStore(`${dir}/.setu/reprocess.db`)
+const localStorage = createLocalStorage({
+  dir: mediaDir,
+  baseUrl: mediaPublicUrl
+})
+const reprocessStore = createSqliteReprocessJobStore(
+  `${dir}/.setu/reprocess.db`
+)
 const runReprocess = (jobId: string) => {
   const media = loadSiteSettings().media
-  void runReprocessJob(reprocessStore, { image: imageAdapter, storage: localStorage, media, widths: [400, 800, 1200, 1600] }, jobId)
+  void runReprocessJob(
+    reprocessStore,
+    {
+      image: imageAdapter,
+      storage: localStorage,
+      media,
+      widths: [400, 800, 1200, 1600]
+    },
+    jobId
+  )
 }
 
 const app = new Hono()
@@ -204,10 +264,12 @@ app.use(
     origin: (origin) => {
       if (!origin) return undefined
       const allowed = allowedOrigins(process.env)
-      return allowed.some((pattern) => originMatches(origin, pattern)) ? origin : undefined
+      return allowed.some((pattern) => originMatches(origin, pattern))
+        ? origin
+        : undefined
     },
-    credentials: true,
-  }),
+    credentials: true
+  })
 )
 // Fail-closed boot degradation (#248 Task 5): when auth couldn't be constructed, short-circuit
 // every unsafe-method request (including /api/auth/* below) with a 503 rather than let it reach a
@@ -216,13 +278,21 @@ app.use(
 // independent axes (method-based vs. Origin/Host-based) so their relative order doesn't change
 // which requests are ultimately allowed through; this one is cheaper (no header parsing) so it
 // runs first.
-app.use('*', authUnconfiguredGuard(() => !authConfigured))
+app.use(
+  '*',
+  authUnconfiguredGuard(() => !authConfigured)
+)
 // publicPaths: routes that are deliberately public and read NO ambient credentials (no session
 // cookie, no auth check) — captcha is the only gate. `/forms/submit` is an embeddable public form
 // widget (#248 follow-up): it must stay reachable from any visitor origin. Anything reading a
 // session (e.g. the /forms/submissions admin CRUD routes) MUST NOT be listed here — those stay
 // behind the origin check.
-app.use('*', originGuard(() => allowedOrigins(process.env), { publicPaths: ['/forms/submit'] }))
+app.use(
+  '*',
+  originGuard(() => allowedOrigins(process.env), {
+    publicPaths: ['/forms/submit']
+  })
+)
 
 // authUnconfiguredGuard only 503s unsafe methods — GET is a safe method and passes through even
 // when auth is unconfigured (that's deliberate: GETs elsewhere, like capabilities, must keep
@@ -243,16 +313,22 @@ if (auth) {
 
 app.route('/', createGitApi(createLocalGitAdapter({ dir }), resolveActor))
 app.route('/', createPreviewApi())
-app.route('/', createUploadApi({
-  storage: localStorage,
-  resolveActor,
-  image: imageAdapter,
-  // Live getter, not a snapshot: re-read settings.json each request so a Media settings change
-  // (format / LQIP) applies to new uploads and Reprocess without restarting the api.
-  mediaSettings: () => loadSiteSettings().media,
-  reprocess: { store: reprocessStore, run: runReprocess },
-}))
-app.route('/', createFormsApi({ submit, submissions, captchaStatus, resolveActor }))
+app.route(
+  '/',
+  createUploadApi({
+    storage: localStorage,
+    resolveActor,
+    image: imageAdapter,
+    // Live getter, not a snapshot: re-read settings.json each request so a Media settings change
+    // (format / LQIP) applies to new uploads and Reprocess without restarting the api.
+    mediaSettings: () => loadSiteSettings().media,
+    reprocess: { store: reprocessStore, run: runReprocess }
+  })
+)
+app.route(
+  '/',
+  createFormsApi({ submit, submissions, captchaStatus, resolveActor })
+)
 // #248 Task 8 review, Finding 2: the SAME drizzle handle better-auth's own createAuth uses for
 // its tables (authDb, above) — not a separate connection — so credential-status always reflects
 // live account state. `resolveActor` here already fails closed to null when auth is unconfigured
@@ -280,33 +356,40 @@ const resolveAuthCapabilities = (): AuthCapabilities => {
     try {
       needsSetup = countUsers(authDb) === 0
     } catch (err) {
-      console.error('[auth] countUsers failed while resolving capabilities — degrading needsSetup to false (fail toward login, not setup)', err)
+      console.error(
+        '[auth] countUsers failed while resolving capabilities — degrading needsSetup to false (fail toward login, not setup)',
+        err
+      )
     }
   }
   return {
     enabled: authConfigured,
     providers: authConfigured ? socialProvidersEnabled(process.env) : [],
     captcha: authConfigured ? captchaCapabilityFromEnv(process.env) : null,
-    needsSetup,
+    needsSetup
   }
 }
 app.route(
   '/',
   createCapabilitiesApi(
     buildCapabilities({
-      image: imageAdapter,            // present in the Node topology
-      writableMediaStore: true,       // local fs storage is writable
-      backgroundJobs: true,           // persistent Node process can run jobs
+      image: imageAdapter, // present in the Node topology
+      writableMediaStore: true, // local fs storage is writable
+      backgroundJobs: true, // persistent Node process can run jobs
       mode,
-      auth: resolveAuthCapabilities(), // boot-time value; createCapabilitiesApi re-derives per request via the thunk below
+      auth: resolveAuthCapabilities() // boot-time value; createCapabilitiesApi re-derives per request via the thunk below
     }),
-    resolveAuthCapabilities,
-  ),
+    resolveAuthCapabilities
+  )
 )
 
 serve({ fetch: app.fetch, port })
-console.log(`api listening on http://localhost:${port} (repo: ${dir}, media: ${mediaDir}, imageFormat: ${siteSettings.media.imageFormat}, lqip: ${siteSettings.media.imageLqip})`)
-console.log(`[captcha] provider=${captchaProvider || '(none)'} secretConfigured=${captchaStatus.secretConfigured}`)
+console.log(
+  `api listening on http://localhost:${port} (repo: ${dir}, media: ${mediaDir}, imageFormat: ${siteSettings.media.imageFormat}, lqip: ${siteSettings.media.imageLqip})`
+)
+console.log(
+  `[captcha] provider=${captchaProvider || '(none)'} secretConfigured=${captchaStatus.secretConfigured}`
+)
 if (localToken) {
   // The ONE place the token is ever logged — this is the intended handoff channel to the admin.
   // Never log the token (or this URL) anywhere else.

@@ -1,9 +1,17 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { toast } from 'sonner'
-import { createMemoryDataPort, createMemoryIndexPort, createMemoryMediaIndexPort } from '@setu/db-memory'
+import {
+  createMemoryDataPort,
+  createMemoryIndexPort,
+  createMemoryMediaIndexPort
+} from '@setu/db-memory'
 import { createMemoryGitPort } from '@setu/git-memory'
-import { createIdbDataPort, createIdbIndexPort, createIdbMediaIndexPort } from '@setu/db-idb'
+import {
+  createIdbDataPort,
+  createIdbIndexPort,
+  createIdbMediaIndexPort
+} from '@setu/db-idb'
 import { createIdbGitPort } from '@setu/git-idb'
 import { createHttpGitPort } from '@setu/git-http'
 import { createMediaIndexService } from '@setu/core'
@@ -17,12 +25,25 @@ import { apiFetch } from '../lib/api-fetch'
  *  wedged/over-quota/private-mode browser can leave the app hung on "Loading…" forever (#248 —
  *  confirmed live). Races the real promise against a timer that REJECTS, so a caller's try/catch
  *  around this catches both an outright IDB failure and a hang the same way. */
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string
+): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    const timer = setTimeout(
+      () => reject(new Error(`${label} timed out after ${ms}ms`)),
+      ms
+    )
     promise.then(
-      (v) => { clearTimeout(timer); resolve(v) },
-      (err) => { clearTimeout(timer); reject(err) },
+      (v) => {
+        clearTimeout(timer)
+        resolve(v)
+      },
+      (err) => {
+        clearTimeout(timer)
+        reject(err instanceof Error ? err : new Error(String(err)))
+      }
     )
   })
 }
@@ -43,7 +64,10 @@ export function Bootstrap({ children }: { children: ReactNode }) {
   // inside its own mount effect — a toast() call with zero subscribers is simply dropped). Waiting
   // until `services` itself has committed guarantees `<Toaster/>` is mounted by the time this
   // effect's toast() call runs.
-  const [degraded, setDegraded] = useState<{ message: string; description: string } | null>(null)
+  const [degraded, setDegraded] = useState<{
+    message: string
+    description: string
+  } | null>(null)
 
   useEffect(() => {
     let live = true
@@ -61,42 +85,107 @@ export function Bootstrap({ children }: { children: ReactNode }) {
         // (localhost:4444) are cross-origin, so every request must carry `credentials: 'include'`
         // or the Better Auth session cookie is silently dropped (#248 Task 6 — see lib/api-fetch.ts).
         const git = createHttpGitPort({ baseUrl: apiBase, fetch: apiFetch })
-        const submissions = createHttpSubmissionAdapter({ baseUrl: apiBase, fetchImpl: apiFetch })
+        const submissions = createHttpSubmissionAdapter({
+          baseUrl: apiBase,
+          fetchImpl: apiFetch
+        })
         try {
-          const data = await withTimeout(createIdbDataPort(), IDB_OPEN_TIMEOUT_MS, 'IndexedDB (drafts) open')
+          const data = await withTimeout(
+            createIdbDataPort(),
+            IDB_OPEN_TIMEOUT_MS,
+            'IndexedDB (drafts) open'
+          )
           // Persistent, cross-tab content index (shared via IndexedDB).
-          const index = await withTimeout(createIdbIndexPort(), IDB_OPEN_TIMEOUT_MS, 'IndexedDB (content index) open')
-          const mediaIndexPort = await withTimeout(createIdbMediaIndexPort(), IDB_OPEN_TIMEOUT_MS, 'IndexedDB (media index) open')
-          const mediaIndex = createMediaIndexService({ mediaIndex: mediaIndexPort, fetchRaw: () => fetchMediaIndex(apiBase) })
-          ready = await bootstrapServices(data, git, index, mediaIndex, submissions)
+          const index = await withTimeout(
+            createIdbIndexPort(),
+            IDB_OPEN_TIMEOUT_MS,
+            'IndexedDB (content index) open'
+          )
+          const mediaIndexPort = await withTimeout(
+            createIdbMediaIndexPort(),
+            IDB_OPEN_TIMEOUT_MS,
+            'IndexedDB (media index) open'
+          )
+          const mediaIndex = createMediaIndexService({
+            mediaIndex: mediaIndexPort,
+            fetchRaw: () => fetchMediaIndex(apiBase)
+          })
+          ready = await bootstrapServices(
+            data,
+            git,
+            index,
+            mediaIndex,
+            submissions
+          )
         } catch (err) {
-          console.error('IndexedDB unavailable or timed out — local drafts/index will not persist this session.', err)
+          console.error(
+            'IndexedDB unavailable or timed out — local drafts/index will not persist this session.',
+            err
+          )
           degradeNotice = {
-            message: 'Local storage is unavailable — drafts won’t be saved between reloads this session.',
-            description: 'Publishing still works normally. Try a different browser or disabling private/incognito mode to restore local persistence.',
+            message:
+              'Local storage is unavailable — drafts won’t be saved between reloads this session.',
+            description:
+              'Publishing still works normally. Try a different browser or disabling private/incognito mode to restore local persistence.'
           }
           // Same degrade-to-memory shape as the no-API branch below: the GitPort/submissions stay
           // server-backed (they were never IDB — nothing to fall back for), only the IDB-backed
           // pieces (drafts, content index, media index) swap to in-memory/no-op equivalents.
-          const mediaIndex = createMediaIndexService({ mediaIndex: createMemoryMediaIndexPort(), fetchRaw: () => fetchMediaIndex(apiBase) })
-          ready = await bootstrapServices(createMemoryDataPort(), git, createMemoryIndexPort(), mediaIndex, submissions)
+          const mediaIndex = createMediaIndexService({
+            mediaIndex: createMemoryMediaIndexPort(),
+            fetchRaw: () => fetchMediaIndex(apiBase)
+          })
+          ready = await bootstrapServices(
+            createMemoryDataPort(),
+            git,
+            createMemoryIndexPort(),
+            mediaIndex,
+            submissions
+          )
         }
       } else {
         try {
-          const data = await withTimeout(createIdbDataPort(), IDB_OPEN_TIMEOUT_MS, 'IndexedDB (drafts) open')
-          const git = await withTimeout(createIdbGitPort(), IDB_OPEN_TIMEOUT_MS, 'IndexedDB (git) open')
+          const data = await withTimeout(
+            createIdbDataPort(),
+            IDB_OPEN_TIMEOUT_MS,
+            'IndexedDB (drafts) open'
+          )
+          const git = await withTimeout(
+            createIdbGitPort(),
+            IDB_OPEN_TIMEOUT_MS,
+            'IndexedDB (git) open'
+          )
           // Persistent, cross-tab content index (shared via IndexedDB).
-          const index = await withTimeout(createIdbIndexPort(), IDB_OPEN_TIMEOUT_MS, 'IndexedDB (content index) open')
-          const mediaIndexPort = await withTimeout(createIdbMediaIndexPort(), IDB_OPEN_TIMEOUT_MS, 'IndexedDB (media index) open')
-          const mediaIndex = createMediaIndexService({ mediaIndex: mediaIndexPort, fetchRaw: async () => [] })
+          const index = await withTimeout(
+            createIdbIndexPort(),
+            IDB_OPEN_TIMEOUT_MS,
+            'IndexedDB (content index) open'
+          )
+          const mediaIndexPort = await withTimeout(
+            createIdbMediaIndexPort(),
+            IDB_OPEN_TIMEOUT_MS,
+            'IndexedDB (media index) open'
+          )
+          const mediaIndex = createMediaIndexService({
+            mediaIndex: mediaIndexPort,
+            fetchRaw: async () => []
+          })
           ready = await bootstrapServices(data, git, index, mediaIndex)
         } catch (err) {
-          console.error('IndexedDB unavailable — using in-memory storage for this session.', err)
+          console.error(
+            'IndexedDB unavailable — using in-memory storage for this session.',
+            err
+          )
           degradeNotice = {
-            message: 'Local storage is unavailable — nothing will be saved this session.',
-            description: 'Try a different browser or disabling private/incognito mode to restore local persistence.',
+            message:
+              'Local storage is unavailable — nothing will be saved this session.',
+            description:
+              'Try a different browser or disabling private/incognito mode to restore local persistence.'
           }
-          ready = await bootstrapServices(createMemoryDataPort(), createMemoryGitPort())
+          ready = await bootstrapServices(
+            createMemoryDataPort(),
+            createMemoryGitPort()
+          )
         }
       }
       if (live) {
@@ -113,7 +202,10 @@ export function Bootstrap({ children }: { children: ReactNode }) {
   // `children` — is guaranteed to exist to receive it). See the `degraded` state comment above.
   useEffect(() => {
     if (services !== null && degraded) {
-      toast.error(degraded.message, { description: degraded.description, duration: 10000 })
+      toast.error(degraded.message, {
+        description: degraded.description,
+        duration: 10000
+      })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [services])

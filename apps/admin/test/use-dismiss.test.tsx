@@ -5,12 +5,20 @@ import { useDismiss } from '../src/ui/useDismiss'
 
 afterEach(cleanup)
 
-function Harness({ onClose, active = true }: { onClose: () => void; active?: boolean }) {
+function Harness({
+  onClose,
+  active = true
+}: {
+  onClose: () => void
+  active?: boolean
+}) {
   const ref = useRef<HTMLDivElement>(null)
   useDismiss(ref, onClose, active)
   return (
     <div>
-      <div ref={ref} data-testid="panel">panel</div>
+      <div ref={ref} data-testid="panel">
+        panel
+      </div>
       <button data-testid="outside">outside</button>
     </div>
   )

@@ -15,7 +15,7 @@ export function Combobox({
   placeholder,
   ariaLabel,
   disabled = false,
-  className = '',
+  className = ''
 }: {
   value: string
   onChange: (text: string) => void

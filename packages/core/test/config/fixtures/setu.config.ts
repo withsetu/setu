@@ -7,7 +7,7 @@ export default defineConfig({
       tag: 'callout',
       props: z.object({ type: z.string().optional() }),
       component: './Callout.astro',
-      editor: { label: 'Callout' },
-    },
-  ],
+      editor: { label: 'Callout' }
+    }
+  ]
 })

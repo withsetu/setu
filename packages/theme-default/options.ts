@@ -18,11 +18,19 @@ export interface ThemeOption {
   choices?: ThemeOptionChoice[]
 }
 
-const sans = (name: string) => `'${name} Variable', '${name}', ui-sans-serif, system-ui, sans-serif`
-const serif = (name: string) => `'${name} Variable', '${name}', ui-serif, Georgia, serif`
+const sans = (name: string) =>
+  `'${name} Variable', '${name}', ui-sans-serif, system-ui, sans-serif`
+const serif = (name: string) =>
+  `'${name} Variable', '${name}', ui-serif, Georgia, serif`
 
 export const themeOptions: ThemeOption[] = [
-  { key: 'accent', label: 'Accent color', type: 'color', token: '--accent', default: '#4f46e5' },
+  {
+    key: 'accent',
+    label: 'Accent color',
+    type: 'color',
+    token: '--accent',
+    default: '#4f46e5'
+  },
   {
     key: 'font',
     label: 'Font',
@@ -30,13 +38,29 @@ export const themeOptions: ThemeOption[] = [
     token: ['--font-body', '--font-heading'],
     default: 'grotesk',
     choices: [
-      { value: 'grotesk', label: 'Grotesk (default)', tokenValue: sans('Hanken Grotesk') },
+      {
+        value: 'grotesk',
+        label: 'Grotesk (default)',
+        tokenValue: sans('Hanken Grotesk')
+      },
       { value: 'inter', label: 'Inter', tokenValue: sans('Inter') },
-      { value: 'source-serif', label: 'Serif (Source Serif)', tokenValue: serif('Source Serif 4') },
-      { value: 'newsreader', label: 'Literary (Newsreader)', tokenValue: serif('Newsreader') },
+      {
+        value: 'source-serif',
+        label: 'Serif (Source Serif)',
+        tokenValue: serif('Source Serif 4')
+      },
+      {
+        value: 'newsreader',
+        label: 'Literary (Newsreader)',
+        tokenValue: serif('Newsreader')
+      },
       { value: 'lora', label: 'Warm serif (Lora)', tokenValue: serif('Lora') },
-      { value: 'space', label: 'Space Grotesk', tokenValue: sans('Space Grotesk') },
-    ],
+      {
+        value: 'space',
+        label: 'Space Grotesk',
+        tokenValue: sans('Space Grotesk')
+      }
+    ]
   },
   {
     key: 'width',
@@ -47,8 +71,8 @@ export const themeOptions: ThemeOption[] = [
     choices: [
       { value: 'narrow', label: 'Narrow', tokenValue: '52rem' },
       { value: 'normal', label: 'Normal', tokenValue: '64rem' },
-      { value: 'wide', label: 'Wide', tokenValue: '78rem' },
-    ],
+      { value: 'wide', label: 'Wide', tokenValue: '78rem' }
+    ]
   },
   {
     key: 'textSize',
@@ -59,8 +83,8 @@ export const themeOptions: ThemeOption[] = [
     choices: [
       { value: 'compact', label: 'Compact', tokenValue: '1rem' },
       { value: 'normal', label: 'Normal', tokenValue: '1.0625rem' },
-      { value: 'comfy', label: 'Comfy', tokenValue: '1.1875rem' },
-    ],
+      { value: 'comfy', label: 'Comfy', tokenValue: '1.1875rem' }
+    ]
   },
   {
     key: 'corners',
@@ -70,14 +94,17 @@ export const themeOptions: ThemeOption[] = [
     default: 'rounded',
     choices: [
       { value: 'sharp', label: 'Sharp', tokenValue: '2px' },
-      { value: 'rounded', label: 'Rounded', tokenValue: '10px' },
-    ],
-  },
+      { value: 'rounded', label: 'Rounded', tokenValue: '10px' }
+    ]
+  }
 ]
 
 /** Accept a hex color (#rgb/#rgba/#rrggbb/#rrggbbaa). Anything else is invalid. */
 function isValidColor(value: string | undefined): value is string {
-  return typeof value === 'string' && /^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(value)
+  return (
+    typeof value === 'string' &&
+    /^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(value)
+  )
 }
 
 function tokensOf(opt: ThemeOption): string[] {
@@ -92,7 +119,9 @@ function tokensOf(opt: ThemeOption): string[] {
  * override) and the admin Customizer's live preview (applied as inline custom
  * properties on the preview element), so the two can never disagree.
  */
-export function resolveThemeTokens(values: Record<string, string>): Record<string, string> {
+export function resolveThemeTokens(
+  values: Record<string, string>
+): Record<string, string> {
   const tokens: Record<string, string> = {}
   for (const opt of themeOptions) {
     const raw = values[opt.key]
@@ -102,7 +131,8 @@ export function resolveThemeTokens(values: Record<string, string>): Record<strin
     } else {
       const choices = opt.choices ?? []
       const choice =
-        choices.find((c) => c.value === raw) ?? choices.find((c) => c.value === opt.default)
+        choices.find((c) => c.value === raw) ??
+        choices.find((c) => c.value === opt.default)
       if (!choice) continue
       for (const token of tokensOf(opt)) tokens[token] = choice.tokenValue
     }
@@ -120,6 +150,8 @@ export function resolveThemeTokens(values: Record<string, string>): Record<strin
  * style). Not a typo.
  */
 export function optionsToCss(values: Record<string, string>): string {
-  const decls = Object.entries(resolveThemeTokens(values)).map(([token, value]) => `${token}: ${value};`)
+  const decls = Object.entries(resolveThemeTokens(values)).map(
+    ([token, value]) => `${token}: ${value};`
+  )
   return `:root:root { ${decls.join(' ')} }`
 }

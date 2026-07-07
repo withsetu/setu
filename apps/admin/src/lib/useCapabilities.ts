@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiFetch } from './api-fetch'
 
-const apiBase = (import.meta.env.VITE_SETU_API as string | undefined) ?? ''
+const apiBase = import.meta.env.VITE_SETU_API ?? ''
 
 export interface CapFlags {
   imageProcessing: boolean
@@ -30,7 +30,11 @@ export function useCapabilities() {
   const refetch = useCallback(async () => {
     try {
       const res = await apiFetch(`${apiBase}/api/capabilities`)
-      const data = (await res.json()) as { capabilities?: CapFlags; auth?: AuthCapabilities; mode?: string }
+      const data = (await res.json()) as {
+        capabilities?: CapFlags
+        auth?: AuthCapabilities
+        mode?: string
+      }
       setCaps(data.capabilities ?? null)
       setAuth(data.auth ?? null)
       setMode(data.mode ?? null)

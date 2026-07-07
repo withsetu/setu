@@ -1,7 +1,7 @@
 import { createAuthClient } from 'better-auth/react'
 import { adminClient } from 'better-auth/client/plugins'
 
-const apiBase = (import.meta.env.VITE_SETU_API as string | undefined) ?? ''
+const apiBase = import.meta.env.VITE_SETU_API ?? ''
 
 interface SessionUser {
   id: string
@@ -60,17 +60,35 @@ export interface AdminClientSurface {
       searchValue?: string
       searchField?: 'email' | 'name'
     }
-  }) => Promise<{ data: { users: AdminUser[]; total: number } | null; error: AuthClientError | null }>
+  }) => Promise<{
+    data: { users: AdminUser[]; total: number } | null
+    error: AuthClientError | null
+  }>
   createUser: (data: {
     email: string
     password: string
     name: string
     role?: string | string[]
-  }) => Promise<{ data: { user: AdminUser } | null; error: AuthClientError | null }>
-  setRole: (data: { userId: string; role: string | string[] }) => Promise<{ data: { user: AdminUser } | null; error: AuthClientError | null }>
-  banUser: (data: { userId: string; banReason?: string }) => Promise<{ data: { user: AdminUser } | null; error: AuthClientError | null }>
-  unbanUser: (data: { userId: string }) => Promise<{ data: { user: AdminUser } | null; error: AuthClientError | null }>
-  setUserPassword: (data: { userId: string; newPassword: string }) => Promise<{ data: { status: boolean } | null; error: AuthClientError | null }>
+  }) => Promise<{
+    data: { user: AdminUser } | null
+    error: AuthClientError | null
+  }>
+  setRole: (data: { userId: string; role: string | string[] }) => Promise<{
+    data: { user: AdminUser } | null
+    error: AuthClientError | null
+  }>
+  banUser: (data: { userId: string; banReason?: string }) => Promise<{
+    data: { user: AdminUser } | null
+    error: AuthClientError | null
+  }>
+  unbanUser: (data: { userId: string }) => Promise<{
+    data: { user: AdminUser } | null
+    error: AuthClientError | null
+  }>
+  setUserPassword: (data: { userId: string; newPassword: string }) => Promise<{
+    data: { status: boolean } | null
+    error: AuthClientError | null
+  }>
 }
 
 /** The shape of the client this app actually consumes — SessionGate, LoginScreen, UserMenu.
@@ -91,9 +109,11 @@ export interface SetuAuthClient {
     // how the captcha token (`x-captcha-response`) reaches the server on sign-in.
     email: (
       data: { email: string; password: string },
-      fetchOptions?: { headers?: Record<string, string> },
+      fetchOptions?: { headers?: Record<string, string> }
     ) => Promise<{ data: unknown; error: AuthClientError | null }>
-    social: (data: { provider: 'github' | 'google' }) => Promise<{ data: unknown; error: AuthClientError | null }>
+    social: (data: {
+      provider: 'github' | 'google'
+    }) => Promise<{ data: unknown; error: AuthClientError | null }>
   }
   signOut: () => Promise<{ data: unknown; error: AuthClientError | null }>
   admin: AdminClientSurface
@@ -105,8 +125,14 @@ export interface SetuAuthClient {
     newPassword: string
     currentPassword: string
     revokeOtherSessions?: boolean
-  }) => Promise<{ data: { token: string | null } | null; error: AuthClientError | null }>
-  listAccounts: () => Promise<{ data: { id: string; providerId: string }[] | null; error: AuthClientError | null }>
+  }) => Promise<{
+    data: { token: string | null } | null
+    error: AuthClientError | null
+  }>
+  listAccounts: () => Promise<{
+    data: { id: string; providerId: string }[] | null
+    error: AuthClientError | null
+  }>
 }
 
 /** The admin's Better Auth client (#248 Task 6). `baseURL` points at the api's mounted
@@ -139,7 +165,7 @@ export interface SetuAuthClient {
  *  UsersScreen.tsx's comments), not inferred. */
 export const authClient = createAuthClient({
   ...(apiBase ? { baseURL: `${apiBase}/api/auth` } : {}),
-  plugins: [adminClient()],
+  plugins: [adminClient()]
 }) as unknown as SetuAuthClient
 
 export const useSession = authClient.useSession

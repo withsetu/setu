@@ -8,9 +8,13 @@ import { createHttpGitPort } from '../src/index'
 // adapter's fetch is wired straight to app.fetch (no network, no port). The
 // test-only devDep on @setu/api (a package depending on an app) is intentional.
 runGitPortContract(() => {
-  const app = createGitApi(createMemoryGitPort(), () => ({ id: 'local', role: 'admin' }))
+  const app = createGitApi(createMemoryGitPort(), () => ({
+    id: 'local',
+    role: 'admin'
+  }))
   return createHttpGitPort({
     baseUrl: 'http://localhost',
-    fetch: (input, init) => Promise.resolve(app.fetch(new Request(input as string, init))),
+    fetch: (input, init) =>
+      Promise.resolve(app.fetch(new Request(input as string, init)))
   })
 })

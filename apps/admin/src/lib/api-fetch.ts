@@ -16,4 +16,5 @@
  *  better-auth's own React client manages its own cookie/session handling independently (it isn't
  *  routed through this helper) — see auth-client.ts.
  */
-export const apiFetch: typeof fetch = (input, init) => fetch(input, { ...init, credentials: 'include' })
+export const apiFetch: typeof fetch = (input, init) =>
+  fetch(input, { ...init, credentials: 'include' })

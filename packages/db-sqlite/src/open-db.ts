@@ -4,7 +4,10 @@ import Database from 'better-sqlite3'
 import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 
-const migrationsFolder = join(dirname(fileURLToPath(import.meta.url)), '../drizzle')
+const migrationsFolder = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '../drizzle'
+)
 
 /** Open (and migrate) a drizzle handle over `file` (a path or ':memory:'),
  *  running the same migrations `createSqliteAdapter`/`createSqliteSubmissionPort`

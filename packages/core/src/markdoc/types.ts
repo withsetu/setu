@@ -32,7 +32,7 @@ export interface RoundtripOptions {
 export interface MdNode {
   type: string
   tag?: string
-  attributes: Record<string, any>
+  attributes: Record<string, unknown>
   children?: MdNode[]
   errors?: unknown[]
   location?: { start?: { line?: number } }

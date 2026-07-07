@@ -25,7 +25,9 @@ function tmpWith(mediaKey: string, manifest: unknown): string {
 
 describe('manifestKeyFromSrc', () => {
   it('extracts the key from a root-relative /media/ src', () => {
-    expect(manifestKeyFromSrc('/media/2026/06/my-cat-photo.jpg')).toBe('2026/06/my-cat-photo')
+    expect(manifestKeyFromSrc('/media/2026/06/my-cat-photo.jpg')).toBe(
+      '2026/06/my-cat-photo'
+    )
   })
   it('returns null for external or non-/media/ srcs', () => {
     expect(manifestKeyFromSrc('https://example.com/p.png')).toBeNull()
@@ -38,7 +40,14 @@ describe('loadManifest', () => {
     id: '2026/06/cat',
     format: 'webp',
     original: { key: '2026/06/cat.jpg', width: 10, height: 6, format: 'jpeg' },
-    variants: [{ width: 400, height: 240, key: '2026/06/cat-400w.webp', contentType: 'image/webp' }],
+    variants: [
+      {
+        width: 400,
+        height: 240,
+        key: '2026/06/cat-400w.webp',
+        contentType: 'image/webp'
+      }
+    ]
   }
   it('reads + parses a manifest from SETU_MEDIA_DIR', () => {
     process.env.SETU_MEDIA_DIR = tmpWith('2026/06/cat', m)

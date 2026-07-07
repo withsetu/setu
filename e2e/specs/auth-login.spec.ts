@@ -9,7 +9,9 @@ import { E2E_USERS } from '../lib/seed-users'
 // exactly this, not the local auto-owner shortcut.
 test.use({ storageState: { cookies: [], origins: [] } })
 
-test('a user signs in through the real login screen and lands on the dashboard', async ({ page }) => {
+test('a user signs in through the real login screen and lands on the dashboard', async ({
+  page
+}) => {
   const login = new LoginPage(page)
   const dashboard = new DashboardPage(page)
 

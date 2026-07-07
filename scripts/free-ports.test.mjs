@@ -8,7 +8,10 @@ test('listenersOf parses pids, ignoring blanks and non-numbers', () => {
 })
 
 test('listenersOf returns [] when nothing is listening', () => {
-  assert.deepEqual(listenersOf(4444, () => ''), [])
+  assert.deepEqual(
+    listenersOf(4444, () => ''),
+    []
+  )
 })
 
 test('planPort carries the port and its pids', () => {
@@ -29,6 +32,6 @@ test('stop SIGTERMs every pid, then SIGKILLs only survivors', async () => {
     [200, 'SIGTERM'],
     [100, 0], // probe — throws (gone) → no SIGKILL for 100
     [200, 0], // probe — survives → SIGKILL
-    [200, 'SIGKILL'],
+    [200, 'SIGKILL']
   ])
 })

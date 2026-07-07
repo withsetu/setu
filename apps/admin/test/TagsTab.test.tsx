@@ -4,7 +4,10 @@ import type { ReactNode } from 'react'
 
 // Radix Select calls scrollIntoView when the dropdown opens — stub it for jsdom.
 beforeAll(() => {
-  if (typeof window !== 'undefined' && !window.HTMLElement.prototype.scrollIntoView) {
+  if (
+    typeof window !== 'undefined' &&
+    !window.HTMLElement.prototype.scrollIntoView
+  ) {
     window.HTMLElement.prototype.scrollIntoView = () => {}
   }
 })
@@ -21,24 +24,54 @@ import { NotificationProvider } from '../src/ui/notify'
 import { TagsTab } from '../src/screens/taxonomies/TagsTab'
 
 vi.mock('../src/deploy/deploy', async (orig) => ({
-  ...(await orig() as object),
-  useDeploy: () => ({ deployedAt: () => null, sha: null, deploy: () => Promise.resolve() }),
+  ...(await orig()),
+  useDeploy: () => ({
+    deployedAt: () => null,
+    sha: null,
+    deploy: () => Promise.resolve()
+  })
 }))
 
-type TiptapDoc = { type: 'doc'; content: Array<{ type: string; content?: Array<{ type: string; text: string }> }> }
-const doc = (t: string): TiptapDoc => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] })
+type TiptapDoc = {
+  type: 'doc'
+  content: Array<{
+    type: string
+    content?: Array<{ type: string; text: string }>
+  }>
+}
+const doc = (t: string): TiptapDoc => ({
+  type: 'doc',
+  content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }]
+})
 
 /** Build a wrapper with seeded entries so tagCounts returns { react: 2, css: 1 }. */
 async function makeWrapper() {
   const data = createMemoryDataPort([
-    { collection: 'post', locale: 'en', slug: 'a', content: doc('a') as any, metadata: { title: 'A', tags: ['react', 'css'] } },
-    { collection: 'post', locale: 'en', slug: 'b', content: doc('b') as any, metadata: { title: 'B', tags: ['react'] } },
+    {
+      collection: 'post',
+      locale: 'en',
+      slug: 'a',
+      content: doc('a'),
+      metadata: { title: 'A', tags: ['react', 'css'] }
+    },
+    {
+      collection: 'post',
+      locale: 'en',
+      slug: 'b',
+      content: doc('b'),
+      metadata: { title: 'B', tags: ['react'] }
+    }
   ])
   const git = createMemoryGitPort()
   const indexPort = createMemoryIndexPort()
 
   // Build the index so tagCounts works
-  const idx = createIndexService({ data, git, index: indexPort, deployedAt: () => null })
+  const idx = createIndexService({
+    data,
+    git,
+    index: indexPort,
+    deployedAt: () => null
+  })
   await idx.rebuild()
 
   const services = servicesFor(data, git, indexPort)
@@ -50,9 +83,7 @@ async function makeWrapper() {
           <DeployProvider>
             <IndexProvider>
               <TagsProvider>
-                <NotificationProvider>
-                  {children}
-                </NotificationProvider>
+                <NotificationProvider>{children}</NotificationProvider>
               </TagsProvider>
             </IndexProvider>
           </DeployProvider>
@@ -81,7 +112,9 @@ describe('TagsTab', () => {
 
     // react should appear before css (most-used first)
     const inputs = screen.getAllByRole('textbox')
-    const tagInputs = inputs.filter((i) => i.getAttribute('aria-label')?.startsWith('Rename'))
+    const tagInputs = inputs.filter((i) =>
+      i.getAttribute('aria-label')?.startsWith('Rename')
+    )
     const names = tagInputs.map((i) => (i as HTMLInputElement).value)
     expect(names.indexOf('react')).toBeLessThan(names.indexOf('css'))
   })
@@ -107,7 +140,7 @@ describe('TagsTab', () => {
     render(<TagsTab />, { wrapper: Wrapper })
 
     // Wait for css input
-    const cssInput = (await screen.findByDisplayValue('css')) as HTMLInputElement
+    const cssInput = await screen.findByDisplayValue('css')
 
     // Change value and blur to trigger rename
     fireEvent.change(cssInput, { target: { value: 'styles' } })
@@ -128,7 +161,7 @@ describe('TagsTab', () => {
     render(<TagsTab />, { wrapper: Wrapper })
 
     // Wait for css input
-    const cssInput = (await screen.findByDisplayValue('css')) as HTMLInputElement
+    const cssInput = await screen.findByDisplayValue('css')
 
     // Rename css → react (which already exists)
     fireEvent.change(cssInput, { target: { value: 'react' } })
@@ -188,7 +221,12 @@ describe('TagsTab', () => {
     const data = createMemoryDataPort([])
     const git = createMemoryGitPort()
     const indexPort = createMemoryIndexPort()
-    const idx = createIndexService({ data, git, index: indexPort, deployedAt: () => null })
+    const idx = createIndexService({
+      data,
+      git,
+      index: indexPort,
+      deployedAt: () => null
+    })
     await idx.rebuild()
     const services = servicesFor(data, git, indexPort)
 
@@ -205,9 +243,11 @@ describe('TagsTab', () => {
             </IndexProvider>
           </DeployProvider>
         </ServicesProvider>
-      </MemoryRouter>,
+      </MemoryRouter>
     )
 
-    expect(await screen.findByText(/Tags appear here as you add them to content/i)).toBeInTheDocument()
+    expect(
+      await screen.findByText(/Tags appear here as you add them to content/i)
+    ).toBeInTheDocument()
   })
 })

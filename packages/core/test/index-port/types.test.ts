@@ -9,9 +9,10 @@ const cr: ContentRow = {
   lifecycle: { state: 'staged', pending: 'edited' },
   updatedAt: 5,
   hasDraft: true,
+  date: null,
   tags: [],
   categories: [],
-  mediaRefs: [],
+  mediaRefs: []
 }
 
 describe('index-port projection', () => {
@@ -22,10 +23,19 @@ describe('index-port projection', () => {
   it('projectRow flattens a ContentRow into an index row', () => {
     expect(projectRow(cr)).toEqual({
       key: 'post\0en\0hello',
-      collection: 'post', locale: 'en', slug: 'hello',
-      title: 'Hello', titleLower: 'hello',
-      status: 'staged', pending: 'edited',
-      updatedAt: 5, hasDraft: true, tags: [], categories: [], mediaRefs: [],
+      collection: 'post',
+      locale: 'en',
+      slug: 'hello',
+      title: 'Hello',
+      titleLower: 'hello',
+      status: 'staged',
+      pending: 'edited',
+      updatedAt: 5,
+      hasDraft: true,
+      date: null,
+      tags: [],
+      categories: [],
+      mediaRefs: []
     })
   })
 

@@ -6,7 +6,10 @@ afterEach(cleanup)
 
 // Radix DropdownMenu calls scrollIntoView when it opens — stub it for jsdom.
 beforeAll(() => {
-  if (typeof window !== 'undefined' && !window.HTMLElement.prototype.scrollIntoView) {
+  if (
+    typeof window !== 'undefined' &&
+    !window.HTMLElement.prototype.scrollIntoView
+  ) {
     window.HTMLElement.prototype.scrollIntoView = () => {}
   }
 })
@@ -17,7 +20,7 @@ const defaultProps = {
   isUnpublished: false,
   onPublish: vi.fn(),
   onUnpublish: vi.fn(),
-  onRepublish: vi.fn(),
+  onRepublish: vi.fn()
 }
 
 function openMenu() {
@@ -30,7 +33,9 @@ describe('PublishMenu dismiss', () => {
   it('closes on Escape', () => {
     render(<PublishMenu {...defaultProps} />)
     openMenu()
-    expect(screen.getByRole('menuitem', { name: 'Unpublish' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('menuitem', { name: 'Unpublish' })
+    ).toBeInTheDocument()
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('menuitem', { name: 'Unpublish' })).toBeNull()
   })
@@ -40,7 +45,9 @@ describe('PublishMenu dismiss', () => {
   it('closes on a second Escape (menu toggles open/closed)', () => {
     render(<PublishMenu {...defaultProps} />)
     openMenu()
-    expect(screen.getByRole('menuitem', { name: 'Unpublish' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('menuitem', { name: 'Unpublish' })
+    ).toBeInTheDocument()
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('menuitem', { name: 'Unpublish' })).toBeNull()
   })

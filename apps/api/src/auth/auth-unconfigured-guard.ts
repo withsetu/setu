@@ -24,6 +24,9 @@ export function authUnconfiguredGuard(isAuthUnconfigured: () => boolean) {
       await next()
       return
     }
-    return c.json({ error: 'auth not configured', hint: 'set SETU_AUTH_SECRET' }, 503)
+    return c.json(
+      { error: 'auth not configured', hint: 'set SETU_AUTH_SECRET' },
+      503
+    )
   })
 }

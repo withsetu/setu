@@ -28,7 +28,9 @@ export function createCategoryDeleter(deps: CategoryDeleterDeps) {
   const { git, data, read, index, author } = deps
 
   return {
-    async remove(slug: string): Promise<{ categories: Category[]; strippedCount: number }> {
+    async remove(
+      slug: string
+    ): Promise<{ categories: Category[]; strippedCount: number }> {
       // 1. Load current taxonomy and compute the next state (throws if slug absent)
       const cats = parseCategories((await git.readFile(TAXONOMY_PATH)) ?? '')
       const nextCats = removeCategory(cats, slug)
@@ -46,21 +48,27 @@ export function createCategoryDeleter(deps: CategoryDeleterDeps) {
       for (const ref of refs) {
         const loaded = await read.loadForEdit(ref)
         if (loaded.source === 'absent') continue
-        const draft = loaded.draft!
+        const draft = loaded.draft
         const next = stripCategoryFromMeta(draft.metadata, slug)
-        const serialized = serializeMdoc({ frontmatter: next, body: tiptapToMarkdoc(draft.content) })
+        const serialized = serializeMdoc({
+          frontmatter: next,
+          body: tiptapToMarkdoc(draft.content)
+        })
         changes.push({ path: contentPath(ref), content: serialized })
         pending.push({ ref, content: draft.content, next, serialized })
       }
 
       // 3. Include the taxonomy file update in the same set of changes
-      changes.push({ path: TAXONOMY_PATH, content: serializeCategories(nextCats) })
+      changes.push({
+        path: TAXONOMY_PATH,
+        content: serializeCategories(nextCats)
+      })
 
       // 4. Single atomic commit: all content strips + taxonomy update together
       const { sha } = await git.commitFiles({
         changes,
         message: `taxonomy: delete category ${slug} (strip from ${pending.length} entr${pending.length === 1 ? 'y' : 'ies'})`,
-        author,
+        author
       })
 
       // 5. Post-commit: update drafts and reindex so counts/listing stay fresh
@@ -70,7 +78,7 @@ export function createCategoryDeleter(deps: CategoryDeleterDeps) {
           content: p.content,
           metadata: p.next,
           baseSha: sha,
-          baseContent: p.serialized,
+          baseContent: p.serialized
         })
         await index.reindexEntry(p.ref)
       }
@@ -80,6 +88,6 @@ export function createCategoryDeleter(deps: CategoryDeleterDeps) {
       await index.markSyncedAt(sha)
 
       return { categories: nextCats, strippedCount: pending.length }
-    },
+    }
   }
 }

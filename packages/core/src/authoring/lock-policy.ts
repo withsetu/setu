@@ -7,7 +7,7 @@ export function evaluateLock(
   lock: Lock | null,
   editor: string,
   now: number,
-  ttlMs: number,
+  ttlMs: number
 ): LockDecision {
   if (lock === null) return 'acquire'
   if (lock.lockedBy === editor) return 'refresh'

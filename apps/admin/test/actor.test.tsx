@@ -3,7 +3,9 @@ import { renderHook } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { ActorProvider, useActor, useCan } from '../src/auth/actor'
 
-const wrap = ({ children }: { children: ReactNode }) => <ActorProvider>{children}</ActorProvider>
+const wrap = ({ children }: { children: ReactNode }) => (
+  <ActorProvider>{children}</ActorProvider>
+)
 
 describe('actor context', () => {
   it('provides a current actor (admin by default)', () => {
@@ -18,7 +20,9 @@ describe('actor context', () => {
   it('gates a non-admin actor by their role', () => {
     // #379: author is the lowest staff role — holds neither content.publish nor site.deploy.
     const authorWrap = ({ children }: { children: ReactNode }) => (
-      <ActorProvider actor={{ id: 'a', role: 'author' }}>{children}</ActorProvider>
+      <ActorProvider actor={{ id: 'a', role: 'author' }}>
+        {children}
+      </ActorProvider>
     )
     const { result } = renderHook(() => useCan(), { wrapper: authorWrap })
     expect(result.current('content.publish')).toBe(false)

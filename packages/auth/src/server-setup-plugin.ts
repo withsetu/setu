@@ -9,7 +9,7 @@ const setupBodySchema = z.object({
   email: z.string().email(),
   password: z.string().min(12),
   name: z.string().min(1),
-  token: z.string(),
+  token: z.string()
 })
 
 export interface ServerSetupOptions {
@@ -87,22 +87,29 @@ export function serverSetup(opts: ServerSetupOptions): BetterAuthPlugin {
             email: ctx.body.email,
             name: ctx.body.name,
             emailVerified: false,
-            role: 'admin',
+            role: 'admin'
           })
-          const hashedPassword = await ctx.context.password.hash(ctx.body.password)
+          const hashedPassword = await ctx.context.password.hash(
+            ctx.body.password
+          )
           await ctx.context.internalAdapter.linkAccount({
             userId: user.id,
             accountId: user.id,
             providerId: 'credential',
-            password: hashedPassword,
+            password: hashedPassword
           })
 
-          const session = await ctx.context.internalAdapter.createSession(user.id)
+          const session = await ctx.context.internalAdapter.createSession(
+            user.id
+          )
           await setSessionCookie(ctx, { session, user })
           opts.onAuthEvent?.({ type: 'setup.completed', targetId: user.id })
-          return ctx.json({ status: true, user: { id: user.id, email: user.email } })
-        },
-      ),
-    },
+          return ctx.json({
+            status: true,
+            user: { id: user.id, email: user.email }
+          })
+        }
+      )
+    }
   }
 }

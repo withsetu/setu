@@ -15,11 +15,20 @@
     "./hero.css": "./src/hero/hero.css",
     "./ContactForm": "./src/contact/ContactForm.tsx",
     "./contact.css": "./src/contact/contact.css",
-    "./mount-captcha": "./src/contact/mount-captcha.ts"
+    "./mount-captcha": "./src/contact/mount-captcha.ts",
+    "./tokens.css": "./src/tokens.css"
   },
-  "scripts": { "test": "vitest run", "typecheck": "tsc --noEmit" },
-  "peerDependencies": { "react": "^18.3.1 || ^19.0.0" },
-  "dependencies": { "@setu/core": "workspace:*", "@setu/image-astro": "workspace:*" },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": "^18.3.1 || ^19.0.0"
+  },
+  "dependencies": {
+    "@setu/core": "workspace:*",
+    "@setu/image-astro": "workspace:*"
+  },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
@@ -29,6 +38,6 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "typescript": "^5.6.3",
-    "vitest": "^2.1.8"
+    "vitest": "^3.2.6"
   }
 }

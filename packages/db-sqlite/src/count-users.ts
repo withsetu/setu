@@ -7,6 +7,9 @@ import { user } from './schema'
  *  rather than a sign-in form. Cheap single-purpose COUNT query, same select-count pattern as
  *  submission-port.ts's listSubmissions total. */
 export function countUsers(db: BetterSQLite3Database): number {
-  const row = db.select({ n: sql<number>`count(*)` }).from(user).get()
+  const row = db
+    .select({ n: sql<number>`count(*)` })
+    .from(user)
+    .get()
   return row?.n ?? 0
 }

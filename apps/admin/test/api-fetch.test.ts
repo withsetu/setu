@@ -8,7 +8,9 @@ describe('apiFetch', () => {
     const f = vi.fn(async () => new Response('{}', { status: 200 }))
     vi.stubGlobal('fetch', f)
     await apiFetch('http://x/api/capabilities')
-    expect(f).toHaveBeenCalledWith('http://x/api/capabilities', { credentials: 'include' })
+    expect(f).toHaveBeenCalledWith('http://x/api/capabilities', {
+      credentials: 'include'
+    })
   })
 
   it('preserves caller-supplied init while forcing credentials: include', async () => {
@@ -18,7 +20,7 @@ describe('apiFetch', () => {
     expect(f).toHaveBeenCalledWith('http://x/media', {
       method: 'DELETE',
       headers: { a: '1' },
-      credentials: 'include',
+      credentials: 'include'
     })
   })
 

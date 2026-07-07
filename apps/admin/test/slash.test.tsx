@@ -17,24 +17,33 @@ describe('slashBlocks', () => {
   it('the Callout block inserts a callout node', () => {
     const editor = new Editor({
       extensions: [StarterKit, Callout, Passthrough],
-      content: { type: 'doc', content: [{ type: 'paragraph' }] },
+      content: { type: 'doc', content: [{ type: 'paragraph' }] }
     })
     const callout = slashBlocks().find((b) => b.title === 'Callout')
     expect(callout).toBeDefined()
     callout!.run(editor, { from: 1, to: 1 })
-    expect(editor.getJSON().content?.some((n) => n.type === 'callout')).toBe(true)
+    expect(editor.getJSON().content?.some((n) => n.type === 'callout')).toBe(
+      true
+    )
     editor.destroy()
   })
 
   it('a non-callout folder block (Notice) inserts a setuBlock node with the correct tag', () => {
     const editor = new Editor({
-      extensions: [StarterKit, Callout, Passthrough, createSetuBlock(registry.blocks)],
-      content: { type: 'doc', content: [{ type: 'paragraph' }] },
+      extensions: [
+        StarterKit,
+        Callout,
+        Passthrough,
+        createSetuBlock(registry.blocks)
+      ],
+      content: { type: 'doc', content: [{ type: 'paragraph' }] }
     })
     const notice = slashBlocks().find((b) => b.title === 'Notice')
     expect(notice).toBeDefined()
     notice!.run(editor, { from: 1, to: 1 })
-    const inserted = editor.getJSON().content?.find((n) => n.type === 'setuBlock')
+    const inserted = editor
+      .getJSON()
+      .content?.find((n) => n.type === 'setuBlock')
     expect(inserted).toBeDefined()
     expect(inserted?.attrs?.tag).toBe('notice')
     editor.destroy()

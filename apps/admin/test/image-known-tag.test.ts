@@ -8,9 +8,12 @@ describe('image is a known editor tag', () => {
   })
 
   it('loading {% image %} via the registry tags yields an imageBlock node', () => {
-    const doc = markdocToTiptap(`{% image src="/media/2026/06/x.jpg" align="wide" /%}\n`, {
-      knownBlockTags: registry.knownBlockTags,
-    })
+    const doc = markdocToTiptap(
+      `{% image src="/media/2026/06/x.jpg" align="wide" /%}\n`,
+      {
+        knownBlockTags: registry.knownBlockTags
+      }
+    )
     expect(doc.content?.[0]?.type).toBe('imageBlock')
   })
 })

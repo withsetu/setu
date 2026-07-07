@@ -28,13 +28,20 @@ function makeApp(onAuthEvent: (e: AuthEvent) => void) {
     secret: 'test-secret-32-chars-minimum!!!!',
     baseURL: 'http://localhost:4444',
     trustedOrigins: ['http://localhost:5173'],
-    onAuthEvent,
+    onAuthEvent
   })
 
   const app = new Hono()
   mountAuthWithFailureEvents(app, auth, onAuthEvent)
 
-  return { app, auth, cleanup: () => { sqlite.close(); rmSync(dir, { recursive: true, force: true }) } }
+  return {
+    app,
+    auth,
+    cleanup: () => {
+      sqlite.close()
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }
 }
 
 const cleanups: Array<() => void> = []
@@ -52,7 +59,7 @@ function signInRequest(email: string, password: string) {
   return new Request('http://localhost:4444/api/auth/sign-in/email', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password })
   })
 }
 
@@ -60,11 +67,25 @@ function signInRequest(email: string, password: string) {
 // these fixtures create the user server-side via internalAdapter.createUser + linkAccount, the
 // same path first-run setup/ensureLocalOwner/admin-invite use. Mirrors the makeOwner helper in
 // packages/auth/test/auth-events.test.ts.
-async function createUser(auth: ReturnType<typeof createAuth>, email: string, password: string) {
+async function createUser(
+  auth: ReturnType<typeof createAuth>,
+  email: string,
+  password: string
+) {
   const ctx = await auth.$context
-  const user = await ctx.internalAdapter.createUser({ email, name: 'A', role: 'author', emailVerified: true })
+  const user = await ctx.internalAdapter.createUser({
+    email,
+    name: 'A',
+    role: 'author',
+    emailVerified: true
+  })
   const hashed = await ctx.password.hash(password)
-  await ctx.internalAdapter.linkAccount({ userId: user.id, providerId: 'credential', accountId: user.id, password: hashed })
+  await ctx.internalAdapter.linkAccount({
+    userId: user.id,
+    providerId: 'credential',
+    accountId: user.id,
+    password: hashed
+  })
   return user
 }
 
@@ -75,7 +96,9 @@ describe('login.failure — wrapper-at-mount fallback (POST /api/auth/sign-in/em
     await createUser(auth, 'a@b.co', 'hunter2hunter2')
     events.length = 0 // clear user.created noise
 
-    const res = await app.fetch(signInRequest('a@b.co', 'totally-wrong-password'))
+    const res = await app.fetch(
+      signInRequest('a@b.co', 'totally-wrong-password')
+    )
     expect(res.status).toBe(401)
 
     const failures = events.filter((e) => e.type === 'login.failure')
@@ -103,8 +126,12 @@ describe('login.failure — wrapper-at-mount fallback (POST /api/auth/sign-in/em
       new Request('http://localhost:4444/api/auth/sign-up/email', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email: 'dup@b.co', password: 'hunter2hunter2', name: 'A' }),
-      }),
+        body: JSON.stringify({
+          email: 'dup@b.co',
+          password: 'hunter2hunter2',
+          name: 'A'
+        })
+      })
     )
     expect(res.status).toBeGreaterThanOrEqual(400)
     expect(events.filter((e) => e.type === 'login.failure')).toHaveLength(0)

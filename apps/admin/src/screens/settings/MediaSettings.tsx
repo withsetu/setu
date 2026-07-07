@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
   SelectContent,
-  SelectItem,
+  SelectItem
 } from '@/components/ui/select'
 import {
   AlertDialog,
@@ -25,16 +25,16 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
+  AlertDialogTrigger
 } from '@/components/ui/alert-dialog'
 
 const SETTINGS_PATH = 'settings.json'
-const apiBase = (import.meta.env.VITE_SETU_API as string | undefined) ?? ''
+const apiBase = import.meta.env.VITE_SETU_API ?? ''
 
 const FORMAT_OPTIONS: { value: MediaValues['imageFormat']; label: string }[] = [
   { value: 'webp', label: 'WebP' },
   { value: 'avif', label: 'AVIF' },
-  { value: 'both', label: 'Both (WebP + AVIF)' },
+  { value: 'both', label: 'Both (WebP + AVIF)' }
 ]
 
 const sameMedia = (a: MediaValues, b: MediaValues) =>
@@ -57,13 +57,23 @@ export function MediaSettings() {
   const [published, setPublished] = useState<MediaValues | null>(null)
   const [saving, setSaving] = useState(false)
   const [reprocessing, setReprocessing] = useState(false)
-  const [reprocessProgress, setReprocessProgress] = useState<{ processed: number; total: number } | null>(null)
+  const [reprocessProgress, setReprocessProgress] = useState<{
+    processed: number
+    total: number
+  } | null>(null)
 
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const mountedRef = useRef(true)
 
-  const canReprocess = !!caps && caps.imageProcessing && caps.writableMediaStore && caps.backgroundJobs
-  const showUploadsNote = !capsLoading && caps !== null && !(caps.imageProcessing && caps.writableMediaStore)
+  const canReprocess =
+    !!caps &&
+    caps.imageProcessing &&
+    caps.writableMediaStore &&
+    caps.backgroundJobs
+  const showUploadsNote =
+    !capsLoading &&
+    caps !== null &&
+    !(caps.imageProcessing && caps.writableMediaStore)
 
   const stopPolling = () => {
     if (pollIntervalRef.current !== null) {
@@ -80,7 +90,9 @@ export function MediaSettings() {
       stopPolling()
       setReprocessing(false)
       setReprocessProgress(null)
-      notify.success(`Reprocessed ${data.processed} image${data.processed === 1 ? '' : 's'}`)
+      notify.success(
+        `Reprocessed ${data.processed} image${data.processed === 1 ? '' : 's'}`
+      )
     } else if (data.status === 'failed') {
       stopPolling()
       setReprocessing(false)
@@ -112,7 +124,9 @@ export function MediaSettings() {
       const content = await git.readFile(SETTINGS_PATH)
       let parsedRaw: Record<string, unknown> = {}
       try {
-        parsedRaw = content ? (JSON.parse(content) as Record<string, unknown>) : {}
+        parsedRaw = content
+          ? (JSON.parse(content) as Record<string, unknown>)
+          : {}
       } catch {
         parsedRaw = {}
       }
@@ -149,11 +163,12 @@ export function MediaSettings() {
       mountedRef.current = false
       stopPolling()
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const dirty = published !== null && !sameMedia(values, published)
-  const set = (patch: Partial<MediaValues>) => setValues((v) => ({ ...v, ...patch }))
+  const set = (patch: Partial<MediaValues>) =>
+    setValues((v) => ({ ...v, ...patch }))
 
   const save = async () => {
     if (saving || !dirty || raw === null) return
@@ -164,7 +179,7 @@ export function MediaSettings() {
         path: SETTINGS_PATH,
         content: JSON.stringify(next, null, 2) + '\n',
         message: 'chore(settings): update media settings',
-        author: OWNER_AUTHOR,
+        author: OWNER_AUTHOR
       })
       setRaw(next)
       setPublished(values)
@@ -181,9 +196,16 @@ export function MediaSettings() {
     setReprocessing(true)
     setReprocessProgress({ processed: 0, total: 0 })
     try {
-      const res = await apiFetch(`${apiBase}/api/media/reprocess`, { method: 'POST' })
+      const res = await apiFetch(`${apiBase}/api/media/reprocess`, {
+        method: 'POST'
+      })
       if (!res.ok) throw new Error(`Reprocess failed: ${res.status}`)
-      const data = (await res.json()) as { jobId: string; status: string; total: number; processed: number }
+      const data = (await res.json()) as {
+        jobId: string
+        status: string
+        total: number
+        processed: number
+      }
       if (mountedRef.current) {
         setReprocessProgress({ processed: data.processed, total: data.total })
         startPolling()
@@ -199,7 +221,9 @@ export function MediaSettings() {
 
   const progressValue =
     reprocessProgress && reprocessProgress.total > 0
-      ? Math.round((reprocessProgress.processed / reprocessProgress.total) * 100)
+      ? Math.round(
+          (reprocessProgress.processed / reprocessProgress.total) * 100
+        )
       : 0
 
   return (
@@ -209,7 +233,9 @@ export function MediaSettings() {
         <Label htmlFor="med-format">Image format</Label>
         <Select
           value={values.imageFormat}
-          onValueChange={(v) => set({ imageFormat: v as MediaValues['imageFormat'] })}
+          onValueChange={(v) =>
+            set({ imageFormat: v as MediaValues['imageFormat'] })
+          }
         >
           <SelectTrigger id="med-format" className="w-56">
             <SelectValue />
@@ -223,7 +249,8 @@ export function MediaSettings() {
           </SelectContent>
         </Select>
         <p className="text-xs text-muted-foreground">
-          Format used when processing uploaded images. AVIF is smaller but slower to encode.
+          Format used when processing uploaded images. AVIF is smaller but
+          slower to encode.
         </p>
       </div>
 
@@ -254,7 +281,8 @@ export function MediaSettings() {
       <div className="border-t pt-5 space-y-2">
         <p className="text-sm font-medium">Reprocess all images</p>
         <p className="text-xs text-muted-foreground">
-          Re-encodes every image in the media library using the current format and LQIP settings.
+          Re-encodes every image in the media library using the current format
+          and LQIP settings.
         </p>
 
         {!capsLoading && !canReprocess ? (
@@ -263,8 +291,9 @@ export function MediaSettings() {
               Reprocess all images
             </Button>
             <p className="text-xs text-muted-foreground">
-              Image reprocessing runs in local or self-hosted mode. This site is served from the
-              edge — run reprocess from your local Setu or your self-hosted server.
+              Image reprocessing runs in local or self-hosted mode. This site is
+              served from the edge — run reprocess from your local Setu or your
+              self-hosted server.
             </p>
           </>
         ) : (
@@ -278,8 +307,9 @@ export function MediaSettings() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Reprocess all images?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Re-encodes every image with the current format/LQIP settings. This is heavy —
-                  especially AVIF — and is best run locally, not on a deployed site.
+                  Re-encodes every image with the current format/LQIP settings.
+                  This is heavy — especially AVIF — and is best run locally, not
+                  on a deployed site.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -307,8 +337,9 @@ export function MediaSettings() {
 
         {showUploadsNote && (
           <p className="text-xs text-muted-foreground">
-            Uploads won't generate variants (WebP/AVIF/LQIP) in this deployment — image
-            processing and writable media storage are not available on the edge.
+            Uploads won't generate variants (WebP/AVIF/LQIP) in this deployment
+            — image processing and writable media storage are not available on
+            the edge.
           </p>
         )}
       </div>

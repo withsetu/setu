@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest'
 import fc from 'fast-check'
 import { markdocToTiptap, tiptapToMarkdoc } from '../src/index'
 
-const LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ '.split('')
+const LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ '.split(
+  ''
+)
 const safeText = fc
   .array(fc.constantFrom(...LETTERS), { minLength: 1, maxLength: 40 })
   .map((a) => a.join('').trim() || 'x')
@@ -18,7 +20,9 @@ const ifBlock = fc
   .map(([v, t]) => `{% if $${v.replace(/ /g, '')} %}\n${t}\n{% /if %}`)
 
 const block = fc.oneof(heading, paragraph, bullets, callout, ifBlock)
-const document = fc.array(block, { minLength: 1, maxLength: 6 }).map((bs) => bs.join('\n\n') + '\n')
+const document = fc
+  .array(block, { minLength: 1, maxLength: 6 })
+  .map((bs) => bs.join('\n\n') + '\n')
 
 const roundtrip = (s: string) => tiptapToMarkdoc(markdocToTiptap(s))
 
@@ -30,7 +34,7 @@ describe('round-trip idempotency (property-based)', () => {
         const s2 = roundtrip(s1)
         expect(s2).toBe(s1)
       }),
-      { numRuns: 200 },
+      { numRuns: 200 }
     )
   })
 })

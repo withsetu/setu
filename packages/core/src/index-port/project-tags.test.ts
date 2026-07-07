@@ -4,11 +4,15 @@ import type { ContentRow } from '../content-index/list-entries'
 
 const row: ContentRow = {
   ref: { collection: 'post', locale: 'en', slug: 'a' },
-  title: 'A', locale: 'en',
-  lifecycle: { state: 'draft' }, updatedAt: 1, hasDraft: true,
+  title: 'A',
+  locale: 'en',
+  lifecycle: { state: 'draft' },
+  updatedAt: 1,
+  hasDraft: true,
+  date: null,
   tags: ['react', 'redux'],
   categories: [],
-  mediaRefs: [],
+  mediaRefs: []
 }
 
 describe('projectRow / rowToContentRow — tags', () => {

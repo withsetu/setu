@@ -37,7 +37,10 @@ type Node = Record<string, unknown>
  * a publisher (Person|Organization), the WebSite, the WebPage, a primary ImageObject, and an Article
  * node for posts. Nodes cross-reference by `@id` so the graph stays a single connected document. Pure.
  */
-export function resolveJsonLd(settings: SiteSettings, input: JsonLdInput): JsonLdGraph {
+export function resolveJsonLd(
+  settings: SiteSettings,
+  input: JsonLdInput
+): JsonLdGraph {
   const { identity, general } = settings
   const siteName = general.title || 'Setu'
   const isOrg = identity.entityType !== 'person'
@@ -55,7 +58,7 @@ export function resolveJsonLd(settings: SiteSettings, input: JsonLdInput): JsonL
     '@type': isOrg ? 'Organization' : 'Person',
     '@id': entityId,
     name: identity.name || siteName,
-    url: identity.url || input.siteUrl,
+    url: identity.url || input.siteUrl
   }
   if (isOrg && input.logo) {
     publisher.logo = { '@type': 'ImageObject', '@id': logoId, url: input.logo }
@@ -70,13 +73,14 @@ export function resolveJsonLd(settings: SiteSettings, input: JsonLdInput): JsonL
     '@id': websiteId,
     url: input.siteUrl,
     name: siteName,
-    publisher: { '@id': entityId },
+    publisher: { '@id': entityId }
   }
   if (general.description) website.description = general.description
   graph.push(website)
 
   // Primary image (shared @id, referenced by WebPage + Article)
-  if (input.image) graph.push({ '@type': 'ImageObject', '@id': imageId, url: input.image })
+  if (input.image)
+    graph.push({ '@type': 'ImageObject', '@id': imageId, url: input.image })
 
   // WebPage
   const webpage: Node = {
@@ -84,7 +88,7 @@ export function resolveJsonLd(settings: SiteSettings, input: JsonLdInput): JsonL
     '@id': webpageId,
     url: input.canonical,
     name: input.pageTitle || siteName,
-    isPartOf: { '@id': websiteId },
+    isPartOf: { '@id': websiteId }
   }
   if (input.description) webpage.description = input.description
   if (input.image) webpage.primaryImageOfPage = { '@id': imageId }
@@ -101,7 +105,7 @@ export function resolveJsonLd(settings: SiteSettings, input: JsonLdInput): JsonL
       isPartOf: { '@id': webpageId },
       mainEntityOfPage: { '@id': webpageId },
       author: { '@id': entityId },
-      publisher: { '@id': entityId },
+      publisher: { '@id': entityId }
     }
     if (input.datePublished) article.datePublished = input.datePublished
     if (input.dateModified) article.dateModified = input.dateModified

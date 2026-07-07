@@ -6,7 +6,7 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { SidebarMenuButton } from '@/components/ui/sidebar'
 import { LogOut } from 'lucide-react'
@@ -18,7 +18,9 @@ import { LogOut } from 'lucide-react'
  *  re-renders once useSession's data goes null. */
 export function UserMenu() {
   const { data } = authClient.useSession()
-  const user = data?.user as { name?: string | null; email?: string | null; image?: string | null } | undefined
+  const user = data?.user as
+    | { name?: string | null; email?: string | null; image?: string | null }
+    | undefined
   if (!user) return null
 
   const label = user.name || user.email || 'Signed in'
@@ -35,7 +37,9 @@ export function UserMenu() {
           <span className="grid text-left leading-tight group-data-[collapsible=icon]:hidden">
             <span className="truncate text-sm font-medium">{label}</span>
             {user.name && user.email && (
-              <span className="truncate text-xs text-muted-foreground">{user.email}</span>
+              <span className="truncate text-xs text-muted-foreground">
+                {user.email}
+              </span>
             )}
           </span>
         </SidebarMenuButton>

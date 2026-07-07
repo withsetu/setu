@@ -41,7 +41,10 @@ export interface LocalOwnerIdentity {
  *  route performs this identical lookup internally before deciding to insert vs. reject as a
  *  duplicate). If a user with this email already exists, its id is returned unchanged (no new
  *  row, no role/name overwrite) — safe to call on every local boot. */
-export async function ensureLocalOwner(auth: AuthInstance, identity: LocalOwnerIdentity): Promise<string> {
+export async function ensureLocalOwner(
+  auth: AuthInstance,
+  identity: LocalOwnerIdentity
+): Promise<string> {
   const context = await auth.$context
   const existing = await context.internalAdapter.findUserByEmail(identity.email)
   if (existing) return existing.user.id
@@ -50,7 +53,7 @@ export async function ensureLocalOwner(auth: AuthInstance, identity: LocalOwnerI
     email: identity.email,
     name: identity.name,
     emailVerified: false,
-    role: 'admin',
+    role: 'admin'
   })
   return user.id
 }

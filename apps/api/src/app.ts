@@ -1,7 +1,18 @@
 import { Hono } from 'hono'
 import { createMiddleware } from 'hono/factory'
-import { createAuthz, DEFAULT_ROLES, parseContentPath, parseMdoc } from '@setu/core'
-import type { Action, Actor, GitPort, CommitInput, CommitFilesInput } from '@setu/core'
+import {
+  createAuthz,
+  DEFAULT_ROLES,
+  parseContentPath,
+  parseMdoc
+} from '@setu/core'
+import type {
+  Action,
+  Actor,
+  GitPort,
+  CommitInput,
+  CommitFilesInput
+} from '@setu/core'
 import { authMiddleware } from './auth/middleware'
 import type { ResolveActor } from './auth/resolve-actor'
 
@@ -15,7 +26,9 @@ const authz = createAuthz(DEFAULT_ROLES)
  *  (author/editor/maintainer) could rewrite settings.json, bypassing the admin-only `settings.manage`
  *  (found in UAT 2026-07-05). This is the concrete first slice of the path-scoped git permissions the
  *  factory comment below anticipates. */
-const ADMIN_ONLY_WRITE: Record<string, Action> = { 'settings.json': 'settings.manage' }
+const ADMIN_ONLY_WRITE: Record<string, Action> = {
+  'settings.json': 'settings.manage'
+}
 
 /** Normalize a repo-relative path for gate matching: drop a leading `./` or `/` so `./settings.json`
  *  and `/settings.json` can't slip past the exact-match check. (Deeper `../` traversal is the git
@@ -54,7 +67,11 @@ function writeActionForChanges(changes: WriteChange[]): Action {
     const p = normalizeRepoPath(path)
     const adminAction = ADMIN_ONLY_WRITE[p]
     if (adminAction) return adminAction // settings.manage — the strongest; short-circuit.
-    if (content !== undefined && parseContentPath(p) && publishesLiveContent(content)) {
+    if (
+      content !== undefined &&
+      parseContentPath(p) &&
+      publishesLiveContent(content)
+    ) {
       action = 'content.publish'
     }
   }
@@ -72,7 +89,8 @@ function requireWrite(changesOf: (body: unknown) => WriteChange[]) {
     } catch {
       return c.json({ error: 'invalid request body' }, 400)
     }
-    if (!authz.can(c.get('actor'), writeActionForChanges(changes))) return c.json({ error: 'forbidden' }, 403)
+    if (!authz.can(c.get('actor'), writeActionForChanges(changes)))
+      return c.json({ error: 'forbidden' }, 403)
     await next()
   })
 }
@@ -115,7 +133,8 @@ export function createGitApi(git: GitPort, resolveActor: ResolveActor) {
 
   app.get('/git/file', async (c) => {
     const path = c.req.query('path')
-    if (path === undefined || path === '') return c.json({ error: 'path query is required' }, 400)
+    if (path === undefined || path === '')
+      return c.json({ error: 'path query is required' }, 400)
     return c.json({ content: await git.readFile(path) })
   })
 
@@ -127,10 +146,10 @@ export function createGitApi(git: GitPort, resolveActor: ResolveActor) {
       return typeof path === 'string' ? [{ path, content }] : []
     }),
     async (c) => {
-      const body = (await c.req.json()) as CommitInput
+      const body = await c.req.json<CommitInput>()
       const { sha } = await git.commitFile(body)
       return c.json({ sha })
-    },
+    }
   )
 
   app.post(
@@ -140,14 +159,20 @@ export function createGitApi(git: GitPort, resolveActor: ResolveActor) {
       const changes = (b as CommitFilesInput).changes
       if (!Array.isArray(changes)) return []
       return changes
-        .filter((ch): ch is CommitFilesInput['changes'][number] => typeof ch?.path === 'string')
-        .map((ch) => ({ path: ch.path, content: 'content' in ch ? ch.content : undefined }))
+        .filter(
+          (ch): ch is CommitFilesInput['changes'][number] =>
+            typeof ch?.path === 'string'
+        )
+        .map((ch) => ({
+          path: ch.path,
+          content: 'content' in ch ? ch.content : undefined
+        }))
     }),
     async (c) => {
-      const body = (await c.req.json()) as CommitFilesInput
+      const body = await c.req.json<CommitFilesInput>()
       const { sha } = await git.commitFiles(body)
       return c.json({ sha })
-    },
+    }
   )
 
   app.get('/git/list', async (c) => {
@@ -155,6 +180,8 @@ export function createGitApi(git: GitPort, resolveActor: ResolveActor) {
     return c.json({ paths: await git.list(prefix) })
   })
 
-  app.onError((err, c) => c.json({ error: err instanceof Error ? err.message : String(err) }, 500))
+  app.onError((err, c) =>
+    c.json({ error: err instanceof Error ? err.message : String(err) }, 500)
+  )
   return app
 }

@@ -5,6 +5,7 @@ import { resolveMediaSrc } from '../media-src'
 import { useToolbarRoving } from '../useToolbarRoving'
 import { replaceImage } from '../image-insert'
 import { AlignControl } from '../controls/align'
+import { attrString } from '../attr-string'
 
 interface ImageBlockStorage {
   apiBase: string
@@ -16,14 +17,21 @@ interface ImageBlockStorage {
   openPicker?: (onPick: (src: string) => void) => void
 }
 
-function ImageBlockView({ node, updateAttributes, editor, getPos }: ReactNodeViewProps) {
-  const storage = (editor.storage as unknown as { imageBlock: ImageBlockStorage }).imageBlock
+function ImageBlockView({
+  node,
+  updateAttributes,
+  editor,
+  getPos
+}: ReactNodeViewProps) {
+  const storage = (
+    editor.storage as unknown as { imageBlock: ImageBlockStorage }
+  ).imageBlock
   const apiBase = storage?.apiBase ?? ''
   const mdAttrs = (node.attrs.mdAttrs ?? {}) as Record<string, unknown>
-  const src = String(mdAttrs['src'] ?? '')
-  const alt = String(mdAttrs['alt'] ?? '')
-  const caption = String(mdAttrs['caption'] ?? '')
-  const align = String(mdAttrs['align'] ?? 'none')
+  const src = attrString(mdAttrs['src'])
+  const alt = attrString(mdAttrs['alt'])
+  const caption = attrString(mdAttrs['caption'])
+  const align = attrString(mdAttrs['align'], 'none')
 
   const setAttrs = (patch: Record<string, unknown>) => {
     const next: Record<string, unknown> = { ...mdAttrs, ...patch }
@@ -38,17 +46,30 @@ function ImageBlockView({ node, updateAttributes, editor, getPos }: ReactNodeVie
     if (e.key === 'Enter') {
       e.preventDefault()
       // exit downward: new empty paragraph right after the image block, caret inside it
-      editor.chain().insertContentAt(pos + node.nodeSize, { type: 'paragraph' }).setTextSelection(pos + node.nodeSize + 1).focus().run()
+      editor
+        .chain()
+        .insertContentAt(pos + node.nodeSize, { type: 'paragraph' })
+        .setTextSelection(pos + node.nodeSize + 1)
+        .focus()
+        .run()
       return
     }
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      editor.chain().setTextSelection(pos + node.nodeSize).focus().run()
+      editor
+        .chain()
+        .setTextSelection(pos + node.nodeSize)
+        .focus()
+        .run()
       return
     }
     if (e.key === 'ArrowUp') {
       e.preventDefault()
-      editor.chain().setTextSelection(Math.max(pos - 1, 0)).focus().run()
+      editor
+        .chain()
+        .setTextSelection(Math.max(pos - 1, 0))
+        .focus()
+        .run()
       return
     }
     e.stopPropagation()
@@ -61,18 +82,37 @@ function ImageBlockView({ node, updateAttributes, editor, getPos }: ReactNodeVie
     // Prefer the library modal (pick OR upload) when it's wired; otherwise fall
     // back to a direct upload (e.g. unit tests / non-Canvas contexts).
     if (storage?.openPicker) storage.openPicker(apply)
-    else replaceImage(apiBase, { onUploading: storage?.onUploading, onError: storage?.onError }, apply)
+    else
+      replaceImage(
+        apiBase,
+        { onUploading: storage?.onUploading, onError: storage?.onError },
+        apply
+      )
   }
 
   return (
     <NodeViewWrapper>
-      <figure className={`setu-image-block align-${align}`} contentEditable={false}>
-        <div className="block-props" role="toolbar" aria-label="Image" ref={toolbarRef} onKeyDown={onToolbarKeyDown}>
+      <figure
+        className={`setu-image-block align-${align}`}
+        contentEditable={false}
+      >
+        <div
+          className="block-props"
+          role="toolbar"
+          aria-label="Image"
+          ref={toolbarRef}
+          onKeyDown={onToolbarKeyDown}
+        >
           <span className="bp-label">Align</span>
           <AlignControl
             value={align}
             onChange={(v) => setAttrs({ align: String(v) })}
-            meta={{ name: 'align', options: ['none', 'left', 'right', 'wide', 'full'], apiBase: '', onPickMedia: () => {} }}
+            meta={{
+              name: 'align',
+              options: ['none', 'left', 'right', 'wide', 'full'],
+              apiBase: '',
+              onPickMedia: () => {}
+            }}
           />
           <span className="bp-sep" />
           <input
@@ -83,11 +123,21 @@ function ImageBlockView({ node, updateAttributes, editor, getPos }: ReactNodeVie
             onKeyDown={(e) => e.stopPropagation()}
             data-toolbar-item
           />
-          <button type="button" className="bp-replace" data-toolbar-item onMouseDown={keepFocus} onClick={onReplace}>
+          <button
+            type="button"
+            className="bp-replace"
+            data-toolbar-item
+            onMouseDown={keepFocus}
+            onClick={onReplace}
+          >
             Replace
           </button>
         </div>
-        <img className="sib-img" src={resolveMediaSrc(src, apiBase || undefined)} alt={alt} />
+        <img
+          className="sib-img"
+          src={resolveMediaSrc(src, apiBase || undefined)}
+          alt={alt}
+        />
         <input
           className="sib-caption"
           placeholder="Add a caption…"
@@ -111,18 +161,28 @@ export const ImageBlock = Node.create({
   draggable: true,
   selectable: true,
   addAttributes() {
-    return { mdAttrs: { default: {}, renderHTML: () => ({}), parseHTML: () => ({}) } }
+    return {
+      mdAttrs: { default: {}, renderHTML: () => ({}), parseHTML: () => ({}) }
+    }
   },
   addStorage(): ImageBlockStorage {
-    return { apiBase: '', onUploading: undefined, onError: undefined, openPicker: undefined }
+    return {
+      apiBase: '',
+      onUploading: undefined,
+      onError: undefined,
+      openPicker: undefined
+    }
   },
   parseHTML() {
     return [{ tag: 'figure[data-setu-image-block]' }]
   },
   renderHTML({ HTMLAttributes }) {
-    return ['figure', mergeAttributes(HTMLAttributes, { 'data-setu-image-block': '' })]
+    return [
+      'figure',
+      mergeAttributes(HTMLAttributes, { 'data-setu-image-block': '' })
+    ]
   },
   addNodeView() {
     return ReactNodeViewRenderer(ImageBlockView)
-  },
+  }
 })

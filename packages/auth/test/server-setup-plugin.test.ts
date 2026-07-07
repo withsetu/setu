@@ -14,7 +14,8 @@ function makeAuth(opts?: { token?: string | null }) {
   const db = drizzle(new Database(':memory:'))
   migrate(db, { migrationsFolder: '../db-sqlite/drizzle' })
 
-  const token: string | null = opts?.token === undefined ? 'test-setup-token-xyz789' : opts.token
+  const token: string | null =
+    opts?.token === undefined ? 'test-setup-token-xyz789' : opts.token
 
   const auth = createAuth({
     db,
@@ -23,8 +24,8 @@ function makeAuth(opts?: { token?: string | null }) {
     trustedOrigins: ['http://localhost:5173'],
     serverSetup: {
       getSetupToken: () => token,
-      countUsers: () => countUsers(db),
-    },
+      countUsers: () => countUsers(db)
+    }
   })
 
   return { db, auth }
@@ -34,7 +35,7 @@ function setupRequest(body: Record<string, unknown>) {
   return new Request('http://localhost:4444/api/auth/setup', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify(body)
   })
 }
 
@@ -42,7 +43,7 @@ const VALID_BODY = {
   email: 'owner@example.com',
   password: 'a-strong-password-12',
   name: 'Owner Person',
-  token: 'test-setup-token-xyz789',
+  token: 'test-setup-token-xyz789'
 }
 
 describe('serverSetup plugin — POST /api/auth/setup', () => {
@@ -61,14 +62,16 @@ describe('serverSetup plugin — POST /api/auth/setup', () => {
     // The returned cookie must be a genuinely valid session recognized by better-auth's own
     // getSession — not a bypass.
     const cookieHeader = (setCookie ?? '').split(';')[0] ?? ''
-    const session = await auth.api.getSession({ headers: new Headers({ cookie: cookieHeader }) })
+    const session = await auth.api.getSession({
+      headers: new Headers({ cookie: cookieHeader })
+    })
     expect(session?.user.email).toBe('owner@example.com')
     expect((session?.user as { role?: string })?.role).toBe('admin')
 
     // The user can now sign in normally with the password they set.
     const signin = await auth.api.signInEmail({
       body: { email: 'owner@example.com', password: 'a-strong-password-12' },
-      asResponse: true,
+      asResponse: true
     })
     expect(signin.headers.get('set-cookie')).toMatch(/better-auth/)
   })
@@ -85,7 +88,7 @@ describe('serverSetup plugin — POST /api/auth/setup', () => {
     expect(first.status).toBe(200)
 
     const second = await auth.handler(
-      setupRequest({ ...VALID_BODY, email: 'second-owner@example.com' }),
+      setupRequest({ ...VALID_BODY, email: 'second-owner@example.com' })
     )
     expect(second.status).toBe(403)
     // better-auth's error responses use `message` (via ctx.error -> APIError), the same shape the
@@ -98,7 +101,9 @@ describe('serverSetup plugin — POST /api/auth/setup', () => {
   it('wrong token -> 401 and does NOT consume/burn anything; a subsequent valid attempt still works', async () => {
     const { db, auth } = makeAuth()
 
-    const wrong = await auth.handler(setupRequest({ ...VALID_BODY, token: 'totally-wrong-token' }))
+    const wrong = await auth.handler(
+      setupRequest({ ...VALID_BODY, token: 'totally-wrong-token' })
+    )
     expect(wrong.status).toBe(401)
     expect(countUsers(db)).toBe(0) // nothing was created
 
@@ -109,7 +114,12 @@ describe('serverSetup plugin — POST /api/auth/setup', () => {
   it('rejects a malformed body (Zod validation) before touching the DB', async () => {
     const { db, auth } = makeAuth()
     const res = await auth.handler(
-      setupRequest({ email: 'not-an-email', password: 'short', name: '', token: 'test-setup-token-xyz789' }),
+      setupRequest({
+        email: 'not-an-email',
+        password: 'short',
+        name: '',
+        token: 'test-setup-token-xyz789'
+      })
     )
     expect(res.status).toBeGreaterThanOrEqual(400)
     expect(res.status).toBeLessThan(500)
@@ -121,7 +131,9 @@ describe('serverSetup plugin — POST /api/auth/setup', () => {
 
     const [a, b] = await Promise.all([
       auth.handler(setupRequest(VALID_BODY)),
-      auth.handler(setupRequest({ ...VALID_BODY, email: 'racer-two@example.com' })),
+      auth.handler(
+        setupRequest({ ...VALID_BODY, email: 'racer-two@example.com' })
+      )
     ])
 
     const statuses = [a.status, b.status].sort()

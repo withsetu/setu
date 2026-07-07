@@ -44,7 +44,8 @@ export function createUsersApi(opts: UsersApiOptions) {
    *  maintainer's rank-scoped management to the matrix. Fail-closed: no session -> 401; session
    *  without `users.view` -> 403. */
   app.get('/api/users', authMiddleware(opts.resolveActor), async (c) => {
-    if (!authz.can(c.get('actor'), 'users.view')) return c.json({ error: 'forbidden' }, 403)
+    if (!authz.can(c.get('actor'), 'users.view'))
+      return c.json({ error: 'forbidden' }, 403)
 
     const users = await db
       .select({
@@ -58,7 +59,7 @@ export function createUsersApi(opts: UsersApiOptions) {
         banReason: user.banReason,
         banExpires: user.banExpires,
         createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
+        updatedAt: user.updatedAt
       })
       .from(user)
       .orderBy(asc(user.createdAt))
@@ -66,21 +67,29 @@ export function createUsersApi(opts: UsersApiOptions) {
     return c.json({ users })
   })
 
-  app.get('/api/users/credential-status', authMiddleware(opts.resolveActor), async (c) => {
-    if (!authz.can(c.get('actor'), 'users.view')) return c.json({ error: 'forbidden' }, 403)
+  app.get(
+    '/api/users/credential-status',
+    authMiddleware(opts.resolveActor),
+    async (c) => {
+      if (!authz.can(c.get('actor'), 'users.view'))
+        return c.json({ error: 'forbidden' }, 403)
 
-    const rows = await db
-      .select({ userId: account.userId })
-      .from(account)
-      .where(eq(account.providerId, 'credential'))
+      const rows = await db
+        .select({ userId: account.userId })
+        .from(account)
+        .where(eq(account.providerId, 'credential'))
 
-    const status: Record<string, true> = {}
-    for (const row of rows) status[row.userId] = true
-    return c.json(status)
-  })
+      const status: Record<string, true> = {}
+      for (const row of rows) status[row.userId] = true
+      return c.json(status)
+    }
+  )
 
   app.onError((err, c) => {
-    console.error('[users] credential-status query failed:', err instanceof Error ? err.message : String(err))
+    console.error(
+      '[users] credential-status query failed:',
+      err instanceof Error ? err.message : String(err)
+    )
     return c.json({ error: 'internal error' }, 500)
   })
   return app

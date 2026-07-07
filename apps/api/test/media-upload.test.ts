@@ -2,7 +2,12 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { Actor, MediaManifest, StoragePort, StoredObject } from '@setu/core'
+import type {
+  Actor,
+  MediaManifest,
+  StoragePort,
+  StoredObject
+} from '@setu/core'
 import { createLocalStorage } from '@setu/storage-local'
 import { createSharpImageAdapter } from '@setu/image-sharp'
 import { makeTestPng } from '@setu/image-testing'
@@ -13,26 +18,41 @@ function memStorage(): StoragePort & { map: Map<string, StoredObject> } {
   const map = new Map<string, StoredObject>()
   return {
     map,
-    async put(key, body, opts) { map.set(key, { body: body.slice(), contentType: opts.contentType }) },
-    async get(key) { const o = map.get(key); return o ? { body: o.body.slice(), contentType: o.contentType } : null },
-    async delete(key) { map.delete(key) },
-    async exists(key) { return map.has(key) },
-    url(key) { return `http://test/media/${key}` },
+    async put(key, body, opts) {
+      map.set(key, { body: body.slice(), contentType: opts.contentType })
+    },
+    async get(key) {
+      const o = map.get(key)
+      return o ? { body: o.body.slice(), contentType: o.contentType } : null
+    },
+    async delete(key) {
+      map.delete(key)
+    },
+    async exists(key) {
+      return map.has(key)
+    },
+    url(key) {
+      return `http://test/media/${key}`
+    },
     async list(prefix?: string): Promise<string[]> {
       const keys = [...map.keys()]
       return prefix ? keys.filter((k) => k.startsWith(prefix)) : keys
-    },
+    }
   }
 }
 
 const owner: Actor = { id: 'local', role: 'admin' }
 
-function makeApp(resolve: () => Actor | null, opts?: { maxBytes?: number; storage?: ReturnType<typeof memStorage> }) {
+function makeApp(
+  resolve: () => Actor | null,
+  opts?: { maxBytes?: number; storage?: ReturnType<typeof memStorage> }
+) {
   const storage = opts?.storage ?? memStorage()
   const app = createUploadApi({
     storage,
     resolveActor: resolve,
-    limits: opts?.maxBytes !== undefined ? { maxBytes: opts.maxBytes } : undefined,
+    limits:
+      opts?.maxBytes !== undefined ? { maxBytes: opts.maxBytes } : undefined
   })
   return { app, storage }
 }
@@ -51,7 +71,14 @@ describe('POST /media', () => {
     const { app, storage } = makeApp(() => owner)
     const res = await post(app, png(4, 'Cat.png'))
     expect(res.status).toBe(201)
-    const json = (await res.json()) as { id: string; key: string; url: string; contentType: string; size: number; filename: string }
+    const json = (await res.json()) as {
+      id: string
+      key: string
+      url: string
+      contentType: string
+      size: number
+      filename: string
+    }
     // id = YYYY/MM/slug (year/month are "now")
     expect(json.id).toMatch(/^\d{4}\/\d{2}\/cat$/)
     expect(json.key).toBe(`${json.id}.png`)
@@ -102,7 +129,9 @@ describe('POST /media', () => {
     // collision probe must still detect ext-independent conflicts via the manifest key)
     const [yyyy, mm, slug] = json1.id.split('/')
     const fakeManifestKey = `${yyyy}/${mm}/${slug}.manifest.json`
-    await storage.put(fakeManifestKey, new TextEncoder().encode('{}'), { contentType: 'application/json' })
+    await storage.put(fakeManifestKey, new TextEncoder().encode('{}'), {
+      contentType: 'application/json'
+    })
 
     // Upload Cat.jpeg (same basename, different ext) — without the fix this would get id=2026/06/cat
     // because the probe only checks 2026/06/cat.jpg (not present), colliding with the first's manifest
@@ -144,12 +173,16 @@ describe('POST /media', () => {
     const app = createUploadApi({
       storage: memStorage(),
       resolveActor: () => owner,
-      limits: { allowedContentTypes: new Set(['application/x-custom']) },
+      limits: { allowedContentTypes: new Set(['application/x-custom']) }
     })
-    const file = new File([new Uint8Array(4).fill(1)], 'data.bin', { type: 'application/x-custom' })
+    const file = new File([new Uint8Array(4).fill(1)], 'data.bin', {
+      type: 'application/x-custom'
+    })
     const body = new FormData()
     body.append('file', file)
-    const res = await app.fetch(new Request('http://test/media', { method: 'POST', body }))
+    const res = await app.fetch(
+      new Request('http://test/media', { method: 'POST', body })
+    )
     expect(res.status).toBe(415)
     const json = (await res.json()) as { error: string }
     expect(json.error).toContain('application/x-custom')
@@ -168,17 +201,25 @@ describe('POST /media — media settings (both formats + lqip)', () => {
   it('generates both formats + lqip when media settings say so', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'upload-settings-'))
     tmpDirs.push(dir)
-    const storage = createLocalStorage({ dir, baseUrl: 'http://localhost:4444/media' })
+    const storage = createLocalStorage({
+      dir,
+      baseUrl: 'http://localhost:4444/media'
+    })
     const app = createUploadApi({
       storage,
-      resolveActor: () => ({ id: 'local', role: 'admin' } as Actor),
+      resolveActor: () => ({ id: 'local', role: 'admin' }),
       image: createSharpImageAdapter(),
-      mediaSettings: { imageFormat: 'both', imageLqip: true },
+      mediaSettings: { imageFormat: 'both', imageLqip: true }
     })
 
     const body = new FormData()
-    body.append('file', new File([makeTestPng(400, 300)], 'pic.png', { type: 'image/png' }))
-    const res = await app.fetch(new Request('http://test/media', { method: 'POST', body }))
+    body.append(
+      'file',
+      new File([makeTestPng(400, 300)], 'pic.png', { type: 'image/png' })
+    )
+    const res = await app.fetch(
+      new Request('http://test/media', { method: 'POST', body })
+    )
     expect(res.status).toBe(201)
     const json = (await res.json()) as { manifest?: MediaManifest }
     expect(json.manifest).toBeTruthy()

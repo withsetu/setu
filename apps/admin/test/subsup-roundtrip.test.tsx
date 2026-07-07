@@ -10,12 +10,14 @@ function makeEditor() {
     extensions: [
       StarterKit.configure({ link: { openOnClick: false }, underline: false }),
       Subscript,
-      Superscript,
+      Superscript
     ],
     content: {
       type: 'doc',
-      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'hello' }] }],
-    },
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'hello' }] }
+      ]
+    }
   })
 }
 
@@ -40,7 +42,11 @@ describe('subscript/superscript roundtrip through markdoc', () => {
 
   it('toggleSuperscript produces {% sup %} in markdoc output', () => {
     const editor = makeEditor()
-    editor.chain().setTextSelection({ from: 1, to: 6 }).toggleSuperscript().run()
+    editor
+      .chain()
+      .setTextSelection({ from: 1, to: 6 })
+      .toggleSuperscript()
+      .run()
     const markdoc = tiptapToMarkdoc(editor.getJSON())
     expect(markdoc).toContain('{% sup %}')
     editor.destroy()
@@ -48,7 +54,11 @@ describe('subscript/superscript roundtrip through markdoc', () => {
 
   it('markdocToTiptap round-trips superscript back to tiptap JSON with superscript mark', () => {
     const editor = makeEditor()
-    editor.chain().setTextSelection({ from: 1, to: 6 }).toggleSuperscript().run()
+    editor
+      .chain()
+      .setTextSelection({ from: 1, to: 6 })
+      .toggleSuperscript()
+      .run()
     const markdoc = tiptapToMarkdoc(editor.getJSON())
     const tiptapJson = markdocToTiptap(markdoc)
     const jsonStr = JSON.stringify(tiptapJson)

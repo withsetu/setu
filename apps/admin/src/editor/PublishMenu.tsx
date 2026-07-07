@@ -1,6 +1,11 @@
 import { ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem
+} from '@/components/ui/dropdown-menu'
 
 export function PublishMenu({
   canPublish,
@@ -8,7 +13,7 @@ export function PublishMenu({
   isUnpublished,
   onPublish,
   onUnpublish,
-  onRepublish,
+  onRepublish
 }: {
   canPublish: boolean
   canUnpublish: boolean
@@ -19,13 +24,29 @@ export function PublishMenu({
 }) {
   if (!canPublish && !canUnpublish) return null
   const items = [
-    { key: 'unpublish', label: 'Unpublish', run: onUnpublish, show: canUnpublish && !isUnpublished },
-    { key: 'republish', label: 'Re-publish', run: onRepublish, show: canPublish && isUnpublished },
+    {
+      key: 'unpublish',
+      label: 'Unpublish',
+      run: onUnpublish,
+      show: canUnpublish && !isUnpublished
+    },
+    {
+      key: 'republish',
+      label: 'Re-publish',
+      run: onRepublish,
+      show: canPublish && isUnpublished
+    }
   ].filter((i) => i.show)
   return (
     <div className="inline-flex items-center">
       {canPublish && (
-        <Button size="sm" className={items.length > 0 ? 'rounded-r-none' : ''} onClick={onPublish}>Publish</Button>
+        <Button
+          size="sm"
+          className={items.length > 0 ? 'rounded-r-none' : ''}
+          onClick={onPublish}
+        >
+          Publish
+        </Button>
       )}
       {items.length > 0 && (
         <DropdownMenu>
@@ -34,7 +55,11 @@ export function PublishMenu({
               size="sm"
               variant={canPublish ? 'default' : 'outline'}
               aria-label="More publish actions"
-              className={canPublish ? 'rounded-l-none border-l border-l-primary-foreground/25 px-2' : 'px-2'}
+              className={
+                canPublish
+                  ? 'rounded-l-none border-l border-l-primary-foreground/25 px-2'
+                  : 'px-2'
+              }
             >
               <ChevronDown className="size-4" />
             </Button>

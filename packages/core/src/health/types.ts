@@ -1,7 +1,15 @@
 export type Severity = 'required' | 'recommended' | 'optional' | 'avoid'
 export type HealthCategory =
-  | 'foundations' | 'seo' | 'accessibility' | 'security' | 'well-known'
-  | 'agent-readiness' | 'performance' | 'privacy' | 'resilience' | 'i18n'
+  | 'foundations'
+  | 'seo'
+  | 'accessibility'
+  | 'security'
+  | 'well-known'
+  | 'agent-readiness'
+  | 'performance'
+  | 'privacy'
+  | 'resilience'
+  | 'i18n'
 export type Owner = 'config' | 'content' | 'platform' | 'manual'
 export type CheckStatus = 'pass' | 'fail' | 'unverified' | 'pending' | 'na'
 
@@ -17,28 +25,56 @@ export interface RubricItem {
 }
 
 export interface SiteCapabilities {
-  doctype: boolean; langAttr: boolean; charset: boolean; viewport: boolean
-  title: boolean; metaDescription: boolean; canonical: boolean; favicon: boolean
-  openGraph: boolean; twitterCard: boolean; themeColor: boolean; rssAutodiscovery: boolean
-  sitemap: boolean; robotsTxt: boolean; jsonLd: boolean
-  llmsTxt: boolean; perPageMarkdown: boolean
-  hreflang: boolean; customError: boolean; skipLink: boolean; focusStyles: boolean
+  doctype: boolean
+  langAttr: boolean
+  charset: boolean
+  viewport: boolean
+  title: boolean
+  metaDescription: boolean
+  canonical: boolean
+  favicon: boolean
+  openGraph: boolean
+  twitterCard: boolean
+  themeColor: boolean
+  rssAutodiscovery: boolean
+  sitemap: boolean
+  sitemapIndex: boolean
+  imageSitemaps: boolean
+  robotsTxt: boolean
+  jsonLd: boolean
+  llmsTxt: boolean
+  perPageMarkdown: boolean
+  hreflang: boolean
+  customError: boolean
+  skipLink: boolean
+  focusStyles: boolean
 }
 
 export interface AuditEntry {
-  id: string                       // collection/locale/slug
-  data: Record<string, unknown>    // frontmatter
-  body: string                     // raw markdoc body
+  id: string // collection/locale/slug
+  data: Record<string, unknown> // frontmatter
+  body: string // raw markdoc body
 }
 
-export interface AttestationRecord { state: 'attested' | 'na'; at: string; by: string }
+export interface AttestationRecord {
+  state: 'attested' | 'na'
+  at: string
+  by: string
+}
 export interface HealthState {
   items: Record<string, AttestationRecord>
   sections: Record<string, AttestationRecord> // keyed by HealthCategory
 }
 
 export interface AuditContext {
-  settings: { general: { title: string; description: string }; reading: { homepage: string; searchEngineVisible: boolean; feed: { enabled: boolean } } }
+  settings: {
+    general: { title: string; description: string }
+    reading: {
+      homepage: string
+      searchEngineVisible: boolean
+      feed: { enabled: boolean }
+    }
+  }
   entries: AuditEntry[]
   capabilities: SiteCapabilities
   health: HealthState
@@ -56,7 +92,12 @@ export interface CheckResult {
   naSource?: 'auto' | 'manual'
 }
 
-export interface CategoryScore { category: HealthCategory; score: number; pass: number; total: number }
+export interface CategoryScore {
+  category: HealthCategory
+  score: number
+  pass: number
+  total: number
+}
 
 export interface AuditResult {
   results: CheckResult[]

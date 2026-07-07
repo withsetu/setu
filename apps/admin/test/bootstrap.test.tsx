@@ -6,15 +6,26 @@ import { bootstrapServices, seedDrafts } from '../src/data/store'
 
 describe('bootstrapServices seed-on-empty', () => {
   it('seeds the sample drafts when the store is empty', async () => {
-    const services = await bootstrapServices(createMemoryDataPort(), createMemoryGitPort())
+    const services = await bootstrapServices(
+      createMemoryDataPort(),
+      createMemoryGitPort()
+    )
     const drafts = await services.data.listDrafts()
     expect(drafts).toHaveLength(seedDrafts.length)
-    expect(drafts.map((d) => d.slug).sort()).toEqual(seedDrafts.map((d) => d.slug).sort())
+    expect(drafts.map((d) => d.slug).sort()).toEqual(
+      seedDrafts.map((d) => d.slug).sort()
+    )
   })
 
   it('does NOT re-seed when the store already has content', async () => {
     const data = createMemoryDataPort([
-      { collection: 'post', locale: 'en', slug: 'mine', content: { type: 'doc', content: [] }, metadata: { title: 'Mine' } },
+      {
+        collection: 'post',
+        locale: 'en',
+        slug: 'mine',
+        content: { type: 'doc', content: [] },
+        metadata: { title: 'Mine' }
+      }
     ])
     const services = await bootstrapServices(data, createMemoryGitPort())
     const drafts = await services.data.listDrafts()
@@ -23,7 +34,9 @@ describe('bootstrapServices seed-on-empty', () => {
   })
 
   it('does NOT re-seed when Git has commits but DB is empty', async () => {
-    const git = createMemoryGitPort([{ path: 'content/post/en/x.mdoc', content: '# x' }])
+    const git = createMemoryGitPort([
+      { path: 'content/post/en/x.mdoc', content: '# x' }
+    ])
     const services = await bootstrapServices(createMemoryDataPort(), git)
     expect(await services.data.listDrafts()).toHaveLength(0)
   })
@@ -39,9 +52,9 @@ vi.mock('@setu/db-idb', () => ({
   createIdbIndexPort: vi.fn().mockResolvedValue({
     ensureBuilt: vi.fn().mockResolvedValue(undefined),
     query: vi.fn().mockResolvedValue({ rows: [], total: 0 }),
-    distinctLocales: vi.fn().mockResolvedValue([]),
+    distinctLocales: vi.fn().mockResolvedValue([])
   }),
-  createIdbMediaIndexPort: vi.fn().mockResolvedValue({}),
+  createIdbMediaIndexPort: vi.fn().mockResolvedValue({})
 }))
 
 // The apiBase fallback keeps the server-backed GitPort (only the IDB-backed pieces degrade to
@@ -57,8 +70,8 @@ vi.mock('@setu/git-http', () => ({
     readFile: vi.fn().mockResolvedValue(null),
     commitFile: vi.fn().mockResolvedValue({ sha: 'stub' }),
     commitFiles: vi.fn().mockResolvedValue({ sha: 'stub' }),
-    list: vi.fn().mockResolvedValue([]),
-  })),
+    list: vi.fn().mockResolvedValue([])
+  }))
 }))
 
 // Real `sonner` verified LIVE (not just in jsdom) that a toast() fired before `<Toaster/>` has
@@ -87,18 +100,23 @@ describe('Bootstrap — IndexedDB resilience (server-backed / apiBase branch)', 
     render(
       <Bootstrap>
         <div>App rendered</div>
-      </Bootstrap>,
+      </Bootstrap>
     )
 
     // Real timers + a generous waitFor timeout (well above the ~5s fallback timeout) — proves
     // Bootstrap does NOT hang forever, without needing to fake-timer-advance past a Promise.race.
-    await waitFor(() => expect(screen.getByText('App rendered')).toBeInTheDocument(), { timeout: 8000 })
+    await waitFor(
+      () => expect(screen.getByText('App rendered')).toBeInTheDocument(),
+      { timeout: 8000 }
+    )
   }, 10000)
 
   it('falls back to in-memory services when the IDB open rejects outright, and notifies only after children have rendered', async () => {
     vi.stubEnv('VITE_SETU_API', 'http://localhost:4444')
     const { createIdbDataPort } = await import('@setu/db-idb')
-    vi.mocked(createIdbDataPort).mockRejectedValue(new Error('IDB unavailable (private mode)'))
+    vi.mocked(createIdbDataPort).mockRejectedValue(
+      new Error('IDB unavailable (private mode)')
+    )
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const { toast } = await import('sonner')
 
@@ -111,15 +129,16 @@ describe('Bootstrap — IndexedDB resilience (server-backed / apiBase branch)', 
     // block, before children ever render" (the live bug this fix addresses) regardless of timing.
     let childrenWereRenderedWhenNotified: boolean | null = null
     vi.mocked(toast.error).mockImplementation(() => {
-      childrenWereRenderedWhenNotified = screen.queryByText('App rendered') !== null
-      return '' as never
+      childrenWereRenderedWhenNotified =
+        screen.queryByText('App rendered') !== null
+      return ''
     })
 
     const { Bootstrap } = await import('../src/data/Bootstrap')
     render(
       <Bootstrap>
         <div>App rendered</div>
-      </Bootstrap>,
+      </Bootstrap>
     )
 
     await waitFor(() => expect(toast.error).toHaveBeenCalled())
@@ -127,7 +146,7 @@ describe('Bootstrap — IndexedDB resilience (server-backed / apiBase branch)', 
     expect(errorSpy).toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalledWith(
       expect.stringMatching(/local storage is unavailable/i),
-      expect.objectContaining({ description: expect.any(String) }),
+      expect.objectContaining({ description: expect.any(String) })
     )
     expect(screen.getByText('App rendered')).toBeInTheDocument()
   })

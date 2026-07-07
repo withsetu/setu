@@ -1,19 +1,36 @@
 import { describe, it, expect } from 'vitest'
-import type { GeneratedVariant, ImagePort, StoragePort, StoredObject, VariantSpec } from '../src/index'
+import type {
+  GeneratedVariant,
+  ImagePort,
+  StoragePort,
+  StoredObject,
+  VariantSpec
+} from '../src/index'
 import { ingestImage, extensionFor, contentTypeFor } from '../src/index'
 
 function memStorage() {
   const map = new Map<string, StoredObject>()
   const port: StoragePort = {
-    async put(key, body, opts) { map.set(key, { body: body.slice(), contentType: opts.contentType }) },
-    async get(key) { const o = map.get(key); return o ? { body: o.body.slice(), contentType: o.contentType } : null },
-    async delete(key) { map.delete(key) },
-    async exists(key) { return map.has(key) },
-    url(key) { return `/media/${key}` },
+    async put(key, body, opts) {
+      map.set(key, { body: body.slice(), contentType: opts.contentType })
+    },
+    async get(key) {
+      const o = map.get(key)
+      return o ? { body: o.body.slice(), contentType: o.contentType } : null
+    },
+    async delete(key) {
+      map.delete(key)
+    },
+    async exists(key) {
+      return map.has(key)
+    },
+    url(key) {
+      return `/media/${key}`
+    },
     async list(prefix?: string): Promise<string[]> {
       const keys = [...map.keys()]
       return prefix ? keys.filter((k) => k.startsWith(prefix)) : keys
-    },
+    }
   }
   return { port, map }
 }
@@ -21,7 +38,9 @@ function memStorage() {
 /** Stub ImagePort: source is srcW×srcH; generate echoes each spec's width (height by aspect). */
 function stubImage(srcW: number, srcH: number): ImagePort {
   return {
-    async metadata() { return { width: srcW, height: srcH, format: 'png' } },
+    async metadata() {
+      return { width: srcW, height: srcH, format: 'png' }
+    },
     async generate(_src, specs: VariantSpec[]): Promise<GeneratedVariant[]> {
       return specs.map((s) => ({
         name: s.name,
@@ -29,12 +48,12 @@ function stubImage(srcW: number, srcH: number): ImagePort {
         height: Math.round((srcH * s.width) / srcW),
         format: s.format,
         contentType: `image/${s.format}`,
-        body: new Uint8Array([s.width & 255]),
+        body: new Uint8Array([s.width & 255])
       }))
     },
     async placeholder(_source: Uint8Array, _width: number): Promise<string> {
       return 'data:image/webp;base64,stub'
-    },
+    }
   }
 }
 
@@ -56,7 +75,13 @@ describe('ingestImage', () => {
     const { port, map } = memStorage()
     const manifest = await ingestImage(
       { image: stubImage(1000, 500), storage: port },
-      { mediaKey: '2026/06/cat', bytes: new Uint8Array([1]), originalKey: '2026/06/cat.png', formats: ['webp'], widths: [400, 800, 1200, 1600] },
+      {
+        mediaKey: '2026/06/cat',
+        bytes: new Uint8Array([1]),
+        originalKey: '2026/06/cat.png',
+        formats: ['webp'],
+        widths: [400, 800, 1200, 1600]
+      }
     )
     expect(manifest.id).toBe('2026/06/cat')
     // 1200 & 1600 exceed the 1000px source → dropped; source width 1000 added ⇒ [400, 800, 1000]
@@ -64,33 +89,55 @@ describe('ingestImage', () => {
     expect(manifest.variants.map((v) => v.key)).toEqual([
       '2026/06/cat-400w.webp',
       '2026/06/cat-800w.webp',
-      '2026/06/cat-1000w.webp',
+      '2026/06/cat-1000w.webp'
     ])
-    expect(manifest.original).toEqual({ key: '2026/06/cat.png', width: 1000, height: 500, format: 'png' })
+    expect(manifest.original).toEqual({
+      key: '2026/06/cat.png',
+      width: 1000,
+      height: 500,
+      format: 'png'
+    })
     expect(manifest.format).toBe('webp')
     expect(map.get('2026/06/cat-400w.webp')?.contentType).toBe('image/webp')
     // manifest persisted at the sidecar key
     expect(map.has('2026/06/cat.manifest.json')).toBe(true)
     const mf = map.get('2026/06/cat.manifest.json')
     expect(mf?.contentType).toBe('application/json')
-    expect(JSON.parse(new TextDecoder().decode(mf!.body)).id).toBe('2026/06/cat')
+    expect(JSON.parse(new TextDecoder().decode(mf!.body)).id).toBe(
+      '2026/06/cat'
+    )
   })
 
   it('uses the .jpg extension for the jpeg format and never upscales', async () => {
     const { port } = memStorage()
     const manifest = await ingestImage(
       { image: stubImage(500, 500), storage: port },
-      { mediaKey: '2026/06/photo', bytes: new Uint8Array([1]), originalKey: '2026/06/photo.jpg', formats: ['jpeg'], widths: [400, 800] },
+      {
+        mediaKey: '2026/06/photo',
+        bytes: new Uint8Array([1]),
+        originalKey: '2026/06/photo.jpg',
+        formats: ['jpeg'],
+        widths: [400, 800]
+      }
     )
     // 800 > 500 source → dropped; 400 kept + source 500 ⇒ [400, 500]
-    expect(manifest.variants.map((v) => v.key)).toEqual(['2026/06/photo-400w.jpg', '2026/06/photo-500w.jpg'])
+    expect(manifest.variants.map((v) => v.key)).toEqual([
+      '2026/06/photo-400w.jpg',
+      '2026/06/photo-500w.jpg'
+    ])
   })
 
   it('generates both formats (tagged) when formats=[webp,avif]', async () => {
     const { port } = memStorage()
     const m = await ingestImage(
       { image: stubImage(1000, 500), storage: port },
-      { mediaKey: '2026/06/cat', bytes: new Uint8Array([1]), originalKey: '2026/06/cat.png', formats: ['webp', 'avif'], widths: [400, 800] },
+      {
+        mediaKey: '2026/06/cat',
+        bytes: new Uint8Array([1]),
+        originalKey: '2026/06/cat.png',
+        formats: ['webp', 'avif'],
+        widths: [400, 800]
+      }
     )
     expect(m.format).toBe('webp') // fallback
     const formats = new Set(m.variants.map((v) => v.format))
@@ -103,7 +150,14 @@ describe('ingestImage', () => {
     const { port } = memStorage()
     const m = await ingestImage(
       { image: stubImage(1000, 500), storage: port },
-      { mediaKey: '2026/06/dog', bytes: new Uint8Array([1]), originalKey: '2026/06/dog.png', formats: ['webp'], widths: [400], lqip: true },
+      {
+        mediaKey: '2026/06/dog',
+        bytes: new Uint8Array([1]),
+        originalKey: '2026/06/dog.png',
+        formats: ['webp'],
+        widths: [400],
+        lqip: true
+      }
     )
     expect(m.lqip).toMatch(/^data:image\/webp;base64,/)
   })

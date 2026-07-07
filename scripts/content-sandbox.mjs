@@ -24,7 +24,7 @@ function git(cwd, args) {
   execFileSync(
     'git',
     ['-c', 'user.name=Setu UAT', '-c', 'user.email=uat@setu.local', ...args],
-    { cwd, stdio: 'pipe' },
+    { cwd, stdio: 'pipe' }
   )
 }
 
@@ -41,7 +41,8 @@ export function seedSandbox(root, name = DEFAULT_NAME) {
   const contentSrc = path.join(root, 'content')
   const contentDst = path.join(dir, 'content')
   mkdirSync(dir, { recursive: true })
-  if (existsSync(contentSrc)) cpSync(contentSrc, contentDst, { recursive: true })
+  if (existsSync(contentSrc))
+    cpSync(contentSrc, contentDst, { recursive: true })
   else mkdirSync(contentDst, { recursive: true })
 
   git(dir, ['init', '-q'])
@@ -64,11 +65,13 @@ function main(argv) {
     console.log(
       seeded
         ? `seeded ${SANDBOX_ROOT}/${name} from content/`
-        : `${SANDBOX_ROOT}/${name} already exists — left as is`,
+        : `${SANDBOX_ROOT}/${name} already exists — left as is`
     )
   } else if (cmd === 'reset') {
     resetSandbox(root, name)
-    console.log(`reset ${SANDBOX_ROOT}/${name} (wiped + re-seeded from content/)`)
+    console.log(
+      `reset ${SANDBOX_ROOT}/${name} (wiped + re-seeded from content/)`
+    )
   } else {
     console.error('usage: content-sandbox.mjs <seed|reset> [name=dev]')
     process.exit(1)

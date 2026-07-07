@@ -17,10 +17,12 @@ function Harness({ onReady }: { onReady: (e: Editor) => void }) {
         {
           type: 'callout',
           attrs: { mdAttrs: { type: 'info' } },
-          content: [{ type: 'paragraph', content: [{ type: 'text', text: 'body' }] }],
-        },
-      ],
-    },
+          content: [
+            { type: 'paragraph', content: [{ type: 'text', text: 'body' }] }
+          ]
+        }
+      ]
+    }
   })
   if (editor) onReady(editor)
   return <EditorContent editor={editor} />
@@ -29,13 +31,17 @@ function Harness({ onReady }: { onReady: (e: Editor) => void }) {
 describe('Callout style toolbar — roving tabindex + Esc-to-body', () => {
   it('renders .block-props with role="toolbar" and aria-label', async () => {
     render(<Harness onReady={() => {}} />)
-    const toolbar = await screen.findByRole('toolbar', { name: /callout style/i })
+    const toolbar = await screen.findByRole('toolbar', {
+      name: /callout style/i
+    })
     expect(toolbar).toBeTruthy()
   })
 
   it('all tone-swatch and icon buttons carry data-toolbar-item', async () => {
     render(<Harness onReady={() => {}} />)
-    const toolbar = await screen.findByRole('toolbar', { name: /callout style/i })
+    const toolbar = await screen.findByRole('toolbar', {
+      name: /callout style/i
+    })
     const items = toolbar.querySelectorAll('[data-toolbar-item]')
     // At least 6 tone swatches + 8 icon buttons = ≥ 14
     expect(items.length).toBeGreaterThanOrEqual(14)
@@ -43,8 +49,12 @@ describe('Callout style toolbar — roving tabindex + Esc-to-body', () => {
 
   it('ArrowRight moves focus from the first to the second data-toolbar-item', async () => {
     render(<Harness onReady={() => {}} />)
-    const toolbar = await screen.findByRole('toolbar', { name: /callout style/i })
-    const items = Array.from(toolbar.querySelectorAll<HTMLElement>('[data-toolbar-item]'))
+    const toolbar = await screen.findByRole('toolbar', {
+      name: /callout style/i
+    })
+    const items = Array.from(
+      toolbar.querySelectorAll<HTMLElement>('[data-toolbar-item]')
+    )
     // Focus the first item
     items[0]?.focus()
     fireEvent.keyDown(toolbar, { key: 'ArrowRight' })
@@ -54,8 +64,12 @@ describe('Callout style toolbar — roving tabindex + Esc-to-body', () => {
   it('Escape moves focus back into the callout body (editor is focused)', async () => {
     let editor!: Editor
     render(<Harness onReady={(e) => (editor = e)} />)
-    const toolbar = await screen.findByRole('toolbar', { name: /callout style/i })
-    const items = Array.from(toolbar.querySelectorAll<HTMLElement>('[data-toolbar-item]'))
+    const toolbar = await screen.findByRole('toolbar', {
+      name: /callout style/i
+    })
+    const items = Array.from(
+      toolbar.querySelectorAll<HTMLElement>('[data-toolbar-item]')
+    )
     items[0]?.focus()
     fireEvent.keyDown(toolbar, { key: 'Escape' })
     expect(editor.isFocused).toBe(true)

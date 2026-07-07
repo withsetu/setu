@@ -16,7 +16,11 @@ export async function loadAuditEntries(git: GitPort): Promise<AuditEntry[]> {
       if (raw === null) continue
       const { frontmatter, body } = parseMdoc(raw)
       if (frontmatter.published === false) continue
-      out.push({ id: `${ref.collection}/${ref.locale}/${ref.slug}`, data: frontmatter, body })
+      out.push({
+        id: `${ref.collection}/${ref.locale}/${ref.slug}`,
+        data: frontmatter,
+        body
+      })
     }
   }
   return out

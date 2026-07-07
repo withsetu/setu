@@ -9,13 +9,15 @@ import { loadSiteSettings } from '../../lib/site-settings'
 import { toPostRow } from '../../lib/post-row'
 import { pageSeo } from '../../lib/seo'
 import { resolveMediaBase } from '@setu/image-astro'
+import { permalinkMap } from 'setu:permalinks'
 
 export const getStaticPaths = (async ({ paginate }) => {
   // Posts per archive page comes from the Reading settings (Settings → Reading → Posts per page).
   // SETU_ARCHIVE_PER_PAGE overrides it for tests/demos without writing settings.json.
   const perPage = Number(process.env.SETU_ARCHIVE_PER_PAGE) || loadSiteSettings().reading.postsPerPage
+  const map = await permalinkMap()
   const rows = (await getCollection('entries')).map((e) =>
-    toPostRow({ id: e.id, data: e.data as Record<string, unknown>, body: (e as { body?: string }).body }),
+    toPostRow({ id: e.id, data: e.data as Record<string, unknown>, body: (e as { body?: string }).body }, map.get(e.id)),
   )
   const posts = selectPosts(rows, {
     collection: 'post',

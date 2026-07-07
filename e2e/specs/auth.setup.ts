@@ -11,7 +11,13 @@ const dirname = path.dirname(fileURLToPath(import.meta.url))
 // The api opened SETU_SUBMISSIONS_DB = <SETU_REPO_DIR>/.setu/submissions.db, and
 // playwright.config.ts sets SETU_REPO_DIR = <repoRoot>/.content-sandbox/e2e.
 const repoRoot = path.resolve(dirname, '..', '..')
-const dbFile = path.join(repoRoot, '.content-sandbox', 'e2e', '.setu', 'submissions.db')
+const dbFile = path.join(
+  repoRoot,
+  '.content-sandbox',
+  'e2e',
+  '.setu',
+  'submissions.db'
+)
 
 // Serial: the seed MUST finish before either login runs (they sign in as the seeded users).
 setup.describe.configure({ mode: 'serial' })

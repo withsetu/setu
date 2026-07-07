@@ -17,11 +17,17 @@ async function freshApp() {
   const dir = mkdtempSync(join(tmpdir(), 'api-'))
   dirs.push(dir)
   await git.init({ fs: nodeFs, dir, defaultBranch: 'main' })
-  return createGitApi(createLocalGitAdapter({ dir }), () => ({ id: 'local', role: 'admin' }))
+  return createGitApi(createLocalGitAdapter({ dir }), () => ({
+    id: 'local',
+    role: 'admin'
+  }))
 }
 
-const req = (app: ReturnType<typeof createGitApi>, path: string, init?: RequestInit) =>
-  app.fetch(new Request(`http://test${path}`, init))
+const req = (
+  app: ReturnType<typeof createGitApi>,
+  path: string,
+  init?: RequestInit
+) => app.fetch(new Request(`http://test${path}`, init))
 
 const author = { name: 'Ed', email: 'ed@example.com' }
 
@@ -38,24 +44,39 @@ describe('createGitApi', () => {
     const commit = await req(app, '/git/commit', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ path: 'content/post/en/x.mdoc', content: '# Hi\n', message: 'add', author }),
+      body: JSON.stringify({
+        path: 'content/post/en/x.mdoc',
+        content: '# Hi\n',
+        message: 'add',
+        author
+      })
     })
     expect(commit.status).toBe(200)
     const { sha } = (await commit.json()) as { sha: string }
     expect(typeof sha).toBe('string')
 
     expect(await (await req(app, '/git/head')).json()).toEqual({ sha })
-    expect(await (await req(app, '/git/file?path=content/post/en/x.mdoc')).json()).toEqual({ content: '# Hi\n' })
-    expect(await (await req(app, '/git/file?path=content/none.mdoc')).json()).toEqual({ content: null })
+    expect(
+      await (await req(app, '/git/file?path=content/post/en/x.mdoc')).json()
+    ).toEqual({ content: '# Hi\n' })
+    expect(
+      await (await req(app, '/git/file?path=content/none.mdoc')).json()
+    ).toEqual({ content: null })
   })
 
   it('GET /git/list filters by prefix', async () => {
     const app = await freshApp()
     const mk = (path: string) =>
-      req(app, '/git/commit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path, content: 'x', message: 'm', author }) })
+      req(app, '/git/commit', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ path, content: 'x', message: 'm', author })
+      })
     await mk('content/post/en/a.mdoc')
     await mk('setu.config.ts')
-    const { paths } = (await (await req(app, '/git/list?prefix=content/')).json()) as { paths: string[] }
+    const { paths } = (await (
+      await req(app, '/git/list?prefix=content/')
+    ).json()) as { paths: string[] }
     expect(paths).toEqual(['content/post/en/a.mdoc'])
   })
 

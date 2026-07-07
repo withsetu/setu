@@ -29,11 +29,15 @@ const SIGN_IN_EMAIL_PATH = '/api/auth/sign-in/email'
 export function mountAuthWithFailureEvents(
   app: Hono,
   auth: { handler: (req: Request) => Promise<Response> },
-  onAuthEvent: (event: AuthEvent) => void,
+  onAuthEvent: (event: AuthEvent) => void
 ): void {
   app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
     const res = await auth.handler(c.req.raw)
-    if (c.req.method === 'POST' && new URL(c.req.url).pathname === SIGN_IN_EMAIL_PATH && res.status >= 400) {
+    if (
+      c.req.method === 'POST' &&
+      new URL(c.req.url).pathname === SIGN_IN_EMAIL_PATH &&
+      res.status >= 400
+    ) {
       onAuthEvent({ type: 'login.failure' })
     }
     return res

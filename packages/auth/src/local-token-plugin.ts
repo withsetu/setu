@@ -74,7 +74,10 @@ export function localToken(opts: LocalTokenOptions): BetterAuthPlugin {
           const token = opts.getToken()
           if (token === null) throw ctx.error('NOT_FOUND')
 
-          if (consumed) throw ctx.error('UNAUTHORIZED', { message: 'token already consumed' })
+          if (consumed)
+            throw ctx.error('UNAUTHORIZED', {
+              message: 'token already consumed'
+            })
 
           if (!constantTimeTokenEquals(ctx.body.token, token)) {
             throw ctx.error('UNAUTHORIZED', { message: 'invalid token' })
@@ -82,7 +85,9 @@ export function localToken(opts: LocalTokenOptions): BetterAuthPlugin {
 
           const host = ctx.headers?.get('host') ?? ''
           if (!isLoopbackHost(host)) {
-            throw ctx.error('FORBIDDEN', { message: 'exchange must be requested from a loopback host' })
+            throw ctx.error('FORBIDDEN', {
+              message: 'exchange must be requested from a loopback host'
+            })
           }
 
           // Single-use from here on, regardless of what happens next.
@@ -90,15 +95,19 @@ export function localToken(opts: LocalTokenOptions): BetterAuthPlugin {
           opts.consume()
 
           const userId = await opts.localUserId()
-          const session = await ctx.context.internalAdapter.createSession(userId)
+          const session =
+            await ctx.context.internalAdapter.createSession(userId)
           const user = await ctx.context.internalAdapter.findUserById(userId)
-          if (!user) throw ctx.error('INTERNAL_SERVER_ERROR', { message: 'local user not found' })
+          if (!user)
+            throw ctx.error('INTERNAL_SERVER_ERROR', {
+              message: 'local user not found'
+            })
 
           await setSessionCookie(ctx, { session, user })
           opts.onAuthEvent?.({ type: 'local.exchange', targetId: userId })
           return ctx.json({ status: true })
-        },
-      ),
-    },
+        }
+      )
+    }
   }
 }

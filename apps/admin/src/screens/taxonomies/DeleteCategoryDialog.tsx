@@ -7,14 +7,14 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogCancel,
-  AlertDialogAction,
+  AlertDialogAction
 } from '@/components/ui/alert-dialog'
 import { useTaxonomy } from '../../data/taxonomy-store'
 import { useNotify } from '../../ui/notify'
 
 export function DeleteCategoryDialog({
   node,
-  onClose,
+  onClose
 }: {
   node: CategoryNode | null
   onClose: () => void
@@ -35,7 +35,12 @@ export function DeleteCategoryDialog({
   }
 
   return (
-    <AlertDialog open={node !== null} onOpenChange={(o) => { if (!o) onClose() }}>
+    <AlertDialog
+      open={node !== null}
+      onOpenChange={(o) => {
+        if (!o) onClose()
+      }}
+    >
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Delete &quot;{node?.name}&quot;?</AlertDialogTitle>
@@ -48,7 +53,9 @@ export function DeleteCategoryDialog({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={() => void confirm()}>Delete</AlertDialogAction>
+          <AlertDialogAction onClick={() => void confirm()}>
+            Delete
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

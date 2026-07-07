@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { defaultConfig, defaultKnownBlockTags, resolveConfig } from '../../src/index'
+import {
+  defaultConfig,
+  defaultKnownBlockTags,
+  resolveConfig
+} from '../../src/index'
 
 describe('defaultConfig', () => {
   it('ships no blocks — blocks come from auto-discovered folders, not the central config', () => {

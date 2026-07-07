@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { mediaSlug, mediaKeyOf, originalKey, variantKey, manifestKey } from '../src/index'
+import {
+  mediaSlug,
+  mediaKeyOf,
+  originalKey,
+  variantKey,
+  manifestKey
+} from '../src/index'
 
 describe('mediaSlug', () => {
   it('lowercases, strips the extension, and dash-joins words', () => {

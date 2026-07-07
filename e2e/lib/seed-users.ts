@@ -9,8 +9,18 @@ import { createAuth } from '@setu/auth'
  *  own scrypt (which is secret-independent), so the running api verifies them at
  *  `/sign-in/email` unchanged, and the harness then logs in through the real UI. */
 export const E2E_USERS = {
-  admin: { email: 'admin-e2e@setu.test', name: 'E2E Admin', role: 'admin', password: 'e2e-Password-123456' },
-  author: { email: 'author-e2e@setu.test', name: 'E2E Author', role: 'author', password: 'e2e-Password-123456' },
+  admin: {
+    email: 'admin-e2e@setu.test',
+    name: 'E2E Admin',
+    role: 'admin',
+    password: 'e2e-Password-123456'
+  },
+  author: {
+    email: 'author-e2e@setu.test',
+    name: 'E2E Author',
+    role: 'author',
+    password: 'e2e-Password-123456'
+  }
 } as const
 
 export type E2ERole = keyof typeof E2E_USERS
@@ -28,7 +38,7 @@ export async function seedUsers(dbFile: string): Promise<void> {
     db,
     secret: 'e2e-seed-only-never-signs-a-session',
     baseURL: 'http://localhost:4446',
-    trustedOrigins: ['http://localhost:5175'],
+    trustedOrigins: ['http://localhost:5175']
   })
   const ctx = await auth.$context
   for (const u of Object.values(E2E_USERS)) {
@@ -37,14 +47,14 @@ export async function seedUsers(dbFile: string): Promise<void> {
       email: u.email,
       name: u.name,
       role: u.role,
-      emailVerified: true,
+      emailVerified: true
     })
     const password = await ctx.password.hash(u.password)
     await ctx.internalAdapter.linkAccount({
       userId: user.id,
       providerId: 'credential',
       accountId: user.id,
-      password,
+      password
     })
   }
 }

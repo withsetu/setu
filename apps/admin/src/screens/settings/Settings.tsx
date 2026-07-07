@@ -6,17 +6,24 @@ import { GeneralSettings } from './GeneralSettings'
 import { ReadingSettings } from './ReadingSettings'
 import { MediaSettings } from './MediaSettings'
 import { IdentitySettings } from './IdentitySettings'
+import { PermalinksSettings } from './PermalinksSettings'
 import { apiFetch } from '../../lib/api-fetch'
 import { useCan } from '../../auth/actor'
 
-const apiBase = import.meta.env.VITE_SETU_API as string | undefined
+const apiBase = import.meta.env.VITE_SETU_API
 
 // Moved verbatim from the previous flat Settings.tsx (captcha PR).
 function SpamProtectionStatus({ apiBase }: { apiBase: string }) {
-  const [status, setStatus] = useState<{ provider: string; secretConfigured: boolean } | null>(null)
+  const [status, setStatus] = useState<{
+    provider: string
+    secretConfigured: boolean
+  } | null>(null)
   useEffect(() => {
     void apiFetch(`${apiBase}/forms/captcha-status`)
-      .then((r) => r.json() as Promise<{ provider: string; secretConfigured: boolean }>)
+      .then(
+        (r) =>
+          r.json() as Promise<{ provider: string; secretConfigured: boolean }>
+      )
       .then(setStatus)
       .catch(() => setStatus({ provider: '', secretConfigured: false }))
   }, [apiBase])
@@ -36,20 +43,35 @@ function FormsGroup() {
         <CardTitle className="text-base">Spam protection</CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
-        {apiBase ? <SpamProtectionStatus apiBase={apiBase} /> : <p className="text-sm text-muted-foreground">Spam protection: not configured</p>}
-        <p className="text-xs text-muted-foreground">More form settings coming soon.</p>
+        {apiBase ? (
+          <SpamProtectionStatus apiBase={apiBase} />
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Spam protection: not configured
+          </p>
+        )}
+        <p className="text-xs text-muted-foreground">
+          More form settings coming soon.
+        </p>
       </CardContent>
     </Card>
   )
 }
 
-type GroupId = 'general' | 'reading' | 'media' | 'identity' | 'forms'
+type GroupId =
+  | 'general'
+  | 'reading'
+  | 'media'
+  | 'identity'
+  | 'permalinks'
+  | 'forms'
 const BASE_GROUPS: { id: GroupId; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'reading', label: 'Content & Reading' },
   { id: 'media', label: 'Media' },
   { id: 'identity', label: 'Identity & SEO' },
-  { id: 'forms', label: 'Forms' },
+  { id: 'permalinks', label: 'Permalinks' },
+  { id: 'forms', label: 'Forms' }
 ]
 const COMING_SOON = ['Deploy']
 
@@ -70,7 +92,10 @@ export function Settings() {
       <PageHeader title="Settings" />
       <PageBody>
         <div className="flex gap-6">
-          <nav className="w-48 shrink-0 space-y-1" aria-label="Settings sections">
+          <nav
+            className="w-48 shrink-0 space-y-1"
+            aria-label="Settings sections"
+          >
             {groups.map((g) => (
               <button
                 key={g.id}
@@ -82,7 +107,11 @@ export function Settings() {
               </button>
             ))}
             {COMING_SOON.map((label) => (
-              <span key={label} className="block cursor-not-allowed rounded-md px-3 py-1.5 text-left text-sm text-muted-foreground/50" title="Coming soon">
+              <span
+                key={label}
+                className="block cursor-not-allowed rounded-md px-3 py-1.5 text-left text-sm text-muted-foreground/50"
+                title="Coming soon"
+              >
                 {label}
               </span>
             ))}
@@ -90,10 +119,14 @@ export function Settings() {
           <div className="min-w-0 flex-1">
             {!canManage && (
               <div className="mb-4 rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-                You have view-only access to settings. Only an admin can change them.
+                You have view-only access to settings. Only an admin can change
+                them.
               </div>
             )}
-            <fieldset disabled={!canManage} className="m-0 min-w-0 border-0 p-0">
+            <fieldset
+              disabled={!canManage}
+              className="m-0 min-w-0 border-0 p-0"
+            >
               {active === 'general' ? (
                 <GeneralSettings />
               ) : active === 'reading' ? (
@@ -102,6 +135,8 @@ export function Settings() {
                 <MediaSettings />
               ) : active === 'identity' ? (
                 <IdentitySettings />
+              ) : active === 'permalinks' ? (
+                <PermalinksSettings />
               ) : (
                 <FormsGroup />
               )}

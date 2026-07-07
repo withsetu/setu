@@ -13,7 +13,7 @@
      since percentage padding resolves against the containing block, not the bled width. */
   padding-block: clamp(2rem, 6vw, 4rem);
   padding-inline: clamp(1.5rem, 5vw, 3rem);
-  border-radius: var(--r-md, 8px);
+  border-radius: var(--r-md);
 }
 
 .blk-hero-headline {
@@ -52,9 +52,9 @@
   display: inline-block;
   margin-top: 1rem;
   padding: 0.6rem 1.2rem;
-  border-radius: var(--r-md, 8px);
-  background: var(--accent, #4f46e5);
-  color: var(--on-accent, #fff);
+  border-radius: var(--r-md);
+  background: var(--accent);
+  color: var(--on-accent);
   font-weight: 600;
   text-decoration: none;
 }
@@ -63,7 +63,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: var(--r-md, 8px);
+  border-radius: var(--r-md);
   display: block;
 }
 
@@ -99,7 +99,7 @@
 }
 
 .blk-hero.layout-background .blk-hero-media img {
-  border-radius: var(--r-md, 8px);
+  border-radius: var(--r-md);
 }
 
 .blk-hero.layout-background .blk-hero-text {
@@ -107,7 +107,7 @@
   background: var(--blk-hero-scrim, rgba(15, 17, 26, 0.55));
   color: var(--blk-hero-text-color, #fff);
   padding: 1.25rem 1.5rem;
-  border-radius: var(--r-md, 8px);
+  border-radius: var(--r-md);
   max-width: 36rem;
   width: max-content;
 }

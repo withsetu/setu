@@ -24,6 +24,7 @@ import { createGitApi } from './app'
 import { createPreviewApi } from './preview'
 import { createUploadApi } from './media'
 import { createFormsApi } from './forms'
+import { createOembedApi } from './oembed'
 import { resolveLocalOwner } from './auth/resolve-actor'
 import { buildCapabilities, createCapabilitiesApi } from './capabilities'
 import { runReprocessJob } from './reprocess-runner'
@@ -142,6 +143,7 @@ app.route(
   })
 )
 app.route('/', createFormsApi({ submit, submissions, captchaStatus }))
+app.route('/', createOembedApi({ resolveActor: resolveLocalOwner }))
 app.route(
   '/',
   createCapabilitiesApi(

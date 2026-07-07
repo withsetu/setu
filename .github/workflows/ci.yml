@@ -103,7 +103,7 @@ jobs:
       # and esbuild's dev server is never run or exposed here. Gated on the same docs-only
       # skip as the steps below (a docs PR doesn't touch the lockfile); NOT affected-scope
       # filtered — audit runs against the single root lockfile, not turbo's per-package graph.
-      - name: pnpm audit (gate: high)
+      - name: 'pnpm audit (gate: high)'
         run: |
           if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
           echo "::group::pnpm audit (full — informational, all severities)"

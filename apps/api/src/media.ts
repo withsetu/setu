@@ -296,7 +296,11 @@ export function createUploadApi(opts: UploadApiOptions) {
     const headers: Record<string, string> = { 'Content-Type': obj.contentType }
     if (!obj.contentType.startsWith('image/'))
       headers['Content-Disposition'] = 'attachment'
-    return new Response(obj.body, { status: 200, headers })
+    // `obj.body` is a Uint8Array — a valid Response body at runtime (Node/undici).
+    // The cast satisfies lib.dom's stricter `BodyInit` (which wants the ArrayBuffer-
+    // specific `Uint8Array<ArrayBuffer>`); lib.dom leaks into this program via vitest's
+    // types in the test files. Zero-cost — copying the buffer here would tax every media GET.
+    return new Response(obj.body as BodyInit, { status: 200, headers })
   })
 
   app.onError((err, c) =>

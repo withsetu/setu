@@ -21,8 +21,16 @@ function chunk(type: string, data: Buffer): Buffer {
 }
 
 /** A deterministic gradient RGB PNG of the given size — a real, decodable image with
- *  enough detail that lossy re-encoding at different qualities yields different sizes. */
-export function makeTestPng(width: number, height: number): Uint8Array {
+ *  enough detail that lossy re-encoding at different qualities yields different sizes.
+ *  Returns `Uint8Array<ArrayBuffer>` (the `new Uint8Array(...)` below allocates a fresh
+ *  ArrayBuffer, never a SharedArrayBuffer) so callers can pass it straight to DOM
+ *  `Blob`/`File`/`Response` (`BlobPart`/`BodyInit`), whose lib.dom types require the
+ *  ArrayBuffer-specific instantiation — a bare `Uint8Array` widens to `<ArrayBufferLike>`
+ *  and is rejected once vitest pulls lib.dom into a consumer's program. */
+export function makeTestPng(
+  width: number,
+  height: number
+): Uint8Array<ArrayBuffer> {
   const sig = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
   const ihdr = Buffer.alloc(13)
   ihdr.writeUInt32BE(width, 0)

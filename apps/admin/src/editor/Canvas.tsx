@@ -144,7 +144,7 @@ export function Canvas({
       QueryBlock.configure({ runQuery }),
       EmbedBlock,
       EmbedPaste.configure({
-        apiBase: (import.meta.env.VITE_SETU_API as string) ?? ''
+        apiBase: import.meta.env.VITE_SETU_API ?? ''
       }),
       createSetuBlock(registry.blocks, blockCores),
       Passthrough,

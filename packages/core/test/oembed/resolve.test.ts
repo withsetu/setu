@@ -30,12 +30,18 @@ describe('resolveOembed', () => {
   })
 
   it('fetches the FIXED provider endpoint, never the user host', async () => {
-    const fetchImpl = vi.fn(
-      (_input: string | URL | Request, _init?: RequestInit) =>
-        Promise.resolve(jsonRes(YT))
-    )
+    let calledWith = ''
+    const fetchImpl: typeof fetch = (input) => {
+      calledWith =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url
+      return Promise.resolve(jsonRes(YT))
+    }
     await resolveOembed('https://youtu.be/abc', { fetchImpl })
-    const called = new URL(fetchImpl.mock.calls[0]![0] as string)
+    const called = new URL(calledWith)
     expect(called.host).toBe('www.youtube.com')
     expect(called.searchParams.get('url')).toBe('https://youtu.be/abc')
   })

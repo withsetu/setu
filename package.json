@@ -28,6 +28,8 @@
     "@axe-core/playwright": "^4.12.1",
     "@eslint/js": "^9.39.4",
     "@playwright/test": "^1.61.1",
+    "@setu/auth": "workspace:*",
+    "@setu/db-sqlite": "workspace:*",
     "@types/node": "^22.19.21",
     "axe-core": "^4.12.1",
     "concurrently": "^9.1.0",

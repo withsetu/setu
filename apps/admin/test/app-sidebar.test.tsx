@@ -40,6 +40,13 @@ describe('AppSidebar', () => {
       '/appearance'
     )
   })
+  it('renders the Users nav item (admin has users.view by default) linking to /users', () => {
+    wrap()
+    expect(screen.getByRole('link', { name: /^Users$/ })).toHaveAttribute(
+      'href',
+      '/users'
+    )
+  })
   it('renders the workspace name and footer actions', () => {
     wrap()
     expect(screen.getByText('Setu')).toBeInTheDocument()

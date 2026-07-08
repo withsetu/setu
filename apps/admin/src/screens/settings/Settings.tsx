@@ -7,6 +7,8 @@ import { ReadingSettings } from './ReadingSettings'
 import { MediaSettings } from './MediaSettings'
 import { IdentitySettings } from './IdentitySettings'
 import { PermalinksSettings } from './PermalinksSettings'
+import { apiFetch } from '../../lib/api-fetch'
+import { useCan } from '../../auth/actor'
 
 const apiBase = import.meta.env.VITE_SETU_API
 
@@ -17,7 +19,7 @@ function SpamProtectionStatus({ apiBase }: { apiBase: string }) {
     secretConfigured: boolean
   } | null>(null)
   useEffect(() => {
-    void fetch(`${apiBase}/forms/captcha-status`)
+    void apiFetch(`${apiBase}/forms/captcha-status`)
       .then(
         (r) =>
           r.json() as Promise<{ provider: string; secretConfigured: boolean }>
@@ -63,7 +65,7 @@ type GroupId =
   | 'identity'
   | 'permalinks'
   | 'forms'
-const GROUPS: { id: GroupId; label: string }[] = [
+const BASE_GROUPS: { id: GroupId; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'reading', label: 'Content & Reading' },
   { id: 'media', label: 'Media' },
@@ -71,10 +73,20 @@ const GROUPS: { id: GroupId; label: string }[] = [
   { id: 'permalinks', label: 'Permalinks' },
   { id: 'forms', label: 'Forms' }
 ]
-const COMING_SOON = ['Users & Roles', 'Deploy']
+const COMING_SOON = ['Deploy']
 
 export function Settings() {
   const [active, setActive] = useState<GroupId>('general')
+  // #248: Users & Roles moved out of Settings to a top-level screen (/users, gated on
+  // `users.view`) — see AppSidebar/app.tsx/UsersScreen. Settings no longer has a users group.
+  const groups = BASE_GROUPS
+  // Settings is visible to `settings.view` (maintainer+) but only editable by `settings.manage`
+  // (admin). The server already enforces this on the write path (the settings-aware git gate in
+  // apps/api/src/app.ts) — so a maintainer save would 403. Rather than let them edit and hit that
+  // error, present the whole surface read-only via a disabled <fieldset> (which natively disables
+  // every nested control, including the Save buttons in each group).
+  const canManage = useCan()('settings.manage')
+
   return (
     <>
       <PageHeader title="Settings" />
@@ -84,7 +96,7 @@ export function Settings() {
             className="w-48 shrink-0 space-y-1"
             aria-label="Settings sections"
           >
-            {GROUPS.map((g) => (
+            {groups.map((g) => (
               <button
                 key={g.id}
                 type="button"
@@ -105,19 +117,30 @@ export function Settings() {
             ))}
           </nav>
           <div className="min-w-0 flex-1">
-            {active === 'general' ? (
-              <GeneralSettings />
-            ) : active === 'reading' ? (
-              <ReadingSettings />
-            ) : active === 'media' ? (
-              <MediaSettings />
-            ) : active === 'identity' ? (
-              <IdentitySettings />
-            ) : active === 'permalinks' ? (
-              <PermalinksSettings />
-            ) : (
-              <FormsGroup />
+            {!canManage && (
+              <div className="mb-4 rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                You have view-only access to settings. Only an admin can change
+                them.
+              </div>
             )}
+            <fieldset
+              disabled={!canManage}
+              className="m-0 min-w-0 border-0 p-0"
+            >
+              {active === 'general' ? (
+                <GeneralSettings />
+              ) : active === 'reading' ? (
+                <ReadingSettings />
+              ) : active === 'media' ? (
+                <MediaSettings />
+              ) : active === 'identity' ? (
+                <IdentitySettings />
+              ) : active === 'permalinks' ? (
+                <PermalinksSettings />
+              ) : (
+                <FormsGroup />
+              )}
+            </fieldset>
           </div>
         </div>
       </PageBody>

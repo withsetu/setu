@@ -8,6 +8,7 @@ import { ServicesProvider, servicesFor } from '../src/data/store'
 import { DeployProvider } from '../src/deploy/deploy'
 import { IndexProvider } from '../src/data/index-store'
 import { TaxonomyProvider } from '../src/data/taxonomy-store'
+import { ActorProvider } from '../src/auth/actor'
 import { ContentList } from '../src/screens/ContentList'
 
 const doc = (t: string): TiptapDoc => ({
@@ -55,7 +56,9 @@ function setup(initialEntries = ['/posts']) {
         <DeployProvider>
           <IndexProvider>
             <TaxonomyProvider>
-              <ContentList collection="post" title="Posts" />
+              <ActorProvider>
+                <ContentList collection="post" title="Posts" />
+              </ActorProvider>
             </TaxonomyProvider>
           </IndexProvider>
         </DeployProvider>

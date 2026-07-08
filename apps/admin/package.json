@@ -23,6 +23,7 @@
     "@setu/git-memory": "workspace:*",
     "@setu/submission-http": "workspace:*",
     "@setu/theme-default": "workspace:*",
+    "better-auth": "1.6.23",
     "@tiptap/core": "^3.26.1",
     "@tiptap/extension-list": "^3.26.1",
     "@tiptap/extension-placeholder": "^3.26.1",

@@ -1,5 +1,4 @@
 import { Hono } from 'hono'
-import { cors } from 'hono/cors'
 import {
   createAuthz,
   DEFAULT_ROLES,
@@ -98,11 +97,12 @@ export function createUploadApi(opts: UploadApiOptions) {
   }
   const widths = opts.widths ?? DEFAULT_WIDTHS
 
+  // CORS/origin policy is owned centrally by server.ts, not this factory — see app.ts's comment
+  // on createGitApi for why a factory-local cors() here would be a security hole once mounted.
   const app = new Hono<{ Variables: { actor: Actor } }>()
-  app.use('*', cors())
 
   app.post('/media', authMiddleware(opts.resolveActor), async (c) => {
-    if (!authz.can(c.get('actor'), 'content.create'))
+    if (!authz.can(c.get('actor'), 'media.upload'))
       return c.json({ error: 'forbidden' }, 403)
 
     const form = await c.req.formData()
@@ -199,7 +199,7 @@ export function createUploadApi(opts: UploadApiOptions) {
     '/api/media/reprocess',
     authMiddleware(opts.resolveActor),
     async (c) => {
-      if (!authz.can(c.get('actor'), 'content.create'))
+      if (!authz.can(c.get('actor'), 'media.edit'))
         return c.json({ error: 'forbidden' }, 403)
       if (!opts.image || !opts.reprocess)
         return c.json({ error: 'reprocess unavailable in this mode' }, 409)
@@ -261,7 +261,7 @@ export function createUploadApi(opts: UploadApiOptions) {
   })
 
   app.delete('/media/*', authMiddleware(opts.resolveActor), async (c) => {
-    if (!authz.can(c.get('actor'), 'content.create'))
+    if (!authz.can(c.get('actor'), 'media.delete'))
       return c.json({ error: 'forbidden' }, 403)
     const mediaKey = decodeURIComponent(c.req.path.slice('/media/'.length))
     if (mediaKey.split('/').some((seg) => seg === '..' || seg === ''))
@@ -296,11 +296,7 @@ export function createUploadApi(opts: UploadApiOptions) {
     const headers: Record<string, string> = { 'Content-Type': obj.contentType }
     if (!obj.contentType.startsWith('image/'))
       headers['Content-Disposition'] = 'attachment'
-    // `obj.body` is a Uint8Array — a valid Response body at runtime (Node/undici).
-    // The cast satisfies lib.dom's stricter `BodyInit` (which wants the ArrayBuffer-
-    // specific `Uint8Array<ArrayBuffer>`); lib.dom leaks into this program via vitest's
-    // types in the test files. Zero-cost — copying the buffer here would tax every media GET.
-    return new Response(obj.body as BodyInit, { status: 200, headers })
+    return new Response(obj.body, { status: 200, headers })
   })
 
   app.onError((err, c) =>

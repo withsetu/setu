@@ -1,6 +1,7 @@
 import { Extension, type Editor } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { matchProvider } from '@setu/core'
+import { apiFetch } from '@/lib/api-fetch'
 
 export interface EmbedPasteOptions {
   /** API base (VITE_SETU_API) for the resolve call. */
@@ -47,10 +48,10 @@ async function resolveAndInsert(
   url: string
 ): Promise<void> {
   try {
-    // Plain fetch (no credentials): matches the editor's other cross-origin API calls; the api
-    // CORS returns `*`, which the browser rejects for credentialed requests. The cross-origin
-    // session-cookie story is handled uniformly when auth (#248) + the single-origin proxy land.
-    const res = await fetch(`${apiBase}/api/oembed`, {
+    // apiFetch is the admin's credentials choke point (#248 Task 6): it forces
+    // credentials:'include' so the Better Auth session cookie rides the cross-origin call; the
+    // central allowlisted cors() + originGuard in server.ts admit it.
+    const res = await apiFetch(`${apiBase}/api/oembed`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ url })

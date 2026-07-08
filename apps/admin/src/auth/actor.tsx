@@ -3,14 +3,17 @@ import type { ReactNode } from 'react'
 import type { Action, Actor } from '@setu/core'
 import { createAuthz, DEFAULT_ROLES } from '@setu/core'
 
-// No real auth yet — the app runs as a single Owner. Real users + auth swap this
-// in later (the RBAC arc); every gated action already flows through useCan().
-const OWNER: Actor = { id: 'local', role: 'owner' }
+// Default actor for the no-API in-browser topology (Bootstrap's no-VITE_SETU_API mode — see its
+// comment) and for tests: the app runs as a single local Admin with no session. When an API is
+// connected, SessionGate (#248 Task 6) resolves the REAL actor from the Better Auth session and
+// passes it in as the `actor` prop below — every gated action already flows through useCan(), so
+// nothing downstream needed to change.
+const ADMIN: Actor = { id: 'local', role: 'admin' }
 
 const ActorContext = createContext<Actor | null>(null)
 
 export function ActorProvider({
-  actor = OWNER,
+  actor = ADMIN,
   children
 }: {
   actor?: Actor

@@ -10,6 +10,7 @@ import { createMemoryGitPort } from '@setu/git-memory'
 import { ServicesProvider, servicesFor } from '../src/data/store'
 import { IndexProvider } from '../src/data/index-store'
 import { TaxonomyProvider } from '../src/data/taxonomy-store'
+import { ActorProvider } from '../src/auth/actor'
 
 const doc = (t: string): TiptapDoc => ({
   type: 'doc',
@@ -46,7 +47,9 @@ const renderList = (adapter: DataPort, collection: string, title: string) =>
         <DeployProvider>
           <IndexProvider>
             <TaxonomyProvider>
-              <ContentList collection={collection} title={title} />
+              <ActorProvider>
+                <ContentList collection={collection} title={title} />
+              </ActorProvider>
             </TaxonomyProvider>
           </IndexProvider>
         </DeployProvider>
@@ -155,7 +158,9 @@ describe('ContentList', () => {
           <DeployProvider>
             <IndexProvider>
               <TaxonomyProvider>
-                <ContentList collection="page" title="Pages" />
+                <ActorProvider>
+                  <ContentList collection="page" title="Pages" />
+                </ActorProvider>
               </TaxonomyProvider>
             </IndexProvider>
           </DeployProvider>
@@ -184,7 +189,9 @@ describe('ContentList — Git-only (published, no draft) entries', () => {
           <DeployProvider>
             <IndexProvider>
               <TaxonomyProvider>
-                <ContentList collection="post" title="Posts" />
+                <ActorProvider>
+                  <ContentList collection="post" title="Posts" />
+                </ActorProvider>
               </TaxonomyProvider>
             </IndexProvider>
           </DeployProvider>

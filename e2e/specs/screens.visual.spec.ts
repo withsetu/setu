@@ -155,12 +155,18 @@ test.describe('visual baselines', () => {
     // shortcut) that also exercises ListToolbar's search filter.
     await page.getByRole('textbox', { name: 'Search' }).fill(FIXED_POST_TITLE)
     // Settle the debounced search -> URL `q` -> re-query round-trip (ContentList.tsx: 200ms
-    // debounce, then `index.query({ q })`) before asserting on the filtered result.
+    // debounce, then `index.query({ q })`) before asserting on the filtered result. Generous
+    // timeout: `save()` only waits for the "Saved" indicator, but the async reindexEntry that
+    // folds the new draft into the QUERYABLE index can still be in flight a beat later, so on a
+    // slow CI runner the just-created post can surface in the filtered list a little after save
+    // reports done (the render itself is fine — the actual screenshot shows the row).
     await expect(
       page.getByRole('link', { name: FIXED_POST_TITLE, exact: true })
-    ).toBeVisible()
+    ).toBeVisible({ timeout: 15_000 })
     // Exactly this 1 row now — deterministic regardless of what else is in the sandbox.
-    await expect(page.locator('table tbody tr')).toHaveCount(1)
+    await expect(page.locator('table tbody tr')).toHaveCount(1, {
+      timeout: 15_000
+    })
 
     await expect(page).toHaveScreenshot('content-list.png', {
       fullPage: true,

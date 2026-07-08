@@ -1,5 +1,4 @@
 import { Hono } from 'hono'
-import { cors } from 'hono/cors'
 import { createAuthz, DEFAULT_ROLES, resolveOembed } from '@setu/core'
 import type { Actor, OembedResult } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
@@ -23,8 +22,9 @@ export interface OembedApiOptions {
  *  safety. Fails closed: forbidden/invalid → 4xx, upstream problems → 502. */
 export function createOembedApi(opts: OembedApiOptions) {
   const authz = createAuthz(DEFAULT_ROLES)
+  // No factory-local cors(): CORS + CSRF origin policy is owned centrally by server.ts
+  // (allowlisted cors() + originGuard, #248) — a local cors() here would be a security hole.
   const app = new Hono<{ Variables: { actor: Actor } }>()
-  app.use('*', cors())
 
   app.post('/api/oembed', authMiddleware(opts.resolveActor), async (c) => {
     if (!authz.can(c.get('actor'), 'content.create'))

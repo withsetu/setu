@@ -27,7 +27,7 @@ function memStorage(): StoragePort {
     }
   }
 }
-const owner: Actor = { id: 'local', role: 'owner' }
+const owner: Actor = { id: 'local', role: 'admin' }
 
 async function uploadThenServe(file: File) {
   const storage = memStorage()

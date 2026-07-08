@@ -21,7 +21,8 @@ describe('media-client', () => {
     vi.stubGlobal('fetch', f)
     await deleteMedia('http://x', '2026/06/cat')
     expect(f).toHaveBeenCalledWith('http://x/media/2026/06/cat', {
-      method: 'DELETE'
+      method: 'DELETE',
+      credentials: 'include'
     })
     vi.stubGlobal(
       'fetch',

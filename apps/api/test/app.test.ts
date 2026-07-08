@@ -17,7 +17,10 @@ async function freshApp() {
   const dir = mkdtempSync(join(tmpdir(), 'api-'))
   dirs.push(dir)
   await git.init({ fs: nodeFs, dir, defaultBranch: 'main' })
-  return createGitApi(createLocalGitAdapter({ dir }))
+  return createGitApi(createLocalGitAdapter({ dir }), () => ({
+    id: 'local',
+    role: 'admin'
+  }))
 }
 
 const req = (

@@ -11,7 +11,11 @@ runSubmissionPortContract(() => {
     submissions,
     captcha: { verify: async () => true }
   })
-  const app = createFormsApi({ submit, submissions })
+  const app = createFormsApi({
+    submit,
+    submissions,
+    resolveActor: () => ({ id: 'local', role: 'admin' })
+  })
   const fetchImpl = ((input: Request | string | URL, init?: RequestInit) =>
     app.fetch(
       new Request(

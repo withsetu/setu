@@ -21,7 +21,7 @@ function freshApp() {
   return {
     app: createUploadApi({
       storage,
-      resolveActor: () => ({ id: 'local', role: 'owner' })
+      resolveActor: () => ({ id: 'local', role: 'admin' })
     }),
     dir,
     storage

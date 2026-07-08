@@ -11,6 +11,7 @@ import type {
 import { buildTree } from '@setu/core'
 import { useIndex } from '../data/index-store'
 import { useTaxonomy } from '../data/taxonomy-store'
+import { useCan } from '../auth/actor'
 import { PageHeader } from '../shell/PageHeader'
 import { PageBody } from '../shell/PageBody'
 import { Button } from '@/components/ui/button'
@@ -60,6 +61,12 @@ export function ContentList({
 }) {
   const index = useIndex()
   const { categories } = useTaxonomy()
+  const can = useCan()
+  // #362: an actor without content.edit gets no selection column or bulk bar, and no "New"
+  // affordance without content.create. Every current staff role holds these, so the gate is
+  // defensive (future audience/read-only roles land in #379). The server re-enforces both
+  // (git-write is content.edit).
+  const canEdit = can('content.edit')
   const pageSize = useSettings().reading.listPageSize
   const [params, setParams] = useSearchParams()
   const [page, setPage] = useState(0)
@@ -234,12 +241,14 @@ export function ContentList({
             : 'Standalone pages and landing pages.'
         }
         actions={
-          <Button asChild>
-            <Link to={`/edit/${collection}/en/new`}>
-              <Plus className="size-4" />
-              New {noun}
-            </Link>
-          </Button>
+          can('content.create') ? (
+            <Button asChild>
+              <Link to={`/edit/${collection}/en/new`}>
+                <Plus className="size-4" />
+                New {noun}
+              </Link>
+            </Button>
+          ) : undefined
         }
       />
       <PageBody>
@@ -281,7 +290,7 @@ export function ContentList({
           )
         ) : (
           <>
-            {selected.size > 0 && (
+            {canEdit && selected.size > 0 && (
               <BulkBar
                 rows={rows}
                 selected={selected}
@@ -305,6 +314,7 @@ export function ContentList({
                 onToggleAll={toggleAll}
                 sort={sort}
                 onSort={toggleSort}
+                selectable={canEdit}
               />
               {total > 0 && (
                 <Pager

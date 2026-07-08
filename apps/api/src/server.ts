@@ -1,13 +1,17 @@
 import { mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { randomBytes } from 'node:crypto'
 import { Hono } from 'hono'
+import { cors } from 'hono/cors'
 import { serve } from '@hono/node-server'
 import { createLocalGitAdapter } from '@setu/git-local'
 import { createLocalStorage } from '@setu/storage-local'
 import { createSharpImageAdapter } from '@setu/image-sharp'
 import {
   createSqliteSubmissionPort,
-  createSqliteReprocessJobStore
+  createSqliteReprocessJobStore,
+  openSqliteDb,
+  countUsers
 } from '@setu/db-sqlite'
 import {
   createSubmissionService,
@@ -20,14 +24,45 @@ import { createRecaptchaCaptcha } from '@setu/captcha-recaptcha'
 import { createConsoleEmailAdapter } from '@setu/email-console'
 import { createResendEmailAdapter } from '@setu/email-resend'
 import { renderSubmissionEmail } from '@setu/email-templates'
+import { createAuth, ensureLocalOwner, type AuthEvent } from '@setu/auth'
 import { createGitApi } from './app'
 import { createPreviewApi } from './preview'
 import { createUploadApi } from './media'
 import { createFormsApi } from './forms'
-import { resolveLocalOwner } from './auth/resolve-actor'
-import { buildCapabilities, createCapabilitiesApi } from './capabilities'
+import { createUsersApi } from './users'
+import { resolveSessionActor } from './auth/resolve-session-actor'
+import type { ResolveActor } from './auth/resolve-actor'
+import { allowedOrigins } from './auth/allowed-origins'
+import { originGuard, originMatches } from './auth/origin-guard'
+import { authUnconfiguredGuard } from './auth/auth-unconfigured-guard'
+import {
+  authCaptchaFromEnv,
+  authSocialProvidersFromEnv,
+  socialProvidersEnabled,
+  captchaCapabilityFromEnv
+} from './auth/env'
+import {
+  buildCapabilities,
+  createCapabilitiesApi,
+  type AuthCapabilities
+} from './capabilities'
 import { runReprocessJob } from './reprocess-runner'
 import { resumeActiveJob } from './server-resume'
+import {
+  resolveSetuMode,
+  resolveAuthSecret,
+  resolveRateLimitOverrides
+} from './config'
+import { resolveGitIdentity } from './auth/git-identity'
+import { mountAuthWithFailureEvents } from './auth/login-failure-events'
+
+// #248 Task 9: default audit-event consumer — a single structured log line. The REAL consumer
+// (persistence/alerting) is future issue #290; this is deliberately the dumbest possible sink so
+// nothing here can become a second source of truth once #290 lands. Never logs anything beyond the
+// event itself (see packages/auth/src/events.ts — AuthEvent.meta must never carry a secret).
+function logAuthEvent(event: AuthEvent): void {
+  console.info('[auth-event]', JSON.stringify(event))
+}
 
 function resolveCaptcha(provider: string, secret: string): CaptchaPort {
   if (!provider) return createNoopCaptcha() // no provider configured → dev pass-through
@@ -78,6 +113,99 @@ const notifyFrom = process.env.SETU_FORMS_NOTIFY_FROM
 mkdirSync(`${dir}/.setu`, { recursive: true })
 
 const submissions = createSqliteSubmissionPort(submissionsDb)
+
+// Better Auth's tables live in the SAME sqlite file as submissions (SETU_SUBMISSIONS_DB) — one
+// drizzle handle, shared migrations folder (see packages/db-sqlite/src/open-db.ts).
+const authDb = openSqliteDb(submissionsDb)
+const baseURL = process.env.SETU_BASE_URL ?? `http://localhost:${port}`
+
+// Loopback token handshake (local topology only, #248 Task 4): the process that boots the api
+// mints a ONE-TIME token; the admin exchanges it at POST /api/auth/local/exchange (see
+// @setu/auth's localToken plugin) for a completely normal Better Auth session. Module state here
+// holds the token — this is boot-scoped, per-process state by design (a fresh token every
+// restart), not persisted anywhere.
+//
+// `getToken()` reflects a stable topology-level fact ("local-token capability exists"), so it
+// keeps returning the same token for the process lifetime — it is NOT how single-use is
+// enforced. Single-use is the plugin's own job (its guard order returns 404 only when getToken()
+// is null, and 401 for an already-consumed token — conflating the two would make "wrong
+// topology" indistinguishable from "already used"). `consume()` here is a no-op hook for future
+// observability (e.g. logging that the handshake completed); the token remains fixed.
+//
+// `localUserId` calls `ensureLocalOwner(auth, identity)` (#248 Task 7) — but `auth` doesn't exist
+// yet at this point (createAuth itself takes `localToken` as an option, below). `getAuth` is a
+// forward reference assigned once `auth` is constructed a few lines down; `localUserId` is only
+// ever invoked per-request (on an actual exchange POST), by which time boot has finished and
+// `getAuth()` is populated — never called during construction itself. `identity` is resolved once
+// here (not per-call) via `resolveGitIdentity`, matching "read git config once at boot" from the
+// task brief, not on every exchange attempt.
+function buildLocalTokenOptions(getAuth: () => ReturnType<typeof createAuth>) {
+  const token = randomBytes(32).toString('base64url')
+  const identity = resolveGitIdentity()
+  return {
+    token, // returned ONLY so the caller can log the one-time handoff URL below; never logged elsewhere.
+    getToken: () => token,
+    consume: () => {},
+    localUserId: (): Promise<string> => ensureLocalOwner(getAuth(), identity)
+  }
+}
+
+const mode = resolveSetuMode(process.env)
+// Forward reference: `authRef` is read inside the localToken closure (built just below) but only
+// assigned once `auth` exists further down — a deliberate `let`, not a reassign-once const case.
+// eslint-disable-next-line prefer-const
+let authRef: ReturnType<typeof createAuth> | undefined
+const localToken =
+  mode === 'local' ? buildLocalTokenOptions(() => authRef!) : undefined
+
+// Fail-closed boot degradation (#248 Task 5). resolveAuthSecret returns null in non-local mode
+// with no SETU_AUTH_SECRET set — NOT a thrown boot error (that was Task 3's behavior; see the
+// comment on resolveAuthSecret in ./config for why it changed). When it's null we do not
+// construct `auth` at all: there is no secret to sign sessions with, so there is no safe partial
+// instance to build — "auth disabled" must mean "no auth object exists", not "an auth object
+// exists but might misbehave". `authUnconfiguredGuard` below is what actually protects routes in
+// this state; `resolveActor` here is never invoked when auth is null because every mutating route
+// (and /api/auth/* itself) is 503'd by that guard before any route handler — including this one —
+// ever runs. It still needs a value to satisfy createUploadApi's type, so it's a resolver that
+// fails closed to null (-> authMiddleware's 401) purely as a defensive fallback, not the primary
+// guard.
+const authSecret = resolveAuthSecret()
+const authConfigured = authSecret !== null
+
+// Non-local topology first-run setup (#248 Task 7): mint a one-time setup token whenever this
+// boot could need first-run setup — auth configured AND zero users yet — mirroring the local-mode
+// loopback token above, but for the guarded `POST /api/auth/setup` route instead. Never minted in
+// local mode (the loopback handshake covers first-run there instead); the serverSetup plugin
+// itself also 404s whenever `getSetupToken()` returns null, so a topology mismatch here and in the
+// plugin's own guard would agree, not silently diverge.
+const setupToken =
+  mode !== 'local' && authConfigured && countUsers(authDb) === 0
+    ? randomBytes(32).toString('base64url')
+    : null
+
+const auth = authConfigured
+  ? createAuth({
+      db: authDb,
+      secret: authSecret,
+      baseURL,
+      trustedOrigins: allowedOrigins(process.env),
+      captcha: authCaptchaFromEnv(),
+      socialProviders: authSocialProvidersFromEnv(),
+      localToken,
+      serverSetup:
+        setupToken !== null
+          ? {
+              getSetupToken: () => setupToken,
+              countUsers: () => countUsers(authDb)
+            }
+          : undefined,
+      onAuthEvent: logAuthEvent,
+      rateLimit: resolveRateLimitOverrides(process.env)
+    })
+  : undefined
+authRef = auth
+const resolveActor: ResolveActor = auth ? resolveSessionActor(auth) : () => null
+
 // Spam protection: select a captcha adapter by env. Secret is env-only.
 const captchaProvider = process.env.SETU_CAPTCHA_PROVIDER ?? '' // 'turnstile' | 'recaptcha' | ''
 const captchaSecret =
@@ -127,13 +255,69 @@ const runReprocess = (jobId: string) => {
 }
 
 const app = new Hono()
-app.route('/', createGitApi(createLocalGitAdapter({ dir })))
+
+// CORS allowlist (credentialed) + Host/Origin guard (DNS-rebinding/tunnel-detection), applied
+// globally, before any route — including /api/auth/*.
+app.use(
+  '*',
+  cors({
+    origin: (origin) => {
+      if (!origin) return undefined
+      const allowed = allowedOrigins(process.env)
+      return allowed.some((pattern) => originMatches(origin, pattern))
+        ? origin
+        : undefined
+    },
+    credentials: true
+  })
+)
+// Fail-closed boot degradation (#248 Task 5): when auth couldn't be constructed, short-circuit
+// every unsafe-method request (including /api/auth/* below) with a 503 rather than let it reach a
+// route that assumes a working auth instance. Placed after CORS (so the 503 still carries CORS
+// headers and is readable by the admin origin) and before originGuard — the two guards check
+// independent axes (method-based vs. Origin/Host-based) so their relative order doesn't change
+// which requests are ultimately allowed through; this one is cheaper (no header parsing) so it
+// runs first.
+app.use(
+  '*',
+  authUnconfiguredGuard(() => !authConfigured)
+)
+// publicPaths: routes that are deliberately public and read NO ambient credentials (no session
+// cookie, no auth check) — captcha is the only gate. `/forms/submit` is an embeddable public form
+// widget (#248 follow-up): it must stay reachable from any visitor origin. Anything reading a
+// session (e.g. the /forms/submissions admin CRUD routes) MUST NOT be listed here — those stay
+// behind the origin check.
+app.use(
+  '*',
+  originGuard(() => allowedOrigins(process.env), {
+    publicPaths: ['/forms/submit']
+  })
+)
+
+// authUnconfiguredGuard only 503s unsafe methods — GET is a safe method and passes through even
+// when auth is unconfigured (that's deliberate: GETs elsewhere, like capabilities, must keep
+// working). better-auth also exposes GET endpoints (e.g. session fetch) under /api/auth/*, so this
+// mount is still guarded by `auth`'s existence rather than assuming the method-based guard alone
+// covers it: no auth instance means nothing here to call. Only mounted when auth is configured;
+// with auth unconfigured, GET /api/auth/* falls through to Hono's default 404 (there is no
+// meaningful "session" endpoint to serve, and capabilities already reports auth.enabled: false so
+// callers know why).
+// #248 Task 9: mountAuthWithFailureEvents wraps the same auth.handler mount as before, adding ONE
+// extra behavior — inspecting POST /api/auth/sign-in/email's response status to emit login.failure
+// (the one audit-event type better-auth's databaseHooks can't observe; see
+// login-failure-events.ts's module comment for the full derivation from source). Every other
+// /api/auth/* route's behavior is unchanged.
+if (auth) {
+  mountAuthWithFailureEvents(app, auth, logAuthEvent)
+}
+
+app.route('/', createGitApi(createLocalGitAdapter({ dir }), resolveActor))
 app.route('/', createPreviewApi())
 app.route(
   '/',
   createUploadApi({
     storage: localStorage,
-    resolveActor: resolveLocalOwner,
+    resolveActor,
     image: imageAdapter,
     // Live getter, not a snapshot: re-read settings.json each request so a Media settings change
     // (format / LQIP) applies to new uploads and Reprocess without restarting the api.
@@ -141,7 +325,50 @@ app.route(
     reprocess: { store: reprocessStore, run: runReprocess }
   })
 )
-app.route('/', createFormsApi({ submit, submissions, captchaStatus }))
+app.route(
+  '/',
+  createFormsApi({ submit, submissions, captchaStatus, resolveActor })
+)
+// #248 Task 8 review, Finding 2: the SAME drizzle handle better-auth's own createAuth uses for
+// its tables (authDb, above) — not a separate connection — so credential-status always reflects
+// live account state. `resolveActor` here already fails closed to null when auth is unconfigured
+// (see its own comment above), which authMiddleware turns into a 401 for this route too.
+app.route('/', createUsersApi({ db: authDb, resolveActor }))
+
+// The auth capability block is computed fresh per request (not baked into the boot-time
+// capabilities object below): `needsSetup` depends on the current user-table row count, which
+// changes the moment first-run setup creates the owner account — a stale snapshot would keep
+// telling the admin "you need setup" after it already happened. `enabled`/`providers`/`captcha`
+// ARE boot-time-stable (they only depend on env + whether `auth` was constructed), but computing
+// them in the same thunk keeps this one obvious function rather than splitting truly-static vs.
+// per-request fields across two call sites.
+//
+// `countUsers` reads the DB on every request, so a transient DB fault (locked file, disk error)
+// must not 500 the whole capabilities endpoint — the admin needs SOMETHING to render. On a
+// countUsers throw, degrade to `needsSetup: false` (never `true`): failing toward "show login"
+// is safe (worst case, a legitimate operator sees a login form and has to investigate), while
+// failing toward "show setup" would hand an attacker a first-run owner-setup screen precisely
+// because the DB is unhealthy — the opposite of fail-closed. The rest of the block still returns
+// normally; only this one derived field degrades.
+const resolveAuthCapabilities = (): AuthCapabilities => {
+  let needsSetup = false
+  if (authConfigured) {
+    try {
+      needsSetup = countUsers(authDb) === 0
+    } catch (err) {
+      console.error(
+        '[auth] countUsers failed while resolving capabilities — degrading needsSetup to false (fail toward login, not setup)',
+        err
+      )
+    }
+  }
+  return {
+    enabled: authConfigured,
+    providers: authConfigured ? socialProvidersEnabled(process.env) : [],
+    captcha: authConfigured ? captchaCapabilityFromEnv(process.env) : null,
+    needsSetup
+  }
+}
 app.route(
   '/',
   createCapabilitiesApi(
@@ -149,8 +376,10 @@ app.route(
       image: imageAdapter, // present in the Node topology
       writableMediaStore: true, // local fs storage is writable
       backgroundJobs: true, // persistent Node process can run jobs
-      mode: process.env.SETU_MODE ?? 'self-hosted'
-    })
+      mode,
+      auth: resolveAuthCapabilities() // boot-time value; createCapabilitiesApi re-derives per request via the thunk below
+    }),
+    resolveAuthCapabilities
   )
 )
 
@@ -161,4 +390,16 @@ console.log(
 console.log(
   `[captcha] provider=${captchaProvider || '(none)'} secretConfigured=${captchaStatus.secretConfigured}`
 )
+if (localToken) {
+  // The ONE place the token is ever logged — this is the intended handoff channel to the admin.
+  // Never log the token (or this URL) anywhere else.
+  const adminOrigin = process.env.SETU_ADMIN_ORIGIN ?? 'http://localhost:5173'
+  console.log(`Admin handshake: ${adminOrigin}/#setu-token=${localToken.token}`)
+}
+if (setupToken !== null) {
+  // The ONE place the setup token is ever logged — the intended handoff channel to whoever is
+  // standing up this instance (they paste it into the admin's SetupScreen). Never log it (or a
+  // URL containing it) anywhere else.
+  console.log(`Setup token: ${setupToken}`)
+}
 resumeActiveJob(reprocessStore, runReprocess)

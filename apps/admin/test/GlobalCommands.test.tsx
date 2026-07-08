@@ -80,9 +80,10 @@ describe('GlobalCommands', () => {
   })
 
   it("Deploy site enabled() is false when the actor cannot 'site.deploy'", () => {
-    const viewer: Actor = { id: 'v', role: 'viewer' }
+    // #379: author is the lowest staff role and lacks site.deploy (Maintainer+ only).
+    const author: Actor = { id: 'a', role: 'author' }
     const { getByTestId } = render(<GlobalCommands />, {
-      wrapper: wrap(viewer)
+      wrapper: wrap(author)
     })
     expect(getByTestId('cmd-site.deploy').getAttribute('data-enabled')).toBe(
       'false'

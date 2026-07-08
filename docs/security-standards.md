@@ -49,9 +49,9 @@ section to the issue body and the `security` label.
 | A04 | Cryptographic Failures | password hashing; session tokens; HTTPS/HSTS | #248 (Better Auth) · #289 |
 | A05 | Injection | XSS via embeds/oEmbed/imported HTML; Markdoc rendering; SQL (Drizzle-parameterized); Zod at boundaries | #260 · #187 · #258 · SAST in #218 |
 | A06 | Insecure Design | threat surfaces named in PRD §18/§26.2; DoW defenses; design-in-issues + this checklist | #292 ✅ (this doc) |
-| A07 | Authentication Failures | real login/sessions; CSRF; rate limiting; verified Access JWTs | **epic #247** → #248 · #249 · #110 |
+| A07 | Authentication Failures | real login/sessions; CSRF; rate limiting; verified Access JWTs | **epic #247** → #248 ✅ (this branch) · #249 · #110 |
 | A08 | Software or Data Integrity Failures | Actions pinned to SHA; publish provenance; secret scanning; CI-cache false-green guardrail | #281 · #278 · #218 · #216 |
-| A09 | Security Logging & Alerting Failures | auth/authz audit log + lockout alerting | **#290** |
+| A09 | Security Logging & Alerting Failures | auth/authz audit log + lockout alerting; auth events (login/logout/role-change/ban/setup) now emitted via a structured `onAuthEvent` seam (#248), awaiting a persistence/alerting consumer | **#290** |
 | A10 | Mishandling of Exceptional Conditions | fail-closed authz; no-leak error envelope; non-enumeration | **#291** |
 
 ✅ = shipped. Bold = filed specifically to close a 2025-category gap. Keep this table current:

@@ -27,7 +27,7 @@ function memStorage(): StoragePort {
     }
   }
 }
-const owner: Actor = { id: 'local', role: 'owner' }
+const owner: Actor = { id: 'local', role: 'admin' }
 
 async function upload(app: ReturnType<typeof createUploadApi>, file: File) {
   const body = new FormData()
@@ -69,8 +69,10 @@ describe('DELETE /media/*', () => {
     expect(await storage.exists(`${id}.media.json`)).toBe(false)
   })
 
-  it('returns 403 when actor lacks content.create', async () => {
-    const viewer: Actor = { id: 'v', role: 'viewer' }
+  it('returns 403 when actor lacks media.delete', async () => {
+    // #379: author is the lowest staff role and holds media.upload/edit but NOT media.delete
+    // (only editor+ can delete) — so it's the fixture for "authenticated but under-privileged".
+    const author: Actor = { id: 'a', role: 'author' }
     const storage = memStorage()
     // Upload with owner
     const ownerApp = createUploadApi({ storage, resolveActor: () => owner })
@@ -80,9 +82,9 @@ describe('DELETE /media/*', () => {
     )
     const { id } = (await upRes.json()) as { id: string }
 
-    // Try delete with viewer
-    const viewerApp = createUploadApi({ storage, resolveActor: () => viewer })
-    const delRes = await viewerApp.fetch(
+    // Try delete with author (lacks media.delete)
+    const authorApp = createUploadApi({ storage, resolveActor: () => author })
+    const delRes = await authorApp.fetch(
       new Request(`http://test/media/${id}`, { method: 'DELETE' })
     )
     expect(delRes.status).toBe(403)

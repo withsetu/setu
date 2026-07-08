@@ -43,6 +43,7 @@ import { SaveIndicator } from './SaveIndicator'
 import { onRequestShortcuts } from './editor-events'
 import { NEW_SLUG, mintSlug, composeInitialMetadata } from './new-entry'
 import { useNotify } from '../ui/notify'
+import { apiFetch } from '../lib/api-fetch'
 import { useRegisterCommands } from '../command/registry'
 import { attrString } from './attr-string'
 
@@ -245,7 +246,7 @@ export function EditorScreen() {
       frontmatter: metaRef.current,
       body: tiptapToMarkdoc(docRef.current)
     })
-    await fetch(`${previewApi}/preview`, {
+    await apiFetch(`${previewApi}/preview`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ content, collection, locale, slug })

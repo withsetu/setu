@@ -23,7 +23,7 @@ async function seedWebpOnly(
 ) {
   const app = createUploadApi({
     storage,
-    resolveActor: () => ({ id: 'o', role: 'owner' }),
+    resolveActor: () => ({ id: 'o', role: 'admin' }),
     image,
     mediaSettings: { imageFormat: 'webp', imageLqip: false }
   })

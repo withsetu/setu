@@ -47,9 +47,11 @@ async function resolveAndInsert(
   url: string
 ): Promise<void> {
   try {
+    // Plain fetch (no credentials): matches the editor's other cross-origin API calls; the api
+    // CORS returns `*`, which the browser rejects for credentialed requests. The cross-origin
+    // session-cookie story is handled uniformly when auth (#248) + the single-origin proxy land.
     const res = await fetch(`${apiBase}/api/oembed`, {
       method: 'POST',
-      credentials: 'include', // send the cross-origin session cookie
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ url })
     })

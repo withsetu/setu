@@ -29,6 +29,7 @@ import { createGitApi } from './app'
 import { createPreviewApi } from './preview'
 import { createUploadApi } from './media'
 import { createFormsApi } from './forms'
+import { createOembedApi } from './oembed'
 import { createUsersApi } from './users'
 import { resolveSessionActor } from './auth/resolve-session-actor'
 import type { ResolveActor } from './auth/resolve-actor'
@@ -329,6 +330,7 @@ app.route(
   '/',
   createFormsApi({ submit, submissions, captchaStatus, resolveActor })
 )
+app.route('/', createOembedApi({ resolveActor }))
 // #248 Task 8 review, Finding 2: the SAME drizzle handle better-auth's own createAuth uses for
 // its tables (authDb, above) — not a separate connection — so credential-status always reflects
 // live account state. `resolveActor` here already fails closed to null when auth is unconfigured

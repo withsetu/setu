@@ -17,6 +17,7 @@ import NoticeWrapper from '../../../../blocks/notice/notice.astro'
 import ContactWrapper from '../../../../blocks/contact/contact.astro'
 import QueryWrapper from '../../../../blocks/query/query.astro'
 import RelatedWrapper from '../../../../blocks/related/related.astro'
+import EmbedWrapper from '../../../../blocks/embed/embed.astro'
 import HeroBlock from '@setu/blocks/hero.astro'
 import ButtonBlock from '@setu/blocks/button.astro'
 import ImageFigure from '@setu/image-astro/ImageFigure.astro'
@@ -48,7 +49,7 @@ markdocConfig.nodes = { ...assetsConfig.nodes, ...markdocConfig.nodes }
 // (Covered by the per-block render-smoke test: apps/site/test/preview-blocks.test.ts.)
 const tagComponentMap = {
   callout: CalloutWrapper, notice: NoticeWrapper, contact: ContactWrapper,
-  query: QueryWrapper, related: RelatedWrapper, hero: HeroBlock, button: ButtonBlock,
+  query: QueryWrapper, related: RelatedWrapper, embed: EmbedWrapper, hero: HeroBlock, button: ButtonBlock,
   image: ImageFigure, sub: Sub, sup: Sup,
 }
 const nodeComponentMap = { heading: Heading, paragraph: Paragraph, th: Th, td: Td, image: Image }

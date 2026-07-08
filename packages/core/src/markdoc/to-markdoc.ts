@@ -154,6 +154,13 @@ function buildBlock(node: TiptapNode): InstanceType<typeof N> {
         [],
         'query'
       )
+    case 'embedBlock':
+      return new N(
+        'tag',
+        (attrs['mdAttrs'] ?? {}) as Record<string, unknown>,
+        [],
+        'embed'
+      )
     case 'setuBlock': {
       const tag = attrs['tag']
       if (typeof tag !== 'string' || tag === '') {

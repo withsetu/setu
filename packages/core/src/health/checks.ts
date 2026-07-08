@@ -111,13 +111,13 @@ export const EVALUATORS: Record<string, Evaluator> = {
   'foundations.theme-color': cap('themeColor'),
   'seo.sitemap': cap('sitemap'),
   'seo.sitemap-index': cap('sitemapIndex'),
-  // The rubric row covers image AND video extensions. Setu emits <image:image> today; video
-  // (<video:video>) is tracked in #367. Pass on the emitted image capability, disclosing the scope.
+  // The rubric row covers image AND video extensions — Setu emits both: <image:image> for page
+  // media and <video:video> for video embeds (#367).
   'seo.image-sitemaps': (ctx) =>
     ctx.capabilities.imageSitemaps
       ? ok(
           'platform',
-          'Image entries (<image:image>) are emitted. Video sitemap extensions are on the roadmap (#367).'
+          'Image (<image:image>) and video (<video:video>) sitemap extensions are emitted.'
         )
       : bad('platform', 'Not emitted by Setu yet — on the roadmap.'),
   'seo.robots-txt': cap('robotsTxt'),

@@ -141,8 +141,11 @@ describe('Bootstrap — IndexedDB resilience (server-backed / apiBase branch)', 
       </Bootstrap>
     )
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalled())
-    expect(childrenWereRenderedWhenNotified).toBe(true)
+    // Poll the ordering flag itself (not just "was called") — the mock impl that captures the
+    // DOM state runs on the toast.error call, and on a slow CI runner the call can be recorded a
+    // microtask before the impl's assignment is observable here. waitF'ing the flag makes this
+    // deterministic while still failing loudly if the notify ever fires before children render.
+    await waitFor(() => expect(childrenWereRenderedWhenNotified).toBe(true))
     expect(errorSpy).toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalledWith(
       expect.stringMatching(/local storage is unavailable/i),

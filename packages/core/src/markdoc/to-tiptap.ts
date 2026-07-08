@@ -248,6 +248,9 @@ function blockToTiptap(node: MdNode): TiptapNode | null {
       if (tag === 'query') {
         return { type: 'queryBlock', attrs: { mdAttrs: node.attributes } }
       }
+      if (tag === 'embed') {
+        return { type: 'embedBlock', attrs: { mdAttrs: node.attributes } }
+      }
       return {
         type: 'setuBlock',
         attrs: { tag, mdAttrs: node.attributes },

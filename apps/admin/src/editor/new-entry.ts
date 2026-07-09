@@ -1,5 +1,11 @@
 import type { DataPort, GitPort } from '@setu/core'
-import { parseContentPath, formatFrontmatterDate, newCid } from '@setu/core'
+import {
+  parseContentPath,
+  formatFrontmatterDate,
+  newCid,
+  entrySlugify,
+  RESERVED_ENTRY_SLUG
+} from '@setu/core'
 
 /** Frontmatter a freshly-composed entry starts with. Stamped with a stable `cid` (survives a
  *  later slug rename — powers auto-301 redirects #252 / #389) and today's date so date-pattern
@@ -12,20 +18,14 @@ export function composeInitialMetadata(
   return { cid, date: formatFrontmatterDate(now) }
 }
 
-/** Sentinel slug for the "compose a new entry" route (`/edit/<collection>/<locale>/new`). */
-export const NEW_SLUG = 'new'
+/** Sentinel slug for the "compose a new entry" route (`/edit/<collection>/<locale>/new`).
+ *  Single-sourced in core (rename/slug.ts) so the rename service refuses it too. */
+export const NEW_SLUG = RESERVED_ENTRY_SLUG
 
-/** Title → URL-safe slug. Lowercase, words joined by single hyphens; drops punctuation.
- *  Returns '' for an empty/symbol-only title (callers fall back to 'untitled'). */
-export function slugify(title: string): string {
-  return title
-    .toLowerCase()
-    .trim()
-    .replace(/[^\p{L}\p{N}\s_-]/gu, '') // keep letters, numbers, whitespace, underscore, hyphen
-    .replace(/[\s_]+/g, '-') // whitespace + underscores → hyphen separators
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '')
-}
+/** Title → URL-safe slug. The implementation lives in @setu/core (`entrySlugify`,
+ *  rename/slug.ts) so minting, rename validation, and auto-derive share ONE
+ *  vocabulary; re-exported here to keep existing admin imports stable. */
+export const slugify = entrySlugify
 
 /** First free slug: `base` (or 'untitled' if empty), else `base-2`, `base-3`, …
  *  `taken` is the set of slugs already in use (including the `new` sentinel). */

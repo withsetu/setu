@@ -1,8 +1,11 @@
-.muted,
-.empty-state {
+.muted {
   color: var(--text-3);
 }
 .empty-state {
+  /* --text-2 (muted-foreground), not --text-3: light-mode --text-3 (#8a8a94 on
+     white) is under the WCAG AA 4.5:1 threshold — axe flagged the editor's
+     "Loading…" empty-state (js a11y lane). muted-foreground passes AA. */
+  color: var(--text-2);
   padding: 32px 30px;
 }
 

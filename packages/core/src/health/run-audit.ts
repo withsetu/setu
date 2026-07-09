@@ -73,10 +73,16 @@ function naReason(item: RubricItem): string {
   return 'Not applicable to this site.'
 }
 
+// `na` (not applicable) and `pending` (a live probe hasn't run yet) are both
+// score-NEUTRAL — excluded from the denominator entirely. Counting an un-probed item
+// as a non-pass would silently punish "not checked yet" and make the score dishonest
+// (the whole point of #372/#373). Once a probe returns pass/fail the item counts.
+const SCORE_NEUTRAL = new Set<CheckResult['status']>(['na', 'pending'])
+
 const scoreOf = (
   items: { weight: number; status: CheckResult['status'] }[]
 ): { score: number; pass: number; total: number } => {
-  const scored = items.filter((i) => i.status !== 'na') // na excluded; everything else counts
+  const scored = items.filter((i) => !SCORE_NEUTRAL.has(i.status))
   const denom = scored.reduce((s, i) => s + i.weight, 0)
   const passW = scored
     .filter((i) => i.status === 'pass')
@@ -88,12 +94,18 @@ const scoreOf = (
   }
 }
 
-export function runAudit(context: AuditContext): AuditResult {
-  const results: CheckResult[] = RUBRIC.map((item) => resolve(item, context))
+/** Compute the score/band/breakdown from a set of check results. Single source of truth
+ *  for scoring, shared by the initial audit and by `mergeProbe` (which re-scores after
+ *  live-probe results flip items from `pending` to pass/fail). Unknown ids are ignored. */
+export function scoreAudit(
+  results: CheckResult[]
+): Pick<AuditResult, 'score' | 'band' | 'byCategory' | 'mustHaves'> {
   const byId = new Map(results.map((r) => [r.id, r]))
+  const statusOf = (id: string): CheckResult['status'] =>
+    byId.get(id)?.status ?? 'unverified'
   const weighted = RUBRIC.map((i) => ({
     weight: WEIGHT[i.severity],
-    status: byId.get(i.id)!.status
+    status: statusOf(i.id)
   }))
   const { score } = scoreOf(weighted)
   const band: AuditResult['band'] =
@@ -104,19 +116,23 @@ export function runAudit(context: AuditContext): AuditResult {
   ).map((category) => {
     const items = RUBRIC.filter((i) => i.category === category).map((i) => ({
       weight: WEIGHT[i.severity],
-      status: byId.get(i.id)!.status
+      status: statusOf(i.id)
     }))
     const s = scoreOf(items)
     return { category, score: s.score, pass: s.pass, total: s.total }
   })
 
   const reqApplicable = RUBRIC.filter(
-    (i) => i.severity === 'required' && byId.get(i.id)!.status !== 'na'
+    (i) => i.severity === 'required' && statusOf(i.id) !== 'na'
   )
   const mustHaves = {
-    done: reqApplicable.filter((i) => byId.get(i.id)!.status === 'pass').length,
+    done: reqApplicable.filter((i) => statusOf(i.id) === 'pass').length,
     total: reqApplicable.length
   }
+  return { score, band, byCategory, mustHaves }
+}
 
-  return { results, score, band, byCategory, mustHaves }
+export function runAudit(context: AuditContext): AuditResult {
+  const results: CheckResult[] = RUBRIC.map((item) => resolve(item, context))
+  return { results, ...scoreAudit(results) }
 }

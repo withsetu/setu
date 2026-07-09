@@ -287,6 +287,19 @@ export {
 export type { BulkService, BulkDeps, BulkResult } from './bulk/bulk-service'
 export { createBulkService } from './bulk/bulk-service'
 
+export type {
+  RenameService,
+  RenameDeps,
+  RenameResult,
+  RenameRefusal
+} from './rename/rename-service'
+export { createRenameService } from './rename/rename-service'
+export {
+  entrySlugify,
+  isValidEntrySlug,
+  RESERVED_ENTRY_SLUG
+} from './rename/slug'
+
 export type { MarkdocAttr } from './blocks/markdoc-attributes'
 export { markdocAttributesFor } from './blocks/markdoc-attributes'
 
@@ -327,13 +340,18 @@ export type {
   CategoryScore,
   AuditResult,
   AttestationRecord,
-  HealthState
+  HealthState,
+  ProbeInput,
+  ProbeItemResult,
+  ProbeReport,
+  ProbeResponse
 } from './health/types'
 export { RUBRIC } from './health/rubric'
 export { SITE_CAPABILITIES } from './health/capabilities'
 export { scanBody } from './health/scan'
 export { EVALUATORS, APPLIES_WHEN } from './health/checks'
-export { runAudit } from './health/run-audit'
+export { runAudit, scoreAudit } from './health/run-audit'
+export { evaluateProbe, mergeProbe } from './health/probe'
 export { parseHealthState, setHealthRecord } from './health/health-state'
 
 export type {

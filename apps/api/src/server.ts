@@ -20,7 +20,10 @@ import {
 } from '@setu/core'
 import type { CaptchaPort } from '@setu/core'
 import { createTurnstileCaptcha } from '@setu/captcha-turnstile'
-import { createRecaptchaCaptcha } from '@setu/captcha-recaptcha'
+import {
+  createRecaptchaCaptcha,
+  createRecaptchaV3Captcha
+} from '@setu/captcha-recaptcha'
 import { createConsoleEmailAdapter } from '@setu/email-console'
 import { createResendEmailAdapter } from '@setu/email-resend'
 import { renderSubmissionEmail } from '@setu/email-templates'
@@ -84,6 +87,18 @@ function resolveCaptcha(provider: string, secret: string): CaptchaPort {
       `[captcha] provider "${provider}" selected but secret unset — dev pass-through`
     )
     return createNoopCaptcha()
+  }
+  // 'recaptcha-v3' reads its score threshold from SETU_RECAPTCHA_MIN_SCORE (default 0.5) and an
+  // optional expected action from SETU_RECAPTCHA_ACTION.
+  if (provider === 'recaptcha-v3') {
+    const raw = Number(process.env.SETU_RECAPTCHA_MIN_SCORE)
+    return createRecaptchaV3Captcha({
+      secret,
+      ...(Number.isFinite(raw) ? { minScore: raw } : {}),
+      ...(process.env.SETU_RECAPTCHA_ACTION
+        ? { action: process.env.SETU_RECAPTCHA_ACTION }
+        : {})
+    })
   }
   return provider === 'recaptcha'
     ? createRecaptchaCaptcha({ secret })

@@ -85,4 +85,25 @@ describe('GET /media/*', () => {
     )
     expect(res.status).toBe(404)
   })
+
+  it('stays public: serves an asset even when the caller is unauthenticated', async () => {
+    // #430 gated the inventory/status GETs but the asset route serves content by design and
+    // MUST remain reachable without auth (it is what the static site links to). Seed as owner,
+    // then fetch the asset through an app whose resolver returns no actor.
+    const storage = memStorage()
+    const ownerApp = createUploadApi({ storage, resolveActor: () => owner })
+    const body = new FormData()
+    body.append(
+      'file',
+      new File([new Uint8Array([9, 8, 7])], 'pub.png', { type: 'image/png' })
+    )
+    const up = await ownerApp.fetch(
+      new Request('http://test/media', { method: 'POST', body })
+    )
+    const { key } = (await up.json()) as { key: string }
+    const anonApp = createUploadApi({ storage, resolveActor: () => null })
+    const res = await anonApp.fetch(new Request(`http://test/media/${key}`))
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toContain('image/png')
+  })
 })

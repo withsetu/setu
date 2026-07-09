@@ -17,6 +17,16 @@
     "src/authz",
     "src/lifecycle",
     "src/content-index",
-    "src/url"
+    "src/url",
+    "src/submissions",
+    "src/email",
+    "src/captcha",
+    "src/config",
+    "src/settings",
+    "src/seo",
+    "src/tags",
+    "src/taxonomy",
+    "src/media-index",
+    "src/permalinks"
   ]
 }

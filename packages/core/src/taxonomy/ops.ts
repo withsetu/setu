@@ -25,7 +25,9 @@ export function slugify(name: string): string {
     .replace(/[^\p{L}\p{N}\s_-]/gu, '')
     .replace(/[\s_]+/g, '-')
     .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '')
+    // runs are already collapsed above, so a single-char trim is exactly
+    // equivalent to `/^-+|-+$/g` — and linear, unlike that (polynomial) form (#340)
+    .replace(/^-|-$/g, '')
   return s || 'category'
 }
 

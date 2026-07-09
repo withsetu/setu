@@ -2,13 +2,17 @@
  *  punctuation, spaces/underscores → hyphens, collapse repeats, strip edges.
  *  Returns '' for empty/symbol-only input (callers reject ''). */
 export function normalizeTag(raw: string): string {
-  return raw
-    .toLowerCase()
-    .trim()
-    .replace(/[^\p{L}\p{N}\s_-]/gu, '')
-    .replace(/[\s_]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '')
+  return (
+    raw
+      .toLowerCase()
+      .trim()
+      .replace(/[^\p{L}\p{N}\s_-]/gu, '')
+      .replace(/[\s_]+/g, '-')
+      .replace(/-+/g, '-')
+      // runs are already collapsed above, so a single-char trim is exactly
+      // equivalent to `/^-+|-+$/g` — and linear, unlike that (polynomial) form (#340)
+      .replace(/^-|-$/g, '')
+  )
 }
 
 /** Normalize a list of raw tags: drop empties, dedupe preserving first-seen order. */

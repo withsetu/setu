@@ -40,7 +40,20 @@ export interface SubmissionServiceDeps {
   ) => NotificationContent | Promise<NotificationContent>
 }
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+/** Linear-time email floor check, exactly equivalent to the old
+ *  `/^[^\s@]+@[^\s@]+\.[^\s@]+$/` (a valid local part, one `@`, and a domain
+ *  containing an interior dot) but without the adjacent-quantifier backtracking
+ *  that made that regex polynomial on adversarial input (issue #340 — this runs
+ *  on the UNAUTHENTICATED `/forms/submit` path). */
+export function isEmailish(s: string): boolean {
+  const at = s.indexOf('@')
+  if (at < 1) return false // need an `@` with at least one char before it
+  if (s.indexOf('@', at + 1) !== -1) return false // exactly one `@`
+  if (/\s/.test(s)) return false // no whitespace anywhere
+  // a dot in the domain that is neither its first nor its last character
+  const dot = s.indexOf('.', at + 2)
+  return dot !== -1 && dot < s.length - 1
+}
 
 const escapeHtml = (s: string): string =>
   s
@@ -88,7 +101,7 @@ export function createSubmissionService(
       // 3. Validate server-side floor: a valid email + a non-empty message.
       const emailVal = (input.fields['email'] ?? '').trim()
       const message = (input.fields['message'] ?? '').trim()
-      if (!EMAIL_RE.test(emailVal) || message === '')
+      if (!isEmailish(emailVal) || message === '')
         return { ok: false, error: 'invalid' }
 
       // 4. Persist.

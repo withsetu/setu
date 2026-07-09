@@ -1,10 +1,54 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   validateContactFields,
-  submitContact
+  submitContact,
+  isEmailish
 } from '../../src/submissions/contact-form'
 
 const req = { name: true, subject: false, message: true }
+
+describe('isEmailish (linear email floor, #340)', () => {
+  // The set below pins the EXACT behaviour of the old
+  // `/^[^\s@]+@[^\s@]+\.[^\s@]+$/` so the linear rewrite cannot drift.
+  // `a@b.c.` / `a@.b.c` LOOK odd but the old regex accepted them (the domain just
+  // needs an interior dot) — behaviour preservation means we accept them too.
+  const accept = [
+    'a@b.c',
+    'ada@x.com',
+    'ab@c.de',
+    'a@b.c.d',
+    'a@.b.c',
+    'a@b..c',
+    'a@b.c.'
+  ]
+  const reject = [
+    '',
+    'a',
+    '@',
+    'a@b',
+    '@b.c',
+    'a@.c',
+    'a@b.',
+    'a@@b.c',
+    'a b@c.d',
+    'a@b c.d',
+    'a@b.c ',
+    ' a@b.c'
+  ]
+  it('accepts the same addresses the old regex accepted', () => {
+    for (const s of accept) expect(isEmailish(s), s).toBe(true)
+  })
+  it('rejects the same addresses the old regex rejected', () => {
+    for (const s of reject) expect(isEmailish(s), s).toBe(false)
+  })
+  it('does not catastrophically backtrack on adversarial input', () => {
+    // The old regex was quadratic on this shape (seconds at 60k; ~minutes here).
+    const evil = 'a@' + '.'.repeat(100_000) + '@'
+    const t = performance.now()
+    expect(isEmailish(evil)).toBe(false)
+    expect(performance.now() - t).toBeLessThan(1000)
+  })
+})
 
 describe('validateContactFields', () => {
   it('passes a complete valid form', () => {

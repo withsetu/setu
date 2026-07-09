@@ -509,6 +509,147 @@ describe('rank guard (databaseHooks + widened maintainer statements, #364)', () 
     })
   })
 
+  // #410/#364 escalation-filter pins (whole-branch review): none of the code above in this file
+  // is what stops these three attacks — better-auth's OWN mechanisms are, and nothing in-repo
+  // would go red if a dependency upgrade changed them. These tests exist purely so an upgrade that
+  // weakens the underlying guard fails CI instead of shipping silently.
+  describe('#410 self-escalation via POST /update-user (session-gated, NOT an /admin/* route)', () => {
+    // The ONLY thing preventing this is better-auth's own field-level `input: false` filtering
+    // (verified in installed better-auth@1.6.23's admin plugin schema, `dist/plugins/admin/
+    // schema.mjs`: `role`/`banned`/`banReason`/`banExpires` are all declared `input: false`).
+    // `parseInputData` (`dist/db/schema.mjs`) throws `FIELD_NOT_ALLOWED` (400) whenever such a
+    // field is present in the body with a truthy value — there is no rank-guard.ts hook on this
+    // path at all (`/update-user` isn't in `UPDATE_GUARDED_PATHS`, and it doesn't need to be, as
+    // long as better-auth keeps this filter). A future better-auth upgrade that relaxed
+    // `input: false` handling (or dropped it from these fields) would silently reopen
+    // self-escalation with nothing in this repo noticing — hence pinning it here.
+    it('author POSTs /update-user with { name, role: "admin" } -> 4xx, role unchanged', async () => {
+      const { db, auth } = makeAuth()
+      const author = await makeUser(auth, {
+        email: 'author-esc@test.com',
+        name: 'Author',
+        role: 'author',
+        password: PASSWORD
+      })
+      const cookie = await signInCookie(auth, 'author-esc@test.com', PASSWORD)
+
+      const res = await auth.handler(
+        adminRequest('/update-user', cookie, { name: 'x', role: 'admin' })
+      )
+      expect(res.status).toBeGreaterThanOrEqual(400)
+      expect(res.status).toBeLessThan(500)
+      const persisted = await findUserRow(db, author.id)
+      expect(persisted?.role).toBe('author')
+    })
+
+    // `banned: false` is deliberately NOT used here: better-auth's `input: false` filter only
+    // throws on a TRUTHY value for the field (`if (data[key]) throw ...` in `parseInputData`) —
+    // `banned: false` is falsy, so it is silently dropped (200, no-op) rather than rejected.
+    // Verified directly against the real harness before writing this test (an author POSTing
+    // `{ name: 'y', banned: false }` returns 200 with `banned` untouched — never a security issue
+    // since `false` is already the safe default and the field is never forwarded to
+    // `internalAdapter.updateUser`). `banned: true` is the truthy escalation attempt that
+    // exercises the same `input: false` guard as the role case above.
+    it('author POSTs /update-user with { name, banned: true } -> 4xx, banned unchanged', async () => {
+      const { db, auth } = makeAuth()
+      const author = await makeUser(auth, {
+        email: 'author-esc2@test.com',
+        name: 'Author',
+        role: 'author',
+        password: PASSWORD
+      })
+      const cookie = await signInCookie(auth, 'author-esc2@test.com', PASSWORD)
+
+      const res = await auth.handler(
+        adminRequest('/update-user', cookie, { name: 'z', banned: true })
+      )
+      expect(res.status).toBeGreaterThanOrEqual(400)
+      expect(res.status).toBeLessThan(500)
+      const persisted = await findUserRow(db, author.id)
+      expect(persisted?.banned).toBeFalsy()
+    })
+  })
+
+  describe('#364 triage (a): /admin/create-user role smuggled via `data.role` (body.role absent)', () => {
+    // better-auth's own `/admin/create-user` handler (`dist/plugins/admin/routes.mjs`) already
+    // folds `data.role` into `requestedRole` (`ctx.body.role ?? dataRole`) before resolving the
+    // row it's about to persist, so `rankGuardCreateHook` (this package's `rank-guard.ts`) sees the
+    // SAME already-resolved `user.role` regardless of which field carried it in the request body —
+    // there is no separate code path to smuggle through today. This test pins that fact so a
+    // future refactor of the create-user route (or of `rankGuardCreateHook` to read
+    // `context.body.role` directly instead of the resolved `user.role`) can't reopen the gap
+    // silently.
+    it('maintainer creates a user via data:{role:"admin"} (no top-level role) -> 4xx, no row created', async () => {
+      const { db, auth } = makeAuth()
+      await makeUser(auth, {
+        email: 'maintainer-smuggle@test.com',
+        name: 'Maintainer',
+        role: 'maintainer',
+        password: PASSWORD
+      })
+      const cookie = await signInCookie(
+        auth,
+        'maintainer-smuggle@test.com',
+        PASSWORD
+      )
+
+      const res = await auth.handler(
+        adminRequest('/admin/create-user', cookie, {
+          email: 'smuggled@test.com',
+          name: 'Smuggled',
+          password: PASSWORD,
+          data: { role: 'admin' }
+        })
+      )
+      expect(res.status).toBeGreaterThanOrEqual(400)
+      expect(res.status).toBeLessThan(500)
+      const rows = await db
+        .select()
+        .from(userTable)
+        .where(eq(userTable.email, 'smuggled@test.com'))
+      expect(rows).toHaveLength(0)
+    })
+  })
+
+  describe('#364 triage (b): /admin/update-user is maintainer-inaccessible entirely', () => {
+    // Unlike /admin/set-role and /admin/ban-user (widened for maintainer), /admin/update-user's
+    // underlying `update` statement is deliberately withheld from `setuAdminRoles.maintainer`
+    // (see rank-guard.ts's file doc: "/admin/remove-user (delete) and /admin/set-user-password are
+    // deliberately NOT included here ... withhold delete and set-password entirely" — update-user
+    // is withheld the same way). better-auth's own `hasPermission` check 403s a maintainer before
+    // any databaseHook or rank logic is reachable, for ANY field — not just role/banned. This pins
+    // that the withheld statement, not a per-field guard, is what protects this route, so a future
+    // statement-widening (the exact class of change that necessitated rank-guard.ts in the first
+    // place) fails this test instead of silently opening the route.
+    it('maintainer POSTs /admin/update-user with a harmless field (name) -> 403', async () => {
+      const { auth } = makeAuth()
+      await makeUser(auth, {
+        email: 'maintainer-upd@test.com',
+        name: 'Maintainer',
+        role: 'maintainer',
+        password: PASSWORD
+      })
+      const author = await makeUser(auth, {
+        email: 'author-upd@test.com',
+        name: 'Author',
+        role: 'author'
+      })
+      const cookie = await signInCookie(
+        auth,
+        'maintainer-upd@test.com',
+        PASSWORD
+      )
+
+      const res = await auth.handler(
+        adminRequest('/admin/update-user', cookie, {
+          userId: author.id,
+          data: { name: 'New Name' }
+        })
+      )
+      expect(res.status).toBe(403)
+    })
+  })
+
   describe('admin full management incl. peers (unchanged)', () => {
     it('admin set-role on a peer admin -> 200 (still subject to last-admin guard elsewhere)', async () => {
       const { db, auth } = makeAuth()

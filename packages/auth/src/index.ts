@@ -18,7 +18,10 @@ import {
   userUpdateAfterHook,
   userDeleteAfterHook
 } from './audit-hooks'
-import { resetPasswordEmailContent } from './reset-password-email'
+import {
+  resetPasswordEmailContent,
+  withDefaultResetCallback
+} from './reset-password-email'
 export { SETU_ROLES, type CreateAuthOptions } from './options'
 export {
   localToken,
@@ -130,10 +133,14 @@ export function createAuth(opts: CreateAuthOptions) {
   //    the `{ user, url, token }` signature this file destructures below.
   //  - line 72: `url` is built as `` `${ctx.context.baseURL}/reset-password/${token}?callbackURL=${callbackURL}` ``
   //    where `ctx.context.baseURL` is `opts.baseURL` + this file's own `basePath` ('/api/auth')
-  //    and `callbackURL` is the caller-supplied `redirectTo` from the request body (empty when
-  //    omitted) — so `url` is already a complete, absolute link; no further construction needed
-  //    here. Wiring an admin-side "forgot password" page to pass `redirectTo` is a follow-up, not
-  //    part of this task's scope (wiring the send, not the trigger UI).
+  //    and `callbackURL` is the caller-supplied `redirectTo` from the request body — EMPTY when
+  //    the requester omitted it, which the `/reset-password/:token` callback route then rejects
+  //    as INVALID_TOKEN (line 115: `if (!token || !callbackURL) throw ctx.redirect(...)`) — a
+  //    guaranteed dead link. withDefaultResetCallback below closes that hole: it fills in
+  //    `opts.email.resetRedirectTo` (the admin origin's /reset-password route, supplied by
+  //    server.ts) whenever the built link's callbackURL is empty/absent, and preserves better-
+  //    auth's URL untouched (token path segment + encoded callbackURL) whenever the requester DID
+  //    pass an explicit redirectTo.
   const emailOpt = opts.email
   const emailAndPassword: Parameters<typeof betterAuth>[0]['emailAndPassword'] =
     {
@@ -142,7 +149,9 @@ export function createAuth(opts: CreateAuthOptions) {
       ...(emailOpt
         ? {
             sendResetPassword: async ({ user, url }) => {
-              const content = resetPasswordEmailContent(url)
+              const content = resetPasswordEmailContent(
+                withDefaultResetCallback(url, emailOpt.resetRedirectTo)
+              )
               await emailOpt.send({
                 to: user.email,
                 from: emailOpt.from,

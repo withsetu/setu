@@ -111,6 +111,10 @@ const submissionsDb =
   process.env.SETU_SUBMISSIONS_DB ?? `${dir}/.setu/submissions.db`
 const notifyTo = process.env.SETU_FORMS_NOTIFY_TO
 const notifyFrom = process.env.SETU_FORMS_NOTIFY_FROM
+// Admin SPA origin — same env + default that allowed-origins.ts uses for the CORS/origin
+// allowlist. Read once here and shared by the reset-email default callback (below) and the
+// local-handshake log line (bottom of this file).
+const adminOrigin = process.env.SETU_ADMIN_ORIGIN ?? 'http://localhost:5173'
 
 // Email transport (#248 forms notifications; #364 password-reset emails share it). Selected by
 // SETU_EMAIL_ADAPTER, defaulting to the zero-config console adapter (dev: logs instead of
@@ -221,8 +225,17 @@ const auth = authConfigured
       // from-address is configured at all: there is nothing to put in the message's `from` field,
       // matching how the submission service itself skips sending without one (see
       // createSubmissionService's `if (email && notifyTo && notifyFrom)` guard below).
+      // resetRedirectTo: where the emailed link lands when the /request-password-reset caller
+      // omitted redirectTo — without it better-auth's callback route 302s the click to
+      // /error?error=INVALID_TOKEN (see the option's doc). The admin origin is already on the
+      // trustedOrigins allowlist above, so better-auth's originCheck accepts this callback. The
+      // admin SPA's /reset-password screen is the next task on this branch.
       email: notifyFrom
-        ? { send: (msg) => email.send(msg), from: notifyFrom }
+        ? {
+            send: (msg) => email.send(msg),
+            from: notifyFrom,
+            resetRedirectTo: `${adminOrigin}/reset-password`
+          }
         : undefined
     })
   : undefined
@@ -429,8 +442,8 @@ console.log(
 )
 if (localToken) {
   // The ONE place the token is ever logged — this is the intended handoff channel to the admin.
-  // Never log the token (or this URL) anywhere else.
-  const adminOrigin = process.env.SETU_ADMIN_ORIGIN ?? 'http://localhost:5173'
+  // Never log the token (or this URL) anywhere else. (adminOrigin is the shared const near the
+  // top of this file.)
   console.log(`Admin handshake: ${adminOrigin}/#setu-token=${localToken.token}`)
 }
 if (setupToken !== null) {

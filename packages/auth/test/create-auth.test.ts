@@ -25,7 +25,9 @@ function makeAuth(email?: CreateAuthOptions['email']) {
 
 /** A minimal fake matching `CreateAuthOptions['email']`'s structural `send` shape — never a real
  *  transport (mirrors packages/email-testing's contract-harness style: record what was sent, don't
- *  actually deliver anything). */
+ *  actually deliver anything). resetRedirectTo mirrors what server.ts supplies —
+ *  `<adminOrigin>/reset-password`, on the trusted admin origin. */
+const ADMIN_RESET_ROUTE = 'http://localhost:5173/reset-password'
 function makeFakeEmail() {
   const sent: EmailMessage[] = []
   return {
@@ -34,7 +36,8 @@ function makeFakeEmail() {
       send: async (msg: EmailMessage) => {
         sent.push(msg)
       },
-      from: 'noreply@setu.test'
+      from: 'noreply@setu.test',
+      resetRedirectTo: ADMIN_RESET_ROUTE
     }
   }
 }
@@ -146,6 +149,48 @@ describe('createAuth', () => {
       expect(sent[0]?.html).toContain(
         'http://localhost:4444/api/auth/reset-password/'
       )
+    })
+
+    // Review fix: better-auth's /reset-password/:token handler 302s an EMPTY callbackURL to
+    // ${apiBase}/error?error=INVALID_TOKEN (password.mjs line 115) — so a request WITHOUT
+    // redirectTo used to email a guaranteed-dead link. The send path must fill in the default.
+    it('a request WITHOUT redirectTo: the emailed link carries a non-empty callbackURL pointing at the admin reset route', async () => {
+      const { sent, email } = makeFakeEmail()
+      const { createAuth: makeAuthInstance } = makeAuth(email)
+      const auth = makeAuthInstance()
+      await createUser(auth, 'a@b.co', 'hunter2hunter2')
+
+      await auth.api.requestPasswordReset({ body: { email: 'a@b.co' } })
+
+      expect(sent).toHaveLength(1)
+      const html = sent[0]!.html
+      // Extract the actual link and decode its callbackURL — asserting on the parsed param, not a
+      // substring, proves the link is one better-auth's callback route will actually accept.
+      const href = /href="([^"]+)"/.exec(html)?.[1]
+      expect(href).toBeDefined()
+      const link = new URL(href!)
+      expect(link.pathname).toMatch(/^\/api\/auth\/reset-password\/.+/) // token segment preserved
+      expect(link.searchParams.get('callbackURL')).toBe(ADMIN_RESET_ROUTE)
+    })
+
+    it('a request WITH an explicit redirectTo keeps it (link untouched)', async () => {
+      const { sent, email } = makeFakeEmail()
+      const { createAuth: makeAuthInstance } = makeAuth(email)
+      const auth = makeAuthInstance()
+      await createUser(auth, 'a@b.co', 'hunter2hunter2')
+
+      // Must be on a trusted origin — /request-password-reset originChecks the redirectTo body.
+      const explicit = 'http://localhost:5173/my-custom-reset'
+      await auth.api.requestPasswordReset({
+        body: { email: 'a@b.co', redirectTo: explicit }
+      })
+
+      expect(sent).toHaveLength(1)
+      const href = /href="([^"]+)"/.exec(sent[0]!.html)?.[1]
+      expect(href).toBeDefined()
+      const link = new URL(href!)
+      expect(link.searchParams.get('callbackURL')).toBe(explicit)
+      expect(link.searchParams.get('callbackURL')).not.toBe(ADMIN_RESET_ROUTE)
     })
 
     it('with an `email` option: a non-existent email does not error and does not send (better-auth anti-enumeration behavior, unchanged)', async () => {

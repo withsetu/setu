@@ -71,5 +71,17 @@ export interface CreateAuthOptions {
      *  already has (`SETU_FORMS_NOTIFY_FROM`, read in server.ts) rather than inventing a second,
      *  auth-specific env var for what is still just "the instance's one outbound sender address". */
     from: string
+    /** Default landing page for the emailed reset link when the `/request-password-reset` caller
+     *  omitted `redirectTo`. Required, not optional: better-auth's `/reset-password/:token`
+     *  handler treats an EMPTY `callbackURL` query param as invalid and 302s to
+     *  `${apiBase}/error?error=INVALID_TOKEN` (1.6.23 dist/api/routes/password.mjs line 115:
+     *  `if (!token || !callbackURL) throw ctx.redirect(redirectError(...))`), so an emailed link
+     *  without a callback is a guaranteed dead end — the send path must be incapable of emitting
+     *  one. `createAuth` can't derive this itself (`trustedOrigins` is an unordered allowlist with
+     *  no designated admin origin), so the caller supplies it — server.ts builds it from the
+     *  existing `SETU_ADMIN_ORIGIN` convention as `<adminOrigin>/reset-password`. Must be an
+     *  allowlisted origin, or better-auth's own originCheck on the callback route rejects the
+     *  redirect when the link is clicked. */
+    resetRedirectTo: string
   }
 }

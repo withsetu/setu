@@ -58,6 +58,11 @@ describe('query block', () => {
       'A short companion post about running Astro content at the edge.'
     )
   })
+  it('renders an empty state, not a bare empty list, when no posts match (#421)', () => {
+    // query-demo has a second block filtered to a nonexistent category → zero matches.
+    expect(html).toContain('setu-posts__empty')
+    expect(html).toContain('No posts found.')
+  })
   it('ships zero JS', () => {
     expect(html).not.toContain('astro-island')
     expect(html).not.toMatch(

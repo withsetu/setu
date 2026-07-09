@@ -18,7 +18,8 @@ const STRING_CONTROLS: ReadonlySet<BlockControl> = new Set([
   'url',
   'color',
   'category',
-  'tag'
+  'tag',
+  'locale'
 ])
 
 /** Controls a hint may upgrade an enum (String with `.matches`) prop to. */

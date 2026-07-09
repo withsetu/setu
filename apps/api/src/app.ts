@@ -54,34 +54,52 @@ function publishesLiveContent(content: string): boolean {
   }
 }
 
-/** The write permission a commit requires, derived from the paths AND content it touches. Fail-closed:
- *  a commit requires the STRONGEST permission any of its changes needs, so nothing can be smuggled in
- *  with a lower-privilege change.
- *   - `settings.json`            → `settings.manage` (admin only)
- *   - a content post going live  → `content.publish` (publishing is gated server-side, not just in
- *                                  the UI's PublishMenu — an author must not publish via the raw API)
- *   - everything else (drafts, taxonomy, deletes) → `content.edit` */
-function writeActionForChanges(changes: WriteChange[]): Action {
+/** The write permission a commit requires, derived from the paths, the content being written, AND
+ *  the COMMITTED state of each touched file. Fail-closed: a commit requires the STRONGEST
+ *  permission any of its changes needs, so nothing can be smuggled in with a lower-privilege
+ *  change.
+ *   - `settings.json`                       → `settings.manage` (admin only)
+ *   - new content that IS live               → `content.publish` (publishing is gated server-side,
+ *                                              not just in the UI's PublishMenu — an author must
+ *                                              not publish via the raw API)
+ *   - touching a file whose COMMITTED
+ *     content is live (live-edit, unpublish,
+ *     or delete of a live post)              → `content.publish` (#382: an author must not be able
+ *                                              to silently unpublish or delete a live post just
+ *                                              because content.edit lets them write drafts)
+ *   - everything else (drafts, taxonomy)     → `content.edit`
+ *  Only content paths need the committed-state read (`git.readFile`) — it's skipped for
+ *  non-content paths and short-circuited once a change already forces `content.publish`. */
+async function writeActionForChanges(
+  changes: WriteChange[],
+  git: GitPort
+): Promise<Action> {
   let action: Action = 'content.edit'
   for (const { path, content } of changes) {
     const p = normalizeRepoPath(path)
     const adminAction = ADMIN_ONLY_WRITE[p]
     if (adminAction) return adminAction // settings.manage — the strongest; short-circuit.
-    if (
-      content !== undefined &&
-      parseContentPath(p) &&
-      publishesLiveContent(content)
-    ) {
+    if (!parseContentPath(p)) continue // taxonomy etc. — content.edit is enough
+    if (content !== undefined && publishesLiveContent(content)) {
       action = 'content.publish'
+      continue // already the strongest content action — skip the committed-state read
+    }
+    const committed = await git.readFile(p)
+    if (committed !== null && publishesLiveContent(committed)) {
+      action = 'content.publish' // live-edit, unpublish, or delete of an already-live post
     }
   }
   return action
 }
 
 /** Authz gate for the write routes: parses the commit body, derives the required action from the
- *  target paths + content, and 403s an actor who lacks it. Pairs with `authMiddleware` (sets the
- *  actor / 401s). Hono caches `c.req.json()`, so the handler re-reading the same body is free. */
-function requireWrite(changesOf: (body: unknown) => WriteChange[]) {
+ *  target paths + new content + committed state, and 403s an actor who lacks it. Pairs with
+ *  `authMiddleware` (sets the actor / 401s). Hono caches `c.req.json()`, so the handler re-reading
+ *  the same body is free. */
+function requireWrite(
+  git: GitPort,
+  changesOf: (body: unknown) => WriteChange[]
+) {
   return createMiddleware<{ Variables: { actor: Actor } }>(async (c, next) => {
     let changes: WriteChange[]
     try {
@@ -89,7 +107,7 @@ function requireWrite(changesOf: (body: unknown) => WriteChange[]) {
     } catch {
       return c.json({ error: 'invalid request body' }, 400)
     }
-    if (!authz.can(c.get('actor'), writeActionForChanges(changes)))
+    if (!authz.can(c.get('actor'), await writeActionForChanges(changes, git)))
       return c.json({ error: 'forbidden' }, 403)
     await next()
   })
@@ -100,19 +118,26 @@ function requireWrite(changesOf: (body: unknown) => WriteChange[]) {
  *
  *  Authz (#362, OWASP A01): /git/* is the repository write API — an ungated `POST /git/commit`
  *  let an anonymous caller rewrite any file in the content repo. The WRITE routes require a write
- *  permission derived from the target paths AND content (`writeActionForChanges`):
+ *  permission derived from the target paths, the NEW content, AND the COMMITTED state of each
+ *  touched path (`writeActionForChanges`):
  *    - `settings.json`           → `settings.manage` (admin only — settings share this primitive and
  *                                  must not be writable by content staff; UAT 2026-07-05).
  *    - a content post going live → `content.publish` — publishing is enforced HERE, server-side, not
  *                                  only in the UI's PublishMenu, so an author (who lacks
  *                                  `content.publish`) cannot publish by POSTing live content directly.
  *                                  A `published: false` draft only needs `content.edit`.
+ *    - a change touching a path whose COMMITTED content is already live → `content.publish` (#382:
+ *                                  writing `published: false` over a live post, deleting a live
+ *                                  post, or any other edit to it is a publish-adjacent action — an
+ *                                  author must not be able to silently unpublish or delete a live
+ *                                  post just because `content.edit` lets them write drafts).
  *    - everything else            → `content.edit` (Author/Editor/Maintainer/Admin).
  *  Fail-closed: a mixed commit requires the strongest permission any change needs. Path scoping is
  *  otherwise still coarse (taxonomy also rides `content.edit`; a later/Pro increment refines it). The
  *  security-critical properties: an unauthenticated actor cannot write at all, content staff cannot
- *  write admin-only files, and non-publishers cannot publish. The admin's HttpGitPort carries the
- *  session cookie (credentials: 'include' via apiFetch — apps/admin/src/data/Bootstrap.tsx).
+ *  write admin-only files, non-publishers cannot publish, and non-publishers cannot alter a post that
+ *  is already live. The admin's HttpGitPort carries the session cookie (credentials: 'include' via
+ *  apiFetch — apps/admin/src/data/Bootstrap.tsx).
  *
  *  The READ routes (head/file/list) are intentionally NOT gated: the admin's `bootstrapServices`
  *  reads `git.headSha()` at startup, BEFORE the user has a session (to decide seed-if-empty), so
@@ -141,7 +166,7 @@ export function createGitApi(git: GitPort, resolveActor: ResolveActor) {
   app.post(
     '/git/commit',
     auth,
-    requireWrite((b) => {
+    requireWrite(git, (b) => {
       const { path, content } = b as CommitInput
       return typeof path === 'string' ? [{ path, content }] : []
     }),
@@ -155,7 +180,7 @@ export function createGitApi(git: GitPort, resolveActor: ResolveActor) {
   app.post(
     '/git/commit-files',
     auth,
-    requireWrite((b) => {
+    requireWrite(git, (b) => {
       const changes = (b as CommitFilesInput).changes
       if (!Array.isArray(changes)) return []
       return changes

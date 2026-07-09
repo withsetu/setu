@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { Draft, DraftInput, Lifecycle, TiptapDoc } from '@setu/core'
 import {
+  contentPath,
   parseFrontmatterDate,
+  parseMdoc,
   resolvePermalinkConfig,
   serializeMdoc,
   tiptapToMarkdoc
@@ -78,10 +80,15 @@ export function EditorScreen() {
   const [status, setStatus] = useState<SaveStatus>('idle')
   const [rev, setRev] = useState(0)
   const [lifecycle, setLifecycle] = useState<Lifecycle>({ state: 'draft' })
+  const [liveCommitted, setLiveCommitted] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [editor, setEditor] = useState<Editor | null>(null)
   const selectedBlock = useSelectedBlock(editor)
   const apiBase = import.meta.env.VITE_SETU_API ?? ''
+  // #382 WordPress-Contributor: a non-publisher can view a live post but never alter it
+  // (the server enforces the same rule; this is the honest UI for it).
+  const viewOnly = liveCommitted && !can('content.publish')
+  const editable = phase === 'ready' && !viewOnly
 
   // Feeds the query block's in-canvas live preview with real index results (same query the
   // published block resolves at build time).
@@ -121,6 +128,7 @@ export function EditorScreen() {
         setRev(0)
         setStatus('idle')
         setLifecycle({ state: 'draft' })
+        setLiveCommitted(false)
         setPhase('ready')
         return
       }
@@ -128,6 +136,17 @@ export function EditorScreen() {
       const draft: Draft | null =
         result.source === 'absent' ? null : result.draft
       const open = await authoring.open(ref, EDITOR_ID)
+      // #382: is this entry LIVE in Git? (committed and not published:false — same
+      // fail-closed rule as the server's publishesLiveContent gate)
+      const committed = await git.readFile(contentPath(ref))
+      let isLive = false
+      if (committed !== null) {
+        try {
+          isLive = parseMdoc(committed).frontmatter['published'] !== false
+        } catch {
+          isLive = true
+        }
+      }
       if (!live) return
       // Just minted this slug from a compose save: the in-memory doc/meta is canonical (may hold
       // keystrokes newer than the saved copy) — keep it instead of reloading over it.
@@ -142,13 +161,14 @@ export function EditorScreen() {
       setMetadata(meta)
       setRev(0)
       setStatus(justMinted ? 'saved' : 'idle')
+      setLiveCommitted(isLive)
       setPhase(open.granted ? 'ready' : 'readonly')
       void refreshLifecycle()
     })()
     return () => {
       live = false
     }
-  }, [ref, read, authoring, refreshLifecycle, composing, slug])
+  }, [ref, read, authoring, git, refreshLifecycle, composing, slug])
 
   // When the global Deploy advances the live sha, re-derive so the pill updates.
   useEffect(() => {
@@ -156,7 +176,7 @@ export function EditorScreen() {
   }, [deploySha, refreshLifecycle])
 
   useAutosave({
-    enabled: phase === 'ready',
+    enabled: editable,
     rev,
     getInput: (): DraftInput => ({
       ...ref,
@@ -357,7 +377,10 @@ export function EditorScreen() {
 
         {/* center: save state only */}
         <div className="flex flex-1 justify-center">
-          <SaveIndicator status={status} readonly={phase === 'readonly'} />
+          <SaveIndicator
+            status={status}
+            readonly={phase === 'readonly' || viewOnly}
+          />
         </div>
 
         {/* right */}
@@ -460,6 +483,12 @@ export function EditorScreen() {
           This entry is locked by another editor — viewing read-only.
         </div>
       )}
+      {viewOnly && (
+        <div className="ed-banner" role="status">
+          This post is live on the site. Your role can&apos;t change published
+          posts — ask an editor to update or unpublish it.
+        </div>
+      )}
       <div className="editor-stage">
         <div className="ed-scroll">
           <div className="ed-canvas">
@@ -468,7 +497,7 @@ export function EditorScreen() {
               aria-label="Title"
               placeholder="Untitled"
               value={title}
-              disabled={phase === 'readonly'}
+              disabled={phase === 'readonly' || viewOnly}
               onChange={(e) =>
                 onMetaChange({ ...metaRef.current, title: e.target.value })
               }
@@ -476,7 +505,7 @@ export function EditorScreen() {
             <Canvas
               key={`${collection}/${locale}/${slug}`}
               initialContent={initialDoc}
-              editable={phase === 'ready'}
+              editable={editable}
               onChange={onDocChange}
               onEditor={setEditor}
               runQuery={runQuery}
@@ -502,7 +531,7 @@ export function EditorScreen() {
             metadata={metadata}
             locale={locale}
             slug={slug}
-            editable={phase === 'ready'}
+            editable={editable}
             onChange={onMetaChange}
             apiBase={(import.meta.env.VITE_SETU_API as string) ?? ''}
           />

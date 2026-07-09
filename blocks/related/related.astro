@@ -58,9 +58,10 @@ const cards: Card[] = String(posts)
 }
 
 <style>
-  /* Reads only contract tokens (docs/block-styling-contract.md); the token guard scans this
-     <style> block (#420). Kept inline — Astro's markdoc pipeline collects a component's scoped
-     <style> but not a frontmatter CSS import. */
+  /* The shared `.setu-post-card__*` card internals live once, global, in theme-default/site.css
+     (#424). Only this block's own chrome (the Related section + its auto-fill grid) stays here.
+     Not a shared frontmatter CSS import — Astro's markdoc pipeline doesn't load one for a
+     `component()`-rendered block; the theme global is the single source instead. */
   .setu-related { margin: 2rem 0; }
   .setu-related h2 {
     font-family: var(--font-ui);
@@ -69,14 +70,4 @@ const cards: Card[] = String(posts)
   }
   .setu-posts { list-style: none; padding: 0; margin: 0; display: grid; gap: 1.25rem; }
   .setu-posts--grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
-  .setu-post-card__media img {
-    width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover;
-    border-radius: var(--r-md); display: block;
-  }
-  .setu-post-card__title {
-    display: inline-block; margin-top: 0.5rem;
-    font-family: var(--font-ui); font-weight: 600;
-    color: var(--text); text-decoration: none;
-  }
-  .setu-post-card__title:hover { color: var(--accent); }
 </style>

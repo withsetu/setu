@@ -29,43 +29,7 @@
       "ruleId": "js/polynomial-redos",
       "uri": "packages/core/src/content/excerpt.ts",
       "issue": "#340",
-      "note": "Pre-existing regex, surfaced by the 2026-07-03 CodeQL query-pack update (markdoc/image-stripper regexes; author-controlled input (site build))."
-    },
-    {
-      "ruleId": "js/polynomial-redos",
-      "uri": "packages/core/src/submissions/contact-form.ts",
-      "issue": "#340",
-      "note": "Pre-existing regex, surfaced by the 2026-07-03 CodeQL query-pack update (untrusted form input \u2014 PRIORITY)."
-    },
-    {
-      "ruleId": "js/polynomial-redos",
-      "uri": "packages/core/src/submissions/submission-service.ts",
-      "issue": "#340",
-      "note": "Pre-existing regex, surfaced by the 2026-07-03 CodeQL query-pack update (untrusted form input \u2014 PRIORITY)."
-    },
-    {
-      "ruleId": "js/polynomial-redos",
-      "uri": "packages/core/src/tags/normalize.ts",
-      "issue": "#340",
-      "note": "Pre-existing regex, surfaced by the 2026-07-03 CodeQL query-pack update (tag canonicalization, user input \u2014 PRIORITY)."
-    },
-    {
-      "ruleId": "js/polynomial-redos",
-      "uri": "packages/core/src/taxonomy/ops.ts",
-      "issue": "#340",
-      "note": "Pre-existing regex, surfaced by the 2026-07-03 CodeQL query-pack update (taxonomy ops)."
-    },
-    {
-      "ruleId": "js/polynomial-redos",
-      "uri": "packages/image-astro/src/lib/media-base.ts",
-      "issue": "#340",
-      "note": "Pre-existing regex, surfaced by the 2026-07-03 CodeQL query-pack update (media base url handling)."
-    },
-    {
-      "ruleId": "js/polynomial-redos",
-      "uri": "packages/storage-local/src/index.ts",
-      "issue": "#340",
-      "note": "Pre-existing regex, surfaced by the 2026-07-03 CodeQL query-pack update (storage key handling)."
+      "note": "Markdoc/image/link stripper regexes. Quadratic via the /g-restart on a recurring opening delimiter (`{%`, `![`, `[`) whose content classes legitimately contain that delimiter, so no linear-safe regex rewrite preserves the exact set of stripped substrings; a correct fix needs a stateful single-pass parser. Lowest severity of the #340 set (author-controlled, build-time only) \u2014 left tracked under #340 pending the parser rewrite."
     }
   ]
 }

@@ -11,6 +11,15 @@ export interface LocalStorageOptions {
 
 const META = '.meta'
 
+/** Drop any run of trailing `/`. Exactly equivalent to `.replace(/\/+$/, '')`
+ *  but a single linear scan — the anchored `\/+$` form is polynomial because the
+ *  engine re-tries the quantifier from every start position (#340). */
+function stripTrailingSlashes(s: string): string {
+  let end = s.length
+  while (end > 0 && s.charCodeAt(end - 1) === 47 /* '/' */) end--
+  return end === s.length ? s : s.slice(0, end)
+}
+
 /** Reject keys that are absolute, contain `..` segments, or otherwise escape `dir`;
  *  return the safe absolute path under `dir`. */
 function resolveKey(dir: string, key: string): string {
@@ -39,7 +48,7 @@ export function createLocalStorage({
   dir,
   baseUrl
 }: LocalStorageOptions): StoragePort {
-  const base = baseUrl.replace(/\/+$/, '')
+  const base = stripTrailingSlashes(baseUrl)
 
   // key has already passed resolveKey in the calling method (not absolute, no '..', not in .meta)
   const metaPathFor = (key: string) => join(normalize(dir), META, key)

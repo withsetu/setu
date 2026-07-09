@@ -15,6 +15,17 @@ describe('normalizeTag', () => {
   it('treats underscores as separators', () => {
     expect(normalizeTag('hello_world')).toBe('hello-world')
   })
+  it('strips leading and trailing hyphen runs (edge trim)', () => {
+    expect(normalizeTag('---react---')).toBe('react')
+    expect(normalizeTag('- a - b -')).toBe('a-b')
+  })
+  it('does not catastrophically backtrack on adversarial input (#340)', () => {
+    // The old `/^-+|-+$/g` edge-trim was quadratic on this shape in isolation.
+    const evil = 'x' + '-'.repeat(100_000) + 'y'
+    const t = performance.now()
+    normalizeTag(evil)
+    expect(performance.now() - t).toBeLessThan(1000)
+  })
 })
 
 describe('normalizeTags', () => {

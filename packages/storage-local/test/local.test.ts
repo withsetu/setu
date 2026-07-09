@@ -38,4 +38,20 @@ describe('storage-local — security + persistence', () => {
     expect(new TextDecoder().decode(got!.body)).toBe('IMG')
     expect(got!.contentType).toBe('image/png')
   })
+
+  it('trims a run of trailing slashes off baseUrl for url() (#340)', () => {
+    dir = mkdtempSync(join(tmpdir(), 'setu-storage-'))
+    const s = createLocalStorage({ dir, baseUrl: 'https://cdn.test///' })
+    expect(s.url('media/1/x.png')).toBe('https://cdn.test/media/1/x.png')
+  })
+
+  it('does not catastrophically backtrack on an adversarial baseUrl (#340)', () => {
+    // The old `/\/+$/` baseUrl trim was quadratic on this shape.
+    dir = mkdtempSync(join(tmpdir(), 'setu-storage-'))
+    const evil = 'https://cdn.test' + '/'.repeat(100_000)
+    const t = performance.now()
+    const s = createLocalStorage({ dir, baseUrl: evil })
+    expect(s.url('k')).toBe('https://cdn.test/k')
+    expect(performance.now() - t).toBeLessThan(1000)
+  })
 })

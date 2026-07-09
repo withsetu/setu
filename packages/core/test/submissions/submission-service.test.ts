@@ -47,6 +47,18 @@ describe('createSubmissionService.submit', () => {
     expect((await submissions.listSubmissions()).total).toBe(0)
   })
 
+  it('rejects an adversarial email fast, without ReDoS backtracking (#340)', async () => {
+    // /forms/submit is UNAUTHENTICATED — the old EMAIL_RE was quadratic here.
+    const submissions = createMemorySubmissionPort()
+    const svc = createSubmissionService({ submissions, captcha: ok })
+    const evil = 'a@' + '.'.repeat(100_000) + '@'
+    const t = performance.now()
+    expect(
+      await svc.submit({ ...base, fields: { email: evil, message: 'x' } })
+    ).toEqual({ ok: false, error: 'invalid' })
+    expect(performance.now() - t).toBeLessThan(1000)
+  })
+
   it('missing message: returns invalid', async () => {
     const submissions = createMemorySubmissionPort()
     const svc = createSubmissionService({ submissions, captcha: ok })

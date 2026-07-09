@@ -22,6 +22,17 @@ describe('slugify', () => {
   it('falls back to "category" for empty/symbol-only', () => {
     expect(slugify('!!!')).toBe('category')
   })
+  it('strips leading and trailing hyphen runs (edge trim)', () => {
+    expect(slugify('---News---')).toBe('news')
+    expect(slugify('- a - b -')).toBe('a-b')
+  })
+  it('does not catastrophically backtrack on adversarial input (#340)', () => {
+    // The old `/^-+|-+$/g` edge-trim was quadratic on this shape in isolation.
+    const evil = 'x' + '-'.repeat(100_000) + 'y'
+    const t = performance.now()
+    slugify(evil)
+    expect(performance.now() - t).toBeLessThan(1000)
+  })
 })
 
 describe('addCategory', () => {

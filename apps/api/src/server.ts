@@ -313,7 +313,13 @@ if (auth) {
 }
 
 app.route('/', createGitApi(createLocalGitAdapter({ dir }), resolveActor))
-app.route('/', createPreviewApi())
+// In-editor preview is dev-only (the site route that renders the slot exists only under `astro dev`
+// and its GET carries no session cookie, so the slot can't be auth-gated). Mount it only outside
+// production so it isn't an unauthenticated read/write surface on a real server (#419).
+app.route(
+  '/',
+  createPreviewApi({ enabled: process.env.NODE_ENV !== 'production' })
+)
 app.route(
   '/',
   createUploadApi({

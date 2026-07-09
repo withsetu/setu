@@ -44,6 +44,27 @@ const post = (
     })
   )
 
+// #419 — /forms/submit is PUBLIC (any origin, no auth — publicPaths in server.ts), so an unbounded
+// c.req.json() here is an unauthenticated DoS surface that also amplifies the ReDoS on email input
+// (#340). The route now caps the body; oversize → 413 before any parsing/verification.
+describe('createFormsApi — public submit body cap (413)', () => {
+  it('rejects an oversized /forms/submit body with 413', async () => {
+    const { app } = makeApp()
+    const oversize =
+      '{"formId":"contact","captchaToken":"t","fields":{"message":"' +
+      'a'.repeat(1024 * 1024 + 1024) +
+      '"}}'
+    const res = await app.fetch(
+      new Request('http://x/forms/submit', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: oversize
+      })
+    )
+    expect(res.status).toBe(413)
+  })
+})
+
 describe('createFormsApi', () => {
   it('POST /forms/submit stores a valid submission', async () => {
     const { app, submissions } = makeApp()

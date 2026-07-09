@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { createMiddleware } from 'hono/factory'
+import { bodyLimit } from 'hono/body-limit'
 import { createAuthz, DEFAULT_ROLES } from '@setu/core'
 import type {
   Action,
@@ -13,6 +14,10 @@ import { authMiddleware } from './auth/middleware'
 import type { ResolveActor } from './auth/resolve-actor'
 
 const authz = createAuthz(DEFAULT_ROLES)
+
+/** Max bytes for a public form submission — one submission is small; this is a DoS ceiling on the
+ *  unauthenticated, any-origin submit route (also bounds the ReDoS-prone email input, #340). */
+const FORM_SUBMIT_MAX_BYTES = 1 * 1024 * 1024
 
 // c.req.json() returns `any` — untrusted HTTP input flowed straight into typed service
 // calls with only truthiness checks (caught by @typescript-eslint/no-unsafe-* when
@@ -67,53 +72,62 @@ export function createFormsApi(opts: {
   app.get('/forms/captcha-status', (c) => c.json(captchaStatus))
 
   // --- public (captcha-gated embeddable widget; no session) ---
-  app.post('/forms/submit', async (c) => {
-    const body = asRecord(await c.req.json())
-    if (
-      !body ||
-      typeof body['formId'] !== 'string' ||
-      body['formId'] === '' ||
-      !asRecord(body['fields']) ||
-      typeof body['captchaToken'] !== 'string'
-    ) {
-      return c.json({ ok: false, error: 'invalid' }, 400)
+  app.post(
+    '/forms/submit',
+    bodyLimit({
+      maxSize: FORM_SUBMIT_MAX_BYTES,
+      onError: (c) => c.json({ ok: false, error: 'too_large' }, 413)
+    }),
+    async (c) => {
+      const body = asRecord(await c.req.json())
+      if (
+        !body ||
+        typeof body['formId'] !== 'string' ||
+        body['formId'] === '' ||
+        !asRecord(body['fields']) ||
+        typeof body['captchaToken'] !== 'string'
+      ) {
+        return c.json({ ok: false, error: 'invalid' }, 400)
+      }
+      const fields = asRecord(body['fields'])!
+      const bodySourceUrl = asRecord(body['source'])?.['url']
+      const source = {
+        ...(typeof bodySourceUrl === 'string' && bodySourceUrl
+          ? { url: bodySourceUrl }
+          : {}),
+        ...(c.req.header('referer')
+          ? { referrer: c.req.header('referer') }
+          : {}),
+        ...(c.req.header('user-agent')
+          ? { userAgent: c.req.header('user-agent') }
+          : {})
+      }
+      const ip =
+        c.req.header('cf-connecting-ip') ??
+        c.req.header('x-forwarded-for') ??
+        undefined
+      const result = await submit.submit({
+        formId: body['formId'],
+        formLabel:
+          typeof body['formLabel'] === 'string' ? body['formLabel'] : undefined,
+        fields: Object.fromEntries(
+          Object.entries(fields).map(([k, v]) => [
+            k,
+            typeof v === 'string' ? v : ''
+          ])
+        ),
+        captchaToken: body['captchaToken'],
+        honeypot:
+          typeof body['honeypot'] === 'string' ? body['honeypot'] : undefined,
+        source: Object.keys(source).length ? source : undefined,
+        ip
+      })
+      if (result.ok) return c.json(result, 200)
+      const status =
+        result.error === 'spam' ? 403 : result.error === 'invalid' ? 400 : 500
+      return c.json(result, status)
     }
-    const fields = asRecord(body['fields'])!
-    const bodySourceUrl = asRecord(body['source'])?.['url']
-    const source = {
-      ...(typeof bodySourceUrl === 'string' && bodySourceUrl
-        ? { url: bodySourceUrl }
-        : {}),
-      ...(c.req.header('referer') ? { referrer: c.req.header('referer') } : {}),
-      ...(c.req.header('user-agent')
-        ? { userAgent: c.req.header('user-agent') }
-        : {})
-    }
-    const ip =
-      c.req.header('cf-connecting-ip') ??
-      c.req.header('x-forwarded-for') ??
-      undefined
-    const result = await submit.submit({
-      formId: body['formId'],
-      formLabel:
-        typeof body['formLabel'] === 'string' ? body['formLabel'] : undefined,
-      fields: Object.fromEntries(
-        Object.entries(fields).map(([k, v]) => [
-          k,
-          typeof v === 'string' ? v : ''
-        ])
-      ),
-      captchaToken: body['captchaToken'],
-      honeypot:
-        typeof body['honeypot'] === 'string' ? body['honeypot'] : undefined,
-      source: Object.keys(source).length ? source : undefined,
-      ip
-    })
-    if (result.ok) return c.json(result, 200)
-    const status =
-      result.error === 'spam' ? 403 : result.error === 'invalid' ? 400 : 500
-    return c.json(result, status)
-  })
+  )
 
   // --- admin CRUD — authenticated + capability-gated (visitor PII) ---
   const auth = authMiddleware(resolveActor)

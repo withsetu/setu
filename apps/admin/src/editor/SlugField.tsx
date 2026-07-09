@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { RenameResult, ResolvedPermalinkConfig } from '@setu/core'
 import { resolvePermalink } from '@setu/core'
 import { Check, X } from 'lucide-react'
@@ -8,10 +8,7 @@ import { Button } from '../components/ui/button'
 import { siteBaseUrl } from '../shell/site-url'
 import { slugify } from './new-entry'
 
-const REFUSAL_MESSAGES: Record<
-  NonNullable<RenameResult['reason']>,
-  string
-> = {
+const REFUSAL_MESSAGES: Record<NonNullable<RenameResult['reason']>, string> = {
   'target-exists': 'Already used by another entry in this collection/locale.',
   'invalid-slug': 'Use lowercase letters, numbers, and hyphens.',
   absent: 'This entry no longer exists — reload and try again.',
@@ -44,24 +41,20 @@ export function SlugField({
   categories: string[]
   onRename: (newSlug: string) => Promise<RenameResult>
 }) {
-  const [text, setText] = useState(slug)
-  const [touched, setTouched] = useState(false)
+  // null = untouched → the field tracks the slug prop (navigation after a
+  // rename, compose-mode live derivation from the title); a string = the
+  // user's staged edit, never clobbered by prop changes until apply/revert.
+  const [staged, setStaged] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [applying, setApplying] = useState(false)
 
-  // Re-sync from the prop (navigation after a rename, compose-mode live
-  // derivation from the title) — but never over the user's in-progress edit.
-  useEffect(() => {
-    if (!touched) setText(slug)
-  }, [slug, touched])
-
+  const text = staged ?? slug
   const clean = slugify(text)
   const dirty = text !== slug
   const canApply = dirty && clean !== '' && !applying
 
   const revert = () => {
-    setText(slug)
-    setTouched(false)
+    setStaged(null)
     setError(null)
   }
 
@@ -76,7 +69,7 @@ export function SlugField({
       const result = await onRename(clean)
       if (result.renamed) {
         // The parent navigates / re-derives; the prop change re-syncs us.
-        setTouched(false)
+        setStaged(null)
         setError(null)
       } else if (result.reason && result.reason !== 'unchanged') {
         setError(REFUSAL_MESSAGES[result.reason])
@@ -123,8 +116,7 @@ export function SlugField({
             value={text}
             disabled={!editable || applying}
             onChange={(e) => {
-              setText(e.target.value)
-              setTouched(true)
+              setStaged(e.target.value)
               setError(null)
             }}
             onKeyDown={(e) => {

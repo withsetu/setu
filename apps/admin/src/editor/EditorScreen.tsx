@@ -604,9 +604,7 @@ export function EditorScreen() {
             collection={collection}
             locale={locale}
             slug={
-              composing
-                ? (manualSlug ?? (slugify(title) || 'untitled'))
-                : slug
+              composing ? (manualSlug ?? (slugify(title) || 'untitled')) : slug
             }
             editable={phase === 'ready'}
             committed={lifecycle.state !== 'draft'}

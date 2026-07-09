@@ -145,7 +145,10 @@ describe('renameService.renameSlug — committed rename', () => {
     const { rename, git } = setup([
       {
         ref: ref('old'),
-        frontmatter: { title: 'Hello', cid: 'b3b8f7a2-1111-4222-8333-444455556666' },
+        frontmatter: {
+          title: 'Hello',
+          cid: 'b3b8f7a2-1111-4222-8333-444455556666'
+        },
         body: 'the body'
       }
     ])
@@ -176,15 +179,19 @@ describe('renameService.renameSlug — committed rename', () => {
     const rename = createRenameService({ data, git: spyGit, author })
     await rename.renameSlug(ref('old'), 'fresh')
     expect(calls).toHaveLength(1)
-    expect(calls[0].changes).toHaveLength(2)
-    expect(calls[0].message).toBe('Rename post/en/old → fresh')
+    expect(calls[0]?.changes).toHaveLength(2)
+    expect(calls[0]?.message).toBe('Rename post/en/old → fresh')
     // and the source really is gone afterwards
     expect((await rename.renameSlug(ref('old'), 'other')).reason).toBe('absent')
   })
 
   it('re-keys an edited draft onto the move commit (baseSha = move sha, baseContent = committed)', async () => {
     const { rename, git, data } = setup([
-      { ref: ref('old'), frontmatter: { title: 'Hello' }, body: 'committed body' }
+      {
+        ref: ref('old'),
+        frontmatter: { title: 'Hello' },
+        body: 'committed body'
+      }
     ])
     const committed = (await git.readFile(contentPath(ref('old'))))!
     await data.saveDraft({

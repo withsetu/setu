@@ -4,9 +4,11 @@ import type { RenameResult } from '@setu/core'
 import { SlugField } from '../src/editor/SlugField'
 
 const ok: RenameResult = { renamed: true, committedSha: null }
-const refuse = (
-  reason: NonNullable<RenameResult['reason']>
-): RenameResult => ({ renamed: false, committedSha: null, reason })
+const refuse = (reason: NonNullable<RenameResult['reason']>): RenameResult => ({
+  renamed: false,
+  committedSha: null,
+  reason
+})
 
 function setup(props?: Partial<React.ComponentProps<typeof SlugField>>) {
   const onRename = vi.fn(async (): Promise<RenameResult> => ok)
@@ -16,7 +18,10 @@ function setup(props?: Partial<React.ComponentProps<typeof SlugField>>) {
     locale: 'en',
     editable: true,
     committed: false,
-    permalinkConfig: { pattern: ':collection/:slug', uncategorized: 'uncategorized' },
+    permalinkConfig: {
+      pattern: ':collection/:slug',
+      uncategorized: 'uncategorized'
+    },
     date: Date.UTC(2026, 6, 4),
     categories: [],
     onRename
@@ -47,9 +52,7 @@ describe('SlugField — staging and applying', () => {
     const { onRename } = setup()
     fireEvent.change(input(), { target: { value: 'My New Slug!' } })
     fireEvent.keyDown(input(), { key: 'Enter' })
-    await waitFor(() =>
-      expect(onRename).toHaveBeenCalledWith('my-new-slug')
-    )
+    await waitFor(() => expect(onRename).toHaveBeenCalledWith('my-new-slug'))
   })
 
   it('the apply button applies too', async () => {
@@ -143,9 +146,7 @@ describe('SlugField — refusal errors', () => {
 describe('SlugField — URL preview', () => {
   it('shows the resolved full URL for the current slug', () => {
     setup()
-    expect(
-      screen.getByText('localhost:4321/post/my-post')
-    ).toBeInTheDocument()
+    expect(screen.getByText('localhost:4321/post/my-post')).toBeInTheDocument()
   })
 
   it('live-updates the preview as the staged slug changes', () => {

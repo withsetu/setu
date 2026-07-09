@@ -7,9 +7,10 @@ import { SETU_ROLES, type CreateAuthOptions } from './options'
 import { localToken } from './local-token-plugin'
 import { serverSetup } from './server-setup-plugin'
 import {
-  lastOwnerGuardHook,
-  lastOwnerDeleteGuardHook
+  lastAdminGuardHook,
+  lastAdminDeleteGuardHook
 } from './last-owner-guard'
+import { rankGuardCreateHook, rankGuardUpdateHook } from './rank-guard'
 import {
   userCreateAfterHook,
   sessionCreateAfterHook,
@@ -34,10 +35,28 @@ export type { AuthEvent, AuthEventType } from './events'
 // editor|author), which REPLACES that default entirely — so even though
 // Setu's top role is now also literally `admin`, it's our `admin` definition
 // below (not better-auth's built-in one) that governs the admin plugin's
-// user/session statements. Only 'admin' is granted admin-plugin permissions
-// (user/session management); the rest are placeholders with no admin-plugin
-// statements — Setu's own authorization (outside better-auth) governs what
-// maintainer/editor/author can do.
+// user/session statements.
+//
+// #364: `maintainer` is now widened beyond an empty placeholder. Verified against installed
+// better-auth 1.6.23 source (`dist/plugins/admin/has-permission.mjs` + `dist/plugins/admin/
+// routes.mjs`, see rank-guard.ts's file doc for the full citation): a role's `roles` statements —
+// NOT the `adminRoles` list — are what better-auth's own `hasPermission` checks to authorize
+// `/admin/create-user`, `/admin/set-role`, `/admin/ban-user`, and `/admin/unban-user`. Granting
+// `user: ['create', 'set-role', 'ban']` is exactly enough for a maintainer to create/promote/demote/
+// ban/unban users at all (ban-user and unban-user share the single `ban` statement); it does NOT by
+// itself scope WHO a maintainer may target or WHAT role they may hand out — that per-call, per-
+// target rank check (maintainer may only manage/assign strictly below their own rank) is enforced
+// separately by `rank-guard.ts`'s databaseHooks, composed below. `delete`, `set-password`,
+// `impersonate`, `set-email`, `get`, and `list` are deliberately withheld from maintainer:
+//  - `delete`/`set-password`: no rank-aware databaseHook can gate these (set-user-password never
+//    touches the `user` table at all — see rank-guard.ts) or is designed to (remove-user should
+//    stay admin-only per the task brief), so they must stay off the statement entirely — better-
+//    auth's own `hasPermission` 403s a maintainer before any hook runs.
+//  - `impersonate`/`set-email`/`get`/`list`: out of scope for #364 (rank-scoped user MANAGEMENT),
+//    left for a future increment if the product ever needs maintainer-level impersonation or a
+//    maintainer-scoped user directory.
+// `editor`/`author` remain empty placeholders — Setu's own authorization (outside better-auth)
+// governs what they can do, and neither ever reaches an admin-plugin route.
 const setuAdminRoles = {
   admin: defaultAc.newRole({
     user: [
@@ -54,7 +73,9 @@ const setuAdminRoles = {
     ],
     session: ['list', 'revoke', 'delete']
   }),
-  maintainer: defaultAc.newRole({ user: [], session: [] }),
+  maintainer: defaultAc.newRole({
+    user: ['create', 'set-role', 'ban']
+  }),
   editor: defaultAc.newRole({ user: [], session: [] }),
   author: defaultAc.newRole({ user: [], session: [] })
 } satisfies Record<
@@ -106,32 +127,50 @@ export function createAuth(opts: CreateAuthOptions) {
     // setup (needsSetup flips to false the moment ANY user row exists, not just the owner's).
     emailAndPassword: { enabled: true, disableSignUp: true },
     socialProviders: opts.socialProviders,
-    // Server-side last-owner enforcement (#248 Task 8 review, Finding 1): every consumer of this
-    // `auth` instance — our own routes, a future public API, or a raw HTTP call by any owner
-    // session — is covered, not just the admin UI's client-side guard (see UsersSettings.tsx's
-    // roleChangeGuard/disableGuard, which remain as a first line of UX feedback but are no longer
-    // the ONLY protection). See last-owner-guard.ts for the full derivation of why this mechanism
-    // (databaseHooks.user.update.before) can see the target user id despite not receiving it as an
-    // explicit hook argument.
+    // Server-side last-admin enforcement (#248 Task 8 review, Finding 1) + #364 rank enforcement:
+    // every consumer of this `auth` instance — our own routes, a future public API, or a raw HTTP
+    // call by any admin/maintainer session — is covered, not just the admin UI's client-side guard
+    // (see UsersSettings.tsx's roleChangeGuard/disableGuard, which remain as a first line of UX
+    // feedback but are no longer the ONLY protection). See last-owner-guard.ts and rank-guard.ts for
+    // the full derivation of why these hooks can see the target user id and the acting session
+    // despite neither being an explicit hook argument.
+    //
+    // `update.before` composes TWO independent guards (better-auth's databaseHooks type only
+    // accepts a single `before` function per model/event, so they're composed explicitly here,
+    // not registered as a list): rankGuardUpdateHook MUST run first — it's the one that stops a
+    // maintainer from touching a peer/admin target or self-escalating a role at all — before
+    // lastAdminGuardHook, which only ever cares about admin targets and would be a no-op for the
+    // maintainer-vs-maintainer/editor cases rank-guard exists to catch. Both throw (rather than
+    // returning `false`) on violation, so composing them as a plain sequential `await` is sufficient
+    // — the first to throw aborts the update before the second (or the DB write) ever runs.
     //
     // The five `after` hooks are #248 Task 9's audit-event emission points — see audit-hooks.ts
     // for the full per-event-type mechanism derivation (user.created / login.success / logout /
     // role.changed / user.banned / user.unbanned / user.deleted, the last three also covering
     // /admin/update-user and /admin/remove-user respectively). They run strictly after the
-    // last-owner guard's `before` hooks (which may themselves abort the update/delete), so an
-    // event only ever fires for a change that actually committed.
+    // `before` guards above (which may themselves abort the create/update/delete), so an event
+    // only ever fires for a change that actually committed.
     databaseHooks: {
       user: {
-        create: { after: userCreateAfterHook(emit) },
+        create: {
+          before: rankGuardCreateHook(),
+          after: userCreateAfterHook(emit)
+        },
         update: {
-          before: lastOwnerGuardHook(),
+          before: async (data, context) => {
+            await rankGuardUpdateHook()(data, context)
+            await lastAdminGuardHook()(data, context)
+          },
           after: userUpdateAfterHook(emit)
         },
         // Deletion is a SEPARATE chokepoint from update (deleteWithHooks, not updateWithHooks) —
-        // `/admin/remove-user` on the last active owner would otherwise bypass the guard above
-        // entirely. See last-owner-guard.ts's lastOwnerDeleteGuardHook doc for the full mechanism.
+        // `/admin/remove-user` on the last active admin would otherwise bypass the guard above
+        // entirely. See last-owner-guard.ts's lastAdminDeleteGuardHook doc for the full mechanism.
+        // No rank-guard delete hook is needed: maintainer's statements withhold `delete` entirely
+        // (see setuAdminRoles above), so only `admin` ever reaches this route — rank-guard.ts's
+        // file doc covers why.
         delete: {
-          before: lastOwnerDeleteGuardHook(),
+          before: lastAdminDeleteGuardHook(),
           after: userDeleteAfterHook(emit)
         }
       },

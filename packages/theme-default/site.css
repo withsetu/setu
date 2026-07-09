@@ -253,6 +253,63 @@ body {
   }
 }
 
+/* Shared post-card internals (#424) — the query, related, and archive list all render the same
+   `.setu-post-card__*` markup. The card internals live here ONCE, global, so all three consumers
+   share one source of truth. Each consumer keeps only its own layout/chrome (grid track counts,
+   the related heading, the archive pager) in its scoped <style>.
+
+   Why global (not a shared CSS import from a folder-block frontmatter): Astro's Markdoc pipeline
+   collects a component's scoped <style> but NOT a frontmatter CSS `import` side-effect for
+   `component()`-rendered blocks (query/related render via markdoc) — the import silently doesn't
+   load. `site.css` is imported by Layout.astro and loads on every page, so the rules always serve.
+   Reads only the 19 contract tokens (docs/block-styling-contract.md). */
+/* Scoped under `.setu-posts` (two classes → specificity 0,2,0) so the card rules out-specify the
+   theme's content-link styling (`.prose a`, 0,1,1) — the blocks render inside `.prose measure-*`,
+   and a bare `.setu-post-card__title` (0,1,0) would LOSE the cascade and the titles would fall back
+   to underlined accent links. (The scoped inline <style> these rules replaced were 0,2,0 via Astro's
+   data-attr, so they won; keep parity. #424.) */
+.setu-posts .setu-post-card__media img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--r-md);
+  display: block;
+}
+.setu-posts .setu-post-card__title {
+  display: inline-block;
+  margin-top: 0.5rem;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+}
+.setu-posts .setu-post-card__title:hover {
+  color: var(--accent);
+}
+.setu-posts .setu-post-card__date {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--text-2);
+}
+.setu-posts .setu-post-card__excerpt {
+  margin: 0.4rem 0 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--text-2);
+  /* Clamp to 3 lines so uneven-length excerpts keep the grid tidy. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.setu-posts__empty {
+  margin: 1.5rem 0;
+  color: var(--text-2);
+  font-style: italic;
+}
+
 /* Post lead/hero image (featured-image slot) */
 .post-hero {
   margin: 2.5rem auto 0;

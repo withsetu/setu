@@ -69,4 +69,37 @@ describe('query block', () => {
       /<script(?![^>]*type="application\/ld\+json")[\s>]/
     )
   })
+
+  // #424 regression guard. The shared `.setu-post-card__*` card CSS was deduped into
+  // theme-default/site.css (a global import), removing three inline copies. The exact failure this
+  // catches: the card class renders in the page markup while NO served CSS actually DEFINES the
+  // rule — which is what happens if the shared CSS is wired via a folder-block frontmatter import
+  // (Astro's markdoc pipeline collects a component's scoped <style> but not that import side-effect,
+  // so the rule silently never loads). Asserting the class is in the HTML is NOT enough. We follow
+  // the page's own <style>/<link> to the CSS the browser actually receives and require a rule BODY.
+  it('serves a real .setu-post-card__title rule body on the page, not just the class in markup (#424)', () => {
+    const inlineCss = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)]
+      .map((m) => m[1])
+      .join('\n')
+    const linkedCss = [...html.matchAll(/href="(\/_astro\/[^"]+\.css)"/g)]
+      .map((m) => readFileSync(join(appDir, 'dist', m[1]), 'utf8'))
+      .join('\n')
+    const servedCss = `${inlineCss}\n${linkedCss}`
+    // The class MUST also render in the markup (sanity: the guard would be vacuous otherwise).
+    expect(html).toContain('class="setu-post-card__title"')
+    // …and the served CSS must DEFINE it, SCOPED under `.setu-posts`. The `.setu-posts ` prefix is
+    // load-bearing, NOT cosmetic: the block renders inside `.prose measure-*`, and the theme's
+    // `.prose a` (specificity 0,1,1) would out-specify a bare `.setu-post-card__title` (0,1,0) →
+    // titles fall back to underlined accent links (caught in live UAT). The two-class selector
+    // (0,2,0) wins. Match the scoped form so a regression to the losing selector fails here.
+    // The build minifies but keeps the descendant combinator; allow flexible whitespace.
+    expect(servedCss).toMatch(
+      /\.setu-posts\s+\.setu-post-card__title\s*\{[^}]+\}/
+    )
+    // The deduped rule reads the contract token, not a hardcoded brand color (#424 also fixed the
+    // archive copy's non-contract vars). Prove the token, not a hex literal, reaches the page.
+    expect(servedCss).toMatch(
+      /\.setu-posts\s+\.setu-post-card__title\s*\{[^}]*var\(--font-ui\)/
+    )
+  })
 })

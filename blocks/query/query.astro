@@ -120,29 +120,8 @@ const fmtDate = (ms: number, loc: string): string =>
   @media (max-width: 900px) { .setu-posts--grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 560px) { .setu-posts--grid { grid-template-columns: 1fr; } }
   .setu-posts--list { grid-template-columns: 1fr; }
-  /* Card internals read only contract tokens (docs/block-styling-contract.md); the token guard
-     scans this <style> block (#420). Astro's markdoc pipeline collects a component's scoped
-     <style> but NOT a frontmatter CSS import, so this stays inline rather than a shared import. */
-  .setu-post-card__media img {
-    width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover;
-    border-radius: var(--r-md); display: block;
-  }
-  .setu-post-card__title {
-    display: inline-block; margin-top: 0.5rem;
-    font-family: var(--font-ui); font-weight: 600;
-    color: var(--text); text-decoration: none;
-  }
-  .setu-post-card__title:hover { color: var(--accent); }
-  .setu-post-card__date {
-    display: block; margin-top: 0.25rem;
-    font-size: 0.8125rem; color: var(--text-2);
-  }
-  .setu-post-card__excerpt {
-    margin: 0.4rem 0 0; font-size: 0.9375rem; line-height: 1.5;
-    color: var(--text-2);
-    /* Clamp to 3 lines so uneven-length excerpts keep the grid tidy. */
-    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-  .setu-posts__empty { margin: 1.5rem 0; color: var(--text-2); font-style: italic; }
+  /* The shared `.setu-post-card__*` card internals + `.setu-posts__empty` empty state live once,
+     global, in theme-default/site.css (#424). Only this block's own grid layout stays here.
+     They can't be a shared frontmatter CSS import — Astro's markdoc pipeline doesn't load one for
+     a `component()`-rendered block — so the theme global is the single source instead. */
 </style>

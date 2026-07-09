@@ -101,7 +101,8 @@ function makeDegradedApp() {
           providers: [],
           captcha: null,
           needsSetup: false
-        }
+        },
+        email: { transport: 'console', deliverable: false }
       }),
       () => ({
         enabled: false,

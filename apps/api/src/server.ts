@@ -46,6 +46,7 @@ import {
 import {
   buildCapabilities,
   createCapabilitiesApi,
+  emailCapabilityFromEnv,
   type AuthCapabilities
 } from './capabilities'
 import { runReprocessJob } from './reprocess-runner'
@@ -110,6 +111,16 @@ const submissionsDb =
   process.env.SETU_SUBMISSIONS_DB ?? `${dir}/.setu/submissions.db`
 const notifyTo = process.env.SETU_FORMS_NOTIFY_TO
 const notifyFrom = process.env.SETU_FORMS_NOTIFY_FROM
+
+// Email transport (#248 forms notifications; #364 password-reset emails share it). Selected by
+// SETU_EMAIL_ADAPTER, defaulting to the zero-config console adapter (dev: logs instead of
+// sending). emailCapabilityFromEnv is the single source of truth for which env value maps to a
+// REAL transport (currently only 'resend') — reused here so this construction and the
+// /api/capabilities report below can never silently disagree about what's actually wired up.
+const emailCapability = emailCapabilityFromEnv(process.env)
+const email = emailCapability.deliverable
+  ? createResendEmailAdapter({ apiKey: process.env.RESEND_API_KEY ?? '' })
+  : createConsoleEmailAdapter()
 
 // Ensure .setu/ parent dir exists before better-sqlite3 opens the DB file
 mkdirSync(`${dir}/.setu`, { recursive: true })
@@ -202,7 +213,17 @@ const auth = authConfigured
             }
           : undefined,
       onAuthEvent: logAuthEvent,
-      rateLimit: resolveRateLimitOverrides(process.env)
+      rateLimit: resolveRateLimitOverrides(process.env),
+      // #364: wire password-reset emails through the same transport as forms notifications, sent
+      // FROM the same instance-wide sender address (SETU_FORMS_NOTIFY_FROM) — see the `email`
+      // option's doc in packages/auth/src/options.ts for why this reuses that env rather than
+      // inventing an auth-specific one. Omitted (reset stays disabled, unchanged) when no
+      // from-address is configured at all: there is nothing to put in the message's `from` field,
+      // matching how the submission service itself skips sending without one (see
+      // createSubmissionService's `if (email && notifyTo && notifyFrom)` guard below).
+      email: notifyFrom
+        ? { send: (msg) => email.send(msg), from: notifyFrom }
+        : undefined
     })
   : undefined
 authRef = auth
@@ -219,11 +240,6 @@ const captchaStatus = {
   provider: captchaProvider,
   secretConfigured: captchaSecret !== ''
 }
-const emailAdapter = process.env.SETU_EMAIL_ADAPTER ?? 'console'
-const email =
-  emailAdapter === 'resend'
-    ? createResendEmailAdapter({ apiKey: process.env.RESEND_API_KEY ?? '' })
-    : createConsoleEmailAdapter()
 
 const submit = createSubmissionService({
   submissions,
@@ -397,7 +413,8 @@ app.route(
       writableMediaStore: true, // local fs storage is writable
       backgroundJobs: true, // persistent Node process can run jobs
       mode,
-      auth: resolveAuthCapabilities() // boot-time value; createCapabilitiesApi re-derives per request via the thunk below
+      auth: resolveAuthCapabilities(), // boot-time value; createCapabilitiesApi re-derives per request via the thunk below
+      email: emailCapability
     }),
     resolveAuthCapabilities
   )

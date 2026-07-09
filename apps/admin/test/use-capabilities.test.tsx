@@ -88,4 +88,42 @@ describe('useCapabilities', () => {
     await waitFor(() => expect(result.current.loading).toBe(false))
     expect(result.current.auth).toBeNull()
   })
+
+  it('exposes the email capability block (#364)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              capabilities: {
+                imageProcessing: false,
+                writableMediaStore: true,
+                backgroundJobs: true
+              },
+              email: { transport: 'resend', deliverable: true }
+            }),
+            { status: 200 }
+          )
+      )
+    )
+    const { result } = renderHook(() => useCapabilities())
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    expect(result.current.email).toEqual({
+      transport: 'resend',
+      deliverable: true
+    })
+  })
+
+  it('sets email=null on fetch failure', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('Network error')
+      })
+    )
+    const { result } = renderHook(() => useCapabilities())
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    expect(result.current.email).toBeNull()
+  })
 })

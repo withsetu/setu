@@ -17,9 +17,18 @@ export interface AuthCapabilities {
   needsSetup: boolean
 }
 
+/** #364's email capability block — mirrors apps/api/src/capabilities.ts's EmailCapabilities.
+ *  `deliverable` is false for dev/no-op transports (console) — the admin UI should only promise
+ *  password-reset emails actually arrive when this is true. */
+export interface EmailCapabilities {
+  transport: string
+  deliverable: boolean
+}
+
 export function useCapabilities() {
   const [caps, setCaps] = useState<CapFlags | null>(null)
   const [auth, setAuth] = useState<AuthCapabilities | null>(null)
+  const [email, setEmail] = useState<EmailCapabilities | null>(null)
   const [mode, setMode] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -33,14 +42,17 @@ export function useCapabilities() {
       const data = (await res.json()) as {
         capabilities?: CapFlags
         auth?: AuthCapabilities
+        email?: EmailCapabilities
         mode?: string
       }
       setCaps(data.capabilities ?? null)
       setAuth(data.auth ?? null)
+      setEmail(data.email ?? null)
       setMode(data.mode ?? null)
     } catch {
       setCaps(null)
       setAuth(null)
+      setEmail(null)
       setMode(null)
     } finally {
       setLoading(false)
@@ -51,5 +63,5 @@ export function useCapabilities() {
     void refetch()
   }, [refetch])
 
-  return { caps, auth, mode, loading, refetch }
+  return { caps, auth, email, mode, loading, refetch }
 }

@@ -18,6 +18,7 @@ import {
   userUpdateAfterHook,
   userDeleteAfterHook
 } from './audit-hooks'
+import { resetPasswordEmailContent } from './reset-password-email'
 export { SETU_ROLES, type CreateAuthOptions } from './options'
 export {
   localToken,
@@ -113,6 +114,45 @@ export function createAuth(opts: CreateAuthOptions) {
     plugins.push(serverSetup({ ...opts.serverSetup, onAuthEvent: emit }))
   }
 
+  // #364: `sendResetPassword` is added ONLY when the caller supplied an `email` option — omitting
+  // it entirely (rather than passing e.g. a no-op) is what makes better-auth's own
+  // `request-password-reset` route throw `RESET_PASSWORD_DISABLED`, preserving today's "reset
+  // disabled" behavior byte-for-byte whenever the option is absent (tests, and any topology
+  // without a real email transport wired up).
+  //
+  // Verified against the installed better-auth 1.6.23 source
+  // (node_modules/better-auth/dist/api/routes/password.mjs):
+  //  - line 42: `if (!ctx.context.options.emailAndPassword?.sendResetPassword) { ... throw
+  //    APIError.from('BAD_REQUEST', { ..., code: 'RESET_PASSWORD_DISABLED' }) }` — confirms the
+  //    callback's mere presence/absence is the entire gate, exactly as relied on here.
+  //  - lines 73-77: the callback is invoked as
+  //    `sendResetPassword({ user: user.user, url, token: verificationToken }, ctx.request)` —
+  //    the `{ user, url, token }` signature this file destructures below.
+  //  - line 72: `url` is built as `` `${ctx.context.baseURL}/reset-password/${token}?callbackURL=${callbackURL}` ``
+  //    where `ctx.context.baseURL` is `opts.baseURL` + this file's own `basePath` ('/api/auth')
+  //    and `callbackURL` is the caller-supplied `redirectTo` from the request body (empty when
+  //    omitted) — so `url` is already a complete, absolute link; no further construction needed
+  //    here. Wiring an admin-side "forgot password" page to pass `redirectTo` is a follow-up, not
+  //    part of this task's scope (wiring the send, not the trigger UI).
+  const emailOpt = opts.email
+  const emailAndPassword: Parameters<typeof betterAuth>[0]['emailAndPassword'] =
+    {
+      enabled: true,
+      disableSignUp: true,
+      ...(emailOpt
+        ? {
+            sendResetPassword: async ({ user, url }) => {
+              const content = resetPasswordEmailContent(url)
+              await emailOpt.send({
+                to: user.email,
+                from: emailOpt.from,
+                ...content
+              })
+            }
+          }
+        : {})
+    }
+
   return betterAuth({
     database: drizzleAdapter(opts.db, { provider: 'sqlite', schema }),
     secret: opts.secret,
@@ -125,7 +165,7 @@ export function createAuth(opts: CreateAuthOptions) {
     // route. Public sign-up (`POST /api/auth/sign-up/email`) has no legitimate caller, and leaving
     // it open lets an anonymous visitor sign up first and permanently pre-empt first-run owner
     // setup (needsSetup flips to false the moment ANY user row exists, not just the owner's).
-    emailAndPassword: { enabled: true, disableSignUp: true },
+    emailAndPassword,
     socialProviders: opts.socialProviders,
     // Server-side last-admin enforcement (#248 Task 8 review, Finding 1) + #364 rank enforcement:
     // every consumer of this `auth` instance — our own routes, a future public API, or a raw HTTP

@@ -13,7 +13,11 @@ export const PERMALINK_TOKENS = [
 /** Today's hardcoded scheme — the fallback when neither config nor settings set a pattern. */
 export const DEFAULT_PERMALINK_PATTERN = ':collection/:slug'
 
-const LITERAL = /^[a-z0-9-]+$/
+/** THE URL-segment slug rule for permalinks — lowercase letters, digits, hyphens.
+ *  Shared by pattern-literal validation here and by `resolvePermalink`'s
+ *  `:category` guard, so a value the validator would reject in a pattern can
+ *  never be interpolated into a URL either. */
+export const SLUG_SEGMENT = /^[a-z0-9-]+$/
 
 /** Validate a permalink pattern. Returns human-readable problems; empty array = valid.
  *  Security: rejects absolute paths, dot segments, empty segments, unknown tokens, and
@@ -42,7 +46,7 @@ export function validatePermalinkPattern(pattern: string): string[] {
       issues.push(
         `token must be a whole segment — "${seg}" mixes a token with other characters`
       )
-    } else if (!LITERAL.test(seg)) {
+    } else if (!SLUG_SEGMENT.test(seg)) {
       issues.push(
         `literal segment "${seg}" must be lowercase letters, digits, or hyphens`
       )

@@ -314,6 +314,35 @@ describe('EditorScreen', () => {
     ).toBeInTheDocument()
   })
 
+  it('compose mint: "Saved" implies the entry is queryable in the content index', async () => {
+    const services = createServices()
+    // Slow the index write down: without awaiting reindexEntry, "Saved" would
+    // appear while the upsert is still in flight (the lost-write race a hard
+    // navigation turns into a permanently missing list row).
+    const realUpsert = services.index.upsert.bind(services.index)
+    services.index.upsert = async (row) => {
+      await new Promise((r) => setTimeout(r, 100))
+      return realUpsert(row)
+    }
+    renderEditor(services, '/edit/post/en/new')
+    await screen.findByLabelText('Title')
+
+    fireEvent.change(screen.getByLabelText('Title'), {
+      target: { value: 'Indexed Before Saved' }
+    })
+    await waitFor(() => expect(screen.getByText('Saved')).toBeInTheDocument(), {
+      timeout: 3000
+    })
+
+    const { rows } = await services.index.query({
+      collection: 'post',
+      q: 'Indexed Before Saved',
+      offset: 0,
+      limit: 10
+    })
+    expect(rows.map((r) => r.slug)).toContain('indexed-before-saved')
+  })
+
   it('does NOT auto-derive once the slug was manually renamed', async () => {
     const services = createServices()
     renderEditor(services, '/edit/post/en/release-notes')

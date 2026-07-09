@@ -74,8 +74,12 @@ export function EditorScreen() {
   const settings = useSettings()
   const index = useIndex()
   const can = useCan()
-  // Best-effort reindex — never lets a failure surface to the editor.
-  const reindex = (r: typeof ref) => void index.reindexEntry(r).catch(() => {})
+  // Best-effort reindex — never lets a failure surface to the editor. AWAIT it
+  // on any path that reports "Saved"/success: a fire-and-forget index write can
+  // be lost for good if the user hard-navigates right after (ensureBuilt only
+  // heals when git HEAD moves, so a dropped DRAFT row stays missing — the
+  // content-list visual flake was exactly this).
+  const reindex = (r: typeof ref) => index.reindexEntry(r).catch(() => {})
   const ref = useMemo(
     () => ({ collection, locale, slug }),
     [collection, locale, slug]
@@ -132,6 +136,13 @@ export function EditorScreen() {
 
   useEffect(() => {
     let live = true
+    // Arriving from a compose-mint or a rename (mintedRef holds this slug): the
+    // in-memory doc/meta is canonical. The 'loading' phase still runs — the
+    // keyed Canvas MUST unmount/remount to re-seed from the updated initialDoc
+    // (skipping it once shipped an empty canvas: the new key mounted against
+    // the stale blank initialDoc before this effect could set it).
+    const justMinted = mintedRef.current === slug
+    mintedRef.current = null
     setPhase('loading')
     void (async () => {
       if (composing) {
@@ -158,10 +169,8 @@ export function EditorScreen() {
         result.source === 'absent' ? null : result.draft
       const open = await authoring.open(ref, EDITOR_ID)
       if (!live) return
-      // Just minted this slug from a compose save: the in-memory doc/meta is canonical (may hold
+      // justMinted (captured above): the in-memory doc/meta is canonical (may hold
       // keystrokes newer than the saved copy) — keep it instead of reloading over it.
-      const justMinted = mintedRef.current === slug
-      mintedRef.current = null
       const content = justMinted ? docRef.current : (draft?.content ?? BLANK)
       const meta = justMinted ? metaRef.current : (draft?.metadata ?? {})
       docRef.current = content
@@ -175,7 +184,10 @@ export function EditorScreen() {
       setInitialDoc(content)
       setMetadata(meta)
       setRev(0)
-      setStatus(justMinted ? 'saved' : 'idle')
+      // justMinted: leave status to useAutosave — forcing 'saved' here can beat
+      // the still-in-flight mint/reindex and show "Saved" before the index row
+      // is durable (the content-list lost-write race).
+      if (!justMinted) setStatus('idle')
       setPhase(open.granted ? 'ready' : 'readonly')
       void refreshLifecycle()
     })()
@@ -232,11 +244,11 @@ export function EditorScreen() {
           EDITOR_ID
         )
         navigate(`/edit/${collection}/${locale}/${newSlug}`, { replace: true })
-        reindex({ collection, locale, slug: newSlug })
+        await reindex({ collection, locale, slug: newSlug })
         return result
       }
       const result = await authoring.save(input, EDITOR_ID)
-      reindex(ref)
+      await reindex(ref)
       return result
     },
     onStatus: setStatus
@@ -286,8 +298,12 @@ export function EditorScreen() {
       mintedRef.current = newSlug
       if (result.committedSha) baseShaRef.current = result.committedSha
       navigate(`/edit/${collection}/${locale}/${newSlug}`, { replace: true })
-      reindex(ref)
-      reindex({ collection, locale, slug: newSlug })
+      // Awaited: success (toast/return) must imply both index rows are settled,
+      // or a hard navigation right after can lose the writes (see reindex doc).
+      await Promise.all([
+        reindex(ref),
+        reindex({ collection, locale, slug: newSlug })
+      ])
       // Same as publish: the move commit is now reflected in the index, so
       // advance the synced marker or the next ensureBuilt full-rebuilds.
       if (result.committedSha)
@@ -369,7 +385,8 @@ export function EditorScreen() {
         },
         EDITOR_ID
       )
-      reindex(ref)
+      // Fire-and-forget is safe here: publish below re-reindexes + awaits.
+      void reindex(ref)
       const r = await publish.publish({ ref, author: OWNER_AUTHOR })
       if (r.status === 'published') {
         baseShaRef.current = r.sha

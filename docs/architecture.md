@@ -5,8 +5,8 @@
 > to the codebase, read this first.
 >
 > **Status:** this describes what is **actually built today**, and flags what is **planned**.
-> The product requirements doc ([../plan/prd.md](../plan/prd.md)) describes the full target
-> system; where the two differ, this file is the source of truth for *current reality*.
+> This file is the source of truth for *current reality*; the target system and unbuilt
+> increments are tracked as GitHub issues/epics on `withsetu/setu`.
 
 ---
 
@@ -173,8 +173,7 @@ Two independent axes worth separating in your head:
   the free default) or **SSR** (a server reads the DB-derived index per request — a Pro feature).
 
 Because Git is canonical, **switching topology never loses published content** — at worst you
-*reindex* the derived database on the new environment. (Full detail:
-[the topology note](superpowers/specs/2026-06-14-setu-topology-publishing-note.md).)
+*reindex* the derived database on the new environment.
 
 ---
 
@@ -265,7 +264,6 @@ sequencing is in [issue #369](https://github.com/withsetu/setu/issues/369).
 
 ## Where to go next
 
-- The full product spec: [../plan/prd.md](../plan/prd.md)
-- Design decisions, one per increment: [superpowers/specs/](superpowers/specs/)
-- The multi-topology / reindex deep-dive:
-  [superpowers/specs/2026-06-14-setu-topology-publishing-note.md](superpowers/specs/2026-06-14-setu-topology-publishing-note.md)
+- The product roadmap, per-increment design decisions, and the target system:
+  the [GitHub issues and epics](https://github.com/withsetu/setu/issues) on `withsetu/setu`
+- The operating manual for how work happens here: [../CLAUDE.md](../CLAUDE.md)

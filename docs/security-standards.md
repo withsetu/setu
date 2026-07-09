@@ -57,6 +57,31 @@ section to the issue body and the `security` label.
 ✅ = shipped. Bold = filed specifically to close a 2025-category gap. Keep this table current:
 when a security issue ships or a new surface appears, update the row in the same PR/issue.
 
+## The server-side fetch pattern (`safeFetch`, #288)
+
+Any server-side fetch of a URL that is user-supplied or config-driven (oEmbed, live-site
+probes, deploy hooks, form webhooks, remote importers) goes through **`safeFetch` from
+`@setu/core`** (`packages/core/src/net/safe-fetch.ts`) — never a raw `fetch`. What it
+enforces, all fail-closed and re-checked on every redirect hop:
+
+- **https only** (`allowHttp` is a dev opt-in); URLs carrying credentials are rejected.
+- **Private/internal targets blocked**: localhost, IPv4 private/loopback/link-local/
+  metadata/multicast/reserved ranges, IPv6 loopback/ULA/link-local/multicast — including
+  IPv4-mapped (`::ffff:…`) and NAT64 forms.
+- **DNS pre-check** via the injected `resolveHost` (the topology seam): Node callers pass a
+  resolver so every A/AAAA answer is range-checked before the socket opens; Workers omit it
+  and keep the remaining checks. Resolver failure = blocked.
+- **Per-surface host allowlists** (`allowHosts`) where the surface has one (e.g. the oEmbed
+  provider registry).
+- **Redirects followed manually and capped** — each hop re-runs the full validation.
+- **Size + time caps** (`maxBytes` Content-Length pre-check plus a hard cap while reading;
+  `timeoutMs` via AbortSignal); the result comes back fully buffered.
+
+Known limitation (accepted for now): resolve-then-fetch leaves a DNS-rebinding TOCTOU
+window; true pinning needs a non-portable custom agent. The pre-check + per-hop
+re-validation is the agreed mitigation level — revisit if a surface ever handles
+credentials or writes based on the fetched body.
+
 ## Issue-authoring rules
 
 - Security-relevant issues carry the **`security` label** and a **"Security considerations"**

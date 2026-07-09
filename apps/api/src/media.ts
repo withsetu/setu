@@ -230,19 +230,27 @@ export function createUploadApi(opts: UploadApiOptions) {
     }
   )
 
-  app.get('/api/media/reprocess/status', (c) => {
-    const store = opts.reprocess?.store
-    const job = store?.active() ?? store?.latest()
-    if (!job) return c.json({ status: 'idle' })
-    return c.json({
-      status: job.status,
-      processed: job.processed,
-      total: job.total,
-      ...(job.error ? { error: job.error } : {})
-    })
-  })
+  app.get(
+    '/api/media/reprocess/status',
+    authMiddleware(opts.resolveActor),
+    (c) => {
+      if (!authz.can(c.get('actor'), 'media.view'))
+        return c.json({ error: 'forbidden' }, 403)
+      const store = opts.reprocess?.store
+      const job = store?.active() ?? store?.latest()
+      if (!job) return c.json({ status: 'idle' })
+      return c.json({
+        status: job.status,
+        processed: job.processed,
+        total: job.total,
+        ...(job.error ? { error: job.error } : {})
+      })
+    }
+  )
 
-  app.get('/media/_index', async (c) => {
+  app.get('/media/_index', authMiddleware(opts.resolveActor), async (c) => {
+    if (!authz.can(c.get('actor'), 'media.view'))
+      return c.json({ error: 'forbidden' }, 403)
     const keys = await storage.list()
     const records: MediaRecord[] = []
     for (const k of keys) {

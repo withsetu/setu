@@ -28,6 +28,7 @@ function memStorage(): StoragePort {
   }
 }
 const owner: Actor = { id: 'local', role: 'admin' }
+const author: Actor = { id: 'a', role: 'author' }
 
 async function upload(app: ReturnType<typeof createUploadApi>, file: File) {
   const body = new FormData()
@@ -58,5 +59,29 @@ describe('GET /media/_index', () => {
     const pdf = records.find((r) => r.filename === 'notes.pdf')!
     expect(pdf.isImage).toBe(false)
     expect(pdf.bytes).toBe(2)
+  })
+
+  it('401 when unauthenticated (inventory must not be world-readable)', async () => {
+    // #430: the media inventory full-scans the store and leaks every filename/record, so it
+    // must require auth. media.view is the least-privilege staff action; no actor → 401.
+    const storage = memStorage()
+    const app = createUploadApi({ storage, resolveActor: () => null })
+    const res = await app.fetch(new Request('http://test/media/_index'))
+    expect(res.status).toBe(401)
+  })
+
+  it('200 for an authenticated author (holds media.view)', async () => {
+    const storage = memStorage()
+    // Seed one record with an owner-backed app, then read it back as an author.
+    const ownerApp = createUploadApi({ storage, resolveActor: () => owner })
+    await upload(
+      ownerApp,
+      new File([new Uint8Array([1])], 'seed.png', { type: 'image/png' })
+    )
+    const authorApp = createUploadApi({ storage, resolveActor: () => author })
+    const res = await authorApp.fetch(new Request('http://test/media/_index'))
+    expect(res.status).toBe(200)
+    const { records } = (await res.json()) as { records: unknown[] }
+    expect(records).toHaveLength(1)
   })
 })

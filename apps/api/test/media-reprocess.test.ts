@@ -12,6 +12,7 @@ import { createUploadApi } from '../src/media'
 import { runReprocessJob } from '../src/reprocess-runner'
 
 const owner: Actor = { id: 'local', role: 'admin' }
+const author: Actor = { id: 'a', role: 'author' }
 
 const dirs: string[] = []
 afterEach(() => {
@@ -179,6 +180,38 @@ describe('POST /api/media/reprocess', () => {
       new Request('http://test/api/media/reprocess', { method: 'POST' })
     )
     expect(res.status).toBe(401)
+  })
+
+  it('GET status: 401 when unauthenticated', async () => {
+    // #430: reprocess job status previously had NO auth middleware. It exposes job progress and
+    // implicitly the media pipeline state, so it must require media.view like the rest of the
+    // control plane. No actor → 401.
+    const dir = mkdtempSync(join(tmpdir(), 'reprocess-status-auth-'))
+    dirs.push(dir)
+    const storage = createLocalStorage({
+      dir,
+      baseUrl: 'http://localhost:4444/media'
+    })
+    const app = createUploadApi({ storage, resolveActor: () => null })
+    const res = await app.fetch(
+      new Request('http://test/api/media/reprocess/status')
+    )
+    expect(res.status).toBe(401)
+  })
+
+  it('GET status: 200 (idle) for an authenticated author (holds media.view)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'reprocess-status-ok-'))
+    dirs.push(dir)
+    const storage = createLocalStorage({
+      dir,
+      baseUrl: 'http://localhost:4444/media'
+    })
+    const app = createUploadApi({ storage, resolveActor: () => author })
+    const res = await app.fetch(
+      new Request('http://test/api/media/reprocess/status')
+    )
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ status: 'idle' })
   })
 
   it('409 when image/reprocess opts are not configured', async () => {

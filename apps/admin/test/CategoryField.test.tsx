@@ -123,6 +123,79 @@ describe('CategoryField', () => {
     expect(screen.getByPlaceholderText('Filter categories')).toBeDisabled()
   })
 
+  it('renders an assigned-but-unregistered category as a checked, flagged row', async () => {
+    setupWithSeed(['engineering', 'recipes'])
+    await screen.findByRole('checkbox', { name: 'Engineering' })
+    const orphan = screen.getByRole('checkbox', { name: 'recipes' })
+    expect(orphan).toBeChecked()
+    expect(screen.getByText('Not in registry')).toBeTruthy()
+  })
+
+  it('unchecking an orphan removes it from the selection', async () => {
+    const { onChange } = setupWithSeed(['engineering', 'recipes'])
+    await screen.findByRole('checkbox', { name: 'recipes' })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'recipes' }))
+    expect(onChange).toHaveBeenCalledWith(['engineering'])
+  })
+
+  it('keeps an unchecked orphan row visible so the removal is reversible', async () => {
+    const onChange = vi.fn()
+    const services = servicesFor(
+      createMemoryDataPort(),
+      createMemoryGitPort(seedWithTwo)
+    )
+    const ui = (selected: string[]) => (
+      <ServicesProvider services={services}>
+        <DeployProvider>
+          <IndexProvider>
+            <TaxonomyProvider>
+              <CategoryField selected={selected} onChange={onChange} editable />
+            </TaxonomyProvider>
+          </IndexProvider>
+        </DeployProvider>
+      </ServicesProvider>
+    )
+    const { rerender } = render(ui(['recipes']))
+    await screen.findByRole('checkbox', { name: 'recipes' })
+    // Simulate the parent applying the uncheck: orphan leaves the selection…
+    rerender(ui([]))
+    // …but its row stays, unchecked, so it can be re-checked.
+    const orphan = screen.getByRole('checkbox', { name: 'recipes' })
+    expect(orphan).not.toBeChecked()
+    fireEvent.click(orphan)
+    expect(onChange).toHaveBeenCalledWith(['recipes'])
+  })
+
+  it('does not flag registry rows as orphans', async () => {
+    setupWithSeed(['engineering'])
+    await screen.findByRole('checkbox', { name: 'Engineering' })
+    expect(screen.queryByText('Not in registry')).toBeNull()
+  })
+
+  it('shows orphan rows instead of the empty state when the registry is empty', async () => {
+    setup(['recipes'])
+    const orphan = await screen.findByRole('checkbox', { name: 'recipes' })
+    expect(orphan).toBeChecked()
+    expect(screen.queryByText('No categories yet — add one below.')).toBeNull()
+  })
+
+  it('keeps the empty state when the registry is empty and nothing is selected', async () => {
+    setup([])
+    await screen.findByText('No categories yet — add one below.')
+  })
+
+  it('filter narrows orphan rows too', async () => {
+    setupWithSeed(['recipes'])
+    await screen.findByRole('checkbox', { name: 'recipes' })
+    fireEvent.change(screen.getByPlaceholderText('Filter categories'), {
+      target: { value: 'eng' }
+    })
+    await waitFor(() =>
+      expect(screen.queryByRole('checkbox', { name: 'recipes' })).toBeNull()
+    )
+    expect(screen.getByRole('checkbox', { name: 'Engineering' })).toBeTruthy()
+  })
+
   it('toggles an existing category off when checked', async () => {
     // create first so it exists, then render selected
     const git = createMemoryGitPort()

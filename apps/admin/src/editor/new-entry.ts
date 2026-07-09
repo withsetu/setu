@@ -1,13 +1,15 @@
 import type { DataPort, GitPort } from '@setu/core'
-import { parseContentPath, formatFrontmatterDate } from '@setu/core'
+import { parseContentPath, formatFrontmatterDate, newCid } from '@setu/core'
 
-/** Frontmatter a freshly-composed entry starts with. New posts are auto-stamped with
- *  today's date so date-pattern permalinks resolve by default; the author can clear it
- *  back to date-less in the editor. `now` is injectable for tests. */
+/** Frontmatter a freshly-composed entry starts with. Stamped with a stable `cid` (survives a
+ *  later slug rename — powers auto-301 redirects #252 / #389) and today's date so date-pattern
+ *  permalinks resolve by default; the author can clear the date back to date-less in the editor.
+ *  `now` and `cid` are injectable for tests. */
 export function composeInitialMetadata(
-  now: Date = new Date()
+  now: Date = new Date(),
+  cid: string = newCid()
 ): Record<string, unknown> {
-  return { date: formatFrontmatterDate(now) }
+  return { cid, date: formatFrontmatterDate(now) }
 }
 
 /** Sentinel slug for the "compose a new entry" route (`/edit/<collection>/<locale>/new`). */

@@ -6,9 +6,10 @@
   "scripts": {
     "predev": "node ../../scripts/gen-blocks.mjs && node ../../scripts/gen-relations.mjs",
     "dev": "astro dev",
-    "prebuild": "node ../../scripts/gen-blocks.mjs && node ../../scripts/gen-relations.mjs",
+    "prebuild": "node ../../scripts/gen-blocks.mjs && node ../../scripts/gen-relations.mjs && node ../../scripts/gen-redirects.mjs",
     "build": "astro build",
     "genrelations": "node ../../scripts/gen-relations.mjs",
+    "genredirects": "node ../../scripts/gen-redirects.mjs",
     "test": "vitest run",
     "typecheck": "node ../../scripts/gen-blocks.mjs && node ../../scripts/gen-relations.mjs && astro sync && tsc --noEmit"
   },

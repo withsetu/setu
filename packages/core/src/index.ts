@@ -287,6 +287,14 @@ export {
 export type { BulkService, BulkDeps, BulkResult } from './bulk/bulk-service'
 export { createBulkService } from './bulk/bulk-service'
 
+export type {
+  RenameService,
+  RenameDeps,
+  RenameResult,
+  RenameRefusal
+} from './rename/rename-service'
+export { createRenameService } from './rename/rename-service'
+
 export type { MarkdocAttr } from './blocks/markdoc-attributes'
 export { markdocAttributesFor } from './blocks/markdoc-attributes'
 

@@ -2,8 +2,13 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, within, fireEvent } from '@testing-library/react'
 import type { AuditResult, HealthState } from '@setu/core'
 import { SiteHealthView } from '../src/screens/SiteHealth'
+import type { ProbeState } from '../src/health/useAudit'
 
 const emptyHealth: HealthState = { items: {}, sections: {} }
+const noProbe = {
+  probe: () => {},
+  probeState: { status: 'idle' } as ProbeState
+}
 
 const audit: AuditResult = {
   score: 60,
@@ -21,7 +26,12 @@ const audit: AuditResult = {
 describe('SiteHealthView', () => {
   it('groups failures by owner: fix-now vs roadmap vs manual', () => {
     render(
-      <SiteHealthView audit={audit} toggle={() => {}} health={emptyHealth} />
+      <SiteHealthView
+        audit={audit}
+        toggle={() => {}}
+        health={emptyHealth}
+        {...noProbe}
+      />
     )
     expect(screen.getByText(/fix now/i)).toBeTruthy()
     expect(screen.getByText(/on setu.s roadmap/i)).toBeTruthy()
@@ -59,6 +69,7 @@ describe('SiteHealthView', () => {
         audit={auditWithAttest}
         toggle={toggle}
         health={emptyHealth}
+        {...noProbe}
       />
     )
     // the unverified item shows an "I've verified this" control under "To verify"
@@ -80,7 +91,12 @@ describe('SiteHealthView', () => {
       sections: { seo: { state: 'na', at: '2026-06-30T00:00:00Z', by: 'test' } }
     }
     render(
-      <SiteHealthView audit={audit} toggle={toggle} health={healthWithSkip} />
+      <SiteHealthView
+        audit={audit}
+        toggle={toggle}
+        health={healthWithSkip}
+        {...noProbe}
+      />
     )
 
     // Panel heading is present
@@ -107,5 +123,43 @@ describe('SiteHealthView', () => {
     // Clicking Foundations (disabling it) calls toggle('section', 'foundations', 'na')
     fireEvent.click(foundationsCheckbox)
     expect(toggle).toHaveBeenCalledWith('section', 'foundations', 'na')
+  })
+})
+
+describe('SiteHealthView — live-probe control (#373)', () => {
+  const render373 = (probeState: ProbeState, probe = vi.fn()) => {
+    render(
+      <SiteHealthView
+        audit={audit}
+        toggle={() => {}}
+        health={emptyHealth}
+        probe={probe}
+        probeState={probeState}
+      />
+    )
+    return probe
+  }
+
+  it('runs the probe when "Check live site" is clicked', () => {
+    const probe = render373({ status: 'idle' })
+    fireEvent.click(screen.getByRole('button', { name: /check live site/i }))
+    expect(probe).toHaveBeenCalledOnce()
+  })
+
+  it('disables the button and shows a spinner label while probing', () => {
+    render373({ status: 'probing' })
+    const btn = screen.getByRole('button', { name: /checking/i })
+    expect((btn as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('shows an honest unavailable message (never a false pass) when the probe cannot run', () => {
+    render373({ status: 'unavailable', reason: 'no-url' })
+    expect(screen.getByText(/probe unavailable/i)).toBeTruthy()
+    expect(screen.getByText(/set your site url/i)).toBeTruthy()
+  })
+
+  it('reports when live checks last ran', () => {
+    render373({ status: 'done', probedAt: new Date().toISOString() })
+    expect(screen.getByText(/live checks ran/i)).toBeTruthy()
   })
 })

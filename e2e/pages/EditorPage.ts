@@ -75,6 +75,41 @@ export class EditorPage {
     await expect(this.publishedToast).toBeVisible()
   }
 
+  /** PublishMenu's "Save draft" action (#382, WordPress-Contributor journey) —
+   *  `<Button variant="outline">Save draft</Button>` (EditorScreen.tsx), only rendered
+   *  when `canSaveDraft` (phase ready, not composing, not already live, and the actor
+   *  holds `content.edit`/`content.create`). Absent entirely — not just disabled — for
+   *  a non-publisher viewing an already-live post (PublishMenu returns `null` when no
+   *  action is available), which is exactly what the wrong-actor gate test asserts. */
+  get saveDraftButton() {
+    return this.page.getByRole('button', { name: 'Save draft', exact: true })
+  }
+
+  /** The success toast pushed by `notify.success` on Save draft — same
+   *  Notifications-region pattern as `publishedToast`, matching `onSaveDraft`'s
+   *  `Draft saved · <sha7>` toast text (EditorScreen.tsx). */
+  get draftSavedToast() {
+    return this.page
+      .getByRole('region', { name: 'Notifications', exact: true })
+      .getByText(/^Draft saved ·/)
+  }
+
+  /** The view-only banner shown when a non-publisher opens an already-live post —
+   *  `<div className="ed-banner" role="status">This post is live on the site…</div>`
+   *  (EditorScreen.tsx's `viewOnly` branch). This is the honest UI for the same rule
+   *  the server enforces (the wrong-actor gate, CLAUDE.md card #5): the `role="status"`
+   *  banner text is the user-visible half of the check; the Publish/Save draft buttons
+   *  being entirely absent (not disabled) is the other half. */
+  get viewOnlyBanner() {
+    return this.page.getByRole('status').filter({ hasText: /This post is live/ })
+  }
+
+  /** Invoke the real Save draft affordance and wait for the success toast. */
+  async saveDraft() {
+    await this.saveDraftButton.click()
+    await expect(this.draftSavedToast).toBeVisible()
+  }
+
   /** The slash-command menu — CommandList in SlashCommand.tsx: `role="listbox"
    *  aria-label="Insert block"`, options are `role="option"`. Rendered into a tippy
    *  popup appended to `document.body`, not inside `.body`, so it's queried page-wide. */

@@ -40,7 +40,19 @@ export default defineConfig({
       '@testing-library/react',
       '@testing-library/jest-dom',
       '@tiptap/suggestion',
-      'tippy.js'
+      'tippy.js',
+      // editor-viewonly-canvas.test.tsx mounts the FULL EditorScreen (not a slim
+      // harness), which pulls in the router + the Canvas's whole extension set —
+      // pre-bundle them or Vite discovers them mid-run and reloads the test.
+      'react-router-dom',
+      '@tiptap/extension-placeholder',
+      '@tiptap/extension-subscript',
+      '@tiptap/extension-superscript',
+      '@tiptap/extension-list',
+      '@tiptap/extension-table',
+      '@tiptap/extension-text-align',
+      '@tiptap/react/menus',
+      '@tiptap/pm/tables'
     ]
   },
   test: {

@@ -132,13 +132,18 @@ export function EditorScreen() {
         setPhase('ready')
         return
       }
-      const result = await read.loadForEdit(ref)
+      // #382: the git.readFile is NOT redundant with loadForEdit's internal read — a stale
+      // draft's baseContent can be older than HEAD; the live gate must reflect the CURRENT
+      // committed state. No data dependency between the three, so run them in parallel.
+      const [result, open, committed] = await Promise.all([
+        read.loadForEdit(ref),
+        authoring.open(ref, EDITOR_ID),
+        // is this entry LIVE in Git? (committed and not published:false — same
+        // fail-closed rule as the server's publishesLiveContent gate)
+        git.readFile(contentPath(ref))
+      ])
       const draft: Draft | null =
         result.source === 'absent' ? null : result.draft
-      const open = await authoring.open(ref, EDITOR_ID)
-      // #382: is this entry LIVE in Git? (committed and not published:false — same
-      // fail-closed rule as the server's publishesLiveContent gate)
-      const committed = await git.readFile(contentPath(ref))
       let isLive = false
       if (committed !== null) {
         try {

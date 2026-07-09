@@ -196,6 +196,179 @@ describe('EditorScreen', () => {
     ).toBeInTheDocument()
   })
 
+  it('renames the slug via the meta panel: applies on Enter, follows the entry, moves the draft', async () => {
+    const services = createServices()
+    renderEditor(services, '/edit/post/en/release-notes')
+    await screen.findByDisplayValue('Release notes')
+
+    const slugInput = screen.getByRole('textbox', { name: 'Slug' })
+    expect(slugInput).toHaveValue('release-notes')
+    fireEvent.change(slugInput, { target: { value: 'renamed-notes' } })
+    fireEvent.keyDown(slugInput, { key: 'Enter' })
+
+    // The editor follows the rename: header breadcrumb shows the new identity.
+    expect(await screen.findByText('post / renamed-notes')).toBeInTheDocument()
+    // The draft moved in storage.
+    expect(
+      await services.data.getDraft({
+        collection: 'post',
+        locale: 'en',
+        slug: 'renamed-notes'
+      })
+    ).not.toBeNull()
+    expect(
+      await services.data.getDraft({
+        collection: 'post',
+        locale: 'en',
+        slug: 'release-notes'
+      })
+    ).toBeNull()
+    // Success feedback (uncommitted entry → no redirect messaging).
+    expect(await screen.findByText('Slug renamed')).toBeInTheDocument()
+  })
+
+  it('auto-derives the slug from the title on blur while never committed and untouched', async () => {
+    const services = createServices()
+    renderEditor(services, '/edit/post/en/release-notes')
+    await screen.findByDisplayValue('Release notes')
+
+    const titleInput = screen.getByLabelText('Title')
+    fireEvent.change(titleInput, { target: { value: 'Launch retrospective' } })
+    fireEvent.blur(titleInput)
+
+    expect(
+      await screen.findByText('post / launch-retrospective')
+    ).toBeInTheDocument()
+    expect(
+      await services.data.getDraft({
+        collection: 'post',
+        locale: 'en',
+        slug: 'launch-retrospective'
+      })
+    ).not.toBeNull()
+  })
+
+  it('a rename right after typing carries the pending keystrokes into the moved draft', async () => {
+    const services = createServices()
+    renderEditor(services, '/edit/post/en/release-notes')
+    await screen.findByDisplayValue('Release notes')
+
+    // Edit the title, then rename IMMEDIATELY — before the 800ms autosave
+    // debounce fires. The save-before-rename must carry this keystroke.
+    fireEvent.change(screen.getByLabelText('Title'), {
+      target: { value: 'Release notes EDITED' }
+    })
+    const slugInput = screen.getByRole('textbox', { name: 'Slug' })
+    fireEvent.change(slugInput, { target: { value: 'carried-over' } })
+    fireEvent.keyDown(slugInput, { key: 'Enter' })
+    await screen.findByText('post / carried-over')
+
+    const moved = await services.data.getDraft({
+      collection: 'post',
+      locale: 'en',
+      slug: 'carried-over'
+    })
+    expect(moved?.metadata['title']).toBe('Release notes EDITED')
+    expect(
+      await services.data.getDraft({
+        collection: 'post',
+        locale: 'en',
+        slug: 'release-notes'
+      })
+    ).toBeNull()
+  })
+
+  it('auto-derives Unicode slugs — Über uns → über-uns (one vocabulary with minting)', async () => {
+    const services = createServices()
+    renderEditor(services, '/edit/post/en/release-notes')
+    await screen.findByDisplayValue('Release notes')
+
+    const titleInput = screen.getByLabelText('Title')
+    fireEvent.change(titleInput, { target: { value: 'Über uns' } })
+    fireEvent.blur(titleInput)
+
+    expect(await screen.findByText('post / über-uns')).toBeInTheDocument()
+    expect(
+      await services.data.getDraft({
+        collection: 'post',
+        locale: 'en',
+        slug: 'über-uns'
+      })
+    ).not.toBeNull()
+  })
+
+  it('compose mode: applying a slug already in use shows the inline taken error', async () => {
+    const services = createServices()
+    renderEditor(services, '/edit/post/en/new')
+    await screen.findByLabelText('Title')
+
+    // 'release-notes' is a seeded draft in this collection/locale.
+    const slugInput = screen.getByRole('textbox', { name: 'Slug' })
+    fireEvent.change(slugInput, { target: { value: 'release-notes' } })
+    fireEvent.keyDown(slugInput, { key: 'Enter' })
+
+    expect(
+      await screen.findByText(
+        'Already used by another entry in this collection/locale.'
+      )
+    ).toBeInTheDocument()
+  })
+
+  it('compose mint: "Saved" implies the entry is queryable in the content index', async () => {
+    const services = createServices()
+    // Slow the index write down: without awaiting reindexEntry, "Saved" would
+    // appear while the upsert is still in flight (the lost-write race a hard
+    // navigation turns into a permanently missing list row).
+    const realUpsert = services.index.upsert.bind(services.index)
+    services.index.upsert = async (row) => {
+      await new Promise((r) => setTimeout(r, 100))
+      return realUpsert(row)
+    }
+    renderEditor(services, '/edit/post/en/new')
+    await screen.findByLabelText('Title')
+
+    fireEvent.change(screen.getByLabelText('Title'), {
+      target: { value: 'Indexed Before Saved' }
+    })
+    await waitFor(() => expect(screen.getByText('Saved')).toBeInTheDocument(), {
+      timeout: 3000
+    })
+
+    const { rows } = await services.index.query({
+      collection: 'post',
+      q: 'Indexed Before Saved',
+      offset: 0,
+      limit: 10
+    })
+    expect(rows.map((r) => r.slug)).toContain('indexed-before-saved')
+  })
+
+  it('does NOT auto-derive once the slug was manually renamed', async () => {
+    const services = createServices()
+    renderEditor(services, '/edit/post/en/release-notes')
+    await screen.findByDisplayValue('Release notes')
+
+    // Manual rename breaks the title→slug derivation…
+    const slugInput = screen.getByRole('textbox', { name: 'Slug' })
+    fireEvent.change(slugInput, { target: { value: 'hand-picked' } })
+    fireEvent.keyDown(slugInput, { key: 'Enter' })
+    await screen.findByText('post / hand-picked')
+
+    // …so a later title edit + blur leaves the slug alone.
+    const titleInput = screen.getByLabelText('Title')
+    fireEvent.change(titleInput, { target: { value: 'Completely new title' } })
+    fireEvent.blur(titleInput)
+    await new Promise((r) => setTimeout(r, 50))
+    expect(screen.getByText('post / hand-picked')).toBeInTheDocument()
+    expect(
+      await services.data.getDraft({
+        collection: 'post',
+        locale: 'en',
+        slug: 'hand-picked'
+      })
+    ).not.toBeNull()
+  })
+
   it('strip renders Back link and Keyboard-shortcuts button', async () => {
     renderEditor(fakeServices())
     await screen.findByDisplayValue('Hello')

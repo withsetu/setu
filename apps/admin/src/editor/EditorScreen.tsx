@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import type { Draft, DraftInput, Lifecycle, TiptapDoc } from '@setu/core'
+import type {
+  Draft,
+  DraftInput,
+  Lifecycle,
+  RenameResult,
+  TiptapDoc
+} from '@setu/core'
 import {
+  createRenameService,
+  isValidEntrySlug,
   parseFrontmatterDate,
   resolvePermalinkConfig,
   serializeMdoc,
@@ -41,7 +49,14 @@ import { useAutosave } from './useAutosave'
 import type { SaveStatus } from './useAutosave'
 import { SaveIndicator } from './SaveIndicator'
 import { onRequestShortcuts } from './editor-events'
-import { NEW_SLUG, mintSlug, composeInitialMetadata } from './new-entry'
+import {
+  NEW_SLUG,
+  mintSlug,
+  composeInitialMetadata,
+  existingSlugs,
+  slugify,
+  uniqueSlug
+} from './new-entry'
 import { useNotify } from '../ui/notify'
 import { apiFetch } from '../lib/api-fetch'
 import { useRegisterCommands } from '../command/registry'
@@ -59,8 +74,12 @@ export function EditorScreen() {
   const settings = useSettings()
   const index = useIndex()
   const can = useCan()
-  // Best-effort reindex — never lets a failure surface to the editor.
-  const reindex = (r: typeof ref) => void index.reindexEntry(r).catch(() => {})
+  // Best-effort reindex — never lets a failure surface to the editor. AWAIT it
+  // on any path that reports "Saved"/success: a fire-and-forget index write can
+  // be lost for good if the user hard-navigates right after (ensureBuilt only
+  // heals when git HEAD moves, so a dropped DRAFT row stays missing — the
+  // content-list visual flake was exactly this).
+  const reindex = (r: typeof ref) => index.reindexEntry(r).catch(() => {})
   const ref = useMemo(
     () => ({ collection, locale, slug }),
     [collection, locale, slug]
@@ -93,8 +112,19 @@ export function EditorScreen() {
   const metaRef = useRef<Record<string, unknown>>({})
   const baseShaRef = useRef<string | null>(null)
   const committing = useRef(false)
-  // Slug just minted from a compose save → the in-memory doc is canonical; don't reload over it.
+  // Slug just minted from a compose save OR just renamed → the in-memory doc is
+  // canonical; don't reload over it.
   const mintedRef = useRef<string | null>(null)
+  // Compose mode: a slug the author explicitly chose before the first save. The
+  // ref feeds the mint (autosave closes over refs); the state re-renders the field.
+  const manualSlugRef = useRef<string | null>(null)
+  const [manualSlug, setManualSlug] = useState<string | null>(null)
+  // The title whose slugified form the current slug was derived from — while they
+  // still match (and nothing is committed), a title edit re-derives the slug.
+  const loadedTitleRef = useRef('')
+  // True while followRename is moving the entry: pauses autosave so a debounce
+  // firing mid-move can't re-create the just-deleted old-ref draft.
+  const renamingRef = useRef(false)
   const previewWin = useRef<Window | null>(null)
   const previewNonce = useRef(0)
   const previewApi = import.meta.env.VITE_SETU_API
@@ -106,6 +136,13 @@ export function EditorScreen() {
 
   useEffect(() => {
     let live = true
+    // Arriving from a compose-mint or a rename (mintedRef holds this slug): the
+    // in-memory doc/meta is canonical. The 'loading' phase still runs — the
+    // keyed Canvas MUST unmount/remount to re-seed from the updated initialDoc
+    // (skipping it once shipped an empty canvas: the new key mounted against
+    // the stale blank initialDoc before this effect could set it).
+    const justMinted = mintedRef.current === slug
+    mintedRef.current = null
     setPhase('loading')
     void (async () => {
       if (composing) {
@@ -115,6 +152,9 @@ export function EditorScreen() {
         docRef.current = BLANK
         metaRef.current = initialMeta
         baseShaRef.current = null
+        loadedTitleRef.current = ''
+        manualSlugRef.current = null
+        setManualSlug(null)
         if (!live) return
         setInitialDoc(BLANK)
         setMetadata(initialMeta)
@@ -129,19 +169,25 @@ export function EditorScreen() {
         result.source === 'absent' ? null : result.draft
       const open = await authoring.open(ref, EDITOR_ID)
       if (!live) return
-      // Just minted this slug from a compose save: the in-memory doc/meta is canonical (may hold
+      // justMinted (captured above): the in-memory doc/meta is canonical (may hold
       // keystrokes newer than the saved copy) — keep it instead of reloading over it.
-      const justMinted = mintedRef.current === slug
-      mintedRef.current = null
       const content = justMinted ? docRef.current : (draft?.content ?? BLANK)
       const meta = justMinted ? metaRef.current : (draft?.metadata ?? {})
       docRef.current = content
       metaRef.current = meta
-      baseShaRef.current = justMinted ? null : (draft?.baseSha ?? null)
+      // A rename sets baseShaRef to the move commit before navigating here —
+      // keep it (compose-mint arrives with null, so this changes nothing there).
+      baseShaRef.current = justMinted
+        ? baseShaRef.current
+        : (draft?.baseSha ?? null)
+      loadedTitleRef.current = attrString(meta['title'])
       setInitialDoc(content)
       setMetadata(meta)
       setRev(0)
-      setStatus(justMinted ? 'saved' : 'idle')
+      // justMinted: leave status to useAutosave — forcing 'saved' here can beat
+      // the still-in-flight mint/reindex and show "Saved" before the index row
+      // is durable (the content-list lost-write race).
+      if (!justMinted) setStatus('idle')
       setPhase(open.granted ? 'ready' : 'readonly')
       void refreshLifecycle()
     })()
@@ -165,16 +211,26 @@ export function EditorScreen() {
       baseSha: baseShaRef.current
     }),
     save: async (input) => {
+      // A rename is moving this entry right now: followRename already saved the
+      // latest doc/meta to the OLD ref and the service is re-keying it — an
+      // autosave firing in this window would resurrect the old draft.
+      if (renamingRef.current) return { saved: true }
       if (composing) {
-        // First save of a new entry: mint a real slug from the title, persist under it, and
-        // replace the URL so this becomes a normal entry (each "New" → its own draft).
-        const newSlug = await mintSlug(
-          data,
-          git,
-          collection,
-          locale,
-          attrString(metaRef.current['title'])
-        )
+        // First save of a new entry: mint a real slug — the author's explicit
+        // choice when they applied one, else derived from the title — persist
+        // under it, and replace the URL so this becomes a normal entry.
+        const newSlug = manualSlugRef.current
+          ? uniqueSlug(
+              manualSlugRef.current,
+              await existingSlugs(data, git, collection, locale)
+            )
+          : await mintSlug(
+              data,
+              git,
+              collection,
+              locale,
+              attrString(metaRef.current['title'])
+            )
         mintedRef.current = newSlug
         const result = await authoring.save(
           {
@@ -188,11 +244,11 @@ export function EditorScreen() {
           EDITOR_ID
         )
         navigate(`/edit/${collection}/${locale}/${newSlug}`, { replace: true })
-        reindex({ collection, locale, slug: newSlug })
+        await reindex({ collection, locale, slug: newSlug })
         return result
       }
       const result = await authoring.save(input, EDITOR_ID)
-      reindex(ref)
+      await reindex(ref)
       return result
     },
     onStatus: setStatus
@@ -206,6 +262,113 @@ export function EditorScreen() {
     metaRef.current = next
     setMetadata(next)
     setRev((r) => r + 1)
+  }
+
+  const renameService = useMemo(
+    () => createRenameService({ data, git, author: OWNER_AUTHOR }),
+    [data, git]
+  )
+
+  /** Move this entry to `newSlug` and follow it: keep the in-memory doc via the
+   *  minted-slug mechanism, advance the publish base to the move commit, replace
+   *  the URL, and reindex both identities. Refusals return to the field (inline
+   *  error), successes toast. */
+  const followRename = async (
+    newSlug: string,
+    opts: { silent?: boolean } = {}
+  ): Promise<RenameResult> => {
+    const wasCommitted = lifecycle.state !== 'draft'
+    renamingRef.current = true
+    try {
+      // Save-before-rename (mirrors commit()'s save-before-publish): the service
+      // moves what's in STORAGE, so persist the latest keystrokes first — and
+      // autosave is paused (renamingRef) so a debounce firing mid-move can't
+      // resurrect the old-ref draft after the service deletes it.
+      await authoring.save(
+        {
+          ...ref,
+          content: docRef.current,
+          metadata: metaRef.current,
+          baseSha: baseShaRef.current
+        },
+        EDITOR_ID
+      )
+      const result = await renameService.renameSlug(ref, newSlug)
+      if (!result.renamed) return result
+      mintedRef.current = newSlug
+      if (result.committedSha) baseShaRef.current = result.committedSha
+      navigate(`/edit/${collection}/${locale}/${newSlug}`, { replace: true })
+      // Awaited: success (toast/return) must imply both index rows are settled,
+      // or a hard navigation right after can lose the writes (see reindex doc).
+      await Promise.all([
+        reindex(ref),
+        reindex({ collection, locale, slug: newSlug })
+      ])
+      // Same as publish: the move commit is now reflected in the index, so
+      // advance the synced marker or the next ensureBuilt full-rebuilds.
+      if (result.committedSha)
+        await index.markSyncedAt(result.committedSha).catch(() => {})
+      if (!opts.silent)
+        notify.success(
+          wasCommitted
+            ? 'Slug renamed — the old URL will 301 after the next rebuild'
+            : 'Slug renamed'
+        )
+      return result
+    } finally {
+      renamingRef.current = false
+    }
+  }
+
+  const onRename = async (newSlug: string): Promise<RenameResult> => {
+    if (composing) {
+      // Nothing persisted yet — applying just records the author's choice; the
+      // first autosave mints it. Same vocabulary as the rename service
+      // (isValidEntrySlug), and availability is checked HERE so the author sees
+      // "taken" instead of a silent -2 suffix; mint-time uniqueSlug stays as
+      // the backstop for races.
+      if (!isValidEntrySlug(newSlug))
+        return { renamed: false, committedSha: null, reason: 'invalid-slug' }
+      const taken = await existingSlugs(data, git, collection, locale)
+      if (taken.has(newSlug))
+        return { renamed: false, committedSha: null, reason: 'target-exists' }
+      manualSlugRef.current = newSlug
+      setManualSlug(newSlug)
+      return { renamed: true, committedSha: null }
+    }
+    return followRename(newSlug)
+  }
+
+  /** Auto-derive the slug from the title on tab-out — only while the entry has
+   *  never been committed AND the slug still equals what this title minted (a
+   *  manual slug edit or a `-2` suffix breaks the equality and ends derivation). */
+  const onTitleBlur = async () => {
+    // Reviewed + waived: `lifecycle.state` is refreshed async after load, so for
+    // a blink after mount it can read 'draft' for a committed entry. Practically
+    // unreachable (a blur needs a focus + edit first, by which time the refresh
+    // has landed), and the worst case is a silent draft-only re-key that the
+    // next publish surfaces — never a lost commit.
+    if (composing || phase !== 'ready' || lifecycle.state !== 'draft') return
+    const derivedFromLoaded = slugify(loadedTitleRef.current) || 'untitled'
+    if (slug !== derivedFromLoaded) return
+    const newTitle = attrString(metaRef.current['title'])
+    const base = slugify(newTitle)
+    if (base === '' || base === slug) {
+      loadedTitleRef.current = newTitle
+      return
+    }
+    const taken = await existingSlugs(data, git, collection, locale)
+    taken.delete(slug)
+    const newSlug = uniqueSlug(base, taken)
+    if (newSlug === slug) return
+    // Best-effort: auto-derive silently skips on failure (the field still works
+    // for an explicit rename, which surfaces its own errors).
+    try {
+      const result = await followRename(newSlug, { silent: true })
+      if (result.renamed) loadedTitleRef.current = newTitle
+    } catch {
+      /* keep the current slug */
+    }
   }
   const commit = async () => {
     if (committing.current) return
@@ -222,7 +385,8 @@ export function EditorScreen() {
         },
         EDITOR_ID
       )
-      reindex(ref)
+      // Fire-and-forget is safe here: publish below re-reindexes + awaits.
+      void reindex(ref)
       const r = await publish.publish({ ref, author: OWNER_AUTHOR })
       if (r.status === 'published') {
         baseShaRef.current = r.sha
@@ -323,6 +487,15 @@ export function EditorScreen() {
     undefined,
     settings
   )
+  // UX-only gate (the server's writeActionForChanges enforces regardless):
+  // renaming a LIVE post moves a published URL — a commit an author can't make.
+  const renameBlockedReason =
+    !composing &&
+    lifecycle.state !== 'draft' &&
+    metadata['published'] !== false &&
+    !can('content.publish')
+      ? "Renaming a live post's URL requires publish permission"
+      : undefined
 
   if (phase === 'loading') {
     return (
@@ -472,6 +645,7 @@ export function EditorScreen() {
               onChange={(e) =>
                 onMetaChange({ ...metaRef.current, title: e.target.value })
               }
+              onBlur={() => void onTitleBlur()}
             />
             <Canvas
               key={`${collection}/${locale}/${slug}`}
@@ -500,9 +674,18 @@ export function EditorScreen() {
         ) : (
           <MetaPanel
             metadata={metadata}
+            collection={collection}
             locale={locale}
-            slug={slug}
+            slug={
+              composing ? (manualSlug ?? (slugify(title) || 'untitled')) : slug
+            }
             editable={phase === 'ready'}
+            committed={lifecycle.state !== 'draft'}
+            permalinkConfig={permalinkConfig}
+            date={frontmatterDate}
+            categories={frontmatterCategories}
+            onRename={onRename}
+            renameBlockedReason={renameBlockedReason}
             onChange={onMetaChange}
             apiBase={(import.meta.env.VITE_SETU_API as string) ?? ''}
           />

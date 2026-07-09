@@ -31,3 +31,13 @@ export interface CommitFilesInput {
   message: string
   author: GitAuthor
 }
+
+/** How a path changed between two commits (tree-to-tree diff). */
+export type DiffPathStatus = 'added' | 'modified' | 'deleted'
+
+/** One changed path in a tree-to-tree diff (`GitPort.diffPaths`). */
+export interface DiffPathEntry {
+  /** Repo-relative path, e.g. 'content/post/en/hello.mdoc'. */
+  path: string
+  status: DiffPathStatus
+}

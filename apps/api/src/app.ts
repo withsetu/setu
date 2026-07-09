@@ -257,6 +257,26 @@ export function createGitApi(git: GitPort, resolveActor: ResolveActor) {
     return c.json({ paths: await git.list(prefix) })
   })
 
+  // Tree-to-tree diff between two commits (#450) — an ungated READ like
+  // head/file/list above (same posture, same #110 follow-up). Shas are
+  // validated to 40-hex so arbitrary strings never reach the adapter; an
+  // unknown-but-well-formed sha rejects in the adapter → the 500 envelope,
+  // which HttpGitPort surfaces and the index service treats as "diff
+  // unavailable → full rescan".
+  const SHA40_RE = /^[0-9a-fA-F]{40}$/
+  app.get('/git/diff', async (c) => {
+    const from = c.req.query('from')
+    const to = c.req.query('to')
+    if (
+      from === undefined ||
+      to === undefined ||
+      !SHA40_RE.test(from) ||
+      !SHA40_RE.test(to)
+    )
+      return c.json({ error: 'from and to must be 40-hex commit shas' }, 400)
+    return c.json({ changes: await git.diffPaths(from, to) })
+  })
+
   app.onError((err, c) =>
     c.json({ error: err instanceof Error ? err.message : String(err) }, 500)
   )

@@ -152,7 +152,9 @@ export type {
   CommitInput,
   CommitResult,
   FileChange,
-  CommitFilesInput
+  CommitFilesInput,
+  DiffPathStatus,
+  DiffPathEntry
 } from './git/types'
 export type { GitPort } from './git/git-port'
 

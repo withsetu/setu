@@ -3,6 +3,7 @@ import type {
   CommitInput,
   CommitFilesInput,
   CommitResult,
+  DiffPathEntry,
   GitPort
 } from '@setu/core'
 
@@ -23,20 +24,28 @@ function sha40(input: string): string {
 }
 
 /** An IndexedDB-backed GitPort (a `files` store path->content + a `meta` store
- *  holding the head sha and a commit counter). Behaviorally equivalent to
- *  git-memory (proven by runGitPortContract) but persistent across reloads. */
+ *  holding the head sha and a commit counter + a `snapshots` store mapping each
+ *  commit sha to its path→content-hash tree, which is what diffPaths compares).
+ *  Behaviorally equivalent to git-memory (proven by runGitPortContract) but
+ *  persistent across reloads. */
 export async function createIdbGitPort(dbName = 'setu-git'): Promise<GitPort> {
-  const db = await openDB(dbName, 1, {
-    upgrade(d) {
-      d.createObjectStore('files')
-      d.createObjectStore('meta')
+  // v2: adds the `snapshots` store for diffPaths. Pre-v2 databases have no
+  // snapshots for their existing commits, so diffPaths against an old sha
+  // throws "unknown commit sha" — callers fall back to a full rescan.
+  const db = await openDB(dbName, 2, {
+    upgrade(d, oldVersion) {
+      if (oldVersion < 1) {
+        d.createObjectStore('files')
+        d.createObjectStore('meta')
+      }
+      if (oldVersion < 2) d.createObjectStore('snapshots')
     }
   })
 
   const commitFiles = async ({
     changes
   }: CommitFilesInput): Promise<CommitResult> => {
-    const tx = db.transaction(['files', 'meta'], 'readwrite')
+    const tx = db.transaction(['files', 'meta', 'snapshots'], 'readwrite')
     const filesStore = tx.objectStore('files')
     const meta = tx.objectStore('meta')
     let changed = false
@@ -65,6 +74,14 @@ export async function createIdbGitPort(dbName = 'setu-git'): Promise<GitPort> {
     )
     await meta.put(counter, 'counter')
     await meta.put(sha, 'head')
+    // Snapshot the post-commit tree as path → content hash (hashes keep the
+    // per-commit record small; content equality is all diffPaths needs).
+    const paths = (await filesStore.getAllKeys()) as string[]
+    const contents = (await filesStore.getAll()) as string[]
+    const tree: Record<string, string> = {}
+    for (let i = 0; i < paths.length; i += 1)
+      tree[paths[i]!] = sha40(contents[i]!)
+    await tx.objectStore('snapshots').put(tree, sha)
     await tx.done
     return { sha }
   }
@@ -89,6 +106,34 @@ export async function createIdbGitPort(dbName = 'setu-git'): Promise<GitPort> {
       return prefix === undefined
         ? keys
         : keys.filter((k) => k.startsWith(prefix))
+    },
+    async diffPaths(fromSha: string, toSha: string) {
+      const snapshotOf = async (
+        sha: string
+      ): Promise<Record<string, string>> => {
+        const snap = (await db.get('snapshots', sha)) as
+          | Record<string, string>
+          | undefined
+        if (snap === undefined)
+          throw new Error(`diffPaths: unknown commit sha: ${sha}`)
+        return snap
+      }
+      if (fromSha === toSha) {
+        await snapshotOf(fromSha) // still reject an unknown sha
+        return []
+      }
+      const from = await snapshotOf(fromSha)
+      const to = await snapshotOf(toSha)
+      const out: DiffPathEntry[] = []
+      for (const [path, hash] of Object.entries(to)) {
+        const before = from[path]
+        if (before === undefined) out.push({ path, status: 'added' })
+        else if (before !== hash) out.push({ path, status: 'modified' })
+      }
+      for (const path of Object.keys(from)) {
+        if (!(path in to)) out.push({ path, status: 'deleted' })
+      }
+      return out
     }
   }
 }

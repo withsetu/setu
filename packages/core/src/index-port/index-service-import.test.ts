@@ -86,15 +86,23 @@ describe('createIndexService — out-of-band content import', () => {
     })
     // The admin reindexes only ONE of them (e.g. the user opened+saved b) and does NOT markSyncedAt.
     await service.reindexEntry({ collection: 'post', locale: 'en', slug: 'b' })
-    await service.ensureBuilt() // indexedSha still lags HEAD → full rebuild imports a, b AND c
+    await service.ensureBuilt() // indexedSha still lags HEAD → the diff imports b AND c
     expect((await service.query(q)).total).toBe(3)
   })
 
   it('reindexEntry alone does NOT advance indexedSha (next load still imports)', async () => {
-    const { git, listCalls } = spyGit([
+    const { git } = spyGit([
       { path: 'content/post/en/a.mdoc', content: mdoc('A') }
     ])
-    const service = serviceWith(git)
+    let diffed = false
+    const observed = {
+      ...git,
+      async diffPaths(from: string, to: string) {
+        diffed = true
+        return git.diffPaths(from, to)
+      }
+    }
+    const service = serviceWith(observed)
     await service.ensureBuilt()
     await git.commitFile({
       path: 'content/post/en/b.mdoc',
@@ -103,9 +111,11 @@ describe('createIndexService — out-of-band content import', () => {
       author
     })
     await service.reindexEntry({ collection: 'post', locale: 'en', slug: 'b' })
-    const before = listCalls()
-    await service.ensureBuilt() // indexedSha lags → rebuild
-    expect(listCalls()).toBeGreaterThan(before)
+    // indexedSha still lags HEAD → the next load still runs the import
+    // (#450: incrementally, via the tree diff, instead of a full rebuild).
+    await service.ensureBuilt()
+    expect(diffed).toBe(true)
+    expect((await service.query(q)).total).toBe(2)
   })
 
   it('markSyncedAt after reindexing the changed entry prevents a full rebuild on next load', async () => {

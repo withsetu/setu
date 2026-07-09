@@ -9,8 +9,14 @@ import { RUBRIC } from '@setu/core'
 import { PageHeader } from '../shell/PageHeader'
 import { PageBody } from '../shell/PageBody'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { useAudit } from '../health/useAudit'
+import { relativeTime } from '@/lib/format'
+import {
+  useAudit,
+  probeUnavailableMessage,
+  type ProbeState
+} from '../health/useAudit'
 
 const ITEM = new Map<string, RubricItem>(RUBRIC.map((r) => [r.id, r]))
 const SEV_LABEL: Record<RubricItem['severity'], string> = {
@@ -190,14 +196,54 @@ function SectionApplicabilityPanel({
   )
 }
 
+/** The live-probe control: fetches the deployed site and turns HTTPS/HSTS (and, as the
+ *  harness grows, CSP/nosniff/CWV) from "not checked" into real pass/fail. Honest by
+ *  design — when there's nothing reachable to probe it says so, never a false pass. */
+function ProbePanel({
+  probe,
+  probeState
+}: {
+  probe: () => void
+  probeState: ProbeState
+}) {
+  const probing = probeState.status === 'probing'
+  return (
+    <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-1">
+      <Button onClick={probe} disabled={probing} variant="outline" size="sm">
+        {probing ? 'Checking…' : 'Check live site'}
+      </Button>
+      {probeState.status === 'done' && (
+        <span className="text-sm text-muted-foreground">
+          Live checks ran {relativeTime(Date.parse(probeState.probedAt))}.
+        </span>
+      )}
+      {probeState.status === 'unavailable' && (
+        <span className="text-sm text-destructive">
+          Probe unavailable —{' '}
+          {probeUnavailableMessage(probeState.reason, probeState.detail)}
+        </span>
+      )}
+      {probeState.status === 'idle' && (
+        <span className="text-sm text-muted-foreground">
+          Run live checks against your deployed site (HTTPS, HSTS…).
+        </span>
+      )}
+    </div>
+  )
+}
+
 export function SiteHealthView({
   audit,
   toggle,
-  health
+  health,
+  probe,
+  probeState
 }: {
   audit: AuditResult
   toggle: Toggle
   health: HealthState
+  probe: () => void
+  probeState: ProbeState
 }) {
   const fixNow = audit.results.filter(
     (r) =>
@@ -266,6 +312,7 @@ export function SiteHealthView({
         "Not applicable" means it doesn't apply to your site — not "skip the
         work."
       </p>
+      <ProbePanel probe={probe} probeState={probeState} />
       <SectionApplicabilityPanel health={health} toggle={toggle} />
       <Section title="Fix now (you)" results={fixNow} toggle={toggle} />
       <Section title="On Setu's roadmap" results={roadmap} toggle={toggle} />
@@ -277,7 +324,7 @@ export function SiteHealthView({
 }
 
 export function SiteHealth() {
-  const { audit, toggle, health } = useAudit()
+  const { audit, toggle, health, probe, probeState } = useAudit()
   return (
     <>
       <PageHeader
@@ -290,6 +337,8 @@ export function SiteHealth() {
             audit={audit}
             toggle={(k, i, s) => void toggle(k, i, s)}
             health={health}
+            probe={() => void probe()}
+            probeState={probeState}
           />
         ) : (
           <p className="text-sm text-muted-foreground">Checking…</p>

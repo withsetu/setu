@@ -90,7 +90,37 @@ export interface CheckResult {
   attestable?: boolean
   /** Why an item is N/A: auto-detected vs admin-set. */
   naSource?: 'auto' | 'manual'
+  /** ISO timestamp of the live probe that produced this result (liveProbe items). */
+  probedAt?: string
 }
+
+/** What a live probe observed about the deployed site — the pure input to `evaluateProbe`.
+ *  Sourced server-side (apps/api) via `safeFetch`; kept minimal so the evaluator is pure. */
+export interface ProbeInput {
+  /** URL actually reached, after any redirects (e.g. an http→https upgrade). */
+  finalUrl: string
+  status: number
+  headers: Headers
+}
+
+/** One live-probe rubric item's verdict. `id` matches a `liveProbe` RubricItem. */
+export interface ProbeItemResult {
+  id: string
+  status: 'pass' | 'fail'
+  detail: string
+}
+
+/** A completed probe run, ready to merge into a client audit. */
+export interface ProbeReport {
+  probedAt: string
+  results: ProbeItemResult[]
+}
+
+/** API `/api/sitehealth/probe` response: either a completed report, or an honest
+ *  "couldn't run" with a machine-readable reason (never a false pass/fail). */
+export type ProbeResponse =
+  | ({ available: true } & ProbeReport)
+  | { available: false; reason: string; detail?: string }
 
 export interface CategoryScore {
   category: HealthCategory

@@ -30,6 +30,7 @@ import { createPreviewApi } from './preview'
 import { createUploadApi } from './media'
 import { createFormsApi } from './forms'
 import { createOembedApi } from './oembed'
+import { createSiteHealthApi } from './sitehealth'
 import { createUsersApi } from './users'
 import { resolveSessionActor } from './auth/resolve-session-actor'
 import type { ResolveActor } from './auth/resolve-actor'
@@ -331,6 +332,17 @@ app.route(
   createFormsApi({ submit, submissions, captchaStatus, resolveActor })
 )
 app.route('/', createOembedApi({ resolveActor }))
+// Live getter for the site URL, mirroring mediaSettings above — a Settings change to the
+// site identity URL applies to the next probe without an api restart.
+app.route(
+  '/',
+  createSiteHealthApi({
+    resolveActor,
+    // The canonical site/entity URL from the identity settings (#201) — the public
+    // address a live probe should hit. Live getter so a Settings change applies next probe.
+    siteUrl: () => loadSiteSettings().identity.url
+  })
+)
 // #248 Task 8 review, Finding 2: the SAME drizzle handle better-auth's own createAuth uses for
 // its tables (authDb, above) — not a separate connection — so credential-status always reflects
 // live account state. `resolveActor` here already fails closed to null when auth is unconfigured

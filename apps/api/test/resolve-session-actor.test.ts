@@ -29,12 +29,13 @@ async function createUser(
   auth: ReturnType<typeof createAuth>,
   email: string,
   password: string,
-  role = 'author'
+  role = 'author',
+  name = 'A'
 ) {
   const ctx = await auth.$context
   const user = await ctx.internalAdapter.createUser({
     email,
-    name: 'A',
+    name,
     role,
     emailVerified: true
   })
@@ -48,19 +49,62 @@ async function createUser(
   return user
 }
 
+/** Signs in and resolves the actor for a freshly created user — shared by the gitAuthor tests. */
+async function signInAndResolve(
+  auth: ReturnType<typeof createAuth>,
+  email: string,
+  password: string
+) {
+  const res = await auth.api.signInEmail({
+    body: { email, password },
+    asResponse: true
+  })
+  const cookie = res.headers.get('set-cookie')!.split(';')[0]!
+  return resolveSessionActor(auth)(
+    new Request('http://x/', { headers: { cookie } })
+  )
+}
+
 describe('resolveSessionActor', () => {
   it('maps a session to an Actor', async () => {
     const { auth } = makeAuth()
     await createUser(auth, 'a@b.co', 'hunter2hunter2')
-    const res = await auth.api.signInEmail({
-      body: { email: 'a@b.co', password: 'hunter2hunter2' },
-      asResponse: true
+    const actor = await signInAndResolve(auth, 'a@b.co', 'hunter2hunter2')
+    expect(actor).toEqual({
+      id: expect.any(String),
+      role: 'author',
+      gitAuthor: { name: 'A', email: 'a@b.co' }
     })
-    const cookie = res.headers.get('set-cookie')!.split(';')[0]!
-    const actor = await resolveSessionActor(auth)(
-      new Request('http://x/', { headers: { cookie } })
+  })
+
+  // #382 — the resolver also surfaces the session user's identity as `gitAuthor` so the commit
+  // routes can stamp it server-side instead of trusting the client-supplied author.
+  it('carries the session user identity as gitAuthor', async () => {
+    const { auth } = makeAuth()
+    await createUser(
+      auth,
+      'real@x.dev',
+      'hunter2hunter2',
+      'author',
+      'Real Name'
     )
-    expect(actor).toEqual({ id: expect.any(String), role: 'author' })
+    const actor = await signInAndResolve(auth, 'real@x.dev', 'hunter2hunter2')
+    expect(actor).toEqual({
+      id: expect.any(String),
+      role: 'author',
+      gitAuthor: { name: 'Real Name', email: 'real@x.dev' }
+    })
+  })
+
+  it('falls back to email as the author name when name is empty', async () => {
+    const { auth } = makeAuth()
+    await createUser(auth, 'noname@x.dev', 'hunter2hunter2', 'author', '')
+    const actor = await signInAndResolve(auth, 'noname@x.dev', 'hunter2hunter2')
+    expect(actor).toEqual({
+      id: expect.any(String),
+      role: 'author',
+      gitAuthor: { name: 'noname@x.dev', email: 'noname@x.dev' }
+    })
   })
 
   it('returns null for an unrecognized (non-staff) role — fails closed (#379)', async () => {

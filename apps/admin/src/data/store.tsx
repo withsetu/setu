@@ -29,7 +29,8 @@ import {
 } from '@setu/db-memory'
 import { createMemoryGitPort } from '@setu/git-memory'
 
-/** Editor identity stamped on bulk commits (matches the editor's OWNER_AUTHOR). */
+/** Editor identity stamped on bulk commits: fallback identity; the api stamps the real session
+ *  user on commit routes (#382). */
 export const OWNER_AUTHOR = { name: 'Local', email: 'local@setu.dev' }
 
 const doc = (text: string): TiptapDoc => ({

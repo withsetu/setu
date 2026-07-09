@@ -6,15 +6,9 @@ import {
   parseContentPath,
   parseMdoc
 } from '@setu/core'
-import type {
-  Action,
-  Actor,
-  GitPort,
-  CommitInput,
-  CommitFilesInput
-} from '@setu/core'
+import type { Action, GitPort, CommitInput, CommitFilesInput } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
-import type { ResolveActor } from './auth/resolve-actor'
+import type { ResolveActor, ResolvedActor } from './auth/resolve-actor'
 
 export { createFormsApi } from './forms'
 
@@ -102,17 +96,19 @@ function requireWrite(
   git: GitPort,
   changesOf: (body: unknown) => WriteChange[]
 ) {
-  return createMiddleware<{ Variables: { actor: Actor } }>(async (c, next) => {
-    let changes: WriteChange[]
-    try {
-      changes = changesOf(await c.req.json())
-    } catch {
-      return c.json({ error: 'invalid request body' }, 400)
+  return createMiddleware<{ Variables: { actor: ResolvedActor } }>(
+    async (c, next) => {
+      let changes: WriteChange[]
+      try {
+        changes = changesOf(await c.req.json())
+      } catch {
+        return c.json({ error: 'invalid request body' }, 400)
+      }
+      if (!authz.can(c.get('actor'), await writeActionForChanges(changes, git)))
+        return c.json({ error: 'forbidden' }, 403)
+      await next()
     }
-    if (!authz.can(c.get('actor'), await writeActionForChanges(changes, git)))
-      return c.json({ error: 'forbidden' }, 403)
-    await next()
-  })
+  )
 }
 
 /** A Hono app exposing a GitPort over HTTP (RPC-style, one route per method).
@@ -153,7 +149,7 @@ function requireWrite(
  *  reopening every route to `*` origins. Tests exercise this app standalone
  *  (same-origin `.fetch()`), so no CORS headers are needed for those to pass. */
 export function createGitApi(git: GitPort, resolveActor: ResolveActor) {
-  const app = new Hono<{ Variables: { actor: Actor } }>()
+  const app = new Hono<{ Variables: { actor: ResolvedActor } }>()
   const auth = authMiddleware(resolveActor)
 
   app.get('/git/head', async (c) => c.json({ sha: await git.headSha() }))
@@ -174,7 +170,11 @@ export function createGitApi(git: GitPort, resolveActor: ResolveActor) {
     }),
     async (c) => {
       const body = await c.req.json<CommitInput>()
-      const { sha } = await git.commitFile(body)
+      // Server-authoritative identity: the session's git author (when known) is stamped over
+      // whatever the client's request body claims — never trust the client for who committed
+      // (#382). No session identity (e.g. local/no-auth dev) → the body's author is the fallback.
+      const author = c.get('actor').gitAuthor ?? body.author
+      const { sha } = await git.commitFile({ ...body, author })
       return c.json({ sha })
     }
   )
@@ -197,7 +197,9 @@ export function createGitApi(git: GitPort, resolveActor: ResolveActor) {
     }),
     async (c) => {
       const body = await c.req.json<CommitFilesInput>()
-      const { sha } = await git.commitFiles(body)
+      // Server-authoritative identity — see the /git/commit route above (#382).
+      const author = c.get('actor').gitAuthor ?? body.author
+      const { sha } = await git.commitFiles({ ...body, author })
       return c.json({ sha })
     }
   )

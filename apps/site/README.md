@@ -9,4 +9,3 @@ Read-only over content. NOT a theme: neutral baseline styling, page-per-entry on
 - Out of scope (later sub-projects): theme/layout/nav (#3), shared-core editor refactor
   (#2), codegen (#4), editor->disk bridge, dynamic Markdoc/SSR, syntax highlighting.
 
-See `docs/superpowers/specs/2026-06-17-setu-render-pipeline-design.md`.

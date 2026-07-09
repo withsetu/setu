@@ -100,7 +100,7 @@ The full standard with the worked "good vs. skeleton" case study: [docs/quality-
 | Thing | Where |
 |---|---|
 | Design & plans | The **GitHub issue/epic** — never committed spec files (§3.1) |
-| Standing reference (in-repo) | `CLAUDE.md`, `plan/prd.md`, `docs/quality-bar.md`, `docs/security-standards.md`, `docs/architecture.md`, `docs/block-styling-contract.md`, `docs/collaboration.md` |
+| Standing reference (in-repo) | `CLAUDE.md`, `docs/quality-bar.md`, `docs/security-standards.md`, `docs/architecture.md`, `docs/block-styling-contract.md`, `docs/collaboration.md` |
 | Engine | `packages/core` (markdoc round-trip, config, authoring/publish/read, authz, lifecycle, content-index, settings, permalinks) |
 | Adapters | `packages/{git,db,image,email,captcha,storage}-*` + `@setu/auth` |
 | Admin SPA | `apps/admin` (React 19 + shadcn/ui + Tiptap 3) — editor in `src/editor/` |
@@ -121,7 +121,7 @@ The full standard with the worked "good vs. skeleton" case study: [docs/quality-
    The `gh` token has `repo` scope but NOT `project` scope.
 2. **Design lives in the issue** (owner decision 2026-07-01): epic body = design narrative, child
    issues = increments, comments = discussion. Do NOT commit specs/plans to
-   `docs/superpowers/{specs,plans}/`. Test: *standard the code upholds → repo doc; unit of work →
+   the repo (design lives in the issue). Test: *standard the code upholds → repo doc; unit of work →
    issue.*
 3. **Run the pick-time gates** — one line each, "N/A" is a fine answer, the point is the question
    was asked: (a) the [security checklist](docs/security-standards.md); (b) the topology check
@@ -214,7 +214,7 @@ Each has happened in this repo. When your plan pattern-matches a row, apply the 
 | 7 | **The Confident Stale Dep "Fact"** | "That's a paid Tiptap Pro extension" (it was MIT on public npm); "cid shipped" (PR still open) | Card #9: verify on npm/context7/web before asserting; verify repo claims against code |
 | 8 | **The Wrong-Worktree Commit** | Subagent commits onto `main` or another session's branch (happened twice; one needed a guarded reset) | Every subagent dispatch: first step = `cd <worktree>` + verify `git rev-parse --show-toplevel` and `git branch --show-current`; forbid `checkout/switch/reset/merge`. Controller verifies HEAD advanced on the expected branch after every task |
 | 9 | **The Silent TODO** | Deferred scope noted in a comment or memory file and lost | Spin off a labeled issue linked to the parent, in the same session |
-| 10 | **The Committed Design Doc** | Writing `docs/superpowers/specs/...` for new work | Design lives in the issue (§3.1). Standing reference only in-repo |
+| 10 | **The Committed Design Doc** | Committing a design spec/plan to the repo for new work | Design lives in the issue (§3.1). Standing reference only in-repo |
 | 11 | **The Re-Asked Settled Question** | "Subagent-driven or inline?" / "Shall I merge?" for the Nth time | §3.1 settled defaults: proceed and report |
 | 12 | **The Public Strategy Leak** | Competitor/moat/licensing reasoning pasted into a public issue (issue #299 had to be deleted) | Card #10: engineering-only in public; neutral decision language; strategy stays in private notes |
 | 13 | **The UI-Only Gate** | Hiding the button but leaving the API open (#362: Forms PII + Git-write had NO server gate; settings writable via the shared commit route) | Server-side `requireCan` + path/frontmatter-aware `writeActionForChanges`; then the wrong-actor e2e (card #5) |

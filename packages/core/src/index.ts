@@ -354,3 +354,10 @@ export type {
   ReprocessJob,
   ReprocessJobStore
 } from './reprocess/job'
+
+export { safeFetch, SafeFetchError } from './net/safe-fetch'
+export type {
+  SafeFetchOptions,
+  SafeFetchResult,
+  SafeFetchBlockReason
+} from './net/safe-fetch'

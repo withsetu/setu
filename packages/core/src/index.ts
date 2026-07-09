@@ -294,6 +294,11 @@ export type {
   RenameRefusal
 } from './rename/rename-service'
 export { createRenameService } from './rename/rename-service'
+export {
+  entrySlugify,
+  isValidEntrySlug,
+  RESERVED_ENTRY_SLUG
+} from './rename/slug'
 
 export type { MarkdocAttr } from './blocks/markdoc-attributes'
 export { markdocAttributesFor } from './blocks/markdoc-attributes'

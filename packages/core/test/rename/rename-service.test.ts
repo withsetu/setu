@@ -49,11 +49,21 @@ describe('renameService.renameSlug — refusals', () => {
     })
   })
 
-  it('refuses an invalid slug (bad characters)', async () => {
+  it('refuses a non-canonical slug (anything entrySlugify would change)', async () => {
     const { rename } = setup([
       { ref: ref('a'), frontmatter: { title: 'A' }, body: 'x' }
     ])
-    for (const bad of ['Has Caps', 'sp ace', 'slash/y', '', 'ünïcode']) {
+    for (const bad of [
+      'Has Caps',
+      'sp ace',
+      'slash/y',
+      '',
+      'Über-Uns', // uppercase Unicode — canonical form is 'über-uns'
+      '-leading',
+      'trailing-',
+      'under_score',
+      'double--hyphen'
+    ]) {
       const r = await rename.renameSlug(ref('a'), bad)
       expect(r).toEqual({
         renamed: false,
@@ -61,6 +71,20 @@ describe('renameService.renameSlug — refusals', () => {
         reason: 'invalid-slug'
       })
     }
+  })
+
+  it('accepts Unicode slugs — the same vocabulary minting uses (slugify keeps \\p{L})', async () => {
+    const { rename, data, git } = setup()
+    await data.saveDraft({
+      ...ref('ueber'),
+      content: doc('hallo'),
+      metadata: { title: 'Über uns' },
+      baseSha: null
+    })
+    const r = await rename.renameSlug(ref('ueber'), 'über-uns')
+    expect(r).toEqual({ renamed: true, committedSha: null })
+    expect(await data.getDraft(ref('über-uns'))).not.toBeNull()
+    expect(await git.headSha()).toBeNull()
   })
 
   it("refuses the reserved 'new' sentinel", async () => {

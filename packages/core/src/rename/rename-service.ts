@@ -3,6 +3,7 @@ import type { EntryRef } from '../data/types'
 import type { GitPort } from '../git/git-port'
 import type { GitAuthor } from '../git/types'
 import { contentPath } from '../publish/content-path'
+import { isValidEntrySlug } from './slug'
 
 export interface RenameDeps {
   data: DataPort
@@ -30,11 +31,6 @@ export interface RenameService {
   renameSlug(ref: EntryRef, newSlug: string): Promise<RenameResult>
 }
 
-/** Lowercase letters, digits, hyphens only — the slug vocabulary shared with the
- *  permalink settings screen. `new` is reserved (the admin's compose route). */
-const VALID_SLUG = /^[a-z0-9-]+$/
-const RESERVED_SLUG = 'new'
-
 const refuse = (reason: RenameRefusal): RenameResult => ({
   renamed: false,
   committedSha: null,
@@ -49,8 +45,9 @@ export function createRenameService(deps: RenameDeps): RenameService {
   return {
     async renameSlug(ref, newSlug) {
       if (newSlug === ref.slug) return refuse('unchanged')
-      if (!VALID_SLUG.test(newSlug) || newSlug === RESERVED_SLUG)
-        return refuse('invalid-slug')
+      // Fixed-point validation against THE minting vocabulary (rename/slug.ts):
+      // Unicode slugs minting can produce ('über-uns') must rename cleanly here too.
+      if (!isValidEntrySlug(newSlug)) return refuse('invalid-slug')
 
       const newRef: EntryRef = {
         collection: ref.collection,
@@ -87,6 +84,13 @@ export function createRenameService(deps: RenameDeps): RenameService {
 
       // Re-key the draft: fork it onto the move commit when one was made,
       // otherwise carry the old fork point along unchanged.
+      //
+      // Cross-store failure mode (parity with publish-service): if the commit
+      // above lands but a step below throws, Git (canonical) holds the moved
+      // file while the DB still has the old-ref draft with a now-stale
+      // baseContent — a later publish of that draft fails CLOSED as a conflict
+      // (per-file guard), never lossy. Re-running the rename refuses with
+      // 'target-exists'/'absent' rather than double-moving.
       if (draft !== null) {
         await data.saveDraft({
           ...newRef,

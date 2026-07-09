@@ -160,31 +160,57 @@ test.describe('maintainer below-rank user management + rank gate parity (#364, #
   test('#410: the maintainer renames themselves via the sidebar "Your profile" dialog', async ({
     page
   }) => {
+    // Single-project only: unlike the invite/disable tests (whose invited users are
+    // project-unique via uniqueTitle's project-name + random token, so every project safely
+    // works on its own row), this test mutates the ONE shared seeded maintainer. In the nightly
+    // full matrix (E2E_FULL_MATRIX=1), chromium + firefox-full + webkit-full all match this spec
+    // and run fullyParallel — concurrent renames of the same backend user would clobber each
+    // other's assertions.
+    test.skip(
+      test.info().project.name !== 'chromium',
+      'mutates the shared seeded maintainer — single-project only'
+    )
+
     await page.goto('/dashboard')
     await hideDevReset(page)
     const newName = `Renamed Maintainer ${uniqueTitle('profile-rename').split(' ').pop()}`
 
-    await page.getByRole('button', { name: 'E2E Maintainer' }).click()
-    await page.getByRole('menuitem', { name: 'Your profile' }).click()
-    const profileDialog = page.getByRole('dialog', { name: 'Your profile' })
-    await profileDialog.getByLabel('Display name').fill(newName)
-    await profileDialog.getByRole('button', { name: 'Save' }).click()
-    await expect(profileDialog).toBeHidden()
+    // The seeded name MUST be restored no matter which assertion below fails — seedUsers only
+    // creates missing users (it never repairs an existing row), so a failure that skipped the
+    // rename-back would leave the shared maintainer permanently renamed for every later run.
+    // Same finally-guarded-cleanup shape as author-draft.spec.ts's second browser context.
+    try {
+      await page.getByRole('button', { name: 'E2E Maintainer' }).click()
+      await page.getByRole('menuitem', { name: 'Your profile' }).click()
+      const profileDialog = page.getByRole('dialog', { name: 'Your profile' })
+      await profileDialog.getByLabel('Display name').fill(newName)
+      await profileDialog.getByRole('button', { name: 'Save' }).click()
+      await expect(profileDialog).toBeHidden()
 
-    // The sidebar footer re-renders from the live session, no reload needed.
-    await expect(page.getByRole('button', { name: newName })).toBeVisible()
-
-    // Restore to the seeded name — no OTHER spec asserts on it (grepped the suite for "E2E
-    // Maintainer"), but the shared sandbox stays canonical for whichever spec runs next.
-    await page.getByRole('button', { name: newName }).click()
-    await page.getByRole('menuitem', { name: 'Your profile' }).click()
-    const restoreDialog = page.getByRole('dialog', { name: 'Your profile' })
-    await restoreDialog.getByLabel('Display name').fill('E2E Maintainer')
-    await restoreDialog.getByRole('button', { name: 'Save' }).click()
-    await expect(restoreDialog).toBeHidden()
-    await expect(
-      page.getByRole('button', { name: 'E2E Maintainer' })
-    ).toBeVisible()
+      // The sidebar footer re-renders from the live session, no reload needed.
+      await expect(page.getByRole('button', { name: newName })).toBeVisible()
+    } finally {
+      // Resilient restore: start from a fresh page load rather than whatever half-state the
+      // body failed in (dialog possibly still open, menu possibly still open). The user-menu
+      // button's accessible name is the CURRENT display name — which is `newName` after a
+      // successful rename but still `E2E Maintainer` if the body failed before saving — so
+      // match either. Re-saving the same name is a harmless no-op in the not-yet-renamed case.
+      await page.goto('/dashboard')
+      await hideDevReset(page)
+      await page
+        .getByRole('button', {
+          name: new RegExp(`^(E2E Maintainer|${newName})$`)
+        })
+        .click()
+      await page.getByRole('menuitem', { name: 'Your profile' }).click()
+      const restoreDialog = page.getByRole('dialog', { name: 'Your profile' })
+      await restoreDialog.getByLabel('Display name').fill('E2E Maintainer')
+      await restoreDialog.getByRole('button', { name: 'Save' }).click()
+      await expect(restoreDialog).toBeHidden()
+      await expect(
+        page.getByRole('button', { name: 'E2E Maintainer' })
+      ).toBeVisible()
+    }
   })
 
   test('wrong-actor API: the better-auth admin routes reject a maintainer acting at/above their own rank', async ({

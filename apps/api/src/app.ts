@@ -68,8 +68,9 @@ function publishesLiveContent(content: string): boolean {
  *                                              to silently unpublish or delete a live post just
  *                                              because content.edit lets them write drafts)
  *   - everything else (drafts, taxonomy)     → `content.edit`
- *  Only content paths need the committed-state read (`git.readFile`) — it's skipped for
- *  non-content paths and short-circuited once a change already forces `content.publish`. */
+ *  Only content paths need the committed-state read (`git.readFile`), and no read happens at all
+ *  once `content.publish` is required — the strongest content action is settled, so the remaining
+ *  iterations only scan for the admin-only settings path. */
 async function writeActionForChanges(
   changes: WriteChange[],
   git: GitPort
@@ -80,6 +81,7 @@ async function writeActionForChanges(
     const adminAction = ADMIN_ONLY_WRITE[p]
     if (adminAction) return adminAction // settings.manage — the strongest; short-circuit.
     if (!parseContentPath(p)) continue // taxonomy etc. — content.edit is enough
+    if (action === 'content.publish') continue // already required — no read can raise it further
     if (content !== undefined && publishesLiveContent(content)) {
       action = 'content.publish'
       continue // already the strongest content action — skip the committed-state read

@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { createMiddleware } from 'hono/factory'
+import { bodyLimit } from 'hono/body-limit'
 import {
   createAuthz,
   DEFAULT_ROLES,
@@ -14,20 +15,30 @@ export { createFormsApi } from './forms'
 
 const authz = createAuthz(DEFAULT_ROLES)
 
-/** Repo paths only an admin may write. Settings persist as `settings.json` at the repo root through
- *  this shared git primitive (there is NO dedicated settings route), so the write gate must
- *  distinguish a settings write from ordinary content BY PATH — otherwise any `content.edit` holder
- *  (author/editor/maintainer) could rewrite settings.json, bypassing the admin-only `settings.manage`
- *  (found in UAT 2026-07-05). This is the concrete first slice of the path-scoped git permissions the
- *  factory comment below anticipates. */
-const ADMIN_ONLY_WRITE: Record<string, Action> = {
-  'settings.json': 'settings.manage'
+/** Repo-root files that persist through this shared git primitive but demand a stronger write
+ *  permission than ordinary content — there is NO dedicated settings/theme route, so the write gate
+ *  must distinguish them BY PATH. Otherwise any `content.edit` holder (author/editor) could rewrite
+ *  them, bypassing the action the admin UI gates them behind (failure mode #13):
+ *    - `settings.json`      → `settings.manage` (admin only; UAT 2026-07-05)
+ *    - `theme-options.json` → `theme.manage`    (maintainer+/admin; the Appearance screen's gate — #419)
+ *  Keys MUST be lowercase — the lookup case-folds the path (see `normalizeRepoPath`) so `Settings.json`
+ *  on a case-insensitive filesystem (macOS/Windows), which is the SAME inode, cannot slip the gate. */
+const PATH_WRITE_ACTION: Record<string, Action> = {
+  'settings.json': 'settings.manage',
+  'theme-options.json': 'theme.manage'
 }
 
 /** Normalize a repo-relative path for gate matching: drop a leading `./` or `/` so `./settings.json`
- *  and `/settings.json` can't slip past the exact-match check. (Deeper `../` traversal is the git
- *  port's concern, not the gate's.) */
+ *  and `/settings.json` can't slip past the check, and lowercase it so a case-only variant
+ *  (`Settings.json`) can't either on a case-insensitive filesystem. (Deeper `../` traversal is the
+ *  git port's concern, not the gate's.) Used ONLY for gate matching — the actual write uses the
+ *  caller's original path. */
 const normalizeRepoPath = (p: string) => p.replace(/^\.?\/+/, '').trim()
+
+/** Max bytes for a git write body. Generous enough for a bulk commit-files (hundreds of small
+ *  `.mdoc` files in one atomic commit) yet a hard DoS ceiling on unbounded `c.req.json()`. Media
+ *  uploads are multipart and capped separately in media.ts (25 MiB/file). */
+const GIT_WRITE_MAX_BYTES = 10 * 1024 * 1024
 
 /** One change in a commit, as the gate sees it: a path plus (for writes) the content being written.
  *  `content` is undefined for a deletion. */
@@ -48,44 +59,72 @@ function publishesLiveContent(content: string): boolean {
   }
 }
 
-/** The write permission a commit requires, derived from the paths, the content being written, AND
- *  the COMMITTED state of each touched file. Fail-closed: a commit requires the STRONGEST
- *  permission any of its changes needs, so nothing can be smuggled in with a lower-privilege
- *  change.
- *   - `settings.json`                       → `settings.manage` (admin only)
- *   - new content that IS live               → `content.publish` (publishing is gated server-side,
- *                                              not just in the UI's PublishMenu — an author must
- *                                              not publish via the raw API)
- *   - touching a file whose COMMITTED
- *     content is live (live-edit, unpublish,
- *     or delete of a live post)              → `content.publish` (#382: an author must not be able
- *                                              to silently unpublish or delete a live post just
- *                                              because content.edit lets them write drafts)
- *   - everything else (drafts, taxonomy)     → `content.edit`
- *  Only content paths need the committed-state read (`git.readFile`), and no read happens at all
- *  once `content.publish` is required — the strongest content action is settled, so the remaining
- *  iterations only scan for the admin-only settings path. */
+/** Precedence of the write actions this gate derives, weakest → strongest. In the DEFAULT_ROLES
+ *  ladder each higher action's holders are a subset of the lower's (content.edit ⊂ content.publish ⊂
+ *  theme.manage ⊂ settings.manage), so requiring the single strongest action a commit needs correctly
+ *  implies the others — no actor can hold the strongest without the rest. A mixed commit therefore
+ *  can't smuggle a privileged change past a lower-privilege one. */
+const WRITE_ACTION_RANK: Record<string, number> = {
+  'content.edit': 0,
+  'content.publish': 1,
+  'theme.manage': 2,
+  'settings.manage': 3
+}
+
+/** Rank of a derived write action; floors at 0 (`content.edit`) for anything off the ladder. */
+const writeActionRank = (a: Action): number => WRITE_ACTION_RANK[a] ?? 0
+
+/** The write permission a single change requires, from its path and (for writes) NEW content only.
+ *  (The committed-state half of the rule lives in `writeActionForChanges`, which can read git.)
+ *   - a `PATH_WRITE_ACTION` file (settings.json / theme-options.json) → its mapped action
+ *   - a content post going live → `content.publish` (publishing is gated server-side, not just in
+ *     the UI's PublishMenu — an author must not publish via the raw API); a `published:false` draft
+ *     only needs `content.edit`
+ *   - everything else (drafts, taxonomy, deletes) → `content.edit` */
+function actionForChange({ path, content }: WriteChange): Action {
+  const p = normalizeRepoPath(path)
+  const overrideAction = PATH_WRITE_ACTION[p.toLowerCase()]
+  if (overrideAction) return overrideAction
+  if (
+    content !== undefined &&
+    parseContentPath(p) &&
+    publishesLiveContent(content)
+  )
+    return 'content.publish'
+  return 'content.edit'
+}
+
+/** The write permission a commit requires. Fail-closed: the STRONGEST permission any of its changes
+ *  needs (by `WRITE_ACTION_RANK`), so nothing can be smuggled in alongside a lower-privilege change.
+ *
+ *  Transition-aware (#382): beyond the NEW content, a change touching a content path whose
+ *  COMMITTED content is live (live-edit, unpublish-by-write, or delete of a live post) also
+ *  requires `content.publish` — an author must not be able to silently unpublish or delete a live
+ *  post just because `content.edit` lets them write drafts. The committed-state read
+ *  (`git.readFile`) is skipped whenever it could not change the outcome: for non-content paths,
+ *  when this change's own action already ranks ≥ `content.publish`, or once the running strongest
+ *  does (higher ranks imply `content.publish`'s holders by the subset ladder above). */
 async function writeActionForChanges(
   changes: WriteChange[],
   git: GitPort
 ): Promise<Action> {
-  let action: Action = 'content.edit'
-  for (const { path, content } of changes) {
-    const p = normalizeRepoPath(path)
-    const adminAction = ADMIN_ONLY_WRITE[p]
-    if (adminAction) return adminAction // settings.manage — the strongest; short-circuit.
-    if (!parseContentPath(p)) continue // taxonomy etc. — content.edit is enough
-    if (action === 'content.publish') continue // already required — no read can raise it further
-    if (content !== undefined && publishesLiveContent(content)) {
-      action = 'content.publish'
-      continue // already the strongest content action — skip the committed-state read
+  const publishRank = writeActionRank('content.publish')
+  let strongest: Action = 'content.edit'
+  for (const change of changes) {
+    let needed = actionForChange(change)
+    const p = normalizeRepoPath(change.path)
+    if (
+      writeActionRank(needed) < publishRank &&
+      writeActionRank(strongest) < publishRank &&
+      parseContentPath(p)
+    ) {
+      const committed = await git.readFile(p)
+      if (committed !== null && publishesLiveContent(committed))
+        needed = 'content.publish'
     }
-    const committed = await git.readFile(p)
-    if (committed !== null && publishesLiveContent(committed)) {
-      action = 'content.publish' // live-edit, unpublish, or delete of an already-live post
-    }
+    if (writeActionRank(needed) > writeActionRank(strongest)) strongest = needed
   }
-  return action
+  return strongest
 }
 
 /** Authz gate for the write routes: parses the commit body, derives the required action from the
@@ -161,8 +200,16 @@ export function createGitApi(git: GitPort, resolveActor: ResolveActor) {
     return c.json({ content: await git.readFile(path) })
   })
 
+  // Body cap runs FIRST (before auth) so an oversized payload is rejected on content-length without
+  // any auth work or a full `c.req.json()` read — a cheap DoS backstop on the write routes.
+  const writeBodyLimit = bodyLimit({
+    maxSize: GIT_WRITE_MAX_BYTES,
+    onError: (c) => c.json({ error: 'payload too large' }, 413)
+  })
+
   app.post(
     '/git/commit',
+    writeBodyLimit,
     auth,
     requireWrite(git, (b) => {
       const { path, content } = b as CommitInput
@@ -181,6 +228,7 @@ export function createGitApi(git: GitPort, resolveActor: ResolveActor) {
 
   app.post(
     '/git/commit-files',
+    writeBodyLimit,
     auth,
     requireWrite(git, (b) => {
       const changes = (b as CommitFilesInput).changes

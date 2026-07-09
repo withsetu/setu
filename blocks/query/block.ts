@@ -20,9 +20,15 @@ export default defineBlock({
     group: 'widget',
     keywords: ['posts', 'list', 'query', 'archive', 'blog', 'loop', 'feed'],
     // collection/sort/layout are enums → SegmentedSelect; category/tag are searchable taxonomy
-    // pickers; columns is a slider (grid-only via showWhen). The live preview is the QueryBlock
-    // node view; this drives the grouped inspector rail.
-    controls: { category: 'category', tag: 'tag', columns: 'slider' },
+    // pickers; locale is a picker fed by the content index (distinctLocales) — never a raw code
+    // box; columns is a slider (grid-only via showWhen). The live preview is the QueryBlock node
+    // view; this drives the grouped inspector rail.
+    controls: {
+      category: 'category',
+      tag: 'tag',
+      locale: 'locale',
+      columns: 'slider'
+    },
     labels: {
       collection: 'Source',
       sort: 'Order by',

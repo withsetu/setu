@@ -23,15 +23,45 @@ const cssFiles = globSync('**/*.css', { cwd: SRC }).filter(
   (f) => f !== 'tokens.css'
 ) // the base layer is allowed to define literals
 
+// One unit of CSS to check: a .css file OR the body of an Astro <style> block.
+interface CssUnit {
+  label: string
+  css: string
+}
+
+// The .css renderers under packages/blocks/src (hero/button/callout/…).
+const packageCss: CssUnit[] = cssFiles.map((rel) => ({
+  label: rel,
+  css: readFileSync(`${SRC}/${rel}`, 'utf8')
+}))
+
+// The repo-root folder blocks (blocks/<tag>/<tag>.astro) inline their CSS in Astro <style>
+// blocks, OUTSIDE packages/blocks/src — the .css glob misses them entirely, so their token/color
+// violations were invisible to this guard until #420. Scan those <style> bodies with the same rules.
+const BLOCKS_ROOT = fileURLToPath(new URL('../../../blocks', import.meta.url))
+const folderBlockCss: CssUnit[] = globSync('**/*.astro', {
+  cwd: BLOCKS_ROOT
+}).flatMap((rel) => {
+  const src = readFileSync(`${BLOCKS_ROOT}/${rel}`, 'utf8')
+  return [...src.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)]
+    .map((m) => m[1])
+    .filter((body): body is string => body !== undefined)
+    .map((body, i) => ({
+      label: `blocks/${rel}${i > 0 ? ` [style ${i}]` : ''}`,
+      css: body
+    }))
+})
+
+const cssUnits: CssUnit[] = [...packageCss, ...folderBlockCss]
+
 const CONTRACT: Set<string> = new Set(BLOCK_TOKENS.map((t) => t.name))
 // Structural neutrals a block may hardcode (text on a tinted fill, etc.)
 const ALLOWED_LITERALS = new Set(['#fff', '#ffffff', '#000', '#000000'])
 
 describe('block CSS obeys the token contract', () => {
-  it.each(cssFiles)(
-    '%s reads only contract tokens or --blk-* locals',
-    (rel) => {
-      const css = readFileSync(`${SRC}/${rel}`, 'utf8')
+  it.each(cssUnits)(
+    '$label reads only contract tokens or --blk-* locals',
+    ({ label, css }) => {
       // Strip comments first: doc comments (e.g. callout.css's header) can contain literal
       // "var(--x, fallback)" example text that would otherwise false-positive here.
       const stripped = css.replace(/\/\*[\s\S]*?\*\//g, '')
@@ -41,15 +71,14 @@ describe('block CSS obeys the token contract', () => {
       const undeclared = reads.filter(
         (n) => !CONTRACT.has(n) && !n.startsWith('--blk-')
       )
-      expect(undeclared, `undeclared tokens in ${rel}`).toEqual([])
+      expect(undeclared, `undeclared tokens in ${label}`).toEqual([])
     }
   )
 
-  it.each(cssFiles)('%s hardcodes no brand colors', (rel) => {
-    const css = readFileSync(`${SRC}/${rel}`, 'utf8')
+  it.each(cssUnits)('$label hardcodes no brand colors', ({ label, css }) => {
     const stripped = css.replace(/\/\*[\s\S]*?\*\//g, '')
     const hex = [...stripped.matchAll(/#[0-9a-fA-F]{3,8}\b/g)].map((m) => m[0])
     const offending = hex.filter((h) => !ALLOWED_LITERALS.has(h.toLowerCase()))
-    expect(offending, `hardcoded colors in ${rel}`).toEqual([])
+    expect(offending, `hardcoded colors in ${label}`).toEqual([])
   })
 })

@@ -331,3 +331,87 @@ describe('transition-aware live-post gate (#382)', () => {
     expect((await write(a, '/git/commit-files', body)).status).toBe(200)
   })
 })
+
+// #419 — theme-options.json persists through this same git primitive (no dedicated theme route),
+// so without a path rule any content.edit holder (author/editor) could rewrite the theme, bypassing
+// the theme.manage gate the admin's Appearance screen enforces (UI-only gate, failure mode #13).
+// theme.manage is held by maintainer + admin (epic #359), NOT editor/author.
+describe('createGitApi — theme-options write gate (theme-options.json → theme.manage)', () => {
+  const themeCommit = JSON.stringify({
+    path: 'theme-options.json',
+    content: '{}',
+    message: 'm',
+    author
+  })
+  const themeFiles = JSON.stringify({
+    changes: [{ path: 'theme-options.json', content: '{}' }],
+    message: 'm',
+    author
+  })
+
+  it('rejects EDITOR/AUTHOR writing theme-options.json with 403 (they lack theme.manage)', async () => {
+    for (const role of ['editor', 'author'] as Role[]) {
+      expect(
+        (await write(app(asRole(role)), '/git/commit', themeCommit)).status,
+        `${role} commit`
+      ).toBe(403)
+      expect(
+        (await write(app(asRole(role)), '/git/commit-files', themeFiles))
+          .status,
+        `${role} commit-files`
+      ).toBe(403)
+    }
+  })
+
+  it('allows MAINTAINER and ADMIN (hold theme.manage) to write theme-options.json → 200', async () => {
+    for (const role of ['maintainer', 'admin'] as Role[])
+      expect(
+        (await write(app(asRole(role)), '/git/commit', themeCommit)).status,
+        role
+      ).toBe(200)
+  })
+})
+
+// #419 — the settings/theme path gate matched case-sensitively; on a case-insensitive filesystem
+// (macOS/Windows) `Settings.json` is the SAME inode as settings.json, so a content.edit holder could
+// smuggle a settings write past the exact-match gate. The gate now case-folds the path.
+describe('createGitApi — path gate is case-insensitive (no case-fold bypass)', () => {
+  const cased = (p: string) =>
+    JSON.stringify({ path: p, content: '{}', message: 'm', author })
+
+  it('rejects MAINTAINER writing Settings.json / SETTINGS.JSON with 403 (settings.manage)', async () => {
+    for (const p of ['Settings.json', 'SETTINGS.JSON'])
+      expect(
+        (await write(app(asRole('maintainer')), '/git/commit', cased(p)))
+          .status,
+        p
+      ).toBe(403)
+  })
+
+  it('rejects EDITOR writing Theme-Options.json with 403 (theme.manage)', async () => {
+    expect(
+      (
+        await write(
+          app(asRole('editor')),
+          '/git/commit',
+          cased('Theme-Options.json')
+        )
+      ).status
+    ).toBe(403)
+  })
+})
+
+// #419 — no write route was body-size-capped; unbounded c.req.json() is a DoS surface (and amplifies
+// the unauthenticated ReDoS on /forms/submit, #340). Writes are now capped; oversize → 413.
+describe('createGitApi — request body size cap (413)', () => {
+  const oversized =
+    '{"path":"p.mdoc","content":"' +
+    'a'.repeat(10 * 1024 * 1024 + 1024) +
+    '","message":"m"}'
+
+  it('rejects an oversized commit body with 413', async () => {
+    expect(
+      (await write(app(asRole('admin')), '/git/commit', oversized)).status
+    ).toBe(413)
+  })
+})

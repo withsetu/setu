@@ -260,10 +260,22 @@ export class EditorPage {
     await this.body.pressSequentially(text)
   }
 
-  /** Click into the canvas and type `/` to open the slash menu. */
+  /** Click into the canvas and type `/` to open the slash menu.
+   *
+   *  Clicks the LAST top-level block, not the body's center. The slash suggestion
+   *  (SlashCommand.tsx → @tiptap/suggestion) only fires when `/` is at the start of a
+   *  text block or preceded by a space (the suggestion's default `allowedPrefixes: [' ']`;
+   *  `startOfLine: false` does NOT relax this). A blind `body.click()` lands the caret at
+   *  the contenteditable's visual center, which — once the canvas already holds body text
+   *  (e.g. a11y.spec's "title + body + callout" flow types a paragraph + Enter first) —
+   *  can drop it mid-word, so the following `/` sits after a letter and never opens the
+   *  menu. Whether center resolves onto text or the empty trailing line depends on rendered
+   *  height, so it flaked only on firefox/webkit-full on CI (#418). The last block in every
+   *  caller here is an empty paragraph, so clicking it puts the caret at a valid start-of-
+   *  block position deterministically. */
   async openSlashMenu() {
-    await this.body.click()
-    await this.body.pressSequentially('/')
+    await this.blocks.last().click()
+    await this.page.keyboard.type('/')
     await expect(this.slashMenu).toBeVisible()
   }
 

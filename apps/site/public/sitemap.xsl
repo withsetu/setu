@@ -2,7 +2,8 @@
 <xsl:stylesheet version="1.0"
   xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
   xmlns:s="http://www.sitemaps.org/schemas/sitemap/0.9"
-  xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"
+  xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
   <xsl:output method="html" encoding="UTF-8" indent="yes" doctype-system="about:legacy-compat"/>
 
   <xsl:template match="/">
@@ -94,6 +95,7 @@
           <!-- URL sitemap -->
           <xsl:if test="s:urlset">
             <xsl:variable name="hasImages" select="count(s:urlset/s:url/image:image) &gt; 0"/>
+            <xsl:variable name="hasVideos" select="count(s:urlset/s:url/video:video) &gt; 0"/>
             <p class="lede">This sitemap lists the URLs on this site available for crawling.</p>
             <div class="count"><xsl:value-of select="count(s:urlset/s:url)"/> URLs</div>
             <div class="card">
@@ -102,6 +104,7 @@
                   <tr>
                     <th>URL</th>
                     <xsl:if test="$hasImages"><th class="num">Images</th></xsl:if>
+                    <xsl:if test="$hasVideos"><th class="num">Videos</th></xsl:if>
                     <th class="date">Last modified</th>
                   </tr>
                 </thead>
@@ -111,6 +114,9 @@
                       <td><a href="{s:loc}"><xsl:value-of select="s:loc"/></a></td>
                       <xsl:if test="$hasImages">
                         <td class="num"><xsl:value-of select="count(image:image)"/></td>
+                      </xsl:if>
+                      <xsl:if test="$hasVideos">
+                        <td class="num"><xsl:value-of select="count(video:video)"/></td>
                       </xsl:if>
                       <td class="date"><xsl:value-of select="substring(s:lastmod, 1, 10)"/></td>
                     </tr>

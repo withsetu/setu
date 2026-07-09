@@ -66,6 +66,17 @@ describe('sub-sitemaps', () => {
     // seo-override-demo.mdoc sets seo.noindex → must not be advertised
     expect(pagemap).not.toContain('/page/seo-override-demo/')
   })
+  it('emits <video:video> entries for pages with a video embed (#367)', () => {
+    // embed-demo.mdoc has a {% embed mediaType="video" %} (YouTube)
+    expect(pagemap).toContain(
+      'xmlns:video="http://www.google.com/schemas/sitemap-video/1.1"'
+    )
+    expect(pagemap).toContain('<video:video>')
+    expect(pagemap).toMatch(
+      /<video:player_loc>https:\/\/www\.youtube\.com\/embed\/[^<]*<\/video:player_loc>/
+    )
+    expect(pagemap).toMatch(/<video:thumbnail_loc>[^<]+<\/video:thumbnail_loc>/)
+  })
 })
 
 describe('robots.txt (#226)', () => {

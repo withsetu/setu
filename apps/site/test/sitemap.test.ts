@@ -3,6 +3,7 @@ import {
   isIndexable,
   entryUrls,
   entryImages,
+  entryVideos,
   taxonomyUrls,
   collectSitemapSections,
   sitemapIndexXml,
@@ -151,6 +152,77 @@ describe('entryImages', () => {
     expect(withImg).toContain('<image:loc>https://cdn/x.jpg</image:loc>')
     const without = urlSitemapXml([{ loc: 'https://example.com/post/x/' }])
     expect(without).not.toContain('xmlns:image')
+  })
+})
+
+describe('entryVideos (#367)', () => {
+  const embed = (extra = '') =>
+    `{% embed mediaType="video" title="The Mountain" thumbnailUrl="https://i.vimeocdn.com/x.jpg" embedUrl="https://player.vimeo.com/video/1" ${extra}/%}`
+
+  it('extracts a video embed from the body, resolving URLs absolute + caption→description', () => {
+    const e: SitemapEntry = {
+      id: 'post/en/x',
+      data: {},
+      body: embed('caption="A classic" ')
+    }
+    expect(
+      entryVideos(e, 'https://cdn.example', 'https://example.com')
+    ).toEqual([
+      {
+        thumbnailLoc: 'https://i.vimeocdn.com/x.jpg',
+        title: 'The Mountain',
+        description: 'A classic',
+        playerLoc: 'https://player.vimeo.com/video/1'
+      }
+    ])
+  })
+
+  it('falls back description → title when the embed has no caption (Google requires description)', () => {
+    const e: SitemapEntry = { id: 'post/en/x', data: {}, body: embed() }
+    expect(entryVideos(e, '', 'https://example.com')[0]?.description).toBe(
+      'The Mountain'
+    )
+  })
+
+  it('resolves a /media/ thumbnail through the media base', () => {
+    const e: SitemapEntry = {
+      id: 'post/en/x',
+      data: {},
+      body: `{% embed mediaType="video" title="T" thumbnailUrl="/media/2026/06/poster.jpg" embedUrl="https://p/1" /%}`
+    }
+    expect(
+      entryVideos(e, 'https://cdn.example', 'https://example.com')[0]
+        ?.thumbnailLoc
+    ).toBe('https://cdn.example/media/2026/06/poster.jpg')
+  })
+
+  it('urlSitemapXml emits the video namespace + <video:video> block only when videos exist', () => {
+    const withVid = urlSitemapXml([
+      {
+        loc: 'https://example.com/post/x/',
+        videos: [
+          {
+            thumbnailLoc: 'https://t/x.jpg',
+            title: 'T',
+            description: 'D',
+            playerLoc: 'https://p/1'
+          }
+        ]
+      }
+    ])
+    expect(withVid).toContain(
+      'xmlns:video="http://www.google.com/schemas/sitemap-video/1.1"'
+    )
+    expect(withVid).toContain('<video:video>')
+    expect(withVid).toContain(
+      '<video:thumbnail_loc>https://t/x.jpg</video:thumbnail_loc>'
+    )
+    expect(withVid).toContain(
+      '<video:player_loc>https://p/1</video:player_loc>'
+    )
+    expect(withVid).toContain('<video:title>T</video:title>')
+    const without = urlSitemapXml([{ loc: 'https://example.com/post/x/' }])
+    expect(without).not.toContain('xmlns:video')
   })
 })
 

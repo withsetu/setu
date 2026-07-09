@@ -243,6 +243,8 @@ export type { JsonLdInput, JsonLdGraph } from './seo/json-ld'
 export { resolveJsonLd, jsonLdScript } from './seo/json-ld'
 export type { PageSeoOverride } from './seo/page-override'
 export { parsePageSeoOverride } from './seo/page-override'
+export type { EmbedVideo } from './seo/embed-videos'
+export { extractEmbedVideos } from './seo/embed-videos'
 export {
   distinctCategorySlugs,
   distinctTagSlugs,

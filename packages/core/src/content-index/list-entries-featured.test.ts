@@ -15,7 +15,7 @@ const draft = (over: Partial<Draft>): Draft => ({
   updatedAt: 1,
   ...over
 })
-const noDeploy = () => null
+const noDeploy = { deployedSha: null, changed: [] }
 
 describe('listContentEntries — featuredImage', () => {
   it('reads featuredImage from a draft', () => {
@@ -26,7 +26,7 @@ describe('listContentEntries — featuredImage', () => {
         })
       ],
       committed: [],
-      deployedAt: noDeploy
+      deploy: noDeploy
     })
     expect(rows[0]!.featuredImage).toBe('/media/2026/06/a.webp')
   })
@@ -42,7 +42,7 @@ describe('listContentEntries — featuredImage', () => {
     const rows = listContentEntries({
       drafts: [],
       committed,
-      deployedAt: noDeploy
+      deploy: noDeploy
     })
     expect(rows[0]!.featuredImage).toBe('/media/2026/06/b.webp')
   })
@@ -54,7 +54,7 @@ describe('listContentEntries — featuredImage', () => {
         draft({ slug: 'q', metadata: { title: 'Q', featuredImage: '' } })
       ],
       committed: [],
-      deployedAt: noDeploy
+      deploy: noDeploy
     })
     expect(rows[0]!.featuredImage).toBeUndefined()
     expect(rows[1]!.featuredImage).toBeUndefined()

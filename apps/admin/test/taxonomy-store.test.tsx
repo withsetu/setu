@@ -91,7 +91,7 @@ describe('TaxonomyProvider', () => {
       data,
       git,
       index: indexPort,
-      deployedAt: () => null
+      deploy: () => ({ deployedSha: null, changed: [] })
     })
     await idx.rebuild()
 
@@ -155,7 +155,7 @@ describe('TaxonomyProvider', () => {
       data,
       git,
       index: indexPort,
-      deployedAt: () => null
+      deploy: () => ({ deployedSha: null, changed: [] })
     })
     await idx.rebuild()
 

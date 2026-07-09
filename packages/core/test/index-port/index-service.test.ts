@@ -32,7 +32,7 @@ const seed: DraftInput[] = [
     metadata: { title: 'About' }
   }
 ]
-const noDeploy = () => null
+const noDeploy = () => ({ deployedSha: null, changed: [] })
 
 function svc() {
   const data = createMemoryDataPort(seed)
@@ -42,7 +42,7 @@ function svc() {
     data,
     git,
     index,
-    service: createIndexService({ data, git, index, deployedAt: noDeploy })
+    service: createIndexService({ data, git, index, deploy: noDeploy })
   }
 }
 

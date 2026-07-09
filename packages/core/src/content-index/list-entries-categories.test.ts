@@ -15,7 +15,7 @@ const draft = (over: Partial<Draft>): Draft => ({
   createdAt: 0,
   ...over
 })
-const noDeploy = () => null
+const noDeploy = { deployedSha: null, changed: [] }
 
 describe('listContentEntries — categories', () => {
   it('reads + dedupes category slugs from a draft', () => {
@@ -26,7 +26,7 @@ describe('listContentEntries — categories', () => {
         })
       ],
       committed: [],
-      deployedAt: noDeploy
+      deploy: noDeploy
     })
     expect(rows[0]!.categories).toEqual(['react', 'tutorials'])
   })
@@ -41,7 +41,7 @@ describe('listContentEntries — categories', () => {
     const rows = listContentEntries({
       drafts: [],
       committed,
-      deployedAt: noDeploy
+      deploy: noDeploy
     })
     expect(rows[0]!.categories).toEqual(['guides'])
   })
@@ -50,7 +50,7 @@ describe('listContentEntries — categories', () => {
     const rows = listContentEntries({
       drafts: [draft({ metadata: { title: 'P', categories: 'nope' } })],
       committed: [],
-      deployedAt: noDeploy
+      deploy: noDeploy
     })
     expect(rows[0]!.categories).toEqual([])
   })

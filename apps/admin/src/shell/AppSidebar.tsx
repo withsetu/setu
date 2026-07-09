@@ -29,6 +29,7 @@ import {
 import type { Action } from '@setu/core'
 import { useDeploy } from '../deploy/deploy'
 import { useCan } from '../auth/actor'
+import { useNotify } from '../ui/notify'
 import { siteUrl } from './site-url'
 import { ThemeToggle } from './ThemeToggle'
 import { UserMenu } from './UserMenu'
@@ -84,24 +85,50 @@ const BASE_NAV: Group[] = [
   }
 ]
 
+/** The deliberate-publish control (#208 + #209): honest pending count, real rebuild.
+ *  Server truth via useDeploy(); the API enforces site.deploy — this hiding is UX. */
 function DeployFooterButton() {
   const can = useCan()
-  const { sha, deploy } = useDeploy()
+  const { status, rebuild, refresh } = useDeploy()
+  const notify = useNotify()
   const [busy, setBusy] = useState(false)
-  if (!can('site.deploy')) return null
+  if (!can('site.deploy') || status === null) return null
+
+  const running = busy || status.job?.status === 'running'
+  const pendingCount = status.changedPaths.length
+  const label = running
+    ? 'Rebuilding…'
+    : !status.pending && status.deployedSha !== null
+      ? `Up to date · ${status.deployedSha.slice(0, 7)}`
+      : status.deployedSha === null
+        ? 'Publish site'
+        : `Publish · ${pendingCount} pending`
+  const tooltip = !status.canRebuild
+    ? 'Rebuild is not available in this deployment'
+    : running
+      ? 'Building the site…'
+      : status.pending
+        ? 'Rebuild the site so saved changes go live'
+        : 'Site is up to date with your saved content'
+
   return (
     <SidebarMenuButton
       onClick={() => {
         setBusy(true)
-        void deploy().finally(() => setBusy(false))
+        void rebuild()
+          .then(() => notify.success('Site rebuilt — changes are live'))
+          .catch((e: unknown) => {
+            notify.error(e instanceof Error ? e.message : 'Rebuild failed')
+            void refresh()
+          })
+          .finally(() => setBusy(false))
       }}
-      aria-label="Deploy site"
-      tooltip={sha ? `Deployed ${sha.slice(0, 7)}` : 'Deploy site'}
+      disabled={running || !status.canRebuild}
+      aria-label="Publish site"
+      tooltip={tooltip}
     >
       <Rocket />
-      <span>
-        {busy ? 'Deploying…' : sha ? `Deployed · ${sha.slice(0, 7)}` : 'Deploy'}
-      </span>
+      <span>{label}</span>
     </SidebarMenuButton>
   )
 }

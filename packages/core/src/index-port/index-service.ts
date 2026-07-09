@@ -1,7 +1,7 @@
 import type { DataPort } from '../data/data-port'
 import type { GitPort } from '../git/git-port'
 import type { EntryRef } from '../data/types'
-import type { ContentRow } from '../content-index/list-entries'
+import type { ContentRow, DeployInfo } from '../content-index/list-entries'
 import { listContentEntries } from '../content-index/list-entries'
 import { contentPath, parseContentPath } from '../publish/content-path'
 import type { IndexPort, IndexQuery } from './types'
@@ -17,7 +17,8 @@ export interface IndexServiceDeps {
   data: DataPort
   git: GitPort
   index: IndexPort
-  deployedAt: (path: string) => string | null
+  /** Live getter for deploy truth (#208) — the service is long-lived, deploys happen. */
+  deploy: () => DeployInfo
 }
 
 export interface IndexService {
@@ -39,7 +40,7 @@ export interface IndexService {
 }
 
 export function createIndexService(deps: IndexServiceDeps): IndexService {
-  const { data, git, index, deployedAt } = deps
+  const { data, git, index, deploy } = deps
 
   async function rebuild(): Promise<void> {
     const drafts = await data.listDrafts()
@@ -50,9 +51,11 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
       const content = await git.readFile(p)
       if (content !== null) committed.push({ ref, content })
     }
-    const rows = listContentEntries({ drafts, committed, deployedAt }).map(
-      projectRow
-    )
+    const rows = listContentEntries({
+      drafts,
+      committed,
+      deploy: deploy()
+    }).map(projectRow)
     await index.clear()
     await index.upsertMany(rows)
     await index.setMeta({
@@ -81,7 +84,7 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
     const drafts = draft ? [draft] : []
     const committed =
       committedStr !== null ? [{ ref, content: committedStr }] : []
-    const rows = listContentEntries({ drafts, committed, deployedAt })
+    const rows = listContentEntries({ drafts, committed, deploy: deploy() })
     if (rows.length === 0) await index.remove(indexKey(ref))
     else await index.upsert(projectRow(rows[0]!))
   }

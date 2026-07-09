@@ -32,11 +32,40 @@ export interface ContentRow {
   featuredImage?: string
 }
 
+/** What the topology knows about the live deploy — server truth (#208), replacing the
+ *  old `deployedAt(path) → content` lookup (which only the removed client-side deploy
+ *  simulation could answer). `changed` is the `git diff --name-status` set between the
+ *  deployed sha and HEAD; `added` paths have never been on the live site. */
+export interface DeployInfo {
+  deployedSha: string | null
+  changed: { path: string; added: boolean }[]
+}
+
+/** Stand-in for "the live content differs from HEAD" when deriving lifecycle: never
+ *  equal to any real committed .mdoc, and parses as non-hidden frontmatter (NUL cannot
+ *  appear in a real file), so deriveLifecycle sees live-with-pending-changes. */
+const MODIFIED_SINCE_DEPLOY = '\u0000modified-since-deploy'
+
+/** The lifecycle `deployed` snapshot for a committed path, from deploy truth (#208):
+ *  never deployed → null; unchanged since deploy → identical to committed (live);
+ *  added since deploy → null (never on the live site → staged);
+ *  modified since deploy → a value ≠ committed (live with pending changes).
+ *  Shared by listContentEntries and single-entry consumers (the editor's lifecycle). */
+export function deployedSnapshotFor(
+  deploy: DeployInfo,
+  path: string,
+  committed: string | null
+): string | null {
+  if (deploy.deployedSha === null) return null
+  const change = deploy.changed.find((c) => c.path === path)
+  if (change === undefined) return committed
+  return change.added ? null : MODIFIED_SINCE_DEPLOY
+}
+
 export interface ListContentEntriesInput {
   drafts: Draft[]
   committed: { ref: EntryRef; content: string }[]
-  /** The live content at a repo path, or null if not deployed. */
-  deployedAt: (path: string) => string | null
+  deploy: DeployInfo
 }
 
 /** A collision-proof identity key. Uses NUL (impossible in a path segment) so
@@ -45,11 +74,13 @@ const keyOf = (r: EntryRef): string => `${r.collection}\0${r.locale}\0${r.slug}`
 
 /** Merge DB drafts with committed Git entries into one status-aware list. The
  *  draft is the identity holder (an entry with both yields a single row). Pure —
- *  the reindex derivation; topology supplies `deployedAt`. */
+ *  the reindex derivation; topology supplies `deploy` (server truth, #208). */
 export function listContentEntries(
   input: ListContentEntriesInput
 ): ContentRow[] {
-  const { drafts, committed, deployedAt } = input
+  const { drafts, committed, deploy } = input
+  const deployedOf = (path: string, committedStr: string | null) =>
+    deployedSnapshotFor(deploy, path, committedStr)
 
   const draftByKey = new Map<string, Draft>()
   for (const d of drafts) draftByKey.set(keyOf(d), d)
@@ -86,7 +117,7 @@ export function listContentEntries(
     const lifecycle = deriveLifecycle({
       draft: draftStr,
       committed: committedStr,
-      deployed: deployedAt(contentPath(ref))
+      deployed: deployedOf(contentPath(ref), committedStr)
     })
     const featuredImage = featuredImageOf(draft, committedStr)
     return {

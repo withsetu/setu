@@ -15,7 +15,7 @@ const draft = (over: Partial<Draft>): Draft => ({
   updatedAt: 1,
   ...over
 })
-const noDeploy = () => null
+const noDeploy = { deployedSha: null, changed: [] }
 
 describe('listContentEntries — date', () => {
   it('projects committed frontmatter `date` (unquoted YAML date) as epoch ms', () => {
@@ -28,7 +28,7 @@ describe('listContentEntries — date', () => {
     const rows = listContentEntries({
       drafts: [],
       committed,
-      deployedAt: noDeploy
+      deploy: noDeploy
     })
     expect(rows[0]!.date).toBe(Date.UTC(2026, 5, 20))
   })
@@ -43,7 +43,7 @@ describe('listContentEntries — date', () => {
     const rows = listContentEntries({
       drafts: [],
       committed,
-      deployedAt: noDeploy
+      deploy: noDeploy
     })
     expect(rows[0]!.date).toBe(Date.UTC(2026, 0, 5))
   })
@@ -59,7 +59,7 @@ describe('listContentEntries — date', () => {
           content: '---\ntitle: C\ndate: 2026-01-01\n---\nbody'
         }
       ],
-      deployedAt: noDeploy
+      deploy: noDeploy
     })
     expect(rows[0]!.date).toBe(Date.UTC(2026, 2, 10))
   })
@@ -68,7 +68,7 @@ describe('listContentEntries — date', () => {
     const rows = listContentEntries({
       drafts: [draft({ metadata: { title: 'P' } })],
       committed: [],
-      deployedAt: noDeploy
+      deploy: noDeploy
     })
     expect(rows[0]!.date).toBeNull()
   })
@@ -77,7 +77,7 @@ describe('listContentEntries — date', () => {
     const rows = listContentEntries({
       drafts: [draft({ metadata: { title: 'P', date: '' } })],
       committed: [],
-      deployedAt: noDeploy
+      deploy: noDeploy
     })
     expect(rows[0]!.date).toBeNull()
   })

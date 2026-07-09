@@ -10,6 +10,7 @@ import { createSharpImageAdapter } from '@setu/image-sharp'
 import {
   createSqliteSubmissionPort,
   createSqliteReprocessJobStore,
+  createSqliteDeployJobStore,
   openSqliteDb,
   countUsers
 } from '@setu/db-sqlite'
@@ -31,6 +32,15 @@ import { createUploadApi } from './media'
 import { createFormsApi } from './forms'
 import { createOembedApi } from './oembed'
 import { createSiteHealthApi } from './sitehealth'
+import { createDeployApi } from './deploy'
+import {
+  resolveSiteDir,
+  readDeployState,
+  writeDeployState,
+  gitHeadSha,
+  gitChangedPaths,
+  makeBuildRunner
+} from './deploy-wiring'
 import { createUsersApi } from './users'
 import { resolveSessionActor } from './auth/resolve-session-actor'
 import type { ResolveActor } from './auth/resolve-actor'
@@ -354,6 +364,28 @@ app.route(
 // live account state. `resolveActor` here already fails closed to null when auth is unconfigured
 // (see its own comment above), which authMiddleware turns into a 401 for this route too.
 app.route('/', createUsersApi({ db: authDb, resolveActor }))
+
+// Deploy control plane (#207 · #208 indicator + #209 rebuild). The site dir decides the
+// rebuild capability: present on the monorepo dev stack and scaffolded sites, absent on
+// a bare content-repo deployment → the API 409s honestly and only the indicator runs.
+const siteDir = resolveSiteDir(process.env, process.cwd())
+app.route(
+  '/',
+  createDeployApi({
+    resolveActor,
+    siteDir,
+    jobs: createSqliteDeployJobStore(`${dir}/.setu/deploy-jobs.db`),
+    readState: () => readDeployState(dir),
+    writeState: (s) => writeDeployState(dir, s),
+    headSha: () => gitHeadSha(dir),
+    changedPaths: (since) => gitChangedPaths(dir, since),
+    // Unreachable when siteDir is null (the route 409s first) — a defensive reject.
+    runBuild:
+      siteDir !== null
+        ? makeBuildRunner({ siteDir, repoDir: dir, env: process.env })
+        : () => Promise.reject(new Error('no site dir'))
+  })
+)
 
 // The auth capability block is computed fresh per request (not baked into the boot-time
 // capabilities object below): `needsSetup` depends on the current user-table row count, which

@@ -366,3 +366,9 @@ export type {
   SafeFetchResult,
   SafeFetchBlockReason
 } from './net/safe-fetch'
+
+export type { SecurityHeader } from './security-headers/security-headers'
+export {
+  defaultSecurityHeaders,
+  toCloudflareHeadersFile
+} from './security-headers/security-headers'

@@ -57,6 +57,7 @@ import {
 } from './config'
 import { resolveGitIdentity } from './auth/git-identity'
 import { mountAuthWithFailureEvents } from './auth/login-failure-events'
+import { securityHeaders } from './security-headers'
 
 // #248 Task 9: default audit-event consumer — a single structured log line. The REAL consumer
 // (persistence/alerting) is future issue #290; this is deliberately the dumbest possible sink so
@@ -257,6 +258,12 @@ const runReprocess = (jobId: string) => {
 }
 
 const app = new Hono()
+
+// Baseline security headers on EVERY response (#289) — registered first so even guard rejections
+// (503/403 below) carry them. JSON + media API: nosniff, never framed (DENY — stricter than the
+// site's SAMEORIGIN), no referrer leakage; deliberately NO CSP here (document-context policy —
+// the site build emits its own report-only CSP).
+app.use('*', securityHeaders())
 
 // CORS allowlist (credentialed) + Host/Origin guard (DNS-rebinding/tunnel-detection), applied
 // globally, before any route — including /api/auth/*.

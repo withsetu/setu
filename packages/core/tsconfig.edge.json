@@ -28,6 +28,7 @@
     "src/tags",
     "src/taxonomy",
     "src/media-index",
-    "src/permalinks"
+    "src/permalinks",
+    "src/security-headers"
   ]
 }

@@ -15,7 +15,8 @@ import {
   ExternalLink,
   Eye,
   Keyboard,
-  Rocket
+  Rocket,
+  Save
 } from 'lucide-react'
 import type { Editor } from '@tiptap/core'
 import { useServices } from '../data/store'
@@ -232,12 +233,16 @@ export function EditorScreen() {
     setMetadata(next)
     setRev((r) => r + 1)
   }
-  const commit = async () => {
+  const commit = async (opts?: {
+    message?: string
+    toast?: (sha: string) => string
+  }) => {
     if (committing.current) return
     committing.current = true
     try {
       // Save-before-publish: publish reads storage, not the in-memory doc. Always
-      // serialize the LATEST metaRef.current (Unpublish/Re-publish mutate it first).
+      // serialize the LATEST metaRef.current (Unpublish/Re-publish/Save-draft mutate
+      // it first).
       await authoring.save(
         {
           ...ref,
@@ -248,10 +253,20 @@ export function EditorScreen() {
         EDITOR_ID
       )
       reindex(ref)
-      const r = await publish.publish({ ref, author: OWNER_AUTHOR })
+      const r = await publish.publish({
+        ref,
+        author: OWNER_AUTHOR, // fallback only — the api stamps the session identity (#382)
+        message: opts?.message
+      })
       if (r.status === 'published') {
         baseShaRef.current = r.sha
-        notify.success('Published · ' + r.sha.slice(0, 7))
+        notify.success(
+          opts?.toast ? opts.toast(r.sha) : 'Published · ' + r.sha.slice(0, 7)
+        )
+        // #382: this commit may have flipped published:false either way — re-derive
+        // the live gate from the metadata just committed so Save draft/Publish-menu
+        // state updates in place, without a reload.
+        setLiveCommitted(metaRef.current['published'] !== false)
         await index.reindexEntry(ref).catch(() => {})
         await index.markSyncedAt(r.sha).catch(() => {})
         await refreshLifecycle()
@@ -287,6 +302,16 @@ export function EditorScreen() {
   }
 
   const onPublish = () => void commit()
+  // WordPress-Contributor Save draft: commit the buffer to Git as published:false —
+  // shared with the team, never live (#382).
+  const onSaveDraft = () => {
+    metaRef.current = { ...metaRef.current, published: false }
+    setMetadata(metaRef.current)
+    void commit({
+      message: `Save draft ${collection}/${locale}/${slug}`,
+      toast: (sha) => 'Draft saved · ' + sha.slice(0, 7)
+    })
+  }
   // Non-destructive: flag the draft published:false and commit (content stays in Git).
   const onUnpublish = () => {
     metaRef.current = { ...metaRef.current, published: false }
@@ -301,6 +326,12 @@ export function EditorScreen() {
     void commit()
   }
 
+  const canSaveDraft =
+    (can('content.edit') || can('content.create')) &&
+    phase === 'ready' &&
+    !composing &&
+    !liveCommitted
+
   useRegisterCommands([
     {
       id: 'editor.publish',
@@ -309,6 +340,18 @@ export function EditorScreen() {
       icon: Rocket,
       enabled: () => can('content.publish') && phase === 'ready' && !composing,
       run: () => onPublish()
+    },
+    {
+      id: 'editor.saveDraft',
+      title: 'Save draft',
+      group: 'Editor',
+      icon: Save,
+      enabled: () =>
+        (can('content.edit') || can('content.create')) &&
+        phase === 'ready' &&
+        !composing &&
+        !liveCommitted,
+      run: () => onSaveDraft()
     },
     {
       id: 'editor.preview',
@@ -473,11 +516,13 @@ export function EditorScreen() {
         </Tooltip>
 
         <PublishMenu
+          canSaveDraft={canSaveDraft}
           canPublish={can('content.publish') && phase === 'ready' && !composing}
           canUnpublish={
             can('content.unpublish') && phase === 'ready' && !composing
           }
           isUnpublished={metadata['published'] === false}
+          onSaveDraft={onSaveDraft}
           onPublish={onPublish}
           onUnpublish={onUnpublish}
           onRepublish={onRepublish}

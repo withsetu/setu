@@ -8,21 +8,25 @@ import {
 } from '@/components/ui/dropdown-menu'
 
 export function PublishMenu({
+  canSaveDraft,
   canPublish,
   canUnpublish,
   isUnpublished,
+  onSaveDraft,
   onPublish,
   onUnpublish,
   onRepublish
 }: {
+  canSaveDraft: boolean
   canPublish: boolean
   canUnpublish: boolean
   isUnpublished: boolean
+  onSaveDraft: () => void
   onPublish: () => void
   onUnpublish: () => void
   onRepublish: () => void
 }) {
-  if (!canPublish && !canUnpublish) return null
+  if (!canSaveDraft && !canPublish && !canUnpublish) return null
   const items = [
     {
       key: 'unpublish',
@@ -38,7 +42,12 @@ export function PublishMenu({
     }
   ].filter((i) => i.show)
   return (
-    <div className="inline-flex items-center">
+    <div className="inline-flex items-center gap-2">
+      {canSaveDraft && (
+        <Button size="sm" variant="outline" onClick={onSaveDraft}>
+          Save draft
+        </Button>
+      )}
       {canPublish && (
         <Button
           size="sm"

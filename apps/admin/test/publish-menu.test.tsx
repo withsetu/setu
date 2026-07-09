@@ -15,9 +15,11 @@ beforeAll(() => {
 })
 
 const defaultProps = {
+  canSaveDraft: false,
   canPublish: true,
   canUnpublish: true,
   isUnpublished: false,
+  onSaveDraft: vi.fn(),
   onPublish: vi.fn(),
   onUnpublish: vi.fn(),
   onRepublish: vi.fn()
@@ -28,6 +30,40 @@ function openMenu() {
   // Radix DropdownMenu opens on Enter keydown (avoids PointerEvent jsdom issues)
   fireEvent.keyDown(toggle, { key: 'Enter' })
 }
+
+describe('PublishMenu Save draft (#382)', () => {
+  it('renders Save draft alone when only canSaveDraft', () => {
+    render(
+      <PublishMenu
+        {...defaultProps}
+        canSaveDraft={true}
+        canPublish={false}
+        canUnpublish={false}
+      />
+    )
+    expect(
+      screen.getByRole('button', { name: 'Save draft' })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /^publish$/i })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /more publish actions/i })
+    ).not.toBeInTheDocument()
+  })
+
+  it('renders nothing when no capability at all', () => {
+    const { container } = render(
+      <PublishMenu
+        {...defaultProps}
+        canSaveDraft={false}
+        canPublish={false}
+        canUnpublish={false}
+      />
+    )
+    expect(container).toBeEmptyDOMElement()
+  })
+})
 
 describe('PublishMenu dismiss', () => {
   it('closes on Escape', () => {

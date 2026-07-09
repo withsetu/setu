@@ -17,6 +17,7 @@
     "resend": "^6.0.0"
   },
   "devDependencies": {
+    "@setu/email-testing": "workspace:*",
     "typescript": "^5.6.3",
     "vitest": "^3.2.6"
   }

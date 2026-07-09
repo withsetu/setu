@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { apiOnError } from './errors'
 
 export interface AuthCapabilities {
   enabled: boolean
@@ -46,5 +47,6 @@ export function createCapabilitiesApi(
 ) {
   const app = new Hono()
   app.get('/api/capabilities', (c) => c.json({ ...base, auth: resolveAuth() }))
+  app.onError(apiOnError({ scope: 'capabilities' })) // #291: e.g. a throwing resolveAuth thunk
   return app
 }

@@ -11,11 +11,20 @@ import { MetaPanel } from '../src/editor/MetaPanel'
 function setup(props?: Partial<React.ComponentProps<typeof MetaPanel>>) {
   const onChange = vi.fn()
   const services = servicesFor(createMemoryDataPort(), createMemoryGitPort())
-  const defaults = {
+  const defaults: React.ComponentProps<typeof MetaPanel> = {
     metadata: { title: 'Hello', categories: [], tags: [] },
+    collection: 'post',
     locale: 'en',
     slug: 'my-post',
     editable: true,
+    committed: false,
+    permalinkConfig: {
+      pattern: ':collection/:slug',
+      uncategorized: 'uncategorized'
+    },
+    date: Date.UTC(2026, 6, 4),
+    categories: [],
+    onRename: vi.fn(async () => ({ renamed: true, committedSha: null })),
     onChange,
     apiBase: 'http://localhost:4444'
   }
@@ -74,9 +83,27 @@ describe('MetaPanel', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
-  it('Permalink section shows /{slug} and {locale}', () => {
+  it('Permalink section renders an editable slug input plus the locale', () => {
     setup({ slug: 'my-post', locale: 'en' })
-    expect(screen.getByText('/my-post')).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Slug' })).toHaveValue('my-post')
     expect(screen.getByText('en')).toBeInTheDocument()
+  })
+
+  it('Permalink section shows the resolved full-URL preview', () => {
+    setup({ slug: 'my-post' })
+    expect(screen.getByText('localhost:4321/post/my-post')).toBeInTheDocument()
+  })
+
+  it('shows the no-date fallback hint when the pattern has date tokens but no date', () => {
+    setup({
+      permalinkConfig: {
+        pattern: ':year/:month/:day/:slug',
+        uncategorized: 'uncategorized'
+      },
+      date: null
+    })
+    expect(
+      screen.getByText('No publish date — using /my-post')
+    ).toBeInTheDocument()
   })
 })

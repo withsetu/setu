@@ -196,6 +196,84 @@ describe('EditorScreen', () => {
     ).toBeInTheDocument()
   })
 
+  it('renames the slug via the meta panel: applies on Enter, follows the entry, moves the draft', async () => {
+    const services = createServices()
+    renderEditor(services, '/edit/post/en/release-notes')
+    await screen.findByDisplayValue('Release notes')
+
+    const slugInput = screen.getByRole('textbox', { name: 'Slug' })
+    expect(slugInput).toHaveValue('release-notes')
+    fireEvent.change(slugInput, { target: { value: 'renamed-notes' } })
+    fireEvent.keyDown(slugInput, { key: 'Enter' })
+
+    // The editor follows the rename: header breadcrumb shows the new identity.
+    expect(await screen.findByText('post / renamed-notes')).toBeInTheDocument()
+    // The draft moved in storage.
+    expect(
+      await services.data.getDraft({
+        collection: 'post',
+        locale: 'en',
+        slug: 'renamed-notes'
+      })
+    ).not.toBeNull()
+    expect(
+      await services.data.getDraft({
+        collection: 'post',
+        locale: 'en',
+        slug: 'release-notes'
+      })
+    ).toBeNull()
+    // Success feedback (uncommitted entry → no redirect messaging).
+    expect(await screen.findByText('Slug renamed')).toBeInTheDocument()
+  })
+
+  it('auto-derives the slug from the title on blur while never committed and untouched', async () => {
+    const services = createServices()
+    renderEditor(services, '/edit/post/en/release-notes')
+    await screen.findByDisplayValue('Release notes')
+
+    const titleInput = screen.getByLabelText('Title')
+    fireEvent.change(titleInput, { target: { value: 'Launch retrospective' } })
+    fireEvent.blur(titleInput)
+
+    expect(
+      await screen.findByText('post / launch-retrospective')
+    ).toBeInTheDocument()
+    expect(
+      await services.data.getDraft({
+        collection: 'post',
+        locale: 'en',
+        slug: 'launch-retrospective'
+      })
+    ).not.toBeNull()
+  })
+
+  it('does NOT auto-derive once the slug was manually renamed', async () => {
+    const services = createServices()
+    renderEditor(services, '/edit/post/en/release-notes')
+    await screen.findByDisplayValue('Release notes')
+
+    // Manual rename breaks the title→slug derivation…
+    const slugInput = screen.getByRole('textbox', { name: 'Slug' })
+    fireEvent.change(slugInput, { target: { value: 'hand-picked' } })
+    fireEvent.keyDown(slugInput, { key: 'Enter' })
+    await screen.findByText('post / hand-picked')
+
+    // …so a later title edit + blur leaves the slug alone.
+    const titleInput = screen.getByLabelText('Title')
+    fireEvent.change(titleInput, { target: { value: 'Completely new title' } })
+    fireEvent.blur(titleInput)
+    await new Promise((r) => setTimeout(r, 50))
+    expect(screen.getByText('post / hand-picked')).toBeInTheDocument()
+    expect(
+      await services.data.getDraft({
+        collection: 'post',
+        locale: 'en',
+        slug: 'hand-picked'
+      })
+    ).not.toBeNull()
+  })
+
   it('strip renders Back link and Keyboard-shortcuts button', async () => {
     renderEditor(fakeServices())
     await screen.findByDisplayValue('Hello')

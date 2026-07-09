@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import type { Draft, DraftInput, Lifecycle, TiptapDoc } from '@setu/core'
+import type {
+  Draft,
+  DraftInput,
+  Lifecycle,
+  RenameResult,
+  TiptapDoc
+} from '@setu/core'
 import {
+  createRenameService,
   parseFrontmatterDate,
   resolvePermalinkConfig,
   serializeMdoc,
@@ -41,7 +48,14 @@ import { useAutosave } from './useAutosave'
 import type { SaveStatus } from './useAutosave'
 import { SaveIndicator } from './SaveIndicator'
 import { onRequestShortcuts } from './editor-events'
-import { NEW_SLUG, mintSlug, composeInitialMetadata } from './new-entry'
+import {
+  NEW_SLUG,
+  mintSlug,
+  composeInitialMetadata,
+  existingSlugs,
+  slugify,
+  uniqueSlug
+} from './new-entry'
 import { useNotify } from '../ui/notify'
 import { apiFetch } from '../lib/api-fetch'
 import { useRegisterCommands } from '../command/registry'
@@ -93,8 +107,16 @@ export function EditorScreen() {
   const metaRef = useRef<Record<string, unknown>>({})
   const baseShaRef = useRef<string | null>(null)
   const committing = useRef(false)
-  // Slug just minted from a compose save → the in-memory doc is canonical; don't reload over it.
+  // Slug just minted from a compose save OR just renamed → the in-memory doc is
+  // canonical; don't reload over it.
   const mintedRef = useRef<string | null>(null)
+  // Compose mode: a slug the author explicitly chose before the first save. The
+  // ref feeds the mint (autosave closes over refs); the state re-renders the field.
+  const manualSlugRef = useRef<string | null>(null)
+  const [manualSlug, setManualSlug] = useState<string | null>(null)
+  // The title whose slugified form the current slug was derived from — while they
+  // still match (and nothing is committed), a title edit re-derives the slug.
+  const loadedTitleRef = useRef('')
   const previewWin = useRef<Window | null>(null)
   const previewNonce = useRef(0)
   const previewApi = import.meta.env.VITE_SETU_API
@@ -115,6 +137,9 @@ export function EditorScreen() {
         docRef.current = BLANK
         metaRef.current = initialMeta
         baseShaRef.current = null
+        loadedTitleRef.current = ''
+        manualSlugRef.current = null
+        setManualSlug(null)
         if (!live) return
         setInitialDoc(BLANK)
         setMetadata(initialMeta)
@@ -137,7 +162,12 @@ export function EditorScreen() {
       const meta = justMinted ? metaRef.current : (draft?.metadata ?? {})
       docRef.current = content
       metaRef.current = meta
-      baseShaRef.current = justMinted ? null : (draft?.baseSha ?? null)
+      // A rename sets baseShaRef to the move commit before navigating here —
+      // keep it (compose-mint arrives with null, so this changes nothing there).
+      baseShaRef.current = justMinted
+        ? baseShaRef.current
+        : (draft?.baseSha ?? null)
+      loadedTitleRef.current = attrString(meta['title'])
       setInitialDoc(content)
       setMetadata(meta)
       setRev(0)
@@ -166,15 +196,21 @@ export function EditorScreen() {
     }),
     save: async (input) => {
       if (composing) {
-        // First save of a new entry: mint a real slug from the title, persist under it, and
-        // replace the URL so this becomes a normal entry (each "New" → its own draft).
-        const newSlug = await mintSlug(
-          data,
-          git,
-          collection,
-          locale,
-          attrString(metaRef.current['title'])
-        )
+        // First save of a new entry: mint a real slug — the author's explicit
+        // choice when they applied one, else derived from the title — persist
+        // under it, and replace the URL so this becomes a normal entry.
+        const newSlug = manualSlugRef.current
+          ? uniqueSlug(
+              manualSlugRef.current,
+              await existingSlugs(data, git, collection, locale)
+            )
+          : await mintSlug(
+              data,
+              git,
+              collection,
+              locale,
+              attrString(metaRef.current['title'])
+            )
         mintedRef.current = newSlug
         const result = await authoring.save(
           {
@@ -206,6 +242,70 @@ export function EditorScreen() {
     metaRef.current = next
     setMetadata(next)
     setRev((r) => r + 1)
+  }
+
+  const renameService = useMemo(
+    () => createRenameService({ data, git, author: OWNER_AUTHOR }),
+    [data, git]
+  )
+
+  /** Move this entry to `newSlug` and follow it: keep the in-memory doc via the
+   *  minted-slug mechanism, advance the publish base to the move commit, replace
+   *  the URL, and reindex both identities. Refusals return to the field (inline
+   *  error), successes toast. */
+  const followRename = async (
+    newSlug: string,
+    opts: { silent?: boolean } = {}
+  ): Promise<RenameResult> => {
+    const wasCommitted = lifecycle.state !== 'draft'
+    const result = await renameService.renameSlug(ref, newSlug)
+    if (!result.renamed) return result
+    mintedRef.current = newSlug
+    if (result.committedSha) baseShaRef.current = result.committedSha
+    navigate(`/edit/${collection}/${locale}/${newSlug}`, { replace: true })
+    reindex(ref)
+    reindex({ collection, locale, slug: newSlug })
+    if (!opts.silent)
+      notify.success(
+        wasCommitted
+          ? 'Slug renamed — the old URL will 301 after the next rebuild'
+          : 'Slug renamed'
+      )
+    return result
+  }
+
+  const onRename = async (newSlug: string): Promise<RenameResult> => {
+    if (composing) {
+      // Nothing persisted yet — applying just records the author's choice; the
+      // first autosave mints it (uniquified against existing slugs).
+      if (!/^[a-z0-9-]+$/.test(newSlug) || newSlug === NEW_SLUG)
+        return { renamed: false, committedSha: null, reason: 'invalid-slug' }
+      manualSlugRef.current = newSlug
+      setManualSlug(newSlug)
+      return { renamed: true, committedSha: null }
+    }
+    return followRename(newSlug)
+  }
+
+  /** Auto-derive the slug from the title on tab-out — only while the entry has
+   *  never been committed AND the slug still equals what this title minted (a
+   *  manual slug edit or a `-2` suffix breaks the equality and ends derivation). */
+  const onTitleBlur = async () => {
+    if (composing || phase !== 'ready' || lifecycle.state !== 'draft') return
+    const derivedFromLoaded = slugify(loadedTitleRef.current) || 'untitled'
+    if (slug !== derivedFromLoaded) return
+    const newTitle = attrString(metaRef.current['title'])
+    const base = slugify(newTitle)
+    if (base === '' || base === slug) {
+      loadedTitleRef.current = newTitle
+      return
+    }
+    const taken = await existingSlugs(data, git, collection, locale)
+    taken.delete(slug)
+    const newSlug = uniqueSlug(base, taken)
+    if (newSlug === slug) return
+    const result = await followRename(newSlug, { silent: true })
+    if (result.renamed) loadedTitleRef.current = newTitle
   }
   const commit = async () => {
     if (committing.current) return
@@ -472,6 +572,7 @@ export function EditorScreen() {
               onChange={(e) =>
                 onMetaChange({ ...metaRef.current, title: e.target.value })
               }
+              onBlur={() => void onTitleBlur()}
             />
             <Canvas
               key={`${collection}/${locale}/${slug}`}
@@ -500,9 +601,19 @@ export function EditorScreen() {
         ) : (
           <MetaPanel
             metadata={metadata}
+            collection={collection}
             locale={locale}
-            slug={slug}
+            slug={
+              composing
+                ? (manualSlug ?? (slugify(title) || 'untitled'))
+                : slug
+            }
             editable={phase === 'ready'}
+            committed={lifecycle.state !== 'draft'}
+            permalinkConfig={permalinkConfig}
+            date={frontmatterDate}
+            categories={frontmatterCategories}
+            onRename={onRename}
             onChange={onMetaChange}
             apiBase={(import.meta.env.VITE_SETU_API as string) ?? ''}
           />

@@ -241,7 +241,7 @@ export function EditorScreen() {
     committing.current = true
     try {
       // Save-before-publish: publish reads storage, not the in-memory doc. Always
-      // serialize the LATEST metaRef.current (Unpublish/Re-publish/Save-draft mutate
+      // serialize the LATEST metaRef.current (Publish/Unpublish/Save-draft mutate
       // it first).
       await authoring.save(
         {
@@ -301,7 +301,16 @@ export function EditorScreen() {
     }
   }
 
-  const onPublish = () => void commit()
+  // Publish always means go-live (#382): clear any published:false flag before
+  // committing, so clicking Publish on a saved draft never re-commits the draft
+  // state under a "Published" toast. This subsumes the old Re-publish action.
+  const onPublish = () => {
+    const m = { ...metaRef.current }
+    delete m['published']
+    metaRef.current = m
+    setMetadata(m)
+    void commit()
+  }
   // WordPress-Contributor Save draft: commit the buffer to Git as published:false —
   // shared with the team, never live (#382).
   const onSaveDraft = () => {
@@ -318,14 +327,6 @@ export function EditorScreen() {
     setMetadata(metaRef.current)
     void commit()
   }
-  const onRepublish = () => {
-    const m = { ...metaRef.current }
-    delete m['published']
-    metaRef.current = m
-    setMetadata(m)
-    void commit()
-  }
-
   const canSaveDraft =
     (can('content.edit') || can('content.create')) &&
     phase === 'ready' &&
@@ -525,7 +526,6 @@ export function EditorScreen() {
           onSaveDraft={onSaveDraft}
           onPublish={onPublish}
           onUnpublish={onUnpublish}
-          onRepublish={onRepublish}
         />
       </div>
       {phase === 'readonly' && (

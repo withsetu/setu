@@ -21,8 +21,7 @@ const defaultProps = {
   isUnpublished: false,
   onSaveDraft: vi.fn(),
   onPublish: vi.fn(),
-  onUnpublish: vi.fn(),
-  onRepublish: vi.fn()
+  onUnpublish: vi.fn()
 }
 
 function openMenu() {

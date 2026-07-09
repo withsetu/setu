@@ -150,6 +150,39 @@ describe('EditorScreen Save draft (#382)', () => {
     ).toBeInTheDocument()
   })
 
+  it('publisher on an already-committed draft: Publish clears published:false and goes live', async () => {
+    // The mainline Contributor handoff: an author saved a draft (published:false in
+    // Git), a publisher opens it and clicks Publish — that MUST go live, not silently
+    // re-commit the draft flag while toasting success.
+    const services = servicesWithCommitted(draftRef, {
+      title: 'Draft Post',
+      published: false
+    })
+    renderEditor(
+      services,
+      { id: 'e1', role: 'editor' },
+      '/edit/post/en/draft-post'
+    )
+    await screen.findByDisplayValue('Draft Post')
+
+    fireEvent.click(screen.getByRole('button', { name: /^publish$/i }))
+
+    expect(
+      await screen.findByText(/^Published · [0-9a-f]{7}$/)
+    ).toBeInTheDocument()
+    await waitFor(async () => {
+      const file = await services.git.readFile(contentPath(draftRef))
+      expect(file).not.toBeNull()
+      expect(parseMdoc(file as string).frontmatter['published']).not.toBe(false)
+    })
+    // liveCommitted refreshed in place → Save draft disappears.
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: /^save draft$/i })
+      ).not.toBeInTheDocument()
+    )
+  })
+
   it('Save draft keeps the entry a draft after reopen (published stays false)', async () => {
     const services = createServices()
     const first = renderEditor(services, { id: 'a1', role: 'author' })

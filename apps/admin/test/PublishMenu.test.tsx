@@ -25,7 +25,6 @@ describe('PublishMenu', () => {
         onSaveDraft={noop}
         onPublish={noop}
         onUnpublish={noop}
-        onRepublish={noop}
       />
     )
     expect(container.textContent).toBe('')
@@ -41,7 +40,6 @@ describe('PublishMenu', () => {
         onSaveDraft={noop}
         onPublish={onPublish}
         onUnpublish={noop}
-        onRepublish={noop}
       />
     )
     fireEvent.click(screen.getByRole('button', { name: 'Publish' }))
@@ -58,7 +56,6 @@ describe('PublishMenu', () => {
         onSaveDraft={noop}
         onPublish={noop}
         onUnpublish={onUnpublish}
-        onRepublish={noop}
       />
     )
     // Radix DropdownMenu opens on Enter keydown (avoids PointerEvent jsdom issues)

@@ -155,7 +155,7 @@ describe('EditorScreen', () => {
     ).toBeInTheDocument()
   })
 
-  it('autosave → Saved: editing the title calls authoring.save and shows "Saved"', async () => {
+  it('autosave → backed up: editing the title calls authoring.save and shows "Backed up on this device"', async () => {
     vi.useFakeTimers()
     const services = fakeServices()
     renderEditor(services)
@@ -170,9 +170,9 @@ describe('EditorScreen', () => {
     await vi.advanceTimersByTimeAsync(800)
     // The save fn must have been called
     expect(services.authoring.save).toHaveBeenCalled()
-    // After the async save resolves, SaveIndicator must display "Saved"
+    // After the async save resolves, SaveIndicator must display "Backed up on this device"
     await vi.waitFor(() =>
-      expect(screen.getByText('Saved')).toBeInTheDocument()
+      expect(screen.getByText('Backed up on this device')).toBeInTheDocument()
     )
   })
 
@@ -185,9 +185,15 @@ describe('EditorScreen', () => {
     fireEvent.change(titleInput, { target: { value: 'Release notes v2' } })
     expect(screen.getByLabelText('Title')).toHaveValue('Release notes v2')
     // Wait for the autosave to fire and persist the new title value
-    await waitFor(() => expect(screen.getByText('Saved')).toBeInTheDocument(), {
-      timeout: 2000
-    })
+    await waitFor(
+      () =>
+        expect(
+          screen.getByText('Backed up on this device')
+        ).toBeInTheDocument(),
+      {
+        timeout: 2000
+      }
+    )
     unmount()
     renderEditor(services, '/edit/post/en/release-notes')
     // The persisted value must survive the remount (real in-memory services reload it)

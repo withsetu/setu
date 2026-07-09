@@ -3,8 +3,10 @@ import { expect } from '@playwright/test'
 import { ContentListPage } from './ContentListPage'
 
 /** The post/page editor at `/edit/:collection/:locale/:slug` — EditorScreen.tsx.
- *  Persistence is autosave-only (no explicit Save button): typing schedules a
- *  debounced save and `SaveIndicator` renders "Saving…" then "Saved". */
+ *  Autosave (per-browser IndexedDB, no team visibility) runs continuously: typing
+ *  schedules a debounced save and `SaveIndicator` renders "Saving…" then "Backed up
+ *  on this device". Committing to Git is a separate, explicit action (Save draft /
+ *  Publish, #382). */
 export class EditorPage {
   constructor(private readonly page: Page) {}
 
@@ -22,9 +24,10 @@ export class EditorPage {
     return this.page.getByLabel('Content editor')
   }
 
-  /** SaveIndicator's "Saved" text — the only visible save affordance (autosave, no button). */
+  /** SaveIndicator's "Backed up on this device" text — the only visible autosave
+   *  affordance (autosave, no button). Per-browser IndexedDB only, not Git/team-visible. */
   get savedIndicator() {
-    return this.page.getByText('Saved', { exact: true })
+    return this.page.getByText('Backed up on this device', { exact: true })
   }
 
   get backToListLink() {
@@ -238,7 +241,8 @@ export class EditorPage {
     await expect(this.slashMenu).toBeHidden()
   }
 
-  /** Wait for autosave to settle: SaveIndicator flips through "Saving…" to "Saved". */
+  /** Wait for autosave to settle: SaveIndicator flips through "Saving…" to
+   *  "Backed up on this device". */
   async save() {
     await expect(this.savedIndicator).toBeVisible({ timeout: 10_000 })
   }

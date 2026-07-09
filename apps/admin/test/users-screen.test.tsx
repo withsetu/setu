@@ -114,6 +114,22 @@ const MAINTAINER_USER = {
   role: 'maintainer',
   banned: false
 }
+// #364 review fix: a row whose role is an unrecognized string (a legacy/garbage value in the DB —
+// 'viewer' was a real role removed in #379, so it's the realistic case). The server's rank guard
+// fails closed on this target for any NON-admin actor (packages/auth/src/rank-guard.ts's
+// rankGuardUpdateHook: targetRank <= 0 -> forbidden) but exempts admin BEFORE that check
+// (`if (actorRole === 'admin') return`), so the UI must show the row read-only to a maintainer
+// while leaving it manageable by an admin (the repair path).
+const UNKNOWN_ROLE_USER = {
+  id: 'legacy-1',
+  email: 'legacy@setu.dev',
+  name: 'Lena Legacy',
+  emailVerified: true,
+  createdAt: now,
+  updatedAt: now,
+  role: 'viewer',
+  banned: false
+}
 
 function renderAsActor(
   role: 'admin' | 'maintainer' | 'editor' | 'author',
@@ -861,6 +877,35 @@ describe('UsersScreen', () => {
       ).not.toBeInTheDocument()
     })
 
+    it('is never offered on a row with an unrecognized role, even for an admin (fail-closed on unknown targets)', async () => {
+      mockListUsers.mockResolvedValue({
+        data: { users: [OWNER, UNKNOWN_ROLE_USER], total: 2 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({
+        data: [{ id: 'a1', providerId: 'credential' }],
+        error: null
+      })
+      stubCredentialStatus({ 'owner-1': true, 'legacy-1': true })
+
+      renderAsActor('admin', 'owner-1')
+      await screen.findByText('Lena Legacy')
+
+      // Admin still gets the row's actions menu (repair path — see the rank-parity tests below),
+      // but the reset item is hidden: `outranks` would treat the unknown role as rank 0 ("always
+      // outranked"), so it is additionally gated on the role being a KNOWN one.
+      fireEvent.keyDown(
+        screen.getByRole('button', { name: /more actions for lena legacy/i }),
+        { key: 'Enter' }
+      )
+      expect(
+        await screen.findByRole('menuitem', { name: /disable user/i })
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('menuitem', { name: /send password reset email/i })
+      ).not.toBeInTheDocument()
+    })
+
     it('is never offered on a row the actor does not outrank (maintainer viewing a peer maintainer)', async () => {
       mockListUsers.mockResolvedValue({
         data: { users: [MAINTAINER_USER], total: 1 },
@@ -879,6 +924,72 @@ describe('UsersScreen', () => {
           name: /more actions for mo maintainer/i
         })
       ).not.toBeInTheDocument()
+    })
+  })
+
+  // #364 review fix: UI↔server parity for rows with an unrecognized role string. The server's
+  // rank guard (packages/auth/src/rank-guard.ts, rankGuardUpdateHook) forbids a NON-admin actor
+  // from touching an unknown-role target (`targetRank <= 0` -> forbidden) but returns early for an
+  // admin actor BEFORE that check — admin can act on such rows (that's the only way to repair a
+  // legacy role). The UI must mirror both halves so a maintainer never sees a control that 403s.
+  describe('unknown-role rows (fail-closed parity with the server rank guard)', () => {
+    it('maintainer sees an unknown-role row read-only (no role select, no actions menu)', async () => {
+      mockListUsers.mockResolvedValue({
+        data: { users: [EDITOR, UNKNOWN_ROLE_USER], total: 2 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({ data: [], error: null })
+      stubCredentialStatus({ 'editor-1': true, 'legacy-1': true })
+
+      renderAsActor('maintainer', 'maint-1')
+      await screen.findByText('Lena Legacy')
+
+      expect(
+        screen.queryByRole('combobox', { name: /change role for lena legacy/i })
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /more actions for lena legacy/i })
+      ).not.toBeInTheDocument()
+      // Sanity: the below-rank editor row on the same roster IS actionable, so the read-only
+      // rendering above is the unknown-role gate, not a broken roster.
+      expect(
+        screen.getByRole('combobox', { name: /change role for eve editor/i })
+      ).toBeInTheDocument()
+    })
+
+    it('admin can manage an unknown-role row (the repair path the server allows)', async () => {
+      mockListUsers.mockResolvedValue({
+        data: { users: [OWNER, UNKNOWN_ROLE_USER], total: 2 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({
+        data: [{ id: 'a1', providerId: 'credential' }],
+        error: null
+      })
+      stubCredentialStatus({ 'owner-1': true, 'legacy-1': true })
+      mockSetRole.mockResolvedValue({
+        data: { user: { ...UNKNOWN_ROLE_USER, role: 'author' } },
+        error: null
+      })
+
+      renderAsActor('admin', 'owner-1')
+      await screen.findByText('Lena Legacy')
+
+      // The role Select is ENABLED (unknown current role is repairable), offering the below-rank
+      // options; picking one calls setRole — the exact server route admin is exempted on.
+      const legacySelect = screen.getByRole('combobox', {
+        name: /change role for lena legacy/i
+      })
+      expect(legacySelect).not.toBeDisabled()
+      fireEvent.click(legacySelect)
+      fireEvent.click(await screen.findByRole('option', { name: /^author$/i }))
+
+      await waitFor(() =>
+        expect(mockSetRole).toHaveBeenCalledWith({
+          userId: 'legacy-1',
+          role: 'author'
+        })
+      )
     })
   })
 })

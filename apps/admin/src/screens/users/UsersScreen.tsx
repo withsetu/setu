@@ -101,13 +101,22 @@ function roleOptionsForActor(actorRole: Role): Role[] {
 }
 
 /** Whether `actorRole` may manage (change the role of / disable / offer a reset for) a row whose
- *  current role is `targetRole`. Admins are exempt from rank scoping entirely — full management,
- *  including peers — mirroring packages/auth/src/rank-guard.ts's server-side exemption exactly (
- *  "admins remain exempt (full management incl. peers)"); every other role may only manage strictly
- *  below its own rank. This is UX honesty, not the security boundary — the server re-enforces via
- *  the same rank guard regardless of what this function returns. */
+ *  current role is `targetRole`. Mirrors packages/auth/src/rank-guard.ts's `rankGuardUpdateHook`
+ *  EXACTLY, including its ORDER of checks:
+ *  1. `if (actorRole === 'admin') return` — the admin exemption fires BEFORE the unknown-target
+ *     check, so an admin may act even on a row with an unrecognized/legacy role string (that's the
+ *     only way to repair one).
+ *  2. For every other actor, the guard fails CLOSED on an unknown target — `targetRank <= 0 ->
+ *     forbidden('cannot act on a user with an unrecognized role')`. `outranks` alone would treat an
+ *     unknown role as rank 0 ("always outranked") — exactly the mismatch rank.ts's own
+ *     division-of-responsibility note warns callers about — hence the explicit `isKnownRole` gate
+ *     here (#364 review fix: without it a maintainer saw enabled controls the server 403s).
+ *  3. Then the strict `outranks` comparison.
+ *  This is UX honesty, not the security boundary — the server re-enforces via the same rank guard
+ *  regardless of what this function returns. */
 function canManageTarget(actorRole: Role, targetRole: string): boolean {
-  return actorRole === 'admin' || outranks(actorRole, targetRole)
+  if (actorRole === 'admin') return true
+  return isKnownRole(targetRole) && outranks(actorRole, targetRole)
 }
 
 const apiBase = import.meta.env.VITE_SETU_API ?? ''
@@ -484,7 +493,12 @@ function UserRowActions({
   // (unlike role-change/disable, which admins are exempt from rank-scoping for): asking to reset a
   // peer's password without them present is a more invasive action than the ones better-auth's own
   // admin plugin exempts admins from, so this one stays rank-strict for every actor, admin included.
-  const resetOffered = outranks(actorRole, user.role ?? '') && hasCredential
+  // #364 review fix: also requires a KNOWN target role — `outranks` alone treats an unrecognized
+  // role as rank 0 ("always outranked", see rank.ts's division-of-responsibility note), which would
+  // offer the reset on a legacy/garbage-role row. Fail closed instead, for every actor: repair the
+  // row's role first (the admin-only path canManageTarget leaves open), then reset.
+  const resetOffered =
+    isKnownRole(user.role) && outranks(actorRole, user.role) && hasCredential
   const resetGuard: RowGuard = emailDeliverable
     ? { disabled: false }
     : { disabled: true, reason: EMAIL_NOT_DELIVERABLE_REASON }
@@ -569,7 +583,12 @@ function UserRowActions({
             disabled={
               roleGuard.disabled ||
               changingRole ||
-              !roleOptions.includes(user.role as Role)
+              // A KNOWN role outside the actor's below-rank options (an admin peer's row) is
+              // frozen. An UNKNOWN/legacy role is NOT frozen: this control is only reachable on
+              // such a row by an admin (canManageTarget hides it for everyone else), and the
+              // server's rank guard exempts admin before its unknown-target check
+              // (rank-guard.ts) — assigning a real role here is exactly the repair path.
+              (isKnownRole(user.role) && !roleOptions.includes(user.role))
             }
           >
             <SelectTrigger

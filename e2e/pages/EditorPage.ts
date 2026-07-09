@@ -3,8 +3,10 @@ import { expect } from '@playwright/test'
 import { ContentListPage } from './ContentListPage'
 
 /** The post/page editor at `/edit/:collection/:locale/:slug` — EditorScreen.tsx.
- *  Persistence is autosave-only (no explicit Save button): typing schedules a
- *  debounced save and `SaveIndicator` renders "Saving…" then "Saved". */
+ *  Autosave (per-browser IndexedDB, no team visibility) runs continuously: typing
+ *  schedules a debounced save and `SaveIndicator` renders "Saving…" then "Backed up
+ *  on this device". Committing to Git is a separate, explicit action (Save draft /
+ *  Publish, #382). */
 export class EditorPage {
   constructor(private readonly page: Page) {}
 
@@ -22,9 +24,10 @@ export class EditorPage {
     return this.page.getByLabel('Content editor')
   }
 
-  /** SaveIndicator's "Saved" text — the only visible save affordance (autosave, no button). */
+  /** SaveIndicator's "Backed up on this device" text — the only visible autosave
+   *  affordance (autosave, no button). Per-browser IndexedDB only, not Git/team-visible. */
   get savedIndicator() {
-    return this.page.getByText('Saved', { exact: true })
+    return this.page.getByText('Backed up on this device', { exact: true })
   }
 
   get backToListLink() {
@@ -70,6 +73,43 @@ export class EditorPage {
   async publish() {
     await this.publishButton.click()
     await expect(this.publishedToast).toBeVisible()
+  }
+
+  /** PublishMenu's "Save draft" action (#382, WordPress-Contributor journey) —
+   *  `<Button variant="outline">Save draft</Button>` (EditorScreen.tsx), only rendered
+   *  when `canSaveDraft` (phase ready, not composing, not already live, and the actor
+   *  holds `content.edit`/`content.create`). Absent entirely — not just disabled — for
+   *  a non-publisher viewing an already-live post (PublishMenu returns `null` when no
+   *  action is available), which is exactly what the wrong-actor gate test asserts. */
+  get saveDraftButton() {
+    return this.page.getByRole('button', { name: 'Save draft', exact: true })
+  }
+
+  /** The success toast pushed by `notify.success` on Save draft — same
+   *  Notifications-region pattern as `publishedToast`, matching `onSaveDraft`'s
+   *  `Draft saved · <sha7>` toast text (EditorScreen.tsx). */
+  get draftSavedToast() {
+    return this.page
+      .getByRole('region', { name: 'Notifications', exact: true })
+      .getByText(/^Draft saved ·/)
+  }
+
+  /** The view-only banner shown when a non-publisher opens an already-live post —
+   *  `<div className="ed-banner" role="status">This post is live on the site…</div>`
+   *  (EditorScreen.tsx's `viewOnly` branch). This is the honest UI for the same rule
+   *  the server enforces (the wrong-actor gate, CLAUDE.md card #5): the `role="status"`
+   *  banner text is the user-visible half of the check; the Publish/Save draft buttons
+   *  being entirely absent (not disabled) is the other half. */
+  get viewOnlyBanner() {
+    return this.page
+      .getByRole('status')
+      .filter({ hasText: /This post is live/ })
+  }
+
+  /** Invoke the real Save draft affordance and wait for the success toast. */
+  async saveDraft() {
+    await this.saveDraftButton.click()
+    await expect(this.draftSavedToast).toBeVisible()
   }
 
   /** The slash-command menu — CommandList in SlashCommand.tsx: `role="listbox"
@@ -250,7 +290,8 @@ export class EditorPage {
     await expect(this.slashMenu).toBeHidden()
   }
 
-  /** Wait for autosave to settle: SaveIndicator flips through "Saving…" to "Saved". */
+  /** Wait for autosave to settle: SaveIndicator flips through "Saving…" to
+   *  "Backed up on this device". */
   async save() {
     await expect(this.savedIndicator).toBeVisible({ timeout: 10_000 })
   }

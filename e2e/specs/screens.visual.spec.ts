@@ -120,7 +120,7 @@ test.describe('visual baselines', () => {
     const editor = await list.createPost()
     await editor.setTitle(FIXED_POST_TITLE + ' Editor')
     await editor.typeInBody(FIXED_POST_BODY)
-    // Settled state only: wait for the real "Saved" indicator (autosave debounce fully
+    // Settled state only: wait for the real "Backed up on this device" indicator (autosave debounce fully
     // resolved) before screenshotting, per the brief — never shoot mid-"Saving…". The
     // editor screen shows only the ONE entry being edited (a fresh draft, unpublished),
     // so it's immune to any other spec's concurrent activity.
@@ -156,7 +156,7 @@ test.describe('visual baselines', () => {
     await page.getByRole('textbox', { name: 'Search' }).fill(FIXED_POST_TITLE)
     // Settle the debounced search -> URL `q` -> re-query round-trip (ContentList.tsx: 200ms
     // debounce, then `index.query({ q })`) before asserting on the filtered result. Generous
-    // timeout: `save()` only waits for the "Saved" indicator, but the async reindexEntry that
+    // timeout: `save()` only waits for the "Backed up on this device" indicator, but the async reindexEntry that
     // folds the new draft into the QUERYABLE index can still be in flight a beat later, so on a
     // slow CI runner the just-created post can surface in the filtered list a little after save
     // reports done (the render itself is fine — the actual screenshot shows the row).

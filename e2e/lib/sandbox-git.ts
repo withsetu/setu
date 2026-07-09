@@ -1,4 +1,5 @@
 import { execSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -16,6 +17,34 @@ export function sandboxHeadSubject(): string {
     cwd: sandboxDir,
     encoding: 'utf8'
   }).trim()
+}
+
+/** The sandbox content repo's HEAD commit author, exactly as git recorded it
+ *  (`git log -1 --format='%an <%ae>'`) — the proof that a commit made through the api
+ *  carries the real session user's identity (#382 Task 2's commit-author-stamping),
+ *  not a hardcoded service account like `OWNER_AUTHOR` (EditorScreen.tsx's local-dev
+ *  fallback). */
+export function sandboxHeadAuthor(): string {
+  return execSync("git log -1 --format='%an <%ae>'", {
+    cwd: sandboxDir,
+    encoding: 'utf8'
+  }).trim()
+}
+
+/** Read a committed content file straight off the sandbox repo's working tree —
+ *  `content/<collection>/<locale>/<slug>.mdoc`, the same layout `contentPath()`
+ *  (packages/core/src/publish/content-path.ts) derives. Safe to read directly (not via
+ *  `git show`) once `sandboxStatusPorcelain()` is empty: the working tree then equals
+ *  HEAD for `content/`. */
+export function sandboxContentFile(
+  collection: string,
+  locale: string,
+  slug: string
+): string {
+  return readFileSync(
+    path.join(sandboxDir, 'content', collection, locale, `${slug}.mdoc`),
+    'utf8'
+  )
 }
 
 /** The sandbox content repo's working-tree status for `content/` only

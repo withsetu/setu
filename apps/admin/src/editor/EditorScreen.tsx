@@ -8,9 +8,11 @@ import type {
   TiptapDoc
 } from '@setu/core'
 import {
+  contentPath,
   createRenameService,
   isValidEntrySlug,
   parseFrontmatterDate,
+  parseMdoc,
   resolvePermalinkConfig,
   serializeMdoc,
   tiptapToMarkdoc
@@ -21,7 +23,8 @@ import {
   ExternalLink,
   Eye,
   Keyboard,
-  Rocket
+  Rocket,
+  Save
 } from 'lucide-react'
 import type { Editor } from '@tiptap/core'
 import { useServices } from '../data/store'
@@ -97,10 +100,15 @@ export function EditorScreen() {
   const [status, setStatus] = useState<SaveStatus>('idle')
   const [rev, setRev] = useState(0)
   const [lifecycle, setLifecycle] = useState<Lifecycle>({ state: 'draft' })
+  const [liveCommitted, setLiveCommitted] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [editor, setEditor] = useState<Editor | null>(null)
   const selectedBlock = useSelectedBlock(editor)
   const apiBase = import.meta.env.VITE_SETU_API ?? ''
+  // #382 WordPress-Contributor: a non-publisher can view a live post but never alter it
+  // (the server enforces the same rule; this is the honest UI for it).
+  const viewOnly = liveCommitted && !can('content.publish')
+  const editable = phase === 'ready' && !viewOnly
 
   // Feeds the query block's in-canvas live preview with real index results (same query the
   // published block resolves at build time).
@@ -161,13 +169,30 @@ export function EditorScreen() {
         setRev(0)
         setStatus('idle')
         setLifecycle({ state: 'draft' })
+        setLiveCommitted(false)
         setPhase('ready')
         return
       }
-      const result = await read.loadForEdit(ref)
+      // #382: the git.readFile is NOT redundant with loadForEdit's internal read — a stale
+      // draft's baseContent can be older than HEAD; the live gate must reflect the CURRENT
+      // committed state. No data dependency between the three, so run them in parallel.
+      const [result, open, committed] = await Promise.all([
+        read.loadForEdit(ref),
+        authoring.open(ref, EDITOR_ID),
+        // is this entry LIVE in Git? (committed and not published:false — same
+        // fail-closed rule as the server's publishesLiveContent gate)
+        git.readFile(contentPath(ref))
+      ])
       const draft: Draft | null =
         result.source === 'absent' ? null : result.draft
-      const open = await authoring.open(ref, EDITOR_ID)
+      let isLive = false
+      if (committed !== null) {
+        try {
+          isLive = parseMdoc(committed).frontmatter['published'] !== false
+        } catch {
+          isLive = true
+        }
+      }
       if (!live) return
       // justMinted (captured above): the in-memory doc/meta is canonical (may hold
       // keystrokes newer than the saved copy) — keep it instead of reloading over it.
@@ -188,13 +213,14 @@ export function EditorScreen() {
       // the still-in-flight mint/reindex and show "Saved" before the index row
       // is durable (the content-list lost-write race).
       if (!justMinted) setStatus('idle')
+      setLiveCommitted(isLive)
       setPhase(open.granted ? 'ready' : 'readonly')
       void refreshLifecycle()
     })()
     return () => {
       live = false
     }
-  }, [ref, read, authoring, refreshLifecycle, composing, slug])
+  }, [ref, read, authoring, git, refreshLifecycle, composing, slug])
 
   // When the global Deploy advances the live sha, re-derive so the pill updates.
   useEffect(() => {
@@ -202,7 +228,7 @@ export function EditorScreen() {
   }, [deploySha, refreshLifecycle])
 
   useAutosave({
-    enabled: phase === 'ready',
+    enabled: editable,
     rev,
     getInput: (): DraftInput => ({
       ...ref,
@@ -370,12 +396,16 @@ export function EditorScreen() {
       /* keep the current slug */
     }
   }
-  const commit = async () => {
+  const commit = async (opts?: {
+    message?: string
+    toast?: (sha: string) => string
+  }) => {
     if (committing.current) return
     committing.current = true
     try {
       // Save-before-publish: publish reads storage, not the in-memory doc. Always
-      // serialize the LATEST metaRef.current (Unpublish/Re-publish mutate it first).
+      // serialize the LATEST metaRef.current (Publish/Unpublish/Save-draft mutate
+      // it first).
       await authoring.save(
         {
           ...ref,
@@ -387,10 +417,20 @@ export function EditorScreen() {
       )
       // Fire-and-forget is safe here: publish below re-reindexes + awaits.
       void reindex(ref)
-      const r = await publish.publish({ ref, author: OWNER_AUTHOR })
+      const r = await publish.publish({
+        ref,
+        author: OWNER_AUTHOR, // fallback only — the api stamps the session identity (#382)
+        message: opts?.message
+      })
       if (r.status === 'published') {
         baseShaRef.current = r.sha
-        notify.success('Published · ' + r.sha.slice(0, 7))
+        notify.success(
+          opts?.toast ? opts.toast(r.sha) : 'Published · ' + r.sha.slice(0, 7)
+        )
+        // #382: this commit may have flipped published:false either way — re-derive
+        // the live gate from the metadata just committed so Save draft/Publish-menu
+        // state updates in place, without a reload.
+        setLiveCommitted(metaRef.current['published'] !== false)
         await index.reindexEntry(ref).catch(() => {})
         await index.markSyncedAt(r.sha).catch(() => {})
         await refreshLifecycle()
@@ -425,20 +465,37 @@ export function EditorScreen() {
     }
   }
 
-  const onPublish = () => void commit()
-  // Non-destructive: flag the draft published:false and commit (content stays in Git).
-  const onUnpublish = () => {
-    metaRef.current = { ...metaRef.current, published: false }
-    setMetadata(metaRef.current)
-    void commit()
-  }
-  const onRepublish = () => {
+  // Publish always means go-live (#382): clear any published:false flag before
+  // committing, so clicking Publish on a saved draft never re-commits the draft
+  // state under a "Published" toast. This subsumes the old Re-publish action.
+  const onPublish = () => {
     const m = { ...metaRef.current }
     delete m['published']
     metaRef.current = m
     setMetadata(m)
     void commit()
   }
+  // WordPress-Contributor Save draft: commit the buffer to Git as published:false —
+  // shared with the team, never live (#382).
+  const onSaveDraft = () => {
+    metaRef.current = { ...metaRef.current, published: false }
+    setMetadata(metaRef.current)
+    void commit({
+      message: `Save draft ${collection}/${locale}/${slug}`,
+      toast: (sha) => 'Draft saved · ' + sha.slice(0, 7)
+    })
+  }
+  // Non-destructive: flag the draft published:false and commit (content stays in Git).
+  const onUnpublish = () => {
+    metaRef.current = { ...metaRef.current, published: false }
+    setMetadata(metaRef.current)
+    void commit()
+  }
+  const canSaveDraft =
+    (can('content.edit') || can('content.create')) &&
+    phase === 'ready' &&
+    !composing &&
+    !liveCommitted
 
   useRegisterCommands([
     {
@@ -448,6 +505,18 @@ export function EditorScreen() {
       icon: Rocket,
       enabled: () => can('content.publish') && phase === 'ready' && !composing,
       run: () => onPublish()
+    },
+    {
+      id: 'editor.saveDraft',
+      title: 'Save draft',
+      group: 'Editor',
+      icon: Save,
+      enabled: () =>
+        (can('content.edit') || can('content.create')) &&
+        phase === 'ready' &&
+        !composing &&
+        !liveCommitted,
+      run: () => onSaveDraft()
     },
     {
       id: 'editor.preview',
@@ -530,7 +599,10 @@ export function EditorScreen() {
 
         {/* center: save state only */}
         <div className="flex flex-1 justify-center">
-          <SaveIndicator status={status} readonly={phase === 'readonly'} />
+          <SaveIndicator
+            status={status}
+            readonly={phase === 'readonly' || viewOnly}
+          />
         </div>
 
         {/* right */}
@@ -618,19 +690,29 @@ export function EditorScreen() {
         </Tooltip>
 
         <PublishMenu
+          canSaveDraft={canSaveDraft}
           canPublish={can('content.publish') && phase === 'ready' && !composing}
           canUnpublish={
             can('content.unpublish') && phase === 'ready' && !composing
           }
           isUnpublished={metadata['published'] === false}
+          onSaveDraft={onSaveDraft}
           onPublish={onPublish}
           onUnpublish={onUnpublish}
-          onRepublish={onRepublish}
         />
       </div>
       {phase === 'readonly' && (
         <div className="ed-banner" role="status">
           This entry is locked by another editor — viewing read-only.
+        </div>
+      )}
+      {/* Suppress this banner when the lock banner above is already showing —
+          only one role="status" ed-banner should render at a time, and the
+          lock message is the more actionable one. */}
+      {viewOnly && phase !== 'readonly' && (
+        <div className="ed-banner" role="status">
+          This post is live on the site. Your role can&apos;t change published
+          posts — ask an editor to update or unpublish it.
         </div>
       )}
       <div className="editor-stage">
@@ -641,7 +723,7 @@ export function EditorScreen() {
               aria-label="Title"
               placeholder="Untitled"
               value={title}
-              disabled={phase === 'readonly'}
+              disabled={phase === 'readonly' || viewOnly}
               onChange={(e) =>
                 onMetaChange({ ...metaRef.current, title: e.target.value })
               }
@@ -650,7 +732,7 @@ export function EditorScreen() {
             <Canvas
               key={`${collection}/${locale}/${slug}`}
               initialContent={initialDoc}
-              editable={phase === 'ready'}
+              editable={editable}
               onChange={onDocChange}
               onEditor={setEditor}
               runQuery={runQuery}
@@ -679,7 +761,7 @@ export function EditorScreen() {
             slug={
               composing ? (manualSlug ?? (slugify(title) || 'untitled')) : slug
             }
-            editable={phase === 'ready'}
+            editable={editable}
             committed={lifecycle.state !== 'draft'}
             permalinkConfig={permalinkConfig}
             date={frontmatterDate}

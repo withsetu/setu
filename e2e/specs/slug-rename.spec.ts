@@ -31,11 +31,15 @@ test('rename a published post’s slug from the editor meta panel', async ({
 
   // The success toast is explicit that the redirect waits for the next rebuild
   // (saved ≠ live). Assert it right away — notifications auto-dismiss after 4s.
+  // Generous timeout: followRename AWAITS the move commit plus both identities'
+  // reindex before toasting (by design — success must imply durable index rows),
+  // so under load the toast can land after the default 5s window; once shown it
+  // stays 4s and the poll catches it (same pattern as the visual spec's 15s waits).
   await expect(
     page
       .getByRole('region', { name: 'Notifications', exact: true })
       .getByText(/^Slug renamed — the old URL will 301/)
-  ).toBeVisible()
+  ).toBeVisible({ timeout: 15_000 })
 
   // The editor followed the entry to its new identity: URL and header breadcrumb.
   await expect(page).toHaveURL(new RegExp(`/edit/post/en/${newSlug}$`))

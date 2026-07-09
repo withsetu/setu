@@ -28,7 +28,14 @@ export function resolveSessionActor(auth: AuthInstance): ResolveActor {
       // #379: an unrecognized (e.g. future audience) role is not staff — resolve to no actor (fail
       // closed), never a default staff role.
       if (!ROLES.includes(user.role ?? '')) return null
-      return { id: user.id, role: user.role as Role }
+      // #382: surface the session user's identity as the git commit author — the display name if
+      // set, else the (required) email — so the commit routes can stamp it server-side instead of
+      // trusting whatever `author` the client's request body claims.
+      return {
+        id: user.id,
+        role: user.role as Role,
+        gitAuthor: { name: user.name?.trim() || user.email, email: user.email }
+      }
     } catch {
       return null // fail closed (#291)
     }

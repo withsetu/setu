@@ -24,11 +24,23 @@ export function IndexProvider({ children }: { children: ReactNode }) {
       }),
     [data, git, index]
   )
+  // Failures must be LOUD: a swallowed rebuild error leaves the index empty and every
+  // listing shows "No posts yet" with zero diagnostics (bit us in CI on #429 — all git
+  // reads returned 200, the list stayed empty, and nothing said why). The app still
+  // works degraded (editor/publish don't need the index), so log, don't crash.
   useEffect(() => {
-    void service.ensureBuilt().catch(() => {})
+    void service.ensureBuilt().catch((err: unknown) => {
+      console.error(
+        '[setu] content-index build failed — listings will be empty:',
+        err
+      )
+    })
   }, [service])
   useEffect(() => {
-    if (deploy.sha !== null) void service.reindexAfterDeploy().catch(() => {})
+    if (deploy.sha !== null)
+      void service.reindexAfterDeploy().catch((err: unknown) => {
+        console.error('[setu] content-index deploy resync failed:', err)
+      })
   }, [deploy.sha, service])
   return (
     <IndexContext.Provider value={service}>{children}</IndexContext.Provider>

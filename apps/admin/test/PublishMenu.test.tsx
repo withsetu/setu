@@ -18,12 +18,13 @@ describe('PublishMenu', () => {
   it('renders nothing when neither publish nor unpublish is allowed', () => {
     const { container } = render(
       <PublishMenu
+        canSaveDraft={false}
         canPublish={false}
         canUnpublish={false}
         isUnpublished={false}
+        onSaveDraft={noop}
         onPublish={noop}
         onUnpublish={noop}
-        onRepublish={noop}
       />
     )
     expect(container.textContent).toBe('')
@@ -32,12 +33,13 @@ describe('PublishMenu', () => {
     const onPublish = vi.fn()
     render(
       <PublishMenu
+        canSaveDraft={false}
         canPublish
         canUnpublish={false}
         isUnpublished={false}
+        onSaveDraft={noop}
         onPublish={onPublish}
         onUnpublish={noop}
-        onRepublish={noop}
       />
     )
     fireEvent.click(screen.getByRole('button', { name: 'Publish' }))
@@ -47,12 +49,13 @@ describe('PublishMenu', () => {
     const onUnpublish = vi.fn()
     render(
       <PublishMenu
+        canSaveDraft={false}
         canPublish
         canUnpublish
         isUnpublished={false}
+        onSaveDraft={noop}
         onPublish={noop}
         onUnpublish={onUnpublish}
-        onRepublish={noop}
       />
     )
     // Radix DropdownMenu opens on Enter keydown (avoids PointerEvent jsdom issues)

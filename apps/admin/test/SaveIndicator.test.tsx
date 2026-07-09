@@ -7,9 +7,9 @@ describe('SaveIndicator', () => {
     render(<SaveIndicator status="saving" readonly={false} />)
     expect(screen.getByText('Saving…')).toBeInTheDocument()
   })
-  it('shows Saved when saved', () => {
+  it('shows "Backed up on this device" when saved', () => {
     render(<SaveIndicator status="saved" readonly={false} />)
-    expect(screen.getByText('Saved')).toBeInTheDocument()
+    expect(screen.getByText('Backed up on this device')).toBeInTheDocument()
   })
   it('shows Read-only when readonly', () => {
     render(<SaveIndicator status="saved" readonly />)

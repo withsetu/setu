@@ -226,6 +226,112 @@ describe('createGitApi — content publish gate (live → content.publish, draft
   })
 })
 
+// #382 — the gate above only inspected the NEW content being written, so an author (content.edit
+// only) could write `published: false` over an already-LIVE post — a silent unpublish — or delete
+// a live post outright, with no content.publish check at all. The gate must also read the
+// COMMITTED state of each touched path: touching a file whose committed content is live now needs
+// content.publish, covering live-edit, unpublish, and delete of live posts. Drafts (committed
+// published:false) stay at content.edit for authors. These tests seed real git history (via the
+// git port directly) rather than the `app()` helper, which mints a fresh empty memory port per
+// call — we need the gate's `git.readFile` to see a real committed live/draft post.
+describe('transition-aware live-post gate (#382)', () => {
+  const LIVE = 'content/post/en/live-one.mdoc'
+  const DRAFT = 'content/post/en/draft-one.mdoc'
+  const liveContent = '---\ntitle: Live\n---\n\nHi'
+  const draftContent = '---\ntitle: Draft\npublished: false\n---\n\nHi'
+
+  async function seededGit() {
+    const git = createMemoryGitPort()
+    await git.commitFile({
+      path: LIVE,
+      content: liveContent,
+      message: 'seed live',
+      author
+    })
+    await git.commitFile({
+      path: DRAFT,
+      content: draftContent,
+      message: 'seed draft',
+      author
+    })
+    return git
+  }
+
+  it('author 403s writing published:false over a live post (silent unpublish)', async () => {
+    const a = createGitApi(await seededGit(), asRole('author'))
+    const body = JSON.stringify({
+      path: LIVE,
+      content: '---\ntitle: Live\npublished: false\n---\n\nHi',
+      message: 'unpublish',
+      author
+    })
+    expect((await write(a, '/git/commit', body)).status).toBe(403)
+  })
+
+  it('author 403s deleting a live post', async () => {
+    const a = createGitApi(await seededGit(), asRole('author'))
+    const body = JSON.stringify({
+      changes: [{ path: LIVE, delete: true }],
+      message: 'delete',
+      author
+    })
+    expect((await write(a, '/git/commit-files', body)).status).toBe(403)
+  })
+
+  it('author saves a NEW draft (published:false, fresh path) → 200', async () => {
+    const a = createGitApi(await seededGit(), asRole('author'))
+    const body = JSON.stringify({
+      path: 'content/post/en/new-draft.mdoc',
+      content: draftContent,
+      message: 'new draft',
+      author
+    })
+    expect((await write(a, '/git/commit', body)).status).toBe(200)
+  })
+
+  it('author edits a committed draft (published:false over published:false) → 200', async () => {
+    const a = createGitApi(await seededGit(), asRole('author'))
+    const body = JSON.stringify({
+      path: DRAFT,
+      content: '---\ntitle: Draft edited\npublished: false\n---\n\nHi',
+      message: 'edit draft',
+      author
+    })
+    expect((await write(a, '/git/commit', body)).status).toBe(200)
+  })
+
+  it('author deletes a committed draft → 200', async () => {
+    const a = createGitApi(await seededGit(), asRole('author'))
+    const body = JSON.stringify({
+      changes: [{ path: DRAFT, delete: true }],
+      message: 'delete draft',
+      author
+    })
+    expect((await write(a, '/git/commit-files', body)).status).toBe(200)
+  })
+
+  it('editor unpublishes a live post → 200', async () => {
+    const a = createGitApi(await seededGit(), asRole('editor'))
+    const body = JSON.stringify({
+      path: LIVE,
+      content: '---\ntitle: Live\npublished: false\n---\n\nHi',
+      message: 'unpublish',
+      author
+    })
+    expect((await write(a, '/git/commit', body)).status).toBe(200)
+  })
+
+  it('editor deletes a live post → 200', async () => {
+    const a = createGitApi(await seededGit(), asRole('editor'))
+    const body = JSON.stringify({
+      changes: [{ path: LIVE, delete: true }],
+      message: 'delete',
+      author
+    })
+    expect((await write(a, '/git/commit-files', body)).status).toBe(200)
+  })
+})
+
 // #419 — theme-options.json persists through this same git primitive (no dedicated theme route),
 // so without a path rule any content.edit holder (author/editor) could rewrite the theme, bypassing
 // the theme.manage gate the admin's Appearance screen enforces (UI-only gate, failure mode #13).

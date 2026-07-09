@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@hono/node-server": "2.0.5",
+    "@hono/node-server": "2.0.8",
     "@setu/auth": "workspace:*",
     "@setu/captcha-recaptcha": "workspace:*",
     "@setu/captcha-turnstile": "workspace:*",
@@ -27,7 +27,7 @@
     "@setu/git-local": "workspace:*",
     "@setu/image-sharp": "workspace:*",
     "@setu/storage-local": "workspace:*",
-    "hono": "4.12.26"
+    "hono": "4.12.28"
   },
   "devDependencies": {
     "@setu/db-memory": "workspace:*",
@@ -36,10 +36,10 @@
     "@setu/image-testing": "workspace:*",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.10.2",
-    "better-sqlite3": "^12.10.1",
+    "better-sqlite3": "^12.11.1",
     "drizzle-orm": "^0.45.2",
-    "isomorphic-git": "^1.38.4",
-    "tsx": "^4.19.2",
+    "isomorphic-git": "^1.38.6",
+    "tsx": "^4.23.0",
     "typescript": "^5.6.3",
     "vitest": "^3.2.6"
   }

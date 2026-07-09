@@ -133,6 +133,29 @@ export interface SetuAuthClient {
     data: { id: string; providerId: string }[] | null
     error: AuthClientError | null
   }>
+  // #364: the password-reset flow's two base-client (non-plugin) endpoints. Verified against
+  // installed better-auth 1.6.23 source (node_modules .pnpm better-auth.../dist/api/routes/
+  // password.mjs): `requestPasswordReset` is `POST /request-password-reset` with body
+  // `{ email, redirectTo? }` (the route wraps `redirectTo` in an `originCheck` middleware — it must
+  // be same-origin/allowed, hence UsersScreen building it from `window.location.origin`);
+  // `resetPassword` is `POST /reset-password` with body `{ newPassword, token? }` (token may also
+  // travel as a query param, but the client always sends it in the body here). Client method NAMES
+  // are derived structurally, not just by convention: better-auth's client proxy
+  // (dist/client/proxy.mjs's `createDynamicPathProxy`) builds the request path by kebab-casing the
+  // accessed property chain (`toKebabCase("requestPasswordReset")` -> `/request-password-reset`),
+  // so `authClient.requestPasswordReset` / `authClient.resetPassword` are the only property names
+  // that route to these two endpoints at all — confirmed by literal derivation, not guesswork.
+  requestPasswordReset: (data: {
+    email: string
+    redirectTo?: string
+  }) => Promise<{
+    data: { status: boolean; message: string } | null
+    error: AuthClientError | null
+  }>
+  resetPassword: (data: { newPassword: string; token: string }) => Promise<{
+    data: { status: boolean } | null
+    error: AuthClientError | null
+  }>
 }
 
 /** The admin's Better Auth client (#248 Task 6). `baseURL` points at the api's mounted

@@ -44,6 +44,7 @@ export function MetaPanel({
   date,
   categories,
   onRename,
+  renameBlockedReason,
   onChange,
   apiBase
 }: {
@@ -59,6 +60,9 @@ export function MetaPanel({
   date: number | null
   categories: string[]
   onRename: (newSlug: string) => Promise<RenameResult>
+  /** When set, applying a rename is disabled with this muted hint (UX only —
+   *  the server enforces the same gate). */
+  renameBlockedReason?: string
   onChange: (next: Record<string, unknown>) => void
   apiBase: string
 }) {
@@ -76,6 +80,7 @@ export function MetaPanel({
             date={date}
             categories={categories}
             onRename={onRename}
+            blockedReason={renameBlockedReason}
           />
           <div className="flex justify-between py-0.5 text-[13px]">
             <span className="text-muted-foreground">Locale</span>

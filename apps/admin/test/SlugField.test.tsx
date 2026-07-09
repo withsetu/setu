@@ -208,3 +208,55 @@ describe('SlugField — redirect honesty', () => {
     expect(screen.queryByText(/redirect \(301\)/)).toBeNull()
   })
 })
+
+describe('SlugField — rename failures surface inline', () => {
+  it('a rejected onRename renders an inline error (no unhandled rejection)', async () => {
+    setup({
+      onRename: vi.fn(async () => {
+        throw new Error('git-http 500: boom')
+      })
+    })
+    fireEvent.change(input(), { target: { value: 'moved' } })
+    fireEvent.keyDown(input(), { key: 'Enter' })
+    expect(
+      await screen.findByText('Rename failed — git-http 500: boom')
+    ).toBeInTheDocument()
+    expect(input()).toHaveAttribute('aria-invalid', 'true')
+    // The field stays staged so the author can retry or revert.
+    expect(input()).toHaveValue('moved')
+  })
+
+  it('a server 403 maps to the permission message', async () => {
+    setup({
+      committed: true,
+      onRename: vi.fn(async () => {
+        throw new Error('git-http 403: {"error":"forbidden"}')
+      })
+    })
+    fireEvent.change(input(), { target: { value: 'moved' } })
+    fireEvent.keyDown(input(), { key: 'Enter' })
+    expect(
+      await screen.findByText(
+        "You don't have permission to rename a published post's URL."
+      )
+    ).toBeInTheDocument()
+  })
+})
+
+describe('SlugField — blocked rename (permission UX gate)', () => {
+  const reason = "Renaming a live post's URL requires publish permission"
+
+  it('shows the muted hint and disables apply when blocked', () => {
+    const { onRename } = setup({ committed: true, blockedReason: reason })
+    expect(screen.getByText(reason)).toBeInTheDocument()
+    fireEvent.change(input(), { target: { value: 'moved' } })
+    expect(applyBtn()).toBeDisabled()
+    fireEvent.keyDown(input(), { key: 'Enter' })
+    expect(onRename).not.toHaveBeenCalled()
+  })
+
+  it('shows no hint when not blocked', () => {
+    setup({ committed: true })
+    expect(screen.queryByText(reason)).toBeNull()
+  })
+})

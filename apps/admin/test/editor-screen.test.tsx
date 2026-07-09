@@ -248,6 +248,72 @@ describe('EditorScreen', () => {
     ).not.toBeNull()
   })
 
+  it('a rename right after typing carries the pending keystrokes into the moved draft', async () => {
+    const services = createServices()
+    renderEditor(services, '/edit/post/en/release-notes')
+    await screen.findByDisplayValue('Release notes')
+
+    // Edit the title, then rename IMMEDIATELY — before the 800ms autosave
+    // debounce fires. The save-before-rename must carry this keystroke.
+    fireEvent.change(screen.getByLabelText('Title'), {
+      target: { value: 'Release notes EDITED' }
+    })
+    const slugInput = screen.getByRole('textbox', { name: 'Slug' })
+    fireEvent.change(slugInput, { target: { value: 'carried-over' } })
+    fireEvent.keyDown(slugInput, { key: 'Enter' })
+    await screen.findByText('post / carried-over')
+
+    const moved = await services.data.getDraft({
+      collection: 'post',
+      locale: 'en',
+      slug: 'carried-over'
+    })
+    expect(moved?.metadata['title']).toBe('Release notes EDITED')
+    expect(
+      await services.data.getDraft({
+        collection: 'post',
+        locale: 'en',
+        slug: 'release-notes'
+      })
+    ).toBeNull()
+  })
+
+  it('auto-derives Unicode slugs — Über uns → über-uns (one vocabulary with minting)', async () => {
+    const services = createServices()
+    renderEditor(services, '/edit/post/en/release-notes')
+    await screen.findByDisplayValue('Release notes')
+
+    const titleInput = screen.getByLabelText('Title')
+    fireEvent.change(titleInput, { target: { value: 'Über uns' } })
+    fireEvent.blur(titleInput)
+
+    expect(await screen.findByText('post / über-uns')).toBeInTheDocument()
+    expect(
+      await services.data.getDraft({
+        collection: 'post',
+        locale: 'en',
+        slug: 'über-uns'
+      })
+    ).not.toBeNull()
+  })
+
+  it('compose mode: applying a slug already in use shows the inline taken error', async () => {
+    const services = createServices()
+    renderEditor(services, '/edit/post/en/new')
+    await screen.findByLabelText('Title')
+
+    // 'release-notes' is a seeded draft in this collection/locale.
+    const slugInput = screen.getByRole('textbox', { name: 'Slug' })
+    fireEvent.change(slugInput, { target: { value: 'release-notes' } })
+    fireEvent.keyDown(slugInput, { key: 'Enter' })
+
+    expect(
+      await screen.findByText(
+        'Already used by another entry in this collection/locale.'
+      )
+    ).toBeInTheDocument()
+  })
+
   it('does NOT auto-derive once the slug was manually renamed', async () => {
     const services = createServices()
     renderEditor(services, '/edit/post/en/release-notes')

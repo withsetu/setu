@@ -9,6 +9,7 @@ import type {
 } from '@setu/core'
 import {
   createRenameService,
+  isValidEntrySlug,
   parseFrontmatterDate,
   resolvePermalinkConfig,
   serializeMdoc,
@@ -117,6 +118,9 @@ export function EditorScreen() {
   // The title whose slugified form the current slug was derived from — while they
   // still match (and nothing is committed), a title edit re-derives the slug.
   const loadedTitleRef = useRef('')
+  // True while followRename is moving the entry: pauses autosave so a debounce
+  // firing mid-move can't re-create the just-deleted old-ref draft.
+  const renamingRef = useRef(false)
   const previewWin = useRef<Window | null>(null)
   const previewNonce = useRef(0)
   const previewApi = import.meta.env.VITE_SETU_API
@@ -195,6 +199,10 @@ export function EditorScreen() {
       baseSha: baseShaRef.current
     }),
     save: async (input) => {
+      // A rename is moving this entry right now: followRename already saved the
+      // latest doc/meta to the OLD ref and the service is re-keying it — an
+      // autosave firing in this window would resurrect the old draft.
+      if (renamingRef.current) return { saved: true }
       if (composing) {
         // First save of a new entry: mint a real slug — the author's explicit
         // choice when they applied one, else derived from the title — persist
@@ -258,28 +266,56 @@ export function EditorScreen() {
     opts: { silent?: boolean } = {}
   ): Promise<RenameResult> => {
     const wasCommitted = lifecycle.state !== 'draft'
-    const result = await renameService.renameSlug(ref, newSlug)
-    if (!result.renamed) return result
-    mintedRef.current = newSlug
-    if (result.committedSha) baseShaRef.current = result.committedSha
-    navigate(`/edit/${collection}/${locale}/${newSlug}`, { replace: true })
-    reindex(ref)
-    reindex({ collection, locale, slug: newSlug })
-    if (!opts.silent)
-      notify.success(
-        wasCommitted
-          ? 'Slug renamed — the old URL will 301 after the next rebuild'
-          : 'Slug renamed'
+    renamingRef.current = true
+    try {
+      // Save-before-rename (mirrors commit()'s save-before-publish): the service
+      // moves what's in STORAGE, so persist the latest keystrokes first — and
+      // autosave is paused (renamingRef) so a debounce firing mid-move can't
+      // resurrect the old-ref draft after the service deletes it.
+      await authoring.save(
+        {
+          ...ref,
+          content: docRef.current,
+          metadata: metaRef.current,
+          baseSha: baseShaRef.current
+        },
+        EDITOR_ID
       )
-    return result
+      const result = await renameService.renameSlug(ref, newSlug)
+      if (!result.renamed) return result
+      mintedRef.current = newSlug
+      if (result.committedSha) baseShaRef.current = result.committedSha
+      navigate(`/edit/${collection}/${locale}/${newSlug}`, { replace: true })
+      reindex(ref)
+      reindex({ collection, locale, slug: newSlug })
+      // Same as publish: the move commit is now reflected in the index, so
+      // advance the synced marker or the next ensureBuilt full-rebuilds.
+      if (result.committedSha)
+        await index.markSyncedAt(result.committedSha).catch(() => {})
+      if (!opts.silent)
+        notify.success(
+          wasCommitted
+            ? 'Slug renamed — the old URL will 301 after the next rebuild'
+            : 'Slug renamed'
+        )
+      return result
+    } finally {
+      renamingRef.current = false
+    }
   }
 
   const onRename = async (newSlug: string): Promise<RenameResult> => {
     if (composing) {
       // Nothing persisted yet — applying just records the author's choice; the
-      // first autosave mints it (uniquified against existing slugs).
-      if (!/^[a-z0-9-]+$/.test(newSlug) || newSlug === NEW_SLUG)
+      // first autosave mints it. Same vocabulary as the rename service
+      // (isValidEntrySlug), and availability is checked HERE so the author sees
+      // "taken" instead of a silent -2 suffix; mint-time uniqueSlug stays as
+      // the backstop for races.
+      if (!isValidEntrySlug(newSlug))
         return { renamed: false, committedSha: null, reason: 'invalid-slug' }
+      const taken = await existingSlugs(data, git, collection, locale)
+      if (taken.has(newSlug))
+        return { renamed: false, committedSha: null, reason: 'target-exists' }
       manualSlugRef.current = newSlug
       setManualSlug(newSlug)
       return { renamed: true, committedSha: null }
@@ -291,6 +327,11 @@ export function EditorScreen() {
    *  never been committed AND the slug still equals what this title minted (a
    *  manual slug edit or a `-2` suffix breaks the equality and ends derivation). */
   const onTitleBlur = async () => {
+    // Reviewed + waived: `lifecycle.state` is refreshed async after load, so for
+    // a blink after mount it can read 'draft' for a committed entry. Practically
+    // unreachable (a blur needs a focus + edit first, by which time the refresh
+    // has landed), and the worst case is a silent draft-only re-key that the
+    // next publish surfaces — never a lost commit.
     if (composing || phase !== 'ready' || lifecycle.state !== 'draft') return
     const derivedFromLoaded = slugify(loadedTitleRef.current) || 'untitled'
     if (slug !== derivedFromLoaded) return
@@ -304,8 +345,14 @@ export function EditorScreen() {
     taken.delete(slug)
     const newSlug = uniqueSlug(base, taken)
     if (newSlug === slug) return
-    const result = await followRename(newSlug, { silent: true })
-    if (result.renamed) loadedTitleRef.current = newTitle
+    // Best-effort: auto-derive silently skips on failure (the field still works
+    // for an explicit rename, which surfaces its own errors).
+    try {
+      const result = await followRename(newSlug, { silent: true })
+      if (result.renamed) loadedTitleRef.current = newTitle
+    } catch {
+      /* keep the current slug */
+    }
   }
   const commit = async () => {
     if (committing.current) return
@@ -423,6 +470,15 @@ export function EditorScreen() {
     undefined,
     settings
   )
+  // UX-only gate (the server's writeActionForChanges enforces regardless):
+  // renaming a LIVE post moves a published URL — a commit an author can't make.
+  const renameBlockedReason =
+    !composing &&
+    lifecycle.state !== 'draft' &&
+    metadata['published'] !== false &&
+    !can('content.publish')
+      ? "Renaming a live post's URL requires publish permission"
+      : undefined
 
   if (phase === 'loading') {
     return (
@@ -612,6 +668,7 @@ export function EditorScreen() {
             date={frontmatterDate}
             categories={frontmatterCategories}
             onRename={onRename}
+            renameBlockedReason={renameBlockedReason}
             onChange={onMetaChange}
             apiBase={(import.meta.env.VITE_SETU_API as string) ?? ''}
           />

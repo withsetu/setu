@@ -27,7 +27,8 @@ export function SlugField({
   permalinkConfig,
   date,
   categories,
-  onRename
+  onRename,
+  blockedReason
 }: {
   slug: string
   collection: string
@@ -40,6 +41,10 @@ export function SlugField({
   date: number | null
   categories: string[]
   onRename: (newSlug: string) => Promise<RenameResult>
+  /** UX-only gate (the server enforces regardless): when set, applying is
+   *  disabled and this text renders as a muted hint — e.g. an author lacking
+   *  content.publish on a live post. */
+  blockedReason?: string
 }) {
   // null = untouched → the field tracks the slug prop (navigation after a
   // rename, compose-mode live derivation from the title); a string = the
@@ -51,7 +56,7 @@ export function SlugField({
   const text = staged ?? slug
   const clean = slugify(text)
   const dirty = text !== slug
-  const canApply = dirty && clean !== '' && !applying
+  const canApply = dirty && clean !== '' && !applying && !blockedReason
 
   const revert = () => {
     setStaged(null)
@@ -76,6 +81,15 @@ export function SlugField({
       } else {
         revert()
       }
+    } catch (e) {
+      // A thrown rename (e.g. git-http non-2xx) must surface, never vanish:
+      // keep the staged text so the author can retry or revert.
+      const msg = e instanceof Error ? e.message : String(e)
+      setError(
+        /\b403\b/.test(msg)
+          ? "You don't have permission to rename a published post's URL."
+          : `Rename failed — ${msg}`
+      )
     } finally {
       setApplying(false)
     }
@@ -160,6 +174,9 @@ export function SlugField({
           </p>
         )}
         {error && <p className="text-[13px] text-destructive">{error}</p>}
+        {blockedReason && (
+          <p className="text-[13px] text-muted-foreground">{blockedReason}</p>
+        )}
       </div>
 
       <p className="break-all font-mono text-[13px] leading-relaxed text-muted-foreground">

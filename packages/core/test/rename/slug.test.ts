@@ -18,6 +18,14 @@ describe('entrySlugify', () => {
     expect(entrySlugify('')).toBe('')
     expect(entrySlugify('???!!!')).toBe('')
   })
+
+  it('trims hyphen floods linearly (ReDoS guard: no polynomial backtracking)', () => {
+    expect(entrySlugify('-'.repeat(50) + 'a' + '-'.repeat(50))).toBe('a')
+    expect(entrySlugify('-'.repeat(10_000))).toBe('')
+    expect(entrySlugify('-'.repeat(10_000) + 'x' + '-'.repeat(10_000))).toBe(
+      'x'
+    )
+  })
 })
 
 describe('isValidEntrySlug', () => {

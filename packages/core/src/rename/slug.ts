@@ -7,13 +7,20 @@
  *  (`Über uns` → `über-uns`), words joined by single hyphens; drops punctuation.
  *  Returns '' for empty/symbol-only input (callers fall back to 'untitled'). */
 export function entrySlugify(text: string): string {
-  return text
-    .toLowerCase()
-    .trim()
-    .replace(/[^\p{L}\p{N}\s_-]/gu, '') // keep letters, numbers, whitespace, underscore, hyphen
-    .replace(/[\s_]+/g, '-') // whitespace + underscores → hyphen separators
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '')
+  return (
+    text
+      .toLowerCase()
+      .trim()
+      .replace(/[^\p{L}\p{N}\s_-]/gu, '') // keep letters, numbers, whitespace, underscore, hyphen
+      .replace(/[\s_]+/g, '-') // whitespace + underscores → hyphen separators
+      .replace(/-+/g, '-')
+      // Trim edge hyphens with LINEAR patterns: after the collapse above any run
+      // is a single char, so `^-`/`-$` suffice — the alternation form
+      // (`/^-+|-+$/`) backtracks polynomially on hyphen floods (CodeQL
+      // js/polynomial-redos).
+      .replace(/^-/, '')
+      .replace(/-$/, '')
+  )
 }
 
 /** Reserved: the admin's compose-route sentinel (`/edit/<c>/<l>/new`) — never a

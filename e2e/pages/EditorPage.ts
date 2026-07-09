@@ -101,7 +101,9 @@ export class EditorPage {
    *  banner text is the user-visible half of the check; the Publish/Save draft buttons
    *  being entirely absent (not disabled) is the other half. */
   get viewOnlyBanner() {
-    return this.page.getByRole('status').filter({ hasText: /This post is live/ })
+    return this.page
+      .getByRole('status')
+      .filter({ hasText: /This post is live/ })
   }
 
   /** Invoke the real Save draft affordance and wait for the success toast. */

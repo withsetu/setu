@@ -124,6 +124,29 @@ describe('EditorScreen view-only for non-publishers on live posts (#382)', () =>
     expect(screen.getByRole('textbox', { name: 'Title' })).not.toBeDisabled()
   })
 
+  it('author on a live, lock-denied post sees exactly one status banner (lock wins)', async () => {
+    const services = servicesWithCommitted(ref, { title: 'Live Post' })
+    // Simulate another editor already holding a fresh lock on this entry, so
+    // authoring.open() below denies this session — the same state that would
+    // otherwise stack the lock banner on top of the view-only banner.
+    await services.data.putLock({
+      ...ref,
+      lockedBy: 'someone-else',
+      lockedAt: Date.now()
+    })
+    renderEditor(
+      services,
+      { id: 'a1', role: 'author' },
+      '/edit/post/en/live-post'
+    )
+
+    await screen.findByDisplayValue('Live Post')
+
+    const banners = screen.getAllByRole('status')
+    expect(banners).toHaveLength(1)
+    expect(banners[0]).toHaveTextContent(/locked by another editor/)
+  })
+
   it('typing is impossible in view-only: no autosave fires', async () => {
     vi.useFakeTimers()
     const services = servicesWithCommitted(ref, { title: 'Live Post' })

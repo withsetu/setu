@@ -91,7 +91,9 @@ test.describe('author saves drafts, cannot touch live posts', () => {
     }
   })
 
-  test('author: live post is view-only (wrong-actor gate)', async ({ page }) => {
+  test('author: live post is view-only (wrong-actor gate)', async ({
+    page
+  }) => {
     // "Featured Demo" is a seeded post with no `published: false` — i.e. already live —
     // opened for viewing ONLY, never edited (never edit seeded posts: chromium and
     // webkit-editor share one sandbox).

@@ -533,7 +533,10 @@ export function EditorScreen() {
           This entry is locked by another editor — viewing read-only.
         </div>
       )}
-      {viewOnly && (
+      {/* Suppress this banner when the lock banner above is already showing —
+          only one role="status" ed-banner should render at a time, and the
+          lock message is the more actionable one. */}
+      {viewOnly && phase !== 'readonly' && (
         <div className="ed-banner" role="status">
           This post is live on the site. Your role can&apos;t change published
           posts — ask an editor to update or unpublish it.

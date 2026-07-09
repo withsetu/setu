@@ -15,6 +15,7 @@ export type BlockControl =
   | 'slider'
   | 'category'
   | 'tag'
+  | 'locale'
 
 /** Style axes a block may be re-themed on (color/surface/etc). Carried as data for MCP
  *  introspection + future auto-CSS; NOT enforced at runtime. Mirrors @setu/blocks'

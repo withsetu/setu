@@ -11,6 +11,7 @@ import { AlignControl } from './align'
 import { SliderControl } from './slider'
 import { CategoryControl } from './category'
 import { TagControl } from './tag'
+import { LocaleControl } from './locale'
 
 export const controlRegistry: Record<BlockControl, React.FC<ControlProps>> = {
   text: TextControl,
@@ -25,5 +26,6 @@ export const controlRegistry: Record<BlockControl, React.FC<ControlProps>> = {
   align: AlignControl,
   slider: SliderControl,
   category: CategoryControl,
-  tag: TagControl
+  tag: TagControl,
+  locale: LocaleControl
 }

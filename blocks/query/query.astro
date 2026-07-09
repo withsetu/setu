@@ -83,24 +83,28 @@ const fmtDate = (ms: number, loc: string): string =>
   })
 ---
 
-<ul class={`setu-posts setu-posts--${layout}${layout === 'grid' ? ` setu-posts--cols-${cols}` : ''}`}>
-  {selected.map((p) => (
-    <li class="setu-post-card">
-      {showImage && p.featuredImage && (
-        <a href={hrefOf(p)} class="setu-post-card__media">
-          <img src={resolveImg(p.featuredImage)} alt={p.title} loading="lazy" />
-        </a>
-      )}
-      <a href={hrefOf(p)} class="setu-post-card__title">{p.title}</a>
-      {p.date !== null && (
-        <time class="setu-post-card__date" datetime={new Date(p.date).toISOString().slice(0, 10)}>
-          {fmtDate(p.date, p.locale)}
-        </time>
-      )}
-      {p.excerpt && <p class="setu-post-card__excerpt">{p.excerpt}</p>}
-    </li>
-  ))}
-</ul>
+{selected.length === 0 ? (
+  <p class="setu-posts__empty">No posts found.</p>
+) : (
+  <ul class={`setu-posts setu-posts--${layout}${layout === 'grid' ? ` setu-posts--cols-${cols}` : ''}`}>
+    {selected.map((p) => (
+      <li class="setu-post-card">
+        {showImage && p.featuredImage && (
+          <a href={hrefOf(p)} class="setu-post-card__media">
+            <img src={resolveImg(p.featuredImage)} alt={p.title} loading="lazy" />
+          </a>
+        )}
+        <a href={hrefOf(p)} class="setu-post-card__title">{p.title}</a>
+        {p.date !== null && (
+          <time class="setu-post-card__date" datetime={new Date(p.date).toISOString().slice(0, 10)}>
+            {fmtDate(p.date, p.locale)}
+          </time>
+        )}
+        {p.excerpt && <p class="setu-post-card__excerpt">{p.excerpt}</p>}
+      </li>
+    ))}
+  </ul>
+)}
 
 <style>
   .setu-posts { list-style: none; padding: 0; margin: 1.5rem 0; display: grid; gap: 1.25rem; }
@@ -116,25 +120,29 @@ const fmtDate = (ms: number, loc: string): string =>
   @media (max-width: 900px) { .setu-posts--grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 560px) { .setu-posts--grid { grid-template-columns: 1fr; } }
   .setu-posts--list { grid-template-columns: 1fr; }
+  /* Card internals read only contract tokens (docs/block-styling-contract.md); the token guard
+     scans this <style> block (#420). Astro's markdoc pipeline collects a component's scoped
+     <style> but NOT a frontmatter CSS import, so this stays inline rather than a shared import. */
   .setu-post-card__media img {
     width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover;
-    border-radius: var(--r-md, 8px); display: block;
+    border-radius: var(--r-md); display: block;
   }
   .setu-post-card__title {
     display: inline-block; margin-top: 0.5rem;
-    font-family: var(--font-heading, inherit); font-weight: 600;
-    color: var(--text, inherit); text-decoration: none;
+    font-family: var(--font-ui); font-weight: 600;
+    color: var(--text); text-decoration: none;
   }
-  .setu-post-card__title:hover { color: var(--accent, #4f46e5); }
+  .setu-post-card__title:hover { color: var(--accent); }
   .setu-post-card__date {
     display: block; margin-top: 0.25rem;
-    font-size: 0.8125rem; color: var(--text-muted, #6b7280);
+    font-size: 0.8125rem; color: var(--text-2);
   }
   .setu-post-card__excerpt {
     margin: 0.4rem 0 0; font-size: 0.9375rem; line-height: 1.5;
-    color: var(--text-muted, #4b5563);
+    color: var(--text-2);
     /* Clamp to 3 lines so uneven-length excerpts keep the grid tidy. */
     display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
     overflow: hidden;
   }
+  .setu-posts__empty { margin: 1.5rem 0; color: var(--text-2); font-style: italic; }
 </style>

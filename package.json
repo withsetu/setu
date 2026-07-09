@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "description": "Open-source, Git-backed, multi-topology CMS engine.",
-  "license": "AGPL-3.0-only",
+  "license": "MIT",
   "scripts": {
     "content:seed": "node scripts/content-sandbox.mjs seed",
     "content:reset": "node scripts/content-sandbox.mjs reset",

@@ -202,10 +202,8 @@ Delivery is a developer choice; publish and deploy are **decoupled and role-gate
 
 ## 19. Licensing
 
-* **Core + adapters → AGPL-3.0.** Chosen because Setu's users are self-hosters (AGPL is invisible to them — it only triggers if you offer *modified Setu itself* as a network service), it blocks cloud-cloning of the engine, and enterprise-legal friction converts into commercial-license revenue rather than lost users.
-* **CLA required** from every contributor, in place **before the first non-author contribution** (public or private; private collaborators need an IP-assignment clause). The CLA is the linchpin — it enables both the commercial dual-license **and** the option to relicense later (e.g. AGPL → Apache, the easy direction since loosening only needs copyright control).
-* **Commercial dual-license** sold to those who can't accept AGPL (enterprise bans) — friction → revenue.
-* **Pro plugins → proprietary/commercial EULA.** Closed, paid. As sole copyright holder (via CLA), Setu can license its own Pro plugins proprietarily even atop AGPL core.
+* **MIT — the entire repository**, all apps and packages (see `LICENSE`). Decided 2026-07-02, superseding the earlier AGPL-3.0 + CLA + dual-license plan.
+* **Contributions under the DCO** (Developer Certificate of Origin): every commit is signed off (`Signed-off-by`), certifying the contributor may submit it under the MIT License. See `CONTRIBUTING.md`.
 
 ## 20. Open-Core / Monetization Boundary
 

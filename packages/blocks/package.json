@@ -15,6 +15,7 @@
     "./hero.css": "./src/hero/hero.css",
     "./ContactForm": "./src/contact/ContactForm.tsx",
     "./contact.css": "./src/contact/contact.css",
+    "./mount-captcha": "./src/contact/mount-captcha.ts",
     "./tokens.css": "./src/tokens.css"
   },
   "scripts": {
@@ -37,6 +38,6 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "typescript": "^5.6.3",
-    "vitest": "^2.1.8"
+    "vitest": "^3.2.6"
   }
 }

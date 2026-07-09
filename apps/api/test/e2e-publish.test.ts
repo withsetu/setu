@@ -28,7 +28,10 @@ describe('end-to-end: publish over git-http → api → git-local → disk', () 
     await git.init({ fs: nodeFs, dir, defaultBranch: 'main' })
 
     // Server: real git-local on the temp repo, behind the real api routes.
-    const app = createGitApi(createLocalGitAdapter({ dir }))
+    const app = createGitApi(createLocalGitAdapter({ dir }), () => ({
+      id: 'local',
+      role: 'admin'
+    }))
 
     // Client: the browser-side GitPort wired (portless) to the in-process app.
     const httpGit = createHttpGitPort({

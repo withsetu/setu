@@ -117,62 +117,68 @@ const toIconName = (raw: string | undefined): IconName =>
 /** Insertable blocks = built-ins + every auto-discovered folder block. Each folder block
  *  inserts a node of its tag (today only `callout` has an editor node). */
 export function slashBlocks(): SlashBlock[] {
-  const fromBlocks: SlashBlock[] = registry.blocks.map((b) => ({
-    title: b.editor?.label ?? b.tag,
-    subtitle: `Insert a ${b.tag} block`,
-    icon: toIconName(b.editor?.icon),
-    group: b.editor?.group ?? DEFAULT_BLOCK_CATEGORY,
-    keywords: b.editor?.keywords ?? [],
-    run: (e: Editor, r: Range) => {
-      const chain = e.chain().focus().deleteRange(r)
-      if (b.tag === 'contact') {
-        chain.insertContent({
-          type: 'contactBlock',
-          attrs: {
-            mdAttrs: ensureFormId({
-              formLabel: 'Contact',
-              subject: false,
-              nameRequired: true,
-              subjectRequired: false,
-              messageRequired: true,
-              successMessage: DEFAULT_SUCCESS_MESSAGE
-            })
-          }
-        })
-      } else if (b.tag === 'callout') {
-        chain.insertContent({
-          type: 'callout',
-          attrs: { mdAttrs: { type: 'info' } },
-          content: [{ type: 'paragraph' }]
-        })
-      } else if (b.tag === 'hero') {
-        chain.insertContent({
-          type: 'heroBlock',
-          attrs: { mdAttrs: { headline: 'Hero headline', layout: 'centered' } }
-        })
-      } else if (b.tag === 'query') {
-        chain.insertContent({
-          type: 'queryBlock',
-          attrs: {
-            mdAttrs: {
-              collection: 'post',
-              sort: 'newest',
-              layout: 'grid',
-              columns: 3,
-              limit: 10,
-              showImage: true
+  // `embed` is paste-driven (paste a provider URL → EmbedPaste auto-inserts a resolved embed);
+  // there's no useful cold slash-insert without a URL, so keep it out of the slash menu.
+  const fromBlocks: SlashBlock[] = registry.blocks
+    .filter((b) => b.tag !== 'embed')
+    .map((b) => ({
+      title: b.editor?.label ?? b.tag,
+      subtitle: `Insert a ${b.tag} block`,
+      icon: toIconName(b.editor?.icon),
+      group: b.editor?.group ?? DEFAULT_BLOCK_CATEGORY,
+      keywords: b.editor?.keywords ?? [],
+      run: (e: Editor, r: Range) => {
+        const chain = e.chain().focus().deleteRange(r)
+        if (b.tag === 'contact') {
+          chain.insertContent({
+            type: 'contactBlock',
+            attrs: {
+              mdAttrs: ensureFormId({
+                formLabel: 'Contact',
+                subject: false,
+                nameRequired: true,
+                subjectRequired: false,
+                messageRequired: true,
+                successMessage: DEFAULT_SUCCESS_MESSAGE
+              })
             }
-          }
-        })
-      } else {
-        chain.insertContent({
-          type: 'setuBlock',
-          attrs: { tag: b.tag, mdAttrs: {} },
-          content: [{ type: 'paragraph' }]
-        })
+          })
+        } else if (b.tag === 'callout') {
+          chain.insertContent({
+            type: 'callout',
+            attrs: { mdAttrs: { type: 'info' } },
+            content: [{ type: 'paragraph' }]
+          })
+        } else if (b.tag === 'hero') {
+          chain.insertContent({
+            type: 'heroBlock',
+            attrs: {
+              mdAttrs: { headline: 'Hero headline', layout: 'centered' }
+            }
+          })
+        } else if (b.tag === 'query') {
+          chain.insertContent({
+            type: 'queryBlock',
+            attrs: {
+              mdAttrs: {
+                collection: 'post',
+                sort: 'newest',
+                layout: 'grid',
+                columns: 3,
+                limit: 10,
+                showImage: true
+              }
+            }
+          })
+        } else {
+          chain.insertContent({
+            type: 'setuBlock',
+            attrs: { tag: b.tag, mdAttrs: {} },
+            content: [{ type: 'paragraph' }]
+          })
+        }
+        chain.run()
       }
-      chain.run()
-    }
-  }))
+    }))
   return [...BUILTINS, ...fromBlocks]
 }

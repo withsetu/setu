@@ -3,7 +3,8 @@ import {
   distinctCategorySlugs,
   distinctTagSlugs,
   DEFAULT_LOCALE,
-  entryUrlPath
+  entryUrlPath,
+  extractEmbedVideos
 } from '@setu/core'
 import { toPostRow } from './post-row'
 
@@ -25,12 +26,24 @@ export const SITEMAP_XSL =
 
 const NS = 'http://www.sitemaps.org/schemas/sitemap/0.9'
 const IMAGE_NS = 'http://www.google.com/schemas/sitemap-image/1.1'
+const VIDEO_NS = 'http://www.google.com/schemas/sitemap-video/1.1'
+
+/** A `<video:video>` entry — Google requires thumbnail_loc, title, description, and a player_loc
+ *  (or content_loc). All absolute; description defaults to the title when the embed has no caption. */
+export interface SitemapVideo {
+  thumbnailLoc: string
+  title: string
+  description: string
+  playerLoc: string
+}
 
 export interface SitemapUrl {
   loc: string
   lastmod?: string
   /** Absolute image URLs on this page → <image:image> entries (Google image sitemap). */
   images?: string[]
+  /** Video embeds on this page → <video:video> entries (Google video sitemap, #367). */
+  videos?: SitemapVideo[]
 }
 
 /** A sub-sitemap reference in the index. */
@@ -53,7 +66,13 @@ const locBlock = (tag: 'url' | 'sitemap', item: SitemapUrl): string => {
         `\n    <image:image>\n      <image:loc>${xmlEscape(img)}</image:loc>\n    </image:image>`
     )
     .join('')
-  return `  <${tag}>\n    <loc>${xmlEscape(item.loc)}</loc>${item.lastmod ? `\n    <lastmod>${item.lastmod}</lastmod>` : ''}${images}\n  </${tag}>`
+  const videos = (item.videos ?? [])
+    .map(
+      (v) =>
+        `\n    <video:video>\n      <video:thumbnail_loc>${xmlEscape(v.thumbnailLoc)}</video:thumbnail_loc>\n      <video:title>${xmlEscape(v.title)}</video:title>\n      <video:description>${xmlEscape(v.description)}</video:description>\n      <video:player_loc>${xmlEscape(v.playerLoc)}</video:player_loc>\n    </video:video>`
+    )
+    .join('')
+  return `  <${tag}>\n    <loc>${xmlEscape(item.loc)}</loc>${item.lastmod ? `\n    <lastmod>${item.lastmod}</lastmod>` : ''}${images}${videos}\n  </${tag}>`
 }
 
 /** The sitemap index — a `<sitemapindex>` of the enabled sub-sitemaps. */
@@ -65,7 +84,8 @@ export function sitemapIndexXml(sections: SitemapSection[]): string {
 /** A leaf `<urlset>` sub-sitemap (with the Google image namespace when any URL carries images). */
 export function urlSitemapXml(urls: SitemapUrl[]): string {
   const hasImages = urls.some((u) => u.images?.length)
-  const ns = `xmlns="${NS}"${hasImages ? ` xmlns:image="${IMAGE_NS}"` : ''}`
+  const hasVideos = urls.some((u) => u.videos?.length)
+  const ns = `xmlns="${NS}"${hasImages ? ` xmlns:image="${IMAGE_NS}"` : ''}${hasVideos ? ` xmlns:video="${VIDEO_NS}"` : ''}`
   const body = urls.map((u) => locBlock('url', u)).join('\n')
   return `<?xml version="1.0" encoding="UTF-8"?>\n${SITEMAP_XSL}\n<urlset ${ns}>\n${body}\n</urlset>\n`
 }
@@ -119,6 +139,29 @@ export function entryImages(
   return out
 }
 
+/** Video embeds on an entry → `<video:video>` entries (#367). Sourced from the stored embed-block
+ *  props (title/thumbnail/player URL); URLs resolved absolute; description falls back to the title
+ *  when the embed has no caption (Google requires a description). */
+export function entryVideos(
+  e: SitemapEntry,
+  mediaBase: string,
+  siteUrl: string
+): SitemapVideo[] {
+  const base = siteUrl.replace(/\/+$/, '')
+  const abs = (raw: string): string => {
+    const viaMedia = raw.startsWith('/media/') ? `${mediaBase}${raw}` : raw
+    return /^https?:\/\//i.test(viaMedia)
+      ? viaMedia
+      : `${base}${viaMedia.startsWith('/') ? '' : '/'}${viaMedia}`
+  }
+  return extractEmbedVideos(e.body ?? '').map((v) => ({
+    thumbnailLoc: abs(v.thumbnailUrl),
+    title: v.title,
+    description: v.description ?? v.title,
+    playerLoc: abs(v.playerLoc)
+  }))
+}
+
 /** Absolute URLs for the indexable entries of one collection ('post' | 'page'). The homepage is
  *  attributed to the 'page' section (listed once at the site root; the home entry is skipped). */
 export function entryUrls(
@@ -139,10 +182,12 @@ export function entryUrls(
     const path = urlPath(e.id)
     if (!path) continue
     const images = entryImages(e, mediaBase, siteUrl)
+    const videos = entryVideos(e, mediaBase, siteUrl)
     urls.push({
       loc: `${base}/${path}/`,
       lastmod: e.lastmod,
-      ...(images.length ? { images } : {})
+      ...(images.length ? { images } : {}),
+      ...(videos.length ? { videos } : {})
     })
   }
   return urls

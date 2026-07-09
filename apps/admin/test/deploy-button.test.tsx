@@ -38,8 +38,9 @@ describe('DeployFooterButton (via AppSidebar)', () => {
     )
   })
 
-  it('renders nothing for a viewer (no site.deploy permission)', () => {
-    wrap({ id: 'v', role: 'viewer' })
+  it('renders nothing for an author (no site.deploy permission)', () => {
+    // #379: author is the lowest staff role and lacks site.deploy (Maintainer+ only).
+    wrap({ id: 'a', role: 'author' })
     expect(
       screen.queryByRole('button', { name: /deploy/i })
     ).not.toBeInTheDocument()

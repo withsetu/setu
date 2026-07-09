@@ -18,7 +18,7 @@ describe('authMiddleware', () => {
   it('sets the actor and continues when the resolver returns one', async () => {
     const res = await req(appWith(resolveLocalOwner), '/whoami')
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ actor: { id: 'local', role: 'owner' } })
+    expect(await res.json()).toEqual({ actor: { id: 'local', role: 'admin' } })
   })
 
   it('returns 401 when the resolver returns null', async () => {
@@ -33,7 +33,7 @@ describe('authMiddleware', () => {
   it('resolveLocalOwner is the single local owner', () => {
     expect(resolveLocalOwner(new Request('http://test/'))).toEqual({
       id: 'local',
-      role: 'owner'
+      role: 'admin'
     })
   })
 })

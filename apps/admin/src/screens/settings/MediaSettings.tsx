@@ -4,6 +4,7 @@ import type { MediaSettings as MediaValues } from '@setu/core'
 import { useServices, OWNER_AUTHOR } from '../../data/store'
 import { useNotify } from '../../ui/notify'
 import { useCapabilities } from '../../lib/useCapabilities'
+import { apiFetch } from '../../lib/api-fetch'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -105,7 +106,7 @@ export function MediaSettings() {
     pollIntervalRef.current = setInterval(() => {
       void (async () => {
         try {
-          const res = await fetch(`${apiBase}/api/media/reprocess/status`)
+          const res = await apiFetch(`${apiBase}/api/media/reprocess/status`)
           if (!mountedRef.current) return
           if (!res.ok) return
           const data = (await res.json()) as ReprocessStatus
@@ -146,7 +147,7 @@ export function MediaSettings() {
     mountedRef.current = true
     void (async () => {
       try {
-        const res = await fetch(`${apiBase}/api/media/reprocess/status`)
+        const res = await apiFetch(`${apiBase}/api/media/reprocess/status`)
         if (!mountedRef.current || !res.ok) return
         const data = (await res.json()) as ReprocessStatus
         if (data.status === 'running') {
@@ -195,7 +196,7 @@ export function MediaSettings() {
     setReprocessing(true)
     setReprocessProgress({ processed: 0, total: 0 })
     try {
-      const res = await fetch(`${apiBase}/api/media/reprocess`, {
+      const res = await apiFetch(`${apiBase}/api/media/reprocess`, {
         method: 'POST'
       })
       if (!res.ok) throw new Error(`Reprocess failed: ${res.status}`)

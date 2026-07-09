@@ -201,6 +201,19 @@ export { diffRedirects } from './redirects/diff'
 export type { Redirect } from './redirects/diff'
 export { newCid, isCid } from './content-id/cid'
 
+export {
+  matchProvider,
+  oembedEndpoint,
+  OEMBED_PROVIDERS
+} from './oembed/providers'
+export type { OembedProvider, OembedType } from './oembed/providers'
+export { resolveOembed } from './oembed/resolve'
+export type {
+  NormalizedOembed,
+  OembedResult,
+  OembedFailure
+} from './oembed/resolve'
+
 export type {
   EntryIndexRow,
   SortKey,
@@ -233,6 +246,8 @@ export type { JsonLdInput, JsonLdGraph } from './seo/json-ld'
 export { resolveJsonLd, jsonLdScript } from './seo/json-ld'
 export type { PageSeoOverride } from './seo/page-override'
 export { parsePageSeoOverride } from './seo/page-override'
+export type { EmbedVideo } from './seo/embed-videos'
+export { extractEmbedVideos } from './seo/embed-videos'
 export {
   distinctCategorySlugs,
   distinctTagSlugs,

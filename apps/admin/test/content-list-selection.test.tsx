@@ -9,6 +9,7 @@ import { DeployProvider } from '../src/deploy/deploy'
 import { IndexProvider } from '../src/data/index-store'
 import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { NotificationProvider } from '../src/ui/notify'
+import { ActorProvider } from '../src/auth/actor'
 import { ContentList } from '../src/screens/ContentList'
 
 const doc = (t: string): TiptapDoc => ({
@@ -40,7 +41,9 @@ function setup() {
           <IndexProvider>
             <TaxonomyProvider>
               <NotificationProvider>
-                <ContentList collection="post" title="Posts" />
+                <ActorProvider>
+                  <ContentList collection="post" title="Posts" />
+                </ActorProvider>
               </NotificationProvider>
             </TaxonomyProvider>
           </IndexProvider>

@@ -42,6 +42,9 @@ const IGNORES = [
   'e2e/**/*-snapshots/**',
   // Frozen pre-rebrand spikes with their own package.json/lockfile — see header comment
   'prototype/**',
+  // Ambient type shims (not in any package's tsconfig program, so type-aware linting can't
+  // parse them) — e.g. types/jsdom-shim.d.ts, which blocks the vitest→lib.dom leak (#405)
+  'types/**',
   // Not TS/JS — out of scope for this increment (see header comment)
   '**/*.astro'
 ]

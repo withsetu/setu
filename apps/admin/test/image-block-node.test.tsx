@@ -60,6 +60,15 @@ describe('ImageBlock node view', () => {
     expect(img.getAttribute('src')).toContain('/uploads/media/abc/original.png')
   })
 
+  it('the preview image is not natively draggable (#384: node moves are the drag handle`s job)', () => {
+    render(<Harness onReady={() => {}} />)
+    const img = document.querySelector('.sib-img') as HTMLImageElement
+    expect(img.getAttribute('draggable')).toBe('false')
+    // and dragstart is suppressed even if a browser starts one anyway
+    const started = fireEvent.dragStart(img)
+    expect(started).toBe(false) // fireEvent returns false when defaultPrevented
+  })
+
   it('the alignment buttons set mdAttrs.align', async () => {
     let getJSON: () => unknown = () => ({})
     render(<Harness onReady={(g) => (getJSON = g)} />)

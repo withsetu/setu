@@ -2,9 +2,15 @@ import { describe, expect, it } from 'vitest'
 import { createMemoryDataPort, createMemoryIndexPort } from '@setu/db-memory'
 import { createMemoryGitPort } from '@setu/git-memory'
 import type { GitPort } from '../git/git-port'
+import type { DeployInfo } from '../content-index/list-entries'
 import { createIndexService, INDEX_VERSION } from './index-service'
 
 const mdoc = (title: string) => `---\ntitle: ${title}\n---\n\nbody\n`
+// Deploy truth (#208) replaced the old `deployedAt(path)` lookup. These tests assert
+// git-diff reindex behaviour (which paths get re-read, when a full rescan happens) — that
+// is driven by `deployedHead`/`diffPaths`, not by deploy projection — so a never-deployed
+// snapshot is the correct, neutral default here.
+const NEVER_DEPLOYED: DeployInfo = { deployedSha: null, changed: [] }
 const author = { name: 'x', email: 'x@y.z' }
 const q = { collection: 'post', offset: 0, limit: 50 } as const
 
@@ -44,7 +50,7 @@ function serviceWith(
   opts: {
     data?: ReturnType<typeof createMemoryDataPort>
     index?: ReturnType<typeof createMemoryIndexPort>
-    deployedAt?: (path: string) => string | null
+    deploy?: () => DeployInfo
   } = {}
 ) {
   const data = opts.data ?? createMemoryDataPort()
@@ -56,7 +62,7 @@ function serviceWith(
       data,
       git,
       index,
-      deployedAt: opts.deployedAt ?? (() => null)
+      deploy: opts.deploy ?? (() => NEVER_DEPLOYED)
     })
   }
 }
@@ -214,16 +220,10 @@ describe('createIndexService — reindexAfterDeploy uses the diff path', () => {
       { path: 'content/post/en/a.mdoc', content: mdoc('A') },
       { path: 'content/post/en/b.mdoc', content: mdoc('B') }
     ])
-    // A mutable deploy snapshot stand-in (mirrors the admin's DeployProvider).
-    const snapshot = new Map<string, string>()
-    const { service } = serviceWith(spy.git, {
-      deployedAt: (path) => snapshot.get(path) ?? null
-    })
+    const { service } = serviceWith(spy.git)
     await service.ensureBuilt()
 
-    // Deploy 1: snapshot everything committed → full rebuild (no prior deploy to diff from).
-    snapshot.set('content/post/en/a.mdoc', mdoc('A'))
-    snapshot.set('content/post/en/b.mdoc', mdoc('B'))
+    // Deploy 1: no prior deploy head to diff from → full rebuild.
     const listsBefore = spy.listCalls()
     await service.reindexAfterDeploy()
     expect(spy.listCalls()).toBe(listsBefore + 1)
@@ -239,7 +239,6 @@ describe('createIndexService — reindexAfterDeploy uses the diff path', () => {
     await service.markSyncedAt(sha)
 
     // Deploy 2: only b changed since deploy 1 → diff path, no rescan, only b re-read.
-    snapshot.set('content/post/en/b.mdoc', mdoc('B2'))
     const listsAfterFirstDeploy = spy.listCalls()
     spy.resetReads()
     await service.reindexAfterDeploy()

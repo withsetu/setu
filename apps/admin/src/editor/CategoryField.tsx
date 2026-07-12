@@ -42,9 +42,27 @@ export function CategoryField({
   const [parent, setParent] = useState('')
   const [error, setError] = useState<string | null>(null)
 
+  // Selected slugs with no registry node (registry/content can desync) still
+  // render as rows so they're visible and removable. Union the mount-time
+  // selection with the current one so an unchecked orphan stays on screen,
+  // re-checkable — the same reversibility a registry row has. Registry slugs
+  // in the snapshot are filtered back out once the registry loads.
+  const [initialSelected] = useState(selected)
+  const registrySlugs = useMemo(() => new Set(rows.map((n) => n.slug)), [rows])
+  const orphans = useMemo(
+    () =>
+      [...new Set([...initialSelected, ...selected])].filter(
+        (s) => !registrySlugs.has(s)
+      ),
+    [initialSelected, selected, registrySlugs]
+  )
+
   const fq = filter.trim().toLowerCase()
   const visible =
     fq === '' ? rows : rows.filter((n) => n.name.toLowerCase().includes(fq))
+  const visibleOrphans =
+    fq === '' ? orphans : orphans.filter((s) => s.toLowerCase().includes(fq))
+  const hasRows = rows.length > 0 || orphans.length > 0
 
   const toggle = (slug: string) =>
     onChange(
@@ -82,12 +100,12 @@ export function CategoryField({
           />
         </div>
       )}
-      {rows.length === 0 && (
+      {!hasRows && (
         <p className="text-sm text-muted-foreground">
           No categories yet — add one below.
         </p>
       )}
-      {rows.length > 0 && (
+      {hasRows && (
         <div
           className="max-h-64 space-y-0.5 overflow-y-auto"
           role="group"
@@ -106,6 +124,23 @@ export function CategoryField({
                 onCheckedChange={() => toggle(node.slug)}
               />
               <span>{node.name}</span>
+            </label>
+          ))}
+          {visibleOrphans.map((slug) => (
+            <label
+              key={slug}
+              className="flex cursor-pointer items-center gap-2.5 rounded px-1 py-1.5 pl-1 text-sm hover:bg-muted/50"
+            >
+              <Checkbox
+                checked={selected.includes(slug)}
+                disabled={!editable}
+                aria-label={slug}
+                onCheckedChange={() => toggle(slug)}
+              />
+              <span>{slug}</span>
+              <span className="text-xs text-muted-foreground">
+                Not in registry
+              </span>
             </label>
           ))}
         </div>

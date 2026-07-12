@@ -755,6 +755,10 @@ export function EditorScreen() {
           </aside>
         ) : (
           <MetaPanel
+            // Entry-keyed like Canvas: panel fields hold per-entry snapshots
+            // (CategoryField's orphan union) that must not survive navigation
+            // to a different entry (#366).
+            key={`${collection}/${locale}/${slug}`}
             metadata={metadata}
             collection={collection}
             locale={locale}

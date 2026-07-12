@@ -9,6 +9,7 @@ import {
 } from '@setu/core'
 import type { Action, GitPort, CommitInput, CommitFilesInput } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
+import { apiOnError } from './errors'
 import type { ResolveActor, ResolvedActor } from './auth/resolve-actor'
 
 export { createFormsApi } from './forms'
@@ -277,8 +278,6 @@ export function createGitApi(git: GitPort, resolveActor: ResolveActor) {
     return c.json({ changes: await git.diffPaths(from, to) })
   })
 
-  app.onError((err, c) =>
-    c.json({ error: err instanceof Error ? err.message : String(err) }, 500)
-  )
+  app.onError(apiOnError({ scope: 'git' })) // #291: prod-generic, never err.message
   return app
 }

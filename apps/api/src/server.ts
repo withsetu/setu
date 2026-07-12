@@ -57,6 +57,7 @@ import {
 } from './config'
 import { resolveGitIdentity } from './auth/git-identity'
 import { mountAuthWithFailureEvents } from './auth/login-failure-events'
+import { apiOnError } from './errors'
 
 // #248 Task 9: default audit-event consumer — a single structured log line. The REAL consumer
 // (persistence/alerting) is future issue #290; this is deliberately the dumbest possible sink so
@@ -257,6 +258,11 @@ const runReprocess = (jobId: string) => {
 }
 
 const app = new Hono()
+
+// #291 fail-secure errors: the root handler catches any throw OUTSIDE a factory (middleware,
+// the /api/auth/* mount) — each factory mounts its own scoped apiOnError, which Hono prefers
+// for the routes it owns; this is the backstop so nothing ever falls through to a raw 500.
+app.onError(apiOnError())
 
 // CORS allowlist (credentialed) + Host/Origin guard (DNS-rebinding/tunnel-detection), applied
 // globally, before any route — including /api/auth/*.

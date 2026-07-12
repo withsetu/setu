@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
+import { apiOnError } from './errors'
 
 /** A draft pushed by the editor for in-editor preview (the compiled `.mdoc` + its ref). */
 export interface PreviewDraft {
@@ -29,6 +30,7 @@ export interface PreviewApiOptions {
  *  this factory no longer sets its own permissive `cors()`. */
 export function createPreviewApi(opts: PreviewApiOptions = {}): Hono {
   const app = new Hono()
+  app.onError(apiOnError({ scope: 'preview' })) // #291: prod-generic, never err.message
   if (opts.enabled === false) return app // production: no routes → /preview 404s.
 
   let slot: PreviewDraft | null = null

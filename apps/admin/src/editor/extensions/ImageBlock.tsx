@@ -133,10 +133,15 @@ function ImageBlockView({
             Replace
           </button>
         </div>
+        {/* Node moves happen via the drag handle only — a native <img> drag would
+            re-enter through ProseMirror's generic img[src] parse rule as a phantom
+            inline image, duplicating the block (#384). */}
         <img
           className="sib-img"
           src={resolveMediaSrc(src, apiBase || undefined)}
           alt={alt}
+          draggable={false}
+          onDragStart={(e) => e.preventDefault()}
         />
         <input
           className="sib-caption"

@@ -32,6 +32,7 @@ import type { RunQuery } from './QueryPreview'
 import { createSetuBlock } from './extensions/SetuBlock'
 import { Image } from './extensions/Image'
 import { ImageBlock } from './extensions/ImageBlock'
+import { ImageDragGuard } from './extensions/ImageDragGuard'
 import { Passthrough } from './extensions/Passthrough'
 import { SlashCommand } from './extensions/SlashCommand'
 import { KeyboardShortcuts } from './extensions/KeyboardShortcuts'
@@ -150,6 +151,7 @@ export function Canvas({
       Passthrough,
       Image,
       ImageBlock,
+      ImageDragGuard,
       SlashCommand,
       LinkTools.configure({
         onEdit: (ed) => {

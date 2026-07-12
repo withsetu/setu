@@ -43,7 +43,7 @@ import type { AuthEvent } from './events'
  *
  *  - `user.deleted` -> `databaseHooks.user.delete.after`, GATED on
  *    `context.path === '/admin/remove-user'` — the same route last-owner-guard.ts's
- *    `lastOwnerDeleteGuardHook` already guards via `delete.before`. `deleteWithHooks` in
+ *    `lastAdminDeleteGuardHook` already guards via `delete.before`. `deleteWithHooks` in
  *    with-hooks.mjs calls `toRun(entityToDelete, context)` where `entityToDelete` is the FULL
  *    target row read BEFORE the delete (see last-owner-guard.ts's delete-guard doc), so `targetId`
  *    comes directly off that row's `id` — no `context.body` round-trip needed for the id, though

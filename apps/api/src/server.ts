@@ -49,6 +49,7 @@ import {
 import {
   buildCapabilities,
   createCapabilitiesApi,
+  emailCapabilityFromEnv,
   type AuthCapabilities
 } from './capabilities'
 import { runReprocessJob } from './reprocess-runner'
@@ -127,6 +128,20 @@ const submissionsDb =
   process.env.SETU_SUBMISSIONS_DB ?? `${dir}/.setu/submissions.db`
 const notifyTo = process.env.SETU_FORMS_NOTIFY_TO
 const notifyFrom = process.env.SETU_FORMS_NOTIFY_FROM
+// Admin SPA origin — same env + default that allowed-origins.ts uses for the CORS/origin
+// allowlist. Read once here and shared by the reset-email default callback (below) and the
+// local-handshake log line (bottom of this file).
+const adminOrigin = process.env.SETU_ADMIN_ORIGIN ?? 'http://localhost:5173'
+
+// Email transport (#248 forms notifications; #364 password-reset emails share it). Selected by
+// SETU_EMAIL_ADAPTER, defaulting to the zero-config console adapter (dev: logs instead of
+// sending). emailCapabilityFromEnv is the single source of truth for which env value maps to a
+// REAL transport (currently only 'resend') — reused here so this construction and the
+// /api/capabilities report below can never silently disagree about what's actually wired up.
+const emailCapability = emailCapabilityFromEnv(process.env)
+const email = emailCapability.deliverable
+  ? createResendEmailAdapter({ apiKey: process.env.RESEND_API_KEY ?? '' })
+  : createConsoleEmailAdapter()
 
 // Ensure .setu/ parent dir exists before better-sqlite3 opens the DB file
 mkdirSync(`${dir}/.setu`, { recursive: true })
@@ -219,7 +234,26 @@ const auth = authConfigured
             }
           : undefined,
       onAuthEvent: logAuthEvent,
-      rateLimit: resolveRateLimitOverrides(process.env)
+      rateLimit: resolveRateLimitOverrides(process.env),
+      // #364: wire password-reset emails through the same transport as forms notifications, sent
+      // FROM the same instance-wide sender address (SETU_FORMS_NOTIFY_FROM) — see the `email`
+      // option's doc in packages/auth/src/options.ts for why this reuses that env rather than
+      // inventing an auth-specific one. Omitted (reset stays disabled, unchanged) when no
+      // from-address is configured at all: there is nothing to put in the message's `from` field,
+      // matching how the submission service itself skips sending without one (see
+      // createSubmissionService's `if (email && notifyTo && notifyFrom)` guard below).
+      // resetRedirectTo: where the emailed link lands when the /request-password-reset caller
+      // omitted redirectTo — without it better-auth's callback route 302s the click to
+      // /error?error=INVALID_TOKEN (see the option's doc). The admin origin is already on the
+      // trustedOrigins allowlist above, so better-auth's originCheck accepts this callback. The
+      // admin SPA's /reset-password screen is the next task on this branch.
+      email: notifyFrom
+        ? {
+            send: (msg) => email.send(msg),
+            from: notifyFrom,
+            resetRedirectTo: `${adminOrigin}/reset-password`
+          }
+        : undefined
     })
   : undefined
 authRef = auth
@@ -236,11 +270,6 @@ const captchaStatus = {
   provider: captchaProvider,
   secretConfigured: captchaSecret !== ''
 }
-const emailAdapter = process.env.SETU_EMAIL_ADAPTER ?? 'console'
-const email =
-  emailAdapter === 'resend'
-    ? createResendEmailAdapter({ apiKey: process.env.RESEND_API_KEY ?? '' })
-    : createConsoleEmailAdapter()
 
 const submit = createSubmissionService({
   submissions,
@@ -425,7 +454,8 @@ app.route(
       writableMediaStore: true, // local fs storage is writable
       backgroundJobs: true, // persistent Node process can run jobs
       mode,
-      auth: resolveAuthCapabilities() // boot-time value; createCapabilitiesApi re-derives per request via the thunk below
+      auth: resolveAuthCapabilities(), // boot-time value; createCapabilitiesApi re-derives per request via the thunk below
+      email: emailCapability
     }),
     resolveAuthCapabilities
   )
@@ -440,8 +470,8 @@ console.log(
 )
 if (localToken) {
   // The ONE place the token is ever logged — this is the intended handoff channel to the admin.
-  // Never log the token (or this URL) anywhere else.
-  const adminOrigin = process.env.SETU_ADMIN_ORIGIN ?? 'http://localhost:5173'
+  // Never log the token (or this URL) anywhere else. (adminOrigin is the shared const near the
+  // top of this file.)
   console.log(`Admin handshake: ${adminOrigin}/#setu-token=${localToken.token}`)
 }
 if (setupToken !== null) {

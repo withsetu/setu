@@ -2,11 +2,14 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import * as z from 'zod'
 import type { Role } from '@setu/core'
-import { useActor } from '../../auth/actor'
+import { outranks } from '@setu/core'
+import { useActor, useCan } from '../../auth/actor'
 import { authClient } from '../../auth/auth-client'
 import type { AdminUser } from '../../auth/auth-client'
 import { useNotify } from '../../ui/notify'
 import { apiFetch } from '../../lib/api-fetch'
+import { useCapabilities } from '../../lib/useCapabilities'
+import { passwordField } from '../../lib/password-policy'
 import { PageHeader } from '../../shell/PageHeader'
 import { PageBody } from '../../shell/PageBody'
 import { Button } from '@/components/ui/button'
@@ -72,9 +75,10 @@ import {
 import { MoreHorizontal } from 'lucide-react'
 
 /** Setu's fixed role set + the one-line descriptions from the authz matrix (packages/core's
- *  DEFAULT_ROLES) — shown in the invite dialog and the role-change picker so admins pick a role by
- *  what it can DO, not by memorizing a name. Order is most-to-least privileged (excluding admin,
- *  which is not offered here — see ROLE_OPTIONS below). */
+ *  DEFAULT_ROLES) — shown in the invite dialog and the role-change picker so admins/maintainers
+ *  pick a role by what it can DO, not by memorizing a name. Which of these are actually OFFERED to
+ *  a given actor is rank-scoped (#364) — see `roleOptionsForActor` below, never a hand-listed
+ *  per-role subset. */
 const ROLE_DESCRIPTIONS: Record<Role, string> = {
   admin: 'Full control — settings, users, and roles',
   maintainer: 'Runs the site day-to-day: content, forms, deploy, theme',
@@ -82,12 +86,38 @@ const ROLE_DESCRIPTIONS: Record<Role, string> = {
   author: 'Creates and manages their own content'
 }
 
-/** Roles offered when inviting/changing a user's role. 'admin' is deliberately excluded — Setu
- *  ships with exactly one admin (the first-run identity); granting a second admin via this screen
- *  would blur "the last admin" invariant this screen otherwise protects. Promoting to admin (if
- *  ever needed) is an explicit, rarer operation this minimal scope does not cover — rank-scoped
- *  invite/role management (Maintainer manages below its own rank) is epic #359 increment #364. */
-const ROLE_OPTIONS: Role[] = ['maintainer', 'editor', 'author']
+/** Every staff role, top-to-bottom of the rank ladder (packages/core's `ROLE_RANK`). The source
+ *  list `roleOptionsForActor` is derived from, below — never hand-list a per-role subset. */
+const ALL_ROLES: Role[] = ['admin', 'maintainer', 'editor', 'author']
+
+/** Roles an actor may invite/hand out or offer in a role-change picker (#364): every role strictly
+ *  below the ACTOR's own rank — an admin (rank 4) is offered maintainer/editor/author (the
+ *  pre-#364 fixed list); a maintainer (rank 3) is offered editor/author only. 'admin' never
+ *  appears in either actor's list, since no role outranks it. Derived from `outranks` (the same
+ *  primitive packages/auth/src/rank-guard.ts enforces server-side) rather than hard-coded per-role
+ *  arrays, so the UI can never drift from the rank ladder it mirrors. */
+function roleOptionsForActor(actorRole: Role): Role[] {
+  return ALL_ROLES.filter((r) => outranks(actorRole, r))
+}
+
+/** Whether `actorRole` may manage (change the role of / disable / offer a reset for) a row whose
+ *  current role is `targetRole`. Mirrors packages/auth/src/rank-guard.ts's `rankGuardUpdateHook`
+ *  EXACTLY, including its ORDER of checks:
+ *  1. `if (actorRole === 'admin') return` — the admin exemption fires BEFORE the unknown-target
+ *     check, so an admin may act even on a row with an unrecognized/legacy role string (that's the
+ *     only way to repair one).
+ *  2. For every other actor, the guard fails CLOSED on an unknown target — `targetRank <= 0 ->
+ *     forbidden('cannot act on a user with an unrecognized role')`. `outranks` alone would treat an
+ *     unknown role as rank 0 ("always outranked") — exactly the mismatch rank.ts's own
+ *     division-of-responsibility note warns callers about — hence the explicit `isKnownRole` gate
+ *     here (#364 review fix: without it a maintainer saw enabled controls the server 403s).
+ *  3. Then the strict `outranks` comparison.
+ *  This is UX honesty, not the security boundary — the server re-enforces via the same rank guard
+ *  regardless of what this function returns. */
+function canManageTarget(actorRole: Role, targetRole: string): boolean {
+  if (actorRole === 'admin') return true
+  return isKnownRole(targetRole) && outranks(actorRole, targetRole)
+}
 
 const apiBase = import.meta.env.VITE_SETU_API ?? ''
 
@@ -110,21 +140,32 @@ async function fetchCredentialStatus(): Promise<Record<string, boolean>> {
   }
 }
 
-const inviteSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  email: z.string().email('Enter a valid email'),
-  password: z.string().min(12, 'Password must be at least 12 characters'),
-  role: z.enum(['maintainer', 'editor', 'author'] as const, {
-    message: 'Choose a role'
+/** Built per-actor (`roleOptions` = `roleOptionsForActor(actor.role)`) rather than a fixed schema —
+ *  the offered/valid roles depend on who's inviting (#364). `roleOptions` is always non-empty for
+ *  any actor that can reach InviteUserDialog at all (gated on `users.invite`, which only
+ *  admin/maintainer hold, and both have at least editor+author below them). */
+function makeInviteSchema(roleOptions: Role[]) {
+  return z.object({
+    name: z.string().min(1, 'Name is required'),
+    email: z.string().email('Enter a valid email'),
+    password: passwordField,
+    role: z.enum(roleOptions as [Role, ...Role[]], {
+      message: 'Choose a role'
+    })
   })
-})
-type InviteValues = z.infer<typeof inviteSchema>
+}
+type InviteValues = {
+  name: string
+  email: string
+  password: string
+  role: Role
+}
 type InviteErrors = Partial<Record<keyof InviteValues, string>>
 
 const passwordSchema = z
   .object({
     currentPassword: z.string().optional(),
-    newPassword: z.string().min(12, 'Password must be at least 12 characters'),
+    newPassword: passwordField,
     confirm: z.string()
   })
   .refine((data) => data.newPassword === data.confirm, {
@@ -254,7 +295,10 @@ function NoPasswordBadge({
  *  ensure-local-owner.ts — this path always supplies a password, so the invited user can sign in
  *  remotely immediately). */
 function InviteUserDialog({ onCreated }: { onCreated: () => void }) {
+  const actor = useActor()
   const notify = useNotify()
+  const roleOptions = roleOptionsForActor(actor.role)
+  const inviteSchema = makeInviteSchema(roleOptions)
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -377,7 +421,7 @@ function InviteUserDialog({ onCreated }: { onCreated: () => void }) {
                 <SelectValue placeholder="Choose a role" />
               </SelectTrigger>
               <SelectContent>
-                {ROLE_OPTIONS.map((r) => (
+                {roleOptions.map((r) => (
                   <SelectItem key={r} value={r}>
                     <span className="flex flex-col">
                       <span className="capitalize">{r}</span>
@@ -404,24 +448,60 @@ function InviteUserDialog({ onCreated }: { onCreated: () => void }) {
   )
 }
 
-/** One row's role-change control + disable/enable menu. Kept together since both need the same
- *  guard computation (self / last-owner) against the full `users` list. */
+/** The disabled-tooltip copy shown on "Send password reset email" when the workspace's email
+ *  transport can't actually deliver (apps/api/src/capabilities.ts's `email.deliverable` — false for
+ *  the dev/no-op console transport). Exact copy agreed for #364. */
+const EMAIL_NOT_DELIVERABLE_REASON =
+  'Password reset emails need an email provider — this workspace logs emails to the console.'
+
+/** One row's role-change control + disable/enable/reset-password menu. Kept together since all
+ *  three need the same guard computation (self / last-admin / rank) against the full `users` list. */
 function UserRowActions({
   user,
   selfId,
+  actorRole,
   users,
+  emailDeliverable,
+  hasCredential,
   onChanged
 }: {
   user: AdminUser
   selfId: string
+  actorRole: Role
   users: AdminUser[]
+  emailDeliverable: boolean
+  hasCredential: boolean
   onChanged: () => void
 }) {
   const notify = useNotify()
   const [changingRole, setChangingRole] = useState(false)
   const [banning, setBanning] = useState(false)
+  const [resetting, setResetting] = useState(false)
   const roleGuard = roleChangeGuard(user, selfId, users)
   const disableGuardResult = disableGuard(user, selfId, users)
+  // #364: the roles this actor may hand THIS row — capped below the actor's own rank, same list
+  // the invite dialog offers. When the row's CURRENT role sits at/above that (only reachable for an
+  // admin viewing an admin peer — rank-scoping hides the row entirely for anyone else, see
+  // canManageTarget), it's prepended frozen/disabled so the picker still shows the true current
+  // value rather than silently coercing it into the below-rank list.
+  const roleOptions = roleOptionsForActor(actorRole)
+  const selectRoleOptions =
+    isKnownRole(user.role) && !roleOptions.includes(user.role)
+      ? ([user.role, ...roleOptions] as Role[])
+      : roleOptions
+  // Only offered strictly below the actor's rank — even for an admin viewing an admin peer
+  // (unlike role-change/disable, which admins are exempt from rank-scoping for): asking to reset a
+  // peer's password without them present is a more invasive action than the ones better-auth's own
+  // admin plugin exempts admins from, so this one stays rank-strict for every actor, admin included.
+  // #364 review fix: also requires a KNOWN target role — `outranks` alone treats an unrecognized
+  // role as rank 0 ("always outranked", see rank.ts's division-of-responsibility note), which would
+  // offer the reset on a legacy/garbage-role row. Fail closed instead, for every actor: repair the
+  // row's role first (the admin-only path canManageTarget leaves open), then reset.
+  const resetOffered =
+    isKnownRole(user.role) && outranks(actorRole, user.role) && hasCredential
+  const resetGuard: RowGuard = emailDeliverable
+    ? { disabled: false }
+    : { disabled: true, reason: EMAIL_NOT_DELIVERABLE_REASON }
 
   async function changeRole(next: Role) {
     if (changingRole || next === user.role) return
@@ -470,6 +550,29 @@ function UserRowActions({
     }
   }
 
+  /** Triggers better-auth's public `/request-password-reset` (Task 3's `withDefaultResetCallback`
+   *  only fills in a MISSING `redirectTo` — passing it explicitly here, rather than relying on that
+   *  default, keeps the emailed link's destination visible at the call site and origin-checked
+   *  against whatever admin origin actually sent the request). No confirm step: unlike disable,
+   *  sending an email is non-destructive and reversible (the user just ignores it). */
+  async function sendReset() {
+    if (resetting) return
+    setResetting(true)
+    try {
+      const { error } = await authClient.requestPasswordReset({
+        email: user.email,
+        redirectTo: `${window.location.origin}/reset-password`
+      })
+      if (error) {
+        notify.error(error.message || 'Could not send the reset email')
+        return
+      }
+      notify.success(`Password reset email sent to ${user.email}`)
+    } finally {
+      setResetting(false)
+    }
+  }
+
   return (
     <TooltipProvider>
       <div className="flex items-center justify-end gap-2">
@@ -478,7 +581,14 @@ function UserRowActions({
             value={isKnownRole(user.role) ? user.role : undefined}
             onValueChange={(v) => void changeRole(v as Role)}
             disabled={
-              roleGuard.disabled || changingRole || user.role === 'admin'
+              roleGuard.disabled ||
+              changingRole ||
+              // A KNOWN role outside the actor's below-rank options (an admin peer's row) is
+              // frozen. An UNKNOWN/legacy role is NOT frozen: this control is only reachable on
+              // such a row by an admin (canManageTarget hides it for everyone else), and the
+              // server's rank guard exempts admin before its unknown-target check
+              // (rank-guard.ts) — assigning a real role here is exactly the repair path.
+              (isKnownRole(user.role) && !roleOptions.includes(user.role))
             }
           >
             <SelectTrigger
@@ -488,11 +598,12 @@ function UserRowActions({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {(user.role === 'admin'
-                ? (['admin', ...ROLE_OPTIONS] as Role[])
-                : ROLE_OPTIONS
-              ).map((r) => (
-                <SelectItem key={r} value={r} disabled={r === 'admin'}>
+              {selectRoleOptions.map((r) => (
+                <SelectItem
+                  key={r}
+                  value={r}
+                  disabled={!roleOptions.includes(r)}
+                >
                   <span className="capitalize">{r}</span>
                 </SelectItem>
               ))}
@@ -511,6 +622,16 @@ function UserRowActions({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            {resetOffered && (
+              <GuardedTrigger guard={resetGuard}>
+                <DropdownMenuItem
+                  disabled={resetGuard.disabled || resetting}
+                  onSelect={() => void sendReset()}
+                >
+                  {resetting ? 'Sending…' : 'Send password reset email'}
+                </DropdownMenuItem>
+              </GuardedTrigger>
+            )}
             <AlertDialog>
               <GuardedTrigger guard={disableGuardResult}>
                 <AlertDialogTrigger
@@ -571,6 +692,8 @@ function UserRowActions({
  *  for role/ban actions. */
 function UserList({ refreshSignal }: { refreshSignal: number }) {
   const actor = useActor()
+  const can = useCan()
+  const { email: emailCaps } = useCapabilities()
   const notify = useNotify()
   const [users, setUsers] = useState<AdminUser[] | null>(null)
   const [loading, setLoading] = useState(true)
@@ -578,12 +701,14 @@ function UserList({ refreshSignal }: { refreshSignal: number }) {
     Record<string, boolean>
   >({})
 
-  // Full user management (invite / change role / disable) still routes through better-auth's admin
-  // plugin, which only authorizes `admin`. Maintainer holds `users.view` (so it lists + this screen
-  // renders) but its rank-scoped management is epic #359 increment #364 — so for now management
-  // controls are admin-only, and a maintainer sees a clean read-only roster instead of buttons that
-  // would 403.
-  const canManage = actor.role === 'admin'
+  // #364: full user management (invite / change role / disable) is rank-scoped, not admin-only.
+  // `canInvite` gates the "Add user" button; per-row manageability (below) additionally requires
+  // the actor to outrank the row (admins exempt — see `canManageTarget`). Both `users.setRole` and
+  // `users.disable` are granted together on every role that holds either (maintainer/admin — see
+  // packages/core/src/authz/default-roles.ts), so checking either is equivalent to checking "can
+  // this actor manage users at all"; checking both defends against that ever changing silently.
+  const canInvite = can('users.invite')
+  const canManageAny = can('users.setRole') || can('users.disable')
 
   async function load() {
     setLoading(true)
@@ -629,7 +754,7 @@ function UserList({ refreshSignal }: { refreshSignal: number }) {
             Who can sign in and what they can do.
           </CardDescription>
         </div>
-        {canManage && <InviteUserDialog onCreated={() => void load()} />}
+        {canInvite && <InviteUserDialog onCreated={() => void load()} />}
       </CardHeader>
       <CardContent>
         {loading || users === null ? (
@@ -690,11 +815,15 @@ function UserList({ refreshSignal }: { refreshSignal: number }) {
                     {formatDate(user.createdAt)}
                   </TableCell>
                   <TableCell className="text-right">
-                    {canManage ? (
+                    {canManageAny &&
+                    canManageTarget(actor.role, user.role ?? '') ? (
                       <UserRowActions
                         user={user}
                         selfId={actor.id}
+                        actorRole={actor.role}
                         users={users}
+                        emailDeliverable={!!emailCaps?.deliverable}
+                        hasCredential={credentialStatus[user.id] === true}
                         onChanged={() => void load()}
                       />
                     ) : (

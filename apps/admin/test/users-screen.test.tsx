@@ -53,7 +53,8 @@ vi.mock('../src/auth/auth-client', () => ({
       setUserPassword: vi.fn()
     },
     changePassword: vi.fn(),
-    listAccounts: vi.fn()
+    listAccounts: vi.fn(),
+    requestPasswordReset: vi.fn()
   }
 }))
 
@@ -64,6 +65,7 @@ const mockBanUser = vi.mocked(authClient.admin.banUser)
 const mockSetUserPassword = vi.mocked(authClient.admin.setUserPassword)
 const mockChangePassword = vi.mocked(authClient.changePassword)
 const mockListAccounts = vi.mocked(authClient.listAccounts)
+const mockRequestPasswordReset = vi.mocked(authClient.requestPasswordReset)
 
 const now = new Date('2026-01-01T00:00:00Z')
 
@@ -99,6 +101,35 @@ const DISABLED_AUTHOR = {
   role: 'author',
   banned: true
 }
+// #364: a maintainer fixture — used to exercise "maintainer does not outrank a peer maintainer",
+// same rank ladder invariant the admin-vs-admin case would hit (neither is reachable via
+// `outranks`, which is strict).
+const MAINTAINER_USER = {
+  id: 'maint-2',
+  email: 'maintainer@setu.dev',
+  name: 'Mo Maintainer',
+  emailVerified: true,
+  createdAt: now,
+  updatedAt: now,
+  role: 'maintainer',
+  banned: false
+}
+// #364 review fix: a row whose role is an unrecognized string (a legacy/garbage value in the DB —
+// 'viewer' was a real role removed in #379, so it's the realistic case). The server's rank guard
+// fails closed on this target for any NON-admin actor (packages/auth/src/rank-guard.ts's
+// rankGuardUpdateHook: targetRank <= 0 -> forbidden) but exempts admin BEFORE that check
+// (`if (actorRole === 'admin') return`), so the UI must show the row read-only to a maintainer
+// while leaving it manageable by an admin (the repair path).
+const UNKNOWN_ROLE_USER = {
+  id: 'legacy-1',
+  email: 'legacy@setu.dev',
+  name: 'Lena Legacy',
+  emailVerified: true,
+  createdAt: now,
+  updatedAt: now,
+  role: 'viewer',
+  banned: false
+}
 
 function renderAsActor(
   role: 'admin' | 'maintainer' | 'editor' | 'author',
@@ -112,20 +143,35 @@ function renderAsActor(
   return render(<UsersScreen />, { wrapper })
 }
 
-/** Stubs the global `fetch` (apiFetch's underlying primitive) for the two GETs UsersScreen makes:
+/** Stubs the global `fetch` (apiFetch's underlying primitive) for the three GETs UsersScreen makes:
  *  - `/api/users/credential-status` → the "No password" row status (#248 Task 8, Finding 2). Defaults
  *    to "everyone has a password" (empty map means the opposite — absence is the passwordless signal).
  *  - `/api/users` → the roster. Since #2 (UAT 2026-07-05) the list loads from Setu's own route, not
  *    better-auth's admin `listUsers`; this stub SOURCES the roster from the still-mocked
  *    `authClient.admin.listUsers` so every test keeps configuring fixtures + asserting call counts /
- *    resolved-value sequences via `mockListUsers`, exactly as before. */
-function stubCredentialStatus(status: Record<string, boolean> = {}) {
+ *    resolved-value sequences via `mockListUsers`, exactly as before.
+ *  - `/api/capabilities` (#364) → the same route `useCapabilities()` reads; `emailCaps` controls
+ *    whether UserRowActions' "Send password reset email" item is enabled or disabled-with-tooltip
+ *    (see UsersScreen.tsx's `resetGuard`). Defaults to a deliverable transport so every test that
+ *    doesn't care about this capability sees the item enabled. */
+function stubCredentialStatus(
+  status: Record<string, boolean> = {},
+  emailCaps: { transport: string; deliverable: boolean } = {
+    transport: 'console',
+    deliverable: true
+  }
+) {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) => {
       const u = String(url)
       if (u.includes('/api/users/credential-status')) {
         return new Response(JSON.stringify(status), { status: 200 })
+      }
+      if (u.includes('/api/capabilities')) {
+        return new Response(JSON.stringify({ email: emailCaps }), {
+          status: 200
+        })
       }
       if (u.includes('/api/users')) {
         const { data, error } = await authClient.admin.listUsers({
@@ -176,31 +222,89 @@ describe('UsersScreen', () => {
     expect(screen.getAllByText('Active').length).toBeGreaterThan(0)
   })
 
-  // #2 (UAT 2026-07-05): a maintainer holds `users.view` (so the roster loads) but NOT full user
-  // management — that's rank-scoped and lands in #364. So a maintainer sees a read-only roster: no
-  // "Add user", no per-row role Select or actions menu.
-  it('a maintainer sees a read-only roster (list loads; no add/manage controls)', async () => {
+  // #364: a maintainer holds `users.invite`/`users.setRole`/`users.disable`, but only for users
+  // STRICTLY BELOW their own rank (packages/auth/src/rank-guard.ts enforces this server-side; this
+  // UI mirrors it so a maintainer never sees a control that would 403). admin/maintainer rows stay
+  // read-only; editor/author rows get the full role-Select + actions menu; the invite dialog only
+  // offers roles below maintainer's own rank.
+  it('maintainer manages below-rank rows only (author/editor actionable; maintainer/admin read-only; invite offers editor/author only)', async () => {
     mockListUsers.mockResolvedValue({
-      data: { users: [OWNER, EDITOR], total: 2 },
+      data: {
+        users: [OWNER, MAINTAINER_USER, EDITOR, DISABLED_AUTHOR],
+        total: 4
+      },
       error: null
     })
     mockListAccounts.mockResolvedValue({
       data: [{ id: 'a1', providerId: 'credential' }],
       error: null
     })
+    stubCredentialStatus({
+      'owner-1': true,
+      'maint-2': true,
+      'editor-1': true,
+      'author-1': true
+    })
 
     renderAsActor('maintainer', 'maint-1')
     await screen.findByText('Ada Owner')
 
-    expect(screen.getByText('Eve Editor')).toBeInTheDocument()
+    // Read-only: admin and (peer) maintainer rows have no per-row Select/actions menu — a
+    // maintainer never outranks another maintainer or an admin.
     expect(
-      screen.queryByRole('button', { name: /add user/i })
+      screen.queryByRole('combobox', { name: /change role for ada owner/i })
     ).not.toBeInTheDocument()
     expect(
-      screen.queryByRole('combobox', { name: /change role/i })
+      screen.queryByRole('button', { name: /more actions for ada owner/i })
     ).not.toBeInTheDocument()
     expect(
-      screen.queryByRole('button', { name: /more actions/i })
+      screen.queryByRole('combobox', {
+        name: /change role for mo maintainer/i
+      })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', {
+        name: /more actions for mo maintainer/i
+      })
+    ).not.toBeInTheDocument()
+
+    // Actionable: editor and author rows (strictly below maintainer's rank) get real controls.
+    expect(
+      screen.getByRole('combobox', { name: /change role for eve editor/i })
+    ).toBeInTheDocument()
+    const editorActions = screen.getByRole('button', {
+      name: /more actions for eve editor/i
+    })
+    expect(editorActions).toBeInTheDocument()
+    expect(
+      screen.getByRole('combobox', { name: /change role for al author/i })
+    ).toBeInTheDocument()
+
+    // No delete action exists anywhere in this UI, for any actor — the dropdown's only
+    // destructive item is disable/enable.
+    fireEvent.keyDown(editorActions, { key: 'Enter' })
+    expect(
+      await screen.findByRole('menuitem', { name: /disable user/i })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('menuitem', { name: /delete/i })
+    ).not.toBeInTheDocument()
+    fireEvent.keyDown(editorActions, { key: 'Escape' })
+
+    // Maintainer holds users.invite -> "Add user" IS offered (unlike the old admin-only gate),
+    // and its role options are capped strictly below maintainer's own rank.
+    fireEvent.click(screen.getByRole('button', { name: /add user/i }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('combobox', { name: /role/i }))
+    expect(
+      await screen.findByRole('option', { name: /editor/i })
+    ).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /author/i })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('option', { name: /maintainer/i })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('option', { name: /^admin/i })
     ).not.toBeInTheDocument()
   })
 
@@ -668,6 +772,222 @@ describe('UsersScreen', () => {
           email: 'editor@setu.dev',
           password: 'a-very-long-password',
           role: 'editor'
+        })
+      )
+    })
+  })
+
+  // #364: the row-action trigger for "Send password reset email" — gated on the target being
+  // outranked, having a credential account (nothing to reset otherwise), and the workspace's email
+  // transport actually being able to deliver (apps/api/src/capabilities.ts's `email.deliverable`).
+  describe('reset password email action', () => {
+    it('sends a reset email for an outranked row with a credential account, when email is deliverable', async () => {
+      mockListUsers.mockResolvedValue({
+        data: { users: [OWNER, EDITOR], total: 2 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({
+        data: [{ id: 'a1', providerId: 'credential' }],
+        error: null
+      })
+      stubCredentialStatus(
+        { 'owner-1': true, 'editor-1': true },
+        { transport: 'console', deliverable: true }
+      )
+      mockRequestPasswordReset.mockResolvedValue({
+        data: { status: true, message: '' },
+        error: null
+      })
+
+      renderAsActor('admin', 'owner-1')
+      await screen.findByText('Eve Editor')
+
+      fireEvent.keyDown(
+        screen.getByRole('button', { name: /more actions for eve editor/i }),
+        { key: 'Enter' }
+      )
+      fireEvent.click(
+        await screen.findByRole('menuitem', {
+          name: /send password reset email/i
+        })
+      )
+
+      await waitFor(() =>
+        expect(mockRequestPasswordReset).toHaveBeenCalledWith({
+          email: 'editor@setu.dev',
+          redirectTo: `${window.location.origin}/reset-password`
+        })
+      )
+      expect(
+        await screen.findByText(
+          /password reset email sent to editor@setu\.dev/i
+        )
+      ).toBeInTheDocument()
+    })
+
+    it('renders the reset item disabled with the honest capability tooltip when email is not deliverable', async () => {
+      mockListUsers.mockResolvedValue({
+        data: { users: [OWNER, EDITOR], total: 2 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({
+        data: [{ id: 'a1', providerId: 'credential' }],
+        error: null
+      })
+      stubCredentialStatus(
+        { 'owner-1': true, 'editor-1': true },
+        { transport: 'console', deliverable: false }
+      )
+
+      renderAsActor('admin', 'owner-1')
+      await screen.findByText('Eve Editor')
+
+      fireEvent.keyDown(
+        screen.getByRole('button', { name: /more actions for eve editor/i }),
+        { key: 'Enter' }
+      )
+      const item = await screen.findByRole('menuitem', {
+        name: /send password reset email/i
+      })
+      expect(item).toHaveAttribute('aria-disabled', 'true')
+      expect(mockRequestPasswordReset).not.toHaveBeenCalled()
+    })
+
+    it('hides the reset item entirely for a row with no credential account', async () => {
+      mockListUsers.mockResolvedValue({
+        data: { users: [OWNER, EDITOR], total: 2 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({
+        data: [{ id: 'a1', providerId: 'credential' }],
+        error: null
+      })
+      // Only the owner has a credential account; editor is absent -> passwordless, nothing to reset.
+      stubCredentialStatus({ 'owner-1': true })
+
+      renderAsActor('admin', 'owner-1')
+      await screen.findByText('Eve Editor')
+
+      fireEvent.keyDown(
+        screen.getByRole('button', { name: /more actions for eve editor/i }),
+        { key: 'Enter' }
+      )
+      expect(
+        screen.queryByRole('menuitem', { name: /send password reset email/i })
+      ).not.toBeInTheDocument()
+    })
+
+    it('is never offered on a row with an unrecognized role, even for an admin (fail-closed on unknown targets)', async () => {
+      mockListUsers.mockResolvedValue({
+        data: { users: [OWNER, UNKNOWN_ROLE_USER], total: 2 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({
+        data: [{ id: 'a1', providerId: 'credential' }],
+        error: null
+      })
+      stubCredentialStatus({ 'owner-1': true, 'legacy-1': true })
+
+      renderAsActor('admin', 'owner-1')
+      await screen.findByText('Lena Legacy')
+
+      // Admin still gets the row's actions menu (repair path — see the rank-parity tests below),
+      // but the reset item is hidden: `outranks` would treat the unknown role as rank 0 ("always
+      // outranked"), so it is additionally gated on the role being a KNOWN one.
+      fireEvent.keyDown(
+        screen.getByRole('button', { name: /more actions for lena legacy/i }),
+        { key: 'Enter' }
+      )
+      expect(
+        await screen.findByRole('menuitem', { name: /disable user/i })
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('menuitem', { name: /send password reset email/i })
+      ).not.toBeInTheDocument()
+    })
+
+    it('is never offered on a row the actor does not outrank (maintainer viewing a peer maintainer)', async () => {
+      mockListUsers.mockResolvedValue({
+        data: { users: [MAINTAINER_USER], total: 1 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({ data: [], error: null })
+      stubCredentialStatus({ 'maint-2': true })
+
+      renderAsActor('maintainer', 'maint-1')
+      await screen.findByText('Mo Maintainer')
+
+      // The whole row is read-only for a non-outranked target — no actions menu at all, so the
+      // reset item can't appear either.
+      expect(
+        screen.queryByRole('button', {
+          name: /more actions for mo maintainer/i
+        })
+      ).not.toBeInTheDocument()
+    })
+  })
+
+  // #364 review fix: UI↔server parity for rows with an unrecognized role string. The server's
+  // rank guard (packages/auth/src/rank-guard.ts, rankGuardUpdateHook) forbids a NON-admin actor
+  // from touching an unknown-role target (`targetRank <= 0` -> forbidden) but returns early for an
+  // admin actor BEFORE that check — admin can act on such rows (that's the only way to repair a
+  // legacy role). The UI must mirror both halves so a maintainer never sees a control that 403s.
+  describe('unknown-role rows (fail-closed parity with the server rank guard)', () => {
+    it('maintainer sees an unknown-role row read-only (no role select, no actions menu)', async () => {
+      mockListUsers.mockResolvedValue({
+        data: { users: [EDITOR, UNKNOWN_ROLE_USER], total: 2 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({ data: [], error: null })
+      stubCredentialStatus({ 'editor-1': true, 'legacy-1': true })
+
+      renderAsActor('maintainer', 'maint-1')
+      await screen.findByText('Lena Legacy')
+
+      expect(
+        screen.queryByRole('combobox', { name: /change role for lena legacy/i })
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /more actions for lena legacy/i })
+      ).not.toBeInTheDocument()
+      // Sanity: the below-rank editor row on the same roster IS actionable, so the read-only
+      // rendering above is the unknown-role gate, not a broken roster.
+      expect(
+        screen.getByRole('combobox', { name: /change role for eve editor/i })
+      ).toBeInTheDocument()
+    })
+
+    it('admin can manage an unknown-role row (the repair path the server allows)', async () => {
+      mockListUsers.mockResolvedValue({
+        data: { users: [OWNER, UNKNOWN_ROLE_USER], total: 2 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({
+        data: [{ id: 'a1', providerId: 'credential' }],
+        error: null
+      })
+      stubCredentialStatus({ 'owner-1': true, 'legacy-1': true })
+      mockSetRole.mockResolvedValue({
+        data: { user: { ...UNKNOWN_ROLE_USER, role: 'author' } },
+        error: null
+      })
+
+      renderAsActor('admin', 'owner-1')
+      await screen.findByText('Lena Legacy')
+
+      // The role Select is ENABLED (unknown current role is repairable), offering the below-rank
+      // options; picking one calls setRole — the exact server route admin is exempted on.
+      const legacySelect = screen.getByRole('combobox', {
+        name: /change role for lena legacy/i
+      })
+      expect(legacySelect).not.toBeDisabled()
+      fireEvent.click(legacySelect)
+      fireEvent.click(await screen.findByRole('option', { name: /^author$/i }))
+
+      await waitFor(() =>
+        expect(mockSetRole).toHaveBeenCalledWith({
+          userId: 'legacy-1',
+          role: 'author'
         })
       )
     })

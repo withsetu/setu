@@ -15,7 +15,7 @@ const draft = (over: Partial<Draft>): Draft => ({
   updatedAt: 1,
   ...over
 })
-const noDeploy = () => null
+const noDeploy = { deployedSha: null, changed: [] }
 
 describe('listContentEntries — tags', () => {
   it('reads + normalizes + dedupes tags from a draft', () => {
@@ -26,7 +26,7 @@ describe('listContentEntries — tags', () => {
         })
       ],
       committed: [],
-      deployedAt: noDeploy
+      deploy: noDeploy
     })
     expect(rows[0]!.tags).toEqual(['react', 'next-js'])
   })
@@ -41,7 +41,7 @@ describe('listContentEntries — tags', () => {
     const rows = listContentEntries({
       drafts: [],
       committed,
-      deployedAt: noDeploy
+      deploy: noDeploy
     })
     expect(rows[0]!.tags).toEqual(['vue'])
   })
@@ -50,7 +50,7 @@ describe('listContentEntries — tags', () => {
     const rows = listContentEntries({
       drafts: [draft({ metadata: { title: 'P', tags: 'notarray' } })],
       committed: [],
-      deployedAt: noDeploy
+      deploy: noDeploy
     })
     expect(rows[0]!.tags).toEqual([])
   })

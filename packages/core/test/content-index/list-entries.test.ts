@@ -36,7 +36,7 @@ function committedFor(d: Draft): string {
   })
 }
 
-const noDeploy = () => null
+const noDeploy = { deployedSha: null, changed: [] }
 
 describe('listContentEntries', () => {
   it('draft-only entry → one row, Draft (git empty), updatedAt set, hasDraft true', () => {
@@ -49,7 +49,7 @@ describe('listContentEntries', () => {
     const rows = listContentEntries({
       drafts: [d],
       committed: [],
-      deployedAt: noDeploy
+      deploy: noDeploy
     })
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({
@@ -71,7 +71,7 @@ describe('listContentEntries', () => {
     const rows = listContentEntries({
       drafts: [],
       committed: [{ ref, content: committed }],
-      deployedAt: noDeploy
+      deploy: noDeploy
     })
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({
@@ -97,7 +97,7 @@ describe('listContentEntries', () => {
           content: committedFor(d)
         }
       ],
-      deployedAt: noDeploy
+      deploy: noDeploy
     })
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({
@@ -115,7 +115,7 @@ describe('listContentEntries', () => {
     const rows = listContentEntries({
       drafts: [],
       committed: [{ ref, content: committed }],
-      deployedAt: (p) => (p === 'content/post/en/ghost.mdoc' ? committed : null)
+      deploy: { deployedSha: 'deployed-sha', changed: [] }
     })
     expect(rows[0]?.lifecycle).toEqual({ state: 'live' })
   })
@@ -126,7 +126,7 @@ describe('listContentEntries', () => {
     const rows = listContentEntries({
       drafts: [],
       committed: [{ ref, content: committed }],
-      deployedAt: noDeploy
+      deploy: noDeploy
     })
     expect(rows[0]?.title).toBe('untitled')
   })
@@ -146,7 +146,7 @@ describe('listContentEntries', () => {
           content: serializeMdoc({ frontmatter: { title: 'B' }, body: 'b' })
         }
       ],
-      deployedAt: noDeploy
+      deploy: noDeploy
     })
     expect(rows.map((r) => r.ref.slug).sort()).toEqual(['a', 'b'])
   })
@@ -166,7 +166,7 @@ describe('listContentEntries', () => {
           content: serializeMdoc({ frontmatter: { title: 'C' }, body: 'c' })
         } // committed-only
       ],
-      deployedAt: noDeploy
+      deploy: noDeploy
     })
     // drafts first in their input order (b, a), then committed-only (c); no dup of a
     expect(rows.map((r) => r.ref.slug)).toEqual(['b', 'a', 'c'])
@@ -189,7 +189,7 @@ describe('listContentEntries', () => {
     const rows = listContentEntries({
       drafts: [d],
       committed: [{ ref, content: committed }],
-      deployedAt: noDeploy
+      deploy: noDeploy
     })
     expect(rows[0]?.title).toBe('Real Title')
   })

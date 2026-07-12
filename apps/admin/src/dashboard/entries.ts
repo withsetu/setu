@@ -1,4 +1,11 @@
-import type { ContentRow, DataPort, EntryRef, GitPort, Lock } from '@setu/core'
+import type {
+  ContentRow,
+  DataPort,
+  DeployInfo,
+  EntryRef,
+  GitPort,
+  Lock
+} from '@setu/core'
 import { listContentEntries, parseContentPath } from '@setu/core'
 
 const DEFAULT_COLLECTIONS = ['post', 'page']
@@ -6,7 +13,7 @@ const DEFAULT_COLLECTIONS = ['post', 'page']
 export async function loadDashboardEntries(
   data: DataPort,
   git: GitPort,
-  deployedAt: (path: string) => string | null,
+  deploy: DeployInfo,
   collections: string[] = DEFAULT_COLLECTIONS
 ): Promise<ContentRow[]> {
   const all: ContentRow[] = []
@@ -19,7 +26,7 @@ export async function loadDashboardEntries(
       const content = await git.readFile(p)
       if (content !== null) committed.push({ ref, content })
     }
-    all.push(...listContentEntries({ drafts, committed, deployedAt }))
+    all.push(...listContentEntries({ drafts, committed, deploy }))
   }
   return all.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
 }

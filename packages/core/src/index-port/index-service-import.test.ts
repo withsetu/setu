@@ -26,7 +26,7 @@ function serviceWith(git: ReturnType<typeof spyGit>['git']) {
     data: createMemoryDataPort(),
     git,
     index: createMemoryIndexPort(),
-    deployedAt: () => null
+    deploy: () => ({ deployedSha: null, changed: [] })
   })
 }
 

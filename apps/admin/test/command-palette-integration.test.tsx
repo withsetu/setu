@@ -9,7 +9,12 @@ import { AppShell } from '../src/shell/AppShell'
 // Mock useDeploy — the real DeployProvider depends on ServicesProvider which is heavy.
 const mockDeploy = vi.fn(() => Promise.resolve())
 vi.mock('../src/deploy/deploy', () => ({
-  useDeploy: () => ({ deployedAt: () => null, sha: null, deploy: mockDeploy })
+  useDeploy: () => ({
+    status: null,
+    deployInfo: () => ({ deployedSha: null, changed: [] }),
+    refresh: () => Promise.resolve(),
+    rebuild: mockDeploy
+  })
 }))
 
 // jsdom stubs required by cmdk / Radix (same as CommandPalette.test.tsx):

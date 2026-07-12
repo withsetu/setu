@@ -20,9 +20,10 @@ import { UsersScreen } from '../src/screens/users/UsersScreen'
 
 vi.mock('../src/deploy/deploy', () => ({
   useDeploy: () => ({
-    deployedAt: () => null,
-    sha: null,
-    deploy: () => Promise.resolve()
+    status: null,
+    deployInfo: () => ({ deployedSha: null, changed: [] }),
+    refresh: () => Promise.resolve(),
+    rebuild: () => Promise.resolve()
   })
 }))
 
@@ -70,9 +71,11 @@ function renderSidebar(role: 'admin' | 'editor' | 'author') {
   return render(
     <MemoryRouter initialEntries={['/dashboard']}>
       <ActorProvider actor={{ id: 'u1', role }}>
-        <SidebarProvider>
-          <AppSidebar />
-        </SidebarProvider>
+        <NotificationProvider>
+          <SidebarProvider>
+            <AppSidebar />
+          </SidebarProvider>
+        </NotificationProvider>
       </ActorProvider>
     </MemoryRouter>
   )

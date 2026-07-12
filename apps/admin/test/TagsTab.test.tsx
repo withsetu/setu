@@ -26,9 +26,10 @@ import { TagsTab } from '../src/screens/taxonomies/TagsTab'
 vi.mock('../src/deploy/deploy', async (orig) => ({
   ...(await orig()),
   useDeploy: () => ({
-    deployedAt: () => null,
-    sha: null,
-    deploy: () => Promise.resolve()
+    status: null,
+    deployInfo: () => ({ deployedSha: null, changed: [] }),
+    refresh: () => Promise.resolve(),
+    rebuild: () => Promise.resolve()
   })
 }))
 
@@ -70,7 +71,7 @@ async function makeWrapper() {
     data,
     git,
     index: indexPort,
-    deployedAt: () => null
+    deploy: () => ({ deployedSha: null, changed: [] })
   })
   await idx.rebuild()
 
@@ -225,7 +226,7 @@ describe('TagsTab', () => {
       data,
       git,
       index: indexPort,
-      deployedAt: () => null
+      deploy: () => ({ deployedSha: null, changed: [] })
     })
     await idx.rebuild()
     const services = servicesFor(data, git, indexPort)

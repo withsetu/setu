@@ -17,9 +17,10 @@ import { Taxonomies } from '../src/screens/taxonomies/Taxonomies'
 vi.mock('../src/deploy/deploy', async (orig) => ({
   ...(await orig()),
   useDeploy: () => ({
-    deployedAt: () => null,
-    sha: null,
-    deploy: () => Promise.resolve()
+    status: null,
+    deployInfo: () => ({ deployedSha: null, changed: [] }),
+    refresh: () => Promise.resolve(),
+    rebuild: () => Promise.resolve()
   })
 }))
 

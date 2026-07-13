@@ -1,22 +1,31 @@
 name: CI
 
 # Baseline quality gate — typecheck + tests + Playwright E2E.
-#   * On a PR: skip entirely for docs-only (markdown) changes; otherwise the `check` job
-#     runs only the packages changed since the merge-base with the base branch AND their
-#     dependents (turbo `...[<sha>]` affected filter, #271/#272), and the `e2e` job runs
-#     the PR browser lane (chromium + webkit-on-editor-specs + visual snapshots, #219).
-#   * On push to main + nightly cron: full unit suite AND the full E2E browser matrix
-#     (chromium + firefox + webkit on everything) as the post-merge/overnight safety net.
+#   * On a PR: skip entirely for docs-only (markdown) changes AND while the PR is a draft
+#     (#462 — the per-job `if` below; `ready_for_review` in the trigger fires the run the
+#     draft skipped). Otherwise the `check` job runs only the packages changed since the
+#     merge-base with the base branch AND their dependents (turbo `...[<sha>]` affected
+#     filter, #271/#272), and the `e2e` job runs the PR browser lane (chromium +
+#     webkit-on-editor-specs + visual snapshots, #219).
+#   * On push to main + WEEKLY cron + manual dispatch: full unit suite AND the full E2E
+#     browser matrix (chromium + firefox + webkit on everything). Push-to-main is the real
+#     post-merge safety net; the weekly cron just catches flaky/time/dep drift. (Was nightly —
+#     dropped to weekly to cut private-repo Actions minutes, #462.)
 # Foundation: #217 · Affected filtering: #271 · turbo task graph: #272 · E2E: #219 ·
-# CI epic: #216.
+# CI epic: #216 · cost: #462.
 
 on:
   pull_request:
+    # ready_for_review is needed so that marking a draft PR ready fires the CI run the draft
+    # skipped (the default types are opened/synchronize/reopened, which don't include it).
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
+  workflow_dispatch: # run the full suite + 3-browser E2E matrix on demand (e.g. before a big merge)
   schedule:
-    # Nightly full-matrix safety net (03:17 UTC — off the top-of-hour rush).
-    - cron: '17 3 * * *'
+    # Weekly full-matrix safety net (Mon 03:17 UTC). Push-to-main already runs the full matrix
+    # on every merge, so main is always covered; this weekly run just catches drift (#462).
+    - cron: '17 3 * * 1'
 
 # Cancel superseded runs on the same branch/PR so only the latest commit is checked.
 concurrency:
@@ -27,6 +36,10 @@ jobs:
   check:
     name: typecheck + test
     runs-on: ubuntu-latest
+    # Skip while the PR is a draft (#462 — saves the expensive run until it's ready). Non-PR
+    # events (push/schedule/workflow_dispatch) have no `pull_request` context, so the first
+    # clause keeps them running; only a draft PR is skipped.
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
         with:
@@ -194,6 +207,8 @@ jobs:
     name: e2e (playwright)
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    # Same draft-skip as `check` (#462).
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
         with:

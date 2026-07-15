@@ -79,12 +79,15 @@ test.describe('author saves drafts, cannot touch live posts', () => {
       // opens 3 IDB databases — drafts, content index, media index — sequentially before
       // services are ready), plus a cold content-index `rebuild()`: a full
       // `git.list('content/')` walk with one `git/file` HTTP round trip per entry
-      // (index-service.ts). Direct network/timing inspection confirmed the list always
-      // populates correctly (never a logic bug) but past the default 5s expect timeout —
+      // (index-service.ts). The generous timeout covers that genuine rebuild latency —
       // this codebase's own multi-worktree dev-server load made it visibly variable, up
-      // to several seconds. A generous explicit timeout (not a fixed sleep) is the right
+      // to several seconds — and an explicit timeout (not a fixed sleep) is the right
       // tool for this one genuinely-cold path; every other list-visibility check in this
       // file runs against an already-warmed default context and needs no such margin.
+      // NOTE: the permanently-empty variant of this failure WAS a real logic bug — a
+      // races-on-rebuild in createIndexService (a concurrent rebuild's clear() landing
+      // between another build's upsertMany() and the first query), fixed in core for
+      // #483 with concurrent-ensureBuilt coalescing + writer serialization.
       await expect(adminList.rowLink(title)).toBeVisible({ timeout: 20_000 })
     } finally {
       await adminContext.close()

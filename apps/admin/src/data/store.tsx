@@ -77,6 +77,12 @@ export interface Services {
   bulk: BulkService
   mediaIndex: MediaIndexService
   submissions: SubmissionPort
+  /** Set when the admin runs against a server API (#464 Increment B): the base
+   *  URL the server-backed index reads through. Its presence flips
+   *  IndexProvider to createHttpIndexService (the IndexPort above then serves
+   *  as a stale-while-offline cache instead of the authoritative index).
+   *  Absent in the all-IDB (no-API) topology — nothing changes there. */
+  apiBase?: string
 }
 
 /** Build the in-browser services bundle around a DataPort + GitPort. The index
@@ -89,7 +95,8 @@ export function servicesFor(
     mediaIndex: createMemoryMediaIndexPort(),
     fetchRaw: async () => []
   }),
-  submissions: SubmissionPort = createMemorySubmissionPort()
+  submissions: SubmissionPort = createMemorySubmissionPort(),
+  apiBase?: string
 ): Services {
   const read = createReadService({
     data,
@@ -105,7 +112,8 @@ export function servicesFor(
     publish: createPublishService({ data, git }),
     bulk: createBulkService({ data, git, read, author: OWNER_AUTHOR }),
     mediaIndex,
-    submissions
+    submissions,
+    ...(apiBase !== undefined ? { apiBase } : {})
   }
 }
 
@@ -129,9 +137,17 @@ export async function bootstrapServices(
   git: GitPort,
   index?: IndexPort,
   mediaIndex?: MediaIndexService,
-  submissions?: SubmissionPort
+  submissions?: SubmissionPort,
+  apiBase?: string
 ): Promise<Services> {
-  const services = servicesFor(data, git, index, mediaIndex, submissions)
+  const services = servicesFor(
+    data,
+    git,
+    index,
+    mediaIndex,
+    submissions,
+    apiBase
+  )
   await seedIfEmpty(services)
   return services
 }

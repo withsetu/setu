@@ -8,11 +8,13 @@ import {
   createMemoryMediaIndexPort
 } from '@setu/db-memory'
 import { createMemoryGitPort } from '@setu/git-memory'
-import { createMediaIndexService } from '@setu/core'
+import { createMediaIndexService, INDEX_VERSION } from '@setu/core'
 import type { MediaRecord, EntryIndexRow } from '@setu/core'
 import { ActorProvider } from '../src/auth/actor'
 import { ServicesProvider, servicesFor } from '../src/data/store'
 import { MediaIndexProvider } from '../src/data/media-index-store'
+import { DeployProvider } from '../src/deploy/deploy'
+import { IndexProvider } from '../src/data/index-store'
 import { NotificationProvider } from '../src/ui/notify'
 import { Media } from '../src/screens/Media'
 
@@ -87,9 +89,12 @@ const catRef: EntryIndexRow = {
 
 /** Build providers seeded with `catRecord` and a content index row referencing it. */
 async function buildProviders() {
-  // Content index port seeded with a row that references the cat image
+  // Content index port seeded with a row that references the cat image; meta
+  // marked built so IndexProvider's mount-time ensureBuilt (Media now reads
+  // referencedBy through useIndex(), #464) doesn't rebuild over the seed.
   const indexPort = createMemoryIndexPort()
   await indexPort.upsert(catRef)
+  await indexPort.setMeta({ indexedSha: null, version: INDEX_VERSION })
 
   // Media index service seeded with catRecord
   const mediaIndexPort = createMemoryMediaIndexPort()
@@ -119,9 +124,13 @@ function wrapper(
       <MemoryRouter>
         <ActorProvider>
           <ServicesProvider services={services}>
-            <MediaIndexProvider service={mediaIndex}>
-              <NotificationProvider>{children}</NotificationProvider>
-            </MediaIndexProvider>
+            <DeployProvider>
+              <IndexProvider>
+                <MediaIndexProvider service={mediaIndex}>
+                  <NotificationProvider>{children}</NotificationProvider>
+                </MediaIndexProvider>
+              </IndexProvider>
+            </DeployProvider>
           </ServicesProvider>
         </ActorProvider>
       </MemoryRouter>

@@ -10,7 +10,7 @@ import {
 } from '../media/MediaBrowser'
 import type { MediaFilters } from '../media/MediaBrowser'
 import { useMediaIndex } from '../data/media-index-store'
-import { useServices } from '../data/store'
+import { useIndex } from '../data/index-store'
 import { deleteMedia } from '../media/media-client'
 import { resolveMediaSrc } from '../editor/media-src'
 import type { UploadResult } from '../media/upload-client'
@@ -43,7 +43,10 @@ function humanSize(bytes: number): string {
 
 export function Media() {
   const mediaIndex = useMediaIndex()
-  const { index } = useServices()
+  // Through the IndexService (not the raw IndexPort): in the server-backed
+  // topology the port is only a partial cache — usage truth lives behind
+  // /api/index/referenced-by, plus this browser's draft overlay (#464).
+  const index = useIndex()
   const notify = useNotify()
   const [params, setParams] = useSearchParams()
   const [selected, setSelected] = useState<MediaIndexRow | null>(null)

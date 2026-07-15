@@ -41,7 +41,7 @@ jobs:
     # clause keeps them running; only a draft PR is skipped.
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Full history so the affected filter can diff against the base branch.
           fetch-depth: 0
@@ -223,7 +223,7 @@ jobs:
     # Same draft-skip as `check` (#462).
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Full history for the docs-only check (merge-base diff, same as `check`).
           fetch-depth: 0

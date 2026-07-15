@@ -26,7 +26,7 @@ const NO_PROVIDERS_NO_CAPTCHA: AuthCaps = {
   needsSetup: false
 }
 
-function stubCapabilities(auth: AuthCaps) {
+function stubCapabilities(auth: AuthCaps, mode?: string) {
   vi.stubGlobal(
     'fetch',
     vi.fn(
@@ -38,7 +38,8 @@ function stubCapabilities(auth: AuthCaps) {
               writableMediaStore: true,
               backgroundJobs: true
             },
-            auth
+            auth,
+            ...(mode ? { mode } : {})
           }),
           { status: 200 }
         )
@@ -254,5 +255,19 @@ describe('LoginScreen', () => {
     )
 
     delete (window as unknown as { turnstile?: unknown }).turnstile
+  })
+
+  // #386 follow-up (owner UAT 2026-07-15): the login screen carries NO recovery hint in any
+  // mode — the login-link recovery path is documented and mentioned in the logout guard
+  // dialog instead, keeping the sign-in card clean.
+  it('never shows a login-link hint, in local mode included', async () => {
+    stubCapabilities(NO_PROVIDERS_NO_CAPTCHA, 'local')
+    render(<LoginScreen />)
+
+    await screen.findByLabelText(/email/i)
+    expect(
+      screen.queryByText(/on the machine running setu\?/i)
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('pnpm auth:login-link')).not.toBeInTheDocument()
   })
 })

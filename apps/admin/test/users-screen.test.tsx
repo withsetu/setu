@@ -19,6 +19,7 @@ import { ActorProvider } from '../src/auth/actor'
 import { NotificationProvider } from '../src/ui/notify'
 import { UsersScreen } from '../src/screens/users/UsersScreen'
 import { authClient } from '../src/auth/auth-client'
+import { resetHasPasswordStoreForTests } from '../src/auth/use-has-password'
 
 // Radix Select/DropdownMenu/Tooltip call scrollIntoView / use PointerEvent APIs jsdom lacks.
 beforeAll(() => {
@@ -199,6 +200,9 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+  // useHasPassword caches across instances by design — reset so each test's mocked
+  // listAccounts answer is actually consulted.
+  resetHasPasswordStoreForTests()
 })
 
 describe('UsersScreen', () => {

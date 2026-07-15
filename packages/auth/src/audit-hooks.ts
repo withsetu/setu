@@ -23,6 +23,16 @@ import type { AuthEvent } from './events'
  *    self-service "logout", so the same path-gating discipline applies. `session` (the hook's
  *    1st arg) is the full deleted session row (fetched by `deleteWithHooks` BEFORE the delete),
  *    carrying `userId`.
+ *
+ *    #386: the event carries `meta: { passwordless: 'true' }` when the signing-out user has NO
+ *    `account` row with `providerId === 'credential'` (e.g. a local-mode owner created by
+ *    ensureLocalOwner, whose only way back in is the loopback handshake) — the audit trail's
+ *    signal that this logout may be a lockout. Queried via `context.context.adapter.count`, the
+ *    same request-scoped adapter access last-owner-guard.ts derives and documents in depth. The
+ *    query runs AFTER the session delete, but sign-out never touches `account` rows, so the
+ *    count is accurate. Absent (not 'false') for users who DO hold a credential account. On a
+ *    query failure the event still fires, just without the meta — an audit emitter must never
+ *    become the thing that breaks (or silences) sign-out.
  *  - `role.changed` / `user.banned` / `user.unbanned` -> `databaseHooks.user.update.after`, path-
  *    dispatched exactly like last-owner-guard.ts's `before` hook (`/admin/set-role`,
  *    `/admin/ban-user`, `/admin/unban-user`, and — mirroring last-owner-guard.ts's
@@ -79,7 +89,25 @@ export function sessionDeleteAfterHook(emit: (e: AuthEvent) => void) {
     context: GenericEndpointContext | null
   ): Promise<void> => {
     if (context?.path !== '/sign-out') return
-    emit({ type: 'logout', targetId: session.userId })
+    // #386: flag passwordless sign-outs (no credential account row) — see the module doc.
+    let passwordless = false
+    try {
+      const credentialAccounts = await context.context.adapter.count({
+        model: 'account',
+        where: [
+          { field: 'userId', value: session.userId },
+          { field: 'providerId', value: 'credential', connector: 'AND' }
+        ]
+      })
+      passwordless = credentialAccounts === 0
+    } catch {
+      // Query failure must not block or silence the logout event — emit without the meta.
+    }
+    emit({
+      type: 'logout',
+      targetId: session.userId,
+      ...(passwordless ? { meta: { passwordless: 'true' } } : {})
+    })
   }
 }
 

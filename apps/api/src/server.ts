@@ -28,7 +28,7 @@ import {
 import { createConsoleEmailAdapter } from '@setu/email-console'
 import { createResendEmailAdapter } from '@setu/email-resend'
 import { renderSubmissionEmail } from '@setu/email-templates'
-import { createAuth, ensureLocalOwner, type AuthEvent } from '@setu/auth'
+import { createAuth, type AuthEvent } from '@setu/auth'
 import { createGitApi } from './app'
 import { createPreviewApi } from './preview'
 import { createUploadApi } from './media'
@@ -70,6 +70,7 @@ import {
   resolveRateLimitOverrides
 } from './config'
 import { resolveGitIdentity } from './auth/git-identity'
+import { buildLocalTokenOptions } from './local-token'
 import { mountAuthWithFailureEvents } from './auth/login-failure-events'
 import { apiOnError } from './errors'
 import { securityHeaders } from './security-headers'
@@ -163,44 +164,25 @@ const submissions = createSqliteSubmissionPort(submissionsDb)
 const authDb = openSqliteDb(submissionsDb)
 const baseURL = process.env.SETU_BASE_URL ?? `http://localhost:${port}`
 
-// Loopback token handshake (local topology only, #248 Task 4): the process that boots the api
-// mints a ONE-TIME token; the admin exchanges it at POST /api/auth/local/exchange (see
-// @setu/auth's localToken plugin) for a completely normal Better Auth session. Module state here
-// holds the token — this is boot-scoped, per-process state by design (a fresh token every
-// restart), not persisted anywhere.
-//
-// `getToken()` reflects a stable topology-level fact ("local-token capability exists"), so it
-// keeps returning the same token for the process lifetime — it is NOT how single-use is
-// enforced. Single-use is the plugin's own job (its guard order returns 404 only when getToken()
-// is null, and 401 for an already-consumed token — conflating the two would make "wrong
-// topology" indistinguishable from "already used"). `consume()` here is a no-op hook for future
-// observability (e.g. logging that the handshake completed); the token remains fixed.
-//
-// `localUserId` calls `ensureLocalOwner(auth, identity)` (#248 Task 7) — but `auth` doesn't exist
-// yet at this point (createAuth itself takes `localToken` as an option, below). `getAuth` is a
-// forward reference assigned once `auth` is constructed a few lines down; `localUserId` is only
-// ever invoked per-request (on an actual exchange POST), by which time boot has finished and
-// `getAuth()` is populated — never called during construction itself. `identity` is resolved once
-// here (not per-call) via `resolveGitIdentity`, matching "read git config once at boot" from the
-// task brief, not on every exchange attempt.
-function buildLocalTokenOptions(getAuth: () => ReturnType<typeof createAuth>) {
-  const token = randomBytes(32).toString('base64url')
-  const identity = resolveGitIdentity()
-  return {
-    token, // returned ONLY so the caller can log the one-time handoff URL below; never logged elsewhere.
-    getToken: () => token,
-    consume: () => {},
-    localUserId: (): Promise<string> => ensureLocalOwner(getAuth(), identity)
-  }
-}
-
 const mode = resolveSetuMode(process.env)
 // Forward reference: `authRef` is read inside the localToken closure (built just below) but only
 // assigned once `auth` exists further down — a deliberate `let`, not a reassign-once const case.
 // eslint-disable-next-line prefer-const
 let authRef: ReturnType<typeof createAuth> | undefined
+// Loopback token handshake provider (local topology only, #248 Task 4; rotation + self-healing
+// persistence #386) — the full contract (synchronous rotation, `.setu/handshake-url` persistence,
+// getToken-retries-failed-persist) lives on buildLocalTokenOptions in ./local-token. `identity`
+// is resolved once here via `resolveGitIdentity`, matching "read git config once at boot" from
+// the task brief, not on every exchange attempt.
 const localToken =
-  mode === 'local' ? buildLocalTokenOptions(() => authRef!) : undefined
+  mode === 'local'
+    ? buildLocalTokenOptions({
+        dir,
+        adminOrigin,
+        getAuth: () => authRef!,
+        identity: resolveGitIdentity()
+      })
+    : undefined
 
 // Fail-closed boot degradation (#248 Task 5). resolveAuthSecret returns null in non-local mode
 // with no SETU_AUTH_SECRET set — NOT a thrown boot error (that was Task 3's behavior; see the
@@ -503,8 +485,11 @@ console.log(
 if (localToken) {
   // The ONE place the token is ever logged — this is the intended handoff channel to the admin.
   // Never log the token (or this URL) anywhere else. (adminOrigin is the shared const near the
-  // top of this file.)
+  // top of this file.) `localToken.token` is the boot-initial token; after any exchange the
+  // CURRENT URL lives in `.setu/handshake-url` (#386), persisted here at boot and rewritten on
+  // every rotation — local mode only (localToken is undefined in every other mode).
   console.log(`Admin handshake: ${adminOrigin}/#setu-token=${localToken.token}`)
+  localToken.persistUrl()
 }
 if (setupToken !== null) {
   // The ONE place the setup token is ever logged — the intended handoff channel to whoever is

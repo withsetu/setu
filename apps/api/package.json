@@ -11,6 +11,7 @@
   "scripts": {
     "dev": "SETU_MODE=local tsx watch src/server.ts",
     "start": "tsx src/server.ts",
+    "auth:reset-password": "tsx src/scripts/reset-password.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

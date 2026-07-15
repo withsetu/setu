@@ -10,6 +10,7 @@ import { NotificationProvider } from '../src/ui/notify'
 import { ServicesProvider, servicesFor } from '../src/data/store'
 import { AppSidebar } from '../src/shell/AppSidebar'
 import { UsersScreen } from '../src/screens/users/UsersScreen'
+import { resetHasPasswordStoreForTests } from '../src/auth/use-has-password'
 
 // #248: Users & Roles was promoted out of Settings to a first-class top-level screen/route
 // (/users). This replaces the old settings-shell-users-gate.test.tsx, which asserted the
@@ -65,6 +66,9 @@ afterEach(() => {
   // factory, not per-test — restoreAllMocks would wipe them back to bare vi.fn()s with no
   // implementation, breaking every subsequent test in this file.
   vi.clearAllMocks()
+  // useHasPassword caches across instances by design — reset so no test sees a previous
+  // test's cached answer.
+  resetHasPasswordStoreForTests()
 })
 
 function renderSidebar(role: 'admin' | 'editor' | 'author') {

@@ -244,3 +244,26 @@ export function createAuth(opts: CreateAuthOptions) {
 }
 
 export type AuthInstance = ReturnType<typeof createAuth>
+
+/** Better-auth's internal context over an existing drizzle handle, for HOST-SIDE maintenance
+ *  tools that run with no server and no session — apps/api's `auth:reset-password` script and
+ *  e2e/lib/seed-users.ts. Both need exactly `$context`'s `internalAdapter` (user/account rows)
+ *  and `ctx.password.hash` (scrypt), so this helper owns the throwaway instance both used to
+ *  duplicate inline (#386 review).
+ *
+ *  secret/baseURL/trustedOrigins are required by createAuth but irrelevant here: nothing this
+ *  context is used for signs a session — scrypt hashing is secret-independent, so passwords
+ *  written through it verify unchanged under the REAL server's secret at `/sign-in/email`.
+ *  That's the whole trick: callers reuse the exact seeding path the server's own admin-invite
+ *  and `ensureLocalOwner` use (internalAdapter.createUser/linkAccount/updatePassword), never a
+ *  parallel auth system or hand-forged rows. */
+export function openInternalAuthContext(
+  db: CreateAuthOptions['db']
+): AuthInstance['$context'] {
+  return createAuth({
+    db,
+    secret: 'internal-auth-context-never-signs-a-session',
+    baseURL: 'http://localhost:4444',
+    trustedOrigins: []
+  }).$context
+}

@@ -10,17 +10,19 @@
 // hosts this command exists for. Email is argv (it's not a secret).
 //
 // Runs through better-auth's own machinery — `openSqliteDb` (the same handle + migrations the
-// server uses), `createAuth` → `$context` → `internalAdapter` + `ctx.password.hash` (scrypt,
-// secret-independent) — the exact seeding path e2e/lib/seed-users.ts and the server's own
-// admin-invite use, so the running api verifies the new password unchanged. The upsert shape
-// (existing credential row → updatePassword, none → linkAccount) mirrors better-auth 1.6.23's
-// own reset-password callback route (dist/api/routes/password.mjs lines 150-158).
+// server uses), then `openInternalAuthContext` (@setu/auth — the shared host-side bootstrap this
+// script and e2e/lib/seed-users.ts both use) → `internalAdapter` + `ctx.password.hash` (scrypt,
+// secret-independent), the exact seeding path the server's own admin-invite uses, so the running
+// api verifies the new password unchanged. The upsert shape (existing credential row →
+// updatePassword, none → linkAccount) mirrors better-auth 1.6.23's own reset-password callback
+// route (dist/api/routes/password.mjs lines 150-158).
 
 import { existsSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 import { openSqliteDb } from '@setu/db-sqlite'
-import { createAuth, type AuthEvent } from '@setu/auth'
+import { openInternalAuthContext, type AuthEvent } from '@setu/auth'
 
 export interface ResetPasswordOptions {
   /** Path to the api's sqlite auth DB (the SETU_SUBMISSIONS_DB file). */
@@ -55,16 +57,9 @@ export async function resetPassword(
     )
   }
   const db = openSqliteDb(dbFile)
-  // secret/baseURL/trustedOrigins are required by createAuth but irrelevant here: we only touch
-  // internalAdapter (user/account rows) + password.hash (scrypt, secret-independent), neither of
-  // which signs a session — same rationale as e2e/lib/seed-users.ts.
-  const auth = createAuth({
-    db,
-    secret: 'reset-password-script-never-signs-a-session',
-    baseURL: 'http://localhost:4444',
-    trustedOrigins: []
-  })
-  const ctx = await auth.$context
+  // Shared host-side bootstrap (same one e2e/lib/seed-users.ts uses) — the throwaway
+  // secret/baseURL rationale lives on openInternalAuthContext itself.
+  const ctx = await openInternalAuthContext(db)
   // Enforce the SAME minimum better-auth's own password routes enforce — read from the built
   // context (`emailAndPassword.minPasswordLength || 8`, better-auth 1.6.23
   // dist/context/create-context.mjs line 185) rather than hardcoded, and checked BEFORE any
@@ -214,7 +209,20 @@ async function main(argv: string[]): Promise<void> {
   )
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+/** True when `metaUrl` (import.meta.url) is the module Node was launched with (`argv1`).
+ *  Compares FILESYSTEM PATHS via fileURLToPath — never a string-built `file://${argv1}` template,
+ *  which fails on any path with URL-special characters (a space becomes %20 in import.meta.url)
+ *  and would silently turn a direct run into a no-op exit 0 — the worst failure mode for a
+ *  recovery command. Same in-tree pattern as scripts/gen-blocks.mjs. */
+export function isDirectInvocation(
+  argv1: string | undefined,
+  metaUrl: string
+): boolean {
+  if (!argv1) return false
+  return resolve(argv1) === fileURLToPath(metaUrl)
+}
+
+if (isDirectInvocation(process.argv[1], import.meta.url)) {
   main(process.argv.slice(2)).catch((err: unknown) => {
     console.error(err instanceof Error ? err.message : String(err))
     process.exit(1)

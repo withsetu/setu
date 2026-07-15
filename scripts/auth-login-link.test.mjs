@@ -5,8 +5,9 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
+import { pathToFileURL } from 'node:url'
 
-import { readLoginLink } from './auth-login-link.mjs'
+import { isDirectInvocation, readLoginLink } from './auth-login-link.mjs'
 
 function makeRoot() {
   return mkdtempSync(path.join(tmpdir(), 'setu-login-link-'))
@@ -88,4 +89,35 @@ test('empty/whitespace-only file → same helpful error', () => {
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
+})
+
+// The direct-invocation guard compares FILESYSTEM PATHS, never string-built `file://` URLs: a
+// path with URL-special characters (a space is %20 inside import.meta.url) must still register
+// as a direct run — the naive `import.meta.url === `file://${argv1}`` template silently no-ops
+// (exit 0, nothing printed) on exactly those paths.
+test('isDirectInvocation: matches when argv[1] is the module, including URL-special paths', () => {
+  const plain = '/tmp/setu/auth-login-link.mjs'
+  assert.equal(isDirectInvocation(plain, pathToFileURL(plain).href), true)
+
+  const withSpace = '/tmp/my dir/auth-login-link.mjs'
+  const metaUrl = pathToFileURL(withSpace).href
+  assert.match(metaUrl, /%20/, 'fixture really exercises URL-encoding')
+  assert.equal(isDirectInvocation(withSpace, metaUrl), true)
+  // The old template comparison is exactly what this guard must NOT be.
+  assert.notEqual(metaUrl, `file://${withSpace}`)
+})
+
+test('isDirectInvocation: resolves a relative argv[1] against cwd', () => {
+  const abs = path.resolve('auth-login-link.mjs')
+  assert.equal(
+    isDirectInvocation('auth-login-link.mjs', pathToFileURL(abs).href),
+    true
+  )
+})
+
+test('isDirectInvocation: false for a different module or a missing argv[1]', () => {
+  const meta = pathToFileURL('/tmp/setu/auth-login-link.mjs').href
+  assert.equal(isDirectInvocation('/tmp/setu/other-script.mjs', meta), false)
+  assert.equal(isDirectInvocation(undefined, meta), false)
+  assert.equal(isDirectInvocation('', meta), false)
 })

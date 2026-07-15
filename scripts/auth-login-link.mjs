@@ -20,6 +20,7 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 import { sandboxPath } from './content-sandbox.mjs'
 
 /** Resolve and read the current handshake URL for the api rooted at/under `rootDir`.
@@ -67,4 +68,14 @@ function main() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main()
+/** True when `metaUrl` (import.meta.url) is the module Node was launched with (`argv1`).
+ *  Compares FILESYSTEM PATHS via fileURLToPath — never a string-built `file://${argv1}` template,
+ *  which fails on any path with URL-special characters (a space becomes %20 in import.meta.url)
+ *  and would silently turn a direct run into a no-op exit 0 — the worst failure mode for a
+ *  recovery command. Same in-tree pattern as gen-blocks.mjs. */
+export function isDirectInvocation(argv1, metaUrl) {
+  if (!argv1) return false
+  return path.resolve(argv1) === fileURLToPath(metaUrl)
+}
+
+if (isDirectInvocation(process.argv[1], import.meta.url)) main()

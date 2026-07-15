@@ -8,9 +8,14 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { openSqliteDb } from '@setu/db-sqlite'
 import { createAuth, type AuthEvent } from '@setu/auth'
-import { resetPassword, resolveDbFile } from '../src/scripts/reset-password'
+import {
+  isDirectInvocation,
+  resetPassword,
+  resolveDbFile
+} from '../src/scripts/reset-password'
 
 const NEW_PASSWORD = 'a-brand-new-password-123'
 const OLD_PASSWORD = 'the-previous-password-99'
@@ -202,5 +207,30 @@ describe('resolveDbFile', () => {
     const dir = mkdtempSync(join(tmpdir(), 'reset-password-cwd-'))
     cleanups.push(() => rmSync(dir, { recursive: true, force: true }))
     expect(resolveDbFile({}, dir)).toBe(join(dir, '.setu', 'submissions.db'))
+  })
+})
+
+// Direct-invocation guard (#386 review): the script must compare FILESYSTEM PATHS, never a
+// string-built `file://` template — `tsx src/scripts/reset-password.ts` from a checkout whose
+// path contains a space (or any URL-special char) would otherwise silently no-op with exit 0,
+// the worst possible failure mode for a recovery command. Same in-tree pattern as
+// scripts/gen-blocks.mjs; the .mjs twin is pinned in scripts/auth-login-link.test.mjs.
+describe('isDirectInvocation', () => {
+  it('matches when argv[1] is this module, including URL-encoded paths', () => {
+    const plain = '/tmp/setu/reset-password.ts'
+    expect(isDirectInvocation(plain, pathToFileURL(plain).href)).toBe(true)
+
+    const withSpace = '/tmp/my dir/reset-password.ts'
+    const metaUrl = pathToFileURL(withSpace).href
+    expect(metaUrl).toContain('%20') // the fixture really exercises URL-encoding
+    expect(isDirectInvocation(withSpace, metaUrl)).toBe(true)
+    // The naive template this replaces never matches an encoded URL.
+    expect(metaUrl).not.toBe(`file://${withSpace}`)
+  })
+
+  it('false for a different module or a missing argv[1]', () => {
+    const meta = pathToFileURL('/tmp/setu/reset-password.ts').href
+    expect(isDirectInvocation('/tmp/setu/other.ts', meta)).toBe(false)
+    expect(isDirectInvocation(undefined, meta)).toBe(false)
   })
 })

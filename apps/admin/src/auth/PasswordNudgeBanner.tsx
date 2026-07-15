@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { X } from 'lucide-react'
+import { TriangleAlert, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useDismissed } from '@/hooks/use-dismissed'
 import { useActor } from './actor'
@@ -31,14 +31,18 @@ export function PasswordNudgeBanner() {
   return (
     <div
       role="status"
-      className="flex shrink-0 items-center gap-3 border-b bg-muted/50 py-2 pr-2 pl-4 text-sm text-muted-foreground"
+      className="flex shrink-0 items-center gap-3 border-b border-amber-300/70 bg-amber-50 py-2 pr-2 pl-4 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-950/40 dark:text-amber-200"
     >
+      <TriangleAlert
+        aria-hidden
+        className="size-4 shrink-0 text-amber-600 dark:text-amber-500"
+      />
       <p className="min-w-0 flex-1">
         You haven't set a password — remote access is off and signing out will
         lock you out of this browser.{' '}
         <Link
           to="/users"
-          className="font-medium text-foreground underline underline-offset-4 hover:no-underline"
+          className="font-semibold underline underline-offset-4 hover:no-underline"
         >
           Set a password
         </Link>

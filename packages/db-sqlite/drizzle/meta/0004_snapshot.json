@@ -105,12 +105,8 @@
           "name": "account_user_id_user_id_fk",
           "tableFrom": "account",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -183,11 +179,7 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {
         "drafts_collection_locale_slug_pk": {
-          "columns": [
-            "collection",
-            "locale",
-            "slug"
-          ],
+          "columns": ["collection", "locale", "slug"],
           "name": "drafts_collection_locale_slug_pk"
         }
       },
@@ -285,11 +277,7 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {
         "locks_collection_locale_slug_pk": {
-          "columns": [
-            "collection",
-            "locale",
-            "slug"
-          ],
+          "columns": ["collection", "locale", "slug"],
           "name": "locks_collection_locale_slug_pk"
         }
       },
@@ -355,9 +343,7 @@
       "indexes": {
         "rate_limit_key_unique": {
           "name": "rate_limit_key_unique",
-          "columns": [
-            "key"
-          ],
+          "columns": ["key"],
           "isUnique": true
         }
       },
@@ -436,9 +422,7 @@
       "indexes": {
         "session_token_unique": {
           "name": "session_token_unique",
-          "columns": [
-            "token"
-          ],
+          "columns": ["token"],
           "isUnique": true
         }
       },
@@ -447,12 +431,8 @@
           "name": "session_user_id_user_id_fk",
           "tableFrom": "session",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -621,9 +601,7 @@
       "indexes": {
         "user_email_unique": {
           "name": "user_email_unique",
-          "columns": [
-            "email"
-          ],
+          "columns": ["email"],
           "isUnique": true
         }
       },

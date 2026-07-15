@@ -16,6 +16,11 @@ dist/
 !.claude/skills/
 !.claude/skills/**
 
+# Design-skill session artifacts (local working files, regenerated per session)
+.impeccable/
+apps/*/DESIGN.md
+apps/*/PRODUCT.md
+
 # Dev/UAT content sandboxes (gitignored throwaway git repos seeded from content/)
 .content-sandbox/
 

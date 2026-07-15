@@ -20,9 +20,10 @@ import type { CategoryNode } from '@setu/core'
 vi.mock('../src/deploy/deploy', async (orig) => ({
   ...(await orig()),
   useDeploy: () => ({
-    deployedAt: () => null,
-    sha: null,
-    deploy: () => Promise.resolve()
+    status: null,
+    deployInfo: () => ({ deployedSha: null, changed: [] }),
+    refresh: () => Promise.resolve(),
+    rebuild: () => Promise.resolve()
   })
 }))
 

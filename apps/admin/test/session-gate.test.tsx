@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { SessionGate } from '../src/auth/SessionGate'
 import { useActor } from '../src/auth/actor'
 import { authClient } from '../src/auth/auth-client'
@@ -81,9 +82,11 @@ describe('SessionGate', () => {
     })
 
     render(
-      <SessionGate>
-        <div>App</div>
-      </SessionGate>
+      <MemoryRouter>
+        <SessionGate>
+          <div>App</div>
+        </SessionGate>
+      </MemoryRouter>
     )
 
     expect(screen.queryByText('App')).not.toBeInTheDocument()
@@ -101,9 +104,11 @@ describe('SessionGate', () => {
     } as never)
 
     render(
-      <SessionGate>
-        <ActorProbe />
-      </SessionGate>
+      <MemoryRouter>
+        <SessionGate>
+          <ActorProbe />
+        </SessionGate>
+      </MemoryRouter>
     )
 
     await waitFor(() =>
@@ -122,9 +127,11 @@ describe('SessionGate', () => {
     } as never)
 
     render(
-      <SessionGate>
-        <ActorProbe />
-      </SessionGate>
+      <MemoryRouter>
+        <SessionGate>
+          <ActorProbe />
+        </SessionGate>
+      </MemoryRouter>
     )
 
     await waitFor(() =>
@@ -176,9 +183,11 @@ describe('SessionGate', () => {
     })
 
     render(
-      <SessionGate>
-        <ActorProbe />
-      </SessionGate>
+      <MemoryRouter>
+        <SessionGate>
+          <ActorProbe />
+        </SessionGate>
+      </MemoryRouter>
     )
 
     // The hash must be scrubbed BEFORE the exchange response resolves.
@@ -225,9 +234,11 @@ describe('SessionGate', () => {
     })
 
     render(
-      <SessionGate>
-        <div>App</div>
-      </SessionGate>
+      <MemoryRouter>
+        <SessionGate>
+          <div>App</div>
+        </SessionGate>
+      </MemoryRouter>
     )
 
     expect(
@@ -253,9 +264,11 @@ describe('SessionGate', () => {
     })
 
     render(
-      <SessionGate>
-        <div>App</div>
-      </SessionGate>
+      <MemoryRouter>
+        <SessionGate>
+          <div>App</div>
+        </SessionGate>
+      </MemoryRouter>
     )
 
     expect(
@@ -274,9 +287,11 @@ describe('SessionGate', () => {
     })
 
     render(
-      <SessionGate>
-        <div>App</div>
-      </SessionGate>
+      <MemoryRouter>
+        <SessionGate>
+          <div>App</div>
+        </SessionGate>
+      </MemoryRouter>
     )
 
     expect(
@@ -301,9 +316,11 @@ describe('SessionGate', () => {
     })
 
     render(
-      <SessionGate>
-        <div>App</div>
-      </SessionGate>
+      <MemoryRouter>
+        <SessionGate>
+          <div>App</div>
+        </SessionGate>
+      </MemoryRouter>
     )
 
     expect(
@@ -352,9 +369,11 @@ describe('SessionGate', () => {
       refetch: vi.fn()
     } as never)
     const { rerender } = render(
-      <SessionGate>
-        <div>App</div>
-      </SessionGate>
+      <MemoryRouter>
+        <SessionGate>
+          <div>App</div>
+        </SessionGate>
+      </MemoryRouter>
     )
     await screen.findByText('App')
 
@@ -367,9 +386,11 @@ describe('SessionGate', () => {
       refetch: vi.fn()
     })
     rerender(
-      <SessionGate>
-        <div>App</div>
-      </SessionGate>
+      <MemoryRouter>
+        <SessionGate>
+          <div>App</div>
+        </SessionGate>
+      </MemoryRouter>
     )
 
     expect(

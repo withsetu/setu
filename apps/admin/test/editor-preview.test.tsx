@@ -76,8 +76,16 @@ describe('EditorScreen preview', () => {
       })
     )
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
-    const [url, init] = fetchMock.mock.calls[0]!
+    // The DeployProvider's status GET also rides this fetch mock — find the preview
+    // POST by URL instead of assuming call order.
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.find(([u]) => String(u).includes('/preview'))
+      ).toBeTruthy()
+    )
+    const [url, init] = fetchMock.mock.calls.find(([u]) =>
+      String(u).includes('/preview')
+    )!
     expect(url).toBe('http://localhost:4444/preview')
     const body = JSON.parse((init as RequestInit).body as string)
     expect(body).toMatchObject({

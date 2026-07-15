@@ -23,21 +23,26 @@ import { CategoriesTab } from '../src/screens/taxonomies/CategoriesTab'
 vi.mock('../src/deploy/deploy', async (orig) => ({
   ...(await orig()),
   useDeploy: () => ({
-    deployedAt: () => null,
-    sha: null,
-    deploy: () => Promise.resolve()
+    status: null,
+    deployInfo: () => ({ deployedSha: null, changed: [] }),
+    refresh: () => Promise.resolve(),
+    rebuild: () => Promise.resolve()
   })
 }))
 
-// Seed a 2-level tree:
+// Seed a 3-level tree (issue #385 asks that deeper nesting render sanely):
 //   eng  (depth 0) — parent: null
 //   └── frontend (depth 1) — parent: eng
+//       └── react (depth 2) — parent: frontend
 const SEED_YAML = `- slug: eng
   name: Engineering
   parent: null
 - slug: frontend
   name: Frontend
   parent: eng
+- slug: react
+  name: React
+  parent: frontend
 `
 
 function wrap() {
@@ -69,22 +74,48 @@ describe('CategoriesTab', () => {
     expect(frontendInput).toBeInTheDocument()
   })
 
-  it('child row (Frontend) is indented via paddingLeft style', async () => {
+  // #385: alignment must come from real table semantics — every slug lives in the
+  // same table column, so slugs share one x-position regardless of hierarchy depth.
+  it('renders every slug in the same Slug table column', async () => {
     wrap()
-    const frontendInput = await screen.findByDisplayValue('Frontend')
-    // The row div has paddingLeft set inline for depth=1 → 16 + 1*20 = 36px
-    // Walk up to find the row that has a non-16px paddingLeft
-    let el: HTMLElement | null = frontendInput.parentElement
-    let found = false
-    while (el) {
-      const pl = el.style?.paddingLeft
-      if (pl && pl !== '16px') {
-        found = true
-        break
-      }
-      el = el.parentElement
+    await screen.findByDisplayValue('Frontend')
+    const table = screen.getByRole('table')
+    const headers = within(table).getAllByRole('columnheader')
+    const slugIdx = headers.findIndex((h) => /slug/i.test(h.textContent ?? ''))
+    expect(slugIdx).toBeGreaterThanOrEqual(0)
+    // Body rows = all rows except the header row.
+    const [, ...bodyRows] = within(table).getAllByRole('row')
+    expect(bodyRows.length).toBe(3)
+    const slugTexts = bodyRows.map(
+      (row) => within(row).getAllByRole('cell')[slugIdx]?.textContent
+    )
+    expect(slugTexts).toEqual(['/eng', '/frontend', '/react'])
+  })
+
+  // #385: hierarchy indent applies to the NAME CELL's inner wrapper only — never to the
+  // row element — so all other cells stay on the column grid.
+  it('indents the name cell only, scaling with depth; the row itself is never indented', async () => {
+    wrap()
+    await screen.findByDisplayValue('Frontend')
+    const depths: Array<[string, number]> = [
+      ['Engineering', 0],
+      ['Frontend', 1],
+      ['React', 2]
+    ]
+    for (const [name, depth] of depths) {
+      const input = screen.getByDisplayValue(name)
+      const row = input.closest('tr')
+      expect(row).toBeTruthy()
+      // The row element carries no indent of its own.
+      expect(row!.style.paddingLeft).toBe('')
+      // The indent lives on a wrapper INSIDE the name cell.
+      const nameCell = input.closest('td')
+      expect(nameCell).toBeTruthy()
+      const wrapper = input.closest<HTMLElement>('[style]')
+      expect(wrapper).toBeTruthy()
+      expect(nameCell!.contains(wrapper)).toBe(true)
+      expect(wrapper!.style.paddingLeft).toBe(`${depth * 20}px`)
     }
-    expect(found).toBe(true)
   })
 
   it('renders "Used by" column header', async () => {
@@ -106,8 +137,7 @@ describe('CategoriesTab', () => {
 
     // aria-label on name input is "Name of eng"
     const engNameInput = screen.getByLabelText('Name of eng')
-    // Walk up to find the row container div
-    const row = engNameInput.closest('div[style]') as HTMLElement
+    const row = engNameInput.closest('tr') as HTMLElement
     expect(row).toBeTruthy()
 
     // The SelectTrigger is within the row
@@ -117,14 +147,15 @@ describe('CategoriesTab', () => {
     trigger.focus()
     fireEvent.keyDown(trigger, { key: ' ', code: 'Space' })
 
-    // After opening the select, check that 'eng' and 'frontend' slugs are NOT offered
+    // After opening the select, check that eng and its descendants are NOT offered
     const listbox = await screen.findByRole('listbox')
     const options = within(listbox).getAllByRole('option')
     const optionTexts = options.map((o) => o.textContent)
 
-    // Must NOT contain Engineering (eng itself) or Frontend (its descendant)
+    // Must NOT contain Engineering (eng itself) or its descendants Frontend/React
     expect(optionTexts).not.toContain('Engineering')
     expect(optionTexts).not.toContain('Frontend')
+    expect(optionTexts).not.toContain('React')
     // Must contain "Top level"
     expect(optionTexts).toContain('Top level')
   })

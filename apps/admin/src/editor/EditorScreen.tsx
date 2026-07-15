@@ -73,7 +73,7 @@ export function EditorScreen() {
   const { collection = '', locale = '', slug = '' } = useParams()
   const navigate = useNavigate()
   const { read, authoring, data, git, publish } = useServices()
-  const { deployedAt, sha: deploySha } = useDeploy()
+  const { deployInfo, status: deployStatus } = useDeploy()
   const settings = useSettings()
   const index = useIndex()
   const can = useCan()
@@ -139,8 +139,8 @@ export function EditorScreen() {
 
   const refreshLifecycle = useCallback(async () => {
     const d = await data.getDraft(ref)
-    setLifecycle(await lifecycleFor(ref, d, git, deployedAt))
-  }, [data, git, ref, deployedAt])
+    setLifecycle(await lifecycleFor(ref, d, git, deployInfo()))
+  }, [data, git, ref, deployInfo])
 
   useEffect(() => {
     let live = true
@@ -225,7 +225,7 @@ export function EditorScreen() {
   // When the global Deploy advances the live sha, re-derive so the pill updates.
   useEffect(() => {
     void refreshLifecycle()
-  }, [deploySha, refreshLifecycle])
+  }, [deployStatus, refreshLifecycle])
 
   useAutosave({
     enabled: editable,
@@ -755,6 +755,10 @@ export function EditorScreen() {
           </aside>
         ) : (
           <MetaPanel
+            // Entry-keyed like Canvas: panel fields hold per-entry snapshots
+            // (CategoryField's orphan union) that must not survive navigation
+            // to a different entry (#366).
+            key={`${collection}/${locale}/${slug}`}
             metadata={metadata}
             collection={collection}
             locale={locale}

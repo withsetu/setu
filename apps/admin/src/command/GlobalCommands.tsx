@@ -19,7 +19,7 @@ import { useNotify } from '../ui/notify'
 
 export function GlobalCommands() {
   const navigate = useNavigate()
-  const { deploy } = useDeploy()
+  const { rebuild, status: deployStatus } = useDeploy()
   const can = useCan()
   const notify = useNotify()
 
@@ -90,13 +90,14 @@ export function GlobalCommands() {
     },
     {
       id: 'site.deploy',
-      title: 'Deploy site',
+      title: 'Publish site (rebuild)',
       group: 'Site',
       icon: Rocket,
-      enabled: () => can('site.deploy'),
+      enabled: () => can('site.deploy') && deployStatus?.canRebuild === true,
       run: () => {
-        void deploy()
-          .then(() => notify.success('Deploy started'))
+        notify.success('Rebuild started')
+        void rebuild()
+          .then(() => notify.success('Site rebuilt — changes are live'))
           .catch((e) =>
             notify.error(e instanceof Error ? e.message : String(e))
           )

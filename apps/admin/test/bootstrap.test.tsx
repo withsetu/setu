@@ -70,7 +70,8 @@ vi.mock('@setu/git-http', () => ({
     readFile: vi.fn().mockResolvedValue(null),
     commitFile: vi.fn().mockResolvedValue({ sha: 'stub' }),
     commitFiles: vi.fn().mockResolvedValue({ sha: 'stub' }),
-    list: vi.fn().mockResolvedValue([])
+    list: vi.fn().mockResolvedValue([]),
+    diffPaths: vi.fn().mockResolvedValue([])
   }))
 }))
 

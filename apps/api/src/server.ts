@@ -10,6 +10,7 @@ import { createSharpImageAdapter } from '@setu/image-sharp'
 import {
   createSqliteSubmissionPort,
   createSqliteReprocessJobStore,
+  createSqliteDeployJobStore,
   openSqliteDb,
   countUsers
 } from '@setu/db-sqlite'
@@ -20,7 +21,10 @@ import {
 } from '@setu/core'
 import type { CaptchaPort } from '@setu/core'
 import { createTurnstileCaptcha } from '@setu/captcha-turnstile'
-import { createRecaptchaCaptcha } from '@setu/captcha-recaptcha'
+import {
+  createRecaptchaCaptcha,
+  createRecaptchaV3Captcha
+} from '@setu/captcha-recaptcha'
 import { createConsoleEmailAdapter } from '@setu/email-console'
 import { createResendEmailAdapter } from '@setu/email-resend'
 import { renderSubmissionEmail } from '@setu/email-templates'
@@ -31,6 +35,15 @@ import { createUploadApi } from './media'
 import { createFormsApi } from './forms'
 import { createOembedApi } from './oembed'
 import { createSiteHealthApi } from './sitehealth'
+import { createDeployApi } from './deploy'
+import {
+  resolveSiteDir,
+  readDeployState,
+  writeDeployState,
+  gitHeadSha,
+  gitChangedPaths,
+  makeBuildRunner
+} from './deploy-wiring'
 import { createUsersApi } from './users'
 import { resolveSessionActor } from './auth/resolve-session-actor'
 import type { ResolveActor } from './auth/resolve-actor'
@@ -46,6 +59,7 @@ import {
 import {
   buildCapabilities,
   createCapabilitiesApi,
+  emailCapabilityFromEnv,
   type AuthCapabilities
 } from './capabilities'
 import { runReprocessJob } from './reprocess-runner'
@@ -57,6 +71,8 @@ import {
 } from './config'
 import { resolveGitIdentity } from './auth/git-identity'
 import { mountAuthWithFailureEvents } from './auth/login-failure-events'
+import { apiOnError } from './errors'
+import { securityHeaders } from './security-headers'
 
 // #248 Task 9: default audit-event consumer — a single structured log line. The REAL consumer
 // (persistence/alerting) is future issue #290; this is deliberately the dumbest possible sink so
@@ -85,6 +101,18 @@ function resolveCaptcha(provider: string, secret: string): CaptchaPort {
     )
     return createNoopCaptcha()
   }
+  // 'recaptcha-v3' reads its score threshold from SETU_RECAPTCHA_MIN_SCORE (default 0.5) and an
+  // optional expected action from SETU_RECAPTCHA_ACTION.
+  if (provider === 'recaptcha-v3') {
+    const raw = Number(process.env.SETU_RECAPTCHA_MIN_SCORE)
+    return createRecaptchaV3Captcha({
+      secret,
+      ...(Number.isFinite(raw) ? { minScore: raw } : {}),
+      ...(process.env.SETU_RECAPTCHA_ACTION
+        ? { action: process.env.SETU_RECAPTCHA_ACTION }
+        : {})
+    })
+  }
   return provider === 'recaptcha'
     ? createRecaptchaCaptcha({ secret })
     : createTurnstileCaptcha({ secret })
@@ -110,6 +138,20 @@ const submissionsDb =
   process.env.SETU_SUBMISSIONS_DB ?? `${dir}/.setu/submissions.db`
 const notifyTo = process.env.SETU_FORMS_NOTIFY_TO
 const notifyFrom = process.env.SETU_FORMS_NOTIFY_FROM
+// Admin SPA origin — same env + default that allowed-origins.ts uses for the CORS/origin
+// allowlist. Read once here and shared by the reset-email default callback (below) and the
+// local-handshake log line (bottom of this file).
+const adminOrigin = process.env.SETU_ADMIN_ORIGIN ?? 'http://localhost:5173'
+
+// Email transport (#248 forms notifications; #364 password-reset emails share it). Selected by
+// SETU_EMAIL_ADAPTER, defaulting to the zero-config console adapter (dev: logs instead of
+// sending). emailCapabilityFromEnv is the single source of truth for which env value maps to a
+// REAL transport (currently only 'resend') — reused here so this construction and the
+// /api/capabilities report below can never silently disagree about what's actually wired up.
+const emailCapability = emailCapabilityFromEnv(process.env)
+const email = emailCapability.deliverable
+  ? createResendEmailAdapter({ apiKey: process.env.RESEND_API_KEY ?? '' })
+  : createConsoleEmailAdapter()
 
 // Ensure .setu/ parent dir exists before better-sqlite3 opens the DB file
 mkdirSync(`${dir}/.setu`, { recursive: true })
@@ -202,7 +244,26 @@ const auth = authConfigured
             }
           : undefined,
       onAuthEvent: logAuthEvent,
-      rateLimit: resolveRateLimitOverrides(process.env)
+      rateLimit: resolveRateLimitOverrides(process.env),
+      // #364: wire password-reset emails through the same transport as forms notifications, sent
+      // FROM the same instance-wide sender address (SETU_FORMS_NOTIFY_FROM) — see the `email`
+      // option's doc in packages/auth/src/options.ts for why this reuses that env rather than
+      // inventing an auth-specific one. Omitted (reset stays disabled, unchanged) when no
+      // from-address is configured at all: there is nothing to put in the message's `from` field,
+      // matching how the submission service itself skips sending without one (see
+      // createSubmissionService's `if (email && notifyTo && notifyFrom)` guard below).
+      // resetRedirectTo: where the emailed link lands when the /request-password-reset caller
+      // omitted redirectTo — without it better-auth's callback route 302s the click to
+      // /error?error=INVALID_TOKEN (see the option's doc). The admin origin is already on the
+      // trustedOrigins allowlist above, so better-auth's originCheck accepts this callback. The
+      // admin SPA's /reset-password screen is the next task on this branch.
+      email: notifyFrom
+        ? {
+            send: (msg) => email.send(msg),
+            from: notifyFrom,
+            resetRedirectTo: `${adminOrigin}/reset-password`
+          }
+        : undefined
     })
   : undefined
 authRef = auth
@@ -219,11 +280,6 @@ const captchaStatus = {
   provider: captchaProvider,
   secretConfigured: captchaSecret !== ''
 }
-const emailAdapter = process.env.SETU_EMAIL_ADAPTER ?? 'console'
-const email =
-  emailAdapter === 'resend'
-    ? createResendEmailAdapter({ apiKey: process.env.RESEND_API_KEY ?? '' })
-    : createConsoleEmailAdapter()
 
 const submit = createSubmissionService({
   submissions,
@@ -257,6 +313,17 @@ const runReprocess = (jobId: string) => {
 }
 
 const app = new Hono()
+
+// #291 fail-secure errors: the root handler catches any throw OUTSIDE a factory (middleware,
+// the /api/auth/* mount) — each factory mounts its own scoped apiOnError, which Hono prefers
+// for the routes it owns; this is the backstop so nothing ever falls through to a raw 500.
+app.onError(apiOnError())
+
+// Baseline security headers on EVERY response (#289) — registered first so even guard rejections
+// (503/403 below) carry them. JSON + media API: nosniff, never framed (DENY — stricter than the
+// site's SAMEORIGIN), no referrer leakage; deliberately NO CSP here (document-context policy —
+// the site build emits its own report-only CSP).
+app.use('*', securityHeaders())
 
 // CORS allowlist (credentialed) + Host/Origin guard (DNS-rebinding/tunnel-detection), applied
 // globally, before any route — including /api/auth/*.
@@ -355,6 +422,28 @@ app.route(
 // (see its own comment above), which authMiddleware turns into a 401 for this route too.
 app.route('/', createUsersApi({ db: authDb, resolveActor }))
 
+// Deploy control plane (#207 · #208 indicator + #209 rebuild). The site dir decides the
+// rebuild capability: present on the monorepo dev stack and scaffolded sites, absent on
+// a bare content-repo deployment → the API 409s honestly and only the indicator runs.
+const siteDir = resolveSiteDir(process.env, process.cwd())
+app.route(
+  '/',
+  createDeployApi({
+    resolveActor,
+    siteDir,
+    jobs: createSqliteDeployJobStore(`${dir}/.setu/deploy-jobs.db`),
+    readState: () => readDeployState(dir),
+    writeState: (s) => writeDeployState(dir, s),
+    headSha: () => gitHeadSha(dir),
+    changedPaths: (since) => gitChangedPaths(dir, since),
+    // Unreachable when siteDir is null (the route 409s first) — a defensive reject.
+    runBuild:
+      siteDir !== null
+        ? makeBuildRunner({ siteDir, repoDir: dir, env: process.env })
+        : () => Promise.reject(new Error('no site dir'))
+  })
+)
+
 // The auth capability block is computed fresh per request (not baked into the boot-time
 // capabilities object below): `needsSetup` depends on the current user-table row count, which
 // changes the moment first-run setup creates the owner account — a stale snapshot would keep
@@ -397,7 +486,8 @@ app.route(
       writableMediaStore: true, // local fs storage is writable
       backgroundJobs: true, // persistent Node process can run jobs
       mode,
-      auth: resolveAuthCapabilities() // boot-time value; createCapabilitiesApi re-derives per request via the thunk below
+      auth: resolveAuthCapabilities(), // boot-time value; createCapabilitiesApi re-derives per request via the thunk below
+      email: emailCapability
     }),
     resolveAuthCapabilities
   )
@@ -412,8 +502,8 @@ console.log(
 )
 if (localToken) {
   // The ONE place the token is ever logged — this is the intended handoff channel to the admin.
-  // Never log the token (or this URL) anywhere else.
-  const adminOrigin = process.env.SETU_ADMIN_ORIGIN ?? 'http://localhost:5173'
+  // Never log the token (or this URL) anywhere else. (adminOrigin is the shared const near the
+  // top of this file.)
   console.log(`Admin handshake: ${adminOrigin}/#setu-token=${localToken.token}`)
 }
 if (setupToken !== null) {

@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { createAuthz, DEFAULT_ROLES, resolveOembed } from '@setu/core'
 import type { Actor, OembedResult } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
+import { apiOnError } from './errors'
 import type { ResolveActor } from './auth/resolve-actor'
 
 const MAX_URL = 2048
@@ -50,5 +51,6 @@ export function createOembedApi(opts: OembedApiOptions) {
     return c.json({ error: result.reason }, 502)
   })
 
+  app.onError(apiOnError({ scope: 'oembed' })) // #291: e.g. an unexpected resolver throw
   return app
 }

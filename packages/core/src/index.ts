@@ -152,7 +152,9 @@ export type {
   CommitInput,
   CommitResult,
   FileChange,
-  CommitFilesInput
+  CommitFilesInput,
+  DiffPathStatus,
+  DiffPathEntry
 } from './git/types'
 export type { GitPort } from './git/git-port'
 
@@ -179,6 +181,7 @@ export type {
   Authz
 } from './authz/types'
 export { createAuthz, DEFAULT_ROLES } from './authz/authz'
+export { ROLE_RANK, rankOf, outranks } from './authz/rank'
 
 export type {
   LifecycleState,
@@ -189,9 +192,13 @@ export { deriveLifecycle } from './lifecycle/derive'
 
 export type {
   ContentRow,
+  DeployInfo,
   ListContentEntriesInput
 } from './content-index/list-entries'
-export { listContentEntries } from './content-index/list-entries'
+export {
+  listContentEntries,
+  deployedSnapshotFor
+} from './content-index/list-entries'
 export { extractMediaRefs } from './content-index/extract-media-refs'
 
 export { entryUrlPath, DEFAULT_LOCALE } from './url/entry-url'
@@ -360,9 +367,25 @@ export type {
   ReprocessJobStore
 } from './reprocess/job'
 
+export type {
+  ChangedPath,
+  DeployMode,
+  DeployJobStatus,
+  DeployJob,
+  DeployJobStore,
+  DeployState,
+  DeployStatus
+} from './deploy/job'
+
 export { safeFetch, SafeFetchError } from './net/safe-fetch'
 export type {
   SafeFetchOptions,
   SafeFetchResult,
   SafeFetchBlockReason
 } from './net/safe-fetch'
+
+export type { SecurityHeader } from './security-headers/security-headers'
+export {
+  defaultSecurityHeaders,
+  toCloudflareHeadersFile
+} from './security-headers/security-headers'

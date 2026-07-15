@@ -7,6 +7,7 @@ import markdoc from '@astrojs/markdoc'
 import react from '@astrojs/react'
 import { loadConfig } from '@setu/core/node'
 import { perPageCssPurge } from './integrations/per-page-css-purge.mjs'
+import { securityHeaders } from './integrations/security-headers.mjs'
 import { settingsWatcher } from './integrations/settings-watcher.mjs'
 
 // Read the active theme from setu.config (single source of truth) and alias '@theme'
@@ -135,6 +136,9 @@ export default defineConfig({
     react(),
     devPreviewRoute,
     perPageCssPurge(),
+    // Emits dist/_headers (default security headers, report-only CSP) at build; a user-supplied
+    // public/_headers wins. Build-only, like perPageCssPurge — dev is untouched. (#289)
+    securityHeaders(),
     settingsWatcher()
   ],
   vite: {

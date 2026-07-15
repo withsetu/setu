@@ -25,7 +25,12 @@ function svc() {
   return {
     data,
     index,
-    service: createIndexService({ data, git, index, deployedAt: () => null })
+    service: createIndexService({
+      data,
+      git,
+      index,
+      deploy: () => ({ deployedSha: null, changed: [] })
+    })
   }
 }
 

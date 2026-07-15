@@ -35,12 +35,36 @@ export async function loadBlockSafelist(blocksDir) {
   return out
 }
 
+/** Strip `<style>` blocks to a FIXED POINT (#323, CodeQL js/incomplete-multi-character-
+ *  sanitization): a single-pass replace can CONSTRUCT a new `<style>` block from the text
+ *  around a removed match (`<` + `<style>x</style>` + `style>…</style>` → `<style>…</style>`),
+ *  leaving a live style body in the scanned content. Iterate until the input stops changing —
+ *  each pass strictly shortens the string, so this terminates. */
+function stripStyleBlocks(html) {
+  let out = html
+  let prev
+  do {
+    prev = out
+    out = out.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
+  } while (out !== prev)
+  return out
+}
+
+/** Wrap purged CSS for inlining into the page. `</style` inside the CSS (legal in a string,
+ *  e.g. `content:"</style>"`) would close the tag early and hand the rest of the CSS to the
+ *  HTML parser — an element-injection vector (#323). Escape it as `<\/style` (an escaped `/`
+ *  in a CSS string — byte-identical meaning; the sequence is invalid CSS anywhere else, so
+ *  nothing correct is altered). Exported for unit tests. */
+export function inlineStyleTag(css) {
+  return `<style>${css.replace(/<\/(style)/gi, '<\\/$1')}</style>`
+}
+
 /** Purge `css` to only the rules used in `html` (+ optional island `js`), keeping `safelist`.
  *  `<style>` bodies are stripped from the scanned HTML so a rule's own selector text can't
  *  count as usage. Exported for unit tests.
  *  @param {{ css: string, html: string, js?: string[], safelist?: (string|RegExp)[] }} args */
 export async function purgeCss({ css, html, js = [], safelist = [] }) {
-  const scanHtml = html.replace(/<style\b[^>]*>[\s\S]*?<\/style>/g, '')
+  const scanHtml = stripStyleBlocks(html)
   const content = [
     { raw: scanHtml, extension: 'html' },
     ...js.map((raw) => ({ raw, extension: 'js' }))
@@ -126,7 +150,7 @@ export function perPageCssPurge(opts = {}) {
               before += body.length
               const purged = await purgeCss({ css: body, html, js, safelist })
               after += purged.length
-              return `<style>${purged}</style>`
+              return inlineStyleTag(purged)
             }
           )
 
@@ -140,7 +164,7 @@ export function perPageCssPurge(opts = {}) {
             before += css.length
             const purged = await purgeCss({ css, html, js, safelist })
             after += purged.length
-            out = out.replace(m[0], `<style>${purged}</style>`)
+            out = out.replace(m[0], inlineStyleTag(purged))
             inlinedFiles.add(cssPath)
           }
 

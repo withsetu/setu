@@ -48,7 +48,7 @@ function HeaderActions() {
 export function Dashboard() {
   const { data, git } = useServices()
   const can = useCan()
-  const { deployedAt, sha: deploySha } = useDeploy()
+  const { status: deployStatus, deployInfo } = useDeploy()
   const [rows, setRows] = useState<ContentRow[] | null>(null)
   const [locks, setLocks] = useState<Lock[]>([])
   const [error, setError] = useState(false)
@@ -58,7 +58,7 @@ export function Dashboard() {
     void (async () => {
       setError(false)
       try {
-        const loaded = await loadDashboardEntries(data, git, deployedAt)
+        const loaded = await loadDashboardEntries(data, git, deployInfo())
         if (!live) return
         setRows(loaded)
         setLocks(await loadActiveLocks(data, loaded))
@@ -69,10 +69,10 @@ export function Dashboard() {
     return () => {
       live = false
     }
-  }, [data, git, deployedAt, deploySha])
+  }, [data, git, deployInfo, deployStatus])
 
   const counts = dashboardCounts(rows ?? [])
-  const hasDeployed = deploySha !== null
+  const hasDeployed = deployStatus !== null && deployStatus.deployedSha !== null
   const url = siteUrl()
 
   return (
@@ -108,7 +108,7 @@ export function Dashboard() {
                 {/* #362: deploy + site-health are Maintainer+/Admin concerns (site.deploy /
                     sitehealth.view) — hide the cards for content roles rather than leak ops data. */}
                 {can('site.deploy') && (
-                  <SiteDeployCard url={url} deployedSha={deploySha} />
+                  <SiteDeployCard url={url} status={deployStatus} />
                 )}
                 {can('sitehealth.view') && <SiteHealthCard />}
                 <WhosEditing locks={locks} />

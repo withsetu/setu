@@ -106,6 +106,10 @@ function fakeGit(): GitPort {
       return prefix === undefined
         ? all
         : all.filter((p) => p.startsWith(prefix))
+    },
+    // Typed stub — the read service never diffs; loud if that ever changes.
+    async diffPaths() {
+      throw new Error('diffPaths not implemented in this fake')
     }
   }
 }

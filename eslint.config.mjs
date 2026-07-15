@@ -19,6 +19,10 @@
 //    packages/core/src/blocks/registry.ts + scripts/gen-blocks.mjs) DOES need type-aware
 //    linting — it's live product code — so it's opted into `projectService` via
 //    `allowDefaultProject`, which project-service supports for a small, explicit glob.
+// This config file itself runs under Node (only the LINTED edge dirs must stay
+// Node-free), so importing node builtins HERE is fine — see the edge-guard block below.
+import { readFileSync } from 'node:fs'
+import { builtinModules } from 'node:module'
 import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
 import reactHooks from 'eslint-plugin-react-hooks'
@@ -48,6 +52,37 @@ const IGNORES = [
   // Not TS/JS — out of scope for this increment (see header comment)
   '**/*.astro'
 ]
+
+// ---- Edge-guard rule inputs (#434) ----
+// The edge-reachable dir list is owned by packages/core/tsconfig.edge.json (`include`);
+// we READ it at config-load time so the two can never drift. The tsconfig-based edge
+// guard proves the TYPE graph is Node-free but cannot fail on a `node:` MODULE import
+// (with `types: []` the import just loses its types); this lint override is the guard
+// that actually fails on Node module imports / globals in edge-reachable core code.
+// NOTE: that tsconfig must stay comment-free strict JSON (repo convention — no repo
+// tsconfig uses JSONC comments) or this JSON.parse fails loudly at lint startup.
+const edgeTsconfig = JSON.parse(
+  readFileSync(
+    new URL('./packages/core/tsconfig.edge.json', import.meta.url),
+    'utf8'
+  )
+)
+// `include` entries are dirs like "src/blocks" → glob packages/core/src/blocks/**/*.ts
+const edgeFiles = edgeTsconfig.include.map(
+  (dir) => `packages/core/${dir}/**/*.{ts,tsx}`
+)
+// Every bare-resolvable Node builtin (fs, path, fs/promises, …) from the runtime itself.
+// These go in no-restricted-imports `paths` (EXACT specifier match), NOT `patterns`:
+// patterns are gitignore-style and a bare `url` pattern also matches relative imports
+// into core's src/url/ directory ('../url/locale' — real false positive caught while
+// building this, #434). Exact paths can't collide with relative specifiers; the
+// node:-prefixed forms are caught by a `^node:` regex pattern in the rule below.
+const NODE_BUILTIN_IMPORT_MESSAGE =
+  'This module is edge-reachable (packages/core/tsconfig.edge.json) and must run on Cloudflare Workers — no Node builtins. Put Node-bound work behind a port/adapter instead (docs/architecture.md, "edge-safe core").'
+const NODE_BUILTIN_PATHS = builtinModules.map((name) => ({
+  name,
+  message: NODE_BUILTIN_IMPORT_MESSAGE
+}))
 
 export default tseslint.config(
   { ignores: IGNORES },
@@ -208,6 +243,33 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-return': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/unbound-method': 'off'
+    }
+  },
+
+  // ---- Edge guard: Node imports/globals FAIL lint in edge-reachable core dirs (#434) ----
+  // File list derived from packages/core/tsconfig.edge.json above. Colocated tests
+  // (src/**/*.test.ts) are excluded — they run under vitest on Node and may legitimately
+  // use node: modules; only shipped edge-reachable source is restricted.
+  {
+    files: edgeFiles,
+    ignores: ['**/*.test.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: NODE_BUILTIN_PATHS,
+          patterns: [{ regex: '^node:', message: NODE_BUILTIN_IMPORT_MESSAGE }]
+        }
+      ],
+      'no-restricted-globals': [
+        'error',
+        ...['process', '__dirname', '__filename', 'Buffer', 'require'].map(
+          (name) => ({
+            name,
+            message: `'${name}' is a Node global; this module is edge-reachable (packages/core/tsconfig.edge.json) and must run on Cloudflare Workers. Put Node-bound work behind a port/adapter instead (docs/architecture.md, "edge-safe core").`
+          })
+        )
+      ]
     }
   },
 

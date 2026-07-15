@@ -1,5 +1,7 @@
+import type { DeployStatus } from '@setu/core'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { relativeTime } from '@/lib/format'
 
 function hostOf(url: string): string {
   try {
@@ -9,13 +11,17 @@ function hostOf(url: string): string {
   }
 }
 
+/** The dashboard's saved-vs-live summary (#208): what's deployed, and how much has
+ *  been saved since. Honest by design — "N changes pending — not yet live" instead of
+ *  implying a commit updated the static site (CLAUDE.md card #7). */
 export function SiteDeployCard({
   url,
-  deployedSha
+  status
 }: {
   url: string
-  deployedSha: string | null
+  status: DeployStatus | null
 }) {
+  const pendingCount = status?.changedPaths.length ?? 0
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -33,15 +39,27 @@ export function SiteDeployCard({
           {hostOf(url)}
         </a>
         <p className="text-xs text-muted-foreground">
-          {deployedSha === null ? (
+          {status === null || status.deployedSha === null ? (
             'Not deployed yet'
           ) : (
             <>
               Deployed ·{' '}
-              <span className="font-mono">{deployedSha.slice(0, 7)}</span>
+              <span className="font-mono">
+                {status.deployedSha.slice(0, 7)}
+              </span>
+              {status.deployedAt !== null && (
+                <> · {relativeTime(Date.parse(status.deployedAt))}</>
+              )}
             </>
           )}
         </p>
+        {status !== null && status.pending && (
+          <p className="text-xs text-amber-600 dark:text-amber-500">
+            {status.deployedSha === null
+              ? 'Saved changes are not live yet.'
+              : `${pendingCount} change${pendingCount === 1 ? '' : 's'} pending — not yet live.`}
+          </p>
+        )}
         <Button asChild variant="outline" size="sm" className="w-full">
           <a href={url} target="_blank" rel="noopener noreferrer">
             View site

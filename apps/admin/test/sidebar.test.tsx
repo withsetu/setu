@@ -3,13 +3,15 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { ActorProvider } from '../src/auth/actor'
+import { NotificationProvider } from '../src/ui/notify'
 import { AppSidebar } from '../src/shell/AppSidebar'
 
 vi.mock('../src/deploy/deploy', () => ({
   useDeploy: () => ({
-    deployedAt: () => null,
-    sha: null,
-    deploy: () => Promise.resolve()
+    status: null,
+    deployInfo: () => ({ deployedSha: null, changed: [] }),
+    refresh: () => Promise.resolve(),
+    rebuild: () => Promise.resolve()
   })
 }))
 
@@ -17,9 +19,11 @@ const renderSidebar = () =>
   render(
     <MemoryRouter>
       <ActorProvider>
-        <SidebarProvider>
-          <AppSidebar />
-        </SidebarProvider>
+        <NotificationProvider>
+          <SidebarProvider>
+            <AppSidebar />
+          </SidebarProvider>
+        </NotificationProvider>
       </ActorProvider>
     </MemoryRouter>
   )

@@ -172,6 +172,7 @@ export function QueryPreview({
                         alt=""
                         className="size-full object-cover"
                         loading="lazy"
+                        draggable={false}
                       />
                     ) : (
                       <ImageIcon className="size-5 opacity-40" />

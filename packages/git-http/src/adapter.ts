@@ -2,7 +2,8 @@ import type {
   GitPort,
   CommitInput,
   CommitFilesInput,
-  CommitResult
+  CommitResult,
+  DiffPathEntry
 } from '@setu/core'
 
 export interface HttpGitOptions {
@@ -68,6 +69,16 @@ export function createHttpGitPort(opts: HttpGitOptions): GitPort {
         await doFetch(url(`/git/list${q}`))
       )
       return paths
+    },
+    async diffPaths(fromSha: string, toSha: string) {
+      const { changes } = await json<{ changes: DiffPathEntry[] }>(
+        await doFetch(
+          url(
+            `/git/diff?from=${encodeURIComponent(fromSha)}&to=${encodeURIComponent(toSha)}`
+          )
+        )
+      )
+      return changes
     }
   }
 }

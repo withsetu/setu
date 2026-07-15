@@ -121,11 +121,12 @@ test('#386: a passwordless local owner recovers from sign-out via the rotated ha
     ).toBeVisible()
   })
 
-  await test.step('"Sign out anyway" lands on the login screen with the local recovery hint', async () => {
+  await test.step('"Sign out anyway" lands on the login screen', async () => {
     await page.getByRole('button', { name: 'Sign out anyway' }).click()
     await expect(login.heading).toBeVisible()
-    // #386: the local-mode LoginScreen points a locked-out owner at the recovery command.
-    await expect(page.getByText('pnpm auth:login-link')).toBeVisible()
+    // #386 follow-up (owner UAT): the login screen deliberately carries no recovery hint —
+    // the recovery command is documented and named in the logout guard dialog instead.
+    await expect(page.getByText('pnpm auth:login-link')).not.toBeVisible()
   })
 
   let rotatedUrl = ''

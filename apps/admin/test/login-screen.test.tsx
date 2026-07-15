@@ -257,20 +257,11 @@ describe('LoginScreen', () => {
     delete (window as unknown as { turnstile?: unknown }).turnstile
   })
 
-  // #386: local-mode lockout recovery — the machine running Setu can always mint a fresh
-  // sign-in link (`pnpm auth:login-link`), so the local login screen says so.
-  it('local mode shows the auth:login-link hint under the card', async () => {
+  // #386 follow-up (owner UAT 2026-07-15): the login screen carries NO recovery hint in any
+  // mode — the login-link recovery path is documented and mentioned in the logout guard
+  // dialog instead, keeping the sign-in card clean.
+  it('never shows a login-link hint, in local mode included', async () => {
     stubCapabilities(NO_PROVIDERS_NO_CAPTCHA, 'local')
-    render(<LoginScreen />)
-
-    expect(
-      await screen.findByText(/on the machine running setu\?/i)
-    ).toBeInTheDocument()
-    expect(screen.getByText('pnpm auth:login-link')).toBeInTheDocument()
-  })
-
-  it('no login-link hint outside local mode (capability-driven, not cosmetic)', async () => {
-    stubCapabilities(NO_PROVIDERS_NO_CAPTCHA, 'self-hosted')
     render(<LoginScreen />)
 
     await screen.findByLabelText(/email/i)

@@ -372,8 +372,9 @@ to **TS source** (no build step): editing `packages/core/src` hits dependents im
   full); push to main + **weekly** (Mon 03:17 UTC) + **`workflow_dispatch`** = full + e2e full
   matrix (`E2E_FULL_MATRIX=1`). **CodeQL runs on push-to-main + weekly, NOT per-PR** (#462 cost);
   it gates on NEW findings vs `.github/codeql-known-findings.json` (every entry has a tracking
-  issue). `pnpm audit --audit-level=high` gates supply chain. Private repo → Actions minutes are
-  billable; keep PRs batched and the full matrix off per-PR (public repo would make Actions free).
+  issue). `pnpm audit --audit-level=high` gates supply chain (via pnpm 11's bulk-endpoint
+  client, #477). The repo is public (2026-07-14), so Actions minutes are free — the lean per-PR
+  lane is kept anyway: it's the merge-latency and signal-noise win, not just the bill.
 - Turbo `inputs` overrides REPLACE the defaults — always keep `"$TURBO_DEFAULT$"` in the list, and
   prove cache changes with a kill-shot (break the input → expect `cache miss`).
 - E2E auth harness: seeded users live in `e2e/lib/seed-users.ts` (`admin` / `author`,

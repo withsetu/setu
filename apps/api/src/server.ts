@@ -70,6 +70,7 @@ import {
   resolveRateLimitOverrides
 } from './config'
 import { resolveGitIdentity } from './auth/git-identity'
+import { writeHandshakeFile } from './handshake-file'
 import { mountAuthWithFailureEvents } from './auth/login-failure-events'
 import { apiOnError } from './errors'
 import { securityHeaders } from './security-headers'
@@ -163,18 +164,24 @@ const submissions = createSqliteSubmissionPort(submissionsDb)
 const authDb = openSqliteDb(submissionsDb)
 const baseURL = process.env.SETU_BASE_URL ?? `http://localhost:${port}`
 
-// Loopback token handshake (local topology only, #248 Task 4): the process that boots the api
-// mints a ONE-TIME token; the admin exchanges it at POST /api/auth/local/exchange (see
-// @setu/auth's localToken plugin) for a completely normal Better Auth session. Module state here
-// holds the token — this is boot-scoped, per-process state by design (a fresh token every
-// restart), not persisted anywhere.
+// Loopback token handshake (local topology only, #248 Task 4; rotation + persistence #386): the
+// process that boots the api mints a token; the admin exchanges it at POST
+// /api/auth/local/exchange (see @setu/auth's localToken plugin) for a completely normal Better
+// Auth session. Module state here holds the CURRENT token — a valid, unused one always exists:
+// `consume()` re-mints SYNCHRONOUSLY (the plugin calls it before any await, which is what keeps
+// single-use race-free — an async rotation would open a window where two exchanges both match
+// the same token) and rewrites `.setu/handshake-url`, so a locked-out owner recovers by reading
+// that file instead of restarting the API and grepping logs.
 //
-// `getToken()` reflects a stable topology-level fact ("local-token capability exists"), so it
-// keeps returning the same token for the process lifetime — it is NOT how single-use is
-// enforced. Single-use is the plugin's own job (its guard order returns 404 only when getToken()
-// is null, and 401 for an already-consumed token — conflating the two would make "wrong
-// topology" indistinguishable from "already used"). `consume()` here is a no-op hook for future
-// observability (e.g. logging that the handshake completed); the token remains fixed.
+// `getToken()` returning non-null reflects a stable topology-level fact ("local-token capability
+// exists" — the plugin 404s when it's null); the VALUE it returns changes on every consume.
+// Single-use is guaranteed by that rotation (a consumed token no longer matches), plus the
+// plugin's own last-consumed-token fallback — see @setu/auth's local-token-plugin.ts.
+//
+// `persistUrl()` writes the handshake file; failures are logged, never thrown — a disk hiccup
+// must not turn a successful exchange into a 500 AFTER the token was already burned (the next
+// rotation, or a restart, rewrites the file anyway). Called once at boot (below, local mode
+// only — this whole factory is only invoked when mode === 'local') and on every rotation.
 //
 // `localUserId` calls `ensureLocalOwner(auth, identity)` (#248 Task 7) — but `auth` doesn't exist
 // yet at this point (createAuth itself takes `localToken` as an option, below). `getAuth` is a
@@ -184,12 +191,24 @@ const baseURL = process.env.SETU_BASE_URL ?? `http://localhost:${port}`
 // here (not per-call) via `resolveGitIdentity`, matching "read git config once at boot" from the
 // task brief, not on every exchange attempt.
 function buildLocalTokenOptions(getAuth: () => ReturnType<typeof createAuth>) {
-  const token = randomBytes(32).toString('base64url')
+  let token = randomBytes(32).toString('base64url')
   const identity = resolveGitIdentity()
+  const persistUrl = () => {
+    try {
+      writeHandshakeFile(dir, `${adminOrigin}/#setu-token=${token}`)
+    } catch (err) {
+      console.error('[auth] failed to write .setu/handshake-url', err)
+    }
+  }
   return {
-    token, // returned ONLY so the caller can log the one-time handoff URL below; never logged elsewhere.
+    token, // the INITIAL token, returned ONLY so the caller can log the boot handoff URL below; never logged elsewhere.
+    persistUrl,
     getToken: () => token,
-    consume: () => {},
+    consume: () => {
+      // SYNCHRONOUS rotation — no await between re-mint and the plugin's post-consume awaits.
+      token = randomBytes(32).toString('base64url')
+      persistUrl()
+    },
     localUserId: (): Promise<string> => ensureLocalOwner(getAuth(), identity)
   }
 }
@@ -503,8 +522,11 @@ console.log(
 if (localToken) {
   // The ONE place the token is ever logged — this is the intended handoff channel to the admin.
   // Never log the token (or this URL) anywhere else. (adminOrigin is the shared const near the
-  // top of this file.)
+  // top of this file.) `localToken.token` is the boot-initial token; after any exchange the
+  // CURRENT URL lives in `.setu/handshake-url` (#386), persisted here at boot and rewritten on
+  // every rotation — local mode only (localToken is undefined in every other mode).
   console.log(`Admin handshake: ${adminOrigin}/#setu-token=${localToken.token}`)
+  localToken.persistUrl()
 }
 if (setupToken !== null) {
   // The ONE place the setup token is ever logged — the intended handoff channel to whoever is

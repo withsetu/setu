@@ -15,9 +15,10 @@ import { allowedOrigins } from '../src/auth/allowed-origins'
 const TRUSTED_ORIGIN = 'http://localhost:5173'
 
 /** Builds a Hono app mirroring server.ts's mode=local wiring: mints a boot token exactly like
- *  server.ts does (randomBytes(32).toString('base64url'), held with a consumed flag in module
- *  state), and passes getToken/consume/localUserId into createAuth — with localUserId wired to
- *  the real ensureLocalOwner (#248 Task 7), exactly as server.ts's boot sequence does. */
+ *  server.ts does (randomBytes(32).toString('base64url'), held as MUTABLE module state), and
+ *  passes getToken/consume/localUserId into createAuth — with `consume()` re-minting the token
+ *  synchronously (#386 rotation contract: a valid unused token always exists) and localUserId
+ *  wired to the real ensureLocalOwner (#248 Task 7), exactly as server.ts's boot sequence does. */
 function makeLocalModeApp() {
   const dir = mkdtempSync(join(tmpdir(), 'local-token-exchange-'))
   const dbFile = join(dir, 'auth.db')
@@ -26,7 +27,8 @@ function makeLocalModeApp() {
   migrate(db, { migrationsFolder: '../../packages/db-sqlite/drizzle' })
 
   const bootToken = randomBytes(32).toString('base64url')
-  let consumed = false
+  let token = bootToken
+  let consumeCount = 0
 
   const auth = createAuth({
     db,
@@ -34,9 +36,10 @@ function makeLocalModeApp() {
     baseURL: 'http://localhost:4444',
     trustedOrigins: [TRUSTED_ORIGIN],
     localToken: {
-      getToken: () => bootToken,
+      getToken: () => token,
       consume: () => {
-        consumed = true
+        consumeCount += 1
+        token = randomBytes(32).toString('base64url')
       },
       localUserId: () =>
         ensureLocalOwner(auth, {
@@ -68,7 +71,8 @@ function makeLocalModeApp() {
   return {
     app,
     bootToken,
-    getConsumed: () => consumed,
+    getConsumed: () => consumeCount > 0,
+    getCurrentToken: () => token,
     cleanup: () => {
       sqlite.close()
       rmSync(dir, { recursive: true, force: true })
@@ -117,5 +121,36 @@ describe('mode=local wiring exposes /api/auth/local/exchange (server.ts composit
 
     expect(res.status).toBe(401)
     expect(getConsumed()).toBe(false)
+  })
+
+  it('after a consumed exchange, the ROTATED token admits a second exchange and the old one is dead (#386)', async () => {
+    const { app, bootToken, getCurrentToken } = build()
+
+    const exchange = (token: string) =>
+      app.fetch(
+        new Request('http://test/api/auth/local/exchange', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            host: 'localhost:4444'
+          },
+          body: JSON.stringify({ token })
+        })
+      )
+
+    const first = await exchange(bootToken)
+    expect(first.status).toBe(200)
+
+    const rotated = getCurrentToken()
+    expect(rotated).not.toBe(bootToken)
+
+    // The consumed boot token must never work again.
+    const replay = await exchange(bootToken)
+    expect(replay.status).toBe(401)
+
+    // The rotated token works — recovery without restarting the API.
+    const second = await exchange(rotated)
+    expect(second.status).toBe(200)
+    expect(second.headers.get('set-cookie')).toMatch(/better-auth/)
   })
 })

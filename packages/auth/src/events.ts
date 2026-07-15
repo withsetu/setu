@@ -21,6 +21,9 @@ export type AuthEventType =
   | 'user.deleted'
   | 'setup.completed'
   | 'local.exchange'
+  // #386: emitted by the out-of-band owner recovery script when it resets an owner password —
+  // typed here (rather than in the script) so the audit vocabulary stays in one place.
+  | 'owner.password-reset'
 
 export interface AuthEvent {
   type: AuthEventType

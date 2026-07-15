@@ -97,20 +97,33 @@ jobs:
       # non-blocking warn phase in #403, once the baseline was triaged — vitest bumped 2→3
       # (cleared the CVE-2026-47429 chain) and the dead prototype spike lockfiles removed. A
       # new high/critical advisory now reds the build; moderate/low are printed above for
-      # visibility but do not gate. Consciously-accepted dev-only advisories are allowlisted
-      # in root package.json `pnpm.auditConfig.ignoreGhsas` — today only GHSA-67mh-4wv8-2f99
-      # (esbuild dev-server SSRF): a dev-only transitive via drizzle-kit with no fix path,
-      # and esbuild's dev server is never run or exposed here. Gated on the same docs-only
-      # skip as the steps below (a docs PR doesn't touch the lockfile); NOT affected-scope
-      # filtered — audit runs against the single root lockfile, not turbo's per-package graph.
+      # visibility but do not gate. Gated on the same docs-only skip as the steps below (a
+      # docs PR doesn't touch the lockfile); NOT affected-scope filtered — audit runs against
+      # the single root lockfile, not turbo's per-package graph.
+      #
+      # Endpoint breakage (#477): npm retired the legacy audit endpoints (410 Gone;
+      # pnpm/pnpm#11265) and the replacement /advisories/bulk client ships only in pnpm 11
+      # (pnpm/pnpm#11268), not our pinned v10. So the audit command runs from pnpm 11, from a
+      # probe dir holding only the lockfile: with the root package.json in scope, the nested
+      # v11 would read `packageManager: pnpm@10.x` and delegate straight back to the broken
+      # v10 client (manage-package-manager-versions). Same lockfile, same high+ gate — the
+      # gate is NOT weakened. Note v11 no longer reads `pnpm.auditConfig` from package.json
+      # (root allowlist: GHSA-67mh-4wv8-2f99, esbuild dev-server SSRF via drizzle-kit) — not
+      # load-bearing for the gate: that advisory is moderate and only high+ gates. Fold the
+      # allowlist into pnpm-workspace.yaml when the repo moves to pnpm 11.
       - name: 'pnpm audit (gate: high)'
         run: |
           if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
+          probe="$RUNNER_TEMP/audit-probe"
+          mkdir -p "$probe"
+          cp pnpm-lock.yaml "$probe/"
+          echo '{"name":"audit-probe","private":true}' > "$probe/package.json"
+          cd "$probe"
           echo "::group::pnpm audit (full — informational, all severities)"
-          pnpm audit || true
+          pnpm dlx pnpm@11.13.0 audit || true
           echo "::endgroup::"
           echo "Gating on high+ severity (moderate/low above are informational):"
-          pnpm audit --audit-level=high
+          pnpm dlx pnpm@11.13.0 audit --audit-level=high
 
       # Lint + format gate (#267). Repo-wide (one root eslint.config.mjs), so unlike the
       # turbo step below it is NOT affected-filtered — and therefore needs the site's

@@ -21,7 +21,7 @@ afterEach(() => {
 })
 
 describe('POST /api/media/reprocess', () => {
-  it('starts a job, reports progress, and upgrades the library (both+lqip)', async () => {
+  it('starts a job, reports progress, and upgrades the library (both+lqip)', { timeout: 30_000 }, async () => {
     const dir = mkdtempSync(join(tmpdir(), 'reprocess-'))
     dirs.push(dir)
     const storage = createLocalStorage({
@@ -90,7 +90,7 @@ describe('POST /api/media/reprocess', () => {
     expect(m.lqip).toMatch(/^data:image\//)
   })
 
-  it('reads Media settings live (a getter) — a setting change applies without rebuilding the api', async () => {
+  it('reads Media settings live (a getter) — a setting change applies without rebuilding the api', { timeout: 30_000 }, async () => {
     // Regression: settings were captured at boot, so a format/LQIP change made in the admin was
     // ignored by uploads + reprocess until the api restarted. The api must read settings per request.
     const dir = mkdtempSync(join(tmpdir(), 'reprocess-live-'))

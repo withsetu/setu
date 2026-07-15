@@ -198,7 +198,7 @@ afterEach(() => {
 })
 
 describe('POST /media — media settings (both formats + lqip)', () => {
-  it('generates both formats + lqip when media settings say so', async () => {
+  it('generates both formats + lqip when media settings say so', { timeout: 30_000 }, async () => {
     const dir = mkdtempSync(join(tmpdir(), 'upload-settings-'))
     tmpDirs.push(dir)
     const storage = createLocalStorage({

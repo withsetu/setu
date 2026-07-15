@@ -109,3 +109,45 @@ describe('rss output (serialized)', () => {
     )
   })
 })
+
+describe('identity extras (#77)', () => {
+  it('emits channel <image> (url/title/link) when a channel image is set', async () => {
+    const xml = await renderFeed({ channelImage: '/media/2026/06/logo.png' })
+    // Same host-agnostic stance as the media:content assertion above.
+    expect(xml).toMatch(
+      /<image><url>https?:\/\/[^<]*\/media\/2026\/06\/logo\.png<\/url><title>My Site<\/title><link>https:\/\/example\.dev\/<\/link><\/image>/
+    )
+  })
+
+  it('omits channel <image> when no channel image is set', async () => {
+    const xml = await renderFeed()
+    expect(xml).not.toContain('<image>')
+  })
+
+  it('declares xmlns:dc and emits <dc:creator> on every item from the feed creator', async () => {
+    const xml = await renderFeed({ creator: 'Jane Doe' })
+    expect(xml).toContain('xmlns:dc="http://purl.org/dc/elements/1.1/"')
+    expect(xml.match(/<dc:creator>Jane Doe<\/dc:creator>/g)?.length).toBe(2)
+  })
+
+  it('a per-item author overrides the channel-level creator', async () => {
+    const xml = await renderFeed({
+      creator: 'Jane Doe',
+      items: [item({ author: 'Alex Author' }), item({ title: 'No author' })]
+    })
+    expect(xml).toContain('<dc:creator>Alex Author</dc:creator>')
+    expect(xml.match(/<dc:creator>Jane Doe<\/dc:creator>/g)?.length).toBe(1)
+  })
+
+  it('emits no dc:creator (and no dc namespace requirement) when neither creator nor authors exist', async () => {
+    const xml = await renderFeed()
+    expect(xml).not.toContain('<dc:creator>')
+  })
+
+  it('escapes XML entities in creator and image URL', async () => {
+    const xml = await renderFeed({ creator: 'Jane & "Co" <dev>' })
+    expect(xml).toContain(
+      '<dc:creator>Jane &amp; &quot;Co&quot; &lt;dev&gt;</dc:creator>'
+    )
+  })
+})

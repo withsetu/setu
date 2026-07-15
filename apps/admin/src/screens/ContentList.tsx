@@ -23,7 +23,7 @@ import { Pager } from './content-list/Pager'
 import { useColumnPrefs } from './content-list/useColumnPrefs'
 import { useSettings } from '../data/settings-store'
 
-const SORT_KEYS: SortKey[] = ['updatedAt', 'title', 'status']
+const SORT_KEYS: SortKey[] = ['updatedAt', 'title', 'status', 'locale']
 
 function flatten(
   nodes: CategoryNode[],

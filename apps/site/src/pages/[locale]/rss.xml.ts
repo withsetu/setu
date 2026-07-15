@@ -45,7 +45,9 @@ export async function GET(context: APIContext) {
       site: context.site,
       locale,
       feedPath: `${locale}/rss.xml`,
-      items
+      items,
+      channelImage: settings.identity.logo || undefined,
+      creator: settings.identity.name || settings.general.title || undefined
     })
   )
 }

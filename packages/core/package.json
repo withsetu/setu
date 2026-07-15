@@ -19,7 +19,7 @@
     "@markdoc/markdoc": "^0.5.7",
     "jiti": "^2.4.2",
     "js-yaml": "^4.2.0",
-    "zod": "^3.23.8"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@setu/db-memory": "workspace:*",

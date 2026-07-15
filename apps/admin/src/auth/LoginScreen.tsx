@@ -50,7 +50,7 @@ function mapSignInError(error: AuthClientError): string {
  *  email + password Inputs with Labels, a full-width primary submit. Built against real
  *  capabilities (social providers, captcha) rather than a static mock. */
 export function LoginScreen() {
-  const { auth } = useCapabilities()
+  const { auth, mode } = useCapabilities()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -108,7 +108,7 @@ export function LoginScreen() {
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center p-6">
+    <div className="flex min-h-svh flex-col items-center justify-center gap-4 p-6">
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
           <span
@@ -227,6 +227,18 @@ export function LoginScreen() {
           </form>
         </CardContent>
       </Card>
+      {/* #386: in local mode the machine running Setu can always mint a fresh sign-in link, so a
+          locked-out (passwordless) admin staring at this form gets pointed at the recovery path
+          instead of a password they don't have. Capability-driven: absent in every other mode. */}
+      {mode === 'local' && (
+        <p className="w-full max-w-sm text-center text-sm text-muted-foreground">
+          On the machine running Setu? Run{' '}
+          <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.8125rem] text-foreground">
+            pnpm auth:login-link
+          </code>{' '}
+          in the project folder for a fresh sign-in link.
+        </p>
+      )}
     </div>
   )
 }

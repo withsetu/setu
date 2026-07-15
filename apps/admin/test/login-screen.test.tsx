@@ -26,7 +26,7 @@ const NO_PROVIDERS_NO_CAPTCHA: AuthCaps = {
   needsSetup: false
 }
 
-function stubCapabilities(auth: AuthCaps) {
+function stubCapabilities(auth: AuthCaps, mode?: string) {
   vi.stubGlobal(
     'fetch',
     vi.fn(
@@ -38,7 +38,8 @@ function stubCapabilities(auth: AuthCaps) {
               writableMediaStore: true,
               backgroundJobs: true
             },
-            auth
+            auth,
+            ...(mode ? { mode } : {})
           }),
           { status: 200 }
         )
@@ -254,5 +255,28 @@ describe('LoginScreen', () => {
     )
 
     delete (window as unknown as { turnstile?: unknown }).turnstile
+  })
+
+  // #386: local-mode lockout recovery — the machine running Setu can always mint a fresh
+  // sign-in link (`pnpm auth:login-link`), so the local login screen says so.
+  it('local mode shows the auth:login-link hint under the card', async () => {
+    stubCapabilities(NO_PROVIDERS_NO_CAPTCHA, 'local')
+    render(<LoginScreen />)
+
+    expect(
+      await screen.findByText(/on the machine running setu\?/i)
+    ).toBeInTheDocument()
+    expect(screen.getByText('pnpm auth:login-link')).toBeInTheDocument()
+  })
+
+  it('no login-link hint outside local mode (capability-driven, not cosmetic)', async () => {
+    stubCapabilities(NO_PROVIDERS_NO_CAPTCHA, 'self-hosted')
+    render(<LoginScreen />)
+
+    await screen.findByLabelText(/email/i)
+    expect(
+      screen.queryByText(/on the machine running setu\?/i)
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('pnpm auth:login-link')).not.toBeInTheDocument()
   })
 })

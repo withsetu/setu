@@ -1,6 +1,18 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { authClient } from '../auth/auth-client'
+import { useHasPassword } from '../auth/use-has-password'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,10 +33,23 @@ import { ProfileDialog } from './ProfileDialog'
  *
  *  #410: also hosts the "Your profile" self display-name dialog — see ProfileDialog.tsx's comment
  *  for why this is its home rather than the Users screen (gated on `users.view`, which
- *  editor/author don't hold). */
+ *  editor/author don't hold).
+ *
+ *  #386 logout guard: a PASSWORDLESS user (no `credential` account — any role, since a
+ *  passwordless user of any role faces the same lockout) who signs out of a local instance can
+ *  only get back in with a fresh loopback sign-in link. So "Sign out" first checks
+ *  useHasPassword: true → sign out as always; false → an AlertDialog offers "Set password"
+ *  before leaving; null (unknown) → ONE awaited refresh with a brief pending state, then sign
+ *  out anyway if still unknown — a transient fetch error must never trap a user who wants to
+ *  leave. The check is lazy (fires when the dropdown opens, not per shell render). */
 export function UserMenu() {
   const { data } = authClient.useSession()
+  const navigate = useNavigate()
   const [profileOpen, setProfileOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [guardOpen, setGuardOpen] = useState(false)
+  const [checking, setChecking] = useState(false)
+  const { hasPassword, refresh } = useHasPassword(menuOpen)
   const user = data?.user as
     | { name?: string | null; email?: string | null; image?: string | null }
     | undefined
@@ -33,9 +58,30 @@ export function UserMenu() {
   const label = user.name || user.email || 'Signed in'
   const initial = (user.name || user.email || '?').charAt(0).toUpperCase()
 
+  async function onSignOutSelect() {
+    if (checking) return
+    let known = hasPassword
+    if (known === null) {
+      // Unknown (still loading, or the lazy fetch failed): one awaited retry, then decide.
+      setChecking(true)
+      try {
+        known = await refresh()
+      } finally {
+        setChecking(false)
+      }
+    }
+    setMenuOpen(false)
+    if (known === false) {
+      setGuardOpen(true)
+      return
+    }
+    // Has a password — or still unknown after the retry (never trap a user who wants to leave).
+    void authClient.signOut()
+  }
+
   return (
     <>
-      <DropdownMenu>
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger asChild>
           <SidebarMenuButton aria-label={label} className="gap-2">
             <Avatar size="sm">
@@ -58,11 +104,48 @@ export function UserMenu() {
           <DropdownMenuItem onSelect={() => setProfileOpen(true)}>
             <UserPen /> Your profile
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => void authClient.signOut()}>
-            <LogOut /> Sign out
+          <DropdownMenuItem
+            disabled={checking}
+            // preventDefault keeps the menu open while the single awaited refresh runs, so the
+            // pending label is actually visible; onSignOutSelect closes the menu itself.
+            onSelect={(e) => {
+              e.preventDefault()
+              void onSignOutSelect()
+            }}
+          >
+            <LogOut /> {checking ? 'Signing out…' : 'Sign out'}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <AlertDialog open={guardOpen} onOpenChange={setGuardOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Set a password before signing out?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              You haven't set a password. If you sign out, you'll need a fresh
+              sign-in link from the machine running Setu (run{' '}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.8125rem] text-foreground">
+                pnpm auth:login-link
+              </code>
+              ) to get back in.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => navigate('/users')}>
+              Set password
+            </AlertDialogAction>
+            <AlertDialogAction
+              variant="ghost"
+              onClick={() => void authClient.signOut()}
+            >
+              Sign out anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <ProfileDialog
         open={profileOpen}
         onOpenChange={setProfileOpen}

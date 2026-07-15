@@ -1,0 +1,1 @@
+ALTER TABLE `drafts` ADD `base_content` text;

@@ -23,6 +23,7 @@ export const drafts = sqliteTable(
     content: text('content').notNull(), // JSON (TiptapDoc)
     metadata: text('metadata').notNull(), // JSON
     baseSha: text('base_sha'), // nullable
+    baseContent: text('base_content'), // nullable — per-file publish-conflict base (#261)
     createdAt: integer('created_at').notNull(), // epoch ms
     updatedAt: integer('updated_at').notNull() // epoch ms
   },

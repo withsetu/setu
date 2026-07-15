@@ -23,6 +23,7 @@ const rowToDraft = (r: DraftRow): Draft => ({
   content: JSON.parse(r.content) as Draft['content'],
   metadata: JSON.parse(r.metadata) as Record<string, unknown>,
   baseSha: r.baseSha,
+  baseContent: r.baseContent,
   createdAt: r.createdAt,
   updatedAt: r.updatedAt
 })
@@ -78,12 +79,23 @@ export function createSqliteAdapter(file: string): DataPort {
           content,
           metadata,
           baseSha,
+          baseContent: input.baseContent ?? null,
           createdAt: now,
           updatedAt: now
         })
         .onConflictDoUpdate({
           target: [drafts.collection, drafts.locale, drafts.slug],
-          set: { content, metadata, baseSha, updatedAt: now }
+          set: {
+            content,
+            metadata,
+            baseSha,
+            updatedAt: now,
+            // Omitted baseContent PRESERVES the stored fork point (#261) —
+            // only an explicit value (including null) overwrites it.
+            ...(input.baseContent !== undefined
+              ? { baseContent: input.baseContent }
+              : {})
+          }
         })
         .run()
       // Re-read to return the canonical row: ON CONFLICT DO UPDATE preserves the

@@ -43,7 +43,29 @@ export interface IndexService {
 export function createIndexService(deps: IndexServiceDeps): IndexService {
   const { data, git, index, deploy } = deps
 
-  async function rebuild(): Promise<void> {
+  // Serialize index WRITERS (#483): every build is a multi-step clear→upsertMany→setMeta
+  // sequence on one shared IndexPort, so concurrent builds interleave — a still-running
+  // build's clear() landing between another build's upsertMany() and the caller's first
+  // query() returned 0 rows, and the admin list committed a permanently-empty state
+  // (the late upsertMany silently repopulated the store afterwards). Same idiom as
+  // git-local's commit chain. Reads (query/distinct*/counts/…) stay unserialized.
+  // Internal callers use the *Inner functions — routing them through serialize() would
+  // deadlock the chain.
+  let chain: Promise<unknown> = Promise.resolve()
+  const serialize = <T>(fn: () => Promise<T>): Promise<T> => {
+    const run = chain.then(fn, fn)
+    chain = run.then(
+      () => undefined,
+      () => undefined
+    )
+    return run
+  }
+
+  async function rebuildInner(): Promise<void> {
+    // Read HEAD before the walk: a commit landing mid-walk must leave indexedSha behind
+    // HEAD so the next ensureBuilt imports it — stamping the post-walk sha would mark
+    // the unwalked commit as indexed and mask it forever.
+    const head = await git.headSha()
     const drafts = await data.listDrafts()
     const committed: { ref: EntryRef; content: string }[] = []
     for (const p of await git.list('content/')) {
@@ -60,16 +82,20 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
     await index.clear()
     await index.upsertMany(rows)
     await index.setMeta({
-      indexedSha: await git.headSha(),
+      indexedSha: head,
       version: INDEX_VERSION
     })
   }
 
-  async function ensureBuilt(): Promise<void> {
+  function rebuild(): Promise<void> {
+    return serialize(rebuildInner)
+  }
+
+  async function ensureBuiltInner(): Promise<void> {
     const meta = await index.getMeta()
     // Cold start / schema change → full build.
     if (meta.version !== INDEX_VERSION) {
-      await rebuild()
+      await rebuildInner()
       return
     }
     // Import content that changed out-of-band (seeded, directly committed, or the admin
@@ -85,7 +111,20 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
       await index.setMeta({ ...(await index.getMeta()), indexedSha: head })
       return
     }
-    await rebuild()
+    await rebuildInner()
+  }
+
+  // Coalesce concurrent ensureBuilt() (#483): a cold admin load fires it from several
+  // mount/query effects at once (×2 each under StrictMode) — every caller wants "the
+  // index is ready", not its own walk, so they all share ONE in-flight build. Direct
+  // rebuild() calls intentionally do NOT coalesce: they queue a fresh walk (e.g.
+  // reindexAfterDeploy must absorb new deploy state).
+  let inflightEnsure: Promise<void> | null = null
+  function ensureBuilt(): Promise<void> {
+    inflightEnsure ??= serialize(ensureBuiltInner).finally(() => {
+      inflightEnsure = null
+    })
+    return inflightEnsure
   }
 
   /** Reindex only the content entries `diffPaths(fromSha, toSha)` names: deleted paths
@@ -123,8 +162,16 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
     else await index.upsert(projectRow(rows[0]!))
   }
 
-  async function reindexEntry(ref: EntryRef): Promise<void> {
-    await reindexRef(ref, await git.readFile(contentPath(ref)))
+  function reindexEntry(ref: EntryRef): Promise<void> {
+    // Start the git read OUTSIDE the writer chain: it is pure input, and holding the
+    // chain across an HTTP round-trip would make a bulk loop (BulkBar, tags-store)
+    // hold the lock for N sequential reads. Only the index write needs serializing.
+    const committed = git.readFile(contentPath(ref))
+    // Pre-attach a no-op handler: the chain slot may await this promise long after a
+    // rejection settles, and an unobserved-in-the-meantime rejection would fire a
+    // spurious unhandledrejection. The slot's await still surfaces the real error.
+    committed.catch(() => {})
+    return serialize(async () => reindexRef(ref, await committed))
   }
 
   // The git HEAD whose deploy snapshot the index last absorbed (deploys don't move git,
@@ -134,27 +181,37 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
   // the full-rebuild path on its first deploy.
   let deployedHead: string | null = null
 
-  async function reindexAfterDeploy(): Promise<void> {
+  async function reindexAfterDeployInner(): Promise<void> {
     const head = await git.headSha()
     const from = deployedHead
     deployedHead = head
     if (from !== null && head !== null) {
       if (from === head) return // redeploy of the same tree → no row changes
-      // NOTE: intentionally does NOT advance meta.indexedSha — this path only refreshes
-      // deploy-derived lifecycle; committed-content sync stays owned by ensureBuilt/
-      // markSyncedAt so an unimported out-of-band commit is never masked.
+      // NOTE: this diff path intentionally does NOT advance meta.indexedSha — it only
+      // refreshes deploy-derived lifecycle; committed-content sync stays owned by
+      // ensureBuilt/markSyncedAt so an unimported out-of-band commit is never masked.
+      // (The full-rebuild fallback below DOES stamp, via rebuildInner's own setMeta —
+      // safe there, because it walks every committed entry.)
       if (await applyDiff(from, head)) return
     }
-    await rebuild()
+    await rebuildInner()
+  }
+
+  function reindexAfterDeploy(): Promise<void> {
+    return serialize(reindexAfterDeployInner)
   }
 
   /** Record that the index now reflects committed content at `sha`. The admin calls this
    *  ONCE after it has reindexed every entry a publish/bulk commit changed, so ensureBuilt's
    *  out-of-band sha-gate won't rebuild for that commit. A true out-of-band multi-file commit
-   *  (whose entries the admin never reindexed) leaves indexedSha behind HEAD and is imported. */
-  async function markSyncedAt(sha: string): Promise<void> {
-    const meta = await index.getMeta()
-    await index.setMeta({ ...meta, indexedSha: sha })
+   *  (whose entries the admin never reindexed) leaves indexedSha behind HEAD and is imported.
+   *  On the writer chain for META consistency (the getMeta→setMeta read-modify-write must not
+   *  interleave with a build's setMeta — a lost update), not for the #483 row race. */
+  function markSyncedAt(sha: string): Promise<void> {
+    return serialize(async () => {
+      const meta = await index.getMeta()
+      await index.setMeta({ ...meta, indexedSha: sha })
+    })
   }
 
   async function query(

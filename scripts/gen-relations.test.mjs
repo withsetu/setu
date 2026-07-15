@@ -107,3 +107,35 @@ test('frontmatter related: [slug] pins that post (ordered), with its featuredIma
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+test('published:false posts are excluded from the graph — as targets, sources, and override targets (#165)', async () => {
+  const dir = fixtureDir()
+  try {
+    const write = (slug, fm) =>
+      writeFileSync(
+        path.join(dir, 'post', 'en', `${slug}.mdoc`),
+        `---\n${fm}\n---\n\nbody\n`
+      )
+    // A draft sharing every tag in the fixture — the strongest possible related candidate.
+    write(
+      'draft-astro',
+      'title: Draft Astro\ntags: [astro, cms, edge]\npublished: false'
+    )
+    // An explicit override pointing AT the draft must also come back empty.
+    write('cooking', 'title: Cooking\ntags: [food]\nrelated: [draft-astro]')
+    const graph = await buildRelationsGraph(dir)
+    // Never a target: no published entry's list may reference the draft.
+    for (const [key, refs] of Object.entries(graph))
+      for (const r of refs)
+        assert.ok(
+          !r.href.includes('draft-astro') && r.title !== 'Draft Astro',
+          `draft leaked into related list of ${key}: ${r.href}`
+        )
+    // Never a source: the draft has no entry in the graph at all.
+    assert.equal(graph['post/en/draft-astro'], undefined)
+    // The override pointing at the draft resolves to nothing.
+    assert.deepEqual(graph['post/en/cooking'], [])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})

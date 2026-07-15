@@ -12,7 +12,13 @@ const themeOptions = loadThemeOptions()
 const siteSettings = loadSiteSettings()
 const mediaBase = resolveMediaBase(import.meta.env.PUBLIC_SETU_MEDIA, import.meta.env.DEV)
 const homepageId = siteSettings.reading.homepage
-const entry = (await getEntry('entries', homepageId)) ?? (await getEntry('entries', 'page/en/home'))
+// #165: a draft (`published: false`) homepage renders as if unset — fall through to the
+// default home entry, or the empty shell. A draft must never render publicly, even here.
+const ifPublished = (e: Awaited<ReturnType<typeof getEntry>>) =>
+  e && (e.data as { published?: unknown }).published !== false ? e : undefined
+const entry =
+  ifPublished(await getEntry('entries', homepageId)) ??
+  ifPublished(await getEntry('entries', 'page/en/home'))
 const title = entry ? ((entry.data as { title?: string }).title ?? 'Home') : 'Home'
 const rendered = entry ? await render(entry) : null
 const Content = rendered?.Content

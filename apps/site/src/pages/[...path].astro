@@ -23,6 +23,11 @@ export async function getStaticPaths() {
   const map = await permalinkMap()
   return all
     .filter((entry) => entry.id !== homepage && entry.id !== 'page/en/home')
+    // #165: committed-but-unpublished entries get NO route at all. `published !== false`
+    // is the only published-ness signal — same predicate as selectPosts/sitemap/feed.
+    .filter(
+      (entry) => (entry.data as { published?: unknown }).published !== false
+    )
     .map((entry) => ({ params: { path: map.get(entry.id) }, props: { entry } }))
 }
 

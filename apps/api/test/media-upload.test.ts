@@ -198,33 +198,37 @@ afterEach(() => {
 })
 
 describe('POST /media — media settings (both formats + lqip)', () => {
-  it('generates both formats + lqip when media settings say so', { timeout: 30_000 }, async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'upload-settings-'))
-    tmpDirs.push(dir)
-    const storage = createLocalStorage({
-      dir,
-      baseUrl: 'http://localhost:4444/media'
-    })
-    const app = createUploadApi({
-      storage,
-      resolveActor: () => ({ id: 'local', role: 'admin' }),
-      image: createSharpImageAdapter(),
-      mediaSettings: { imageFormat: 'both', imageLqip: true }
-    })
+  it(
+    'generates both formats + lqip when media settings say so',
+    { timeout: 30_000 },
+    async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'upload-settings-'))
+      tmpDirs.push(dir)
+      const storage = createLocalStorage({
+        dir,
+        baseUrl: 'http://localhost:4444/media'
+      })
+      const app = createUploadApi({
+        storage,
+        resolveActor: () => ({ id: 'local', role: 'admin' }),
+        image: createSharpImageAdapter(),
+        mediaSettings: { imageFormat: 'both', imageLqip: true }
+      })
 
-    const body = new FormData()
-    body.append(
-      'file',
-      new File([makeTestPng(400, 300)], 'pic.png', { type: 'image/png' })
-    )
-    const res = await app.fetch(
-      new Request('http://test/media', { method: 'POST', body })
-    )
-    expect(res.status).toBe(201)
-    const json = (await res.json()) as { manifest?: MediaManifest }
-    expect(json.manifest).toBeTruthy()
-    const formats = new Set(json.manifest!.variants.map((v) => v.format))
-    expect(formats).toEqual(new Set(['webp', 'avif']))
-    expect(json.manifest!.lqip).toMatch(/^data:image\/webp;base64,/)
-  })
+      const body = new FormData()
+      body.append(
+        'file',
+        new File([makeTestPng(400, 300)], 'pic.png', { type: 'image/png' })
+      )
+      const res = await app.fetch(
+        new Request('http://test/media', { method: 'POST', body })
+      )
+      expect(res.status).toBe(201)
+      const json = (await res.json()) as { manifest?: MediaManifest }
+      expect(json.manifest).toBeTruthy()
+      const formats = new Set(json.manifest!.variants.map((v) => v.format))
+      expect(formats).toEqual(new Set(['webp', 'avif']))
+      expect(json.manifest!.lqip).toMatch(/^data:image\/webp;base64,/)
+    }
+  )
 })

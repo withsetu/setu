@@ -5,6 +5,7 @@ import type { Role } from '@setu/core'
 import { outranks } from '@setu/core'
 import { useActor, useCan } from '../../auth/actor'
 import { authClient } from '../../auth/auth-client'
+import { useHasPassword } from '../../auth/use-has-password'
 import type { AdminUser } from '../../auth/auth-client'
 import { useNotify } from '../../ui/notify'
 import { apiFetch } from '../../lib/api-fetch'
@@ -852,7 +853,9 @@ function UserList({ refreshSignal }: { refreshSignal: number }) {
  *  `credential` provider entry. This was chosen over adding a new field to the session/actor payload
  *  because it is zero new server surface: the route already exists and answers exactly this
  *  question for the CURRENT session's user, which is all this card needs (it never asks about
- *  other users' password state). Setting the password itself uses the sanctioned better-auth
+ *  other users' password state). Since #386 the derivation itself lives in the shared
+ *  `useHasPassword` hook (auth/use-has-password.ts) — the logout guard and the password-nudge
+ *  banner ask the identical question. Setting the password itself uses the sanctioned better-auth
  *  admin path `authClient.admin.setUserPassword({ userId: self, newPassword })` — verified in
  *  node_modules/better-auth/dist/api/routes/update-user.mjs that the base client's `setPassword`
  *  endpoint is `createAuthEndpoint.serverOnly`, i.e. NOT reachable over HTTP from this browser
@@ -862,25 +865,12 @@ function UserList({ refreshSignal }: { refreshSignal: number }) {
 function OwnerPasswordCard({ onChanged }: { onChanged: () => void }) {
   const actor = useActor()
   const notify = useNotify()
-  const [hasPassword, setHasPassword] = useState<boolean | null>(null)
+  const { hasPassword, refresh: refreshHasPassword } = useHasPassword()
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [errors, setErrors] = useState<PasswordErrors>({})
   const [submitting, setSubmitting] = useState(false)
-
-  async function loadHasPassword() {
-    const { data, error } = await authClient.listAccounts()
-    if (error) {
-      setHasPassword(null)
-      return
-    }
-    setHasPassword(!!data?.some((a) => a.providerId === 'credential'))
-  }
-
-  useEffect(() => {
-    void loadHasPassword()
-  }, [])
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -929,7 +919,7 @@ function OwnerPasswordCard({ onChanged }: { onChanged: () => void }) {
       setCurrentPassword('')
       setNewPassword('')
       setConfirm('')
-      await loadHasPassword()
+      await refreshHasPassword()
       // Only the "set password" branch (no prior credential) actually flips the credential-status
       // boolean the Users list reads — "change password" keeps the same true/false state — but
       // notifying unconditionally is simpler and harmless (an extra re-fetch, not an extra

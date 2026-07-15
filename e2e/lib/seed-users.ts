@@ -1,5 +1,5 @@
 import { openSqliteDb } from '@setu/db-sqlite'
-import { createAuth } from '@setu/auth'
+import { openInternalAuthContext } from '@setu/auth'
 
 /** The password test users the e2e auth harness signs in as.
  *
@@ -40,16 +40,9 @@ export type E2ERole = keyof typeof E2E_USERS
  *  `createAuth` itself uses). Safe to call on every run: users that already exist are left
  *  untouched. Runs during Playwright's setup project, when the api is up but idle. */
 export async function seedUsers(dbFile: string): Promise<void> {
-  const db = openSqliteDb(dbFile)
-  // secret/baseURL/trustedOrigins are required by createAuth but irrelevant here: we only touch
-  // internalAdapter (user rows) + password.hash (scrypt), neither of which signs a session.
-  const auth = createAuth({
-    db,
-    secret: 'e2e-seed-only-never-signs-a-session',
-    baseURL: 'http://localhost:4446',
-    trustedOrigins: ['http://localhost:5175']
-  })
-  const ctx = await auth.$context
+  // Shared host-side bootstrap (same one apps/api's reset-password script uses) — the throwaway
+  // secret/baseURL rationale lives on openInternalAuthContext itself.
+  const ctx = await openInternalAuthContext(openSqliteDb(dbFile))
   for (const u of Object.values(E2E_USERS)) {
     if (await ctx.internalAdapter.findUserByEmail(u.email)) continue
     const user = await ctx.internalAdapter.createUser({

@@ -30,6 +30,9 @@ export function IndexProvider({ children }: { children: ReactNode }) {
   // listing shows "No posts yet" with zero diagnostics (bit us in CI on #429 — all git
   // reads returned 200, the list stayed empty, and nothing said why). The app still
   // works degraded (editor/publish don't need the index), so log, don't crash.
+  // #483 found the #429 cause: a concurrent rebuild's clear() landing between another
+  // build's populate and the first query — fixed by coalescing/serialization in
+  // createIndexService.
   useEffect(() => {
     void service.ensureBuilt().catch((err: unknown) => {
       console.error(

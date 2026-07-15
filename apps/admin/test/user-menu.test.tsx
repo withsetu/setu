@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, afterEach, beforeAll } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { NotificationProvider } from '../src/ui/notify'
 import { UserMenu } from '../src/shell/UserMenu'
 import { authClient } from '../src/auth/auth-client'
+import { resetHasPasswordStoreForTests } from '../src/auth/use-has-password'
 
 // Radix DropdownMenu calls scrollIntoView when it opens — stub it for jsdom.
 beforeAll(() => {
@@ -19,24 +21,40 @@ vi.mock('../src/auth/auth-client', () => ({
   authClient: {
     useSession: vi.fn(),
     signOut: vi.fn(),
-    updateUser: vi.fn()
+    updateUser: vi.fn(),
+    listAccounts: vi.fn()
   }
 }))
 
 const mockUseSession = vi.mocked(authClient.useSession)
 const mockSignOut = vi.mocked(authClient.signOut)
 const mockUpdateUser = vi.mocked(authClient.updateUser)
+const mockListAccounts = vi.mocked(authClient.listAccounts)
+
+/** Exposes the router's current pathname so "Set password navigates to /users" is assertable. */
+function LocationProbe() {
+  const location = useLocation()
+  return <div data-testid="location">{location.pathname}</div>
+}
 
 const renderMenu = () =>
   render(
-    <NotificationProvider>
-      <SidebarProvider>
-        <UserMenu />
-      </SidebarProvider>
-    </NotificationProvider>
+    <MemoryRouter>
+      <NotificationProvider>
+        <SidebarProvider>
+          <UserMenu />
+        </SidebarProvider>
+        <LocationProbe />
+      </NotificationProvider>
+    </MemoryRouter>
   )
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.restoreAllMocks()
+  // useHasPassword caches across instances by design — reset so each test's mocked
+  // listAccounts answer is actually consulted.
+  resetHasPasswordStoreForTests()
+})
 
 describe('UserMenu', () => {
   it('renders nothing when there is no real session (no-API local-owner mode)', () => {
@@ -196,6 +214,158 @@ describe('UserMenu', () => {
         await screen.findByText(/100 characters or fewer/i)
       ).toBeInTheDocument()
       expect(mockUpdateUser).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Logout guard (#386 admin lockout recovery)', () => {
+    function mockSignedInSession() {
+      mockUseSession.mockReturnValue({
+        data: {
+          user: {
+            id: 'u1',
+            name: 'Ada Lovelace',
+            email: 'ada@setu.dev',
+            role: 'admin'
+          }
+        },
+        isPending: false,
+        isRefetching: false,
+        error: null,
+        refetch: vi.fn()
+      })
+    }
+
+    async function openMenuAndClickSignOut() {
+      fireEvent.keyDown(screen.getByRole('button', { name: /Ada Lovelace/i }), {
+        key: 'Enter'
+      })
+      const signOutItem = await screen.findByRole('menuitem', {
+        name: /sign out/i
+      })
+      fireEvent.click(signOutItem)
+      return signOutItem
+    }
+
+    it('a user WITH a password signs out immediately — no dialog', async () => {
+      mockSignedInSession()
+      mockListAccounts.mockResolvedValue({
+        data: [{ id: 'a1', providerId: 'credential' }],
+        error: null
+      })
+      renderMenu()
+
+      await openMenuAndClickSignOut()
+
+      await waitFor(() => expect(mockSignOut).toHaveBeenCalled())
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    })
+
+    it('a passwordless user gets the guard dialog with all three actions instead of signing out', async () => {
+      mockSignedInSession()
+      mockListAccounts.mockResolvedValue({
+        data: [{ id: 'a1', providerId: 'github' }],
+        error: null
+      })
+      renderMenu()
+
+      await openMenuAndClickSignOut()
+
+      const dialog = await screen.findByRole('alertdialog', {
+        name: /set a password before signing out\?/i
+      })
+      expect(dialog).toBeInTheDocument()
+      expect(
+        screen.getByText(/you'll need a fresh sign-in link/i)
+      ).toBeInTheDocument()
+      expect(screen.getByText(/pnpm auth:login-link/)).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: /^cancel$/i })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: /^set password$/i })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: /sign out anyway/i })
+      ).toBeInTheDocument()
+      expect(mockSignOut).not.toHaveBeenCalled()
+    })
+
+    it('"Sign out anyway" calls signOut', async () => {
+      mockSignedInSession()
+      mockListAccounts.mockResolvedValue({ data: [], error: null })
+      renderMenu()
+
+      await openMenuAndClickSignOut()
+      await screen.findByRole('alertdialog')
+
+      fireEvent.click(screen.getByRole('button', { name: /sign out anyway/i }))
+      await waitFor(() => expect(mockSignOut).toHaveBeenCalled())
+    })
+
+    it('"Set password" navigates to the Users screen and does not sign out', async () => {
+      mockSignedInSession()
+      mockListAccounts.mockResolvedValue({ data: [], error: null })
+      renderMenu()
+
+      await openMenuAndClickSignOut()
+      await screen.findByRole('alertdialog')
+
+      fireEvent.click(screen.getByRole('button', { name: /^set password$/i }))
+      await waitFor(() =>
+        expect(screen.getByTestId('location')).toHaveTextContent('/users')
+      )
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+      expect(mockSignOut).not.toHaveBeenCalled()
+    })
+
+    it('Cancel closes the dialog and keeps the session', async () => {
+      mockSignedInSession()
+      mockListAccounts.mockResolvedValue({ data: [], error: null })
+      renderMenu()
+
+      await openMenuAndClickSignOut()
+      await screen.findByRole('alertdialog')
+
+      fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
+      await waitFor(() =>
+        expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+      )
+      expect(mockSignOut).not.toHaveBeenCalled()
+    })
+
+    it('still-unknown after one refresh attempt signs out normally — never traps the user', async () => {
+      mockSignedInSession()
+      mockListAccounts.mockRejectedValue(new Error('api unreachable'))
+      renderMenu()
+
+      await openMenuAndClickSignOut()
+
+      await waitFor(() => expect(mockSignOut).toHaveBeenCalled())
+      expect(mockListAccounts).toHaveBeenCalled()
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    })
+
+    it('shows a brief pending state on the menu item while the one refresh attempt is in flight', async () => {
+      mockSignedInSession()
+      let resolveAccounts!: (v: {
+        data: { id: string; providerId: string }[]
+        error: null
+      }) => void
+      mockListAccounts.mockReturnValue(
+        new Promise((resolve) => {
+          resolveAccounts = resolve
+        })
+      )
+      renderMenu()
+
+      const item = await openMenuAndClickSignOut()
+      await waitFor(() => expect(item).toHaveTextContent(/signing out/i))
+
+      resolveAccounts({
+        data: [{ id: 'a1', providerId: 'credential' }],
+        error: null
+      })
+      await waitFor(() => expect(mockSignOut).toHaveBeenCalled())
     })
   })
 })

@@ -158,6 +158,88 @@ describe('localToken plugin — POST /api/auth/local/exchange', () => {
   })
 })
 
+/** Mirrors the #386 server.ts contract: the provider holds a MUTABLE token and `consume()`
+ *  synchronously re-mints it, so a valid unused token always exists — single-use is enforced by
+ *  rotation (the old token no longer matches `getToken()`), not by any flag inside the plugin. */
+function makeRotatingAuth() {
+  const db = drizzle(new Database(':memory:'))
+  migrate(db, { migrationsFolder: '../db-sqlite/drizzle' })
+
+  let token = 'rotating-token-generation-1'
+  let generation = 1
+  let localUserId = ''
+
+  const auth = createAuth({
+    db,
+    secret: 'test-secret-32-chars-minimum!!!!',
+    baseURL: 'http://localhost:4444',
+    trustedOrigins: ['http://localhost:5173'],
+    localToken: {
+      getToken: () => token,
+      consume: () => {
+        generation += 1
+        token = `rotating-token-generation-${generation}`
+      },
+      localUserId: async () => {
+        if (!localUserId) throw new Error('local owner not set for this test')
+        return localUserId
+      }
+    }
+  })
+
+  return {
+    auth,
+    setLocalUserId: (id: string) => {
+      localUserId = id
+    },
+    getCurrentToken: () => token
+  }
+}
+
+describe('localToken plugin — rotation-based single-use (#386)', () => {
+  it('rotating provider: replayed old token -> 401; the NEW token -> 200 for a second exchange', async () => {
+    const { auth, setLocalUserId, getCurrentToken } = makeRotatingAuth()
+    const userId = await createLocalUser(auth)
+    setLocalUserId(userId)
+
+    const firstToken = getCurrentToken()
+    const first = await auth.handler(exchangeRequest(firstToken))
+    expect(first.status).toBe(200)
+
+    // consume() rotated the provider's token — a fresh, unused one now exists.
+    const secondToken = getCurrentToken()
+    expect(secondToken).not.toBe(firstToken)
+
+    // Replaying the consumed token must never work again.
+    const replay = await auth.handler(exchangeRequest(firstToken))
+    expect(replay.status).toBe(401)
+
+    // The rotated token admits a second exchange — recovery without an API restart.
+    const second = await auth.handler(exchangeRequest(secondToken))
+    expect(second.status).toBe(200)
+    expect(second.headers.get('set-cookie')).toMatch(/better-auth/)
+  })
+
+  it('no-op consume provider (defensive fallback): the consumed token never works again even though getToken() still returns it', async () => {
+    // Some callers (tests, minimal integrations) wire consume: () => {} without rotation. The
+    // plugin must still guarantee single-use for them — via its last-consumed-token fallback —
+    // so removing the old `consumed` closure flag can never regress single-use.
+    const { auth, setLocalUserId } = makeAuth()
+    const userId = await createLocalUser(auth)
+    setLocalUserId(userId)
+
+    const first = await auth.handler(
+      exchangeRequest('test-loopback-token-abc123')
+    )
+    expect(first.status).toBe(200)
+
+    const replay = await auth.handler(
+      exchangeRequest('test-loopback-token-abc123')
+    )
+    expect(replay.status).toBe(401)
+  })
+})
+
 describe('constantTimeTokenEquals', () => {
   it('returns true for equal strings', () => {
     expect(

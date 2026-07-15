@@ -110,6 +110,8 @@ describe('auth event emission — onAuthEvent', () => {
     const logouts = events.filter((e) => e.type === 'logout')
     expect(logouts).toHaveLength(1)
     expect(logouts[0]?.targetId).toBe(owner.id)
+    // #386: the owner HAS a credential account (makeOwner links one), so no passwordless meta.
+    expect(logouts[0]?.meta?.passwordless).toBeUndefined()
   })
 
   it('fires role.changed exactly once on admin setRole', async () => {
@@ -414,6 +416,61 @@ describe('auth event emission — direct plugin emission points', () => {
     const exchanges = events.filter((e) => e.type === 'local.exchange')
     expect(exchanges).toHaveLength(1)
     expect(exchanges[0]?.targetId).toBe(localUserId)
+  })
+
+  it('fires logout with meta.passwordless="true" when the signing-out user has NO credential account (#386)', async () => {
+    const db = drizzle(new Database(':memory:'))
+    migrate(db, { migrationsFolder: '../db-sqlite/drizzle' })
+    const events: AuthEvent[] = []
+    let localUserId = ''
+    const auth = createAuth({
+      db,
+      secret: 'test-secret-32-chars-minimum!!!!',
+      baseURL: 'http://localhost:4444',
+      trustedOrigins: ['http://localhost:5173'],
+      onAuthEvent: (e) => events.push(e),
+      localToken: {
+        getToken: () => 'test-loopback-token-abc123',
+        consume: () => {},
+        localUserId: async () => localUserId
+      }
+    })
+    // A local-mode owner created by ensureLocalOwner has NO credential account row — create the
+    // user the same way (internalAdapter.createUser, no linkAccount) and sign in via the loopback
+    // exchange, the only session-creation path such a user has.
+    const ctx = await auth.$context
+    const user = await ctx.internalAdapter.createUser({
+      email: 'passwordless@local.test',
+      name: 'Passwordless Owner',
+      role: 'admin',
+      emailVerified: true
+    })
+    localUserId = user.id
+
+    const exchange = await auth.handler(
+      new Request('http://localhost:4444/api/auth/local/exchange', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', host: 'localhost:4444' },
+        body: JSON.stringify({ token: 'test-loopback-token-abc123' })
+      })
+    )
+    expect(exchange.status).toBe(200)
+    const cookie =
+      (exchange.headers.get('set-cookie') ?? '').split(';')[0] ?? ''
+    events.length = 0
+
+    const res = await auth.handler(
+      new Request('http://localhost:4444/api/auth/sign-out', {
+        method: 'POST',
+        headers: { cookie, origin: 'http://localhost:5173' }
+      })
+    )
+    expect(res.status).toBe(200)
+
+    const logouts = events.filter((e) => e.type === 'logout')
+    expect(logouts).toHaveLength(1)
+    expect(logouts[0]?.targetId).toBe(user.id)
+    expect(logouts[0]?.meta?.passwordless).toBe('true')
   })
 
   it('fires setup.completed exactly once on a successful first-run server setup', async () => {

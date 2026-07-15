@@ -1,7 +1,7 @@
 import { Check, Circle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { useDismissed } from '../use-dismissed'
+import { useDismissed } from '@/hooks/use-dismissed'
 
 function Item({ done, label }: { done: boolean; label: string }) {
   return (

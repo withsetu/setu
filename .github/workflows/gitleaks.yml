@@ -29,7 +29,7 @@ jobs:
     name: gitleaks scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Full history — gitleaks needs every commit to catch secrets that were later removed.
           fetch-depth: 0

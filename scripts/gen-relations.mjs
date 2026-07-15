@@ -120,6 +120,9 @@ function toRow(file, contentDir) {
     updatedAt,
     featuredImage,
     relatedOverride,
+    // `published !== false` is the ONLY published-ness signal (#165): drafts are
+    // committed-but-hidden and must never enter the related graph in any direction.
+    published: frontmatter.published !== false,
     // Stable content id (#389): survives a slug rename, so the redirect map keys on it.
     cid: typeof frontmatter.cid === 'string' ? frontmatter.cid : undefined,
     // Frontmatter date ?? pubDate ONLY — never updatedAt/mtime — matching
@@ -179,8 +182,13 @@ export async function buildUrlMap(contentDir) {
 /** Build the related-posts graph for a content dir: entry-id -> {title, href, featuredImage?}[]. */
 export async function buildRelationsGraph(contentDir) {
   const rows = walk(contentDir).map((f) => toRow(f, contentDir))
-  const byKey = new Map(rows.map((r) => [r.key, r]))
-  const graph = selectRelatedPosts(rows, { k: 6, categoryBoost: 0.25 })
+  // Drafts (`published: false`, #165) are excluded from the graph in BOTH directions:
+  // not candidates (targets), not sources (their page never builds), and an explicit
+  // `related:` override naming a draft resolves to nothing. The permalink map still
+  // sees every row — URLs must stay byte-identical to the routing scan.
+  const pool = rows.filter((r) => r.published)
+  const byKey = new Map(pool.map((r) => [r.key, r]))
+  const graph = selectRelatedPosts(pool, { k: 6, categoryBoost: 0.25 })
   const map = await buildPermalinkMap(rows, contentDir)
 
   // `r` may be a full row (has `.key`, from an override lookup) or a bare RelatedRef
@@ -196,7 +204,7 @@ export async function buildRelationsGraph(contentDir) {
   }
 
   const out = {}
-  for (const row of rows) {
+  for (const row of pool) {
     if (row.relatedOverride === false) {
       out[row.key] = []
     } else if (Array.isArray(row.relatedOverride)) {

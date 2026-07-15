@@ -251,6 +251,65 @@ export class EditorPage {
     return this.calloutBlock.getByLabel('Callout text')
   }
 
+  /** MetaPanel's "Featured image" section (MetaPanel.tsx renders each panel group
+   *  as `<section><h2>{title}</h2>…</section>`), anchored on its heading. The
+   *  bare `section` locator is scoping, not selection — the target inside is
+   *  still found by role. Scoping is required because SeoSection.tsx reuses
+   *  FeaturedImageField for its "Social share image", so a page-wide
+   *  `button "Set featured image"` resolves to TWO identical accessible names.
+   *  (Finding: same-named buttons doing different things is itself an a11y nit
+   *  worth a follow-up label, e.g. "Set social image" — not changed here.) */
+  get featuredImageSection() {
+    return this.page.locator('section').filter({
+      has: this.page.getByRole('heading', {
+        name: 'Featured image',
+        exact: true
+      })
+    })
+  }
+
+  /** The "Set featured image" button (FeaturedImageField.tsx) in the meta
+   *  panel's Featured image section — rendered whenever no block is selected. */
+  get setFeaturedImageButton() {
+    return this.featuredImageSection.getByRole('button', {
+      name: 'Set featured image',
+      exact: true
+    })
+  }
+
+  /** The media picker — MediaPickerModal.tsx's shadcn Dialog, titled "Add an
+   *  image". It embeds the same MediaBrowser as the /media screen (pick mode). */
+  get mediaPickerDialog() {
+    return this.page.getByRole('dialog', { name: 'Add an image' })
+  }
+
+  /** The featured-image preview — FeaturedImageField.tsx renders the chosen
+   *  image as `<img alt="Featured preview">` once `metadata.featuredImage` is
+   *  set. Scoped to the Featured image section for the same two-instance reason
+   *  as the button above. */
+  get featuredPreview() {
+    return this.featuredImageSection.getByRole('img', {
+      name: 'Featured preview'
+    })
+  }
+
+  /** Pick `filename` as the featured image through the real picker: open the
+   *  modal, narrow the grid via its search box (the picker and the /media screen
+   *  share MediaBrowser, so tiles are `button`s named by filename), click the
+   *  tile, and wait for the preview to confirm the metadata took. */
+  async setFeaturedImage(filename: string) {
+    await this.setFeaturedImageButton.click()
+    await expect(this.mediaPickerDialog).toBeVisible()
+    await this.mediaPickerDialog
+      .getByRole('searchbox', { name: 'Search media' })
+      .fill(filename)
+    await this.mediaPickerDialog
+      .getByRole('button', { name: filename, exact: true })
+      .click()
+    await expect(this.mediaPickerDialog).toBeHidden()
+    await expect(this.featuredPreview).toBeVisible()
+  }
+
   async setTitle(title: string) {
     await this.titleInput.fill(title)
   }

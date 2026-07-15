@@ -5,6 +5,7 @@ import { account, user } from '@setu/db-sqlite/schema'
 import { createAuthz, DEFAULT_ROLES } from '@setu/core'
 import type { Actor } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
+import { apiOnError } from './errors'
 import type { ResolveActor } from './auth/resolve-actor'
 
 const authz = createAuthz(DEFAULT_ROLES)
@@ -29,7 +30,7 @@ export interface UsersApiOptions {
  *
  *  Fail-closed, same shape as media.ts's authMiddleware + authz.can gate: no session -> 401
  *  (authMiddleware); session without `users.view` -> 403; any query failure -> a generic 500
- *  with no leaked detail (mirrors createUploadApi's/createGitApi's own `app.onError`). */
+ *  with no leaked detail (the shared `apiOnError`, #291). */
 export function createUsersApi(opts: UsersApiOptions) {
   const { db } = opts
   const app = new Hono<{ Variables: { actor: Actor } }>()
@@ -85,12 +86,8 @@ export function createUsersApi(opts: UsersApiOptions) {
     }
   )
 
-  app.onError((err, c) => {
-    console.error(
-      '[users] credential-status query failed:',
-      err instanceof Error ? err.message : String(err)
-    )
-    return c.json({ error: 'internal error' }, 500)
-  })
+  // #291: the shared handler keeps this factory's server-side log line (scope → `[api:users]`)
+  // and its no-leak envelope, now with a correlation id.
+  app.onError(apiOnError({ scope: 'users' }))
   return app
 }

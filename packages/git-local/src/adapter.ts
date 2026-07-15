@@ -2,7 +2,12 @@ import nodeFs from 'node:fs'
 import { dirname, resolve, sep } from 'node:path'
 import * as git from 'isomorphic-git'
 import type { PromiseFsClient } from 'isomorphic-git'
-import type { GitPort, CommitFilesInput, CommitResult } from '@setu/core'
+import type {
+  GitPort,
+  CommitFilesInput,
+  CommitResult,
+  DiffPathEntry
+} from '@setu/core'
 
 /** The three direct fs.promises calls this adapter makes. isomorphic-git's
  *  PromiseFsClient types its `promises` members as bare `Function` (its API surface is
@@ -142,6 +147,38 @@ export function createLocalGitAdapter(options: LocalGitOptions): GitPort {
       return prefix === undefined
         ? all
         : all.filter((p) => p.startsWith(prefix))
+    },
+    async diffPaths(fromSha: string, toSha: string) {
+      if (fromSha === toSha) {
+        // Still reject an unknown sha (parity with the other adapters).
+        await git.readCommit({ fs, dir, oid: fromSha })
+        return []
+      }
+      // Two-TREE walk — the documented isomorphic-git tree-to-tree diff pattern
+      // ("Compare file states between two commits", isomorphic-git docs/snippets.md,
+      // verified 2026-07-09 for isomorphic-git 1.x: git.walk with two git.TREE({ ref })
+      // walkers; map receives one entry per tree, null where the path is absent).
+      // An unresolvable sha makes the walk reject, which is the contract's signal.
+      const results = (await git.walk({
+        fs,
+        dir,
+        trees: [git.TREE({ ref: fromSha }), git.TREE({ ref: toSha })],
+        map: async (filepath, entries) => {
+          if (filepath === '.') return undefined
+          const [a, b] = entries ?? [null, null]
+          // Only blobs carry content; a tree (or absent) side reads as undefined,
+          // so a dir→file or file→dir flip still reports the blob side correctly.
+          const aOid =
+            a != null && (await a.type()) === 'blob' ? await a.oid() : undefined
+          const bOid =
+            b != null && (await b.type()) === 'blob' ? await b.oid() : undefined
+          if (aOid === bOid) return undefined // unchanged blob, tree/tree, or non-blob
+          if (aOid === undefined) return { path: filepath, status: 'added' }
+          if (bOid === undefined) return { path: filepath, status: 'deleted' }
+          return { path: filepath, status: 'modified' }
+        }
+      })) as DiffPathEntry[]
+      return results
     }
   }
 }

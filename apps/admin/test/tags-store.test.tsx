@@ -61,7 +61,7 @@ describe('TagsProvider — rename (pure)', () => {
       data,
       git,
       index: indexPort,
-      deployedAt: () => null
+      deploy: () => ({ deployedSha: null, changed: [] })
     })
     await idx.rebuild()
 
@@ -115,7 +115,7 @@ describe('TagsProvider — rename (merge)', () => {
       data,
       git,
       index: indexPort,
-      deployedAt: () => null
+      deploy: () => ({ deployedSha: null, changed: [] })
     })
     await idx.rebuild()
 
@@ -165,7 +165,7 @@ describe('TagsProvider — remove (delete)', () => {
       data,
       git,
       index: indexPort,
-      deployedAt: () => null
+      deploy: () => ({ deployedSha: null, changed: [] })
     })
     await idx.rebuild()
 

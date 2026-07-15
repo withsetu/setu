@@ -1,4 +1,9 @@
-import type { CommitInput, CommitFilesInput, CommitResult } from './types'
+import type {
+  CommitInput,
+  CommitFilesInput,
+  CommitResult,
+  DiffPathEntry
+} from './types'
 
 /** The git seam: read published content + commit. Server topologies use a real
  *  local git adapter; edge uses a GitHub-API adapter (later). The DB is derived;
@@ -16,4 +21,10 @@ export interface GitPort {
   /** Repo-relative paths of all files at HEAD, filtered to those under `prefix`
    *  (default: all). Empty when the repo has no commits. Order is not guaranteed. */
   list(prefix?: string): Promise<string[]>
+  /** Tree-to-tree diff between two commits: every path whose content differs,
+   *  with how it changed going from `fromSha`'s tree to `toSha`'s. Identical
+   *  shas → empty. A sha the adapter cannot resolve (never existed, pruned) →
+   *  rejects; callers treat that as "diff unavailable" and fall back to a full
+   *  rescan. Order is not guaranteed. */
+  diffPaths(fromSha: string, toSha: string): Promise<DiffPathEntry[]>
 }

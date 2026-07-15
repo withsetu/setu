@@ -10,6 +10,7 @@ import {
 } from '@setu/core'
 import type { Action, Actor, ProbeResponse } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
+import { apiOnError } from './errors'
 import type { ResolveActor } from './auth/resolve-actor'
 
 const authz = createAuthz(DEFAULT_ROLES)
@@ -112,5 +113,6 @@ export function createSiteHealthApi(opts: {
     return c.json<ProbeResponse>(report)
   })
 
+  app.onError(apiOnError({ scope: 'sitehealth' })) // #291: prod-generic, never err.message
   return app
 }

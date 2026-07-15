@@ -45,6 +45,12 @@ describe('Image node', () => {
     expect(img.getAttribute('alt')).toBe('a cat')
   })
 
+  it('renders its <img> as not natively draggable (#384)', async () => {
+    render(<Harness onReady={() => {}} />)
+    const img = (await screen.findAllByRole('img'))[0]!
+    expect(img.getAttribute('draggable')).toBe('false')
+  })
+
   it('accepts the image node in the schema and round-trips its attrs through getJSON', async () => {
     let editor!: Editor
     render(<Harness onReady={(e) => (editor = e)} />)

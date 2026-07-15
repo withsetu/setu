@@ -2,12 +2,6 @@
   "_policy": "Known CodeQL findings, allowlisted per the repo's fail-on-NEW gate policy (same shape as the axe allowlists, #220). Each entry matches ruleId + file uri (line numbers drift, deliberately not matched). Every entry MUST carry a tracking issue; removing the entry once fixed is that issue's DoD \u2014 the gate then guards the fix forever. Adding an entry requires triage, never convenience. KNOWN BLIND SPOT: the ruleId+uri fingerprint means a genuinely NEW instance of an allowlisted rule IN THE SAME FILE is also swallowed until that file's entry is removed \u2014 bounded to the 4 tracked files, self-healing as #323/#324 land; deliberate trade vs line-drift false-reds.",
   "known": [
     {
-      "ruleId": "js/incomplete-multi-character-sanitization",
-      "uri": "apps/site/integrations/per-page-css-purge.mjs",
-      "issue": "#323",
-      "note": "Potential <style injection via single-pass sanitization in the CSS purge build integration \u2014 REAL product concern, security-labeled."
-    },
-    {
       "ruleId": "js/bad-tag-filter",
       "uri": "apps/site/test/blur-up-island.test.ts",
       "issue": "#324",

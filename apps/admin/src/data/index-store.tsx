@@ -11,8 +11,10 @@ export function IndexProvider({ children }: { children: ReactNode }) {
   const { data, git, index } = useServices()
   const deploy = useDeploy()
 
-  const deployedAtRef = useRef(deploy.deployedAt)
-  deployedAtRef.current = deploy.deployedAt
+  // deployInfo already reads a ref inside the provider, but keep the indirection so a
+  // provider re-render can never stale-close over an old function identity here.
+  const deployInfoRef = useRef(deploy.deployInfo)
+  deployInfoRef.current = deploy.deployInfo
 
   const service = useMemo(
     () =>
@@ -20,7 +22,7 @@ export function IndexProvider({ children }: { children: ReactNode }) {
         data,
         git,
         index,
-        deployedAt: (path: string) => deployedAtRef.current(path)
+        deploy: () => deployInfoRef.current()
       }),
     [data, git, index]
   )
@@ -36,12 +38,13 @@ export function IndexProvider({ children }: { children: ReactNode }) {
       )
     })
   }, [service])
+  const deployedSha = deploy.status?.deployedSha ?? null
   useEffect(() => {
-    if (deploy.sha !== null)
+    if (deployedSha !== null)
       void service.reindexAfterDeploy().catch((err: unknown) => {
         console.error('[setu] content-index deploy resync failed:', err)
       })
-  }, [deploy.sha, service])
+  }, [deployedSha, service])
   return (
     <IndexContext.Provider value={service}>{children}</IndexContext.Provider>
   )

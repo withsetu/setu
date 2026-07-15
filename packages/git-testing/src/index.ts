@@ -234,5 +234,117 @@ export function runGitPortContract(
       })
       expect(await port.readFile('x.mdoc')).toBeNull()
     })
+
+    const byPath = (a: { path: string }, b: { path: string }) =>
+      a.path < b.path ? -1 : 1
+
+    it('diffPaths reports an added file (and deleted in the reverse direction)', async () => {
+      const { sha: from } = await port.commitFile({
+        path: 'a.mdoc',
+        content: 'A',
+        message: 'm1',
+        author
+      })
+      const { sha: to } = await port.commitFile({
+        path: 'content/post/en/b.mdoc',
+        content: 'B',
+        message: 'm2',
+        author
+      })
+      expect(await port.diffPaths(from, to)).toEqual([
+        { path: 'content/post/en/b.mdoc', status: 'added' }
+      ])
+      expect(await port.diffPaths(to, from)).toEqual([
+        { path: 'content/post/en/b.mdoc', status: 'deleted' }
+      ])
+    })
+
+    it('diffPaths reports a modified file', async () => {
+      const { sha: from } = await port.commitFile({
+        path: 'content/post/en/a.mdoc',
+        content: 'v1',
+        message: 'm1',
+        author
+      })
+      const { sha: to } = await port.commitFile({
+        path: 'content/post/en/a.mdoc',
+        content: 'v2',
+        message: 'm2',
+        author
+      })
+      expect(await port.diffPaths(from, to)).toEqual([
+        { path: 'content/post/en/a.mdoc', status: 'modified' }
+      ])
+    })
+
+    it('diffPaths reports a deleted file', async () => {
+      const { sha: from } = await port.commitFile({
+        path: 'content/post/en/a.mdoc',
+        content: 'A',
+        message: 'm1',
+        author
+      })
+      const { sha: to } = await port.commitFiles({
+        changes: [{ path: 'content/post/en/a.mdoc', delete: true }],
+        message: 'rm',
+        author
+      })
+      expect(await port.diffPaths(from, to)).toEqual([
+        { path: 'content/post/en/a.mdoc', status: 'deleted' }
+      ])
+    })
+
+    it('diffPaths reports a mixed add/modify/delete across several commits', async () => {
+      const { sha: from } = await port.commitFiles({
+        changes: [
+          { path: 'content/post/en/keep.mdoc', content: 'same' },
+          { path: 'content/post/en/edit.mdoc', content: 'v1' },
+          { path: 'content/post/en/gone.mdoc', content: 'bye' }
+        ],
+        message: 'base',
+        author
+      })
+      await port.commitFile({
+        path: 'content/post/en/edit.mdoc',
+        content: 'v2',
+        message: 'edit',
+        author
+      })
+      const { sha: to } = await port.commitFiles({
+        changes: [
+          { path: 'content/page/en/new.mdoc', content: 'hi' },
+          { path: 'content/post/en/gone.mdoc', delete: true }
+        ],
+        message: 'add+rm',
+        author
+      })
+      expect([...(await port.diffPaths(from, to))].sort(byPath)).toEqual([
+        { path: 'content/page/en/new.mdoc', status: 'added' },
+        { path: 'content/post/en/edit.mdoc', status: 'modified' },
+        { path: 'content/post/en/gone.mdoc', status: 'deleted' }
+      ])
+    })
+
+    it('diffPaths of identical shas is empty', async () => {
+      const { sha } = await port.commitFile({
+        path: 'a.mdoc',
+        content: 'A',
+        message: 'm',
+        author
+      })
+      expect(await port.diffPaths(sha, sha)).toEqual([])
+    })
+
+    it('diffPaths rejects on a sha the repo does not know', async () => {
+      const { sha } = await port.commitFile({
+        path: 'a.mdoc',
+        content: 'A',
+        message: 'm',
+        author
+      })
+      const unknown = 'f'.repeat(40)
+      await expect(port.diffPaths(unknown, sha)).rejects.toThrow()
+      await expect(port.diffPaths(sha, unknown)).rejects.toThrow()
+    })
   })
 }

@@ -11,11 +11,25 @@ import { ActorProvider } from '../src/auth/actor'
 import { NotificationProvider } from '../src/ui/notify'
 import { GlobalCommands } from '../src/command/GlobalCommands'
 
-// Mock useDeploy — the real DeployProvider depends on ServicesProvider which is heavy.
-// We only need the deploy() function; capture the mock to verify calls if needed.
-const mockDeploy = vi.fn(() => Promise.resolve())
+// Mock useDeploy — the real DeployProvider fetches /api/deploy/status, which doesn't
+// exist in jsdom. An active status (canRebuild) so the Publish command is registerable;
+// capture rebuild to verify calls if needed.
+const mockRebuild = vi.fn(() => Promise.resolve())
 vi.mock('../src/deploy/deploy', () => ({
-  useDeploy: () => ({ deployedAt: () => null, sha: null, deploy: mockDeploy })
+  useDeploy: () => ({
+    status: {
+      deployedSha: null,
+      deployedAt: null,
+      headSha: 'head',
+      pending: true,
+      changedPaths: [],
+      job: null,
+      canRebuild: true
+    },
+    deployInfo: () => ({ deployedSha: null, changed: [] }),
+    refresh: () => Promise.resolve(),
+    rebuild: mockRebuild
+  })
 }))
 
 // Probe component — reads commands from registry and exposes them via data attrs.
@@ -62,9 +76,9 @@ describe('GlobalCommands', () => {
     expect(getByText('Posts')).toBeInTheDocument()
   })
 
-  it('registers "Deploy site" in the command registry', () => {
+  it('registers the publish command in the command registry', () => {
     const { getByText } = render(<GlobalCommands />, { wrapper: wrap() })
-    expect(getByText('Deploy site')).toBeInTheDocument()
+    expect(getByText('Publish site (rebuild)')).toBeInTheDocument()
   })
 
   it('registers "Toggle theme" in the command registry', () => {
@@ -79,7 +93,7 @@ describe('GlobalCommands', () => {
     )
   })
 
-  it("Deploy site enabled() is false when the actor cannot 'site.deploy'", () => {
+  it("Publish site enabled() is false when the actor cannot 'site.deploy'", () => {
     // #379: author is the lowest staff role and lacks site.deploy (Maintainer+ only).
     const author: Actor = { id: 'a', role: 'author' }
     const { getByTestId } = render(<GlobalCommands />, {

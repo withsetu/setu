@@ -11,6 +11,7 @@ import type {
   SubmissionInput
 } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
+import { apiOnError } from './errors'
 import type { ResolveActor } from './auth/resolve-actor'
 
 const authz = createAuthz(DEFAULT_ROLES)
@@ -205,8 +206,6 @@ export function createFormsApi(opts: {
     return c.json({ ok: true })
   })
 
-  app.onError((err, c) =>
-    c.json({ error: err instanceof Error ? err.message : String(err) }, 500)
-  )
+  app.onError(apiOnError({ scope: 'forms' })) // #291: prod-generic, never err.message
   return app
 }

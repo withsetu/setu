@@ -82,6 +82,26 @@ window; true pinning needs a non-portable custom agent. The pre-check + per-hop
 re-validation is the agreed mitigation level — revisit if a surface ever handles
 credentials or writes based on the fetched body.
 
+## Error handling (required route pattern, #291)
+
+Every Hono factory in `apps/api` (and the root app in `server.ts`) mounts the shared
+**`apiOnError` from `apps/api/src/errors.ts`** — never a hand-rolled `onError`, and never
+`err.message` in a response. What it guarantees:
+
+- **Production**: an unhandled throw returns `500 { error: 'internal_error', id }` — no message,
+  no stack, no paths. The full error is logged server-side under the same short correlation `id`,
+  so a reported response can be matched to its log line.
+- **Dev**: same envelope plus `detail: err.message` as a convenience; still no stack in the body.
+- Deliberate `HTTPException`s pass through untouched — those are safe, intended responses.
+- **Client-input 4xxs stay specific and field-level** (Zod errors, `invalid_url`, `too_large`):
+  they describe the client's own input, which is safe and good UX. Only *faults* get masked.
+- **Auth resolution failures deny**: `authMiddleware` catches a throwing actor resolver and
+  returns the same masked 401 as "no session" (logged with a correlation id) — an internal auth
+  fault must never fall through to the handler or advertise itself to a probing client.
+- **Non-enumeration convention**: routes check authz (403) *before* resource existence (404).
+  Setu authz is role-scoped, not per-resource, so the 403/404 split reveals only the caller's own
+  role — nothing about whether a specific resource exists.
+
 ## Issue-authoring rules
 
 - Security-relevant issues carry the **`security` label** and a **"Security considerations"**

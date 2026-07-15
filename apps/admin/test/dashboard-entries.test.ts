@@ -36,7 +36,7 @@ const seed: DraftInput[] = [
     metadata: { title: 'About', status: 'draft' }
   }
 ]
-const noDeploy = () => null
+const noDeploy = { deployedSha: null, changed: [] }
 
 describe('dashboard entries', () => {
   it('loads entries across post + page collections', async () => {

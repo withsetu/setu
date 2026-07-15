@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
+import { useLocation } from 'react-router-dom'
 import type { Role } from '@setu/core'
 import { authClient } from './auth-client'
 import { ActorProvider } from './actor'
@@ -7,6 +8,7 @@ import { useCapabilities } from '../lib/useCapabilities'
 import { apiFetch } from '../lib/api-fetch'
 import { LoginScreen } from './LoginScreen'
 import { SetupScreen } from './SetupScreen'
+import { ResetPasswordScreen } from './ResetPasswordScreen'
 import { AuthNotConfigured } from './AuthNotConfigured'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -29,6 +31,7 @@ function readHashToken(): string | null {
  *  app directly under the existing local-owner ActorProvider default, never wrapped in this gate.
  *  That decision lives in main.tsx, not here. */
 export function SessionGate({ children }: { children: ReactNode }) {
+  const location = useLocation()
   const {
     auth,
     mode,
@@ -94,6 +97,15 @@ export function SessionGate({ children }: { children: ReactNode }) {
       </div>
     )
   }
+
+  // #364: the emailed password-reset link's callback lands here (packages/auth/src/
+  // reset-password-email.ts's default `redirectTo`, and UsersScreen.tsx's row-action trigger,
+  // both point at this exact admin-origin route). It must render for a SIGNED-OUT visitor — the
+  // entire point of the flow — so this check sits ahead of both the `user` branch and the
+  // needsSetup/LoginScreen fallback below, rendering unconditionally on session state. (A
+  // signed-IN admin navigating here directly is a rare, harmless edge case — better-auth's
+  // `/reset-password` endpoint itself doesn't require session state either.)
+  if (location.pathname === '/reset-password') return <ResetPasswordScreen />
 
   const user = session.data?.user as
     | { id: string; role?: string | null }

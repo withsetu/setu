@@ -5,7 +5,11 @@ import { join } from 'node:path'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { openSqliteDb, countUsers, user as userTable } from '@setu/db-sqlite'
-import { buildCapabilities, createCapabilitiesApi } from '../src/capabilities'
+import {
+  buildCapabilities,
+  createCapabilitiesApi,
+  emailCapabilityFromEnv
+} from '../src/capabilities'
 import {
   socialProvidersEnabled,
   captchaCapabilityFromEnv
@@ -18,6 +22,8 @@ const NO_AUTH = {
   needsSetup: false
 }
 
+const NO_EMAIL = { transport: 'console', deliverable: false }
+
 describe('capabilities', () => {
   it('imageProcessing is true only when an image adapter is wired', () => {
     expect(
@@ -25,14 +31,16 @@ describe('capabilities', () => {
         image: {},
         writableMediaStore: true,
         backgroundJobs: true,
-        auth: NO_AUTH
+        auth: NO_AUTH,
+        email: NO_EMAIL
       }).capabilities.imageProcessing
     ).toBe(true)
     expect(
       buildCapabilities({
         writableMediaStore: true,
         backgroundJobs: true,
-        auth: NO_AUTH
+        auth: NO_AUTH,
+        email: NO_EMAIL
       }).capabilities.imageProcessing
     ).toBe(false)
   })
@@ -43,7 +51,8 @@ describe('capabilities', () => {
       writableMediaStore: true,
       backgroundJobs: true,
       mode: 'self-hosted',
-      auth: NO_AUTH
+      auth: NO_AUTH,
+      email: NO_EMAIL
     })
     const app = createCapabilitiesApi(base, () => NO_AUTH)
     const res = await app.fetch(new Request('http://test/api/capabilities'))
@@ -55,7 +64,8 @@ describe('capabilities', () => {
         writableMediaStore: true,
         backgroundJobs: true
       },
-      auth: NO_AUTH
+      auth: NO_AUTH,
+      email: NO_EMAIL
     })
   })
 
@@ -81,7 +91,8 @@ describe('capabilities', () => {
           image: {},
           writableMediaStore: true,
           backgroundJobs: true,
-          auth: NO_AUTH
+          auth: NO_AUTH,
+          email: NO_EMAIL
         }),
         () => NO_AUTH
       )
@@ -112,7 +123,8 @@ describe('capabilities', () => {
           image: {},
           writableMediaStore: true,
           backgroundJobs: true,
-          auth: NO_AUTH
+          auth: NO_AUTH,
+          email: NO_EMAIL
         }),
         () => NO_AUTH
       )
@@ -131,7 +143,8 @@ describe('capabilities', () => {
       const base = buildCapabilities({
         writableMediaStore: true,
         backgroundJobs: true,
-        auth: NO_AUTH
+        auth: NO_AUTH,
+        email: NO_EMAIL
       })
       const app = createCapabilitiesApi(base, () => ({
         enabled: true,
@@ -225,6 +238,61 @@ describe('capabilities', () => {
     })
   })
 
+  describe('emailCapabilityFromEnv (#364 — mirrors server.ts adapter selection, never inferred)', () => {
+    it('defaults to console/not-deliverable when SETU_EMAIL_ADAPTER is unset', () => {
+      expect(emailCapabilityFromEnv({})).toEqual({
+        transport: 'console',
+        deliverable: false
+      })
+    })
+
+    it('console adapter is explicitly not deliverable', () => {
+      expect(emailCapabilityFromEnv({ SETU_EMAIL_ADAPTER: 'console' })).toEqual(
+        { transport: 'console', deliverable: false }
+      )
+    })
+
+    it('an unrecognized transport value reports itself but stays not-deliverable (matches server.ts falling back to console)', () => {
+      expect(
+        emailCapabilityFromEnv({ SETU_EMAIL_ADAPTER: 'not-a-real-adapter' })
+      ).toEqual({ transport: 'not-a-real-adapter', deliverable: false })
+    })
+
+    // #364 fix (capability-honesty gap found in whole-branch review): server.ts only wires
+    // createAuth's `email` option — the thing that actually enables password-reset sends — when
+    // SETU_FORMS_NOTIFY_FROM is set (see the `email: notifyFrom ? {...} : undefined` ternary in
+    // server.ts). A resend transport with no from-address previously reported `deliverable: true`
+    // even though reset stayed disabled (RESET_PASSWORD_DISABLED) — an enabled-looking UI button
+    // that always errors. These three pin the from-address requirement folded into `deliverable`.
+    it('resend + no SETU_FORMS_NOTIFY_FROM -> not deliverable (reset would still be disabled)', () => {
+      expect(
+        emailCapabilityFromEnv({
+          SETU_EMAIL_ADAPTER: 'resend',
+          RESEND_API_KEY: 'test-fake-key'
+        })
+      ).toEqual({ transport: 'resend', deliverable: false })
+    })
+
+    it('resend + SETU_FORMS_NOTIFY_FROM set -> deliverable (fake key env — no real network call made here)', () => {
+      expect(
+        emailCapabilityFromEnv({
+          SETU_EMAIL_ADAPTER: 'resend',
+          RESEND_API_KEY: 'test-fake-key',
+          SETU_FORMS_NOTIFY_FROM: 'noreply@example.com'
+        })
+      ).toEqual({ transport: 'resend', deliverable: true })
+    })
+
+    it('console + SETU_FORMS_NOTIFY_FROM set -> still not deliverable (transport, not from-address, gates console)', () => {
+      expect(
+        emailCapabilityFromEnv({
+          SETU_EMAIL_ADAPTER: 'console',
+          SETU_FORMS_NOTIFY_FROM: 'noreply@example.com'
+        })
+      ).toEqual({ transport: 'console', deliverable: false })
+    })
+  })
+
   describe('countUsers / needsSetup (real sqlite, via the same drizzle handle createAuth uses)', () => {
     let dir: string
     afterEach(() => {
@@ -298,7 +366,8 @@ describe('capabilities', () => {
       const base = buildCapabilities({
         writableMediaStore: true,
         backgroundJobs: true,
-        auth: NO_AUTH
+        auth: NO_AUTH,
+        email: NO_EMAIL
       })
       const app = createCapabilitiesApi(base, () =>
         resolveAuthCapabilitiesLike(true, () => {

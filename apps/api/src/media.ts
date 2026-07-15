@@ -20,6 +20,7 @@ import type {
   StoragePort
 } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
+import { apiOnError } from './errors'
 import type { ResolveActor } from './auth/resolve-actor'
 
 function formatsFor(setting: 'webp' | 'avif' | 'both'): ImageFormat[] {
@@ -307,8 +308,6 @@ export function createUploadApi(opts: UploadApiOptions) {
     return new Response(obj.body, { status: 200, headers })
   })
 
-  app.onError((err, c) =>
-    c.json({ error: err instanceof Error ? err.message : String(err) }, 500)
-  )
+  app.onError(apiOnError({ scope: 'media' })) // #291: prod-generic, never err.message
   return app
 }

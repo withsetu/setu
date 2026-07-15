@@ -13,7 +13,14 @@ function ImageView({ node, updateAttributes, selected }: NodeViewProps) {
       className={`setu-image${selected ? ' is-selected' : ''}`}
       contentEditable={false}
     >
-      <img src={resolveMediaSrc(src, apiBase)} alt={alt} />
+      {/* Not natively draggable: a native img drag duplicates the node through the
+          generic img[src] parse rule instead of moving it (#384). */}
+      <img
+        src={resolveMediaSrc(src, apiBase)}
+        alt={alt}
+        draggable={false}
+        onDragStart={(e) => e.preventDefault()}
+      />
       {selected && (
         <input
           className="setu-image-alt"

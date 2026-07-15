@@ -39,7 +39,12 @@ async function setup() {
     git,
     knownBlockTags: new Set<string>()
   })
-  const idx = createIndexService({ data, git, index, deployedAt: () => null })
+  const idx = createIndexService({
+    data,
+    git,
+    index,
+    deploy: () => ({ deployedSha: null, changed: [] })
+  })
 
   // Seed the categories.yaml using the real serializer so parseCategories can read it
   const catsYaml = serializeCategories([

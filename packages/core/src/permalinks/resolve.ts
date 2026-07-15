@@ -1,4 +1,5 @@
 import { DEFAULT_LOCALE } from '../url/locale'
+import { SLUG_SEGMENT } from './pattern'
 
 /** What the resolver needs to know about one entry. `date` is the frontmatter publish date
  *  (epoch ms) — never updatedAt/git/mtime: an edit must not move a URL. */
@@ -57,7 +58,19 @@ export function resolvePermalink(
         return String(date!.getUTCDate()).padStart(2, '0')
       case ':category': {
         const first = ref.categories?.find((c) => c.trim() !== '')
-        return first ?? uncategorized
+        if (first === undefined) return uncategorized
+        // Same rule the pattern validator applies to literal segments: a value
+        // it would reject in a pattern must not enter the URL as data either
+        // (spaces, "/", unicode, …). Validate, never auto-slugify — minting
+        // URLs from unvetted frontmatter text invites collisions.
+        if (!SLUG_SEGMENT.test(first)) {
+          warnings.push(
+            `${ref.collection}/${ref.locale}/${ref.slug}: category "${first}" is not a ` +
+              `URL-safe slug (lowercase letters, digits, hyphens) — fell back to "${uncategorized}"`
+          )
+          return uncategorized
+        }
+        return first
       }
       default:
         return seg

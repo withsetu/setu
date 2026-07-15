@@ -20,6 +20,15 @@ export const E2E_USERS = {
     name: 'E2E Author',
     role: 'author',
     password: 'e2e-Password-123456'
+  },
+  // #364: the below-rank-management + rank-gate-parity e2e (users-rank.spec.ts) needs a real
+  // maintainer session — maintainer outranks editor/author but not admin, the exact middle rung
+  // the rank guard exists to enforce.
+  maintainer: {
+    email: 'maintainer-e2e@setu.test',
+    name: 'E2E Maintainer',
+    role: 'maintainer',
+    password: 'e2e-Password-123456'
   }
 } as const
 

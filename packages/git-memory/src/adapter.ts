@@ -2,6 +2,7 @@ import type {
   CommitInput,
   CommitFilesInput,
   CommitResult,
+  DiffPathEntry,
   GitPort
 } from '@setu/core'
 
@@ -33,13 +34,21 @@ function sha40(input: string): string {
  *  (proven by `runGitPortContract`). */
 export function createMemoryGitPort(seed: GitSeedFile[] = []): GitPort {
   const files = new Map<string, string>()
+  // Commit sha → full file snapshot at that commit, so diffPaths can compare any
+  // two known commits (the in-memory stand-in for a real tree-to-tree diff).
+  const snapshots = new Map<string, Map<string, string>>()
   let head: string | null = null
   let counter = 0
+
+  const snapshot = (sha: string): void => {
+    snapshots.set(sha, new Map(files))
+  }
 
   const apply = (path: string, content: string): string => {
     counter += 1
     files.set(path, content)
     head = sha40(`${counter}\0${head ?? ''}\0${path}\0${content}`)
+    snapshot(head)
     return head
   }
 
@@ -62,7 +71,15 @@ export function createMemoryGitPort(seed: GitSeedFile[] = []): GitPort {
     head = sha40(
       `${counter}\0${head ?? ''}\0${changes.map((c) => ('delete' in c ? `D:${c.path}` : `W:${c.path}:${c.content}`)).join('\0')}`
     )
+    snapshot(head)
     return { sha: head }
+  }
+
+  const snapshotOf = (sha: string): Map<string, string> => {
+    const snap = snapshots.get(sha)
+    if (snap === undefined)
+      throw new Error(`diffPaths: unknown commit sha: ${sha}`)
+    return snap
   }
 
   return {
@@ -85,6 +102,24 @@ export function createMemoryGitPort(seed: GitSeedFile[] = []): GitPort {
       return prefix === undefined
         ? all
         : all.filter((p) => p.startsWith(prefix))
+    },
+    async diffPaths(fromSha: string, toSha: string) {
+      if (fromSha === toSha) {
+        snapshotOf(fromSha) // still reject an unknown sha
+        return []
+      }
+      const from = snapshotOf(fromSha)
+      const to = snapshotOf(toSha)
+      const out: DiffPathEntry[] = []
+      for (const [path, content] of to) {
+        const before = from.get(path)
+        if (before === undefined) out.push({ path, status: 'added' })
+        else if (before !== content) out.push({ path, status: 'modified' })
+      }
+      for (const path of from.keys()) {
+        if (!to.has(path)) out.push({ path, status: 'deleted' })
+      }
+      return out
     }
   }
 }

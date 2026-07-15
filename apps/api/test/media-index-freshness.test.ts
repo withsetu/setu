@@ -57,8 +57,7 @@ function makeHarness(resolve: () => Actor | null = () => owner) {
     app.fetch(
       new Request(`http://test/media/${mediaKey}`, { method: 'DELETE' })
     )
-  const queryAll = async () =>
-    mediaIndex.query({ offset: 0, limit: 50 }) // no rebuild — index as-is
+  const queryAll = async () => mediaIndex.query({ offset: 0, limit: 50 }) // no rebuild — index as-is
   return { app, storage, mediaIndex, upload, del, queryAll }
 }
 

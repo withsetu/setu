@@ -125,7 +125,8 @@ export function createHttpIndexService(
     })
     if (q.q !== undefined && q.q !== '') params.set('q', q.q)
     if (q.status !== undefined) params.set('status', q.status)
-    if (q.locale !== undefined && q.locale !== '') params.set('locale', q.locale)
+    if (q.locale !== undefined && q.locale !== '')
+      params.set('locale', q.locale)
     if (q.tag !== undefined && q.tag !== '') params.set('tag', q.tag)
     if (q.category !== undefined && q.category !== '')
       params.set('category', q.category)
@@ -179,7 +180,11 @@ export function createHttpIndexService(
     d: Draft,
     committed: string | null
   ): Promise<ContentRow> {
-    const ref: EntryRef = { collection: d.collection, locale: d.locale, slug: d.slug }
+    const ref: EntryRef = {
+      collection: d.collection,
+      locale: d.locale,
+      slug: d.slug
+    }
     return listContentEntries({
       drafts: [d],
       committed: committed !== null ? [{ ref, content: committed }] : [],
@@ -191,8 +196,11 @@ export function createHttpIndexService(
    *  draft's OWN fields matter (tags/categories/mediaRefs/title all come from
    *  the draft whenever a draft exists — see listContentEntries). */
   function draftOwnRow(d: Draft): ContentRow {
-    const ref: EntryRef = { collection: d.collection, locale: d.locale, slug: d.slug }
-    return listContentEntries({ drafts: [d], committed: [], deploy: NO_DEPLOY })[0]!
+    return listContentEntries({
+      drafts: [d],
+      committed: [],
+      deploy: NO_DEPLOY
+    })[0]!
   }
 
   const matchesQuery = (row: ContentRow, q: IndexQuery): boolean =>
@@ -307,7 +315,10 @@ export function createHttpIndexService(
     return normalizeTags(raw.filter((x): x is string => typeof x === 'string'))
   }
 
-  async function distinctTags(prefix: string, limit: number): Promise<string[]> {
+  async function distinctTags(
+    prefix: string,
+    limit: number
+  ): Promise<string[]> {
     let server: string[]
     try {
       server = (await fetchFacets(prefix, limit)).distinctTags
@@ -376,7 +387,7 @@ export function createHttpIndexService(
     // draft exists — core's mediaRefsOf): a draft that dropped the reference
     // removes the server usage; a draft that added it contributes one.
     const keyOf = (u: { collection: string; locale: string; slug: string }) =>
-      indexKey(u as EntryRef)
+      indexKey(u)
     const byKey = new Map(server.map((u) => [keyOf(u), u]))
     for (const d of await data.listDrafts()) {
       const row = draftOwnRow(d)

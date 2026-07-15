@@ -30,7 +30,7 @@ function makeHarness(body: () => { rows: MediaIndexRow[]; total: number }) {
   const calls: { url: URL; method: string }[] = []
   const failing = { on: false }
   const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = new URL(String(input))
+    const url = new URL(input instanceof Request ? input.url : String(input))
     calls.push({ url, method: init?.method ?? 'GET' })
     if (failing.on) throw new TypeError('network down')
     return {

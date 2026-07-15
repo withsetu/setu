@@ -104,7 +104,10 @@ describe('IndexProvider — server-backed (apiBase) selection (#464)', () => {
   it('serves queries through /api/index when the services carry an apiBase', async () => {
     const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
       // Base needed: DeployProvider fetches a RELATIVE /api/deploy/status in tests.
-      const url = new URL(String(input), 'http://local')
+      const url = new URL(
+        input instanceof Request ? input.url : String(input),
+        'http://local'
+      )
       if (url.pathname === '/api/index/query')
         return {
           ok: true,
@@ -151,7 +154,11 @@ describe('IndexProvider — server-backed (apiBase) selection (#464)', () => {
     )
     await waitFor(() => expect(screen.getByText(/total:1/)).toBeInTheDocument())
     const paths = fetchSpy.mock.calls.map(
-      (c) => new URL(String(c[0]), 'http://local').pathname
+      (c) =>
+        new URL(
+          c[0] instanceof Request ? c[0].url : String(c[0]),
+          'http://local'
+        ).pathname
     )
     expect(paths).toContain('/api/index/query')
   })

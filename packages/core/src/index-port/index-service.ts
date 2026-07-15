@@ -163,9 +163,15 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
   }
 
   function reindexEntry(ref: EntryRef): Promise<void> {
-    return serialize(async () =>
-      reindexRef(ref, await git.readFile(contentPath(ref)))
-    )
+    // Start the git read OUTSIDE the writer chain: it is pure input, and holding the
+    // chain across an HTTP round-trip would make a bulk loop (BulkBar, tags-store)
+    // hold the lock for N sequential reads. Only the index write needs serializing.
+    const committed = git.readFile(contentPath(ref))
+    // Pre-attach a no-op handler: the chain slot may await this promise long after a
+    // rejection settles, and an unobserved-in-the-meantime rejection would fire a
+    // spurious unhandledrejection. The slot's await still surfaces the real error.
+    committed.catch(() => {})
+    return serialize(async () => reindexRef(ref, await committed))
   }
 
   // The git HEAD whose deploy snapshot the index last absorbed (deploys don't move git,
@@ -181,9 +187,11 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
     deployedHead = head
     if (from !== null && head !== null) {
       if (from === head) return // redeploy of the same tree → no row changes
-      // NOTE: intentionally does NOT advance meta.indexedSha — this path only refreshes
-      // deploy-derived lifecycle; committed-content sync stays owned by ensureBuilt/
-      // markSyncedAt so an unimported out-of-band commit is never masked.
+      // NOTE: this diff path intentionally does NOT advance meta.indexedSha — it only
+      // refreshes deploy-derived lifecycle; committed-content sync stays owned by
+      // ensureBuilt/markSyncedAt so an unimported out-of-band commit is never masked.
+      // (The full-rebuild fallback below DOES stamp, via rebuildInner's own setMeta —
+      // safe there, because it walks every committed entry.)
       if (await applyDiff(from, head)) return
     }
     await rebuildInner()
@@ -196,7 +204,9 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
   /** Record that the index now reflects committed content at `sha`. The admin calls this
    *  ONCE after it has reindexed every entry a publish/bulk commit changed, so ensureBuilt's
    *  out-of-band sha-gate won't rebuild for that commit. A true out-of-band multi-file commit
-   *  (whose entries the admin never reindexed) leaves indexedSha behind HEAD and is imported. */
+   *  (whose entries the admin never reindexed) leaves indexedSha behind HEAD and is imported.
+   *  On the writer chain for META consistency (the getMeta→setMeta read-modify-write must not
+   *  interleave with a build's setMeta — a lost update), not for the #483 row race. */
   function markSyncedAt(sha: string): Promise<void> {
     return serialize(async () => {
       const meta = await index.getMeta()

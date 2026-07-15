@@ -40,7 +40,7 @@
     "drizzle-orm": "^0.45.2",
     "isomorphic-git": "^1.38.4",
     "tsx": "^4.19.2",
-    "typescript": "^5.6.3",
+    "typescript": "^6.0.3",
     "vitest": "^3.2.6"
   }
 }

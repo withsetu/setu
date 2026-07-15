@@ -19,7 +19,7 @@
   "devDependencies": {
     "@setu/git-testing": "workspace:*",
     "fake-indexeddb": "^6.2.5",
-    "typescript": "^5.6.3",
+    "typescript": "^6.0.3",
     "vitest": "^3.2.6"
   }
 }

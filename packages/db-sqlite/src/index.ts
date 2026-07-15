@@ -1,5 +1,7 @@
 export * from './schema'
 export { createSqliteAdapter } from './adapter'
+export { createSqliteIndexPort } from './index-port'
+export { createSqliteMediaIndexPort } from './media-index-port'
 export { createSqliteSubmissionPort } from './submission-port'
 export { createSqliteReprocessJobStore } from './reprocess-job-store'
 export { openSqliteDb } from './open-db'

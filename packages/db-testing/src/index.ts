@@ -96,6 +96,62 @@ export function runDataPortContract(
       expect(all.filter((d) => d.slug === 'up')).toHaveLength(1)
     })
 
+    // #261: baseContent is the per-file publish-conflict base (fork reference).
+    it('round-trips baseContent and defaults it to null when omitted on first save', async () => {
+      const base = '---\ntitle: X\n---\n\nBody\n'
+      const saved = await db.saveDraft({
+        collection: 'post',
+        locale: 'en',
+        slug: 'bc',
+        content: doc('x'),
+        metadata: {},
+        baseContent: base
+      })
+      expect(saved.baseContent).toBe(base)
+      const got = await db.getDraft({
+        collection: 'post',
+        locale: 'en',
+        slug: 'bc'
+      })
+      expect(got!.baseContent).toBe(base)
+      const fresh = await db.saveDraft({
+        collection: 'post',
+        locale: 'en',
+        slug: 'bc-fresh',
+        content: doc('y'),
+        metadata: {}
+      })
+      expect(fresh.baseContent).toBeNull()
+    })
+
+    it('omitting baseContent on upsert preserves it; explicit null clears it', async () => {
+      const ref = { collection: 'post', locale: 'en', slug: 'bc-up' }
+      await db.saveDraft({
+        ...ref,
+        content: doc('one'),
+        metadata: {},
+        baseContent: 'BASE'
+      })
+      // Editing (no baseContent in the input) must not move the fork point.
+      const preserved = await db.saveDraft({
+        ...ref,
+        content: doc('two'),
+        metadata: {}
+      })
+      expect(preserved.baseContent).toBe('BASE')
+      expect(
+        (await db.getDraft(ref))!.baseContent // read path agrees
+      ).toBe('BASE')
+      // Explicit null (e.g. re-fork of a never-committed entry) overwrites.
+      const cleared = await db.saveDraft({
+        ...ref,
+        content: doc('three'),
+        metadata: {},
+        baseContent: null
+      })
+      expect(cleared.baseContent).toBeNull()
+    })
+
     it('deletes a draft; deleting an absent draft is a no-op', async () => {
       const ref = { collection: 'post', locale: 'en', slug: 'del' }
       await db.saveDraft({ ...ref, content: doc('x'), metadata: {} })

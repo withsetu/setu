@@ -87,6 +87,29 @@ export interface UploadApiOptions {
 
 const authz = createAuthz(DEFAULT_ROLES)
 
+/** Scan storage for `.media.json` record sidecars — the media inventory feed.
+ *  Shared by GET /media/_index and the server-side media index rebuild (#464)
+ *  so the two can never disagree about what a "record" is. */
+export async function listMediaRecords(
+  storage: StoragePort
+): Promise<MediaRecord[]> {
+  const keys = await storage.list()
+  const records: MediaRecord[] = []
+  for (const k of keys) {
+    if (!k.endsWith('.media.json')) continue
+    const obj = await storage.get(k)
+    if (!obj) continue
+    try {
+      records.push(
+        JSON.parse(new TextDecoder().decode(obj.body)) as MediaRecord
+      )
+    } catch {
+      /* skip corrupt */
+    }
+  }
+  return records
+}
+
 export function createUploadApi(opts: UploadApiOptions) {
   const maxBytes = opts.limits?.maxBytes ?? DEFAULT_MAX_BYTES
   const allowed = opts.limits?.allowedContentTypes ?? DEFAULT_ALLOWED
@@ -252,21 +275,7 @@ export function createUploadApi(opts: UploadApiOptions) {
   app.get('/media/_index', authMiddleware(opts.resolveActor), async (c) => {
     if (!authz.can(c.get('actor'), 'media.view'))
       return c.json({ error: 'forbidden' }, 403)
-    const keys = await storage.list()
-    const records: MediaRecord[] = []
-    for (const k of keys) {
-      if (!k.endsWith('.media.json')) continue
-      const obj = await storage.get(k)
-      if (!obj) continue
-      try {
-        records.push(
-          JSON.parse(new TextDecoder().decode(obj.body)) as MediaRecord
-        )
-      } catch {
-        /* skip corrupt */
-      }
-    }
-    return c.json({ records })
+    return c.json({ records: await listMediaRecords(storage) })
   })
 
   app.delete('/media/*', authMiddleware(opts.resolveActor), async (c) => {

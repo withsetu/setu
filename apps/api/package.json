@@ -28,7 +28,8 @@
     "@setu/git-local": "workspace:*",
     "@setu/image-sharp": "workspace:*",
     "@setu/storage-local": "workspace:*",
-    "hono": "4.12.26"
+    "hono": "4.12.26",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@setu/db-memory": "workspace:*",

@@ -23,6 +23,11 @@ function createMemoryAdapter(): DataPort {
         content: input.content,
         metadata: input.metadata,
         baseSha: input.baseSha ?? null,
+        // #261: omit preserves the stored fork point; explicit value overwrites.
+        baseContent:
+          input.baseContent !== undefined
+            ? input.baseContent
+            : (existing?.baseContent ?? null),
         createdAt: existing?.createdAt ?? now,
         updatedAt: now
       }

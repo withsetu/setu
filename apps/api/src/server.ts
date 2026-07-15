@@ -8,18 +8,23 @@ import { createLocalGitAdapter } from '@setu/git-local'
 import { createLocalStorage } from '@setu/storage-local'
 import { createSharpImageAdapter } from '@setu/image-sharp'
 import {
+  createSqliteAdapter,
   createSqliteSubmissionPort,
   createSqliteReprocessJobStore,
   createSqliteDeployJobStore,
+  createSqliteIndexPort,
+  createSqliteMediaIndexPort,
   openSqliteDb,
   countUsers
 } from '@setu/db-sqlite'
 import {
   createSubmissionService,
   createNoopCaptcha,
+  createIndexService,
+  createMediaIndexService,
   parseSettings
 } from '@setu/core'
-import type { CaptchaPort } from '@setu/core'
+import type { CaptchaPort, DeployInfo } from '@setu/core'
 import { createTurnstileCaptcha } from '@setu/captcha-turnstile'
 import {
   createRecaptchaCaptcha,
@@ -29,9 +34,11 @@ import { createConsoleEmailAdapter } from '@setu/email-console'
 import { createResendEmailAdapter } from '@setu/email-resend'
 import { renderSubmissionEmail } from '@setu/email-templates'
 import { createAuth, type AuthEvent } from '@setu/auth'
+import { createMiddleware } from 'hono/factory'
 import { createGitApi } from './app'
 import { createPreviewApi } from './preview'
-import { createUploadApi } from './media'
+import { createUploadApi, listMediaRecords } from './media'
+import { createIndexApi, latchInFlight } from './index-api'
 import { createFormsApi } from './forms'
 import { createOembedApi } from './oembed'
 import { createSiteHealthApi } from './sitehealth'
@@ -294,6 +301,58 @@ const runReprocess = (jobId: string) => {
   )
 }
 
+// --- Server-authoritative content/media index (#464, Increment A) ---
+// One GitPort instance, shared with the /git routes below.
+const git = createLocalGitAdapter({ dir })
+
+// Deploy truth for lifecycle derivation (live vs staged vs pending), refreshed
+// before every latched index build from the same seams the deploy API reads
+// (.setu/deploy.json + git diff). A missing deploy state honestly derives
+// "never deployed" — identical to what the admin's client-side index does.
+let deployInfo: DeployInfo = { deployedSha: null, changed: [] }
+async function refreshDeployInfo(): Promise<void> {
+  const state = readDeployState(dir)
+  if (state === null) {
+    deployInfo = { deployedSha: null, changed: [] }
+    return
+  }
+  try {
+    deployInfo = {
+      deployedSha: state.sha,
+      changed: await gitChangedPaths(dir, state.sha)
+    }
+  } catch (err) {
+    // Diff unavailable (e.g. deployed sha pruned) → treat the deploy as
+    // unchanged rather than fail the whole index build.
+    console.error('[index] deploy diff failed — assuming no pending set:', err)
+    deployInfo = { deployedSha: state.sha, changed: [] }
+  }
+}
+
+// Drafts + index rows live in the SAME sqlite file as the other long-lived
+// stores (submissions/auth) — one .setu/submissions.db, several adapters, the
+// established pattern (see openSqliteDb's comment).
+const contentIndexService = createIndexService({
+  data: createSqliteAdapter(submissionsDb),
+  git,
+  index: createSqliteIndexPort(submissionsDb),
+  deploy: () => deployInfo
+})
+// latchInFlight: concurrent callers (route bursts, boot warm-up, post-commit
+// refresh) share ONE build; after the first build ensureBuilt is a cheap
+// HEAD-compare, and an out-of-band commit imports incrementally.
+const ensureContentIndex = latchInFlight(async () => {
+  await refreshDeployInfo()
+  await contentIndexService.ensureBuilt()
+})
+
+const mediaIndexService = createMediaIndexService({
+  mediaIndex: createSqliteMediaIndexPort(submissionsDb),
+  // The same record scan GET /media/_index serves — shared helper, never HTTP.
+  fetchRaw: () => listMediaRecords(localStorage)
+})
+const ensureMediaIndex = latchInFlight(() => mediaIndexService.ensureBuilt())
+
 const app = new Hono()
 
 // #291 fail-secure errors: the root handler catches any throw OUTSIDE a factory (middleware,
@@ -362,7 +421,29 @@ if (auth) {
   mountAuthWithFailureEvents(app, auth, logAuthEvent)
 }
 
-app.route('/', createGitApi(createLocalGitAdapter({ dir }), resolveActor))
+// Index refresh after content commits (#464): HEAD moved, so the next latched
+// ensureBuilt takes the incremental diff path. Fire-and-forget — a commit must
+// never fail or slow down because indexing hiccuped. Registered BEFORE the git
+// route mount (Hono only runs middleware registered ahead of the handler).
+const refreshIndexAfterCommit = createMiddleware(async (c, next) => {
+  await next()
+  if (c.req.method === 'POST' && c.res.status === 200)
+    void ensureContentIndex().catch((err: unknown) => {
+      console.error('[index] refresh after commit failed:', err)
+    })
+})
+app.use('/git/commit', refreshIndexAfterCommit)
+app.use('/git/commit-files', refreshIndexAfterCommit)
+app.route('/', createGitApi(git, resolveActor))
+// Server-authoritative content/media index reads (#464, Increment A).
+app.route(
+  '/',
+  createIndexApi({
+    resolveActor,
+    index: { ...contentIndexService, ensureBuilt: ensureContentIndex },
+    media: { ...mediaIndexService, ensureBuilt: ensureMediaIndex }
+  })
+)
 // In-editor preview is dev-only (the site route that renders the slot exists only under `astro dev`
 // and its GET carries no session cookie, so the slot can't be auth-gated). Mount it only outside
 // production so it isn't an unauthenticated read/write surface on a real server (#419).
@@ -498,3 +579,12 @@ if (setupToken !== null) {
   console.log(`Setup token: ${setupToken}`)
 }
 resumeActiveJob(reprocessStore, runReprocess)
+// Warm the server index at boot (#464) — fire-and-forget: failures are LOUD
+// (an empty index with no diagnostics bit us before, #429) but never crash
+// boot; the /api/index routes rebuild on demand anyway.
+void ensureContentIndex().catch((err: unknown) => {
+  console.error('[index] boot content-index build failed:', err)
+})
+void ensureMediaIndex().catch((err: unknown) => {
+  console.error('[index] boot media-index build failed:', err)
+})

@@ -23,6 +23,7 @@ export const drafts = sqliteTable(
     content: text('content').notNull(), // JSON (TiptapDoc)
     metadata: text('metadata').notNull(), // JSON
     baseSha: text('base_sha'), // nullable
+    baseContent: text('base_content'), // nullable — per-file publish-conflict base (#261)
     createdAt: integer('created_at').notNull(), // epoch ms
     updatedAt: integer('updated_at').notNull() // epoch ms
   },
@@ -108,6 +109,27 @@ export const verification = sqliteTable('verification', {
   expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
+})
+
+// Server-side content/media index (#464). Deliberate v1: each row is stored as
+// an opaque JSON blob keyed by its identity, and the adapters load-all + delegate
+// to the same shared pure helpers db-idb uses — contract semantics match by
+// construction. Rows are tiny (no bodies); SQL-native querying/FTS5 is deferred
+// to #205.
+export const entryIndex = sqliteTable('entry_index', {
+  key: text('key').primaryKey(), // '<collection>\0<locale>\0<slug>'
+  row: text('row').notNull() // JSON (EntryIndexRow)
+})
+
+export const mediaIndex = sqliteTable('media_index', {
+  mediaKey: text('media_key').primaryKey(), // '2026/06/cat'
+  row: text('row').notNull() // JSON (MediaIndexRow)
+})
+
+// One meta row per index ('entry' | 'media') — IndexMeta / MediaIndexMeta as JSON.
+export const indexMeta = sqliteTable('index_meta', {
+  scope: text('scope').primaryKey(),
+  meta: text('meta').notNull() // JSON
 })
 
 export const rateLimit = sqliteTable('rate_limit', {

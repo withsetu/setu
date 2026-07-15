@@ -1,15 +1,15 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useDismissed } from '@/hooks/use-dismissed'
 import { useActor } from './actor'
 import { useHasPassword } from './use-has-password'
 import { useCapabilities } from '../lib/useCapabilities'
 
-/** Deliberately NOT dashboard/use-dismissed.ts's `setu.dismissed.*` namespace: #386's agreed
- *  design names this exact key, and it reads as a standalone flag ("this machine was warned")
- *  rather than a dismissed dashboard widget. Machine-scoped on purpose — localStorage means the
- *  nudge reappears in another browser/machine, where the lockout risk is fresh again. */
+/** Deliberately NOT useDismissed's default `setu.dismissed.*` namespace (hence `raw`): #386's
+ *  agreed design names this exact key, and it reads as a standalone flag ("this machine was
+ *  warned") rather than a dismissed dashboard widget. Machine-scoped on purpose — localStorage
+ *  means the nudge reappears in another browser/machine, where the lockout risk is fresh again. */
 const STORAGE_KEY = 'setu.password-nudge-dismissed'
 
 /** #386: quiet shell-top nudge for the one actor who can actually fix the lockout hazard — the
@@ -21,19 +21,12 @@ const STORAGE_KEY = 'setu.password-nudge-dismissed'
 export function PasswordNudgeBanner() {
   const { mode } = useCapabilities()
   const actor = useActor()
-  const [dismissed, setDismissed] = useState(
-    () => localStorage.getItem(STORAGE_KEY) === '1'
-  )
+  const { dismissed, dismiss } = useDismissed(STORAGE_KEY, { raw: true })
   // Cheap gates first so the accounts lookup only ever fires when the banner could matter.
   const eligible = mode === 'local' && actor.role === 'admin' && !dismissed
   const { hasPassword } = useHasPassword(eligible)
 
   if (!eligible || hasPassword !== false) return null
-
-  const dismiss = () => {
-    localStorage.setItem(STORAGE_KEY, '1')
-    setDismissed(true)
-  }
 
   return (
     <div

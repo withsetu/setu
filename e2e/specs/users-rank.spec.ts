@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
-import type { Page } from '@playwright/test'
 import { storageStateFor } from '../lib/auth-state'
+import { hideDevReset } from '../lib/hide-dev-reset'
 import { uniqueTitle } from '../lib/unique-title'
 
 // The api's real, cross-origin admin auth surface (admin :5175 -> api :4446) — same ports
@@ -17,18 +17,6 @@ function uniqueEmail(label: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-+|-+$)/g, '')
   return `${token}@setu.test`
-}
-
-/** `main.tsx`'s `DevReset` ("Reset to sample content") is dev-only harness scaffolding
- *  (`import.meta.env.DEV`-gated, compiled out of production builds — never a product surface)
- *  fixed at bottom-left, the exact corner the sidebar footer's user-menu button also sits in.
- *  `a11y.spec.ts` already excludes it from its scans for the same reason; hiding it here before
- *  clicking that button is the same call — it costs nothing in product coverage since a real,
- *  built app never renders it. */
-async function hideDevReset(page: Page) {
-  await page.addStyleTag({
-    content: '.dev-reset { display: none !important; }'
-  })
 }
 
 // #364: a maintainer (rank 3) may invite/manage editor+author (below them) but never a peer

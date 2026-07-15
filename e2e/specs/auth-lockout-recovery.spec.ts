@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test, expect, type Page } from '@playwright/test'
+import { hideDevReset } from '../lib/hide-dev-reset'
 import { LoginPage } from '../pages/LoginPage'
 import { DashboardPage } from '../pages/DashboardPage'
 
@@ -59,16 +60,6 @@ function localOwnerLabel(): string {
   } catch {
     return 'Owner'
   }
-}
-
-/** The vite-dev-only "Reset to sample content" floating button overlaps the sidebar-footer user
- *  menu and intercepts its pointer events. It is `import.meta.env.DEV`-gated (dead-code-eliminated
- *  from real builds), so hiding it costs nothing in product coverage — same file-local helper and
- *  rationale as users-rank.spec.ts. */
-async function hideDevReset(page: Page) {
-  await page.addStyleTag({
-    content: '.dev-reset { display: none !important; }'
-  })
 }
 
 /** Navigate to a handshake URL with a guaranteed FULL page load. SessionGate consumes the

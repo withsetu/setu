@@ -5,6 +5,7 @@ import { SidebarProvider } from '@/components/ui/sidebar'
 import { NotificationProvider } from '../src/ui/notify'
 import { UserMenu } from '../src/shell/UserMenu'
 import { authClient } from '../src/auth/auth-client'
+import { resetHasPasswordStoreForTests } from '../src/auth/use-has-password'
 
 // Radix DropdownMenu calls scrollIntoView when it opens — stub it for jsdom.
 beforeAll(() => {
@@ -48,7 +49,12 @@ const renderMenu = () =>
     </MemoryRouter>
   )
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.restoreAllMocks()
+  // useHasPassword caches across instances by design — reset so each test's mocked
+  // listAccounts answer is actually consulted.
+  resetHasPasswordStoreForTests()
+})
 
 describe('UserMenu', () => {
   it('renders nothing when there is no real session (no-API local-owner mode)', () => {

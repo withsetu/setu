@@ -5,6 +5,7 @@ import type { Role } from '@setu/core'
 import { ActorProvider } from '../src/auth/actor'
 import { PasswordNudgeBanner } from '../src/auth/PasswordNudgeBanner'
 import { authClient } from '../src/auth/auth-client'
+import { resetHasPasswordStoreForTests } from '../src/auth/use-has-password'
 
 vi.mock('../src/auth/auth-client', () => ({
   authClient: {
@@ -66,7 +67,12 @@ beforeEach(() => {
   localStorage.clear()
 })
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.restoreAllMocks()
+  // useHasPassword caches across instances by design — reset so each test's mocked
+  // listAccounts answer is actually consulted.
+  resetHasPasswordStoreForTests()
+})
 
 describe('PasswordNudgeBanner (#386)', () => {
   it('shows for a passwordless local admin: copy, Set-a-password link to /users, dismiss control', async () => {

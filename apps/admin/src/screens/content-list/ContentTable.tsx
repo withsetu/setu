@@ -111,7 +111,11 @@ export function ContentTable({
           {visible.categories && (
             <TableHead className="w-36">Categories</TableHead>
           )}
-          {localeCol && <TableHead className="w-24">Locale</TableHead>}
+          {localeCol && (
+            <TableHead className="w-24">
+              <SortHead label="Locale" k="locale" sort={sort} onSort={onSort} />
+            </TableHead>
+          )}
           {visible.updated && (
             <TableHead className="w-36 pr-6 text-right">
               <SortHead

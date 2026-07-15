@@ -21,7 +21,7 @@ export interface EntryIndexRow {
   featuredImage?: string
 }
 
-export type SortKey = 'updatedAt' | 'title' | 'status'
+export type SortKey = 'updatedAt' | 'title' | 'status' | 'locale'
 
 export interface IndexQuery {
   collection: string

@@ -6,7 +6,8 @@ import type { FeedItem } from './feed'
 /** Namespaces added to the <rss> root so the extra channel/item elements validate. */
 export const FEED_XMLNS = {
   atom: 'http://www.w3.org/2005/Atom',
-  media: 'http://search.yahoo.com/mrss/'
+  media: 'http://search.yahoo.com/mrss/',
+  dc: 'http://purl.org/dc/elements/1.1/'
 }
 
 /** Escape the five XML entities for safe interpolation into raw `customData` strings. */
@@ -24,9 +25,14 @@ export function channelExtras(opts: {
   locale: string
   selfUrl: string
   lastBuild: Date | null
+  /** Absolute site-logo URL + channel title/link for the RSS `<image>` element (#77). */
+  image?: { url: string; title: string; link: string }
 }): string {
   return [
     `<language>${xmlEscape(opts.locale)}</language>`,
+    opts.image
+      ? `<image><url>${xmlEscape(opts.image.url)}</url><title>${xmlEscape(opts.image.title)}</title><link>${xmlEscape(opts.image.link)}</link></image>`
+      : '',
     opts.lastBuild
       ? `<lastBuildDate>${opts.lastBuild.toUTCString()}</lastBuildDate>`
       : '',
@@ -69,7 +75,9 @@ function mimeFromUrl(url: string): string | undefined {
  *  element (when an absolute image URL is supplied). */
 export function toRssItem(
   item: FeedItem,
-  absImageUrl: string | undefined
+  absImageUrl: string | undefined,
+  /** Feed-level creator fallback; a per-item `author` wins (#77). Empty → no dc:creator. */
+  creator?: string
 ): RSSFeedItem {
   const out: RSSFeedItem = {
     title: item.title,
@@ -78,10 +86,16 @@ export function toRssItem(
     description: item.description
   }
   if (item.categories.length) out.categories = item.categories
+  const custom: string[] = []
+  const by = item.author || creator
+  if (by) custom.push(`<dc:creator>${xmlEscape(by)}</dc:creator>`)
   if (absImageUrl) {
     const mime = mimeFromUrl(absImageUrl)
-    out.customData = `<media:content url="${xmlEscape(absImageUrl)}" medium="image"${mime ? ` type="${mime}"` : ''} />`
+    custom.push(
+      `<media:content url="${xmlEscape(absImageUrl)}" medium="image"${mime ? ` type="${mime}"` : ''} />`
+    )
   }
+  if (custom.length) out.customData = custom.join('')
   return out
 }
 
@@ -95,6 +109,12 @@ export function buildFeed(opts: {
   /** Path of this feed relative to the site root, e.g. `rss.xml` or `fr/rss.xml`. */
   feedPath: string
   items: FeedItem[]
+  /** Raw site-logo media path/URL (identity.logo) — resolved like featured images and
+   *  emitted as the channel `<image>` when set (#77). */
+  channelImage?: string
+  /** Feed-level `<dc:creator>` for items without their own author (#77) —
+   *  identity.name, falling back to the site title. Empty → omitted. */
+  creator?: string
 }): RSSOptions {
   // Guarantee a trailing slash so the relative `feedPath` (e.g. `rss.xml`, `fr/rss.xml`) resolves
   // under the site root rather than replacing its last path segment (defensive — Astro normalizes
@@ -110,14 +130,22 @@ export function buildFeed(opts: {
     (max, it) => (!max || it.pubDate > max ? it.pubDate : max),
     null
   )
+  const imageUrl = mediaItemUrl(opts.channelImage, mediaBase, site)
   return {
     title: opts.title,
     description: opts.description,
     site,
     xmlns: FEED_XMLNS,
-    customData: channelExtras({ locale: opts.locale, selfUrl, lastBuild }),
+    customData: channelExtras({
+      locale: opts.locale,
+      selfUrl,
+      lastBuild,
+      image: imageUrl
+        ? { url: imageUrl, title: opts.title, link: site }
+        : undefined
+    }),
     items: opts.items.map((it) =>
-      toRssItem(it, mediaItemUrl(it.image, mediaBase, site))
+      toRssItem(it, mediaItemUrl(it.image, mediaBase, site), opts.creator)
     )
   }
 }

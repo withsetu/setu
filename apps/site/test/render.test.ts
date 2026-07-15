@@ -219,6 +219,8 @@ describe('default theme — templates by collection', () => {
   it('renders the home page entry at the site root', () => {
     const home = page('') // dist/index.html
     expect(home).toContain('<h1>Welcome to Setu</h1>')
+    // #160: the homepage <title> is the bare site name — never "<page title> · <site>".
+    expect(home).toContain('<title>Setu</title>')
     expect(home).toContain('class="prose measure-page"')
   })
   it('carries the entry locale as <html lang>', () => {

@@ -91,3 +91,25 @@ describe('runQuery', () => {
     expect(r.rows.map((x) => x.slug)).toEqual(['b'])
   })
 })
+
+it('sorts by locale (asc/desc) — #145', () => {
+  const localed = [
+    row({ slug: 'fr-post', locale: 'fr' }),
+    row({ slug: 'de-post', locale: 'de' }),
+    row({ slug: 'en-post', locale: 'en' })
+  ]
+  const asc = runQuery(localed, {
+    collection: 'post',
+    sort: { key: 'locale', dir: 'asc' },
+    offset: 0,
+    limit: 10
+  })
+  expect(asc.rows.map((x) => x.locale)).toEqual(['de', 'en', 'fr'])
+  const desc = runQuery(localed, {
+    collection: 'post',
+    sort: { key: 'locale', dir: 'desc' },
+    offset: 0,
+    limit: 10
+  })
+  expect(desc.rows.map((x) => x.locale)).toEqual(['fr', 'en', 'de'])
+})

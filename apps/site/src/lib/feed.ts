@@ -15,6 +15,9 @@ export interface FeedItem {
   /** Raw `featuredImage` path/URL from frontmatter (e.g. `/media/2026/06/x.jpg` or an external
    *  http(s) URL). The endpoint resolves this to an absolute URL for `<media:content>`. */
   image?: string
+  /** Author display name from frontmatter (`author:`), when present — drives `<dc:creator>`.
+   *  Absent → the feed-level creator (site identity) applies. */
+  author?: string
 }
 
 export interface FeedRow {
@@ -85,7 +88,8 @@ export function toFeedItem(
     pubDate: row.date,
     description,
     categories: feedCategories(row.data),
-    image: str(row.data.featuredImage) || undefined
+    image: str(row.data.featuredImage) || undefined,
+    author: str(row.data.author) || undefined
   }
 }
 

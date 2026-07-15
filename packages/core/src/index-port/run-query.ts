@@ -3,6 +3,7 @@ import type { EntryIndexRow, IndexQuery, SortKey } from './types'
 function compare(a: EntryIndexRow, b: EntryIndexRow, key: SortKey): number {
   if (key === 'title') return a.titleLower.localeCompare(b.titleLower)
   if (key === 'status') return a.status.localeCompare(b.status)
+  if (key === 'locale') return a.locale.localeCompare(b.locale)
   // updatedAt: null → -Infinity so that when direction is negated (desc), nulls land last
   const av = a.updatedAt ?? -Infinity
   const bv = b.updatedAt ?? -Infinity

@@ -6,7 +6,12 @@ import { attrString } from './attr-string'
 
 /** Block node types whose props are edited in the inspector rail. (callout/image/contact
  *  keep their own bespoke UI and are intentionally NOT inspector-driven.) */
-const INSPECTABLE = new Set(['setuBlock', 'heroBlock', 'queryBlock'])
+const INSPECTABLE = new Set([
+  'setuBlock',
+  'heroBlock',
+  'queryBlock',
+  'latestPostsBlock'
+])
 
 export interface SelectedBlock {
   tag: string
@@ -21,7 +26,9 @@ function tagOf(name: string, attrs: Record<string, unknown>): string {
       ? 'hero'
       : name === 'queryBlock'
         ? 'query'
-        : ''
+        : name === 'latestPostsBlock'
+          ? 'latest-posts'
+          : ''
 }
 
 /** Pure: the inspectable block at the current selection, or null. Atom blocks surface via

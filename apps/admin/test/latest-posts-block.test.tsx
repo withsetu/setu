@@ -1,0 +1,100 @@
+import { describe, it, expect } from 'vitest'
+import { Editor } from '@tiptap/core'
+import { NodeSelection } from '@tiptap/pm/state'
+import StarterKit from '@tiptap/starter-kit'
+import { slashBlocks } from '../src/editor/blocks'
+import {
+  LatestPostsBlock,
+  latestPostsQueryAttrs
+} from '../src/editor/extensions/LatestPostsBlock'
+import { selectedBlockOf } from '../src/editor/useSelectedBlock'
+
+// Latest Posts (#192): the query block's zero-config sibling. Slash entry inserts the
+// dedicated leaf node with EMPTY mdAttrs (zero-config — {% latest-posts /%} round-trips
+// clean), the node is inspector-driven, and the canvas preview reuses the query block's
+// live content-index seam via an attrs mapping.
+
+describe('slashBlocks — latest posts', () => {
+  it('offers Latest Posts in the dynamic group with the "recent" keyword', () => {
+    const entry = slashBlocks().find((b) => b.title === 'Latest Posts')
+    expect(entry).toBeDefined()
+    expect(entry!.group).toBe('dynamic')
+    expect(entry!.keywords).toContain('recent')
+  })
+
+  it('inserts a latestPostsBlock leaf with empty mdAttrs (zero-config)', () => {
+    const entry = slashBlocks().find((b) => b.title === 'Latest Posts')!
+    const inserted: unknown[] = []
+    const chain = {
+      focus: () => chain,
+      deleteRange: (_r: unknown) => chain,
+      insertContent: (content: unknown) => {
+        inserted.push(content)
+        return chain
+      },
+      run: () => true
+    }
+    entry.run({ chain: () => chain } as never, { from: 0, to: 0 })
+    expect(inserted).toHaveLength(1)
+    expect(inserted[0]).toMatchObject({
+      type: 'latestPostsBlock',
+      attrs: { mdAttrs: {} }
+    })
+    expect((inserted[0] as { content?: unknown }).content).toBeUndefined()
+  })
+})
+
+describe('latestPostsQueryAttrs — preview reuses the query seam', () => {
+  it('maps zero-config defaults: 5 newest posts, list, no images', () => {
+    expect(latestPostsQueryAttrs({})).toMatchObject({
+      collection: 'post',
+      sort: 'newest',
+      limit: 5,
+      layout: 'list',
+      columns: 2,
+      showImage: false
+    })
+  })
+  it('maps count/filters/layout and coerces the columns enum string', () => {
+    expect(
+      latestPostsQueryAttrs({
+        count: 3,
+        category: 'news',
+        tag: 'astro',
+        layout: 'grid',
+        columns: '3',
+        showImage: true
+      })
+    ).toMatchObject({
+      limit: 3,
+      category: 'news',
+      tag: 'astro',
+      layout: 'grid',
+      columns: 3,
+      showImage: true
+    })
+  })
+})
+
+describe('selectedBlockOf — inspector opens for latest-posts', () => {
+  it('surfaces tag latest-posts + mdAttrs on NodeSelection', () => {
+    const e = new Editor({
+      extensions: [StarterKit, LatestPostsBlock],
+      content: {
+        type: 'doc',
+        content: [
+          { type: 'paragraph' },
+          { type: 'latestPostsBlock', attrs: { mdAttrs: { count: 3 } } }
+        ]
+      }
+    })
+    e.view.dispatch(
+      e.state.tr.setSelection(NodeSelection.create(e.state.doc, 2))
+    )
+    expect(selectedBlockOf(e.state)).toMatchObject({
+      tag: 'latest-posts',
+      mdAttrs: { count: 3 }
+    })
+    e.destroy()
+  })
+})

@@ -26,6 +26,7 @@ import { Callout } from './extensions/Callout'
 import { ContactBlock } from './extensions/ContactBlock'
 import { HeroBlock } from './extensions/HeroBlock'
 import { QueryBlock } from './extensions/QueryBlock'
+import { LatestPostsBlock } from './extensions/LatestPostsBlock'
 import { EmbedBlock } from './extensions/EmbedBlock'
 import { EmbedPaste } from './extensions/EmbedPaste'
 import type { RunQuery } from './QueryPreview'
@@ -143,6 +144,7 @@ export function Canvas({
       ContactBlock,
       HeroBlock,
       QueryBlock.configure({ runQuery }),
+      LatestPostsBlock.configure({ runQuery }),
       EmbedBlock,
       EmbedPaste.configure({
         apiBase: import.meta.env.VITE_SETU_API ?? ''

@@ -1,0 +1,21 @@
+---
+import './gallery.css'
+import Image from '@setu/image-astro/Image.astro'
+import { galleryClasses, galleryImagesOf, sizesForColumns } from './gallery-classes'
+const { images = [], columns = 3, gap = 'medium', captions = false, width } = Astro.props
+const items = galleryImagesOf(images)
+const cls = galleryClasses(columns, gap, width)
+const sizes = sizesForColumns(columns)
+---
+{items.length > 0 && (
+  <div class={cls}>
+    {items.map((img) => (
+      <figure class="blk-gallery-item">
+        <Image src={img.src} alt={img.alt ?? ''} sizes={sizes} />
+        {captions && img.caption && (
+          <figcaption class="blk-gallery-caption">{img.caption}</figcaption>
+        )}
+      </figure>
+    ))}
+  </div>
+)}

@@ -14,6 +14,9 @@
 //   node scripts/seed-recipes.mjs              # seed .content-sandbox/recipes (cache-first)
 //   node scripts/seed-recipes.mjs --refresh    # force refetch from TheMealDB
 //   node scripts/seed-recipes.mjs <name>       # seed .content-sandbox/<name>
+//   node scripts/seed-recipes.mjs --count=10000 <name>  # scale test (#465): cycle the meal
+//                                              # set until N posts exist (repeat slugs get a
+//                                              # numeric suffix). Omitted = one post per meal.
 //
 // Then view the widget against it:
 //   SETU_CONTENT_DIR=$PWD/.content-sandbox/recipes/content pnpm --filter @setu/site build
@@ -36,6 +39,12 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const args = process.argv.slice(2)
 const refresh = args.includes('--refresh')
 const name = args.find((a) => !a.startsWith('--')) ?? 'recipes'
+const countArg = args.find((a) => a.startsWith('--count='))
+const count = countArg
+  ? Number.parseInt(countArg.slice('--count='.length), 10)
+  : null
+if (count !== null && (!Number.isFinite(count) || count < 1))
+  throw new Error(`--count must be a positive integer, got ${countArg}`)
 
 const SANDBOX = path.join(ROOT, '.content-sandbox', name)
 const CACHE = path.join(SANDBOX, '.cache', 'meals.json')
@@ -180,9 +189,12 @@ async function main() {
 
   const used = new Set()
   let written = 0
-  for (const meal of meals) {
+  const total = count ?? meals.length
+  for (let i = 0; i < total; i++) {
+    const meal = meals[i % meals.length]
     let slug = slugify(meal.strMeal) || `meal-${meal.idMeal}`
     if (used.has(slug)) slug = `${slug}-${meal.idMeal}`
+    if (used.has(slug)) slug = `${slug}-${i}` // --count cycles the meal set; keep slugs unique
     used.add(slug)
     writeFileSync(
       path.join(OUT_DIR, `${slug}.mdoc`),

@@ -134,6 +134,13 @@ export function EditorScreen() {
   // Slug just minted from a compose save OR just renamed → the in-memory doc is
   // canonical; don't reload over it.
   const mintedRef = useRef<string | null>(null)
+  // Identity for the keyed subtrees (Canvas/MetaPanel): stable across a
+  // compose-mint or rename — the same entry under a new name; remounting would
+  // kill an open picker dialog mid-interaction (#490) and drop the caret on
+  // first autosave. Changes only on real navigation to a different entry (load
+  // effect, !justMinted) — history restore still remounts via the `:reloadKey`
+  // suffix.
+  const identityRef = useRef(`${collection}/${locale}/${slug}`)
   // Compose mode: a slug the author explicitly chose before the first save. The
   // ref feeds the mint (autosave closes over refs); the state re-renders the field.
   const manualSlugRef = useRef<string | null>(null)
@@ -156,13 +163,17 @@ export function EditorScreen() {
   useEffect(() => {
     let live = true
     // Arriving from a compose-mint or a rename (mintedRef holds this slug): the
-    // in-memory doc/meta is canonical. The 'loading' phase still runs — the
-    // keyed Canvas MUST unmount/remount to re-seed from the updated initialDoc
-    // (skipping it once shipped an empty canvas: the new key mounted against
-    // the stale blank initialDoc before this effect could set it).
+    // in-memory doc/meta is canonical, and the keyed Canvas/MetaPanel keep the
+    // mint-stable identityRef key so they never remount — no reseed-ordering
+    // hazard (nothing remounts, so nothing can mount against a stale
+    // initialDoc). Skipping the 'loading' phase keeps the whole editor body —
+    // including an open Radix dialog like the featured-image picker — mounted
+    // across the mint (#490). Real navigation (!justMinted) advances the
+    // identity and shows 'loading' as before.
     const justMinted = mintedRef.current === slug
     mintedRef.current = null
-    setPhase('loading')
+    if (!justMinted) identityRef.current = `${collection}/${locale}/${slug}`
+    if (!justMinted) setPhase('loading')
     void (async () => {
       if (composing) {
         // Blank body, editable, nothing persisted / no lock until the first save mints a
@@ -795,9 +806,11 @@ export function EditorScreen() {
               onBlur={() => void onTitleBlur()}
             />
             <Canvas
-              // reloadKey: a history restore (#466) must remount the canvas so
-              // it re-seeds from the re-forked initialDoc (see the load effect).
-              key={`${collection}/${locale}/${slug}:${reloadKey}`}
+              // identityRef: mint/rename-stable (#490) so a compose-mint never
+              // remounts the canvas mid-typing; a history restore (#466) still
+              // remounts via reloadKey so it re-seeds from the re-forked
+              // initialDoc (see the load effect).
+              key={`${identityRef.current}:${reloadKey}`}
               initialContent={initialDoc}
               editable={editable}
               onChange={onDocChange}
@@ -822,10 +835,13 @@ export function EditorScreen() {
           </aside>
         ) : (
           <MetaPanel
-            // Entry-keyed like Canvas: panel fields hold per-entry snapshots
-            // (CategoryField's orphan union) that must not survive navigation
-            // to a different entry (#366) — nor a history restore (#466).
-            key={`${collection}/${locale}/${slug}:${reloadKey}`}
+            // Entry-keyed like Canvas, via the mint-stable identity (#490):
+            // panel fields hold per-entry snapshots (CategoryField's orphan
+            // union) that must not survive navigation to a different entry
+            // (#366) — preserved because the load effect advances identityRef
+            // on real navigation before the panel re-renders in 'ready' — nor
+            // a history restore (#466, the reloadKey suffix).
+            key={`${identityRef.current}:${reloadKey}`}
             metadata={metadata}
             collection={collection}
             locale={locale}

@@ -331,6 +331,8 @@ export {
 
 export type { StandardBlock } from './blocks/standard/types'
 export { STANDARD_BLOCKS } from './blocks/standard'
+export { COLUMN_LAYOUTS, columnCountFor } from './blocks/standard/columns'
+export type { ColumnLayout } from './blocks/standard/columns'
 export { mergeBlockSources } from './blocks/merge-sources'
 
 export type { CaptchaPort } from './captcha/captcha-port'

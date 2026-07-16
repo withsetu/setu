@@ -1,21 +1,43 @@
-/** Tiny CLI for smoking the AIC pack (#511). Run from the repo:
+/** Demo-data CLI (#511 pack tools, #512 seed engine). Run from the repo:
  *
  *    pnpm --filter @setu/demo-data aic fetch  [destDir]          # full dump (~115 MiB dl, ~1 GB extracted)
  *    pnpm --filter @setu/demo-data aic sample [destFile] [count] # bounded slice via the public API
  *    pnpm --filter @setu/demo-data aic stats  <source> [limit]   # pack stats over a dump dir or .jsonl
+ *    pnpm --filter @setu/demo-data seed   [--posts 1000 …]       # seed users/posts/images into the dev sandbox
+ *    pnpm --filter @setu/demo-data unseed [--sandbox …]          # remove everything a seed generated
  *
- *  Defaults write under ./.demo-data/ (gitignored). Dev tooling only — never part
- *  of a production build.
- */
+ *  Defaults write under ./.demo-data/ (packs) and target the `pnpm dev`
+ *  sandbox + media dirs (seed). Dev tooling only — never part of a production
+ *  build; seeded passwords are dev credentials, shown once. */
+import path from 'node:path'
 import type { PackPost } from './contract'
 import { createAicPack } from './aic/pack'
 import { fetchAicDump } from './aic/fetch-dump'
 import { fetchAicSample } from './aic/fetch-sample'
+import {
+  defaultMediaDir,
+  defaultSandboxDir,
+  removeSeeded,
+  resolveRepoRoot,
+  seedDemoData
+} from './engine'
+import type { SeedProgress } from './engine'
 
 const USAGE = `Usage:
   aic fetch  [destDir]           download + extract the AIC data dump (default destDir: .demo-data)
   aic sample [destFile] [count]  fetch a bounded record sample from the public API (default: .demo-data/aic-sample.jsonl, 200)
-  aic stats  <source> [limit]    print pack stats over a dump directory or .jsonl file`
+  aic stats  <source> [limit]    print pack stats over a dump directory or .jsonl file
+  seed [flags]                   seed demo users/posts/taxonomies/images into a dev sandbox
+    --posts <n>                  posts to seed (default 1000)
+    --admins/--maintainers/--editors/--authors <n>   users per role (default 1/1/2/5)
+    --draft-fraction <0..1>      fraction seeded as drafts (default 0.1)
+    --relax-text                 admit short-description records (labeled template bodies)
+    --limit-images <n>           only the first n posts get featured images
+    --concurrency <n>            parallel image downloads (default 4)
+    --source <path>              AIC dump dir or .jsonl (default: .demo-data auto-detect)
+    --sandbox <dir>              content sandbox (default: $SETU_REPO_DIR or .content-sandbox/dev)
+    --media <dir>                media dir (default: $SETU_MEDIA_DIR or .setu/uploads)
+  unseed [--sandbox <dir>] [--media <dir>]   remove ONLY what seeding generated`
 
 async function printStats(source: string, limit?: number): Promise<void> {
   const pack = createAicPack({ source })
@@ -49,9 +71,260 @@ async function printStats(source: string, limit?: number): Promise<void> {
   }
 }
 
+interface SeedFlags {
+  posts: number
+  admins: number
+  maintainers: number
+  editors: number
+  authors: number
+  draftFraction: number
+  relaxText: boolean
+  limitImages?: number
+  concurrency: number
+  source?: string
+  sandbox: string
+  media: string
+}
+
+function intFlag(
+  raw: string | undefined,
+  name: string,
+  fallback: number
+): number {
+  if (raw === undefined) return fallback
+  const n = Number.parseInt(raw, 10)
+  if (!Number.isFinite(n) || n < 0) throw new Error(`Invalid ${name}: ${raw}`)
+  return n
+}
+
+function parseSeedFlags(args: string[]): SeedFlags {
+  const raw = new Map<string, string | boolean>()
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!
+    if (!arg.startsWith('--'))
+      throw new Error(`Unexpected argument: ${arg}\n${USAGE}`)
+    const name = arg.slice(2)
+    if (name === 'relax-text') {
+      raw.set(name, true)
+      continue
+    }
+    const value = args[++i]
+    if (value === undefined) throw new Error(`Flag --${name} needs a value`)
+    raw.set(name, value)
+  }
+  const known = new Set([
+    'posts',
+    'admins',
+    'maintainers',
+    'editors',
+    'authors',
+    'draft-fraction',
+    'relax-text',
+    'limit-images',
+    'concurrency',
+    'source',
+    'sandbox',
+    'media'
+  ])
+  for (const name of raw.keys())
+    if (!known.has(name)) throw new Error(`Unknown flag --${name}\n${USAGE}`)
+
+  const str = (name: string): string | undefined => {
+    const v = raw.get(name)
+    return typeof v === 'string' ? v : undefined
+  }
+  const root = resolveRepoRoot()
+  const draftFraction = Number(str('draft-fraction') ?? '0.1')
+  if (!Number.isFinite(draftFraction) || draftFraction < 0 || draftFraction > 1)
+    throw new Error(`Invalid --draft-fraction: ${str('draft-fraction') ?? ''}`)
+  const limitImagesRaw = str('limit-images')
+  return {
+    posts: intFlag(str('posts'), '--posts', 1000),
+    admins: intFlag(str('admins'), '--admins', 1),
+    maintainers: intFlag(str('maintainers'), '--maintainers', 1),
+    editors: intFlag(str('editors'), '--editors', 2),
+    authors: intFlag(str('authors'), '--authors', 5),
+    draftFraction,
+    relaxText: raw.get('relax-text') === true,
+    ...(limitImagesRaw !== undefined
+      ? { limitImages: intFlag(limitImagesRaw, '--limit-images', 0) }
+      : {}),
+    concurrency: Math.max(1, intFlag(str('concurrency'), '--concurrency', 4)),
+    ...(str('source') !== undefined ? { source: str('source')! } : {}),
+    sandbox: path.resolve(str('sandbox') ?? defaultSandboxDir(root)),
+    media: path.resolve(str('media') ?? defaultMediaDir(root))
+  }
+}
+
+/** Locate an already-fetched AIC source: prefer the extracted dump, fall back
+ *  to a sampled .jsonl. Never downloads implicitly — `aic fetch` is explicit. */
+async function detectAicSource(): Promise<string> {
+  const { stat } = await import('node:fs/promises')
+  const root = resolveRepoRoot()
+  const candidates = [
+    path.join(root, '.demo-data', 'artic-api-data', 'json', 'artworks'),
+    path.join(
+      root,
+      'packages',
+      'demo-data',
+      '.demo-data',
+      'artic-api-data',
+      'json',
+      'artworks'
+    ),
+    path.join(root, '.demo-data', 'aic-sample.jsonl'),
+    path.join(root, 'packages', 'demo-data', '.demo-data', 'aic-sample.jsonl')
+  ]
+  for (const candidate of candidates) {
+    if (
+      await stat(candidate).then(
+        () => true,
+        () => false
+      )
+    )
+      return candidate
+  }
+  throw new Error(
+    'No AIC source found — run `pnpm --filter @setu/demo-data aic fetch` ' +
+      '(full dump) or `aic sample` (bounded slice) first, or pass --source.'
+  )
+}
+
+/** stdout progress: users and categories line-by-line; images/posts throttled. */
+function printProgress(progress: SeedProgress): void {
+  switch (progress.phase) {
+    case 'warning':
+      console.warn(`⚠  ${progress.message}`)
+      return
+    case 'users':
+      if (progress.done === progress.total)
+        console.log(`users: ${progress.done}/${progress.total} ready`)
+      return
+    case 'plan':
+      if (progress.done % 500 === 0 || progress.done === progress.total)
+        console.log(`plan: ${progress.done}/${progress.total} posts`)
+      return
+    case 'categories':
+      console.log(
+        progress.added >= 0
+          ? `categories: ${progress.added} added`
+          : `categories: ${-progress.added} removed`
+      )
+      return
+    case 'images':
+      if (
+        progress.done % 25 === 0 ||
+        progress.done + progress.failed === progress.total
+      )
+        console.log(
+          `images: ${progress.done}/${progress.total}` +
+            (progress.failed > 0 ? ` (${progress.failed} failed)` : '')
+        )
+      return
+    case 'posts':
+      console.log(`posts: ${progress.done}/${progress.total} committed`)
+  }
+}
+
+async function runSeed(args: string[]): Promise<void> {
+  const flags = parseSeedFlags(args)
+  const source = flags.source ?? (await detectAicSource())
+  const pack = createAicPack({
+    source,
+    ...(flags.relaxText ? { textTier: 'relaxed' as const } : {})
+  })
+  console.log(`pack: ${pack.meta.id} over ${source}`)
+  console.log(`sandbox: ${flags.sandbox}`)
+  console.log(`media: ${flags.media}`)
+
+  const controller = new AbortController()
+  const onSigint = (): void => {
+    console.log('\naborting — progress is checkpointed; re-run to resume')
+    controller.abort()
+  }
+  process.once('SIGINT', onSigint)
+  try {
+    const summary = await seedDemoData({
+      sandboxDir: flags.sandbox,
+      mediaDir: flags.media,
+      pack,
+      posts: flags.posts,
+      users: {
+        admin: flags.admins,
+        maintainer: flags.maintainers,
+        editor: flags.editors,
+        author: flags.authors
+      },
+      draftFraction: flags.draftFraction,
+      relaxText: flags.relaxText,
+      concurrency: flags.concurrency,
+      ...(flags.limitImages !== undefined
+        ? { limitImages: flags.limitImages }
+        : {}),
+      onProgress: printProgress,
+      signal: controller.signal
+    })
+    console.log('')
+    console.log(
+      `seeded ${summary.posts} posts, ${summary.images} images` +
+        (summary.imagesReused > 0 ? ` (+${summary.imagesReused} reused)` : '') +
+        (summary.imageFailures > 0
+          ? ` (${summary.imageFailures} image downloads failed — re-run to retry)`
+          : '') +
+        `, ${summary.commits} commits in ${(summary.durationMs / 1000).toFixed(1)}s`
+    )
+    const skipped = Object.entries(summary.skipped)
+    if (skipped.length > 0)
+      console.log(
+        `pack skipped: ${skipped.map(([k, v]) => `${k}=${v}`).join(' ')}`
+      )
+    console.log('')
+    console.log(
+      'demo users (DEV-ONLY credentials — shown once, never stored in plain text):'
+    )
+    for (const user of summary.users) {
+      console.log(
+        `  ${user.email}  role=${user.role}  ` +
+          (user.password === null
+            ? 'password unchanged (already existed)'
+            : `password=${user.password}`)
+      )
+    }
+    console.log('')
+    console.log(
+      'Note: content is committed to the sandbox repo — a static site build ' +
+        'still needs its own rebuild to show it (saved ≠ live).'
+    )
+  } finally {
+    process.removeListener('SIGINT', onSigint)
+  }
+}
+
+async function runUnseed(args: string[]): Promise<void> {
+  const flags = parseSeedFlags(args)
+  const summary = await removeSeeded({
+    sandboxDir: flags.sandbox,
+    mediaDir: flags.media,
+    onProgress: printProgress
+  })
+  console.log(
+    `removed ${summary.posts} posts, ${summary.media} media items, ` +
+      `${summary.users} users, ${summary.categories} categories ` +
+      `in ${(summary.durationMs / 1000).toFixed(1)}s`
+  )
+  if (summary.userFailures > 0)
+    console.log(
+      `${summary.userFailures} user(s) could not be deleted (e.g. the last-admin guard)`
+    )
+}
+
 async function main(): Promise<void> {
   const [command, ...args] = process.argv.slice(2)
   switch (command) {
+    case 'seed':
+      return runSeed(args)
+    case 'unseed':
+      return runUnseed(args)
     case 'fetch': {
       const destDir = args[0] ?? '.demo-data'
       console.log(`fetching AIC dump into ${destDir} (~115 MiB download)…`)

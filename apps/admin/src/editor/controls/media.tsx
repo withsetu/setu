@@ -29,6 +29,8 @@ function MediaControlBase({
     // below the player instead of the image control's hover overlay.
     return (
       <div className="flex flex-col gap-2">
+        {/* eslint-disable-next-line jsx-a11y/media-has-caption -- inspector preview
+            of the author's own file; Setu can't synthesize a caption track for it */}
         <video
           src={src}
           controls

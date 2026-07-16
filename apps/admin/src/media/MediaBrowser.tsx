@@ -14,6 +14,7 @@ import {
   SelectContent,
   SelectItem
 } from '@/components/ui/select'
+import type { Accept } from 'react-dropzone'
 import type { UploadResult } from './upload-client'
 import { MediaGrid } from './MediaGrid'
 import { MediaDropzone } from './MediaDropzone'
@@ -119,7 +120,7 @@ export function MediaBrowser({
 
   // Upload accept per picked kind. Video lists the API's allowlisted containers
   // explicitly (video/* would let e.g. .mov through only to 415 at the server).
-  const pickAccept =
+  const pickAccept: Accept =
     pickKind === 'video'
       ? { 'video/mp4': [], 'video/webm': [] }
       : { 'image/*': [] }

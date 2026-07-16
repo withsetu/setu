@@ -72,15 +72,13 @@ describe('BlockInspector', () => {
     // media pickers, not raw text boxes: a set src shows a player + Replace/Remove,
     // an empty poster shows the library button
     // root-relative srcs resolve against the media origin for display
-    expect(
-      document.querySelector('video[src$="/media/clip.mp4"]')
-    ).toBeTruthy()
+    expect(document.querySelector('video[src$="/media/clip.mp4"]')).toBeTruthy()
     expect(
       screen.getByRole('button', { name: 'Replace src' })
     ).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'poster' })
-    ).toHaveTextContent(/choose from library/i)
+    expect(screen.getByRole('button', { name: 'poster' })).toHaveTextContent(
+      /choose from library/i
+    )
     // playback switches
     expect(screen.getByLabelText('controls')).toBeInTheDocument()
     expect(screen.getByLabelText('autoplay')).toBeInTheDocument()

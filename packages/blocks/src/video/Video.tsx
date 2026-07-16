@@ -46,7 +46,9 @@ export function Video({
             <rect x="2" y="6" width="14" height="12" rx="2.4" />
             <path d="m22 8-6 4 6 4z" />
           </svg>
-          <span>No video yet — pick one from the library in the block panel.</span>
+          <span>
+            No video yet — pick one from the library in the block panel.
+          </span>
         </div>
       </figure>
     )
@@ -54,8 +56,6 @@ export function Video({
   const play = videoPlaybackAttrs({ controls, autoplay, loop, muted })
   return (
     <figure className={videoClasses(width)}>
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption -- caption tracks are
-          authored content Setu can't synthesize; the block ships what the author gave */}
       <video
         className="blk-video-player"
         src={src}

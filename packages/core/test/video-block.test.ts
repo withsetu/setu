@@ -33,7 +33,7 @@ describe('video block (#178)', () => {
 
   it('forces muted (disabled, with a hint) while autoplay is on', () => {
     const video = STANDARD_BLOCKS.find((b) => b.tag === 'video')!
-    const rule = video.contract.editor!.forcedWhen!.muted
+    const rule = video.contract.editor!.forcedWhen!.muted!
     expect(rule.when).toEqual({ autoplay: true })
     expect(rule.value).toBe(true)
     expect(rule.hint).toBeTruthy()

@@ -234,6 +234,20 @@ body {
     calc((100vw - var(--measure-page)) / 2)
   );
 }
+
+/* {% video %} width — same breakout ladder as the hero/image blocks.
+   none = column width (no rule); wide = page measure; full = 100vw bleed. */
+.prose .blk-video.w-wide {
+  width: min(var(--measure-page), calc(100vw - 2rem));
+  margin-left: 50%;
+  transform: translateX(-50%);
+}
+.prose .blk-video.w-full {
+  width: 100vw;
+  margin-left: 50%;
+  transform: translateX(-50%);
+}
+
 .prose figure.setu-image.align-left {
   float: left;
   max-width: 50%;

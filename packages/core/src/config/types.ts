@@ -8,6 +8,7 @@ export type BlockControl =
   | 'switch'
   | 'select'
   | 'media'
+  | 'video'
   | 'url'
   | 'color'
   | 'position9'
@@ -49,6 +50,19 @@ export interface BlockEditorMeta {
   labels?: Record<string, string>
   /** Hide a control unless every (otherProp → value|values) pair matches the current attrs. */
   showWhen?: Record<string, Record<string, string | string[]>>
+  /** Force a control to a fixed value — rendered disabled, with an explanatory hint —
+   *  while every (otherProp → value|values) pair matches the current attrs. E.g. a
+   *  video's `muted` is forced on while `autoplay` is enabled (browsers refuse unmuted
+   *  autoplay); the disabled switch + hint keep the constraint honest in the UI, and the
+   *  renderer applies the same coercion so a stale stored value can't ship broken output. */
+  forcedWhen?: Record<
+    string,
+    {
+      when: Record<string, string | string[] | boolean>
+      value: string | number | boolean
+      hint?: string
+    }
+  >
   /** Optional ordered sections for the inspector rail. Controls not listed in any
    *  group fall into an implicit leading "Content" section in declaration order. */
   groups?: Array<{ id: string; label: string; controls: string[] }>

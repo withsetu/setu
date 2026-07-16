@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Sheet,
   SheetContent,
@@ -53,26 +53,39 @@ export interface HistoryPanelProps {
   /** Called after a successful restore commit with the new commit sha — the
    *  editor reloads the restored content. */
   onRestored: (sha: string) => void | Promise<void>
+  /** Serialize the LIVE editor buffer (frontmatter + body) to mdoc text — the
+   *  same core serializer the preview/publish paths use
+   *  (`serializeMdoc` + `tiptapToMarkdoc`). Captured once each time the panel
+   *  opens (the Sheet is modal, so the buffer can't change underneath it). */
+  getEditorContent: () => string
 }
 
+/** Sentinel selection id for the synthetic unsaved-changes row — can never
+ *  collide with a 40-hex commit sha. */
+const UNSAVED_ROW = 'unsaved'
+
 /** WordPress-revisions as a Setu editor side panel (#466 design comment):
- *  revision list (author, relative date, subject; HEAD pinned first as
- *  "Current"), a field-row + word-level diff of the selected revision against
- *  the current one, and one-click restore behind a confirm dialog.
+ *  revision list (author, relative date, subject; HEAD pinned first), a
+ *  field-row + word-level diff of the selected revision, and one-click restore
+ *  behind a confirm dialog.
  *
- *  The diff compares COMMITTED revisions: "current" is the content at HEAD
- *  (the list's first entry), fetched through the same `/api/history/file`
- *  route as the selected revision — not the live editor buffer. That matches
- *  the list labeling ("Current" = HEAD) and WordPress semantics, and avoids
- *  serializing unsaved keystrokes into a comparison the revision list doesn't
- *  show. */
+ *  The diff baseline is WHAT THE USER SEES — the live editor buffer serialized
+ *  through the same core round-trip the publish path uses — never bare HEAD
+ *  (owner UAT on #466: diffing against HEAD hid fresh keystrokes, and an old
+ *  revision that happened to equal HEAD claimed "no changes" while Restore
+ *  silently discarded the unsaved buffer). When the buffer differs from HEAD a
+ *  synthetic "Your unsaved changes" row is pinned on top, the HEAD row's badge
+ *  demotes from "Current" to "Last commit", and the restore dialog carries an
+ *  explicit discard warning. A clean buffer serializes parse-identically to
+ *  HEAD, so every behavior collapses to the committed-revisions semantics. */
 export function HistoryPanel({
   open,
   onOpenChange,
   path,
   apiBase,
   restoreDisabledReason,
-  onRestored
+  onRestored,
+  getEditorContent
 }: HistoryPanelProps) {
   const notify = useNotify()
 
@@ -85,6 +98,17 @@ export function HistoryPanel({
   const [fileError, setFileError] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [restoring, setRestoring] = useState(false)
+  /** The live buffer serialized to mdoc, captured at open time. */
+  const [buffer, setBuffer] = useState<string | null>(null)
+
+  // Ref-stabilized so the open effect doesn't re-run (and refetch the list) on
+  // every parent render — callers pass an inline closure over editor refs.
+  // Latched in an effect (declared before the open effect, so it runs first)
+  // rather than during render, per the react-compiler ref rule.
+  const getEditorContentRef = useRef(getEditorContent)
+  useEffect(() => {
+    getEditorContentRef.current = getEditorContent
+  })
 
   const loadPage = useCallback(
     async (offset: number): Promise<RevisionEntry[]> => {
@@ -108,6 +132,7 @@ export function HistoryPanel({
     setSelected(null)
     setFiles({})
     setFileError(false)
+    setBuffer(getEditorContentRef.current())
     void (async () => {
       try {
         const page = await loadPage(0)
@@ -146,7 +171,7 @@ export function HistoryPanel({
   useEffect(() => {
     if (!open) return
     const want = [currentSha, selected].filter(
-      (s): s is string => s !== null && !(s in files)
+      (s): s is string => s !== null && s !== UNSAVED_ROW && !(s in files)
     )
     if (want.length === 0) return
     let live = true
@@ -172,25 +197,42 @@ export function HistoryPanel({
     }
   }, [open, currentSha, selected, files, apiBase, path])
 
-  const isCurrent = selected !== null && selected === currentSha
+  const headContent = currentSha === null ? undefined : files[currentSha]
+
+  // Unsaved-changes detection: the buffer serialized to mdoc vs the HEAD file,
+  // compared at the parse level (diffMdoc) so YAML formatting and EOF
+  // whitespace never read as edits. False until the HEAD fetch lands.
+  const dirty = useMemo(() => {
+    if (buffer === null || headContent === undefined) return false
+    return !diffMdoc(headContent, buffer).identical
+  }, [buffer, headContent])
+
+  const isUnsavedRow = selected === UNSAVED_ROW
+  // HEAD selected with a clean buffer: nothing to compare (today's semantics).
+  // With a DIRTY buffer the HEAD row diffs like any revision — against what
+  // the user sees.
+  const isCurrent = selected !== null && selected === currentSha && !dirty
   const diff = useMemo(() => {
-    if (!selected || !currentSha || isCurrent) return null
-    const oldContent = files[selected]
-    const newContent = files[currentSha]
-    if (oldContent === undefined || newContent === undefined) return null
-    return diffMdoc(oldContent, newContent)
-  }, [selected, currentSha, isCurrent, files])
+    if (!selected || buffer === null || isCurrent) return null
+    // The synthetic row IS the buffer — show what changed since the last
+    // commit (buffer vs HEAD).
+    const oldContent = isUnsavedRow ? headContent : files[selected]
+    if (oldContent === undefined) return null
+    return diffMdoc(oldContent, buffer)
+  }, [selected, buffer, isCurrent, isUnsavedRow, headContent, files])
 
   const restoreBlockedReason =
     restoreDisabledReason ??
     (selected === null
       ? 'Select a revision to restore'
-      : isCurrent
-        ? 'This is already the current revision'
-        : undefined)
+      : isUnsavedRow
+        ? 'These changes are not committed yet — publish or save a draft to keep them'
+        : selected === currentSha
+          ? 'This is already the current revision'
+          : undefined)
 
   const doRestore = async () => {
-    if (!selected) return
+    if (!selected || selected === UNSAVED_ROW) return
     setRestoring(true)
     try {
       const res = await apiFetch(`${apiBase}/api/history/restore`, {
@@ -252,6 +294,31 @@ export function HistoryPanel({
             {entries !== null && (
               <>
                 <ul aria-label="Revisions" className="flex flex-col gap-1 p-3">
+                  {dirty && (
+                    <li key={UNSAVED_ROW}>
+                      <button
+                        type="button"
+                        aria-pressed={isUnsavedRow}
+                        onClick={() => setSelected(UNSAVED_ROW)}
+                        className={cn(
+                          'w-full rounded-md px-3 py-2 text-left transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring',
+                          isUnsavedRow && 'bg-accent'
+                        )}
+                      >
+                        <span className="flex items-baseline justify-between gap-2">
+                          <span className="truncate text-sm font-medium">
+                            Your unsaved changes
+                          </span>
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            now
+                          </span>
+                        </span>
+                        <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                          What you see in the editor — not committed yet
+                        </span>
+                      </button>
+                    </li>
+                  )}
                   {entries.map((e, i) => (
                     <li key={e.sha}>
                       <button
@@ -269,7 +336,9 @@ export function HistoryPanel({
                           </span>
                           <span className="flex shrink-0 items-center gap-2">
                             {i === 0 && (
-                              <Badge variant="secondary">Current</Badge>
+                              <Badge variant="secondary">
+                                {dirty ? 'Last commit' : 'Current'}
+                              </Badge>
                             )}
                             <span className="text-xs text-muted-foreground">
                               {relativeTime(Date.parse(e.date))}
@@ -303,12 +372,14 @@ export function HistoryPanel({
                   </p>
                 )}
 
-                {entries.length > 1 && (
+                {(entries.length > 1 || dirty) && (
                   <section aria-label="Changes" className="border-t p-4">
                     <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      {isCurrent
-                        ? 'Current revision'
-                        : 'Changes since this revision'}
+                      {isUnsavedRow
+                        ? 'Your changes since the last commit'
+                        : isCurrent
+                          ? 'Current revision'
+                          : 'Changes since this revision'}
                     </h3>
                     {isCurrent && (
                       <p className="text-sm text-muted-foreground">
@@ -329,7 +400,7 @@ export function HistoryPanel({
                     )}
                     {diff?.identical && (
                       <p className="text-sm text-muted-foreground">
-                        No differences from the current revision.
+                        No differences from what&apos;s in the editor.
                       </p>
                     )}
                     {diff && !diff.identical && (
@@ -424,6 +495,11 @@ export function HistoryPanel({
               rewritten, and the current version stays in the timeline.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {dirty && (
+            <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">
+              This discards your unsaved changes.
+            </p>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={restoring}>Cancel</AlertDialogCancel>
             <AlertDialogAction

@@ -32,6 +32,8 @@ const ENTRIES = [
 
 const HEAD_CONTENT = '---\ntitle: New Title\n---\nThe slow brown fox.'
 const OLD_CONTENT = '---\ntitle: Old Title\n---\nThe quick brown fox.'
+/** A live editor buffer that differs from HEAD — the owner-UAT dirty state. */
+const DIRTY_CONTENT = '---\ntitle: New Title\n---\nThe slow red fox.'
 
 /** Stub global fetch (apiFetch's primitive — the users-screen.test.tsx pattern)
  *  for the three history routes the panel calls. */
@@ -39,6 +41,8 @@ function stubHistoryFetch(opts?: {
   entries?: typeof ENTRIES
   restoreStatus?: number
   onRestoreBody?: (body: unknown) => void
+  /** Override the content served for the OLD (non-HEAD) revision. */
+  oldContent?: string
 }) {
   const entries = opts?.entries ?? ENTRIES
   vi.stubGlobal(
@@ -54,7 +58,8 @@ function stubHistoryFetch(opts?: {
       }
       if (u.includes('/api/history/file')) {
         const sha = new URL(u, 'http://x').searchParams.get('sha')
-        const content = sha === SHA_HEAD ? HEAD_CONTENT : OLD_CONTENT
+        const content =
+          sha === SHA_HEAD ? HEAD_CONTENT : (opts?.oldContent ?? OLD_CONTENT)
         return new Response(JSON.stringify({ content }), { status: 200 })
       }
       if (u.includes('/api/history')) {
@@ -78,6 +83,8 @@ function renderPanel(
         path={PATH}
         apiBase=""
         onRestored={onRestored}
+        // Default: a clean buffer (serializes to exactly the HEAD content).
+        getEditorContent={() => HEAD_CONTENT}
         {...props}
       />
     </NotificationProvider>
@@ -152,10 +159,12 @@ describe('HistoryPanel (#466)', () => {
     await waitFor(() => expect(restore).toBeEnabled())
     fireEvent.click(restore)
 
-    // AlertDialog confirm with the never-rewrites promise.
+    // AlertDialog confirm with the never-rewrites promise. The buffer is
+    // clean, so the discard warning must NOT appear.
     const dialog = await screen.findByRole('alertdialog')
     expect(dialog).toHaveTextContent(/new commit/)
     expect(dialog).toHaveTextContent(/never rewritten/)
+    expect(dialog).not.toHaveTextContent(/discards your unsaved changes/)
     fireEvent.click(screen.getByRole('button', { name: 'Restore' }))
 
     await waitFor(() =>
@@ -216,5 +225,115 @@ describe('HistoryPanel (#466)', () => {
     expect(
       screen.getByText("Your role can't change published posts")
     ).toBeInTheDocument()
+  })
+
+  it('clean buffer: no synthetic unsaved row, HEAD badge stays "Current"', async () => {
+    stubHistoryFetch()
+    renderPanel()
+
+    const list = await screen.findByRole('list', { name: 'Revisions' })
+    // The old revision is preselected — once its diff has rendered, the HEAD
+    // fetch (same Promise.all) has settled too, so dirtiness is decided.
+    const changes = await screen.findByRole('region', { name: 'Changes' })
+    await waitFor(() => expect(changes).toHaveTextContent('Old Title'))
+    expect(
+      within(list).queryByText('Your unsaved changes')
+    ).not.toBeInTheDocument()
+    const rows = within(list).getAllByRole('button')
+    expect(rows[0]).toHaveTextContent('Current')
+    expect(rows[0]).not.toHaveTextContent('Last commit')
+  })
+})
+
+describe('HistoryPanel with unsaved editor changes (#466 owner UAT)', () => {
+  it('pins a "Your unsaved changes · now" row on top and relabels HEAD "Last commit"', async () => {
+    stubHistoryFetch()
+    renderPanel({ getEditorContent: () => DIRTY_CONTENT })
+
+    const list = await screen.findByRole('list', { name: 'Revisions' })
+    const unsaved = await within(list).findByRole('button', {
+      name: /Your unsaved changes/
+    })
+    expect(unsaved).toHaveTextContent('now')
+    const rows = within(list).getAllByRole('button')
+    expect(rows).toHaveLength(3)
+    expect(rows[0]).toBe(unsaved)
+    // HEAD is no longer what the user sees — it's the last commit.
+    expect(rows[1]).toHaveTextContent('Last commit')
+    expect(rows[1]).not.toHaveTextContent('Current')
+  })
+
+  it('selecting the synthetic row diffs the live buffer against HEAD', async () => {
+    stubHistoryFetch()
+    renderPanel({ getEditorContent: () => DIRTY_CONTENT })
+
+    const list = await screen.findByRole('list', { name: 'Revisions' })
+    fireEvent.click(
+      await within(list).findByRole('button', { name: /Your unsaved changes/ })
+    )
+
+    const changes = await screen.findByRole('region', { name: 'Changes' })
+    // HEAD body "The slow brown fox." vs buffer "The slow red fox.".
+    const removed = await within(changes).findByText('brown')
+    expect(removed.tagName).toBe('DEL')
+    const added = within(changes).getByText('red')
+    expect(added.tagName).toBe('INS')
+    // The synthetic row is not a committed revision — nothing to restore.
+    const restore = screen.getByRole('button', {
+      name: 'Restore this revision'
+    })
+    expect(restore).toBeDisabled()
+  })
+
+  it('diffs a revision against the live buffer, not HEAD (the "no changes" near-data-loss trap)', async () => {
+    // Owner repro: the old revision EQUALS HEAD (restore-style history), but
+    // the buffer holds unsaved work. Diffing against HEAD would claim "no
+    // differences" while Restore silently discards the buffer.
+    stubHistoryFetch({ oldContent: HEAD_CONTENT })
+    renderPanel({ getEditorContent: () => DIRTY_CONTENT })
+
+    const list = await screen.findByRole('list', { name: 'Revisions' })
+    const rows = await within(list).findAllByRole('button')
+    fireEvent.click(rows[rows.length - 1]!)
+
+    const changes = await screen.findByRole('region', { name: 'Changes' })
+    const added = await within(changes).findByText('red')
+    expect(added.tagName).toBe('INS')
+    expect(changes).not.toHaveTextContent(/No differences/)
+  })
+
+  it('dirty + HEAD row selected shows the buffer diff, not the "current revision" notice', async () => {
+    stubHistoryFetch()
+    renderPanel({ getEditorContent: () => DIRTY_CONTENT })
+
+    const list = await screen.findByRole('list', { name: 'Revisions' })
+    const head = await within(list).findByRole('button', {
+      name: /Last commit/
+    })
+    fireEvent.click(head)
+
+    const changes = await screen.findByRole('region', { name: 'Changes' })
+    const added = await within(changes).findByText('red')
+    expect(added.tagName).toBe('INS')
+    expect(changes).not.toHaveTextContent(/This is the current revision/)
+  })
+
+  it('restore dialog carries the destructive discard warning when dirty', async () => {
+    stubHistoryFetch()
+    renderPanel({ getEditorContent: () => DIRTY_CONTENT })
+
+    const list = await screen.findByRole('list', { name: 'Revisions' })
+    // Select the OLD committed revision (the last row).
+    const rows = await within(list).findAllByRole('button')
+    fireEvent.click(rows[rows.length - 1]!)
+
+    const restore = await screen.findByRole('button', {
+      name: 'Restore this revision'
+    })
+    await waitFor(() => expect(restore).toBeEnabled())
+    fireEvent.click(restore)
+
+    const dialog = await screen.findByRole('alertdialog')
+    expect(dialog).toHaveTextContent('This discards your unsaved changes.')
   })
 })

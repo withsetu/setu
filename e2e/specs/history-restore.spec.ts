@@ -49,32 +49,57 @@ test('publish twice, inspect the diff, restore the older revision; author sees a
   await page.keyboard.type(' Second version extra words.')
   await editor.publish()
 
-  // History: both revisions listed, newest first, HEAD labeled Current.
+  // History: both revisions listed, newest first, HEAD labeled Current (the
+  // buffer equals the just-published HEAD, so there is no unsaved row).
   await editor.openHistory()
   await expect(editor.revisionRows).toHaveCount(2)
   await expect(editor.revisionRows.first()).toContainText('Current')
   await expect(editor.revisionRows.first()).toContainText('E2E Admin')
+  await expect(
+    editor.historyPanel.getByText('Your unsaved changes')
+  ).toBeHidden()
+  await page.keyboard.press('Escape')
+  await expect(editor.historyPanel).toBeHidden()
+
+  // Owner-UAT defect (#466): type WITHOUT committing, reopen History — the
+  // live buffer must appear as a pinned synthetic row, HEAD demotes from
+  // "Current" to "Last commit", and diffs baseline on what the user sees.
+  await editor.clickBlock('First version')
+  await page.keyboard.press('End')
+  await page.keyboard.type(' Third uncommitted words.')
+  await editor.openHistory()
+  await expect(editor.revisionRows).toHaveCount(3)
+  await expect(editor.revisionRows.first()).toContainText(
+    'Your unsaved changes'
+  )
+  await expect(editor.revisionRows.nth(1)).toContainText('Last commit')
 
   // Select the older revision (the panel preselects it too — click to be
   // explicit) and read the diff: the title field row shows old → new, and the
-  // body words the current version gained render as additions.
+  // body words the LIVE BUFFER gained render as additions — including the
+  // uncommitted keystrokes a HEAD-based diff used to hide.
   await editor.revisionRows.last().click()
   await expect(editor.historyChanges).toContainText('title')
   await expect(editor.historyChanges).toContainText(`${title} v2`)
   await expect(editor.historyChanges).toContainText('Second version extra')
+  await expect(editor.historyChanges).toContainText('Third uncommitted words.')
 
-  // Restore behind the confirm dialog ("new commit, never rewritten").
+  // Restore behind the confirm dialog ("new commit, never rewritten") — which
+  // now also warns that the unsaved buffer is about to be discarded.
   await expect(editor.restoreRevisionButton).toBeEnabled()
   await editor.restoreRevisionButton.click()
   const confirm = page.getByRole('alertdialog')
   await expect(confirm).toContainText(/never rewritten/)
+  await expect(confirm).toContainText('This discards your unsaved changes.')
   await confirm.getByRole('button', { name: 'Restore', exact: true }).click()
   await expect(editor.restoredToast).toBeVisible()
 
-  // The editor reloads the restored content in place: title and body revert.
+  // The editor reloads the restored content in place: title and body revert,
+  // and the discard the user just consented to actually happened.
   await expect(editor.titleInput).toHaveValue(title, { timeout: 15_000 })
   await expect(editor.body).toContainText('First version body.')
   await expect(editor.body).not.toContainText('Second version')
+  await expect(editor.body).not.toContainText('Third uncommitted')
 
   // Sanctioned exception (see e2e/lib/sandbox-git.ts): restore must be a NEW
   // commit — history-api.ts's `Restore <path> to <sha7>` subject at HEAD, no

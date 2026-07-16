@@ -858,6 +858,15 @@ export function EditorScreen() {
                 : undefined
           }
           onRestored={onRestored}
+          // The panel's diff baseline is what the user SEES (owner UAT on
+          // #466): the live buffer through the exact serializer the
+          // preview/publish paths use — never a second source of truth.
+          getEditorContent={() =>
+            serializeMdoc({
+              frontmatter: metaRef.current,
+              body: tiptapToMarkdoc(docRef.current)
+            })
+          }
         />
       )}
       <ShortcutsDialog

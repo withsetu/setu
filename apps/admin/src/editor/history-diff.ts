@@ -48,10 +48,17 @@ function display(v: unknown): string {
  *
  *  Direction: `oldRaw` is the selected (earlier) revision, `newRaw` the current
  *  one — added segments are what the current version gained since that
- *  revision, matching the WordPress revisions reading order. */
+ *  revision, matching the WordPress revisions reading order.
+ *
+ *  Bodies are compared with trailing whitespace stripped: `tiptapToMarkdoc`
+ *  always emits a trailing newline while hand-authored files may lack one, and
+ *  the live-buffer dirty check (owner UAT on #466) rides this function — EOF
+ *  whitespace must never read as a change. */
 export function diffMdoc(oldRaw: string, newRaw: string): MdocDiff {
   const oldDoc = parseMdoc(oldRaw)
   const newDoc = parseMdoc(newRaw)
+  oldDoc.body = oldDoc.body.replace(/\s+$/, '')
+  newDoc.body = newDoc.body.replace(/\s+$/, '')
 
   const keys = [...Object.keys(oldDoc.frontmatter)]
   for (const k of Object.keys(newDoc.frontmatter))

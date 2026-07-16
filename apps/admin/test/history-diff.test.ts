@@ -75,4 +75,12 @@ describe('diffMdoc (#466): frontmatter field rows + word-level body diff', () =>
     expect(d.fields).toEqual([])
     expect(d.body!.some((s) => s.added && s.value.includes('two'))).toBe(true)
   })
+
+  it('a trailing-newline-only body difference is not a change (owner UAT: buffer-vs-file compare)', () => {
+    // tiptapToMarkdoc always emits a trailing newline; hand-authored files may
+    // lack it. The live-buffer dirty check rides diffMdoc, so EOF whitespace
+    // must never read as an unsaved change.
+    const d = diffMdoc(mdoc('title: T', 'Body.'), mdoc('title: T', 'Body.\n'))
+    expect(d).toEqual({ fields: [], body: null, identical: true })
+  })
 })

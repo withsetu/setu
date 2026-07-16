@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { Actor, TiptapDoc } from '@setu/core'
 import { contentPath, serializeMdoc } from '@setu/core'
@@ -199,5 +199,46 @@ describe('EditorScreen History button gating (#466)', () => {
     expect(
       screen.getByText("Your role can't change published posts")
     ).toBeInTheDocument()
+  })
+})
+
+describe('EditorScreen History with a dirty buffer (#466 owner UAT)', () => {
+  it('typed-but-uncommitted edits pin the unsaved-changes row above the commits', async () => {
+    stubCapabilities(true)
+    renderEditor(servicesWithCommitted({ title: 'Hello' }), {
+      id: 'e1',
+      role: 'editor'
+    })
+    const title = await screen.findByDisplayValue('Hello')
+    // The owner repro: type, then open History before any commit.
+    fireEvent.change(title, { target: { value: 'Hello v2' } })
+    fireEvent.click(await screen.findByRole('button', { name: 'History' }))
+
+    const panel = await screen.findByRole('dialog', { name: 'History' })
+    const unsaved = await within(panel).findByRole('button', {
+      name: /Your unsaved changes/
+    })
+    expect(unsaved).toHaveTextContent('now')
+    expect(await within(panel).findByText('Last commit')).toBeInTheDocument()
+    expect(within(panel).queryByText('Current')).not.toBeInTheDocument()
+  })
+
+  it('a clean buffer keeps the Current badge and shows no unsaved row', async () => {
+    stubCapabilities(true)
+    renderEditor(servicesWithCommitted({ title: 'Hello' }), {
+      id: 'e1',
+      role: 'editor'
+    })
+    await screen.findByDisplayValue('Hello')
+    fireEvent.click(await screen.findByRole('button', { name: 'History' }))
+
+    const panel = await screen.findByRole('dialog', { name: 'History' })
+    // The preselected revision equals the buffer — once its diff settles the
+    // HEAD fetch (same batch) has too, so dirtiness is decided.
+    expect(await within(panel).findByText(/No differences/)).toBeInTheDocument()
+    expect(
+      within(panel).queryByText('Your unsaved changes')
+    ).not.toBeInTheDocument()
+    expect(within(panel).getByText('Current')).toBeInTheDocument()
   })
 })

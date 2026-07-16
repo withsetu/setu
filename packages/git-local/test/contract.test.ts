@@ -14,9 +14,12 @@ afterEach(() => {
   dirs.length = 0
 })
 
-runGitPortContract(async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'setu-git-'))
-  dirs.push(dir)
-  await git.init({ fs: nodeFs, dir, defaultBranch: 'main' })
-  return createLocalGitAdapter({ dir })
-})
+runGitPortContract(
+  async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'setu-git-'))
+    dirs.push(dir)
+    await git.init({ fs: nodeFs, dir, defaultBranch: 'main' })
+    return createLocalGitAdapter({ dir })
+  },
+  { history: true } // #466: implements the optional log/readFileAt capability
+)

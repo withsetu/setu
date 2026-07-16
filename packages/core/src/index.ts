@@ -154,7 +154,9 @@ export type {
   FileChange,
   CommitFilesInput,
   DiffPathStatus,
-  DiffPathEntry
+  DiffPathEntry,
+  GitLogOptions,
+  GitLogEntry
 } from './git/types'
 export type { GitPort } from './git/git-port'
 

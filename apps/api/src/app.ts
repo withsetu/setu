@@ -43,7 +43,7 @@ const GIT_WRITE_MAX_BYTES = 10 * 1024 * 1024
 
 /** One change in a commit, as the gate sees it: a path plus (for writes) the content being written.
  *  `content` is undefined for a deletion. */
-interface WriteChange {
+export interface WriteChange {
   path: string
   content?: string
 }
@@ -105,7 +105,10 @@ function actionForChange({ path, content }: WriteChange): Action {
  *  (`git.readFile`) is skipped whenever it could not change the outcome: for non-content paths,
  *  when this change's own action already ranks ≥ `content.publish`, or once the running strongest
  *  does (higher ranks imply `content.publish`'s holders by the subset ladder above). */
-async function writeActionForChanges(
+// Exported as THE shared write-permission seam: history-api.ts's restore route
+// derives its gate through this same function (#466) — a restore is a content
+// write and must never demand less than the equivalent direct commit would.
+export async function writeActionForChanges(
   changes: WriteChange[],
   git: GitPort
 ): Promise<Action> {

@@ -6,7 +6,9 @@ import type {
   GitPort,
   CommitFilesInput,
   CommitResult,
-  DiffPathEntry
+  DiffPathEntry,
+  GitLogEntry,
+  GitLogOptions
 } from '@setu/core'
 
 /** The three direct fs.promises calls this adapter makes. isomorphic-git's
@@ -179,6 +181,55 @@ export function createLocalGitAdapter(options: LocalGitOptions): GitPort {
         }
       })) as DiffPathEntry[]
       return results
+    },
+    // --- optional history capability (#466) ---
+    async log(path: string, opts: GitLogOptions = {}): Promise<GitLogEntry[]> {
+      let commits
+      try {
+        // `filepath` restricts the walk to commits where the path's blob
+        // changed; `force: true` makes an unknown path resolve to [] instead of
+        // throwing (isomorphic-git 1.38.4 log jsdoc, verified in the installed
+        // index.d.ts 2026-07-15). `depth` is NOT used: it bounds walked
+        // commits, not matched ones, so paging slices the matched list instead
+        // (admin-volume reads — a content file's history is small).
+        commits = await git.log({
+          fs,
+          dir,
+          ref: 'HEAD',
+          filepath: path,
+          force: true
+        })
+      } catch (e) {
+        if (isNotFound(e)) return [] // unborn HEAD (empty repo)
+        throw e
+      }
+      const offset = opts.offset ?? 0
+      const end = opts.limit === undefined ? undefined : offset + opts.limit
+      return commits.slice(offset, end).map(({ oid, commit }) => ({
+        sha: oid,
+        author: commit.author.name,
+        email: commit.author.email,
+        date: new Date(commit.author.timestamp * 1000).toISOString(),
+        subject: commit.message.split('\n', 1)[0] ?? ''
+      }))
+    },
+    async readFileAt(sha: string, path: string): Promise<string | null> {
+      // Resolve the commit FIRST so an unknown sha rejects (diffPaths parity) —
+      // readBlob throws the same NotFoundError for "absent path", which must
+      // map to null instead.
+      await git.readCommit({ fs, dir, oid: sha })
+      try {
+        const { blob } = await git.readBlob({
+          fs,
+          dir,
+          oid: sha,
+          filepath: path
+        })
+        return new TextDecoder().decode(blob)
+      } catch (e) {
+        if (isNotFound(e)) return null
+        throw e
+      }
     }
   }
 }

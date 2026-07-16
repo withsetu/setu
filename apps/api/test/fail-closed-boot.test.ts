@@ -95,6 +95,7 @@ function makeDegradedApp() {
       buildCapabilities({
         writableMediaStore: true,
         backgroundJobs: true,
+        history: false,
         mode,
         auth: {
           enabled: false,

@@ -7,6 +7,10 @@ export interface ResolvedControl {
   control: BlockControl
   default?: unknown
   options?: string[]
+  /** Numeric bounds/step for number-backed controls (from zod .min/.max/.multipleOf). */
+  min?: number
+  max?: number
+  step?: number
 }
 
 /** String-backed controls a hint may upgrade a (non-enum) String prop to. `category`/`tag`
@@ -54,14 +58,16 @@ export function resolveControls(
         : a.type === 'Boolean'
           ? 'switch'
           : 'text'
+    const shared = {
+      ...(a.default !== undefined ? { default: a.default } : {}),
+      ...(a.matches ? { options: a.matches } : {}),
+      ...(a.min !== undefined ? { min: a.min } : {}),
+      ...(a.max !== undefined ? { max: a.max } : {}),
+      ...(a.step !== undefined ? { step: a.step } : {})
+    }
     const hint = hints[name]
     if (hint === undefined) {
-      return {
-        name,
-        control: derived,
-        ...(a.default !== undefined ? { default: a.default } : {}),
-        ...(a.matches ? { options: a.matches } : {})
-      }
+      return { name, control: derived, ...shared }
     }
     // a hint is only valid if compatible with the zod type
     const ok =
@@ -73,11 +79,6 @@ export function resolveControls(
       throw new Error(
         `resolveControls: hint "${hint}" incompatible with prop "${name}" (zod ${a.type}${a.matches ? ' enum' : ''})`
       )
-    return {
-      name,
-      control: hint,
-      ...(a.default !== undefined ? { default: a.default } : {}),
-      ...(a.matches ? { options: a.matches } : {})
-    }
+    return { name, control: hint, ...shared }
   })
 }

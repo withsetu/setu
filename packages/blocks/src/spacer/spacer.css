@@ -1,0 +1,7 @@
+/* Spacer block ({% spacer %}) — pure vertical whitespace, paints nothing.
+   The height rides a block-local custom property set inline by the renderer;
+   no contract tokens are read because there is nothing to theme. The stable
+   .blk-spacer class is the theme's override hatch (e.g. collapse on print). */
+.blk-spacer {
+  height: var(--blk-spacer-h, 48px);
+}

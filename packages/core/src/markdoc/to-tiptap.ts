@@ -245,6 +245,9 @@ function blockToTiptap(node: MdNode): TiptapNode | null {
       if (tag === 'hero') {
         return { type: 'heroBlock', attrs: { mdAttrs: node.attributes } }
       }
+      if (tag === 'spacer') {
+        return { type: 'spacerBlock', attrs: { mdAttrs: node.attributes } }
+      }
       if (tag === 'query') {
         return { type: 'queryBlock', attrs: { mdAttrs: node.attributes } }
       }

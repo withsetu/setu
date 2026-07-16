@@ -98,6 +98,8 @@ export function BlockInspector({
             name: c.name,
             options: c.options,
             default: c.default,
+            min: c.min,
+            max: c.max,
             apiBase,
             onPickMedia: setPickFor
           }}

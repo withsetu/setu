@@ -18,6 +18,7 @@ const {
   count = 5,
   category,
   tag,
+  locale,
   layout = 'list',
   columns = '2',
   showDate = true,
@@ -28,6 +29,8 @@ const {
 // Grid honors the 2/3 column choice; list is always single-column. Literal values only —
 // the CSS uses literal repeat() counts (Safari/Firefox drop repeat(var(…))).
 const cols = String(columns) === '3' ? 3 : 2
+// Defense-in-depth for hand-authored markdoc; the contract already bounds count 1–24
+// (zod .min/.max) and the inspector enforces it. 0/NaN fall back to the contract default (5).
 const limit = Math.min(24, Math.max(1, Number(count) || 5))
 
 const rows = (await getCollection('entries')).map((e) =>
@@ -35,7 +38,8 @@ const rows = (await getCollection('entries')).map((e) =>
 )
 const posts = selectPosts(rows, {
   collection: 'post',
-  locale: DEFAULT_LOCALE,
+  // Mirrors query.astro: author-set locale wins, else the site default.
+  locale: locale ?? DEFAULT_LOCALE,
   category: category || undefined,
   tag: tag || undefined,
   sort: 'newest',

@@ -74,8 +74,13 @@ describe('latest-posts contract', () => {
     const by = (n: string) => out.find((c) => c.name === n)!
     expect(by('count').control).toBe('number')
     expect(by('count').default).toBe(5)
+    // Contract bounds surface on the resolved control so the inspector input can
+    // enforce them (audit round: unbounded input + silent renderer clamp = no feedback).
+    expect(by('count').min).toBe(1)
+    expect(by('count').max).toBe(24)
     expect(by('category').control).toBe('category')
     expect(by('tag').control).toBe('tag')
+    expect(by('locale').control).toBe('locale')
     expect(by('layout').control).toBe('select')
     expect(by('layout').options).toEqual(['list', 'grid'])
     expect(by('columns').control).toBe('select')
@@ -94,6 +99,22 @@ describe('latest-posts contract', () => {
   it('declares Content/Layout/Display groups', () => {
     const labels = latestPostsBlock.contract.editor!.groups!.map((g) => g.label)
     expect(labels).toEqual(['Content', 'Layout', 'Display'])
+  })
+
+  it('validates count bounds at the contract (1–24)', () => {
+    const props = latestPostsBlock.contract.props
+    expect(props.safeParse({ count: 0 }).success).toBe(false)
+    expect(props.safeParse({ count: 25 }).success).toBe(false)
+    expect(props.safeParse({ count: 24 }).success).toBe(true)
+  })
+
+  it('exposes an optional locale filter in the Content group', () => {
+    const editor = latestPostsBlock.contract.editor!
+    const content = editor.groups!.find((g) => g.id === 'content')!
+    expect(content.controls).toContain('locale')
+    expect(
+      latestPostsBlock.contract.props.safeParse({ locale: 'fr' }).success
+    ).toBe(true)
   })
 })
 

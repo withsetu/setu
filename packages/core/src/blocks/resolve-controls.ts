@@ -7,6 +7,9 @@ export interface ResolvedControl {
   control: BlockControl
   default?: unknown
   options?: string[]
+  /** Inclusive numeric bounds lifted from the zod contract (Number props only). */
+  min?: number
+  max?: number
 }
 
 /** String-backed controls a hint may upgrade a (non-enum) String prop to. `category`/`tag`
@@ -55,12 +58,17 @@ export function resolveControls(
           ? 'switch'
           : 'text'
     const hint = hints[name]
+    const range = {
+      ...(a.min !== undefined ? { min: a.min } : {}),
+      ...(a.max !== undefined ? { max: a.max } : {})
+    }
     if (hint === undefined) {
       return {
         name,
         control: derived,
         ...(a.default !== undefined ? { default: a.default } : {}),
-        ...(a.matches ? { options: a.matches } : {})
+        ...(a.matches ? { options: a.matches } : {}),
+        ...range
       }
     }
     // a hint is only valid if compatible with the zod type
@@ -77,7 +85,8 @@ export function resolveControls(
       name,
       control: hint,
       ...(a.default !== undefined ? { default: a.default } : {}),
-      ...(a.matches ? { options: a.matches } : {})
+      ...(a.matches ? { options: a.matches } : {}),
+      ...range
     }
   })
 }

@@ -10,6 +10,7 @@ export interface LatestPostsAttrs {
   count?: number
   category?: string
   tag?: string
+  locale?: string
   layout?: 'list' | 'grid'
   columns?: '2' | '3'
   showDate?: boolean
@@ -32,6 +33,7 @@ export function latestPostsQueryAttrs(a: LatestPostsAttrs): QueryAttrs {
   }
   if (a.category) out.category = a.category
   if (a.tag) out.tag = a.tag
+  if (a.locale) out.locale = a.locale
   return out
 }
 

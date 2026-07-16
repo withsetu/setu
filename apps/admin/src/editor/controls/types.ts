@@ -2,6 +2,9 @@ export interface ControlMeta {
   name: string
   options?: string[]
   default?: unknown
+  /** Inclusive numeric bounds lifted from the block's zod contract (number controls). */
+  min?: number
+  max?: number
   apiBase: string
   /** Open the media library for this control's prop name. */
   onPickMedia: (name: string) => void

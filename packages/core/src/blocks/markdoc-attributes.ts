@@ -4,6 +4,11 @@ export interface MarkdocAttr {
   type: 'String' | 'Number' | 'Boolean'
   default?: unknown
   matches?: string[]
+  /** Inclusive numeric bounds from zod `.min()`/`.max()` — Number attrs only.
+   *  Consumed by the inspector (resolve-controls) so contract bounds reach the
+   *  control; the generated markdoc include ignores them (validation stays zod's). */
+  min?: number
+  max?: number
 }
 
 const BASE: Record<string, MarkdocAttr['type']> = {
@@ -62,6 +67,20 @@ export function markdocAttributesFor(
       }
     } else if (BASE[tn]) {
       attr = { type: BASE[tn] }
+      if (tn === 'ZodNumber') {
+        const checks =
+          (
+            inner as {
+              _def?: { checks?: { kind: string; value?: number }[] }
+            }
+          )._def?.checks ?? []
+        for (const c of checks) {
+          if (c.kind === 'min' && typeof c.value === 'number')
+            attr.min = c.value
+          if (c.kind === 'max' && typeof c.value === 'number')
+            attr.max = c.value
+        }
+      }
     } else {
       throw new Error(
         `markdocAttributesFor: attr "${name}" has unsupported zod type "${tn}"`

@@ -74,6 +74,14 @@ describe('latestPostsQueryAttrs — preview reuses the query seam', () => {
       showImage: true
     })
   })
+  it('passes the locale filter through to the index query', () => {
+    expect(latestPostsQueryAttrs({ locale: 'fr' })).toMatchObject({
+      locale: 'fr'
+    })
+    // No locale set -> no locale key (the site render then defaults, the
+    // preview shows all locales — matching the query block's semantics).
+    expect('locale' in latestPostsQueryAttrs({})).toBe(false)
+  })
 })
 
 describe('selectedBlockOf — inspector opens for latest-posts', () => {
@@ -111,5 +119,38 @@ describe('NumberControl — numeric display (#192 UAT catch)', () => {
       />
     )
     expect(screen.getByRole('spinbutton', { name: 'count' })).toHaveValue(5)
+  })
+
+  it('enforces contract bounds: min/max attrs on the input, out-of-range clamped', async () => {
+    const { render, screen, fireEvent, cleanup } =
+      await import('@testing-library/react')
+    const { NumberControl } = await import('../src/editor/controls/text')
+    cleanup() // the previous test's render stays mounted in this file
+    const changes: unknown[] = []
+    render(
+      <NumberControl
+        value={5}
+        onChange={(v) => changes.push(v)}
+        meta={{
+          name: 'count',
+          min: 1,
+          max: 24,
+          apiBase: '',
+          onPickMedia: () => {}
+        }}
+      />
+    )
+    const input = screen.getByRole('spinbutton', { name: 'count' })
+    expect(input).toHaveAttribute('min', '1')
+    expect(input).toHaveAttribute('max', '24')
+    // 100 -> clamped to the contract max, visible feedback instead of a silent render clamp.
+    fireEvent.change(input, { target: { value: '100' } })
+    expect(changes.at(-1)).toBe(24)
+    // 0 -> clamped up to min.
+    fireEvent.change(input, { target: { value: '0' } })
+    expect(changes.at(-1)).toBe(1)
+    // Clearing still means "unset" (falls back to the contract default downstream).
+    fireEvent.change(input, { target: { value: '' } })
+    expect(changes.at(-1)).toBe('')
   })
 })

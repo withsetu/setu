@@ -79,6 +79,17 @@ describe('latest-posts block — grid variant with display toggles on', () => {
   })
 })
 
+describe('latest-posts block — locale filter (audit round)', () => {
+  it('scopes the query to the author-set locale', () => {
+    const fr = nthList(2)
+    expect(fr).toContain('href="/fr/post/bonjour"')
+    expect(fr).toContain('Bonjour')
+    // Default-locale (en) posts are excluded from a locale="fr" block.
+    expect(fr).not.toContain('href="/post/astro-on-the-edge"')
+    expect(fr).not.toContain('Kitchen Sink')
+  })
+})
+
 describe('latest-posts block — empty and structural guarantees', () => {
   it('renders an empty state, not a bare empty list, when no posts match', () => {
     expect(html).toContain('blk-latest-posts-empty')

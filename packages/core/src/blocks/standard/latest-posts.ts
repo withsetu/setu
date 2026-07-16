@@ -10,9 +10,12 @@ export const latestPostsBlock: StandardBlock = {
   renderer: '@setu/blocks/latest-posts.astro',
   contract: defineBlock({
     props: z.object({
-      count: z.number().default(5),
+      // Bounds live in the contract so the inspector input enforces them; the
+      // renderer's clamp stays as defense-in-depth for hand-authored markdoc.
+      count: z.number().min(1).max(24).default(5),
       category: z.string().optional(),
       tag: z.string().optional(),
+      locale: z.string().optional(),
       layout: z.enum(['list', 'grid']).default('list'),
       // String enum (not a number) so the inspector renders a segmented 2/3 toggle;
       // the renderer coerces. Grid-only via showWhen.
@@ -29,7 +32,8 @@ export const latestPostsBlock: StandardBlock = {
       controls: {
         count: 'number',
         category: 'category',
-        tag: 'tag'
+        tag: 'tag',
+        locale: 'locale'
       },
       labels: {
         count: 'Number of posts',
@@ -43,7 +47,7 @@ export const latestPostsBlock: StandardBlock = {
         {
           id: 'content',
           label: 'Content',
-          controls: ['count', 'category', 'tag']
+          controls: ['count', 'category', 'tag', 'locale']
         },
         { id: 'layout', label: 'Layout', controls: ['layout', 'columns'] },
         {

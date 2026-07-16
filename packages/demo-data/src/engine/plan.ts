@@ -150,7 +150,15 @@ export async function buildPlan(opts: BuildPlanOptions): Promise<SeedPlan> {
       post.image !== undefined &&
       (opts.limitImages === undefined || index < opts.limitImages)
     if (post.image && wantImage) {
-      const width = opts.imageWidthMix[index % opts.imageWidthMix.length]!
+      // Clamp to the source's intrinsic width: AIC's IIIF endpoint 403s any
+      // request wider than the original (verified live 2026-07-16 — e.g. a
+      // 768px-wide artwork 403s `/full/843,/`), and upscaling would be
+      // dishonest anyway.
+      const mixWidth = opts.imageWidthMix[index % opts.imageWidthMix.length]!
+      const width =
+        post.image.maxWidth !== undefined && post.image.maxWidth > 0
+          ? Math.min(mixWidth, post.image.maxWidth)
+          : mixWidth
       // Collision ladder: keys used by this plan, and FOREIGN storage objects.
       // A key in the seed manifest counts as ours ONLY for a post that was
       // itself seeded before (reusedSlug) — then the image batch detects the

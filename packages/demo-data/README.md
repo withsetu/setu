@@ -1,14 +1,15 @@
 # @setu/demo-data
 
-Content packs for Setu's dev-mode demo-data add-on (epic
-[#509](https://github.com/withsetu/setu/issues/509); this package is increment
-[#511](https://github.com/withsetu/setu/issues/511)).
+Content packs and the seed engine for Setu's dev-mode demo-data add-on (epic
+[#509](https://github.com/withsetu/setu/issues/509); increments
+[#511](https://github.com/withsetu/setu/issues/511) — packs — and
+[#512](https://github.com/withsetu/setu/issues/512) — the engine).
 
 **Node-only by design.** This is dev tooling: it reads/writes the filesystem,
 shells out to `tar`, and does bulk work no edge topology should ever run. Nothing
 edge-reachable may import it — it stays outside `packages/core/tsconfig.edge.json`
-and outside any production bundle. The seed engine (#512) and the dev-only Demo
-Data panel (#513) are its consumers.
+and outside any production bundle. The dev-only Demo Data panel (#513) is its
+next consumer.
 
 ## What a content pack is
 
@@ -108,10 +109,68 @@ Defaults write under `.demo-data/` (gitignored). `fetch` reuses an existing
 non-empty tarball in the destination instead of re-downloading (the dump
 refreshes monthly — delete the tarball to force a fresh copy).
 
+## The seed engine (#512)
+
+`seedDemoData(options)` fills a **dev content sandbox** (never canonical
+`content/`) from a pack: demo users per role, posts committed straight to Git,
+categories registered, featured images downloaded and ingested. `removeSeeded()`
+is the inverse — the "remove generated only" primitive #513's reset levels
+consume. Both live in `src/engine/`.
+
+How it writes, and why:
+
+- **Users** — better-auth's own `internalAdapter` over the sandbox's
+  `.setu/submissions.db` (the exact seam `e2e/lib/seed-users.ts` and the api's
+  admin-invite use). Deterministic identities (`demo-<role>-<n>@demo.setu.test`),
+  generated passwords surfaced ONCE in the summary/CLI output and never logged
+  by the engine.
+- **Posts** — chunked `git.commitFiles` (~200 files per atomic commit),
+  committed **as the owning demo user's git identity**; ownership is a weighted
+  round-robin across all four roles (authors most, admins least). Frontmatter:
+  `cid` / `title` / `date` / `published: false` for a configurable draft
+  fraction (the repo's only draft signal) / `categories` + `tags` slugs /
+  `featuredImage` / `author` (forward-compatible with #142 — nothing reads it
+  yet; commit authorship carries attribution today).
+- **Categories** — pack terms merged into `taxonomy/categories.yaml` via the
+  core taxonomy ops in ONE batch commit (the per-mutation TaxonomyService is
+  wrong for bulk).
+- **Images** — a resumable bounded-concurrency batch (default 4): core
+  `safeFetch` (15 MiB/60 s caps, descriptive User-Agent — AIC 403s anonymous
+  UAs), width mix per post clamped to the source's intrinsic width (AIC 403s
+  over-width IIIF requests), core `ingestImage` (upload-route width ladder) plus
+  the `.media.json` record so the media library lists seeded items. Failures are
+  counted, never fatal; a re-run retries them.
+- **Resume & removal state** under `<sandbox>/.setu/`:
+  `demo-seed-checkpoint.json` (per-run; completed images/chunks are skipped on
+  re-run) and `demo-seed-manifest.json` (append-safe across runs; records every
+  generated slug/media key/user/category — what `removeSeeded` consumes).
+  Re-running the same seed is idempotent; a larger re-seed reuses existing
+  slugs/cids.
+- **Single-writer warning** — git-local serializes commits in-process only, so
+  the engine probes the dev api port and warns; stop `pnpm dev` (or use a
+  separate sandbox) during large seeds. And per card #7: seeding **commits**
+  content — a static site build still needs its own rebuild (saved ≠ live).
+
+```sh
+pnpm --filter @setu/demo-data seed -- --posts 1000            # defaults: 1 admin, 1 maintainer, 2 editors, 5 authors
+pnpm --filter @setu/demo-data seed -- --posts 50 --relax-text --limit-images 20 \
+  --sandbox .content-sandbox/demo --media .setu/demo-uploads
+pnpm --filter @setu/demo-data unseed                          # remove ONLY what seeding generated
+```
+
+Sandbox/media default to the `pnpm dev` dirs (`$SETU_REPO_DIR` /
+`$SETU_MEDIA_DIR` env override first). `--relax-text` uses the pack's relaxed
+text tier (`createAicPack({ textTier: 'relaxed' })`): records with only a
+`short_description` are admitted with an honestly-labeled template body, pushing
+the AIC yield past the ~6.4k strict ceiling; attribution footers are kept.
+
 ## Tests
 
-`pnpm --filter @setu/demo-data test` — fixture-only, no network. One opt-in
-integration test hits the real AIC API and is excluded by default; run it with:
+`pnpm --filter @setu/demo-data test` — fixture-only, no network, no sharp, no
+sqlite in the seed lane (integration tests run against a real temp git repo with
+injected fetch/ImagePort/UserStore fakes; the sqlite user store has its own
+real-db test). One opt-in integration test hits the real AIC API and is excluded
+by default; run it with:
 
 ```sh
 DEMO_DATA_ONLINE=1 pnpm --filter @setu/demo-data test

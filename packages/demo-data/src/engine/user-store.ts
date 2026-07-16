@@ -13,6 +13,7 @@
  *
  *  Isolated in its own module (dynamically imported by the engine) so unit
  *  tests with injected fakes never load better-auth/drizzle/sqlite. */
+import { mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { openSqliteDb } from '@setu/db-sqlite'
 import { openInternalAuthContext } from '@setu/auth'
@@ -25,6 +26,9 @@ export function submissionsDbFile(sandboxDir: string): string {
 }
 
 export function createSqliteUserStore(dbFile: string): UserStore {
+  // A fresh sandbox has no .setu/ yet (the api creates it at boot) — sqlite
+  // cannot create intermediate directories itself.
+  mkdirSync(path.dirname(dbFile), { recursive: true })
   // `$context` is a promise (better-auth resolves it lazily) — resolve once,
   // share across calls; the same await-shape as e2e/lib/seed-users.ts.
   const ctxPromise = openInternalAuthContext(openSqliteDb(dbFile))

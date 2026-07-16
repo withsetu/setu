@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { uniqueEntrySlug } from '../../src/engine/slugs'
+import { entrySlugify } from '@setu/core'
+import { MAX_SLUG_BASE, uniqueEntrySlug } from '../../src/engine/slugs'
 
 describe('uniqueEntrySlug', () => {
   it('mints the plain entry slug when free, and reserves it', () => {
@@ -26,6 +27,20 @@ describe('uniqueEntrySlug', () => {
     const taken = new Set<string>()
     expect(uniqueEntrySlug('???', '5', taken)).toBe('untitled')
     expect(uniqueEntrySlug('!!!', '6', taken)).toBe('untitled-6')
+  })
+
+  it('caps marathon titles below filesystem filename limits, on a word boundary', () => {
+    // Real AIC titles run past 300 chars — uncapped they ENAMETOOLONG the fs.
+    const title = Array.from({ length: 60 }, (_, i) => `word${i}`).join(' ')
+    const slug = uniqueEntrySlug(title, '385', new Set())
+    expect(slug.length).toBeLessThanOrEqual(MAX_SLUG_BASE)
+    expect(slug.endsWith('-')).toBe(false)
+    // Still a valid entry slug (fixed point of the shared vocabulary).
+    expect(entrySlugify(slug)).toBe(slug)
+    // Deterministic, and the collision ladder still fits comfortably.
+    const suffixed = uniqueEntrySlug(title, '385', new Set([slug]))
+    expect(suffixed).toBe(`${slug}-385`)
+    expect(`${suffixed}.mdoc`.length).toBeLessThan(255)
   })
 
   it('is deterministic: identical inputs mint identical slugs', () => {

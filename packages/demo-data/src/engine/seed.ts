@@ -409,7 +409,7 @@ export async function seedDemoData(options: SeedOptions): Promise<SeedSummary> {
     }))
     await commit(
       changes,
-      `demo-data: seed ${chunk.plans.length} ${collection} posts (${pack.meta.id})`,
+      `demo-data: seed ${chunk.plans.length} entries in ${collection} (${pack.meta.id})`,
       { name: chunk.owner.name, email: chunk.owner.email }
     )
     postsCommitted += chunk.plans.length

@@ -25,6 +25,11 @@ import type {
 
 /** Same ladder/format defaults as the upload route (apps/api/src/media.ts). */
 export const IMAGE_WIDTHS: number[] = [400, 800, 1200, 1600]
+/** Descriptive User-Agent for source downloads. AIC's API docs ask consumers
+ *  to identify themselves, and their CDN 403s Node's default UA (verified
+ *  live 2026-07-16: default UA → HTTP 403, descriptive UA → 200). */
+export const IMAGE_USER_AGENT =
+  'setu-demo-data (Setu CMS dev seeding tool; +https://github.com/withsetu/setu)'
 /** Per-image download cap. IIIF full-width JPEGs run single-digit MiB; 15 MiB
  *  leaves headroom while bounding a hostile/broken response. */
 export const IMAGE_MAX_BYTES = 15 * 1024 * 1024
@@ -67,11 +72,15 @@ async function ingestOne(
   task: ImageTask,
   opts: ImageBatchOptions
 ): Promise<void> {
-  const res = await safeFetch(task.url, undefined, {
-    ...opts.fetchOpts,
-    maxBytes: IMAGE_MAX_BYTES,
-    timeoutMs: IMAGE_TIMEOUT_MS
-  })
+  const res = await safeFetch(
+    task.url,
+    { headers: { 'user-agent': IMAGE_USER_AGENT } },
+    {
+      ...opts.fetchOpts,
+      maxBytes: IMAGE_MAX_BYTES,
+      timeoutMs: IMAGE_TIMEOUT_MS
+    }
+  )
   if (!res.ok) throw new Error(`HTTP ${res.status} from ${res.finalUrl}`)
   const contentType = res.headers.get('content-type') ?? ''
   if (!contentType.startsWith('image/'))

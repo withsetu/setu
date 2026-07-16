@@ -91,12 +91,18 @@ export const FAKE_JPEG: Uint8Array = new Uint8Array([
 export interface FakeFetch {
   fetchImpl: typeof fetch
   calls: string[]
+  /** user-agent header of each request, in call order. */
+  userAgents: Array<string | undefined>
 }
 
 /** An https-only fake fetch: records every URL; `failFor(url)` → HTTP 500. */
 export function makeFakeFetch(failFor?: (url: string) => boolean): FakeFetch {
   const calls: string[] = []
-  const fetchImpl = ((input: Parameters<typeof fetch>[0]) => {
+  const userAgents: Array<string | undefined> = []
+  const fetchImpl = ((
+    input: Parameters<typeof fetch>[0],
+    init?: RequestInit
+  ) => {
     const url =
       typeof input === 'string'
         ? input
@@ -104,6 +110,7 @@ export function makeFakeFetch(failFor?: (url: string) => boolean): FakeFetch {
           ? input.toString()
           : input.url
     calls.push(url)
+    userAgents.push(new Headers(init?.headers).get('user-agent') ?? undefined)
     if (failFor?.(url)) {
       return Promise.resolve(
         new Response('boom', {
@@ -119,7 +126,7 @@ export function makeFakeFetch(failFor?: (url: string) => boolean): FakeFetch {
       })
     )
   }) as typeof fetch
-  return { fetchImpl, calls }
+  return { fetchImpl, calls, userAgents }
 }
 
 /** Stub ImagePort: fixed 800×600 metadata, one tiny body per requested spec. */

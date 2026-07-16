@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { createLocalGitAdapter } from '@setu/git-local'
 import { createLocalStorage } from '@setu/storage-local'
 import { parseMdoc, isCid } from '@setu/core'
-import { seedDemoData, removeSeeded } from '../../src/engine'
+import { seedDemoData, removeSeeded, IMAGE_USER_AGENT } from '../../src/engine'
 import type { SeedDeps, SeedOptions } from '../../src/engine'
 import { loadManifest, loadCheckpoint, runKeyOf } from '../../src/engine'
 import {
@@ -196,6 +196,35 @@ describe('seedDemoData', () => {
         'https://img.demo.test/4/400.jpg'
       ])
     )
+  })
+
+  it('clamps the requested width to the source image intrinsic width (AIC 403s over-width requests)', async () => {
+    const rig = await makeRig(1)
+    const narrow = makePack([
+      {
+        ...makePost({ id: '1', title: 'Narrow' }),
+        image: {
+          license: 'CC0 (synthetic)',
+          maxWidth: 768,
+          urlForWidth: (w: number) =>
+            `https://img.demo.test/narrow/${Math.round(w)}.jpg`
+        }
+      }
+    ])
+    await seedDemoData({
+      ...rig.options,
+      pack: narrow,
+      posts: 1,
+      imageWidthMix: [1686]
+    })
+    expect(rig.fetch.calls).toEqual(['https://img.demo.test/narrow/768.jpg'])
+  })
+
+  it('identifies itself with a descriptive User-Agent on every image download (AIC 403s the default UA)', async () => {
+    const rig = await makeRig(2)
+    await seedDemoData(rig.options)
+    expect(rig.fetch.userAgents).toHaveLength(2)
+    for (const ua of rig.fetch.userAgents) expect(ua).toBe(IMAGE_USER_AGENT)
   })
 
   it('caps featured images at limitImages', async () => {

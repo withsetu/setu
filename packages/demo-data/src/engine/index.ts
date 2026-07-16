@@ -37,7 +37,8 @@ export {
   mediaAlreadyIngested,
   IMAGE_WIDTHS,
   IMAGE_MAX_BYTES,
-  IMAGE_TIMEOUT_MS
+  IMAGE_TIMEOUT_MS,
+  IMAGE_USER_AGENT
 } from './images'
 export type { ImageBatchOptions, ImageBatchSummary, ImageTask } from './images'
 export {

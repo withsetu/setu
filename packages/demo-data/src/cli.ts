@@ -190,15 +190,22 @@ async function detectAicSource(): Promise<string> {
   )
 }
 
-/** stdout progress: users and categories line-by-line; images/posts throttled. */
-function printProgress(progress: SeedProgress): void {
+/** stdout progress: users and categories line-by-line; images/posts
+ *  throttled. `verb` distinguishes seeding from removal wording. */
+function printProgress(
+  progress: SeedProgress,
+  verb: 'seed' | 'remove' = 'seed'
+): void {
+  const removing = verb === 'remove'
   switch (progress.phase) {
     case 'warning':
       console.warn(`⚠  ${progress.message}`)
       return
     case 'users':
       if (progress.done === progress.total)
-        console.log(`users: ${progress.done}/${progress.total} ready`)
+        console.log(
+          `users: ${progress.done}/${progress.total} ${removing ? 'removed' : 'ready'}`
+        )
       return
     case 'plan':
       if (progress.done % 500 === 0 || progress.done === progress.total)
@@ -217,12 +224,14 @@ function printProgress(progress: SeedProgress): void {
         progress.done + progress.failed === progress.total
       )
         console.log(
-          `images: ${progress.done}/${progress.total}` +
+          `${removing ? 'media removed' : 'images'}: ${progress.done}/${progress.total}` +
             (progress.failed > 0 ? ` (${progress.failed} failed)` : '')
         )
       return
     case 'posts':
-      console.log(`posts: ${progress.done}/${progress.total} committed`)
+      console.log(
+        `posts: ${progress.done}/${progress.total} ${removing ? 'removed' : 'committed'}`
+      )
   }
 }
 
@@ -261,7 +270,7 @@ async function runSeed(args: string[]): Promise<void> {
       ...(flags.limitImages !== undefined
         ? { limitImages: flags.limitImages }
         : {}),
-      onProgress: printProgress,
+      onProgress: (p) => printProgress(p, 'seed'),
       signal: controller.signal
     })
     console.log('')
@@ -305,7 +314,7 @@ async function runUnseed(args: string[]): Promise<void> {
   const summary = await removeSeeded({
     sandboxDir: flags.sandbox,
     mediaDir: flags.media,
-    onProgress: printProgress
+    onProgress: (p) => printProgress(p, 'remove')
   })
   console.log(
     `removed ${summary.posts} posts, ${summary.media} media items, ` +

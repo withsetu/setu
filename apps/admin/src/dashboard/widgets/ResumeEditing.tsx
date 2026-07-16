@@ -44,7 +44,10 @@ export function ResumeEditing({ rows }: { rows: ContentRow[] }) {
                     to={`/edit/${r.ref.collection}/${r.ref.locale}/${r.ref.slug}`}
                     className="group min-w-0"
                   >
-                    <span className="block truncate text-sm font-medium group-hover:underline">
+                    <span
+                      title={r.title}
+                      className="block truncate text-sm font-medium group-hover:underline"
+                    >
                       {r.title}
                     </span>
                     <span className="text-xs text-muted-foreground">

@@ -13,10 +13,17 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "aic": "tsx src/cli.ts"
+    "aic": "tsx src/cli.ts",
+    "seed": "tsx src/cli.ts seed",
+    "unseed": "tsx src/cli.ts unseed"
   },
   "dependencies": {
+    "@setu/auth": "workspace:*",
     "@setu/core": "workspace:*",
+    "@setu/db-sqlite": "workspace:*",
+    "@setu/git-local": "workspace:*",
+    "@setu/image-sharp": "workspace:*",
+    "@setu/storage-local": "workspace:*",
     "zod": "^3.25.76"
   },
   "peerDependencies": {

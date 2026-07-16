@@ -24,3 +24,12 @@ export {
   AIC_SKIP_REASONS
 } from './aic/pack'
 export type { AicPackOptions, AicSkipReason } from './aic/pack'
+export {
+  fetchAicDump,
+  nodeResolveHost,
+  AIC_DUMP_URL,
+  AIC_DUMP_ARTWORKS_PATH
+} from './aic/fetch-dump'
+export type { FetchAicDumpOptions, FetchAicDumpResult } from './aic/fetch-dump'
+export { fetchAicSample, AIC_API_ARTWORKS_URL } from './aic/fetch-sample'
+export type { FetchAicSampleOptions } from './aic/fetch-sample'

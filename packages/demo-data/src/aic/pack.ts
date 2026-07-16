@@ -51,6 +51,11 @@ export const AIC_SKIP_REASONS = [
 ] as const
 export type AicSkipReason = (typeof AIC_SKIP_REASONS)[number]
 
+/** The honesty label stamped into every relaxed-tier body (#512 `relaxText`):
+ *  a reader must never mistake a template body for a real curatorial text. */
+export const AIC_RELAXED_BODY_NOTE =
+  '_Demo body generated for testing — real metadata above._'
+
 export interface AicPackOptions {
   /** Path to EITHER a directory of per-artwork `{id}.json` files (the extracted
    *  dump's `json/artworks/`) OR a `.jsonl` file (one record per line — the shape
@@ -58,6 +63,14 @@ export interface AicPackOptions {
   source: string
   /** Per-record byte cap (tests shrink it). Default {@link AIC_MAX_RECORD_BYTES}. */
   maxRecordBytes?: number
+  /** Text-quality tier (#512 `relaxText` — the #509 yield strategy).
+   *  - `strict` (default): only records with a full CC-BY `description` load
+   *    (~6.4k AIC ceiling; every body is real curatorial prose).
+   *  - `relaxed`: records with only a `short_description` ALSO load; their body
+   *    is the short description plus the factual details list, clearly labeled
+   *    with {@link AIC_RELAXED_BODY_NOTE}, attribution footer kept. Records with
+   *    neither text stay skipped (`noText`) at every tier. */
+  textTier?: 'strict' | 'relaxed'
 }
 
 const EXCERPT_MAX = 300
@@ -183,8 +196,14 @@ function buildExcerpt(rec: RawArtwork, descriptionText: string): string {
 
 /** Body = real fields only: the CC-BY description as markdown, a details list of
  *  factual display fields, then the source link + license attribution the AIC
- *  license text requires (description is CC BY 4.0 © Art Institute of Chicago). */
-function buildBody(rec: RawArtwork, descriptionMarkdown: string): string {
+ *  license text requires (description is CC BY 4.0 © Art Institute of Chicago).
+ *  Relaxed-tier bodies (built from `short_description`) additionally carry
+ *  `generatedNote` so template bodies are always clearly labeled. */
+function buildBody(
+  rec: RawArtwork,
+  descriptionMarkdown: string,
+  generatedNote?: string
+): string {
   const details = (
     [
       ['Artist', rec.artist_display],
@@ -209,6 +228,7 @@ function buildBody(rec: RawArtwork, descriptionMarkdown: string): string {
   return [
     descriptionMarkdown,
     details.length > 0 ? details.join('\n') : undefined,
+    generatedNote,
     '---',
     attribution
   ]
@@ -239,7 +259,8 @@ function buildImage(rec: RawArtwork): PackImageRef {
 
 /** Normalize one raw entry → a post, or a counted skip reason. */
 function normalize(
-  entry: RawEntry
+  entry: RawEntry,
+  textTier: 'strict' | 'relaxed'
 ): { post: PackPost } | { skip: AicSkipReason } {
   if (entry.value === undefined) return { skip: 'invalid' }
   const parsed = rawArtworkSchema.safeParse(entry.value)
@@ -248,15 +269,32 @@ function normalize(
   if (rec.is_public_domain !== true) return { skip: 'notPublicDomain' }
   if (!nonEmpty(rec.image_id)) return { skip: 'noImage' }
   const descriptionText = rec.description ? htmlToText(rec.description) : ''
-  if (descriptionText === '' || !nonEmpty(rec.title)) return { skip: 'noText' }
+  // Relaxed tier: a record with only a short_description is admitted with an
+  // honestly-labeled template body; full-description records are untouched.
+  const relaxedText =
+    textTier === 'relaxed' &&
+    descriptionText === '' &&
+    nonEmpty(rec.short_description && htmlToText(rec.short_description)) !==
+      undefined
+  if ((descriptionText === '' && !relaxedText) || !nonEmpty(rec.title))
+    return { skip: 'noText' }
   const date = deriveDate(rec)
   if (date === undefined) return { skip: 'noDate' }
 
   const post: PackPost = {
     id: String(rec.id),
     title: singleLine(rec.title),
-    body: buildBody(rec, htmlToMarkdown(rec.description!)),
-    excerpt: buildExcerpt(rec, descriptionText),
+    body: relaxedText
+      ? buildBody(
+          rec,
+          htmlToMarkdown(rec.short_description!),
+          AIC_RELAXED_BODY_NOTE
+        )
+      : buildBody(rec, htmlToMarkdown(rec.description!)),
+    excerpt: buildExcerpt(
+      rec,
+      relaxedText ? htmlToText(rec.short_description!) : descriptionText
+    ),
     date,
     sourceAttribution: singleLine(
       nonEmpty(rec.artist_display) ??
@@ -277,6 +315,7 @@ function normalize(
 
 export function createAicPack(options: AicPackOptions): ContentPack {
   const maxRecordBytes = options.maxRecordBytes ?? AIC_MAX_RECORD_BYTES
+  const textTier = options.textTier ?? 'strict'
 
   return {
     meta: {
@@ -309,7 +348,7 @@ export function createAicPack(options: AicPackOptions): ContentPack {
         for await (const entry of entries) {
           signal?.throwIfAborted()
           scanned++
-          const result = normalize(entry)
+          const result = normalize(entry, textTier)
           if ('skip' in result) {
             skipped[result.skip]++
             continue

@@ -21,6 +21,7 @@ export {
   AIC_IIIF_BASE,
   AIC_ARTWORK_PAGE_BASE,
   AIC_MAX_RECORD_BYTES,
+  AIC_RELAXED_BODY_NOTE,
   AIC_SKIP_REASONS
 } from './aic/pack'
 export type { AicPackOptions, AicSkipReason } from './aic/pack'

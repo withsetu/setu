@@ -143,6 +143,17 @@ describe('createAicPack over the synthetic fixture dump', () => {
     expect(posts[1]!.sourceAttribution).toBe('Art Institute of Chicago')
   })
 
+  it('flattens multi-line artist_display (real AIC data has embedded newlines)', async () => {
+    const { posts } = await load()
+    // 108's artist_display is "…Painter\nTesthens, active 500s BCE".
+    expect(posts[2]!.sourceAttribution).toBe(
+      'Attributed to the Fictional Games Painter, Testhens, active 500s BCE'
+    )
+    expect(posts[2]!.body).toContain(
+      '- **Artist:** Attributed to the Fictional Games Painter, Testhens, active 500s BCE'
+    )
+  })
+
   it('supports a .jsonl source identically to a dump directory', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'demo-data-jsonl-'))
     const files = (await readdir(fixturesDir))

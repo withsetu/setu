@@ -122,6 +122,15 @@ const nonEmpty = (s: string | null | undefined): string | undefined => {
   return t ? t : undefined
 }
 
+/** Real AIC display fields embed newlines (e.g. artist_display
+ *  "George Baxter\nEnglish, 1804-1867" — observed in the live dump). Flatten to
+ *  one line for single-line contexts (attribution, detail-list values, title). */
+const singleLine = (s: string): string =>
+  s
+    .replace(/\s*\n+\s*/g, ', ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
 /** Dedupe case-insensitively, keeping first occurrence's casing and order. */
 function dedupeTerms(
   terms: ReadonlyArray<string | null | undefined>
@@ -180,7 +189,7 @@ function buildBody(rec: RawArtwork, descriptionMarkdown: string): string {
   )
     .map(([label, value]) => {
       const v = nonEmpty(value)
-      return v ? `- **${label}:** ${v}` : undefined
+      return v ? `- **${label}:** ${singleLine(v)}` : undefined
     })
     .filter((line): line is string => line !== undefined)
 
@@ -235,14 +244,15 @@ function normalize(
 
   const post: PackPost = {
     id: String(rec.id),
-    title: rec.title.trim(),
+    title: singleLine(rec.title),
     body: buildBody(rec, htmlToMarkdown(rec.description!)),
     excerpt: buildExcerpt(rec, descriptionText),
     date,
-    sourceAttribution:
+    sourceAttribution: singleLine(
       nonEmpty(rec.artist_display) ??
-      nonEmpty(rec.artist_title) ??
-      'Art Institute of Chicago',
+        nonEmpty(rec.artist_title) ??
+        'Art Institute of Chicago'
+    ),
     terms: {
       categories: dedupeTerms([rec.department_title, rec.classification_title]),
       tags: dedupeTerms([

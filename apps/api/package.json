@@ -22,6 +22,7 @@
     "@setu/captcha-turnstile": "workspace:*",
     "@setu/core": "workspace:*",
     "@setu/db-sqlite": "workspace:*",
+    "@setu/demo-data": "workspace:*",
     "@setu/email-console": "workspace:*",
     "@setu/email-resend": "workspace:*",
     "@setu/email-templates": "workspace:*",

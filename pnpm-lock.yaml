@@ -261,6 +261,9 @@ importers:
       '@setu/db-sqlite':
         specifier: workspace:*
         version: link:../../packages/db-sqlite
+      '@setu/demo-data':
+        specifier: workspace:*
+        version: link:../../packages/demo-data
       '@setu/email-console':
         specifier: workspace:*
         version: link:../../packages/email-console

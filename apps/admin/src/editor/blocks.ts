@@ -156,6 +156,14 @@ export function slashBlocks(): SlashBlock[] {
               mdAttrs: { headline: 'Hero headline', layout: 'centered' }
             }
           })
+        } else if (b.tag === 'video') {
+          // Empty mdAttrs → the atom renders its inviting placeholder; the author
+          // picks the file via the inspector's media control (contract defaults
+          // cover controls/autoplay/loop/muted/width).
+          chain.insertContent({
+            type: 'videoBlock',
+            attrs: { mdAttrs: {} }
+          })
         } else if (b.tag === 'query') {
           chain.insertContent({
             type: 'queryBlock',

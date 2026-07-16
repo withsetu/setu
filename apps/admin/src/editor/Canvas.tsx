@@ -25,6 +25,7 @@ import { BlockMenu } from './extensions/BlockMenu'
 import { Callout } from './extensions/Callout'
 import { ContactBlock } from './extensions/ContactBlock'
 import { HeroBlock } from './extensions/HeroBlock'
+import { VideoBlock } from './extensions/VideoBlock'
 import { QueryBlock } from './extensions/QueryBlock'
 import { EmbedBlock } from './extensions/EmbedBlock'
 import { EmbedPaste } from './extensions/EmbedPaste'
@@ -142,6 +143,7 @@ export function Canvas({
       Callout,
       ContactBlock,
       HeroBlock,
+      VideoBlock,
       QueryBlock.configure({ runQuery }),
       EmbedBlock,
       EmbedPaste.configure({

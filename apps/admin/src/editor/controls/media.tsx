@@ -2,7 +2,12 @@ import { Button } from '@/components/ui/button'
 import { resolveMediaSrc } from '../media-src'
 import { toDisplayString, type ControlProps } from './types'
 
-export function MediaControl({ value, onChange, meta }: ControlProps) {
+function MediaControlBase({
+  value,
+  onChange,
+  meta,
+  kind
+}: ControlProps & { kind: 'image' | 'video' }) {
   const src = value
     ? resolveMediaSrc(toDisplayString(value, ''), meta.apiBase || undefined)
     : ''
@@ -17,6 +22,40 @@ export function MediaControl({ value, onChange, meta }: ControlProps) {
       >
         Choose from library
       </Button>
+    )
+  }
+  if (kind === 'video') {
+    // A video preview keeps its native controls usable, so Replace/Remove sit
+    // below the player instead of the image control's hover overlay.
+    return (
+      <div className="flex flex-col gap-2">
+        <video
+          src={src}
+          controls
+          preload="metadata"
+          className="block max-h-40 w-full rounded-md border border-border bg-black"
+        />
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            aria-label={`Replace ${meta.name}`}
+            onClick={() => meta.onPickMedia(meta.name)}
+          >
+            Replace
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            aria-label={`Remove ${meta.name}`}
+            onClick={() => onChange('')}
+          >
+            Remove
+          </Button>
+        </div>
+      </div>
     )
   }
   return (
@@ -44,4 +83,14 @@ export function MediaControl({ value, onChange, meta }: ControlProps) {
       </div>
     </div>
   )
+}
+
+export function MediaControl(props: ControlProps) {
+  return <MediaControlBase {...props} kind="image" />
+}
+
+/** The 'video' control — same pick/replace/remove flow as MediaControl, but the
+ *  library opens filtered to video files and the preview is a real player. */
+export function VideoControl(props: ControlProps) {
+  return <MediaControlBase {...props} kind="video" />
 }

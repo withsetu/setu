@@ -1,6 +1,7 @@
 ---
 import { entryUrlPath, DEFAULT_LOCALE, type PostRow } from '@setu/core'
 import type { Page } from 'astro'
+import { paginationWindow } from './pagination'
 
 interface Props {
   page: Page<PostRow>
@@ -21,7 +22,7 @@ const hrefOf = (p: PostRow) =>
 const fmtDate = (ms: number, loc: string): string =>
   new Date(ms).toLocaleDateString(loc || DEFAULT_LOCALE, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' })
 const pageHref = (n: number) => (n <= 1 ? basePath : `${basePath}/${n}`)
-const pageNumbers = Array.from({ length: page.lastPage }, (_, i) => i + 1)
+const pageItems = paginationWindow(page.currentPage, page.lastPage)
 ---
 
 <h1>{heading}</h1>
@@ -49,11 +50,15 @@ const pageNumbers = Array.from({ length: page.lastPage }, (_, i) => i + 1)
   <nav class="setu-pager" aria-label="Pagination">
     <a class="setu-pager__step" href={page.url.prev ?? undefined} aria-disabled={page.url.prev ? undefined : 'true'} rel="prev">← Prev</a>
     <ol class="setu-pager__pages">
-      {pageNumbers.map((n) => (
-        <li>
-          <a href={pageHref(n)} class="setu-pager__page" aria-current={n === page.currentPage ? 'page' : undefined}>{n}</a>
-        </li>
-      ))}
+      {pageItems.map((item) =>
+        item === 'gap' ? (
+          <li class="setu-pager__gap" aria-hidden="true">…</li>
+        ) : (
+          <li>
+            <a href={pageHref(item)} class="setu-pager__page" aria-current={item === page.currentPage ? 'page' : undefined}>{item}</a>
+          </li>
+        )
+      )}
     </ol>
     <a class="setu-pager__step" href={page.url.next ?? undefined} aria-disabled={page.url.next ? undefined : 'true'} rel="next">Next →</a>
   </nav>
@@ -74,6 +79,11 @@ const pageNumbers = Array.from({ length: page.lastPage }, (_, i) => i + 1)
     min-width: 2rem; height: 2rem; padding: 0 0.6rem;
     border: 1px solid var(--border, #e5e7eb); border-radius: var(--r-md, 8px);
     color: var(--text, inherit); text-decoration: none; font-size: 0.95rem;
+  }
+  .setu-pager__gap {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 2rem; height: 2rem; padding: 0 0.6rem;
+    color: var(--text-2, inherit); font-size: 0.95rem; user-select: none;
   }
   .setu-pager__page:hover, .setu-pager__step:hover { border-color: var(--accent, #4f46e5); }
   .setu-pager__page[aria-current='page'] { background: var(--accent, #4f46e5); border-color: var(--accent, #4f46e5); color: #fff; }

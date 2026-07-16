@@ -1,0 +1,88 @@
+---
+// The latest-posts block (#192): build-time list of the N most recent published posts —
+// the query block's zero-config sibling. Data comes through the same content-index seam
+// query.astro uses: getCollection('entries') → toPostRow → selectPosts (which enforces
+// `published !== false`, Setu's ONLY published-ness signal) → the collision-aware
+// permalink map. `setu:post-row` / `setu:permalinks` are Vite aliases the site build
+// provides (see apps/site/astro.config.mjs) — this component renders only inside that
+// pipeline, like every markdoc `component()` renderer. Card markup intentionally stays
+// minimal; a shared PostCard extraction is tracked in #175.
+import './latest-posts.css'
+import { selectPosts, entryUrlPath, DEFAULT_LOCALE, type PostRow } from '@setu/core'
+import { getCollection } from 'astro:content'
+import { permalinkMap } from 'setu:permalinks'
+import { toPostRow } from 'setu:post-row'
+import Image from '@setu/image-astro/Image.astro'
+
+const {
+  count = 5,
+  category,
+  tag,
+  layout = 'list',
+  columns = '2',
+  showDate = true,
+  showExcerpt = false,
+  showImage = false,
+} = Astro.props
+
+// Grid honors the 2/3 column choice; list is always single-column. Literal values only —
+// the CSS uses literal repeat() counts (Safari/Firefox drop repeat(var(…))).
+const cols = String(columns) === '3' ? 3 : 2
+const limit = Math.min(24, Math.max(1, Number(count) || 5))
+
+const rows = (await getCollection('entries')).map((e) =>
+  toPostRow({ id: e.id, data: e.data as Record<string, unknown>, body: (e as { body?: string }).body }),
+)
+const posts = selectPosts(rows, {
+  collection: 'post',
+  locale: DEFAULT_LOCALE,
+  category: category || undefined,
+  tag: tag || undefined,
+  sort: 'newest',
+  limit,
+  offset: 0,
+})
+const map = await permalinkMap()
+const hrefOf = (p: PostRow) =>
+  `/${map.get(p.id) ?? entryUrlPath({ collection: p.collection, locale: p.locale, slug: p.slug })}`
+
+// Locale-aware short date rendered in UTC — a frontmatter date is a calendar date, not an
+// instant, so it must not drift across server/reader timezones (mirrors query.astro).
+const fmtDate = (ms: number, loc: string): string =>
+  new Date(ms).toLocaleDateString(loc || DEFAULT_LOCALE, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  })
+
+const sizes =
+  layout === 'grid'
+    ? `(max-width: 560px) 100vw, (max-width: 900px) 50vw, ${Math.round(100 / cols)}vw`
+    : '(max-width: 560px) 100vw, 320px'
+---
+
+{posts.length === 0 ? (
+  <p class="blk-latest-posts-empty">No posts yet.</p>
+) : (
+  <ul class={`blk-latest-posts is-${layout}${layout === 'grid' ? ` cols-${cols}` : ''}`}>
+    {posts.map((p) => (
+      <li class="blk-latest-posts-item">
+        {showImage && p.featuredImage && (
+          <a href={hrefOf(p)} class="blk-latest-posts-media" aria-hidden="true" tabindex="-1">
+            <Image src={p.featuredImage} alt="" sizes={sizes} />
+          </a>
+        )}
+        <div class="blk-latest-posts-body">
+          <a href={hrefOf(p)} class="blk-latest-posts-title">{p.title}</a>
+          {showDate && p.date !== null && (
+            <time class="blk-latest-posts-date" datetime={new Date(p.date).toISOString().slice(0, 10)}>
+              {fmtDate(p.date, p.locale)}
+            </time>
+          )}
+          {showExcerpt && p.excerpt && <p class="blk-latest-posts-excerpt">{p.excerpt}</p>}
+        </div>
+      </li>
+    ))}
+  </ul>
+)}

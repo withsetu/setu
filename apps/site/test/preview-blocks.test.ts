@@ -28,7 +28,10 @@ const blockTags = [...STANDARD_BLOCKS.map((b) => b.tag), ...folderBlocks].sort()
 const previewSrc = readFileSync(`${here}/../src/preview/preview.astro`, 'utf8')
 const mapBody =
   previewSrc.match(/const tagComponentMap = \{([\s\S]*?)\n\}/)?.[1] ?? ''
-const registered = new Set([...mapBody.matchAll(/(\w+):/g)].map((m) => m[1]))
+// Keys are bare identifiers (callout:) or quoted for hyphenated tags ('latest-posts':).
+const registered = new Set(
+  [...mapBody.matchAll(/(?:'([\w-]+)'|(\w+)):/g)].map((m) => m[1] ?? m[2])
+)
 
 describe('preview registers a renderer for every block', () => {
   it('found block tags and a non-empty preview map', () => {

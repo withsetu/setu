@@ -25,3 +25,12 @@ interface ImportMeta {
 declare module 'setu:permalinks' {
   export function permalinkMap(): Promise<Map<string, string>>
 }
+
+// Companion alias (see astro.config.mjs): the shared entry→PostRow projection for
+// dynamic block renderers.
+declare module 'setu:post-row' {
+  export function toPostRow(
+    entry: { id: string; data: Record<string, unknown>; body?: string },
+    urlPath?: string
+  ): import('@setu/core').PostRow
+}

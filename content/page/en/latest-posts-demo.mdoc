@@ -1,0 +1,18 @@
+---
+cid: 7f308892-1436-4445-bb0f-22b13a5e897a
+title: Latest Posts Demo
+---
+
+A page that lists the most recent posts via the latest-posts block.
+
+## Zero-config default
+
+{% latest-posts /%}
+
+## Grid with everything on
+
+{% latest-posts count=3 layout="grid" columns="3" showImage=true showExcerpt=true /%}
+
+## Filtered to nothing
+
+{% latest-posts category="__no_such_category__" /%}

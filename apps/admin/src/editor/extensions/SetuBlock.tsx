@@ -5,15 +5,36 @@ import {
   ReactNodeViewRenderer
 } from '@tiptap/react'
 import type { ReactNodeViewProps } from '@tiptap/react'
-import type { ResolvedBlock } from '@setu/core'
+import type { BlockControl, ResolvedBlock } from '@setu/core'
 import type { BlockCore } from '@setu/blocks'
 import { attrString } from '../attr-string'
+import { resolveMediaSrc } from '../media-src'
+
+/** Resolve media-hinted props (control: 'media') to displayable URLs for the canvas —
+ *  stored srcs are root-relative `/media/…` paths that need the API origin prepended
+ *  (the HeroBlock precedent, generalized). Pure; the stored mdAttrs are untouched. */
+export function resolveMediaAttrs(
+  mdAttrs: Record<string, unknown>,
+  controls: Partial<Record<string, BlockControl>> | undefined,
+  apiBase: string | undefined
+): Record<string, unknown> {
+  if (!controls) return mdAttrs
+  let out = mdAttrs
+  for (const [name, control] of Object.entries(controls)) {
+    const v = mdAttrs[name]
+    if (control === 'media' && typeof v === 'string' && v !== '') {
+      if (out === mdAttrs) out = { ...mdAttrs }
+      out[name] = resolveMediaSrc(v, apiBase)
+    }
+  }
+  return out
+}
 
 function viewFor(
   byTag: Record<string, ResolvedBlock>,
   cores: Record<string, BlockCore>
 ) {
-  return function SetuBlockView({ node }: ReactNodeViewProps) {
+  return function SetuBlockView({ node, editor }: ReactNodeViewProps) {
     const tag = attrString(node.attrs.tag)
     const block = byTag[tag]
     const Core = cores[tag]
@@ -23,10 +44,18 @@ function viewFor(
     // When the block has a registered React core, render the REAL visual with the editable
     // body inside it (the callout pattern). Otherwise fall back to generic chrome.
     if (Core) {
+      const apiBase = (
+        editor.storage as unknown as { imageBlock?: { apiBase?: string } }
+      ).imageBlock?.apiBase
+      const coreProps = resolveMediaAttrs(
+        mdAttrs,
+        block?.editor?.controls,
+        apiBase
+      )
       return (
         <NodeViewWrapper>
           <div className="setu-block" data-tag={tag}>
-            <Core {...mdAttrs}>
+            <Core {...coreProps}>
               <NodeViewContent />
             </Core>
           </div>

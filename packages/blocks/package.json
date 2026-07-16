@@ -13,6 +13,8 @@
     "./button.css": "./src/button/button.css",
     "./hero.astro": "./src/hero/Hero.astro",
     "./hero.css": "./src/hero/hero.css",
+    "./section.astro": "./src/section/Section.astro",
+    "./section.css": "./src/section/section.css",
     "./ContactForm": "./src/contact/ContactForm.tsx",
     "./contact.css": "./src/contact/contact.css",
     "./mount-captcha": "./src/contact/mount-captcha.ts",

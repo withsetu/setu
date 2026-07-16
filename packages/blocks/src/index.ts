@@ -14,6 +14,11 @@ import { Hero } from './hero/Hero'
 export { Hero }
 export type { HeroProps } from './hero/Hero'
 
+import { Section } from './section/Section'
+export { Section }
+export type { SectionProps } from './section/Section'
+export { sectionClasses } from './section/section-classes'
+
 /** A block's React visual core. The registry is heterogeneous by design (NoticeProps,
  *  HeroProps, …) and dispatched dynamically by tag; each block's props are validated by
  *  its own Zod contract at the Markdoc boundary, not here. `any` is the deliberate
@@ -27,7 +32,8 @@ export type BlockCore = ComponentType<any>
  *  callout (which keeps its own bespoke editor node view). */
 export const blockCores: Record<string, BlockCore> = {
   notice: Notice,
-  hero: Hero
+  hero: Hero,
+  section: Section
 }
 
 export { BLOCK_TOKENS, TOKENS_BY_AXIS } from './tokens'

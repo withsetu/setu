@@ -5,8 +5,11 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { z } from 'zod'
 import type { ResolvedBlock } from '@setu/core'
-import { createSetuBlock } from '../src/editor/extensions/SetuBlock'
-import { Notice } from '@setu/blocks'
+import {
+  createSetuBlock,
+  resolveMediaAttrs
+} from '../src/editor/extensions/SetuBlock'
+import { Notice, Section } from '@setu/blocks'
 
 afterEach(cleanup)
 
@@ -145,5 +148,85 @@ describe('setuBlock node view — real core rendering', () => {
     expect(container.querySelector('aside.notice.notice-success')).toBeTruthy()
     // no inline form — props are edited in the inspector rail
     expect(container.querySelector('.block-props')).toBeNull()
+  })
+})
+
+describe('setuBlock media-prop resolution (section background image)', () => {
+  it('resolveMediaAttrs prefixes media-hinted props with the API origin and leaves the rest', () => {
+    const out = resolveMediaAttrs(
+      { image: '/media/2026/06/cat.jpg', background: 'soft' },
+      { image: 'media', background: 'select' },
+      'http://localhost:4444'
+    )
+    expect(out).toEqual({
+      image: 'http://localhost:4444/media/2026/06/cat.jpg',
+      background: 'soft'
+    })
+  })
+  it('returns the SAME object when nothing needs resolving (no re-render churn)', () => {
+    const attrs = { background: 'accent' }
+    expect(resolveMediaAttrs(attrs, { background: 'select' }, 'x')).toBe(attrs)
+    expect(resolveMediaAttrs(attrs, undefined, 'x')).toBe(attrs)
+  })
+  it('leaves absolute and empty srcs alone', () => {
+    const attrs = { image: 'https://cdn.example/pic.jpg' }
+    expect(resolveMediaAttrs(attrs, { image: 'media' }, 'http://api')).toEqual(
+      attrs
+    )
+  })
+})
+
+describe('setuBlock node view — section core', () => {
+  it('renders the real section band (background + padding classes) around the editable body', async () => {
+    const sectionBlock: ResolvedBlock = {
+      tag: 'section',
+      props: z.object({
+        background: z
+          .enum(['none', 'soft', 'accent', 'inverted'])
+          .default('none'),
+        image: z.string().optional(),
+        padding: z.enum(['none', 'sm', 'md', 'lg']).default('md'),
+        width: z.enum(['normal', 'wide', 'full']).default('normal')
+      }),
+      component: '@setu/blocks/section.astro',
+      editor: { label: 'Section', controls: { image: 'media' } }
+    }
+    function HarnessSection() {
+      const editor = useEditor({
+        immediatelyRender: false,
+        extensions: [
+          StarterKit,
+          createSetuBlock([sectionBlock], { section: Section })
+        ],
+        content: {
+          type: 'doc',
+          content: [
+            {
+              type: 'setuBlock',
+              attrs: {
+                tag: 'section',
+                mdAttrs: { background: 'soft', padding: 'lg', width: 'wide' }
+              },
+              content: [
+                {
+                  type: 'paragraph',
+                  content: [{ type: 'text', text: 'Grouped text' }]
+                }
+              ]
+            }
+          ]
+        }
+      })
+      return <EditorContent editor={editor} />
+    }
+    const { container } = render(<HarnessSection />)
+    expect(await screen.findByText('Grouped text')).toBeInTheDocument()
+    const band = container.querySelector('section.blk-section')
+    expect(band).toBeTruthy()
+    expect(band!.className).toBe('blk-section pad-lg bg-soft w-wide')
+    // the body is editable INSIDE the band
+    expect(band!.querySelector('.blk-section-inner p')?.textContent).toBe(
+      'Grouped text'
+    )
   })
 })

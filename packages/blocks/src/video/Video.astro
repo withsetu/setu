@@ -1,0 +1,33 @@
+---
+// {% video %} (#178): self-hosted/uploaded video file as a plain HTML5 <video>.
+// Pure static markup — edge-safe, zero server compute, no island. Provider embeds
+// (YouTube/Vimeo) are the {% embed %} block, not this one. Root-relative /media/…
+// srcs resolve against PUBLIC_SETU_MEDIA exactly like images (relative in a prod
+// build when unset — never a baked-in localhost URL).
+import './video.css'
+import { resolveMediaBase } from '@setu/image-astro'
+import { videoPlaybackAttrs, videoClasses } from './video-attrs'
+
+const { src = '', poster, caption, controls, autoplay, loop, muted, width } = Astro.props
+
+const base = resolveMediaBase(import.meta.env.PUBLIC_SETU_MEDIA, import.meta.env.DEV)
+const resolveUrl = (s: string) => (!s || /^https?:\/\//i.test(s) ? s : s.startsWith('/') ? `${base}${s}` : s)
+
+const play = videoPlaybackAttrs({ controls, autoplay, loop, muted })
+---
+{src && (
+  <figure class={videoClasses(width)}>
+    <video
+      class="blk-video-player"
+      src={resolveUrl(src)}
+      poster={poster ? resolveUrl(poster) : undefined}
+      controls={play.controls}
+      autoplay={play.autoplay}
+      loop={play.loop}
+      muted={play.muted}
+      playsinline={play.playsInline}
+      preload="metadata"
+    />
+    {caption && <figcaption class="blk-video-caption">{caption}</figcaption>}
+  </figure>
+)}

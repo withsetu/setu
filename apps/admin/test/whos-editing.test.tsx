@@ -22,4 +22,12 @@ describe('WhosEditing', () => {
     expect(screen.getByText('arjun')).toBeInTheDocument()
     expect(screen.getByText(/about/)).toBeInTheDocument()
   })
+  // #554: a long display name must truncate inside the card, full name on hover.
+  it('truncates a long editor name with the full name on hover (#554)', () => {
+    const name = 'Adelaide '.repeat(31).concat('Adelaide').slice(0, 285)
+    render(<WhosEditing locks={[lock({ lockedBy: name })]} />)
+    const el = screen.getByTitle(name)
+    expect(el).toHaveTextContent(name)
+    expect(el.className).toContain('truncate')
+  })
 })

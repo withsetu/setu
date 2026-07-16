@@ -39,6 +39,14 @@ describe('ResumeEditing', () => {
     wrap(<ResumeEditing rows={[row({ lifecycle: { state: 'live' } })]} />)
     expect(screen.getByText('Live').className).toContain('bg-success')
   })
+  // #554: the truncated title stays reachable in full via the title attribute.
+  it('truncates a long title with the full title on hover (#554)', () => {
+    const long = 'Adelaide '.repeat(31).concat('Adelaide').slice(0, 285)
+    wrap(<ResumeEditing rows={[row({ title: long })]} />)
+    const el = screen.getByTitle(long)
+    expect(el).toHaveTextContent(long)
+    expect(el.className).toContain('truncate')
+  })
   it('shows an empty state with a create link when there are no rows', () => {
     wrap(<ResumeEditing rows={[]} />)
     expect(screen.getByText(/No edits yet/)).toBeInTheDocument()

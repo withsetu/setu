@@ -40,7 +40,9 @@ describe('section block contract', () => {
     expect(control('padding').control).toBe('select')
     expect(control('padding').options).toEqual(['none', 'sm', 'md', 'lg'])
     expect(control('width').control).toBe('align')
-    expect(control('width').options).toEqual(['normal', 'wide', 'full'])
+    // 'none' is the shared width sentinel across blocks (hero/image align use it) —
+    // one vocabulary, no per-block special-casing in canvas/theme CSS.
+    expect(control('width').options).toEqual(['none', 'wide', 'full'])
     expect(control('image').control).toBe('media')
   })
 

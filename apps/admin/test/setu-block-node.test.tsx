@@ -186,7 +186,7 @@ describe('setuBlock node view — section core', () => {
           .default('none'),
         image: z.string().optional(),
         padding: z.enum(['none', 'sm', 'md', 'lg']).default('md'),
-        width: z.enum(['normal', 'wide', 'full']).default('normal')
+        width: z.enum(['none', 'wide', 'full']).default('none')
       }),
       component: '@setu/blocks/section.astro',
       editor: { label: 'Section', controls: { image: 'media' } }

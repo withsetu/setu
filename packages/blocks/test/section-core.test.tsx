@@ -16,14 +16,49 @@ describe('sectionClasses', () => {
     expect(sectionClasses('accent', 'none', 'full')).toBe(
       'blk-section pad-none bg-accent w-full'
     )
-    expect(sectionClasses('inverted', 'sm', 'normal')).toBe(
+    expect(sectionClasses('inverted', 'sm', 'none')).toBe(
       'blk-section pad-sm bg-inverted'
     )
   })
   it('a background image adds has-media', () => {
-    expect(sectionClasses('none', 'md', 'normal', true)).toBe(
+    expect(sectionClasses('none', 'md', 'none', true)).toBe(
       'blk-section pad-md has-media'
     )
+  })
+  it("tolerates the legacy width sentinel 'normal' as an alias for 'none'", () => {
+    expect(sectionClasses('soft', 'md', 'normal')).toBe(
+      'blk-section pad-md bg-soft'
+    )
+  })
+  it('clamps unknown values to defaults — no class injection from hand-authored markdoc', () => {
+    // Markdoc validation is non-blocking; hand-authored attrs reach the renderer as-is.
+    expect(sectionClasses('soft x', 'md', 'wide')).toBe(
+      'blk-section pad-md w-wide'
+    )
+    expect(sectionClasses('accent', 'lg; }', 'full')).toBe(
+      'blk-section pad-md bg-accent w-full'
+    )
+    expect(sectionClasses('none', 'md', '100vw evil-class')).toBe(
+      'blk-section pad-md'
+    )
+    // every emitted token stays within the allowlisted vocabulary
+    const cls = sectionClasses('"><script>', 'x y', 'z', true)
+    const ALLOWED = new Set([
+      'blk-section',
+      'pad-none',
+      'pad-sm',
+      'pad-md',
+      'pad-lg',
+      'bg-soft',
+      'bg-accent',
+      'bg-inverted',
+      'w-wide',
+      'w-full',
+      'has-media'
+    ])
+    for (const token of cls.split(' ')) {
+      expect(ALLOWED.has(token), `unexpected class token "${token}"`).toBe(true)
+    }
   })
 })
 

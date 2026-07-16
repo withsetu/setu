@@ -9,7 +9,8 @@ export interface SectionProps {
   image?: string
   /** Vertical/horizontal padding scale: none | sm | md | lg. */
   padding?: string
-  /** Band width intent: normal | wide | full (breakout math lives in the theme). */
+  /** Band width intent: none | wide | full (breakout math lives in the theme;
+   *  legacy 'normal' is tolerated as an alias for 'none'). */
   width?: string
   /** The grouped blocks. */
   children: ReactNode
@@ -23,7 +24,7 @@ export function Section({
   background = 'none',
   image,
   padding = 'md',
-  width = 'normal',
+  width = 'none',
   children
 }: SectionProps) {
   return (

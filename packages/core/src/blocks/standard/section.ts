@@ -17,7 +17,9 @@ export const sectionBlock: StandardBlock = {
         .default('none'),
       image: z.string().optional(),
       padding: z.enum(['none', 'sm', 'md', 'lg']).default('md'),
-      width: z.enum(['normal', 'wide', 'full']).default('normal')
+      // 'none' is the shared width sentinel (hero/image align use it too); the
+      // renderer additionally tolerates legacy 'normal' as an alias for 'none'.
+      width: z.enum(['none', 'wide', 'full']).default('none')
     }),
     editor: {
       label: 'Section',

@@ -2,7 +2,9 @@ import type {
   CommitInput,
   CommitFilesInput,
   CommitResult,
-  DiffPathEntry
+  DiffPathEntry,
+  GitLogEntry,
+  GitLogOptions
 } from './types'
 
 /** The git seam: read published content + commit. Server topologies use a real
@@ -27,4 +29,15 @@ export interface GitPort {
    *  rejects; callers treat that as "diff unavailable" and fall back to a full
    *  rescan. Order is not guaranteed. */
   diffPaths(fromSha: string, toSha: string): Promise<DiffPathEntry[]>
+  /** OPTIONAL capability (#466, card #6): the revision history of `path`,
+   *  newest first — only commits that touched the path. Adapters that cannot
+   *  provide it (git-http/git-idb today) simply omit it; callers MUST
+   *  capability-detect (`typeof git.log === 'function'`) and degrade honestly.
+   *  Unknown/never-committed path → empty array. */
+  log?(path: string, opts?: GitLogOptions): Promise<GitLogEntry[]>
+  /** OPTIONAL capability (#466, card #6): content of `path` at commit `sha`.
+   *  Path absent at that commit → null. A sha the adapter cannot resolve →
+   *  rejects (parity with `diffPaths`). Omitted by adapters without history
+   *  support; callers MUST capability-detect. */
+  readFileAt?(sha: string, path: string): Promise<string | null>
 }

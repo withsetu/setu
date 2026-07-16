@@ -32,6 +32,29 @@ export interface CommitFilesInput {
   author: GitAuthor
 }
 
+/** Paging window for `GitPort.log` (#466). Both count COMMITS touching the
+ *  queried path, newest first. Omitted → the full history. */
+export interface GitLogOptions {
+  /** Maximum entries to return. */
+  limit?: number
+  /** Entries to skip from the newest end before collecting. */
+  offset?: number
+}
+
+/** One revision of a path, as returned by `GitPort.log` (#466), newest first. */
+export interface GitLogEntry {
+  /** Full commit sha (40-hex for real git; adapter-shaped elsewhere). */
+  sha: string
+  /** Commit author display name. */
+  author: string
+  /** Commit author email. */
+  email: string
+  /** Commit author date as an ISO-8601 string. */
+  date: string
+  /** First line of the commit message. */
+  subject: string
+}
+
 /** How a path changed between two commits (tree-to-tree diff). */
 export type DiffPathStatus = 'added' | 'modified' | 'deleted'
 

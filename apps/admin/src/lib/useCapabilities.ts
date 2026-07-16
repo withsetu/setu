@@ -7,6 +7,10 @@ export interface CapFlags {
   imageProcessing: boolean
   writableMediaStore: boolean
   backgroundJobs: boolean
+  /** #466: the server's git adapter implements the optional log/readFileAt
+   *  capability — false hides the editor's History UI entirely (honest
+   *  degradation on git-http/git-idb topologies; card #6). */
+  history: boolean
 }
 
 /** #248 Task 5's auth capability block — mirrors apps/api/src/capabilities.ts's AuthCapabilities. */

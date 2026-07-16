@@ -12,6 +12,7 @@ import { SliderControl } from './slider'
 import { CategoryControl } from './category'
 import { TagControl } from './tag'
 import { LocaleControl } from './locale'
+import { MediaListControl } from './media-list'
 
 export const controlRegistry: Record<BlockControl, React.FC<ControlProps>> = {
   text: TextControl,
@@ -27,5 +28,6 @@ export const controlRegistry: Record<BlockControl, React.FC<ControlProps>> = {
   slider: SliderControl,
   category: CategoryControl,
   tag: TagControl,
-  locale: LocaleControl
+  locale: LocaleControl,
+  'media-list': MediaListControl
 }

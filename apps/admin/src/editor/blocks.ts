@@ -156,6 +156,13 @@ export function slashBlocks(): SlashBlock[] {
               mdAttrs: { headline: 'Hero headline', layout: 'centered' }
             }
           })
+        } else if (b.tag === 'gallery') {
+          // Fresh gallery starts empty: the canvas shows an inviting empty state and
+          // the inspector's media-list control appends images from the library.
+          chain.insertContent({
+            type: 'galleryBlock',
+            attrs: { mdAttrs: {} }
+          })
         } else if (b.tag === 'query') {
           chain.insertContent({
             type: 'queryBlock',

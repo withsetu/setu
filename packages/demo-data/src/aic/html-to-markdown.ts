@@ -37,10 +37,15 @@ function decodeEntities(s: string): string {
     )
 }
 
+/** Drop script/style ELEMENTS including their text content — stripping only the
+ *  tags would leak code text into bodies if a dump record were hostile. */
+const dropScriptStyle = (s: string): string =>
+  s.replace(/<(script|style)\b[\s\S]*?<\/\1\s*>/gi, '')
+
 /** Convert AIC-vocabulary HTML into markdown. Unknown tags are stripped, never
  *  passed through — the output must be honest markdown. */
 export function htmlToMarkdown(html: string): string {
-  let s = html.replace(/\r\n?/g, '\n')
+  let s = dropScriptStyle(html.replace(/\r\n?/g, '\n'))
   // Inline marks first (they may nest inside blocks).
   s = s.replace(/<a\s+[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, '[$2]($1)')
   s = s.replace(/<(?:em|i)>([\s\S]*?)<\/(?:em|i)>/gi, '*$1*')
@@ -69,7 +74,7 @@ export function htmlToMarkdown(html: string): string {
  *  punctuation stays attached ("<strong>note</strong>." → "note."). */
 export function htmlToText(html: string): string {
   const stripped = decodeEntities(
-    html
+    dropScriptStyle(html)
       .replace(/<\/?(?:p|br|ul|ol|li|div|h[1-6])[^>]*>/gi, ' ')
       .replace(/<[^>]+>/g, '')
   )

@@ -20,14 +20,14 @@ const load = async () => {
 describe('createAicPack over the synthetic fixture dump', () => {
   it('loads exactly the public-domain, imaged, described, dated records — in numeric id order', async () => {
     const { posts } = await load()
-    expect(posts.map((p) => p.id)).toEqual(['101', '102', '108'])
+    expect(posts.map((p) => p.id)).toEqual(['101', '102', '108', '110'])
   })
 
   it('counts every skip reason without crashing on bad records', async () => {
     const { stats } = await load()
     expect(stats).toEqual({
-      scanned: 9,
-      loaded: 3,
+      scanned: 10,
+      loaded: 4,
       skipped: {
         invalid: 2, // 106 (no title, zod) + 107 (not JSON)
         notPublicDomain: 1, // 103
@@ -78,6 +78,9 @@ describe('createAicPack over the synthetic fixture dump', () => {
     expect(posts[2]!.date).toBe(
       new Date('2026-02-20T09:00:00-06:00').toISOString()
     )
+    // 110: ancient years 1..99 must NOT hit the JS two-digit-year rule
+    // (Date.UTC(79, …) would be 1979) — 79 CE maps to year 0079.
+    expect(posts[3]!.date).toBe('0079-01-01T00:00:00.000Z')
   })
 
   it('composes the body from real fields with the required attribution lines', async () => {
@@ -173,10 +176,10 @@ describe('createAicPack over the synthetic fixture dump', () => {
 
     const dataset = createAicPack({ source: jsonl }).load()
     const posts = await collectPosts(dataset)
-    expect(posts.map((p) => p.id)).toEqual(['101', '102', '108'])
+    expect(posts.map((p) => p.id)).toEqual(['101', '102', '108', '110'])
     expect(dataset.stats()).toEqual({
-      scanned: 9,
-      loaded: 3,
+      scanned: 10,
+      loaded: 4,
       skipped: {
         invalid: 2,
         notPublicDomain: 1,
@@ -203,6 +206,30 @@ describe('createAicPack over the synthetic fixture dump', () => {
     const posts = await collectPosts(dataset)
     expect(posts).toEqual([])
     expect(dataset.stats().skipped).toEqual({ invalid: 1 })
+  })
+
+  it('URL-encodes a hostile image_id instead of splicing it into the IIIF path', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'demo-data-hostile-'))
+    const record = {
+      id: 1,
+      title: 'Hostile Image Id',
+      is_public_domain: true,
+      image_id: ' ../evil/id?x=1#frag ',
+      description: '<p>A synthetic record with a path-traversal image_id.</p>',
+      date_start: 1900,
+      date_end: 1900
+    }
+    await writeFile(path.join(dir, '1.json'), JSON.stringify(record), 'utf8')
+    const posts = await collectPosts(createAicPack({ source: dir }).load())
+    const url = posts[0]!.image!.urlForWidth(843)
+    expect(url).toBe(
+      `${AIC_IIIF_BASE}/${encodeURIComponent('../evil/id?x=1#frag')}/full/843,/0/default.jpg`
+    )
+    expect(url).not.toContain('/../')
+    expect(new URL(url).hash).toBe('')
+    expect(new URL(url).pathname.endsWith('/full/843,/0/default.jpg')).toBe(
+      true
+    )
   })
 
   it('stops early on limit and reports honest partial stats', async () => {

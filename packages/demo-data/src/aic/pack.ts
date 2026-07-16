@@ -76,8 +76,10 @@ async function* readDumpDirectory(
   const files = (await readdir(dir))
     .filter((f) => f.endsWith('.json'))
     .sort(
+      // Codepoint tiebreak, NOT localeCompare — locale collation varies across
+      // machines and would break cross-machine determinism.
       (a, b) =>
-        Number.parseInt(a, 10) - Number.parseInt(b, 10) || a.localeCompare(b)
+        Number.parseInt(a, 10) - Number.parseInt(b, 10) || (a < b ? -1 : 1)
     )
   for (const file of files) {
     const filePath = path.join(dir, file)
@@ -152,8 +154,14 @@ function dedupeTerms(
  *  it fits the honest 1..9999 ISO range; else the record's source timestamps. */
 function deriveDate(rec: RawArtwork): string | undefined {
   const year = rec.date_end ?? rec.date_start
-  if (typeof year === 'number' && year >= 1 && year <= 9999)
-    return new Date(Date.UTC(year, 0, 1)).toISOString()
+  if (typeof year === 'number' && year >= 1 && year <= 9999) {
+    // setUTCFullYear, not Date.UTC(year, …): Date.UTC maps years 1..99 to
+    // 1901..1999 (the JS two-digit-year rule), which would fabricate
+    // 20th-century dates for ancient art.
+    const d = new Date(0)
+    d.setUTCFullYear(year, 0, 1)
+    return d.toISOString()
+  }
   for (const ts of [rec.source_updated_at, rec.updated_at]) {
     if (!ts) continue
     const parsed = new Date(ts)
@@ -209,7 +217,9 @@ function buildBody(rec: RawArtwork, descriptionMarkdown: string): string {
 }
 
 function buildImage(rec: RawArtwork): PackImageRef {
-  const imageId = rec.image_id! // caller guarantees presence
+  // Caller guarantees presence; encode so a hostile image_id can never splice
+  // path segments or a query/fragment into the IIIF URL.
+  const imageId = encodeURIComponent(rec.image_id!.trim())
   const thumbWidth = rec.thumbnail?.width
   const thumbHeight = rec.thumbnail?.height
   return {

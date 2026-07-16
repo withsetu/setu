@@ -104,7 +104,9 @@ pnpm --filter @setu/demo-data aic sample [destFile] [count]  # bounded slice via
 pnpm --filter @setu/demo-data aic stats  <source> [limit]    # pack stats over a dump dir or .jsonl
 ```
 
-Defaults write under `.demo-data/` (gitignored).
+Defaults write under `.demo-data/` (gitignored). `fetch` reuses an existing
+non-empty tarball in the destination instead of re-downloading (the dump
+refreshes monthly — delete the tarball to force a fresh copy).
 
 ## Tests
 

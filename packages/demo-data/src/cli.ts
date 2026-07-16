@@ -7,7 +7,7 @@
  *  Defaults write under ./.demo-data/ (gitignored). Dev tooling only — never part
  *  of a production build.
  */
-import { collectPosts } from './contract'
+import type { PackPost } from './contract'
 import { createAicPack } from './aic/pack'
 import { fetchAicDump } from './aic/fetch-dump'
 import { fetchAicSample } from './aic/fetch-sample'
@@ -21,7 +21,12 @@ async function printStats(source: string, limit?: number): Promise<void> {
   const pack = createAicPack({ source })
   const dataset = pack.load(limit !== undefined ? { limit } : {})
   const started = Date.now()
-  const posts = await collectPosts(dataset)
+  // Iterate the stream — never materialize the dataset (contract.ts: on the
+  // full dump that would buffer 134k posts). Keep only a 3-post preview.
+  const preview: PackPost[] = []
+  for await (const post of dataset.posts) {
+    if (preview.length < 3) preview.push(post)
+  }
   const stats = dataset.stats()
   const seconds = ((Date.now() - started) / 1000).toFixed(1)
 
@@ -36,7 +41,7 @@ async function printStats(source: string, limit?: number): Promise<void> {
   console.log(
     `skipped: ${skipped.length ? skipped.map(([k, v]) => `${k}=${v}`).join(' ') : 'none'}`
   )
-  for (const post of posts.slice(0, 3)) {
+  for (const post of preview) {
     console.log(
       `  • [${post.date.slice(0, 10)}] ${post.title} — ${post.sourceAttribution}`
     )
@@ -49,9 +54,12 @@ async function main(): Promise<void> {
   switch (command) {
     case 'fetch': {
       const destDir = args[0] ?? '.demo-data'
-      console.log(`downloading AIC dump to ${destDir} (~115 MiB)…`)
-      const { tarballPath, artworksDir } = await fetchAicDump(destDir)
-      console.log(`tarball: ${tarballPath}`)
+      console.log(`fetching AIC dump into ${destDir} (~115 MiB download)…`)
+      const { tarballPath, artworksDir, downloaded } =
+        await fetchAicDump(destDir)
+      console.log(
+        `tarball: ${tarballPath}${downloaded ? '' : ' (reused existing download)'}`
+      )
       console.log(`artworks: ${artworksDir ?? '(not extracted)'}`)
       if (artworksDir) await printStats(artworksDir)
       return

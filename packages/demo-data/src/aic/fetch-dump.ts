@@ -62,6 +62,8 @@ export interface FetchAicDumpResult {
   tarballPath: string
   /** Extracted per-artwork records dir (pack `source`), or null with extract:false. */
   artworksDir: string | null
+  /** false when an existing non-empty tarball in destDir was reused. */
+  downloaded: boolean
 }
 
 export async function fetchAicDump(
@@ -77,28 +79,39 @@ export async function fetchAicDump(
     timeoutMs = 20 * 60 * 1000
   } = options
 
-  await mkdir(destDir, { recursive: true })
-  const res = await safeFetch(AIC_DUMP_URL, undefined, {
-    fetchImpl,
-    resolveHost,
-    maxBytes,
-    timeoutMs
-  })
-  if (!res.ok)
-    throw new Error(
-      `Dump download failed: HTTP ${res.status} from ${res.finalUrl}`
-    )
-  const tarballPath = path.join(destDir, 'artic-api-data.tar.bz2')
-  await writeFile(tarballPath, res.body)
+  // Resolve up front: tar runs with cwd=dest, so every path handed to it (and
+  // returned to callers) must be absolute — a relative destDir (the CLI default
+  // ".demo-data") would otherwise make tar look for destDir/destDir/….
+  const dest = path.resolve(destDir)
+  await mkdir(dest, { recursive: true })
+  const tarballPath = path.join(dest, 'artic-api-data.tar.bz2')
 
-  if (!extract) return { tarballPath, artworksDir: null }
+  // Reuse an existing non-empty tarball (the dump refreshes monthly; delete the
+  // file to force a fresh download).
+  const existing = await stat(tarballPath).catch(() => null)
+  const downloaded = !(existing?.isFile() && existing.size > 0)
+  if (downloaded) {
+    const res = await safeFetch(AIC_DUMP_URL, undefined, {
+      fetchImpl,
+      resolveHost,
+      maxBytes,
+      timeoutMs
+    })
+    if (!res.ok)
+      throw new Error(
+        `Dump download failed: HTTP ${res.status} from ${res.finalUrl}`
+      )
+    await writeFile(tarballPath, res.body)
+  }
 
-  await runTar(['-xjf', tarballPath, AIC_DUMP_ARTWORKS_PATH], destDir)
-  const artworksDir = path.join(destDir, AIC_DUMP_ARTWORKS_PATH)
+  if (!extract) return { tarballPath, artworksDir: null, downloaded }
+
+  await runTar(['-xjf', tarballPath, AIC_DUMP_ARTWORKS_PATH], dest)
+  const artworksDir = path.join(dest, AIC_DUMP_ARTWORKS_PATH)
   const extracted = await stat(artworksDir).catch(() => null)
   if (!extracted?.isDirectory())
     throw new Error(
       `Extraction finished but the artworks directory is missing: ${artworksDir}`
     )
-  return { tarballPath, artworksDir }
+  return { tarballPath, artworksDir, downloaded }
 }

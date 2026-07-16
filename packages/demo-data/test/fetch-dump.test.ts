@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { describe, it, expect, vi } from 'vitest'
@@ -50,6 +50,57 @@ describe('fetchAicDump', () => {
       dir
     )
     expect(result.artworksDir).toBe(path.join(dir, AIC_DUMP_ARTWORKS_PATH))
+  })
+
+  it('resolves a RELATIVE destDir before handing paths to tar (regression: the CLI default ".demo-data" made tar look for destDir/destDir/…)', async () => {
+    const relative = `.tmp-fetch-dump-test-${process.pid}`
+    const absolute = path.resolve(relative)
+    try {
+      const runTar = vi.fn(async (args: string[], cwd: string) => {
+        // tar runs with cwd=destDir; every path it receives must be absolute
+        // (or the test would pass only for absolute destDirs, hiding the bug).
+        expect(path.isAbsolute(cwd)).toBe(true)
+        expect(path.isAbsolute(args[1]!)).toBe(true)
+        await mkdir(path.join(cwd, AIC_DUMP_ARTWORKS_PATH), {
+          recursive: true
+        })
+      })
+      const result = await fetchAicDump(relative, { ...fakeNet, runTar })
+      expect(runTar).toHaveBeenCalledWith(
+        [
+          '-xjf',
+          path.join(absolute, 'artic-api-data.tar.bz2'),
+          AIC_DUMP_ARTWORKS_PATH
+        ],
+        absolute
+      )
+      expect(result.tarballPath).toBe(
+        path.join(absolute, 'artic-api-data.tar.bz2')
+      )
+      expect(result.artworksDir).toBe(
+        path.join(absolute, AIC_DUMP_ARTWORKS_PATH)
+      )
+      expect(Array.from(await readFile(result.tarballPath))).toEqual([
+        1, 2, 3, 4
+      ])
+    } finally {
+      await rm(absolute, { recursive: true, force: true })
+    }
+  })
+
+  it('reuses an existing non-empty tarball instead of re-downloading', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'demo-data-dump-'))
+    const tarballPath = path.join(dir, 'artic-api-data.tar.bz2')
+    await writeFile(tarballPath, new Uint8Array([9, 9, 9]))
+    const fetchImpl = vi.fn() as unknown as typeof fetch
+    const result = await fetchAicDump(dir, {
+      ...fakeNet,
+      fetchImpl,
+      extract: false
+    })
+    expect(fetchImpl).not.toHaveBeenCalled()
+    expect(result.downloaded).toBe(false)
+    expect(Array.from(await readFile(tarballPath))).toEqual([9, 9, 9])
   })
 
   it('fails when extraction does not produce the artworks directory', async () => {

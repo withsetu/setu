@@ -20,3 +20,4 @@ bare artwork records — verified 2026-07-16 against the nightly dump tarball an
 | `107.json` | not JSON at all → skipped (`invalid`, parse error)                       |
 | `108.json` | HTML-rich description (em/strong/link/list), BCE date → post             |
 | `109.json` | no date fields anywhere → skipped (`noDate`)                             |
+| `110.json` | ancient year (`date_end: 79`) — must map to 0079, not 1979 → post        |

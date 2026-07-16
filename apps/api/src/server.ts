@@ -36,6 +36,7 @@ import { renderSubmissionEmail } from '@setu/email-templates'
 import { createAuth, type AuthEvent } from '@setu/auth'
 import { createMiddleware } from 'hono/factory'
 import { createGitApi } from './app'
+import { createHistoryApi } from './history-api'
 import { createPreviewApi } from './preview'
 import { createUploadApi, listMediaRecords } from './media'
 import { createIndexApi, latchInFlight } from './index-api'
@@ -441,7 +442,12 @@ const refreshIndexAfterCommit = createMiddleware(async (c, next) => {
 })
 app.use('/git/commit', refreshIndexAfterCommit)
 app.use('/git/commit-files', refreshIndexAfterCommit)
+// #466: a restore is a content commit too — same freshness hook.
+app.use('/api/history/restore', refreshIndexAfterCommit)
 app.route('/', createGitApi(git, resolveActor))
+// Revision history from Git (#466) — list/read/restore; the git-local adapter
+// implements the optional capability, so this topology serves it.
+app.route('/', createHistoryApi(git, resolveActor))
 // Server-authoritative content/media index reads (#464, Increment A).
 app.route(
   '/',
@@ -559,6 +565,10 @@ app.route(
       image: imageAdapter, // present in the Node topology
       writableMediaStore: true, // local fs storage is writable
       backgroundJobs: true, // persistent Node process can run jobs
+      // #466: derived from the adapter ACTUALLY having the optional functions,
+      // never asserted per-topology — an adapter swap can't silently lie.
+      history:
+        typeof git.log === 'function' && typeof git.readFileAt === 'function',
       mode,
       auth: resolveAuthCapabilities(), // boot-time value; createCapabilitiesApi re-derives per request via the thunk below
       email: emailCapability

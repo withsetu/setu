@@ -31,6 +31,7 @@ describe('capabilities', () => {
         image: {},
         writableMediaStore: true,
         backgroundJobs: true,
+        history: false,
         auth: NO_AUTH,
         email: NO_EMAIL
       }).capabilities.imageProcessing
@@ -39,10 +40,28 @@ describe('capabilities', () => {
       buildCapabilities({
         writableMediaStore: true,
         backgroundJobs: true,
+        history: false,
         auth: NO_AUTH,
         email: NO_EMAIL
       }).capabilities.imageProcessing
     ).toBe(false)
+  })
+
+  // #466: `history` mirrors whether the git adapter actually has the optional
+  // log/readFileAt functions (server.ts derives it with typeof checks) so the
+  // admin can hide the History UI instead of rendering a button that 409s.
+  it('history reflects what the caller derived from the git adapter', () => {
+    for (const history of [true, false] as const) {
+      expect(
+        buildCapabilities({
+          writableMediaStore: true,
+          backgroundJobs: true,
+          history,
+          auth: NO_AUTH,
+          email: NO_EMAIL
+        }).capabilities.history
+      ).toBe(history)
+    }
   })
 
   it('serves the capability object at GET /api/capabilities', async () => {
@@ -50,6 +69,7 @@ describe('capabilities', () => {
       image: {},
       writableMediaStore: true,
       backgroundJobs: true,
+      history: true,
       mode: 'self-hosted',
       auth: NO_AUTH,
       email: NO_EMAIL
@@ -62,7 +82,8 @@ describe('capabilities', () => {
       capabilities: {
         imageProcessing: true,
         writableMediaStore: true,
-        backgroundJobs: true
+        backgroundJobs: true,
+        history: true
       },
       auth: NO_AUTH,
       email: NO_EMAIL
@@ -91,6 +112,7 @@ describe('capabilities', () => {
           image: {},
           writableMediaStore: true,
           backgroundJobs: true,
+          history: false,
           auth: NO_AUTH,
           email: NO_EMAIL
         }),
@@ -123,6 +145,7 @@ describe('capabilities', () => {
           image: {},
           writableMediaStore: true,
           backgroundJobs: true,
+          history: false,
           auth: NO_AUTH,
           email: NO_EMAIL
         }),
@@ -143,6 +166,7 @@ describe('capabilities', () => {
       const base = buildCapabilities({
         writableMediaStore: true,
         backgroundJobs: true,
+        history: false,
         auth: NO_AUTH,
         email: NO_EMAIL
       })
@@ -366,6 +390,7 @@ describe('capabilities', () => {
       const base = buildCapabilities({
         writableMediaStore: true,
         backgroundJobs: true,
+        history: false,
         auth: NO_AUTH,
         email: NO_EMAIL
       })

@@ -27,6 +27,12 @@ export interface Capabilities {
     imageProcessing: boolean
     writableMediaStore: boolean
     backgroundJobs: boolean
+    /** #466: the git adapter implements the OPTIONAL log/readFileAt capability
+     *  (revision history + restore). Derived at boot from the adapter actually
+     *  having the functions — false on adapters without them (git-http/git-idb
+     *  today), so the admin hides the History UI instead of showing dead
+     *  controls that 409. */
+    history: boolean
   }
   auth: AuthCapabilities
   email: EmailCapabilities
@@ -36,6 +42,7 @@ export function buildCapabilities(opts: {
   image?: unknown
   writableMediaStore: boolean
   backgroundJobs: boolean
+  history: boolean
   mode?: string
   auth: AuthCapabilities
   email: EmailCapabilities
@@ -45,7 +52,8 @@ export function buildCapabilities(opts: {
     capabilities: {
       imageProcessing: !!opts.image,
       writableMediaStore: opts.writableMediaStore,
-      backgroundJobs: opts.backgroundJobs
+      backgroundJobs: opts.backgroundJobs,
+      history: opts.history
     },
     auth: opts.auth,
     email: opts.email

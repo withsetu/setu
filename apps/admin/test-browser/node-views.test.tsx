@@ -154,7 +154,11 @@ describe('ContactBlock node view (real browser)', () => {
 })
 
 describe('LatestPostsBlock node view (real browser)', () => {
-  const row = (slug: string, title: string, date: number | null): ContentRow => ({
+  const row = (
+    slug: string,
+    title: string,
+    date: number | null
+  ): ContentRow => ({
     ref: { collection: 'post', locale: 'en', slug },
     title,
     locale: 'en',
@@ -178,10 +182,7 @@ describe('LatestPostsBlock node view (real browser)', () => {
       })
     render(
       <Harness
-        extensions={[
-          StarterKit,
-          LatestPostsBlock.configure({ runQuery })
-        ]}
+        extensions={[StarterKit, LatestPostsBlock.configure({ runQuery })]}
         content={{
           type: 'doc',
           content: [{ type: 'latestPostsBlock', attrs: { mdAttrs: {} } }]
@@ -219,9 +220,7 @@ describe('LatestPostsBlock node view (real browser)', () => {
       />
     )
     await expect.element(page.getByText('Dated post')).toBeInTheDocument()
-    await expect
-      .element(page.getByText('Jun 20, 2026'))
-      .not.toBeInTheDocument()
+    await expect.element(page.getByText('Jun 20, 2026')).not.toBeInTheDocument()
   })
 })
 

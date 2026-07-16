@@ -25,7 +25,7 @@ function nthList(n: number): string {
     ...html.matchAll(/<ul class="blk-latest-posts[^"]*"[\s\S]*?<\/ul>/g)
   ].map((m) => m[0])
   expect(lists.length).toBeGreaterThan(n)
-  return lists[n]!
+  return lists[n]
 }
 
 describe('latest-posts block — zero-config default', () => {
@@ -86,14 +86,16 @@ describe('latest-posts block — empty and structural guarantees', () => {
   })
   it('ships zero JS', () => {
     expect(html).not.toContain('astro-island')
-    expect(html).not.toMatch(/<script(?![^>]*type="application\/ld\+json")[\s>]/)
+    expect(html).not.toMatch(
+      /<script(?![^>]*type="application\/ld\+json")[\s>]/
+    )
   })
   it('serves a real scoped .blk-latest-posts-title rule body reading contract tokens', () => {
     const inlineCss = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)]
       .map((m) => m[1])
       .join('\n')
     const linkedCss = [...html.matchAll(/href="(\/_astro\/[^"]+\.css)"/g)]
-      .map((m) => readFileSync(join(appDir, 'dist', m[1]!), 'utf8'))
+      .map((m) => readFileSync(join(appDir, 'dist', m[1]), 'utf8'))
       .join('\n')
     const servedCss = `${inlineCss}\n${linkedCss}`
     expect(html).toContain('class="blk-latest-posts-title"')

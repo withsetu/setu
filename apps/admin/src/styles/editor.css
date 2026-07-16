@@ -52,7 +52,9 @@
     :has(.align-full)
   ):not(.align-left):not(.align-right):not(.align-wide):not(.align-full):not(
     :has(.blk-hero.w-wide)
-  ):not(:has(.blk-hero.w-full)) {
+  ):not(:has(.blk-hero.w-full)):not(:has(.blk-video.w-wide)):not(
+    :has(.blk-video.w-full)
+  ) {
   max-width: var(--measure-post);
   margin-inline: auto;
 }
@@ -65,12 +67,14 @@
 .setu-prose > .align-full {
   width: 100%;
 }
-/* Hero width breakout in the canvas — mirrors the image align rules so width is WYSIWYG. */
-.setu-prose > :has(.blk-hero.w-wide) {
+/* Hero/video width breakout in the canvas — mirrors the image align rules so width is WYSIWYG. */
+.setu-prose > :has(.blk-hero.w-wide),
+.setu-prose > :has(.blk-video.w-wide) {
   width: min(var(--measure-page), 100%);
   margin-inline: auto;
 }
-.setu-prose > :has(.blk-hero.w-full) {
+.setu-prose > :has(.blk-hero.w-full),
+.setu-prose > :has(.blk-video.w-full) {
   width: 100%;
 }
 .setu-prose > :has(.align-left),

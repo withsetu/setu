@@ -298,17 +298,13 @@ export function HistoryPanel({
                 )}
                 {entries.length <= 1 && (
                   <p className="px-4 pb-4 text-sm text-muted-foreground">
-                    Only one revision so far — earlier versions will appear
-                    here after the next publish or draft save.
+                    Only one revision so far — earlier versions will appear here
+                    after the next publish or draft save.
                   </p>
                 )}
 
                 {entries.length > 1 && (
-                  <section
-                    aria-label="Changes"
-                    className="border-t p-4"
-                    role="region"
-                  >
+                  <section aria-label="Changes" className="border-t p-4">
                     <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       {isCurrent
                         ? 'Current revision'

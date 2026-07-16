@@ -25,8 +25,8 @@ const SHA_HEAD = 'a'.repeat(40)
 function stubCapabilities(history: boolean) {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string | URL | Request) => {
-      const u = String(url)
+    vi.fn(async (url: string) => {
+      const u = url
       if (u.includes('/api/capabilities')) {
         return new Response(
           JSON.stringify({
@@ -74,9 +74,7 @@ function stubCapabilities(history: boolean) {
   )
 }
 
-function servicesWithCommitted(
-  frontmatter: Record<string, unknown>
-): Services {
+function servicesWithCommitted(frontmatter: Record<string, unknown>): Services {
   const seed = [
     {
       path: contentPath(ref),

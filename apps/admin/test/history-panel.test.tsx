@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { NotificationProvider } from '../src/ui/notify'
 import { HistoryPanel } from '../src/editor/HistoryPanel'
 
@@ -37,10 +43,10 @@ function stubHistoryFetch(opts?: {
   const entries = opts?.entries ?? ENTRIES
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
-      const u = String(url)
+    vi.fn(async (url: string, init?: RequestInit) => {
+      const u = url
       if (u.includes('/api/history/restore')) {
-        opts?.onRestoreBody?.(JSON.parse(String(init?.body)))
+        opts?.onRestoreBody?.(JSON.parse(init?.body as string))
         const status = opts?.restoreStatus ?? 200
         const body =
           status === 200 ? { sha: 'c'.repeat(40) } : { error: 'forbidden' }
@@ -172,13 +178,9 @@ describe('HistoryPanel (#466)', () => {
     })
     await waitFor(() => expect(restore).toBeEnabled())
     fireEvent.click(restore)
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Restore' })
-    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Restore' }))
 
-    expect(
-      await screen.findByText(/permission to restore/)
-    ).toBeInTheDocument()
+    expect(await screen.findByText(/permission to restore/)).toBeInTheDocument()
     expect(onRestored).not.toHaveBeenCalled()
   })
 
@@ -194,9 +196,7 @@ describe('HistoryPanel (#466)', () => {
       name: 'Restore this revision'
     })
     expect(restore).toBeDisabled()
-    expect(
-      screen.getByText(/already the current revision/)
-    ).toBeInTheDocument()
+    expect(screen.getByText(/already the current revision/)).toBeInTheDocument()
   })
 
   it('restoreDisabledReason (view-only role) disables restore and shows the reason', async () => {

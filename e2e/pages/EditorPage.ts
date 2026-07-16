@@ -359,4 +359,54 @@ export class EditorPage {
     await this.backToListLink.click()
     return new ContentListPage(this.page)
   }
+
+  /** Editor-header History button (#466) — `aria-label="History"` ghost icon button
+   *  (EditorScreen.tsx). Rendered only when `/api/capabilities` reports the git
+   *  history capability (true for the e2e harness's git-local adapter) AND the
+   *  entry has ever been committed. */
+  get historyButton() {
+    return this.page.getByRole('button', { name: 'History', exact: true })
+  }
+
+  /** The revision-history Sheet (HistoryPanel.tsx) — a Radix dialog whose accessible
+   *  name comes from its SheetTitle ("History") via aria-labelledby. */
+  get historyPanel() {
+    return this.page.getByRole('dialog', { name: 'History' })
+  }
+
+  /** Revision rows — `<button>`s inside the panel's `<ul aria-label="Revisions">`,
+   *  newest first; the first row carries the "Current" badge. */
+  get revisionRows() {
+    return this.historyPanel
+      .getByRole('list', { name: 'Revisions' })
+      .getByRole('button')
+  }
+
+  /** The diff area — `<section aria-label="Changes">`: frontmatter field rows
+   *  (old → new) plus the word-level body diff. */
+  get historyChanges() {
+    return this.historyPanel.getByRole('region', { name: 'Changes' })
+  }
+
+  /** "Restore this revision" — disabled (with a visible reason) for the Current
+   *  revision and for actors the server would 403 (view-only role / locked entry). */
+  get restoreRevisionButton() {
+    return this.historyPanel.getByRole('button', {
+      name: 'Restore this revision'
+    })
+  }
+
+  /** `notify.success`'s `Restored · <sha7>` toast — same Notifications-region
+   *  pattern as `publishedToast`. */
+  get restoredToast() {
+    return this.page
+      .getByRole('region', { name: 'Notifications', exact: true })
+      .getByText(/^Restored ·/)
+  }
+
+  /** Open the History panel and wait for it. */
+  async openHistory() {
+    await this.historyButton.click()
+    await expect(this.historyPanel).toBeVisible()
+  }
 }

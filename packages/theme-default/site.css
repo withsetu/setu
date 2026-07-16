@@ -234,6 +234,22 @@ body {
     calc((100vw - var(--measure-page)) / 2)
   );
 }
+
+/* {% gallery %} width — same breakout vocabulary as image/hero: none = column width
+   (no rule); wide = page measure; full = 100vw bleed with a small edge gutter so
+   flush-cropped thumbnails don't kiss the viewport edge. */
+.prose .blk-gallery.w-wide {
+  width: min(var(--measure-page), calc(100vw - 2rem));
+  margin-left: 50%;
+  transform: translateX(-50%);
+}
+.prose .blk-gallery.w-full {
+  width: 100vw;
+  margin-left: 50%;
+  transform: translateX(-50%);
+  padding-inline: clamp(0.5rem, 2vw, 1.5rem);
+  box-sizing: border-box;
+}
 .prose figure.setu-image.align-left {
   float: left;
   max-width: 50%;

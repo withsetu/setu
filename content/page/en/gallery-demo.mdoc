@@ -1,0 +1,15 @@
+---
+cid: ce5437df-d47c-4f8a-a58d-e4239991a0af
+title: Gallery Demo
+---
+
+A demo page for the gallery block (#177) — exercises the multi-image grid with
+columns, gap, per-image alt, captions, and the wide breakout through the real
+markdoc + theme pipeline.
+
+{% gallery
+   images=[{src: "/media/2026/06/test-cat.jpg", alt: "A test cat", caption: "The classic test cat"}, {src: "/media/2026/06/test-cat.jpg", alt: "Same cat again"}]
+   columns=2
+   gap="small"
+   captions=true
+   width="wide" /%}

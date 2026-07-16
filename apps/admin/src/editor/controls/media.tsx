@@ -1,6 +1,35 @@
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { resolveMediaSrc } from '../media-src'
 import { toDisplayString, type ControlProps } from './types'
+
+/** Empty-state URL entry for the video control: the block also accepts a direct URL
+ *  to a video FILE (e.g. an already-hosted mp4) — provider pages (YouTube/Vimeo)
+ *  belong to the embed block. Enter commits. */
+function VideoUrlEntry({ onCommit }: { onCommit: (url: string) => void }) {
+  const [url, setUrl] = useState('')
+  const commit = () => {
+    const trimmed = url.trim()
+    if (/^https?:\/\//i.test(trimmed)) onCommit(trimmed)
+  }
+  return (
+    <Input
+      type="url"
+      placeholder="…or paste a video file URL"
+      aria-label="Video file URL"
+      value={url}
+      onChange={(e) => setUrl(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          commit()
+        }
+      }}
+      onBlur={commit}
+    />
+  )
+}
 
 function MediaControlBase({
   value,
@@ -13,15 +42,20 @@ function MediaControlBase({
     : ''
   if (!src) {
     return (
-      <Button
-        type="button"
-        variant="outline"
-        aria-label={meta.name}
-        onClick={() => meta.onPickMedia(meta.name)}
-        className="h-24 w-full border-dashed text-muted-foreground"
-      >
-        Choose from library
-      </Button>
+      <div className="flex flex-col gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          aria-label={meta.name}
+          onClick={() => meta.onPickMedia(meta.name)}
+          className="h-24 w-full border-dashed text-muted-foreground"
+        >
+          Choose from library
+        </Button>
+        {kind === 'video' ? (
+          <VideoUrlEntry onCommit={(url) => onChange(url)} />
+        ) : null}
+      </div>
     )
   }
   if (kind === 'video') {

@@ -7,6 +7,7 @@ export interface GalleryImage {
 }
 
 export type GalleryGap = 'none' | 'small' | 'medium' | 'large'
+export type GalleryLayout = 'grid' | 'masonry'
 
 const GAPS: ReadonlySet<string> = new Set(['none', 'small', 'medium', 'large'])
 
@@ -45,10 +46,12 @@ export function galleryImagesOf(value: unknown): GalleryImage[] {
 export function galleryClasses(
   columns?: unknown,
   gap?: string,
-  width?: string
+  width?: string,
+  layout?: string
 ): string {
   const g = gap && GAPS.has(gap) ? gap : 'medium'
-  let cls = `blk-gallery cols-${clampColumns(columns)} gap-${g}`
+  const l: GalleryLayout = layout === 'masonry' ? 'masonry' : 'grid'
+  let cls = `blk-gallery layout-${l} cols-${clampColumns(columns)} gap-${g}`
   if (width === 'wide' || width === 'full') cls += ` w-${width}`
   return cls
 }

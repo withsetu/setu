@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { galleryImagesOf } from '@setu/blocks'
 import type { GalleryImage } from '@setu/blocks'
 import { Button } from '@/components/ui/button'
@@ -15,6 +15,18 @@ import type { ControlProps } from './types'
 export function MediaListControl({ value, onChange, meta }: ControlProps) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const items = galleryImagesOf(value)
+
+  // A multi-FILE upload fires the picker's onUploaded once per file from a single
+  // in-flight loop that captured ONE `append` closure — folding onto render-time
+  // `items` there would make the last write win and drop every file but one
+  // (#177 UAT defect). Appends read/advance this ref instead, so each one builds on
+  // the previous even before the parent re-renders; renders re-sync it from the
+  // authoritative value (the editor doc updates synchronously on onChange, so any
+  // post-append render carries the fresh array — no regression window).
+  const itemsRef = useRef(items)
+  useEffect(() => {
+    itemsRef.current = items
+  })
 
   const patch = (index: number, field: 'alt' | 'caption', raw: string) => {
     onChange(
@@ -37,7 +49,9 @@ export function MediaListControl({ value, onChange, meta }: ControlProps) {
     onChange(items.filter((_, i) => i !== index))
   }
   const append = (src: string) => {
-    onChange([...items, { src } satisfies GalleryImage])
+    const next = [...itemsRef.current, { src } satisfies GalleryImage]
+    itemsRef.current = next
+    onChange(next)
   }
 
   return (

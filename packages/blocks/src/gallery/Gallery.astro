@@ -1,21 +1,131 @@
 ---
 import './gallery.css'
 import Image from '@setu/image-astro/Image.astro'
+import { resolveMediaBase } from '@setu/image-astro'
 import { galleryClasses, galleryImagesOf, sizesForColumns } from './gallery-classes'
-const { images = [], columns = 3, gap = 'medium', captions = false, width } = Astro.props
+const { images = [], layout = 'grid', columns = 3, gap = 'medium', captions = false, lightbox = true, width } = Astro.props
 const items = galleryImagesOf(images)
-const cls = galleryClasses(columns, gap, width)
+const cls = galleryClasses(columns, gap, width, layout)
 const sizes = sizesForColumns(columns)
+// #553 lightbox: tiles link to the FULL-SIZE original (the no-JS fallback); the inline
+// script below upgrades them to a <dialog> slideshow that loads that original on demand.
+// Same URL resolution as Image.astro: root-relative /media/* is prefixed with the media
+// base, absolute URLs pass through.
+const lightboxOn = Boolean(lightbox) && items.length > 0
+const base = resolveMediaBase(import.meta.env.PUBLIC_SETU_MEDIA, import.meta.env.DEV)
+const fullUrl = (s: string) => (!s || /^https?:\/\//i.test(s) ? s : s.startsWith('/') ? `${base}${s}` : s)
 ---
 {items.length > 0 && (
-  <div class={cls}>
+  <div class={cls} data-lightbox={lightboxOn ? '' : undefined}>
     {items.map((img) => (
       <figure class="blk-gallery-item">
-        <Image src={img.src} alt={img.alt ?? ''} sizes={sizes} />
+        {lightboxOn ? (
+          <a
+            class="blk-gallery-link"
+            href={fullUrl(img.src)}
+            aria-label={img.alt ? `View full size: ${img.alt}` : 'View full-size image'}
+            data-lb-alt={img.alt ?? ''}
+            data-lb-caption={img.caption ?? ''}
+          >
+            <Image src={img.src} alt={img.alt ?? ''} sizes={sizes} />
+          </a>
+        ) : (
+          <Image src={img.src} alt={img.alt ?? ''} sizes={sizes} />
+        )}
         {captions && img.caption && (
           <figcaption class="blk-gallery-caption">{img.caption}</figcaption>
         )}
       </figure>
     ))}
+    {lightboxOn && (
+      <dialog class="blk-gallery-lightbox" aria-label="Image viewer">
+        <p class="blk-gallery-lb-counter" aria-live="polite"></p>
+        <button type="button" class="blk-gallery-lb-close" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+        <button type="button" class="blk-gallery-lb-prev" aria-label="Previous image">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>
+        </button>
+        <figure class="blk-gallery-lb-figure">
+          <img class="blk-gallery-lb-img" alt="" />
+          <figcaption class="blk-gallery-lb-caption" hidden></figcaption>
+        </figure>
+        <button type="button" class="blk-gallery-lb-next" aria-label="Next image">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+        </button>
+      </dialog>
+    )}
   </div>
+)}
+{/* Progressive enhancement, blur-up precedent (Image.astro): an is:inline script shipped
+    verbatim — plain browser JS, NO TypeScript — emitted only when a lightbox gallery is on
+    the page, guarded to run once page-wide however many galleries emit it. Native <dialog>
+    showModal() supplies the focus trap, Escape-to-close, and focus restore to the clicked
+    tile; the script adds the slideshow (prev/next/arrows), on-demand full-size loading,
+    caption + counter, and backdrop-click close. Zero dependencies, static-site safe. */}
+{lightboxOn && (
+  <script is:inline>
+    (function () {
+      if (window.__setuGalleryLightbox) return;
+      window.__setuGalleryLightbox = 1;
+      function setup(root) {
+        if (root.__setuLb) return;
+        root.__setuLb = 1;
+        var dialog = root.querySelector('.blk-gallery-lightbox');
+        var links = Array.prototype.slice.call(root.querySelectorAll('.blk-gallery-link'));
+        if (!dialog || typeof dialog.showModal !== 'function' || links.length === 0) return;
+        var img = dialog.querySelector('.blk-gallery-lb-img');
+        var cap = dialog.querySelector('.blk-gallery-lb-caption');
+        var counter = dialog.querySelector('.blk-gallery-lb-counter');
+        var prev = dialog.querySelector('.blk-gallery-lb-prev');
+        var next = dialog.querySelector('.blk-gallery-lb-next');
+        var cur = 0;
+        function show(i) {
+          cur = (i + links.length) % links.length;
+          var a = links[cur];
+          img.src = a.getAttribute('href');
+          img.alt = a.getAttribute('data-lb-alt') || '';
+          var c = a.getAttribute('data-lb-caption') || '';
+          cap.textContent = c;
+          cap.hidden = !c;
+          counter.textContent = cur + 1 + ' / ' + links.length;
+        }
+        links.forEach(function (a, i) {
+          a.addEventListener('click', function (e) {
+            e.preventDefault();
+            show(i);
+            dialog.showModal();
+          });
+        });
+        dialog.querySelector('.blk-gallery-lb-close').addEventListener('click', function () {
+          dialog.close();
+        });
+        if (links.length < 2) {
+          prev.hidden = true;
+          next.hidden = true;
+        } else {
+          prev.addEventListener('click', function () { show(cur - 1); });
+          next.addEventListener('click', function () { show(cur + 1); });
+          dialog.addEventListener('keydown', function (e) {
+            if (e.key === 'ArrowLeft') { e.preventDefault(); show(cur - 1); }
+            else if (e.key === 'ArrowRight') { e.preventDefault(); show(cur + 1); }
+          });
+        }
+        dialog.addEventListener('click', function (e) {
+          if (e.target === dialog) dialog.close();
+        });
+        dialog.addEventListener('close', function () {
+          img.removeAttribute('src');
+        });
+      }
+      function init() {
+        document.querySelectorAll('.blk-gallery[data-lightbox]').forEach(setup);
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
+    })();
+  </script>
 )}

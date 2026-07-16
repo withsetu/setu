@@ -51,6 +51,15 @@ describe('Gallery canvas core', () => {
     )
     expect(container.querySelector('.blk-gallery.w-wide')).toBeTruthy()
   })
+
+  it('renders masonry layout as a layout-masonry class (#533)', () => {
+    const { container, rerender } = render(
+      <Gallery images={[{ src: '/media/a.webp' }]} />
+    )
+    expect(container.querySelector('.blk-gallery.layout-grid')).toBeTruthy()
+    rerender(<Gallery images={[{ src: '/media/a.webp' }]} layout="masonry" />)
+    expect(container.querySelector('.blk-gallery.layout-masonry')).toBeTruthy()
+  })
 })
 
 describe('gallery class + attr helpers', () => {
@@ -58,6 +67,16 @@ describe('gallery class + attr helpers', () => {
     expect(galleryClasses(undefined, undefined, undefined)).toContain('cols-3')
     expect(galleryClasses(9, 'medium', 'none')).toContain('cols-6')
     expect(galleryClasses(0, 'medium', 'none')).toContain('cols-1')
+  })
+
+  it('layout falls back to grid for unknown values (#533)', () => {
+    expect(galleryClasses(3, 'medium', 'none')).toContain('layout-grid')
+    expect(galleryClasses(3, 'medium', 'none', 'masonry')).toContain(
+      'layout-masonry'
+    )
+    expect(galleryClasses(3, 'medium', 'none', 'bogus')).toContain(
+      'layout-grid'
+    )
   })
 
   it('galleryImagesOf keeps only well-formed items from unknown attrs', () => {

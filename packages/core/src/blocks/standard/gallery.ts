@@ -16,9 +16,12 @@ export const galleryBlock: StandardBlock = {
   contract: defineBlock({
     props: z.object({
       images: z.array(galleryImageSchema).default([]),
+      layout: z.enum(['grid', 'masonry']).default('grid'),
       columns: z.number().min(1).max(6).default(3),
       gap: z.enum(['none', 'small', 'medium', 'large']).default('medium'),
       captions: z.boolean().default(false),
+      /** WP "Expand on click": tiles open a full-size slideshow (#553). Default on. */
+      lightbox: z.boolean().default(true),
       width: z.enum(['none', 'wide', 'full']).default('none')
     }),
     editor: {
@@ -29,20 +32,22 @@ export const galleryBlock: StandardBlock = {
       style: { themeable: ['surface', 'radius'] },
       controls: {
         images: 'media-list',
+        layout: 'select',
         columns: 'slider',
         gap: 'select',
         captions: 'switch',
+        lightbox: 'switch',
         width: 'align'
       },
-      labels: { captions: 'Show Captions' },
+      labels: { captions: 'Show Captions', lightbox: 'Expand on Click' },
       groups: [
         { id: 'content', label: 'Content', controls: ['images'] },
         {
           id: 'layout',
           label: 'Layout',
-          controls: ['columns', 'gap', 'width']
+          controls: ['layout', 'columns', 'gap', 'width']
         },
-        { id: 'style', label: 'Style', controls: ['captions'] }
+        { id: 'style', label: 'Style', controls: ['captions', 'lightbox'] }
       ]
     }
   })

@@ -22,22 +22,43 @@
 
 /* ── Columns ──────────────────────────────────────────────────────────────── */
 .blk-gallery.cols-1 {
+  --blk-gallery-cols: 1;
   grid-template-columns: minmax(0, 1fr);
 }
 .blk-gallery.cols-2 {
+  --blk-gallery-cols: 2;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .blk-gallery.cols-3 {
+  --blk-gallery-cols: 3;
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 .blk-gallery.cols-4 {
+  --blk-gallery-cols: 4;
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 .blk-gallery.cols-5 {
+  --blk-gallery-cols: 5;
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 .blk-gallery.cols-6 {
+  --blk-gallery-cols: 6;
   grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+/* ── Masonry (#533) — CSS multi-column: items keep natural aspect and pack
+      vertically; the point is vertical/mixed-aspect photos, so no 4/3 crop. */
+.blk-gallery.layout-masonry {
+  display: block;
+  columns: var(--blk-gallery-cols, 3);
+  column-gap: var(--blk-gallery-gap, 0.75rem);
+}
+.blk-gallery.layout-masonry .blk-gallery-item {
+  break-inside: avoid;
+  margin: 0 0 var(--blk-gallery-gap, 0.75rem);
+}
+.blk-gallery.layout-masonry .blk-gallery-item img {
+  aspect-ratio: auto;
 }
 
 /* Narrow screens: collapse dense grids so thumbnails stay legible. */
@@ -48,6 +69,12 @@
   .blk-gallery.cols-6 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .blk-gallery.layout-masonry.cols-3,
+  .blk-gallery.layout-masonry.cols-4,
+  .blk-gallery.layout-masonry.cols-5,
+  .blk-gallery.layout-masonry.cols-6 {
+    columns: 2;
+  }
 }
 @media (max-width: 480px) {
   .blk-gallery.cols-2,
@@ -56,6 +83,13 @@
   .blk-gallery.cols-5,
   .blk-gallery.cols-6 {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .blk-gallery.layout-masonry.cols-2,
+  .blk-gallery.layout-masonry.cols-3,
+  .blk-gallery.layout-masonry.cols-4,
+  .blk-gallery.layout-masonry.cols-5,
+  .blk-gallery.layout-masonry.cols-6 {
+    columns: 1;
   }
 }
 
@@ -111,4 +145,123 @@
   width: 28px;
   height: 28px;
   opacity: 0.7;
+}
+
+/* ── Lightbox (#553, WP "Expand on click") ────────────────────────────────────
+   Tiles become links to the full-size original (the no-JS fallback); the inline
+   progressive-enhancement script in Gallery.astro intercepts them and opens the
+   <dialog> slideshow. Neutral #fff/#000 + rgba() only — a photo overlay is a
+   contrast surface, not a brand one (mirrors hero.css's scrim fallback). */
+.blk-gallery-link {
+  display: block;
+  cursor: zoom-in;
+  border-radius: var(--r-sm);
+}
+.blk-gallery.gap-none .blk-gallery-link {
+  border-radius: 0;
+}
+.blk-gallery-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.blk-gallery-lightbox {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  width: 100vw;
+  height: 100vh;
+  max-width: 100vw;
+  max-height: 100vh;
+  background: transparent;
+}
+.blk-gallery-lightbox[open] {
+  display: grid;
+  place-items: center;
+}
+.blk-gallery-lightbox::backdrop {
+  background: rgba(0, 0, 0, 0.85);
+}
+
+.blk-gallery-lb-figure {
+  margin: 0;
+  display: grid;
+  gap: 0.625rem;
+  justify-items: center;
+  max-width: 92vw;
+}
+.blk-gallery-lb-img {
+  max-width: 92vw;
+  max-height: 82vh;
+  width: auto;
+  height: auto;
+  border-radius: var(--r-sm);
+}
+.blk-gallery-lb-caption {
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  opacity: 0.9;
+  text-align: center;
+  max-width: 60ch;
+}
+.blk-gallery-lb-counter {
+  position: fixed;
+  top: 1.1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  color: #fff;
+  opacity: 0.75;
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
+}
+
+.blk-gallery-lb-close,
+.blk-gallery-lb-prev,
+.blk-gallery-lb-next {
+  position: fixed;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.blk-gallery-lb-close:hover,
+.blk-gallery-lb-prev:hover,
+.blk-gallery-lb-next:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+.blk-gallery-lb-close:focus-visible,
+.blk-gallery-lb-prev:focus-visible,
+.blk-gallery-lb-next:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+.blk-gallery-lb-close {
+  top: 1rem;
+  right: 1rem;
+}
+.blk-gallery-lb-prev {
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.blk-gallery-lb-next {
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.blk-gallery-lb-close svg,
+.blk-gallery-lb-prev svg,
+.blk-gallery-lb-next svg {
+  width: 20px;
+  height: 20px;
 }

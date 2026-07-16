@@ -23,7 +23,11 @@ export {
   clampColumns,
   sizesForColumns
 } from './gallery/gallery-classes'
-export type { GalleryImage, GalleryGap } from './gallery/gallery-classes'
+export type {
+  GalleryImage,
+  GalleryGap,
+  GalleryLayout
+} from './gallery/gallery-classes'
 
 /** A block's React visual core. The registry is heterogeneous by design (NoticeProps,
  *  HeroProps, …) and dispatched dynamically by tag; each block's props are validated by

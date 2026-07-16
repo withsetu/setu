@@ -97,4 +97,63 @@ describe('MediaListControl', () => {
       expect(screen.queryByText('cat.png')).not.toBeInTheDocument()
     )
   })
+
+  it('appends EVERY file of a multi-file upload, in selection order (#177 UAT defect)', async () => {
+    // The dropzone's in-flight upload loop captures ONE onUploaded closure and fires
+    // it once per file — if append folds onto render-time items, the last write wins
+    // and only one image survives. Reproduces the owner-UAT defect: upload two files
+    // at once, expect BOTH appended.
+    const svc = createMediaIndexService({
+      mediaIndex: createMemoryMediaIndexPort(),
+      fetchRaw: async () => []
+    })
+    await svc.ensureBuilt()
+    let uploads = 0
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url
+      if (url.endsWith('/media')) {
+        uploads += 1
+        const name = uploads === 1 ? 'first' : 'second'
+        return new Response(
+          JSON.stringify({ url: `http://x/media/2026/07/${name}.png` }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      }
+      return new Response(JSON.stringify([]), { status: 200 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      const onChange = vi.fn()
+      render(
+        <MediaIndexProvider service={svc}>
+          <MediaListControl value={[]} onChange={onChange} meta={meta} />
+        </MediaIndexProvider>
+      )
+      fireEvent.click(screen.getByRole('button', { name: /add images/i }))
+      const input = await screen.findByTestId('media-dropzone-input')
+      expect(input).toHaveAttribute('multiple') // multi-select enabled in pick mode
+      fireEvent.change(input, {
+        target: {
+          files: [
+            new File(['a'], 'first.png', { type: 'image/png' }),
+            new File(['b'], 'second.png', { type: 'image/png' })
+          ]
+        }
+      })
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+      await waitFor(() =>
+        expect(onChange).toHaveBeenLastCalledWith([
+          { src: '/media/2026/07/first.png' },
+          { src: '/media/2026/07/second.png' }
+        ])
+      )
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
 })

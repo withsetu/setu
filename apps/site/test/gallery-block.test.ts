@@ -72,14 +72,22 @@ afterAll(() => {
 })
 
 describe('gallery block render (#177)', () => {
-  it('renders the gallery root with columns/gap/width classes', () => {
-    // galleryClasses(columns, gap, width) — gallery-classes.ts
-    expect(html).toContain('class="blk-gallery cols-2 gap-small w-wide"')
+  it('renders the gallery root with layout/columns/gap/width classes', () => {
+    // galleryClasses(columns, gap, width, layout) — gallery-classes.ts
+    expect(html).toContain(
+      'class="blk-gallery layout-grid cols-2 gap-small w-wide"'
+    )
+  })
+
+  it('renders the second gallery as masonry (#533)', () => {
+    expect(html).toContain(
+      'class="blk-gallery layout-masonry cols-3 gap-medium"'
+    )
   })
 
   it('renders one figure per image with per-image alt', () => {
     const items = html.match(/class="blk-gallery-item"/g) ?? []
-    expect(items.length).toBe(2)
+    expect(items.length).toBe(3) // 2 in the grid gallery + 1 in the masonry one
     expect(html).toContain('alt="A test cat"')
     expect(html).toContain('alt="Same cat again"')
   })
@@ -108,10 +116,31 @@ describe('gallery block render (#177)', () => {
     expect(captions.length).toBe(1)
   })
 
-  it('ships zero JS — no island, no script beyond SEO JSON-LD', () => {
-    expect(html).not.toContain('astro-island')
-    expect(html).not.toMatch(
-      /<script(?![^>]*type="application\/ld\+json")[\s>]/
+  it('lightbox (#553): tiles link to the full-size original with a dialog + inline script', () => {
+    // Default lightbox=on: only the FIRST gallery's 2 tiles are links (the second
+    // sets lightbox=false), each pointing at the full-size original (no-JS fallback).
+    const links = html.match(/class="blk-gallery-link"/g) ?? []
+    expect(links.length).toBe(2)
+    expect(html).toContain(
+      'href="https://cdn.example.test/media/2026/06/test-cat.jpg"'
     )
+    // per-image data for the slideshow
+    expect(html).toContain('data-lb-alt="A test cat"')
+    expect(html).toContain('data-lb-caption="The classic test cat"')
+    // exactly one dialog (the lightbox-off gallery contributes none)
+    const dialogs = html.match(/<dialog class="blk-gallery-lightbox"/g) ?? []
+    expect(dialogs.length).toBe(1)
+    expect(html).toContain('aria-label="Previous image"')
+    expect(html).toContain('aria-label="Next image"')
+    expect(html).toContain('aria-label="Close"')
+    // the progressive-enhancement script ships inline, once
+    const scripts = html.match(/__setuGalleryLightbox/g) ?? []
+    expect(scripts.length).toBeGreaterThanOrEqual(1)
+    // and the lightbox-off masonry gallery has no data-lightbox marker
+    expect(html).not.toMatch(/layout-masonry[^"]*" data-lightbox/)
+  })
+
+  it('stays framework-free — no astro-island hydration', () => {
+    expect(html).not.toContain('astro-island')
   })
 })

@@ -21,6 +21,14 @@ describe('gallery contract', () => {
       matches: ['none', 'small', 'medium', 'large'],
       default: 'medium'
     })
+    // #533: masonry layout for vertical/mixed-aspect images
+    expect(attrs.layout).toEqual({
+      type: 'String',
+      matches: ['grid', 'masonry'],
+      default: 'grid'
+    })
+    // #553: lightbox (WP "Expand on click") — default ON
+    expect(attrs.lightbox).toEqual({ type: 'Boolean', default: true })
   })
 
   it('resolves typed controls: media-list, slider, select, switch, align', () => {
@@ -30,9 +38,11 @@ describe('gallery contract', () => {
     )
     const control = (name: string) => out.find((c) => c.name === name)!.control
     expect(control('images')).toBe('media-list')
+    expect(control('layout')).toBe('select')
     expect(control('columns')).toBe('slider')
     expect(control('gap')).toBe('select')
     expect(control('captions')).toBe('switch')
+    expect(control('lightbox')).toBe('switch')
     expect(control('width')).toBe('align')
   })
 

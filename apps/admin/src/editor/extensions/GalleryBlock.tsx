@@ -19,6 +19,7 @@ function GalleryBlockView({ node, editor }: ReactNodeViewProps) {
       <div className="setu-block" data-tag="gallery" contentEditable={false}>
         <Gallery
           images={images}
+          layout={attrStringOrUndefined(md['layout'])}
           columns={
             typeof md['columns'] === 'number' ? md['columns'] : undefined
           }

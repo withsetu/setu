@@ -3,6 +3,9 @@ import { galleryClasses, type GalleryImage } from './gallery-classes'
 
 export interface GalleryProps {
   images?: GalleryImage[]
+  /** 'grid' (default) or 'masonry' (#533); untyped string — mdAttrs arrive
+   *  unvalidated and galleryClasses falls back to grid. */
+  layout?: string
   columns?: number
   /** One of GalleryGap; untyped string because mdAttrs arrive unvalidated
    *  (galleryClasses falls back to 'medium' for unknown values). */
@@ -14,9 +17,11 @@ export interface GalleryProps {
 /** The gallery visual core. Rendered read-only in the editor canvas (props from the
  *  node's mdAttrs); the site mirrors this exact class structure in Gallery.astro,
  *  sharing gallery.css — except images, which the site routes through
- *  @setu/image-astro for real srcset/LQIP output. */
+ *  @setu/image-astro for real srcset/LQIP output, and the lightbox (#553), which
+ *  is site-only behavior: tiles in the editor canvas never navigate or open dialogs. */
 export function Gallery({
   images = [],
+  layout = 'grid',
   columns = 3,
   gap = 'medium',
   captions = false,
@@ -48,7 +53,7 @@ export function Gallery({
     )
   }
   return (
-    <div className={galleryClasses(columns, gap, width)}>
+    <div className={galleryClasses(columns, gap, width, layout)}>
       {images.map((img, i) => (
         <figure className="blk-gallery-item" key={`${img.src}-${i}`}>
           <img src={img.src} alt={img.alt ?? ''} loading="lazy" />

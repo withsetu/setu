@@ -24,3 +24,7 @@ taxonomy/*.yaml
 **/*.md
 design/
 .github/
+
+# Deliberately malformed fixture (the AIC pack must skip-and-count unparseable
+# records) — Prettier's JSON parser rightly rejects it.
+packages/demo-data/test/fixtures/artworks/107.json

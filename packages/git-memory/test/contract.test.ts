@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest'
 import { runGitPortContract } from '@setu/git-testing'
 import { createMemoryGitPort } from '../src/index'
 
-runGitPortContract(() => createMemoryGitPort())
+// #466: git-memory implements the optional log/readFileAt capability so API
+// tests can exercise the history happy path without a real repo.
+runGitPortContract(() => createMemoryGitPort(), { history: true })
 
 describe('createMemoryGitPort seed', () => {
   it('applies seed files as initial commits (non-null head + readable)', async () => {

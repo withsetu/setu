@@ -40,22 +40,40 @@ function makeRig() {
   // canonical samples
   const samples = path.join(root, 'content', 'post', 'en')
   mkdirSync(samples, { recursive: true })
-  writeFileSync(path.join(samples, 'sample-one.mdoc'), '---\ntitle: One\n---\n\nSample one.\n')
-  writeFileSync(path.join(samples, 'sample-two.mdoc'), '---\ntitle: Two\n---\n\nSample two.\n')
+  writeFileSync(
+    path.join(samples, 'sample-one.mdoc'),
+    '---\ntitle: One\n---\n\nSample one.\n'
+  )
+  writeFileSync(
+    path.join(samples, 'sample-two.mdoc'),
+    '---\ntitle: Two\n---\n\nSample two.\n'
+  )
 
   // sandbox = samples + a hand-made post + taxonomy + settings.json
   const sandbox = path.join(root, '.content-sandbox', 'dev')
   const sandboxPosts = path.join(sandbox, 'content', 'post', 'en')
   mkdirSync(sandboxPosts, { recursive: true })
-  writeFileSync(path.join(sandboxPosts, 'sample-one.mdoc'), '---\ntitle: One (edited)\n---\n\nEdited.\n')
-  writeFileSync(path.join(sandboxPosts, 'sample-two.mdoc'), '---\ntitle: Two\n---\n\nSample two.\n')
-  writeFileSync(path.join(sandboxPosts, 'handmade.mdoc'), '---\ntitle: Handmade\n---\n\nMine.\n')
+  writeFileSync(
+    path.join(sandboxPosts, 'sample-one.mdoc'),
+    '---\ntitle: One (edited)\n---\n\nEdited.\n'
+  )
+  writeFileSync(
+    path.join(sandboxPosts, 'sample-two.mdoc'),
+    '---\ntitle: Two\n---\n\nSample two.\n'
+  )
+  writeFileSync(
+    path.join(sandboxPosts, 'handmade.mdoc'),
+    '---\ntitle: Handmade\n---\n\nMine.\n'
+  )
   mkdirSync(path.join(sandbox, 'taxonomy'), { recursive: true })
   writeFileSync(
     path.join(sandbox, 'taxonomy', 'categories.yaml'),
     '- slug: recipes\n  name: Recipes\n  parent: null\n'
   )
-  writeFileSync(path.join(sandbox, 'settings.json'), '{"identity":{"title":"Keep me"}}\n')
+  writeFileSync(
+    path.join(sandbox, 'settings.json'),
+    '{"identity":{"title":"Keep me"}}\n'
+  )
   git(sandbox, ['init', '-q'])
   git(sandbox, ['add', '-A'])
   git(sandbox, ['commit', '-q', '-m', 'seed sandbox'])
@@ -88,12 +106,21 @@ describe('datasetStatus', () => {
 
     mkdirSync(path.join(root, '.demo-data'), { recursive: true })
     writeFileSync(path.join(root, '.demo-data', 'aic-sample.jsonl'), '{}\n')
-    expect(await engine.datasetStatus()).toEqual({ present: true, kind: 'sample' })
-
-    mkdirSync(path.join(root, '.demo-data', 'artic-api-data', 'json', 'artworks'), {
-      recursive: true
+    expect(await engine.datasetStatus()).toEqual({
+      present: true,
+      kind: 'sample'
     })
-    expect(await engine.datasetStatus()).toEqual({ present: true, kind: 'dump' })
+
+    mkdirSync(
+      path.join(root, '.demo-data', 'artic-api-data', 'json', 'artworks'),
+      {
+        recursive: true
+      }
+    )
+    expect(await engine.datasetStatus()).toEqual({
+      present: true,
+      kind: 'dump'
+    })
   })
 })
 
@@ -107,9 +134,13 @@ describe('resetZero', () => {
     expect(summary.filesRemoved).toBe(4) // 3 posts + categories.yaml
     expect(summary.filesRestored).toBe(0)
     // the wipe is a commit, not an fs reach-around
-    expect(git(sandbox, ['log', '-1', '--pretty=%s'])).toContain('absolute zero')
+    expect(git(sandbox, ['log', '-1', '--pretty=%s'])).toContain(
+      'absolute zero'
+    )
     expect(existsSync(path.join(sandbox, 'settings.json'))).toBe(true)
-    expect(existsSync(path.join(sandbox, 'content', 'post', 'en', 'handmade.mdoc'))).toBe(false)
+    expect(
+      existsSync(path.join(sandbox, 'content', 'post', 'en', 'handmade.mdoc'))
+    ).toBe(false)
   })
 })
 
@@ -125,12 +156,14 @@ describe('resetSample', () => {
     expect(await gitPort.readFile('content/post/en/sample-one.mdoc')).toContain(
       'title: One'
     )
-    expect(await gitPort.readFile('content/post/en/sample-one.mdoc')).not.toContain(
-      'edited'
-    )
+    expect(
+      await gitPort.readFile('content/post/en/sample-one.mdoc')
+    ).not.toContain('edited')
     expect(await gitPort.list('taxonomy/')).toEqual([])
     expect(summary.filesRestored).toBe(2)
-    expect(git(sandbox, ['log', '-1', '--pretty=%s'])).toContain('reset to sample')
+    expect(git(sandbox, ['log', '-1', '--pretty=%s'])).toContain(
+      'reset to sample'
+    )
     expect(existsSync(path.join(sandbox, 'settings.json'))).toBe(true)
   })
 

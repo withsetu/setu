@@ -104,7 +104,10 @@ export function buildDemoEngine(opts: DemoWiringOptions): DemoEngine {
   const datasetStatus = async (): Promise<DemoDatasetStatus> => {
     const source = await detectAicSource(repoRoot)
     if (source === null) return { present: false, kind: null }
-    return { present: true, kind: source.endsWith('.jsonl') ? 'sample' : 'dump' }
+    return {
+      present: true,
+      kind: source.endsWith('.jsonl') ? 'sample' : 'dump'
+    }
   }
 
   /** The wipe(+restore) commit shared by 'sample' and 'zero'. */

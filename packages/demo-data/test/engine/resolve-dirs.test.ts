@@ -23,7 +23,13 @@ describe('detectAicSource', () => {
 
   it('prefers the extracted dump directory over a sampled jsonl', async () => {
     const root = tmpRoot()
-    const dump = path.join(root, '.demo-data', 'artic-api-data', 'json', 'artworks')
+    const dump = path.join(
+      root,
+      '.demo-data',
+      'artic-api-data',
+      'json',
+      'artworks'
+    )
     mkdirSync(dump, { recursive: true })
     mkdirSync(path.join(root, '.demo-data'), { recursive: true })
     writeFileSync(path.join(root, '.demo-data', 'aic-sample.jsonl'), '{}\n')

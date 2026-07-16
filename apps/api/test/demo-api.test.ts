@@ -14,7 +14,9 @@ const admin: Actor = { id: 'local', role: 'admin' }
 const author: Actor = { id: 'a', role: 'author' }
 
 const seedSummary: SeedSummary = {
-  users: [{ email: 'demo-admin-1@demo.setu.test', role: 'admin', password: 'pw-123' }],
+  users: [
+    { email: 'demo-admin-1@demo.setu.test', role: 'admin', password: 'pw-123' }
+  ],
   posts: 2,
   images: 1,
   imagesReused: 0,
@@ -61,13 +63,19 @@ function fakeEngine(overrides: Partial<DemoEngine> = {}): DemoEngine {
 
 function api(
   engine: DemoEngine = fakeEngine(),
-  opts: { enabled?: boolean; actor?: Actor | null; onContentMutated?: () => void } = {}
+  opts: {
+    enabled?: boolean
+    actor?: Actor | null
+    onContentMutated?: () => void
+  } = {}
 ) {
   return createDemoApi({
     enabled: opts.enabled ?? true,
-    resolveActor: () => opts.actor === undefined ? admin : opts.actor,
+    resolveActor: () => (opts.actor === undefined ? admin : opts.actor),
     engine,
-    ...(opts.onContentMutated ? { onContentMutated: opts.onContentMutated } : {})
+    ...(opts.onContentMutated
+      ? { onContentMutated: opts.onContentMutated }
+      : {})
   })
 }
 
@@ -99,7 +107,9 @@ describe('gating', () => {
     const app = api(fakeEngine(), { enabled: false })
     expect((await get(app, '/api/demo/status')).status).toBe(404)
     expect((await post(app, '/api/demo/seed', seedBody)).status).toBe(404)
-    expect((await post(app, '/api/demo/unseed', { level: 'zero' })).status).toBe(404)
+    expect(
+      (await post(app, '/api/demo/unseed', { level: 'zero' })).status
+    ).toBe(404)
     expect((await post(app, '/api/demo/fetch-dump')).status).toBe(404)
     expect((await post(app, '/api/demo/cancel')).status).toBe(404)
   })
@@ -108,7 +118,9 @@ describe('gating', () => {
     const app = api(fakeEngine(), { actor: null })
     expect((await get(app, '/api/demo/status')).status).toBe(401)
     expect((await post(app, '/api/demo/seed', seedBody)).status).toBe(401)
-    expect((await post(app, '/api/demo/unseed', { level: 'zero' })).status).toBe(401)
+    expect(
+      (await post(app, '/api/demo/unseed', { level: 'zero' })).status
+    ).toBe(401)
     expect((await post(app, '/api/demo/fetch-dump')).status).toBe(401)
     expect((await post(app, '/api/demo/cancel')).status).toBe(401)
   })
@@ -117,7 +129,9 @@ describe('gating', () => {
     const app = api(fakeEngine(), { actor: author })
     expect((await get(app, '/api/demo/status')).status).toBe(403)
     expect((await post(app, '/api/demo/seed', seedBody)).status).toBe(403)
-    expect((await post(app, '/api/demo/unseed', { level: 'zero' })).status).toBe(403)
+    expect(
+      (await post(app, '/api/demo/unseed', { level: 'zero' })).status
+    ).toBe(403)
     expect((await post(app, '/api/demo/fetch-dump')).status).toBe(403)
     expect((await post(app, '/api/demo/cancel')).status).toBe(403)
   })
@@ -134,7 +148,11 @@ describe('GET /api/demo/status', () => {
   })
 
   it('reports a missing dataset honestly', async () => {
-    const app = api(fakeEngine({ datasetStatus: async () => ({ present: false, kind: null }) }))
+    const app = api(
+      fakeEngine({
+        datasetStatus: async () => ({ present: false, kind: null })
+      })
+    )
     const res = await get(app, '/api/demo/status')
     expect(((await res.json()) as { dataset: unknown }).dataset).toEqual({
       present: false,
@@ -187,7 +205,11 @@ describe('POST /api/demo/seed', () => {
         }
       })
     )
-    await post(app, '/api/demo/seed', { ...seedBody, relaxText: true, limitImages: 10 })
+    await post(app, '/api/demo/seed', {
+      ...seedBody,
+      relaxText: true,
+      limitImages: 10
+    })
     await settle()
     expect(received).toMatchObject({
       posts: 50,
@@ -199,7 +221,11 @@ describe('POST /api/demo/seed', () => {
   })
 
   it('409s with source-missing when no dataset is fetched (never a cryptic failure)', async () => {
-    const app = api(fakeEngine({ datasetStatus: async () => ({ present: false, kind: null }) }))
+    const app = api(
+      fakeEngine({
+        datasetStatus: async () => ({ present: false, kind: null })
+      })
+    )
     const res = await post(app, '/api/demo/seed', seedBody)
     expect(res.status).toBe(409)
     expect(await res.json()).toEqual({ error: 'source-missing' })
@@ -207,9 +233,12 @@ describe('POST /api/demo/seed', () => {
 
   it('rejects out-of-cap bodies (Zod at the boundary)', async () => {
     const app = api()
-    expect((await post(app, '/api/demo/seed', { ...seedBody, posts: 30001 })).status).toBe(400)
     expect(
-      (await post(app, '/api/demo/seed', { ...seedBody, draftFraction: 1.5 })).status
+      (await post(app, '/api/demo/seed', { ...seedBody, posts: 30001 })).status
+    ).toBe(400)
+    expect(
+      (await post(app, '/api/demo/seed', { ...seedBody, draftFraction: 1.5 }))
+        .status
     ).toBe(400)
     expect(
       (
@@ -222,7 +251,8 @@ describe('POST /api/demo/seed', () => {
     expect((await post(app, '/api/demo/seed', { posts: 50 })).status).toBe(400)
     // an unknown key is a client bug — strict schema
     expect(
-      (await post(app, '/api/demo/seed', { ...seedBody, concurrency: 64 })).status
+      (await post(app, '/api/demo/seed', { ...seedBody, concurrency: 64 }))
+        .status
     ).toBe(400)
   })
 
@@ -242,7 +272,9 @@ describe('POST /api/demo/seed', () => {
     expect(second.status).toBe(409)
     expect(await second.json()).toEqual({ error: 'job-running' })
     // …and the other starters are blocked by the same slot
-    expect((await post(app, '/api/demo/unseed', { level: 'zero' })).status).toBe(409)
+    expect(
+      (await post(app, '/api/demo/unseed', { level: 'zero' })).status
+    ).toBe(409)
     expect((await post(app, '/api/demo/fetch-dump')).status).toBe(409)
     release()
     await settle()
@@ -316,7 +348,9 @@ describe('POST /api/demo/unseed', () => {
   })
 
   it('rejects unknown levels', async () => {
-    expect((await post(api(), '/api/demo/unseed', { level: 'everything' })).status).toBe(400)
+    expect(
+      (await post(api(), '/api/demo/unseed', { level: 'everything' })).status
+    ).toBe(400)
   })
 
   it('notifies onContentMutated after a mutating job lands', async () => {

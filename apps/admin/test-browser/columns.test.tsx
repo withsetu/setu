@@ -150,6 +150,46 @@ describe('Columns node (real browser)', () => {
     expect(cols[1]!.textContent).toBe('TwoThree')
   })
 
+  it('shrinking preserves a callout node view in the kept column, byte for byte', async () => {
+    // Live-drive regression guard for #181: the kept column holds a React node view
+    // (callout) when a trailing column's content is merged in — positions must not
+    // clip the callout body. (The character loss seen in UAT was #536, a pre-existing
+    // typing-vs-mount race on callout insertion, not this command.)
+    render(
+      <Harness
+        content={{
+          type: 'doc',
+          content: [
+            {
+              type: 'columns',
+              attrs: { mdAttrs: { layout: '33-33-33', gap: 'lg' } },
+              content: [
+                column(p('First column text.')),
+                column(p('Second column intro.'), {
+                  type: 'callout',
+                  attrs: { mdAttrs: { type: 'info' } },
+                  content: [p('Nested callout inside a column.')]
+                }),
+                column(p('Third column note.'))
+              ]
+            }
+          ]
+        }}
+      />
+    )
+    await expect
+      .element(page.getByText('Third column note.'))
+      .toBeInTheDocument()
+    currentEditor!.commands.setColumnsLayout(0, '50-50')
+    const node = currentEditor!.state.doc.child(0)
+    expect(node.childCount).toBe(2)
+    const kept = node.child(1)
+    expect(kept.child(0).textContent).toBe('Second column intro.')
+    expect(kept.child(1).type.name).toBe('callout')
+    expect(kept.child(1).textContent).toBe('Nested callout inside a column.')
+    expect(kept.child(2).textContent).toBe('Third column note.')
+  })
+
   it('shrinking drops trailing columns that are empty without side effects', async () => {
     render(
       <Harness

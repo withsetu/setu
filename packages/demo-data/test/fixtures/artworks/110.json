@@ -1,0 +1,20 @@
+{
+  "id": 110,
+  "api_model": "artworks",
+  "title": "Fragment of an Invented Fresco",
+  "is_public_domain": true,
+  "image_id": "3e3e3e3e-4f4f-5a5a-6b6b-7c7c7c7c7c7c",
+  "description": "<p>A synthetic fresco fragment from the first century, testing ancient single- and double-digit years.</p>",
+  "short_description": "A synthetic first-century fresco fragment.",
+  "artist_display": "Unknown workshop of Testpeii",
+  "date_display": "about 79 CE",
+  "date_start": 62,
+  "date_end": 79,
+  "medium_display": "Fresco",
+  "department_title": "Ancient Art of Testland",
+  "classification_titles": ["fresco"],
+  "term_titles": ["wall painting"],
+  "material_titles": ["plaster"],
+  "updated_at": "2026-05-10T10:00:00-05:00",
+  "source_updated_at": "2026-05-10T10:00:00-05:00"
+}

@@ -33,6 +33,10 @@ apps/site/public/_redirects
 # Uploaded media (local dev storage)
 .setu/
 
+# Demo-data pack downloads (fetched at seed time — the repo ships no third-party
+# content; see packages/demo-data/README.md)
+.demo-data/
+
 # Playwright E2E output (see e2e/)
 e2e/test-results/
 e2e/playwright-report/

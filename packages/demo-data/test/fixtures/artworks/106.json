@@ -1,0 +1,11 @@
+{
+  "id": 106,
+  "api_model": "artworks",
+  "is_public_domain": true,
+  "image_id": "0f0f0f0f-1e1e-2d2d-3c3c-4b4b4b4b4b4b",
+  "description": "<p>A synthetic record that is structurally invalid: it has no title field.</p>",
+  "date_start": 1850,
+  "date_end": 1850,
+  "updated_at": "2026-05-06T10:00:00-05:00",
+  "source_updated_at": "2026-05-06T10:00:00-05:00"
+}

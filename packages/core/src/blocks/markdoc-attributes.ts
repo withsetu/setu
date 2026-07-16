@@ -1,7 +1,7 @@
 import type { ZodTypeAny } from 'zod'
 
 export interface MarkdocAttr {
-  type: 'String' | 'Number' | 'Boolean'
+  type: 'String' | 'Number' | 'Boolean' | 'Array'
   default?: unknown
   matches?: string[]
 }
@@ -9,7 +9,10 @@ export interface MarkdocAttr {
 const BASE: Record<string, MarkdocAttr['type']> = {
   ZodString: 'String',
   ZodNumber: 'Number',
-  ZodBoolean: 'Boolean'
+  ZodBoolean: 'Boolean',
+  // Markdoc supports Array-typed tag attributes natively ({% tag items=[…] %});
+  // element validation stays with the block's zod contract at the content boundary.
+  ZodArray: 'Array'
 }
 
 /** Peel ZodOptional/ZodDefault, capturing a default value if one is present. */

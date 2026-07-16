@@ -16,6 +16,7 @@ export type BlockControl =
   | 'category'
   | 'tag'
   | 'locale'
+  | 'media-list'
 
 /** Style axes a block may be re-themed on (color/surface/etc). Carried as data for MCP
  *  introspection + future auto-CSS; NOT enforced at runtime. Mirrors @setu/blocks'

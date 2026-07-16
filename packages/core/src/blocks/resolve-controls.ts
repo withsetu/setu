@@ -32,6 +32,10 @@ const ENUM_HINTS: ReadonlySet<BlockControl> = new Set([
 /** Controls a hint may upgrade a Number prop to. */
 const NUMBER_HINTS: ReadonlySet<BlockControl> = new Set(['number', 'slider'])
 
+/** Controls valid for an Array prop. There is no generic array editor — an array prop
+ *  MUST pick one of these explicitly (see the throw below). */
+const ARRAY_HINTS: ReadonlySet<BlockControl> = new Set(['media-list'])
+
 /** Map a block's zod props (+ optional per-prop control hints) to an ordered list of
  *  controls for the inspector. Hints override the zod-derived control but must be
  *  type-compatible; an unknown prop or an incompatible hint throws (never silently lossy,
@@ -56,6 +60,12 @@ export function resolveControls(
           : 'text'
     const hint = hints[name]
     if (hint === undefined) {
+      // No inspector control can render an arbitrary array — require an explicit,
+      // type-compatible hint instead of silently falling back to a text box.
+      if (a.type === 'Array')
+        throw new Error(
+          `resolveControls: array prop "${name}" needs an explicit control hint (e.g. 'media-list')`
+        )
       return {
         name,
         control: derived,
@@ -68,7 +78,8 @@ export function resolveControls(
       (a.matches && ENUM_HINTS.has(hint)) ||
       (a.type === 'Number' && NUMBER_HINTS.has(hint)) ||
       (a.type === 'Boolean' && hint === 'switch') ||
-      (a.type === 'String' && !a.matches && STRING_CONTROLS.has(hint))
+      (a.type === 'String' && !a.matches && STRING_CONTROLS.has(hint)) ||
+      (a.type === 'Array' && ARRAY_HINTS.has(hint))
     if (!ok)
       throw new Error(
         `resolveControls: hint "${hint}" incompatible with prop "${name}" (zod ${a.type}${a.matches ? ' enum' : ''})`

@@ -1,0 +1,17 @@
+{
+  "id": 104,
+  "api_model": "artworks",
+  "title": "Sculpture Without a Photograph",
+  "is_public_domain": true,
+  "image_id": null,
+  "description": "<p>A synthetic marble figure for which no image has been digitized yet.</p>",
+  "artist_display": "Anonyma Testfell (Fictional, active 1700s)",
+  "date_start": 1720,
+  "date_end": 1725,
+  "department_title": "Sculpture of Testland",
+  "classification_titles": ["sculpture"],
+  "term_titles": ["marble"],
+  "material_titles": ["marble (rock)"],
+  "updated_at": "2026-05-04T10:00:00-05:00",
+  "source_updated_at": "2026-05-04T10:00:00-05:00"
+}

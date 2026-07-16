@@ -1,0 +1,32 @@
+{
+  "id": 101,
+  "api_model": "artworks",
+  "title": "Evening Over the Copper Harbor",
+  "main_reference_number": "1900.101",
+  "is_public_domain": true,
+  "image_id": "aaaa1111-bbbb-2222-cccc-333344445555",
+  "description": "<p>A luminous harbor scene painted from the artist's studio window, capturing fishing boats returning at dusk. The composition balances warm lamplight against a cool violet sky.</p>",
+  "short_description": "A luminous synthetic harbor scene balancing warm lamplight against a cool violet sky.",
+  "artist_display": "Imaginaria Vestal (Fictional, 1850–1920)",
+  "artist_title": "Imaginaria Vestal",
+  "date_display": "1898–99",
+  "date_start": 1898,
+  "date_end": 1899,
+  "medium_display": "Oil on canvas",
+  "dimensions": "100 × 150 cm (39 3/8 × 59 1/16 in.)",
+  "credit_line": "Synthetic Fixture Collection",
+  "place_of_origin": "Testland",
+  "department_title": "Painting and Sculpture of Testland",
+  "classification_title": "oil on canvas",
+  "classification_titles": ["oil on canvas", "painting", "testland school"],
+  "term_titles": ["harbor", "dusk", "boats", "painting", "Painting"],
+  "material_titles": ["oil paint (paint)", "canvas"],
+  "thumbnail": {
+    "lqip": "data:image/gif;base64,R0lGODlhAQABAAAAACw=",
+    "width": 8000,
+    "height": 5333,
+    "alt_text": "Painting of boats in a harbor at dusk."
+  },
+  "updated_at": "2026-05-01T10:00:00-05:00",
+  "source_updated_at": "2026-04-01T10:00:00-05:00"
+}

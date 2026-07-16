@@ -1,0 +1,18 @@
+{
+  "id": 105,
+  "api_model": "artworks",
+  "title": "Etching With No Description",
+  "is_public_domain": true,
+  "image_id": "1212abab-3434-cdcd-5656-efef78787878",
+  "description": "",
+  "short_description": null,
+  "artist_display": "Imaginaria Vestal (Fictional, 1850–1920)",
+  "date_start": 1901,
+  "date_end": 1901,
+  "department_title": "Prints and Drawings of Testland",
+  "classification_titles": ["etching"],
+  "term_titles": ["line work"],
+  "material_titles": ["paper (fiber product)"],
+  "updated_at": "2026-05-05T10:00:00-05:00",
+  "source_updated_at": "2026-05-05T10:00:00-05:00"
+}

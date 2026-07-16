@@ -1,0 +1,31 @@
+{
+  "id": 108,
+  "api_model": "artworks",
+  "title": "Amphora of the Invented Games",
+  "is_public_domain": true,
+  "image_id": "7777dddd-8888-eeee-9999-ffff0000aaaa",
+  "description": "<p>This <em>amphora</em> shows athletes at the <strong>Invented Games</strong>, a fictional festival. See the <a href=\"https://example.org/games\">festival notes</a> for context.</p><p>Decoration includes:</p><ul><li>runners mid-stride</li><li>a discus thrower</li><li>an olive wreath border</li></ul>",
+  "short_description": "A synthetic black-figure amphora showing athletes at a fictional festival.",
+  "artist_display": "Attributed to the Fictional Games Painter",
+  "artist_title": "Fictional Games Painter",
+  "date_display": "about 520–500 BCE",
+  "date_start": -520,
+  "date_end": -500,
+  "medium_display": "Terracotta, black-figure technique",
+  "dimensions": "40 × 25 cm",
+  "credit_line": "Synthetic Fixture Collection",
+  "place_of_origin": "Testhens",
+  "department_title": "Ancient Art of Testland",
+  "classification_title": "vessel",
+  "classification_titles": ["vessel", "ceramics"],
+  "term_titles": ["athletics", "amphora", "black-figure"],
+  "material_titles": ["terracotta"],
+  "thumbnail": {
+    "lqip": "data:image/gif;base64,R0lGODlhAQABAAAAACw=",
+    "width": 3000,
+    "height": 4500,
+    "alt_text": "Black-figure amphora with athletes."
+  },
+  "updated_at": "2026-05-08T10:00:00-05:00",
+  "source_updated_at": "2026-02-20T09:00:00-06:00"
+}

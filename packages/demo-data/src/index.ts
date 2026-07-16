@@ -15,3 +15,12 @@ export type {
   PackStats
 } from './contract'
 export { collectPosts } from './contract'
+
+export {
+  createAicPack,
+  AIC_IIIF_BASE,
+  AIC_ARTWORK_PAGE_BASE,
+  AIC_MAX_RECORD_BYTES,
+  AIC_SKIP_REASONS
+} from './aic/pack'
+export type { AicPackOptions, AicSkipReason } from './aic/pack'

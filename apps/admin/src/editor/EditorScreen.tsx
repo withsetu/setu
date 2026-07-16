@@ -22,6 +22,7 @@ import {
   ChevronLeft,
   ExternalLink,
   Eye,
+  History,
   Keyboard,
   Rocket,
   Save
@@ -41,6 +42,7 @@ import { MetaPanel } from './MetaPanel'
 import { BlockInspector } from './BlockInspector'
 import { useSelectedBlock } from './useSelectedBlock'
 import { PublishMenu } from './PublishMenu'
+import { HistoryPanel } from './HistoryPanel'
 import { ShortcutsDialog } from './ShortcutsDialog'
 import { Button } from '../components/ui/button'
 import {
@@ -62,6 +64,7 @@ import {
 } from './new-entry'
 import { useNotify } from '../ui/notify'
 import { apiFetch } from '../lib/api-fetch'
+import { useCapabilities } from '../lib/useCapabilities'
 import { useRegisterCommands } from '../command/registry'
 import { attrString } from './attr-string'
 
@@ -101,9 +104,17 @@ export function EditorScreen() {
   const [rev, setRev] = useState(0)
   const [lifecycle, setLifecycle] = useState<Lifecycle>({ state: 'draft' })
   const [liveCommitted, setLiveCommitted] = useState(false)
+  // Distinct from liveCommitted (committed AND live): a committed DRAFT
+  // (published:false) has revision history too. #466.
+  const [committedInGit, setCommittedInGit] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  // Bumped after a restore commit: re-runs the load effect (and remounts the
+  // keyed Canvas/MetaPanel) so the editor re-forks from the new Git HEAD.
+  const [reloadKey, setReloadKey] = useState(0)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [editor, setEditor] = useState<Editor | null>(null)
   const selectedBlock = useSelectedBlock(editor)
+  const { caps } = useCapabilities()
   const apiBase = import.meta.env.VITE_SETU_API ?? ''
   // #382 WordPress-Contributor: a non-publisher can view a live post but never alter it
   // (the server enforces the same rule; this is the honest UI for it).
@@ -170,6 +181,7 @@ export function EditorScreen() {
         setStatus('idle')
         setLifecycle({ state: 'draft' })
         setLiveCommitted(false)
+        setCommittedInGit(false)
         setPhase('ready')
         return
       }
@@ -214,13 +226,16 @@ export function EditorScreen() {
       // is durable (the content-list lost-write race).
       if (!justMinted) setStatus('idle')
       setLiveCommitted(isLive)
+      setCommittedInGit(committed !== null)
       setPhase(open.granted ? 'ready' : 'readonly')
       void refreshLifecycle()
     })()
     return () => {
       live = false
     }
-  }, [ref, read, authoring, git, refreshLifecycle, composing, slug])
+    // reloadKey: not read inside, but bumping it after a history restore
+    // (#466) must re-run this load so the editor re-forks from the new HEAD.
+  }, [ref, read, authoring, git, refreshLifecycle, composing, slug, reloadKey])
 
   // When the global Deploy advances the live sha, re-derive so the pill updates.
   useEffect(() => {
@@ -431,6 +446,8 @@ export function EditorScreen() {
         // the live gate from the metadata just committed so Save draft/Publish-menu
         // state updates in place, without a reload.
         setLiveCommitted(metaRef.current['published'] !== false)
+        // A commit just landed — the entry now has history (#466), without a reload.
+        setCommittedInGit(true)
         await index.reindexEntry(ref).catch(() => {})
         await index.markSyncedAt(r.sha).catch(() => {})
         await refreshLifecycle()
@@ -497,6 +514,30 @@ export function EditorScreen() {
     !composing &&
     !liveCommitted
 
+  // History (#466): only when the server's git adapter has the capability
+  // (honest degradation — no dead 409ing controls on git-http/git-idb) AND the
+  // entry has ever been committed (a never-committed compose/draft has no
+  // revisions — hide, don't disable-with-mystery). `content.view` mirrors the
+  // server's read gate; every staff role holds it.
+  const showHistory =
+    Boolean(caps?.history) &&
+    can('content.view') &&
+    !composing &&
+    committedInGit
+
+  /** After a restore commit: the DB draft still holds the pre-restore buffer,
+   *  and Git is canonical — drop the draft so the reload re-forks the restored
+   *  content from the new HEAD through the normal loadForEdit pipeline, then
+   *  bump reloadKey to re-run the load effect (which also remounts the keyed
+   *  Canvas/MetaPanel and re-derives lifecycle + the live gate). */
+  const onRestored = async (sha: string) => {
+    await data.deleteDraft(ref)
+    baseShaRef.current = null
+    await reindex(ref)
+    await index.markSyncedAt(sha).catch(() => {})
+    setReloadKey((k) => k + 1)
+  }
+
   useRegisterCommands([
     {
       id: 'editor.publish',
@@ -525,6 +566,14 @@ export function EditorScreen() {
       icon: Eye,
       enabled: () => Boolean(previewApi) && !composing,
       run: () => void onPreview()
+    },
+    {
+      id: 'editor.history',
+      title: 'History',
+      group: 'Editor',
+      icon: History,
+      enabled: () => showHistory,
+      run: () => setHistoryOpen(true)
     },
     {
       id: 'editor.unpublish',
@@ -675,6 +724,22 @@ export function EditorScreen() {
           </Tooltip>
         )}
 
+        {showHistory && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="History"
+                onClick={() => setHistoryOpen(true)}
+              >
+                <History className="size-[18px]" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>History</TooltipContent>
+          </Tooltip>
+        )}
+
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -730,7 +795,9 @@ export function EditorScreen() {
               onBlur={() => void onTitleBlur()}
             />
             <Canvas
-              key={`${collection}/${locale}/${slug}`}
+              // reloadKey: a history restore (#466) must remount the canvas so
+              // it re-seeds from the re-forked initialDoc (see the load effect).
+              key={`${collection}/${locale}/${slug}:${reloadKey}`}
               initialContent={initialDoc}
               editable={editable}
               onChange={onDocChange}
@@ -757,8 +824,8 @@ export function EditorScreen() {
           <MetaPanel
             // Entry-keyed like Canvas: panel fields hold per-entry snapshots
             // (CategoryField's orphan union) that must not survive navigation
-            // to a different entry (#366).
-            key={`${collection}/${locale}/${slug}`}
+            // to a different entry (#366) — nor a history restore (#466).
+            key={`${collection}/${locale}/${slug}:${reloadKey}`}
             metadata={metadata}
             collection={collection}
             locale={locale}
@@ -777,6 +844,22 @@ export function EditorScreen() {
           />
         )}
       </div>
+      {showHistory && (
+        <HistoryPanel
+          open={historyOpen}
+          onOpenChange={setHistoryOpen}
+          path={contentPath(ref)}
+          apiBase={apiBase}
+          restoreDisabledReason={
+            phase === 'readonly'
+              ? 'This entry is locked by another editor'
+              : viewOnly
+                ? "Your role can't change published posts"
+                : undefined
+          }
+          onRestored={onRestored}
+        />
+      )}
       <ShortcutsDialog
         open={shortcutsOpen}
         onClose={() => setShortcutsOpen(false)}

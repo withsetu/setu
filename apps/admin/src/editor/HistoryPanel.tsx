@@ -225,10 +225,9 @@ export function HistoryPanel({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent
-          className="flex w-full flex-col gap-0 p-0 sm:max-w-lg"
-          aria-label="Revision history"
-        >
+        {/* Accessible name comes from SheetTitle via Radix's aria-labelledby
+            (which would override any aria-label here anyway). */}
+        <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
           <SheetHeader className="border-b p-4">
             <SheetTitle>History</SheetTitle>
             <SheetDescription>

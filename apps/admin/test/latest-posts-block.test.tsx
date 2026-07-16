@@ -98,3 +98,18 @@ describe('selectedBlockOf — inspector opens for latest-posts', () => {
     e.destroy()
   })
 })
+
+describe('NumberControl — numeric display (#192 UAT catch)', () => {
+  it('shows a stored numeric value instead of a blank input', async () => {
+    const { render, screen } = await import('@testing-library/react')
+    const { NumberControl } = await import('../src/editor/controls/text')
+    render(
+      <NumberControl
+        value={5}
+        onChange={() => {}}
+        meta={{ name: 'count', apiBase: '', onPickMedia: () => {} }}
+      />
+    )
+    expect(screen.getByRole('spinbutton', { name: 'count' })).toHaveValue(5)
+  })
+})

@@ -3,9 +3,18 @@ import { defineBlock } from '../define-block'
 import type { StandardBlock } from './types'
 
 /** One gallery item: a media-library src plus per-image alt text and an optional
- *  caption. Persisted as a Markdoc Array attribute ({% gallery images=[{…}] /%}). */
+ *  caption. Persisted as a Markdoc Array attribute ({% gallery images=[{…}] /%}).
+ *  `src` rejects every URL scheme except http(s) — a hand-authored
+ *  `javascript:`/`data:` src must fail the contract, not reach a renderer
+ *  (defense in depth with the renderer's own anchor allowlist, @setu/blocks
+ *  safeMediaHref). Root-relative and plain relative paths carry no scheme and pass. */
 export const galleryImageSchema = z.object({
-  src: z.string(),
+  src: z
+    .string()
+    .refine((s) => !/^[a-z][a-z0-9+.-]*:/i.test(s) || /^https?:\/\//i.test(s), {
+      message:
+        'src must be http(s) or a relative path — other schemes are not allowed'
+    }),
   alt: z.string().optional(),
   caption: z.string().optional()
 })

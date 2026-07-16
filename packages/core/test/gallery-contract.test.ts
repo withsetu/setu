@@ -50,4 +50,15 @@ describe('gallery contract', () => {
     const labels = galleryBlock.contract.editor!.groups!.map((g) => g.label)
     expect(labels).toEqual(['Content', 'Layout', 'Style'])
   })
+
+  it('rejects dangerous URL schemes in image srcs at the contract (#177 audit)', () => {
+    const parse = (src: string) =>
+      galleryBlock.contract.props.safeParse({ images: [{ src }] })
+    expect(parse('/media/2026/07/a.jpg').success).toBe(true)
+    expect(parse('https://cdn.example.test/a.jpg').success).toBe(true)
+    expect(parse('javascript:alert(1)').success).toBe(false)
+    expect(parse('JAVASCRIPT:alert(1)').success).toBe(false)
+    expect(parse('data:text/html,x').success).toBe(false)
+    expect(parse('vbscript:x').success).toBe(false)
+  })
 })

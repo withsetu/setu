@@ -28,6 +28,7 @@ export type {
   GalleryGap,
   GalleryLayout
 } from './gallery/gallery-classes'
+export { safeMediaHref } from './safe-media-href'
 
 /** A block's React visual core. The registry is heterogeneous by design (NoticeProps,
  *  HeroProps, …) and dispatched dynamically by tag; each block's props are validated by

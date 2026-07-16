@@ -87,7 +87,7 @@ describe('gallery block render (#177)', () => {
 
   it('renders one figure per image with per-image alt', () => {
     const items = html.match(/class="blk-gallery-item"/g) ?? []
-    expect(items.length).toBe(3) // 2 in the grid gallery + 1 in the masonry one
+    expect(items.length).toBe(6) // 2 grid + 1 masonry + 3 in the unsafe-src gallery
     expect(html).toContain('alt="A test cat"')
     expect(html).toContain('alt="Same cat again"')
   })
@@ -117,27 +117,43 @@ describe('gallery block render (#177)', () => {
   })
 
   it('lightbox (#553): tiles link to the full-size original with a dialog + inline script', () => {
-    // Default lightbox=on: only the FIRST gallery's 2 tiles are links (the second
-    // sets lightbox=false), each pointing at the full-size original (no-JS fallback).
+    // Lightbox-on tiles: 2 in the first gallery + the 1 SAFE tile of the third
+    // (its javascript:/data: srcs must not become links), each pointing at the
+    // full-size original (no-JS fallback).
     const links = html.match(/class="blk-gallery-link"/g) ?? []
-    expect(links.length).toBe(2)
+    expect(links.length).toBe(3)
     expect(html).toContain(
       'href="https://cdn.example.test/media/2026/06/test-cat.jpg"'
     )
     // per-image data for the slideshow
     expect(html).toContain('data-lb-alt="A test cat"')
     expect(html).toContain('data-lb-caption="The classic test cat"')
-    // exactly one dialog (the lightbox-off gallery contributes none)
+    // one dialog per lightbox-enabled gallery (the lightbox-off one contributes none)
     const dialogs = html.match(/<dialog class="blk-gallery-lightbox"/g) ?? []
-    expect(dialogs.length).toBe(1)
+    expect(dialogs.length).toBe(2)
     expect(html).toContain('aria-label="Previous image"')
     expect(html).toContain('aria-label="Next image"')
     expect(html).toContain('aria-label="Close"')
-    // the progressive-enhancement script ships inline, once
-    const scripts = html.match(/__setuGalleryLightbox/g) ?? []
-    expect(scripts.length).toBeGreaterThanOrEqual(1)
     // and the lightbox-off masonry gallery has no data-lightbox marker
     expect(html).not.toMatch(/layout-masonry[^"]*" data-lightbox/)
+  })
+
+  it('never emits a dangerous-scheme href (#177 audit — scheme allowlist)', () => {
+    expect(html).not.toMatch(/href="javascript:/i)
+    expect(html).not.toMatch(/href="data:/i)
+    expect(html).not.toMatch(/href="vbscript:/i)
+    // the unsafe tiles still render as images, just without the anchor wrapper
+    expect(html).toContain('alt="Unsafe scheme"')
+    expect(html).toContain('alt="Data URI"')
+  })
+
+  it('emits the lightbox script ONCE per page, not once per gallery (audit perf)', () => {
+    // Two lightbox-enabled galleries on this page — the inline script must dedupe.
+    // Count SCRIPT COPIES via the once-per-copy guard line (the bare identifier
+    // appears twice inside a single copy: the guard check and the flag set).
+    const copies =
+      html.match(/if \(window\.__setuGalleryLightbox\) return/g) ?? []
+    expect(copies.length).toBe(1)
   })
 
   it('stays framework-free — no astro-island hydration', () => {

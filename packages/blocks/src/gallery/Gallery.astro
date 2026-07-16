@@ -2,27 +2,41 @@
 import './gallery.css'
 import Image from '@setu/image-astro/Image.astro'
 import { resolveMediaBase } from '@setu/image-astro'
+import { safeMediaHref } from '../safe-media-href'
 import { galleryClasses, galleryImagesOf, sizesForColumns } from './gallery-classes'
+import { emittedFor } from './lightbox-script-registry'
 const { images = [], layout = 'grid', columns = 3, gap = 'medium', captions = false, lightbox = true, width } = Astro.props
 const items = galleryImagesOf(images)
 const cls = galleryClasses(columns, gap, width, layout)
 const sizes = sizesForColumns(columns)
 // #553 lightbox: tiles link to the FULL-SIZE original (the no-JS fallback); the inline
 // script below upgrades them to a <dialog> slideshow that loads that original on demand.
-// Same URL resolution as Image.astro: root-relative /media/* is prefixed with the media
-// base, absolute URLs pass through.
-const lightboxOn = Boolean(lightbox) && items.length > 0
+// Anchor hrefs go through safeMediaHref's SCHEME ALLOWLIST (http(s) pass-through,
+// root-relative prefixed with the media base) — a persisted `javascript:`/`data:` src
+// renders its tile WITHOUT the anchor, never as a live link (middle-click/new-tab/no-JS
+// all bypass the script's preventDefault, so this must hold at render time).
 const base = resolveMediaBase(import.meta.env.PUBLIC_SETU_MEDIA, import.meta.env.DEV)
-const fullUrl = (s: string) => (!s || /^https?:\/\//i.test(s) ? s : s.startsWith('/') ? `${base}${s}` : s)
+const tiles = items.map((img) => ({ img, href: safeMediaHref(img.src, base) }))
+const lightboxWanted = Boolean(lightbox)
+// The dialog/script only ship when at least one tile is actually linkable.
+const lightboxOn = lightboxWanted && tiles.some((t) => t.href !== null)
+// Emit the (page-global) enhancement script once per PAGE, not once per gallery.
+// Astro.request is the one object every component instance in a single page render
+// shares — in dev, SSR, and prerendered builds alike — so a module-scoped WeakSet
+// keyed on it dedupes per page without leaking across pages of the same build
+// process (a plain module flag would emit on only the FIRST page of a whole build;
+// the render-smoke dedupe test proves the per-page behavior on a real astro build).
+const emitScript = lightboxOn && !emittedFor.has(Astro.request)
+if (emitScript) emittedFor.add(Astro.request)
 ---
 {items.length > 0 && (
   <div class={cls} data-lightbox={lightboxOn ? '' : undefined}>
-    {items.map((img) => (
+    {tiles.map(({ img, href }) => (
       <figure class="blk-gallery-item">
-        {lightboxOn ? (
+        {lightboxOn && href !== null ? (
           <a
             class="blk-gallery-link"
-            href={fullUrl(img.src)}
+            href={href}
             aria-label={img.alt ? `View full size: ${img.alt}` : 'View full-size image'}
             data-lb-alt={img.alt ?? ''}
             data-lb-caption={img.caption ?? ''}
@@ -58,12 +72,13 @@ const fullUrl = (s: string) => (!s || /^https?:\/\//i.test(s) ? s : s.startsWith
   </div>
 )}
 {/* Progressive enhancement, blur-up precedent (Image.astro): an is:inline script shipped
-    verbatim — plain browser JS, NO TypeScript — emitted only when a lightbox gallery is on
-    the page, guarded to run once page-wide however many galleries emit it. Native <dialog>
-    showModal() supplies the focus trap, Escape-to-close, and focus restore to the clicked
+    verbatim — plain browser JS, NO TypeScript — emitted ONCE PER PAGE via the
+    Astro.locals flag above (the window.__setuGalleryLightbox guard stays as a
+    second belt for exotic multi-fragment embeddings). Native <dialog> showModal()
+    supplies the focus trap, Escape-to-close, and focus restore to the clicked
     tile; the script adds the slideshow (prev/next/arrows), on-demand full-size loading,
     caption + counter, and backdrop-click close. Zero dependencies, static-site safe. */}
-{lightboxOn && (
+{emitScript && (
   <script is:inline>
     (function () {
       if (window.__setuGalleryLightbox) return;

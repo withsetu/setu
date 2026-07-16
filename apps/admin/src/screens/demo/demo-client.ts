@@ -119,6 +119,10 @@ export interface DemoApi {
   startUnseed: (level: ResetLevel) => Promise<void>
   startFetchDump: () => Promise<void>
   cancel: () => Promise<void>
+  /** True when THIS client started the job — fast jobs can reach a terminal
+   *  state before a poll ever observes them 'running', so "did we watch it
+   *  run" alone under-counts; a job we initiated is always ours to announce. */
+  startedHere: (jobId: string) => boolean
 }
 
 export function useDemoApi(apiBase: string): DemoApi {
@@ -160,6 +164,7 @@ export function useDemoApi(apiBase: string): DemoApi {
     return () => clearInterval(timer)
   }, [running, refresh])
 
+  const startedIds = useRef(new Set<string>())
   const post = useCallback(
     async (path: string, body?: unknown) => {
       const res = await apiFetch(`${apiBase}${path}`, {
@@ -172,6 +177,12 @@ export function useDemoApi(apiBase: string): DemoApi {
           : {})
       })
       if (!res.ok) throw await toError(res)
+      try {
+        const { id } = (await res.json()) as { id?: string }
+        if (id) startedIds.current.add(id)
+      } catch {
+        /* cancel returns {ok} — nothing to record */
+      }
       await refresh()
     },
     [apiBase, refresh]
@@ -190,6 +201,10 @@ export function useDemoApi(apiBase: string): DemoApi {
       [post]
     ),
     startFetchDump: useCallback(() => post('/api/demo/fetch-dump'), [post]),
-    cancel: useCallback(() => post('/api/demo/cancel'), [post])
+    cancel: useCallback(() => post('/api/demo/cancel'), [post]),
+    startedHere: useCallback(
+      (jobId: string) => startedIds.current.has(jobId),
+      []
+    )
   }
 }

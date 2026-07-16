@@ -182,12 +182,8 @@ function ResetRow({
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
+              variant={destructive ? 'destructive' : 'default'}
               onClick={onConfirm}
-              className={
-                destructive
-                  ? 'bg-destructive text-white hover:bg-destructive/90'
-                  : undefined
-              }
             >
               {buttonLabel}
             </AlertDialogAction>
@@ -249,8 +245,15 @@ export function DemoDataScreen() {
 
 function DemoDataPanel({ apiBase }: { apiBase: string }) {
   const notify = useNotify()
-  const { status, loadError, startSeed, startUnseed, startFetchDump, cancel } =
-    useDemoApi(apiBase)
+  const {
+    status,
+    loadError,
+    startSeed,
+    startUnseed,
+    startFetchDump,
+    cancel,
+    startedHere
+  } = useDemoApi(apiBase)
 
   // -- form state -----------------------------------------------------------
   const [users, setUsers] = useState<
@@ -278,9 +281,11 @@ function DemoDataPanel({ apiBase }: { apiBase: string }) {
     const previous = lastSeen.current
     lastSeen.current = key
     if (job.status === 'running') return
-    // Only announce a transition we watched happen (not a stale terminal job
-    // found on first load — `previous` empty means this is the initial fetch).
-    const watched = previous === `${job.id}:running`
+    // Only announce a transition that is OURS: either we watched it running,
+    // or this client started it (fast jobs can finish before the first poll
+    // ever sees 'running'). A stale terminal job found on first page load is
+    // neither — no toast, no passwords, no reload.
+    const watched = previous === `${job.id}:running` || startedHere(job.id)
     if (!watched) return
     const noun = JOB_NOUNS[job.kind]
     if (job.status === 'failed') {
@@ -318,7 +323,7 @@ function DemoDataPanel({ apiBase }: { apiBase: string }) {
     // the browser-side stores (drafts/index caches) and reload into the fresh
     // state, exactly what the old floating dev-reset button did (#492).
     void resetToSampleContent()
-  }, [job, notify])
+  }, [job, notify, startedHere])
 
   const running = job?.status === 'running'
   const dataset = status?.dataset ?? null

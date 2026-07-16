@@ -24,6 +24,7 @@ import { NotificationProvider } from '../src/ui/notify'
 import { SettingsProvider } from '../src/data/settings-store'
 import { DemoDataScreen } from '../src/screens/demo/DemoDataScreen'
 import { apiFetch } from '../src/lib/api-fetch'
+import { resetToSampleContent } from '../src/data/reset'
 
 vi.mock('../src/lib/api-fetch', () => ({ apiFetch: vi.fn() }))
 vi.mock('../src/data/reset', () => ({ resetToSampleContent: vi.fn() }))
@@ -360,6 +361,48 @@ describe('reset levels', () => {
     expect(within(dialog).getByText(expectSurvives)).toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole('button', { name: buttonName }))
   }
+
+  it('a fast reset that finishes before a poll sees it running still reloads the client (started here)', async () => {
+    // status: idle on mount, then — immediately after the POST — already done.
+    const doneReset = {
+      dataset: { present: true, kind: 'dump' },
+      job: {
+        id: 'job-new', // matches what mockApi returns for every POST
+        kind: 'reset-sample',
+        status: 'done',
+        phase: 'posts',
+        done: 0,
+        total: 0,
+        imageFailures: 0,
+        warnings: [],
+        cancellable: true,
+        startedAt: 1,
+        resetSummary: {
+          removed: {
+            posts: 0,
+            media: 0,
+            users: 0,
+            userFailures: 0,
+            usersSkipped: 0,
+            categories: 0,
+            durationMs: 1
+          },
+          filesRemoved: 4,
+          filesRestored: 4
+        }
+      }
+    }
+    mockApi([idleStatus(), doneReset])
+    renderScreen()
+    await screen.findByRole('button', { name: 'Reset to sample' })
+    await openAndConfirm(
+      'Reset to sample',
+      /your account, site settings, and hand-uploaded media/i
+    )
+    await waitFor(() =>
+      expect(vi.mocked(resetToSampleContent)).toHaveBeenCalled()
+    )
+  })
 
   it.each([
     [

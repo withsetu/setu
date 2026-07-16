@@ -204,6 +204,7 @@ export async function seedDemoData(options: SeedOptions): Promise<SeedSummary> {
   // -- 2 · plan ---------------------------------------------------------------
   const runKey = runKeyOf({
     packId: pack.meta.id,
+    sourceFingerprint: pack.meta.sourceFingerprint ?? '',
     posts: postCount,
     users: Object.fromEntries(
       Object.entries(options.users).map(([k, v]) => [k, v ?? 0])
@@ -239,6 +240,27 @@ export async function seedDemoData(options: SeedOptions): Promise<SeedSummary> {
   if (signal) buildOpts.signal = signal
   const plan = await buildPlan(buildOpts)
 
+  // Crash-safety invariant: the MANIFEST records intent BEFORE any side
+  // effect (so everything this run may create is removable and slug/key
+  // memory survives a hard kill); the CHECKPOINT records completion AFTER
+  // (so a crash can only cause idempotent redone work, never skipped work).
+  // Recording the whole plan up front is one write and makes every later
+  // phase side-effect-first-crash-safe: a re-run re-derives the same plan
+  // from the manifest memory, and unseed skips entries that never landed.
+  manifest = mergeManifest(manifest, {
+    posts: plan.posts.map((p) => ({
+      collection,
+      locale,
+      slug: p.slug,
+      packId: p.id
+    })),
+    mediaKeys: plan.posts
+      .filter((p) => p.image !== undefined)
+      .map((p) => p.image!.mediaKey),
+    categories: plan.addedCategorySlugs
+  })
+  await saveManifest(sandboxDir, manifest)
+
   let commits = 0
   const commit = async (
     changes: FileChange[],
@@ -250,7 +272,7 @@ export async function seedDemoData(options: SeedOptions): Promise<SeedSummary> {
     if (sha !== before) commits++
   }
 
-  // -- 3 · categories (one commit) -------------------------------------------
+  // -- 3 · categories (one commit; intent already in the manifest) ------------
   if (plan.addedCategorySlugs.length > 0 && !checkpoint.categoriesDone) {
     await commit(
       [
@@ -262,10 +284,6 @@ export async function seedDemoData(options: SeedOptions): Promise<SeedSummary> {
       `demo-data: register ${plan.addedCategorySlugs.length} categories (${pack.meta.id})`,
       DEMO_DATA_AUTHOR
     )
-    manifest = mergeManifest(manifest, {
-      categories: plan.addedCategorySlugs
-    })
-    await saveManifest(sandboxDir, manifest)
   }
   checkpoint.categoriesDone = true
   await saveCheckpoint(sandboxDir, checkpoint)
@@ -281,9 +299,10 @@ export async function seedDemoData(options: SeedOptions): Promise<SeedSummary> {
       filename: `${p.slug}.jpg`
     }))
 
-  // Cross-run reuse: a media key recorded in the manifest whose storage-side
-  // ingest finished counts as done even under a fresh runKey.
-  const priorKeys = new Set(manifest.mediaKeys)
+  // Cross-run reuse: every planned key is already in the manifest (intent
+  // snapshot), and the plan's collision ladder treats manifest keys as ours —
+  // so "the storage-side ingest finished" alone proves reuse, even when the
+  // checkpoint was lost to a crash or the runKey changed.
   const reusable = new Set<string>()
   for (const task of imageTasks) {
     if (
@@ -291,16 +310,16 @@ export async function seedDemoData(options: SeedOptions): Promise<SeedSummary> {
       checkpoint.images[task.id]?.mediaKey === task.mediaKey
     ) {
       reusable.add(task.id)
-    } else if (
-      priorKeys.has(task.mediaKey) &&
-      (await mediaAlreadyIngested(deps.storage, task.mediaKey))
-    ) {
+    } else if (await mediaAlreadyIngested(deps.storage, task.mediaKey)) {
       reusable.add(task.id)
     }
   }
 
-  // Serialize state writes from concurrent workers, and throttle flushes —
-  // rewriting the files on every one of 30k results would be quadratic I/O.
+  // Serialize checkpoint writes from concurrent workers, and throttle —
+  // rewriting the file on every one of 30k results would be quadratic I/O.
+  // Losing up to a throttle-window of entries to a crash is safe: the
+  // checkpoint is a completion CACHE (re-run re-verifies via
+  // mediaAlreadyIngested); the manifest already holds every planned key.
   let stateChain: Promise<void> = Promise.resolve()
   let pendingFlush = 0
   const queueState = (fn: () => Promise<void>): Promise<void> => {
@@ -312,7 +331,6 @@ export async function seedDemoData(options: SeedOptions): Promise<SeedSummary> {
       pendingFlush++
       if (!force && pendingFlush % 25 !== 0) return
       await saveCheckpoint(sandboxDir, checkpoint)
-      await saveManifest(sandboxDir, manifest)
     })
 
   let imagesDone = 0
@@ -343,8 +361,6 @@ export async function seedDemoData(options: SeedOptions): Promise<SeedSummary> {
           mediaKey: task.mediaKey,
           status: result === 'failed' ? 'failed' : 'done'
         }
-        if (result !== 'failed')
-          manifest = mergeManifest(manifest, { mediaKeys: [task.mediaKey] })
         onProgress?.({
           phase: 'images',
           done: imagesDone + imagesReused,
@@ -413,17 +429,10 @@ export async function seedDemoData(options: SeedOptions): Promise<SeedSummary> {
       { name: chunk.owner.name, email: chunk.owner.email }
     )
     postsCommitted += chunk.plans.length
+    // Completion AFTER the commit (crash between = an idempotent re-commit
+    // next run, never a skipped chunk); the manifest already knows the posts.
     checkpoint.chunksDone = [...new Set([...checkpoint.chunksDone, chunk.key])]
-    manifest = mergeManifest(manifest, {
-      posts: chunk.plans.map((p) => ({
-        collection,
-        locale,
-        slug: p.slug,
-        packId: p.id
-      }))
-    })
     await saveCheckpoint(sandboxDir, checkpoint)
-    await saveManifest(sandboxDir, manifest)
     onProgress?.({
       phase: 'posts',
       done: postsCommitted,

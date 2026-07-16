@@ -140,6 +140,9 @@ export interface RemoveSummary {
   users: number
   /** Users that could not be deleted (e.g. last-admin guard) — reported, not fatal. */
   userFailures: number
+  /** Manifest user entries skipped because they don't match the demo-email
+   *  pattern — removal never deletes accounts seeding couldn't have created. */
+  usersSkipped: number
   /** Seed-added categories removed (only those no remaining post references). */
   categories: number
   durationMs: number

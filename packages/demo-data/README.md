@@ -115,7 +115,11 @@ refreshes monthly — delete the tarball to force a fresh copy).
 `content/`) from a pack: demo users per role, posts committed straight to Git,
 categories registered, featured images downloaded and ingested. `removeSeeded()`
 is the inverse — the "remove generated only" primitive #513's reset levels
-consume. Both live in `src/engine/`.
+consume. Both live in `src/engine/`. Note: `unseed` removes every
+manifest-listed post **including any you hand-edited after seeding** (the
+sandbox's git history still has the edits); it never touches users outside the
+`demo-*@demo.setu.test` pattern, and it refuses to run against a corrupt
+manifest rather than stranding seeded content.
 
 How it writes, and why:
 

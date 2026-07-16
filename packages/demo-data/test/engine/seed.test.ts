@@ -171,6 +171,7 @@ describe('seedDemoData', () => {
     expect(manifest.categories).toEqual(['prints-and-drawings'])
     const runKey = runKeyOf({
       packId: 'fake',
+      sourceFingerprint: '',
       posts: 12,
       users: { admin: 1, author: 2 },
       collection: 'post',

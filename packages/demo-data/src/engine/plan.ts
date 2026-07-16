@@ -7,6 +7,7 @@
 import {
   contentPath,
   isCid,
+  manifestKey,
   mediaKeyOf,
   mediaSlug,
   newCid,
@@ -160,20 +161,24 @@ export async function buildPlan(opts: BuildPlanOptions): Promise<SeedPlan> {
           ? Math.min(mixWidth, post.image.maxWidth)
           : mixWidth
       // Collision ladder: keys used by this plan, and FOREIGN storage objects.
-      // A key in the seed manifest counts as ours ONLY for a post that was
-      // itself seeded before (reusedSlug) — then the image batch detects the
-      // finished ingest and skips the download; anything else occupying the
-      // key gets suffixed around, exactly like the upload route.
-      const ownPriorKey = (key: string): boolean =>
-        reusedSlug !== undefined && manifestMediaKeys.has(key)
+      // A key in the seed manifest is OURS by definition (the manifest records
+      // only seed-generated keys — including a crashed run's intent snapshot),
+      // so the batch reuses or re-ingests it in place instead of suffixing
+      // around our own orphan. Foreign occupancy is probed like the upload
+      // route (apps/api/src/media.ts): the original OR the ingest manifest —
+      // an upload with a different extension still owns the key via its
+      // manifest sidecar, and clobbering that would destroy the user's media.
+      const ownPriorKey = (key: string): boolean => manifestMediaKeys.has(key)
+      const foreignOccupied = async (key: string): Promise<boolean> =>
+        (await storage.exists(originalKey(key, 'jpg'))) ||
+        (await storage.exists(manifestKey(key)))
       let mediaKey = opts.priorImageKeys?.get(post.id) ?? ''
       if (mediaKey === '') {
         mediaKey = planMediaKey(post.date, slug)
         for (
           let n = 2;
           usedMediaKeys.has(mediaKey) ||
-          (!ownPriorKey(mediaKey) &&
-            (await storage.exists(originalKey(mediaKey, 'jpg'))));
+          (!ownPriorKey(mediaKey) && (await foreignOccupied(mediaKey)));
           n++
         ) {
           mediaKey = `${planMediaKey(post.date, slug)}-${n}`

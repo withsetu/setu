@@ -86,18 +86,42 @@ interface SeedFlags {
   media: string
 }
 
-function intFlag(
+/** Exported for tests only — not part of the package surface. */
+export function intFlag(
   raw: string | undefined,
   name: string,
   fallback: number
 ): number {
   if (raw === undefined) return fallback
+  // Strict: parseInt would silently truncate "1.5" → 1 and "12abc" → 12 —
+  // a mistyped flag must fail loudly, not seed the wrong amount.
+  if (!/^\d+$/.test(raw)) throw new Error(`Invalid ${name}: ${raw}`)
   const n = Number.parseInt(raw, 10)
-  if (!Number.isFinite(n) || n < 0) throw new Error(`Invalid ${name}: ${raw}`)
+  if (!Number.isSafeInteger(n) || n < 0)
+    throw new Error(`Invalid ${name}: ${raw}`)
   return n
 }
 
-function parseSeedFlags(args: string[]): SeedFlags {
+const SEED_FLAG_NAMES = [
+  'posts',
+  'admins',
+  'maintainers',
+  'editors',
+  'authors',
+  'draft-fraction',
+  'relax-text',
+  'limit-images',
+  'concurrency',
+  'source',
+  'sandbox',
+  'media'
+] as const
+
+/** Exported for tests only — not part of the package surface. */
+export function parseSeedFlags(
+  args: string[],
+  allowed: readonly string[] = SEED_FLAG_NAMES
+): SeedFlags {
   const raw = new Map<string, string | boolean>()
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!
@@ -112,22 +136,10 @@ function parseSeedFlags(args: string[]): SeedFlags {
     if (value === undefined) throw new Error(`Flag --${name} needs a value`)
     raw.set(name, value)
   }
-  const known = new Set([
-    'posts',
-    'admins',
-    'maintainers',
-    'editors',
-    'authors',
-    'draft-fraction',
-    'relax-text',
-    'limit-images',
-    'concurrency',
-    'source',
-    'sandbox',
-    'media'
-  ])
+  const known = new Set(allowed)
   for (const name of raw.keys())
-    if (!known.has(name)) throw new Error(`Unknown flag --${name}\n${USAGE}`)
+    if (!known.has(name))
+      throw new Error(`Flag --${name} is not valid for this command\n${USAGE}`)
 
   const str = (name: string): string | undefined => {
     const v = raw.get(name)
@@ -310,7 +322,9 @@ async function runSeed(args: string[]): Promise<void> {
 }
 
 async function runUnseed(args: string[]): Promise<void> {
-  const flags = parseSeedFlags(args)
+  // Unseed consumes the manifest — seed-shaping flags would be silently
+  // meaningless here, so only the location flags are accepted.
+  const flags = parseSeedFlags(args, ['sandbox', 'media'])
   const summary = await removeSeeded({
     sandboxDir: flags.sandbox,
     mediaDir: flags.media,
@@ -324,6 +338,10 @@ async function runUnseed(args: string[]): Promise<void> {
   if (summary.userFailures > 0)
     console.log(
       `${summary.userFailures} user(s) could not be deleted (e.g. the last-admin guard)`
+    )
+  if (summary.usersSkipped > 0)
+    console.log(
+      `${summary.usersSkipped} manifest user entr${summary.usersSkipped === 1 ? 'y' : 'ies'} skipped (non-demo email — never deleted by unseed)`
     )
 }
 

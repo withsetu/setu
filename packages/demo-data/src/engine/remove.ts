@@ -22,10 +22,15 @@ import {
 } from '@setu/core'
 import type { FileChange, MediaManifest, MediaRecord } from '@setu/core'
 import { DEMO_DATA_AUTHOR, POSTS_PER_COMMIT, resolveDeps } from './seed'
-import { clearCheckpoint, clearManifest, loadManifest } from './state'
+import { clearCheckpoint, clearManifest, loadManifestStrict } from './state'
 import type { RemoveOptions, RemoveSummary } from './types'
 
 const decode = (bytes: Uint8Array): string => new TextDecoder().decode(bytes)
+
+/** Removal only ever deletes accounts seeding could have created. The
+ *  manifest is a plain dev-editable file — a stray hand-added entry must
+ *  never turn "unseed" into "delete an arbitrary user". */
+export const DEMO_USER_EMAIL = /^demo-[a-z]+-\d+@demo\.setu\.test$/
 
 export async function removeSeeded(
   options: RemoveOptions
@@ -33,7 +38,9 @@ export async function removeSeeded(
   const started = Date.now()
   const { sandboxDir, mediaDir, onProgress } = options
   const deps = await resolveDeps(sandboxDir, mediaDir, options.deps)
-  const manifest = await loadManifest(sandboxDir)
+  // Strict on purpose: a present-but-corrupt manifest aborts BEFORE anything
+  // is removed or cleared (fail closed — see loadManifestStrict).
+  const manifest = await loadManifestStrict(sandboxDir)
 
   if (await deps.probeApiLive()) {
     onProgress?.({
@@ -108,7 +115,16 @@ export async function removeSeeded(
   // -- users: hard delete via the auth seam ------------------------------------
   let usersRemoved = 0
   let userFailures = 0
+  let usersSkipped = 0
   for (const user of manifest.users) {
+    if (!DEMO_USER_EMAIL.test(user.email)) {
+      usersSkipped++
+      onProgress?.({
+        phase: 'warning',
+        message: `manifest lists non-demo user ${user.email} — skipped (removal only deletes demo-*@demo.setu.test accounts)`
+      })
+      continue
+    }
     const found = await deps.users.findByEmail(user.email)
     if (!found) continue
     try {
@@ -170,6 +186,7 @@ export async function removeSeeded(
     media: mediaRemoved,
     users: usersRemoved,
     userFailures,
+    usersSkipped,
     categories: categoriesRemoved,
     durationMs: Date.now() - started
   }

@@ -24,6 +24,12 @@ export interface PackMeta {
    *  state its licensing; the repo ships no third-party content — packs fetch at
    *  seed time. */
   license: string
+  /** Identity of the pack's LOCAL source (e.g. resolved path + size/mtime).
+   *  The seed engine folds this into its resume key so a checkpoint taken
+   *  against one dataset (a sample file, last month's dump) can never
+   *  suppress work when re-run against another. Optional: packs without a
+   *  local source may omit it. */
+  sourceFingerprint?: string
 }
 
 /** A reference to a source-hosted image, sized on demand.

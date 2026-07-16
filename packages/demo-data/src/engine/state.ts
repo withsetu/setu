@@ -41,6 +41,10 @@ export interface SeedCheckpoint {
  *  options → same key → the checkpoint is resumable. */
 export function runKeyOf(identity: {
   packId: string
+  /** Pack source identity (path + size/mtime) — a checkpoint taken against
+   *  one dataset must never suppress chunks when re-run against another
+   *  (chunk keys are positional). Empty string when the pack has none. */
+  sourceFingerprint: string
   posts: number
   users: Record<string, number>
   collection: string
@@ -53,6 +57,7 @@ export function runKeyOf(identity: {
   // JSON of an explicitly-ordered array — key order can never wobble the hash.
   const canonical = JSON.stringify([
     identity.packId,
+    identity.sourceFingerprint,
     identity.posts,
     Object.keys(identity.users)
       .sort()
@@ -145,25 +150,57 @@ export function emptyManifest(): SeedManifest {
   return { version: 1, posts: [], mediaKeys: [], users: [], categories: [] }
 }
 
+function validManifest(parsed: unknown): parsed is SeedManifest {
+  return (
+    parsed !== null &&
+    typeof parsed === 'object' &&
+    (parsed as SeedManifest).version === 1 &&
+    Array.isArray((parsed as SeedManifest).posts) &&
+    Array.isArray((parsed as SeedManifest).mediaKeys) &&
+    Array.isArray((parsed as SeedManifest).users) &&
+    Array.isArray((parsed as SeedManifest).categories)
+  )
+}
+
 export async function loadManifest(sandboxDir: string): Promise<SeedManifest> {
   const file = path.join(setuDir(sandboxDir), MANIFEST_FILE)
   try {
     const parsed = JSON.parse(await readFile(file, 'utf8')) as unknown
-    if (
-      parsed !== null &&
-      typeof parsed === 'object' &&
-      (parsed as SeedManifest).version === 1 &&
-      Array.isArray((parsed as SeedManifest).posts) &&
-      Array.isArray((parsed as SeedManifest).mediaKeys) &&
-      Array.isArray((parsed as SeedManifest).users) &&
-      Array.isArray((parsed as SeedManifest).categories)
-    ) {
-      return parsed as SeedManifest
-    }
+    if (validManifest(parsed)) return parsed
   } catch {
     /* missing or corrupt → empty */
   }
   return emptyManifest()
+}
+
+/** Removal-side loader: seeding may tolerantly treat a corrupt manifest as
+ *  empty (it only ever APPENDS), but removal must NOT — walking an "empty"
+ *  manifest would delete nothing and then clear the only record of what was
+ *  seeded. Missing file → empty (nothing was ever seeded); present-but-invalid
+ *  → throw, leaving the file untouched for inspection/repair. */
+export async function loadManifestStrict(
+  sandboxDir: string
+): Promise<SeedManifest> {
+  const file = path.join(setuDir(sandboxDir), MANIFEST_FILE)
+  let raw: string
+  try {
+    raw = await readFile(file, 'utf8')
+  } catch {
+    return emptyManifest() // no manifest = nothing seeded
+  }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    parsed = null
+  }
+  if (!validManifest(parsed))
+    throw new Error(
+      `${file} exists but is not a valid seed manifest — refusing to unseed ` +
+        '(removing nothing while clearing the manifest would strand seeded ' +
+        'content). Repair or delete the file, then retry.'
+    )
+  return parsed
 }
 
 /** Merge additions into a manifest, deduplicating every list (posts by

@@ -21,6 +21,7 @@ const tmp = () => mkdtemp(path.join(tmpdir(), 'demo-seed-state-'))
 
 const identity = {
   packId: 'aic',
+  sourceFingerprint: '/tmp/dump:100:1',
   posts: 100,
   users: { admin: 1, author: 2 },
   collection: 'post',
@@ -46,6 +47,11 @@ describe('runKeyOf', () => {
     expect(runKeyOf({ ...identity, relaxText: true })).not.toBe(base)
     expect(runKeyOf({ ...identity, users: { admin: 2 } })).not.toBe(base)
     expect(runKeyOf({ ...identity, imageWidthMix: [400] })).not.toBe(base)
+    // Review fix #512: a checkpoint from one DATASET must never be reused
+    // against another — sample vs full dump, or a refreshed monthly dump.
+    expect(
+      runKeyOf({ ...identity, sourceFingerprint: '/tmp/dump:200:2' })
+    ).not.toBe(base)
   })
 })
 

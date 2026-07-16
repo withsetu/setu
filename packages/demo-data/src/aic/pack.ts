@@ -20,7 +20,7 @@
  *  - Images: only `is_public_domain === true` artworks are used, per the epic's
  *    licensing gate; their imagery is public domain per AIC's open-access policy.
  */
-import { createReadStream } from 'node:fs'
+import { createReadStream, statSync } from 'node:fs'
 import { readdir, readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { createInterface } from 'node:readline'
@@ -317,6 +317,18 @@ export function createAicPack(options: AicPackOptions): ContentPack {
   const maxRecordBytes = options.maxRecordBytes ?? AIC_MAX_RECORD_BYTES
   const textTier = options.textTier ?? 'strict'
 
+  // Resume-key identity for THIS dataset: resolved path + size/mtime when the
+  // source exists at construction (best-effort — load() still validates). A
+  // sample .jsonl and the full dump must never share a fingerprint, or a stale
+  // checkpoint could silently suppress chunks of a different dataset.
+  let sourceFingerprint = path.resolve(options.source)
+  try {
+    const s = statSync(options.source)
+    sourceFingerprint += `:${s.size}:${Math.trunc(s.mtimeMs)}`
+  } catch {
+    /* missing at construction — path alone still discriminates datasets */
+  }
+
   return {
     meta: {
       id: 'aic',
@@ -324,7 +336,8 @@ export function createAicPack(options: AicPackOptions): ContentPack {
       sourceUrl: 'https://api.artic.edu/docs/',
       license:
         'Data CC0 1.0; `description` field CC BY 4.0 (© Art Institute of Chicago); ' +
-        'images limited to public-domain artworks (is_public_domain filter).'
+        'images limited to public-domain artworks (is_public_domain filter).',
+      sourceFingerprint
     },
 
     load(loadOptions: PackLoadOptions = {}): PackDataset {

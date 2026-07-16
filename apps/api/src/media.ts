@@ -13,6 +13,7 @@ import type {
   Actor,
   ImageFormat,
   ImagePort,
+  MediaIndexService,
   MediaManifest,
   MediaRecord,
   MediaSettings,
@@ -83,6 +84,12 @@ export interface UploadApiOptions {
   mediaSettings?: MediaSettings | (() => MediaSettings)
   /** Async reprocess job store + runner. When absent, the /api/media/reprocess routes return 409. */
   reprocess?: { store: ReprocessJobStore; run: (jobId: string) => void }
+  /** Server media index (#464 Increment B). The index only rebuilds on a version
+   *  mismatch, so upload/delete keep it fresh in-process: upload upserts the new
+   *  record, delete removes it. Best-effort — the `.media.json` sidecar is the
+   *  canonical record and the index is derived from it, so an index write
+   *  failure warns instead of failing the (already persisted) mutation. */
+  mediaIndex?: Pick<MediaIndexService, 'upsertOne' | 'removeOne'>
 }
 
 const authz = createAuthz(DEFAULT_ROLES)
@@ -203,6 +210,16 @@ export function createUploadApi(opts: UploadApiOptions) {
         contentType: 'application/json'
       }
     )
+    // Keep the server media index fresh (see UploadApiOptions.mediaIndex).
+    if (opts.mediaIndex) {
+      try {
+        await opts.mediaIndex.upsertOne(record)
+      } catch (err) {
+        console.warn(
+          `media index upsert failed for ${mediaKey}: ${err instanceof Error ? err.message : String(err)}`
+        )
+      }
+    }
 
     return c.json(
       {
@@ -301,6 +318,16 @@ export function createUploadApi(opts: UploadApiOptions) {
       ) as MediaRecord
       await storage.delete(rec.key) // original (covers non-images with no manifest)
       await storage.delete(mediaRecordKey(mediaKey))
+    }
+    // Keep the server media index fresh (see UploadApiOptions.mediaIndex).
+    if (opts.mediaIndex) {
+      try {
+        await opts.mediaIndex.removeOne(mediaKey)
+      } catch (err) {
+        console.warn(
+          `media index remove failed for ${mediaKey}: ${err instanceof Error ? err.message : String(err)}`
+        )
+      }
     }
     return c.json({ ok: true })
   })

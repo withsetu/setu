@@ -345,6 +345,13 @@ const ensureContentIndex = latchInFlight(async () => {
   await refreshDeployInfo()
   await contentIndexService.ensureBuilt()
 })
+// POST /api/index/refresh (#464 Increment B): a deploy that doesn't move git
+// HEAD only changes deploy-derived lifecycle — ensureBuilt's sha-compare can't
+// see it, so the admin asks for an explicit re-derivation.
+const refreshContentIndex = latchInFlight(async () => {
+  await refreshDeployInfo()
+  await contentIndexService.reindexAfterDeploy()
+})
 
 const mediaIndexService = createMediaIndexService({
   mediaIndex: createSqliteMediaIndexPort(submissionsDb),
@@ -441,7 +448,8 @@ app.route(
   createIndexApi({
     resolveActor,
     index: { ...contentIndexService, ensureBuilt: ensureContentIndex },
-    media: { ...mediaIndexService, ensureBuilt: ensureMediaIndex }
+    media: { ...mediaIndexService, ensureBuilt: ensureMediaIndex },
+    refresh: refreshContentIndex
   })
 )
 // In-editor preview is dev-only (the site route that renders the slot exists only under `astro dev`
@@ -460,7 +468,10 @@ app.route(
     // Live getter, not a snapshot: re-read settings.json each request so a Media settings change
     // (format / LQIP) applies to new uploads and Reprocess without restarting the api.
     mediaSettings: () => loadSiteSettings().media,
-    reprocess: { store: reprocessStore, run: runReprocess }
+    reprocess: { store: reprocessStore, run: runReprocess },
+    // #464 Increment B: keep the server media index fresh on upload/delete —
+    // it only rebuilds on version mismatch, never per request.
+    mediaIndex: mediaIndexService
   })
 )
 app.route(

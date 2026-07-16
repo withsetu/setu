@@ -4,11 +4,13 @@ import type { IndexService } from '@setu/core'
 import { createIndexService } from '@setu/core'
 import { useServices } from './store'
 import { useDeploy } from '../deploy/deploy'
+import { createHttpIndexService } from './http-index-service'
+import { apiFetch } from '../lib/api-fetch'
 
 const IndexContext = createContext<IndexService | null>(null)
 
 export function IndexProvider({ children }: { children: ReactNode }) {
-  const { data, git, index } = useServices()
+  const { data, git, index, apiBase } = useServices()
   const deploy = useDeploy()
 
   // deployInfo already reads a ref inside the provider, but keep the indirection so a
@@ -16,15 +18,28 @@ export function IndexProvider({ children }: { children: ReactNode }) {
   const deployInfoRef = useRef(deploy.deployInfo)
   deployInfoRef.current = deploy.deployInfo
 
+  // apiBase set → the SERVER owns the index (#464 Increment B): read through
+  // /api/index/*, demoting the IndexedDB port to a stale-while-offline cache
+  // and overlaying this browser's local drafts (see http-index-service.ts).
+  // No apiBase → the browser-built index, exactly as before.
   const service = useMemo(
     () =>
-      createIndexService({
-        data,
-        git,
-        index,
-        deploy: () => deployInfoRef.current()
-      }),
-    [data, git, index]
+      apiBase !== undefined
+        ? createHttpIndexService({
+            apiBase,
+            fetchImpl: apiFetch,
+            data,
+            git,
+            index,
+            deploy: () => deployInfoRef.current()
+          })
+        : createIndexService({
+            data,
+            git,
+            index,
+            deploy: () => deployInfoRef.current()
+          }),
+    [data, git, index, apiBase]
   )
   // Failures must be LOUD: a swallowed rebuild error leaves the index empty and every
   // listing shows "No posts yet" with zero diagnostics (bit us in CI on #429 — all git

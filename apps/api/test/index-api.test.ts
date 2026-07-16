@@ -6,15 +6,30 @@ import {
   createMemoryMediaIndexPort
 } from '@setu/db-memory'
 import { createIndexService, createMediaIndexService } from '@setu/core'
-import type { Actor, ContentRow, MediaRecord } from '@setu/core'
+import type {
+  Actor,
+  ContentRow,
+  DeployInfo,
+  EntryRef,
+  MediaRecord,
+  MediaUsage
+} from '@setu/core'
 import { createIndexApi, latchInFlight } from '../src/index-api'
 
 const admin: Actor = { id: 'a', role: 'admin' }
 
-const mdoc = (title: string, tags: string[] = []): string =>
+const mdoc = (
+  title: string,
+  tags: string[] = [],
+  opts: { categories?: string[]; body?: string } = {}
+): string =>
   `---\ntitle: ${title}\n${
     tags.length ? `tags:\n${tags.map((t) => `  - ${t}`).join('\n')}\n` : ''
-  }---\n\nBody of ${title}\n`
+  }${
+    opts.categories?.length
+      ? `categories:\n${opts.categories.map((c) => `  - ${c}`).join('\n')}\n`
+      : ''
+  }---\n\n${opts.body ?? `Body of ${title}`}\n`
 
 const rec = (
   mediaKey: string,
@@ -37,18 +52,29 @@ const rec = (
  *  createMediaIndexService server.ts constructs, driven through the routes. */
 function makeHarness(actor: Actor | null = admin) {
   const git = createMemoryGitPort([
-    { path: 'content/post/en/hello.mdoc', content: mdoc('Hello', ['react']) },
+    {
+      path: 'content/post/en/hello.mdoc',
+      content: mdoc('Hello', ['react'], {
+        categories: ['guides'],
+        body: '![cat](/media/2026/07/cat.jpg)'
+      })
+    },
     {
       path: 'content/post/en/world.mdoc',
       content: mdoc('World', ['react', 'vue'])
     },
     { path: 'content/page/fr/apropos.mdoc', content: mdoc('About FR') }
   ])
+  // Mutable deploy truth so tests can simulate a deploy that does NOT move git
+  // HEAD (exactly the case POST /api/index/refresh exists for).
+  const deploy: { info: DeployInfo } = {
+    info: { deployedSha: null, changed: [] }
+  }
   const index = createIndexService({
     data: createMemoryDataPort(),
     git,
     index: createMemoryIndexPort(),
-    deploy: () => ({ deployedSha: null, changed: [] })
+    deploy: () => deploy.info
   })
   const media = createMediaIndexService({
     mediaIndex: createMemoryMediaIndexPort(),
@@ -65,10 +91,13 @@ function makeHarness(actor: Actor | null = admin) {
   const app = createIndexApi({
     resolveActor: () => actor,
     index: { ...index, ensureBuilt: latchInFlight(() => index.ensureBuilt()) },
-    media
+    media,
+    refresh: latchInFlight(() => index.reindexAfterDeploy())
   })
   const get = (path: string) => app.fetch(new Request(`http://x${path}`))
-  return { app, git, get }
+  const post = (path: string) =>
+    app.fetch(new Request(`http://x${path}`, { method: 'POST' }))
+  return { app, git, get, post, deploy }
 }
 
 describe('GET /api/index/query', () => {
@@ -169,7 +198,7 @@ describe('GET /api/index/facets', () => {
     expect(body.distinctTags.sort()).toEqual(['react', 'vue'])
     expect(body.distinctLocales).toEqual(['en', 'fr'])
     expect(body.tagCounts).toEqual({ react: 2, vue: 1 })
-    expect(body.categoryCounts).toEqual({})
+    expect(body.categoryCounts).toEqual({ guides: 1 })
   })
 
   it('supports tag prefix type-ahead and rejects an oversized tagLimit', async () => {
@@ -205,6 +234,105 @@ describe('GET /api/index/media/query', () => {
   it('400 on an out-of-range limit', async () => {
     const { get } = makeHarness()
     expect((await get('/api/index/media/query?limit=1000')).status).toBe(400)
+  })
+})
+
+describe('GET /api/index/referenced-by', () => {
+  it('401 when unauthenticated', async () => {
+    const { get } = makeHarness(null)
+    expect(
+      (await get('/api/index/referenced-by?mediaKey=2026%2F07%2Fcat')).status
+    ).toBe(401)
+  })
+
+  it('400 when mediaKey is missing', async () => {
+    const { get } = makeHarness()
+    expect((await get('/api/index/referenced-by')).status).toBe(400)
+  })
+
+  it('returns the entries whose live content references the media key', async () => {
+    const { get } = makeHarness()
+    const res = await get(
+      `/api/index/referenced-by?mediaKey=${encodeURIComponent('2026/07/cat')}`
+    )
+    expect(res.status).toBe(200)
+    expect((await res.json()) as MediaUsage[]).toEqual([
+      { collection: 'post', locale: 'en', slug: 'hello', title: 'Hello' }
+    ])
+    const none = await get('/api/index/referenced-by?mediaKey=nope')
+    expect((await none.json()) as MediaUsage[]).toEqual([])
+  })
+})
+
+describe('GET /api/index/entries-by-category', () => {
+  it('401 when unauthenticated', async () => {
+    const { get } = makeHarness(null)
+    expect(
+      (await get('/api/index/entries-by-category?slug=guides')).status
+    ).toBe(401)
+  })
+
+  it('400 when slug is missing', async () => {
+    const { get } = makeHarness()
+    expect((await get('/api/index/entries-by-category')).status).toBe(400)
+  })
+
+  it('returns refs of entries in the category', async () => {
+    const { get } = makeHarness()
+    const res = await get('/api/index/entries-by-category?slug=guides')
+    expect(res.status).toBe(200)
+    expect((await res.json()) as EntryRef[]).toEqual([
+      { collection: 'post', locale: 'en', slug: 'hello' }
+    ])
+  })
+})
+
+describe('GET /api/index/entries-by-tag', () => {
+  it('401 when unauthenticated', async () => {
+    const { get } = makeHarness(null)
+    expect((await get('/api/index/entries-by-tag?tag=vue')).status).toBe(401)
+  })
+
+  it('400 when tag is missing', async () => {
+    const { get } = makeHarness()
+    expect((await get('/api/index/entries-by-tag')).status).toBe(400)
+  })
+
+  it('returns refs of entries carrying the tag', async () => {
+    const { get } = makeHarness()
+    const res = await get('/api/index/entries-by-tag?tag=vue')
+    expect(res.status).toBe(200)
+    expect((await res.json()) as EntryRef[]).toEqual([
+      { collection: 'post', locale: 'en', slug: 'world' }
+    ])
+  })
+})
+
+describe('POST /api/index/refresh', () => {
+  it('401 when unauthenticated', async () => {
+    const { post } = makeHarness(null)
+    expect((await post('/api/index/refresh')).status).toBe(401)
+  })
+
+  it('re-derives deploy-derived lifecycle after a deploy that did not move HEAD', async () => {
+    const { get, post, git, deploy } = makeHarness()
+    const statuses = async () => {
+      const body = (await (
+        await get('/api/index/query?collection=post')
+      ).json()) as { rows: ContentRow[] }
+      return body.rows.map((r) => r.lifecycle.state).sort()
+    }
+    // Never deployed → both committed posts are staged.
+    expect(await statuses()).toEqual(['staged', 'staged'])
+    // A deploy lands at HEAD (no new commit). ensureBuilt alone cannot see it:
+    // its sha-compare finds indexedSha === HEAD and skips the rebuild.
+    deploy.info = { deployedSha: await git.headSha(), changed: [] }
+    expect(await statuses()).toEqual(['staged', 'staged'])
+    // The refresh endpoint forces the re-derivation → rows flip to live.
+    const res = await post('/api/index/refresh')
+    expect(res.status).toBe(200)
+    expect((await res.json()) as { ok: boolean }).toEqual({ ok: true })
+    expect(await statuses()).toEqual(['live', 'live'])
   })
 })
 

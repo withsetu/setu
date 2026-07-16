@@ -18,7 +18,7 @@ import { createMediaIndexService } from '@setu/core'
 import { createHttpSubmissionAdapter } from '@setu/submission-http'
 import { bootstrapServices, ServicesProvider } from './store'
 import type { Services } from './store'
-import { fetchMediaIndex } from '../media/media-client'
+import { createHttpMediaIndexService } from './http-media-index-service'
 import { apiFetch } from '../lib/api-fetch'
 
 /** Bounded wait on an IndexedDB open (or any promise): IDB opens have no native timeout, so a
@@ -106,16 +106,20 @@ export function Bootstrap({ children }: { children: ReactNode }) {
             IDB_OPEN_TIMEOUT_MS,
             'IndexedDB (media index) open'
           )
-          const mediaIndex = createMediaIndexService({
-            mediaIndex: mediaIndexPort,
-            fetchRaw: () => fetchMediaIndex(apiBase)
+          // Server-backed media index (#464 Increment B): reads go through
+          // /api/index/media/query; the IDB port becomes the offline cache.
+          const mediaIndex = createHttpMediaIndexService({
+            apiBase,
+            fetchImpl: apiFetch,
+            mediaIndex: mediaIndexPort
           })
           ready = await bootstrapServices(
             data,
             git,
             index,
             mediaIndex,
-            submissions
+            submissions,
+            apiBase
           )
         } catch (err) {
           console.error(
@@ -131,16 +135,19 @@ export function Bootstrap({ children }: { children: ReactNode }) {
           // Same degrade-to-memory shape as the no-API branch below: the GitPort/submissions stay
           // server-backed (they were never IDB — nothing to fall back for), only the IDB-backed
           // pieces (drafts, content index, media index) swap to in-memory/no-op equivalents.
-          const mediaIndex = createMediaIndexService({
-            mediaIndex: createMemoryMediaIndexPort(),
-            fetchRaw: () => fetchMediaIndex(apiBase)
+          // Index/media reads stay server-backed too — only their offline CACHE degrades to memory.
+          const mediaIndex = createHttpMediaIndexService({
+            apiBase,
+            fetchImpl: apiFetch,
+            mediaIndex: createMemoryMediaIndexPort()
           })
           ready = await bootstrapServices(
             createMemoryDataPort(),
             git,
             createMemoryIndexPort(),
             mediaIndex,
-            submissions
+            submissions,
+            apiBase
           )
         }
       } else {

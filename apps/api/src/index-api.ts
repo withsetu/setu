@@ -68,6 +68,10 @@ const facetsSchema = z.object({
   tagLimit: z.coerce.number().int().min(1).max(200).default(50)
 })
 
+const referencedBySchema = z.object({ mediaKey: z.string().min(1) })
+const byCategorySchema = z.object({ slug: z.string().min(1) })
+const byTagSchema = z.object({ tag: z.string().min(1) })
+
 const mediaQuerySchema = z.object({
   q: z.string().optional(),
   type: z
@@ -91,8 +95,17 @@ export interface IndexApiDeps {
     | 'distinctLocales'
     | 'categoryCounts'
     | 'tagCounts'
+    | 'referencedBy'
+    | 'entriesByCategory'
+    | 'entriesByTag'
   >
   media: Pick<MediaIndexService, 'ensureBuilt' | 'query'>
+  /** Force a re-derivation of deploy-derived lifecycle (staged → live flips).
+   *  A deploy that does not move git HEAD is invisible to `ensureBuilt` (its
+   *  sha-compare finds indexedSha === HEAD and skips the walk), so the admin
+   *  posts /api/index/refresh after its deploy status changes. server.ts passes
+   *  refreshDeployInfo + reindexAfterDeploy, wrapped in latchInFlight. */
+  refresh: () => Promise<void>
 }
 
 /** Server-authoritative content/media index routes (#464, Increment A).
@@ -149,6 +162,43 @@ export function createIndexApi(deps: IndexApiDeps) {
         deps.index.tagCounts()
       ])
     return c.json({ distinctTags, distinctLocales, categoryCounts, tagCounts })
+  })
+
+  // Entries whose live content references a media key — feeds the delete
+  // confirmation's "Used in N post(s)" note. content.view: it exposes entry
+  // titles/refs, nothing beyond what /api/index/query already serves.
+  app.get('/api/index/referenced-by', auth, canViewContent, async (c) => {
+    const parsed = referencedBySchema.safeParse(c.req.query())
+    if (!parsed.success) return c.json({ error: 'invalid' }, 400)
+    await deps.index.ensureBuilt()
+    return c.json(await deps.index.referencedBy(parsed.data.mediaKey))
+  })
+
+  // Refs for taxonomy bulk operations (category delete, tag rename/remove).
+  // Read-only ref lists — the writes they feed go through the git routes, which
+  // enforce their own (stronger) write actions.
+  app.get('/api/index/entries-by-category', auth, canViewContent, async (c) => {
+    const parsed = byCategorySchema.safeParse(c.req.query())
+    if (!parsed.success) return c.json({ error: 'invalid' }, 400)
+    await deps.index.ensureBuilt()
+    return c.json(await deps.index.entriesByCategory(parsed.data.slug))
+  })
+
+  app.get('/api/index/entries-by-tag', auth, canViewContent, async (c) => {
+    const parsed = byTagSchema.safeParse(c.req.query())
+    if (!parsed.success) return c.json({ error: 'invalid' }, 400)
+    await deps.index.ensureBuilt()
+    return c.json(await deps.index.entriesByTag(parsed.data.tag))
+  })
+
+  // POST because it mutates server state — but only DERIVED state (index rows
+  // re-derived from Git + deploy truth the server already holds; no content is
+  // touched). Any actor allowed to read the index may ask for it to be brought
+  // current, so `content.view` is the honest gate — forcing a re-derivation
+  // grants nothing a reader doesn't already see eventually.
+  app.post('/api/index/refresh', auth, canViewContent, async (c) => {
+    await deps.refresh()
+    return c.json({ ok: true })
   })
 
   app.get('/api/index/media/query', auth, canViewMedia, async (c) => {

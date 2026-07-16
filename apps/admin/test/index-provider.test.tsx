@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { afterEach, describe, it, expect, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { useEffect, useState } from 'react'
 import { createMemoryDataPort, createMemoryIndexPort } from '@setu/db-memory'
@@ -93,5 +93,73 @@ describe('IndexProvider', () => {
       </ServicesProvider>
     )
     await waitFor(() => expect(screen.getByText(/total:1/)).toBeInTheDocument())
+  })
+})
+
+describe('IndexProvider — server-backed (apiBase) selection (#464)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('serves queries through /api/index when the services carry an apiBase', async () => {
+    const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
+      // Base needed: DeployProvider fetches a RELATIVE /api/deploy/status in tests.
+      const url = new URL(
+        input instanceof Request ? input.url : String(input),
+        'http://local'
+      )
+      if (url.pathname === '/api/index/query')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            rows: [
+              {
+                ref: { collection: 'post', locale: 'en', slug: 'srv' },
+                title: 'From server',
+                locale: 'en',
+                lifecycle: { state: 'staged' },
+                updatedAt: null,
+                hasDraft: false,
+                date: null,
+                tags: [],
+                categories: [],
+                mediaRefs: []
+              }
+            ],
+            total: 1
+          })
+        } as unknown as Response
+      return { ok: false, status: 404 } as Response
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+    // EVERY local port is empty: a locally-built index would answer total:0.
+    // total:1 can only come from the stubbed server route.
+    const services = servicesFor(
+      createMemoryDataPort(),
+      createMemoryGitPort(),
+      undefined,
+      undefined,
+      undefined,
+      'http://api'
+    )
+    render(
+      <ServicesProvider services={services}>
+        <DeployProvider>
+          <IndexProvider>
+            <Probe />
+          </IndexProvider>
+        </DeployProvider>
+      </ServicesProvider>
+    )
+    await waitFor(() => expect(screen.getByText(/total:1/)).toBeInTheDocument())
+    const paths = fetchSpy.mock.calls.map(
+      (c) =>
+        new URL(
+          c[0] instanceof Request ? c[0].url : String(c[0]),
+          'http://local'
+        ).pathname
+    )
+    expect(paths).toContain('/api/index/query')
   })
 })

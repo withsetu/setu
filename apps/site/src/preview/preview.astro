@@ -20,6 +20,8 @@ import RelatedWrapper from '../../../../blocks/related/related.astro'
 import EmbedWrapper from '../../../../blocks/embed/embed.astro'
 import HeroBlock from '@setu/blocks/hero.astro'
 import ButtonBlock from '@setu/blocks/button.astro'
+import ColumnsBlock from '@setu/blocks/columns.astro'
+import ColumnBlock from '@setu/blocks/column.astro'
 import ImageFigure from '@setu/image-astro/ImageFigure.astro'
 import Image from '@setu/image-astro/Image.astro'
 import Sub from '../components/Sub.astro'
@@ -50,6 +52,7 @@ markdocConfig.nodes = { ...assetsConfig.nodes, ...markdocConfig.nodes }
 const tagComponentMap = {
   callout: CalloutWrapper, notice: NoticeWrapper, contact: ContactWrapper,
   query: QueryWrapper, related: RelatedWrapper, embed: EmbedWrapper, hero: HeroBlock, button: ButtonBlock,
+  columns: ColumnsBlock, column: ColumnBlock,
   image: ImageFigure, sub: Sub, sup: Sup,
 }
 const nodeComponentMap = { heading: Heading, paragraph: Paragraph, th: Th, td: Td, image: Image }

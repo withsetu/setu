@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test'
 import { storageStateFor } from '../lib/auth-state'
-import { hideDevReset } from '../lib/hide-dev-reset'
 import { uniqueTitle } from '../lib/unique-title'
 
 // The api's real, cross-origin admin auth surface (admin :5175 -> api :4446) — same ports
@@ -160,7 +159,6 @@ test.describe('maintainer below-rank user management + rank gate parity (#364, #
     )
 
     await page.goto('/dashboard')
-    await hideDevReset(page)
     const newName = `Renamed Maintainer ${uniqueTitle('profile-rename').split(' ').pop()}`
 
     // The seeded name MUST be restored no matter which assertion below fails — seedUsers only
@@ -184,7 +182,6 @@ test.describe('maintainer below-rank user management + rank gate parity (#364, #
       // successful rename but still `E2E Maintainer` if the body failed before saving — so
       // match either. Re-saving the same name is a harmless no-op in the not-yet-renamed case.
       await page.goto('/dashboard')
-      await hideDevReset(page)
       await page
         .getByRole('button', {
           name: new RegExp(`^(E2E Maintainer|${newName})$`)
@@ -264,7 +261,6 @@ test.describe('author keeps self-profile access despite no Users screen', () => 
     page
   }) => {
     await page.goto('/dashboard')
-    await hideDevReset(page)
     await expect(
       page.getByRole('heading', { level: 1, name: 'Dashboard' })
     ).toBeVisible()

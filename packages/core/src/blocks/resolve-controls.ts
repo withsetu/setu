@@ -14,11 +14,13 @@ export interface ResolvedControl {
 }
 
 /** String-backed controls a hint may upgrade a (non-enum) String prop to. `category`/`tag`
- *  render a searchable taxonomy picker in the inspector but store a single slug string. */
+ *  render a searchable taxonomy picker in the inspector but store a single slug string.
+ *  `media` picks an image from the library; `video` picks a video file. */
 const STRING_CONTROLS: ReadonlySet<BlockControl> = new Set([
   'text',
   'textarea',
   'media',
+  'video',
   'url',
   'color',
   'category',

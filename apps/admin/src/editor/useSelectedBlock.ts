@@ -9,8 +9,10 @@ import { attrString } from './attr-string'
 const INSPECTABLE = new Set([
   'setuBlock',
   'heroBlock',
+  'videoBlock',
   'queryBlock',
-  'spacerBlock'
+  'spacerBlock',
+  'columns'
 ])
 
 export interface SelectedBlock {
@@ -24,11 +26,15 @@ function tagOf(name: string, attrs: Record<string, unknown>): string {
     ? attrString(attrs.tag)
     : name === 'heroBlock'
       ? 'hero'
-      : name === 'queryBlock'
-        ? 'query'
-        : name === 'spacerBlock'
-          ? 'spacer'
-          : ''
+      : name === 'videoBlock'
+        ? 'video'
+        : name === 'queryBlock'
+          ? 'query'
+          : name === 'spacerBlock'
+            ? 'spacer'
+            : name === 'columns'
+              ? 'columns'
+              : ''
 }
 
 /** Pure: the inspectable block at the current selection, or null. Atom blocks surface via

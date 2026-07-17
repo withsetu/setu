@@ -7,6 +7,7 @@ export function SwitchControl({ value, onChange, meta }: ControlProps) {
       id={`bi-${meta.name}`}
       aria-label={meta.name}
       checked={Boolean(value)}
+      disabled={meta.disabled}
       onCheckedChange={(v) => onChange(v)}
     />
   )

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { AuditResult } from '@setu/core'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useAudit } from '../../health/useAudit'
 
 const BAND: Record<AuditResult['band'], { label: string; cls: string }> = {
@@ -43,6 +44,8 @@ export function SiteHealthCardView({ audit }: { audit: AuditResult }) {
 export function SiteHealthCard() {
   const { audit } = useAudit()
   if (!audit) {
+    // #572: skeleton shaped like the loaded card — score + band on the left,
+    // must-have tally + report link on the right — so nothing shifts on load.
     return (
       <Card>
         <CardHeader className="pb-2">
@@ -50,8 +53,23 @@ export function SiteHealthCard() {
             Site Health
           </CardTitle>
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          Checking…
+        <CardContent className="flex items-end justify-between">
+          <div>
+            <div className="flex h-10 items-center">
+              <Skeleton className="h-8 w-14" />
+            </div>
+            <div className="flex h-5 items-center">
+              <Skeleton className="h-4 w-16" />
+            </div>
+          </div>
+          <div className="flex flex-col items-end">
+            <div className="flex h-5 items-center">
+              <Skeleton className="h-4 w-28" />
+            </div>
+            <div className="flex h-5 items-center">
+              <Skeleton className="h-4 w-24" />
+            </div>
+          </div>
         </CardContent>
       </Card>
     )

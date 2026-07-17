@@ -59,4 +59,17 @@ describe('SiteDeployCard (#208)', () => {
       'https://maya.setu.site'
     )
   })
+
+  // #572: while the dashboard loads, the card shell paints with skeleton lines — no
+  // premature "Not deployed yet" flash.
+  it('renders skeleton placeholders while loading (#572)', () => {
+    const { container } = render(
+      <SiteDeployCard loading url="https://maya.setu.site" status={null} />
+    )
+    expect(screen.getByText(/Site & deploy/)).toBeInTheDocument()
+    expect(
+      container.querySelectorAll('[data-slot="skeleton"]').length
+    ).toBeGreaterThan(0)
+    expect(screen.queryByText(/Not deployed/)).toBeNull()
+  })
 })

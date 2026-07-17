@@ -131,8 +131,10 @@ export function ContentTable({
             </TableHead>
           )}
           {/* w-full: the Title column absorbs whatever width the fixed-width trailing columns
-              leave over — see the matching w-full max-w-0 on the title cells below (#554). */}
-          <TableHead className="w-full">
+              leave over — see the matching w-full max-w-0 on the title cells below (#554).
+              min-w-48: content-sized columns (long tag/category chips) must never squeeze the
+              primary column below readability — past that the wrapper scrolls, the title holds. */}
+          <TableHead className="w-full min-w-48">
             <SortHead label="Title" k="title" sort={sort} onSort={onSort} />
           </TableHead>
           {visible.status && (
@@ -212,8 +214,9 @@ export function ContentTable({
               )}
               {/* #554: w-full + max-w-0 bound the cell to the column's share of the table width —
                   without the max-width an auto-layout cell grows to fit its content and the inner
-                  `truncate` never engages, so a long title stretched the table past the viewport. */}
-              <TableCell className="w-full max-w-0">
+                  `truncate` never engages, so a long title stretched the table past the viewport.
+                  min-w-48 (with the header) keeps that share readable when chip columns are wide. */}
+              <TableCell className="w-full min-w-48 max-w-0">
                 <div className="flex items-center gap-1.5">
                   <Link
                     to={`/edit/${r.ref.collection}/${r.ref.locale}/${r.ref.slug}`}

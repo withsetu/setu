@@ -111,6 +111,9 @@ describe('ContentTable', () => {
       // auto-layout table: without a max-width the cell just grows to fit the text.
       expect(cell!.className).toContain('w-full')
       expect(cell!.className).toContain('max-w-0')
+      // min-w-48: wide chip columns (long category names) + the indicator columns
+      // (#576/#577) must never squeeze the primary column below readability.
+      expect(cell!.className).toContain('min-w-48')
     })
 
     it('truncates the slug line under the title, full slug on hover', () => {

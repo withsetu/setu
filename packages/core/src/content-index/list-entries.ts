@@ -6,7 +6,24 @@ import { parseMdoc, serializeMdoc } from '../markdoc/frontmatter'
 import { tiptapToMarkdoc } from '../markdoc/to-markdoc'
 import { normalizeTags } from '../tags/normalize'
 import { parseFrontmatterDate } from '../permalinks/frontmatter-date'
+import { scanBody } from '../markdoc/scan-body'
 import { extractMediaRefs } from './extract-media-refs'
+
+/** Site Health content-audit facts (#593), precomputed per entry from the
+ *  COMMITTED content at index time. Lives here beside {@link ContentRow} (the
+ *  index-port projection re-exports it) so the content-index → index-port edge
+ *  stays one-directional. */
+export interface EntryAuditFacts {
+  /** committed && `published !== false` — the set the audit covers (mirrors the
+   *  old `loadAuditEntries` filter). The facts below only count when true. */
+  audited: boolean
+  /** Committed frontmatter has a non-empty `title`. */
+  hasTitle: boolean
+  /** Images in the committed body missing alt text. */
+  imagesWithoutAlt: number
+  /** `<h1>` headings in the committed body (the page template emits its own). */
+  h1Count: number
+}
 
 /** One row in the merged content list: an entry that exists as a draft, as a
  *  committed Git file, or both. */
@@ -30,6 +47,9 @@ export interface ContentRow {
   mediaRefs: string[]
   /** Featured image src from frontmatter `featuredImage` (for list/preview thumbnails). */
   featuredImage?: string
+  /** Site Health content-audit facts (#593), from the COMMITTED content only —
+   *  draft-blind, so it matches the old git-walk audit that never saw drafts. */
+  audit: EntryAuditFacts
 }
 
 /** What the topology knows about the live deploy — server truth (#208), replacing the
@@ -131,9 +151,30 @@ export function listContentEntries(
       tags: tagsOf(draft, committedStr),
       categories: categoriesOf(draft, committedStr),
       mediaRefs: mediaRefsOf(draftStr, committedStr),
+      audit: auditFactsOf(committedStr),
       ...(featuredImage !== undefined ? { featuredImage } : {})
     }
   })
+}
+
+const NOT_AUDITED: EntryAuditFacts = {
+  audited: false,
+  hasTitle: false,
+  imagesWithoutAlt: 0,
+  h1Count: 0
+}
+
+/** Site Health facts from the COMMITTED content (draft-blind — the old audit
+ *  walked Git only). Uncommitted or `published: false` → not part of the audited
+ *  set; the body is only parsed for entries that are (bounded, build-time work). */
+function auditFactsOf(committedStr: string | null): EntryAuditFacts {
+  if (committedStr === null) return NOT_AUDITED
+  const { frontmatter, body } = parseMdoc(committedStr)
+  if (frontmatter['published'] === false) return NOT_AUDITED
+  const title = frontmatter['title']
+  const hasTitle = typeof title === 'string' && title.trim() !== ''
+  const { imagesWithoutAlt, h1Count } = scanBody(body)
+  return { audited: true, hasTitle, imagesWithoutAlt, h1Count }
 }
 
 /** Featured image src from the live version's frontmatter `featuredImage` (draft's when a

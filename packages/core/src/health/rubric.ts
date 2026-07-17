@@ -249,7 +249,8 @@ export const RUBRIC: RubricItem[] = [
     title: 'Heading hierarchy',
     guidance:
       'Headings describe the sections of a page. They must form a nested outline, never be used for visual styling alone, and never skip levels.',
-    url: 'https://specification.website/spec/seo/heading-hierarchy'
+    url: 'https://specification.website/spec/seo/heading-hierarchy',
+    needsScan: true
   },
   {
     id: 'seo.internal-linking',
@@ -313,7 +314,8 @@ export const RUBRIC: RubricItem[] = [
     title: 'Image alt text',
     guidance:
       "Every <img> element must have an alt attribute. The value describes the image's purpose to screen readers, search engines, and anyone whose image fails to load.",
-    url: 'https://specification.website/spec/accessibility/image-alt-text'
+    url: 'https://specification.website/spec/accessibility/image-alt-text',
+    needsScan: true
   },
   {
     id: 'accessibility.form-labels',
@@ -1406,7 +1408,8 @@ export const RUBRIC: RubricItem[] = [
     title: 'Homepage resolves',
     guidance:
       "The homepage you've configured resolves to an existing content entry.",
-    url: 'https://specification.website/spec/seo/url-structure'
+    url: 'https://specification.website/spec/seo/url-structure',
+    needsScan: true
   },
   {
     id: 'foundations.entry-title',
@@ -1414,7 +1417,8 @@ export const RUBRIC: RubricItem[] = [
     severity: 'required',
     title: 'Entry titles',
     guidance: 'Every content entry has a non-empty title.',
-    url: 'https://specification.website/spec/foundations/title'
+    url: 'https://specification.website/spec/foundations/title',
+    needsScan: true
   },
   {
     id: 'foundations.twitter-card',

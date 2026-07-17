@@ -1,6 +1,11 @@
 import type { EntryRef } from '../data/types'
 import type { LifecycleState, LifecyclePending } from '../lifecycle/derive'
-import type { ContentRow } from '../content-index/list-entries'
+import type {
+  ContentRow,
+  EntryAuditFacts
+} from '../content-index/list-entries'
+
+export type { EntryAuditFacts }
 
 export interface EntryIndexRow {
   key: string
@@ -19,6 +24,10 @@ export interface EntryIndexRow {
   categories: string[]
   mediaRefs: string[]
   featuredImage?: string
+  /** Site Health content-audit facts (#593), precomputed from the COMMITTED
+   *  content at index time (draft-blind, matching the old git-walk audit) so the
+   *  content scan reads them via `selectAuditSummary` instead of re-walking Git. */
+  audit: EntryAuditFacts
 }
 
 export type SortKey = 'updatedAt' | 'title' | 'status' | 'locale'
@@ -57,6 +66,9 @@ export interface IndexPort {
   ): Promise<import('./referenced-by').MediaUsage[]>
   entriesByCategory(slug: string): Promise<import('../data/types').EntryRef[]>
   entriesByTag(tag: string): Promise<import('../data/types').EntryRef[]>
+  /** Body-free Site Health content facts, rolled up from every row's precomputed
+   *  audit facts (#593). */
+  auditSummary(): Promise<import('./audit-summary').AuditSummary>
 }
 
 export const indexKey = (ref: EntryRef): string =>
@@ -76,7 +88,8 @@ export function projectRow(row: ContentRow): EntryIndexRow {
     date: row.date,
     tags: row.tags,
     categories: row.categories,
-    mediaRefs: row.mediaRefs
+    mediaRefs: row.mediaRefs,
+    audit: row.audit
   }
   if (row.lifecycle.pending !== undefined) out.pending = row.lifecycle.pending
   if (row.featuredImage !== undefined) out.featuredImage = row.featuredImage
@@ -99,6 +112,7 @@ export function rowToContentRow(r: EntryIndexRow): ContentRow {
     tags: r.tags,
     categories: r.categories,
     mediaRefs: r.mediaRefs,
+    audit: r.audit,
     ...(r.featuredImage !== undefined ? { featuredImage: r.featuredImage } : {})
   }
 }

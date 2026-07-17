@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { RUBRIC, SITE_CAPABILITIES, runAudit } from '../src/index'
+import {
+  RUBRIC,
+  SITE_CAPABILITIES,
+  runAudit,
+  auditScanFromEntries
+} from '../src/index'
 import type { AuditContext } from '../src/health/types'
 
 const auditCtx = (): AuditContext => ({
@@ -11,7 +16,7 @@ const auditCtx = (): AuditContext => ({
       feed: { enabled: true }
     }
   },
-  entries: [],
+  scan: auditScanFromEntries([]),
   capabilities: SITE_CAPABILITIES,
   health: { items: {}, sections: {} }
 })

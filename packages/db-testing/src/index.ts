@@ -267,6 +267,12 @@ const irow = (over: Partial<EntryIndexRow>): EntryIndexRow => {
     tags: [] as string[],
     categories: [] as string[],
     mediaRefs: [] as string[],
+    audit: {
+      audited: false,
+      hasTitle: true,
+      imagesWithoutAlt: 0,
+      h1Count: 0
+    } as EntryIndexRow['audit'],
     ...over
   }
   return {
@@ -413,6 +419,49 @@ export function runIndexPortContract(
         slug: expect.any(String)
       })
       expect(await ix.entriesByTag('unknown')).toEqual([])
+    })
+
+    it('auditSummary rolls up per-row facts, scoped to audited rows, sorted', async () => {
+      const fact = (over: Partial<EntryIndexRow['audit']>) => ({
+        audited: true,
+        hasTitle: true,
+        imagesWithoutAlt: 0,
+        h1Count: 0,
+        ...over
+      })
+      await ix.upsertMany([
+        // audited, clean
+        irow({ slug: 'clean', locale: 'en', audit: fact({}) }),
+        // audited offenders
+        irow({
+          slug: 'no-title',
+          locale: 'en',
+          audit: fact({ hasTitle: false })
+        }),
+        irow({
+          slug: 'bad-alt',
+          locale: 'fr',
+          audit: fact({ imagesWithoutAlt: 2 })
+        }),
+        irow({ slug: 'two-h1', locale: 'en', audit: fact({ h1Count: 1 }) }),
+        // NOT audited (unpublished/draft) — excluded from every list, incl. locale
+        irow({
+          slug: 'hidden',
+          locale: 'de',
+          audit: fact({ audited: false, hasTitle: false, h1Count: 3 })
+        })
+      ])
+      const s = await ix.auditSummary()
+      expect(s.entryIds).toEqual([
+        'post/en/clean',
+        'post/en/no-title',
+        'post/en/two-h1',
+        'post/fr/bad-alt'
+      ])
+      expect(s.titleOffenders).toEqual(['post/en/no-title'])
+      expect(s.altOffenders).toEqual([{ ref: 'post/fr/bad-alt', count: 2 }])
+      expect(s.h1Offenders).toEqual(['post/en/two-h1'])
+      expect(s.locales).toEqual(['en', 'fr']) // 'de' row is unaudited → absent
     })
   })
 }

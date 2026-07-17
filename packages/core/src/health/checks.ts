@@ -4,7 +4,6 @@ import type {
   Owner,
   SiteCapabilities
 } from './types'
-import { scanBody } from './scan'
 import { SITE_CAPABILITIES } from './capabilities'
 
 type Evaluator = (ctx: AuditContext) => Omit<CheckResult, 'id'>
@@ -19,6 +18,16 @@ const bad = (
   detail?: string,
   offenders?: CheckResult['offenders']
 ): Omit<CheckResult, 'id'> => ({ status: 'fail', owner, detail, offenders })
+
+/** A SCAN-class check with no scan yet: score-neutral `pending`, prompting a run. */
+const needsScan = (owner: Owner): Omit<CheckResult, 'id'> => ({
+  status: 'pending',
+  owner,
+  detail: 'Run a site scan to check this.'
+})
+
+const plural = (n: number): string =>
+  `${n} entr${n === 1 ? 'y' : 'ies'}`
 
 const nonEmpty = (v: unknown): boolean =>
   typeof v === 'string' && v.trim() !== ''
@@ -40,13 +49,15 @@ export const EVALUATORS: Record<string, Evaluator> = {
     nonEmpty(ctx.settings.general.description)
       ? ok('config')
       : bad('config', 'Set a site description in Settings → General.'),
-  'seo.homepage': (ctx) =>
-    ctx.entries.some((e) => e.id === ctx.settings.reading.homepage)
+  'seo.homepage': (ctx) => {
+    if (ctx.scan === null) return needsScan('config')
+    return ctx.scan.entryIds.includes(ctx.settings.reading.homepage)
       ? ok('config')
       : bad(
           'config',
           'The configured homepage does not resolve to an existing page.'
-        ),
+        )
+  },
   'seo.indexable': (ctx) =>
     ctx.settings.reading.searchEngineVisible
       ? ok('config')
@@ -58,43 +69,40 @@ export const EVALUATORS: Record<string, Evaluator> = {
     ctx.settings.reading.feed.enabled
       ? ok('config')
       : bad('config', 'Enable the RSS feed in Settings → Content & Reading.'),
-  // content (aggregate over entries; list offenders)
+  // content (SCAN class — reads the index-backed content facts; list offenders)
   'foundations.entry-title': (ctx) => {
-    const off = ctx.entries
-      .filter((e) => !nonEmpty(e.data.title))
-      .map((e) => ({ ref: e.id, note: 'missing title' }))
+    if (ctx.scan === null) return needsScan('content')
+    const off = ctx.scan.titleOffenders.map((ref) => ({
+      ref,
+      note: 'missing title'
+    }))
     return off.length
-      ? bad(
-          'content',
-          `${off.length} entr${off.length === 1 ? 'y' : 'ies'} missing a title`,
-          off
-        )
+      ? bad('content', `${plural(off.length)} missing a title`, off)
       : ok('content')
   },
   'accessibility.image-alt': (ctx) => {
-    const off = ctx.entries
-      .map((e) => ({ e, n: scanBody(e.body).imagesWithoutAlt }))
-      .filter((x) => x.n > 0)
-      .map((x) => ({ ref: x.e.id, note: `${x.n} image(s) without alt text` }))
+    if (ctx.scan === null) return needsScan('content')
+    const off = ctx.scan.altOffenders.map((o) => ({
+      ref: o.ref,
+      note: `${o.count} image(s) without alt text`
+    }))
     return off.length
       ? bad(
           'content',
-          `${off.length} entr${off.length === 1 ? 'y' : 'ies'} with images missing alt text`,
+          `${plural(off.length)} with images missing alt text`,
           off
         )
       : ok('content')
   },
   'seo.single-h1': (ctx) => {
+    if (ctx.scan === null) return needsScan('content')
     // The template emits the title as the page H1; any H1 in the body is a second one.
-    const off = ctx.entries
-      .filter((e) => scanBody(e.body).h1Count > 0)
-      .map((e) => ({ ref: e.id, note: 'extra H1 in body' }))
+    const off = ctx.scan.h1Offenders.map((ref) => ({
+      ref,
+      note: 'extra H1 in body'
+    }))
     return off.length
-      ? bad(
-          'content',
-          `${off.length} entr${off.length === 1 ? 'y' : 'ies'} with an extra H1`,
-          off
-        )
+      ? bad('content', `${plural(off.length)} with an extra H1`, off)
       : ok('content')
   },
   'seo.canonical-route': () =>
@@ -134,14 +142,10 @@ export const EVALUATORS: Record<string, Evaluator> = {
 // the source of truth for v1 (the autodiscovery capability flips when #51 merges). Keep one.
 void SITE_CAPABILITIES
 
-/** Locale = the 2nd id segment (collection/LOCALE/slug). */
-function localeCount(ctx: AuditContext): number {
-  return new Set(ctx.entries.map((e) => e.id.split('/')[1]).filter(Boolean))
-    .size
-}
-
 /** Auto-applicability predicates, keyed by item id OR category. False → the item is N/A (auto). */
 export const APPLIES_WHEN: Record<string, (ctx: AuditContext) => boolean> = {
-  // Internationalisation only matters once the site has more than one content locale.
-  i18n: (ctx) => localeCount(ctx) > 1
+  // Internationalisation only matters once the site has more than one content locale —
+  // a scan-derived fact (#593). Until a scan has run (`scan === null`) the locale count
+  // is unknown, so i18n stays applicable rather than being silently auto-N/A'd.
+  i18n: (ctx) => ctx.scan === null || ctx.scan.locales.length > 1
 }

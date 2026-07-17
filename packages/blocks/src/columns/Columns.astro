@@ -1,0 +1,8 @@
+---
+import './columns.css'
+import { columnsRenderAttrs } from './columns-classes'
+const { layout, gap, stackOnMobile } = Astro.props
+const { className, style } = columnsRenderAttrs({ layout, gap, stackOnMobile })
+---
+
+<div class={className} style={style}><slot /></div>

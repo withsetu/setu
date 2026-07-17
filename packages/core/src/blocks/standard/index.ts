@@ -1,6 +1,9 @@
 import type { StandardBlock } from './types'
 import { buttonBlock } from './button'
 import { heroBlock } from './hero'
+import { latestPostsBlock } from './latest-posts'
+import { spacerBlock } from './spacer'
+import { videoBlock } from './video'
 import { sectionBlock } from './section'
 import { columnsBlock, columnBlock } from './columns'
 
@@ -8,6 +11,9 @@ import { columnsBlock, columnBlock } from './columns'
 export const STANDARD_BLOCKS: StandardBlock[] = [
   buttonBlock,
   heroBlock,
+  latestPostsBlock,
+  spacerBlock,
+  videoBlock,
   sectionBlock,
   columnsBlock,
   columnBlock

@@ -14,6 +14,7 @@ import {
   SelectContent,
   SelectItem
 } from '@/components/ui/select'
+import type { Accept } from 'react-dropzone'
 import type { UploadResult } from './upload-client'
 import { MediaGrid } from './MediaGrid'
 import { MediaDropzone } from './MediaDropzone'
@@ -60,6 +61,10 @@ export function parseSortValue(raw: string | null): MediaFilters['sort'] {
 export interface MediaBrowserProps {
   apiBase: string
   mode: 'manage' | 'pick'
+  /** Pick mode: restrict the pick to one media kind — the grid is filtered to it,
+   *  uploads accept only that kind's allowlisted mimes, and the type dropdown is
+   *  hidden (the kind IS the type). */
+  pickKind?: 'image' | 'video'
   filters: MediaFilters
   setFilters: (patch: Partial<MediaFilters>) => void
   onUploaded: (result: UploadResult) => void
@@ -79,6 +84,7 @@ export interface MediaBrowserProps {
 export function MediaBrowser({
   apiBase,
   mode,
+  pickKind,
   filters,
   setFilters,
   onUploaded,
@@ -103,20 +109,27 @@ export function MediaBrowser({
   const query = useMemo<MediaIndexQuery>(
     () => ({
       q: filters.q || undefined,
-      type: filters.type,
+      type: pickKind ?? filters.type,
       sort: filters.sort,
       offset: 0,
       limit: 100
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filters.q, filters.type, filters.sort.key, filters.sort.dir]
+    [filters.q, filters.type, pickKind, filters.sort.key, filters.sort.dir]
   )
+
+  // Upload accept per picked kind. Video lists the API's allowlisted containers
+  // explicitly (video/* would let e.g. .mov through only to 415 at the server).
+  const pickAccept: Accept =
+    pickKind === 'video'
+      ? { 'video/mp4': [], 'video/webm': [] }
+      : { 'image/*': [] }
 
   return (
     <div className="flex flex-col gap-3.5">
       <MediaDropzone
         apiBase={apiBase}
-        accept={mode === 'pick' ? { 'image/*': [] } : undefined}
+        accept={mode === 'pick' ? pickAccept : undefined}
         onUploaded={onUploaded}
         onError={onError}
       />
@@ -147,21 +160,29 @@ export function MediaBrowser({
             ))}
           </SelectContent>
         </Select>
-        <Select
-          value={filters.type}
-          onValueChange={(v) => setFilters({ type: v as MediaFilters['type'] })}
-        >
-          <SelectTrigger size="sm" aria-label="Filter by type" className="w-36">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {TYPE_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>
-                {o.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {!pickKind && (
+          <Select
+            value={filters.type}
+            onValueChange={(v) =>
+              setFilters({ type: v as MediaFilters['type'] })
+            }
+          >
+            <SelectTrigger
+              size="sm"
+              aria-label="Filter by type"
+              className="w-36"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TYPE_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
       <MediaGrid
         key={refreshKey}

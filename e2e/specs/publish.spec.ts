@@ -2,7 +2,10 @@ import { test, expect } from '@playwright/test'
 import { ContentListPage } from '../pages/ContentListPage'
 import { DashboardPage } from '../pages/DashboardPage'
 import { uniqueTitle } from '../lib/unique-title'
-import { sandboxHeadSubject, sandboxStatusPorcelain } from '../lib/sandbox-git'
+import {
+  sandboxLastCommitFor,
+  sandboxStatusPorcelain
+} from '../lib/sandbox-git'
 
 // No `editor-` prefix: chromium-only per e2e/playwright.config.ts testMatch — publishing
 // is a button/toast/badge flow, not a contenteditable surface, so it doesn't need the
@@ -26,10 +29,9 @@ test('create a post, publish it, and verify the commit + the saved-not-live surf
   // Autosave mints a slug from the title (new-entry.ts slugify) and replaces the URL
   // from `/edit/post/en/new` to `/edit/post/en/<slug>` — read it back rather than
   // re-deriving the slugify transform here, so this test can't drift from that logic.
-  const slugMatch = /\/edit\/post\/en\/([^/?#]+)/.exec(page.url())
-  if (!slugMatch)
+  const slug = /\/edit\/post\/en\/([^/?#]+)/.exec(page.url())?.[1]
+  if (!slug)
     throw new Error(`expected a minted slug in the URL, got: ${page.url()}`)
-  const slug = slugMatch[1]
 
   // b. Invoke the real publish affordance — PublishMenu's primary "Publish" button
   // (EditorScreen.tsx), which saves-then-commits (publish.publish) and shows a toast.
@@ -60,8 +62,12 @@ test('create a post, publish it, and verify the commit + the saved-not-live surf
   await expect(list.rowStatus(title)).toHaveText('Staged')
 
   // Sanctioned exception (see e2e/lib/sandbox-git.ts): this journey is *about* the
-  // commit landing in the content repo, so assert the sandbox's real git state directly.
-  // publish-service.ts defaults the commit message to `Publish <collection>/<locale>/<slug>`.
-  expect(sandboxHeadSubject()).toBe(`Publish post/en/${slug}`)
-  expect(sandboxStatusPorcelain()).toBe('')
+  // commit landing in the content repo, so assert the sandbox's real git state directly
+  // — path-scoped to THIS entry, never HEAD, because parallel workers' commits race
+  // past HEAD reads (#551). publish-service.ts defaults the commit message to
+  // `Publish <collection>/<locale>/<slug>`.
+  expect(sandboxLastCommitFor('post', 'en', slug).subject).toBe(
+    `Publish post/en/${slug}`
+  )
+  expect(sandboxStatusPorcelain('post', 'en', slug)).toBe('')
 })

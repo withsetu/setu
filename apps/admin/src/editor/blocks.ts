@@ -167,6 +167,18 @@ export function slashBlocks(): SlashBlock[] {
               mdAttrs: { headline: 'Hero headline', layout: 'centered' }
             }
           })
+        } else if (b.tag === 'spacer') {
+          // Attribute-free insert: the canvas/renderer apply the contract default
+          // (48px) and the serialized form stays a clean `{% spacer /%}`.
+          chain.insertContent({ type: 'spacerBlock', attrs: { mdAttrs: {} } })
+        } else if (b.tag === 'video') {
+          // Empty mdAttrs → the atom renders its inviting placeholder; the author
+          // picks the file via the inspector's media control (contract defaults
+          // cover controls/autoplay/loop/muted/width).
+          chain.insertContent({
+            type: 'videoBlock',
+            attrs: { mdAttrs: {} }
+          })
         } else if (b.tag === 'query') {
           chain.insertContent({
             type: 'queryBlock',
@@ -180,6 +192,13 @@ export function slashBlocks(): SlashBlock[] {
                 showImage: true
               }
             }
+          })
+        } else if (b.tag === 'latest-posts') {
+          // Zero-config (#192): empty attrs round-trip as a clean {% latest-posts /%}
+          // and the contract defaults (5 newest posts, list, dates on) apply everywhere.
+          chain.insertContent({
+            type: 'latestPostsBlock',
+            attrs: { mdAttrs: {} }
           })
         } else {
           chain.insertContent({

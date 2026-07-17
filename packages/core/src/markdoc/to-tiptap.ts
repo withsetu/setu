@@ -280,8 +280,17 @@ function blockToTiptap(node: MdNode): TiptapNode | null {
       if (tag === 'hero') {
         return { type: 'heroBlock', attrs: { mdAttrs: node.attributes } }
       }
+      if (tag === 'spacer') {
+        return { type: 'spacerBlock', attrs: { mdAttrs: node.attributes } }
+      }
+      if (tag === 'video') {
+        return { type: 'videoBlock', attrs: { mdAttrs: node.attributes } }
+      }
       if (tag === 'query') {
         return { type: 'queryBlock', attrs: { mdAttrs: node.attributes } }
+      }
+      if (tag === 'latest-posts') {
+        return { type: 'latestPostsBlock', attrs: { mdAttrs: node.attributes } }
       }
       if (tag === 'embed') {
         return { type: 'embedBlock', attrs: { mdAttrs: node.attributes } }

@@ -147,12 +147,33 @@ function buildBlock(node: TiptapNode): InstanceType<typeof N> {
         [],
         'hero'
       )
+    case 'spacerBlock':
+      return new N(
+        'tag',
+        (attrs['mdAttrs'] ?? {}) as Record<string, unknown>,
+        [],
+        'spacer'
+      )
+    case 'videoBlock':
+      return new N(
+        'tag',
+        (attrs['mdAttrs'] ?? {}) as Record<string, unknown>,
+        [],
+        'video'
+      )
     case 'queryBlock':
       return new N(
         'tag',
         (attrs['mdAttrs'] ?? {}) as Record<string, unknown>,
         [],
         'query'
+      )
+    case 'latestPostsBlock':
+      return new N(
+        'tag',
+        (attrs['mdAttrs'] ?? {}) as Record<string, unknown>,
+        [],
+        'latest-posts'
       )
     case 'embedBlock':
       return new N(

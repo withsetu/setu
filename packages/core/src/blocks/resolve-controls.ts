@@ -7,14 +7,20 @@ export interface ResolvedControl {
   control: BlockControl
   default?: unknown
   options?: string[]
+  /** Numeric bounds/step for number-backed controls (from zod .min/.max/.multipleOf). */
+  min?: number
+  max?: number
+  step?: number
 }
 
 /** String-backed controls a hint may upgrade a (non-enum) String prop to. `category`/`tag`
- *  render a searchable taxonomy picker in the inspector but store a single slug string. */
+ *  render a searchable taxonomy picker in the inspector but store a single slug string.
+ *  `media` picks an image from the library; `video` picks a video file. */
 const STRING_CONTROLS: ReadonlySet<BlockControl> = new Set([
   'text',
   'textarea',
   'media',
+  'video',
   'url',
   'color',
   'category',
@@ -54,14 +60,16 @@ export function resolveControls(
         : a.type === 'Boolean'
           ? 'switch'
           : 'text'
+    const shared = {
+      ...(a.default !== undefined ? { default: a.default } : {}),
+      ...(a.matches ? { options: a.matches } : {}),
+      ...(a.min !== undefined ? { min: a.min } : {}),
+      ...(a.max !== undefined ? { max: a.max } : {}),
+      ...(a.step !== undefined ? { step: a.step } : {})
+    }
     const hint = hints[name]
     if (hint === undefined) {
-      return {
-        name,
-        control: derived,
-        ...(a.default !== undefined ? { default: a.default } : {}),
-        ...(a.matches ? { options: a.matches } : {})
-      }
+      return { name, control: derived, ...shared }
     }
     // a hint is only valid if compatible with the zod type
     const ok =
@@ -73,11 +81,6 @@ export function resolveControls(
       throw new Error(
         `resolveControls: hint "${hint}" incompatible with prop "${name}" (zod ${a.type}${a.matches ? ' enum' : ''})`
       )
-    return {
-      name,
-      control: hint,
-      ...(a.default !== undefined ? { default: a.default } : {}),
-      ...(a.matches ? { options: a.matches } : {})
-    }
+    return { name, control: hint, ...shared }
   })
 }

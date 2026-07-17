@@ -1,0 +1,93 @@
+/* latest-posts block (#192) — reads ONLY the 19 contract tokens
+   (docs/block-styling-contract.md); enforced by test/token-contract.test.ts.
+   Every card rule is scoped `.blk-latest-posts .blk-latest-posts-*` (0,2,0) so it
+   out-specifies the theme's `.prose a` content-link styling (0,1,1) — the block renders
+   inside `.prose measure-*`, and a bare part class (0,1,0) would lose the cascade and
+   titles would fall back to underlined accent links (the query block's #424 trap). */
+
+.blk-latest-posts {
+  list-style: none;
+  padding: 0;
+  margin: 1.5rem 0;
+  display: grid;
+  gap: 1.25rem;
+}
+
+.blk-latest-posts.is-list {
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+/* Literal repeat() counts only — Safari/Firefox reject repeat(var(…))/repeat(min(…))
+   as a track count (the declaration is dropped and the grid collapses to one column). */
+.blk-latest-posts.cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.blk-latest-posts.cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+@media (max-width: 900px) {
+  .blk-latest-posts.is-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
+  .blk-latest-posts.is-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.blk-latest-posts .blk-latest-posts-item {
+  margin: 0;
+}
+
+.blk-latest-posts .blk-latest-posts-media {
+  display: block;
+}
+.blk-latest-posts .blk-latest-posts-media img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--r-md);
+  display: block;
+}
+.blk-latest-posts .blk-latest-posts-media + .blk-latest-posts-body {
+  margin-top: 0.5rem;
+}
+
+.blk-latest-posts .blk-latest-posts-title {
+  display: inline-block;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+}
+.blk-latest-posts .blk-latest-posts-title:hover {
+  color: var(--accent);
+}
+
+.blk-latest-posts .blk-latest-posts-date {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--text-2);
+}
+
+.blk-latest-posts .blk-latest-posts-excerpt {
+  margin: 0.4rem 0 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--text-2);
+  /* Clamp to 3 lines so uneven-length excerpts keep the grid tidy. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.blk-latest-posts-empty {
+  margin: 1.5rem 0;
+  color: var(--text-2);
+  font-style: italic;
+}

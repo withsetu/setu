@@ -13,7 +13,8 @@ const row: ContentRow = {
   tags: [],
   categories: ['react', 'tutorials'],
   mediaRefs: [],
-  hasFeaturedImage: false
+  hasFeaturedImage: false,
+  hasSeoOverrides: false
 }
 
 describe('projectRow / rowToContentRow — categories', () => {

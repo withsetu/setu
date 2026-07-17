@@ -26,6 +26,7 @@ const visible = {
   tags: true,
   categories: true,
   featured: true,
+  seo: true,
   updated: true,
   locale: false
 }
@@ -50,6 +51,13 @@ describe('ColumnsMenu', () => {
     openMenu()
     fireEvent.click(screen.getByText('Featured image'))
     expect(toggle).toHaveBeenCalledWith('featured')
+  })
+  it('toggles the custom-SEO column (#577)', () => {
+    const toggle = vi.fn()
+    render(<ColumnsMenu visible={visible} toggle={toggle} showLocale={false} />)
+    openMenu()
+    fireEvent.click(screen.getByText('SEO'))
+    expect(toggle).toHaveBeenCalledWith('seo')
   })
   it('hides the Locale item when showLocale is false', () => {
     render(

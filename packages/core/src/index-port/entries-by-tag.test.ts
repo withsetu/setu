@@ -20,7 +20,8 @@ const row = (
   tags,
   categories: [],
   mediaRefs: [],
-  hasFeaturedImage: false
+  hasFeaturedImage: false,
+  hasSeoOverrides: false
 })
 
 describe('selectEntriesByTag', () => {

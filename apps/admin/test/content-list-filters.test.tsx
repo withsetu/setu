@@ -28,7 +28,8 @@ function setup(initialEntries = ['/posts']) {
         status: 'draft',
         categories: ['guides'],
         tags: ['react'],
-        featuredImage: '/media/2026/07/alpha.webp'
+        featuredImage: '/media/2026/07/alpha.webp',
+        seo: { title: 'Alpha for robots' }
       }
     },
     {
@@ -100,6 +101,18 @@ describe('ContentList — filters', () => {
 
   it('featured=none keeps only entries without a featured image (#576)', async () => {
     setup(['/posts?featured=none'])
+    await waitFor(() => expect(screen.queryByText('Alpha')).toBeNull())
+    expect(screen.getByText('Beta')).toBeTruthy()
+  })
+
+  it('custom-SEO filter narrows the list in both directions (#577)', async () => {
+    setup(['/posts?seo=custom'])
+    await waitFor(() => expect(screen.queryByText('Beta')).toBeNull())
+    expect(screen.getByText('Alpha')).toBeTruthy()
+  })
+
+  it('seo=none keeps only entries without custom SEO (#577)', async () => {
+    setup(['/posts?seo=none'])
     await waitFor(() => expect(screen.queryByText('Alpha')).toBeNull())
     expect(screen.getByText('Beta')).toBeTruthy()
   })

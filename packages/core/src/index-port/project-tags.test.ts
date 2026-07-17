@@ -13,7 +13,8 @@ const row: ContentRow = {
   tags: ['react', 'redux'],
   categories: [],
   mediaRefs: [],
-  hasFeaturedImage: false
+  hasFeaturedImage: false,
+  hasSeoOverrides: false
 }
 
 describe('projectRow / rowToContentRow — tags', () => {

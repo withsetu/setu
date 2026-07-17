@@ -21,6 +21,8 @@ export interface EntryIndexRow {
   featuredImage?: string
   /** `featuredImage` present and non-blank — the list indicator/filter surface (#576). */
   hasFeaturedImage: boolean
+  /** Frontmatter `seo:` block sets any override — indicator only, never values (#577). */
+  hasSeoOverrides: boolean
 }
 
 export type SortKey = 'updatedAt' | 'title' | 'status' | 'locale'
@@ -34,6 +36,8 @@ export interface IndexQuery {
   category?: string
   /** true → only entries with a featured image; false → only those without (#576). */
   hasFeaturedImage?: boolean
+  /** true → only entries with custom SEO overrides; false → only those without (#577). */
+  hasSeoOverrides?: boolean
   sort?: { key: SortKey; dir: 'asc' | 'desc' }
   offset: number
   limit: number
@@ -81,7 +85,8 @@ export function projectRow(row: ContentRow): EntryIndexRow {
     tags: row.tags,
     categories: row.categories,
     mediaRefs: row.mediaRefs,
-    hasFeaturedImage: row.hasFeaturedImage
+    hasFeaturedImage: row.hasFeaturedImage,
+    hasSeoOverrides: row.hasSeoOverrides
   }
   if (row.lifecycle.pending !== undefined) out.pending = row.lifecycle.pending
   if (row.featuredImage !== undefined) out.featuredImage = row.featuredImage
@@ -107,6 +112,7 @@ export function rowToContentRow(r: EntryIndexRow): ContentRow {
     ...(r.featuredImage !== undefined
       ? { featuredImage: r.featuredImage }
       : {}),
-    hasFeaturedImage: r.hasFeaturedImage
+    hasFeaturedImage: r.hasFeaturedImage,
+    hasSeoOverrides: r.hasSeoOverrides
   }
 }

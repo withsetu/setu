@@ -34,6 +34,8 @@ const base = {
   onTag: () => {},
   featured: '',
   onFeatured: () => {},
+  seo: '',
+  onSeo: () => {},
   hasFilters: false,
   onClear: () => {},
   columnsMenu: <button>Columns</button>
@@ -59,6 +61,18 @@ describe('ListToolbar', () => {
     rerender(<ListToolbar {...base} featured="none" />)
     expect(screen.getByLabelText('Filter by featured image')).toHaveTextContent(
       'No featured image'
+    )
+  })
+  it('renders the SEO filter and reflects its value (#577)', () => {
+    const { rerender } = render(<ListToolbar {...base} />)
+    expect(screen.getByLabelText('Filter by SEO')).toHaveTextContent('SEO: all')
+    rerender(<ListToolbar {...base} seo="custom" />)
+    expect(screen.getByLabelText('Filter by SEO')).toHaveTextContent(
+      'Custom SEO'
+    )
+    rerender(<ListToolbar {...base} seo="none" />)
+    expect(screen.getByLabelText('Filter by SEO')).toHaveTextContent(
+      'No custom SEO'
     )
   })
   it('shows Clear only when filters are active', () => {

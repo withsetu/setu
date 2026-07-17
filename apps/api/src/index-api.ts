@@ -66,6 +66,7 @@ const contentQuerySchema = z.object({
   tag: z.string().optional(),
   category: z.string().optional(),
   hasFeaturedImage: boolParam,
+  hasSeoOverrides: boolParam,
   sort: z.enum(['updatedAt', 'title', 'status', 'locale']).optional(),
   dir: z.enum(['asc', 'desc']).optional(),
   ...pagination
@@ -148,6 +149,9 @@ export function createIndexApi(deps: IndexApiDeps) {
       ...(p.category !== undefined ? { category: p.category } : {}),
       ...(p.hasFeaturedImage !== undefined
         ? { hasFeaturedImage: p.hasFeaturedImage }
+        : {}),
+      ...(p.hasSeoOverrides !== undefined
+        ? { hasSeoOverrides: p.hasSeoOverrides }
         : {}),
       ...(p.sort !== undefined
         ? { sort: { key: p.sort, dir: p.dir ?? 'desc' } }

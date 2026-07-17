@@ -14,7 +14,8 @@ import { indexKey, projectRow, rowToContentRow } from './types'
 // forces a rebuild so existing indexes backfill the new field.
 // v7: rows now carry `hasFeaturedImage` (#576, list indicator/filter) — bump forces a
 // rebuild so existing indexes backfill the new field.
-export const INDEX_VERSION = 7
+// v8: rows now carry `hasSeoOverrides` (#577, list indicator/filter) — same deal.
+export const INDEX_VERSION = 8
 
 export interface IndexServiceDeps {
   data: DataPort

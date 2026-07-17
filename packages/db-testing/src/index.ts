@@ -268,6 +268,7 @@ const irow = (over: Partial<EntryIndexRow>): EntryIndexRow => {
     categories: [] as string[],
     mediaRefs: [] as string[],
     hasFeaturedImage: false,
+    hasSeoOverrides: false,
     ...over
   }
   return {
@@ -329,6 +330,30 @@ export function runIndexPortContract(
         limit: 10
       })
       expect(withoutImg.rows.map((r) => r.slug)).toEqual(['without'])
+      expect(
+        (await ix.query({ collection: 'post', offset: 0, limit: 10 })).total
+      ).toBe(2)
+    })
+
+    it('filters by hasSeoOverrides in both directions (#577)', async () => {
+      await ix.upsertMany([
+        irow({ slug: 'custom', hasSeoOverrides: true }),
+        irow({ slug: 'plain', hasSeoOverrides: false })
+      ])
+      const custom = await ix.query({
+        collection: 'post',
+        hasSeoOverrides: true,
+        offset: 0,
+        limit: 10
+      })
+      expect(custom.rows.map((r) => r.slug)).toEqual(['custom'])
+      const plain = await ix.query({
+        collection: 'post',
+        hasSeoOverrides: false,
+        offset: 0,
+        limit: 10
+      })
+      expect(plain.rows.map((r) => r.slug)).toEqual(['plain'])
       expect(
         (await ix.query({ collection: 'post', offset: 0, limit: 10 })).total
       ).toBe(2)

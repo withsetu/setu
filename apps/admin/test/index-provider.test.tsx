@@ -74,7 +74,8 @@ describe('IndexProvider', () => {
       tags: [],
       categories: [],
       mediaRefs: [],
-      hasFeaturedImage: false
+      hasFeaturedImage: false,
+      hasSeoOverrides: false
     })
     await shared.setMeta({ indexedSha: 'built', version: INDEX_VERSION })
     // The data port is EMPTY — if the provider rebuilt instead of using the shared

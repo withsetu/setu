@@ -9,6 +9,7 @@ const allCols = {
   tags: true,
   categories: true,
   featured: true,
+  seo: true,
   updated: true,
   locale: true
 }
@@ -25,6 +26,7 @@ function row(o: Partial<ContentRow> = {}): ContentRow {
     categories: ['news'],
     mediaRefs: [],
     hasFeaturedImage: false,
+    hasSeoOverrides: false,
     ...o
   }
 }
@@ -155,6 +157,28 @@ describe('ContentTable', () => {
         />
       )
       expect(screen.queryByLabelText('Has featured image')).toBeNull()
+    })
+  })
+
+  describe('custom-SEO indicator column (#577)', () => {
+    it('shows a tick with an accessible label when custom SEO is set — never the values', () => {
+      wrap(<ContentTable {...base} rows={[row({ hasSeoOverrides: true })]} />)
+      expect(screen.getByLabelText('Custom SEO set')).toBeInTheDocument()
+      expect(screen.queryByLabelText('No custom SEO')).toBeNull()
+    })
+    it('shows a muted dash with an accessible label when none is set', () => {
+      wrap(<ContentTable {...base} rows={[row()]} />)
+      expect(screen.getByLabelText('No custom SEO')).toBeInTheDocument()
+    })
+    it('hides the column when toggled off', () => {
+      wrap(
+        <ContentTable
+          {...base}
+          visible={{ ...allCols, seo: false }}
+          rows={[row({ hasSeoOverrides: true })]}
+        />
+      )
+      expect(screen.queryByLabelText('Custom SEO set')).toBeNull()
     })
   })
 

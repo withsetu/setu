@@ -134,6 +134,8 @@ export function createHttpIndexService(
       params.set('category', q.category)
     if (q.hasFeaturedImage !== undefined)
       params.set('hasFeaturedImage', String(q.hasFeaturedImage))
+    if (q.hasSeoOverrides !== undefined)
+      params.set('hasSeoOverrides', String(q.hasSeoOverrides))
     if (q.sort !== undefined) {
       params.set('sort', q.sort.key)
       params.set('dir', q.sort.dir)

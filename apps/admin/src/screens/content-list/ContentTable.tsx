@@ -1,6 +1,13 @@
 import { Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'motion/react'
-import { ArrowDown, ArrowUp, Check, ExternalLink, Image } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  ExternalLink,
+  FileSearch,
+  Image
+} from 'lucide-react'
 import type { ContentRow, SortKey } from '@setu/core'
 import { resolvePermalinkConfig } from '@setu/core'
 import {
@@ -148,6 +155,17 @@ export function ContentTable({
               </span>
             </TableHead>
           )}
+          {visible.seo && (
+            <TableHead className="w-16 text-center">
+              <span
+                className="inline-flex items-center justify-center"
+                title="Custom SEO"
+              >
+                <FileSearch aria-hidden="true" className="size-4" />
+                <span className="sr-only">Custom SEO</span>
+              </span>
+            </TableHead>
+          )}
           {localeCol && (
             <TableHead className="w-24">
               <SortHead label="Locale" k="locale" sort={sort} onSort={onSort} />
@@ -258,6 +276,15 @@ export function ContentTable({
                     on={r.hasFeaturedImage}
                     onLabel="Has featured image"
                     offLabel="No featured image"
+                  />
+                </TableCell>
+              )}
+              {visible.seo && (
+                <TableCell className="text-center">
+                  <IndicatorMark
+                    on={r.hasSeoOverrides}
+                    onLabel="Custom SEO set"
+                    offLabel="No custom SEO"
                   />
                 </TableCell>
               )}

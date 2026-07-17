@@ -16,7 +16,8 @@ const row = (locale: string, slug: string): EntryIndexRow => ({
   tags: [],
   categories: [],
   mediaRefs: [],
-  hasFeaturedImage: false
+  hasFeaturedImage: false,
+  hasSeoOverrides: false
 })
 
 describe('selectDistinctLocales', () => {

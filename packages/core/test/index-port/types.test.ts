@@ -13,7 +13,8 @@ const cr: ContentRow = {
   tags: [],
   categories: [],
   mediaRefs: [],
-  hasFeaturedImage: false
+  hasFeaturedImage: false,
+  hasSeoOverrides: false
 }
 
 describe('index-port projection', () => {
@@ -37,7 +38,8 @@ describe('index-port projection', () => {
       tags: [],
       categories: [],
       mediaRefs: [],
-      hasFeaturedImage: false
+      hasFeaturedImage: false,
+      hasSeoOverrides: false
     })
   })
 

@@ -16,7 +16,8 @@ const row = (key: string, tags: string[]): EntryIndexRow => ({
   tags,
   categories: [],
   mediaRefs: [],
-  hasFeaturedImage: false
+  hasFeaturedImage: false,
+  hasSeoOverrides: false
 })
 
 describe('selectTagCounts', () => {

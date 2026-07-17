@@ -50,6 +50,7 @@ const serverRow = (
   categories: [],
   mediaRefs: [],
   hasFeaturedImage: false,
+  hasSeoOverrides: false,
   ...over
 })
 
@@ -136,6 +137,18 @@ describe('createHttpIndexService · query', () => {
     expect(calls[2]!.url.searchParams.has('hasFeaturedImage')).toBe(false)
   })
 
+  it('forwards the hasSeoOverrides filter to the server and omits it when unset (#577)', async () => {
+    const { service, calls } = makeHarness({
+      routes: { '/api/index/query': () => ({ rows: [], total: 0 }) }
+    })
+    await service.query(q({ hasSeoOverrides: true }))
+    expect(calls[0]!.url.searchParams.get('hasSeoOverrides')).toBe('true')
+    await service.query(q({ hasSeoOverrides: false }))
+    expect(calls[1]!.url.searchParams.get('hasSeoOverrides')).toBe('false')
+    await service.query(q())
+    expect(calls[2]!.url.searchParams.has('hasSeoOverrides')).toBe(false)
+  })
+
   it('flushes a pre-existing locally-built index before its first cache use', async () => {
     const { service, index, failing } = makeHarness({
       routes: {
@@ -157,7 +170,8 @@ describe('createHttpIndexService · query', () => {
       tags: [],
       categories: [],
       mediaRefs: [],
-      hasFeaturedImage: false
+      hasFeaturedImage: false,
+      hasSeoOverrides: false
     })
     await index.setMeta({ indexedSha: 'old', version: INDEX_VERSION })
     await service.query(q())

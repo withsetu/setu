@@ -17,6 +17,7 @@ function row(over: Partial<ContentRow> = {}): ContentRow {
     categories: [],
     mediaRefs: [],
     hasFeaturedImage: false,
+    hasSeoOverrides: false,
     ...over
   }
 }

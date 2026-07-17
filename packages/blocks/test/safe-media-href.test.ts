@@ -28,6 +28,10 @@ describe('safeMediaHref (#177 audit — anchor scheme allowlist)', () => {
     expect(safeMediaHref('file:///etc/passwd', 'http://x')).toBeNull()
     // protocol-relative would resolve to an external origin once base is '' in prod
     expect(safeMediaHref('//evil.example/a.jpg', '')).toBeNull()
+    // backslash twin: the WHATWG URL parser normalizes \ to /, so /\host is the
+    // same external authority as //host
+    expect(safeMediaHref('/\\evil.example/a.jpg', '')).toBeNull()
+    expect(safeMediaHref('/\\evil.example/a.jpg', 'http://x')).toBeNull()
     // bare relative paths can't be resolved to a full-size original reliably
     expect(safeMediaHref('a.jpg', 'http://x')).toBeNull()
     expect(safeMediaHref('', 'http://x')).toBeNull()

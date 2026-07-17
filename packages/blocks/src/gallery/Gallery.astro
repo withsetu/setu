@@ -72,12 +72,13 @@ if (emitScript) emittedFor.add(Astro.request)
   </div>
 )}
 {/* Progressive enhancement, blur-up precedent (Image.astro): an is:inline script shipped
-    verbatim — plain browser JS, NO TypeScript — emitted ONCE PER PAGE via the
-    Astro.locals flag above (the window.__setuGalleryLightbox guard stays as a
-    second belt for exotic multi-fragment embeddings). Native <dialog> showModal()
-    supplies the focus trap, Escape-to-close, and focus restore to the clicked
-    tile; the script adds the slideshow (prev/next/arrows), on-demand full-size loading,
-    caption + counter, and backdrop-click close. Zero dependencies, static-site safe. */}
+    verbatim — plain browser JS, NO TypeScript — emitted ONCE PER PAGE via `emitScript`
+    above (the module WeakSet in lightbox-script-registry.ts, keyed on Astro.request;
+    the window.__setuGalleryLightbox guard stays as a second belt for exotic
+    multi-fragment embeddings). Native <dialog> showModal() supplies the focus trap,
+    Escape-to-close, and focus restore to the clicked tile; the script adds the
+    slideshow (prev/next/arrows), on-demand full-size loading, caption + counter,
+    and backdrop-click close. Zero dependencies, static-site safe. */}
 {emitScript && (
   <script is:inline>
     (function () {

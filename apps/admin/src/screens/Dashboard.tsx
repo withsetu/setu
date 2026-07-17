@@ -13,7 +13,8 @@ import { Button } from '@/components/ui/button'
 import type { DashboardCounts } from '../dashboard/entries'
 import {
   dashboardCountsFromStats,
-  loadRecentEntries
+  loadRecentEntries,
+  orderLocksByRecency
 } from '../dashboard/entries'
 import { greeting } from '../lib/format'
 import { ResumeEditing } from '../dashboard/widgets/ResumeEditing'
@@ -79,7 +80,7 @@ export function Dashboard() {
         if (!live) return
         setCounts(dashboardCountsFromStats(stats))
         setRecent(recentRows)
-        setLocks(allLocks)
+        setLocks(orderLocksByRecency(allLocks))
       } catch {
         if (live) setError(true)
       }

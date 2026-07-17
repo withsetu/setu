@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { projectRow, selectIndexStats } from '@setu/core'
-import type { ContentRow, IndexQuery, IndexService } from '@setu/core'
+import type { ContentRow, IndexQuery, IndexService, Lock } from '@setu/core'
 import {
   dashboardCountsFromStats,
-  loadRecentEntries
+  loadRecentEntries,
+  orderLocksByRecency
 } from '../src/dashboard/entries'
 
 const row = (
@@ -128,5 +129,57 @@ describe('loadRecentEntries', () => {
       expect(q.sort).toEqual({ key: 'updatedAt', dir: 'desc' })
     }
     expect(captured.map((q) => q.collection).sort()).toEqual(['page', 'post'])
+  })
+
+  it('breaks equal-updatedAt ties deterministically (slug, then collection)', async () => {
+    // Same updatedAt across a post and a page; the merge must not depend on
+    // which collection page came back first — always slug asc on ties.
+    const byCollection: Record<string, ContentRow[]> = {
+      post: [row('post', 'live', 'zed', 100), row('post', 'live', 'bob', 100)],
+      page: [row('page', 'live', 'amy', 100)]
+    }
+    const index: Pick<IndexService, 'query'> = {
+      async query(q) {
+        const rows = byCollection[q.collection] ?? []
+        return { rows, total: rows.length }
+      }
+    }
+    const recent = await loadRecentEntries(index, 5)
+    expect(recent.map((r) => r.ref.slug)).toEqual(['amy', 'bob', 'zed'])
+  })
+})
+
+describe('orderLocksByRecency', () => {
+  const lock = (slug: string, lockedAt: number, collection = 'post'): Lock => ({
+    collection,
+    locale: 'en',
+    slug,
+    lockedBy: `${slug}@x.com`,
+    lockedAt
+  })
+
+  it('orders most-recently-acquired first (lockedAt desc), does not mutate input', () => {
+    const input = [lock('a', 10), lock('b', 30), lock('c', 20)]
+    const out = orderLocksByRecency(input)
+    expect(out.map((l) => l.slug)).toEqual(['b', 'c', 'a'])
+    // pure: original order untouched
+    expect(input.map((l) => l.slug)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('tie-breaks equal lockedAt by slug then collection', () => {
+    const out = orderLocksByRecency([
+      lock('zed', 5),
+      lock('amy', 5, 'page'),
+      lock('amy', 5, 'post')
+    ])
+    expect(out.map((l) => `${l.collection}/${l.slug}`)).toEqual([
+      'page/amy',
+      'post/amy',
+      'post/zed'
+    ])
+  })
+
+  it('empty in → empty out', () => {
+    expect(orderLocksByRecency([])).toEqual([])
   })
 })

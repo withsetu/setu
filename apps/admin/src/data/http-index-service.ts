@@ -298,10 +298,15 @@ export function createHttpIndexService(
   }
 
   // Dashboard At-a-glance counts (#587). Server truth (committed content +
-  // deploy-derived lifecycle) — no draft overlay, same rationale as
-  // categoryCounts/tagCounts below: the tiles show published-content totals,
-  // and a local-only draft's contribution isn't worth a per-entry committed
-  // diff. Offline → the stale-while-offline cache answers.
+  // deploy-derived lifecycle) — NO draft overlay, and that is DELIBERATE
+  // (owner-approved 2026-07-17): dashboard counts = committed / site truth;
+  // local uncommitted browser drafts (autosave scratch) are intentionally not
+  // counted. They still appear in "Resume editing" (this browser's personal
+  // recent work) via query()'s draft overlay — just not in the totals.
+  // WordPress-aligned: autosave doesn't bump the Drafts count, a real Save
+  // Draft does — and Setu's Save Draft commits to git, so it still counts.
+  // (Same no-overlay stance as categoryCounts/tagCounts below.) Offline → the
+  // stale-while-offline cache answers.
   async function stats(): Promise<IndexStats> {
     try {
       return await getJson<IndexStats>(

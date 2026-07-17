@@ -20,6 +20,8 @@ const TAXONOMY_AUTHOR = { name: 'Local', email: 'local@setu.dev' }
 export interface TaxonomyContextValue {
   categories: Category[]
   counts: Record<string, number>
+  /** True until the initial categories + counts reads settle — loading ≠ empty (#582). */
+  loading: boolean
   /** Create a category; returns the minted slug. */
   create: (input: { name: string; parent: string | null }) => Promise<string>
   renameLabel: (slug: string, name: string) => Promise<void>
@@ -49,27 +51,34 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
   )
   const [categories, setCategories] = useState<Category[]>([])
   const [counts, setCounts] = useState<Record<string, number>>({})
+  const [loading, setLoading] = useState(true)
 
-  const refreshCounts = useCallback(() => {
-    void index
-      .categoryCounts()
-      .then(setCounts)
-      .catch(() => {})
-  }, [index])
+  const refreshCounts = useCallback(
+    () =>
+      index
+        .categoryCounts()
+        .then(setCounts)
+        .catch(() => {}),
+    [index]
+  )
 
   useEffect(() => {
-    void service
-      .read()
-      .then(setCategories)
-      .catch(() => {})
-    refreshCounts()
+    // #582: flip `loading` only once both initial reads settle (success or failure),
+    // so screens can tell "still loading" from "loaded empty".
+    void Promise.all([
+      service
+        .read()
+        .then(setCategories)
+        .catch(() => {}),
+      refreshCounts()
+    ]).then(() => setLoading(false))
   }, [service, refreshCounts])
 
   const create = useCallback(
     async (input: { name: string; parent: string | null }) => {
       const { categories: next, slug } = await service.create(input)
       setCategories(next)
-      refreshCounts()
+      void refreshCounts()
       return slug
     },
     [service, refreshCounts]
@@ -88,14 +97,22 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
     async (slug: string) => {
       const { categories: next } = await deleter.remove(slug)
       setCategories(next)
-      refreshCounts()
+      void refreshCounts()
     },
     [deleter, refreshCounts]
   )
 
   const value = useMemo<TaxonomyContextValue>(
-    () => ({ categories, counts, create, renameLabel, reparent, remove }),
-    [categories, counts, create, renameLabel, reparent, remove]
+    () => ({
+      categories,
+      counts,
+      loading,
+      create,
+      renameLabel,
+      reparent,
+      remove
+    }),
+    [categories, counts, loading, create, renameLabel, reparent, remove]
   )
   return (
     <TaxonomyContext.Provider value={value}>

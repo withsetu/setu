@@ -25,15 +25,9 @@ async function scanAndAssert(
   page: import('@playwright/test').Page,
   surface: string
 ) {
-  const results = await new AxeBuilder({ page })
-    .withTags(TAGS)
-    // `.dev-reset` (main.tsx's "Reset to sample content" button) only exists because
-    // this harness runs against `vite dev` — it's compiled out of production by Vite
-    // (`import.meta.env.DEV` guard) and never ships, so it is test-environment
-    // scaffolding, not a product surface. Excluding it is the "trivially fix in
-    // test-setup" case the brief calls out, not a violation to allowlist.
-    .exclude('.dev-reset')
-    .analyze()
+  // (The old `.dev-reset` floating button exclusion is gone: #513's Demo Data
+  // panel absorbed the control and the overlay no longer exists, #492.)
+  const results = await new AxeBuilder({ page }).withTags(TAGS).analyze()
   const { known, unexpected } = classifyViolations(results)
   console.log(formatKnownViolations(surface, known))
   expect(unexpected, formatUnexpectedViolations(surface, unexpected)).toEqual(

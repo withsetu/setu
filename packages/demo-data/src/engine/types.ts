@@ -128,6 +128,10 @@ export interface RemoveOptions {
   sandboxDir: string
   mediaDir: string
   onProgress?: (progress: SeedProgress) => void
+  /** Honored between post-chunk commits and between media/user deletions.
+   *  The manifest is only cleared at the very end, so an aborted removal
+   *  re-runs to completion instead of stranding seeded content (#513). */
+  signal?: AbortSignal
   deps?: SeedDeps
 }
 

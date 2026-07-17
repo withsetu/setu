@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './shell/AppShell'
 import { Placeholder } from './screens/Placeholder'
@@ -13,6 +14,19 @@ import { SiteHealth } from './screens/SiteHealth'
 import { UsersScreen } from './screens/users/UsersScreen'
 import { useCan } from './auth/actor'
 import type { Action } from '@setu/core'
+
+// Demo Data panel (#513): DEV-ONLY — the ternary makes the dynamic import
+// unreachable in production, so Vite/Rollup dead-code-eliminates the whole
+// screen (verified by grepping the production bundle; same gating idea as the
+// old floating dev-reset button this panel absorbs, #492). Lazy so even dev
+// builds only load it when visited.
+const DemoDataScreen = import.meta.env.DEV
+  ? lazy(() =>
+      import('./screens/demo/DemoDataScreen').then((m) => ({
+        default: m.DemoDataScreen
+      }))
+    )
+  : null
 
 /** Route-level defense-in-depth (#362): the sidebar already hides nav items an actor lacks the
  *  capability for (AppSidebar), but a direct URL visit must be re-checked here too. Falls back to
@@ -94,6 +108,21 @@ export function App() {
           path="/edit/:collection/:locale/:slug"
           element={<EditorScreen />}
         />
+        {DemoDataScreen !== null && (
+          <Route
+            path="/demo-data"
+            element={
+              // users.delete = the admin-only action seeding honestly maps to
+              // (it creates and hard-deletes accounts); the server enforces
+              // the same action on every /api/demo route.
+              <RequireCan action="users.delete">
+                <Suspense fallback={null}>
+                  <DemoDataScreen />
+                </Suspense>
+              </RequireCan>
+            }
+          />
+        )}
         <Route path="*" element={<Placeholder title="Page not found" />} />
       </Routes>
     </AppShell>

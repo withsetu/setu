@@ -66,5 +66,6 @@ export { probeLocalPort } from './probe'
 export {
   defaultMediaDir,
   defaultSandboxDir,
+  detectAicSource,
   resolveRepoRoot
 } from './resolve-dirs'

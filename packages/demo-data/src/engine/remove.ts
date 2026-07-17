@@ -36,7 +36,7 @@ export async function removeSeeded(
   options: RemoveOptions
 ): Promise<RemoveSummary> {
   const started = Date.now()
-  const { sandboxDir, mediaDir, onProgress } = options
+  const { sandboxDir, mediaDir, onProgress, signal } = options
   const deps = await resolveDeps(sandboxDir, mediaDir, options.deps)
   // Strict on purpose: a present-but-corrupt manifest aborts BEFORE anything
   // is removed or cleared (fail closed — see loadManifestStrict).
@@ -59,6 +59,7 @@ export async function removeSeeded(
     if ((await deps.git.readFile(path)) !== null) existing.push(path)
   }
   for (let i = 0; i < existing.length; i += POSTS_PER_COMMIT) {
+    signal?.throwIfAborted()
     const slice = existing.slice(i, i + POSTS_PER_COMMIT)
     const changes: FileChange[] = slice.map((path) => ({ path, delete: true }))
     await deps.git.commitFiles({
@@ -77,6 +78,7 @@ export async function removeSeeded(
   // -- media: sidecar-driven object removal (mirrors the media DELETE route) --
   let mediaRemoved = 0
   for (const mediaKey of manifest.mediaKeys) {
+    signal?.throwIfAborted()
     let any = false
     const manRaw = await deps.storage.get(manifestKey(mediaKey))
     if (manRaw) {
@@ -117,6 +119,7 @@ export async function removeSeeded(
   let userFailures = 0
   let usersSkipped = 0
   for (const user of manifest.users) {
+    signal?.throwIfAborted()
     if (!DEMO_USER_EMAIL.test(user.email)) {
       usersSkipped++
       onProgress?.({

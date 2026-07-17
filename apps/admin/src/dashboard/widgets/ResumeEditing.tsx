@@ -3,10 +3,34 @@ import { motion, useReducedMotion } from 'motion/react'
 import type { ContentRow } from '@setu/core'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import { statusBadge } from '@/lib/status-badge'
 import { relativeTime } from '@/lib/format'
 
-export function ResumeEditing({ rows }: { rows: ContentRow[] }) {
+/** Loading placeholder shaped like a row: title line + meta line + badge (#572). */
+function RowSkeleton() {
+  return (
+    <li className="flex items-center justify-between gap-3 border-t border-border py-2.5 first:border-t-0">
+      <div className="min-w-0 flex-1">
+        <div className="flex h-5 items-center">
+          <Skeleton className="h-4 w-2/3" />
+        </div>
+        <div className="flex h-4 items-center">
+          <Skeleton className="h-3 w-2/5" />
+        </div>
+      </div>
+      <Skeleton className="h-5 w-14" />
+    </li>
+  )
+}
+
+export function ResumeEditing({
+  rows,
+  loading = false
+}: {
+  rows: ContentRow[]
+  loading?: boolean
+}) {
   const reduce = useReducedMotion()
   return (
     <Card>
@@ -17,7 +41,13 @@ export function ResumeEditing({ rows }: { rows: ContentRow[] }) {
         </Link>
       </CardHeader>
       <CardContent className="pt-0">
-        {rows.length === 0 ? (
+        {loading ? (
+          <ul>
+            <RowSkeleton />
+            <RowSkeleton />
+            <RowSkeleton />
+          </ul>
+        ) : rows.length === 0 ? (
           <p className="py-2 text-sm text-muted-foreground">
             No edits yet —{' '}
             <Link

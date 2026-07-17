@@ -169,6 +169,9 @@ describe('sections', () => {
     expect(
       screen.getByRole('switch', { name: /relax text quality/i })
     ).toBeInTheDocument()
+    expect(
+      screen.getByRole('combobox', { name: /featured image sizes/i })
+    ).toBeInTheDocument()
     expect(screen.getByLabelText(/limit images/i)).toBeInTheDocument()
 
     // Seed + Reset
@@ -231,9 +234,47 @@ describe('seeding', () => {
         users: { admin: 1, maintainer: 1, editor: 2, author: 3 },
         draftFraction: 0.1,
         relaxText: true,
+        imageSizeMix: 'mixed',
         limitImages: 25
       })
     })
+  })
+
+  it('sends the selected image-size preset as the enum (never raw width arrays)', async () => {
+    const calls = mockApi([idleStatus()])
+    renderScreen()
+    await screen.findByRole('button', { name: 'Seed demo content' })
+
+    fireEvent.click(
+      screen.getByRole('combobox', { name: /featured image sizes/i })
+    )
+    fireEvent.click(
+      await screen.findByRole('option', { name: /small \(400 px\)/i })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Seed demo content' }))
+
+    await waitFor(() => {
+      const seed = calls.find((c) => c.url.endsWith('/api/demo/seed'))
+      expect(seed).toBeDefined()
+      const body = JSON.parse(seed!.init!.body as string) as {
+        imageSizeMix: string
+      }
+      expect(body.imageSizeMix).toBe('small')
+      expect(JSON.stringify(body)).not.toContain('[400')
+    })
+  })
+
+  it('rejects an all-zero user config with a form error and no request', async () => {
+    const calls = mockApi([idleStatus()])
+    renderScreen()
+    await screen.findByRole('button', { name: 'Seed demo content' })
+    for (const label of ['Admins', 'Maintainers', 'Editors', 'Authors'])
+      fireEvent.change(screen.getByLabelText(label), { target: { value: '0' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Seed demo content' }))
+    expect(
+      await screen.findByText(/seed at least one user across the roles/i)
+    ).toBeInTheDocument()
+    expect(calls.some((c) => c.url.endsWith('/api/demo/seed'))).toBe(false)
   })
 
   it('rejects an over-cap post count with a per-field error and no request', async () => {

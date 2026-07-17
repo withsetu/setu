@@ -45,7 +45,13 @@ import {
   AlertDialogTrigger
 } from '@/components/ui/alert-dialog'
 import { useDemoApi } from './demo-client'
-import type { DemoJob, ResetLevel, SeedRequest } from './demo-client'
+import type {
+  DemoJob,
+  DemoSeedUser,
+  ImageSizeMix,
+  ResetLevel,
+  SeedRequest
+} from './demo-client'
 
 const POST_PRESETS = [50, 1000, 10000, 30000] as const
 const MAX_POSTS = 30_000
@@ -57,6 +63,31 @@ const ROLE_FIELDS = [
   { key: 'editor', label: 'Editors', fallback: 2 },
   { key: 'author', label: 'Authors', fallback: 5 }
 ] as const
+
+/** Named featured-image size presets — the wire carries this enum; the api
+ *  maps it to engine width arrays (never raw arrays over the wire). */
+const IMAGE_SIZE_OPTIONS: {
+  value: ImageSizeMix
+  label: string
+  description: string
+}[] = [
+  {
+    value: 'mixed',
+    label: 'Mixed (default)',
+    description:
+      'A realistic spread of widths — 400 / 843 / 843 / 1686 px — the way a real media library grows.'
+  },
+  {
+    value: 'small',
+    label: 'Small (400 px)',
+    description: 'Every image at 400 px — fastest downloads, smallest library.'
+  },
+  {
+    value: 'large',
+    label: 'Large (1686 px)',
+    description: 'Every image at 1686 px — stress-tests processing and storage.'
+  }
+]
 
 const PHASE_LABELS: Record<string, string> = {
   starting: 'Starting…',
@@ -268,12 +299,20 @@ function DemoDataPanel({ apiBase }: { apiBase: string }) {
   const [draftPct, setDraftPct] = useState(10)
   const [relaxText, setRelaxText] = useState(false)
   const [limitImages, setLimitImages] = useState('')
+  const [imageSizeMix, setImageSizeMix] = useState<ImageSizeMix>('mixed')
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   // -- job transition side effects (notify once per terminal transition) -----
   const job = status?.job ?? null
   const lastSeen = useRef<string>('')
-  const [passwordsFor, setPasswordsFor] = useState<string | null>(null)
+  // Snapshot of the seeded credentials, captured at the ONE transition poll
+  // that carries them — the server strips passwords from every later status
+  // response ("shown once" is enforced on both sides), so rendering from the
+  // live job record would blank them under our feet.
+  const [passwords, setPasswords] = useState<{
+    jobId: string
+    users: DemoSeedUser[]
+  } | null>(null)
   useEffect(() => {
     if (!job) return
     const key = `${job.id}:${job.status}`
@@ -305,7 +344,7 @@ function DemoDataPanel({ apiBase }: { apiBase: string }) {
             ? ` (${fmt(s.imageFailures)} image downloads failed)`
             : '')
       )
-      setPasswordsFor(job.id)
+      setPasswords({ jobId: job.id, users: s.users })
       return
     }
     if (job.kind === 'unseed-generated' && job.removeSummary) {
@@ -341,11 +380,20 @@ function DemoDataPanel({ apiBase }: { apiBase: string }) {
     if (postCount === null)
       next['posts'] = `Enter a whole number up to ${fmt(MAX_POSTS)}.`
     const roleCounts = {} as SeedRequest['users']
+    let rolesValid = true
     for (const field of ROLE_FIELDS) {
       const n = parseCount(users[field.key], MAX_USERS_PER_ROLE)
-      if (n === null) next[field.key] = `0–${MAX_USERS_PER_ROLE}.`
-      else roleCounts[field.key] = n
+      if (n === null) {
+        next[field.key] = `0–${MAX_USERS_PER_ROLE}.`
+        rolesValid = false
+      } else roleCounts[field.key] = n
     }
+    // Mirror the engine's own precondition client-side: every post needs an
+    // owning author, so an all-zero user config is a form error, not a
+    // runtime failure toast.
+    if (rolesValid && Object.values(roleCounts).every((n) => n === 0))
+      next['users'] =
+        'Seed at least one user across the roles — every post needs an author.'
     let limit: number | undefined
     if (limitImages.trim() !== '') {
       const n = parseCount(limitImages, MAX_POSTS)
@@ -356,12 +404,13 @@ function DemoDataPanel({ apiBase }: { apiBase: string }) {
     }
     setErrors(next)
     if (Object.keys(next).length > 0 || postCount === null) return
-    setPasswordsFor(null)
+    setPasswords(null)
     const body: SeedRequest = {
       posts: postCount,
       users: roleCounts,
       draftFraction: draftPct / 100,
       relaxText,
+      imageSizeMix,
       ...(limit !== undefined ? { limitImages: limit } : {})
     }
     startSeed(body).catch((e: unknown) =>
@@ -398,15 +447,10 @@ function DemoDataPanel({ apiBase }: { apiBase: string }) {
   const dumpJobRunning = running && job?.kind === 'fetch-dump'
   const resetJobRunning =
     running && job !== null && !seedJobRunning && !dumpJobRunning
-  const doneSeed =
-    job?.kind === 'seed' && job.status === 'done' && job.seedSummary
-      ? job.seedSummary
-      : null
+  // Rendered from the local snapshot only (see setPasswords above) and only
+  // while the terminal job it belongs to is still the current one.
   const showPasswords =
-    doneSeed !== null &&
-    passwordsFor !== null &&
-    job !== null &&
-    passwordsFor === job.id
+    passwords !== null && job !== null && passwords.jobId === job.id
 
   return (
     <>
@@ -414,6 +458,9 @@ function DemoDataPanel({ apiBase }: { apiBase: string }) {
       <SectionCard title="Dataset">
         <div className="grid max-w-md gap-2">
           <Label htmlFor="demo-pack">Content pack</Label>
+          {/* Single-option today by design: The Met + Wikipedia featured
+              articles land as additional packs in #514; this Select becomes a
+              real chooser then. */}
           <Select value="aic">
             <SelectTrigger id="demo-pack" className="w-full">
               <SelectValue />
@@ -493,6 +540,11 @@ function DemoDataPanel({ apiBase }: { apiBase: string }) {
                 </div>
               ))}
             </div>
+            {errors['users'] && (
+              <p className="text-[13px] text-destructive" role="alert">
+                {errors['users']}
+              </p>
+            )}
           </SectionCard>
 
           {/* ------------------------------------------------ Content */}
@@ -547,6 +599,34 @@ function DemoDataPanel({ apiBase }: { apiBase: string }) {
               />
               <p className="text-[13px] text-muted-foreground">
                 This fraction of posts is seeded unpublished (drafts).
+              </p>
+            </div>
+
+            {/* Taxonomy-richness control (how many categories/tags the seed
+                registers) is deferred to #569 — it needs an engine knob first;
+                it would sit here, next to the image-size mix. */}
+            <div className="grid max-w-md gap-2">
+              <Label htmlFor="demo-image-size-mix">Featured image sizes</Label>
+              <Select
+                value={imageSizeMix}
+                onValueChange={(v) => setImageSizeMix(v as ImageSizeMix)}
+              >
+                <SelectTrigger id="demo-image-size-mix" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {IMAGE_SIZE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[13px] text-muted-foreground">
+                {
+                  IMAGE_SIZE_OPTIONS.find((o) => o.value === imageSizeMix)!
+                    .description
+                }
               </p>
             </div>
 
@@ -632,7 +712,7 @@ function DemoDataPanel({ apiBase }: { apiBase: string }) {
               </>
             )}
 
-            {showPasswords && doneSeed && (
+            {showPasswords && passwords && (
               <div
                 role="region"
                 aria-label="Demo user credentials"
@@ -652,13 +732,13 @@ function DemoDataPanel({ apiBase }: { apiBase: string }) {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={() => setPasswordsFor(null)}
+                    onClick={() => setPasswords(null)}
                   >
                     Dismiss
                   </Button>
                 </div>
                 <ul className="mt-3 space-y-1.5">
-                  {doneSeed.users.map((user) => (
+                  {passwords.users.map((user) => (
                     <li
                       key={user.email}
                       className="flex items-center gap-2 font-mono text-[13px]"

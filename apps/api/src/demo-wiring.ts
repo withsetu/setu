@@ -192,6 +192,9 @@ export function buildDemoEngine(opts: DemoWiringOptions): DemoEngine {
         ...(request.limitImages !== undefined
           ? { limitImages: request.limitImages }
           : {}),
+        ...(request.imageWidthMix !== undefined
+          ? { imageWidthMix: request.imageWidthMix }
+          : {}),
         onProgress: request.onProgress,
         signal: request.signal,
         deps: sharedDeps

@@ -281,6 +281,104 @@ describe('POST /api/demo/seed', () => {
     expect((await post(app, '/api/demo/seed', seedBody)).status).toBe(202)
   })
 
+  it('reserves the slot atomically: two same-tick starts → exactly one 202, one 409, one engine run', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((r) => (release = r))
+    let seeds = 0
+    const app = api(
+      fakeEngine({
+        // A deliberately slow async prep step — the old non-atomic guard let
+        // BOTH requests pass `running()` while the first awaited this.
+        datasetStatus: async () => {
+          await settle()
+          return { present: true, kind: 'dump' }
+        },
+        seed: async () => {
+          seeds++
+          await gate
+          return seedSummary
+        }
+      })
+    )
+    const [a, b] = await Promise.all([
+      post(app, '/api/demo/seed', seedBody),
+      post(app, '/api/demo/seed', seedBody)
+    ])
+    expect([a.status, b.status].sort()).toEqual([202, 409])
+    release()
+    await settle()
+    expect(seeds).toBe(1)
+    const { job } = (await (await get(app, '/api/demo/status')).json()) as {
+      job: { status: string }
+    }
+    expect(job.status).toBe('done')
+  })
+
+  it('releases the slot when async prep fails (source-missing does not wedge the store)', async () => {
+    const app = api(
+      fakeEngine({
+        datasetStatus: async () => ({ present: false, kind: null })
+      })
+    )
+    expect((await post(app, '/api/demo/seed', seedBody)).status).toBe(409)
+    // the failed reservation must not block the next starter
+    expect(
+      (await post(app, '/api/demo/unseed', { level: 'generated' })).status
+    ).toBe(202)
+  })
+
+  it('maps the imageSizeMix enum to engine width arrays (never raw arrays over the wire)', async () => {
+    const received: Array<readonly number[] | undefined> = []
+    const app = api(
+      fakeEngine({
+        seed: async (opts) => {
+          received.push(opts.imageWidthMix)
+          return seedSummary
+        }
+      })
+    )
+    await post(app, '/api/demo/seed', { ...seedBody, imageSizeMix: 'small' })
+    await settle()
+    await post(app, '/api/demo/seed', { ...seedBody, imageSizeMix: 'large' })
+    await settle()
+    await post(app, '/api/demo/seed', { ...seedBody, imageSizeMix: 'mixed' })
+    await settle()
+    await post(app, '/api/demo/seed', seedBody)
+    await settle()
+    expect(received).toEqual([[400], [1686], undefined, undefined])
+    // raw width arrays are not part of the wire contract
+    expect(
+      (await post(app, '/api/demo/seed', { ...seedBody, imageSizeMix: [400] }))
+        .status
+    ).toBe(400)
+    expect(
+      (
+        await post(app, '/api/demo/seed', {
+          ...seedBody,
+          imageSizeMix: 'gigantic'
+        })
+      ).status
+    ).toBe(400)
+  })
+
+  it('serves seed passwords exactly once — stripped after the first terminal status response', async () => {
+    const app = api()
+    await post(app, '/api/demo/seed', seedBody)
+    await settle()
+    type Status = {
+      job: { seedSummary: SeedSummary }
+    }
+    const first = (await (await get(app, '/api/demo/status')).json()) as Status
+    expect(first.job.seedSummary.users[0]!.password).toBe('pw-123')
+    const second = (await (await get(app, '/api/demo/status')).json()) as Status
+    expect(second.job.seedSummary.users[0]!.password).toBeNull()
+    // everything else about the summary survives the strip
+    expect(second.job.seedSummary.posts).toBe(2)
+    expect(second.job.seedSummary.users[0]!.email).toBe(
+      'demo-admin-1@demo.setu.test'
+    )
+  })
+
   it('marks a failed run failed with the message', async () => {
     const app = api(
       fakeEngine({

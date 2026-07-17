@@ -77,11 +77,16 @@ export interface DemoStatus {
   job: DemoJob | null
 }
 
+/** Named featured-image size preset — the api maps it to engine width arrays
+ *  server-side (the wire never carries raw arrays). */
+export type ImageSizeMix = 'mixed' | 'small' | 'large'
+
 export interface SeedRequest {
   posts: number
   users: { admin: number; maintainer: number; editor: number; author: number }
   draftFraction: number
   relaxText: boolean
+  imageSizeMix: ImageSizeMix
   limitImages?: number
 }
 

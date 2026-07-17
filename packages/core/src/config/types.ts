@@ -36,6 +36,9 @@ export interface BlockEditorMeta {
   group?: BlockCategory
   /** Extra search terms / aliases for the slash menu (e.g. ['img','photo']). */
   keywords?: string[]
+  /** Hide the block from the slash menu. For structural child blocks (e.g. `column`)
+   *  that are only ever created and managed by a parent container block. */
+  hidden?: boolean
   /** Selectable variant values for the block (e.g. callout types), shown in the
    *  editor's variant picker. The editor maps each to a theme tone/icon. */
   variants?: string[]

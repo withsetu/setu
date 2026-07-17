@@ -17,6 +17,7 @@ import { fetchAicSample } from './aic/fetch-sample'
 import {
   defaultMediaDir,
   defaultSandboxDir,
+  detectAicSource,
   removeSeeded,
   resolveRepoRoot,
   seedDemoData
@@ -168,34 +169,12 @@ export function parseSeedFlags(
   }
 }
 
-/** Locate an already-fetched AIC source: prefer the extracted dump, fall back
- *  to a sampled .jsonl. Never downloads implicitly — `aic fetch` is explicit. */
-async function detectAicSource(): Promise<string> {
-  const { stat } = await import('node:fs/promises')
-  const root = resolveRepoRoot()
-  const candidates = [
-    path.join(root, '.demo-data', 'artic-api-data', 'json', 'artworks'),
-    path.join(
-      root,
-      'packages',
-      'demo-data',
-      '.demo-data',
-      'artic-api-data',
-      'json',
-      'artworks'
-    ),
-    path.join(root, '.demo-data', 'aic-sample.jsonl'),
-    path.join(root, 'packages', 'demo-data', '.demo-data', 'aic-sample.jsonl')
-  ]
-  for (const candidate of candidates) {
-    if (
-      await stat(candidate).then(
-        () => true,
-        () => false
-      )
-    )
-      return candidate
-  }
+/** CLI wrapper over the shared `detectAicSource` (engine/resolve-dirs.ts —
+ *  #513's api reuses it): a missing source is a hard error with instructions
+ *  here, where "offer a download" isn't an option. */
+async function requireAicSource(): Promise<string> {
+  const source = await detectAicSource(resolveRepoRoot())
+  if (source !== null) return source
   throw new Error(
     'No AIC source found — run `pnpm --filter @setu/demo-data aic fetch` ' +
       '(full dump) or `aic sample` (bounded slice) first, or pass --source.'
@@ -249,7 +228,7 @@ function printProgress(
 
 async function runSeed(args: string[]): Promise<void> {
   const flags = parseSeedFlags(args)
-  const source = flags.source ?? (await detectAicSource())
+  const source = flags.source ?? (await requireAicSource())
   const pack = createAicPack({
     source,
     ...(flags.relaxText ? { textTier: 'relaxed' as const } : {})

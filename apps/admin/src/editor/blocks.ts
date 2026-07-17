@@ -167,6 +167,10 @@ export function slashBlocks(): SlashBlock[] {
               mdAttrs: { headline: 'Hero headline', layout: 'centered' }
             }
           })
+        } else if (b.tag === 'spacer') {
+          // Attribute-free insert: the canvas/renderer apply the contract default
+          // (48px) and the serialized form stays a clean `{% spacer /%}`.
+          chain.insertContent({ type: 'spacerBlock', attrs: { mdAttrs: {} } })
         } else if (b.tag === 'video') {
           // Empty mdAttrs → the atom renders its inviting placeholder; the author
           // picks the file via the inspector's media control (contract defaults

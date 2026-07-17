@@ -11,6 +11,7 @@ const INSPECTABLE = new Set([
   'heroBlock',
   'videoBlock',
   'queryBlock',
+  'spacerBlock',
   'columns'
 ])
 
@@ -29,9 +30,11 @@ function tagOf(name: string, attrs: Record<string, unknown>): string {
         ? 'video'
         : name === 'queryBlock'
           ? 'query'
-          : name === 'columns'
-            ? 'columns'
-            : ''
+          : name === 'spacerBlock'
+            ? 'spacer'
+            : name === 'columns'
+              ? 'columns'
+              : ''
 }
 
 /** Pure: the inspectable block at the current selection, or null. Atom blocks surface via

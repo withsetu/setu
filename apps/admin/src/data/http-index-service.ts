@@ -1,4 +1,5 @@
 import type {
+  AuditSummary,
   ContentRow,
   DataPort,
   DeployInfo,
@@ -10,6 +11,7 @@ import type {
   IndexService,
   MediaUsage
 } from '@setu/core'
+import { EMPTY_AUDIT_SUMMARY } from '@setu/core'
 import {
   contentPath,
   indexKey,
@@ -445,6 +447,25 @@ export function createHttpIndexService(
     return overlayRefs(server, (d) => draftOwnRow(d).categories.includes(slug))
   }
 
+  // Site Health content facts (#593). No draft overlay: the audit covers
+  // COMMITTED, published content only (mirrors the old git-walk, which never saw
+  // drafts) — so the server's answer is authoritative, with the offline cache as
+  // the stale-but-honest fallback.
+  async function auditSummary(): Promise<AuditSummary> {
+    try {
+      const res = await fetchImpl(`${apiBase}/api/index/audit-summary`)
+      if (!res.ok) throw new Error(`audit summary failed (${res.status})`)
+      return (await res.json()) as AuditSummary
+    } catch {
+      try {
+        await ensureCache()
+        return await index.auditSummary()
+      } catch {
+        return EMPTY_AUDIT_SUMMARY
+      }
+    }
+  }
+
   async function reindexEntry(ref: EntryRef): Promise<void> {
     // The SERVER already re-derived this entry (post-commit hook + per-request
     // ensureBuilt); this keeps the OFFLINE CACHE fresh so a network drop right
@@ -488,6 +509,7 @@ export function createHttpIndexService(
     tagCounts,
     referencedBy,
     entriesByCategory,
-    entriesByTag
+    entriesByTag,
+    auditSummary
   }
 }

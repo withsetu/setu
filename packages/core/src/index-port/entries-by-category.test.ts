@@ -20,7 +20,7 @@ const row = (
   tags: [],
   categories,
   mediaRefs: [],
-  audit: { audited: false, hasTitle: true, imagesWithoutAlt: 0, h1Count: 0 },
+  audit: { audited: false, hasTitle: true, imagesWithoutAlt: 0, h1Count: 0 }
 })
 
 describe('selectEntriesByCategory', () => {

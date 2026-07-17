@@ -26,8 +26,7 @@ const needsScan = (owner: Owner): Omit<CheckResult, 'id'> => ({
   detail: 'Run a site scan to check this.'
 })
 
-const plural = (n: number): string =>
-  `${n} entr${n === 1 ? 'y' : 'ies'}`
+const plural = (n: number): string => `${n} entr${n === 1 ? 'y' : 'ies'}`
 
 const nonEmpty = (v: unknown): boolean =>
   typeof v === 'string' && v.trim() !== ''

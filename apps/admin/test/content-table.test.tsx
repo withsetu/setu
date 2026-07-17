@@ -23,6 +23,7 @@ function row(o: Partial<ContentRow> = {}): ContentRow {
     tags: ['a', 'b', 'c'],
     categories: ['news'],
     mediaRefs: [],
+    audit: { audited: false, hasTitle: true, imagesWithoutAlt: 0, h1Count: 0 },
     ...o
   }
 }

@@ -168,7 +168,8 @@ describe('LatestPostsBlock node view (real browser)', () => {
     date,
     tags: [],
     categories: [],
-    mediaRefs: []
+    mediaRefs: [],
+    audit: { audited: false, hasTitle: true, imagesWithoutAlt: 0, h1Count: 0 }
   })
 
   it('renders REAL post titles + dates from the injected content-index query (#192)', async () => {

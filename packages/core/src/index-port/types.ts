@@ -1,9 +1,6 @@
 import type { EntryRef } from '../data/types'
 import type { LifecycleState, LifecyclePending } from '../lifecycle/derive'
-import type {
-  ContentRow,
-  EntryAuditFacts
-} from '../content-index/list-entries'
+import type { ContentRow, EntryAuditFacts } from '../content-index/list-entries'
 
 export type { EntryAuditFacts }
 

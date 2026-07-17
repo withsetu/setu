@@ -49,6 +49,7 @@ const serverRow = (
   tags: [],
   categories: [],
   mediaRefs: [],
+  audit: { audited: false, hasTitle: true, imagesWithoutAlt: 0, h1Count: 0 },
   ...over
 })
 
@@ -143,7 +144,8 @@ describe('createHttpIndexService · query', () => {
       date: null,
       tags: [],
       categories: [],
-      mediaRefs: []
+      mediaRefs: [],
+      audit: { audited: false, hasTitle: true, imagesWithoutAlt: 0, h1Count: 0 }
     })
     await index.setMeta({ indexedSha: 'old', version: INDEX_VERSION })
     await service.query(q())

@@ -84,7 +84,8 @@ const catRef: EntryIndexRow = {
   date: null,
   tags: [],
   categories: [],
-  mediaRefs: ['2026/06/cat']
+  mediaRefs: ['2026/06/cat'],
+  audit: { audited: false, hasTitle: true, imagesWithoutAlt: 0, h1Count: 0 }
 }
 
 /** Build providers seeded with `catRecord` and a content index row referencing it. */

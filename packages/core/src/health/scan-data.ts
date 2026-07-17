@@ -32,7 +32,8 @@ export function auditScanFromEntries(entries: AuditEntry[]): AuditScanData {
     if (locale) locales.add(locale)
     if (!nonEmpty(e.data.title)) titleOffenders.push(e.id)
     const { imagesWithoutAlt, h1Count } = scanBody(e.body)
-    if (imagesWithoutAlt > 0) altOffenders.push({ ref: e.id, count: imagesWithoutAlt })
+    if (imagesWithoutAlt > 0)
+      altOffenders.push({ ref: e.id, count: imagesWithoutAlt })
     if (h1Count > 0) h1Offenders.push(e.id)
   }
   titleOffenders.sort()

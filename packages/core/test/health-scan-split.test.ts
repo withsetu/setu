@@ -67,9 +67,9 @@ describe('runInstantChecks (#593)', () => {
 
   it('with scan=null, instant i18n stays applicable (not auto-N/A) and scan items report pending', () => {
     const audit = runAudit(baseCtx(null))
-    expect(audit.results.find((r) => r.id === 'i18n.hreflang')?.status).not.toBe(
-      'na'
-    )
+    expect(
+      audit.results.find((r) => r.id === 'i18n.hreflang')?.status
+    ).not.toBe('na')
     for (const id of SCAN_ITEM_IDS)
       expect(audit.results.find((r) => r.id === id)?.status).toBe('pending')
   })

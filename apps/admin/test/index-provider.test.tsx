@@ -73,7 +73,8 @@ describe('IndexProvider', () => {
       date: null,
       tags: [],
       categories: [],
-      mediaRefs: []
+      mediaRefs: [],
+      audit: { audited: false, hasTitle: true, imagesWithoutAlt: 0, h1Count: 0 }
     })
     await shared.setMeta({ indexedSha: 'built', version: INDEX_VERSION })
     // The data port is EMPTY — if the provider rebuilt instead of using the shared
@@ -124,7 +125,13 @@ describe('IndexProvider — server-backed (apiBase) selection (#464)', () => {
                 date: null,
                 tags: [],
                 categories: [],
-                mediaRefs: []
+                mediaRefs: [],
+                audit: {
+                  audited: false,
+                  hasTitle: true,
+                  imagesWithoutAlt: 0,
+                  h1Count: 0
+                }
               }
             ],
             total: 1

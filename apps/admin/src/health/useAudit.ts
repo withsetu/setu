@@ -1,18 +1,20 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   runAudit,
   mergeProbe,
   SITE_CAPABILITIES,
   type AuditResult,
+  type AuditScanData,
   type HealthState,
   type ProbeReport,
   type ProbeResponse
 } from '@setu/core'
 import { useServices, OWNER_AUTHOR } from '../data/store'
+import { useIndex } from '../data/index-store'
 import { useSettings } from '../data/settings-store'
 import { apiFetch } from '../lib/api-fetch'
-import { loadAuditEntries } from './audit-context'
 import { loadHealthState, writeHealthRecord } from './health-state'
+import { loadCachedScan, saveCachedScan } from './scan-cache'
 
 const apiBase = import.meta.env.VITE_SETU_API ?? ''
 
@@ -21,6 +23,13 @@ export type ProbeState =
   | { status: 'probing' }
   | { status: 'done'; probedAt: string }
   | { status: 'unavailable'; reason: string; detail?: string }
+
+/** Content-scan run state (#593). Distinct from the live-site probe. */
+export type ScanState =
+  | { status: 'idle' }
+  | { status: 'scanning' }
+  | { status: 'done' }
+  | { status: 'error' }
 
 /** Human copy for each honest "couldn't probe" reason. */
 export function probeUnavailableMessage(
@@ -35,7 +44,7 @@ export function probeUnavailableMessage(
   return `Your site URL couldn't be probed safely (${reason}).`
 }
 
-export function useAudit(): {
+export interface UseAudit {
   audit: AuditResult | null
   toggle: (
     kind: 'item' | 'section',
@@ -45,51 +54,72 @@ export function useAudit(): {
   health: HealthState
   probe: () => Promise<void>
   probeState: ProbeState
-} {
+  /** Run the content scan against the index (no per-entry git walk) and cache it. */
+  scan: () => Promise<void>
+  scanState: ScanState
+  /** ISO timestamp of the last cached scan, or null if never scanned on this machine. */
+  scannedAt: string | null
+}
+
+/** Site Health data hook (#593). The instant config/settings/platform checks run
+ *  LIVE on every render from data already in memory (settings) plus one cheap Git
+ *  read (site-health.json) — never a content walk. The 5 content checks read the
+ *  CACHED scan; `scan()` refreshes it from the server-authoritative index. */
+export function useAudit(): UseAudit {
   const { git } = useServices()
+  const index = useIndex()
   const settings = useSettings()
-  const [base, setBase] = useState<AuditResult | null>(null)
   const [health, setHealth] = useState<HealthState>({ items: {}, sections: {} })
+  const [ready, setReady] = useState(false)
+  const cached = useMemo(() => loadCachedScan(), [])
+  const [scan, setScan] = useState<AuditScanData | null>(cached?.scan ?? null)
+  const [scannedAt, setScannedAt] = useState<string | null>(
+    cached?.scannedAt ?? null
+  )
   const [refreshKey, setRefreshKey] = useState(0)
   const [report, setReport] = useState<ProbeReport | null>(null)
   const [probeState, setProbeState] = useState<ProbeState>({ status: 'idle' })
+  const [scanState, setScanState] = useState<ScanState>({ status: 'idle' })
 
+  // Load the attestation state (one Git read) — the ONLY IO on mount. No content walk.
   useEffect(() => {
     let live = true
     void (async () => {
       try {
-        const [entries, loadedHealth] = await Promise.all([
-          loadAuditEntries(git),
-          loadHealthState(git)
-        ])
-        const result = runAudit({
-          settings: {
-            general: {
-              title: settings.general.title,
-              description: settings.general.description
-            },
-            reading: {
-              homepage: settings.reading.homepage,
-              searchEngineVisible: settings.reading.searchEngineVisible,
-              feed: { enabled: settings.reading.feed.enabled }
-            }
-          },
-          entries,
-          capabilities: SITE_CAPABILITIES,
-          health: loadedHealth
-        })
+        const loaded = await loadHealthState(git)
         if (live) {
-          setBase(result)
-          setHealth(loadedHealth)
+          setHealth(loaded)
+          setReady(true)
         }
       } catch {
-        /* git unavailable in test stubs — leave audit null */
+        // Git unavailable (test stubs): still resolve so the instant checks render.
+        if (live) setReady(true)
       }
     })()
     return () => {
       live = false
     }
-  }, [git, settings, refreshKey])
+  }, [git, refreshKey])
+
+  const base = useMemo<AuditResult | null>(() => {
+    if (!ready) return null
+    return runAudit({
+      settings: {
+        general: {
+          title: settings.general.title,
+          description: settings.general.description
+        },
+        reading: {
+          homepage: settings.reading.homepage,
+          searchEngineVisible: settings.reading.searchEngineVisible,
+          feed: { enabled: settings.reading.feed.enabled }
+        }
+      },
+      capabilities: SITE_CAPABILITIES,
+      health,
+      scan
+    })
+  }, [ready, settings, health, scan])
 
   const toggle = useCallback(
     async (
@@ -105,6 +135,19 @@ export function useAudit(): {
     },
     [git]
   )
+
+  const scanNow = useCallback(async () => {
+    setScanState({ status: 'scanning' })
+    try {
+      const summary = await index.auditSummary()
+      const c = saveCachedScan(summary)
+      setScan(c.scan)
+      setScannedAt(c.scannedAt)
+      setScanState({ status: 'done' })
+    } catch {
+      setScanState({ status: 'error' })
+    }
+  }, [index])
 
   const probe = useCallback(async () => {
     setProbeState({ status: 'probing' })
@@ -132,9 +175,18 @@ export function useAudit(): {
     }
   }, [])
 
-  // Overlay the live-probe results onto the build-time audit so the screen renders one
-  // merged, re-scored picture.
+  // Overlay the live-probe results onto the audit so the screen renders one merged,
+  // re-scored picture.
   const audit = base && report ? mergeProbe(base, report) : base
 
-  return { audit, toggle, health, probe, probeState }
+  return {
+    audit,
+    toggle,
+    health,
+    probe,
+    probeState,
+    scan: scanNow,
+    scanState,
+    scannedAt
+  }
 }

@@ -308,6 +308,63 @@ describe('GET /api/index/entries-by-tag', () => {
   })
 })
 
+describe('GET /api/index/audit-summary', () => {
+  it('401 when unauthenticated', async () => {
+    const { get } = makeHarness(null)
+    expect((await get('/api/index/audit-summary')).status).toBe(401)
+  })
+
+  it('returns body-free content facts across all published entries', async () => {
+    const { get } = makeHarness()
+    const res = await get('/api/index/audit-summary')
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as {
+      titleOffenders: string[]
+      altOffenders: { ref: string; count: number }[]
+      h1Offenders: string[]
+      entryIds: string[]
+      locales: string[]
+    }
+    // The seeded entries all have titles + alt'd images + no body H1.
+    expect(body.titleOffenders).toEqual([])
+    expect(body.altOffenders).toEqual([])
+    expect(body.h1Offenders).toEqual([])
+    expect(body.entryIds).toEqual([
+      'page/fr/apropos',
+      'post/en/hello',
+      'post/en/world'
+    ])
+    expect(body.locales).toEqual(['en', 'fr'])
+  })
+
+  it('flags offenders and excludes published:false entries after a fresh commit', async () => {
+    const { get, git } = makeHarness()
+    await git.commitFile({
+      path: 'content/post/en/messy.mdoc',
+      content: '---\ntitle: ""\n---\n\n# Body heading\n\n![](x.png)\n',
+      message: 'add messy',
+      author: { name: 'T', email: 't@x.com' }
+    })
+    await git.commitFile({
+      path: 'content/post/en/secret.mdoc',
+      content: '---\ntitle: Secret\npublished: false\n---\n\nHidden\n',
+      message: 'add secret',
+      author: { name: 'T', email: 't@x.com' }
+    })
+    const body = (await (await get('/api/index/audit-summary')).json()) as {
+      titleOffenders: string[]
+      altOffenders: { ref: string; count: number }[]
+      h1Offenders: string[]
+      entryIds: string[]
+    }
+    expect(body.titleOffenders).toEqual(['post/en/messy'])
+    expect(body.altOffenders).toEqual([{ ref: 'post/en/messy', count: 1 }])
+    expect(body.h1Offenders).toEqual(['post/en/messy'])
+    // published:false is not part of the audited set.
+    expect(body.entryIds).not.toContain('post/en/secret')
+  })
+})
+
 describe('POST /api/index/refresh', () => {
   it('401 when unauthenticated', async () => {
     const { post } = makeHarness(null)

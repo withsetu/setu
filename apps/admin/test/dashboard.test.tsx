@@ -5,6 +5,7 @@ import { createMemoryDataPort } from '@setu/db-memory'
 import { createMemoryGitPort } from '@setu/git-memory'
 import type { DataPort, GitPort, DraftInput, TiptapDoc } from '@setu/core'
 import { DeployProvider } from '../src/deploy/deploy'
+import { IndexProvider } from '../src/data/index-store'
 import { ServicesProvider, servicesFor } from '../src/data/store'
 import { ActorProvider } from '../src/auth/actor'
 import { NotificationProvider } from '../src/ui/notify'
@@ -32,7 +33,9 @@ function renderDash(data: DataPort, git: GitPort) {
       <ServicesProvider services={servicesFor(data, git)}>
         <ActorProvider>
           <DeployProvider>
-            <Dashboard />
+            <IndexProvider>
+              <Dashboard />
+            </IndexProvider>
           </DeployProvider>
         </ActorProvider>
       </ServicesProvider>
@@ -132,9 +135,11 @@ describe('admin landing route', () => {
           <ActorProvider>
             <NotificationProvider>
               <DeployProvider>
-                <CommandRegistryProvider>
-                  <App />
-                </CommandRegistryProvider>
+                <IndexProvider>
+                  <CommandRegistryProvider>
+                    <App />
+                  </CommandRegistryProvider>
+                </IndexProvider>
               </DeployProvider>
             </NotificationProvider>
           </ActorProvider>

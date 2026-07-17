@@ -16,7 +16,6 @@ import {
   loadActiveLocks
 } from '../dashboard/entries'
 import { greeting } from '../lib/format'
-import { DashboardSkeleton } from '../dashboard/DashboardSkeleton'
 import { ResumeEditing } from '../dashboard/widgets/ResumeEditing'
 import { StatTiles } from '../dashboard/widgets/StatTiles'
 import { SiteDeployCard } from '../dashboard/widgets/SiteDeployCard'
@@ -74,6 +73,9 @@ export function Dashboard() {
   const counts = dashboardCounts(rows ?? [])
   const hasDeployed = deployStatus !== null && deployStatus.deployedSha !== null
   const url = siteUrl()
+  // #572: paint every widget's Card shell immediately and let the numbers/rows shimmer
+  // while entries load — no coarse gray blocks, no late pop-in at scale.
+  const loading = rows === null && !error
 
   return (
     <>
@@ -88,35 +90,42 @@ export function Dashboard() {
             Couldn't load your dashboard. Try refreshing.
           </p>
         )}
-        {rows === null && !error ? (
-          <DashboardSkeleton />
-        ) : (
-          <>
-            <GettingStarted
-              hasSiteUrl={url !== ''}
-              hasPost={counts.posts > 0}
-              hasDeployed={hasDeployed}
-            />
-            <div className="grid items-start gap-5 lg:grid-cols-2">
-              <div className="space-y-5">
-                <StatTiles
-                  posts={counts.posts}
-                  pages={counts.pages}
-                  published={counts.published}
-                  drafts={counts.drafts}
-                />
-                {/* #362: deploy + site-health are Maintainer+/Admin concerns (site.deploy /
-                    sitehealth.view) — hide the cards for content roles rather than leak ops data. */}
-                {can('site.deploy') && (
-                  <SiteDeployCard url={url} status={deployStatus} />
-                )}
-                {can('sitehealth.view') && <SiteHealthCard />}
-                <WhosEditing locks={locks} />
-              </div>
-              <ResumeEditing rows={recentEntries(rows ?? [], 5)} />
-            </div>
-          </>
+        {/* GettingStarted and WhosEditing render nothing at all in their common case
+            (set-up site / no locks) — a skeleton that usually vanishes would be a
+            layout-shift of its own, so they stay hidden until the data lands. */}
+        {!loading && (
+          <GettingStarted
+            hasSiteUrl={url !== ''}
+            hasPost={counts.posts > 0}
+            hasDeployed={hasDeployed}
+          />
         )}
+        <div className="grid items-start gap-5 lg:grid-cols-2">
+          <div className="space-y-5">
+            <StatTiles
+              loading={loading}
+              posts={counts.posts}
+              pages={counts.pages}
+              published={counts.published}
+              drafts={counts.drafts}
+            />
+            {/* #362: deploy + site-health are Maintainer+/Admin concerns (site.deploy /
+                sitehealth.view) — hide the cards for content roles rather than leak ops data. */}
+            {can('site.deploy') && (
+              <SiteDeployCard
+                url={url}
+                status={deployStatus}
+                loading={loading}
+              />
+            )}
+            {can('sitehealth.view') && <SiteHealthCard />}
+            {!loading && <WhosEditing locks={locks} />}
+          </div>
+          <ResumeEditing
+            loading={loading}
+            rows={recentEntries(rows ?? [], 5)}
+          />
+        </div>
       </PageBody>
     </>
   )

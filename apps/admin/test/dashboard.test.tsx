@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { createMemoryDataPort } from '@setu/db-memory'
 import { createMemoryGitPort } from '@setu/git-memory'
@@ -56,6 +56,57 @@ describe('Dashboard', () => {
       'href',
       '/edit/page/en/new'
     )
+  })
+
+  // #572: widget shells paint immediately with skeleton placeholders — no zero/empty
+  // flash — and fill in with linked stats once the entries land.
+  it('paints skeleton shells while entries load, then fills with linked stats (#572)', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((r) => {
+      release = r
+    })
+    const base = createMemoryGitPort()
+    const git: GitPort = {
+      ...base,
+      list: async (prefix: string) => {
+        await gate
+        return base.list(prefix)
+      }
+    }
+    const { container } = renderDash(createMemoryDataPort(seed), git)
+
+    // Shells are up straight away, numbers are skeletons: no premature zeros.
+    expect(screen.getByText('At a glance')).toBeInTheDocument()
+    expect(screen.getByText('Resume editing')).toBeInTheDocument()
+    expect(screen.getByText(/Site & deploy/)).toBeInTheDocument()
+    expect(
+      container.querySelectorAll('[data-slot="skeleton"]').length
+    ).toBeGreaterThan(0)
+    expect(screen.queryByText('0')).toBeNull()
+    expect(screen.queryByText(/No edits yet/)).toBeNull()
+
+    release()
+
+    // Data lands: the seeded draft shows up and the stats become links.
+    expect(await screen.findByText('First Post')).toBeInTheDocument()
+    const glance = screen
+      .getByText('At a glance')
+      .closest('[data-slot="card"]') as HTMLElement
+    expect(glance.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(0)
+    expect(within(glance).getByRole('link', { name: /Posts/ })).toHaveAttribute(
+      'href',
+      '/posts'
+    )
+    expect(within(glance).getByRole('link', { name: /Pages/ })).toHaveAttribute(
+      'href',
+      '/pages'
+    )
+    expect(
+      within(glance).getByRole('link', { name: /Published/ })
+    ).toHaveAttribute('href', '/posts')
+    expect(
+      within(glance).getByRole('link', { name: /Drafts/ })
+    ).toHaveAttribute('href', '/posts?status=draft')
   })
 
   it('shows an inline error state when data load fails', async () => {

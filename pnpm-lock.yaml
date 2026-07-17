@@ -261,6 +261,9 @@ importers:
       '@setu/db-sqlite':
         specifier: workspace:*
         version: link:../../packages/db-sqlite
+      '@setu/demo-data':
+        specifier: workspace:*
+        version: link:../../packages/demo-data
       '@setu/email-console':
         specifier: workspace:*
         version: link:../../packages/email-console
@@ -605,9 +608,24 @@ importers:
 
   packages/demo-data:
     dependencies:
+      '@setu/auth':
+        specifier: workspace:*
+        version: link:../auth
       '@setu/core':
         specifier: workspace:*
         version: link:../core
+      '@setu/db-sqlite':
+        specifier: workspace:*
+        version: link:../db-sqlite
+      '@setu/git-local':
+        specifier: workspace:*
+        version: link:../git-local
+      '@setu/image-sharp':
+        specifier: workspace:*
+        version: link:../image-sharp
+      '@setu/storage-local':
+        specifier: workspace:*
+        version: link:../storage-local
       zod:
         specifier: ^3.25.76
         version: 3.25.76

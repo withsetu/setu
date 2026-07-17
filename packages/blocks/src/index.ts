@@ -36,5 +36,8 @@ export const blockCores: Record<string, BlockCore> = {
   section: Section
 }
 
+export { columnsRenderAttrs, columnsTemplate } from './columns/columns-classes'
+export type { ColumnsRenderAttrs } from './columns/columns-classes'
+
 export { BLOCK_TOKENS, TOKENS_BY_AXIS } from './tokens'
 export type { BlockStyleAxis, BlockToken } from './tokens'

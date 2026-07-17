@@ -12,7 +12,8 @@ import {
   ExternalLink,
   Rocket,
   Activity,
-  Users
+  Users,
+  FlaskConical
 } from 'lucide-react'
 import {
   Sidebar,
@@ -82,7 +83,26 @@ const BASE_NAV: Group[] = [
         can: 'sitehealth.view'
       }
     ]
-  }
+  },
+  // Demo Data panel (#513): DEV-ONLY — the spread is empty in production
+  // builds, so the group (like the screen itself) is dead-code-eliminated,
+  // not merely hidden. Gated `users.delete` (admin-only): seeding creates and
+  // unseeding deletes accounts; the server enforces the same action.
+  ...(import.meta.env.DEV
+    ? [
+        {
+          label: 'Developer',
+          items: [
+            {
+              to: '/demo-data',
+              label: 'Demo Data',
+              icon: FlaskConical,
+              can: 'users.delete'
+            }
+          ]
+        } satisfies Group
+      ]
+    : [])
 ]
 
 /** The deliberate-publish control (#208 + #209): honest pending count, real rebuild.

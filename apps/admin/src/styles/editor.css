@@ -6,6 +6,7 @@
    ============================================================ */
 @import '@setu/blocks/callout.css';
 @import '@setu/blocks/notice.css';
+@import '@setu/blocks/columns.css';
 
 /* ---- EDITOR ROOT ---- */
 .editor {
@@ -846,31 +847,13 @@
   outline-offset: 1px;
 }
 
-/* Bootstrap loading + dev-only reset */
+/* Bootstrap loading */
 .boot-loading {
   display: grid;
   place-items: center;
   height: 100%;
   color: var(--text-3);
   font-family: var(--font-ui);
-}
-.dev-reset {
-  position: fixed;
-  bottom: 10px;
-  left: 10px;
-  z-index: 200;
-  padding: 5px 9px;
-  font-size: 11px;
-  font-family: var(--font-ui);
-  background: var(--surface);
-  color: var(--text-3);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-sm);
-  cursor: pointer;
-  opacity: 0.6;
-}
-.dev-reset:hover {
-  opacity: 1;
 }
 
 /* Shortcut tooltips (scoped tippy theme) */
@@ -1068,4 +1051,17 @@
 .setu-image-block .bp-replace:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 1px;
+}
+
+/* ---- COLUMNS BLOCK (canvas affordances; grid itself comes from columns.css) ---- */
+/* Column slots get a quiet dashed boundary in the editor so empty slots are visible
+   and clickable targets; the published site renders no chrome at all. */
+.setu-prose [data-column] {
+  outline: 1px dashed var(--border);
+  outline-offset: 4px;
+  border-radius: 4px;
+  min-height: 1.6em;
+}
+.setu-prose [data-columns]:focus-within > [data-column] {
+  outline-color: var(--border-strong);
 }

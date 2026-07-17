@@ -147,6 +147,13 @@ function buildBlock(node: TiptapNode): InstanceType<typeof N> {
         [],
         'hero'
       )
+    case 'videoBlock':
+      return new N(
+        'tag',
+        (attrs['mdAttrs'] ?? {}) as Record<string, unknown>,
+        [],
+        'video'
+      )
     case 'queryBlock':
       return new N(
         'tag',

@@ -14,6 +14,15 @@ import { Hero } from './hero/Hero'
 export { Hero }
 export type { HeroProps } from './hero/Hero'
 
+import { Video } from './video/Video'
+export { Video }
+export type { VideoProps } from './video/Video'
+export { videoPlaybackAttrs, videoClasses } from './video/video-attrs'
+export type {
+  VideoPlaybackAttrs,
+  VideoPlaybackInput
+} from './video/video-attrs'
+
 import { Section } from './section/Section'
 export { Section }
 export type { SectionProps } from './section/Section'
@@ -33,6 +42,7 @@ export type BlockCore = ComponentType<any>
 export const blockCores: Record<string, BlockCore> = {
   notice: Notice,
   hero: Hero,
+  video: Video,
   section: Section
 }
 

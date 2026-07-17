@@ -14,13 +14,17 @@ export interface MediaPickerModalProps {
   open: boolean
   onClose: () => void
   onPick: (src: string) => void
+  /** Which media kind is being picked — filters the library, constrains uploads,
+   *  and titles the dialog. Defaults to image (the historical behavior). */
+  kind?: 'image' | 'video'
 }
 
 export function MediaPickerModal({
   apiBase,
   open,
   onClose,
-  onPick
+  onPick,
+  kind = 'image'
 }: MediaPickerModalProps) {
   const [filters, setFilters] = useState<MediaFilters>({
     q: '',
@@ -40,12 +44,15 @@ export function MediaPickerModal({
     >
       <DialogContent className="gap-0 p-0 sm:max-w-[880px]">
         <DialogHeader className="border-b px-5 py-3">
-          <DialogTitle>Add an image</DialogTitle>
+          <DialogTitle>
+            {kind === 'video' ? 'Add a video' : 'Add an image'}
+          </DialogTitle>
         </DialogHeader>
         <div className="max-h-[70vh] overflow-auto p-5">
           <MediaBrowser
             apiBase={apiBase}
             mode="pick"
+            pickKind={kind}
             filters={filters}
             setFilters={(patch) => setFilters((f) => ({ ...f, ...patch }))}
             onUploaded={(r) => pick(srcFromUploadUrl(r.url))}

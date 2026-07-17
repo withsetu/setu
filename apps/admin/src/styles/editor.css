@@ -65,9 +65,7 @@
     :has(.blk-hero.w-wide)
   ):not(:has(.blk-hero.w-full)):not(:has(.blk-video.w-wide)):not(
     :has(.blk-video.w-full)
-  ):not(:has(.blk-section.w-wide)):not(
-    :has(.blk-section.w-full)
-  ) {
+  ):not(:has(.blk-section.w-wide)):not(:has(.blk-section.w-full)) {
   max-width: var(--measure-post);
   margin-inline: auto;
 }

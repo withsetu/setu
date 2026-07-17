@@ -23,6 +23,7 @@ import { BlockActions } from './extensions/BlockActions'
 import { DragHandle } from './extensions/DragHandle'
 import { BlockMenu } from './extensions/BlockMenu'
 import { Callout } from './extensions/Callout'
+import { Columns, Column } from './extensions/Columns'
 import { ContactBlock } from './extensions/ContactBlock'
 import { HeroBlock } from './extensions/HeroBlock'
 import { VideoBlock } from './extensions/VideoBlock'
@@ -141,6 +142,8 @@ export function Canvas({
       KeyboardShortcuts,
       dragHandle,
       Callout,
+      Columns,
+      Column,
       ContactBlock,
       HeroBlock,
       VideoBlock,

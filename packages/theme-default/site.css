@@ -248,6 +248,26 @@ body {
   transform: translateX(-50%);
 }
 
+/* {% section %} width — same breakout math as the hero (#182).
+   Normal = column width (no rule); Wide = the band breaks out to the page measure;
+   Full = the band bleeds 100vw while the grouped CONTENT stays aligned to the page
+   measure (the gutter grows to (100vw - measure)/2, never below the block's own
+   pad-* inline padding) — so Wide and Full read distinctly: Wide widens the box,
+   Full bleeds the background edge-to-edge. */
+.prose .blk-section.w-wide {
+  width: min(var(--measure-page), calc(100vw - 2rem));
+  margin-left: 50%;
+  transform: translateX(-50%);
+}
+.prose .blk-section.w-full {
+  width: 100vw;
+  margin-left: 50%;
+  transform: translateX(-50%);
+  padding-inline: max(
+    var(--blk-section-pad-x, 1.25rem),
+    calc((100vw - var(--measure-page)) / 2)
+  );
+}
 .prose figure.setu-image.align-left {
   float: left;
   max-width: 50%;

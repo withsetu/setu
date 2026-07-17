@@ -1,0 +1,40 @@
+---
+cid: 663ce78c-34bc-433e-b561-178493044b64
+title: Columns Demo
+---
+
+A demo page for the columns block (#181) — a two-column split with nested blocks and
+a three-column band, through the real markdoc + theme pipeline.
+
+{% columns layout="33-67" gap="lg" %}
+{% column %}
+### Sidebar
+
+{% callout type="info" %}
+Callouts nest inside columns.
+{% /callout %}
+{% /column %}
+
+{% column %}
+### Main
+
+The wider column holds the body content. Lists work too:
+
+- alpha
+- beta
+{% /column %}
+{% /columns %}
+
+{% columns layout="33-33-33" gap="md" stackOnMobile=true %}
+{% column %}
+First of three.
+{% /column %}
+
+{% column %}
+Second of three.
+{% /column %}
+
+{% column %}
+Third of three.
+{% /column %}
+{% /columns %}

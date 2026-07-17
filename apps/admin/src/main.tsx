@@ -4,7 +4,6 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { App } from './app'
 import { Bootstrap } from './data/Bootstrap'
-import { resetToSampleContent } from './data/reset'
 import { ActorProvider } from './auth/actor'
 import { SessionGate } from './auth/SessionGate'
 import { DeployProvider } from './deploy/deploy'
@@ -37,21 +36,9 @@ function AuthBoundary({ children }: { children: ReactNode }) {
   return <SessionGate>{children}</SessionGate>
 }
 
-/** Dev-only escape hatch; compiled out of production by Vite. */
-function DevReset() {
-  if (!import.meta.env.DEV) return null
-  return (
-    <button
-      type="button"
-      className="dev-reset"
-      onClick={() => {
-        void resetToSampleContent()
-      }}
-    >
-      Reset to sample content
-    </button>
-  )
-}
+// The old floating dev-only "Reset to sample content" button lived here; it
+// overlapped the sidebar user menu (#492) and is absorbed by the Demo Data
+// panel's Reset section (#513) — /demo-data, DEV builds only.
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -77,7 +64,6 @@ createRoot(document.getElementById('root')!).render(
               </IndexProvider>
             </DeployProvider>
           </AuthBoundary>
-          <DevReset />
           <Toaster position="bottom-right" />
         </NotificationProvider>
       </Bootstrap>

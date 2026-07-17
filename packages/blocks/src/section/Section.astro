@@ -1,0 +1,16 @@
+---
+import './section.css'
+import Image from '@setu/image-astro/Image.astro'
+import { sectionClasses } from './section-classes'
+const { background = 'none', image, padding = 'md', width = 'none' } = Astro.props
+const cls = sectionClasses(background, padding, width, Boolean(image))
+---
+
+<section class={cls}>
+  {image && (
+    <div class="blk-section-media" aria-hidden="true">
+      <Image src={image} alt="" sizes="100vw" />
+    </div>
+  )}
+  <div class="blk-section-inner"><slot /></div>
+</section>

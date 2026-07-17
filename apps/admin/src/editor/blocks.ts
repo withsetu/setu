@@ -119,8 +119,9 @@ const toIconName = (raw: string | undefined): IconName =>
 export function slashBlocks(): SlashBlock[] {
   // `embed` is paste-driven (paste a provider URL → EmbedPaste auto-inserts a resolved embed);
   // there's no useful cold slash-insert without a URL, so keep it out of the slash menu.
+  // `editor.hidden` blocks (structural children like `column`) are parent-managed.
   const fromBlocks: SlashBlock[] = registry.blocks
-    .filter((b) => b.tag !== 'embed')
+    .filter((b) => b.tag !== 'embed' && !b.editor?.hidden)
     .map((b) => ({
       title: b.editor?.label ?? b.tag,
       subtitle: `Insert a ${b.tag} block`,
@@ -148,6 +149,16 @@ export function slashBlocks(): SlashBlock[] {
             type: 'callout',
             attrs: { mdAttrs: { type: 'info' } },
             content: [{ type: 'paragraph' }]
+          })
+        } else if (b.tag === 'columns') {
+          const emptyColumn = {
+            type: 'column',
+            content: [{ type: 'paragraph' }]
+          }
+          chain.insertContent({
+            type: 'columns',
+            attrs: { mdAttrs: { layout: '50-50' } },
+            content: [emptyColumn, emptyColumn]
           })
         } else if (b.tag === 'hero') {
           chain.insertContent({

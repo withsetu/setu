@@ -815,7 +815,22 @@ export function EditorScreen() {
               <BlockInspector
                 tag={selectedBlock.tag}
                 mdAttrs={selectedBlock.mdAttrs}
-                onChange={selectedBlock.update}
+                onChange={(name, value) => {
+                  // A columns layout change must reconcile the column COUNT too
+                  // (grow: append empty columns; shrink: move trailing content
+                  // into the last kept column) — a plain attr write would desync
+                  // the layout from the actual children.
+                  if (
+                    selectedBlock.tag === 'columns' &&
+                    name === 'layout' &&
+                    typeof value === 'string' &&
+                    editor
+                  ) {
+                    editor.commands.setColumnsLayout(selectedBlock.pos, value)
+                    return
+                  }
+                  selectedBlock.update(name, value)
+                }}
                 apiBase={apiBase}
               />
             </div>

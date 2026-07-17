@@ -104,7 +104,11 @@ export function CategoryTree({
                   </div>
                 </TableCell>
                 <TableCell className="py-3 text-[13px] text-muted-foreground">
-                  /{node.slug}
+                  {/* #554: slugs derive from free-text names — cap + truncate so a long one
+                      can't stretch the table; full slug on hover. */}
+                  <div title={`/${node.slug}`} className="max-w-48 truncate">
+                    /{node.slug}
+                  </div>
                 </TableCell>
                 <TableCell className="py-3 text-[13px] text-muted-foreground">
                   {used > 0

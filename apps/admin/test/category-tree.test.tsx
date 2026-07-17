@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest'
-import { render, screen, fireEvent, within } from '@testing-library/react'
+import {
+  render,
+  screen,
+  fireEvent,
+  within,
+  waitFor
+} from '@testing-library/react'
 import type { CategoryNode } from '@setu/core'
 import {
   CategoryTree,
@@ -166,6 +172,57 @@ describe('CategoryTree "Move to" reparent picker (#592)', () => {
     // mounted item to label the trigger).
     const trigger = screen.getByRole('combobox', { name: 'Move B' })
     expect(trigger).toHaveTextContent('A')
+  })
+
+  it('shows "Top level" on a closed root row trigger (parent === null branch)', () => {
+    renderTree()
+    // Row "A" is a root (parent null) — the closed lazy branch renders no extra
+    // parent item, so the always-present "Top level" option must label the
+    // trigger. Pins the `node.parent && …` false-branch.
+    const trigger = screen.getByRole('combobox', { name: 'Move A' })
+    expect(trigger).toHaveTextContent('Top level')
+  })
+
+  it('updates a closed trigger to the new parent after a reparent (controlled value change)', async () => {
+    // x, y are roots; m starts under x. After a reparent, CategoriesTab feeds
+    // CategoryTree a fresh rows array with m.parent === 'y' — the closed trigger
+    // must then read "Y", never the stale "X".
+    const before: CategoryNode[] = [
+      node({ slug: 'x', name: 'X', parent: null, depth: 0 }),
+      node({ slug: 'm', name: 'M', parent: 'x', depth: 1 }),
+      node({ slug: 'y', name: 'Y', parent: null, depth: 0 })
+    ]
+    const { rerender } = render(
+      <CategoryTree
+        rows={before}
+        counts={{}}
+        onRename={noop}
+        onReparent={noop}
+        onDelete={noop}
+      />
+    )
+    expect(screen.getByRole('combobox', { name: 'Move M' })).toHaveTextContent(
+      'X'
+    )
+
+    // Simulate the post-reparent re-render: m now lives under y.
+    const after = before.map((n) =>
+      n.slug === 'm' ? { ...n, parent: 'y', depth: 1 } : n
+    )
+    rerender(
+      <CategoryTree
+        rows={after}
+        counts={{}}
+        onRename={noop}
+        onReparent={noop}
+        onDelete={noop}
+      />
+    )
+    await waitFor(() =>
+      expect(
+        screen.getByRole('combobox', { name: 'Move M' })
+      ).toHaveTextContent('Y')
+    )
   })
 
   // #592 perf-shape: at ~150 categories the old code eagerly mounted a full

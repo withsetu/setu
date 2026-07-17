@@ -41,6 +41,16 @@
   position: relative;
   --measure-post: 38rem;
   --measure-page: 64rem;
+  /* Block-contract brand accent (#182): the admin chrome's shadcn `--accent` (a grey
+     hover surface — tokens.css) shadows the contract token of the same name, so any
+     block CSS reading the contract accent rendered grey in-canvas instead of the brand
+     color (section bg-accent bands; hero CTA / notice border had the same drift).
+     Re-point the contract name at the brand value inside the canvas subtree only —
+     WYSIWYG vs the site. Chrome outside .ed-canvas (rails, popups, panels) is
+     untouched, and tokens derived at :root (e.g. --surface-hover) resolve there, not
+     here. (This is a declaration, not a bare read — the no-brand-accent guard's rule
+     that admin chrome must reference brand via --primary still holds.) */
+  --accent: var(--primary);
 }
 /* Each block node is a direct child of .setu-prose; React node-view blocks (the
    image) wrap their <figure class="align-{x}"> in a <div data-node-view-wrapper>,
@@ -53,7 +63,9 @@
     :has(.align-full)
   ):not(.align-left):not(.align-right):not(.align-wide):not(.align-full):not(
     :has(.blk-hero.w-wide)
-  ):not(:has(.blk-hero.w-full)) {
+  ):not(:has(.blk-hero.w-full)):not(:has(.blk-section.w-wide)):not(
+    :has(.blk-section.w-full)
+  ) {
   max-width: var(--measure-post);
   margin-inline: auto;
 }
@@ -73,6 +85,22 @@
 }
 .setu-prose > :has(.blk-hero.w-full) {
   width: 100%;
+}
+/* Section width breakout in the canvas — same WYSIWYG mirroring as the hero. A full-bleed
+   band keeps its grouped content aligned to the page measure (mirrors the theme's
+   .prose .blk-section.w-full padding rule, with the pane standing in for the viewport). */
+.setu-prose > :has(.blk-section.w-wide) {
+  width: min(var(--measure-page), 100%);
+  margin-inline: auto;
+}
+.setu-prose > :has(.blk-section.w-full) {
+  width: 100%;
+}
+.setu-prose .blk-section.w-full {
+  padding-inline: max(
+    var(--blk-section-pad-x, 1.25rem),
+    calc((100% - var(--measure-page)) / 2)
+  );
 }
 .setu-prose > :has(.align-left),
 .setu-prose > .align-left {

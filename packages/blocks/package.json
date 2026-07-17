@@ -13,6 +13,8 @@
     "./button.css": "./src/button/button.css",
     "./hero.astro": "./src/hero/Hero.astro",
     "./hero.css": "./src/hero/hero.css",
+    "./section.astro": "./src/section/Section.astro",
+    "./section.css": "./src/section/section.css",
     "./columns.astro": "./src/columns/Columns.astro",
     "./column.astro": "./src/columns/Column.astro",
     "./columns.css": "./src/columns/columns.css",

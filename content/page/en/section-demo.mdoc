@@ -1,0 +1,28 @@
+---
+cid: 241891fc-32ca-4f4a-9a4a-b983f34cd56c
+title: Section Demo
+---
+
+A demo page for the section block (#182) — a soft wide band with a nested callout, a
+full-bleed accent band, and a band with a background image, all through the real
+markdoc + theme pipeline.
+
+{% section background="soft" padding="lg" width="wide" %}
+## Grouped heading
+
+Content inside a soft, wide band.
+
+{% callout type="info" %}
+A callout nested inside a section.
+{% /callout %}
+{% /section %}
+
+{% section background="accent" width="full" %}
+A full-bleed accent band whose content stays aligned to the page measure.
+{% /section %}
+
+{% section image="/media/2026/06/test-cat.jpg" padding="lg" %}
+## Over the image
+
+Text over a cover-fit background image with a legibility scrim.
+{% /section %}

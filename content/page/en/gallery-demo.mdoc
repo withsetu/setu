@@ -1,0 +1,30 @@
+---
+cid: ce5437df-d47c-4f8a-a58d-e4239991a0af
+title: Gallery Demo
+---
+
+A demo page for the gallery block (#177) — exercises the multi-image grid with
+columns, gap, per-image alt, captions, the wide breakout, and the lightbox (#553)
+through the real markdoc + theme pipeline.
+
+{% gallery
+   images=[{src: "/media/2026/06/test-cat.jpg", alt: "A test cat", caption: "The classic test cat"}, {src: "/media/2026/06/test-cat.jpg", alt: "Same cat again"}]
+   columns=2
+   gap="small"
+   captions=true
+   width="wide" /%}
+
+A second gallery in the masonry layout (#533) with the lightbox switched off:
+
+{% gallery
+   images=[{src: "/media/2026/06/test-cat.jpg", alt: "Masonry cat"}]
+   layout="masonry"
+   lightbox=false /%}
+
+A third gallery whose hand-authored srcs include dangerous URL schemes — the
+renderer must show those tiles WITHOUT anchor links (and its script must not be
+emitted a second time; the first lightbox gallery's copy wires the whole page):
+
+{% gallery
+   images=[{src: "/media/2026/06/test-cat.jpg", alt: "Safe tile"}, {src: "javascript:alert(1)", alt: "Unsafe scheme"}, {src: "data:text/html,x", alt: "Data URI"}]
+   columns=3 /%}

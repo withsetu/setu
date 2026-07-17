@@ -167,6 +167,13 @@ export function slashBlocks(): SlashBlock[] {
               mdAttrs: { headline: 'Hero headline', layout: 'centered' }
             }
           })
+        } else if (b.tag === 'gallery') {
+          // Fresh gallery starts empty: the canvas shows an inviting empty state and
+          // the inspector's media-list control appends images from the library.
+          chain.insertContent({
+            type: 'galleryBlock',
+            attrs: { mdAttrs: {} }
+          })
         } else if (b.tag === 'spacer') {
           // Attribute-free insert: the canvas/renderer apply the contract default
           // (48px) and the serialized form stays a clean `{% spacer /%}`.

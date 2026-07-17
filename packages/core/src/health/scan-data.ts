@@ -17,9 +17,11 @@ const nonEmpty = (v: unknown): boolean =>
   typeof v === 'string' && v.trim() !== ''
 
 /** Derive {@link AuditScanData} directly from already-loaded audit entries — the
- *  reference implementation (the index's `selectAuditSummary` must agree with it)
- *  and the path the browser-only topology uses when no server index is present.
- *  Entries passed here are the AUDITED set (published, committed) already. */
+ *  reference implementation the index's `selectAuditSummary` must agree with, used
+ *  by the core parity test. NOT a runtime path: every topology (browser IDB or
+ *  server) aggregates via `selectAuditSummary` over the projected index rows; this
+ *  is the from-scratch derivation those rows are proven against. Entries passed
+ *  here are the AUDITED set (published, committed) already. */
 export function auditScanFromEntries(entries: AuditEntry[]): AuditScanData {
   const titleOffenders: string[] = []
   const altOffenders: { ref: string; count: number }[] = []

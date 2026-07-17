@@ -39,7 +39,11 @@ export function selectAuditSummary(rows: EntryIndexRow[]): AuditSummary {
   const entryIds: string[] = []
   const locales = new Set<string>()
   for (const r of rows) {
-    if (!r.audit.audited) continue
+    // Defensive: a row cached under an older INDEX_VERSION may predate the `audit`
+    // field entirely (offline IDB cache). Treat a missing/absent facts object as
+    // "not audited" rather than throwing — a swallowed TypeError here would silently
+    // downgrade a partial summary to empty.
+    if (!r.audit?.audited) continue
     const id = entryId(r)
     entryIds.push(id)
     if (r.locale) locales.add(r.locale)

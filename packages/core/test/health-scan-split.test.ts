@@ -135,6 +135,11 @@ const indexScan = (): AuditContext['scan'] => {
 }
 
 describe('index-backed content scan parity (#593)', () => {
+  // NOTE (collection scope): the old loadAuditEntries walked only content/post +
+  // content/page; the index-backed path audits EVERY committed content collection
+  // (see auditFactsOf in content-index/list-entries.ts — a deliberate widening).
+  // These fixtures use post + page, the only content collections today, so the
+  // offender sets are identical — proving parity within the shared scope.
   it('selectAuditSummary(index rows) equals auditScanFromEntries(entries)', () => {
     expect(indexScan()).toEqual(directScan())
   })

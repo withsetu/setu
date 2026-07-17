@@ -166,7 +166,17 @@ const NOT_AUDITED: EntryAuditFacts = {
 
 /** Site Health facts from the COMMITTED content (draft-blind — the old audit
  *  walked Git only). Uncommitted or `published: false` → not part of the audited
- *  set; the body is only parsed for entries that are (bounded, build-time work). */
+ *  set; the body is only parsed for entries that are (bounded, build-time work).
+ *
+ *  COLLECTION SCOPE (#593, deliberate widening): the old `loadAuditEntries` walked
+ *  only `content/post` + `content/page`. This runs per index row — i.e. over EVERY
+ *  content collection — so the audit now covers all committed, published content,
+ *  not just post/page. That is intentional and arguably more correct: a published
+ *  entry in any future collection should still be checked for a missing title /
+ *  alt text / stray H1. Today post + page are the only content collections, so the
+ *  offender sets are identical to the old walk (the parity test asserts this on a
+ *  post/page fixture). If a non-post/page collection ever holds committed `.mdoc`,
+ *  it will be audited too — by design, not by accident. */
 function auditFactsOf(committedStr: string | null): EntryAuditFacts {
   if (committedStr === null) return NOT_AUDITED
   const { frontmatter, body } = parseMdoc(committedStr)

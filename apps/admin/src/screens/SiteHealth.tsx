@@ -211,15 +211,18 @@ function ScanPanel({
   scannedAt: string | null
 }) {
   const scanning = scanState.status === 'scanning'
+  // An unparseable timestamp is treated as never-scanned (no "NaNm ago").
+  const scannedMs = scannedAt != null ? Date.parse(scannedAt) : NaN
+  const hasScanned = !Number.isNaN(scannedMs)
   return (
     <section className="mb-6 rounded-lg border border-border p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold">Content checks</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {scannedAt === null
-              ? 'Your pages haven’t been scanned yet — run a scan to check titles, alt text and headings across every published page.'
-              : `Last scanned ${relativeTime(Date.parse(scannedAt))}.`}
+            {hasScanned
+              ? `Last scanned ${relativeTime(scannedMs)}.`
+              : 'Your pages haven’t been scanned yet — run a scan to check titles, alt text and headings across every published page.'}
           </p>
           {scanState.status === 'error' && (
             <p className="mt-0.5 text-xs text-destructive">
@@ -228,11 +231,7 @@ function ScanPanel({
           )}
         </div>
         <Button onClick={scan} disabled={scanning} size="sm">
-          {scanning
-            ? 'Scanning…'
-            : scannedAt === null
-              ? 'Scan site'
-              : 'Re-scan'}
+          {scanning ? 'Scanning…' : hasScanned ? 'Re-scan' : 'Scan site'}
         </Button>
       </div>
     </section>

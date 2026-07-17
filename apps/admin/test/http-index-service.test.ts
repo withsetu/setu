@@ -11,7 +11,10 @@ import type {
   MediaUsage,
   TiptapDoc
 } from '@setu/core'
-import { createHttpIndexService } from '../src/data/http-index-service'
+import {
+  createHttpIndexService,
+  INDEX_CACHE_VERSION
+} from '../src/data/http-index-service'
 
 const doc = (text: string): TiptapDoc => ({
   type: 'doc',
@@ -152,6 +155,42 @@ describe('createHttpIndexService · query', () => {
     failing.on = true
     const offline = await service.query(q())
     expect(offline.rows.map((r) => r.ref.slug)).toEqual(['fresh'])
+  })
+
+  it('invalidates an offline cache stamped with a PRIOR schema sentinel (#593)', async () => {
+    // The cache sentinel is derived from INDEX_VERSION, so a bump moves it. A cache
+    // written under the previous schema (its sentinel one off from the current) must
+    // be cleared before use — otherwise stale-shape rows (e.g. rows lacking the
+    // `audit` field added in v7) would be served offline.
+    const { service, index, failing } = makeHarness({
+      routes: {
+        '/api/index/query': () => ({ rows: [serverRow('fresh')], total: 1 })
+      }
+    })
+    await index.upsert({
+      key: 'post\0en\0oldshape',
+      collection: 'post',
+      locale: 'en',
+      slug: 'oldshape',
+      title: 'Old shape',
+      titleLower: 'old shape',
+      status: 'staged',
+      updatedAt: 1,
+      hasDraft: false,
+      date: null,
+      tags: [],
+      categories: [],
+      mediaRefs: [],
+      audit: { audited: false, hasTitle: true, imagesWithoutAlt: 0, h1Count: 0 }
+    })
+    // Stamp the cache with the sentinel from the PREVIOUS schema version.
+    await index.setMeta({ indexedSha: 'x', version: INDEX_CACHE_VERSION + 1 })
+    // Offline from the first touch: the mismatched sentinel must clear the cache
+    // BEFORE the fallback read, so the stale row is never served.
+    failing.on = true
+    const offline = await service.query(q())
+    expect(offline.rows).toEqual([])
+    expect((await index.getMeta()).version).toBe(INDEX_CACHE_VERSION)
   })
 
   it('overlays a local draft on its server row: draft fields win, pending re-derived', async () => {

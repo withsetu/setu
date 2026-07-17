@@ -20,6 +20,9 @@ export function SiteHealthCardView({
   scannedAt?: string | null
 }) {
   const band = BAND[audit.band]
+  // Guard against an unparseable timestamp rendering "NaNm ago" (defensive — the
+  // scan cache already rejects one, but the view is presentational + reusable).
+  const scannedMs = scannedAt != null ? Date.parse(scannedAt) : NaN
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -39,10 +42,8 @@ export function SiteHealthCardView({
               {audit.mustHaves.done} / {audit.mustHaves.total}
             </span>
           </div>
-          {scannedAt != null && (
-            <div className="text-xs">
-              Scanned {relativeTime(Date.parse(scannedAt))}
-            </div>
+          {!Number.isNaN(scannedMs) && (
+            <div className="text-xs">Scanned {relativeTime(scannedMs)}</div>
           )}
           <Link to="/health" className="text-primary hover:underline">
             View report →

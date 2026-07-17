@@ -17,9 +17,13 @@ export function loadCachedScan(): CachedScan | null {
     const raw = localStorage.getItem(KEY)
     if (raw === null) return null
     const parsed = JSON.parse(raw) as CachedScan
-    // Shape-guard: a partial/older payload is treated as "never scanned".
+    // Shape-guard: a partial/older payload is treated as "never scanned". The
+    // timestamp must also be parseable — a shape-valid-but-unparseable `scannedAt`
+    // would otherwise render "NaNm ago" (via relativeTime(Date.parse(...))), so we
+    // reject it here rather than downstream.
     if (
       typeof parsed?.scannedAt !== 'string' ||
+      Number.isNaN(Date.parse(parsed.scannedAt)) ||
       !Array.isArray(parsed?.scan?.entryIds)
     )
       return null

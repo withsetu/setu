@@ -11,7 +11,7 @@ import type {
   IndexService,
   MediaUsage
 } from '@setu/core'
-import { EMPTY_AUDIT_SUMMARY } from '@setu/core'
+import { EMPTY_AUDIT_SUMMARY, INDEX_VERSION } from '@setu/core'
 import {
   contentPath,
   indexKey,
@@ -85,11 +85,17 @@ export interface HttpIndexServiceDeps {
 /** Mirrors apps/api/src/index-api.ts MAX_LIMIT — larger asks are paged. */
 export const SERVER_PAGE_LIMIT = 100
 
-/** Cache-meta sentinel. Never a real INDEX_VERSION, so (a) a leftover
- *  locally-built index is flushed the first time this service touches the
- *  cache, and (b) if the topology ever flips back to the browser-built index,
- *  its ensureBuilt sees a version mismatch and rebuilds over the cache. */
-export const INDEX_CACHE_VERSION = -464
+/** Cache-meta sentinel. DERIVED from INDEX_VERSION so it changes on every row-shape
+ *  bump (#593): a fixed sentinel meant a v6-shaped offline cache (rows lacking the
+ *  new `audit` field) was NEVER invalidated on the v6→v7 schema change and kept
+ *  serving stale-shape rows offline. Staying negative keeps the two original
+ *  guarantees intact: (a) it can never equal a real (positive) INDEX_VERSION, so a
+ *  leftover locally-built index is flushed the first time this service touches the
+ *  cache; (b) if the topology ever flips back to the browser-built index, its
+ *  ensureBuilt sees a version mismatch and rebuilds over the cache. The -1000 base
+ *  keeps this readable as "the http-service's private cache marker for schema N".
+ *  MUST remain a function of INDEX_VERSION — do not hard-code it. */
+export const INDEX_CACHE_VERSION = -1000 - INDEX_VERSION
 
 const NO_DEPLOY: DeployInfo = { deployedSha: null, changed: [] }
 

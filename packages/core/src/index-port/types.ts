@@ -1,6 +1,7 @@
 import type { EntryRef } from '../data/types'
 import type { LifecycleState, LifecyclePending } from '../lifecycle/derive'
 import type { ContentRow } from '../content-index/list-entries'
+import type { IndexStats } from './stats'
 
 export interface EntryIndexRow {
   key: string
@@ -42,6 +43,9 @@ export interface IndexMeta {
 
 export interface IndexPort {
   query(q: IndexQuery): Promise<{ rows: EntryIndexRow[]; total: number }>
+  /** Per-collection lifecycle tallies in ONE call over body-free rows — the
+   *  dashboard's At-a-glance counts (#587). */
+  stats(): Promise<IndexStats>
   upsert(row: EntryIndexRow): Promise<void>
   upsertMany(rows: EntryIndexRow[]): Promise<void>
   remove(key: string): Promise<void>

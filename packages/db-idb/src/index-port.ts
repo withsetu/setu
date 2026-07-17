@@ -2,6 +2,7 @@ import { openDB } from 'idb'
 import type { EntryIndexRow, IndexMeta, IndexPort } from '@setu/core'
 import {
   runQuery,
+  selectIndexStats,
   selectDistinctTags,
   selectDistinctLocales,
   selectCategoryCounts,
@@ -27,6 +28,10 @@ export async function createIdbIndexPort(
     async query(q) {
       const all = (await db.getAll('entries')) as EntryIndexRow[]
       return runQuery(all, q)
+    },
+    async stats() {
+      const all = (await db.getAll('entries')) as EntryIndexRow[]
+      return selectIndexStats(all)
     },
     async upsert(row) {
       await db.put('entries', row, row.key)

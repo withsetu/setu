@@ -251,6 +251,29 @@ export function runDataPortContract(
       expect(await db.getLock(ref)).toBeNull()
       await expect(db.deleteLock(ref)).resolves.toBeUndefined()
     })
+
+    it('listLocks returns all held locks; empty when none; drops deleted', async () => {
+      expect(await db.listLocks()).toEqual([])
+      await db.putLock({
+        collection: 'post',
+        locale: 'en',
+        slug: 'a',
+        lockedBy: 'sarah@x.com',
+        lockedAt: 1
+      })
+      await db.putLock({
+        collection: 'page',
+        locale: 'en',
+        slug: 'b',
+        lockedBy: 'omar@x.com',
+        lockedAt: 2
+      })
+      const locks = await db.listLocks()
+      expect(locks).toHaveLength(2)
+      expect(locks.map((l) => l.slug).sort()).toEqual(['a', 'b'])
+      await db.deleteLock({ collection: 'post', locale: 'en', slug: 'a' })
+      expect((await db.listLocks()).map((l) => l.slug)).toEqual(['b'])
+    })
   })
 }
 
@@ -307,6 +330,26 @@ export function runIndexPortContract(
       expect(drafts.total).toBe(2)
       expect(drafts.rows).toHaveLength(1)
       expect(drafts.rows[0]!.slug).toBe('b') // updatedAt desc
+    })
+
+    it('stats: empty index → no collections', async () => {
+      expect(await ix.stats()).toEqual({})
+    })
+
+    it('stats: per-collection lifecycle tallies across mixed statuses', async () => {
+      await ix.upsertMany([
+        irow({ slug: 'a', collection: 'post', status: 'live' }),
+        irow({ slug: 'b', collection: 'post', status: 'live' }),
+        irow({ slug: 'c', collection: 'post', status: 'staged' }),
+        irow({ slug: 'd', collection: 'post', status: 'draft' }),
+        irow({ slug: 'e', collection: 'post', status: 'unpublished' }),
+        irow({ slug: 'about', collection: 'page', status: 'live' }),
+        irow({ slug: 'contact', collection: 'page', status: 'draft' })
+      ])
+      expect(await ix.stats()).toEqual({
+        post: { total: 5, draft: 1, staged: 1, live: 2, unpublished: 1 },
+        page: { total: 2, draft: 1, staged: 0, live: 1, unpublished: 0 }
+      })
     })
 
     it('remove and clear', async () => {

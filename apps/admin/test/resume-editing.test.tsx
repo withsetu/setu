@@ -54,4 +54,14 @@ describe('ResumeEditing', () => {
       screen.getByRole('link', { name: /create your first post/ })
     ).toHaveAttribute('href', '/edit/post/en/new')
   })
+  // #572: while entries load, the card shell paints with skeleton rows — no premature
+  // "No edits yet" empty state.
+  it('renders skeleton rows instead of the empty state while loading (#572)', () => {
+    const { container } = wrap(<ResumeEditing loading rows={[]} />)
+    expect(screen.getByText('Resume editing')).toBeInTheDocument()
+    expect(
+      container.querySelectorAll('[data-slot="skeleton"]').length
+    ).toBeGreaterThan(0)
+    expect(screen.queryByText(/No edits yet/)).toBeNull()
+  })
 })

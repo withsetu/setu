@@ -13,6 +13,8 @@
     "./button.css": "./src/button/button.css",
     "./hero.astro": "./src/hero/Hero.astro",
     "./hero.css": "./src/hero/hero.css",
+    "./latest-posts.astro": "./src/latest-posts/LatestPosts.astro",
+    "./latest-posts.css": "./src/latest-posts/latest-posts.css",
     "./spacer.astro": "./src/spacer/Spacer.astro",
     "./spacer.css": "./src/spacer/spacer.css",
     "./video.astro": "./src/video/Video.astro",

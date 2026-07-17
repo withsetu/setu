@@ -193,6 +193,13 @@ export function slashBlocks(): SlashBlock[] {
               }
             }
           })
+        } else if (b.tag === 'latest-posts') {
+          // Zero-config (#192): empty attrs round-trip as a clean {% latest-posts /%}
+          // and the contract defaults (5 newest posts, list, dates on) apply everywhere.
+          chain.insertContent({
+            type: 'latestPostsBlock',
+            attrs: { mdAttrs: {} }
+          })
         } else {
           chain.insertContent({
             type: 'setuBlock',

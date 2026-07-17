@@ -21,6 +21,7 @@ import EmbedWrapper from '../../../../blocks/embed/embed.astro'
 import HeroBlock from '@setu/blocks/hero.astro'
 import VideoBlock from '@setu/blocks/video.astro'
 import ButtonBlock from '@setu/blocks/button.astro'
+import LatestPostsBlock from '@setu/blocks/latest-posts.astro'
 import SpacerBlock from '@setu/blocks/spacer.astro'
 import SectionBlock from '@setu/blocks/section.astro'
 import ColumnsBlock from '@setu/blocks/columns.astro'
@@ -57,6 +58,7 @@ const tagComponentMap = {
   query: QueryWrapper, related: RelatedWrapper, embed: EmbedWrapper, hero: HeroBlock, video: VideoBlock, button: ButtonBlock, spacer: SpacerBlock,
   section: SectionBlock,
   columns: ColumnsBlock, column: ColumnBlock,
+  'latest-posts': LatestPostsBlock,
   image: ImageFigure, sub: Sub, sup: Sup,
 }
 const nodeComponentMap = { heading: Heading, paragraph: Paragraph, th: Th, td: Td, image: Image }

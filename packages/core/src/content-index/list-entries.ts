@@ -30,6 +30,9 @@ export interface ContentRow {
   mediaRefs: string[]
   /** Featured image src from frontmatter `featuredImage` (for list/preview thumbnails). */
   featuredImage?: string
+  /** Whether the live version has a featured image (`featuredImage` present and non-blank).
+   *  Indexed so the list can show/filter the indicator without shipping the src (#576). */
+  hasFeaturedImage: boolean
 }
 
 /** What the topology knows about the live deploy — server truth (#208), replacing the
@@ -131,7 +134,8 @@ export function listContentEntries(
       tags: tagsOf(draft, committedStr),
       categories: categoriesOf(draft, committedStr),
       mediaRefs: mediaRefsOf(draftStr, committedStr),
-      ...(featuredImage !== undefined ? { featuredImage } : {})
+      ...(featuredImage !== undefined ? { featuredImage } : {}),
+      hasFeaturedImage: featuredImage !== undefined
     }
   })
 }

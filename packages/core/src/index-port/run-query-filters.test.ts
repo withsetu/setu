@@ -16,6 +16,7 @@ const row = (over: Partial<EntryIndexRow>): EntryIndexRow => ({
   tags: [],
   categories: [],
   mediaRefs: [],
+  hasFeaturedImage: false,
   ...over
 })
 
@@ -64,5 +65,26 @@ describe('runQuery — tag & category filters', () => {
   })
   it('no tag/category filter returns all in the collection', () => {
     expect(runQuery(rows, base).total).toBe(3)
+  })
+})
+
+describe('runQuery — featured-image filter (#576)', () => {
+  const rows = [
+    row({ slug: 'with', hasFeaturedImage: true }),
+    row({ slug: 'without', hasFeaturedImage: false })
+  ]
+  const base = { collection: 'post', offset: 0, limit: 10 }
+
+  it('hasFeaturedImage: true keeps only rows with a featured image', () => {
+    const r = runQuery(rows, { ...base, hasFeaturedImage: true })
+    expect(r.rows.map((x) => x.slug)).toEqual(['with'])
+    expect(r.total).toBe(1)
+  })
+  it('hasFeaturedImage: false keeps only rows without one', () => {
+    const r = runQuery(rows, { ...base, hasFeaturedImage: false })
+    expect(r.rows.map((x) => x.slug)).toEqual(['without'])
+  })
+  it('omitting the filter returns both', () => {
+    expect(runQuery(rows, base).total).toBe(2)
   })
 })

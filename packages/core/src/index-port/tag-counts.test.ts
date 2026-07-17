@@ -15,7 +15,8 @@ const row = (key: string, tags: string[]): EntryIndexRow => ({
   date: null,
   tags,
   categories: [],
-  mediaRefs: []
+  mediaRefs: [],
+  hasFeaturedImage: false
 })
 
 describe('selectTagCounts', () => {

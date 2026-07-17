@@ -32,6 +32,8 @@ const base = {
   catRows: [{ slug: 'news', name: 'News', depth: 0 }],
   tag: '',
   onTag: () => {},
+  featured: '',
+  onFeatured: () => {},
   hasFilters: false,
   onClear: () => {},
   columnsMenu: <button>Columns</button>
@@ -45,6 +47,19 @@ describe('ListToolbar', () => {
       target: { value: 'hi' }
     })
     expect(onSearch).toHaveBeenCalledWith('hi')
+  })
+  it('renders the featured-image filter and reflects its value (#576)', () => {
+    const { rerender } = render(<ListToolbar {...base} />)
+    const trigger = screen.getByLabelText('Filter by featured image')
+    expect(trigger).toHaveTextContent('Featured: all')
+    rerender(<ListToolbar {...base} featured="has" />)
+    expect(screen.getByLabelText('Filter by featured image')).toHaveTextContent(
+      'Has featured image'
+    )
+    rerender(<ListToolbar {...base} featured="none" />)
+    expect(screen.getByLabelText('Filter by featured image')).toHaveTextContent(
+      'No featured image'
+    )
   })
   it('shows Clear only when filters are active', () => {
     const { rerender } = render(<ListToolbar {...base} hasFilters={false} />)

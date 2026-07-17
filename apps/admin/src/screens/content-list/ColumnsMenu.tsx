@@ -14,6 +14,7 @@ const ITEMS: { key: ColumnKey; label: string }[] = [
   { key: 'status', label: 'Status' },
   { key: 'tags', label: 'Tags' },
   { key: 'categories', label: 'Categories' },
+  { key: 'featured', label: 'Featured image' },
   { key: 'locale', label: 'Locale' },
   { key: 'updated', label: 'Updated' }
 ]

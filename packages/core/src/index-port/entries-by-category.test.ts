@@ -19,7 +19,8 @@ const row = (
   date: null,
   tags: [],
   categories,
-  mediaRefs: []
+  mediaRefs: [],
+  hasFeaturedImage: false
 })
 
 describe('selectEntriesByCategory', () => {

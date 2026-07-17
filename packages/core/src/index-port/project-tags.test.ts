@@ -12,7 +12,8 @@ const row: ContentRow = {
   date: null,
   tags: ['react', 'redux'],
   categories: [],
-  mediaRefs: []
+  mediaRefs: [],
+  hasFeaturedImage: false
 }
 
 describe('projectRow / rowToContentRow — tags', () => {

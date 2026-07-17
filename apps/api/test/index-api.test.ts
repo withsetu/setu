@@ -21,13 +21,17 @@ const admin: Actor = { id: 'a', role: 'admin' }
 const mdoc = (
   title: string,
   tags: string[] = [],
-  opts: { categories?: string[]; body?: string } = {}
+  opts: { categories?: string[]; body?: string; featuredImage?: string } = {}
 ): string =>
   `---\ntitle: ${title}\n${
     tags.length ? `tags:\n${tags.map((t) => `  - ${t}`).join('\n')}\n` : ''
   }${
     opts.categories?.length
       ? `categories:\n${opts.categories.map((c) => `  - ${c}`).join('\n')}\n`
+      : ''
+  }${
+    opts.featuredImage !== undefined
+      ? `featuredImage: ${opts.featuredImage}\n`
       : ''
   }---\n\n${opts.body ?? `Body of ${title}`}\n`
 
@@ -61,7 +65,11 @@ function makeHarness(actor: Actor | null = admin) {
     },
     {
       path: 'content/post/en/world.mdoc',
-      content: mdoc('World', ['react', 'vue'])
+      content: mdoc('World', ['react', 'vue'], {
+        // NB: a distinct media key — extractMediaRefs scans frontmatter too, and the
+        // referenced-by test below asserts cat.jpg is referenced ONLY by hello.
+        featuredImage: '/media/2026/07/world-hero.jpg'
+      })
     },
     { path: 'content/page/fr/apropos.mdoc', content: mdoc('About FR') }
   ])
@@ -140,6 +148,24 @@ describe('GET /api/index/query', () => {
     expect(paged.total).toBe(2)
     expect(paged.rows).toHaveLength(1)
     expect(paged.rows[0]!.title).toBe('Hello')
+  })
+
+  it('filters by hasFeaturedImage in both directions (#576)', async () => {
+    const { get } = makeHarness()
+    const withImg = (await (
+      await get('/api/index/query?collection=post&hasFeaturedImage=true')
+    ).json()) as { rows: ContentRow[]; total: number }
+    expect(withImg.total).toBe(1)
+    expect(withImg.rows[0]!.title).toBe('World')
+    const withoutImg = (await (
+      await get('/api/index/query?collection=post&hasFeaturedImage=false')
+    ).json()) as { rows: ContentRow[]; total: number }
+    expect(withoutImg.total).toBe(1)
+    expect(withoutImg.rows[0]!.title).toBe('Hello')
+    expect(
+      (await get('/api/index/query?collection=post&hasFeaturedImage=yes'))
+        .status
+    ).toBe(400)
   })
 
   it('400 on invalid input: missing collection, out-of-range limit, bad sort key', async () => {

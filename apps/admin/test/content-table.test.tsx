@@ -8,6 +8,7 @@ const allCols = {
   status: true,
   tags: true,
   categories: true,
+  featured: true,
   updated: true,
   locale: true
 }
@@ -23,6 +24,7 @@ function row(o: Partial<ContentRow> = {}): ContentRow {
     tags: ['a', 'b', 'c'],
     categories: ['news'],
     mediaRefs: [],
+    hasFeaturedImage: false,
     ...o
   }
 }
@@ -124,6 +126,35 @@ describe('ContentTable', () => {
       const slugEl = screen.getByTitle(`/${LONG_SLUG}`)
       expect(slugEl).toHaveTextContent(`/${LONG_SLUG}`)
       expect(slugEl.className).toContain('truncate')
+    })
+  })
+
+  describe('featured-image indicator column (#576)', () => {
+    it('shows a tick with an accessible label when the row has a featured image', () => {
+      wrap(
+        <ContentTable
+          {...base}
+          rows={[
+            row({ hasFeaturedImage: true, featuredImage: '/media/a.webp' })
+          ]}
+        />
+      )
+      expect(screen.getByLabelText('Has featured image')).toBeInTheDocument()
+      expect(screen.queryByLabelText('No featured image')).toBeNull()
+    })
+    it('shows a muted dash with an accessible label when it has none', () => {
+      wrap(<ContentTable {...base} rows={[row()]} />)
+      expect(screen.getByLabelText('No featured image')).toBeInTheDocument()
+    })
+    it('hides the column when toggled off', () => {
+      wrap(
+        <ContentTable
+          {...base}
+          visible={{ ...allCols, featured: false }}
+          rows={[row({ hasFeaturedImage: true })]}
+        />
+      )
+      expect(screen.queryByLabelText('Has featured image')).toBeNull()
     })
   })
 

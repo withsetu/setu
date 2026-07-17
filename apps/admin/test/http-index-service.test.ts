@@ -49,6 +49,7 @@ const serverRow = (
   tags: [],
   categories: [],
   mediaRefs: [],
+  hasFeaturedImage: false,
   ...over
 })
 
@@ -123,6 +124,18 @@ describe('createHttpIndexService · query', () => {
     expect(offline.rows[0]!.title).toBe('Alpha')
   })
 
+  it('forwards the hasFeaturedImage filter to the server and omits it when unset (#576)', async () => {
+    const { service, calls } = makeHarness({
+      routes: { '/api/index/query': () => ({ rows: [], total: 0 }) }
+    })
+    await service.query(q({ hasFeaturedImage: true }))
+    expect(calls[0]!.url.searchParams.get('hasFeaturedImage')).toBe('true')
+    await service.query(q({ hasFeaturedImage: false }))
+    expect(calls[1]!.url.searchParams.get('hasFeaturedImage')).toBe('false')
+    await service.query(q())
+    expect(calls[2]!.url.searchParams.has('hasFeaturedImage')).toBe(false)
+  })
+
   it('flushes a pre-existing locally-built index before its first cache use', async () => {
     const { service, index, failing } = makeHarness({
       routes: {
@@ -143,7 +156,8 @@ describe('createHttpIndexService · query', () => {
       date: null,
       tags: [],
       categories: [],
-      mediaRefs: []
+      mediaRefs: [],
+      hasFeaturedImage: false
     })
     await index.setMeta({ indexedSha: 'old', version: INDEX_VERSION })
     await service.query(q())

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'motion/react'
-import { ArrowDown, ArrowUp, ExternalLink } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, ExternalLink, Image } from 'lucide-react'
 import type { ContentRow, SortKey } from '@setu/core'
 import { resolvePermalinkConfig } from '@setu/core'
 import {
@@ -50,6 +50,30 @@ function SortHead({
         ))}
     </button>
   )
+}
+
+/** Boolean indicator cell content (#576/#577): a subtle tick or muted dash, never a
+ *  value. `title` + aria-label carry the meaning for hover and screen readers. */
+function IndicatorMark({ on, onLabel, offLabel }: IndicatorMarkProps) {
+  return (
+    <span
+      role="img"
+      aria-label={on ? onLabel : offLabel}
+      title={on ? onLabel : offLabel}
+      className={
+        on
+          ? 'inline-flex items-center justify-center'
+          : 'text-muted-foreground/50'
+      }
+    >
+      {on ? <Check aria-hidden="true" className="size-4 text-success" /> : '—'}
+    </span>
+  )
+}
+interface IndicatorMarkProps {
+  on: boolean
+  onLabel: string
+  offLabel: string
 }
 
 export function ContentTable({
@@ -112,6 +136,17 @@ export function ContentTable({
           {visible.tags && <TableHead className="w-44">Tags</TableHead>}
           {visible.categories && (
             <TableHead className="w-36">Categories</TableHead>
+          )}
+          {visible.featured && (
+            <TableHead className="w-16 text-center">
+              <span
+                className="inline-flex items-center justify-center"
+                title="Featured image"
+              >
+                <Image aria-hidden="true" className="size-4" />
+                <span className="sr-only">Featured image</span>
+              </span>
+            </TableHead>
           )}
           {localeCol && (
             <TableHead className="w-24">
@@ -215,6 +250,15 @@ export function ContentTable({
               {visible.categories && (
                 <TableCell>
                   <Chips items={r.categories} name={categoryName} />
+                </TableCell>
+              )}
+              {visible.featured && (
+                <TableCell className="text-center">
+                  <IndicatorMark
+                    on={r.hasFeaturedImage}
+                    onLabel="Has featured image"
+                    offLabel="No featured image"
+                  />
                 </TableCell>
               )}
               {localeCol && (

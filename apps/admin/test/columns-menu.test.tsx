@@ -25,6 +25,7 @@ const visible = {
   status: true,
   tags: true,
   categories: true,
+  featured: true,
   updated: true,
   locale: false
 }
@@ -42,6 +43,13 @@ describe('ColumnsMenu', () => {
     openMenu()
     fireEvent.click(screen.getByText('Tags'))
     expect(toggle).toHaveBeenCalledWith('tags')
+  })
+  it('toggles the featured-image column (#576)', () => {
+    const toggle = vi.fn()
+    render(<ColumnsMenu visible={visible} toggle={toggle} showLocale={false} />)
+    openMenu()
+    fireEvent.click(screen.getByText('Featured image'))
+    expect(toggle).toHaveBeenCalledWith('featured')
   })
   it('hides the Locale item when showLocale is false', () => {
     render(

@@ -150,6 +150,12 @@ export default defineConfig({
         // yet; Task 6 (block permalink-aware links) is the first consumer.
         'setu:permalinks': fileURLToPath(
           new URL('./src/lib/permalinks.ts', import.meta.url)
+        ),
+        // Same seam for the shared entry→PostRow projection, so dynamic block renderers
+        // (@setu/blocks latest-posts today; query is a candidate under #175) reuse ONE
+        // projection instead of hand-copying it per component.
+        'setu:post-row': fileURLToPath(
+          new URL('./src/lib/post-row.ts', import.meta.url)
         )
       }
     },

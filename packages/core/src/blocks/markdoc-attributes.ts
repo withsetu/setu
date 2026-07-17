@@ -4,6 +4,11 @@ export interface MarkdocAttr {
   type: 'String' | 'Number' | 'Boolean' | 'Array'
   default?: unknown
   matches?: string[]
+  /** Numeric bounds/step lifted from zod .min/.max/.multipleOf checks. Editor-facing
+   *  (slider ranges via resolveControls); the Markdoc include generator ignores them. */
+  min?: number
+  max?: number
+  step?: number
 }
 
 const BASE: Record<string, MarkdocAttr['type']> = {
@@ -65,6 +70,20 @@ export function markdocAttributesFor(
       }
     } else if (BASE[tn]) {
       attr = { type: BASE[tn] }
+      if (tn === 'ZodNumber') {
+        const checks =
+          (
+            inner as {
+              _def?: { checks?: Array<{ kind: string; value?: unknown }> }
+            }
+          )._def?.checks ?? []
+        for (const c of checks) {
+          if (typeof c.value !== 'number') continue
+          if (c.kind === 'min') attr.min = c.value
+          else if (c.kind === 'max') attr.max = c.value
+          else if (c.kind === 'multipleOf') attr.step = c.value
+        }
+      }
     } else {
       throw new Error(
         `markdocAttributesFor: attr "${name}" has unsupported zod type "${tn}"`

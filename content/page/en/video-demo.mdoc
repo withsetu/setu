@@ -1,0 +1,12 @@
+---
+cid: 82b8e920-0a51-46d5-9e0d-840a6cf2893e
+title: Video Demo
+---
+
+A demo page for the video block (#178) — exercises a self-hosted video with poster,
+caption, and an autoplay clip (which must render muted) through the real
+markdoc + theme pipeline.
+
+{% video src="/media/2026/07/clip.mp4" poster="/media/2026/06/test-cat.jpg" caption="A self-hosted clip with a poster." /%}
+
+{% video src="/media/2026/07/ambient.webm" autoplay=true loop=true controls=false width="wide" /%}

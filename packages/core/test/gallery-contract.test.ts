@@ -15,7 +15,12 @@ describe('gallery contract', () => {
   it('maps images to an Array markdoc attribute with an empty default', () => {
     const attrs = markdocAttributesFor(galleryBlock.contract.props)
     expect(attrs.images).toEqual({ type: 'Array', default: [] })
-    expect(attrs.columns).toEqual({ type: 'Number', default: 3 })
+    expect(attrs.columns).toEqual({
+      type: 'Number',
+      default: 3,
+      min: 1,
+      max: 6
+    })
     expect(attrs.gap).toEqual({
       type: 'String',
       matches: ['none', 'small', 'medium', 'large'],

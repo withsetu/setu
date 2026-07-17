@@ -3,7 +3,7 @@ import { ContentListPage } from '../pages/ContentListPage'
 import { EditorPage } from '../pages/EditorPage'
 import { uniqueTitle } from '../lib/unique-title'
 import { storageStateFor } from '../lib/auth-state'
-import { sandboxHeadSubject } from '../lib/sandbox-git'
+import { sandboxSubjectsFor } from '../lib/sandbox-git'
 
 // #466 revision history: the one load-bearing journey (list → diff → restore)
 // plus the card-#5 wrong-actor half in the same test via a second browser
@@ -32,10 +32,9 @@ test('publish twice, inspect the diff, restore the older revision; author sees a
   await editor.setTitle(title)
   await editor.typeInBody('First version body.')
   await editor.save()
-  const slugMatch = /\/edit\/post\/en\/([^/?#]+)/.exec(page.url())
-  if (!slugMatch)
+  const slug = /\/edit\/post\/en\/([^/?#]+)/.exec(page.url())?.[1]
+  if (!slug)
     throw new Error(`expected a minted slug in the URL, got: ${page.url()}`)
-  const slug = slugMatch[1]
   await editor.publish()
   // The Published toast auto-dismisses in 4s; wait it out so the SECOND
   // publish's toast assertion can't latch onto this one.
@@ -102,11 +101,18 @@ test('publish twice, inspect the diff, restore the older revision; author sees a
   await expect(editor.body).not.toContainText('Third uncommitted')
 
   // Sanctioned exception (see e2e/lib/sandbox-git.ts): restore must be a NEW
-  // commit — history-api.ts's `Restore <path> to <sha7>` subject at HEAD, no
-  // rewrite.
-  expect(sandboxHeadSubject()).toMatch(
-    new RegExp(`^Restore content/post/en/${slug}\\.mdoc to [0-9a-f]{7}$`)
-  )
+  // commit — history-api.ts's `Restore <path> to <sha7>` subject — EXTENDING
+  // this entry's history, never rewriting it. Path-scoped, not HEAD: a parallel
+  // worker's publish raced this exact HEAD read in CI (#551). The full subject
+  // list also proves no-rewrite stronger than a HEAD peek ever did: both
+  // Publish commits are still in the timeline beneath the restore.
+  expect(sandboxSubjectsFor('post', 'en', slug)).toEqual([
+    expect.stringMatching(
+      new RegExp(`^Restore content/post/en/${slug}\\.mdoc to [0-9a-f]{7}$`)
+    ),
+    `Publish post/en/${slug}`,
+    `Publish post/en/${slug}`
+  ])
 
   // Wrong-actor half (card #5): an author on this now-live post gets the
   // panel (history is content.view-grade) but no usable Restore — the button

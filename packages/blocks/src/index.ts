@@ -29,6 +29,19 @@ export type {
   GalleryLayout
 } from './gallery/gallery-classes'
 export { safeMediaHref } from './safe-media-href'
+import { Video } from './video/Video'
+export { Video }
+export type { VideoProps } from './video/Video'
+export { videoPlaybackAttrs, videoClasses } from './video/video-attrs'
+export type {
+  VideoPlaybackAttrs,
+  VideoPlaybackInput
+} from './video/video-attrs'
+
+import { Section } from './section/Section'
+export { Section }
+export type { SectionProps } from './section/Section'
+export { sectionClasses } from './section/section-classes'
 
 /** A block's React visual core. The registry is heterogeneous by design (NoticeProps,
  *  HeroProps, …) and dispatched dynamically by tag; each block's props are validated by
@@ -44,8 +57,13 @@ export type BlockCore = ComponentType<any>
 export const blockCores: Record<string, BlockCore> = {
   notice: Notice,
   hero: Hero,
-  gallery: Gallery
+  gallery: Gallery,
+  video: Video,
+  section: Section
 }
+
+export { columnsRenderAttrs, columnsTemplate } from './columns/columns-classes'
+export type { ColumnsRenderAttrs } from './columns/columns-classes'
 
 export { BLOCK_TOKENS, TOKENS_BY_AXIS } from './tokens'
 export type { BlockStyleAxis, BlockToken } from './tokens'

@@ -4,8 +4,7 @@ import { uniqueTitle } from '../lib/unique-title'
 import { storageStateFor } from '../lib/auth-state'
 import {
   sandboxContentFile,
-  sandboxHeadAuthor,
-  sandboxHeadSubject,
+  sandboxLastCommitFor,
   sandboxStatusPorcelain
 } from '../lib/sandbox-git'
 
@@ -54,16 +53,18 @@ test.describe('author saves drafts, cannot touch live posts', () => {
     await editor.saveDraft()
 
     // Sanctioned exception (see e2e/lib/sandbox-git.ts): this journey is *about* the
-    // commit landing in the content repo with the right shape and the right author.
-    // onSaveDraft's commit message default (EditorScreen.tsx): `Save draft
-    // <collection>/<locale>/<slug>`.
-    expect(sandboxHeadSubject()).toBe(`Save draft post/en/${slug}`)
+    // commit landing in the content repo with the right shape and the right author —
+    // asserted path-scoped to THIS entry, never HEAD, because parallel workers'
+    // commits race past HEAD reads (#551). onSaveDraft's commit message default
+    // (EditorScreen.tsx): `Save draft <collection>/<locale>/<slug>`.
+    const commit = sandboxLastCommitFor('post', 'en', slug)
+    expect(commit.subject).toBe(`Save draft post/en/${slug}`)
     // Task 2 proof: the commit author is the real SESSION user (seeded e2e author),
     // not the local-dev `OWNER_AUTHOR` fallback or a generic service identity.
-    expect(sandboxHeadAuthor()).toBe('E2E Author <author-e2e@setu.test>')
+    expect(commit.author).toBe('E2E Author <author-e2e@setu.test>')
     // Draft proof: the committed file itself carries `published: false`.
     expect(sandboxContentFile('post', 'en', slug)).toMatch(/published: false/)
-    expect(sandboxStatusPorcelain()).toBe('')
+    expect(sandboxStatusPorcelain('post', 'en', slug)).toBe('')
 
     // Cross-role visibility: drafts are Git-shared, not per-author-hidden. Verify via a
     // second browser context signed in as admin — no inter-test ordering dependency

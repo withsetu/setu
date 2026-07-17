@@ -52,6 +52,8 @@ const ICONS = {
   columns:
     '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/>',
   hero: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 13h18M8 17h8"/>',
+  spacer:
+    '<path d="M5 4h14M5 20h14"/><path d="M12 8.5v7"/><path d="m9.5 10.5 2.5-2.5 2.5 2.5M9.5 13.5l2.5 2.5 2.5-2.5"/>',
   table:
     '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/>',
   video:

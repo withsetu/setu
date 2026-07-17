@@ -5,7 +5,7 @@ import { TextareaControl } from './textarea'
 import { SwitchControl } from './switch'
 import { SegmentedSelect } from './segmented-select'
 import { ColorControl } from './color'
-import { MediaControl } from './media'
+import { MediaControl, VideoControl } from './media'
 import { Position9 } from './position9'
 import { AlignControl } from './align'
 import { SliderControl } from './slider'
@@ -23,6 +23,7 @@ export const controlRegistry: Record<BlockControl, React.FC<ControlProps>> = {
   select: SegmentedSelect,
   color: ColorControl,
   media: MediaControl,
+  video: VideoControl,
   position9: Position9,
   align: AlignControl,
   slider: SliderControl,

@@ -10,7 +10,11 @@ const INSPECTABLE = new Set([
   'setuBlock',
   'heroBlock',
   'galleryBlock',
-  'queryBlock'
+  'videoBlock',
+  'queryBlock',
+  'spacerBlock',
+  'columns',
+  'latestPostsBlock'
 ])
 
 export interface SelectedBlock {
@@ -26,9 +30,17 @@ function tagOf(name: string, attrs: Record<string, unknown>): string {
       ? 'hero'
       : name === 'galleryBlock'
         ? 'gallery'
-        : name === 'queryBlock'
-          ? 'query'
-          : ''
+        : name === 'videoBlock'
+          ? 'video'
+          : name === 'queryBlock'
+            ? 'query'
+            : name === 'spacerBlock'
+              ? 'spacer'
+              : name === 'columns'
+                ? 'columns'
+                : name === 'latestPostsBlock'
+                  ? 'latest-posts'
+                  : ''
 }
 
 /** Pure: the inspectable block at the current selection, or null. Atom blocks surface via

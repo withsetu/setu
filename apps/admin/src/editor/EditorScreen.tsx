@@ -134,6 +134,24 @@ export function EditorScreen() {
   // Slug just minted from a compose save OR just renamed → the in-memory doc is
   // canonical; don't reload over it.
   const mintedRef = useRef<string | null>(null)
+  // Entry identity for the keyed Canvas/MetaPanel subtrees (#549). A self-
+  // initiated slug change (compose-mint claiming its slug on first autosave, or
+  // a rename done here — both stamp mintedRef before navigating) is the SAME
+  // entry: remounting on it drops transient UI state mid-interaction (an open
+  // picker in the rail, editor focus). Only a real entry switch advances the
+  // epoch; mintedRef is still set at this point because the load effect (which
+  // clears it) runs after render.
+  const entryIdentRef = useRef({ ref: '', epoch: 0 })
+  {
+    const cur = `${collection}/${locale}/${slug}`
+    if (entryIdentRef.current.ref !== cur) {
+      entryIdentRef.current = {
+        ref: cur,
+        epoch:
+          entryIdentRef.current.epoch + (mintedRef.current === slug ? 0 : 1)
+      }
+    }
+  }
   // Compose mode: a slug the author explicitly chose before the first save. The
   // ref feeds the mint (autosave closes over refs); the state re-renders the field.
   const manualSlugRef = useRef<string | null>(null)
@@ -156,13 +174,16 @@ export function EditorScreen() {
   useEffect(() => {
     let live = true
     // Arriving from a compose-mint or a rename (mintedRef holds this slug): the
-    // in-memory doc/meta is canonical. The 'loading' phase still runs — the
-    // keyed Canvas MUST unmount/remount to re-seed from the updated initialDoc
-    // (skipping it once shipped an empty canvas: the new key mounted against
-    // the stale blank initialDoc before this effect could set it).
+    // in-memory doc/meta is canonical AND the entry epoch kept the keyed
+    // Canvas/MetaPanel mounted (same entry) — so skip the 'loading' phase
+    // cycle: its early-return unmounts the whole editor stage, dropping an
+    // open picker dialog, focus, and scroll ~600ms after the user's first
+    // edit (#549). (The old "MUST remount to re-seed" rationale applied when
+    // the Canvas key contained the slug; with the epoch key nothing reseeds
+    // on a self-mint, so there is no stale-initialDoc hazard.)
     const justMinted = mintedRef.current === slug
     mintedRef.current = null
-    setPhase('loading')
+    if (!justMinted) setPhase('loading')
     void (async () => {
       if (composing) {
         // Blank body, editable, nothing persisted / no lock until the first save mints a
@@ -797,7 +818,9 @@ export function EditorScreen() {
             <Canvas
               // reloadKey: a history restore (#466) must remount the canvas so
               // it re-seeds from the re-forked initialDoc (see the load effect).
-              key={`${collection}/${locale}/${slug}:${reloadKey}`}
+              // Epoch, not slug (#549): a self-rename/compose-mint keeps the
+              // mount (same entry; the load effect keeps the in-memory doc).
+              key={`${collection}/${locale}/${entryIdentRef.current.epoch}:${reloadKey}`}
               initialContent={initialDoc}
               editable={editable}
               onChange={onDocChange}
@@ -815,7 +838,22 @@ export function EditorScreen() {
               <BlockInspector
                 tag={selectedBlock.tag}
                 mdAttrs={selectedBlock.mdAttrs}
-                onChange={selectedBlock.update}
+                onChange={(name, value) => {
+                  // A columns layout change must reconcile the column COUNT too
+                  // (grow: append empty columns; shrink: move trailing content
+                  // into the last kept column) — a plain attr write would desync
+                  // the layout from the actual children.
+                  if (
+                    selectedBlock.tag === 'columns' &&
+                    name === 'layout' &&
+                    typeof value === 'string' &&
+                    editor
+                  ) {
+                    editor.commands.setColumnsLayout(selectedBlock.pos, value)
+                    return
+                  }
+                  selectedBlock.update(name, value)
+                }}
                 apiBase={apiBase}
               />
             </div>
@@ -825,7 +863,9 @@ export function EditorScreen() {
             // Entry-keyed like Canvas: panel fields hold per-entry snapshots
             // (CategoryField's orphan union) that must not survive navigation
             // to a different entry (#366) — nor a history restore (#466).
-            key={`${collection}/${locale}/${slug}:${reloadKey}`}
+            // Epoch, not slug (#549): a self-rename is the same entry (see
+            // the Canvas key).
+            key={`${collection}/${locale}/${entryIdentRef.current.epoch}:${reloadKey}`}
             metadata={metadata}
             collection={collection}
             locale={locale}

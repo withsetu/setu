@@ -21,6 +21,9 @@ export interface MediaPickerModalProps {
   /** Multi-pick: how many images are in the list so far (footer feedback). */
   pickedCount?: number
   title?: string
+  /** Which media kind is being picked — filters the library, constrains uploads,
+   *  and titles the dialog. Defaults to image (the historical behavior). */
+  kind?: 'image' | 'video'
 }
 
 export function MediaPickerModal({
@@ -30,7 +33,8 @@ export function MediaPickerModal({
   onPick,
   multi = false,
   pickedCount = 0,
-  title
+  title,
+  kind = 'image'
 }: MediaPickerModalProps) {
   const [filters, setFilters] = useState<MediaFilters>({
     q: '',
@@ -51,13 +55,19 @@ export function MediaPickerModal({
       <DialogContent className="gap-0 p-0 sm:max-w-[880px]">
         <DialogHeader className="border-b px-5 py-3">
           <DialogTitle>
-            {title ?? (multi ? 'Add images' : 'Add an image')}
+            {title ??
+              (multi
+                ? 'Add images'
+                : kind === 'video'
+                  ? 'Add a video'
+                  : 'Add an image')}
           </DialogTitle>
         </DialogHeader>
         <div className="max-h-[70vh] overflow-auto p-5">
           <MediaBrowser
             apiBase={apiBase}
             mode="pick"
+            pickKind={kind}
             filters={filters}
             setFilters={(patch) => setFilters((f) => ({ ...f, ...patch }))}
             onUploaded={(r) => pick(srcFromUploadUrl(r.url))}

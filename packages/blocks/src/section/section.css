@@ -1,0 +1,88 @@
+/* packages/blocks/src/section/section.css — token-contract styles (loaded by site + admin).
+   Reads only the 19 contract tokens or --blk-section-* locals (token guard enforced).
+   Width breakout math (w-wide / w-full) lives in the THEME (site.css), not here — the
+   block only marks intent via the w-* class and drops its radius on full bleed. */
+
+.blk-section {
+  box-sizing: border-box; /* padding must not widen the band past 100vw on full bleed */
+  position: relative;
+  border-radius: var(--r-md);
+  /* Padding is block-owned structure (no spacing token axis yet); exposed as locals so
+     the theme's full-bleed rule can keep the content aligned to the page measure. */
+  --blk-section-pad-y: clamp(1.75rem, 4vw, 3rem);
+  --blk-section-pad-x: clamp(1.25rem, 3vw, 2rem);
+  padding: var(--blk-section-pad-y) var(--blk-section-pad-x);
+}
+.blk-section.pad-none {
+  --blk-section-pad-y: 0px;
+  --blk-section-pad-x: 0px;
+}
+.blk-section.pad-sm {
+  --blk-section-pad-y: clamp(1rem, 2.5vw, 1.5rem);
+  --blk-section-pad-x: clamp(1rem, 2.5vw, 1.5rem);
+}
+.blk-section.pad-lg {
+  --blk-section-pad-y: clamp(3rem, 7vw, 5rem);
+  --blk-section-pad-x: clamp(1.5rem, 4vw, 2.5rem);
+}
+
+/* Background presets — contract tokens only, no free color. */
+.blk-section.bg-soft {
+  background: var(--accent-soft);
+}
+.blk-section.bg-accent {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.blk-section.bg-inverted {
+  background: var(--text);
+  color: var(--bg);
+}
+/* Filled bands: text elements inherit the band's foreground so themed per-element
+   colors (site theme or editor canvas prose rules) don't fight the fill. `inherit`
+   (not a fixed value) keeps nested blocks that set their own foreground (e.g. a
+   callout tone) intact — each element takes its nearest ancestor's computed color. */
+.blk-section.bg-accent :is(h1, h2, h3, h4, h5, h6, a, p, li, blockquote),
+.blk-section.bg-inverted :is(h1, h2, h3, h4, h5, h6, a, p, li, blockquote),
+.blk-section.has-media :is(h1, h2, h3, h4, h5, h6, a, p, li, blockquote) {
+  color: inherit;
+}
+
+/* Background image: cover-fit layer behind the content with a legibility scrim
+   (block-local var, inline fallback — nothing guarantees a theme sets it). */
+.blk-section-media {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+}
+.blk-section-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.blk-section-media::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--blk-section-scrim, rgba(15, 17, 26, 0.45));
+}
+.blk-section.has-media {
+  color: #fff;
+}
+
+/* Content sits above the media layer; first/last child margins collapse into the pad. */
+.blk-section-inner {
+  position: relative;
+}
+.blk-section-inner > :first-child {
+  margin-top: 0;
+}
+.blk-section-inner > :last-child {
+  margin-bottom: 0;
+}
+
+/* Minimum block-local adjustment on full bleed (the breakout itself is theme CSS). */
+.blk-section.w-full {
+  border-radius: 0;
+}

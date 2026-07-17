@@ -8,6 +8,7 @@ import type {
   IndexPort,
   IndexQuery,
   IndexService,
+  IndexStats,
   MediaUsage
 } from '@setu/core'
 import {
@@ -296,6 +297,23 @@ export function createHttpIndexService(
     return overlayDrafts(q, base)
   }
 
+  // Dashboard At-a-glance counts (#587). Server truth (committed content +
+  // deploy-derived lifecycle) — no draft overlay, same rationale as
+  // categoryCounts/tagCounts below: the tiles show published-content totals,
+  // and a local-only draft's contribution isn't worth a per-entry committed
+  // diff. Offline → the stale-while-offline cache answers.
+  async function stats(): Promise<IndexStats> {
+    try {
+      return await getJson<IndexStats>(
+        '/api/index/stats',
+        new URLSearchParams()
+      )
+    } catch {
+      await ensureCache()
+      return index.stats()
+    }
+  }
+
   interface Facets {
     distinctTags: string[]
     distinctLocales: string[]
@@ -482,6 +500,7 @@ export function createHttpIndexService(
     // indexedSha bookkeeping belongs to the server's own index now.
     markSyncedAt: () => Promise.resolve(),
     query,
+    stats,
     distinctTags,
     distinctLocales,
     categoryCounts,

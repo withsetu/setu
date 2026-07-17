@@ -1,68 +1,69 @@
 import type {
+  CollectionStats,
   ContentRow,
-  DataPort,
-  DeployInfo,
-  EntryRef,
-  GitPort,
-  Lock
+  IndexService,
+  IndexStats
 } from '@setu/core'
-import { listContentEntries, parseContentPath } from '@setu/core'
 
-const DEFAULT_COLLECTIONS = ['post', 'page']
-
-export async function loadDashboardEntries(
-  data: DataPort,
-  git: GitPort,
-  deploy: DeployInfo,
-  collections: string[] = DEFAULT_COLLECTIONS
-): Promise<ContentRow[]> {
-  const all: ContentRow[] = []
-  for (const collection of collections) {
-    const drafts = await data.listDrafts({ collection })
-    const committed: { ref: EntryRef; content: string }[] = []
-    for (const p of await git.list(`content/${collection}/`)) {
-      const ref = parseContentPath(p)
-      if (ref === null) continue
-      const content = await git.readFile(p)
-      if (content !== null) committed.push({ ref, content })
-    }
-    all.push(...listContentEntries({ drafts, committed, deploy }))
-  }
-  return all.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
-}
-
-export function dashboardCounts(rows: ContentRow[]): {
+/** The four At-a-glance dashboard tiles. */
+export interface DashboardCounts {
   posts: number
   pages: number
-  drafts: number
   published: number
-} {
-  let posts = 0,
-    pages = 0,
-    drafts = 0,
-    published = 0
-  for (const r of rows) {
-    if (r.ref.collection === 'post') posts++
-    else if (r.ref.collection === 'page') pages++
-    if (r.lifecycle.state === 'draft') drafts++
-    else if (r.lifecycle.state === 'staged' || r.lifecycle.state === 'live')
-      published++
-  }
-  return { posts, pages, drafts, published }
+  drafts: number
 }
 
-export function recentEntries(rows: ContentRow[], limit: number): ContentRow[] {
-  return rows.slice(0, limit)
+/** Collections the At-a-glance tiles summarize (Posts / Pages). */
+const DASHBOARD_COLLECTIONS = ['post', 'page'] as const
+
+const ZERO: CollectionStats = {
+  total: 0,
+  draft: 0,
+  staged: 0,
+  live: 0,
+  unpublished: 0
 }
 
-export async function loadActiveLocks(
-  data: DataPort,
-  rows: ContentRow[]
-): Promise<Lock[]> {
-  const locks: Lock[] = []
-  for (const r of rows) {
-    const lock = await data.getLock(r.ref)
-    if (lock !== null) locks.push(lock)
+/** Derive the four tile numbers from the index's one-call per-collection
+ *  lifecycle tallies (#587). Semantics match the pre-#587 client tally exactly
+ *  (proven in dashboard-entries.test.ts): Posts/Pages = all entries of that
+ *  collection; Published = staged + live; Drafts = draft — 'unpublished'
+ *  counts toward neither, and only the post + page collections are summed. */
+export function dashboardCountsFromStats(stats: IndexStats): DashboardCounts {
+  const post = stats['post'] ?? ZERO
+  const page = stats['page'] ?? ZERO
+  let published = 0
+  let drafts = 0
+  for (const collection of DASHBOARD_COLLECTIONS) {
+    const c = stats[collection] ?? ZERO
+    published += c.staged + c.live
+    drafts += c.draft
   }
-  return locks
+  return { posts: post.total, pages: page.total, published, drafts }
+}
+
+/** The few most-recently-edited entries for the "Resume editing" widget —
+ *  index-backed and body-free (#587). Each collection is queried sorted by
+ *  updatedAt desc, `limit`-capped server-side; the small pages are merged and
+ *  re-capped so the widget shows the newest across post + page (matching the
+ *  pre-#587 merged-and-sorted behavior) without ever materializing all N. */
+export async function loadRecentEntries(
+  index: Pick<IndexService, 'query'>,
+  limit: number,
+  collections: readonly string[] = DASHBOARD_COLLECTIONS
+): Promise<ContentRow[]> {
+  const pages = await Promise.all(
+    collections.map((collection) =>
+      index.query({
+        collection,
+        offset: 0,
+        limit,
+        sort: { key: 'updatedAt', dir: 'desc' }
+      })
+    )
+  )
+  return pages
+    .flatMap((p) => p.rows)
+    .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
+    .slice(0, limit)
 }

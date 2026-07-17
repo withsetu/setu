@@ -4,7 +4,11 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, it, expect } from 'vitest'
 import { collectPosts } from '../src/contract'
-import { createAicPack, AIC_IIIF_BASE } from '../src/index'
+import {
+  createAicPack,
+  AIC_IIIF_BASE,
+  AIC_RELAXED_BODY_NOTE
+} from '../src/index'
 
 const fixturesDir = fileURLToPath(
   new URL('./fixtures/artworks', import.meta.url)
@@ -26,13 +30,13 @@ describe('createAicPack over the synthetic fixture dump', () => {
   it('counts every skip reason without crashing on bad records', async () => {
     const { stats } = await load()
     expect(stats).toEqual({
-      scanned: 10,
+      scanned: 11,
       loaded: 4,
       skipped: {
         invalid: 2, // 106 (no title, zod) + 107 (not JSON)
         notPublicDomain: 1, // 103
         noImage: 1, // 104
-        noText: 1, // 105
+        noText: 2, // 105 (no text at all) + 111 (short_description only — strict tier)
         noDate: 1 // 109
       }
     })
@@ -178,13 +182,13 @@ describe('createAicPack over the synthetic fixture dump', () => {
     const posts = await collectPosts(dataset)
     expect(posts.map((p) => p.id)).toEqual(['101', '102', '108', '110'])
     expect(dataset.stats()).toEqual({
-      scanned: 10,
+      scanned: 11,
       loaded: 4,
       skipped: {
         invalid: 2,
         notPublicDomain: 1,
         noImage: 1,
-        noText: 1,
+        noText: 2,
         noDate: 1
       }
     })
@@ -254,5 +258,59 @@ describe('createAicPack over the synthetic fixture dump', () => {
         controller.abort()
       }
     }).rejects.toThrow()
+  })
+})
+
+describe('createAicPack relaxed text tier (#512 relaxText)', () => {
+  const loadRelaxed = async () => {
+    const pack = createAicPack({ source: fixturesDir, textTier: 'relaxed' })
+    const dataset = pack.load()
+    const posts = await collectPosts(dataset)
+    return { posts, stats: dataset.stats() }
+  }
+
+  it('admits short-description-only records on top of the strict yield', async () => {
+    const { posts, stats } = await loadRelaxed()
+    expect(posts.map((p) => p.id)).toEqual(['101', '102', '108', '110', '111'])
+    expect(stats).toEqual({
+      scanned: 11,
+      loaded: 5,
+      skipped: {
+        invalid: 2,
+        notPublicDomain: 1,
+        noImage: 1,
+        noText: 1, // 105 still has NO text at any tier — stays skipped
+        noDate: 1
+      }
+    })
+  })
+
+  it('builds an honest labeled body from the short description, keeping details and attribution', async () => {
+    const { posts } = await loadRelaxed()
+    const relaxed = posts.find((p) => p.id === '111')!
+    expect(relaxed.body).toContain('A short but real curator note')
+    expect(relaxed.body).toContain(AIC_RELAXED_BODY_NOTE)
+    expect(relaxed.body).toContain('- **Artist:** Testly Draughtsman')
+    expect(relaxed.body).toContain('https://www.artic.edu/artworks/111')
+    expect(relaxed.body).toContain(
+      '[CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/)'
+    )
+    expect(relaxed.excerpt).toContain('A short but real curator note')
+  })
+
+  it('leaves full-description records byte-identical to the strict tier', async () => {
+    const strict = await load()
+    const { posts } = await loadRelaxed()
+    for (const post of strict.posts) {
+      const relaxedTwin = posts.find((p) => p.id === post.id)!
+      expect(relaxedTwin.body).toBe(post.body)
+      expect(relaxedTwin.excerpt).toBe(post.excerpt)
+    }
+  })
+
+  it('never labels a full-description body as generated', async () => {
+    const { posts } = await loadRelaxed()
+    for (const post of posts.filter((p) => p.id !== '111'))
+      expect(post.body).not.toContain(AIC_RELAXED_BODY_NOTE)
   })
 })

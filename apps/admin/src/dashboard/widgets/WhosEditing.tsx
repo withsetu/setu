@@ -27,7 +27,10 @@ export function WhosEditing({ locks }: { locks: Lock[] }) {
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0">
-              <div className="text-sm font-medium">{l.lockedBy}</div>
+              {/* #554: display names are free text — truncate, full name on hover. */}
+              <div title={l.lockedBy} className="truncate text-sm font-medium">
+                {l.lockedBy}
+              </div>
               <div className="truncate text-xs text-muted-foreground">
                 editing "{l.slug}"
               </div>

@@ -226,6 +226,36 @@ describe('UsersScreen', () => {
     expect(screen.getAllByText('Active').length).toBeGreaterThan(0)
   })
 
+  // #554: user names/emails are free text — a very long value must truncate inside its cell
+  // (full value on hover) instead of stretching the table past the viewport.
+  it('truncates long user names and emails with the full value on hover (#554)', async () => {
+    const LONG_NAME = 'Adelaide '.repeat(31).concat('Adelaide').slice(0, 285)
+    const LONG_EMAIL = `${'adelaide.'.repeat(20)}adelaide@example.test`
+    mockListUsers.mockResolvedValue({
+      data: {
+        users: [
+          OWNER,
+          { ...EDITOR, id: 'long-1', name: LONG_NAME, email: LONG_EMAIL }
+        ],
+        total: 2
+      },
+      error: null
+    })
+    mockListAccounts.mockResolvedValue({
+      data: [{ id: 'a1', providerId: 'credential' }],
+      error: null
+    })
+
+    renderAsActor('admin')
+
+    const name = await screen.findByTitle(LONG_NAME)
+    expect(name).toHaveTextContent(LONG_NAME)
+    expect(name.className).toContain('truncate')
+    const email = screen.getByTitle(LONG_EMAIL)
+    expect(email).toHaveTextContent(LONG_EMAIL)
+    expect(email.className).toContain('truncate')
+  })
+
   // #364: a maintainer holds `users.invite`/`users.setRole`/`users.disable`, but only for users
   // STRICTLY BELOW their own rank (packages/auth/src/rank-guard.ts enforces this server-side; this
   // UI mirrors it so a maintainer never sees a control that would 403). admin/maintainer rows stay

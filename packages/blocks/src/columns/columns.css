@@ -1,0 +1,45 @@
+/* Columns block (#181) — structural layout only; nothing here is brand-themed.
+   The grid template is a block-local custom property set inline by the renderer
+   (see docs/block-styling-contract.md: `--blk-<block>-*` locals keep a fallback). */
+
+.blk-columns {
+  display: grid;
+  grid-template-columns: var(--blk-columns-template, 1fr 1fr);
+  gap: var(--blk-columns-gap, 1.25rem);
+  align-items: start;
+}
+
+.blk-columns.gap-none {
+  --blk-columns-gap: 0px;
+}
+.blk-columns.gap-sm {
+  --blk-columns-gap: 0.625rem;
+}
+.blk-columns.gap-md {
+  --blk-columns-gap: 1.25rem;
+}
+.blk-columns.gap-lg {
+  --blk-columns-gap: 2.5rem;
+}
+
+/* Long words / wide media inside a column must shrink the content, not blow up the
+   grid track (min-width:auto is the classic grid overflow trap). */
+.blk-column {
+  min-width: 0;
+}
+
+/* Columns read as one aligned band: strip the first/last child's outer margins so
+   every column's content starts and ends flush. */
+.blk-column > :first-child {
+  margin-top: 0;
+}
+.blk-column > :last-child {
+  margin-bottom: 0;
+}
+
+/* Same breakpoint as the hero block's mobile stacking (hero.css). */
+@media (max-width: 767px) {
+  .blk-columns.stack {
+    grid-template-columns: 1fr;
+  }
+}

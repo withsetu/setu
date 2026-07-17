@@ -1,0 +1,26 @@
+{
+  "id": 111,
+  "api_model": "artworks",
+  "title": "Study With Only a Short Description",
+  "is_public_domain": true,
+  "image_id": "9f9f9f9f-0a0a-1b1b-2c2c-3d3d3d3d3d3d",
+  "description": null,
+  "short_description": "<p>A short but real curator note about this study, kept under a sentence or two.</p>",
+  "artist_display": "Testly Draughtsman\nFictional, 1830-1900",
+  "date_display": "1877",
+  "date_start": 1877,
+  "date_end": 1877,
+  "medium_display": "Graphite on cream wove paper",
+  "credit_line": "Fictional test collection",
+  "department_title": "Prints and Drawings of Testland",
+  "classification_title": "drawing",
+  "term_titles": ["studies", "line work"],
+  "material_titles": ["paper (fiber product)"],
+  "thumbnail": {
+    "width": 2400,
+    "height": 1800,
+    "alt_text": "A graphite study on cream paper."
+  },
+  "updated_at": "2026-05-06T10:00:00-05:00",
+  "source_updated_at": "2026-05-06T10:00:00-05:00"
+}

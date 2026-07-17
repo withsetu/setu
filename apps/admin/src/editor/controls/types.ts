@@ -2,12 +2,17 @@ export interface ControlMeta {
   name: string
   options?: string[]
   default?: unknown
-  /** Inclusive numeric bounds lifted from the block's zod contract (number controls). */
+  /** Numeric bounds/step for number-backed controls, lifted from the block contract's
+   *  zod .min/.max/.multipleOf by resolveControls (e.g. the spacer height slider). */
   min?: number
   max?: number
+  step?: number
   apiBase: string
   /** Open the media library for this control's prop name. */
   onPickMedia: (name: string) => void
+  /** Render the control greyed-out/read-only — set when a `forcedWhen` rule holds
+   *  (e.g. a video's muted switch while autoplay is on). */
+  disabled?: boolean
 }
 
 export interface ControlProps {

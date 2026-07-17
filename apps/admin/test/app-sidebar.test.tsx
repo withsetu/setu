@@ -15,10 +15,10 @@ vi.mock('../src/deploy/deploy', () => ({
   })
 }))
 
-const wrap = () =>
+const wrap = (actor?: { id: string; role: 'admin' | 'author' }) =>
   render(
     <MemoryRouter initialEntries={['/dashboard']}>
-      <ActorProvider>
+      <ActorProvider {...(actor ? { actor } : {})}>
         <NotificationProvider>
           <SidebarProvider>
             <AppSidebar />
@@ -55,5 +55,19 @@ describe('AppSidebar', () => {
     wrap()
     expect(screen.getByText('Setu')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /View site/ })).toBeInTheDocument()
+  })
+  // #513: the Demo Data item is DEV-only (vitest runs with DEV=true) and
+  // additionally gated on users.delete — admin sees it, author does not.
+  it('shows the Developer > Demo Data item to an admin (DEV builds)', () => {
+    wrap()
+    expect(screen.getByRole('link', { name: /Demo Data/ })).toHaveAttribute(
+      'href',
+      '/demo-data'
+    )
+  })
+  it('hides Demo Data (and the whole Developer group) from an author', () => {
+    wrap({ id: 'a', role: 'author' })
+    expect(screen.queryByRole('link', { name: /Demo Data/ })).toBeNull()
+    expect(screen.queryByText('Developer')).toBeNull()
   })
 })

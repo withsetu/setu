@@ -23,8 +23,11 @@ import { BlockActions } from './extensions/BlockActions'
 import { DragHandle } from './extensions/DragHandle'
 import { BlockMenu } from './extensions/BlockMenu'
 import { Callout } from './extensions/Callout'
+import { Columns, Column } from './extensions/Columns'
 import { ContactBlock } from './extensions/ContactBlock'
 import { HeroBlock } from './extensions/HeroBlock'
+import { SpacerBlock } from './extensions/SpacerBlock'
+import { VideoBlock } from './extensions/VideoBlock'
 import { QueryBlock } from './extensions/QueryBlock'
 import { LatestPostsBlock } from './extensions/LatestPostsBlock'
 import { EmbedBlock } from './extensions/EmbedBlock'
@@ -141,8 +144,12 @@ export function Canvas({
       KeyboardShortcuts,
       dragHandle,
       Callout,
+      Columns,
+      Column,
       ContactBlock,
       HeroBlock,
+      SpacerBlock,
+      VideoBlock,
       QueryBlock.configure({ runQuery }),
       LatestPostsBlock.configure({ runQuery }),
       EmbedBlock,

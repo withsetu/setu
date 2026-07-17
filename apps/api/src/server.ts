@@ -53,6 +53,7 @@ import {
   makeBuildRunner
 } from './deploy-wiring'
 import { createUsersApi } from './users'
+import { createDemoApi } from './demo'
 import { resolveSessionActor } from './auth/resolve-session-actor'
 import type { ResolveActor } from './auth/resolve-actor'
 import { allowedOrigins } from './auth/allowed-origins'
@@ -501,6 +502,43 @@ app.route(
 // live account state. `resolveActor` here already fails closed to null when auth is unconfigured
 // (see its own comment above), which authMiddleware turns into a 401 for this route too.
 app.route('/', createUsersApi({ db: authDb, resolveActor }))
+
+// Demo Data control plane (#513, epic #509) — dev tooling: mounted ONLY in the
+// local topology outside production (the createPreviewApi gating precedent);
+// everywhere else the routes are physically absent and /api/demo/* 404s. The
+// engine (and @setu/demo-data's whole module graph) loads lazily on the first
+// demo request, so a self-hosted boot never touches it even when this file is
+// bundled. Uses the api's OWN git/storage/image adapters and auth DB — one
+// git writer per process, and demo users land in the same sqlite the running
+// api verifies logins against.
+app.route(
+  '/',
+  createDemoApi({
+    enabled: mode === 'local' && process.env.NODE_ENV !== 'production',
+    resolveActor,
+    engine: async () => {
+      const { buildDemoEngine } = await import('./demo-wiring')
+      return buildDemoEngine({
+        sandboxDir: dir,
+        mediaDir,
+        submissionsDb,
+        git,
+        storage: localStorage,
+        image: imageAdapter
+      })
+    },
+    // Seeds/unseeds commit content and write media records out-of-band of the
+    // /git/commit hooks — refresh both server indexes when a job lands.
+    onContentMutated: () => {
+      void ensureContentIndex().catch((err: unknown) => {
+        console.error('[demo] content-index refresh failed:', err)
+      })
+      void mediaIndexService.rebuild().catch((err: unknown) => {
+        console.error('[demo] media-index rebuild failed:', err)
+      })
+    }
+  })
+)
 
 // Deploy control plane (#207 · #208 indicator + #209 rebuild). The site dir decides the
 // rebuild capability: present on the monorepo dev stack and scaffolded sites, absent on

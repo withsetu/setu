@@ -6,6 +6,7 @@
    ============================================================ */
 @import '@setu/blocks/callout.css';
 @import '@setu/blocks/notice.css';
+@import '@setu/blocks/columns.css';
 
 /* ---- EDITOR ROOT ---- */
 .editor {
@@ -40,6 +41,16 @@
   position: relative;
   --measure-post: 38rem;
   --measure-page: 64rem;
+  /* Block-contract brand accent (#182): the admin chrome's shadcn `--accent` (a grey
+     hover surface — tokens.css) shadows the contract token of the same name, so any
+     block CSS reading the contract accent rendered grey in-canvas instead of the brand
+     color (section bg-accent bands; hero CTA / notice border had the same drift).
+     Re-point the contract name at the brand value inside the canvas subtree only —
+     WYSIWYG vs the site. Chrome outside .ed-canvas (rails, popups, panels) is
+     untouched, and tokens derived at :root (e.g. --surface-hover) resolve there, not
+     here. (This is a declaration, not a bare read — the no-brand-accent guard's rule
+     that admin chrome must reference brand via --primary still holds.) */
+  --accent: var(--primary);
 }
 /* Each block node is a direct child of .setu-prose; React node-view blocks (the
    image) wrap their <figure class="align-{x}"> in a <div data-node-view-wrapper>,
@@ -52,7 +63,9 @@
     :has(.align-full)
   ):not(.align-left):not(.align-right):not(.align-wide):not(.align-full):not(
     :has(.blk-hero.w-wide)
-  ):not(:has(.blk-hero.w-full)) {
+  ):not(:has(.blk-hero.w-full)):not(:has(.blk-video.w-wide)):not(
+    :has(.blk-video.w-full)
+  ):not(:has(.blk-section.w-wide)):not(:has(.blk-section.w-full)) {
   max-width: var(--measure-post);
   margin-inline: auto;
 }
@@ -65,13 +78,31 @@
 .setu-prose > .align-full {
   width: 100%;
 }
-/* Hero width breakout in the canvas — mirrors the image align rules so width is WYSIWYG. */
-.setu-prose > :has(.blk-hero.w-wide) {
+/* Hero/video width breakout in the canvas — mirrors the image align rules so width is WYSIWYG. */
+.setu-prose > :has(.blk-hero.w-wide),
+.setu-prose > :has(.blk-video.w-wide) {
   width: min(var(--measure-page), 100%);
   margin-inline: auto;
 }
-.setu-prose > :has(.blk-hero.w-full) {
+.setu-prose > :has(.blk-hero.w-full),
+.setu-prose > :has(.blk-video.w-full) {
   width: 100%;
+}
+/* Section width breakout in the canvas — same WYSIWYG mirroring as the hero. A full-bleed
+   band keeps its grouped content aligned to the page measure (mirrors the theme's
+   .prose .blk-section.w-full padding rule, with the pane standing in for the viewport). */
+.setu-prose > :has(.blk-section.w-wide) {
+  width: min(var(--measure-page), 100%);
+  margin-inline: auto;
+}
+.setu-prose > :has(.blk-section.w-full) {
+  width: 100%;
+}
+.setu-prose .blk-section.w-full {
+  padding-inline: max(
+    var(--blk-section-pad-x, 1.25rem),
+    calc((100% - var(--measure-page)) / 2)
+  );
 }
 .setu-prose > :has(.align-left),
 .setu-prose > .align-left {
@@ -589,6 +620,97 @@
   border-radius: var(--r-xs);
   white-space: pre-wrap;
 }
+
+/* ---- SPACER BLOCK (canvas-only visualization) ----
+   On the published site the spacer is pure empty space; in the canvas it must be
+   visible and adjustable: a subtle hatched region with its height labelled and a
+   drag-to-resize handle on the bottom edge. All chrome lives here in admin CSS —
+   none of it ships to the site. */
+.blk-spacer-editor {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 4px 0;
+  border-radius: var(--r-sm);
+  border: 1px dashed transparent;
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0 6px,
+    color-mix(in oklch, var(--muted-foreground) 10%, transparent) 6px 7px
+  );
+  transition: border-color 0.15s;
+}
+.blk-spacer-editor:hover,
+.blk-spacer-editor.is-selected,
+.blk-spacer-editor.is-dragging {
+  border-color: color-mix(in oklch, var(--primary) 45%, transparent);
+}
+.blk-spacer-editor-label {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  line-height: 1;
+  padding: 3px 8px;
+  border-radius: var(--r-pill);
+  color: var(--muted-foreground);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  user-select: none;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.blk-spacer-editor:hover .blk-spacer-editor-label,
+.blk-spacer-editor.is-selected .blk-spacer-editor-label,
+.blk-spacer-editor.is-dragging .blk-spacer-editor-label {
+  opacity: 1;
+}
+/* Below ~28px the label chip is taller than the gap — float it above the region so
+   it never overlaps the neighbouring prose. */
+.blk-spacer-editor[data-small] .blk-spacer-editor-label {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  z-index: 1;
+}
+/* Bottom-edge resize handle: a centered pill, keyboard-focusable (role=slider). */
+.blk-spacer-editor-handle {
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  transform: translateX(-50%);
+  width: 44px;
+  height: 10px;
+  border-radius: var(--r-pill);
+  cursor: ns-resize;
+  touch-action: none;
+}
+/* The visible pill is thinner than the 10px hit area. */
+.blk-spacer-editor-handle::after {
+  content: '';
+  position: absolute;
+  inset: 2px 0;
+  border-radius: var(--r-pill);
+  background: color-mix(in oklch, var(--muted-foreground) 35%, transparent);
+  opacity: 0;
+  transition:
+    opacity 0.15s,
+    background-color 0.15s;
+}
+.blk-spacer-editor:hover .blk-spacer-editor-handle::after,
+.blk-spacer-editor.is-selected .blk-spacer-editor-handle::after,
+.blk-spacer-editor.is-dragging .blk-spacer-editor-handle::after,
+.blk-spacer-editor-handle:focus-visible::after {
+  opacity: 1;
+}
+.blk-spacer-editor.is-dragging .blk-spacer-editor-handle::after,
+.blk-spacer-editor-handle:focus-visible::after {
+  background: var(--primary);
+}
+.blk-spacer-editor-handle:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
 /* Title input: inputs don't inherit font-size/family, so the design's title
    typography (design/admin/editor.css .ed-title, 44px/700) is set explicitly. */
 .ed-title {
@@ -818,31 +940,13 @@
   outline-offset: 1px;
 }
 
-/* Bootstrap loading + dev-only reset */
+/* Bootstrap loading */
 .boot-loading {
   display: grid;
   place-items: center;
   height: 100%;
   color: var(--text-3);
   font-family: var(--font-ui);
-}
-.dev-reset {
-  position: fixed;
-  bottom: 10px;
-  left: 10px;
-  z-index: 200;
-  padding: 5px 9px;
-  font-size: 11px;
-  font-family: var(--font-ui);
-  background: var(--surface);
-  color: var(--text-3);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-sm);
-  cursor: pointer;
-  opacity: 0.6;
-}
-.dev-reset:hover {
-  opacity: 1;
 }
 
 /* Shortcut tooltips (scoped tippy theme) */
@@ -1040,4 +1144,17 @@
 .setu-image-block .bp-replace:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 1px;
+}
+
+/* ---- COLUMNS BLOCK (canvas affordances; grid itself comes from columns.css) ---- */
+/* Column slots get a quiet dashed boundary in the editor so empty slots are visible
+   and clickable targets; the published site renders no chrome at all. */
+.setu-prose [data-column] {
+  outline: 1px dashed var(--border);
+  outline-offset: 4px;
+  border-radius: 4px;
+  min-height: 1.6em;
+}
+.setu-prose [data-columns]:focus-within > [data-column] {
+  outline-color: var(--border-strong);
 }

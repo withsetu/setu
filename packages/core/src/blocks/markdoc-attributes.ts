@@ -4,11 +4,11 @@ export interface MarkdocAttr {
   type: 'String' | 'Number' | 'Boolean'
   default?: unknown
   matches?: string[]
-  /** Inclusive numeric bounds from zod `.min()`/`.max()` — Number attrs only.
-   *  Consumed by the inspector (resolve-controls) so contract bounds reach the
-   *  control; the generated markdoc include ignores them (validation stays zod's). */
+  /** Numeric bounds/step lifted from zod .min/.max/.multipleOf checks. Editor-facing
+   *  (slider ranges via resolveControls); the Markdoc include generator ignores them. */
   min?: number
   max?: number
+  step?: number
 }
 
 const BASE: Record<string, MarkdocAttr['type']> = {
@@ -71,14 +71,14 @@ export function markdocAttributesFor(
         const checks =
           (
             inner as {
-              _def?: { checks?: { kind: string; value?: number }[] }
+              _def?: { checks?: Array<{ kind: string; value?: unknown }> }
             }
           )._def?.checks ?? []
         for (const c of checks) {
-          if (c.kind === 'min' && typeof c.value === 'number')
-            attr.min = c.value
-          if (c.kind === 'max' && typeof c.value === 'number')
-            attr.max = c.value
+          if (typeof c.value !== 'number') continue
+          if (c.kind === 'min') attr.min = c.value
+          else if (c.kind === 'max') attr.max = c.value
+          else if (c.kind === 'multipleOf') attr.step = c.value
         }
       }
     } else {

@@ -27,7 +27,10 @@ export function BlockInspector({
   apiBase: string
 }) {
   const block = registry.blocks.find((b) => b.tag === tag)
-  const [pickFor, setPickFor] = useState<string | null>(null)
+  const [pickFor, setPickFor] = useState<{
+    name: string
+    kind: 'image' | 'video'
+  } | null>(null)
   if (!block)
     return (
       <p className="px-1 py-2 text-sm text-muted-foreground">
@@ -84,15 +87,31 @@ export function BlockInspector({
     groups = [{ label: '', controls: visible }]
   }
 
+  // A `forcedWhen` rule pins a control to a fixed value (disabled, with a hint)
+  // while its `when` pairs match the current attrs — e.g. a video's muted switch
+  // while autoplay is on. The renderer applies the same coercion, so the pinned
+  // UI is an honest mirror of what will actually ship.
+  const forcedRules = block.editor?.forcedWhen ?? {}
+  const activeForce = (name: string) => {
+    const rule = forcedRules[name]
+    if (!rule) return null
+    const holds = Object.entries(rule.when).every(([k, v]) => {
+      const cur = mdAttrs[k]
+      return Array.isArray(v) ? v.includes(cur as string) : cur === v
+    })
+    return holds ? rule : null
+  }
+
   function renderControl(c: ResolvedControl) {
     const Control = controlRegistry[c.control]
+    const force = activeForce(c.name)
     return (
       <div key={c.name} className="flex flex-col gap-1.5">
         <Label htmlFor={`bi-${c.name}`}>
           {editor?.labels?.[c.name] ?? humanizeLabel(c.name)}
         </Label>
         <Control
-          value={mdAttrs[c.name] ?? c.default}
+          value={force ? force.value : (mdAttrs[c.name] ?? c.default)}
           onChange={(v) => onChange(c.name, v)}
           meta={{
             name: c.name,
@@ -100,10 +119,19 @@ export function BlockInspector({
             default: c.default,
             min: c.min,
             max: c.max,
+            step: c.step,
             apiBase,
-            onPickMedia: setPickFor
+            disabled: force !== null,
+            onPickMedia: (name) =>
+              setPickFor({
+                name,
+                kind: c.control === 'video' ? 'video' : 'image'
+              })
           }}
         />
+        {force?.hint ? (
+          <p className="text-xs text-muted-foreground">{force.hint}</p>
+        ) : null}
       </div>
     )
   }
@@ -127,10 +155,11 @@ export function BlockInspector({
       })}
       <MediaPickerModal
         apiBase={apiBase}
+        kind={pickFor?.kind ?? 'image'}
         open={pickFor !== null}
         onClose={() => setPickFor(null)}
         onPick={(src) => {
-          if (pickFor) onChange(pickFor, src)
+          if (pickFor) onChange(pickFor.name, src)
           setPickFor(null)
         }}
       />

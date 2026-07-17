@@ -21,6 +21,7 @@ export {
   AIC_IIIF_BASE,
   AIC_ARTWORK_PAGE_BASE,
   AIC_MAX_RECORD_BYTES,
+  AIC_RELAXED_BODY_NOTE,
   AIC_SKIP_REASONS
 } from './aic/pack'
 export type { AicPackOptions, AicSkipReason } from './aic/pack'
@@ -33,3 +34,5 @@ export {
 export type { FetchAicDumpOptions, FetchAicDumpResult } from './aic/fetch-dump'
 export { fetchAicSample, AIC_API_ARTWORKS_URL } from './aic/fetch-sample'
 export type { FetchAicSampleOptions } from './aic/fetch-sample'
+
+export * from './engine'

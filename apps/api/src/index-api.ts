@@ -91,6 +91,7 @@ export interface IndexApiDeps {
     IndexService,
     | 'ensureBuilt'
     | 'query'
+    | 'stats'
     | 'distinctTags'
     | 'distinctLocales'
     | 'categoryCounts'
@@ -144,6 +145,15 @@ export function createIndexApi(deps: IndexApiDeps) {
     }
     await deps.index.ensureBuilt()
     return c.json(await deps.index.query(q))
+  })
+
+  // At-a-glance dashboard counts: per-collection lifecycle tallies in ONE call
+  // over body-free rows (#587). content.view — same read surface as
+  // /api/index/query, no bodies exposed. No query params: index-global by
+  // design, like /facets.
+  app.get('/api/index/stats', auth, canViewContent, async (c) => {
+    await deps.index.ensureBuilt()
+    return c.json(await deps.index.stats())
   })
 
   // Facets are index-global by design: the underlying port helpers

@@ -79,7 +79,7 @@ export function SiteDeployCard({
           )}
         </p>
         {status !== null && status.pending && (
-          <p className="text-xs text-amber-600 dark:text-amber-500">
+          <p className="text-xs text-amber-700 dark:text-amber-500">
             {status.deployedSha === null
               ? 'Saved changes are not live yet.'
               : `${pendingCount} change${pendingCount === 1 ? '' : 's'} pending — not yet live.`}

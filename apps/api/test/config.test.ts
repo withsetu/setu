@@ -2,7 +2,8 @@ import { describe, expect, it, vi, afterEach } from 'vitest'
 import {
   resolveSetuMode,
   resolveAuthSecret,
-  resolveRateLimitOverrides
+  resolveRateLimitOverrides,
+  resolvePreviewEnabled
 } from '../src/config'
 
 describe('resolveSetuMode', () => {
@@ -152,5 +153,37 @@ describe('resolveRateLimitOverrides (#248 Task 9)', () => {
         SETU_AUTH_RATELIMIT_ENABLED: '0'
       })
     ).toEqual({})
+  })
+})
+
+// #627 — the in-editor preview slot is an UNAUTHENTICATED read/write surface. It used to be gated
+// on `NODE_ENV !== 'production'` alone, but `apps/api`'s own `start` script sets no NODE_ENV and
+// nothing else in the repo sets it for the API process — so the DEFAULT self-hosted boot mounted
+// it. Env-var-absent must mean locked, exactly as resolveSetuMode already does.
+describe('resolvePreviewEnabled', () => {
+  it('is DISABLED when nothing is set — the default self-hosted boot (regression #627)', () => {
+    expect(resolvePreviewEnabled({})).toBe(false)
+  })
+
+  it('is DISABLED in self-hosted mode even outside production', () => {
+    expect(
+      resolvePreviewEnabled({
+        SETU_MODE: 'self-hosted',
+        NODE_ENV: 'development'
+      })
+    ).toBe(false)
+  })
+
+  it('is ENABLED only in local mode outside production', () => {
+    expect(resolvePreviewEnabled({ SETU_MODE: 'local' })).toBe(true)
+    expect(
+      resolvePreviewEnabled({ SETU_MODE: 'local', NODE_ENV: 'development' })
+    ).toBe(true)
+  })
+
+  it('is DISABLED in local mode when NODE_ENV=production', () => {
+    expect(
+      resolvePreviewEnabled({ SETU_MODE: 'local', NODE_ENV: 'production' })
+    ).toBe(false)
   })
 })

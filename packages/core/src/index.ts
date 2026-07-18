@@ -222,10 +222,11 @@ export { newCid, isCid } from './content-id/cid'
 export {
   matchProvider,
   oembedEndpoint,
-  OEMBED_PROVIDERS
+  OEMBED_PROVIDERS,
+  OEMBED_ENDPOINT_HOSTS
 } from './oembed/providers'
 export type { OembedProvider, OembedType } from './oembed/providers'
-export { resolveOembed } from './oembed/resolve'
+export { resolveOembed, OEMBED_MAX_BODY_BYTES } from './oembed/resolve'
 export type {
   NormalizedOembed,
   OembedResult,

@@ -1,3 +1,4 @@
+import type { betterAuth } from 'better-auth'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import type { EmailPort } from '@setu/core'
 import type { AuthEvent } from './events'
@@ -23,10 +24,16 @@ export interface CreateAuthOptions {
     provider: 'cloudflare-turnstile' | 'google-recaptcha'
     secretKey: string
   }
-  socialProviders?: {
-    github?: { clientId: string; clientSecret: string }
-    google?: { clientId: string; clientSecret: string }
-  }
+  /** Passed straight through to better-auth. Typed as better-auth's OWN option rather than a
+   *  hand-written `{ clientId, clientSecret }` pair, because that narrower shape was a lie: #624
+   *  has been sending `disableSignUp` / `disableImplicitSignUp` from
+   *  `apps/api/src/auth/env.ts` all along. Excess-property checking only fires on object
+   *  LITERALS, so those flags were structurally erased at this boundary — present at runtime,
+   *  invisible to the type, and impossible for a reader to discover here. #645 (the sign-up hole
+   *  that erasure helped hide) is the reason it now says what it accepts. */
+  socialProviders?: NonNullable<
+    Parameters<typeof betterAuth>[0]
+  >['socialProviders']
   rateLimit?: {
     /** Master switch. Defaults to `true`; only an explicit `false` (e.g. the e2e topology, for a
      *  deterministic auth lane) turns the limiter off. Never disable in a real deployment. */

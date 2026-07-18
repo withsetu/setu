@@ -15,6 +15,7 @@ import {
   singleRoleGuardCreateHook,
   singleRoleGuardUpdateHook
 } from './single-role-guard'
+import { signupOriginGuardCreateHook } from './signup-origin-guard'
 import {
   userCreateAfterHook,
   sessionCreateAfterHook,
@@ -229,6 +230,13 @@ export function createAuth(opts: CreateAuthOptions) {
       user: {
         create: {
           before: async (user, context) => {
+            // #645 runs FIRST: "may this request create an account AT ALL" precedes every
+            // question about WHAT it may create. The two guards below reason about the role being
+            // assigned; neither has anything to say about an OAuth sign-in route conjuring a user
+            // at the schema's default role, which is exactly the hole `disableSignUp` failed to
+            // close on `/sign-in/social`. See signup-origin-guard.ts for the better-auth
+            // file:line derivation of why the flag did not hold there.
+            await signupOriginGuardCreateHook()(user, context)
             await singleRoleGuardCreateHook()(user, context)
             await rankGuardCreateHook()(user, context)
           },

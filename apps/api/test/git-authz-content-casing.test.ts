@@ -1,0 +1,210 @@
+import { describe, it, expect } from 'vitest'
+import { createGitApi, writeActionForChanges } from '../src/app'
+import { createMemoryGitPort } from '@setu/git-memory'
+import type { Role } from '@setu/core'
+import type { ResolveActor } from '../src/auth/resolve-actor'
+
+// #647 — the sibling of #644, in the same gate. #644 closed the repo-ROOT half (`PATH_WRITE_ACTION`
+// could be dodged with a Unicode fold-variant of `settings.json`). This is the `content/` half.
+//
+// `parseContentPath` (packages/core/src/publish/content-path.ts:13) matches
+// `/^content\/([^/]+)\/([^/]+)\/([^/]+)\.mdoc$/` — CASE-SENSITIVE. `writeActionForChanges` uses
+// that match as the trigger for BOTH the publish check and the #382 committed-state upgrade. A
+// case-insensitive filesystem (APFS/NTFS) resolves the variant to the SAME INODE as the canonical
+// spelling, so every spelling the parser misses is a live post an author can rewrite.
+//
+// Measured against a seeded LIVE post at `content/blog/en/live.mdoc`, sending `published: false`
+// content (i.e. asking for the WEAKEST action), all four variants derive `content.edit` where the
+// canonical spelling derives `content.publish`:
+//
+//   content/blog/en/live.mdoc  -> content.publish   (control)
+//   Content/blog/en/live.mdoc  -> content.edit      class A: prefix casing  -> parser MISSES
+//   content/blog/en/live.MDOC  -> content.edit      class A: extension casing -> parser MISSES
+//   content/blog/en/Live.mdoc  -> content.edit      class B: slug casing
+//   content/blog/en/ſive.mdoc  -> content.edit      class C: see the note at the end
+//
+// Class A and class B are DIFFERENT mechanisms reaching the same boundary:
+//   A. the parser returns null, so the path is classified as an ordinary non-content write and
+//      skips the publish check and the committed-state read entirely.
+//   B. the parser MATCHES (the slug segment is `[^/]+`, so `Live` is a legal slug), the publish
+//      check runs on the attacker's own `published: false` frontmatter and passes, and then the
+//      committed-state read — `git.readFile('content/blog/en/Live.mdoc')` — misses, because git's
+//      index is case-SENSITIVE even where the filesystem is not. So the #382 upgrade never fires
+//      while the adapter's write lands on the real live post.
+// Fixing only A would leave B open, which is exactly the "hardened one half, left its neighbour
+// open" shape this whole slice exists to clean up. One rule closes both.
+//
+// THE RULE: a path whose CASE-FOLDED form parses as a content path must already BE its own folded
+// form. Not "make classification case-insensitive" — that would silently start accepting
+// `CONTENT/...` as a valid content path in `parseContentPath`'s other callers (the content index,
+// demo planning, the admin editor), a far larger blast radius than this gate. Rejecting keeps the
+// change local to the API gate and fail-closed, and it is a rejection of the CLASS rather than an
+// enumeration of spellings (the #623/#644 lesson).
+//
+// Honest scope, same as #644: git stages a literally different index entry, so this is a
+// working-tree clobber plus repo-state inconsistency (the site build reads the working tree), not
+// a clean committed-state takeover. It is still the #382 privilege boundary an author crosses.
+
+const asRole =
+  (role: Role): ResolveActor =>
+  () => ({ id: 'u', role })
+const author = { name: 'T', email: 't@x.com' }
+
+/** Frontmatter that asks for the WEAKEST action: a `published: false` draft needs only
+ *  `content.edit`. Any variant that still derives `content.edit` against a LIVE committed post is
+ *  a bypass of the #382 upgrade. */
+const DRAFT_CONTENT = '---\ntitle: L\npublished: false\n---\nPWNED'
+
+/** Every spelling that resolves to `content/blog/en/live.mdoc` on a case-folding filesystem while
+ *  the gate classified it as something weaker. */
+const CASE_VARIANTS = [
+  'Content/blog/en/live.mdoc', // A: prefix
+  'CONTENT/blog/en/live.mdoc', // A: prefix, fully upper
+  'content/blog/en/live.MDOC', // A: extension
+  'content/blog/en/Live.mdoc', // B: slug
+  'content/Blog/EN/live.mdoc' // B: collection + locale
+]
+
+/** Seeds a LIVE post (no `published: false`) at the canonical spelling. */
+async function gitWithLivePost() {
+  const git = createMemoryGitPort()
+  await git.commitFile({
+    path: 'content/blog/en/live.mdoc',
+    content: '---\ntitle: L\n---\nbody',
+    message: 'seed',
+    author
+  })
+  return git
+}
+
+const write = (
+  a: ReturnType<typeof createGitApi>,
+  path: string,
+  body: string
+) =>
+  a.fetch(
+    new Request(`http://x${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body
+    })
+  )
+
+describe('git write gate — content-path casing bypass of the publish gate (#647)', () => {
+  it('derives content.publish for the canonical spelling (the control this is measured against)', async () => {
+    const git = await gitWithLivePost()
+    await expect(
+      writeActionForChanges(
+        [{ path: 'content/blog/en/live.mdoc', content: DRAFT_CONTENT }],
+        git
+      )
+    ).resolves.toBe('content.publish')
+  })
+
+  it('fails CLOSED for every case-variant of a live post, instead of downgrading to content.edit', async () => {
+    const git = await gitWithLivePost()
+    for (const path of CASE_VARIANTS) {
+      await expect(
+        writeActionForChanges([{ path, content: DRAFT_CONTENT }], git),
+        `writeActionForChanges ${JSON.stringify(path)}`
+      ).resolves.toBe('settings.manage')
+    }
+  })
+
+  it('refuses an AUTHOR writing any case-variant, and nothing lands', async () => {
+    for (const path of CASE_VARIANTS) {
+      const git = await gitWithLivePost()
+      const before = await git.list()
+      const app = createGitApi(git, asRole('author'))
+      const res = await write(
+        app,
+        '/git/commit',
+        JSON.stringify({ path, content: DRAFT_CONTENT, message: 'm', author })
+      )
+      expect(res.status, `POST /git/commit ${JSON.stringify(path)}`).toBe(400)
+      // Assert on the staged tree, not a HEAD read: the #623 kill-shot lesson is that
+      // `git.readFile` resolves at HEAD and can hide a write that already touched the tree.
+      expect(await git.list(), `tree after ${JSON.stringify(path)}`).toEqual(
+        before
+      )
+    }
+  })
+
+  it('refuses the same case-variants through the bulk commit-files route', async () => {
+    for (const path of CASE_VARIANTS) {
+      const git = await gitWithLivePost()
+      const before = await git.list()
+      const app = createGitApi(git, asRole('author'))
+      const res = await write(
+        app,
+        '/git/commit-files',
+        JSON.stringify({
+          changes: [{ path, content: DRAFT_CONTENT }],
+          message: 'm',
+          author
+        })
+      )
+      expect(res.status, `POST /git/commit-files ${JSON.stringify(path)}`).toBe(
+        400
+      )
+      expect(await git.list(), `tree after ${JSON.stringify(path)}`).toEqual(
+        before
+      )
+    }
+  })
+
+  // The rejection must stay NARROW. It keys on "the folded form parses as a content path", so it
+  // must not touch ordinary repo files that legitimately carry uppercase.
+  it('still admits legitimately-uppercase NON-content paths', async () => {
+    const git = createMemoryGitPort()
+    const app = createGitApi(git, asRole('maintainer'))
+    for (const path of ['README.md', 'docs/GUIDE.md', 'LICENSE']) {
+      const res = await write(
+        app,
+        '/git/commit',
+        JSON.stringify({ path, content: 'hi', message: 'm', author })
+      )
+      expect(res.status, `POST /git/commit ${JSON.stringify(path)}`).toBe(200)
+    }
+  })
+
+  it('still admits an AUTHOR writing a canonical draft, including a non-ASCII slug', async () => {
+    const git = createMemoryGitPort()
+    const app = createGitApi(git, asRole('author'))
+    for (const path of [
+      'content/blog/en/new-post.mdoc',
+      'content/blog/en/café.mdoc',
+      'content/blog/ja/日本語.mdoc'
+    ]) {
+      const res = await write(
+        app,
+        '/git/commit',
+        JSON.stringify({
+          path,
+          content: DRAFT_CONTENT,
+          message: 'm',
+          author
+        })
+      )
+      expect(res.status, `POST /git/commit ${JSON.stringify(path)}`).toBe(200)
+    }
+  })
+
+  // Class C, deliberately NOT closed here and filed separately: `content/blog/en/ſive.mdoc` folds
+  // to `live.mdoc`... no — to `sive.mdoc`; the point is that U+017F case-FOLDS into ASCII while
+  // `toLowerCase()` leaves it alone, so a slug carrying such a character is its own folded form
+  // and passes this rule while still colliding on APFS. Closing that needs a real Unicode
+  // case-fold (which JS does not expose) and cannot reuse `toLowerCase`. #644's ASCII rule is
+  // root-only precisely because slugs legitimately carry non-ASCII, so it does not reach here
+  // either. Asserted as a KNOWN GAP so the next reader finds it documented rather than assuming
+  // this file closed it.
+  it('KNOWN GAP: a non-ASCII slug that case-folds into ASCII is still accepted (see the spun-off issue)', async () => {
+    const git = await gitWithLivePost()
+    await expect(
+      writeActionForChanges(
+        [{ path: 'content/blog/en/ſive.mdoc', content: DRAFT_CONTENT }],
+        git
+      )
+    ).resolves.toBe('content.edit')
+  })
+})

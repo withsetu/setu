@@ -32,13 +32,34 @@ export function RouteFallback() {
  *  one action that actually fixes the stale-deploy case: a full reload, which
  *  re-fetches index.html and therefore the current chunk names. */
 class RouteErrorBoundary extends Component<
-  { children: ReactNode },
-  { failed: boolean }
+  { children: ReactNode; pathname: string },
+  { failed: boolean; pathname: string }
 > {
-  state = { failed: false }
+  state = { failed: false, pathname: this.props.pathname }
 
   static getDerivedStateFromError() {
     return { failed: true }
+  }
+
+  /** Clear a previous route's failure when the user navigates away — otherwise one
+   *  bad chunk poisons the whole session.
+   *
+   *  This MUST reset state rather than remount, which is why it is derived state and
+   *  not a `key={pathname}` on this boundary. A key looks equivalent and is not: it
+   *  destroys and rebuilds the entire subtree on every pathname change, including the
+   *  URL rewrites a screen performs on ITSELF. The editor does exactly that — first
+   *  autosave of a new entry mints a real slug and `navigate(..., {replace: true})`s
+   *  onto it — and #549 built the `entryIdentRef` epoch specifically so that
+   *  self-mint does NOT remount the editor (it would drop focus, open pickers, and
+   *  the in-flight autosave). A key here sits above all of that and remounts anyway,
+   *  which killed autosave mid-write: the save indicator never settled. Caught by
+   *  the e2e editor suite; regression test in test-browser/lazy-route-autosave. */
+  static getDerivedStateFromProps(
+    props: { pathname: string },
+    state: { failed: boolean; pathname: string }
+  ) {
+    if (props.pathname === state.pathname) return null
+    return { failed: false, pathname: props.pathname }
   }
 
   render() {
@@ -63,12 +84,16 @@ class RouteErrorBoundary extends Component<
 
 /** Wraps the route outlet in the pair every lazily-loaded screen needs: a Suspense
  *  with a real loading frame, and an error boundary so a failed chunk fetch surfaces
- *  instead of blanking. Keyed on pathname so navigating elsewhere clears a previous
- *  route's failure — otherwise one bad chunk would poison the whole session. */
+ *  instead of blanking.
+ *
+ *  Note there is no `key` here — this boundary is mount-stable for the life of the
+ *  app, and the pathname is passed as a PROP so a navigation clears a stale failure
+ *  without disturbing the tree below. See getDerivedStateFromProps above for the
+ *  regression that distinction cost. */
 export function RouteBoundary({ children }: { children: ReactNode }) {
   const { pathname } = useLocation()
   return (
-    <RouteErrorBoundary key={pathname}>
+    <RouteErrorBoundary pathname={pathname}>
       <Suspense fallback={<RouteFallback />}>{children}</Suspense>
     </RouteErrorBoundary>
   )

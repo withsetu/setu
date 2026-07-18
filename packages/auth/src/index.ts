@@ -12,6 +12,10 @@ import {
 } from './last-owner-guard'
 import { rankGuardCreateHook, rankGuardUpdateHook } from './rank-guard'
 import {
+  singleRoleGuardCreateHook,
+  singleRoleGuardUpdateHook
+} from './single-role-guard'
+import {
   userCreateAfterHook,
   sessionCreateAfterHook,
   sessionDeleteAfterHook,
@@ -33,6 +37,13 @@ export {
 export { serverSetup, type ServerSetupOptions } from './server-setup-plugin'
 export { ensureLocalOwner, type LocalOwnerIdentity } from './ensure-local-owner'
 export type { AuthEvent, AuthEventType } from './events'
+export {
+  ACTION_ENFORCEMENT,
+  ADMIN_ONLY_EXTRA_STATEMENTS,
+  betterAuthStatementsForRole,
+  type ActionEnforcement,
+  type BetterAuthStatement
+} from './action-statements'
 
 // better-auth's admin plugin validates `adminRoles` against the keys of a
 // `roles` access-control map (defaulting to its own `{ admin, user }` map). We
@@ -62,7 +73,17 @@ export type { AuthEvent, AuthEventType } from './events'
 //    maintainer-scoped user directory.
 // `editor`/`author` remain empty placeholders — Setu's own authorization (outside better-auth)
 // governs what they can do, and neither ever reaches an admin-plugin route.
-const setuAdminRoles = {
+//
+// #631: this table is no longer freestanding. `action-statements.ts` declares, for every Setu
+// `Action`, how it is really enforced — and for the better-auth-enforced ones, which statement(s)
+// it maps to. `action-statements.test.ts` derives the expected statement set for each role from
+// `DEFAULT_ROLES` through that mapping and asserts it equals this literal, so the two role tables
+// can no longer drift: adding `'delete'` to `maintainer` below (which would silently hand every
+// maintainer the power to delete users — `/admin/remove-user` is protected ONLY by withholding
+// that statement, and `users.delete` reaches no `authz.can` call anywhere) now fails a test.
+// Statements with no `Action` counterpart are declared in `ADMIN_ONLY_EXTRA_STATEMENTS`, so every
+// entry below is accounted for by one side of the mapping or the other. Exported for that test.
+export const setuAdminRoles = {
   admin: defaultAc.newRole({
     user: [
       'create',
@@ -185,9 +206,13 @@ export function createAuth(opts: CreateAuthOptions) {
     // the full derivation of why these hooks can see the target user id and the acting session
     // despite neither being an explicit hook argument.
     //
-    // `update.before` composes TWO independent guards (better-auth's databaseHooks type only
+    // `update.before` composes THREE independent guards (better-auth's databaseHooks type only
     // accepts a single `before` function per model/event, so they're composed explicitly here,
-    // not registered as a list): rankGuardUpdateHook MUST run first — it's the one that stops a
+    // not registered as a list). #630's singleRoleGuardUpdateHook runs FIRST: it asserts the
+    // data-SHAPE invariant (exactly one known role), and neither guard below has a defined answer
+    // for a malformed role — `rankOf('admin,maintainer')` is 0, which would forbid a genuine
+    // multi-role admin outright. `user.create.before` composes the same shape guard ahead of
+    // rankGuardCreateHook for the identical reason. Then rankGuardUpdateHook — it's the one that stops a
     // maintainer from touching a peer/admin target or self-escalating a role at all — before
     // lastAdminGuardHook, which only ever cares about admin targets and would be a no-op for the
     // maintainer-vs-maintainer/editor cases rank-guard exists to catch. Both throw (rather than
@@ -203,11 +228,15 @@ export function createAuth(opts: CreateAuthOptions) {
     databaseHooks: {
       user: {
         create: {
-          before: rankGuardCreateHook(),
+          before: async (user, context) => {
+            await singleRoleGuardCreateHook()(user, context)
+            await rankGuardCreateHook()(user, context)
+          },
           after: userCreateAfterHook(emit)
         },
         update: {
           before: async (data, context) => {
+            await singleRoleGuardUpdateHook()(data, context)
             await rankGuardUpdateHook()(data, context)
             await lastAdminGuardHook()(data, context)
           },

@@ -120,3 +120,34 @@ describe('runQuery — custom-SEO filter (#577)', () => {
     expect(r.rows.map((x) => x.slug)).toEqual(['both'])
   })
 })
+
+describe('runQuery — combined `published` status filter (#579)', () => {
+  const rows = [
+    row({ slug: 'live-a', status: 'live' }),
+    row({ slug: 'staged-a', status: 'staged' }),
+    row({ slug: 'draft-a', status: 'draft' }),
+    row({ slug: 'unpub-a', status: 'unpublished' })
+  ]
+  const base = { collection: 'post', offset: 0, limit: 10 }
+
+  it("status: 'published' matches staged + live and nothing else", () => {
+    const r = runQuery(rows, { ...base, status: 'published' })
+    expect(r.rows.map((x) => x.slug).sort()).toEqual(['live-a', 'staged-a'])
+    expect(r.total).toBe(2)
+  })
+  it('exact lifecycle states still match only themselves', () => {
+    for (const s of ['draft', 'staged', 'live', 'unpublished'] as const) {
+      const r = runQuery(rows, { ...base, status: s })
+      expect(r.rows.map((x) => x.status)).toEqual([s])
+    }
+  })
+  it('combines with other filters using AND', () => {
+    const mixed = [
+      row({ slug: 'live-react', status: 'live', tags: ['react'] }),
+      row({ slug: 'staged-vue', status: 'staged', tags: ['vue'] }),
+      row({ slug: 'draft-react', status: 'draft', tags: ['react'] })
+    ]
+    const r = runQuery(mixed, { ...base, status: 'published', tag: 'react' })
+    expect(r.rows.map((x) => x.slug)).toEqual(['live-react'])
+  })
+})

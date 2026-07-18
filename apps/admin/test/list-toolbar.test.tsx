@@ -75,6 +75,25 @@ describe('ListToolbar', () => {
       'No custom SEO'
     )
   })
+  // #579: the status control gains the staged+live union. The MENU spells the
+  // union out; the TRIGGER stays compact so it doesn't clamp in a 9rem control.
+  it('offers the combined Published status and reflects it compactly (#579)', () => {
+    const { rerender } = render(<ListToolbar {...base} />)
+    expect(screen.getByLabelText('Filter by status')).toHaveTextContent(
+      'All status'
+    )
+    rerender(<ListToolbar {...base} status="published" />)
+    expect(screen.getByLabelText('Filter by status')).toHaveTextContent(
+      'Published'
+    )
+    rerender(<ListToolbar {...base} status="staged" />)
+    expect(screen.getByLabelText('Filter by status')).toHaveTextContent(
+      'Staged'
+    )
+    rerender(<ListToolbar {...base} status="live" />)
+    expect(screen.getByLabelText('Filter by status')).toHaveTextContent('Live')
+  })
+
   it('shows Clear only when filters are active', () => {
     const { rerender } = render(<ListToolbar {...base} hasFilters={false} />)
     expect(screen.queryByRole('button', { name: /clear/i })).toBeNull()

@@ -6,11 +6,21 @@ import type {
   Lock
 } from '@setu/core'
 
-/** The four At-a-glance dashboard tiles. */
+/** The five At-a-glance dashboard tiles.
+ *
+ *  #598 split the old `published` tile into `live` + `staged`. "Published"
+ *  (committed + `published !== false`) spans both, but they mean very different
+ *  things to the person reading the dashboard: `live` is deployed and
+ *  visitor-facing, `staged` is committed and waiting on a deploy. Collapsing them
+ *  made the dashboard imply saved = live, which is the one thing Setu is strict
+ *  about (CLAUDE.md card #7). `live + staged` still equals the old number — this
+ *  is a split, not a change to what counts as published (pinned by the parity
+ *  test in dashboard-entries.test.ts). */
 export interface DashboardCounts {
   posts: number
   pages: number
-  published: number
+  live: number
+  staged: number
   drafts: number
 }
 
@@ -25,11 +35,22 @@ const ZERO: CollectionStats = {
   unpublished: 0
 }
 
-/** Derive the four tile numbers from the index's one-call per-collection
- *  lifecycle tallies (#587). Semantics match the pre-#587 client tally exactly
- *  (proven in dashboard-entries.test.ts): Posts/Pages = all entries of that
- *  collection; Published = staged + live; Drafts = draft — 'unpublished'
- *  counts toward neither, and only the post + page collections are summed.
+/** Derive the five tile numbers from the index's one-call per-collection
+ *  lifecycle tallies (#587). Posts/Pages = all entries of that collection; Live =
+ *  live and Staged = staged (together the old Published, #598); Drafts = draft +
+ *  unpublished (#611). Only the post + page collections are summed.
+ *
+ *  #611 — why Drafts absorbed 'unpublished': deriveLifecycle calls a committed
+ *  `published: false` entry 'draft' while the site has NEVER been deployed, and
+ *  'unpublished' once it has (a deployed-then-hidden entry is a different thing
+ *  operationally — it's still on the live site until the next deploy). Counting
+ *  'unpublished' toward no tile meant the first-ever deploy silently moved
+ *  entries off the dashboard entirely: Drafts fell, nothing rose, and the status
+ *  tiles stopped summing to Posts + Pages. Since the tiles now cover all four
+ *  lifecycle states, that sum is an INVARIANT, pinned in dashboard-entries.test.ts.
+ *  A sixth tile was considered and rejected (owner, 2026-07-17): five is already
+ *  a lot, and from the dashboard's altitude both states answer the same question
+ *  — "not on the site". The Drafts tile's hint says exactly that.
  *
  *  DELIBERATE, owner-approved (2026-07-17): dashboard counts = committed / site
  *  truth. Local uncommitted browser drafts (autosave scratch) are intentionally
@@ -41,14 +62,16 @@ const ZERO: CollectionStats = {
 export function dashboardCountsFromStats(stats: IndexStats): DashboardCounts {
   const post = stats['post'] ?? ZERO
   const page = stats['page'] ?? ZERO
-  let published = 0
+  let live = 0
+  let staged = 0
   let drafts = 0
   for (const collection of DASHBOARD_COLLECTIONS) {
     const c = stats[collection] ?? ZERO
-    published += c.staged + c.live
-    drafts += c.draft
+    live += c.live
+    staged += c.staged
+    drafts += c.draft + c.unpublished
   }
-  return { posts: post.total, pages: page.total, published, drafts }
+  return { posts: post.total, pages: page.total, live, staged, drafts }
 }
 
 /** updatedAt desc, then a deterministic key tie-break (slug, then collection) so

@@ -7,6 +7,7 @@ import type {
   DataPort,
   GitPort,
   DraftInput,
+  IndexQuery,
   IndexService,
   IndexStats,
   TiptapDoc
@@ -111,12 +112,16 @@ describe('Dashboard', () => {
       'href',
       '/pages'
     )
+    expect(within(glance).getByRole('link', { name: /Live/ })).toHaveAttribute(
+      'href',
+      '/content?status=live'
+    )
     expect(
-      within(glance).getByRole('link', { name: /Published/ })
-    ).toHaveAttribute('href', '/posts')
+      within(glance).getByRole('link', { name: /Staged/ })
+    ).toHaveAttribute('href', '/content?status=staged')
     expect(
       within(glance).getByRole('link', { name: /Drafts/ })
-    ).toHaveAttribute('href', '/posts?status=draft')
+    ).toHaveAttribute('href', '/content?status=not-published')
   })
 
   // #587: the At-a-glance counts come from index.stats() (ONE call), Resume
@@ -126,7 +131,7 @@ describe('Dashboard', () => {
       post: { total: 12, draft: 3, staged: 4, live: 5, unpublished: 0 },
       page: { total: 4, draft: 1, staged: 0, live: 3, unpublished: 0 }
     }
-    const query = vi.fn(async (q: { collection: string; limit: number }) => ({
+    const query = vi.fn(async (q: IndexQuery) => ({
       rows:
         q.collection === 'post'
           ? [
@@ -197,8 +202,8 @@ describe('Dashboard', () => {
       </MemoryRouter>
     )
 
-    // Posts=12, Pages=4, Published=staged+live across post+page (4+5 + 0+3)=12,
-    // Drafts=3+1=4 — straight from stats(), no bodies fetched.
+    // Posts=12, Pages=4, Live=5+3=8, Staged=4+0=4 (#598 splits the old
+    // Published=12), Drafts=3+1=4 — straight from stats(), no bodies fetched.
     const glance = (await screen.findByText('At a glance')).closest(
       '[data-slot="card"]'
     ) as HTMLElement
@@ -209,8 +214,11 @@ describe('Dashboard', () => {
       within(glance).getByRole('link', { name: /Pages/ })
     ).toHaveTextContent('4')
     expect(
-      within(glance).getByRole('link', { name: /Published/ })
-    ).toHaveTextContent('12')
+      within(glance).getByRole('link', { name: /Live/ })
+    ).toHaveTextContent('8')
+    expect(
+      within(glance).getByRole('link', { name: /Staged/ })
+    ).toHaveTextContent('4')
     expect(
       within(glance).getByRole('link', { name: /Drafts/ })
     ).toHaveTextContent('4')

@@ -81,9 +81,18 @@ export function ContentList({
   const locale = params.get('locale') ?? ''
   const category = params.get('category') ?? ''
   const tag = params.get('tag') ?? ''
+  // 'has' | 'none' | '' — anything else in the URL is ignored (#576).
+  const featuredRaw = params.get('featured') ?? ''
+  const featured =
+    featuredRaw === 'has' || featuredRaw === 'none' ? featuredRaw : ''
+  // 'custom' | 'none' | '' — anything else in the URL is ignored (#577).
+  const seoRaw = params.get('seo') ?? ''
+  const seo = seoRaw === 'custom' || seoRaw === 'none' ? seoRaw : ''
   const sortRaw = params.get('sort')
   const sort = parseSort(sortRaw)
-  const hasFilters = Boolean(q || status || locale || category || tag)
+  const hasFilters = Boolean(
+    q || status || locale || category || tag || featured || seo
+  )
 
   // Category filter options come from the taxonomy (hierarchy + display names).
   const catRows = useMemo(() => flatten(buildTree(categories)), [categories])
@@ -134,7 +143,7 @@ export function ContentList({
   useEffect(() => {
     setPage(0)
     setSelected(new Set())
-  }, [collection, q, status, locale, category, tag, sortRaw])
+  }, [collection, q, status, locale, category, tag, featured, seo, sortRaw])
 
   // Reset to page 0 when the page size changes.
   useEffect(() => {
@@ -179,6 +188,8 @@ export function ContentList({
       if (locale) query.locale = locale
       if (category) query.category = category
       if (tag) query.tag = tag
+      if (featured) query.hasFeaturedImage = featured === 'has'
+      if (seo) query.hasSeoOverrides = seo === 'custom'
       const r = await index.query(query)
       if (live) {
         setRows(r.rows)
@@ -198,6 +209,8 @@ export function ContentList({
     locale,
     category,
     tag,
+    featured,
+    seo,
     sort.key,
     sort.dir,
     refreshKey
@@ -263,6 +276,10 @@ export function ContentList({
           catRows={catRows}
           tag={tag}
           onTag={(t) => setParam('tag', t)}
+          featured={featured}
+          onFeatured={(v) => setParam('featured', v)}
+          seo={seo}
+          onSeo={(v) => setParam('seo', v)}
           hasFilters={hasFilters && (rows === null || rows.length > 0)}
           onClear={clearFilters}
           columnsMenu={

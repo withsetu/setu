@@ -27,7 +27,9 @@ function setup(initialEntries = ['/posts']) {
         title: 'Alpha',
         status: 'draft',
         categories: ['guides'],
-        tags: ['react']
+        tags: ['react'],
+        featuredImage: '/media/2026/07/alpha.webp',
+        seo: { title: 'Alpha for robots' }
       }
     },
     {
@@ -87,6 +89,30 @@ describe('ContentList — filters', () => {
   it('category filter narrows the list (via URL pre-population)', async () => {
     // The shadcn Select trigger is a Radix popover; simulate the filter via URL (same code path).
     setup(['/posts?category=news'])
+    await waitFor(() => expect(screen.queryByText('Alpha')).toBeNull())
+    expect(screen.getByText('Beta')).toBeTruthy()
+  })
+
+  it('featured-image filter narrows the list in both directions (#576)', async () => {
+    setup(['/posts?featured=has'])
+    await waitFor(() => expect(screen.queryByText('Beta')).toBeNull())
+    expect(screen.getByText('Alpha')).toBeTruthy()
+  })
+
+  it('featured=none keeps only entries without a featured image (#576)', async () => {
+    setup(['/posts?featured=none'])
+    await waitFor(() => expect(screen.queryByText('Alpha')).toBeNull())
+    expect(screen.getByText('Beta')).toBeTruthy()
+  })
+
+  it('custom-SEO filter narrows the list in both directions (#577)', async () => {
+    setup(['/posts?seo=custom'])
+    await waitFor(() => expect(screen.queryByText('Beta')).toBeNull())
+    expect(screen.getByText('Alpha')).toBeTruthy()
+  })
+
+  it('seo=none keeps only entries without custom SEO (#577)', async () => {
+    setup(['/posts?seo=none'])
     await waitFor(() => expect(screen.queryByText('Alpha')).toBeNull())
     expect(screen.getByText('Beta')).toBeTruthy()
   })

@@ -7,6 +7,7 @@ import { tiptapToMarkdoc } from '../markdoc/to-markdoc'
 import { normalizeTags } from '../tags/normalize'
 import { parseFrontmatterDate } from '../permalinks/frontmatter-date'
 import { scanBody } from '../markdoc/scan-body'
+import { parsePageSeoOverride } from '../seo/page-override'
 import { extractMediaRefs } from './extract-media-refs'
 
 /** Site Health content-audit facts (#593), precomputed per entry from the
@@ -50,6 +51,13 @@ export interface ContentRow {
   /** Site Health content-audit facts (#593), from the COMMITTED content only —
    *  draft-blind, so it matches the old git-walk audit that never saw drafts. */
   audit: EntryAuditFacts
+  /** Whether the live version has a featured image (`featuredImage` present and non-blank).
+   *  Indexed so the list can show/filter the indicator without shipping the src (#576). */
+  hasFeaturedImage: boolean
+  /** Whether the live version's frontmatter `seo:` block sets any override (per
+   *  parsePageSeoOverride — blank strings and noindex:false don't count). Indicator
+   *  only: the list never ships the override VALUES (#577). */
+  hasSeoOverrides: boolean
 }
 
 /** What the topology knows about the live deploy — server truth (#208), replacing the
@@ -152,7 +160,9 @@ export function listContentEntries(
       categories: categoriesOf(draft, committedStr),
       mediaRefs: mediaRefsOf(draftStr, committedStr),
       audit: auditFactsOf(committedStr),
-      ...(featuredImage !== undefined ? { featuredImage } : {})
+      ...(featuredImage !== undefined ? { featuredImage } : {}),
+      hasFeaturedImage: featuredImage !== undefined,
+      hasSeoOverrides: hasSeoOverridesOf(draft, committedStr)
     }
   })
 }
@@ -199,6 +209,21 @@ function featuredImageOf(
       ? parseMdoc(committedStr).frontmatter['featuredImage']
       : undefined
   return typeof raw === 'string' && raw.length > 0 ? raw : undefined
+}
+
+/** Whether the live version's frontmatter sets any per-page SEO override — the same
+ *  defensive `seo:` block parse the resolvers use, so "set" here means exactly "would
+ *  change the rendered head". Draft's frontmatter wins when a draft exists (#577). */
+function hasSeoOverridesOf(
+  draft: Draft | null,
+  committedStr: string | null
+): boolean {
+  const frontmatter = draft
+    ? draft.metadata
+    : committedStr !== null
+      ? parseMdoc(committedStr).frontmatter
+      : {}
+  return Object.keys(parsePageSeoOverride(frontmatter)).length > 0
 }
 
 /** Media keys referenced by the live version (draft's serialized doc when a draft

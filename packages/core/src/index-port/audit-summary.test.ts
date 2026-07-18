@@ -21,6 +21,8 @@ const row = (over: Partial<EntryIndexRow>): EntryIndexRow => {
       imagesWithoutAlt: 0,
       h1Count: 0
     } as EntryIndexRow['audit'],
+    hasFeaturedImage: false,
+    hasSeoOverrides: false,
     ...over
   }
   return {

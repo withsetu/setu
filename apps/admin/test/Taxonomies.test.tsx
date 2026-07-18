@@ -105,12 +105,14 @@ describe('Taxonomies screen (direct mount)', () => {
     ).toBeInTheDocument()
   })
 
-  it('Tags tab shows empty-state copy after activating the tab (no entries seeded)', () => {
+  it('Tags tab shows empty-state copy after activating the tab (no entries seeded)', async () => {
     wrapDirect()
     // Radix Tabs listens to mousedown (not click) for tab switching
     fireEvent.mouseDown(screen.getByRole('tab', { name: /tags/i }))
+    // #582: the empty copy appears only once the load FINISHES with zero tags —
+    // during the load the list shell shows skeletons instead.
     expect(
-      screen.getByText(/Tags appear here as you add them to content/i)
+      await screen.findByText(/Tags appear here as you add them to content/i)
     ).toBeInTheDocument()
   })
 })

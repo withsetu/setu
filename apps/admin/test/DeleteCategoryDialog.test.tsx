@@ -114,6 +114,7 @@ describe('DeleteCategoryDialog', () => {
       .spyOn(await import('../src/data/taxonomy-store'), 'useTaxonomy')
       .mockReturnValue({
         categories: [],
+        loading: false,
         counts: { tech: 3 },
         create: vi.fn(),
         renameLabel: vi.fn(),
@@ -141,6 +142,7 @@ describe('DeleteCategoryDialog', () => {
       .spyOn(await import('../src/data/taxonomy-store'), 'useTaxonomy')
       .mockReturnValue({
         categories: [],
+        loading: false,
         counts: { tech: 1 },
         create: vi.fn(),
         renameLabel: vi.fn(),
@@ -167,6 +169,7 @@ describe('DeleteCategoryDialog', () => {
       .spyOn(await import('../src/data/taxonomy-store'), 'useTaxonomy')
       .mockReturnValue({
         categories: [],
+        loading: false,
         counts: {},
         create: vi.fn(),
         renameLabel: vi.fn(),
@@ -197,6 +200,7 @@ describe('DeleteCategoryDialog', () => {
       .spyOn(await import('../src/data/taxonomy-store'), 'useTaxonomy')
       .mockReturnValue({
         categories: [],
+        loading: false,
         counts: {},
         create: vi.fn(),
         renameLabel: vi.fn(),
@@ -223,6 +227,7 @@ describe('DeleteCategoryDialog', () => {
       .spyOn(await import('../src/data/taxonomy-store'), 'useTaxonomy')
       .mockReturnValue({
         categories: [],
+        loading: false,
         counts: { tech: 2 },
         create: vi.fn(),
         renameLabel: vi.fn(),

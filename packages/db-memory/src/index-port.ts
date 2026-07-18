@@ -6,6 +6,7 @@ import type {
 } from '@setu/core'
 import {
   runQuery,
+  selectIndexStats,
   selectDistinctTags,
   selectDistinctLocales,
   selectCategoryCounts,
@@ -23,6 +24,9 @@ export function createMemoryIndexPort(): IndexPort {
   return {
     async query(q: IndexQuery) {
       return runQuery([...rows.values()], q)
+    },
+    async stats() {
+      return selectIndexStats([...rows.values()])
     },
     async upsert(row) {
       rows.set(row.key, structuredClone(row))

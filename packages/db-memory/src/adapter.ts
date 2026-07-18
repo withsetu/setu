@@ -61,6 +61,9 @@ export function createMemoryDataPort(seed: DraftInput[] = []): DataPort {
       const l = locks.get(key(ref))
       return l ? { ...l } : null
     },
+    async listLocks() {
+      return [...locks.values()].map((l) => ({ ...l }))
+    },
     async putLock(lock) {
       locks.set(key(lock), { ...lock })
     },

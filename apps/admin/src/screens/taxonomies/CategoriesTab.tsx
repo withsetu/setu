@@ -4,11 +4,11 @@ import { buildTree } from '@setu/core'
 import { useTaxonomy } from '../../data/taxonomy-store'
 import { useNotify } from '../../ui/notify'
 import { NewCategoryForm } from './NewCategoryForm'
-import { CategoryTree, flatten } from './CategoryTree'
+import { CategoryTree, CategoryTreeSkeleton, flatten } from './CategoryTree'
 import { DeleteCategoryDialog } from './DeleteCategoryDialog'
 
 export function CategoriesTab() {
-  const { categories, counts, renameLabel, reparent } = useTaxonomy()
+  const { categories, counts, loading, renameLabel, reparent } = useTaxonomy()
   const notify = useNotify()
   const rows = useMemo(() => flatten(buildTree(categories)), [categories])
   const [pendingDelete, setPendingDelete] = useState<CategoryNode | null>(null)
@@ -24,7 +24,11 @@ export function CategoriesTab() {
   return (
     <div>
       <NewCategoryForm />
-      {rows.length === 0 ? (
+      {/* #582: paint the tree shell with skeleton rows while categories load —
+          the empty state is reserved for a load that FINISHED with zero rows. */}
+      {loading ? (
+        <CategoryTreeSkeleton />
+      ) : rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           No categories yet — add one above.
         </p>

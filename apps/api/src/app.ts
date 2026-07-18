@@ -31,8 +31,20 @@ const PATH_WRITE_ACTION: Record<string, Action> = {
   'theme-options.json': 'theme.manage'
 }
 
+/** Case-fold a repo path for gate matching, so a case-only variant can't slip the classification
+ *  on a case-insensitive filesystem (macOS/Windows), where it is the SAME inode. Used ONLY for
+ *  matching — the actual write uses the caller's path, which `isCanonicalRepoPath` has already
+ *  proven identical modulo case.
+ *
+ *  `toLowerCase()` is Unicode SIMPLE CASE MAPPING, strictly weaker than the filesystem's case
+ *  FOLDING. That gap is not papered over here; it is closed by rejection in `isCanonicalRepoPath`
+ *  (#644 for repo-root paths, #647 for content paths), which is what makes this a faithful fold
+ *  on every path the gate ever sees. Read those rules before relying on this one. */
+const foldRepoPath = (p: string) => p.toLowerCase()
+
 /** True iff `p` is a CANONICAL repo-relative path: non-empty, relative, no `.`/`..` segments, no
- *  repeated slashes, no leading/trailing slash, no surrounding whitespace, no backslash or NUL.
+ *  repeated slashes, no leading/trailing slash, no surrounding whitespace, no backslash or NUL,
+ *  and — for the parts the gate classifies on — canonically cased.
  *
  *  #623: the gate used to *normalize* (`p.replace(/^\.?\/+/, '').trim()`), which stripped only ONE
  *  leading `./` or `/` and did no path normalization at all — while the git adapter's `safePath`
@@ -76,14 +88,39 @@ export function isCanonicalRepoPath(p: unknown): p is string {
   // ASCII rule would reject real posts. That narrowness is the reason the sibling case-variant
   // hole on the `content/` PREFIX is a separate issue, not a silent widening of this one.
   if (!p.includes('/') && !/^[\x20-\x7e]+$/.test(p)) return false
+  // #647: the `content/` half of the same class #644 closed for the root. `parseContentPath` is
+  // CASE-SENSITIVE (`/^content\/…\.mdoc$/`), and `writeActionForChanges` uses its match as the
+  // trigger for BOTH the publish check and the #382 committed-state upgrade. On a case-folding
+  // filesystem every spelling that parser misses is a live post an author can rewrite. Measured
+  // against a seeded LIVE `content/blog/en/live.mdoc`, sending `published: false` content:
+  //     content/blog/en/live.mdoc -> content.publish   (correct)
+  //     Content/blog/en/live.mdoc -> content.edit      parser misses; no publish check at all
+  //     content/blog/en/live.MDOC -> content.edit      parser misses on the extension
+  //     content/blog/en/Live.mdoc -> content.edit      parser MATCHES, but `git.readFile` misses
+  //                                                    (git's index is case-SENSITIVE), so the
+  //                                                    committed-state upgrade never fires
+  // Two different mechanisms, one boundary — fixing only the first would leave the second open.
+  //
+  // The rule: if the FOLDED path is a content path, the literal path must already BE its folded
+  // form. Rejection, not fold-insensitive classification: making `parseContentPath` case-blind
+  // would silently start accepting `CONTENT/…` in its OTHER callers (the content index at
+  // packages/core/src/index-port/index-service.ts, demo planning, the admin editor), which is a
+  // far larger blast radius than this gate. This keeps the change local and fail-closed.
+  //
+  // Deliberately narrow: it only fires when the folded form parses as content, so ordinary repo
+  // files that legitimately carry uppercase (`README.md`, `docs/GUIDE.md`, `LICENSE`) are
+  // untouched, and canonical non-ASCII slugs (`content/blog/en/café.mdoc`) fold to themselves and
+  // pass.
+  //
+  // KNOWN GAP, tracked separately: a slug carrying a non-ASCII character that case-FOLDS into
+  // ASCII (e.g. U+017F) is its own `toLowerCase` form, so it passes this rule while still
+  // colliding on APFS. Closing that needs a real Unicode case-fold, which JS does not expose;
+  // #644's ASCII rule is root-only because slugs legitimately carry non-ASCII, so it does not
+  // reach here either.
+  if (parseContentPath(foldRepoPath(p)) !== null && p !== foldRepoPath(p))
+    return false
   return true
 }
-
-/** Case-fold a (already-canonical) repo path for gate matching, so a case-only variant
- *  (`Settings.json`) can't slip the `PATH_WRITE_ACTION` lookup on a case-insensitive filesystem
- *  (macOS/Windows), where it is the SAME inode. Used ONLY for matching — the actual write uses the
- *  caller's path, which `isCanonicalRepoPath` has already proven identical modulo case. */
-const foldRepoPath = (p: string) => p.toLowerCase()
 
 /** Max bytes for a git write body. Generous enough for a bulk commit-files (hundreds of small
  *  `.mdoc` files in one atomic commit) yet a hard DoS ceiling on unbounded `c.req.json()`. Media

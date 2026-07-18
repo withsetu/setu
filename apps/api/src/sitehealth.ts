@@ -1,6 +1,5 @@
 import { Hono } from 'hono'
 import { createMiddleware } from 'hono/factory'
-import { lookup } from 'node:dns/promises'
 import {
   createAuthz,
   DEFAULT_ROLES,
@@ -11,6 +10,7 @@ import {
 import type { Action, Actor, ProbeResponse } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
 import { apiOnError } from './errors'
+import { nodeResolveHost } from './net'
 import type { ResolveActor } from './auth/resolve-actor'
 
 const authz = createAuthz(DEFAULT_ROLES)
@@ -21,14 +21,6 @@ function requireCan(action: Action) {
       return c.json({ error: 'forbidden' }, 403)
     await next()
   })
-}
-
-/** Node DNS resolver for safeFetch's `resolveHost` seam (#288): resolve every A/AAAA
- *  answer so a hostname pointing at an internal address is caught before the socket
- *  opens. Node-only — the Workers build omits this and keeps the other guards. */
-const nodeResolveHost = async (hostname: string): Promise<string[]> => {
-  const answers = await lookup(hostname, { all: true })
-  return answers.map((a) => a.address)
 }
 
 /** Site Health live-probe endpoint (#373). Fetches the deployed site through the

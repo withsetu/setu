@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { createGitApi } from '../src/app'
+import {
+  createGitApi,
+  writeActionRank,
+  writeActionForChanges
+} from '../src/app'
 import { createMemoryGitPort } from '@setu/git-memory'
-import type { Role } from '@setu/core'
+import { createAuthz, DEFAULT_ROLES } from '@setu/core'
+import type { Action, Role } from '@setu/core'
 import type { ResolveActor } from '../src/auth/resolve-actor'
 
 // #362 — /git/* is the repository write API and had NO authz gate (OWASP A01): an anonymous POST
@@ -598,5 +603,59 @@ describe('createGitApi — non-canonical paths are rejected (#623)', () => {
         )
       ).status
     ).toBe(403)
+  })
+})
+
+// #622 — `writeActionRank` floored ANY action missing from `WRITE_ACTION_RANK` at 0, i.e. at
+// `content.edit`, the WEAKEST rung. For a gate whose whole job is "require the strongest action
+// this commit needs", an unknown action defaulting to the weakest is exactly backwards: the next
+// entry added to `PATH_WRITE_ACTION` (or any new derived action) without a matching rank would be
+// silently downgraded to the permission every staff role holds. It now ranks Infinity.
+//
+// This is UNREACHABLE through the routes today — every action `actionForChange` can return is in
+// the table — so it is a REGRESSION GUARD, tested at the function it protects rather than through
+// a request that cannot be constructed.
+describe('#622 writeActionRank fails closed on an unknown action', () => {
+  it('ranks an action off the ladder as the STRONGEST, not the weakest', () => {
+    const unknown = 'users.delete' as Action // a real Action, deliberately not on the write ladder
+    expect(writeActionRank(unknown)).toBe(Infinity)
+    expect(writeActionRank(unknown)).toBeGreaterThan(
+      writeActionRank('settings.manage')
+    )
+  })
+
+  it('still orders the four known rungs weakest → strongest', () => {
+    const ladder: Action[] = [
+      'content.edit',
+      'content.publish',
+      'theme.manage',
+      'settings.manage'
+    ]
+    for (let i = 1; i < ladder.length; i++)
+      expect(
+        writeActionRank(ladder[i]!),
+        `${ladder[i]} vs ${ladder[i - 1]}`
+      ).toBeGreaterThan(writeActionRank(ladder[i - 1]!))
+  })
+
+  it('the consequence: an off-ladder action, once it becomes the required one, is denied for EVERY role', () => {
+    // The rank change is only load-bearing because of what happens downstream: ranking Infinity
+    // makes the unknown action win `writeActionForChanges`'s max, and `authz.can` then denies it
+    // for every role (no role's permission set contains an action that is not on the matrix), so
+    // the request 403s. Under the old `?? 0` the same commit would have been admitted to any
+    // `content.edit` holder — i.e. everyone.
+    const authzChk = createAuthz(DEFAULT_ROLES)
+    const unknown = 'not.a.real.action' as Action
+    for (const role of ['admin', 'maintainer', 'editor', 'author'] as Role[])
+      expect(authzChk.can({ id: 'u', role }, unknown), role).toBe(false)
+  })
+
+  it('leaves the ordinary derivation untouched (ordinary content still ranks content.edit)', async () => {
+    expect(
+      await writeActionForChanges(
+        [{ path: 'p.mdoc', content: 'X' }],
+        createMemoryGitPort()
+      )
+    ).toBe('content.edit')
   })
 })

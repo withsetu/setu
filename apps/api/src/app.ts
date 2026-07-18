@@ -88,7 +88,12 @@ function publishesLiveContent(content: string): boolean {
  *  ladder each higher action's holders are a subset of the lower's (content.edit ⊂ content.publish ⊂
  *  theme.manage ⊂ settings.manage), so requiring the single strongest action a commit needs correctly
  *  implies the others — no actor can hold the strongest without the rest. A mixed commit therefore
- *  can't smuggle a privileged change past a lower-privilege one. */
+ *  can't smuggle a privileged change past a lower-privilege one.
+ *
+ *  #622: that subset property lives in ANOTHER package (`DEFAULT_ROLES`, packages/core/src/authz)
+ *  and was asserted only in this prose. It is now pinned by a test next to the data —
+ *  packages/core/test/authz/write-action-ladder.test.ts — so the edit that breaks the assumption
+ *  fails in the package that made it, not silently here. */
 const WRITE_ACTION_RANK: Record<string, number> = {
   'content.edit': 0,
   'content.publish': 1,
@@ -96,8 +101,19 @@ const WRITE_ACTION_RANK: Record<string, number> = {
   'settings.manage': 3
 }
 
-/** Rank of a derived write action; floors at 0 (`content.edit`) for anything off the ladder. */
-const writeActionRank = (a: Action): number => WRITE_ACTION_RANK[a] ?? 0
+/** Rank of a derived write action. #622: an action OFF the ladder ranks `Infinity` — the strongest
+ *  possible — not 0. The old `?? 0` floored an unknown action at `content.edit`, the WEAKEST rung,
+ *  so any future action that reached this gate without a rank entry would have been silently
+ *  downgraded to the permission every staff role holds. Ranking it strongest instead makes the
+ *  reduction in `writeActionForChanges` fail CLOSED: the unknown action becomes the required one,
+ *  and `authz.can` denies it for every role (no role's permission set contains an action that is
+ *  not on the matrix), so the request 403s rather than being admitted on `content.edit`.
+ *
+ *  Unreachable today: every action `actionForChange` can return is a `PATH_WRITE_ACTION` value or
+ *  one of the two literals, and all four are in the table. This is a REGRESSION GUARD for the next
+ *  entry added to `PATH_WRITE_ACTION` (or a new derived action) without a matching rank. */
+export const writeActionRank = (a: Action): number =>
+  WRITE_ACTION_RANK[a] ?? Infinity
 
 /** The write permission a single change requires, from its path and (for writes) NEW content only.
  *  (The committed-state half of the rule lives in `writeActionForChanges`, which can read git.)

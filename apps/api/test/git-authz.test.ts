@@ -142,11 +142,17 @@ describe('createGitApi — settings-path write gate (settings.json → settings.
     ).toBe(403)
   })
 
-  it('normalizes ./settings.json so the gate cannot be bypassed → 403 for maintainer', async () => {
+  // #623: this used to assert 403 — the gate NORMALIZED `./settings.json` back to `settings.json`
+  // and denied on permission. Normalizing was itself the bug (it only ever covered the spellings
+  // we thought of; `content/../settings.json` sailed through). The path is now REJECTED as
+  // malformed before any permission derivation, so the status is 400 for every role. The security
+  // property the original test protected — a maintainer cannot write settings.json via `./` — is
+  // strictly stronger now.
+  it('rejects ./settings.json outright (400) so the gate cannot be bypassed', async () => {
     expect(
       (await write(app(asRole('maintainer')), '/git/commit', dotSlashSettings))
         .status
-    ).toBe(403)
+    ).toBe(400)
   })
 
   it('still allows a MAINTAINER to write ordinary content (content.edit)', async () => {
@@ -413,5 +419,138 @@ describe('createGitApi — request body size cap (413)', () => {
     expect(
       (await write(app(asRole('admin')), '/git/commit', oversized)).status
     ).toBe(413)
+  })
+})
+
+// #623 — the gate's own `normalizeRepoPath` stripped only ONE leading `./` or `/` and did no path
+// normalization, while the git adapter's `safePath` uses `path.resolve` (full normalization). The
+// two disagreed, so a non-canonical spelling made the gate see a harmless path while the adapter
+// wrote the privileged one: `content/../settings.json` gated as `content.edit` but written as
+// settings.json. The same disagreement broke the publish gate — `parseContentPath` failed on
+// `content/blog/en/./post.mdoc`, so BOTH the publish check and the committed-state upgrade were
+// skipped while the adapter wrote the real post. Fixed by REJECTING non-canonical paths outright
+// (400) rather than trying to normalize every spelling: the admin client has no legitimate reason
+// to send one, so rejection closes the whole class instead of the spellings we thought of.
+describe('createGitApi — non-canonical paths are rejected (#623)', () => {
+  const commitOf = (path: string, content = '{}') =>
+    JSON.stringify({ path, content, message: 'm', author })
+  const filesOf = (path: string, content = '{}') =>
+    JSON.stringify({ changes: [{ path, content }], message: 'm', author })
+
+  // Each of these was a VERIFIED bypass: the gate derived `content.edit`, the adapter wrote the
+  // privileged/real file.
+  const PRIVILEGE_BYPASSES = [
+    'content/../settings.json',
+    '././settings.json',
+    'settings.json/',
+    'content//../settings.json',
+    './content/../theme-options.json'
+  ]
+  const PUBLISH_GATE_BYPASSES = [
+    'content/blog/en/./post.mdoc',
+    'content/./blog/en/post.mdoc'
+  ]
+
+  it('rejects every verified privilege bypass for an AUTHOR with 400 (before any write)', async () => {
+    for (const p of PRIVILEGE_BYPASSES) {
+      const a = app(asRole('author'))
+      expect((await write(a, '/git/commit', commitOf(p))).status, p).toBe(400)
+      expect(
+        (await write(a, '/git/commit-files', filesOf(p))).status,
+        `${p} (commit-files)`
+      ).toBe(400)
+    }
+  })
+
+  it('rejects every verified publish-gate bypass for an AUTHOR with 400', async () => {
+    const live = '---\ntitle: X\n---\n\nHi'
+    for (const p of PUBLISH_GATE_BYPASSES) {
+      const a = app(asRole('author'))
+      expect((await write(a, '/git/commit', commitOf(p, live))).status, p).toBe(
+        400
+      )
+    }
+  })
+
+  it('rejects a non-canonical path even for an ADMIN (it is a malformed request, not a permission)', async () => {
+    const a = app(asRole('admin'))
+    expect(
+      (await write(a, '/git/commit', commitOf('content/../settings.json')))
+        .status
+    ).toBe(400)
+  })
+
+  it('fails a MIXED commit closed when only ONE change is non-canonical', async () => {
+    const body = JSON.stringify({
+      changes: [
+        { path: 'content/post/en/ok.mdoc', content: 'X' },
+        { path: 'content/../settings.json', content: '{}' }
+      ],
+      message: 'm',
+      author
+    })
+    expect(
+      (await write(app(asRole('admin')), '/git/commit-files', body)).status
+    ).toBe(400)
+  })
+
+  it('rejects other non-canonical spellings (leading slash, empty, whitespace, backslash)', async () => {
+    for (const p of [
+      '/settings.json',
+      './settings.json',
+      ' settings.json',
+      'settings.json ',
+      'content/blog//en/post.mdoc',
+      'content\\..\\settings.json'
+    ]) {
+      const a = app(asRole('author'))
+      expect((await write(a, '/git/commit', commitOf(p))).status, p).toBe(400)
+    }
+  })
+
+  it('leaves the CANONICAL behaviour exactly as before', async () => {
+    // admin can write settings.json
+    expect(
+      (
+        await write(
+          app(asRole('admin')),
+          '/git/commit',
+          commitOf('settings.json')
+        )
+      ).status
+    ).toBe(200)
+    // author is 403'd on settings.json (permission, not shape)
+    expect(
+      (
+        await write(
+          app(asRole('author')),
+          '/git/commit',
+          commitOf('settings.json')
+        )
+      ).status
+    ).toBe(403)
+    // author can write a draft
+    expect(
+      (
+        await write(
+          app(asRole('author')),
+          '/git/commit',
+          commitOf(
+            'content/post/en/d.mdoc',
+            '---\ntitle: D\npublished: false\n---\n\nHi'
+          )
+        )
+      ).status
+    ).toBe(200)
+    // author is 403'd publishing a live post
+    expect(
+      (
+        await write(
+          app(asRole('author')),
+          '/git/commit',
+          commitOf('content/post/en/l.mdoc', '---\ntitle: L\n---\n\nHi')
+        )
+      ).status
+    ).toBe(403)
   })
 })

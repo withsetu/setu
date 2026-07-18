@@ -22,19 +22,43 @@ const authz = createAuthz(DEFAULT_ROLES)
  *  them, bypassing the action the admin UI gates them behind (failure mode #13):
  *    - `settings.json`      → `settings.manage` (admin only; UAT 2026-07-05)
  *    - `theme-options.json` → `theme.manage`    (maintainer+/admin; the Appearance screen's gate — #419)
- *  Keys MUST be lowercase — the lookup case-folds the path (see `normalizeRepoPath`) so `Settings.json`
+ *  Keys MUST be lowercase — the lookup case-folds the path (see `foldRepoPath`) so `Settings.json`
  *  on a case-insensitive filesystem (macOS/Windows), which is the SAME inode, cannot slip the gate. */
 const PATH_WRITE_ACTION: Record<string, Action> = {
   'settings.json': 'settings.manage',
   'theme-options.json': 'theme.manage'
 }
 
-/** Normalize a repo-relative path for gate matching: drop a leading `./` or `/` so `./settings.json`
- *  and `/settings.json` can't slip past the check, and lowercase it so a case-only variant
- *  (`Settings.json`) can't either on a case-insensitive filesystem. (Deeper `../` traversal is the
- *  git port's concern, not the gate's.) Used ONLY for gate matching — the actual write uses the
- *  caller's original path. */
-const normalizeRepoPath = (p: string) => p.replace(/^\.?\/+/, '').trim()
+/** True iff `p` is a CANONICAL repo-relative path: non-empty, relative, no `.`/`..` segments, no
+ *  repeated slashes, no leading/trailing slash, no surrounding whitespace, no backslash or NUL.
+ *
+ *  #623: the gate used to *normalize* (`p.replace(/^\.?\/+/, '').trim()`), which stripped only ONE
+ *  leading `./` or `/` and did no path normalization at all — while the git adapter's `safePath`
+ *  (packages/git-local/src/adapter.ts) uses `path.resolve`, which normalizes fully. The two
+ *  disagreed, and every disagreement was a gate bypass: `content/../settings.json` gated as
+ *  `content.edit` while the adapter wrote `settings.json`; `content/blog/en/./post.mdoc` made
+ *  `parseContentPath` fail, skipping BOTH the publish check and the committed-state upgrade while
+ *  the adapter wrote the real post.
+ *
+ *  The fix REJECTS non-canonical paths instead of normalizing them. Normalizing only ever closes
+ *  the spellings we thought of; rejecting closes the class. The admin client (and every legitimate
+ *  caller) always sends canonical paths — they come from the content index and the editor — so
+ *  nothing legitimate is lost, and with the path guaranteed canonical the gate's view and the
+ *  adapter's write are the same path by construction. */
+export function isCanonicalRepoPath(p: unknown): p is string {
+  if (typeof p !== 'string' || p === '') return false
+  if (p !== p.trim()) return false
+  if (p.includes('\\') || p.includes('\0')) return false
+  if (p.startsWith('/') || p.endsWith('/')) return false
+  if (p.includes('//')) return false
+  return !p.split('/').some((seg) => seg === '.' || seg === '..')
+}
+
+/** Case-fold a (already-canonical) repo path for gate matching, so a case-only variant
+ *  (`Settings.json`) can't slip the `PATH_WRITE_ACTION` lookup on a case-insensitive filesystem
+ *  (macOS/Windows), where it is the SAME inode. Used ONLY for matching — the actual write uses the
+ *  caller's path, which `isCanonicalRepoPath` has already proven identical modulo case. */
+const foldRepoPath = (p: string) => p.toLowerCase()
 
 /** Max bytes for a git write body. Generous enough for a bulk commit-files (hundreds of small
  *  `.mdoc` files in one atomic commit) yet a hard DoS ceiling on unbounded `c.req.json()`. Media
@@ -83,12 +107,12 @@ const writeActionRank = (a: Action): number => WRITE_ACTION_RANK[a] ?? 0
  *     only needs `content.edit`
  *   - everything else (drafts, taxonomy, deletes) → `content.edit` */
 function actionForChange({ path, content }: WriteChange): Action {
-  const p = normalizeRepoPath(path)
-  const overrideAction = PATH_WRITE_ACTION[p.toLowerCase()]
+  // `path` is guaranteed canonical here — `writeActionForChanges` fails closed before this runs.
+  const overrideAction = PATH_WRITE_ACTION[foldRepoPath(path)]
   if (overrideAction) return overrideAction
   if (
     content !== undefined &&
-    parseContentPath(p) &&
+    parseContentPath(path) &&
     publishesLiveContent(content)
   )
     return 'content.publish'
@@ -112,11 +136,19 @@ export async function writeActionForChanges(
   changes: WriteChange[],
   git: GitPort
 ): Promise<Action> {
+  // #623 fail-closed backstop for DIRECT callers (history-api.ts's restore route calls this
+  // function outside `requireWrite`): a non-canonical path means the gate and the adapter would
+  // disagree about which file is being written, so demand the STRONGEST action on the ladder
+  // rather than guess. `requireWrite` rejects these with a 400 before they ever get here, so this
+  // branch is reachable only from a direct call — which is exactly what it exists to protect.
+  if (!changes.every((c) => isCanonicalRepoPath(c.path)))
+    return 'settings.manage'
+
   const publishRank = writeActionRank('content.publish')
   let strongest: Action = 'content.edit'
   for (const change of changes) {
     let needed = actionForChange(change)
-    const p = normalizeRepoPath(change.path)
+    const p = change.path
     if (
       writeActionRank(needed) < publishRank &&
       writeActionRank(strongest) < publishRank &&
@@ -147,6 +179,14 @@ function requireWrite(
       } catch {
         return c.json({ error: 'invalid request body' }, 400)
       }
+      // #623: reject non-canonical paths BEFORE any permission derivation or write. A path the
+      // gate and the adapter would resolve differently is a malformed request, not a permission
+      // question — so this is a 400 for every role, admin included.
+      if (!changes.every((ch) => isCanonicalRepoPath(ch.path)))
+        return c.json(
+          { error: 'path must be canonical and repo-relative' },
+          400
+        )
       if (!authz.can(c.get('actor'), await writeActionForChanges(changes, git)))
         return c.json({ error: 'forbidden' }, 403)
       await next()

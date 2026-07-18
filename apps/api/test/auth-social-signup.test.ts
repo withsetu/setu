@@ -56,17 +56,15 @@ describe('authSocialProvidersFromEnv — OAuth cannot self-register (#624)', () 
   })
 
   it('still omits providers entirely when unconfigured or half-configured', () => {
-    expect(authSocialProvidersFromEnv({} as NodeJS.ProcessEnv)).toBeUndefined()
+    expect(authSocialProvidersFromEnv({})).toBeUndefined()
     expect(
-      authSocialProvidersFromEnv({
-        SETU_GITHUB_CLIENT_ID: 'only-id'
-      } as unknown as NodeJS.ProcessEnv)
+      authSocialProvidersFromEnv({ SETU_GITHUB_CLIENT_ID: 'only-id' })
     ).toBeUndefined()
   })
 
   it('leaves socialProvidersEnabled reporting the same provider names', () => {
     expect(socialProvidersEnabled(bothEnv)).toEqual(['github', 'google'])
     expect(socialProvidersEnabled(githubEnv)).toEqual(['github'])
-    expect(socialProvidersEnabled({} as NodeJS.ProcessEnv)).toEqual([])
+    expect(socialProvidersEnabled({})).toEqual([])
   })
 })

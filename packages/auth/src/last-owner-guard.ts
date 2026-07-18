@@ -133,7 +133,11 @@ export function lastAdminGuardHook() {
     const target = (await context.context.internalAdapter.findUserById(
       targetUserId
     )) as (UserWithAdminFields & Record<string, unknown>) | null
-    if (!target || target.role !== 'admin' || target.banned) return
+    // #625: comma-aware, like `roleSetIncludesAdmin` on the `data.role` side above — better-auth
+    // persists a multi-role assignment as a comma-joined string, so `'admin,maintainer'` IS an
+    // admin. An exact `!== 'admin'` here returned early for exactly those users, letting the last
+    // admin be demoted/banned straight past the guard.
+    if (!target || !roleSetIncludesAdmin(target.role) || target.banned) return
 
     if (await isLastActiveAdmin(context, targetUserId)) {
       throw new APIError('BAD_REQUEST', {
@@ -154,23 +158,69 @@ function roleSetIncludesAdmin(role: unknown): boolean {
   return false
 }
 
-/** Shared by both the update guard (above) and the delete guard (below): counts OTHER active
- *  admins (role `'admin'` AND NOT banned, excluding `targetUserId`) via `context.context.adapter`
- *  — the query itself doesn't depend on update vs. delete, only on "who is left besides the
- *  target". Returns true when the target is the LAST active admin (zero others exist). */
+/** Page size and hard page cap for the multi-role admin scan below. 200 x 50 = 10 000 non-banned
+ *  users examined at worst — far beyond any realistic Setu staff list, while still a bounded
+ *  amount of work per guarded mutation (these routes are admin-volume, not per-visitor). */
+const ADMIN_SCAN_PAGE_SIZE = 200
+const ADMIN_SCAN_MAX_PAGES = 50
+
+/** Shared by both the update guard (above) and the delete guard (below): is `targetUserId` the
+ *  LAST active admin — i.e. does NO other non-banned user hold the admin role? The question
+ *  doesn't depend on update vs. delete, only on "who is left besides the target".
+ *
+ *  #625: this used to be a single `adapter.count` with `{field:'role', value:'admin'}` — an
+ *  EQUALITY filter, which cannot see a comma-joined multi-role admin (`'admin,maintainer'`). That
+ *  under-count wrongly 400'd a perfectly legitimate demotion whenever the only other admin held a
+ *  multi-role value. The adapter's `where` vocabulary has no "comma-set contains" operator, so the
+ *  membership test has to happen in code:
+ *
+ *   1. Fast path — the exact-match count, which answers the overwhelmingly common case (a plain
+ *      `'admin'` peer exists) in one cheap query with no row transfer.
+ *   2. Only when that finds nobody, page through the OTHER non-banned users and apply
+ *      `roleSetIncludesAdmin` per row. Bounded by `ADMIN_SCAN_MAX_PAGES`; ordered by `id` so the
+ *      offset paging is stable.
+ *
+ *  Fails SAFE at the cap: if the scan is exhausted without a verdict we return `true` (= "this is
+ *  the last admin"), which BLOCKS the mutation. Preserving admin access is the invariant; refusing
+ *  a demotion is recoverable, bricking the instance is not.
+ *
+ *  The banned/target filters are byte-for-byte the ones the old count used, so `banned` semantics
+ *  are unchanged (a banned admin has never counted as active). */
 async function isLastActiveAdmin(
   context: GenericEndpointContext,
   targetUserId: string
 ): Promise<boolean> {
-  const otherActiveAdmins = await context.context.adapter.count({
+  const otherActiveUsers = [
+    { field: 'id', operator: 'ne' as const, value: targetUserId },
+    {
+      field: 'banned',
+      operator: 'ne' as const,
+      value: true,
+      connector: 'AND' as const
+    }
+  ]
+
+  const exactRoleAdmins = await context.context.adapter.count({
     model: 'user',
     where: [
-      { field: 'id', operator: 'ne', value: targetUserId },
-      { field: 'role', value: 'admin', connector: 'AND' },
-      { field: 'banned', operator: 'ne', value: true, connector: 'AND' }
+      ...otherActiveUsers,
+      { field: 'role', value: 'admin', connector: 'AND' as const }
     ]
   })
-  return otherActiveAdmins === 0
+  if (exactRoleAdmins > 0) return false
+
+  for (let page = 0; page < ADMIN_SCAN_MAX_PAGES; page++) {
+    const rows = await context.context.adapter.findMany<UserWithAdminFields>({
+      model: 'user',
+      where: otherActiveUsers,
+      limit: ADMIN_SCAN_PAGE_SIZE,
+      offset: page * ADMIN_SCAN_PAGE_SIZE,
+      sortBy: { field: 'id', direction: 'asc' }
+    })
+    if (rows.some((row) => roleSetIncludesAdmin(row.role))) return false
+    if (rows.length < ADMIN_SCAN_PAGE_SIZE) return true // exhausted: nobody else is an admin
+  }
+  return true // page cap hit — fail safe and block rather than risk zero admins
 }
 
 /** ## Deletion coverage (`/admin/remove-user`)
@@ -217,7 +267,8 @@ export function lastAdminDeleteGuardHook() {
 
     // Is the TARGET currently an active admin at all? If not, deleting them can't be removing
     // "the" admin.
-    if (deletedUser.role !== 'admin' || deletedUser.banned) return
+    // #625: comma-aware — see the update guard's identical check.
+    if (!roleSetIncludesAdmin(deletedUser.role) || deletedUser.banned) return
 
     if (await isLastActiveAdmin(context, targetUserId)) {
       throw new APIError('BAD_REQUEST', {

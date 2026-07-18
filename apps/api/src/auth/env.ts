@@ -26,28 +26,69 @@ export function authCaptchaFromEnv(
   }
 }
 
+/** A social provider as this module emits it: credentials plus the invite-only sign-up lock.
+ *
+ *  #624 — Setu is invite-only. `createAuth` sets `disableSignUp: true` on emailAndPassword so
+ *  `POST /api/auth/sign-up/email` has no legitimate caller, but the social providers carried NO
+ *  sign-up restriction: setting SETU_GITHUB_CLIENT_ID/SECRET (or the Google pair) silently
+ *  reopened open self-registration through the OAuth door. Any stranger could OAuth in and be
+ *  created with the schema default role `author` (packages/db-sqlite/src/schema.ts), and could
+ *  also permanently pre-empt first-run owner setup — the exact hole `disableSignUp` was added to
+ *  close for passwords.
+ *
+ *  BOTH flags are set, and the distinction matters (verified in the installed better-auth 1.6.23,
+ *  `dist/api/routes/callback.mjs:150` / `dist/api/routes/sign-in.mjs:115`):
+ *      disableSignUp: provider.disableImplicitSignUp && !requestSignUp || provider.options?.disableSignUp
+ *  `requestSignUp` is a caller-supplied field of the `/sign-in/social` body schema, so
+ *  `disableImplicitSignUp` ALONE is defeated by an attacker sending `requestSignUp: true`.
+ *  `disableSignUp` holds unconditionally and is what actually closes the hole; the implicit flag
+ *  is kept alongside it as defence in depth and as the documented intent.
+ *
+ *  OAuth remains fully usable for its legitimate purpose: signing INTO, or linking to, an account
+ *  an admin already invited. Only account CREATION is refused. */
+interface SocialProviderConfig {
+  clientId: string
+  clientSecret: string
+  disableSignUp: true
+  disableImplicitSignUp: true
+}
+
+const SIGNUP_LOCKED = {
+  disableSignUp: true,
+  disableImplicitSignUp: true
+} as const
+
 /** better-auth's socialProviders option. Each provider is included only when BOTH its client id
- *  and secret are set — an incomplete pair is omitted (fail closed, not a broken provider). */
+ *  and secret are set — an incomplete pair is omitted (fail closed, not a broken provider) — and
+ *  every emitted provider is sign-up-locked (see `SocialProviderConfig`, #624). */
 export function authSocialProvidersFromEnv(
   env: NodeJS.ProcessEnv = process.env
 ):
   | {
-      github?: { clientId: string; clientSecret: string }
-      google?: { clientId: string; clientSecret: string }
+      github?: SocialProviderConfig
+      google?: SocialProviderConfig
     }
   | undefined {
   const out: {
-    github?: { clientId: string; clientSecret: string }
-    google?: { clientId: string; clientSecret: string }
+    github?: SocialProviderConfig
+    google?: SocialProviderConfig
   } = {}
   const githubId = env.SETU_GITHUB_CLIENT_ID
   const githubSecret = env.SETU_GITHUB_CLIENT_SECRET
   if (githubId && githubSecret)
-    out.github = { clientId: githubId, clientSecret: githubSecret }
+    out.github = {
+      clientId: githubId,
+      clientSecret: githubSecret,
+      ...SIGNUP_LOCKED
+    }
   const googleId = env.SETU_GOOGLE_CLIENT_ID
   const googleSecret = env.SETU_GOOGLE_CLIENT_SECRET
   if (googleId && googleSecret)
-    out.google = { clientId: googleId, clientSecret: googleSecret }
+    out.google = {
+      clientId: googleId,
+      clientSecret: googleSecret,
+      ...SIGNUP_LOCKED
+    }
   return Object.keys(out).length > 0 ? out : undefined
 }
 

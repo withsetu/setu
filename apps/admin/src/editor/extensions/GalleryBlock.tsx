@@ -1,62 +1,37 @@
-import { Node, mergeAttributes } from '@tiptap/core'
-import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
-import type { ReactNodeViewProps } from '@tiptap/react'
 import { Gallery, galleryImagesOf } from '@setu/blocks'
+import type { GalleryProps } from '@setu/blocks'
 import { resolveMediaSrc } from '../media-src'
 import { attrStringOrUndefined } from '../attr-string'
+import { createAtomBlock, atomCoreView } from './atom-block'
 
-function GalleryBlockView({ node, editor }: ReactNodeViewProps) {
-  const md = (node.attrs.mdAttrs ?? {}) as Record<string, unknown>
-  const apiBase =
-    (editor.storage as unknown as { imageBlock?: { apiBase?: string } })
-      .imageBlock?.apiBase ?? ''
-  const images = galleryImagesOf(md['images']).map((img) => ({
-    ...img,
-    src: resolveMediaSrc(img.src, apiBase || undefined)
-  }))
-  return (
-    <NodeViewWrapper>
-      <div className="setu-block" data-tag="gallery" contentEditable={false}>
-        <Gallery
-          images={images}
-          layout={attrStringOrUndefined(md['layout'])}
-          columns={
-            typeof md['columns'] === 'number' ? md['columns'] : undefined
-          }
-          gap={attrStringOrUndefined(md['gap'])}
-          captions={md['captions'] === true}
-          width={attrStringOrUndefined(md['width'])}
-        />
-      </div>
-    </NodeViewWrapper>
-  )
+/** Map the gallery node's raw mdAttrs onto Gallery's props for the read-only canvas view.
+ *  Each image `src` is a `/media/…` path resolved against the canvas media origin (nested
+ *  resolution the generic media-control path can't do); the rest pass through with the
+ *  same coercions the site's Gallery.astro applies. */
+function galleryProps(
+  md: Record<string, unknown>,
+  apiBase: string
+): GalleryProps {
+  return {
+    images: galleryImagesOf(md['images']).map((img) => ({
+      ...img,
+      src: resolveMediaSrc(img.src, apiBase || undefined)
+    })),
+    layout: attrStringOrUndefined(md['layout']),
+    columns: typeof md['columns'] === 'number' ? md['columns'] : undefined,
+    gap: attrStringOrUndefined(md['gap']),
+    captions: md['captions'] === true,
+    width: attrStringOrUndefined(md['width'])
+  }
 }
 
 /** The `{% gallery %}` block — atom (props-only, no body); images + options edited in
  *  the inspector rail (media-list control). Mirrors HeroBlock: mdAttrs JSON-only, kept
  *  out of the DOM, round-tripped by the core converter (to-tiptap maps
- *  gallery→galleryBlock, to-markdoc emits self-closing). */
-export const GalleryBlock = Node.create({
+ *  gallery→galleryBlock, to-markdoc emits self-closing). Node.create boilerplate + the
+ *  shared canvas view come from the atom-block factory (#562). */
+export const GalleryBlock = createAtomBlock({
   name: 'galleryBlock',
-  group: 'block',
-  atom: true,
-  draggable: true,
-  selectable: true,
-  addAttributes() {
-    return {
-      mdAttrs: { default: {}, renderHTML: () => ({}), parseHTML: () => ({}) }
-    }
-  },
-  parseHTML() {
-    return [{ tag: 'div[data-setu-gallery-block]' }]
-  },
-  renderHTML({ HTMLAttributes }) {
-    return [
-      'div',
-      mergeAttributes(HTMLAttributes, { 'data-setu-gallery-block': '' })
-    ]
-  },
-  addNodeView() {
-    return ReactNodeViewRenderer(GalleryBlockView)
-  }
+  dataAttr: 'data-setu-gallery-block',
+  view: atomCoreView('gallery', Gallery, galleryProps)
 })

@@ -22,8 +22,10 @@ const authz = createAuthz(DEFAULT_ROLES)
  *  them, bypassing the action the admin UI gates them behind (failure mode #13):
  *    - `settings.json`      → `settings.manage` (admin only; UAT 2026-07-05)
  *    - `theme-options.json` → `theme.manage`    (maintainer+/admin; the Appearance screen's gate — #419)
- *  Keys MUST be lowercase — the lookup case-folds the path (see `foldRepoPath`) so `Settings.json`
- *  on a case-insensitive filesystem (macOS/Windows), which is the SAME inode, cannot slip the gate. */
+ *  Keys MUST be lowercase AND ASCII — the lookup case-folds the path (see `foldRepoPath`) so
+ *  `Settings.json` on a case-insensitive filesystem (macOS/Windows), which is the SAME inode,
+ *  cannot slip the gate. `isCanonicalRepoPath` guarantees every repo-ROOT path reaching that
+ *  lookup is ASCII, which is what makes the fold faithful (see #644 there). */
 const PATH_WRITE_ACTION: Record<string, Action> = {
   'settings.json': 'settings.manage',
   'theme-options.json': 'theme.manage'
@@ -51,7 +53,30 @@ export function isCanonicalRepoPath(p: unknown): p is string {
   if (p.includes('\\') || p.includes('\0')) return false
   if (p.startsWith('/') || p.endsWith('/')) return false
   if (p.includes('//')) return false
-  return !p.split('/').some((seg) => seg === '.' || seg === '..')
+  if (p.split('/').some((seg) => seg === '.' || seg === '..')) return false
+  // #644: a repo-ROOT path must additionally be ASCII. `foldRepoPath` folds with
+  // `String.prototype.toLowerCase()` — Unicode SIMPLE CASE MAPPING — while a case-insensitive
+  // filesystem (APFS/NTFS) resolves names by Unicode CASE FOLDING, a strictly LARGER relation.
+  // Characters in the gap fold into ASCII without `toLowerCase` touching them, and each one is a
+  // `PATH_WRITE_ACTION` bypass. Confirmed on macOS/APFS: `'ſ'.toLowerCase() !== 's'` (U+017F), yet
+  // writing `ſettings.json` and reading `settings.json` hits ONE file — the same inode. So an
+  // author (content.edit, NOT settings.manage) could send `ſettings.json`, miss the lookup, be
+  // gated as ordinary content, and drive the adapter into the real settings file.
+  //
+  // REJECT THE CLASS, DON'T ENUMERATE THE SPELLINGS (the #623 lesson): U+017F is one of an
+  // open-ended set of non-ASCII characters that case-fold into ASCII, so folding "better" only
+  // ever closes the ones we thought of. Restricted to ASCII inputs, Unicode case folding and
+  // `toLowerCase` COINCIDE — so this rejection is what makes `foldRepoPath` a faithful fold and
+  // gives the gate its property: no two distinct ACCEPTED root paths can resolve to the same file
+  // without the gate classifying them identically.
+  //
+  // Scoped to the ROOT on purpose. Every `PATH_WRITE_ACTION` key is a root file, so this is
+  // exactly enough to close that lookup — while content paths legitimately carry non-ASCII slugs
+  // (`entrySlugify` keeps `\p{L}`, so "Café" yields `content/blog/en/café.mdoc`), and a repo-wide
+  // ASCII rule would reject real posts. That narrowness is the reason the sibling case-variant
+  // hole on the `content/` PREFIX is a separate issue, not a silent widening of this one.
+  if (!p.includes('/') && !/^[\x20-\x7e]+$/.test(p)) return false
+  return true
 }
 
 /** Case-fold a (already-canonical) repo path for gate matching, so a case-only variant

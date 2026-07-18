@@ -76,7 +76,8 @@ import { resumeActiveJob } from './server-resume'
 import {
   resolveSetuMode,
   resolveAuthSecret,
-  resolveRateLimitOverrides
+  resolveRateLimitOverrides,
+  resolvePreviewEnabled
 } from './config'
 import { resolveGitIdentity } from './auth/git-identity'
 import { buildLocalTokenOptions } from './local-token'
@@ -460,11 +461,13 @@ app.route(
   })
 )
 // In-editor preview is dev-only (the site route that renders the slot exists only under `astro dev`
-// and its GET carries no session cookie, so the slot can't be auth-gated). Mount it only outside
-// production so it isn't an unauthenticated read/write surface on a real server (#419).
+// and its GET carries no session cookie, so the slot can't be auth-gated). It is an unauthenticated
+// read/write surface, so it is mounted ONLY in the local topology outside production — see
+// resolvePreviewEnabled for why the old NODE_ENV-only gate (#419) left it mounted on a default
+// self-hosted boot (#627). Everywhere else the routes are physically absent and /preview 404s.
 app.route(
   '/',
-  createPreviewApi({ enabled: process.env.NODE_ENV !== 'production' })
+  createPreviewApi({ enabled: resolvePreviewEnabled(process.env) })
 )
 app.route(
   '/',

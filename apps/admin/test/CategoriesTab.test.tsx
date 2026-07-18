@@ -45,10 +45,12 @@ const SEED_YAML = `- slug: eng
   parent: frontend
 `
 
-function wrap() {
-  const gitPort = createMemoryGitPort([
+function wrap(
+  files: Array<{ path: string; content: string }> = [
     { path: 'taxonomy/categories.yaml', content: SEED_YAML }
-  ])
+  ]
+) {
+  const gitPort = createMemoryGitPort(files)
   const services = servicesFor(createMemoryDataPort(), gitPort)
   return render(
     <MemoryRouter>
@@ -120,7 +122,10 @@ describe('CategoriesTab', () => {
 
   it('renders "Used by" column header', async () => {
     wrap()
-    expect(await screen.findByText(/used by/i)).toBeInTheDocument()
+    // Wait for the real (loaded) table — the loading skeleton renders the same
+    // header, but its element is replaced when data lands (#582).
+    await screen.findByDisplayValue('Engineering')
+    expect(screen.getByText(/used by/i)).toBeInTheDocument()
   })
 
   it('renders "unused" for categories with no count', async () => {
@@ -165,5 +170,36 @@ describe('CategoriesTab', () => {
     await screen.findByDisplayValue('Engineering')
     const deleteBtns = screen.getAllByRole('button', { name: /delete/i })
     expect(deleteBtns.length).toBeGreaterThanOrEqual(2)
+  })
+
+  // #582: while categories load, the tree shell paints with indent-hinted skeleton
+  // rows — never the "No categories yet" empty state (loading ≠ empty).
+  it('paints skeleton rows — not the empty state — while loading, then fills (#582)', async () => {
+    const { container } = wrap()
+
+    // Synchronously after render the store hasn't resolved: skeletons, no empty flash.
+    expect(
+      container.querySelectorAll('[data-slot="skeleton"]').length
+    ).toBeGreaterThan(0)
+    expect(screen.queryByText(/no categories yet/i)).not.toBeInTheDocument()
+
+    // Data lands: real rows replace the skeletons.
+    await screen.findByDisplayValue('Frontend')
+    expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(0)
+    expect(screen.queryByText(/no categories yet/i)).not.toBeInTheDocument()
+  })
+
+  it('shows the empty state only after loading finishes with zero categories (#582)', async () => {
+    const { container } = wrap([]) // no categories.yaml → loads to empty
+
+    // Still loading: skeletons, and the empty state must NOT flash early.
+    expect(
+      container.querySelectorAll('[data-slot="skeleton"]').length
+    ).toBeGreaterThan(0)
+    expect(screen.queryByText(/no categories yet/i)).not.toBeInTheDocument()
+
+    // Load settles with zero rows: NOW the empty state appears, skeletons gone.
+    expect(await screen.findByText(/no categories yet/i)).toBeInTheDocument()
+    expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(0)
   })
 })

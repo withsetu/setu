@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/select'
 import { Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableHeader,
@@ -43,6 +44,81 @@ export function descendantsOf(rows: CategoryNode[], slug: string): Set<string> {
   return banned
 }
 
+/** Shared by the real tree and its loading skeleton so the two can never drift —
+ *  identical header = zero layout shift when data lands (#582). */
+function CategoryTreeHead() {
+  return (
+    <TableHeader>
+      <TableRow className="border-border/60">
+        <TableHead>Name</TableHead>
+        <TableHead className="w-48">Slug</TableHead>
+        <TableHead className="w-28">Used by</TableHead>
+        <TableHead className="w-52">Move to</TableHead>
+        <TableHead className="w-14">
+          <span className="sr-only">Delete</span>
+        </TableHead>
+      </TableRow>
+    </TableHeader>
+  )
+}
+
+/** Fixed shape for the loading tree: a couple of top-level rows with indented
+ *  children — reads as a hierarchy at a glance, matches typical data. */
+const SKELETON_ROWS: Array<{ depth: number; name: string }> = [
+  { depth: 0, name: 'w-28' },
+  { depth: 1, name: 'w-36' },
+  { depth: 1, name: 'w-24' },
+  { depth: 0, name: 'w-32' },
+  { depth: 1, name: 'w-28' }
+]
+
+/** Loading placeholder shaped like the category tree: same table, same column
+ *  widths and cell paddings, skeleton lines with tree-indent hints on the name
+ *  column. The Move-to skeleton matches the real SelectTrigger box (h-8), which
+ *  governs row height — nothing shifts when data lands (#582, mirrors #572). */
+export function CategoryTreeSkeleton() {
+  return (
+    <div className="overflow-hidden rounded-lg border border-border/60">
+      <Table>
+        <CategoryTreeHead />
+        <TableBody>
+          {SKELETON_ROWS.map((r, i) => (
+            <TableRow key={i} className="border-border/40">
+              <TableCell className="py-3">
+                {/* Same inner-wrapper indent as the real name cell (#385). */}
+                <div
+                  className="flex"
+                  style={{ paddingLeft: `${r.depth * 20}px` }}
+                >
+                  <div className="flex h-8 items-center">
+                    <Skeleton className={`h-4 ${r.name}`} />
+                  </div>
+                </div>
+              </TableCell>
+              <TableCell className="py-3">
+                <div className="flex h-8 items-center">
+                  <Skeleton className="h-3.5 w-24" />
+                </div>
+              </TableCell>
+              <TableCell className="py-3">
+                <div className="flex h-8 items-center">
+                  <Skeleton className="h-3.5 w-16" />
+                </div>
+              </TableCell>
+              <TableCell className="py-3">
+                <Skeleton className="h-8 w-44" />
+              </TableCell>
+              <TableCell className="py-3">
+                <Skeleton className="ml-auto size-8" />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
 /** #385: a real shadcn Table, not hand-rolled flex rows — slugs live in their own
  *  column so they share one x-position at every hierarchy depth, and the depth
  *  indent is applied to the NAME CELL's inner wrapper only, never to the row, so
@@ -63,17 +139,7 @@ export function CategoryTree({
   return (
     <div className="overflow-hidden rounded-lg border border-border/60">
       <Table>
-        <TableHeader>
-          <TableRow className="border-border/60">
-            <TableHead>Name</TableHead>
-            <TableHead className="w-48">Slug</TableHead>
-            <TableHead className="w-28">Used by</TableHead>
-            <TableHead className="w-52">Move to</TableHead>
-            <TableHead className="w-14">
-              <span className="sr-only">Delete</span>
-            </TableHead>
-          </TableRow>
-        </TableHeader>
+        <CategoryTreeHead />
         <TableBody>
           {rows.map((node) => {
             const used = counts[node.slug] ?? 0

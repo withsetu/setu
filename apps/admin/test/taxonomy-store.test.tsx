@@ -203,4 +203,16 @@ describe('TaxonomyProvider', () => {
       result.current.categories.find((c) => c.slug === 'frontend')?.parent
     ).toBeNull()
   })
+
+  // #582: consumers must be able to tell "still loading" from "loaded empty" —
+  // the flag is true until the initial categories + counts reads settle.
+  it('exposes loading=true until the initial load settles (#582)', async () => {
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(() => useTaxonomy(), { wrapper: Wrapper })
+
+    expect(result.current.loading).toBe(true)
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    // Loaded empty — categories really are empty, and loading no longer claims otherwise.
+    expect(result.current.categories).toEqual([])
+  })
 })

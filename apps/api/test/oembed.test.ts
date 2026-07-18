@@ -195,3 +195,28 @@ describe('createOembedApi — SSRF guard is on by default (#626)', () => {
     expect(transport).not.toHaveBeenCalled()
   })
 })
+
+// #629 — an authenticated route that parses JSON must cap the body before parsing it.
+describe('createOembedApi — request body cap (#629)', () => {
+  it('413s a body over the cap without parsing it', async () => {
+    const transport = vi.fn() as unknown as typeof fetch
+    const app = createOembedApi({
+      resolveActor: author,
+      transport,
+      resolveHost
+    })
+    const big = 'a'.repeat(200 * 1024)
+    const res = await app.fetch(
+      new Request('http://x/api/oembed', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'content-length': String(big.length + 20)
+        },
+        body: JSON.stringify({ url: big })
+      })
+    )
+    expect(res.status).toBe(413)
+    expect(transport).not.toHaveBeenCalled()
+  })
+})

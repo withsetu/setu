@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
 import {
   createAuthz,
   DEFAULT_ROLES,
@@ -13,6 +14,10 @@ import { createSafeFetchImpl } from './net'
 import type { ResolveActor } from './auth/resolve-actor'
 
 const MAX_URL = 2048
+
+/** Request body cap (#629): the payload is a single URL field bounded by MAX_URL, so a kilobyte
+ *  ceiling is generous. Capped BEFORE `c.req.json()` parses, matching every sibling route. */
+const OEMBED_REQUEST_MAX_BYTES = 8 * 1024
 
 export interface OembedApiOptions {
   resolveActor: ResolveActor
@@ -55,27 +60,35 @@ export function createOembedApi(opts: OembedApiOptions) {
     ...(opts.resolveHost ? { resolveHost: opts.resolveHost } : {})
   })
 
-  app.post('/api/oembed', authMiddleware(opts.resolveActor), async (c) => {
-    if (!authz.can(c.get('actor'), 'content.create'))
-      return c.json({ error: 'forbidden' }, 403)
+  app.post(
+    '/api/oembed',
+    bodyLimit({
+      maxSize: OEMBED_REQUEST_MAX_BYTES,
+      onError: (c) => c.json({ error: 'too_large' }, 413)
+    }),
+    authMiddleware(opts.resolveActor),
+    async (c) => {
+      if (!authz.can(c.get('actor'), 'content.create'))
+        return c.json({ error: 'forbidden' }, 403)
 
-    let body: unknown
-    try {
-      body = await c.req.json()
-    } catch {
-      return c.json({ error: 'invalid_json' }, 400)
+      let body: unknown
+      try {
+        body = await c.req.json()
+      } catch {
+        return c.json({ error: 'invalid_json' }, 400)
+      }
+      const url = (body as { url?: unknown } | null)?.url
+      if (typeof url !== 'string' || url.length === 0 || url.length > MAX_URL)
+        return c.json({ error: 'invalid_url' }, 400)
+
+      const result: OembedResult = await resolveOembed(url, { fetchImpl })
+      if (result.ok) return c.json({ data: result.data })
+      // `unsupported` is client-actionable (paste a different link) → 422; upstream problems → 502.
+      if (result.reason === 'unsupported')
+        return c.json({ error: 'unsupported_provider' }, 422)
+      return c.json({ error: result.reason }, 502)
     }
-    const url = (body as { url?: unknown } | null)?.url
-    if (typeof url !== 'string' || url.length === 0 || url.length > MAX_URL)
-      return c.json({ error: 'invalid_url' }, 400)
-
-    const result: OembedResult = await resolveOembed(url, { fetchImpl })
-    if (result.ok) return c.json({ data: result.data })
-    // `unsupported` is client-actionable (paste a different link) → 422; upstream problems → 502.
-    if (result.reason === 'unsupported')
-      return c.json({ error: 'unsupported_provider' }, 422)
-    return c.json({ error: result.reason }, 502)
-  })
+  )
 
   app.onError(apiOnError({ scope: 'oembed' })) // #291: e.g. an unexpected resolver throw
   return app

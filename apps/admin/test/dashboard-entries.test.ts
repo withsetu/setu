@@ -22,7 +22,9 @@ const row = (
   date: null,
   tags: [],
   categories: [],
-  mediaRefs: []
+  mediaRefs: [],
+  hasFeaturedImage: false,
+  hasSeoOverrides: false
 })
 
 /** The pre-#587 client tally — the fetch-all-then-count logic the index now

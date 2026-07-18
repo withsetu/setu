@@ -30,29 +30,77 @@ export default defineConfig({
     }
   },
   server: { fs: { allow: ['../..'] } },
-  // Pre-bundle test-only deps up front — without this Vite discovers them mid-run (on
-  // first import) and reloads, which vitest's browser runner logs as "unexpectedly
-  // reloaded a test" and warns can cause flaky/duplicated runs. Both are test-only
-  // (never imported by src/), so they're listed here rather than in `optimizeDeps`
-  // for the whole app.
+  // Pre-bundle the browser suite's WHOLE dependency graph up front. Vitest browser
+  // mode runs one Vite server for every test file and optimizes deps lazily: anything
+  // the initial esbuild scan misses is discovered on first import while the browser is
+  // already connected, and Vite responds with a full-page reload to swap in the newly
+  // optimized bundle. If that reload lands mid-runner-init the tester loses its context
+  // and the file fails to import with "Vitest failed to find the runner" — a flake that
+  // only fires in CI (cold cache + parallel load widen the discover→reload window) while
+  // every local run is green. It began when the block merges grew this graph and hit
+  // slash-menu.test.tsx hardest: it pulls the full Tiptap editor core AND the block
+  // registry, whose `import.meta.glob('blocks/*/block.ts')` (registry.ts) is invisible to
+  // esbuild's pre-bundle scanner, so the deps those blocks reach through @setu/core
+  // (@markdoc/markdoc, js-yaml, zod) are exactly what the scan intermittently under-counts.
+  //
+  // The fix that vitest confirms for this class (vitest-dev/vitest#9509 — "fixed by
+  // finding the right combination of required deps in optimizeDeps.include") is to make
+  // the first optimize authoritative: list every dep the browser tests actually load so
+  // discovery — and therefore the reload — can never happen mid-run. This front-loads
+  // work Vite would do during the run anyway; it is not net-extra bundling. Setu #589.
+  //
+  // Keep this list in sync when a browser test reaches a new dependency: the symptom of
+  // a missing entry is exactly the #589 flake, not a hard failure.
   optimizeDeps: {
     include: [
+      // React runtime — subpaths esbuild's auto-include misses, so they get discovered
+      // on first render and reload the tester (the #589 trigger, caught locally).
+      'react',
+      'react-dom',
+      'react-dom/client',
+      'react/jsx-runtime',
+      'react/jsx-dev-runtime',
+      // Test harness (never imported by src/).
       '@testing-library/react',
       '@testing-library/jest-dom',
+      // Tiptap editor core — the slash-menu Harness + EditorScreen build a live editor.
+      '@tiptap/core',
+      '@tiptap/react',
+      '@tiptap/react/menus',
+      '@tiptap/starter-kit',
       '@tiptap/suggestion',
-      'tippy.js',
-      // editor-viewonly-canvas.test.tsx mounts the FULL EditorScreen (not a slim
-      // harness), which pulls in the router + the Canvas's whole extension set —
-      // pre-bundle them or Vite discovers them mid-run and reloads the test.
-      'react-router-dom',
+      '@tiptap/pm/state',
+      '@tiptap/pm/tables',
       '@tiptap/extension-placeholder',
       '@tiptap/extension-subscript',
       '@tiptap/extension-superscript',
       '@tiptap/extension-list',
       '@tiptap/extension-table',
       '@tiptap/extension-text-align',
-      '@tiptap/react/menus',
-      '@tiptap/pm/tables'
+      'tippy.js',
+      // Block registry graph — reached through the scanner-invisible import.meta.glob.
+      '@markdoc/markdoc',
+      'js-yaml',
+      'zod',
+      // App shell / UI kit pulled in by the full-screen tests (editor-viewonly-canvas
+      // mounts the real EditorScreen: router, auth client, shadcn/radix controls).
+      'react-router-dom',
+      'better-auth/react',
+      'better-auth/client/plugins',
+      'radix-ui',
+      'lucide-react',
+      'class-variance-authority',
+      'clsx',
+      'tailwind-merge',
+      'cmdk',
+      'sonner',
+      'next-themes',
+      'motion/react',
+      'date-fns',
+      'react-day-picker',
+      'react-dropzone',
+      'idb',
+      'diff'
     ]
   },
   test: {

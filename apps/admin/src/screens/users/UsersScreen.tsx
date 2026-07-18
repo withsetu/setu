@@ -951,7 +951,7 @@ function OwnerPasswordCard({ onChanged }: { onChanged: () => void }) {
         </CardTitle>
         <CardDescription>
           {hasPassword === false
-            ? 'Signing in from this machine needs no password. Signing in remotely — over a tunnel or a hosted server — requires one.'
+            ? 'On this machine, the owner signs in with its local sign-in link — no password. Anywhere else — a tunnel, another device, a hosted server — needs an email and password.'
             : 'Update the password you use to sign in.'}
         </CardDescription>
       </CardHeader>

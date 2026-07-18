@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { renderHook, act } from '@testing-library/react'
+import { renderHook, act, waitFor } from '@testing-library/react'
 import { createMemoryGitPort } from '@setu/git-memory'
 import { createMemoryDataPort, createMemoryIndexPort } from '@setu/db-memory'
 import { createIndexService } from '@setu/core'
@@ -182,5 +182,19 @@ describe('TagsProvider — remove (delete)', () => {
 
     expect(res?.applied).toBe(2)
     expect(result.current.counts['css']).toBeUndefined()
+  })
+})
+
+describe('TagsProvider — loading', () => {
+  // #582: consumers must be able to tell "still loading" from "loaded empty" —
+  // the flag is true until the initial tagCounts read settles.
+  it('exposes loading=true until the initial load settles (#582)', async () => {
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(() => useTags(), { wrapper: Wrapper })
+
+    expect(result.current.loading).toBe(true)
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    // Loaded empty — counts really are empty, and loading no longer claims otherwise.
+    expect(result.current.counts).toEqual({})
   })
 })

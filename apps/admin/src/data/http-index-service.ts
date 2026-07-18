@@ -87,8 +87,10 @@ export const SERVER_PAGE_LIMIT = 100
 /** Cache-meta sentinel. Never a real INDEX_VERSION, so (a) a leftover
  *  locally-built index is flushed the first time this service touches the
  *  cache, and (b) if the topology ever flips back to the browser-built index,
- *  its ensureBuilt sees a version mismatch and rebuilds over the cache. */
-export const INDEX_CACHE_VERSION = -464
+ *  its ensureBuilt sees a version mismatch and rebuilds over the cache.
+ *  -576: row shape gained the indicator booleans (#576/#577) — new sentinel
+ *  flushes cached rows that predate them. */
+export const INDEX_CACHE_VERSION = -576
 
 const NO_DEPLOY: DeployInfo = { deployedSha: null, changed: [] }
 
@@ -131,6 +133,10 @@ export function createHttpIndexService(
     if (q.tag !== undefined && q.tag !== '') params.set('tag', q.tag)
     if (q.category !== undefined && q.category !== '')
       params.set('category', q.category)
+    if (q.hasFeaturedImage !== undefined)
+      params.set('hasFeaturedImage', String(q.hasFeaturedImage))
+    if (q.hasSeoOverrides !== undefined)
+      params.set('hasSeoOverrides', String(q.hasSeoOverrides))
     if (q.sort !== undefined) {
       params.set('sort', q.sort.key)
       params.set('dir', q.sort.dir)

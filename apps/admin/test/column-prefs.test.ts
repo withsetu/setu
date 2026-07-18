@@ -10,6 +10,8 @@ describe('useColumnPrefs', () => {
       status: true,
       tags: true,
       categories: true,
+      featured: true,
+      seo: true,
       updated: true,
       locale: false
     })

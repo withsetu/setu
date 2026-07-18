@@ -235,6 +235,21 @@ body {
   );
 }
 
+/* {% gallery %} width — same breakout vocabulary as image/hero: none = column width
+   (no rule); wide = page measure; full = 100vw bleed with a small edge gutter so
+   flush-cropped thumbnails don't kiss the viewport edge. */
+.prose .blk-gallery.w-wide {
+  width: min(var(--measure-page), calc(100vw - 2rem));
+  margin-left: 50%;
+  transform: translateX(-50%);
+}
+.prose .blk-gallery.w-full {
+  width: 100vw;
+  margin-left: 50%;
+  transform: translateX(-50%);
+  padding-inline: clamp(0.5rem, 2vw, 1.5rem);
+  box-sizing: border-box;
+}
 /* {% video %} width — same breakout ladder as the hero/image blocks.
    none = column width (no rule); wide = page measure; full = 100vw bleed. */
 .prose .blk-video.w-wide {
@@ -247,7 +262,6 @@ body {
   margin-left: 50%;
   transform: translateX(-50%);
 }
-
 /* {% section %} width — same breakout math as the hero (#182).
    Normal = column width (no rule); Wide = the band breaks out to the page measure;
    Full = the band bleeds 100vw while the grouped CONTENT stays aligned to the page

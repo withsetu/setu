@@ -21,6 +21,7 @@ import EmbedWrapper from '../../../../blocks/embed/embed.astro'
 import HeroBlock from '@setu/blocks/hero.astro'
 import VideoBlock from '@setu/blocks/video.astro'
 import ButtonBlock from '@setu/blocks/button.astro'
+import GalleryBlock from '@setu/blocks/gallery.astro'
 import LatestPostsBlock from '@setu/blocks/latest-posts.astro'
 import SpacerBlock from '@setu/blocks/spacer.astro'
 import SectionBlock from '@setu/blocks/section.astro'
@@ -59,7 +60,7 @@ const tagComponentMap = {
   section: SectionBlock,
   columns: ColumnsBlock, column: ColumnBlock,
   'latest-posts': LatestPostsBlock,
-  image: ImageFigure, sub: Sub, sup: Sup,
+  gallery: GalleryBlock, image: ImageFigure, sub: Sub, sup: Sup,
 }
 const nodeComponentMap = { heading: Heading, paragraph: Paragraph, th: Th, td: Td, image: Image }
 

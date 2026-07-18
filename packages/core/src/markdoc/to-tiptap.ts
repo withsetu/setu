@@ -280,6 +280,9 @@ function blockToTiptap(node: MdNode): TiptapNode | null {
       if (tag === 'hero') {
         return { type: 'heroBlock', attrs: { mdAttrs: node.attributes } }
       }
+      if (tag === 'gallery') {
+        return { type: 'galleryBlock', attrs: { mdAttrs: node.attributes } }
+      }
       if (tag === 'spacer') {
         return { type: 'spacerBlock', attrs: { mdAttrs: node.attributes } }
       }

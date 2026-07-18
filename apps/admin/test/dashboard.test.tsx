@@ -140,7 +140,9 @@ describe('Dashboard', () => {
                 date: null,
                 tags: [],
                 categories: [],
-                mediaRefs: []
+                mediaRefs: [],
+                hasFeaturedImage: false,
+                hasSeoOverrides: false
               }
             ]
           : [],

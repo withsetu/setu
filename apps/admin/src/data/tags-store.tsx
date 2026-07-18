@@ -15,6 +15,8 @@ import { useIndex } from './index-store'
 // (`const { rename } = useTags()`); method syntax trips unbound-method on every use.
 export interface TagsContextValue {
   counts: Record<string, number>
+  /** True until the initial tagCounts read settles — loading ≠ empty (#582). */
+  loading: boolean
   rename: (
     from: string,
     to: string
@@ -28,16 +30,21 @@ export function TagsProvider({ children }: { children: ReactNode }) {
   const { bulk } = useServices()
   const index = useIndex()
   const [counts, setCounts] = useState<Record<string, number>>({})
+  const [loading, setLoading] = useState(true)
 
-  const refreshCounts = useCallback(() => {
-    void index
-      .tagCounts()
-      .then(setCounts)
-      .catch(() => {})
-  }, [index])
+  const refreshCounts = useCallback(
+    () =>
+      index
+        .tagCounts()
+        .then(setCounts)
+        .catch(() => {}),
+    [index]
+  )
 
   useEffect(() => {
-    refreshCounts()
+    // #582: flip `loading` only once the initial read settles (success or failure),
+    // so screens can tell "still loading" from "loaded empty".
+    void refreshCounts().then(() => setLoading(false))
   }, [refreshCounts])
 
   const rename = useCallback(
@@ -55,7 +62,7 @@ export function TagsProvider({ children }: { children: ReactNode }) {
         await index.reindexEntry(ref).catch(() => {})
       if (res.committedSha)
         await index.markSyncedAt(res.committedSha).catch(() => {})
-      refreshCounts()
+      void refreshCounts()
       return { applied: res.applied.length, merged }
     },
     [bulk, index, counts, refreshCounts]
@@ -73,15 +80,15 @@ export function TagsProvider({ children }: { children: ReactNode }) {
         await index.reindexEntry(ref).catch(() => {})
       if (res.committedSha)
         await index.markSyncedAt(res.committedSha).catch(() => {})
-      refreshCounts()
+      void refreshCounts()
       return { applied: res.applied.length }
     },
     [bulk, index, refreshCounts]
   )
 
   const value = useMemo<TagsContextValue>(
-    () => ({ counts, rename, remove }),
-    [counts, rename, remove]
+    () => ({ counts, loading, rename, remove }),
+    [counts, loading, rename, remove]
   )
   return <TagsContext.Provider value={value}>{children}</TagsContext.Provider>
 }

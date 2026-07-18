@@ -63,9 +63,11 @@
     :has(.align-full)
   ):not(.align-left):not(.align-right):not(.align-wide):not(.align-full):not(
     :has(.blk-hero.w-wide)
-  ):not(:has(.blk-hero.w-full)):not(:has(.blk-video.w-wide)):not(
-    :has(.blk-video.w-full)
-  ):not(:has(.blk-section.w-wide)):not(:has(.blk-section.w-full)) {
+  ):not(:has(.blk-hero.w-full)):not(:has(.blk-gallery.w-wide)):not(
+    :has(.blk-gallery.w-full)
+  ):not(:has(.blk-video.w-wide)):not(:has(.blk-video.w-full)):not(
+    :has(.blk-section.w-wide)
+  ):not(:has(.blk-section.w-full)) {
   max-width: var(--measure-post);
   margin-inline: auto;
 }
@@ -86,6 +88,15 @@
 }
 .setu-prose > :has(.blk-hero.w-full),
 .setu-prose > :has(.blk-video.w-full) {
+  width: 100%;
+}
+/* Gallery width breakout in the canvas — same WYSIWYG mirror as the hero (#177 audit:
+   theme-default breaks .blk-gallery.w-wide/.w-full out on the site, so the canvas must too). */
+.setu-prose > :has(.blk-gallery.w-wide) {
+  width: min(var(--measure-page), 100%);
+  margin-inline: auto;
+}
+.setu-prose > :has(.blk-gallery.w-full) {
   width: 100%;
 }
 /* Section width breakout in the canvas — same WYSIWYG mirroring as the hero. A full-bleed

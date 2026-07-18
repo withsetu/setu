@@ -24,6 +24,8 @@ const row = (slug: string, over: Partial<ContentRow> = {}): ContentRow => ({
   tags: [],
   categories: [],
   mediaRefs: [],
+  hasFeaturedImage: false,
+  hasSeoOverrides: false,
   ...over
 })
 

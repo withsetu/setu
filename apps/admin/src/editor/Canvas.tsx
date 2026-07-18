@@ -26,6 +26,7 @@ import { Callout } from './extensions/Callout'
 import { Columns, Column } from './extensions/Columns'
 import { ContactBlock } from './extensions/ContactBlock'
 import { HeroBlock } from './extensions/HeroBlock'
+import { GalleryBlock } from './extensions/GalleryBlock'
 import { SpacerBlock } from './extensions/SpacerBlock'
 import { VideoBlock } from './extensions/VideoBlock'
 import { QueryBlock } from './extensions/QueryBlock'
@@ -148,6 +149,7 @@ export function Canvas({
       Column,
       ContactBlock,
       HeroBlock,
+      GalleryBlock,
       SpacerBlock,
       VideoBlock,
       QueryBlock.configure({ runQuery }),

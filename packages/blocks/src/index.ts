@@ -14,6 +14,21 @@ import { Hero } from './hero/Hero'
 export { Hero }
 export type { HeroProps } from './hero/Hero'
 
+import { Gallery } from './gallery/Gallery'
+export { Gallery }
+export type { GalleryProps } from './gallery/Gallery'
+export {
+  galleryClasses,
+  galleryImagesOf,
+  clampColumns,
+  sizesForColumns
+} from './gallery/gallery-classes'
+export type {
+  GalleryImage,
+  GalleryGap,
+  GalleryLayout
+} from './gallery/gallery-classes'
+export { safeMediaHref } from './safe-media-href'
 import { Video } from './video/Video'
 export { Video }
 export type { VideoProps } from './video/Video'
@@ -42,6 +57,7 @@ export type BlockCore = ComponentType<any>
 export const blockCores: Record<string, BlockCore> = {
   notice: Notice,
   hero: Hero,
+  gallery: Gallery,
   video: Video,
   section: Section
 }

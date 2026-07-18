@@ -19,9 +19,17 @@ describe('markdocAttributesFor', () => {
       e: { type: 'String', matches: ['a', 'b'] }
     })
   })
+  it('maps arrays (element validation stays with the zod contract)', () => {
+    const attrs = markdocAttributesFor(
+      z.object({
+        items: z.array(z.object({ src: z.string() })).default([])
+      })
+    )
+    expect(attrs).toEqual({ items: { type: 'Array', default: [] } })
+  })
   it('throws on an unsupported zod type', () => {
     expect(() =>
-      markdocAttributesFor(z.object({ x: z.array(z.string()) }))
+      markdocAttributesFor(z.object({ x: z.record(z.string(), z.string()) }))
     ).toThrow(/unsupported/)
   })
   it('throws when props is not a z.object', () => {

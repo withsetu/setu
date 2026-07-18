@@ -30,6 +30,10 @@ export function ListToolbar({
   catRows,
   tag,
   onTag,
+  featured,
+  onFeatured,
+  seo,
+  onSeo,
   hasFilters,
   onClear,
   columnsMenu
@@ -44,6 +48,12 @@ export function ListToolbar({
   catRows: { slug: string; name: string; depth: number }[]
   tag: string
   onTag: (v: string) => void
+  /** '' (all) | 'has' | 'none' — mirrors the `featured` URL param (#576). */
+  featured: string
+  onFeatured: (v: string) => void
+  /** '' (all) | 'custom' | 'none' — mirrors the `seo` URL param (#577). */
+  seo: string
+  onSeo: (v: string) => void
   hasFilters: boolean
   onClear: () => void
   columnsMenu: ReactNode
@@ -99,6 +109,36 @@ export function ListToolbar({
         </SelectContent>
       </Select>
       <TagFilter value={tag} onChange={onTag} />
+      <Select
+        value={featured || ALL}
+        onValueChange={(v) => onFeatured(v === ALL ? '' : v)}
+      >
+        <SelectTrigger
+          size="sm"
+          aria-label="Filter by featured image"
+          className="w-44"
+        >
+          <SelectValue placeholder="Featured: all" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL}>Featured: all</SelectItem>
+          <SelectItem value="has">Has featured image</SelectItem>
+          <SelectItem value="none">No featured image</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select
+        value={seo || ALL}
+        onValueChange={(v) => onSeo(v === ALL ? '' : v)}
+      >
+        <SelectTrigger size="sm" aria-label="Filter by SEO" className="w-36">
+          <SelectValue placeholder="SEO: all" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL}>SEO: all</SelectItem>
+          <SelectItem value="custom">Custom SEO</SelectItem>
+          <SelectItem value="none">No custom SEO</SelectItem>
+        </SelectContent>
+      </Select>
       {hasFilters && (
         <Button variant="ghost" size="sm" onClick={onClear}>
           Clear filters

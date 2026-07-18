@@ -132,6 +132,27 @@ export function scoreAudit(
   return { score, band, byCategory, mustHaves }
 }
 
+const isScanItem = (item: RubricItem): boolean => item.needsScan === true
+
+/** The INSTANT-class results only (#593): config / settings / platform /
+ *  attestation checks that touch NO content. Safe to run on every mount — pass
+ *  `ctx.scan` as `null` and nothing reads the content facts. i18n applicability
+ *  is scan-derived, so it stays applicable here until a scan runs. */
+export function runInstantChecks(context: AuditContext): CheckResult[] {
+  return RUBRIC.filter((item) => !isScanItem(item)).map((item) =>
+    resolve(item, context)
+  )
+}
+
+/** The SCAN-class results only: the per-entry content checks, resolved from the
+ *  index-backed `context.scan`. Runs on explicit "Scan site" / "Re-scan", never
+ *  on load. `context.scan === null` yields score-neutral `pending` rows. */
+export function runScanChecks(context: AuditContext): CheckResult[] {
+  return RUBRIC.filter(isScanItem).map((item) => resolve(item, context))
+}
+
+/** The full 156-item audit: instant + scan, merged and scored as one picture.
+ *  When `context.scan` is `null` the scan rows are `pending` and score-neutral. */
 export function runAudit(context: AuditContext): AuditResult {
   const results: CheckResult[] = RUBRIC.map((item) => resolve(item, context))
   return { results, ...scoreAudit(results) }

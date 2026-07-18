@@ -195,7 +195,8 @@ export { deriveLifecycle } from './lifecycle/derive'
 export type {
   ContentRow,
   DeployInfo,
-  ListContentEntriesInput
+  ListContentEntriesInput,
+  EntryAuditFacts
 } from './content-index/list-entries'
 export {
   listContentEntries,
@@ -231,6 +232,11 @@ export type {
   IndexPort
 } from './index-port/types'
 export { indexKey, projectRow, rowToContentRow } from './index-port/types'
+export type { AuditSummary } from './index-port/audit-summary'
+export {
+  selectAuditSummary,
+  EMPTY_AUDIT_SUMMARY
+} from './index-port/audit-summary'
 export { runQuery } from './index-port/run-query'
 export {
   selectDistinctTags,
@@ -349,6 +355,7 @@ export type {
   SiteCapabilities,
   AuditEntry,
   AuditContext,
+  AuditScanData,
   CheckResult,
   CategoryScore,
   AuditResult,
@@ -363,7 +370,13 @@ export { RUBRIC } from './health/rubric'
 export { SITE_CAPABILITIES } from './health/capabilities'
 export { scanBody } from './health/scan'
 export { EVALUATORS, APPLIES_WHEN } from './health/checks'
-export { runAudit, scoreAudit } from './health/run-audit'
+export {
+  runAudit,
+  runInstantChecks,
+  runScanChecks,
+  scoreAudit
+} from './health/run-audit'
+export { auditScanFromEntries, SCAN_ITEM_IDS } from './health/scan-data'
 export { evaluateProbe, mergeProbe } from './health/probe'
 export { parseHealthState, setHealthRecord } from './health/health-state'
 

@@ -1,4 +1,5 @@
 import type {
+  AuditSummary,
   ContentRow,
   DataPort,
   DeployInfo,
@@ -11,6 +12,7 @@ import type {
   IndexStats,
   MediaUsage
 } from '@setu/core'
+import { EMPTY_AUDIT_SUMMARY, INDEX_VERSION } from '@setu/core'
 import {
   contentPath,
   indexKey,
@@ -84,13 +86,17 @@ export interface HttpIndexServiceDeps {
 /** Mirrors apps/api/src/index-api.ts MAX_LIMIT — larger asks are paged. */
 export const SERVER_PAGE_LIMIT = 100
 
-/** Cache-meta sentinel. Never a real INDEX_VERSION, so (a) a leftover
- *  locally-built index is flushed the first time this service touches the
- *  cache, and (b) if the topology ever flips back to the browser-built index,
- *  its ensureBuilt sees a version mismatch and rebuilds over the cache.
- *  -576: row shape gained the indicator booleans (#576/#577) — new sentinel
- *  flushes cached rows that predate them. */
-export const INDEX_CACHE_VERSION = -576
+/** Cache-meta sentinel. DERIVED from INDEX_VERSION so it changes on every row-shape
+ *  bump (#593, #576/#577): a fixed sentinel meant an older-shaped offline cache (rows
+ *  lacking the new `audit`/`hasFeaturedImage`/`hasSeoOverrides` fields) was NEVER
+ *  invalidated on the schema change and kept serving stale-shape rows offline. Staying
+ *  negative keeps the two original guarantees intact: (a) it can never equal a real
+ *  (positive) INDEX_VERSION, so a leftover locally-built index is flushed the first time
+ *  this service touches the cache; (b) if the topology ever flips back to the
+ *  browser-built index, its ensureBuilt sees a version mismatch and rebuilds over the
+ *  cache. The -1000 base keeps this readable as "the http-service's private cache marker
+ *  for schema N". MUST remain a function of INDEX_VERSION — do not hard-code it. */
+export const INDEX_CACHE_VERSION = -1000 - INDEX_VERSION
 
 const NO_DEPLOY: DeployInfo = { deployedSha: null, changed: [] }
 
@@ -474,6 +480,25 @@ export function createHttpIndexService(
     return overlayRefs(server, (d) => draftOwnRow(d).categories.includes(slug))
   }
 
+  // Site Health content facts (#593). No draft overlay: the audit covers
+  // COMMITTED, published content only (mirrors the old git-walk, which never saw
+  // drafts) — so the server's answer is authoritative, with the offline cache as
+  // the stale-but-honest fallback.
+  async function auditSummary(): Promise<AuditSummary> {
+    try {
+      const res = await fetchImpl(`${apiBase}/api/index/audit-summary`)
+      if (!res.ok) throw new Error(`audit summary failed (${res.status})`)
+      return (await res.json()) as AuditSummary
+    } catch {
+      try {
+        await ensureCache()
+        return await index.auditSummary()
+      } catch {
+        return EMPTY_AUDIT_SUMMARY
+      }
+    }
+  }
+
   async function reindexEntry(ref: EntryRef): Promise<void> {
     // The SERVER already re-derived this entry (post-commit hook + per-request
     // ensureBuilt); this keeps the OFFLINE CACHE fresh so a network drop right
@@ -518,6 +543,7 @@ export function createHttpIndexService(
     tagCounts,
     referencedBy,
     entriesByCategory,
-    entriesByTag
+    entriesByTag,
+    auditSummary
   }
 }

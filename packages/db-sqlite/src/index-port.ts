@@ -14,7 +14,8 @@ import {
   selectTagCounts,
   selectReferencedBy,
   selectEntriesByCategory,
-  selectEntriesByTag
+  selectEntriesByTag,
+  selectAuditSummary
 } from '@setu/core'
 import { entryIndex, indexMeta } from './schema'
 
@@ -112,6 +113,9 @@ export function createSqliteIndexPort(file: string): IndexPort {
     },
     async entriesByTag(tag) {
       return selectEntriesByTag(loadAll(), tag)
+    },
+    async auditSummary() {
+      return selectAuditSummary(loadAll())
     }
   }
 }

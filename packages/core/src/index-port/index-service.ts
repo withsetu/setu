@@ -15,7 +15,9 @@ import type { IndexStats } from './stats'
 // forces a rebuild so existing indexes backfill the new field.
 // v7: rows now carry `hasFeaturedImage` (#576, list indicator/filter) — bump forces a
 // rebuild so existing indexes backfill the new field.
-// v8: rows now carry `hasSeoOverrides` (#577, list indicator/filter) — same deal.
+// v7 (concurrent): rows also gained `audit` (Site Health per-entry facts, #593) and
+// `hasSeoOverrides` (#577, list indicator/filter).
+// v8: merge of featured/seo (#586) + audit (#596) fields — bump forces a clean rebuild over either partial v7 index.
 export const INDEX_VERSION = 8
 
 export interface IndexServiceDeps {
@@ -43,6 +45,7 @@ export interface IndexService {
   ): Promise<import('./referenced-by').MediaUsage[]>
   entriesByCategory(slug: string): Promise<import('../data/types').EntryRef[]>
   entriesByTag(tag: string): Promise<import('../data/types').EntryRef[]>
+  auditSummary(): Promise<import('./audit-summary').AuditSummary>
 }
 
 export function createIndexService(deps: IndexServiceDeps): IndexService {
@@ -267,6 +270,12 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
     return index.entriesByTag(tag)
   }
 
+  async function auditSummary(): Promise<
+    import('./audit-summary').AuditSummary
+  > {
+    return index.auditSummary()
+  }
+
   return {
     rebuild,
     ensureBuilt,
@@ -281,6 +290,7 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
     tagCounts,
     referencedBy,
     entriesByCategory,
-    entriesByTag
+    entriesByTag,
+    auditSummary
   }
 }

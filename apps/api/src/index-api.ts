@@ -108,6 +108,7 @@ export interface IndexApiDeps {
     | 'referencedBy'
     | 'entriesByCategory'
     | 'entriesByTag'
+    | 'auditSummary'
   >
   media: Pick<MediaIndexService, 'ensureBuilt' | 'query'>
   /** Force a re-derivation of deploy-derived lifecycle (staged → live flips).
@@ -214,6 +215,16 @@ export function createIndexApi(deps: IndexApiDeps) {
     if (!parsed.success) return c.json({ error: 'invalid' }, 400)
     await deps.index.ensureBuilt()
     return c.json(await deps.index.entriesByTag(parsed.data.tag))
+  })
+
+  // Body-free Site Health content facts (#593) — the cached content scan reads
+  // this instead of walking every published .mdoc from Git. `content.view`
+  // matches the other /api/index routes: it exposes nothing beyond what
+  // /api/index/query already serves (entry refs + which lack a title/alt/H1),
+  // and forcing the ensureBuilt derivation grants a reader nothing new.
+  app.get('/api/index/audit-summary', auth, canViewContent, async (c) => {
+    await deps.index.ensureBuilt()
+    return c.json(await deps.index.auditSummary())
   })
 
   // POST because it mutates server state — but only DERIVED state (index rows

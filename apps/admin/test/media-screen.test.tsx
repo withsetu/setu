@@ -85,6 +85,7 @@ const catRef: EntryIndexRow = {
   tags: [],
   categories: [],
   mediaRefs: ['2026/06/cat'],
+  audit: { audited: false, hasTitle: true, imagesWithoutAlt: 0, h1Count: 0 },
   hasFeaturedImage: false,
   hasSeoOverrides: false
 }

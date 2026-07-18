@@ -9,7 +9,8 @@ import {
   selectTagCounts,
   selectReferencedBy,
   selectEntriesByCategory,
-  selectEntriesByTag
+  selectEntriesByTag,
+  selectAuditSummary
 } from '@setu/core'
 
 /** IndexedDB-backed IndexPort. Rows are tiny (no bodies), so `query` loads the
@@ -84,6 +85,10 @@ export async function createIdbIndexPort(
     async entriesByTag(tag) {
       const all = (await db.getAll('entries')) as EntryIndexRow[]
       return selectEntriesByTag(all, tag)
+    },
+    async auditSummary() {
+      const all = (await db.getAll('entries')) as EntryIndexRow[]
+      return selectAuditSummary(all)
     }
   }
 }

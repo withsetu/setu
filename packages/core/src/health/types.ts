@@ -22,6 +22,11 @@ export interface RubricItem {
   url: string
   /** Items needing a live-site probe (security headers, CWV) — show as `pending` in v1. */
   liveProbe?: boolean
+  /** SCAN class (#593): the check reads per-entry content facts (title / image-alt /
+   *  extra-H1 / homepage-resolves), so it runs only against the cached, index-backed
+   *  content scan — never on every dashboard mount. Everything else is INSTANT
+   *  (config / settings / platform / attestation), computed live with no content. */
+  needsScan?: boolean
 }
 
 export interface SiteCapabilities {
@@ -75,10 +80,19 @@ export interface AuditContext {
       feed: { enabled: boolean }
     }
   }
-  entries: AuditEntry[]
   capabilities: SiteCapabilities
   health: HealthState
+  /** Index-backed content facts for the SCAN-class checks (#593). `null` = not
+   *  scanned yet: those checks report `pending` ("run a scan") and score-neutral,
+   *  and i18n stays applicable until a scan reveals the locale count. */
+  scan: AuditScanData | null
 }
+
+/** The content facts the SCAN-class checks consume — the same shape the index
+ *  aggregates in `AuditSummary` (aliased so the two never drift). Produced by the
+ *  index (`auditSummary()`) or, for the browser-only topology, by
+ *  `auditScanFromEntries`. */
+export type AuditScanData = import('../index-port/audit-summary').AuditSummary
 
 export interface CheckResult {
   id: string

@@ -12,8 +12,8 @@ import type {
   TiptapDoc
 } from '@setu/core'
 import { DeployProvider } from '../src/deploy/deploy'
-import { ServicesProvider, servicesFor } from '../src/data/store'
 import { IndexProvider } from '../src/data/index-store'
+import { ServicesProvider, servicesFor } from '../src/data/store'
 import { ActorProvider } from '../src/auth/actor'
 import { NotificationProvider } from '../src/ui/notify'
 import { CommandRegistryProvider } from '../src/command/registry'
@@ -141,6 +141,12 @@ describe('Dashboard', () => {
                 tags: [],
                 categories: [],
                 mediaRefs: [],
+                audit: {
+                  audited: false,
+                  hasTitle: true,
+                  imagesWithoutAlt: 0,
+                  h1Count: 0
+                },
                 hasFeaturedImage: false,
                 hasSeoOverrides: false
               }
@@ -162,7 +168,14 @@ describe('Dashboard', () => {
       tagCounts: vi.fn(async () => ({})),
       referencedBy: vi.fn(async () => []),
       entriesByCategory: vi.fn(async () => []),
-      entriesByTag: vi.fn(async () => [])
+      entriesByTag: vi.fn(async () => []),
+      auditSummary: vi.fn(async () => ({
+        titleOffenders: [],
+        altOffenders: [],
+        h1Offenders: [],
+        entryIds: [],
+        locales: []
+      }))
     }
     const git = createMemoryGitPort()
     const readFile = vi.spyOn(git, 'readFile')

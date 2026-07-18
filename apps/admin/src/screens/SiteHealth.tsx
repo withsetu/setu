@@ -15,7 +15,8 @@ import { relativeTime } from '@/lib/format'
 import {
   useAudit,
   probeUnavailableMessage,
-  type ProbeState
+  type ProbeState,
+  type ScanState
 } from '../health/useAudit'
 
 const ITEM = new Map<string, RubricItem>(RUBRIC.map((r) => [r.id, r]))
@@ -196,6 +197,47 @@ function SectionApplicabilityPanel({
   )
 }
 
+/** The content-scan control (#593). Like Yoast/Screaming Frog you RUN a crawl —
+ *  the 5 per-page content checks read this cached, index-backed scan instead of
+ *  re-walking every published page on every visit. Mirrors the Site & Deploy
+ *  card's "last done · time ago + action" shape. */
+function ScanPanel({
+  scan,
+  scanState,
+  scannedAt
+}: {
+  scan: () => void
+  scanState: ScanState
+  scannedAt: string | null
+}) {
+  const scanning = scanState.status === 'scanning'
+  // An unparseable timestamp is treated as never-scanned (no "NaNm ago").
+  const scannedMs = scannedAt != null ? Date.parse(scannedAt) : NaN
+  const hasScanned = !Number.isNaN(scannedMs)
+  return (
+    <section className="mb-6 rounded-lg border border-border p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold">Content checks</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {hasScanned
+              ? `Last scanned ${relativeTime(scannedMs)}.`
+              : 'Your pages haven’t been scanned yet — run a scan to check titles, alt text and headings across every published page.'}
+          </p>
+          {scanState.status === 'error' && (
+            <p className="mt-0.5 text-xs text-destructive">
+              Couldn’t run the scan. Check your connection and try again.
+            </p>
+          )}
+        </div>
+        <Button onClick={scan} disabled={scanning} size="sm">
+          {scanning ? 'Scanning…' : hasScanned ? 'Re-scan' : 'Scan site'}
+        </Button>
+      </div>
+    </section>
+  )
+}
+
 /** The live-probe control: fetches the deployed site and turns HTTPS/HSTS (and, as the
  *  harness grows, CSP/nosniff/CWV) from "not checked" into real pass/fail. Honest by
  *  design — when there's nothing reachable to probe it says so, never a false pass. */
@@ -237,13 +279,19 @@ export function SiteHealthView({
   toggle,
   health,
   probe,
-  probeState
+  probeState,
+  scan = () => {},
+  scanState = { status: 'idle' },
+  scannedAt = null
 }: {
   audit: AuditResult
   toggle: Toggle
   health: HealthState
   probe: () => void
   probeState: ProbeState
+  scan?: () => void
+  scanState?: ScanState
+  scannedAt?: string | null
 }) {
   const fixNow = audit.results.filter(
     (r) =>
@@ -312,6 +360,7 @@ export function SiteHealthView({
         "Not applicable" means it doesn't apply to your site — not "skip the
         work."
       </p>
+      <ScanPanel scan={scan} scanState={scanState} scannedAt={scannedAt} />
       <ProbePanel probe={probe} probeState={probeState} />
       <SectionApplicabilityPanel health={health} toggle={toggle} />
       <Section title="Fix now (you)" results={fixNow} toggle={toggle} />
@@ -324,7 +373,16 @@ export function SiteHealthView({
 }
 
 export function SiteHealth() {
-  const { audit, toggle, health, probe, probeState } = useAudit()
+  const {
+    audit,
+    toggle,
+    health,
+    probe,
+    probeState,
+    scan,
+    scanState,
+    scannedAt
+  } = useAudit()
   return (
     <>
       <PageHeader
@@ -339,6 +397,9 @@ export function SiteHealth() {
             health={health}
             probe={() => void probe()}
             probeState={probeState}
+            scan={() => void scan()}
+            scanState={scanState}
+            scannedAt={scannedAt}
           />
         ) : (
           <p className="text-sm text-muted-foreground">Checking…</p>

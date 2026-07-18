@@ -74,6 +74,12 @@ describe('IndexProvider', () => {
       tags: [],
       categories: [],
       mediaRefs: [],
+      audit: {
+        audited: false,
+        hasTitle: true,
+        imagesWithoutAlt: 0,
+        h1Count: 0
+      },
       hasFeaturedImage: false,
       hasSeoOverrides: false
     })
@@ -126,7 +132,13 @@ describe('IndexProvider — server-backed (apiBase) selection (#464)', () => {
                 date: null,
                 tags: [],
                 categories: [],
-                mediaRefs: []
+                mediaRefs: [],
+                audit: {
+                  audited: false,
+                  hasTitle: true,
+                  imagesWithoutAlt: 0,
+                  h1Count: 0
+                }
               }
             ],
             total: 1

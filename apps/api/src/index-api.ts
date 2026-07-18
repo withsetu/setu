@@ -51,6 +51,13 @@ const pagination = {
   limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(50)
 }
 
+// Query-string booleans are the literal strings 'true'/'false' — z.coerce.boolean()
+// would turn ANY non-empty string (including "false") into true, so enum + compare.
+const boolParam = z
+  .enum(['true', 'false'])
+  .transform((v) => v === 'true')
+  .optional()
+
 const contentQuerySchema = z.object({
   collection: z.string().min(1),
   q: z.string().optional(),
@@ -58,6 +65,8 @@ const contentQuerySchema = z.object({
   locale: z.string().optional(),
   tag: z.string().optional(),
   category: z.string().optional(),
+  hasFeaturedImage: boolParam,
+  hasSeoOverrides: boolParam,
   sort: z.enum(['updatedAt', 'title', 'status', 'locale']).optional(),
   dir: z.enum(['asc', 'desc']).optional(),
   ...pagination
@@ -138,6 +147,12 @@ export function createIndexApi(deps: IndexApiDeps) {
       ...(p.locale !== undefined ? { locale: p.locale } : {}),
       ...(p.tag !== undefined ? { tag: p.tag } : {}),
       ...(p.category !== undefined ? { category: p.category } : {}),
+      ...(p.hasFeaturedImage !== undefined
+        ? { hasFeaturedImage: p.hasFeaturedImage }
+        : {}),
+      ...(p.hasSeoOverrides !== undefined
+        ? { hasSeoOverrides: p.hasSeoOverrides }
+        : {}),
       ...(p.sort !== undefined
         ? { sort: { key: p.sort, dir: p.dir ?? 'desc' } }
         : {})

@@ -1,6 +1,13 @@
 import { useCallback, useState } from 'react'
 
-export type ColumnKey = 'status' | 'tags' | 'categories' | 'locale' | 'updated'
+export type ColumnKey =
+  | 'status'
+  | 'tags'
+  | 'categories'
+  | 'featured'
+  | 'seo'
+  | 'locale'
+  | 'updated'
 const KEY = 'setu-list-columns'
 
 function load(): Partial<Record<ColumnKey, boolean>> {
@@ -29,6 +36,8 @@ export function useColumnPrefs(multilingual: boolean): {
     status: true,
     tags: true,
     categories: true,
+    featured: true,
+    seo: true,
     updated: true,
     locale: multilingual
   }
@@ -36,6 +45,8 @@ export function useColumnPrefs(multilingual: boolean): {
     status: stored.status ?? defaults.status,
     tags: stored.tags ?? defaults.tags,
     categories: stored.categories ?? defaults.categories,
+    featured: stored.featured ?? defaults.featured,
+    seo: stored.seo ?? defaults.seo,
     updated: stored.updated ?? defaults.updated,
     locale: stored.locale ?? defaults.locale
   }
@@ -46,6 +57,8 @@ export function useColumnPrefs(multilingual: boolean): {
           status: prev.status ?? true,
           tags: prev.tags ?? true,
           categories: prev.categories ?? true,
+          featured: prev.featured ?? true,
+          seo: prev.seo ?? true,
           updated: prev.updated ?? true,
           locale: prev.locale ?? multilingual
         }

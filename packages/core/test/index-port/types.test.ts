@@ -12,7 +12,9 @@ const cr: ContentRow = {
   date: null,
   tags: [],
   categories: [],
-  mediaRefs: []
+  mediaRefs: [],
+  hasFeaturedImage: false,
+  hasSeoOverrides: false
 }
 
 describe('index-port projection', () => {
@@ -35,7 +37,9 @@ describe('index-port projection', () => {
       date: null,
       tags: [],
       categories: [],
-      mediaRefs: []
+      mediaRefs: [],
+      hasFeaturedImage: false,
+      hasSeoOverrides: false
     })
   })
 

@@ -15,7 +15,9 @@ const row = (slug: string, tags: string[]): EntryIndexRow => ({
   date: null,
   tags,
   categories: [],
-  mediaRefs: []
+  mediaRefs: [],
+  hasFeaturedImage: false,
+  hasSeoOverrides: false
 })
 
 describe('selectDistinctTags', () => {

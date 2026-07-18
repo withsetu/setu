@@ -26,6 +26,12 @@ export function runQuery(
   }
   if (q.tag) xs = xs.filter((r) => r.tags.includes(q.tag!))
   if (q.category) xs = xs.filter((r) => r.categories.includes(q.category!))
+  // === true (not truthiness): rows read back from an older persisted index may lack the
+  // field until the INDEX_VERSION rebuild lands — treat those as "no featured image".
+  if (q.hasFeaturedImage !== undefined)
+    xs = xs.filter((r) => (r.hasFeaturedImage === true) === q.hasFeaturedImage)
+  if (q.hasSeoOverrides !== undefined)
+    xs = xs.filter((r) => (r.hasSeoOverrides === true) === q.hasSeoOverrides)
   const sort = q.sort ?? { key: 'updatedAt' as SortKey, dir: 'desc' as const }
   const sorted = [...xs].sort((a, b) => {
     const c = compare(a, b, sort.key)

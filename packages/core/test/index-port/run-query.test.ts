@@ -16,6 +16,8 @@ const row = (over: Partial<EntryIndexRow>): EntryIndexRow => ({
   tags: [],
   categories: [],
   mediaRefs: [],
+  hasFeaturedImage: false,
+  hasSeoOverrides: false,
   ...over
 })
 

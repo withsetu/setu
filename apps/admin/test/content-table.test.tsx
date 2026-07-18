@@ -8,6 +8,8 @@ const allCols = {
   status: true,
   tags: true,
   categories: true,
+  featured: true,
+  seo: true,
   updated: true,
   locale: true
 }
@@ -23,6 +25,8 @@ function row(o: Partial<ContentRow> = {}): ContentRow {
     tags: ['a', 'b', 'c'],
     categories: ['news'],
     mediaRefs: [],
+    hasFeaturedImage: false,
+    hasSeoOverrides: false,
     ...o
   }
 }
@@ -107,6 +111,9 @@ describe('ContentTable', () => {
       // auto-layout table: without a max-width the cell just grows to fit the text.
       expect(cell!.className).toContain('w-full')
       expect(cell!.className).toContain('max-w-0')
+      // min-w-48: wide chip columns (long category names) + the indicator columns
+      // (#576/#577) must never squeeze the primary column below readability.
+      expect(cell!.className).toContain('min-w-48')
     })
 
     it('truncates the slug line under the title, full slug on hover', () => {
@@ -124,6 +131,57 @@ describe('ContentTable', () => {
       const slugEl = screen.getByTitle(`/${LONG_SLUG}`)
       expect(slugEl).toHaveTextContent(`/${LONG_SLUG}`)
       expect(slugEl.className).toContain('truncate')
+    })
+  })
+
+  describe('featured-image indicator column (#576)', () => {
+    it('shows a tick with an accessible label when the row has a featured image', () => {
+      wrap(
+        <ContentTable
+          {...base}
+          rows={[
+            row({ hasFeaturedImage: true, featuredImage: '/media/a.webp' })
+          ]}
+        />
+      )
+      expect(screen.getByLabelText('Has featured image')).toBeInTheDocument()
+      expect(screen.queryByLabelText('No featured image')).toBeNull()
+    })
+    it('shows a muted dash with an accessible label when it has none', () => {
+      wrap(<ContentTable {...base} rows={[row()]} />)
+      expect(screen.getByLabelText('No featured image')).toBeInTheDocument()
+    })
+    it('hides the column when toggled off', () => {
+      wrap(
+        <ContentTable
+          {...base}
+          visible={{ ...allCols, featured: false }}
+          rows={[row({ hasFeaturedImage: true })]}
+        />
+      )
+      expect(screen.queryByLabelText('Has featured image')).toBeNull()
+    })
+  })
+
+  describe('custom-SEO indicator column (#577)', () => {
+    it('shows a tick with an accessible label when custom SEO is set — never the values', () => {
+      wrap(<ContentTable {...base} rows={[row({ hasSeoOverrides: true })]} />)
+      expect(screen.getByLabelText('Custom SEO set')).toBeInTheDocument()
+      expect(screen.queryByLabelText('No custom SEO')).toBeNull()
+    })
+    it('shows a muted dash with an accessible label when none is set', () => {
+      wrap(<ContentTable {...base} rows={[row()]} />)
+      expect(screen.getByLabelText('No custom SEO')).toBeInTheDocument()
+    })
+    it('hides the column when toggled off', () => {
+      wrap(
+        <ContentTable
+          {...base}
+          visible={{ ...allCols, seo: false }}
+          rows={[row({ hasSeoOverrides: true })]}
+        />
+      )
+      expect(screen.queryByLabelText('Custom SEO set')).toBeNull()
     })
   })
 

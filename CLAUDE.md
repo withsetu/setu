@@ -198,6 +198,13 @@ The full standard with the worked "good vs. skeleton" case study: [docs/quality-
    well-tested skeleton is `Needs fixes`.
 6. **Merging is the owner's call.** PR up + review clean → hand to owner for UAT. Deferred scope
    and follow-ups become issues (spin off, don't bury).
+7. **⊕ Closing an epic? Run `/improve` across its PRs first.** Per-PR review and cross-cutting
+   audit catch different classes: every block PR in the #176 wave passed review on its own merits,
+   and reading all six together still surfaced three real structural defects (#561–#563). Audit the
+   wave as a unit before the epic closes — that is the only moment the whole shape is visible.
+   Vet each finding against the code before filing (auditors over-report), fix the top 1–3 in the
+   same session, and record rejections on the epic so later passes don't re-litigate settled
+   design. Cadence and backfill ledger: #618.
 
 ## 4 · Failure modes a weaker model WILL hit here
 

@@ -59,7 +59,11 @@ const boolParam = z
   .optional()
 
 const contentQuerySchema = z.object({
-  collection: z.string().min(1),
+  // Optional = the cross-collection scope (#604): the dashboard's status tiles
+  // count post + page together, so their destination list must be able to ask
+  // for both. Not a widening of what this route exposes — the same rows are
+  // already readable one collection at a time under the same content.view gate.
+  collection: z.string().min(1).optional(),
   q: z.string().optional(),
   // Driven off the core constant so the boundary can never accept a status the
   // index doesn't understand — or reject one it does (#579's 'published').
@@ -143,9 +147,9 @@ export function createIndexApi(deps: IndexApiDeps) {
     if (!parsed.success) return c.json({ error: 'invalid' }, 400)
     const p = parsed.data
     const q: IndexQuery = {
-      collection: p.collection,
       offset: p.offset,
       limit: p.limit,
+      ...(p.collection !== undefined ? { collection: p.collection } : {}),
       ...(p.q !== undefined ? { q: p.q } : {}),
       ...(p.status !== undefined ? { status: p.status } : {}),
       ...(p.locale !== undefined ? { locale: p.locale } : {}),

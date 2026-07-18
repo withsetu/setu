@@ -46,11 +46,20 @@ function parseSort(raw: string | null): { key: SortKey; dir: 'asc' | 'desc' } {
   return { key: 'updatedAt', dir: 'desc' }
 }
 
+/** The content list. `collection` scopes it to one collection (/posts, /pages);
+ *  OMIT it for the cross-collection view at /content, which lists every
+ *  collection together (#604).
+ *
+ *  That view exists because the dashboard's Live/Staged/Drafts tiles count post +
+ *  page: linking them at /posts made the tile's number and the list's number
+ *  disagree (Staged said 19, the list showed 5). The scope of the destination was
+ *  widened to match what was counted; the alternative — counting only posts —
+ *  would have dropped page-level publish status off the dashboard entirely. */
 export function ContentList({
   collection,
   title
 }: {
-  collection: string
+  collection?: string
   title: string
 }) {
   const index = useIndex()
@@ -176,7 +185,8 @@ export function ContentList({
     void (async () => {
       await index.ensureBuilt()
       const query: IndexQuery = {
-        collection,
+        // Absent collection = every collection (#604).
+        ...(collection !== undefined ? { collection } : {}),
         offset: page * pageSize,
         limit: pageSize,
         sort
@@ -239,7 +249,10 @@ export function ContentList({
 
   const from = total === 0 ? 0 : page * pageSize + 1
   const to = Math.min(total, (page + 1) * pageSize)
-  const noun = collection
+  const noun = collection ?? 'entry'
+  // "No all content match these filters" reads badly — the cross-collection view
+  // needs a real noun of its own.
+  const plural = collection !== undefined ? title.toLowerCase() : 'entries'
 
   return (
     <>
@@ -249,10 +262,15 @@ export function ContentList({
         subtitle={
           collection === 'post'
             ? 'Articles, field notes and announcements.'
-            : 'Standalone pages and landing pages.'
+            : collection === 'page'
+              ? 'Standalone pages and landing pages.'
+              : 'Every post and page together, in one list.'
         }
         actions={
-          can('content.create') ? (
+          // No "New" affordance in the cross-collection view: there is no one
+          // collection to create into, and guessing one would be worse than
+          // sending the user to Posts or Pages, where the button is unambiguous.
+          collection !== undefined && can('content.create') ? (
             <Button asChild>
               <Link to={`/edit/${collection}/en/new`}>
                 <Plus className="size-4" />
@@ -293,15 +311,13 @@ export function ContentList({
         ) : rows.length === 0 ? (
           hasFilters ? (
             <p className="text-sm text-muted-foreground">
-              No {title.toLowerCase()} match these filters.{' '}
+              No {plural} match these filters.{' '}
               <Button variant="link" size="sm" onClick={clearFilters}>
                 Clear filters
               </Button>
             </p>
           ) : (
-            <p className="text-sm text-muted-foreground">
-              No {title.toLowerCase()} yet.
-            </p>
+            <p className="text-sm text-muted-foreground">No {plural} yet.</p>
           )
         ) : (
           <>
@@ -320,6 +336,9 @@ export function ContentList({
               <ContentTable
                 rows={rows}
                 gen={gen}
+                // Post or page? Only ambiguous — and only worth a column — when
+                // the list spans collections.
+                showCollection={collection === undefined}
                 visible={visible}
                 showLocale={multilingual}
                 categoryName={categoryName}

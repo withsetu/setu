@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { projectRow, runQuery, selectIndexStats } from '@setu/core'
+import type { ContentRow, IndexQuery } from '@setu/core'
+import { isIndexStatusFilter } from '@setu/core'
 import { StatTiles } from '../src/dashboard/widgets/StatTiles'
+import { dashboardCountsFromStats } from '../src/dashboard/entries'
 
 const wrap = (ui: React.ReactNode) => render(<MemoryRouter>{ui}</MemoryRouter>)
 
@@ -33,15 +37,25 @@ describe('StatTiles', () => {
 
   // #579 + #598: every tile deep-links to the list filtered to exactly what it
   // counted — no tile lands on the same unfiltered view as another.
-  it('deep-links each tile to its matching filtered list (#579)', () => {
+  it('deep-links each tile to its matching filtered list (#579, #604)', () => {
     wrap(<StatTiles {...props} />)
     const href = (name: RegExp) =>
       screen.getByRole('link', { name }).getAttribute('href')
     expect(href(/Posts/)).toBe('/posts')
     expect(href(/Pages/)).toBe('/pages')
-    expect(href(/Live/)).toBe('/posts?status=live')
-    expect(href(/Staged/)).toBe('/posts?status=staged')
-    expect(href(/Drafts/)).toBe('/posts?status=draft')
+    // The status tiles count post + page, so they open the cross-collection
+    // list, not /posts — see the tile==destination test below (#604).
+    expect(href(/Live/)).toBe('/content?status=live')
+    expect(href(/Staged/)).toBe('/content?status=staged')
+    expect(href(/Drafts/)).toBe('/content?status=not-published')
+  })
+
+  // #611: the Drafts hint has to be true for a never-published draft AND for an
+  // entry that was taken down after a deploy ('unpublished'). "Not published"
+  // was only true of the first.
+  it('labels Drafts as not on the site (#611)', () => {
+    wrap(<StatTiles {...props} />)
+    expect(screen.getByText('Not on the site')).toBeInTheDocument()
   })
 
   it('gives every tile a distinct destination (no redundant links, #598)', () => {
@@ -62,5 +76,104 @@ describe('StatTiles', () => {
     expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(5)
     expect(screen.queryByText('0')).toBeNull()
     expect(screen.queryByRole('link')).toBeNull()
+  })
+})
+
+/** #604 regression guard, and the reason this file imports the real query
+ *  engine: a tile whose number can't be reproduced by the list it opens is a
+ *  bug. UAT hit exactly that — Staged said 19, the list showed 5, because the
+ *  tiles count post + page and /posts can only show posts.
+ *
+ *  Rather than eyeball the hrefs, this drives them: build a fixture corpus, take
+ *  the tile numbers from the SAME function the dashboard uses, then parse each
+ *  tile's href back into an IndexQuery and run it through core's `runQuery` —
+ *  the one implementation every adapter delegates to. Both sides move together
+ *  or the test fails. */
+describe('StatTiles — the number you click equals the list you land on (#604)', () => {
+  const row = (
+    collection: string,
+    state: ContentRow['lifecycle']['state'],
+    slug: string
+  ): ContentRow => ({
+    ref: { collection, locale: 'en', slug },
+    title: slug,
+    locale: 'en',
+    lifecycle: { state },
+    updatedAt: 0,
+    hasDraft: false,
+    date: null,
+    tags: [],
+    categories: [],
+    mediaRefs: [],
+    audit: { audited: false, hasTitle: true, imagesWithoutAlt: 0, h1Count: 0 },
+    hasFeaturedImage: false,
+    hasSeoOverrides: false
+  })
+
+  // Deliberately lopsided toward pages: the shipped bug was invisible whenever
+  // pages happened to be scarce, and the 14 unreachable staged PAGES are what
+  // made it visible in UAT.
+  const corpus: ContentRow[] = [
+    row('post', 'live', 'p-live'),
+    row('post', 'staged', 'p-staged'),
+    row('post', 'draft', 'p-draft'),
+    row('post', 'unpublished', 'p-down'),
+    row('page', 'live', 'g-live'),
+    row('page', 'staged', 'g-staged-1'),
+    row('page', 'staged', 'g-staged-2'),
+    row('page', 'staged', 'g-staged-3'),
+    row('page', 'unpublished', 'g-down'),
+    row('page', 'draft', 'g-draft')
+  ]
+
+  /** '/posts', '/pages' and '/content?status=x' → the query the list screen
+   *  builds from that route + URL params. */
+  const queryForHref = (href: string): IndexQuery => {
+    const [path, search] = href.split('?')
+    const collection =
+      path === '/posts' ? 'post' : path === '/pages' ? 'page' : undefined
+    const raw = new URLSearchParams(search ?? '').get('status') ?? ''
+    return {
+      ...(collection !== undefined ? { collection } : {}),
+      ...(isIndexStatusFilter(raw) ? { status: raw } : {}),
+      offset: 0,
+      limit: 1000
+    }
+  }
+
+  it('every tile count is reproduced by its own destination query', () => {
+    const counts = dashboardCountsFromStats(
+      selectIndexStats(corpus.map(projectRow))
+    )
+    wrap(<StatTiles {...counts} />)
+    const indexRows = corpus.map(projectRow)
+
+    const tiles: [RegExp, number][] = [
+      [/Posts/, counts.posts],
+      [/Pages/, counts.pages],
+      [/Live/, counts.live],
+      [/Staged/, counts.staged],
+      [/Drafts/, counts.drafts]
+    ]
+    for (const [name, value] of tiles) {
+      const href = screen.getByRole('link', { name }).getAttribute('href')!
+      const landed = runQuery(indexRows, queryForHref(href)).total
+      expect(
+        `${name.source} tile=${value} destination(${href})=${landed}`
+      ).toBe(`${name.source} tile=${value} destination(${href})=${value}`)
+    }
+  })
+
+  // The invariant #611 broke, asserted through the rendered tiles rather than
+  // the helper: with entries in 'unpublished' (i.e. after the first deploy) the
+  // status tiles must still account for every post and page.
+  it('Live + Staged + Drafts === Posts + Pages with taken-down entries present', () => {
+    const counts = dashboardCountsFromStats(
+      selectIndexStats(corpus.map(projectRow))
+    )
+    expect(corpus.some((r) => r.lifecycle.state === 'unpublished')).toBe(true)
+    expect(counts.live + counts.staged + counts.drafts).toBe(
+      counts.posts + counts.pages
+    )
   })
 })

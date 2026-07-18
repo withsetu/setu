@@ -26,7 +26,8 @@ const STATUSES = ['draft', 'staged', 'live', 'unpublished']
  *  text, so the trigger shows the short form while the menu stays explicit. */
 const STATUS_TRIGGER_LABELS: Record<string, string> = {
   ...STATUS_LABELS,
-  published: 'Published'
+  published: 'Published',
+  'not-published': 'Not published'
 }
 
 export function ListToolbar({
@@ -99,6 +100,13 @@ export function ListToolbar({
               Setu is deliberate that staged ≠ live (saved ≠ live), so the union
               is offered, never assumed. */}
           <SelectItem value="published">Published (staged + live)</SelectItem>
+          {/* #611: the exact complement of 'published'. The Drafts tile counts
+              draft + unpublished — both mean "not on the site", they differ only
+              in whether the entry was ever deployed — so the list has to be able
+              to show that same set, or the tile lies about where it takes you. */}
+          <SelectItem value="not-published">
+            Not published (draft + unpublished)
+          </SelectItem>
           <SelectSeparator />
           {STATUSES.map((s) => (
             <SelectItem key={s} value={s}>

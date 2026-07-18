@@ -58,6 +58,10 @@ export function App() {
           path="/pages"
           element={<ContentList collection="page" title="Pages" />}
         />
+        {/* Cross-collection list (#604). Where the dashboard's Live/Staged/Drafts
+            tiles land: they count post + page, so /posts could never show what
+            they counted. Same screen, no collection scope. */}
+        <Route path="/content" element={<ContentList title="All content" />} />
         <Route path="/taxonomies" element={<Taxonomies />} />
         <Route
           path="/categories"

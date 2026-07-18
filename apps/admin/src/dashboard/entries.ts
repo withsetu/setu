@@ -36,11 +36,21 @@ const ZERO: CollectionStats = {
 }
 
 /** Derive the five tile numbers from the index's one-call per-collection
- *  lifecycle tallies (#587). Semantics match the pre-#587 client tally exactly
- *  (proven in dashboard-entries.test.ts): Posts/Pages = all entries of that
- *  collection; Live = live and Staged = staged (together the old Published,
- *  #598); Drafts = draft — 'unpublished' counts toward none of them, and only
- *  the post + page collections are summed.
+ *  lifecycle tallies (#587). Posts/Pages = all entries of that collection; Live =
+ *  live and Staged = staged (together the old Published, #598); Drafts = draft +
+ *  unpublished (#611). Only the post + page collections are summed.
+ *
+ *  #611 — why Drafts absorbed 'unpublished': deriveLifecycle calls a committed
+ *  `published: false` entry 'draft' while the site has NEVER been deployed, and
+ *  'unpublished' once it has (a deployed-then-hidden entry is a different thing
+ *  operationally — it's still on the live site until the next deploy). Counting
+ *  'unpublished' toward no tile meant the first-ever deploy silently moved
+ *  entries off the dashboard entirely: Drafts fell, nothing rose, and the status
+ *  tiles stopped summing to Posts + Pages. Since the tiles now cover all four
+ *  lifecycle states, that sum is an INVARIANT, pinned in dashboard-entries.test.ts.
+ *  A sixth tile was considered and rejected (owner, 2026-07-17): five is already
+ *  a lot, and from the dashboard's altitude both states answer the same question
+ *  — "not on the site". The Drafts tile's hint says exactly that.
  *
  *  DELIBERATE, owner-approved (2026-07-17): dashboard counts = committed / site
  *  truth. Local uncommitted browser drafts (autosave scratch) are intentionally
@@ -59,7 +69,7 @@ export function dashboardCountsFromStats(stats: IndexStats): DashboardCounts {
     const c = stats[collection] ?? ZERO
     live += c.live
     staged += c.staged
-    drafts += c.draft
+    drafts += c.draft + c.unpublished
   }
   return { posts: post.total, pages: page.total, live, staged, drafts }
 }

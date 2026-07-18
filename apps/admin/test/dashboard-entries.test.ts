@@ -39,7 +39,11 @@ function oldDashboardCounts(rows: ContentRow[]) {
   for (const r of rows) {
     if (r.ref.collection === 'post') posts++
     else if (r.ref.collection === 'page') pages++
-    if (r.lifecycle.state === 'draft') drafts++
+    // #611: 'unpublished' (committed-hidden, already deployed once) counts as a
+    // draft for the dashboard's purposes — "not on the site", however it got
+    // there. The oracle tracks that so the parity check stays meaningful.
+    if (r.lifecycle.state === 'draft' || r.lifecycle.state === 'unpublished')
+      drafts++
     else if (r.lifecycle.state === 'staged' || r.lifecycle.state === 'live')
       published++
   }
@@ -65,8 +69,8 @@ describe('dashboardCountsFromStats', () => {
       live: 2,
       // staged only: post(1) = 1 — committed, awaiting deploy
       staged: 1,
-      // draft: post(1) + page(1) = 2
-      drafts: 2
+      // draft post(1) + page(1) + unpublished post(1) = 3 (#611)
+      drafts: 3
     })
   })
 
@@ -102,6 +106,54 @@ describe('dashboardCountsFromStats', () => {
     expect(fast.pages).toBe(old.pages)
     expect(fast.drafts).toBe(old.drafts)
   })
+
+  // #611: a committed `published: false` entry is 'draft' while the site has
+  // never been deployed and 'unpublished' the moment it has (derive.ts). Before
+  // this fix 'unpublished' counted toward NO tile, so the very first deploy made
+  // Drafts fall 1 -> 0 and the tiles stopped summing to Posts + Pages. The
+  // Drafts tile is now draft + unpublished.
+  it('counts unpublished toward Drafts (#611)', () => {
+    const stats = selectIndexStats(
+      [
+        row('post', 'live', 'a', 5),
+        row('post', 'unpublished', 'taken-down', 4),
+        row('page', 'unpublished', 'retired', 3),
+        row('page', 'draft', 'contact', 2)
+      ].map(projectRow)
+    )
+    expect(dashboardCountsFromStats(stats)).toEqual({
+      posts: 2,
+      pages: 2,
+      live: 1,
+      staged: 0,
+      // draft(1) + unpublished(2) — "not on the site", however it got there.
+      drafts: 3
+    })
+  })
+
+  // THE invariant #611 broke. Every post/page entry is in exactly one of the four
+  // lifecycle states, and the tiles cover all four, so the status tiles must sum
+  // to the collection tiles — before a deploy (nothing 'unpublished' yet) and
+  // after one (hidden entries become 'unpublished'). If this fails, some entries
+  // are invisible on the dashboard.
+  it('Live + Staged + Drafts === Posts + Pages, before and after a deploy (#611)', () => {
+    // Same five entries, seen through both lifecycle lenses. Pre-deploy: the two
+    // hidden ones read as 'draft'. Post-deploy: they read as 'unpublished'.
+    const scenario = (hidden: 'draft' | 'unpublished') =>
+      selectIndexStats(
+        [
+          row('post', hidden === 'draft' ? 'staged' : 'live', 'a', 5),
+          row('post', hidden, 'b', 4),
+          row('post', 'draft', 'c', 3),
+          row('page', hidden === 'draft' ? 'staged' : 'live', 'about', 2),
+          row('page', hidden, 'legacy', 1)
+        ].map(projectRow)
+      )
+    for (const phase of ['draft', 'unpublished'] as const) {
+      const c = dashboardCountsFromStats(scenario(phase))
+      expect(c.live + c.staged + c.drafts).toBe(c.posts + c.pages)
+    }
+  })
 })
 
 describe('loadRecentEntries', () => {
@@ -121,8 +173,10 @@ describe('loadRecentEntries', () => {
     const index: Pick<IndexService, 'query'> = {
       async query(q) {
         captured.push(q)
-        const rows = (byCollection[q.collection] ?? []).slice(0, q.limit)
-        return { rows, total: (byCollection[q.collection] ?? []).length }
+        // loadRecentEntries always scopes per collection (#604 made the field
+        // optional on the port, not on this caller).
+        const all = byCollection[q.collection ?? ''] ?? []
+        return { rows: all.slice(0, q.limit), total: all.length }
       }
     }
     const recent = await loadRecentEntries(index, 3)
@@ -151,7 +205,7 @@ describe('loadRecentEntries', () => {
     }
     const index: Pick<IndexService, 'query'> = {
       async query(q) {
-        const rows = byCollection[q.collection] ?? []
+        const rows = byCollection[q.collection ?? ''] ?? []
         return { rows, total: rows.length }
       }
     }

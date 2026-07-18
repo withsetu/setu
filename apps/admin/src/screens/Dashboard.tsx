@@ -3,17 +3,18 @@ import { Link } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import type { ContentRow, Lock } from '@setu/core'
 import { useServices } from '../data/store'
+import { useIndex } from '../data/index-store'
 import { useCan } from '../auth/actor'
 import { useDeploy } from '../deploy/deploy'
 import { siteUrl } from '../shell/site-url'
 import { PageHeader } from '../shell/PageHeader'
 import { PageBody } from '../shell/PageBody'
 import { Button } from '@/components/ui/button'
+import type { DashboardCounts } from '../dashboard/entries'
 import {
-  loadDashboardEntries,
-  dashboardCounts,
-  recentEntries,
-  loadActiveLocks
+  dashboardCountsFromStats,
+  loadRecentEntries,
+  orderLocksByRecency
 } from '../dashboard/entries'
 import { greeting } from '../lib/format'
 import { ResumeEditing } from '../dashboard/widgets/ResumeEditing'
@@ -44,23 +45,42 @@ function HeaderActions() {
   )
 }
 
+const ZERO_COUNTS: DashboardCounts = {
+  posts: 0,
+  pages: 0,
+  published: 0,
+  drafts: 0
+}
+
 export function Dashboard() {
-  const { data, git } = useServices()
+  const { data } = useServices()
+  const index = useIndex()
   const can = useCan()
-  const { status: deployStatus, deployInfo } = useDeploy()
-  const [rows, setRows] = useState<ContentRow[] | null>(null)
+  const { status: deployStatus } = useDeploy()
+  const [counts, setCounts] = useState<DashboardCounts | null>(null)
+  const [recent, setRecent] = useState<ContentRow[]>([])
   const [locks, setLocks] = useState<Lock[]>([])
   const [error, setError] = useState(false)
 
+  // #587: the dashboard reads the CONTENT INDEX, not all of git. Three constant
+  // calls — per-collection lifecycle counts (stats), the few newest entries for
+  // "Resume editing" (limited query), and all held locks — instead of the old
+  // fetch-every-body + N-getLock loops. O(1) round-trips, no bodies, at any scale.
   useEffect(() => {
     let live = true
     void (async () => {
       setError(false)
       try {
-        const loaded = await loadDashboardEntries(data, git, deployInfo())
+        await index.ensureBuilt()
+        const [stats, recentRows, allLocks] = await Promise.all([
+          index.stats(),
+          loadRecentEntries(index, 5),
+          data.listLocks()
+        ])
         if (!live) return
-        setRows(loaded)
-        setLocks(await loadActiveLocks(data, loaded))
+        setCounts(dashboardCountsFromStats(stats))
+        setRecent(recentRows)
+        setLocks(orderLocksByRecency(allLocks))
       } catch {
         if (live) setError(true)
       }
@@ -68,14 +88,14 @@ export function Dashboard() {
     return () => {
       live = false
     }
-  }, [data, git, deployInfo, deployStatus])
+  }, [index, data, deployStatus])
 
-  const counts = dashboardCounts(rows ?? [])
+  const shownCounts = counts ?? ZERO_COUNTS
   const hasDeployed = deployStatus !== null && deployStatus.deployedSha !== null
   const url = siteUrl()
   // #572: paint every widget's Card shell immediately and let the numbers/rows shimmer
   // while entries load — no coarse gray blocks, no late pop-in at scale.
-  const loading = rows === null && !error
+  const loading = counts === null && !error
 
   return (
     <>
@@ -96,7 +116,7 @@ export function Dashboard() {
         {!loading && (
           <GettingStarted
             hasSiteUrl={url !== ''}
-            hasPost={counts.posts > 0}
+            hasPost={shownCounts.posts > 0}
             hasDeployed={hasDeployed}
           />
         )}
@@ -104,10 +124,10 @@ export function Dashboard() {
           <div className="space-y-5">
             <StatTiles
               loading={loading}
-              posts={counts.posts}
-              pages={counts.pages}
-              published={counts.published}
-              drafts={counts.drafts}
+              posts={shownCounts.posts}
+              pages={shownCounts.pages}
+              published={shownCounts.published}
+              drafts={shownCounts.drafts}
             />
             {/* #362: deploy + site-health are Maintainer+/Admin concerns (site.deploy /
                 sitehealth.view) — hide the cards for content roles rather than leak ops data. */}
@@ -121,10 +141,7 @@ export function Dashboard() {
             {can('sitehealth.view') && <SiteHealthCard />}
             {!loading && <WhosEditing locks={locks} />}
           </div>
-          <ResumeEditing
-            loading={loading}
-            rows={recentEntries(rows ?? [], 5)}
-          />
+          <ResumeEditing loading={loading} rows={recent} />
         </div>
       </PageBody>
     </>

@@ -8,6 +8,7 @@ import type {
   IndexPort,
   IndexQuery,
   IndexService,
+  IndexStats,
   MediaUsage
 } from '@setu/core'
 import {
@@ -302,6 +303,28 @@ export function createHttpIndexService(
     return overlayDrafts(q, base)
   }
 
+  // Dashboard At-a-glance counts (#587). Server truth (committed content +
+  // deploy-derived lifecycle) — NO draft overlay, and that is DELIBERATE
+  // (owner-approved 2026-07-17): dashboard counts = committed / site truth;
+  // local uncommitted browser drafts (autosave scratch) are intentionally not
+  // counted. They still appear in "Resume editing" (this browser's personal
+  // recent work) via query()'s draft overlay — just not in the totals.
+  // WordPress-aligned: autosave doesn't bump the Drafts count, a real Save
+  // Draft does — and Setu's Save Draft commits to git, so it still counts.
+  // (Same no-overlay stance as categoryCounts/tagCounts below.) Offline → the
+  // stale-while-offline cache answers.
+  async function stats(): Promise<IndexStats> {
+    try {
+      return await getJson<IndexStats>(
+        '/api/index/stats',
+        new URLSearchParams()
+      )
+    } catch {
+      await ensureCache()
+      return index.stats()
+    }
+  }
+
   interface Facets {
     distinctTags: string[]
     distinctLocales: string[]
@@ -488,6 +511,7 @@ export function createHttpIndexService(
     // indexedSha bookkeeping belongs to the server's own index now.
     markSyncedAt: () => Promise.resolve(),
     query,
+    stats,
     distinctTags,
     distinctLocales,
     categoryCounts,

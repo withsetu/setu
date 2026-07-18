@@ -9,7 +9,15 @@ import { apiFetch } from '../lib/api-fetch'
 
 const IndexContext = createContext<IndexService | null>(null)
 
-export function IndexProvider({ children }: { children: ReactNode }) {
+export function IndexProvider({
+  children,
+  service: injected
+}: {
+  children: ReactNode
+  /** Inject a service directly (tests). When set, the internal build is skipped
+   *  entirely — same seam MediaIndexProvider exposes. */
+  service?: IndexService
+}) {
   const { data, git, index, apiBase } = useServices()
   const deploy = useDeploy()
 
@@ -24,7 +32,8 @@ export function IndexProvider({ children }: { children: ReactNode }) {
   // No apiBase → the browser-built index, exactly as before.
   const service = useMemo(
     () =>
-      apiBase !== undefined
+      injected ??
+      (apiBase !== undefined
         ? createHttpIndexService({
             apiBase,
             fetchImpl: apiFetch,
@@ -38,8 +47,8 @@ export function IndexProvider({ children }: { children: ReactNode }) {
             git,
             index,
             deploy: () => deployInfoRef.current()
-          }),
-    [data, git, index, apiBase]
+          })),
+    [data, git, index, apiBase, injected]
   )
   // Failures must be LOUD: a swallowed rebuild error leaves the index empty and every
   // listing shows "No posts yet" with zero diagnostics (bit us in CI on #429 — all git

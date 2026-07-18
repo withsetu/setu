@@ -57,6 +57,9 @@ export async function createIdbDataPort(
       const l = (await db.get('locks', keyOf(ref))) as Lock | undefined
       return l ?? null
     },
+    async listLocks() {
+      return (await db.getAll('locks')) as Lock[]
+    },
     async putLock(lock) {
       await db.put('locks', { ...lock }, keyOf(lock))
     },

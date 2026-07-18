@@ -7,6 +7,7 @@ import { listContentEntries } from '../content-index/list-entries'
 import { contentPath, parseContentPath } from '../publish/content-path'
 import type { IndexPort, IndexQuery } from './types'
 import { indexKey, projectRow, rowToContentRow } from './types'
+import type { IndexStats } from './stats'
 
 // v5: rows now carry `featuredImage` (for list/preview thumbnails) — bump forces a rebuild
 // so existing indexes backfill the new field.
@@ -32,6 +33,7 @@ export interface IndexService {
   reindexAfterDeploy(): Promise<void>
   markSyncedAt(sha: string): Promise<void>
   query(q: IndexQuery): Promise<{ rows: ContentRow[]; total: number }>
+  stats(): Promise<IndexStats>
   distinctTags(prefix: string, limit: number): Promise<string[]>
   distinctLocales(): Promise<string[]>
   categoryCounts(): Promise<Record<string, number>>
@@ -224,6 +226,10 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
     return { rows: rows.map(rowToContentRow), total }
   }
 
+  async function stats(): Promise<IndexStats> {
+    return index.stats()
+  }
+
   async function distinctTags(
     prefix: string,
     limit: number
@@ -268,6 +274,7 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
     reindexAfterDeploy,
     markSyncedAt,
     query,
+    stats,
     distinctTags,
     distinctLocales,
     categoryCounts,

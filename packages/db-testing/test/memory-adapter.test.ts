@@ -48,6 +48,9 @@ function createMemoryAdapter(): DataPort {
     async getLock(ref) {
       return locks.get(key(ref)) ?? null
     },
+    async listLocks() {
+      return [...locks.values()]
+    },
     async putLock(lock) {
       locks.set(key(lock), { ...lock })
     },

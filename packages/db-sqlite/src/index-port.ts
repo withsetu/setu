@@ -7,6 +7,7 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import type { EntryIndexRow, IndexMeta, IndexPort } from '@setu/core'
 import {
   runQuery,
+  selectIndexStats,
   selectDistinctTags,
   selectDistinctLocales,
   selectCategoryCounts,
@@ -52,6 +53,13 @@ export function createSqliteIndexPort(file: string): IndexPort {
   return {
     async query(q) {
       return runQuery(loadAll(), q)
+    },
+    // v1: one body-free scan tallied in JS — already O(rows) with no HTTP, a
+    // massive win over the dashboard's old fetch-every-body path (#587). The
+    // #205/#588 optimization is a SQL COUNT/GROUP BY over indexed
+    // collection+status columns, same return shape, faster internals.
+    async stats() {
+      return selectIndexStats(loadAll())
     },
     async upsert(row) {
       put(row)

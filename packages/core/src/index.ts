@@ -238,6 +238,8 @@ export {
 } from './index-port/distinct-tags'
 export { selectCategoryCounts } from './index-port/category-counts'
 export { selectTagCounts } from './index-port/tag-counts'
+export type { IndexStats, CollectionStats } from './index-port/stats'
+export { selectIndexStats } from './index-port/stats'
 export { selectEntriesByCategory } from './index-port/entries-by-category'
 export { selectEntriesByTag } from './index-port/entries-by-tag'
 export type {

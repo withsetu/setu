@@ -230,6 +230,36 @@ describe('GET /api/index/query', () => {
   })
 })
 
+describe('GET /api/index/stats', () => {
+  it('401 when unauthenticated', async () => {
+    const { get } = makeHarness(null)
+    expect((await get('/api/index/stats')).status).toBe(401)
+  })
+
+  it('returns per-collection lifecycle tallies over the built index', async () => {
+    const { get } = makeHarness()
+    const res = await get('/api/index/stats')
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as Record<string, Record<string, number>>
+    // Seeded git: 2 posts (Hello, World) + 1 page (About FR). No deploy →
+    // committed-but-undeployed content is 'staged'.
+    expect(body['post']).toEqual({
+      total: 2,
+      draft: 0,
+      staged: 2,
+      live: 0,
+      unpublished: 0
+    })
+    expect(body['page']).toEqual({
+      total: 1,
+      draft: 0,
+      staged: 1,
+      live: 0,
+      unpublished: 0
+    })
+  })
+})
+
 describe('GET /api/index/facets', () => {
   it('401 when unauthenticated', async () => {
     const { get } = makeHarness(null)

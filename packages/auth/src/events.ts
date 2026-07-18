@@ -24,12 +24,25 @@ export type AuthEventType =
   // #386: emitted by the out-of-band owner recovery script when it resets an owner password —
   // typed here (rather than in the script) so the audit vocabulary stays in one place.
   | 'owner.password-reset'
+  // #632: admin impersonation. An admin assuming another user's identity is an account-takeover-
+  // shaped capability and must leave a trace at both ends. `actorId` is the impersonating admin,
+  // `targetId` the user whose identity was assumed.
+  | 'impersonation.started'
+  | 'impersonation.stopped'
+  // #632: `/admin/set-user-password` — an admin setting ANOTHER user's password, i.e. a direct
+  // account-takeover primitive. Distinct from #454's user-initiated `changePassword` and from the
+  // self-service reset flow. NEVER carries the password itself (see the module comment).
+  | 'admin.password-set'
 
 export interface AuthEvent {
   type: AuthEventType
   /** The user id performing the action, when known/applicable (e.g. the admin calling setRole). */
   actorId?: string
-  /** The user id the event is about/targets, when applicable (e.g. the user being banned). */
+  /** The user id the event is about/targets, when applicable (e.g. the user being banned).
+   *
+   *  #632: when the acting session is an IMPERSONATED one, `actorId` is the real admin behind it
+   *  (from `session.impersonatedBy`) and `meta.impersonating` carries the assumed identity —
+   *  both facts are recorded, never one swapped for the other. */
   targetId?: string
   /** Free-form non-secret context. NEVER a token/password — see the module comment. */
   meta?: Record<string, string>

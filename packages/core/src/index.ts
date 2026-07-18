@@ -184,7 +184,14 @@ export type {
   Authz
 } from './authz/types'
 export { createAuthz, DEFAULT_ROLES } from './authz/authz'
-export { ROLE_RANK, rankOf, outranks } from './authz/rank'
+export {
+  ROLE_RANK,
+  rankOf,
+  outranks,
+  parseRoleSet,
+  canonicalRoleOf,
+  isSingleKnownRole
+} from './authz/rank'
 
 export type {
   LifecycleState,

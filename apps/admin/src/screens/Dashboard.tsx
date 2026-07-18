@@ -48,7 +48,8 @@ function HeaderActions() {
 const ZERO_COUNTS: DashboardCounts = {
   posts: 0,
   pages: 0,
-  published: 0,
+  live: 0,
+  staged: 0,
   drafts: 0
 }
 
@@ -126,7 +127,8 @@ export function Dashboard() {
               loading={loading}
               posts={shownCounts.posts}
               pages={shownCounts.pages}
-              published={shownCounts.published}
+              live={shownCounts.live}
+              staged={shownCounts.staged}
               drafts={shownCounts.drafts}
             />
             {/* #362: deploy + site-health are Maintainer+/Admin concerns (site.deploy /

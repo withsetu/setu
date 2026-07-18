@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import { z } from 'zod'
-import { createAuthz, DEFAULT_ROLES } from '@setu/core'
+import { createAuthz, DEFAULT_ROLES, INDEX_STATUS_FILTERS } from '@setu/core'
 import type {
   Action,
   Actor,
@@ -61,7 +61,9 @@ const boolParam = z
 const contentQuerySchema = z.object({
   collection: z.string().min(1),
   q: z.string().optional(),
-  status: z.enum(['draft', 'staged', 'live', 'unpublished']).optional(),
+  // Driven off the core constant so the boundary can never accept a status the
+  // index doesn't understand — or reject one it does (#579's 'published').
+  status: z.enum(INDEX_STATUS_FILTERS).optional(),
   locale: z.string().optional(),
   tag: z.string().optional(),
   category: z.string().optional(),

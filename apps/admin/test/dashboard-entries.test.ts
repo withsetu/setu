@@ -47,7 +47,7 @@ function oldDashboardCounts(rows: ContentRow[]) {
 }
 
 describe('dashboardCountsFromStats', () => {
-  it('derives the four tiles from index stats', () => {
+  it('derives the five tiles from index stats, live split from staged (#598)', () => {
     const stats = selectIndexStats(
       [
         row('post', 'live', 'a', 5),
@@ -61,8 +61,10 @@ describe('dashboardCountsFromStats', () => {
     expect(dashboardCountsFromStats(stats)).toEqual({
       posts: 4,
       pages: 2,
-      // staged+live: post(1 live + 1 staged) + page(1 live) = 3
-      published: 3,
+      // live only: post(1) + page(1) = 2 — deployed, visitor-facing
+      live: 2,
+      // staged only: post(1) = 1 — committed, awaiting deploy
+      staged: 1,
       // draft: post(1) + page(1) = 2
       drafts: 2
     })
@@ -72,12 +74,13 @@ describe('dashboardCountsFromStats', () => {
     expect(dashboardCountsFromStats({})).toEqual({
       posts: 0,
       pages: 0,
-      published: 0,
+      live: 0,
+      staged: 0,
       drafts: 0
     })
   })
 
-  it('matches the pre-#587 tally exactly on a mixed fixture (parity)', () => {
+  it('live + staged still equals the pre-#587 published tally (parity, #598)', () => {
     const rows = [
       row('post', 'live', 'a', 9),
       row('post', 'live', 'b', 8),
@@ -92,7 +95,12 @@ describe('dashboardCountsFromStats', () => {
     const fast = dashboardCountsFromStats(
       selectIndexStats(rows.map(projectRow))
     )
-    expect(fast).toEqual(old)
+    // #598 SPLIT the old Published tile; it did not change what counts as
+    // published. The union must still reconcile exactly with the old tally.
+    expect(fast.live + fast.staged).toBe(old.published)
+    expect(fast.posts).toBe(old.posts)
+    expect(fast.pages).toBe(old.pages)
+    expect(fast.drafts).toBe(old.drafts)
   })
 })
 

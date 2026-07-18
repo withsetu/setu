@@ -34,10 +34,48 @@ export interface EntryIndexRow {
 
 export type SortKey = 'updatedAt' | 'title' | 'status' | 'locale'
 
+/** What `IndexQuery.status` accepts: any exact `LifecycleState`, plus the
+ *  combined pseudo-state `'published'` = staged OR live (#579).
+ *
+ *  'published' is a FILTER vocabulary word, never a row's `status` — an entry is
+ *  stored as exactly one lifecycle state. It exists because "published" (committed
+ *  + `published !== false`) spans two lifecycle states that differ only in whether
+ *  a deploy has happened yet: `staged` (committed, not deployed) and `live`
+ *  (deployed). The dashboard's Live/Staged tiles deep-link to the exact states;
+ *  'published' is the union for callers that mean "not a draft, not unpublished". */
+export type IndexStatusFilter = LifecycleState | 'published'
+
+/** Every value `IndexQuery.status` accepts — the single source of truth shared by
+ *  the API's Zod boundary and the admin list's URL-param validation, so a new
+ *  state can never be accepted in one place and silently dropped in another. */
+export const INDEX_STATUS_FILTERS = [
+  'draft',
+  'staged',
+  'live',
+  'unpublished',
+  'published'
+] as const satisfies readonly IndexStatusFilter[]
+
+/** True when `s` is a status the index can filter on — used to reject junk from
+ *  URLs/query strings instead of passing it through to a silent empty result. */
+export const isIndexStatusFilter = (s: string): s is IndexStatusFilter =>
+  (INDEX_STATUS_FILTERS as readonly string[]).includes(s)
+
+/** Does a row's lifecycle state satisfy `filter`? The ONE place the 'published'
+ *  union is expanded — `runQuery` and any future SQL-native adapter must agree. */
+export const matchesStatusFilter = (
+  state: LifecycleState,
+  filter: IndexStatusFilter
+): boolean =>
+  filter === 'published'
+    ? state === 'staged' || state === 'live'
+    : state === filter
+
 export interface IndexQuery {
   collection: string
   q?: string
-  status?: LifecycleState
+  /** Exact lifecycle state, or `'published'` for the staged+live union (#579). */
+  status?: IndexStatusFilter
   locale?: string
   tag?: string
   category?: string

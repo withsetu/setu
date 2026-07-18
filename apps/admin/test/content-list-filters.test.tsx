@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  cleanup
+} from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { TiptapDoc } from '@setu/core'
 import { createMemoryGitPort } from '@setu/git-memory'
@@ -122,6 +128,42 @@ describe('ContentList — filters', () => {
     await waitFor(() => expect(screen.getByText('Beta')).toBeTruthy())
     expect(screen.queryByText('Alpha')).toBeNull()
     expect(screen.getByLabelText<HTMLInputElement>('Search').value).toBe('beta')
+  })
+
+  // #579 + #598: the dashboard tiles deep-link with ?status=live|staged|
+  // published|draft. Each must land IN the toolbar's filter state — a URL the
+  // list silently ignored would show an unfiltered list under a filtered
+  // heading, which is the redundancy #598 set out to remove.
+  it('round-trips every dashboard tile status from the URL into the filter control (#579)', async () => {
+    for (const [param, shown] of [
+      ['live', 'Live'],
+      ['staged', 'Staged'],
+      ['published', 'Published'],
+      ['draft', 'Draft']
+    ] as const) {
+      setup([`/posts?status=${param}`])
+      const trigger = await screen.findByLabelText('Filter by status')
+      expect(trigger).toHaveTextContent(shown)
+      cleanup()
+    }
+  })
+
+  it('status=published keeps staged+live and drops drafts (#579)', async () => {
+    // Both fixtures are DataPort-only drafts, so the staged+live union is empty
+    // — proving the param reaches the query rather than being dropped.
+    setup(['/posts?status=published'])
+    expect(await screen.findByText(/match these filters/i)).toBeTruthy()
+    expect(screen.queryByText('Alpha')).toBeNull()
+    expect(screen.queryByText('Beta')).toBeNull()
+  })
+
+  it('ignores a status the index cannot filter on, rather than emptying the list (#579)', async () => {
+    setup(['/posts?status=bogus'])
+    expect(await screen.findByText('Alpha')).toBeTruthy()
+    expect(screen.getByText('Beta')).toBeTruthy()
+    expect(screen.getByLabelText('Filter by status')).toHaveTextContent(
+      'All status'
+    )
   })
 
   it('shows a filtered-empty state with a clear action', async () => {

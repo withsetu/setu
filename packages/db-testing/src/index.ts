@@ -340,6 +340,38 @@ export function runIndexPortContract(
       expect(drafts.rows[0]!.slug).toBe('b') // updatedAt desc
     })
 
+    it("filters by the combined 'published' status = staged + live (#579)", async () => {
+      await ix.upsertMany([
+        irow({ slug: 'l', status: 'live', updatedAt: 4 }),
+        irow({ slug: 's', status: 'staged', updatedAt: 3 }),
+        irow({ slug: 'd', status: 'draft', updatedAt: 2 }),
+        irow({ slug: 'u', status: 'unpublished', updatedAt: 1 })
+      ])
+      const published = await ix.query({
+        collection: 'post',
+        status: 'published',
+        offset: 0,
+        limit: 10
+      })
+      expect(published.rows.map((r) => r.slug)).toEqual(['l', 's'])
+      expect(published.total).toBe(2)
+      // The exact states still resolve to themselves — 'published' widens, never replaces.
+      for (const [status, slug] of [
+        ['live', 'l'],
+        ['staged', 's'],
+        ['draft', 'd'],
+        ['unpublished', 'u']
+      ] as const) {
+        const r = await ix.query({
+          collection: 'post',
+          status,
+          offset: 0,
+          limit: 10
+        })
+        expect(r.rows.map((x) => x.slug)).toEqual([slug])
+      }
+    })
+
     it('stats: empty index → no collections', async () => {
       expect(await ix.stats()).toEqual({})
     })

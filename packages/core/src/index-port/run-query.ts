@@ -1,4 +1,5 @@
 import type { EntryIndexRow, IndexQuery, SortKey } from './types'
+import { matchesStatusFilter } from './types'
 
 function compare(a: EntryIndexRow, b: EntryIndexRow, key: SortKey): number {
   if (key === 'title') return a.titleLower.localeCompare(b.titleLower)
@@ -16,7 +17,9 @@ export function runQuery(
 ): { rows: EntryIndexRow[]; total: number } {
   let xs = rows.filter((r) => r.collection === q.collection)
   if (q.locale) xs = xs.filter((r) => r.locale === q.locale)
-  if (q.status) xs = xs.filter((r) => r.status === q.status)
+  // 'published' is the staged+live union (#579); every other value is an exact
+  // lifecycle match. Expansion lives in matchesStatusFilter so adapters agree.
+  if (q.status) xs = xs.filter((r) => matchesStatusFilter(r.status, q.status!))
   if (q.q && q.q.length > 0) {
     const needle = q.q.toLowerCase()
     xs = xs.filter(

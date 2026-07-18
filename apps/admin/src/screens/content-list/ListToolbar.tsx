@@ -7,7 +7,8 @@ import {
   SelectTrigger,
   SelectValue,
   SelectContent,
-  SelectItem
+  SelectItem,
+  SelectSeparator
 } from '@/components/ui/select'
 import { TagFilter } from '../TagFilter'
 
@@ -18,6 +19,15 @@ const STATUS_LABELS: Record<string, string> = {
   unpublished: 'Unpublished'
 }
 const STATUSES = ['draft', 'staged', 'live', 'unpublished']
+
+/** Compact trigger text. The `published` OPTION spells out "(staged + live)" so
+ *  the union is never guessed at, but that string would clamp in the 9rem trigger
+ *  — Radix `Select.Value` renders its children instead of the selected item's
+ *  text, so the trigger shows the short form while the menu stays explicit. */
+const STATUS_TRIGGER_LABELS: Record<string, string> = {
+  ...STATUS_LABELS,
+  published: 'Published'
+}
 
 export function ListToolbar({
   title,
@@ -77,10 +87,19 @@ export function ListToolbar({
         onValueChange={(v) => onStatus(v === ALL ? '' : v)}
       >
         <SelectTrigger size="sm" aria-label="Filter by status" className="w-36">
-          <SelectValue placeholder="All status" />
+          <SelectValue placeholder="All status">
+            {status ? (STATUS_TRIGGER_LABELS[status] ?? status) : 'All status'}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={ALL}>All status</SelectItem>
+          {/* 'published' is the staged+live union (#579) — it sits above the
+              separator with the other "spans several states" option because it
+              answers a different question than the exact lifecycle states below.
+              Setu is deliberate that staged ≠ live (saved ≠ live), so the union
+              is offered, never assumed. */}
+          <SelectItem value="published">Published (staged + live)</SelectItem>
+          <SelectSeparator />
           {STATUSES.map((s) => (
             <SelectItem key={s} value={s}>
               {STATUS_LABELS[s]}

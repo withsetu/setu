@@ -1,14 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Plus } from 'lucide-react'
-import type {
-  CategoryNode,
-  ContentRow,
-  IndexQuery,
-  LifecycleState,
-  SortKey
-} from '@setu/core'
-import { buildTree } from '@setu/core'
+import type { CategoryNode, ContentRow, IndexQuery, SortKey } from '@setu/core'
+import { buildTree, isIndexStatusFilter } from '@setu/core'
 import { useIndex } from '../data/index-store'
 import { useTaxonomy } from '../data/taxonomy-store'
 import { useCan } from '../auth/actor'
@@ -77,7 +71,11 @@ export function ContentList({
   const [refreshKey, setRefreshKey] = useState(0)
 
   const q = params.get('q') ?? ''
-  const status = params.get('status') ?? ''
+  // Validated against the index's own filter vocabulary (draft|staged|live|
+  // unpublished|published, #579): junk in the URL falls back to "all status"
+  // rather than silently producing an empty list the toolbar can't explain.
+  const statusRaw = params.get('status') ?? ''
+  const status = isIndexStatusFilter(statusRaw) ? statusRaw : ''
   const locale = params.get('locale') ?? ''
   const category = params.get('category') ?? ''
   const tag = params.get('tag') ?? ''
@@ -184,7 +182,7 @@ export function ContentList({
         sort
       }
       if (q) query.q = q
-      if (status) query.status = status as LifecycleState
+      if (status) query.status = status
       if (locale) query.locale = locale
       if (category) query.category = category
       if (tag) query.tag = tag

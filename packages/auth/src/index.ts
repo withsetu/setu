@@ -16,7 +16,8 @@ import {
   sessionCreateAfterHook,
   sessionDeleteAfterHook,
   userUpdateAfterHook,
-  userDeleteAfterHook
+  userDeleteAfterHook,
+  adminSetPasswordHook
 } from './audit-hooks'
 import {
   resetPasswordEmailContent,
@@ -226,6 +227,14 @@ export function createAuth(opts: CreateAuthOptions) {
       session: {
         create: { after: sessionCreateAfterHook(emit) },
         delete: { after: sessionDeleteAfterHook(emit) }
+      },
+      // #632: the ONLY reason an `account` hook exists here. `/admin/set-user-password` writes the
+      // `account` table and nothing else, so it is invisible to every `user`-model hook above.
+      // Both branches of that route are covered by the one path-gated emitter — see
+      // adminSetPasswordHook's doc for which branch reaches which hook, and why.
+      account: {
+        create: { after: adminSetPasswordHook(emit) },
+        update: { after: adminSetPasswordHook(emit) }
       }
     },
     advanced: {

@@ -7,6 +7,7 @@ import type {
   TiptapNode
 } from './types'
 import { defaultKnownBlockTags } from '../config/default-config'
+import { ATOM_TAG_TO_NODE } from './atom-blocks'
 
 // Markdoc AST node attributes are `unknown` (parsed, untyped input — see MdNode in
 // ./types). A real `src`/`alt`/`title`/`content` attribute is always a string coming out
@@ -274,29 +275,11 @@ function blockToTiptap(node: MdNode): TiptapNode | null {
       if (tag === 'image') {
         return { type: 'imageBlock', attrs: { mdAttrs: node.attributes } }
       }
-      if (tag === 'contact') {
-        return { type: 'contactBlock', attrs: { mdAttrs: node.attributes } }
-      }
-      if (tag === 'hero') {
-        return { type: 'heroBlock', attrs: { mdAttrs: node.attributes } }
-      }
-      if (tag === 'gallery') {
-        return { type: 'galleryBlock', attrs: { mdAttrs: node.attributes } }
-      }
-      if (tag === 'spacer') {
-        return { type: 'spacerBlock', attrs: { mdAttrs: node.attributes } }
-      }
-      if (tag === 'video') {
-        return { type: 'videoBlock', attrs: { mdAttrs: node.attributes } }
-      }
-      if (tag === 'query') {
-        return { type: 'queryBlock', attrs: { mdAttrs: node.attributes } }
-      }
-      if (tag === 'latest-posts') {
-        return { type: 'latestPostsBlock', attrs: { mdAttrs: node.attributes } }
-      }
-      if (tag === 'embed') {
-        return { type: 'embedBlock', attrs: { mdAttrs: node.attributes } }
+      // Childless atom blocks ({% hero %} → heroBlock, …) are driven by the shared
+      // ATOM_TAG_TO_NODE map (see ./atom-blocks) so this direction and to-markdoc can't drift.
+      const atomNode = ATOM_TAG_TO_NODE[tag]
+      if (atomNode) {
+        return { type: atomNode, attrs: { mdAttrs: node.attributes } }
       }
       return {
         type: 'setuBlock',

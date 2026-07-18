@@ -142,12 +142,33 @@ export function DeployControl() {
           <AlertDialogHeader>
             <AlertDialogTitle>Publish site?</AlertDialogTitle>
             <AlertDialogDescription>
-              This runs a full site build and replaces what is currently live.{' '}
-              {pendingCount > 0
-                ? `${pendingCount} saved ${pendingCount === 1 ? 'change' : 'changes'} will go live.`
-                : 'No saved changes are pending — this rebuilds the live site from your current content.'}{' '}
-              Saving to Git does not update the live site on its own, so nothing
-              you have saved is live until this build finishes. {lastBuilt}.
+              {status.deployedSha === null ? (
+                // Never deployed. `changedPaths` is EMPTY here for a reason that is not
+                // "nothing changed": the server has no deploy baseline to diff against
+                // (apps/api/src/deploy.ts returns [] when deploy state is null), so
+                // pendingCount is meaningless. Saying "no saved changes are pending"
+                // off that zero is an inverted claim — everything is pending. Branch on
+                // deployedSha BEFORE pendingCount so the count is only ever read where
+                // it means something. Found in owner UAT on a fresh sandbox where 19
+                // staged entries were described as none pending (#571).
+                <>
+                  Nothing has been deployed yet — this build publishes your
+                  whole site for the first time. Saving to Git does not publish
+                  on its own, so nothing you have saved is live until this build
+                  finishes.
+                </>
+              ) : (
+                <>
+                  This runs a full site build and replaces what is currently
+                  live.{' '}
+                  {pendingCount > 0
+                    ? `${pendingCount} saved ${pendingCount === 1 ? 'change' : 'changes'} will go live.`
+                    : 'No saved changes are pending — this rebuilds the live site from your current content.'}{' '}
+                  Saving to Git does not update the live site on its own, so
+                  nothing you have saved is live until this build finishes.{' '}
+                  {lastBuilt}.
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

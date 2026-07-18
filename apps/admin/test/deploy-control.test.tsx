@@ -124,6 +124,39 @@ describe('DeployControl — confirmation before deploy (#571)', () => {
     expect(dialog).toHaveTextContent(/2 saved changes/i)
   })
 
+  it('never claims "no changes pending" on a site that has never been deployed', () => {
+    // Regression, owner UAT (#571). When nothing has ever been deployed the server has
+    // no baseline to diff against, so GET /api/deploy/status returns changedPaths: []
+    // — that empty array means "no baseline", NOT "no pending changes". The dialog read
+    // the count anyway and told an owner with 19 staged entries that none were pending,
+    // then contradicted itself with "nothing is live yet" two sentences later.
+    state.status = {
+      ...baseStatus,
+      deployedSha: null,
+      deployedAt: null,
+      changedPaths: []
+    }
+    state.confirmOpen = true
+    wrap()
+    const dialog = screen.getByRole('alertdialog')
+    expect(dialog).not.toHaveTextContent(/no saved changes are pending/i)
+    expect(dialog).toHaveTextContent(/nothing has been deployed yet/i)
+    expect(dialog).toHaveTextContent(/publishes your whole site/i)
+    // Saved ≠ live still stated, and the redundant "never built" tail is gone.
+    expect(dialog).toHaveTextContent(/until this build finishes/i)
+    expect(dialog).not.toHaveTextContent(/never built/i)
+  })
+
+  it('still reports the pending count once a baseline exists', () => {
+    // The count is only meaningful after a first deploy — that branch keeps it.
+    state.status = { ...baseStatus, changedPaths: [] }
+    state.confirmOpen = true
+    wrap()
+    expect(screen.getByRole('alertdialog')).toHaveTextContent(
+      /no saved changes are pending/i
+    )
+  })
+
   it('cancelling closes the dialog without deploying', () => {
     state.confirmOpen = true
     wrap()

@@ -3,19 +3,13 @@ import type { Editor } from '@tiptap/core'
 import { NodeSelection } from '@tiptap/pm/state'
 import type { EditorState } from '@tiptap/pm/state'
 import { attrString } from './attr-string'
+import { INSPECTABLE_NODES, tagForNode } from './block-registry'
 
-/** Block node types whose props are edited in the inspector rail. (callout/image/contact
- *  keep their own bespoke UI and are intentionally NOT inspector-driven.) */
-const INSPECTABLE = new Set([
-  'setuBlock',
-  'heroBlock',
-  'galleryBlock',
-  'videoBlock',
-  'queryBlock',
-  'spacerBlock',
-  'columns',
-  'latestPostsBlock'
-])
+// The inspector-driven node set and the node→tag mapping are DERIVED from the single
+// editor block registry (block-registry.ts) — the two parallel hand-kept lists that used
+// to live here (an INSPECTABLE Set and a mirror `tagOf` ternary) are gone (#563). A block
+// declares `inspectable` + its tag once in the registry; both are read off it below.
+const INSPECTABLE = INSPECTABLE_NODES
 
 export interface SelectedBlock {
   tag: string
@@ -23,25 +17,8 @@ export interface SelectedBlock {
   pos: number
 }
 
-function tagOf(name: string, attrs: Record<string, unknown>): string {
-  return name === 'setuBlock'
-    ? attrString(attrs.tag)
-    : name === 'heroBlock'
-      ? 'hero'
-      : name === 'galleryBlock'
-        ? 'gallery'
-        : name === 'videoBlock'
-          ? 'video'
-          : name === 'queryBlock'
-            ? 'query'
-            : name === 'spacerBlock'
-              ? 'spacer'
-              : name === 'columns'
-                ? 'columns'
-                : name === 'latestPostsBlock'
-                  ? 'latest-posts'
-                  : ''
-}
+const tagOf = (name: string, attrs: Record<string, unknown>): string =>
+  tagForNode(name, attrs, attrString)
 
 /** Pure: the inspectable block at the current selection, or null. Atom blocks surface via
  *  NodeSelection; body-bearing blocks (setuBlock) via the nearest ancestor of the cursor. */

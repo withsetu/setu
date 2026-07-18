@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { Hono } from 'hono'
 import { originGuard } from '../src/auth/origin-guard'
-import { allowedOrigins } from '../src/auth/allowed-origins'
+import { allowedOrigins, resolveAdminOrigin } from '../src/auth/allowed-origins'
 
 function makeApp(allowed: () => string[]) {
   const app = new Hono()
@@ -278,5 +278,129 @@ describe('allowedOrigins — loopback is local-only (#628)', () => {
       'https://admin.example.com',
       'https://*.example.com'
     ])
+  })
+})
+
+// #642(a) — #628 mode-gated the allowlist but server.ts kept its OWN
+// `process.env.SETU_ADMIN_ORIGIN ?? 'http://localhost:5173'`, so the admin origin that feeds the
+// password-reset callback disagreed with the allowlist that has to accept it. One resolver now
+// governs both; these tests pin the agreement, not just the values.
+describe('resolveAdminOrigin — one mode-aware source (#642)', () => {
+  const noop = () => undefined
+
+  it('local mode defaults to the admin dev server', () => {
+    expect(resolveAdminOrigin({ SETU_MODE: 'local' })).toBe(
+      'http://localhost:5173'
+    )
+  })
+
+  it('SETU_ADMIN_ORIGIN wins in local mode', () => {
+    expect(
+      resolveAdminOrigin({
+        SETU_MODE: 'local',
+        SETU_ADMIN_ORIGIN: 'https://admin.example.com'
+      })
+    ).toBe('https://admin.example.com')
+  })
+
+  it('returns the configured origin in self-hosted mode', () => {
+    expect(
+      resolveAdminOrigin({
+        SETU_MODE: 'self-hosted',
+        SETU_ADMIN_ORIGIN: 'https://admin.example.com'
+      })
+    ).toBe('https://admin.example.com')
+  })
+
+  it('does NOT default to localhost when SETU_MODE is unset (fail closed)', () => {
+    expect(resolveAdminOrigin({})).toBeUndefined()
+  })
+
+  it('does NOT default to localhost in explicit self-hosted mode', () => {
+    expect(resolveAdminOrigin({ SETU_MODE: 'self-hosted' })).toBeUndefined()
+  })
+
+  it('treats an empty SETU_ADMIN_ORIGIN as unset, exactly like the allowlist does', () => {
+    expect(
+      resolveAdminOrigin({ SETU_MODE: 'local', SETU_ADMIN_ORIGIN: '' })
+    ).toBe('http://localhost:5173')
+    expect(
+      resolveAdminOrigin({ SETU_MODE: 'self-hosted', SETU_ADMIN_ORIGIN: '' })
+    ).toBeUndefined()
+  })
+
+  // The property that actually matters: whatever origin the reset callback is built from must be
+  // on the credentialed allowlist better-auth's originCheck consults. If these two can disagree,
+  // the server emails a link its own origin check rejects — the #642 defect.
+  it.each([
+    { SETU_MODE: 'local' },
+    { SETU_MODE: 'local', SETU_ADMIN_ORIGIN: 'https://admin.example.com' },
+    {
+      SETU_MODE: 'self-hosted',
+      SETU_ADMIN_ORIGIN: 'https://admin.example.com'
+    },
+    { SETU_ADMIN_ORIGIN: 'https://admin.example.com' },
+    { SETU_MODE: 'self-hosted' },
+    {}
+  ])('a resolved admin origin is always on the allowlist (%o)', (env) => {
+    vi.spyOn(console, 'error').mockImplementation(noop)
+    const admin = resolveAdminOrigin(env)
+    if (admin === undefined) return // nothing claimed → nothing to be inconsistent about
+    expect(allowedOrigins(env)).toContain(admin)
+  })
+})
+
+// #642(b) — allowedOrigins was invoked from the per-request cors() origin callback AND the
+// originGuard thunk, so a misconfigured self-hosted server emitted the fail-loud console.error up
+// to twice PER REQUEST: a log flood any unauthenticated caller could drive, burying the very
+// message it exists to surface. The derivation reads process.env, which does not change per
+// request, so it is memoised per env object — the error is emitted once.
+describe('allowedOrigins — derived once per env, not per request (#642)', () => {
+  const noop = () => undefined
+
+  it('logs the misconfiguration error ONCE across many calls with the same env', () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(noop)
+    const env: NodeJS.ProcessEnv = { SETU_MODE: 'self-hosted' }
+    for (let i = 0; i < 50; i++) allowedOrigins(env)
+    expect(err).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns the same allowlist on every call (memoised, semantics unchanged)', () => {
+    const env: NodeJS.ProcessEnv = {
+      SETU_MODE: 'self-hosted',
+      SETU_ADMIN_ORIGIN: 'https://admin.example.com',
+      SETU_TRUSTED_ORIGINS: 'https://*.example.com'
+    }
+    const first = allowedOrigins(env)
+    const second = allowedOrigins(env)
+    expect(second).toEqual([
+      'https://admin.example.com',
+      'https://*.example.com'
+    ])
+    expect(second).toEqual(first)
+  })
+
+  it('a caller mutating the returned array cannot poison the next caller', () => {
+    const env: NodeJS.ProcessEnv = {
+      SETU_MODE: 'local',
+      SETU_ADMIN_ORIGIN: 'https://admin.example.com'
+    }
+    allowedOrigins(env).push('https://evil.example')
+    expect(allowedOrigins(env)).not.toContain('https://evil.example')
+  })
+
+  it('still derives independently for a different env object', () => {
+    vi.spyOn(console, 'error').mockImplementation(noop)
+    const a = allowedOrigins({
+      SETU_MODE: 'local',
+      SETU_ADMIN_ORIGIN: 'https://a.example'
+    })
+    const b = allowedOrigins({
+      SETU_MODE: 'local',
+      SETU_ADMIN_ORIGIN: 'https://b.example'
+    })
+    expect(a).toContain('https://a.example')
+    expect(b).toContain('https://b.example')
+    expect(b).not.toContain('https://a.example')
   })
 })

@@ -21,7 +21,8 @@ import type { ResolveActor } from '../src/auth/resolve-actor'
 //   Content/blog/en/live.mdoc  -> content.edit      class A: prefix casing  -> parser MISSES
 //   content/blog/en/live.MDOC  -> content.edit      class A: extension casing -> parser MISSES
 //   content/blog/en/Live.mdoc  -> content.edit      class B: slug casing
-//   content/blog/en/ſive.mdoc  -> content.edit      class C: see the note at the end
+//   content/blog/en/ſive.mdoc  -> content.edit      class C: slug case-FOLDING — closed by #648,
+//                                                   see the note at the end of this file
 //
 // Class A and class B are DIFFERENT mechanisms reaching the same boundary:
 //   A. the parser returns null, so the path is classified as an ordinary non-content write and
@@ -190,21 +191,28 @@ describe('git write gate — content-path casing bypass of the publish gate (#64
     }
   })
 
-  // Class C, deliberately NOT closed here and filed separately: `content/blog/en/ſive.mdoc` folds
-  // to `live.mdoc`... no — to `sive.mdoc`; the point is that U+017F case-FOLDS into ASCII while
-  // `toLowerCase()` leaves it alone, so a slug carrying such a character is its own folded form
-  // and passes this rule while still colliding on APFS. Closing that needs a real Unicode
-  // case-fold (which JS does not expose) and cannot reuse `toLowerCase`. #644's ASCII rule is
-  // root-only precisely because slugs legitimately carry non-ASCII, so it does not reach here
-  // either. Asserted as a KNOWN GAP so the next reader finds it documented rather than assuming
-  // this file closed it.
-  it('KNOWN GAP: a non-ASCII slug that case-folds into ASCII is still accepted (see the spun-off issue)', async () => {
+  // Class C — the residual this file originally pinned as a KNOWN GAP, CLOSED by #648. U+017F
+  // case-FOLDS into ASCII while `toLowerCase()` leaves it alone, so `ſive.mdoc` IS its own folded
+  // form: the rule above accepts it (correctly — it is a legal slug), and it used to derive the
+  // WEAKER `content.edit` while resolving onto `sive.mdoc`'s inode on APFS. #648 closes it in the
+  // #382 committed-state read instead of here, by matching committed paths under Unicode simple
+  // case folding (`RegExp` with `iu`) rather than by literal equality. Full coverage, including the
+  // non-ASCII-on-both-sides witness and the café/日本語 non-regressions, lives in
+  // git-authz-slug-case-fold.test.ts; this case stays here so the gap this file documented is
+  // visibly closed where it was recorded.
+  it('derives content.publish for a non-ASCII slug that case-folds onto a live post (#648)', async () => {
     const git = await gitWithLivePost()
+    await git.commitFile({
+      path: 'content/blog/en/sive.mdoc',
+      content: '---\ntitle: S\n---\nbody',
+      message: 'seed',
+      author
+    })
     await expect(
       writeActionForChanges(
         [{ path: 'content/blog/en/ſive.mdoc', content: DRAFT_CONTENT }],
         git
       )
-    ).resolves.toBe('content.edit')
+    ).resolves.toBe('content.publish')
   })
 })

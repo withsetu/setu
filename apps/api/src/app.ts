@@ -42,6 +42,61 @@ const PATH_WRITE_ACTION: Record<string, Action> = {
  *  on every path the gate ever sees. Read those rules before relying on this one. */
 const foldRepoPath = (p: string) => p.toLowerCase()
 
+/** Hard ceiling on an accepted repo path, enforced in `isCanonicalRepoPath`.
+ *
+ *  #648: the path is attacker-controlled and is compiled into a RegExp by `foldCollidingPaths`, and
+ *  it is matched against every committed content path, so an unbounded path is both a compile-cost
+ *  and a match-cost amplifier. Bounding it at the gate is the fail-CLOSED way to cap that (a
+ *  too-long path is rejected, never waved through unmatched). 1024 is far above anything real —
+ *  every legitimate path is `content/<collection>/<locale>/<slug>.mdoc` with a slug derived by
+ *  `entrySlugify` — and comfortably under the 255-byte-per-component / 4096-byte-per-path limits
+ *  that ext4, APFS and NTFS impose anyway, so nothing writable on disk is being rejected. */
+const MAX_REPO_PATH_LENGTH = 1024
+
+/** Escapes every RegExp metacharacter so an interpolated string matches LITERALLY.
+ *
+ *  Load-bearing for #648: without it, a slug like `a.+` would be compiled as a PATTERN and match
+ *  unrelated committed paths (a false `content.publish` at best, a RegExp-injection primitive at
+ *  worst), and a crafted slug could introduce nested quantifiers — the classic ReDoS shape. Fully
+ *  escaped and anchored, the compiled pattern is a literal-only alternation-free match, which is
+ *  linear in the input, so no attacker-supplied path can make matching super-linear. */
+const escapeRegExp = (s: string) => s.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')
+
+/** Committed paths that case-FOLD onto `p` under Unicode SIMPLE CASE FOLDING but are not literally
+ *  `p` — i.e. the OTHER files a write to `p` could actually land on, on a case-insensitive
+ *  filesystem (APFS/HFS+, NTFS).
+ *
+ *  #648: `foldRepoPath` is `toLowerCase()`, Unicode simple case MAPPING, which is strictly weaker
+ *  than the case FOLDING those filesystems resolve names by. #644 and #647 closed their halves by
+ *  REJECTING inputs where the two relations could disagree, but neither reaches the SLUG segment
+ *  and neither can: slugs legitimately carry non-ASCII (`entrySlugify` keeps `\p{L}`, so
+ *  `content/blog/en/café.mdoc` is a real post), and a slug whose characters fold without
+ *  lowercasing — U+017F LONG S folds to `s`; final sigma `ς` folds onto medial `σ` — is ITS OWN
+ *  `toLowerCase` form, so it passes both rules while still resolving onto the neighbouring post.
+ *
+ *  JavaScript does expose the needed relation after all: a `RegExp` with the `iu` flags matches by
+ *  ECMA-262 Canonicalize, which IS Unicode simple case folding. Verified on node 22:
+ *    /^ſive$/iu.test('sive')   -> true    the U+017F bypass
+ *    /^ςigma$/iu.test('σigma') -> true    neither side ASCII — the fold RELATION, not an ASCII rule
+ *    /^café$/iu.test('cafe')   -> false   accents are NOT folded; `café` stays a distinct post
+ *    /^ß$/iu.test('ss')        -> false   simple, not FULL, folding
+ *  Simple folding is the CORRECT relation here precisely because it is the one APFS/HFS+ and NTFS
+ *  case tables implement — they do not fold ß->ss either. Full folding would over-reject real
+ *  slugs without closing anything the filesystem actually collides.
+ *
+ *  This is a rejection of the CLASS, not an enumeration of spellings (the #623/#644/#647 lesson):
+ *  it asks the fold relation itself, so it covers every character in the gap, including ones added
+ *  by a future Unicode revision of the engine's case tables.
+ *
+ *  Used ONLY to widen the #382 committed-state read below. The write still uses the caller's own
+ *  path — `isCanonicalRepoPath` has already proven it canonical. */
+function foldCollidingPaths(p: string, committed: readonly string[]): string[] {
+  // `isCanonicalRepoPath` guarantees the bound; belt-and-braces for direct callers.
+  if (p.length > MAX_REPO_PATH_LENGTH) return []
+  const folded = new RegExp(`^${escapeRegExp(p)}$`, 'iu')
+  return committed.filter((c) => c !== p && folded.test(c))
+}
+
 /** True iff `p` is a CANONICAL repo-relative path: non-empty, relative, no `.`/`..` segments, no
  *  repeated slashes, no leading/trailing slash, no surrounding whitespace, no backslash or NUL,
  *  and — for the parts the gate classifies on — canonically cased.
@@ -61,6 +116,7 @@ const foldRepoPath = (p: string) => p.toLowerCase()
  *  adapter's write are the same path by construction. */
 export function isCanonicalRepoPath(p: unknown): p is string {
   if (typeof p !== 'string' || p === '') return false
+  if (p.length > MAX_REPO_PATH_LENGTH) return false
   if (p !== p.trim()) return false
   if (p.includes('\\') || p.includes('\0')) return false
   if (p.startsWith('/') || p.endsWith('/')) return false
@@ -112,11 +168,10 @@ export function isCanonicalRepoPath(p: unknown): p is string {
   // untouched, and canonical non-ASCII slugs (`content/blog/en/café.mdoc`) fold to themselves and
   // pass.
   //
-  // KNOWN GAP, tracked separately: a slug carrying a non-ASCII character that case-FOLDS into
-  // ASCII (e.g. U+017F) is its own `toLowerCase` form, so it passes this rule while still
-  // colliding on APFS. Closing that needs a real Unicode case-fold, which JS does not expose;
-  // #644's ASCII rule is root-only because slugs legitimately carry non-ASCII, so it does not
-  // reach here either.
+  // The residual this rule cannot reach — a slug carrying a character that case-FOLDS onto another
+  // without `toLowerCase` touching it (U+017F LONG S; final vs medial sigma), so it IS its own
+  // folded form and is accepted here, correctly, as a legal slug — is closed by #648 in
+  // `foldCollidingPaths` / the #382 committed-state read below, not by rejection.
   if (parseContentPath(foldRepoPath(p)) !== null && p !== foldRepoPath(p))
     return false
   return true
@@ -224,6 +279,15 @@ export async function writeActionForChanges(
 
   const publishRank = writeActionRank('content.publish')
   let strongest: Action = 'content.edit'
+
+  // #648: the committed content tree, listed at most ONCE per call and only if a change actually
+  // reaches the committed-state read below. `list('content/')` is a literal prefix filter in every
+  // adapter, which is sound here because #647 already guarantees the `content/` prefix of anything
+  // classified as a content path is literally lowercase.
+  let contentTree: string[] | null = null
+  const committedContentPaths = async () =>
+    (contentTree ??= await git.list('content/'))
+
   for (const change of changes) {
     let needed = actionForChange(change)
     const p = change.path
@@ -232,9 +296,22 @@ export async function writeActionForChanges(
       writeActionRank(strongest) < publishRank &&
       parseContentPath(p)
     ) {
-      const committed = await git.readFile(p)
-      if (committed !== null && publishesLiveContent(committed))
-        needed = 'content.publish'
+      // The literal path FIRST — the overwhelmingly common case, and the one that avoids listing
+      // the tree at all. Then (#648) every committed path that case-FOLDS onto it: git's index is
+      // case-SENSITIVE, so `readFile(p)` misses the very neighbour the filesystem would resolve
+      // this write onto. Checking the literal path in ADDITION to its fold-neighbours (rather than
+      // only when it misses) keeps this fail-closed when both spellings exist in the index at once
+      // — a state git permits and a case-insensitive checkout collapses unpredictably.
+      for (const candidate of [
+        p,
+        ...foldCollidingPaths(p, await committedContentPaths())
+      ]) {
+        const committed = await git.readFile(candidate)
+        if (committed !== null && publishesLiveContent(committed)) {
+          needed = 'content.publish'
+          break
+        }
+      }
     }
     if (writeActionRank(needed) > writeActionRank(strongest)) strongest = needed
   }

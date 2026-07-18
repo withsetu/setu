@@ -10,6 +10,11 @@ import { AppShell } from '../src/shell/AppShell'
 const mockDeploy = vi.fn(() => Promise.resolve())
 vi.mock('../src/deploy/deploy', () => ({
   useDeploy: () => ({
+    running: false,
+    startedAt: null,
+    confirmOpen: false,
+    requestRebuild: () => {},
+    closeConfirm: () => {},
     status: null,
     deployInfo: () => ({ deployedSha: null, changed: [] }),
     refresh: () => Promise.resolve(),

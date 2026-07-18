@@ -41,9 +41,11 @@ const BYPASS_PATHS = [
   'content/./blog/en/post.mdoc'
 ] as const
 
-/** Read a repo file through the api's own ungated `GET /git/file` (returns `{ content }`, null
- *  when absent) — the same view of the repo the gate is supposed to be protecting, so a write
- *  that slipped through would be visible here. */
+/** Read a repo file through the api's own `GET /git/file` (returns `{ content }`, null when
+ *  absent) — the same view of the repo the gate is supposed to be protecting, so a write that
+ *  slipped through would be visible here. #621 gated this route (authMiddleware + `content.view`),
+ *  so the caller MUST be an authenticated request context: every call site below passes
+ *  `page.request`, which carries the describe block's `storageState` session cookie. */
 async function readRepoFile(
   request: APIRequestContext,
   path: string

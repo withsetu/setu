@@ -7,9 +7,13 @@ import type { ResolveActor } from '../src/auth/resolve-actor'
 // #362 — /git/* is the repository write API and had NO authz gate (OWASP A01): an anonymous POST
 // /git/commit could rewrite any file in the content repo. WRITES now require `content.edit`. With
 // the read-only viewer role removed (#379) every staff role holds content.edit, so the only deny
-// path left is the unauthenticated one (no actor → 401). READS (head/file/list) stay ungated on
-// purpose: the admin bootstrap reads git.headSha() before a session exists, so gating reads would hang the app on
-// "Loading…" (caught in live UAT) — read-gating is deferred to #110 (bootstrap must defer its read).
+// path left is the unauthenticated one (no actor → 401).
+//
+// #621 — the READS were left ungated by #362 on a deferral to #110, which CLOSED without the
+// follow-up: any unauthenticated caller could enumerate and read the whole content repo (drafts,
+// settings.json). `/git/file`, `/git/list` and `/git/diff` now require authMiddleware +
+// `content.view`; only `/git/head` (a bare sha, the pre-session bootstrap read) stays open.
+//
 // The server is the enforcement boundary; the admin's HttpGitPort carries the session cookie
 // (credentials: 'include' via apiFetch — see apps/admin/src/data/Bootstrap.tsx).
 
@@ -35,7 +39,12 @@ const WRITE_ROUTES: Array<[string, string]> = [
   ['/git/commit', commitBody],
   ['/git/commit-files', commitFilesBody]
 ]
-const READ_ROUTES = ['/git/head', '/git/file?path=p.mdoc', '/git/list']
+// #621 — the reads that return repo CONTENT. Gated: authMiddleware + content.view.
+const GATED_READ_ROUTES = [
+  '/git/file?path=p.mdoc',
+  '/git/list',
+  `/git/diff?from=${'a'.repeat(40)}&to=${'b'.repeat(40)}`
+]
 
 function app(resolveActor: ResolveActor) {
   return createGitApi(createMemoryGitPort(), resolveActor)
@@ -62,10 +71,47 @@ describe('createGitApi — authz enforcement (#362, the Git-write hole)', () => 
       expect((await write(a, path, body)).status, `POST ${path}`).toBe(401)
   })
 
-  it('leaves READS ungated — even an unauthenticated caller gets 200 (bootstrap reads pre-session; see #110)', async () => {
+  // #621 — this test used to assert the OPPOSITE ("leaves READS ungated — even an unauthenticated
+  // caller gets 200 (bootstrap reads pre-session; see #110)"). That assertion ENCODED the bug: it
+  // pinned an unauthenticated caller's ability to read every file in the content repo, on a
+  // deferral to #110, which closed without the follow-up. It is inverted here. The bootstrap need
+  // it was protecting is real but far narrower — `git.headSha()` only — and now has its own
+  // dedicated test below so it cannot regress.
+  it('rejects an UNAUTHENTICATED caller on content READS with 401 (#621)', async () => {
     const a = app(unauthenticated)
-    for (const path of READ_ROUTES)
-      expect((await read(a, path)).status, `GET ${path}`).toBe(200)
+    for (const path of GATED_READ_ROUTES)
+      expect((await read(a, path)).status, `GET ${path}`).toBe(401)
+  })
+
+  it('admits EVERY role on content READS — content.view is in the shared VIEW set (no role regression)', async () => {
+    // The other half of card #5: gating must not cost any role a read it legitimately had. Real
+    // history so `/git/diff` gets resolvable shas and a genuine 200 is meaningful.
+    for (const role of ['admin', 'maintainer', 'editor', 'author'] as Role[]) {
+      const git = createMemoryGitPort()
+      const { sha } = await git.commitFile({
+        path: 'p.mdoc',
+        content: 'X',
+        message: 'seed',
+        author
+      })
+      const a = createGitApi(git, asRole(role))
+      for (const path of [
+        '/git/file?path=p.mdoc',
+        '/git/list',
+        `/git/diff?from=${sha}&to=${sha}`
+      ])
+        expect((await read(a, path)).status, `${role} GET ${path}`).toBe(200)
+    }
+  })
+
+  // The bootstrap carve-out, pinned on its own so a future "gate everything" sweep cannot silently
+  // hang the admin on "Loading…" (the live-UAT failure that motivated the original blanket
+  // deferral). `seedIfEmpty` in apps/admin/src/data/store.tsx calls this BEFORE any session exists.
+  it('keeps /git/head UNGATED for the pre-session bootstrap read (#621 carve-out)', async () => {
+    const res = await read(app(unauthenticated), '/git/head')
+    expect(res.status).toBe(200)
+    // And it must stay content-free: a sha (or null), nothing else.
+    expect(Object.keys((await res.json()) as object)).toEqual(['sha'])
   })
 
   it('allows an AUTHOR to write (content.edit) — commit succeeds', async () => {

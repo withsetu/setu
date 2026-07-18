@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { createMemoryGitPort } from '@setu/git-memory'
 import { createMemoryDataPort } from '@setu/db-memory'
 import { ServicesProvider, servicesFor } from '../src/data/store'
@@ -92,6 +92,50 @@ describe('MetaPanel', () => {
   it('Permalink section shows the resolved full-URL preview', () => {
     setup({ slug: 'my-post' })
     expect(screen.getByText('localhost:4321/post/my-post')).toBeInTheDocument()
+  })
+
+  // #580 — WordPress parity: categories/tags are post taxonomies; pages have none.
+  describe('taxonomy fields are post-only', () => {
+    const sectionTitles = () =>
+      screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
+
+    it('post: renders both Categories and Tags sections', () => {
+      setup({ collection: 'post' })
+      expect(sectionTitles()).toContain('Categories')
+      expect(sectionTitles()).toContain('Tags')
+    })
+
+    it('page: renders neither Categories nor Tags, other sections intact', () => {
+      setup({ collection: 'page', slug: 'about' })
+      const titles = sectionTitles()
+      expect(titles).not.toContain('Categories')
+      expect(titles).not.toContain('Tags')
+      // The rest of the panel is unaffected.
+      for (const t of ['Permalink', 'Published', 'Featured image', 'SEO']) {
+        expect(titles).toContain(t)
+      }
+    })
+
+    it('page: hand-authored tags/categories frontmatter survives other edits', () => {
+      // Data honesty: the fields are not OFFERED for pages, but frontmatter the
+      // author typed by hand must round-trip untouched through unrelated edits.
+      const { onChange } = setup({
+        collection: 'page',
+        slug: 'about',
+        metadata: {
+          title: 'About',
+          tags: ['legacy-tag'],
+          categories: ['legacy-cat']
+        }
+      })
+      fireEvent.change(screen.getByRole('textbox', { name: 'SEO title' }), {
+        target: { value: 'Custom SEO title' }
+      })
+      expect(onChange).toHaveBeenCalled()
+      const next = onChange.mock.calls.at(-1)![0] as Record<string, unknown>
+      expect(next['tags']).toEqual(['legacy-tag'])
+      expect(next['categories']).toEqual(['legacy-cat'])
+    })
   })
 
   it('shows the no-date fallback hint when the pattern has date tokens but no date', () => {

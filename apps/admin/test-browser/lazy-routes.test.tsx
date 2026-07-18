@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
 import { page } from '@vitest/browser/context'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom'
 import { lazy, type ReactElement } from 'react'
 import type { Actor } from '@setu/core'
 import { createMemoryDataPort } from '@setu/db-memory'
@@ -168,6 +168,45 @@ describe('RouteBoundary (#597)', () => {
     await expect
       .element(page.getByRole('button', { name: /reload the admin/i }))
       .toBeInTheDocument()
+    err.mockRestore()
+  })
+
+  // The reset half. A `key={pathname}` used to provide this for free, and it cost an
+  // editor-autosave regression (see lazy-route-autosave.test.tsx); the boundary now
+  // resets via derived state instead, so the behaviour the key was there for needs
+  // its own proof: one bad chunk must not poison the rest of the session.
+  it('clears a previous route failure when the user navigates away', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const Broken = lazy(() => Promise.reject(new Error('chunk gone')))
+
+    function Harness() {
+      const navigate = useNavigate()
+      return (
+        <>
+          <button onClick={() => void navigate('/elsewhere')}>go</button>
+          <RouteBoundary>
+            <Routes>
+              <Route path="/broken" element={<Broken />} />
+              <Route path="/elsewhere" element={<p>recovered screen</p>} />
+            </Routes>
+          </RouteBoundary>
+        </>
+      )
+    }
+
+    render(
+      <MemoryRouter initialEntries={['/broken']}>
+        <Harness />
+      </MemoryRouter>
+    )
+    await expect
+      .element(page.getByText(/couldn't be loaded/i))
+      .toBeInTheDocument()
+
+    await page.getByRole('button', { name: 'go' }).click()
+
+    await expect.element(page.getByText('recovered screen')).toBeInTheDocument()
+    expect(document.body.textContent).not.toMatch(/couldn't be loaded/i)
     err.mockRestore()
   })
 })

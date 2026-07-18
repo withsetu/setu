@@ -88,7 +88,12 @@ function publishesLiveContent(content: string): boolean {
  *  ladder each higher action's holders are a subset of the lower's (content.edit ⊂ content.publish ⊂
  *  theme.manage ⊂ settings.manage), so requiring the single strongest action a commit needs correctly
  *  implies the others — no actor can hold the strongest without the rest. A mixed commit therefore
- *  can't smuggle a privileged change past a lower-privilege one. */
+ *  can't smuggle a privileged change past a lower-privilege one.
+ *
+ *  #622: that subset property lives in ANOTHER package (`DEFAULT_ROLES`, packages/core/src/authz)
+ *  and was asserted only in this prose. It is now pinned by a test next to the data —
+ *  packages/core/test/authz/write-action-ladder.test.ts — so the edit that breaks the assumption
+ *  fails in the package that made it, not silently here. */
 const WRITE_ACTION_RANK: Record<string, number> = {
   'content.edit': 0,
   'content.publish': 1,
@@ -96,8 +101,19 @@ const WRITE_ACTION_RANK: Record<string, number> = {
   'settings.manage': 3
 }
 
-/** Rank of a derived write action; floors at 0 (`content.edit`) for anything off the ladder. */
-const writeActionRank = (a: Action): number => WRITE_ACTION_RANK[a] ?? 0
+/** Rank of a derived write action. #622: an action OFF the ladder ranks `Infinity` — the strongest
+ *  possible — not 0. The old `?? 0` floored an unknown action at `content.edit`, the WEAKEST rung,
+ *  so any future action that reached this gate without a rank entry would have been silently
+ *  downgraded to the permission every staff role holds. Ranking it strongest instead makes the
+ *  reduction in `writeActionForChanges` fail CLOSED: the unknown action becomes the required one,
+ *  and `authz.can` denies it for every role (no role's permission set contains an action that is
+ *  not on the matrix), so the request 403s rather than being admitted on `content.edit`.
+ *
+ *  Unreachable today: every action `actionForChange` can return is a `PATH_WRITE_ACTION` value or
+ *  one of the two literals, and all four are in the table. This is a REGRESSION GUARD for the next
+ *  entry added to `PATH_WRITE_ACTION` (or a new derived action) without a matching rank. */
+export const writeActionRank = (a: Action): number =>
+  WRITE_ACTION_RANK[a] ?? Infinity
 
 /** The write permission a single change requires, from its path and (for writes) NEW content only.
  *  (The committed-state half of the rule lives in `writeActionForChanges`, which can read git.)
@@ -194,6 +210,19 @@ function requireWrite(
   )
 }
 
+/** Capability gate for the git READ routes (#621): 403 when the already-authenticated actor lacks
+ *  `action`. Same shape as index-api.ts / forms.ts — `authMiddleware` first (401 for no actor),
+ *  this second (403 for the wrong actor). */
+function requireCan(action: Action) {
+  return createMiddleware<{ Variables: { actor: ResolvedActor } }>(
+    async (c, next) => {
+      if (!authz.can(c.get('actor'), action))
+        return c.json({ error: 'forbidden' }, 403)
+      await next()
+    }
+  )
+}
+
 /** A Hono app exposing a GitPort over HTTP (RPC-style, one route per method).
  *  Pure factory — the caller supplies the GitPort, the actor resolver, and the listener (server.ts).
  *
@@ -220,11 +249,17 @@ function requireWrite(
  *  is already live. The admin's HttpGitPort carries the session cookie (credentials: 'include' via
  *  apiFetch — apps/admin/src/data/Bootstrap.tsx).
  *
- *  The READ routes (head/file/list) are intentionally NOT gated: the admin's `bootstrapServices`
- *  reads `git.headSha()` at startup, BEFORE the user has a session (to decide seed-if-empty), so
- *  gating reads 401s that bootstrap read and hangs the whole admin on "Loading…" (caught in live
- *  UAT). #362 scopes the git hole to WRITES; making reads auth-aware needs bootstrap to defer its git
- *  read until after the session resolves — tracked with the actor-auth work in #110, not here.
+ *  The READ routes (#621): `/git/file`, `/git/list` and `/git/diff` require `authMiddleware` +
+ *  `content.view`. #362 left every read ungated on a deferral to **#110, which closed without the
+ *  follow-up ever landing** — so an unauthenticated caller could enumerate and read EVERY file in
+ *  the content repo: unpublished drafts, `settings.json`, the lot. `originGuard` does not cover it
+ *  either — its `SAFE_METHODS` short-circuit passes all GETs by design (that guard is CSRF, not
+ *  authz). The original justification was also strictly broader than the need it cited: the ONLY
+ *  pre-session git read is `seedIfEmpty` (apps/admin/src/data/store.tsx), and it calls
+ *  `git.headSha()` — nothing else. So `/git/head` alone stays ungated (a bare commit sha exposes no
+ *  repo content) with the bootstrap reason restated on the route itself, and every route that
+ *  returns repo content is gated. Zero role regression: `content.view` is in the shared `VIEW` set
+ *  held by all four roles (packages/core/src/authz/default-roles.ts).
  *
  *  CORS/origin policy is owned centrally by server.ts (the allowlisted `cors()` +
  *  `originGuard`), not per-factory — a factory-local permissive `cors()` here would
@@ -234,10 +269,19 @@ function requireWrite(
 export function createGitApi(git: GitPort, resolveActor: ResolveActor) {
   const app = new Hono<{ Variables: { actor: ResolvedActor } }>()
   const auth = authMiddleware(resolveActor)
+  // #621: every read that returns repo CONTENT is gated on `content.view` (held by all four
+  // roles, so no role loses access — this only closes the unauthenticated hole).
+  const canRead = requireCan('content.view')
 
+  // The ONE deliberately ungated route (#621). The admin's `seedIfEmpty`
+  // (apps/admin/src/data/store.tsx) calls `git.headSha()` BEFORE a session exists, to decide
+  // whether to seed sample drafts; gating it 401s that read and hangs the whole admin on
+  // "Loading…" (caught in live UAT under #362). The response is a bare commit sha (or null) — no
+  // repo content, no path names — so the exposure is a build-identity fingerprint, not the file
+  // enumeration that /git/file and /git/list were. Do NOT add content to this response.
   app.get('/git/head', async (c) => c.json({ sha: await git.headSha() }))
 
-  app.get('/git/file', async (c) => {
+  app.get('/git/file', auth, canRead, async (c) => {
     const path = c.req.query('path')
     if (path === undefined || path === '')
       return c.json({ error: 'path query is required' }, 400)
@@ -296,19 +340,20 @@ export function createGitApi(git: GitPort, resolveActor: ResolveActor) {
     }
   )
 
-  app.get('/git/list', async (c) => {
+  app.get('/git/list', auth, canRead, async (c) => {
     const prefix = c.req.query('prefix')
     return c.json({ paths: await git.list(prefix) })
   })
 
-  // Tree-to-tree diff between two commits (#450) — an ungated READ like
-  // head/file/list above (same posture, same #110 follow-up). Shas are
+  // Tree-to-tree diff between two commits (#450) — gated like the other content
+  // reads (#621): the changed-path list leaks the repo's structure and the
+  // existence of unpublished entries. Shas are
   // validated to 40-hex so arbitrary strings never reach the adapter; an
   // unknown-but-well-formed sha rejects in the adapter → the 500 envelope,
   // which HttpGitPort surfaces and the index service treats as "diff
   // unavailable → full rescan".
   const SHA40_RE = /^[0-9a-fA-F]{40}$/
-  app.get('/git/diff', async (c) => {
+  app.get('/git/diff', auth, canRead, async (c) => {
     const from = c.req.query('from')
     const to = c.req.query('to')
     if (

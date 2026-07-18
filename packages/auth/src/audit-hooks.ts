@@ -60,11 +60,63 @@ import type { AuthEvent } from './events'
  *    the actor id still comes from `context.context.session` the same way as the other admin
  *    events. */
 
-function actorIdFrom(context: GenericEndpointContext): string | undefined {
+/** #632: who really performed this action, and (when they were wearing someone else's identity)
+ *  whose identity that was.
+ *
+ *  `context.context.session` is better-auth's `{ session, user }` pair — the same shape the admin
+ *  plugin's own `adminMiddleware` puts there (`dist/plugins/admin/routes.mjs:16-20`,
+ *  `return { session }` from `getAuthoritativeSessionFromCtx`). During an impersonated session the
+ *  `user` half is the IMPERSONATED user, so the pre-#632 `session.user.id` recorded a role change
+ *  or ban against the VICTIM rather than the admin who actually did it. The session ROW carries
+ *  `impersonatedBy` (set to `ctx.context.session.user.id`, the impersonating admin, at
+ *  `routes.mjs:586`; persisted as `session.impersonated_by` in packages/db-sqlite's schema), so
+ *  it's the authoritative "who really acted".
+ *
+ *  Both facts are kept: `actorId` becomes the real admin, and `meta.impersonating` names the
+ *  assumed identity. An audit record that loses either one is misleading. */
+interface ActorAttribution {
+  actorId?: string
+  /** Merged into the event's `meta` — `{ impersonating: <assumed user id> }`, or empty. */
+  meta: Record<string, string>
+}
+
+function actorFrom(context: GenericEndpointContext): ActorAttribution {
   const session = (
-    context.context as { session?: { user?: { id?: string } } } | undefined
+    context.context as
+      | {
+          session?: {
+            user?: { id?: string }
+            session?: { impersonatedBy?: string | null }
+          }
+        }
+      | undefined
   )?.session
-  return session?.user?.id
+  const sessionUserId = session?.user?.id
+  const impersonatedBy = session?.session?.impersonatedBy
+  if (impersonatedBy) {
+    return {
+      actorId: impersonatedBy,
+      meta: sessionUserId ? { impersonating: sessionUserId } : {}
+    }
+  }
+  return { actorId: sessionUserId, meta: {} }
+}
+
+/** Spread-in `meta` for events that carry no meta of their own — omitted entirely (rather than
+ *  emitted as `{}`) when there is nothing to say, so a non-impersonated event's shape is
+ *  byte-identical to what it was before #632. */
+function metaOrNone(meta: Record<string, string>): {
+  meta?: AuthEvent['meta']
+} {
+  return Object.keys(meta).length > 0 ? { meta } : {}
+}
+
+/** The `impersonatedBy` column off a session row, without widening the hook's declared parameter
+ *  type (better-auth types session-hook arguments as `Session & Record<string, unknown>`, so the
+ *  admin plugin's added column reads as `unknown` there). */
+function impersonatedByOf(session: object): string | undefined {
+  const value = (session as { impersonatedBy?: unknown }).impersonatedBy
+  return typeof value === 'string' && value !== '' ? value : undefined
 }
 
 export function userCreateAfterHook(emit: (e: AuthEvent) => void) {
@@ -78,6 +130,20 @@ export function sessionCreateAfterHook(emit: (e: AuthEvent) => void) {
     session: { userId: string },
     context: GenericEndpointContext | null
   ): Promise<void> => {
+    // #632: `/admin/impersonate-user` creates a REAL session row through the same
+    // `internalAdapter.createSession` -> `createWithHooks('session')` path as a login
+    // (`dist/db/internal-adapter.mjs:162,201`; the route at `dist/plugins/admin/routes.mjs:585-588`
+    // passes `impersonatedBy: ctx.context.session.user.id` as an override) — so this hook DOES
+    // fire, it was simply being dropped by the sign-in path gate. The new row's `userId` is the
+    // impersonated user and `impersonatedBy` the admin, which is exactly the actor/target pair.
+    if (context?.path === '/admin/impersonate-user') {
+      emit({
+        type: 'impersonation.started',
+        actorId: impersonatedByOf(session) ?? actorFrom(context).actorId,
+        targetId: session.userId
+      })
+      return
+    }
     if (context?.path !== '/sign-in/email') return
     emit({ type: 'login.success', targetId: session.userId })
   }
@@ -88,6 +154,21 @@ export function sessionDeleteAfterHook(emit: (e: AuthEvent) => void) {
     session: { userId: string },
     context: GenericEndpointContext | null
   ): Promise<void> => {
+    // #632: `/admin/stop-impersonating` ends the impersonated session via
+    // `internalAdapter.deleteSession` -> `deleteWithHooks('session')`
+    // (`dist/db/internal-adapter.mjs:354,377`; the route at `dist/plugins/admin/routes.mjs:624-637`),
+    // so this hook fires with the FULL pre-delete row — including `impersonatedBy`. That row, not
+    // `context.context.session`, is the reliable source here: stop-impersonating uses
+    // `getSessionFromCtx` rather than `adminMiddleware` (routes.mjs:623), so it does not populate
+    // `context.context.session` the way the other admin routes do.
+    if (context?.path === '/admin/stop-impersonating') {
+      emit({
+        type: 'impersonation.stopped',
+        actorId: impersonatedByOf(session) ?? actorFrom(context).actorId,
+        targetId: session.userId
+      })
+      return
+    }
     if (context?.path !== '/sign-out') return
     // #386: flag passwordless sign-outs (no credential account row) — see the module doc.
     let passwordless = false
@@ -117,7 +198,7 @@ export function userUpdateAfterHook(emit: (e: AuthEvent) => void) {
     context: GenericEndpointContext | null
   ): Promise<void> => {
     if (!context) return
-    const actorId = actorIdFrom(context)
+    const { actorId, meta: actorMeta } = actorFrom(context)
     if (context.path === '/admin/set-role') {
       const requestedRole = (context.body as { role?: unknown } | undefined)
         ?.role
@@ -126,6 +207,7 @@ export function userUpdateAfterHook(emit: (e: AuthEvent) => void) {
         actorId,
         targetId: updated.id,
         meta: {
+          ...actorMeta,
           role:
             typeof requestedRole === 'string'
               ? requestedRole
@@ -135,11 +217,21 @@ export function userUpdateAfterHook(emit: (e: AuthEvent) => void) {
       return
     }
     if (context.path === '/admin/ban-user') {
-      emit({ type: 'user.banned', actorId, targetId: updated.id })
+      emit({
+        type: 'user.banned',
+        actorId,
+        targetId: updated.id,
+        ...metaOrNone(actorMeta)
+      })
       return
     }
     if (context.path === '/admin/unban-user') {
-      emit({ type: 'user.unbanned', actorId, targetId: updated.id })
+      emit({
+        type: 'user.unbanned',
+        actorId,
+        targetId: updated.id,
+        ...metaOrNone(actorMeta)
+      })
       return
     }
     if (context.path === '/admin/update-user') {
@@ -157,6 +249,7 @@ export function userUpdateAfterHook(emit: (e: AuthEvent) => void) {
           actorId,
           targetId: updated.id,
           meta: {
+            ...actorMeta,
             role:
               typeof requestedRole === 'string'
                 ? requestedRole
@@ -168,10 +261,47 @@ export function userUpdateAfterHook(emit: (e: AuthEvent) => void) {
         emit({
           type: updated.banned ? 'user.banned' : 'user.unbanned',
           actorId,
-          targetId: updated.id
+          targetId: updated.id,
+          ...metaOrNone(actorMeta)
         })
       }
     }
+  }
+}
+
+/** #632: `POST /admin/set-user-password` — an admin setting ANOTHER user's password, the most
+ *  direct account-takeover primitive the admin plugin exposes.
+ *
+ *  It never touches the `user` table, so `databaseHooks.user.update` cannot see it (the same
+ *  reason rank-guard.ts documents for why it can't gate this route). It writes the `account`
+ *  table instead, on one of two mutually exclusive branches
+ *  (`dist/plugins/admin/routes.mjs:793-830`, `dist/db/internal-adapter.mjs:86,528`):
+ *   - target already has a `providerId === 'credential'` account -> `internalAdapter.updatePassword`
+ *     -> `updateManyWithHooks('account')` -> `databaseHooks.account.update.after`
+ *   - target has none                                            -> `internalAdapter.createAccount`
+ *     -> `createWithHooks('account')`     -> `databaseHooks.account.create.after`
+ *  This one emitter is registered on BOTH; the route takes exactly one branch per call, so it
+ *  fires exactly once. Path-gating keeps every other account write (sign-up linkAccount, the
+ *  user-initiated changePassword and reset flows covered by #454) out of it.
+ *
+ *  `targetId` comes from `context.body.userId` rather than the hook's row argument on purpose:
+ *  the `updateMany` branch's argument is the adapter's bulk-update result, not a user-bearing
+ *  row. The row is deliberately never read at all here — it holds the freshly hashed password,
+ *  and the safest handling of a secret is to not touch it. */
+export function adminSetPasswordHook(emit: (e: AuthEvent) => void) {
+  return async (
+    _account: unknown,
+    context: GenericEndpointContext | null
+  ): Promise<void> => {
+    if (context?.path !== '/admin/set-user-password') return
+    const targetId = (context.body as { userId?: unknown } | undefined)?.userId
+    const { actorId, meta } = actorFrom(context)
+    emit({
+      type: 'admin.password-set',
+      actorId,
+      ...(typeof targetId === 'string' ? { targetId } : {}),
+      ...metaOrNone(meta)
+    })
   }
 }
 
@@ -181,10 +311,12 @@ export function userDeleteAfterHook(emit: (e: AuthEvent) => void) {
     context: GenericEndpointContext | null
   ): Promise<void> => {
     if (context?.path !== '/admin/remove-user') return
+    const { actorId, meta } = actorFrom(context)
     emit({
       type: 'user.deleted',
-      actorId: actorIdFrom(context),
-      targetId: deleted.id
+      actorId,
+      targetId: deleted.id,
+      ...metaOrNone(meta)
     })
   }
 }

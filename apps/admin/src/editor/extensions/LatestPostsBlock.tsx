@@ -1,8 +1,8 @@
-import { Node, mergeAttributes } from '@tiptap/core'
-import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
+import { NodeViewWrapper } from '@tiptap/react'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { QueryPreview } from '../QueryPreview'
 import type { QueryAttrs, RunQuery } from '../QueryPreview'
+import { createAtomBlock } from './atom-block'
 
 /** The block's attribute bag, as stored on the node (all optional — zero-config inserts
  *  as `{% latest-posts /%}` and the contract defaults apply everywhere). */
@@ -68,13 +68,17 @@ function LatestPostsView({ node, editor }: ReactNodeViewProps) {
 /** The `{% latest-posts %}` block — atom (props-only, no body); props edited in the grouped
  *  block-inspector rail with a live preview here in the canvas. Mirrors QueryBlock: mdAttrs
  *  is JSON-only, kept out of the DOM, round-tripped by the core converter (to-tiptap maps
- *  latest-posts→latestPostsBlock, to-markdoc emits a self-closing {% latest-posts … /%}). */
-export const LatestPostsBlock = Node.create<{ runQuery?: RunQuery }>({
+ *  latest-posts→latestPostsBlock, to-markdoc emits a self-closing {% latest-posts … /%}).
+ *  Keeps a bespoke node view — the live content-index preview (QueryPreview) — plus the
+ *  runQuery option→storage seam; the shared atom-block factory owns only the Node.create
+ *  boilerplate here (#562). */
+export const LatestPostsBlock = createAtomBlock<
+  { runQuery?: RunQuery },
+  { runQuery?: RunQuery }
+>({
   name: 'latestPostsBlock',
-  group: 'block',
-  atom: true,
-  draggable: true,
-  selectable: true,
+  dataAttr: 'data-setu-latest-posts-block',
+  view: LatestPostsView,
   addOptions() {
     return { runQuery: undefined }
   },
@@ -82,22 +86,5 @@ export const LatestPostsBlock = Node.create<{ runQuery?: RunQuery }>({
   // the live query fn (stable for the editor's lifetime — the editor remounts per entry).
   addStorage() {
     return { runQuery: this.options.runQuery }
-  },
-  addAttributes() {
-    return {
-      mdAttrs: { default: {}, renderHTML: () => ({}), parseHTML: () => ({}) }
-    }
-  },
-  parseHTML() {
-    return [{ tag: 'div[data-setu-latest-posts-block]' }]
-  },
-  renderHTML({ HTMLAttributes }) {
-    return [
-      'div',
-      mergeAttributes(HTMLAttributes, { 'data-setu-latest-posts-block': '' })
-    ]
-  },
-  addNodeView() {
-    return ReactNodeViewRenderer(LatestPostsView)
   }
 })

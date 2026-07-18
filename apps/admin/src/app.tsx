@@ -1,19 +1,53 @@
-import { lazy, Suspense } from 'react'
+import { lazy } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './shell/AppShell'
+import { RouteBoundary } from './shell/RouteBoundary'
 import { Placeholder } from './screens/Placeholder'
 import { ContentList } from './screens/ContentList'
-import { Appearance } from './screens/Appearance'
-import { EditorScreen } from './editor/EditorScreen'
 import { Dashboard } from './screens/Dashboard'
-import { Media } from './screens/Media'
-import { Taxonomies } from './screens/taxonomies/Taxonomies'
-import { FormsInbox } from './screens/FormsInbox'
-import { Settings } from './screens/settings/Settings'
-import { SiteHealth } from './screens/SiteHealth'
-import { UsersScreen } from './screens/users/UsersScreen'
 import { useCan } from './auth/actor'
 import type { Action } from '@setu/core'
+
+// Route-level code splitting (#597). The admin shipped as ONE 622 kB-gzipped chunk:
+// the whole Tiptap + Markdoc + day-picker editor stack downloaded before the
+// dashboard could paint, for every visit, even a visit that never opens an entry.
+// Everything below the landing surface (dashboard + the content lists reachable from
+// it) is therefore a dynamic import, using the same `lazy()` pattern the DEV-only
+// demo panel already used. `RouteBoundary` (one Suspense + error boundary around the
+// whole outlet) supplies the loading frame and the honest chunk-load failure state —
+// this is a pure load optimization, no route behaves differently.
+//
+// Eager on purpose: AppShell, Dashboard and ContentList are the first paint and the
+// navigation the user makes next; splitting those would trade bytes for a spinner on
+// the hottest path.
+const Appearance = lazy(() =>
+  import('./screens/Appearance').then((m) => ({ default: m.Appearance }))
+)
+const EditorScreen = lazy(() =>
+  import('./editor/EditorScreen').then((m) => ({ default: m.EditorScreen }))
+)
+const Media = lazy(() =>
+  import('./screens/Media').then((m) => ({ default: m.Media }))
+)
+const Taxonomies = lazy(() =>
+  import('./screens/taxonomies/Taxonomies').then((m) => ({
+    default: m.Taxonomies
+  }))
+)
+const FormsInbox = lazy(() =>
+  import('./screens/FormsInbox').then((m) => ({ default: m.FormsInbox }))
+)
+const Settings = lazy(() =>
+  import('./screens/settings/Settings').then((m) => ({ default: m.Settings }))
+)
+const SiteHealth = lazy(() =>
+  import('./screens/SiteHealth').then((m) => ({ default: m.SiteHealth }))
+)
+const UsersScreen = lazy(() =>
+  import('./screens/users/UsersScreen').then((m) => ({
+    default: m.UsersScreen
+  }))
+)
 
 // Demo Data panel (#513): DEV-ONLY — the ternary makes the dynamic import
 // unreachable in production, so Vite/Rollup dead-code-eliminates the whole
@@ -47,84 +81,84 @@ function RequireCan({
 export function App() {
   return (
     <AppShell>
-      <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route
-          path="/posts"
-          element={<ContentList collection="post" title="Posts" />}
-        />
-        <Route
-          path="/pages"
-          element={<ContentList collection="page" title="Pages" />}
-        />
-        <Route path="/taxonomies" element={<Taxonomies />} />
-        <Route
-          path="/categories"
-          element={<Navigate to="/taxonomies" replace />}
-        />
-        <Route path="/media" element={<Media />} />
-        <Route
-          path="/forms"
-          element={
-            <RequireCan action="forms.view">
-              <FormsInbox />
-            </RequireCan>
-          }
-        />
-        <Route
-          path="/appearance"
-          element={
-            <RequireCan action="theme.manage">
-              <Appearance />
-            </RequireCan>
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            <RequireCan action="settings.view">
-              <Settings />
-            </RequireCan>
-          }
-        />
-        <Route
-          path="/users"
-          element={
-            <RequireCan action="users.view">
-              <UsersScreen />
-            </RequireCan>
-          }
-        />
-        <Route
-          path="/health"
-          element={
-            <RequireCan action="sitehealth.view">
-              <SiteHealth />
-            </RequireCan>
-          }
-        />
-        <Route
-          path="/edit/:collection/:locale/:slug"
-          element={<EditorScreen />}
-        />
-        {DemoDataScreen !== null && (
+      <RouteBoundary>
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<Dashboard />} />
           <Route
-            path="/demo-data"
+            path="/posts"
+            element={<ContentList collection="post" title="Posts" />}
+          />
+          <Route
+            path="/pages"
+            element={<ContentList collection="page" title="Pages" />}
+          />
+          <Route path="/taxonomies" element={<Taxonomies />} />
+          <Route
+            path="/categories"
+            element={<Navigate to="/taxonomies" replace />}
+          />
+          <Route path="/media" element={<Media />} />
+          <Route
+            path="/forms"
             element={
-              // users.delete = the admin-only action seeding honestly maps to
-              // (it creates and hard-deletes accounts); the server enforces
-              // the same action on every /api/demo route.
-              <RequireCan action="users.delete">
-                <Suspense fallback={null}>
-                  <DemoDataScreen />
-                </Suspense>
+              <RequireCan action="forms.view">
+                <FormsInbox />
               </RequireCan>
             }
           />
-        )}
-        <Route path="*" element={<Placeholder title="Page not found" />} />
-      </Routes>
+          <Route
+            path="/appearance"
+            element={
+              <RequireCan action="theme.manage">
+                <Appearance />
+              </RequireCan>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <RequireCan action="settings.view">
+                <Settings />
+              </RequireCan>
+            }
+          />
+          <Route
+            path="/users"
+            element={
+              <RequireCan action="users.view">
+                <UsersScreen />
+              </RequireCan>
+            }
+          />
+          <Route
+            path="/health"
+            element={
+              <RequireCan action="sitehealth.view">
+                <SiteHealth />
+              </RequireCan>
+            }
+          />
+          <Route
+            path="/edit/:collection/:locale/:slug"
+            element={<EditorScreen />}
+          />
+          {DemoDataScreen !== null && (
+            <Route
+              path="/demo-data"
+              element={
+                // users.delete = the admin-only action seeding honestly maps to
+                // (it creates and hard-deletes accounts); the server enforces
+                // the same action on every /api/demo route.
+                <RequireCan action="users.delete">
+                  <DemoDataScreen />
+                </RequireCan>
+              }
+            />
+          )}
+          <Route path="*" element={<Placeholder title="Page not found" />} />
+        </Routes>
+      </RouteBoundary>
     </AppShell>
   )
 }

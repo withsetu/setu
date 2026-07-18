@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { Hono } from 'hono'
 import { originGuard } from '../src/auth/origin-guard'
 import { allowedOrigins } from '../src/auth/allowed-origins'
@@ -183,23 +183,24 @@ describe('originGuard publicPaths', () => {
 })
 
 describe('allowedOrigins', () => {
-  it('defaults: admin origin (localhost:5173) + loopback API origins (localhost/127.0.0.1 on SETU_API_PORT default 4444)', () => {
-    const origins = allowedOrigins({})
+  const local = (extra: NodeJS.ProcessEnv = {}) =>
+    allowedOrigins({ SETU_MODE: 'local', ...extra })
+
+  it('local mode defaults: admin origin (localhost:5173) + loopback API origins (localhost/127.0.0.1 on SETU_API_PORT default 4444)', () => {
+    const origins = local()
     expect(origins).toContain('http://localhost:5173')
     expect(origins).toContain('http://localhost:4444')
     expect(origins).toContain('http://127.0.0.1:4444')
   })
 
   it('SETU_ADMIN_ORIGIN overrides the default admin origin', () => {
-    const origins = allowedOrigins({
-      SETU_ADMIN_ORIGIN: 'https://admin.example.com'
-    })
+    const origins = local({ SETU_ADMIN_ORIGIN: 'https://admin.example.com' })
     expect(origins).toContain('https://admin.example.com')
     expect(origins).not.toContain('http://localhost:5173')
   })
 
   it('SETU_API_PORT changes the loopback API origins', () => {
-    const origins = allowedOrigins({ SETU_API_PORT: '9999' })
+    const origins = local({ SETU_API_PORT: '9999' })
     expect(origins).toContain('http://localhost:9999')
     expect(origins).toContain('http://127.0.0.1:9999')
     expect(origins).not.toContain('http://localhost:4444')
@@ -218,7 +219,7 @@ describe('allowedOrigins', () => {
   })
 
   it('omits SETU_TRUSTED_ORIGINS entirely when unset', () => {
-    const origins = allowedOrigins({})
+    const origins = local()
     // Should just be admin + loopback, nothing else
     expect(origins.sort()).toEqual(
       [
@@ -227,5 +228,55 @@ describe('allowedOrigins', () => {
         'http://127.0.0.1:4444'
       ].sort()
     )
+  })
+})
+
+// #628 — this list feeds the CREDENTIALED cors() and originGuard. Loopback origins on it in a
+// non-local topology mean any page served from http://localhost:<apiPort> (a dev server, another
+// app, a malicious local process) can make credentialed cross-origin READS AND WRITES against a
+// production server. Loopback is a local-only affordance, like every other one in config.ts.
+describe('allowedOrigins — loopback is local-only (#628)', () => {
+  const noop = () => undefined
+
+  it('omits loopback origins when SETU_MODE is unset (fail closed to self-hosted)', () => {
+    vi.spyOn(console, 'error').mockImplementation(noop)
+    const origins = allowedOrigins({
+      SETU_ADMIN_ORIGIN: 'https://admin.example.com'
+    })
+    expect(origins).not.toContain('http://localhost:4444')
+    expect(origins).not.toContain('http://127.0.0.1:4444')
+    expect(origins).toEqual(['https://admin.example.com'])
+  })
+
+  it('omits loopback origins in explicit self-hosted mode, on any port', () => {
+    const origins = allowedOrigins({
+      SETU_MODE: 'self-hosted',
+      SETU_API_PORT: '9999',
+      SETU_ADMIN_ORIGIN: 'https://admin.example.com'
+    })
+    expect(origins.some((o) => o.includes('localhost'))).toBe(false)
+    expect(origins.some((o) => o.includes('127.0.0.1'))).toBe(false)
+  })
+
+  it('does NOT silently default the admin origin to localhost outside local mode — it fails loudly', () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(noop)
+    const origins = allowedOrigins({ SETU_MODE: 'self-hosted' })
+    expect(origins).not.toContain('http://localhost:5173')
+    expect(origins).toEqual([])
+    expect(err).toHaveBeenCalledWith(
+      expect.stringContaining('SETU_ADMIN_ORIGIN')
+    )
+  })
+
+  it('still honours SETU_TRUSTED_ORIGINS in self-hosted mode', () => {
+    const origins = allowedOrigins({
+      SETU_MODE: 'self-hosted',
+      SETU_ADMIN_ORIGIN: 'https://admin.example.com',
+      SETU_TRUSTED_ORIGINS: 'https://*.example.com'
+    })
+    expect(origins).toEqual([
+      'https://admin.example.com',
+      'https://*.example.com'
+    ])
   })
 })

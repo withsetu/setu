@@ -7,6 +7,7 @@ export type {
 } from './markdoc/types'
 export { markdocToTiptap } from './markdoc/to-tiptap'
 export { tiptapToMarkdoc } from './markdoc/to-markdoc'
+export { ATOM_TAG_TO_NODE, ATOM_NODE_TO_TAG } from './markdoc/atom-blocks'
 
 export type {
   SetuConfig,

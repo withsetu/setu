@@ -134,7 +134,11 @@ export function UserMenu() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => navigate('/users')}>
+            <AlertDialogAction
+              onClick={() => {
+                void navigate('/users')
+              }}
+            >
               Set password
             </AlertDialogAction>
             <AlertDialogAction

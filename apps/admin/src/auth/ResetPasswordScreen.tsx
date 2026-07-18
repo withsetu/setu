@@ -90,7 +90,7 @@ export function ResetPasswordScreen() {
       // Drops the token off the URL and lands on SessionGate's normal signed-out fallback
       // (LoginScreen) — there is no separate "/login" route; any pathname other than
       // "/reset-password" resolves there while signed out.
-      navigate('/')
+      void navigate('/')
     } finally {
       setSubmitting(false)
     }
@@ -160,7 +160,9 @@ export function ResetPasswordScreen() {
               type="button"
               variant="outline"
               className="w-full"
-              onClick={() => navigate('/')}
+              onClick={() => {
+                void navigate('/')
+              }}
             >
               Back to sign in
             </Button>

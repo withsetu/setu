@@ -29,35 +29,45 @@ export function GlobalCommands() {
       title: 'New post',
       group: 'Create',
       icon: Plus,
-      run: () => navigate('/edit/post/en/new')
+      run: () => {
+        void navigate('/edit/post/en/new')
+      }
     },
     {
       id: 'create.page',
       title: 'New page',
       group: 'Create',
       icon: Plus,
-      run: () => navigate('/edit/page/en/new')
+      run: () => {
+        void navigate('/edit/page/en/new')
+      }
     },
     {
       id: 'nav.dashboard',
       title: 'Dashboard',
       group: 'Go to',
       icon: LayoutDashboard,
-      run: () => navigate('/dashboard')
+      run: () => {
+        void navigate('/dashboard')
+      }
     },
     {
       id: 'nav.posts',
       title: 'Posts',
       group: 'Go to',
       icon: FileText,
-      run: () => navigate('/posts')
+      run: () => {
+        void navigate('/posts')
+      }
     },
     {
       id: 'nav.pages',
       title: 'Pages',
       group: 'Go to',
       icon: Files,
-      run: () => navigate('/pages')
+      run: () => {
+        void navigate('/pages')
+      }
     },
     {
       id: 'nav.taxonomies',
@@ -65,28 +75,36 @@ export function GlobalCommands() {
       group: 'Go to',
       icon: Folders,
       keywords: 'categories tags',
-      run: () => navigate('/taxonomies')
+      run: () => {
+        void navigate('/taxonomies')
+      }
     },
     {
       id: 'nav.media',
       title: 'Media',
       group: 'Go to',
       icon: Image,
-      run: () => navigate('/media')
+      run: () => {
+        void navigate('/media')
+      }
     },
     {
       id: 'nav.appearance',
       title: 'Appearance',
       group: 'Go to',
       icon: Palette,
-      run: () => navigate('/appearance')
+      run: () => {
+        void navigate('/appearance')
+      }
     },
     {
       id: 'nav.settings',
       title: 'Settings',
       group: 'Go to',
       icon: Settings,
-      run: () => navigate('/settings')
+      run: () => {
+        void navigate('/settings')
+      }
     },
     {
       id: 'site.deploy',

@@ -42,9 +42,7 @@ function AuthBoundary({ children }: { children: ReactNode }) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <BrowserRouter>
       <Bootstrap>
         <NotificationProvider>
           <AuthBoundary>

@@ -305,7 +305,9 @@ export function EditorScreen() {
           },
           EDITOR_ID
         )
-        navigate(`/edit/${collection}/${locale}/${newSlug}`, { replace: true })
+        void navigate(`/edit/${collection}/${locale}/${newSlug}`, {
+          replace: true
+        })
         await reindex({ collection, locale, slug: newSlug })
         return result
       }
@@ -359,7 +361,9 @@ export function EditorScreen() {
       if (!result.renamed) return result
       mintedRef.current = newSlug
       if (result.committedSha) baseShaRef.current = result.committedSha
-      navigate(`/edit/${collection}/${locale}/${newSlug}`, { replace: true })
+      void navigate(`/edit/${collection}/${locale}/${newSlug}`, {
+        replace: true
+      })
       // Awaited: success (toast/return) must imply both index rows are settled,
       // or a hard navigation right after can lose the writes (see reindex doc).
       await Promise.all([

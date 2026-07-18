@@ -63,34 +63,38 @@ const virtualFonts = {
 // plugin resolves any `@astrojs/markdoc[/*]` specifier from this app, so .mdoc files render
 // no matter where they live on disk.
 const require = createRequire(import.meta.url)
+
+// The @setu/* packages that repo-root blocks/<tag>/*.astro import with bare specifiers.
+// Those files live outside apps/site, and the repo-root node_modules has no @setu/blocks —
+// so the specifier cannot resolve from the importer's own location. TWO mechanisms below
+// have to cover this set, and #613 happened because only one of them did; both now derive
+// from this single list so they cannot drift apart:
+//   1. `resolveMarkdocFromApp.resolveId` maps the specifier to THIS app's copy.
+//   2. `vite.ssr.noExternal` keeps them non-external in the dev SSR environment.
+// (2) is what makes (1) reachable: Vite externalizes bare specifiers in dev SSR, and an
+// externalized specifier bypasses `resolveId` entirely — Node then resolves it from the
+// importer's directory and fails. `astro build` bundles the whole SSR graph, so it was
+// never affected, which is why the render-smoke suite and CI stayed green while every
+// root-block page 500'd in `astro dev`.
+const ROOT_BLOCK_PACKAGES = ['@setu/blocks', '@setu/core', '@setu/image-astro']
+
+const isRootBlockPackage = (id) =>
+  ROOT_BLOCK_PACKAGES.some((pkg) => id === pkg || id.startsWith(`${pkg}/`))
+
+// Same list, expressed as noExternal patterns — derived, never hand-maintained.
+const rootBlockNoExternal = ROOT_BLOCK_PACKAGES.map(
+  (pkg) => new RegExp(`^${pkg.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(/|$)`)
+)
+
 const resolveMarkdocFromApp = {
   name: 'setu:resolve-markdoc-from-app',
   enforce: 'pre',
   resolveId(id) {
-    if (id === '@astrojs/markdoc' || id.startsWith('@astrojs/markdoc/')) {
-      try {
-        return require.resolve(id)
-      } catch {
-        return null
-      }
-    }
-    // blocks/callout/callout.astro lives outside apps/site — its bare @setu/* imports
-    // won't resolve from the repo root. Resolve them from this app where they ARE installed.
-    if (id === '@setu/blocks' || id.startsWith('@setu/blocks/')) {
-      try {
-        return require.resolve(id)
-      } catch {
-        return null
-      }
-    }
-    if (id === '@setu/core' || id.startsWith('@setu/core/')) {
-      try {
-        return require.resolve(id)
-      } catch {
-        return null
-      }
-    }
-    if (id === '@setu/image-astro' || id.startsWith('@setu/image-astro/')) {
+    if (
+      id === '@astrojs/markdoc' ||
+      id.startsWith('@astrojs/markdoc/') ||
+      isRootBlockPackage(id)
+    ) {
       try {
         return require.resolve(id)
       } catch {
@@ -164,7 +168,16 @@ export default defineConfig({
     // resolve to .css. In `astro build` Vite bundles these, but in `astro dev` SSR Node's
     // loader tries to load the raw .css as a module and throws "Unknown file extension .css".
     // Force Vite to bundle the fontsource packages for SSR too.
-    ssr: { noExternal: [/^@fontsource-variable\//, /^@fontsource\//] },
+    // ...and the @setu/* packages the repo-root blocks/ import, so those bare specifiers reach
+    // `resolveMarkdocFromApp` instead of Node's resolver in dev SSR (#613 — see the comment on
+    // ROOT_BLOCK_PACKAGES for why externalization is the root cause).
+    ssr: {
+      noExternal: [
+        /^@fontsource-variable\//,
+        /^@fontsource\//,
+        ...rootBlockNoExternal
+      ]
+    },
     // Allow Vite to serve/process files from the repo root (blocks/ live outside apps/site).
     server: { fs: { allow: ['../..'] } }
   }

@@ -12,6 +12,10 @@ import {
 } from './last-owner-guard'
 import { rankGuardCreateHook, rankGuardUpdateHook } from './rank-guard'
 import {
+  singleRoleGuardCreateHook,
+  singleRoleGuardUpdateHook
+} from './single-role-guard'
+import {
   userCreateAfterHook,
   sessionCreateAfterHook,
   sessionDeleteAfterHook,
@@ -184,9 +188,13 @@ export function createAuth(opts: CreateAuthOptions) {
     // the full derivation of why these hooks can see the target user id and the acting session
     // despite neither being an explicit hook argument.
     //
-    // `update.before` composes TWO independent guards (better-auth's databaseHooks type only
+    // `update.before` composes THREE independent guards (better-auth's databaseHooks type only
     // accepts a single `before` function per model/event, so they're composed explicitly here,
-    // not registered as a list): rankGuardUpdateHook MUST run first — it's the one that stops a
+    // not registered as a list). #630's singleRoleGuardUpdateHook runs FIRST: it asserts the
+    // data-SHAPE invariant (exactly one known role), and neither guard below has a defined answer
+    // for a malformed role — `rankOf('admin,maintainer')` is 0, which would forbid a genuine
+    // multi-role admin outright. `user.create.before` composes the same shape guard ahead of
+    // rankGuardCreateHook for the identical reason. Then rankGuardUpdateHook — it's the one that stops a
     // maintainer from touching a peer/admin target or self-escalating a role at all — before
     // lastAdminGuardHook, which only ever cares about admin targets and would be a no-op for the
     // maintainer-vs-maintainer/editor cases rank-guard exists to catch. Both throw (rather than
@@ -202,11 +210,15 @@ export function createAuth(opts: CreateAuthOptions) {
     databaseHooks: {
       user: {
         create: {
-          before: rankGuardCreateHook(),
+          before: async (user, context) => {
+            await singleRoleGuardCreateHook()(user, context)
+            await rankGuardCreateHook()(user, context)
+          },
           after: userCreateAfterHook(emit)
         },
         update: {
           before: async (data, context) => {
+            await singleRoleGuardUpdateHook()(data, context)
             await rankGuardUpdateHook()(data, context)
             await lastAdminGuardHook()(data, context)
           },

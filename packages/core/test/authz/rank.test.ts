@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { ROLE_RANK, rankOf, outranks } from '../../src/authz/rank'
+import {
+  ROLE_RANK,
+  rankOf,
+  outranks,
+  parseRoleSet,
+  canonicalRoleOf,
+  isSingleKnownRole
+} from '../../src/authz/rank'
 import type { Role } from '../../src/authz/types'
 
 describe('ROLE_RANK (the #364 ladder)', () => {
@@ -63,5 +70,79 @@ describe('outranks', () => {
   // (see the doc comment on `outranks` in rank.ts).
   it('a known admin "outranks" an unknown target role by the rank formula alone', () => {
     expect(outranks('admin', 'garbage')).toBe(true)
+  })
+})
+
+// #630: better-auth persists a multi-role assignment as a comma-joined string
+// (`parseRoles` in its admin plugin joins arrays with `,` before writing the row).
+// Setu's contract is ONE role per user — enforced on the WRITE path — but every
+// READ path stays comma-aware so an already-persisted multi-role row still
+// resolves to a usable actor instead of 401ing its owner out of the whole API.
+describe('parseRoleSet (#630)', () => {
+  it('splits a comma-joined role string into components', () => {
+    expect(parseRoleSet('admin,maintainer')).toEqual(['admin', 'maintainer'])
+  })
+
+  it('returns a single-element list for a plain role', () => {
+    expect(parseRoleSet('editor')).toEqual(['editor'])
+  })
+
+  it('trims surrounding whitespace on each component', () => {
+    expect(parseRoleSet('admin, maintainer ')).toEqual(['admin', 'maintainer'])
+  })
+
+  it('accepts an array shape defensively', () => {
+    expect(parseRoleSet(['admin', 'author'])).toEqual(['admin', 'author'])
+  })
+
+  it('returns an empty list for empty/absent/garbage-typed input', () => {
+    expect(parseRoleSet('')).toEqual([])
+    expect(parseRoleSet(null)).toEqual([])
+    expect(parseRoleSet(undefined)).toEqual([])
+    expect(parseRoleSet(42)).toEqual([])
+    expect(parseRoleSet(',,')).toEqual([])
+  })
+})
+
+describe('canonicalRoleOf (#630)', () => {
+  it('returns the role itself for a plain known role', () => {
+    expect(canonicalRoleOf('maintainer')).toBe('maintainer')
+  })
+
+  it('returns the HIGHEST-ranked component of a comma-joined role set', () => {
+    expect(canonicalRoleOf('maintainer,admin')).toBe('admin')
+    expect(canonicalRoleOf('admin,maintainer')).toBe('admin')
+    expect(canonicalRoleOf('author,editor')).toBe('editor')
+  })
+
+  it('ignores unknown components when at least one known role is present', () => {
+    expect(canonicalRoleOf('subscriber,editor')).toBe('editor')
+  })
+
+  it('returns null when no component is a known staff role (fails closed)', () => {
+    expect(canonicalRoleOf('subscriber')).toBeNull()
+    expect(canonicalRoleOf('')).toBeNull()
+    expect(canonicalRoleOf(null)).toBeNull()
+    expect(canonicalRoleOf(undefined)).toBeNull()
+  })
+})
+
+describe('isSingleKnownRole (#630)', () => {
+  it('accepts exactly one known role', () => {
+    for (const role of ['admin', 'maintainer', 'editor', 'author'])
+      expect(isSingleKnownRole(role)).toBe(true)
+  })
+
+  it('rejects a multi-role set — Setu users hold exactly one role', () => {
+    expect(isSingleKnownRole('admin,maintainer')).toBe(false)
+    expect(isSingleKnownRole(['admin', 'maintainer'])).toBe(false)
+    expect(isSingleKnownRole(['admin'])).toBe(true)
+  })
+
+  it('rejects unknown roles and non-string input (fails closed)', () => {
+    expect(isSingleKnownRole('subscriber')).toBe(false)
+    expect(isSingleKnownRole('')).toBe(false)
+    expect(isSingleKnownRole(null)).toBe(false)
+    expect(isSingleKnownRole(42)).toBe(false)
   })
 })

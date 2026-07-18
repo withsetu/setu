@@ -1,5 +1,6 @@
 import { APIError } from '@better-auth/core/error'
 import type { GenericEndpointContext } from '@better-auth/core'
+import { parseRoleSet } from '@setu/core'
 
 // #364 generalization: this guard protects "the last account of the top role" — originally named
 // around the pre-#362 `owner` role, now generalized to `lastAdmin*` naming throughout (identifiers,
@@ -151,11 +152,14 @@ export function lastAdminGuardHook() {
  *  multi-role assignment, `parseRoles` in admin/routes.mjs joins arrays with a comma before
  *  persisting) — but the persisted `data.role` this hook actually receives is ALWAYS the
  *  already-joined string form (see admin/routes.mjs: `updateUser(userId, { role: parseRoles(...) })`).
- *  Still defensive here in case a future/direct caller passes an array through some other path. */
+ *  Still defensive here in case a future/direct caller passes an array through some other path.
+ *
+ *  #630: the splitting itself is now core's shared `parseRoleSet`, so this guard,
+ *  `rank-guard.ts`'s rank checks, `single-role-guard.ts`'s write check and
+ *  `resolve-session-actor.ts`'s read all parse the multi-role shape through ONE implementation —
+ *  the three-way disagreement between them was #630's whole subject. */
 function roleSetIncludesAdmin(role: unknown): boolean {
-  if (Array.isArray(role)) return role.includes('admin')
-  if (typeof role === 'string') return role.split(',').includes('admin')
-  return false
+  return parseRoleSet(role).includes('admin')
 }
 
 /** Page size and hard page cap for the multi-role admin scan below. 200 x 50 = 10 000 non-banned

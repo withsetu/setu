@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@setu/core": "workspace:*",
-    "isomorphic-git": "^1.38.4"
+    "isomorphic-git": "^1.38.9"
   },
   "devDependencies": {
     "@setu/db-memory": "workspace:*",

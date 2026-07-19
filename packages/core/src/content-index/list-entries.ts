@@ -2,7 +2,11 @@ import type { Draft, EntryRef } from '../data/types'
 import type { Lifecycle } from '../lifecycle/derive'
 import { deriveLifecycle } from '../lifecycle/derive'
 import { contentPath } from '../publish/content-path'
-import { parseMdoc, serializeMdoc } from '../markdoc/frontmatter'
+import {
+  parseMdoc,
+  rawFrontmatterOf,
+  serializeMdoc
+} from '../markdoc/frontmatter'
 import { tiptapToMarkdoc } from '../markdoc/to-markdoc'
 import { normalizeTags } from '../tags/normalize'
 import { parseFrontmatterDate } from '../permalinks/frontmatter-date'
@@ -138,8 +142,11 @@ export function listContentEntries(
     const committedStr = committedByKey.get(keyOf(ref)) ?? null
     const draftStr = draft
       ? serializeMdoc({
+          // #666: same retention as the publish path, or a just-published entry would
+          // compare unequal to its own committed file and read as pending 'edited'.
           frontmatter: draft.metadata,
-          body: tiptapToMarkdoc(draft.content)
+          body: tiptapToMarkdoc(draft.content),
+          rawFrontmatter: rawFrontmatterOf(draft.baseContent)
         })
       : null
     const lifecycle = deriveLifecycle({

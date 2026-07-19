@@ -5,7 +5,7 @@ import type { EntryRef } from '../data/types'
 import type { ReadService } from '../read/types'
 import type { TiptapDoc } from '../markdoc/types'
 import { contentPath } from '../publish/content-path'
-import { serializeMdoc } from '../markdoc/frontmatter'
+import { rawFrontmatterOf, serializeMdoc } from '../markdoc/frontmatter'
 import { tiptapToMarkdoc } from '../markdoc/to-markdoc'
 
 export interface BulkResult {
@@ -58,7 +58,9 @@ export function createBulkService(deps: BulkDeps): BulkService {
         const next = mutate(draft.metadata)
         const serialized = serializeMdoc({
           frontmatter: next,
-          body: tiptapToMarkdoc(draft.content)
+          body: tiptapToMarkdoc(draft.content),
+          // #666: keep every key this bulk mutation did not touch byte-identical.
+          rawFrontmatter: rawFrontmatterOf(draft.baseContent)
         })
         changes.push({ path: contentPath(ref), content: serialized })
         pending.push({ ref, content: draft.content, next, serialized })

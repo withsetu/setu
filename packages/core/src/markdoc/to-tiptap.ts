@@ -143,7 +143,12 @@ function stripMarker(inline: TiptapNode[]): TiptapNode[] {
 }
 
 /** Markdoc list → Tiptap list, recursively. Checklist detection is per level. Each
- *  item becomes [paragraph, ...nested lists]. */
+ *  item becomes [paragraph, ...every other block child].
+ *
+ *  #658: this used to keep only the item's first paragraph plus nested lists — the
+ *  read-side mirror of the serializer bug. A second paragraph, a table, an image or
+ *  a code block inside a list item survived in Git but vanished the moment the entry
+ *  was opened, so the next save wrote the loss back. */
 function listToTiptap(node: MdNode): TiptapNode {
   const task = isTaskList(node)
   const listType = task
@@ -156,14 +161,23 @@ function listToTiptap(node: MdNode): TiptapNode {
     content: (node.children ?? []).map((item) => {
       const inlineNode = itemInlineNode(item)
       const inline = inlineNode ? inlineToTiptap(inlineNode) : []
-      const nested = (item.children ?? [])
-        .filter((c) => c.type === 'list')
-        .map(listToTiptap)
+      // The paragraph that supplied the item's inline text is consumed into the
+      // leading paragraph below; every OTHER block child is carried through the
+      // normal block converter, so nested lists, tables, images and code blocks
+      // all survive (#658).
+      const consumed = (item.children ?? []).find(
+        (c) =>
+          c.type === 'paragraph' && c.children?.includes(inlineNode as never)
+      )
+      const rest = (item.children ?? [])
+        .filter((c) => c.type !== 'inline' && c !== consumed)
+        .map(blockToTiptap)
+        .filter((n): n is TiptapNode => n !== null)
       const paragraph: TiptapNode = {
         type: 'paragraph',
         content: task ? stripMarker(inline) : inline
       }
-      const content = [paragraph, ...nested]
+      const content = [paragraph, ...rest]
       if (task)
         return {
           type: 'taskItem',

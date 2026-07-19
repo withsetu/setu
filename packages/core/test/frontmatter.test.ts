@@ -17,7 +17,10 @@ describe('parseMdoc', () => {
   it('parses a fenced document into frontmatter + body', () => {
     expect(parseMdoc('---\ntitle: Hi\n---\n# Body\n')).toEqual({
       frontmatter: { title: 'Hi' },
-      body: '# Body\n'
+      body: '# Body\n',
+      // #666: the original YAML text rides along so serializeMdoc can re-emit
+      // untouched keys byte-for-byte.
+      rawFrontmatter: 'title: Hi'
     })
   })
 

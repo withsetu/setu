@@ -86,31 +86,6 @@ export function buildInline(
   })
 }
 
-/** Build a Markdoc `item` from a Tiptap list item. Uses the item's first paragraph
- *  for inline content (prefixed with a task marker when `task`), and recurses into any
- *  nested lists, appending them as block children of the item. */
-function buildListItem(
-  item: TiptapNode,
-  task: boolean
-): InstanceType<typeof N> {
-  const children = item.content ?? []
-  const firstPara = children.find((c) => c.type === 'paragraph')
-  const inlineNodes = buildInline(firstPara?.content ?? [])
-  if (task) {
-    const checked = item.attrs?.['checked'] === true
-    inlineNodes.unshift(new N('text', { content: checked ? '[x] ' : '[ ] ' }))
-  }
-  const nested = children
-    .filter(
-      (c) =>
-        c.type === 'bulletList' ||
-        c.type === 'orderedList' ||
-        c.type === 'taskList'
-    )
-    .map(buildBlock)
-  return new N('item', {}, [new N('inline', {}, inlineNodes), ...nested])
-}
-
 /** Attach a Markdoc `{% align="…" %}` annotation to a built block node when the Tiptap
  *  node has a center/right textAlign. left/null/undefined → no annotation (clean default).
  *  Mirrors the `tag.inline = true` write pattern in buildInline. */
@@ -153,18 +128,6 @@ function buildBlock(node: TiptapNode): InstanceType<typeof N> {
         ]),
         node
       )
-    case 'bulletList':
-    case 'orderedList':
-    case 'taskList': {
-      const ordered = node.type === 'orderedList'
-      return new N(
-        'list',
-        { ordered, marker: ordered ? '.' : '-' },
-        (node.content ?? []).map((item) =>
-          buildListItem(item, node.type === 'taskList')
-        )
-      )
-    }
     case 'codeBlock':
       return new N('fence', {
         content: (node.content?.[0]?.text ?? '') + '\n',
@@ -307,9 +270,68 @@ function blockquoteToMarkdoc(node: TiptapNode): string {
     .join('\n')
 }
 
+const LIST_TYPES = new Set(['bulletList', 'orderedList', 'taskList'])
+
+/** Serialize a list at the string level so its items' children reuse the same
+ *  per-type serializers as everywhere else.
+ *
+ *  #658: `buildListItem` kept ONLY `children.find(c => c.type === 'paragraph')` —
+ *  the first paragraph — plus nested lists. The Tiptap `listItem` schema is
+ *  `paragraph block*`, so a second paragraph, a table, an image or a code block is
+ *  schema-valid inside an item and reachable by a single paste; every one of them
+ *  was dropped on save without a word. Folding ALL children through `serializeBlock`
+ *  also fixes the same class the blockquote half hit: `table`/`imageBlock`/
+ *  `passthrough` have string-only serializers with no faithful Markdoc AST form.
+ *
+ *  Output is byte-identical to what `Markdoc.format` produced for the ordinary
+ *  shapes (tight items, nested lists, task markers) — see the byte-stability test —
+ *  so existing files are not rewritten on their next save. */
+function listToMarkdoc(node: TiptapNode): string {
+  const marker = node.type === 'orderedList' ? '1.' : '-'
+  const indent = ' '.repeat(marker.length + 1)
+  const task = node.type === 'taskList'
+  return (node.content ?? [])
+    .map((item) => listItemToMarkdoc(item, marker, indent, task))
+    .join('\n')
+}
+
+function listItemToMarkdoc(
+  item: TiptapNode,
+  marker: string,
+  indent: string,
+  task: boolean
+): string {
+  const children = item.content ?? []
+  const parts = children.map(serializeBlock)
+  // A nested list hugs its parent item (no blank line) — that is what Markdoc.format
+  // emitted. Any other block is separated by a blank line, which is what makes a
+  // multi-block item parse back as belonging to the item rather than ending it.
+  const body = parts
+    .map((text, i) => {
+      if (i === 0) return text
+      const sep = LIST_TYPES.has(children[i]?.type ?? '') ? '\n' : '\n\n'
+      return sep + text
+    })
+    .join('')
+  const prefix = task
+    ? `${marker} ${item.attrs?.['checked'] === true ? '[x] ' : '[ ] '}`
+    : `${marker} `
+  // Blank lines stay blank (never indent-only), and an empty item is just its marker.
+  // Deliberately NOT a blanket trailing-space strip: that would edit the contents of
+  // a fenced code block inside the item, which is the very loss this fixes.
+  return body
+    .split('\n')
+    .map((line, i) => {
+      if (i === 0) return line === '' ? prefix.trimEnd() : prefix + line
+      return line === '' ? '' : indent + line
+    })
+    .join('\n')
+}
+
 /** Serialize one block node to Markdoc source. Used for top-level blocks AND,
  *  recursively, for the children of body-bearing tags. */
 function serializeBlock(node: TiptapNode): string {
+  if (LIST_TYPES.has(node.type)) return listToMarkdoc(node)
   if (node.type === 'blockquote') return blockquoteToMarkdoc(node)
   if (node.type === 'passthrough') {
     const raw = node.attrs?.['raw']

@@ -1,5 +1,5 @@
 {
-  "_policy": "Known CodeQL findings, allowlisted per the repo's fail-on-NEW gate policy (same shape as the axe allowlists, #220). Each entry matches ruleId + file uri (line numbers drift, deliberately not matched). Every entry MUST carry a tracking issue; removing the entry once fixed is that issue's DoD \u2014 the gate then guards the fix forever. Adding an entry requires triage, never convenience. KNOWN BLIND SPOT: the ruleId+uri fingerprint means a genuinely NEW instance of an allowlisted rule IN THE SAME FILE is also swallowed until that file's entry is removed \u2014 bounded to the 4 tracked files, self-healing as #323/#324 land; deliberate trade vs line-drift false-reds.",
+  "_policy": "Known CodeQL findings, allowlisted per the repo's fail-on-NEW gate policy (same shape as the axe allowlists, #220). Each entry matches ruleId + file uri (line numbers drift, deliberately not matched). Every entry MUST carry a tracking issue; removing the entry once fixed is that issue's DoD — the gate then guards the fix forever. Adding an entry requires triage, never convenience. KNOWN BLIND SPOT: the ruleId+uri fingerprint means a genuinely NEW instance of an allowlisted rule IN THE SAME FILE is also swallowed until that file's entry is removed — bounded to the 6 tracked files, self-healing as #323/#324 land; deliberate trade vs line-drift false-reds. NOTE the two #698 entries are FALSE POSITIVES rather than deferred fixes, so they do not self-heal — they persist until the escaping contract changes. That makes their blind spot permanent for js/incomplete-sanitization in those two files: a genuinely new incomplete sanitizer added there would be swallowed. Both are small, single-purpose serializer files, which is what makes that acceptable; if either grows, re-evaluate.",
   "known": [
     {
       "ruleId": "js/bad-tag-filter",
@@ -23,7 +23,19 @@
       "ruleId": "js/polynomial-redos",
       "uri": "packages/core/src/content/excerpt.ts",
       "issue": "#340",
-      "note": "Markdoc/image/link stripper regexes. Quadratic via the /g-restart on a recurring opening delimiter (`{%`, `![`, `[`) whose content classes legitimately contain that delimiter, so no linear-safe regex rewrite preserves the exact set of stripped substrings; a correct fix needs a stateful single-pass parser. Lowest severity of the #340 set (author-controlled, build-time only) \u2014 left tracked under #340 pending the parser rewrite."
+      "note": "Markdoc/image/link stripper regexes. Quadratic via the /g-restart on a recurring opening delimiter (`{%`, `![`, `[`) whose content classes legitimately contain that delimiter, so no linear-safe regex rewrite preserves the exact set of stripped substrings; a correct fix needs a stateful single-pass parser. Lowest severity of the #340 set (author-controlled, build-time only) — left tracked under #340 pending the parser rewrite."
+    },
+    {
+      "ruleId": "js/incomplete-sanitization",
+      "uri": "packages/core/src/markdoc/escape-inline.ts",
+      "issue": "#698",
+      "note": "FALSE POSITIVE, not deferred work. The ATX closing-sequence rule escapes `#` without also escaping `\\` — but `\\` is already escaped earlier in the same function (it is in the contract's always-escaped set), so the input reaching this replace has no unescaped backslash. CodeQL sees the replace in isolation and cannot see the upstream pass. Escaping `\\` again here would DOUBLE-escape and corrupt content. Verified byte-stable on the real functions: `# a \\#`, `# a \\\\#`, `# a \\\\`. Remove this entry if the escaping contract stops guaranteeing backslash-first ordering."
+    },
+    {
+      "ruleId": "js/incomplete-sanitization",
+      "uri": "packages/core/src/markdoc/table-gfm.ts",
+      "issue": "#698",
+      "note": "FALSE POSITIVE, same cause as the escape-inline.ts entry: the cell escape adds `\\|` without escaping `\\`, because `escapeText` already did. This file previously DOUBLED backslashes to compensate for Markdoc never escaping them; #695 removed that doubling precisely because it would corrupt every escape in a cell once the contract emitted `\\\\` correctly. Re-adding backslash escaping here would reintroduce that corruption. Verified byte-stable: `| x\\\\y |`, `| x\\|y |`, `| x\\\\\\|y |`. Remove this entry if `escapeText` stops running before cell serialization."
     }
   ]
 }

@@ -58,10 +58,9 @@ export function TagsProvider({ children }: { children: ReactNode }) {
         (m) => bulkAddTag(bulkRemoveTag(m, from), target),
         `tags: rename ${from} → ${target}`
       )
-      for (const ref of res.applied)
-        await index.reindexEntry(ref).catch(() => {})
-      if (res.committedSha)
-        await index.markSyncedAt(res.committedSha).catch(() => {})
+      // Atomic reindex+stamp (#655): a stamp after a swallowed reindex failure
+      // freezes the stale rows out of ensureBuilt's reach for good.
+      await index.reindexEntries(res.applied, res.committedSha).catch(() => {})
       void refreshCounts()
       return { applied: res.applied.length, merged }
     },
@@ -76,10 +75,7 @@ export function TagsProvider({ children }: { children: ReactNode }) {
         (m) => bulkRemoveTag(m, tag),
         `tags: delete ${tag}`
       )
-      for (const ref of res.applied)
-        await index.reindexEntry(ref).catch(() => {})
-      if (res.committedSha)
-        await index.markSyncedAt(res.committedSha).catch(() => {})
+      await index.reindexEntries(res.applied, res.committedSha).catch(() => {})
       void refreshCounts()
       return { applied: res.applied.length }
     },

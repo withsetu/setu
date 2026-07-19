@@ -80,12 +80,16 @@ export function createCategoryDeleter(deps: CategoryDeleterDeps) {
           baseSha: sha,
           baseContent: p.serialized
         })
-        await index.reindexEntry(p.ref)
       }
-      // We just reindexed every entry this atomic commit changed — mark the index synced
-      // at the commit sha so ensureBuilt's out-of-band sha-gate doesn't full-rebuild on the
-      // next load (reindexEntry no longer advances indexedSha itself).
-      await index.markSyncedAt(sha)
+      // Reindex every entry this atomic commit changed, then mark the index synced at the
+      // commit sha so ensureBuilt's out-of-band sha-gate doesn't full-rebuild on the next
+      // load (reindexEntry does not advance indexedSha itself). One call so the stamp
+      // cannot land after a failed reindex (#655) — this loop was already the correct
+      // posture, and is now the shared one.
+      await index.reindexEntries(
+        pending.map((p) => p.ref),
+        sha
+      )
 
       return { categories: nextCats, strippedCount: pending.length }
     }

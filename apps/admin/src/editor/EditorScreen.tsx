@@ -366,14 +366,15 @@ export function EditorScreen() {
       })
       // Awaited: success (toast/return) must imply both index rows are settled,
       // or a hard navigation right after can lose the writes (see reindex doc).
-      await Promise.all([
-        reindex(ref),
-        reindex({ collection, locale, slug: newSlug })
-      ])
-      // Same as publish: the move commit is now reflected in the index, so
-      // advance the synced marker or the next ensureBuilt full-rebuilds.
-      if (result.committedSha)
-        await index.markSyncedAt(result.committedSha).catch(() => {})
+      // Both rows AND the synced marker in one call (#655): stamping the move
+      // commit after a failed reindex would leave the old slug's row visible and
+      // unreachable by ensureBuilt's rescan.
+      await index
+        .reindexEntries(
+          [ref, { collection, locale, slug: newSlug }],
+          result.committedSha
+        )
+        .catch(() => {})
       if (!opts.silent)
         notify.success(
           wasCommitted
@@ -473,8 +474,7 @@ export function EditorScreen() {
         setLiveCommitted(metaRef.current['published'] !== false)
         // A commit just landed — the entry now has history (#466), without a reload.
         setCommittedInGit(true)
-        await index.reindexEntry(ref).catch(() => {})
-        await index.markSyncedAt(r.sha).catch(() => {})
+        await index.reindexEntries([ref], r.sha).catch(() => {})
         await refreshLifecycle()
       } else if (r.status === 'conflict') {
         notify.error('The published version moved — reload to continue.')
@@ -558,8 +558,7 @@ export function EditorScreen() {
   const onRestored = async (sha: string) => {
     await data.deleteDraft(ref)
     baseShaRef.current = null
-    await reindex(ref)
-    await index.markSyncedAt(sha).catch(() => {})
+    await index.reindexEntries([ref], sha).catch(() => {})
     setReloadKey((k) => k + 1)
   }
 

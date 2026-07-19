@@ -20,7 +20,7 @@ import {
 /** In-memory IndexPort (Map-backed). Value semantics via structuredClone. */
 export function createMemoryIndexPort(): IndexPort {
   const rows = new Map<string, EntryIndexRow>()
-  let meta: IndexMeta = { indexedSha: null, version: 0 }
+  let meta: IndexMeta = { indexedSha: null, deployedSha: null, version: 0 }
   return {
     async query(q: IndexQuery) {
       return runQuery([...rows.values()], q)

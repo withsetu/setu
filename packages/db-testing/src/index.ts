@@ -507,9 +507,52 @@ export function runIndexPortContract(
     })
 
     it('meta round-trips and defaults to null/0', async () => {
-      expect(await ix.getMeta()).toEqual({ indexedSha: null, version: 0 })
-      await ix.setMeta({ indexedSha: 'abc', version: 2 })
-      expect(await ix.getMeta()).toEqual({ indexedSha: 'abc', version: 2 })
+      expect(await ix.getMeta()).toEqual({
+        indexedSha: null,
+        deployedSha: null,
+        version: 0
+      })
+      await ix.setMeta({
+        indexedSha: 'abc',
+        deployedSha: 'dep',
+        version: 2
+      })
+      expect(await ix.getMeta()).toEqual({
+        indexedSha: 'abc',
+        deployedSha: 'dep',
+        version: 2
+      })
+    })
+
+    it('meta persists indexedSha and deployedSha INDEPENDENTLY (#662)', async () => {
+      // A deploy moves deployedSha without moving indexedSha (git does not move on
+      // a deploy) and a commit moves indexedSha without moving deployedSha. An
+      // adapter that collapsed them — or dropped the new field on the way to
+      // storage — would make every row's live-vs-staged state wrong after a
+      // restart, silently.
+      await ix.setMeta({
+        indexedSha: 'commit1',
+        deployedSha: null,
+        version: 9
+      })
+      await ix.setMeta({
+        ...(await ix.getMeta()),
+        deployedSha: 'deploy1'
+      })
+      expect(await ix.getMeta()).toEqual({
+        indexedSha: 'commit1',
+        deployedSha: 'deploy1',
+        version: 9
+      })
+      await ix.setMeta({ ...(await ix.getMeta()), indexedSha: 'commit2' })
+      expect(await ix.getMeta()).toEqual({
+        indexedSha: 'commit2',
+        deployedSha: 'deploy1',
+        version: 9
+      })
+      // Null must survive the round-trip as null, not vanish into undefined.
+      await ix.setMeta({ ...(await ix.getMeta()), deployedSha: null })
+      expect((await ix.getMeta()).deployedSha).toBeNull()
     })
 
     it('distinctTags: prefix-filters, dedupes across rows, sorts, respects limit', async () => {

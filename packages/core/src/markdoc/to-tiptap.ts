@@ -322,9 +322,17 @@ export function markdocToTiptap(
   const isPreserve = (node: MdNode): boolean =>
     hasError(node) || (node.type === 'tag' && !known.has(node.tag ?? ''))
 
-  const lines = source.split('\n')
+  // Markdoc (via markdown-it) normalizes CR and CRLF to LF BEFORE tokenizing, so its
+  // `location.line` numbers are indices into the normalized text. A bare `\r` is a line
+  // break there but not to `source.split('\n')`, which desynchronized the two index
+  // spaces and made every subsequent passthrough slice start one line too early —
+  // dropping the tag's own opening line and duplicating the preceding block, growing
+  // the document without bound on every save (#674). Normalize once, up front, and
+  // feed the SAME text to both the parser and the line index so they cannot drift.
+  const text = source.replace(/\r\n?/g, '\n')
+  const lines = text.split('\n')
   // `location` is supported at runtime (spike-proven) but not in Markdoc's published parse types.
-  const ast = (Markdoc.parse as (s: string, a?: unknown) => MdNode)(source, {
+  const ast = (Markdoc.parse as (s: string, a?: unknown) => MdNode)(text, {
     location: true
   })
   const kids = ast.children ?? []

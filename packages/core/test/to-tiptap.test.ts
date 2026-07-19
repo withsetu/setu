@@ -92,6 +92,28 @@ describe('markdocToTiptap', () => {
     expect(attrs.flagged).toBe(true)
     expect(attrs.raw).toContain('{% for $p in $ps %}')
   })
+
+  /** #674. Markdoc's `location.line` counts a BARE `\r` as a line break (markdown-it
+   *  normalizes CR before tokenizing); `source.split('\n')` does not. Every bare CR
+   *  before a passthrough therefore shifted the slice window one line earlier — the
+   *  opening `{% callout %}` line was dropped and the previous block's last line was
+   *  duplicated into the raw. That GROWS the document on every save, without bound.
+   *  CRLF was never affected (both counts see one break). */
+  it('slices a passthrough correctly after a bare CR (#674)', () => {
+    const doc = markdocToTiptap('a\rb\n\n{% callout %}\nx\n{% /callout %}\n')
+    const node = doc.content.find((n) => n.type === 'passthrough')!
+    expect(node).toBeDefined()
+    const attrs = node.attrs as { raw: string }
+    expect(attrs.raw).toBe('{% callout %}\nx\n{% /callout %}')
+  })
+
+  it('does not leak the preceding block into a passthrough raw (#674)', () => {
+    const doc = markdocToTiptap('a\rb\n\n{% if $x %}\ny\n{% /if %}\n')
+    const node = doc.content.find((n) => n.type === 'passthrough')!
+    const attrs = node.attrs as { raw: string }
+    expect(attrs.raw.startsWith('{% if $x %}')).toBe(true)
+    expect(attrs.raw).not.toContain('b')
+  })
 })
 
 describe('subscript/superscript inline tags', () => {

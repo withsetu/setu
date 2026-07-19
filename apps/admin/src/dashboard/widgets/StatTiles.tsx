@@ -1,6 +1,17 @@
 import { Link } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { STATUS_FILTER_MENU } from '@/lib/status-filter-vocab'
+
+/** Label + hint + destination for the three status tiles, taken from the SAME
+ *  list the content list's status filter renders (#598 UAT: the tiles and the
+ *  menu had drifted into two vocabularies for one concept). The order there is
+ *  Live → Staged → Drafts, which is the order the tiles want too. */
+const [LIVE, STAGED, DRAFTS] = STATUS_FILTER_MENU as readonly [
+  (typeof STATUS_FILTER_MENU)[number],
+  (typeof STATUS_FILTER_MENU)[number],
+  (typeof STATUS_FILTER_MENU)[number]
+]
 
 function Stat({
   value,
@@ -90,9 +101,9 @@ export function StatTiles({
           <>
             <StatSkeleton label="Posts" />
             <StatSkeleton label="Pages" />
-            <StatSkeleton label="Live" />
-            <StatSkeleton label="Staged" />
-            <StatSkeleton label="Drafts" />
+            <StatSkeleton label={LIVE.label} />
+            <StatSkeleton label={STAGED.label} />
+            <StatSkeleton label={DRAFTS.label} />
           </>
         ) : (
           <>
@@ -102,29 +113,30 @@ export function StatTiles({
             <Link to="/pages" className={tileLink}>
               <Stat value={pages} label="Pages" />
             </Link>
-            <Link to="/content?status=live" className={tileLink}>
-              <Stat value={live} label="Live" hint="On the site" />
+            <Link to={`/content?status=${LIVE.value}`} className={tileLink}>
+              <Stat value={live} label={LIVE.label} hint={LIVE.hint} />
             </Link>
             {/* Emphasised like Drafts: staged entries are unfinished business —
                 work that needs a deploy before anyone can see it. */}
-            <Link to="/content?status=staged" className={tileLink}>
+            <Link to={`/content?status=${STAGED.value}`} className={tileLink}>
               <Stat
                 value={staged}
-                label="Staged"
-                hint="Pending deploy"
+                label={STAGED.label}
+                hint={STAGED.hint}
                 emphasis
               />
             </Link>
             {/* #611: draft + unpublished. 'unpublished' is what a committed-hidden
                 entry becomes once the site has been deployed at all, so a
-                draft-only tile emptied itself on first deploy. "Not on the site"
-                is the honest label for both — a never-published draft and a
-                deliberately taken-down entry answer the same question here. */}
-            <Link to="/content?status=not-published" className={tileLink}>
+                draft-only tile emptied itself on first deploy.
+                The hint is "Not published", not "Not on the site" (#598 UAT):
+                a STAGED entry is also not on the site, so location can't be what
+                separates these tiles — intent is. */}
+            <Link to={`/content?status=${DRAFTS.value}`} className={tileLink}>
               <Stat
                 value={drafts}
-                label="Drafts"
-                hint="Not on the site"
+                label={DRAFTS.label}
+                hint={DRAFTS.hint}
                 emphasis
               />
             </Link>

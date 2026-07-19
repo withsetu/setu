@@ -5,6 +5,7 @@ import { projectRow, runQuery, selectIndexStats } from '@setu/core'
 import type { ContentRow, IndexQuery } from '@setu/core'
 import { isIndexStatusFilter } from '@setu/core'
 import { StatTiles } from '../src/dashboard/widgets/StatTiles'
+import { STATUS_FILTER_MENU } from '../src/lib/status-filter-vocab'
 import { dashboardCountsFromStats } from '../src/dashboard/entries'
 
 const wrap = (ui: React.ReactNode) => render(<MemoryRouter>{ui}</MemoryRouter>)
@@ -50,12 +51,35 @@ describe('StatTiles', () => {
     expect(href(/Drafts/)).toBe('/content?status=not-published')
   })
 
-  // #611: the Drafts hint has to be true for a never-published draft AND for an
-  // entry that was taken down after a deploy ('unpublished'). "Not published"
-  // was only true of the first.
-  it('labels Drafts as not on the site (#611)', () => {
+  // #598 UAT: "Not on the site" is equally true of a STAGED entry, so it never
+  // distinguished this tile. What separates them is intent — Live and Staged are
+  // both meant to be public; these are not. The hint also has to match the menu
+  // option the tile links to, which now reads "Drafts / Not published".
+  it('labels Drafts as not published, not "not on the site" (#598)', () => {
     wrap(<StatTiles {...props} />)
-    expect(screen.getByText('Not on the site')).toBeInTheDocument()
+    expect(screen.getByText('Not published')).toBeInTheDocument()
+    expect(screen.queryByText('Not on the site')).toBeNull()
+  })
+
+  // The Live/Staged hints are location-true because those tiles ARE separated by
+  // deploy state; only the Drafts hint had to change.
+  it('keeps the Live and Staged hints', () => {
+    wrap(<StatTiles {...props} />)
+    expect(screen.getByText('On the site')).toBeInTheDocument()
+    expect(screen.getByText('Pending deploy')).toBeInTheDocument()
+  })
+
+  // The tiles and the status filter render from one list, so a label can't be
+  // changed on one surface and left stale on the other (#598 UAT).
+  it('renders its labels and hints from the shared status vocabulary', () => {
+    wrap(<StatTiles {...props} />)
+    for (const e of STATUS_FILTER_MENU) {
+      expect(screen.getByText(e.label)).toBeInTheDocument()
+      expect(screen.getByText(e.hint)).toBeInTheDocument()
+      expect(
+        screen.getByRole('link', { name: new RegExp(e.label) })
+      ).toHaveAttribute('href', `/content?status=${e.value}`)
+    }
   })
 
   it('gives every tile a distinct destination (no redundant links, #598)', () => {

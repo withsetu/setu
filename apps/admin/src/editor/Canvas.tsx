@@ -172,6 +172,17 @@ export function Canvas({
     return () => onEditor?.(null)
   }, [editor, onEditor])
 
+  // useEditor (no deps array) applies option changes with the LIVE instance's
+  // editability preserved (@tiptap/react 3.x onRender), so a changed `editable`
+  // prop is inert without a remount. That was masked while every phase flip
+  // remounted the canvas; with the mint-stable key (#490) a post-mint
+  // ready→readonly flip (lock lost to another editor) reaches us in-place —
+  // propagate it, or the canvas stays editable under the read-only banner
+  // while autosave is off (silently unpersisted typing).
+  useEffect(() => {
+    if (editor && editor.isEditable !== editable) editor.setEditable(editable)
+  }, [editor, editable])
+
   const [imgBusy, setImgBusy] = useState(false)
   // The pending pick handler: insert (slash /image) or replace (in-block button)
   // both open the same modal; the chosen src is routed to whichever set this.

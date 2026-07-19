@@ -134,10 +134,12 @@ export function createHttpIndexService(
 
   function queryParams(q: IndexQuery): URLSearchParams {
     const params = new URLSearchParams({
-      collection: q.collection,
       offset: String(q.offset),
       limit: String(q.limit)
     })
+    // Absent `collection` = the cross-collection scope (#604); the param is
+    // omitted rather than sent empty, which the server would reject as junk.
+    if (q.collection !== undefined) params.set('collection', q.collection)
     if (q.q !== undefined && q.q !== '') params.set('q', q.q)
     if (q.status !== undefined) params.set('status', q.status)
     if (q.locale !== undefined && q.locale !== '')
@@ -229,7 +231,10 @@ export function createHttpIndexService(
     q: IndexQuery,
     base: { rows: ContentRow[]; total: number }
   ): Promise<{ rows: ContentRow[]; total: number }> {
-    const drafts = await data.listDrafts({ collection: q.collection })
+    // No collection → every collection's drafts overlay (#604).
+    const drafts = await data.listDrafts(
+      q.collection !== undefined ? { collection: q.collection } : undefined
+    )
     if (drafts.length === 0) return base
     const rows = [...base.rows]
     let total = base.total
@@ -281,7 +286,7 @@ export function createHttpIndexService(
       // Order the injected drafts among themselves with the query's own
       // comparator (runQuery is the single sort impl shared by adapters).
       const sortedExtras = runQuery(extras.map(projectRow), {
-        collection: q.collection,
+        ...(q.collection !== undefined ? { collection: q.collection } : {}),
         offset: 0,
         limit: extras.length,
         ...(q.sort !== undefined ? { sort: q.sort } : {})

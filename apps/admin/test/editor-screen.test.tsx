@@ -12,6 +12,7 @@ import { ActorProvider } from '../src/auth/actor'
 import { ServicesProvider, createServices } from '../src/data/store'
 import type { Services } from '../src/data/store'
 import { DeployProvider } from '../src/deploy/deploy'
+import { AppMediaIndexProvider } from '../src/data/media-index-store'
 import { IndexProvider } from '../src/data/index-store'
 import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { EditorScreen } from '../src/editor/EditorScreen'
@@ -99,20 +100,22 @@ function renderEditor(services: Services, path = '/edit/post/en/p1') {
         <MemoryRouter initialEntries={[path]}>
           <ActorProvider>
             <ServicesProvider services={services}>
-              <DeployProvider>
-                <IndexProvider>
-                  <TaxonomyProvider>
-                    <CommandRegistryProvider>
-                      <Routes>
-                        <Route
-                          path="/edit/:collection/:locale/:slug"
-                          element={<EditorScreen />}
-                        />
-                      </Routes>
-                    </CommandRegistryProvider>
-                  </TaxonomyProvider>
-                </IndexProvider>
-              </DeployProvider>
+              <AppMediaIndexProvider>
+                <DeployProvider>
+                  <IndexProvider>
+                    <TaxonomyProvider>
+                      <CommandRegistryProvider>
+                        <Routes>
+                          <Route
+                            path="/edit/:collection/:locale/:slug"
+                            element={<EditorScreen />}
+                          />
+                        </Routes>
+                      </CommandRegistryProvider>
+                    </TaxonomyProvider>
+                  </IndexProvider>
+                </DeployProvider>
+              </AppMediaIndexProvider>
             </ServicesProvider>
           </ActorProvider>
         </MemoryRouter>
@@ -351,6 +354,50 @@ describe('EditorScreen', () => {
       limit: 10
     })
     expect(rows.map((r) => r.slug)).toContain('indexed-before-saved')
+  })
+
+  it('compose-mint keeps the open featured-image dialog mounted (no loading flash, no keyed remount) (#490)', async () => {
+    const services = createServices()
+    renderEditor(services, '/edit/post/en/new')
+    await screen.findByLabelText('Title')
+
+    // Type a title, then open the featured-image picker BEFORE the 800ms
+    // autosave debounce fires — the real interleaving that killed the dialog:
+    // the mint navigate()s to the real slug, and the load effect used to flash
+    // 'loading' + remount the keyed MetaPanel, unmounting the open dialog.
+    fireEvent.change(screen.getByLabelText('Title'), {
+      target: { value: 'Dialog Survivor' }
+    })
+    // Two 'Set featured image' buttons exist (Featured image + the SEO
+    // section's social image) — the first is the Featured image section's.
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'Set featured image' })[0]!
+    )
+    expect(
+      await screen.findByRole('dialog', { name: 'Add an image' })
+    ).toBeInTheDocument()
+
+    // Let the debounce elapse and the mint complete: the URL is replaced with
+    // the minted slug (the header breadcrumb reflects it) and the save settles.
+    await waitFor(
+      () =>
+        expect(screen.getByText('post / dialog-survivor')).toBeInTheDocument(),
+      { timeout: 3000 }
+    )
+    await waitFor(
+      () =>
+        expect(
+          screen.getByText('Backed up on this device')
+        ).toBeInTheDocument(),
+      { timeout: 3000 }
+    )
+
+    // The dialog must have survived the mint, and the editor must never have
+    // swapped to the loading screen.
+    expect(
+      screen.getByRole('dialog', { name: 'Add an image' })
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Loading…')).not.toBeInTheDocument()
   })
 
   it('does NOT auto-derive once the slug was manually renamed', async () => {

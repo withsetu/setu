@@ -105,6 +105,81 @@ describe('DeployProvider (server-backed, #208/#209)', () => {
     expect(result.current.status?.deployedSha).toBe('new-sha')
   })
 
+  it('exposes running/startedAt for the duration of a rebuild (#571)', async () => {
+    vi.useFakeTimers()
+    let phase: 'running' | 'done' = 'running'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL) => {
+        const url = String(input)
+        if (url.endsWith('/api/deploy/rebuild'))
+          return json({ job: { id: 'j1', status: 'running' } }, 202)
+        return json(
+          statusOf({ job: { id: 'j1', status: phase, startedAt: 5 } as never })
+        )
+      })
+    )
+    const { result } = renderHook(() => useDeploy(), { wrapper })
+    expect(result.current.running).toBe(false)
+    expect(result.current.startedAt).toBeNull()
+
+    let rebuildP: Promise<void> = Promise.resolve()
+    await act(async () => {
+      rebuildP = result.current.rebuild().catch(() => undefined)
+      await vi.advanceTimersByTimeAsync(1600)
+    })
+    expect(result.current.running).toBe(true)
+    expect(result.current.startedAt).toBeTypeOf('number')
+
+    phase = 'done'
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1600)
+      await rebuildP
+    })
+    expect(result.current.running).toBe(false)
+    expect(result.current.startedAt).toBeNull()
+  })
+
+  it('reports running from server truth when another session started the build (#571)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        json(
+          statusOf({
+            job: { id: 'other', status: 'running', startedAt: 4242 } as never
+          })
+        )
+      )
+    )
+    const { result } = renderHook(() => useDeploy(), { wrapper })
+    await waitFor(() => expect(result.current.status).not.toBeNull())
+    expect(result.current.running).toBe(true)
+    expect(result.current.startedAt).toBe(4242)
+  })
+
+  it('requestRebuild() only opens the confirmation — it never deploys (#571)', async () => {
+    const fetchMock = vi.fn(async () => json(statusOf()))
+    vi.stubGlobal('fetch', fetchMock)
+    const { result } = renderHook(() => useDeploy(), { wrapper })
+    await waitFor(() => expect(result.current.status).not.toBeNull())
+    expect(result.current.confirmOpen).toBe(false)
+
+    act(() => {
+      result.current.requestRebuild()
+    })
+    expect(result.current.confirmOpen).toBe(true)
+    expect(
+      fetchMock.mock.calls.some((call: unknown[]) =>
+        String(call[0]).endsWith('/api/deploy/rebuild')
+      )
+    ).toBe(false)
+
+    act(() => {
+      result.current.closeConfirm()
+    })
+    expect(result.current.confirmOpen).toBe(false)
+  })
+
   it('rebuild() rejects with the server message on 409 (capability off / running)', async () => {
     vi.stubGlobal(
       'fetch',

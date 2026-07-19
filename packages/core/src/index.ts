@@ -237,10 +237,18 @@ export type {
   EntryIndexRow,
   SortKey,
   IndexQuery,
+  IndexStatusFilter,
   IndexMeta,
   IndexPort
 } from './index-port/types'
-export { indexKey, projectRow, rowToContentRow } from './index-port/types'
+export {
+  indexKey,
+  projectRow,
+  rowToContentRow,
+  INDEX_STATUS_FILTERS,
+  isIndexStatusFilter,
+  matchesStatusFilter
+} from './index-port/types'
 export type { AuditSummary } from './index-port/audit-summary'
 export {
   selectAuditSummary,
@@ -323,6 +331,7 @@ export { createRenameService } from './rename/rename-service'
 export {
   entrySlugify,
   isValidEntrySlug,
+  unicodeCaseFold,
   RESERVED_ENTRY_SLUG
 } from './rename/slug'
 

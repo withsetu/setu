@@ -34,10 +34,66 @@ export interface EntryIndexRow {
 
 export type SortKey = 'updatedAt' | 'title' | 'status' | 'locale'
 
+/** What `IndexQuery.status` accepts: any exact `LifecycleState`, plus two
+ *  combined pseudo-states — `'published'` = staged OR live (#579) and
+ *  `'not-published'` = draft OR unpublished (#611).
+ *
+ *  Both are FILTER vocabulary words, never a row's `status` — an entry is stored
+ *  as exactly one lifecycle state. 'published' exists because "published"
+ *  (committed + `published !== false`) spans two lifecycle states that differ
+ *  only in whether a deploy has happened yet: `staged` (committed, not deployed)
+ *  and `live` (deployed). 'not-published' is its exact complement, and exists for
+ *  the same reason in reverse: "not on the site" also spans two states that
+ *  differ only by deploy history — `draft` (hidden, never deployed) and
+ *  `unpublished` (hidden, but was deployed once, so the site still shows it until
+ *  the next deploy). The dashboard's Drafts tile counts that union, so it needs a
+ *  filter that selects it (#611); the Live/Staged tiles deep-link to exact states.
+ *
+ *  The two unions PARTITION the four lifecycle states: every entry is in exactly
+ *  one. That is what lets the dashboard assert Live + Staged + Drafts ===
+ *  Posts + Pages. */
+export type IndexStatusFilter = LifecycleState | 'published' | 'not-published'
+
+/** Every value `IndexQuery.status` accepts — the single source of truth shared by
+ *  the API's Zod boundary and the admin list's URL-param validation, so a new
+ *  state can never be accepted in one place and silently dropped in another. */
+export const INDEX_STATUS_FILTERS = [
+  'draft',
+  'staged',
+  'live',
+  'unpublished',
+  'published',
+  'not-published'
+] as const satisfies readonly IndexStatusFilter[]
+
+/** True when `s` is a status the index can filter on — used to reject junk from
+ *  URLs/query strings instead of passing it through to a silent empty result. */
+export const isIndexStatusFilter = (s: string): s is IndexStatusFilter =>
+  (INDEX_STATUS_FILTERS as readonly string[]).includes(s)
+
+/** Does a row's lifecycle state satisfy `filter`? The ONE place the union
+ *  pseudo-states are expanded — `runQuery` and any future SQL-native adapter
+ *  must agree. */
+export const matchesStatusFilter = (
+  state: LifecycleState,
+  filter: IndexStatusFilter
+): boolean => {
+  if (filter === 'published') return state === 'staged' || state === 'live'
+  if (filter === 'not-published')
+    return state === 'draft' || state === 'unpublished'
+  return state === filter
+}
+
 export interface IndexQuery {
-  collection: string
+  /** Restrict to one collection. OMIT for the cross-collection scope: every
+   *  collection at once (#604). The dashboard's status tiles count post + page
+   *  together, so their destination list must be able to show both — a tile whose
+   *  number can't be reproduced by the list it links to is a bug, not a nuance. */
+  collection?: string
   q?: string
-  status?: LifecycleState
+  /** Exact lifecycle state, or a union: `'published'` = staged+live (#579),
+   *  `'not-published'` = draft+unpublished (#611). */
+  status?: IndexStatusFilter
   locale?: string
   tag?: string
   category?: string

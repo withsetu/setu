@@ -70,23 +70,31 @@ function wrapDirect() {
   )
 }
 
+// #597: /taxonomies is a route-level `lazy()` chunk now, so mounting it through the
+// App router is asynchronous — the RouteBoundary fallback renders first. Awaiting the
+// query (instead of a synchronous get) is the whole change; the assertions are the
+// same, and they still fail if the chunk never resolves.
 describe('Taxonomies screen (via App router)', () => {
-  it('renders both tab triggers at /taxonomies', () => {
+  it('renders both tab triggers at /taxonomies', async () => {
     wrap()
-    expect(screen.getByRole('tab', { name: /categories/i })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('tab', { name: /categories/i })
+    ).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /tags/i })).toBeInTheDocument()
   })
 
-  it('shows the page heading at /taxonomies', () => {
+  it('shows the page heading at /taxonomies', async () => {
     wrap()
     expect(
-      screen.getByRole('heading', { name: /taxonomies/i })
+      await screen.findByRole('heading', { name: /taxonomies/i })
     ).toBeInTheDocument()
   })
 
-  it('/categories redirects to /taxonomies and shows the tabs', () => {
+  it('/categories redirects to /taxonomies and shows the tabs', async () => {
     wrap('/categories')
-    expect(screen.getByRole('tab', { name: /categories/i })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('tab', { name: /categories/i })
+    ).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /tags/i })).toBeInTheDocument()
   })
 })

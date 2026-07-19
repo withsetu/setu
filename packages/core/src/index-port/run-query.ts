@@ -1,4 +1,5 @@
 import type { EntryIndexRow, IndexQuery, SortKey } from './types'
+import { matchesStatusFilter } from './types'
 
 function compare(a: EntryIndexRow, b: EntryIndexRow, key: SortKey): number {
   if (key === 'title') return a.titleLower.localeCompare(b.titleLower)
@@ -18,9 +19,17 @@ export function runQuery(
   rows: EntryIndexRow[],
   q: IndexQuery
 ): { rows: EntryIndexRow[]; total: number } {
-  let xs = rows.filter((r) => r.collection === q.collection)
+  // No `collection` = the cross-collection scope, every collection at once
+  // (#604) — what the dashboard's post+page status tiles link to.
+  let xs =
+    q.collection === undefined
+      ? rows
+      : rows.filter((r) => r.collection === q.collection)
   if (q.locale) xs = xs.filter((r) => r.locale === q.locale)
-  if (q.status) xs = xs.filter((r) => r.status === q.status)
+  // 'published' (staged+live, #579) and 'not-published' (draft+unpublished,
+  // #611) are unions; every other value is an exact lifecycle match. Expansion
+  // lives in matchesStatusFilter so adapters agree.
+  if (q.status) xs = xs.filter((r) => matchesStatusFilter(r.status, q.status!))
   if (q.q && q.q.length > 0) {
     const needle = q.q.toLowerCase()
     xs = xs.filter(

@@ -23,8 +23,14 @@ const state: { status: DeployStatus | null } = {
   }
 }
 const mockRebuild = vi.fn(() => Promise.resolve())
+const mockRequestRebuild = vi.fn()
 vi.mock('../src/deploy/deploy', () => ({
   useDeploy: () => ({
+    running: false,
+    startedAt: null,
+    confirmOpen: false,
+    requestRebuild: mockRequestRebuild,
+    closeConfirm: () => {},
     status: state.status,
     deployInfo: () => ({ deployedSha: null, changed: [] }),
     refresh: () => Promise.resolve(),
@@ -47,12 +53,16 @@ function wrap(actor?: Actor) {
 }
 
 describe('DeployFooterButton (via AppSidebar, #208/#209)', () => {
-  it('shows the honest pending count and triggers a rebuild on click', async () => {
+  it('shows the honest pending count and asks before deploying (#571)', async () => {
     wrap()
     const btn = screen.getByRole('button', { name: /publish site/i })
     expect(btn).toHaveTextContent('Publish · 2 pending')
     fireEvent.click(btn)
-    await waitFor(() => expect(mockRebuild).toHaveBeenCalledOnce())
+    // The sidebar footer wires the shared DeployControl: a click opens the
+    // confirmation, it never fires the deploy directly (dialog behaviour is
+    // covered in deploy-control.test.tsx).
+    await waitFor(() => expect(mockRequestRebuild).toHaveBeenCalledOnce())
+    expect(mockRebuild).not.toHaveBeenCalled()
   })
 
   it('shows up-to-date with the deployed sha when nothing is pending', () => {

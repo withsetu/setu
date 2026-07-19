@@ -15,13 +15,11 @@ import { useRegisterCommands, type CommandAction } from './registry'
 import { toggleTheme } from '../shell/theme'
 import { useDeploy } from '../deploy/deploy'
 import { useCan } from '../auth/actor'
-import { useNotify } from '../ui/notify'
 
 export function GlobalCommands() {
   const navigate = useNavigate()
-  const { rebuild, status: deployStatus } = useDeploy()
+  const { requestRebuild, status: deployStatus } = useDeploy()
   const can = useCan()
-  const notify = useNotify()
 
   const actions: CommandAction[] = [
     {
@@ -112,13 +110,11 @@ export function GlobalCommands() {
       group: 'Site',
       icon: Rocket,
       enabled: () => can('site.deploy') && deployStatus?.canRebuild === true,
+      // #571: the palette asks the same confirmation the sidebar control does — a
+      // deploy is outward and costly, so no entry point starts one unconfirmed. The
+      // dialog (and its progress/outcome reporting) lives in DeployControl.
       run: () => {
-        notify.success('Rebuild started')
-        void rebuild()
-          .then(() => notify.success('Site rebuilt — changes are live'))
-          .catch((e) =>
-            notify.error(e instanceof Error ? e.message : String(e))
-          )
+        requestRebuild()
       }
     },
     {

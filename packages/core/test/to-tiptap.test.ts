@@ -114,6 +114,26 @@ describe('markdocToTiptap', () => {
     expect(attrs.raw.startsWith('{% if $x %}')).toBe(true)
     expect(attrs.raw).not.toContain('b')
   })
+
+  /** #664. Every top-level parsed block must produce exactly one editor node — nothing
+   *  is ever silently deleted. `default: return null` broke that invariant for any
+   *  block type `blockToTiptap` does not model; it now falls back to passthrough. */
+  it('emits one node per top-level block — nothing is dropped (#664)', () => {
+    const src =
+      '# h\n\npara\n\n- a\n- b\n\n> q\n\n```js\ncode\n```\n\n---\n\n' +
+      '{% if $x %}\ny\n{% /if %}\n\n| a | b |\n| - | - |\n| 1 | 2 |\n'
+    const doc = markdocToTiptap(src)
+    expect(doc.content.map((n) => n.type)).toEqual([
+      'heading',
+      'paragraph',
+      'bulletList',
+      'blockquote',
+      'codeBlock',
+      'horizontalRule',
+      'passthrough',
+      'table'
+    ])
+  })
 })
 
 describe('subscript/superscript inline tags', () => {

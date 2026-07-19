@@ -47,6 +47,28 @@ import type { ResolveActor } from '../src/auth/resolve-actor'
 // HONEST SCOPE, unchanged from #644/#647: git stages a literally different index entry, so this is
 // a working-tree clobber plus repo-state inconsistency (the site build reads the working tree), not
 // a clean committed-state takeover. It is still the #382 privilege boundary an author crosses.
+//
+// ---------------------------------------------------------------------------------------------
+// RECONCILED WITH #654, which landed concurrently and attacks the same class from the other end.
+// #654 made `foldRepoPath` a REAL fold (`unicodeCaseFold`), so `isCanonicalRepoPath` now REJECTS a
+// fold-UNSTABLE incoming path outright, and `entrySlugify` (#669) can no longer mint one. That
+// moves where several assertions below fire, and it is worth being precise about what changed:
+//
+//   - Where the fold-variant is the INCOMING path, #654 intercepts one rule EARLIER: the request
+//     is 400 (not canonical) rather than 403 (not permitted), and `writeActionForChanges` returns
+//     `settings.manage` rather than `content.publish`. Both are strictly STRONGER than what #648
+//     asserted — the property #648 cares about ("never the weaker `content.edit`") holds harder.
+//     Those assertions are updated to the stronger outcome, not deleted.
+//   - Where the fold-variant is the COMMITTED path, #654 cannot help: it only ever sees the
+//     incoming path, and it cannot retroactively rename what is already in the repo (pre-existing
+//     repos, direct `git push`, other topologies). `foldCollidingPaths` is the ONLY defence in
+//     that direction, so the witnesses below are expressed committed-side, where they stay
+//     load-bearing and where disabling `foldCollidingPaths` still fails them.
+//   - ONE deliberate product-behaviour reversal: #648 accepted `content/blog/en/ſive.mdoc` as a
+//     legal new slug when it collided with nothing (200). #654 rejects it (400) for every role,
+//     because a fold-unstable name is one a case-insensitive checkout can collapse later and is
+//     one `entrySlugify` can no longer produce. Fold-STABLE non-ASCII slugs (`café`, `日本語`,
+//     `σigma`, `über-uns`) are still accepted — #648's scoping call is upheld.
 
 const asRole =
   (role: Role): ResolveActor =>
@@ -97,14 +119,31 @@ describe('git write gate — slug case-FOLD bypass of the publish gate (#648)', 
     ).resolves.toBe('content.publish')
   })
 
-  // THE ACCEPTANCE CASE. U+017F is its own `toLowerCase` form, so #647's rule does not fire and the
-  // path is accepted as canonical — correctly, since it is a legal slug. What must NOT happen is
-  // the gate deriving a WEAKER action than the post it collides with on disk.
-  it('derives the SAME action for a U+017F fold-variant as for the live post it collides with', async () => {
+  // THE ACCEPTANCE CASE, incoming side. #648 asserted `content.publish` here, because U+017F is its
+  // own `toLowerCase` form and #647's rule did not fire. #654's real fold DOES fire on it, so the
+  // path never reaches the committed-state read: it is rejected as non-canonical and derives
+  // `settings.manage`. What must NOT happen — the gate deriving a WEAKER action than the post it
+  // collides with on disk — still does not happen, one rank further up the ladder.
+  it('never derives a weaker action than the live post a U+017F fold-variant collides with', async () => {
     const git = await gitWithLivePosts('content/blog/en/sive.mdoc')
     await expect(
       writeActionForChanges(
         [{ path: 'content/blog/en/ſive.mdoc', content: DRAFT_CONTENT }],
+        git
+      )
+    ).resolves.toBe('settings.manage')
+  })
+
+  // THE ACCEPTANCE CASE, committed side — the direction #654 cannot reach, and therefore the one
+  // that keeps `foldCollidingPaths` load-bearing. The incoming `sive.mdoc` is fold-STABLE, so it is
+  // admitted as canonical (correctly — an ordinary slug), and git's case-SENSITIVE index makes the
+  // literal `readFile` miss the committed `ſive.mdoc` that APFS would resolve it onto. Only the
+  // committed-path fold-match derives `content.publish` here.
+  it('derives content.publish when the COMMITTED live post is the U+017F fold-variant', async () => {
+    const git = await gitWithLivePosts('content/blog/en/ſive.mdoc')
+    await expect(
+      writeActionForChanges(
+        [{ path: 'content/blog/en/sive.mdoc', content: DRAFT_CONTENT }],
         git
       )
     ).resolves.toBe('content.publish')
@@ -112,15 +151,28 @@ describe('git write gate — slug case-FOLD bypass of the publish gate (#648)', 
 
   // The second, independent witness — and the one that proves this is the fold RELATION rather than
   // a smuggled-in ASCII rule. Neither sigma is ASCII, both are their own `toLowerCase` form (so
-  // #644 and #647 are both blind to them), and they fold together.
-  it('derives content.publish for a fold-variant where NEITHER spelling is ASCII (final vs medial sigma)', async () => {
+  // #644 and #647 are both blind to them), and they fold together. Expressed committed-side for the
+  // same reason as above: `σigma.mdoc` is fold-stable and admitted, `ςigma.mdoc` is what is in the
+  // repo, and nothing but `foldCollidingPaths` connects them.
+  it('derives content.publish for a committed fold-variant where NEITHER spelling is ASCII (final vs medial sigma)', async () => {
+    const git = await gitWithLivePosts('content/blog/en/ςigma.mdoc')
+    await expect(
+      writeActionForChanges(
+        [{ path: 'content/blog/en/σigma.mdoc', content: DRAFT_CONTENT }],
+        git
+      )
+    ).resolves.toBe('content.publish')
+  })
+
+  // The incoming-side sigma variant, pinned at its new stronger outcome so the pair is symmetric.
+  it('never derives a weaker action for an incoming final-sigma fold-variant', async () => {
     const git = await gitWithLivePosts('content/blog/en/σigma.mdoc')
     await expect(
       writeActionForChanges(
         [{ path: 'content/blog/en/ςigma.mdoc', content: DRAFT_CONTENT }],
         git
       )
-    ).resolves.toBe('content.publish')
+    ).resolves.toBe('settings.manage')
   })
 
   // U+212A KELVIN SIGN, the other classic fold-into-ASCII character. At the SLUG position it is
@@ -138,6 +190,10 @@ describe('git write gate — slug case-FOLD bypass of the publish gate (#648)', 
     ).resolves.toBe('settings.manage')
   })
 
+  // Route level, incoming side. #648 asserted 403 (author lacks the derived `content.publish`);
+  // with #654 the request is rejected as non-canonical BEFORE any permission is derived, so it is
+  // 400 for every role. Still refused, still nothing lands — the assertion that carries the
+  // security property is the tree comparison, and it is unchanged.
   it('refuses an AUTHOR writing a fold-variant of a live post, and nothing lands', async () => {
     const pairs: ReadonlyArray<readonly [string, string]> = [
       ['content/blog/en/sive.mdoc', 'content/blog/en/ſive.mdoc'],
@@ -158,7 +214,7 @@ describe('git write gate — slug case-FOLD bypass of the publish gate (#648)', 
         })
       )
       expect(res.status, `POST /git/commit ${JSON.stringify(variant)}`).toBe(
-        403
+        400
       )
       // Assert on the staged tree, not a HEAD read: the #623 kill-shot lesson is that
       // `git.readFile` resolves at HEAD and can hide a write that already touched the tree.
@@ -166,6 +222,27 @@ describe('git write gate — slug case-FOLD bypass of the publish gate (#648)', 
         before
       )
     }
+  })
+
+  // Committed side at the route level: here the incoming path IS canonical, so the request gets a
+  // real permission derivation and the author is refused with 403 — #648's original status, on the
+  // direction where #648 is the only thing standing between the author and the live post.
+  it('refuses an AUTHOR writing over a COMMITTED fold-variant of a live post, and nothing lands', async () => {
+    const git = await gitWithLivePosts('content/blog/en/ſive.mdoc')
+    const before = await git.list()
+    const app = createGitApi(git, asRole('author'))
+    const res = await write(
+      app,
+      '/git/commit',
+      JSON.stringify({
+        path: 'content/blog/en/sive.mdoc',
+        content: DRAFT_CONTENT,
+        message: 'm',
+        author
+      })
+    )
+    expect(res.status).toBe(403)
+    expect(await git.list()).toEqual(before)
   })
 
   it('refuses the same fold-variants through the bulk commit-files route', async () => {
@@ -183,14 +260,19 @@ describe('git write gate — slug case-FOLD bypass of the publish gate (#648)', 
         author
       })
     )
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(400)
     expect(await git.list()).toEqual(before)
   })
 
-  it('admits an EDITOR (who holds content.publish) writing the same fold-variant', async () => {
+  // #648 asserted an EDITOR could write the fold-variant (200), since holding `content.publish`
+  // made it a permission question. #654 makes it a WELL-FORMEDNESS question instead, so the answer
+  // is 400 for every role including admin — a fold-unstable name must not enter the repo at all.
+  // Pinned together with the canonical spelling so this reads as "the name is refused", not "the
+  // editor lost a permission".
+  it('refuses even an EDITOR the fold-variant, while admitting the canonical spelling', async () => {
     const git = await gitWithLivePosts('content/blog/en/sive.mdoc')
     const app = createGitApi(git, asRole('editor'))
-    const res = await write(
+    const variant = await write(
       app,
       '/git/commit',
       JSON.stringify({
@@ -200,11 +282,25 @@ describe('git write gate — slug case-FOLD bypass of the publish gate (#648)', 
         author
       })
     )
-    expect(res.status).toBe(200)
+    expect(variant.status).toBe(400)
+    const canonical = await write(
+      app,
+      '/git/commit',
+      JSON.stringify({
+        path: 'content/blog/en/sive.mdoc',
+        content: DRAFT_CONTENT,
+        message: 'm',
+        author
+      })
+    )
+    expect(canonical.status).toBe(200)
   })
 
   // THE SCOPING CALL — the fix must not become a blanket ASCII rule for slugs. These are real posts
-  // an ordinary author must keep being able to create.
+  // an ordinary author must keep being able to create. #654 narrows this list by exactly one entry:
+  // `ſive.mdoc` is fold-UNSTABLE and is now refused (asserted directly below). Everything here is
+  // fold-stable, including a non-ASCII Greek slug, so "non-ASCII is fine, fold-unstable is not"
+  // remains the line — not "ASCII only".
   it('still admits an AUTHOR writing non-ASCII slugs that collide with nothing', async () => {
     const git = createMemoryGitPort()
     const app = createGitApi(git, asRole('author'))
@@ -212,7 +308,7 @@ describe('git write gate — slug case-FOLD bypass of the publish gate (#648)', 
       'content/blog/en/café.mdoc',
       'content/blog/ja/日本語.mdoc',
       'content/blog/en/σigma.mdoc',
-      'content/blog/en/ſive.mdoc'
+      'content/blog/de/über-uns.mdoc'
     ]) {
       const res = await write(
         app,
@@ -241,29 +337,67 @@ describe('git write gate — slug case-FOLD bypass of the publish gate (#648)', 
     ).resolves.toBe('content.edit')
   })
 
+  // The anti-OVER-rejection property: `foldCollidingPaths` must upgrade only when the path it
+  // matches is actually LIVE. Expressed committed-side, where the fold-match genuinely runs — the
+  // committed neighbour is the fold-variant and it is a DRAFT, so the write stays `content.edit`.
+  // (Incoming-side this can no longer be observed at all: #654 rejects the variant before the
+  // committed-state read, so the assertion would be about the rejection, not about inflation.)
   it('does not let a fold-variant of a DRAFT post inflate to content.publish', async () => {
     const git = createMemoryGitPort()
     await git.commitFile({
-      path: 'content/blog/en/sive.mdoc',
+      path: 'content/blog/en/ſive.mdoc',
       content: DRAFT_CONTENT,
       message: 'seed',
       author
     })
     await expect(
       writeActionForChanges(
-        [{ path: 'content/blog/en/ſive.mdoc', content: DRAFT_CONTENT }],
+        [{ path: 'content/blog/en/sive.mdoc', content: DRAFT_CONTENT }],
         git
       )
     ).resolves.toBe('content.edit')
   })
 
   // Deleting a live post through a fold-variant is the same #382 boundary as writing over it: a
-  // delete carries no content, so ONLY the committed-state read can catch it.
+  // delete carries no content, so ONLY the committed-state read can catch it. Committed-side for
+  // the same reason as above — and this is the case where that matters most, since a delete has no
+  // frontmatter for any other rule to judge.
   it('requires content.publish to DELETE a live post through a fold-variant', async () => {
+    const git = await gitWithLivePosts('content/blog/en/ſive.mdoc')
+    await expect(
+      writeActionForChanges([{ path: 'content/blog/en/sive.mdoc' }], git)
+    ).resolves.toBe('content.publish')
+  })
+
+  // The incoming-side delete, pinned at its new stronger outcome.
+  it('never derives a weaker action for a DELETE sent as an incoming fold-variant', async () => {
     const git = await gitWithLivePosts('content/blog/en/sive.mdoc')
     await expect(
       writeActionForChanges([{ path: 'content/blog/en/ſive.mdoc' }], git)
-    ).resolves.toBe('content.publish')
+    ).resolves.toBe('settings.manage')
+  })
+
+  // #654's product-behaviour reversal, asserted explicitly rather than left implicit in the list
+  // above: a fold-UNSTABLE slug colliding with NOTHING was a legal new post under #648 and is now
+  // refused for every role, admin included. `entrySlugify` (#669) cannot mint one either, so no
+  // legitimate flow reaches this.
+  it('refuses a fold-unstable slug that collides with nothing, for every role (#654)', async () => {
+    for (const role of ['author', 'editor', 'maintainer', 'admin'] as const) {
+      const git = createMemoryGitPort()
+      const app = createGitApi(git, asRole(role))
+      const res = await write(
+        app,
+        '/git/commit',
+        JSON.stringify({
+          path: 'content/blog/en/ſive.mdoc',
+          content: DRAFT_CONTENT,
+          message: 'm',
+          author
+        })
+      )
+      expect(res.status, `POST /git/commit as ${role}`).toBe(400)
+      expect(await git.list(), `tree after ${role}`).toEqual([])
+    }
   })
 
   // ReDoS / RegExp-injection guard: the candidate path is attacker-controlled and is compiled into

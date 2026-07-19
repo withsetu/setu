@@ -775,6 +775,9 @@ importers:
         specifier: ^1.38.4
         version: 1.38.4
     devDependencies:
+      '@setu/db-memory':
+        specifier: workspace:*
+        version: link:../db-memory
       '@setu/git-testing':
         specifier: workspace:*
         version: link:../git-testing

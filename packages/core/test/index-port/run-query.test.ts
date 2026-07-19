@@ -116,3 +116,60 @@ it('sorts by locale (asc/desc) — #145', () => {
   })
   expect(desc.rows.map((x) => x.locale)).toEqual(['fr', 'en', 'de'])
 })
+
+describe('runQuery — cross-collection scope (#604)', () => {
+  // The At-a-glance status tiles count post + page together; their destination
+  // list has to be able to show the same set, or the number you click never
+  // equals the list you land on (#604). Omitting `collection` is that scope.
+  it('omitting collection queries every collection', () => {
+    const r = runQuery(rows, { offset: 0, limit: 10 })
+    expect(r.total).toBe(4)
+    expect(r.rows.map((x) => x.slug)).toEqual(['a', 'b', 'd', 'c'])
+  })
+
+  it('cross-collection scope still applies the status filter', () => {
+    const r = runQuery(rows, {
+      status: 'not-published',
+      offset: 0,
+      limit: 10
+    })
+    // draft posts b + c and the draft page d — every collection, one status.
+    expect(r.rows.map((x) => x.slug).sort()).toEqual(['b', 'c', 'd'])
+  })
+})
+
+describe("runQuery — 'not-published' union (#611)", () => {
+  const statuses: EntryIndexRow[] = [
+    row({ slug: 'l', status: 'live', updatedAt: 4 }),
+    row({ slug: 's', status: 'staged', updatedAt: 3 }),
+    row({ slug: 'd', status: 'draft', updatedAt: 2 }),
+    row({ slug: 'u', status: 'unpublished', updatedAt: 1 })
+  ]
+
+  it('matches draft + unpublished', () => {
+    const r = runQuery(statuses, {
+      collection: 'post',
+      status: 'not-published',
+      offset: 0,
+      limit: 10
+    })
+    expect(r.rows.map((x) => x.slug)).toEqual(['d', 'u'])
+  })
+
+  // The two unions must partition the lifecycle exactly — no entry in both, none
+  // in neither. That is what makes the dashboard's Live+Staged+Drafts ===
+  // Posts+Pages invariant hold once entries start reaching 'unpublished' (#611).
+  it("partitions the lifecycle with 'published' — no overlap, no gap", () => {
+    const q = (status: 'published' | 'not-published') =>
+      runQuery(statuses, {
+        collection: 'post',
+        status,
+        offset: 0,
+        limit: 10
+      }).rows.map((x) => x.slug)
+    const pub = q('published')
+    const not = q('not-published')
+    expect(pub.filter((s) => not.includes(s))).toEqual([])
+    expect([...pub, ...not].sort()).toEqual(['d', 'l', 's', 'u'])
+  })
+})

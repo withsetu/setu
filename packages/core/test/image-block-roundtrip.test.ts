@@ -51,4 +51,57 @@ describe('{% image %} block — round-trip', () => {
     const md = `{% image src="/media/2026/06/my-cat.jpg" loading="lazy" /%}\n`
     expect(rtKnown(md)).toBe(md)
   })
+
+  // #668: escapeAttrString only escaped \ and ", so a caption carrying a newline or a
+  // tab produced a LITERAL newline inside the attribute — an unterminated attribute.
+  // Re-reading that file yielded a flagged passthrough and the author saw an
+  // "Unparsed Markdoc" blob where their image had been.
+  describe('control characters in string attributes (#668)', () => {
+    const imageDoc = (mdAttrs: Record<string, unknown>) => ({
+      type: 'doc' as const,
+      content: [{ type: 'imageBlock', attrs: { mdAttrs } }]
+    })
+
+    it('escapes a newline in a caption instead of breaking the tag', () => {
+      const out = tiptapToMarkdoc(
+        imageDoc({ src: '/a.png', caption: 'line one\nline two' })
+      )
+      expect(out).toBe(
+        `{% image src="/a.png" caption="line one\\nline two" /%}\n`
+      )
+      // The written file must parse back to the same image, not a flagged passthrough.
+      const reread = markdocToTiptap(out, KNOWN)
+      expect(reread.content?.[0]?.type).toBe('imageBlock')
+      expect(reread.content?.[0]?.attrs?.mdAttrs).toEqual({
+        src: '/a.png',
+        caption: 'line one\nline two'
+      })
+      expect(rtKnown(out)).toBe(out)
+    })
+
+    it('escapes a tab and a carriage return in a caption', () => {
+      const out = tiptapToMarkdoc(
+        imageDoc({ src: '/a.png', caption: 'a\tb\rc' })
+      )
+      expect(markdocToTiptap(out, KNOWN).content?.[0]?.type).toBe('imageBlock')
+      expect(rtKnown(out)).toBe(out)
+    })
+
+    it('keeps src, alt, caption, align ordered first regardless of insertion order', () => {
+      // Markdoc.format emits attributes in object insertion order, so the leadKeys
+      // ordering has to be applied before formatting — it is not free.
+      const out = tiptapToMarkdoc(
+        imageDoc({
+          loading: 'lazy',
+          align: 'wide',
+          caption: 'c',
+          alt: 'a',
+          src: '/a.png'
+        })
+      )
+      expect(out).toBe(
+        `{% image src="/a.png" alt="a" caption="c" align="wide" loading="lazy" /%}\n`
+      )
+    })
+  })
 })

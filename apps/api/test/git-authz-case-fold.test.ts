@@ -35,6 +35,13 @@ import type { ResolveActor } from '../src/auth/resolve-actor'
 // post titled "Café" yields `content/blog/en/café.mdoc` — and a repo-wide ASCII rule would be a
 // real product regression. Every `PATH_WRITE_ACTION` key is a root file, so root-only ASCII is
 // exactly enough to close this gate.
+//
+// STALE-PROSE NOTE (#654): the "`foldRepoPath` leaves U+017F intact" observation above described
+// the code at the time and no longer does — `foldRepoPath` is now core's `unicodeCaseFold`, which
+// folds U+017F to `s`. The root-ASCII rejection is kept anyway, and this file with it: it is what
+// makes the fold's faithfulness independent of how good the fold happens to be, so a future
+// weakening of `unicodeCaseFold` cannot silently reopen the `PATH_WRITE_ACTION` bypass. Two
+// independent guards on the same boundary, on purpose.
 
 const asRole =
   (role: Role): ResolveActor =>

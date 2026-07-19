@@ -106,6 +106,30 @@ describe('renameService.renameSlug — refusals', () => {
     )
   })
 
+  // #654: the `target-exists` guard was `git.readFile(newPath)` — a BYTE-EXACT git-tree lookup —
+  // while the write goes to the FILESYSTEM, which case-FOLDS on APFS/NTFS. Minting can no longer
+  // produce a fold-unstable slug, but a file committed BEFORE that fix can still be sitting in
+  // the tree, and renaming onto its folded form would overwrite it with no warning. The guard
+  // must compare folded, not byte-exact. (The end-to-end proof against a real repo lives in
+  // packages/git-local/test/rename-fold-collision.test.ts.)
+  it('refuses when an EXISTING committed file folds onto the target slug (#654)', async () => {
+    for (const legacySlug of [
+      'ﬁle', // U+FB01 — folds onto 'file'
+      'FILE', // case-only variant of the same inode
+      'cafe\u0301' // NFD (e + U+0301) — the same inode as the NFC 'café'
+    ]) {
+      const target = legacySlug === 'cafe\u0301' ? 'café' : 'file'
+      const { rename } = setup([
+        { ref: ref('a'), frontmatter: { title: 'A' }, body: 'x' },
+        { ref: ref(legacySlug), frontmatter: { title: 'Victim' }, body: 'v' }
+      ])
+      expect(
+        (await rename.renameSlug(ref('a'), target)).reason,
+        `renameSlug(a → ${JSON.stringify(target)}) with ${JSON.stringify(legacySlug)} committed`
+      ).toBe('target-exists')
+    }
+  })
+
   it('refuses when the target slug has a draft', async () => {
     const { rename, data } = setup([
       { ref: ref('a'), frontmatter: { title: 'A' }, body: 'x' }

@@ -340,6 +340,92 @@ export function runIndexPortContract(
       expect(drafts.rows[0]!.slug).toBe('b') // updatedAt desc
     })
 
+    it("filters by the combined 'published' status = staged + live (#579)", async () => {
+      await ix.upsertMany([
+        irow({ slug: 'l', status: 'live', updatedAt: 4 }),
+        irow({ slug: 's', status: 'staged', updatedAt: 3 }),
+        irow({ slug: 'd', status: 'draft', updatedAt: 2 }),
+        irow({ slug: 'u', status: 'unpublished', updatedAt: 1 })
+      ])
+      const published = await ix.query({
+        collection: 'post',
+        status: 'published',
+        offset: 0,
+        limit: 10
+      })
+      expect(published.rows.map((r) => r.slug)).toEqual(['l', 's'])
+      expect(published.total).toBe(2)
+      // The exact states still resolve to themselves — 'published' widens, never replaces.
+      for (const [status, slug] of [
+        ['live', 'l'],
+        ['staged', 's'],
+        ['draft', 'd'],
+        ['unpublished', 'u']
+      ] as const) {
+        const r = await ix.query({
+          collection: 'post',
+          status,
+          offset: 0,
+          limit: 10
+        })
+        expect(r.rows.map((x) => x.slug)).toEqual([slug])
+      }
+    })
+
+    it("filters by the combined 'not-published' status = draft + unpublished (#611)", async () => {
+      await ix.upsertMany([
+        irow({ slug: 'l', status: 'live', updatedAt: 4 }),
+        irow({ slug: 's', status: 'staged', updatedAt: 3 }),
+        irow({ slug: 'd', status: 'draft', updatedAt: 2 }),
+        irow({ slug: 'u', status: 'unpublished', updatedAt: 1 })
+      ])
+      const notPublished = await ix.query({
+        collection: 'post',
+        status: 'not-published',
+        offset: 0,
+        limit: 10
+      })
+      expect(notPublished.rows.map((r) => r.slug)).toEqual(['d', 'u'])
+      expect(notPublished.total).toBe(2)
+      // The two unions must PARTITION the lifecycle — that is the invariant the
+      // dashboard's Live+Staged+Drafts === Posts+Pages rests on (#611).
+      const published = await ix.query({
+        collection: 'post',
+        status: 'published',
+        offset: 0,
+        limit: 10
+      })
+      expect(published.total + notPublished.total).toBe(4)
+    })
+
+    it('omitting collection queries across every collection (#604)', async () => {
+      await ix.upsertMany([
+        irow({ slug: 'p1', status: 'staged', updatedAt: 3 }),
+        irow({ slug: 'p2', status: 'draft', updatedAt: 2 }),
+        {
+          ...irow({ slug: 'g1', status: 'draft', updatedAt: 1 }),
+          key: 'page\0en\0g1',
+          collection: 'page'
+        }
+      ])
+      const all = await ix.query({ offset: 0, limit: 10 })
+      expect(all.total).toBe(3)
+      // Scoping still works alongside the wider scope — it widens, never replaces.
+      const drafts = await ix.query({
+        status: 'draft',
+        offset: 0,
+        limit: 10
+      })
+      expect(drafts.rows.map((r) => r.slug).sort()).toEqual(['g1', 'p2'])
+      const postDrafts = await ix.query({
+        collection: 'post',
+        status: 'draft',
+        offset: 0,
+        limit: 10
+      })
+      expect(postDrafts.rows.map((r) => r.slug)).toEqual(['p2'])
+    })
+
     it('stats: empty index → no collections', async () => {
       expect(await ix.stats()).toEqual({})
     })

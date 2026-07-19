@@ -27,10 +27,11 @@ const LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ '.split(
  *         "- |']#\rb" -> "- |']# b" -> "- |']\\# b".
  *    '`'  code-span fence width erosion: "``x``" -> "`x`" ("# 中``b中 ` `" is
  *         unstable across two round-trips).
- *    tag blocks with multi-line bodies: the passthrough line-slicing in
- *         markdocToTiptap drops the opening "{% callout %}" line and duplicates the
- *         preceding block, GROWING the document on every save (~15% of random
- *         tag-bearing documents).
+ *
+ *  FIXED and now covered by the widened generator below: tag blocks with multi-line
+ *  bodies (#674) — a bare "\r" desynchronized Markdoc's location line numbering from
+ *  `source.split('\n')`, so passthrough slicing dropped the opening "{% callout %}"
+ *  line and duplicated the preceding block, GROWING the document on every save.
  */
 const METACHARS = [
   '[',
@@ -64,8 +65,7 @@ const bullets = (text: fc.Arbitrary<string>) =>
     .array(text, { minLength: 1, maxLength: 3 })
     .map((items) => items.map((i) => `- ${i}`).join('\n'))
 
-/** Documents of prose blocks only. Used for the widened alphabet, because tag blocks
- *  hit the passthrough-growth defect documented above. */
+/** Documents of prose blocks only. */
 const proseDocument = (text: fc.Arbitrary<string>) =>
   fc
     .array(fc.oneof(text, heading(text), bullets(text)), {
@@ -108,6 +108,33 @@ describe('round-trip idempotency (property-based)', () => {
         expect(roundtrip(s1)).toBe(s1)
       }),
       { numRuns: 1000 }
+    )
+  })
+
+  /** #674. Tag blocks over the WIDE alphabet — the case the generator used to exclude.
+   *  Every other defect in this slice converges after one pass, so a fixed-point check
+   *  alone could not distinguish them; this one never converged, the document grew
+   *  without bound. Asserting the fixed point over tag-bearing wide-alphabet documents
+   *  is exactly the regression guard. */
+  it('reaches a stable fixed point for metacharacter-heavy tag blocks', () => {
+    fc.assert(
+      fc.property(taggedDocument(wideText), (s0) => {
+        const s1 = roundtrip(s0)
+        expect(roundtrip(s1)).toBe(s1)
+      }),
+      { numRuns: 5000 }
+    )
+  })
+
+  /** #674, the sharper form: the defect made the document GROW every save. Length must
+   *  never increase across successive round-trips of an already-round-tripped doc. */
+  it('never grows a tag-bearing document across successive saves', () => {
+    fc.assert(
+      fc.property(taggedDocument(wideText), (s0) => {
+        const s1 = roundtrip(s0)
+        expect(roundtrip(s1).length).toBeLessThanOrEqual(s1.length)
+      }),
+      { numRuns: 5000 }
     )
   })
 })
@@ -157,7 +184,11 @@ describe('round-trip byte-stability (property-based)', () => {
       .tuple(fc.integer({ min: 1, max: 6 }), canonicalInline)
       .map(([lvl, t]) => `${'#'.repeat(lvl)} ${t}`),
     listBlock,
-    canonicalInline.map((t) => `{% callout %}\n${t}\n{% /callout %}`)
+    canonicalInline.map((t) => `{% callout %}\n${t}\n{% /callout %}`),
+    // A passthrough tag with a multi-line body — the #674 shape, byte-for-byte.
+    fc
+      .tuple(word, canonicalInline)
+      .map(([v, t]) => `{% if $${v} %}\n${t}\n{% /if %}`)
   )
 
   const isList = (b: string) => b.startsWith('- ')

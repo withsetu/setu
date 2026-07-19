@@ -331,6 +331,7 @@ export { createRenameService } from './rename/rename-service'
 export {
   entrySlugify,
   isValidEntrySlug,
+  unicodeCaseFold,
   RESERVED_ENTRY_SLUG
 } from './rename/slug'
 

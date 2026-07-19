@@ -5,7 +5,8 @@ import {
   createAuthz,
   DEFAULT_ROLES,
   parseContentPath,
-  parseMdoc
+  parseMdoc,
+  unicodeCaseFold
 } from '@setu/core'
 import type { Action, GitPort, CommitInput, CommitFilesInput } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
@@ -36,11 +37,18 @@ const PATH_WRITE_ACTION: Record<string, Action> = {
  *  matching — the actual write uses the caller's path, which `isCanonicalRepoPath` has already
  *  proven identical modulo case.
  *
- *  `toLowerCase()` is Unicode SIMPLE CASE MAPPING, strictly weaker than the filesystem's case
- *  FOLDING. That gap is not papered over here; it is closed by rejection in `isCanonicalRepoPath`
- *  (#644 for repo-root paths, #647 for content paths), which is what makes this a faithful fold
- *  on every path the gate ever sees. Read those rules before relying on this one. */
-const foldRepoPath = (p: string) => p.toLowerCase()
+ *  #654: this used to be a bare `p.toLowerCase()` — Unicode SIMPLE CASE MAPPING, strictly weaker
+ *  than the filesystem's case FOLDING — and the gap was papered over by rejecting non-ASCII at
+ *  the repo ROOT only (#644), because content slugs legitimately carry non-ASCII. That left the
+ *  content half open, which #647 had to record as a KNOWN GAP: `content/blog/en/ſive.mdoc` is its
+ *  own `toLowerCase` form, so it passed the canonical-path rule while still colliding on APFS.
+ *
+ *  It is now the SHARED fold from `@setu/core` (`unicodeCaseFold`, packages/core/src/rename/
+ *  slug.ts) — NFC plus an upper/lower round-trip, which collapses `ſ`→`s`, `ﬁ`→`fi`, `ß`→`ss`,
+ *  `ı`→`i` and the composed/decomposed split. The SAME function backs entry-slug minting and the
+ *  rename service's `target-exists` guard, so the gate, the vocabulary and the mover cannot drift
+ *  into disagreeing about what "the same file" means — which is precisely how #654 happened. */
+const foldRepoPath = (p: string) => unicodeCaseFold(p)
 
 /** Hard ceiling on an accepted repo path, enforced in `isCanonicalRepoPath`.
  *
@@ -66,13 +74,25 @@ const escapeRegExp = (s: string) => s.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')
  *  `p` — i.e. the OTHER files a write to `p` could actually land on, on a case-insensitive
  *  filesystem (APFS/HFS+, NTFS).
  *
- *  #648: `foldRepoPath` is `toLowerCase()`, Unicode simple case MAPPING, which is strictly weaker
- *  than the case FOLDING those filesystems resolve names by. #644 and #647 closed their halves by
- *  REJECTING inputs where the two relations could disagree, but neither reaches the SLUG segment
- *  and neither can: slugs legitimately carry non-ASCII (`entrySlugify` keeps `\p{L}`, so
- *  `content/blog/en/café.mdoc` is a real post), and a slug whose characters fold without
- *  lowercasing — U+017F LONG S folds to `s`; final sigma `ς` folds onto medial `σ` — is ITS OWN
- *  `toLowerCase` form, so it passes both rules while still resolving onto the neighbouring post.
+ *  #648: `foldRepoPath` was `toLowerCase()`, Unicode simple case MAPPING, strictly weaker than the
+ *  case FOLDING those filesystems resolve names by. #644 and #647 closed their halves by REJECTING
+ *  inputs where the two relations could disagree, but neither reached the SLUG segment: a slug
+ *  whose characters fold without lowercasing — U+017F LONG S folds to `s`; final sigma `ς` folds
+ *  onto medial `σ` — is ITS OWN `toLowerCase` form, so it passed both rules while still resolving
+ *  onto the neighbouring post.
+ *
+ *  #654 has since made `foldRepoPath` a real fold (`unicodeCaseFold`), so `isCanonicalRepoPath`
+ *  now REJECTS a fold-unstable INCOMING path outright. That does not retire this function — it
+ *  changes which population each defence owns, and this one is the half that cannot be replaced
+ *  by rejection:
+ *    - rejection is PREVENTIVE and sees only the incoming path;
+ *    - this is DETECTIVE and sees the COMMITTED tree. A fold-STABLE incoming path — accepted, and
+ *      correctly so — can still land on a fold-UNSTABLE path already in the repo (committed before
+ *      these rules, by direct `git push`, or by another topology). Measured: incoming
+ *      `content/blog/en/sive.mdoc` is its own fold and passes the canonical-path rule, while
+ *      committed `content/blog/en/ſive.mdoc` is exactly the inode APFS resolves it onto, and
+ *      git's case-SENSITIVE index makes the literal `readFile` miss it.
+ *  Nothing else in the gate looks in that direction, so removing this reopens it.
  *
  *  JavaScript does expose the needed relation after all: a `RegExp` with the `iu` flags matches by
  *  ECMA-262 Canonicalize, which IS Unicode simple case folding. Verified on node 22:
@@ -168,10 +188,32 @@ export function isCanonicalRepoPath(p: unknown): p is string {
   // untouched, and canonical non-ASCII slugs (`content/blog/en/café.mdoc`) fold to themselves and
   // pass.
   //
-  // The residual this rule cannot reach — a slug carrying a character that case-FOLDS onto another
-  // without `toLowerCase` touching it (U+017F LONG S; final vs medial sigma), so it IS its own
-  // folded form and is accepted here, correctly, as a legal slug — is closed by #648 in
-  // `foldCollidingPaths` / the #382 committed-state read below, not by rejection.
+  // #654 CLOSES what this used to record as a KNOWN GAP. With `foldRepoPath` upgraded to the real
+  // `unicodeCaseFold`, the SAME rule now also rejects a slug carrying a character that case-FOLDS
+  // into ASCII (`ſive.mdoc`, `ﬁle.mdoc`) or that is spelled decomposed (`cafe` + U+0301) — each of
+  // which is its own `toLowerCase` form yet the same inode as a different published post on APFS.
+  // No new rule, no enumeration of spellings: a stronger fold made the existing class-rejection
+  // reach the class it was aimed at.
+  //
+  // Fold-STABLE non-ASCII slugs are untouched — `content/blog/de/über-uns.mdoc` and
+  // `content/blog/ja/日本語.mdoc` fold to themselves and still pass, which is the line between
+  // rejecting the collision class and banning i18n.
+  //
+  // THIS RULE DOES NOT SUBSUME #648's `foldCollidingPaths` — the two cover different populations,
+  // and removing either reopens a hole (both defenses reconciled here when #654 and #648 landed
+  // concurrently):
+  //   - THIS rule is PREVENTIVE and only sees the INCOMING path. It stops a fold-unstable name
+  //     from ever entering the repo through this gate, which is also why `entrySlugify` (#669)
+  //     folds at minting time: the vocabulary can no longer produce a name this rejects.
+  //   - `foldCollidingPaths` is DETECTIVE and looks at what is ALREADY COMMITTED. A perfectly
+  //     fold-stable path that this rule admits can still collide with a fold-unstable path
+  //     committed before these rules existed, by direct `git push`, or by another topology —
+  //     measured: incoming `content/blog/en/sive.mdoc` is its own fold and passes here, while
+  //     committed `content/blog/en/ſive.mdoc` is the very neighbour APFS resolves it onto, and
+  //     git's case-SENSITIVE index makes `readFile` miss it. Only the committed-path fold-match
+  //     below catches that direction, so it stays.
+  // Prevention cannot retroactively clean a repo; detection cannot stop a new bad name. Both.
+
   if (parseContentPath(foldRepoPath(p)) !== null && p !== foldRepoPath(p))
     return false
   return true

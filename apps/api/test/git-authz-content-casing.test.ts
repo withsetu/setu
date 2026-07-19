@@ -21,8 +21,10 @@ import type { ResolveActor } from '../src/auth/resolve-actor'
 //   Content/blog/en/live.mdoc  -> content.edit      class A: prefix casing  -> parser MISSES
 //   content/blog/en/live.MDOC  -> content.edit      class A: extension casing -> parser MISSES
 //   content/blog/en/Live.mdoc  -> content.edit      class B: slug casing
-//   content/blog/en/ſive.mdoc  -> content.edit      class C: slug case-FOLDING — closed by #648,
-//                                                   see the note at the end of this file
+//   content/blog/en/ſive.mdoc  -> content.edit      class C: slug case-FOLDING — closed from BOTH
+//                                                   ends by #654 (reject a fold-unstable incoming
+//                                                   path) and #648 (match fold-variants already
+//                                                   committed); see the note at the end of the file
 //
 // Class A and class B are DIFFERENT mechanisms reaching the same boundary:
 //   A. the parser returns null, so the path is classified as an ordinary non-content write and
@@ -191,16 +193,88 @@ describe('git write gate — content-path casing bypass of the publish gate (#64
     }
   })
 
-  // Class C — the residual this file originally pinned as a KNOWN GAP, CLOSED by #648. U+017F
-  // case-FOLDS into ASCII while `toLowerCase()` leaves it alone, so `ſive.mdoc` IS its own folded
-  // form: the rule above accepts it (correctly — it is a legal slug), and it used to derive the
-  // WEAKER `content.edit` while resolving onto `sive.mdoc`'s inode on APFS. #648 closes it in the
-  // #382 committed-state read instead of here, by matching committed paths under Unicode simple
-  // case folding (`RegExp` with `iu`) rather than by literal equality. Full coverage, including the
-  // non-ASCII-on-both-sides witness and the café/日本語 non-regressions, lives in
-  // git-authz-slug-case-fold.test.ts; this case stays here so the gap this file documented is
-  // visibly closed where it was recorded.
-  it('derives content.publish for a non-ASCII slug that case-folds onto a live post (#648)', async () => {
+  // Class C — the KNOWN GAP this file used to PIN as accepted. #654 and #648 landed concurrently
+  // and BOTH close a piece of it, from opposite ends; the assertions below keep both visible.
+  //
+  // #654 (this block): U+017F case-FOLDS into ASCII while `toLowerCase()` leaves it alone, so
+  // `content/blog/en/ſive.mdoc` was its own `toLowerCase` form, passed the class-A/B rule, and
+  // still resolved to `live.mdoc`'s neighbourhood on APFS. The old note claimed JS exposes no
+  // Unicode case-fold — it exposes enough: `s.toUpperCase().toLowerCase()` collapses exactly the
+  // characters whose FOLD differs from their simple lowercase mapping (`ſ`→`s`, `ﬁ`→`fi`,
+  // `ß`→`ss`, `ı`→`i`), and `normalize('NFC')` closes the composed/decomposed half. `foldRepoPath`
+  // now does both, so the same one rule that rejects `Content/…` rejects these too.
+  //
+  // Still a rejection of the CLASS, not an enumeration: any character whose fold or normalization
+  // moves it is caught, including ones no one here thought of.
+  const FOLD_VARIANTS = [
+    'content/blog/en/ſive.mdoc', // U+017F long s
+    'content/blog/en/ﬁle.mdoc', // U+FB01 ligature fi
+    'content/blog/en/straße.mdoc', // ß folds to ss
+    'content/blog/en/ırmak.mdoc', // dotless ı folds to i
+    'content/blog/en/cafe\u0301.mdoc' // NFD (e + U+0301) — same inode as the NFC café.mdoc
+  ]
+
+  it('fails CLOSED for a non-ASCII slug that case-folds or re-normalizes (#654, closes #648)', async () => {
+    const git = await gitWithLivePost()
+    for (const path of FOLD_VARIANTS) {
+      await expect(
+        writeActionForChanges([{ path, content: DRAFT_CONTENT }], git),
+        `writeActionForChanges ${JSON.stringify(path)}`
+      ).resolves.toBe('settings.manage')
+    }
+  })
+
+  it('refuses an AUTHOR writing any fold-variant, and nothing lands (#654)', async () => {
+    for (const path of FOLD_VARIANTS) {
+      const git = await gitWithLivePost()
+      const before = await git.list()
+      const app = createGitApi(git, asRole('author'))
+      const res = await write(
+        app,
+        '/git/commit',
+        JSON.stringify({ path, content: DRAFT_CONTENT, message: 'm', author })
+      )
+      expect(res.status, `POST /git/commit ${JSON.stringify(path)}`).toBe(400)
+      expect(await git.list(), `tree after ${JSON.stringify(path)}`).toEqual(
+        before
+      )
+    }
+  })
+
+  // The stronger fold must not start rejecting the fold-STABLE non-ASCII slugs the product
+  // supports — that is the line between "reject the collision class" and "ban i18n".
+  it('still admits fold-stable non-ASCII slugs after the stronger fold (#654)', async () => {
+    const git = createMemoryGitPort()
+    const app = createGitApi(git, asRole('author'))
+    for (const path of [
+      'content/blog/de/über-uns.mdoc',
+      'content/blog/fr/café.mdoc',
+      'content/blog/ja/日本語.mdoc',
+      'content/blog/el/ελλάσ.mdoc'
+    ]) {
+      const res = await write(
+        app,
+        '/git/commit',
+        JSON.stringify({ path, content: DRAFT_CONTENT, message: 'm', author })
+      )
+      expect(res.status, `POST /git/commit ${JSON.stringify(path)}`).toBe(200)
+    }
+  })
+
+  // ---------------------------------------------------------------------------------------------
+  // #648's half of class C, preserved. #648 closed the SAME gap from the COMMITTED side, in the
+  // #382 committed-state read, by matching committed paths under Unicode simple case folding
+  // (`RegExp` with `iu`) instead of literal equality. #654's rejection above does NOT make that
+  // redundant, and these two assertions are what prove it: the first shows #654 now intercepts
+  // #648's original witness EARLIER and more strongly, the second shows the direction only #648
+  // can reach. Full #648 coverage lives in git-authz-slug-case-fold.test.ts.
+
+  // #648 originally asserted `content.publish` here. With #654's stronger `foldRepoPath`, the
+  // incoming path is no longer canonical at all, so the gate fails closed one rule earlier at
+  // `settings.manage` — STRICTLY stronger than `content.publish` on the write-action ladder, and
+  // it also 400s before any permission question. The security property #648 asserted (this must
+  // never derive the weaker `content.edit`) is preserved and tightened, not dropped.
+  it('fails CLOSED, above content.publish, for a fold-variant of a live post (#648 via #654)', async () => {
     const git = await gitWithLivePost()
     await git.commitFile({
       path: 'content/blog/en/sive.mdoc',
@@ -211,6 +285,49 @@ describe('git write gate — content-path casing bypass of the publish gate (#64
     await expect(
       writeActionForChanges(
         [{ path: 'content/blog/en/ſive.mdoc', content: DRAFT_CONTENT }],
+        git
+      )
+    ).resolves.toBe('settings.manage')
+  })
+
+  // THE DIRECTION #654's REJECTION CANNOT REACH — this is why `foldCollidingPaths` stays.
+  // Here the INCOMING path is fold-STABLE (`sive.mdoc` is its own `unicodeCaseFold`), so
+  // `isCanonicalRepoPath` admits it, correctly — it is an ordinary legal slug. The LIVE post it
+  // collides with is the fold-unstable one already committed, which #654 can no longer prevent
+  // but also cannot undo: repos predating these rules, direct `git push`, and other topologies all
+  // produce it. git's index is case-SENSITIVE, so the literal `readFile('sive.mdoc')` misses the
+  // committed `ſive.mdoc` entirely, and without #648's committed-path fold-match this derives the
+  // WEAKER `content.edit` while the write lands on the live post's inode on APFS.
+  it('derives content.publish when the COMMITTED live post is the fold-variant (#648)', async () => {
+    const git = createMemoryGitPort()
+    await git.commitFile({
+      path: 'content/blog/en/ſive.mdoc',
+      content: '---\ntitle: S\n---\nbody',
+      message: 'seed',
+      author
+    })
+    await expect(
+      writeActionForChanges(
+        [{ path: 'content/blog/en/sive.mdoc', content: DRAFT_CONTENT }],
+        git
+      )
+    ).resolves.toBe('content.publish')
+  })
+
+  // The same direction with NEITHER side ASCII — #648's sigma witness, which proves this is the
+  // fold RELATION rather than a smuggled-in ASCII rule. `σigma.mdoc` is fold-stable and admitted;
+  // the committed live post is the final-sigma spelling.
+  it('derives content.publish for a committed fold-variant where neither side is ASCII (#648)', async () => {
+    const git = createMemoryGitPort()
+    await git.commitFile({
+      path: 'content/blog/en/ςigma.mdoc',
+      content: '---\ntitle: S\n---\nbody',
+      message: 'seed',
+      author
+    })
+    await expect(
+      writeActionForChanges(
+        [{ path: 'content/blog/en/σigma.mdoc', content: DRAFT_CONTENT }],
         git
       )
     ).resolves.toBe('content.publish')

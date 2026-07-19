@@ -3,7 +3,7 @@ import type { EntryRef } from '../data/types'
 import type { GitPort } from '../git/git-port'
 import type { GitAuthor } from '../git/types'
 import { contentPath } from '../publish/content-path'
-import { isValidEntrySlug } from './slug'
+import { isValidEntrySlug, unicodeCaseFold } from './slug'
 
 export interface RenameDeps {
   data: DataPort
@@ -61,6 +61,25 @@ export function createRenameService(deps: RenameDeps): RenameService {
         (await data.getDraft(newRef)) !== null ||
         (await git.readFile(newPath)) !== null
       )
+        return refuse('target-exists')
+
+      // #654: the check above is a BYTE-EXACT git-tree lookup, but the write lands on the
+      // FILESYSTEM, and a case-folding one (APFS/NTFS) resolves fold-variant names to the SAME
+      // INODE. The two disagreed, and the disagreement was silent data loss: renaming onto
+      // `ﬁle` (U+FB01) reported `renamed: true`, wrote nothing at `ﬁle.mdoc`, and replaced a
+      // published `file.mdoc`'s bytes with the moved entry's — git HEAD still holding the
+      // victim, so index and working tree diverged and the site build (which reads the working
+      // tree) served the defacement.
+      //
+      // `isValidEntrySlug` now rejects fold-unstable slugs, so minting can no longer CREATE
+      // that collision — this is the guard for content committed BEFORE that fix, which is
+      // still sitting in the tree and would still be overwritten. Compare folded, over the one
+      // directory the write can land in (bounded: one collection+locale, admin-volume, and
+      // renames are rare).
+      const dirPrefix = newPath.slice(0, newPath.lastIndexOf('/') + 1)
+      const foldedTarget = unicodeCaseFold(newPath)
+      const existing = await git.list(dirPrefix)
+      if (existing.some((p) => unicodeCaseFold(p) === foldedTarget))
         return refuse('target-exists')
 
       const draft = await data.getDraft(ref)

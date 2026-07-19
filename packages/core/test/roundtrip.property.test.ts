@@ -35,23 +35,43 @@ const LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ '.split(
  *  GROWING the document on every save (~15% of random tag-bearing documents). That is
  *  why `taggedDocument` now carries the wide alphabet too, not just `proseDocument`.
  *
- *  `*` IS THE ONLY CHARACTER STILL EXCLUDED, and the reason is structural rather than
- *  escaping: it is the only generatable character that can synthesise EMPHASIS, which
- *  exposes two defects no escape rule can close.
+ *  `*` used to be excluded as well, for two defects it alone could synthesise. The
+ *  first is now fixed and the second is narrowly scoped, so `*` IS generated:
  *
- *    (a) delimiter-run adjacency — two sibling inline runs that both carry `italic`
- *        serialize as "*a**`b`*", whose "**" re-parses as a literal asterisk pair,
- *        LOSING the second run's italic mark.                              [#693]
- *    (b) list looseness — a list containing an empty item is re-emitted by
- *        Markdoc.format with blank lines between items, which re-reads as a tight
- *        list, so the document settles one pass late ("- a\r*\n\n# a\n" is the
- *        minimal counterexample).                                          [#694]
+ *    (a) delimiter-run adjacency — sibling inline runs that both carry `italic`
+ *        serialized as "*a**`b`**c*", whose "**" re-parsed as a literal asterisk
+ *        pair, LOSING the mark. FIXED: `buildInline` now merges adjacent runs that
+ *        share a mark, so one delimiter pair spans the whole run.          [#693]
+ *    (b) list looseness — the writer normalises a `*` or `+` bullet marker to `-`,
+ *        so a `*` list ADJACENT to a `-` list merges into one list on the second
+ *        pass and the document settles one pass late ("- a\n\n*\n" is the minimal
+ *        counterexample). STILL OPEN, so `noAliasBulletList` below drops exactly
+ *        the blocks that open such a list — the looseness shape — rather than
+ *        dropping `*` from the alphabet wholesale.                         [#694]
  *
- *  Both need a delimiter-selection/normalisation design; do not re-litigate them here.
- *  `_` (the other emphasis character) IS generated: it never opens emphasis intraword,
- *  so the generator cannot build a delimiter run out of it.
+ *  #712: `_` is generated for the same reason as every other metacharacter, NOT
+ *  because it is structurally safer than `*`. The old rationale here claimed the
+ *  generator "cannot build a delimiter run out of it" because `_` never opens
+ *  emphasis intraword. That clause is true and the conclusion drawn from it was
+ *  false: `_` opens emphasis perfectly well after punctuation or whitespace, so
+ *  `("_x_")` and `._x_.` both parse as italic. The generator therefore DID reach the
+ *  #693 defect class through `_`, just rarely — roughly 1 run in 40,000, which is
+ *  green at 5,000 and red at 60,000. That latent flake is what #712 tracked; the
+ *  #693 fix is what actually removes it.
+ *
+ *  Restoring `*` immediately surfaced a THIRD defect of the same family, which had to
+ *  be fixed before the alphabet could stay widened: CommonMark nests identical
+ *  emphasis (`_a*a*_` is em(text, em(text))), and the reader appended a mark per level,
+ *  so a run came out carrying `italic` twice and was wrapped in two delimiter pairs.
+ *  `withMark` in ../src/markdoc/to-tiptap.ts now deduplicates. At roughly 1 document in
+ *  200,000 it was a live CI flake at these run counts, not a curiosity.
+ *
+ *  These counts are the CI budget, not the evidence. The widened alphabet was confirmed
+ *  green at numRuns 200,000 on every property below (~1,000,000 executions) before the
+ *  counts were restored — raise them locally, not in CI, to re-confirm.
  */
 const METACHARS = [
+  '*',
   '[',
   ']',
   '(',
@@ -81,6 +101,23 @@ const textFrom = (alphabet: string[]) =>
 const safeText = textFrom(LETTERS)
 const wideText = textFrom([...LETTERS, ...METACHARS])
 
+/** #694 (still open). A block that opens a bullet list with an ALIAS marker (`*` or
+ *  `+`). The writer normalises those to `-`, so such a list adjacent to a `-` list
+ *  merges into one on the second pass and the document settles one pass late. The
+ *  exclusion is deliberately this narrow — it drops only the looseness shape, and
+ *  leaves `*` generated everywhere it exercises escaping and emphasis: intraword
+ *  ("x*y"), at a block start ("*x"), inside headings, and inside tag bodies.
+ *
+ *  `\r` counts as a line separator here, not just `\n`: markdown-it breaks lines on a
+ *  bare CR, so "# a\r*" really is a heading followed by a `*` list. A marker may also
+ *  carry up to three leading spaces and still be a marker. Missing either was
+ *  worth one false-green pass of this filter. */
+const opensAliasBulletList = (block: string) =>
+  /(^|[\n\r]) {0,3}[*+]([ \t]|$)/m.test(block)
+
+const withoutAliasBulletLists = (blocks: string[]) =>
+  blocks.filter((b) => !opensAliasBulletList(b))
+
 const heading = (text: fc.Arbitrary<string>) => text.map((t) => `# ${t}`)
 const bullets = (text: fc.Arbitrary<string>) =>
   fc
@@ -94,6 +131,8 @@ const proseDocument = (text: fc.Arbitrary<string>) =>
       minLength: 1,
       maxLength: 6
     })
+    .map(withoutAliasBulletLists)
+    .filter((bs) => bs.length > 0)
     .map((bs) => bs.join('\n\n') + '\n')
 
 /** The original generator: prose plus `{% callout %}` and `{% if %}` tag blocks. */
@@ -107,6 +146,8 @@ const taggedDocument = (text: fc.Arbitrary<string>) => {
       minLength: 1,
       maxLength: 6
     })
+    .map(withoutAliasBulletLists)
+    .filter((bs) => bs.length > 0)
     .map((bs) => bs.join('\n\n') + '\n')
 }
 

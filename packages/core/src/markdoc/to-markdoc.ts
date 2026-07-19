@@ -64,9 +64,7 @@ interface InlineRun {
  *  attribute: two neighbouring links to different hrefs must stay separate. */
 const sameMark = (a: TiptapMark, b: TiptapMark): boolean =>
   a.type === b.type &&
-  (a.type !== 'link' ||
-    (a.attrs as Record<string, unknown> | undefined)?.['href'] ===
-      (b.attrs as Record<string, unknown> | undefined)?.['href'])
+  (a.type !== 'link' || a.attrs?.['href'] === b.attrs?.['href'])
 
 function wrapMark(
   m: TiptapMark,
@@ -80,11 +78,7 @@ function wrapMark(
     case 'strike':
       return new N('s', {}, children)
     case 'link':
-      return new N(
-        'link',
-        { href: (m.attrs as Record<string, unknown> | undefined)?.['href'] },
-        children
-      )
+      return new N('link', { href: m.attrs?.['href'] }, children)
     default: {
       const tag = new N(
         'tag',
@@ -110,10 +104,7 @@ function wrapMark(
  *  Merging is the only sound repair. Marker alternation (`*` vs `_`) is only
  *  conditionally safe (`_` does not open emphasis intraword), and separating the
  *  runs with an HTML comment is not idempotent. */
-function nestRuns(
-  runs: InlineRun[],
-  depth: number
-): InstanceType<typeof N>[] {
+function nestRuns(runs: InlineRun[], depth: number): InstanceType<typeof N>[] {
   const out: InstanceType<typeof N>[] = []
   let i = 0
   while (i < runs.length) {

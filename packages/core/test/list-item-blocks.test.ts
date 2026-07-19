@@ -363,7 +363,10 @@ describe('#711 task items keep a block that follows an empty first paragraph', (
   const table: TiptapNode = {
     type: 'table',
     content: [
-      { type: 'tableRow', content: [{ type: 'tableHeader', content: [p('a')] }] },
+      {
+        type: 'tableRow',
+        content: [{ type: 'tableHeader', content: [p('a')] }]
+      },
       { type: 'tableRow', content: [{ type: 'tableCell', content: [p('b')] }] }
     ]
   }
@@ -407,7 +410,11 @@ describe('#711 task items keep a block that follows an empty first paragraph', (
         {
           type: 'taskList',
           content: [
-            { type: 'listItem', attrs: { checked: true }, content: [emptyP, heading] }
+            {
+              type: 'listItem',
+              attrs: { checked: true },
+              content: [emptyP, heading]
+            }
           ]
         }
       ]
@@ -420,11 +427,9 @@ describe('#711 task items keep a block that follows an empty first paragraph', (
   // The CONTROL: a bullet item must still drop the empty paragraph. If this starts
   // emitting "-\n\n  # x" the #652 x #658 fix above has been undone.
   it('still drops the empty first paragraph for a bullet item', () => {
-    expect(
-      tiptapToMarkdoc(
-        listDoc('bulletList', [[emptyP, heading]])
-      )
-    ).toBe('- # x\n')
+    expect(tiptapToMarkdoc(listDoc('bulletList', [[emptyP, heading]]))).toBe(
+      '- # x\n'
+    )
   })
 
   // The drop is about what can occupy the MARKER LINE, not about the kind of list.

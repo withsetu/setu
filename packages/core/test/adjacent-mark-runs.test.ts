@@ -80,6 +80,43 @@ describe('#693 adjacent inline runs sharing a mark emit one delimiter pair', () 
     expect(rt(src)).toBe(src)
   })
 
+  /** Surfaced by returning `*` to the property generator's alphabet (#712), and a
+   *  precondition for keeping it there — at ~1 failure in 200,000 documents it is a
+   *  live CI flake, not a curiosity.
+   *
+   *  CommonMark nests identical emphasis: `_a*a*_` is em(text, em(text)). The reader
+   *  descended that tree appending a mark per level, so the inner run came out with
+   *  `italic` TWICE. A ProseMirror mark set is a SET — the editor itself collapses the
+   *  duplicate on load — so that array was model state Tiptap can never hold, and the
+   *  writer duly wrapped the run in two `*` pairs: `_a*a*_` -> `*a*a**`, whose trailing
+   *  `**` re-parses as a literal asterisk pair. Same delimiter-run corruption as #693,
+   *  reached from the reader rather than the writer.
+   *
+   *  Deduplicating on the way in matches what the editor would store anyway. The
+   *  redundant nesting is dropped; no text and no mark is lost. */
+  it.each([
+    ['nested identical emphasis', '_a*a*_\n', '*aa*\n'],
+    ['nested identical emphasis, leading', '_*a*a_\n', '*aa*\n'],
+    ['nested identical strong', '__a**a**__\n', '**aa**\n']
+  ])(
+    'collapses %s rather than doubling the delimiter',
+    (_name, src, expected) => {
+      // One delimiter pair over the merged run — not two, and no stray literal.
+      expect(rt(src)).toBe(expected)
+      // Converges immediately. The defect needed a second pass to settle, and
+      // corrupted the mark on the way there.
+      expect(rt(expected)).toBe(expected)
+    }
+  )
+
+  it('never carries the same mark twice on one run', () => {
+    for (const src of ['_a*a*_\n', '_*a*a_\n', '__a**a**__\n']) {
+      for (const marks of runMarks(src)) {
+        expect(marks).toStrictEqual([...new Set(marks)])
+      }
+    }
+  })
+
   // Nested marks must still nest, not merge: the inner mark spans a subset.
   it('keeps nesting when one run carries a superset of the marks', () => {
     const src = '*a **b** c*\n'

@@ -406,23 +406,44 @@ function listItemToMarkdoc(
       ? all.slice(1)
       : all
   // The position context the #652 escaping contract needs, threaded through the
-  // #658 string-level structure: only a TASK item's first paragraph is displaced
-  // off the line start (by the `[x] ` marker). A plain bullet's first paragraph,
-  // and every later child of either kind of item, does begin its own line — so it
-  // keeps `block-start` and a leading `#`/`>`/`-`/`1.` is still escaped.
-  const parts = children.map((child, i) =>
-    serializeBlock(
+  // #658 string-level structure: only a TASK item's first paragraph is displaced off
+  // the line start (by the `[x] ` marker). A plain bullet's first paragraph, and every
+  // later child of either kind of item, does begin its own line — so it keeps
+  // `block-start` and a leading `#`/`>`/`-`/`1.` is still escaped.
+  //
+  // #711 — the regression, and the invariant that closes it. The marker-line paragraph
+  // is identified by IDENTITY, never by index. Indexing `children` was the bug: once
+  // the drop above could remove `all[0]`, "index 0" silently stopped meaning "the
+  // paragraph on the marker line" and started meaning "whatever survived the drop".
+  //
+  // That matters because a task item's marker line already carries the `[x] ` checkbox,
+  // which makes it INLINE content — only a paragraph can live there. A heading, table or
+  // fence promoted onto it was emitted as `- [ ] # x`, which the reader flattens back to
+  // literal paragraph text: the block was destroyed on save, and the file never settled.
+  // (A bullet is immune: its bare `- ` marker opens a fresh block context, so `- # x` is
+  // a real heading inside the item.)
+  const markerParagraph =
+    task && children[0]?.type === 'paragraph' ? children[0] : undefined
+  const parts = children.map((child) => ({
+    type: child.type,
+    text: serializeBlock(
       child,
-      task && i === 0 ? 'after-inline-marker' : 'block-start'
+      child === markerParagraph ? 'after-inline-marker' : 'block-start'
     )
-  )
+  }))
+  // Nothing paragraph-shaped is available for the marker line, so leave it bare and let
+  // every child begin an indented line of its own. `- [ ]` on its own line is still a
+  // task marker to the reader, and — unlike the bullet case above — it is not a blank
+  // line, so the following blocks stay inside the item instead of being expelled.
+  if (task && markerParagraph === undefined)
+    parts.unshift({ type: 'paragraph', text: '' })
   // A nested list hugs its parent item (no blank line) — that is what Markdoc.format
   // emitted. Any other block is separated by a blank line, which is what makes a
   // multi-block item parse back as belonging to the item rather than ending it.
   const body = parts
-    .map((text, i) => {
+    .map(({ type, text }, i) => {
       if (i === 0) return text
-      const sep = LIST_TYPES.has(children[i]?.type ?? '') ? '\n' : '\n\n'
+      const sep = LIST_TYPES.has(type) ? '\n' : '\n\n'
       return sep + text
     })
     .join('')

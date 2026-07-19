@@ -7,6 +7,7 @@ export type {
 } from './markdoc/types'
 export { markdocToTiptap } from './markdoc/to-tiptap'
 export { tiptapToMarkdoc } from './markdoc/to-markdoc'
+export { ATOM_TAG_TO_NODE, ATOM_NODE_TO_TAG } from './markdoc/atom-blocks'
 
 export type {
   SetuConfig,
@@ -183,7 +184,14 @@ export type {
   Authz
 } from './authz/types'
 export { createAuthz, DEFAULT_ROLES } from './authz/authz'
-export { ROLE_RANK, rankOf, outranks } from './authz/rank'
+export {
+  ROLE_RANK,
+  rankOf,
+  outranks,
+  parseRoleSet,
+  canonicalRoleOf,
+  isSingleKnownRole
+} from './authz/rank'
 
 export type {
   LifecycleState,
@@ -214,10 +222,11 @@ export { newCid, isCid } from './content-id/cid'
 export {
   matchProvider,
   oembedEndpoint,
-  OEMBED_PROVIDERS
+  OEMBED_PROVIDERS,
+  OEMBED_ENDPOINT_HOSTS
 } from './oembed/providers'
 export type { OembedProvider, OembedType } from './oembed/providers'
-export { resolveOembed } from './oembed/resolve'
+export { resolveOembed, OEMBED_MAX_BODY_BYTES } from './oembed/resolve'
 export type {
   NormalizedOembed,
   OembedResult,

@@ -112,8 +112,7 @@ export async function createIdbGitPort(dbName = 'setu-git'): Promise<GitPort> {
         sha: string
       ): Promise<Record<string, string>> => {
         const snap = (await db.get('snapshots', sha)) as
-          | Record<string, string>
-          | undefined
+          Record<string, string> | undefined
         if (snap === undefined)
           throw new Error(`diffPaths: unknown commit sha: ${sha}`)
         return snap

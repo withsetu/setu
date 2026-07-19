@@ -357,7 +357,7 @@ export function markdocToTiptap(
   const slice = (from: number, to: number): string =>
     lines.slice(from, to).join('\n').replace(/\n+$/, '')
 
-  for (let i = 0; i < kids.length; ) {
+  for (let i = 0; i < kids.length;) {
     const node = kids[i]!
     if (isPreserve(node)) {
       const startLine = startOf(i)

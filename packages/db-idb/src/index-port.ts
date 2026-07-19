@@ -52,8 +52,7 @@ export async function createIdbIndexPort(
       // INDEX_VERSION bump will rebuild and rewrite it, but getMeta must never hand
       // back `undefined` where the port promises `string | null`.
       const stored = (await db.get('meta', 'meta')) as
-        | Partial<IndexMeta>
-        | undefined
+        Partial<IndexMeta> | undefined
       return {
         indexedSha: stored?.indexedSha ?? null,
         deployedSha: stored?.deployedSha ?? null,

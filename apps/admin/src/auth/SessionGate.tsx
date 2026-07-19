@@ -107,8 +107,7 @@ export function SessionGate({ children }: { children: ReactNode }) {
   if (location.pathname === '/reset-password') return <ResetPasswordScreen />
 
   const user = session.data?.user as
-    | { id: string; role?: string | null }
-    | undefined
+    { id: string; role?: string | null } | undefined
   if (user) {
     // #379: unknown/audience roles get no back-office access — the real admin.access gate is
     // deferred to #379; the server already fails closed. This UI fallback is UX-only (server

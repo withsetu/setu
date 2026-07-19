@@ -50,6 +50,73 @@ const PATH_WRITE_ACTION: Record<string, Action> = {
  *  into disagreeing about what "the same file" means — which is precisely how #654 happened. */
 const foldRepoPath = (p: string) => unicodeCaseFold(p)
 
+/** Hard ceiling on an accepted repo path, enforced in `isCanonicalRepoPath`.
+ *
+ *  #648: the path is attacker-controlled and is compiled into a RegExp by `foldCollidingPaths`, and
+ *  it is matched against every committed content path, so an unbounded path is both a compile-cost
+ *  and a match-cost amplifier. Bounding it at the gate is the fail-CLOSED way to cap that (a
+ *  too-long path is rejected, never waved through unmatched). 1024 is far above anything real —
+ *  every legitimate path is `content/<collection>/<locale>/<slug>.mdoc` with a slug derived by
+ *  `entrySlugify` — and comfortably under the 255-byte-per-component / 4096-byte-per-path limits
+ *  that ext4, APFS and NTFS impose anyway, so nothing writable on disk is being rejected. */
+const MAX_REPO_PATH_LENGTH = 1024
+
+/** Escapes every RegExp metacharacter so an interpolated string matches LITERALLY.
+ *
+ *  Load-bearing for #648: without it, a slug like `a.+` would be compiled as a PATTERN and match
+ *  unrelated committed paths (a false `content.publish` at best, a RegExp-injection primitive at
+ *  worst), and a crafted slug could introduce nested quantifiers — the classic ReDoS shape. Fully
+ *  escaped and anchored, the compiled pattern is a literal-only alternation-free match, which is
+ *  linear in the input, so no attacker-supplied path can make matching super-linear. */
+const escapeRegExp = (s: string) => s.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')
+
+/** Committed paths that case-FOLD onto `p` under Unicode SIMPLE CASE FOLDING but are not literally
+ *  `p` — i.e. the OTHER files a write to `p` could actually land on, on a case-insensitive
+ *  filesystem (APFS/HFS+, NTFS).
+ *
+ *  #648: `foldRepoPath` was `toLowerCase()`, Unicode simple case MAPPING, strictly weaker than the
+ *  case FOLDING those filesystems resolve names by. #644 and #647 closed their halves by REJECTING
+ *  inputs where the two relations could disagree, but neither reached the SLUG segment: a slug
+ *  whose characters fold without lowercasing — U+017F LONG S folds to `s`; final sigma `ς` folds
+ *  onto medial `σ` — is ITS OWN `toLowerCase` form, so it passed both rules while still resolving
+ *  onto the neighbouring post.
+ *
+ *  #654 has since made `foldRepoPath` a real fold (`unicodeCaseFold`), so `isCanonicalRepoPath`
+ *  now REJECTS a fold-unstable INCOMING path outright. That does not retire this function — it
+ *  changes which population each defence owns, and this one is the half that cannot be replaced
+ *  by rejection:
+ *    - rejection is PREVENTIVE and sees only the incoming path;
+ *    - this is DETECTIVE and sees the COMMITTED tree. A fold-STABLE incoming path — accepted, and
+ *      correctly so — can still land on a fold-UNSTABLE path already in the repo (committed before
+ *      these rules, by direct `git push`, or by another topology). Measured: incoming
+ *      `content/blog/en/sive.mdoc` is its own fold and passes the canonical-path rule, while
+ *      committed `content/blog/en/ſive.mdoc` is exactly the inode APFS resolves it onto, and
+ *      git's case-SENSITIVE index makes the literal `readFile` miss it.
+ *  Nothing else in the gate looks in that direction, so removing this reopens it.
+ *
+ *  JavaScript does expose the needed relation after all: a `RegExp` with the `iu` flags matches by
+ *  ECMA-262 Canonicalize, which IS Unicode simple case folding. Verified on node 22:
+ *    /^ſive$/iu.test('sive')   -> true    the U+017F bypass
+ *    /^ςigma$/iu.test('σigma') -> true    neither side ASCII — the fold RELATION, not an ASCII rule
+ *    /^café$/iu.test('cafe')   -> false   accents are NOT folded; `café` stays a distinct post
+ *    /^ß$/iu.test('ss')        -> false   simple, not FULL, folding
+ *  Simple folding is the CORRECT relation here precisely because it is the one APFS/HFS+ and NTFS
+ *  case tables implement — they do not fold ß->ss either. Full folding would over-reject real
+ *  slugs without closing anything the filesystem actually collides.
+ *
+ *  This is a rejection of the CLASS, not an enumeration of spellings (the #623/#644/#647 lesson):
+ *  it asks the fold relation itself, so it covers every character in the gap, including ones added
+ *  by a future Unicode revision of the engine's case tables.
+ *
+ *  Used ONLY to widen the #382 committed-state read below. The write still uses the caller's own
+ *  path — `isCanonicalRepoPath` has already proven it canonical. */
+function foldCollidingPaths(p: string, committed: readonly string[]): string[] {
+  // `isCanonicalRepoPath` guarantees the bound; belt-and-braces for direct callers.
+  if (p.length > MAX_REPO_PATH_LENGTH) return []
+  const folded = new RegExp(`^${escapeRegExp(p)}$`, 'iu')
+  return committed.filter((c) => c !== p && folded.test(c))
+}
+
 /** True iff `p` is a CANONICAL repo-relative path: non-empty, relative, no `.`/`..` segments, no
  *  repeated slashes, no leading/trailing slash, no surrounding whitespace, no backslash or NUL,
  *  and — for the parts the gate classifies on — canonically cased.
@@ -69,6 +136,7 @@ const foldRepoPath = (p: string) => unicodeCaseFold(p)
  *  adapter's write are the same path by construction. */
 export function isCanonicalRepoPath(p: unknown): p is string {
   if (typeof p !== 'string' || p === '') return false
+  if (p.length > MAX_REPO_PATH_LENGTH) return false
   if (p !== p.trim()) return false
   if (p.includes('\\') || p.includes('\0')) return false
   if (p.startsWith('/') || p.endsWith('/')) return false
@@ -120,16 +188,32 @@ export function isCanonicalRepoPath(p: unknown): p is string {
   // untouched, and canonical non-ASCII slugs (`content/blog/en/café.mdoc`) fold to themselves and
   // pass.
   //
-  // #654 CLOSES what this used to record as a KNOWN GAP (and with it #648's acceptance
-  // criterion). With `foldRepoPath` upgraded to the real `unicodeCaseFold`, the SAME rule now
-  // also rejects a slug carrying a character that case-FOLDS into ASCII (`ſive.mdoc`, `ﬁle.mdoc`)
-  // or that is spelled decomposed (`cafe` + U+0301) — each of which is its own `toLowerCase` form
-  // yet the same inode as a different published post on APFS. No new rule, no enumeration of
-  // spellings: a stronger fold made the existing class-rejection reach the class it was aimed at.
+  // #654 CLOSES what this used to record as a KNOWN GAP. With `foldRepoPath` upgraded to the real
+  // `unicodeCaseFold`, the SAME rule now also rejects a slug carrying a character that case-FOLDS
+  // into ASCII (`ſive.mdoc`, `ﬁle.mdoc`) or that is spelled decomposed (`cafe` + U+0301) — each of
+  // which is its own `toLowerCase` form yet the same inode as a different published post on APFS.
+  // No new rule, no enumeration of spellings: a stronger fold made the existing class-rejection
+  // reach the class it was aimed at.
   //
   // Fold-STABLE non-ASCII slugs are untouched — `content/blog/de/über-uns.mdoc` and
   // `content/blog/ja/日本語.mdoc` fold to themselves and still pass, which is the line between
   // rejecting the collision class and banning i18n.
+  //
+  // THIS RULE DOES NOT SUBSUME #648's `foldCollidingPaths` — the two cover different populations,
+  // and removing either reopens a hole (both defenses reconciled here when #654 and #648 landed
+  // concurrently):
+  //   - THIS rule is PREVENTIVE and only sees the INCOMING path. It stops a fold-unstable name
+  //     from ever entering the repo through this gate, which is also why `entrySlugify` (#669)
+  //     folds at minting time: the vocabulary can no longer produce a name this rejects.
+  //   - `foldCollidingPaths` is DETECTIVE and looks at what is ALREADY COMMITTED. A perfectly
+  //     fold-stable path that this rule admits can still collide with a fold-unstable path
+  //     committed before these rules existed, by direct `git push`, or by another topology —
+  //     measured: incoming `content/blog/en/sive.mdoc` is its own fold and passes here, while
+  //     committed `content/blog/en/ſive.mdoc` is the very neighbour APFS resolves it onto, and
+  //     git's case-SENSITIVE index makes `readFile` miss it. Only the committed-path fold-match
+  //     below catches that direction, so it stays.
+  // Prevention cannot retroactively clean a repo; detection cannot stop a new bad name. Both.
+
   if (parseContentPath(foldRepoPath(p)) !== null && p !== foldRepoPath(p))
     return false
   return true
@@ -237,6 +321,15 @@ export async function writeActionForChanges(
 
   const publishRank = writeActionRank('content.publish')
   let strongest: Action = 'content.edit'
+
+  // #648: the committed content tree, listed at most ONCE per call and only if a change actually
+  // reaches the committed-state read below. `list('content/')` is a literal prefix filter in every
+  // adapter, which is sound here because #647 already guarantees the `content/` prefix of anything
+  // classified as a content path is literally lowercase.
+  let contentTree: string[] | null = null
+  const committedContentPaths = async () =>
+    (contentTree ??= await git.list('content/'))
+
   for (const change of changes) {
     let needed = actionForChange(change)
     const p = change.path
@@ -245,9 +338,22 @@ export async function writeActionForChanges(
       writeActionRank(strongest) < publishRank &&
       parseContentPath(p)
     ) {
-      const committed = await git.readFile(p)
-      if (committed !== null && publishesLiveContent(committed))
-        needed = 'content.publish'
+      // The literal path FIRST — the overwhelmingly common case, and the one that avoids listing
+      // the tree at all. Then (#648) every committed path that case-FOLDS onto it: git's index is
+      // case-SENSITIVE, so `readFile(p)` misses the very neighbour the filesystem would resolve
+      // this write onto. Checking the literal path in ADDITION to its fold-neighbours (rather than
+      // only when it misses) keeps this fail-closed when both spellings exist in the index at once
+      // — a state git permits and a case-insensitive checkout collapses unpredictably.
+      for (const candidate of [
+        p,
+        ...foldCollidingPaths(p, await committedContentPaths())
+      ]) {
+        const committed = await git.readFile(candidate)
+        if (committed !== null && publishesLiveContent(committed)) {
+          needed = 'content.publish'
+          break
+        }
+      }
     }
     if (writeActionRank(needed) > writeActionRank(strongest)) strongest = needed
   }

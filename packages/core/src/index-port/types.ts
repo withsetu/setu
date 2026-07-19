@@ -52,6 +52,13 @@ export interface IndexQuery {
 
 export interface IndexMeta {
   indexedSha: string | null
+  /** The deploy whose live/staged projection every row currently reflects (#662).
+   *  The index is PERSISTENT but this used to be session-scoped, so an out-of-band
+   *  deploy (CI, a Pages hook, another session) plus a restart left every row's
+   *  live-vs-staged state wrong until someone hit `POST /api/index/refresh`.
+   *  Persisting it lets `ensureBuilt` notice `!== deploy().deployedSha` and run the
+   *  deploy diff on its own. Null = no deploy absorbed yet. */
+  deployedSha: string | null
   version: number
 }
 

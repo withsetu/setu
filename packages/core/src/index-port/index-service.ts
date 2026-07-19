@@ -18,7 +18,11 @@ import type { IndexStats } from './stats'
 // v7 (concurrent): rows also gained `audit` (Site Health per-entry facts, #593) and
 // `hasSeoOverrides` (#577, list indicator/filter).
 // v8: merge of featured/seo (#586) + audit (#596) fields — bump forces a clean rebuild over either partial v7 index.
-export const INDEX_VERSION = 8
+// v9: IndexMeta gained `deployedSha` (#662) — the absorbed deploy is now persistent
+// instead of session-scoped. Existing indexes have no value for it, and their rows were
+// derived under an unknown deploy snapshot, so the bump forces one clean rebuild that
+// records which deploy the rows actually reflect.
+export const INDEX_VERSION = 9
 
 export interface IndexServiceDeps {
   data: DataPort
@@ -91,15 +95,23 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
       const content = await git.readFile(p)
       if (content !== null) committed.push({ ref, content })
     }
+    // ONE deploy read for both the rows and the marker below: sampling twice could
+    // straddle a deploy and record a snapshot the rows were not derived from.
+    const deployInfo = deploy()
     const rows = listContentEntries({
       drafts,
       committed,
-      deploy: deploy()
+      deploy: deployInfo
     }).map(projectRow)
     await index.clear()
     await index.upsertMany(rows)
     await index.setMeta({
       indexedSha: head,
+      // The rows above were derived from THIS deploy snapshot, so record it (#662).
+      // No fallback to `head`: null means "no deploy absorbed", and pretending a
+      // never-deployed index was deployed at HEAD makes the deploy gate read a real
+      // first deploy as already-absorbed and skip the re-derivation entirely.
+      deployedSha: deployInfo.deployedSha,
       version: INDEX_VERSION
     })
   }
@@ -119,16 +131,33 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
     // pointed at a different repo): the index is stale when its recorded sha lags the live
     // HEAD. A null HEAD (empty default repo) never triggers this, so there is no rebuild loop.
     const head = await git.headSha()
-    if (head === null || head === meta.indexedSha) return
-    // Incremental import (#450): reindex only the paths the tree diff names, then stamp
-    // the new sha. No stored sha, or a diff the adapter cannot produce (sha pruned,
-    // pre-diff snapshot store) → full rebuild — fail toward the safe rescan, never a
-    // stale index.
-    if (meta.indexedSha !== null && (await applyDiff(meta.indexedSha, head))) {
-      await index.setMeta({ ...(await index.getMeta()), indexedSha: head })
-      return
+    if (head !== null && head !== meta.indexedSha) {
+      // Incremental import (#450): reindex only the paths the tree diff names, then stamp
+      // the new sha. No stored sha, or a diff the adapter cannot produce (sha pruned,
+      // pre-diff snapshot store) → full rebuild — fail toward the safe rescan, never a
+      // stale index.
+      if (
+        meta.indexedSha !== null &&
+        (await applyDiff(meta.indexedSha, head))
+      ) {
+        await index.setMeta({ ...(await index.getMeta()), indexedSha: head })
+      } else {
+        // A full rebuild re-derives from the CURRENT deploy too, so the deploy gate
+        // below has nothing left to do.
+        await rebuildInner()
+        return
+      }
     }
-    await rebuildInner()
+    // Absorb a deploy that happened out-of-band (#662): CI, a Pages hook or another
+    // session can deploy without this process ever seeing reindexAfterDeploy(), and
+    // the index is persistent — so a restart would otherwise serve every row's
+    // live-vs-staged state from the PREVIOUS deploy until someone hit
+    // `POST /api/index/refresh`. Git HEAD does not move on a deploy, so the sha gate
+    // above cannot see this; only the deploy sha changes. A null deployed sha means
+    // nothing is live yet — there is no projection to refresh.
+    const deployed = deploy().deployedSha
+    if (deployed !== null && deployed !== (await index.getMeta()).deployedSha)
+      await reindexAfterDeployInner()
   }
 
   // Coalesce concurrent ensureBuilt() (#483): a cold admin load fires it from several
@@ -149,19 +178,24 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
    *  Returns false when the diff is unavailable (adapter threw) so callers fall back
    *  to the full rebuild. */
   async function applyDiff(fromSha: string, toSha: string): Promise<boolean> {
-    let changes: DiffPathEntry[]
+    // The per-path read loop is inside the guard on purpose (#662a): a path the diff
+    // names can still fail to read (pruned object, git-http blip, a file that vanished
+    // between the two calls). That rejection used to escape applyDiff entirely, past
+    // the callers' bookkeeping — so a half-applied diff was recorded as a whole one.
+    // A read failure is exactly as recoverable as a diff failure: degrade to the full
+    // rescan, never to a stale index.
     try {
-      changes = await git.diffPaths(fromSha, toSha)
+      const changes: DiffPathEntry[] = await git.diffPaths(fromSha, toSha)
+      for (const ch of changes) {
+        const ref = parseContentPath(ch.path)
+        if (ref === null) continue
+        if (ch.status === 'deleted') await reindexRef(ref, null)
+        else await reindexRef(ref, await git.readFile(ch.path))
+      }
+      return true
     } catch {
       return false
     }
-    for (const ch of changes) {
-      const ref = parseContentPath(ch.path)
-      if (ref === null) continue
-      if (ch.status === 'deleted') await reindexRef(ref, null)
-      else await reindexRef(ref, await git.readFile(ch.path))
-    }
-    return true
   }
 
   /** Re-derive one entry's row from its draft + the given committed content
@@ -201,26 +235,43 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
     if (sha !== null) await markSyncedAt(sha)
   }
 
-  // The git HEAD whose deploy snapshot the index last absorbed (deploys don't move git,
-  // they change `deployedAt` for every path that differs from the PREVIOUS deploy — which
-  // is exactly diffPaths(previous deploy head, current head)). Session-scoped on purpose:
-  // the admin's deploy snapshot is session state too, and a fresh service instance takes
-  // the full-rebuild path on its first deploy.
-  let deployedHead: string | null = null
+  /** Record which deploy the rows now reflect. Separate from `markSyncedAt` because
+   *  deploys move this marker WITHOUT moving `indexedSha` — committed-content sync
+   *  stays owned by ensureBuilt/markSyncedAt so an unimported out-of-band commit is
+   *  never masked. */
+  async function stampDeployed(sha: string | null): Promise<void> {
+    await index.setMeta({ ...(await index.getMeta()), deployedSha: sha })
+  }
 
   async function reindexAfterDeployInner(): Promise<void> {
+    // The deploy snapshot the index last absorbed. Persisted in IndexMeta (#662b) —
+    // it used to be a session-scoped local, so a restart silently forgot which deploy
+    // every row's live/staged state was derived from. Deploys don't move git; they
+    // change the live snapshot for every path that differs from the PREVIOUS deploy,
+    // which is exactly diffPaths(previous absorbed sha, current head).
+    const from = (await index.getMeta()).deployedSha
     const head = await git.headSha()
-    const from = deployedHead
-    deployedHead = head
-    if (from !== null && head !== null) {
-      if (from === head) return // redeploy of the same tree → no row changes
-      // NOTE: this diff path intentionally does NOT advance meta.indexedSha — it only
-      // refreshes deploy-derived lifecycle; committed-content sync stays owned by
-      // ensureBuilt/markSyncedAt so an unimported out-of-band commit is never masked.
-      // (The full-rebuild fallback below DOES stamp, via rebuildInner's own setMeta —
-      // safe there, because it walks every committed entry.)
-      if (await applyDiff(from, head)) return
+    // Sampled ONCE so the marker matches the derivation, and so ensureBuilt's gate
+    // compares like with like and cannot loop. Null (nothing live) → full rebuild:
+    // there is no prior live snapshot to diff against.
+    const absorbing = deploy().deployedSha
+    if (from !== null && head !== null && absorbing !== null) {
+      // Same content on both ends → no row changes. Still restamp: the deploy sha
+      // itself may have moved even though the tree did not.
+      if (from === head) {
+        await stampDeployed(absorbing)
+        return
+      }
+      // Commit the marker only AFTER the work succeeds (#662a). Assigning it up front
+      // meant a rejection inside applyDiff left the deploy recorded as absorbed, and
+      // the retry computed from === head and no-op'd — the rows stayed on the previous
+      // deploy's lifecycle permanently, while rebuild() disagreed.
+      if (await applyDiff(from, head)) {
+        await stampDeployed(absorbing)
+        return
+      }
     }
+    // Full rescan: rebuildInner stamps `deployedSha` itself, from the same deploy read.
     await rebuildInner()
   }
 

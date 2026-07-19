@@ -83,7 +83,11 @@ describe('IndexProvider', () => {
       hasFeaturedImage: false,
       hasSeoOverrides: false
     })
-    await shared.setMeta({ indexedSha: 'built', version: INDEX_VERSION })
+    await shared.setMeta({
+      indexedSha: 'built',
+      deployedSha: null,
+      version: INDEX_VERSION
+    })
     // The data port is EMPTY — if the provider rebuilt instead of using the shared
     // index, total would be 0. It must use services.index as-is → total:1.
     const services = servicesFor(

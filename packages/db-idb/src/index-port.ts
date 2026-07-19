@@ -48,12 +48,17 @@ export async function createIdbIndexPort(
       await db.clear('entries')
     },
     async getMeta() {
-      return (
-        ((await db.get('meta', 'meta')) as IndexMeta | undefined) ?? {
-          indexedSha: null,
-          version: 0
-        }
-      )
+      // Normalize a meta persisted before `deployedSha` existed (#662): the
+      // INDEX_VERSION bump will rebuild and rewrite it, but getMeta must never hand
+      // back `undefined` where the port promises `string | null`.
+      const stored = (await db.get('meta', 'meta')) as
+        | Partial<IndexMeta>
+        | undefined
+      return {
+        indexedSha: stored?.indexedSha ?? null,
+        deployedSha: stored?.deployedSha ?? null,
+        version: stored?.version ?? 0
+      }
     },
     async setMeta(m) {
       await db.put('meta', m, 'meta')

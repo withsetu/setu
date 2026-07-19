@@ -112,7 +112,13 @@ export function createHttpIndexService(
       const meta = await index.getMeta()
       if (meta.version !== INDEX_CACHE_VERSION) {
         await index.clear()
-        await index.setMeta({ indexedSha: null, version: INDEX_CACHE_VERSION })
+        // The offline cache tracks neither sha: the SERVER owns indexedSha, and
+        // the cache is re-derived from live deploy truth on every reindexEntry.
+        await index.setMeta({
+          indexedSha: null,
+          deployedSha: null,
+          version: INDEX_CACHE_VERSION
+        })
       }
     })().catch((err: unknown) => {
       cacheReady = null // retry on the next touch

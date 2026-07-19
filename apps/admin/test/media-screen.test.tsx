@@ -97,7 +97,11 @@ async function buildProviders() {
   // referencedBy through useIndex(), #464) doesn't rebuild over the seed.
   const indexPort = createMemoryIndexPort()
   await indexPort.upsert(catRef)
-  await indexPort.setMeta({ indexedSha: null, version: INDEX_VERSION })
+  await indexPort.setMeta({
+    indexedSha: null,
+    deployedSha: null,
+    version: INDEX_VERSION
+  })
 
   // Media index service seeded with catRecord
   const mediaIndexPort = createMemoryMediaIndexPort()

@@ -2,8 +2,29 @@ import Markdoc from '@markdoc/markdoc'
 import type { TiptapDoc, TiptapNode } from './types'
 import { tableToGfm } from './table-gfm'
 import { ATOM_NODE_TO_TAG } from './atom-blocks'
+import {
+  codeSpan,
+  decodeProtected,
+  escapeText,
+  protectText
+} from './escape-inline'
 
 const N = Markdoc.Ast.Node
+
+/** A `text` node whose content is already final markdown source. `protectText`
+ *  hides it from `Markdoc.format`'s own text escaper, which would otherwise
+ *  double-escape what `escapeText`/`codeSpan` just produced (see
+ *  ./escape-inline for the contract). `tiptapToMarkdoc` decodes once at the end. */
+const rawText = (source: string): InstanceType<typeof N> =>
+  new N('text', { content: protectText(source) })
+
+/** An autolink `<https://…>` is the canonical form Markdoc.format emits when a
+ *  link's text equals its href, and we must keep emitting it or every such line
+ *  in existing content would be rewritten to `[href](href)`. Markdoc compares
+ *  the FORMATTED children to the href, which protected text can never equal, so
+ *  the case is recognised here instead — and, unlike Markdoc, only for a real
+ *  URI scheme, so a non-URL link text is not turned into raw HTML. */
+const AUTOLINK_SCHEME = /^[a-zA-Z][a-zA-Z0-9+.-]*:/
 
 /** Mark types buildInline serializes. Kept next to the loops it guards (#665). */
 const SERIALIZED_MARKS = new Set([
@@ -23,9 +44,15 @@ const SERIALIZED_MARKS = new Set([
 const UNPERSISTED_MARKS = new Set<string>([])
 
 export function buildInline(
-  content: TiptapNode[] = []
+  content: TiptapNode[] = [],
+  /** Where this inline run sits, for the position-dependent escape rules:
+   *  `block` = paragraph / list item (first characters are at a line start, so
+   *  `#`, `>`, `-`, `1.` are block markers); `heading` = heading content (a
+   *  TRAILING `#` run is the ATX closing sequence); `inline` = table cells and
+   *  anything else, where no positional rule applies. See ./escape-inline. */
+  context: 'block' | 'heading' | 'inline' = 'inline'
 ): InstanceType<typeof N>[] {
-  return content.map((t) => {
+  return content.map((t, index) => {
     if (t.type === 'hardBreak') return new N('hardbreak')
     if (t.type === 'image') {
       const a = t.attrs ?? {}
@@ -42,10 +69,33 @@ export function buildInline(
     // the mark loop instead of wrapping (#653) — and to-tiptap emits `code` last, so
     // the link/bold/italic/strike built before it was silently discarded:
     // [`api`](https://example.com) collapsed to `api`, losing the href entirely.
-    const hasCode = (t.marks ?? []).some((m) => m.type === 'code')
+    const marks = t.marks ?? []
+    const text = t.text ?? ''
+
+    // Autolink: exactly one link mark whose href is the visible text.
+    const soleLink = marks.length === 1 && marks[0]!.type === 'link'
+    if (soleLink) {
+      const href = (marks[0]!.attrs as Record<string, unknown>)?.['href']
+      if (href === text && AUTOLINK_SCHEME.test(text))
+        return rawText(`<${text}>`)
+    }
+
+    const hasCode = marks.some((m) => m.type === 'code')
+    // A code span's content is literal — backslash-escaping it would corrupt it.
+    // The fence width carries the ambiguity instead (#677); `Markdoc.format`'s
+    // own `code` case hard-codes a single backtick, so it is bypassed here.
+    // A positional rule only binds when nothing else occupies that position:
+    // a leading `**`/`[` from a mark, or a preceding sibling run, displaces it.
+    const bare = marks.length === 0
     let n: InstanceType<typeof N> = hasCode
-      ? new N('code', { content: t.text })
-      : new N('text', { content: t.text })
+      ? rawText(codeSpan(text))
+      : rawText(
+          escapeText(text, {
+            atBlockStart: context === 'block' && index === 0 && bare,
+            atHeadingEnd:
+              context === 'heading' && index === content.length - 1 && bare
+          })
+        )
     // Apply markdown-native marks first (innermost), then tag marks (outermost).
     // This ensures {% sub %}**b**{% /sub %} rather than **{% sub %}b{% /sub %}**,
     // which Markdoc.format cannot render cleanly across inline tag boundaries.
@@ -95,7 +145,12 @@ function buildListItem(
 ): InstanceType<typeof N> {
   const children = item.content ?? []
   const firstPara = children.find((c) => c.type === 'paragraph')
-  const inlineNodes = buildInline(firstPara?.content ?? [])
+  // A task item's text is preceded by the `[x] ` marker, so it is NOT at a
+  // block start; a plain bullet's text is.
+  const inlineNodes = buildInline(
+    firstPara?.content ?? [],
+    task ? 'inline' : 'block'
+  )
   if (task) {
     const checked = item.attrs?.['checked'] === true
     inlineNodes.unshift(new N('text', { content: checked ? '[x] ' : '[ ] ' }))
@@ -142,14 +197,14 @@ function buildBlock(node: TiptapNode): InstanceType<typeof N> {
     case 'heading':
       return withAlign(
         new N('heading', { level: attrs['level'] }, [
-          new N('inline', {}, buildInline(node.content))
+          new N('inline', {}, buildInline(node.content, 'heading'))
         ]),
         node
       )
     case 'paragraph':
       return withAlign(
         new N('paragraph', {}, [
-          new N('inline', {}, buildInline(node.content))
+          new N('inline', {}, buildInline(node.content, 'block'))
         ]),
         node
       )
@@ -323,5 +378,8 @@ function serializeBlock(node: TiptapNode): string {
 }
 
 export function tiptapToMarkdoc(doc: TiptapDoc): string {
-  return doc.content.map(serializeBlock).join('\n\n') + '\n'
+  // Single decode point for the escaping contract: every inline text node was
+  // handed to Markdoc pre-escaped and sentinel-protected (see ./escape-inline),
+  // and this is where the protection comes back off.
+  return decodeProtected(doc.content.map(serializeBlock).join('\n\n') + '\n')
 }

@@ -14,23 +14,38 @@ const LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ '.split(
  *  image brackets, parens, quotes, tilde, pipe, hard line breaks, CR, tab, and
  *  non-ASCII up to astral plane (#651).
  *
- *  KNOWN OPEN DEFECTS — deliberately NOT in this set, each an independent byte-drift
- *  bug found by this generator while widening it. They are excluded so this test is
- *  honestly green rather than permanently red; every one needs its own issue. These
- *  are corruption, not acceptable normalization:
+ *  The backslash, `*`, `_`, `#` and backtick were excluded here as known-open
+ *  escaping defects. The escaping contract in `src/markdoc/escape-inline.ts`
+ *  (#652/#675/#676/#677) closed all four, so `\`, `_`, `#` and backtick are now
+ *  generated:
  *
  *    `\`  escape erosion:  "\\\\" -> "\\",  "\\_x" -> "_x",  "\\[y]" -> "[y]"
  *         and, in a list item, "- b \\*x" -> "- b *x" (an escaped literal asterisk
- *         becomes an active emphasis marker on the next save).
- *    `*` `_` `#`  escape non-idempotency: emphasis/heading markers gain or lose a
- *         leading backslash across successive round-trips, e.g.
- *         "- |']#\rb" -> "- |']# b" -> "- |']\\# b".
- *    '`'  code-span fence width erosion: "``x``" -> "`x`" ("# 中``b中 ` `" is
- *         unstable across two round-trips).
+ *         becoming an active emphasis marker on the next save).            [#675]
+ *    `*` `_` `#`  escape non-idempotency: markers gained or lost a leading
+ *         backslash across successive round-trips.                         [#676]
+ *    '`'  code-span fence width erosion: "``x``" -> "`x`".                  [#677]
+ *
+ *  KNOWN OPEN DEFECTS still excluded — all structural, NOT escaping. Each needs
+ *  its own issue; do not re-litigate them here:
+ *
  *    tag blocks with multi-line bodies: the passthrough line-slicing in
  *         markdocToTiptap drops the opening "{% callout %}" line and duplicates the
  *         preceding block, GROWING the document on every save (~15% of random
- *         tag-bearing documents).
+ *         tag-bearing documents). This is why `proseDocument` (not `taggedDocument`)
+ *         carries the widened alphabet.
+ *    `*`  is held out because it is the only character that can synthesise
+ *         EMPHASIS, and emphasis exposes two defects that escaping cannot fix:
+ *         (a) delimiter-run adjacency — two sibling inline runs that both carry
+ *             `italic` serialize as "*a**`b`*", whose "**" re-parses as a literal
+ *             asterisk pair, LOSING the second run's italic mark;
+ *         (b) list looseness — a list containing an empty item is re-emitted by
+ *             Markdoc.format with blank lines between items, which re-reads as a
+ *             tight list, so the document settles one pass late
+ *             ("- a\r*\n\n# a\n" is the minimal counterexample).
+ *         Both need a delimiter-selection/normalisation design, not an escape rule.
+ *         `_` (the other emphasis character) IS generated: it never opens emphasis
+ *         intraword, so the generator cannot build a delimiter run out of it.
  */
 const METACHARS = [
   '[',
@@ -42,6 +57,10 @@ const METACHARS = [
   "'",
   '~',
   '|',
+  '\\',
+  '_',
+  '#',
+  '`',
   '\n',
   '\r',
   '\t',
@@ -107,7 +126,7 @@ describe('round-trip idempotency (property-based)', () => {
         const s1 = roundtrip(s0)
         expect(roundtrip(s1)).toBe(s1)
       }),
-      { numRuns: 1000 }
+      { numRuns: 6000 }
     )
   })
 })
@@ -178,7 +197,7 @@ describe('round-trip byte-stability (property-based)', () => {
       fc.property(canonicalDocument, (s0) => {
         expect(roundtrip(s0)).toBe(s0)
       }),
-      { numRuns: 1000 }
+      { numRuns: 6000 }
     )
   })
 })

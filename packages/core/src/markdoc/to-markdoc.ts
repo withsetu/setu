@@ -5,6 +5,23 @@ import { ATOM_NODE_TO_TAG } from './atom-blocks'
 
 const N = Markdoc.Ast.Node
 
+/** Mark types buildInline serializes. Kept next to the loops it guards (#665). */
+const SERIALIZED_MARKS = new Set([
+  'code',
+  'bold',
+  'italic',
+  'strike',
+  'link',
+  'subscript',
+  'superscript'
+])
+
+/** Marks deliberately carried in the editor but never written to Markdoc. Empty
+ *  today: every mark the admin editor registers round-trips. A mark belongs here
+ *  only if dropping it on save is the intended behaviour — otherwise give it a case
+ *  in buildInline. (`textAlign` is an attribute, not a mark; see withAlign.) */
+const UNPERSISTED_MARKS = new Set<string>([])
+
 export function buildInline(
   content: TiptapNode[] = []
 ): InstanceType<typeof N>[] {
@@ -53,6 +70,16 @@ export function buildInline(
         const tag = new N('tag', {}, [n], 'sup')
         tag.inline = true
         n = tag
+      }
+    }
+    // #665: an unrecognized mark used to be dropped by both loops without a sound, so
+    // schema/serializer drift silently ate formatting. Fail loudly instead — same
+    // posture as the setuBlock missing-tag throw below.
+    for (const m of t.marks ?? []) {
+      if (!SERIALIZED_MARKS.has(m.type) && !UNPERSISTED_MARKS.has(m.type)) {
+        throw new Error(
+          `tiptapToMarkdoc: unrecognized mark type "${m.type}" — add a case in buildInline, or add it to UNPERSISTED_MARKS if it is deliberately not persisted`
+        )
       }
     }
     return n
@@ -138,8 +165,6 @@ function buildBlock(node: TiptapNode): InstanceType<typeof N> {
         )
       )
     }
-    case 'blockquote':
-      return new N('blockquote', {}, (node.content ?? []).map(buildBlock))
     case 'codeBlock':
       return new N('fence', {
         content: (node.content?.[0]?.text ?? '') + '\n',
@@ -177,7 +202,12 @@ function buildBlock(node: TiptapNode): InstanceType<typeof N> {
         node.type
       )
     default:
-      return new N('paragraph', {}, [])
+      // #665: this used to `return new N('paragraph', {}, [])`, so any node type the
+      // serializer did not know about vanished into a bare "\n" — schema drift ate
+      // content with no signal at all. Fail loudly, like the setuBlock arm above.
+      throw new Error(
+        `tiptapToMarkdoc: unrecognized node type "${node.type}" — add a case to buildBlock or a string-level serializer to serializeBlock`
+      )
   }
 }
 
@@ -264,9 +294,24 @@ function tagBlockToMarkdoc(tag: string, node: TiptapNode): string {
   return `${openTagFor(tag, mdAttrs)}\n${body}\n{% /${tag} %}`
 }
 
+/** Serialize a blockquote at the string level so its children reuse the same
+ *  per-type serializers as everywhere else. Previously the blockquote arm of
+ *  buildBlock recursed with `buildBlock`, which has no case for the string-only
+ *  types (`table`, `imageBlock`, `passthrough`) — all of them `group: 'block'` and
+ *  so schema-valid inside a blockquote. They hit the default arm and were destroyed
+ *  ("> > \n> > \n"). Byte-identical to Markdoc.format for prose-only blockquotes. */
+function blockquoteToMarkdoc(node: TiptapNode): string {
+  const body = (node.content ?? []).map(serializeBlock).join('\n\n')
+  return body
+    .split('\n')
+    .map((line) => (line === '' ? '> ' : `> ${line}`))
+    .join('\n')
+}
+
 /** Serialize one block node to Markdoc source. Used for top-level blocks AND,
  *  recursively, for the children of body-bearing tags. */
 function serializeBlock(node: TiptapNode): string {
+  if (node.type === 'blockquote') return blockquoteToMarkdoc(node)
   if (node.type === 'passthrough') {
     const raw = node.attrs?.['raw']
     return typeof raw === 'string' ? raw : ''

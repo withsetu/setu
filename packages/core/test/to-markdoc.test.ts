@@ -92,6 +92,112 @@ describe('tiptapToMarkdoc', () => {
     })
   })
 
+  // #665: unrecognized nodes serialized to an empty paragraph and unrecognized marks
+  // were silently ignored, so a schema/serializer drift lost content with no signal.
+  // The module already takes the right posture for setuBlock (throws on a missing tag).
+  describe('unknown nodes and marks fail loudly (#665)', () => {
+    it('throws on an unrecognized block node type', () => {
+      expect(() =>
+        tiptapToMarkdoc({
+          type: 'doc',
+          content: [{ type: 'unknownNodeType' }]
+        })
+      ).toThrow(/unknownNodeType/)
+    })
+
+    it('throws on an unrecognized mark type', () => {
+      expect(() =>
+        tiptapToMarkdoc({
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                { type: 'text', text: 'x', marks: [{ type: 'underline' }] }
+              ]
+            }
+          ]
+        })
+      ).toThrow(/underline/)
+    })
+
+    it('still serializes every mark the editor can actually produce', () => {
+      const marks = [
+        'bold',
+        'italic',
+        'strike',
+        'code',
+        'subscript',
+        'superscript'
+      ]
+      for (const type of marks) {
+        expect(() =>
+          tiptapToMarkdoc({
+            type: 'doc',
+            content: [
+              {
+                type: 'paragraph',
+                content: [{ type: 'text', text: 'x', marks: [{ type }] }]
+              }
+            ]
+          })
+        ).not.toThrow()
+      }
+    })
+  })
+
+  // Prerequisite for the #665 throw: these three block types are `group: 'block'` and
+  // so are schema-valid inside a blockquote, but buildBlock had no case for them —
+  // they hit the default arm and were destroyed ("> > \n> > \n"). Routing blockquote
+  // bodies through the string-level serializer preserves them AND keeps the default
+  // arm reachable only by genuinely unknown types.
+  describe('blockquote preserves string-serialized children (#665)', () => {
+    it('keeps a table, an imageBlock and a passthrough nested in a blockquote', () => {
+      const out = tiptapToMarkdoc({
+        type: 'doc',
+        content: [
+          {
+            type: 'blockquote',
+            content: [
+              { type: 'paragraph', content: [{ type: 'text', text: 'note' }] },
+              {
+                type: 'imageBlock',
+                attrs: { mdAttrs: { src: '/a.png', alt: 'a' } }
+              },
+              { type: 'passthrough', attrs: { raw: '{% weird %}' } }
+            ]
+          }
+        ]
+      })
+      expect(out).toBe(
+        '> note\n> \n> {% image src="/a.png" alt="a" /%}\n> \n> {% weird %}\n'
+      )
+    })
+
+    it('leaves a plain blockquote byte-identical', () => {
+      expect(
+        tiptapToMarkdoc({
+          type: 'doc',
+          content: [
+            {
+              type: 'blockquote',
+              content: [
+                {
+                  type: 'paragraph',
+                  content: [{ type: 'text', text: 'line one' }]
+                },
+                {
+                  type: 'paragraph',
+                  content: [{ type: 'text', text: 'line two' }]
+                }
+              ]
+            }
+          ]
+        })
+      ).toBe('> line one\n> \n> line two\n')
+    })
+  })
+
   it('emits passthrough raw verbatim', () => {
     const doc: TiptapDoc = {
       type: 'doc',

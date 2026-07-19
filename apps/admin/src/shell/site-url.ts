@@ -13,14 +13,17 @@ export function siteBaseUrl(): string {
 /** Absolute URL on the published site. No ref → the site home. With a ref → that entry's
  *  live page, using the shared @setu/core URL mapping so it matches what the site serves.
  *  `cfg` = the settings-resolved permalink config; omitted → legacy ':collection/:slug' scheme.
+ *  `homepageId` = the resolved `reading.homepage` setting, so the link agrees with the page
+ *  the site actually serves at the root (#660) instead of assuming `page/en/home`.
  *  NOT collision-aware (the admin can't see the whole build) — a disambiguated (-2) entry's
  *  link goes to the clean URL; acceptable edge, noted in epic #349. */
 export function siteUrl(
   ref?: EntryRef & { date?: number | null; categories?: string[] },
-  cfg?: ResolvedPermalinkConfig
+  cfg?: ResolvedPermalinkConfig,
+  homepageId?: string
 ): string {
   const base = siteBaseUrl().replace(/\/+$/, '')
   if (!ref) return base
-  const path = entryUrlPath(ref, cfg)
+  const path = entryUrlPath(ref, cfg, homepageId)
   return path ? `${base}/${path}` : base
 }

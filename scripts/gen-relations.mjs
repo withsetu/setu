@@ -42,7 +42,9 @@ const {
   resolvePermalinkMap,
   resolvePermalinkConfig,
   parseFrontmatterDate,
-  parseSettings
+  parseSettings,
+  incumbentFromUrlMap,
+  DEFAULT_LOCALE
 } = await jiti.import('@setu/core')
 
 const SITE_CONFIG_PATH = path.join(ROOT, 'apps', 'site', 'setu.config.ts')
@@ -55,6 +57,18 @@ function loadSettings(contentDir) {
     return parseSettings(JSON.parse(readFileSync(settingsPath, 'utf8')))
   } catch {
     return parseSettings(undefined)
+  }
+}
+
+/** The committed url-map.json (cid -> "/path") that sits beside settings.json. Missing/malformed
+ *  → null, i.e. no incumbency: a first build competes purely on date, as before. */
+function loadUrlMap(contentDir) {
+  try {
+    return JSON.parse(
+      readFileSync(path.join(contentDir, '..', 'url-map.json'), 'utf8')
+    )
+  } catch {
+    return null
   }
 }
 
@@ -149,15 +163,43 @@ async function buildPermalinkMap(rows, contentDir) {
   const settings = loadSettings(contentDir)
   const config = await loadSiteConfig()
   const entries = rows.map(toPermalinkEntry)
+  // Incumbency (#657): an id already holding a URL in the committed snapshot keeps it, so
+  // adding a back-dated entry cannot evict a live page (date order still breaks ties among
+  // entries that hold nothing yet). Must match apps/site/src/lib/permalinks.ts exactly —
+  // the routing scan and this one have to agree byte for byte.
+  const incumbent = incumbentFromUrlMap(
+    loadUrlMap(contentDir),
+    rows.map((r) => ({ id: r.key, cid: r.cid }))
+  )
   const { paths, warnings } = resolvePermalinkMap(
     entries,
     (collection) =>
       resolvePermalinkConfig(collection, config, settings).pattern,
-    { uncategorized: settings.permalinks.uncategorized }
+    { uncategorized: settings.permalinks.uncategorized, incumbent }
   )
   for (const w of warnings) console.warn(`[gen-relations] permalinks: ${w}`)
-  paths.set('page/en/home', '')
-  if (settings.reading.homepage) paths.set(settings.reading.homepage, '')
+  // Root overrides (#660) — must match apps/site/src/lib/permalinks.ts exactly: the
+  // configured `reading.homepage` owns the root of its locale, `page/<locale>/home` owns
+  // every other locale's root (so `page/fr/home` is `fr`, not the 404 `fr/page/home`).
+  const homepageId = settings.reading.homepage || undefined
+  const homepageLocale = homepageId?.split('/')[1]
+  const rootIds = new Map()
+  if (homepageId) rootIds.set(homepageId, homepageLocale ?? DEFAULT_LOCALE)
+  for (const row of rows) {
+    if (row.collection !== 'page' || row.slug !== 'home') continue
+    if (row.locale === homepageLocale) continue
+    rootIds.set(row.key, row.locale)
+  }
+  for (const [id, locale] of rootIds) {
+    const rootPath = locale === DEFAULT_LOCALE ? '' : locale
+    for (const [otherId, otherPath] of paths)
+      if (otherPath === rootPath && otherId !== id)
+        console.warn(
+          `[gen-relations] permalinks: "${id}" is the root for locale "${locale || DEFAULT_LOCALE}", ` +
+            `but "${otherId}" already resolves to "/${rootPath}" — that entry is now unreachable.`
+        )
+    paths.set(id, rootPath)
+  }
   return paths
 }
 

@@ -25,6 +25,60 @@ export interface ResolvedPermalink {
 
 const DATE_TOKENS = new Set([':year', ':month', ':day'])
 
+/** Characters that must never enter a URL path segment as raw data: the separators and
+ *  control characters `isCanonicalPathSegment` covers, plus the URL-structural set
+ *  (`? # %`), whitespace, and the delimiters that would otherwise need escaping. */
+// eslint-disable-next-line no-control-regex
+const URL_HOSTILE = /[\u0000-\u0020\u007f-\u009f/\\?#%<>"'`{}|^[\]]/
+
+/** One `/`-delimited part of a data-derived value, safe to place in a URL path as-is? */
+const isSafePart = (part: string): boolean =>
+  part !== '' && part !== '.' && part !== '..' && !URL_HOSTILE.test(part)
+
+/**
+ * Guard a data-derived segment (`:slug`, `:collection`) on its way into a URL (#670).
+ * `pattern.ts` claimed `SLUG_SEGMENT` made this impossible, but only `:category` was
+ * guarded — these two were interpolated raw.
+ *
+ * NOT `SLUG_SEGMENT`: that rule is ASCII-only, while `entrySlugify` keeps `\p{L}`, so
+ * `über-uns` and `café` are identities the system itself mints and an ASCII rule would
+ * break every non-ASCII slug's URL. What is enforced instead is the class that can do
+ * harm — dot segments, path/URL structure (`? # %`), control characters — and the fix is
+ * percent-encoding, not slugifying: deterministic and INJECTIVE, so unlike auto-slugifying
+ * it can never silently merge two entries onto one URL.
+ *
+ * `nested` is true for `:slug` only: a slug legitimately carries `/` (`docs/intro`, from
+ * `content/<c>/<l>/docs/intro.mdoc`), so its parts are guarded individually and the
+ * separators kept. A collection is one directory, so its `/` is encoded away.
+ */
+function urlSegment(
+  value: string,
+  token: string,
+  ref: PermalinkRef,
+  warnings: string[],
+  nested = false
+): string {
+  const parts = nested ? value.split('/') : [value]
+  if (parts.every(isSafePart)) return parts.join('/')
+  const safe = parts
+    .map((part) =>
+      isSafePart(part)
+        ? part
+        : // encodeURIComponent leaves '.' alone (it is unreserved), so a dot segment
+          // has to be escaped explicitly or it would still traverse.
+          part === '.' || part === '..'
+          ? part.replace(/\./g, '%2E')
+          : encodeURIComponent(part)
+    )
+    .filter((part) => part !== '')
+  const out = safe.length > 0 ? safe.join('/') : 'untitled'
+  warnings.push(
+    `${ref.collection}/${ref.locale}/${ref.slug}: ${token} value "${value}" is not URL-safe — ` +
+      `served as "${out}"`
+  )
+  return out
+}
+
 /** Resolve one entry's URL path from a (valid) pattern. Pure — no I/O, no clock.
  *  Date parts are UTC: a frontmatter date is a calendar date, not an instant. */
 export function resolvePermalink(
@@ -47,9 +101,9 @@ export function resolvePermalink(
   const out = segments.map((seg) => {
     switch (seg) {
       case ':slug':
-        return ref.slug
+        return urlSegment(ref.slug, ':slug', ref, warnings, true)
       case ':collection':
-        return ref.collection
+        return urlSegment(ref.collection, ':collection', ref, warnings)
       case ':year':
         return String(date!.getUTCFullYear()).padStart(4, '0')
       case ':month':

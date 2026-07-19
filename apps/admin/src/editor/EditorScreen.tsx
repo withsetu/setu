@@ -698,7 +698,8 @@ export function EditorScreen() {
                       date: frontmatterDate,
                       categories: frontmatterCategories
                     },
-                    permalinkConfig
+                    permalinkConfig,
+                    settings.reading.homepage || undefined
                   )}
                   target="_blank"
                   rel="noopener noreferrer"

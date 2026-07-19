@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { evaluateProbe, mergeProbe } from '../../src/health/probe'
+import {
+  evaluateProbe,
+  mergeProbe,
+  PROBE_ITEM_IDS
+} from '../../src/health/probe'
+import { RUBRIC } from '../../src/health/rubric'
 import type {
   AuditResult,
   CheckResult,
@@ -138,5 +143,104 @@ describe('mergeProbe', () => {
     expect(merged.score).toBeGreaterThanOrEqual(0)
     expect(merged.score).toBeLessThanOrEqual(100)
     expect(['strong', 'good', 'needs-work']).toContain(merged.band)
+  })
+})
+
+// --- #659: the evaluator set and the rubric's liveProbe set must be the same set ----
+
+/** Three of the five `liveProbe: true` rubric items had no evaluator. `run-audit.ts`
+ *  resolved them to `pending`, which `scoreOf` excludes from the denominator FOREVER —
+ *  and because `security.content-type-options` is `severity: 'required'`, `mustHaves.total`
+ *  counted it while `mustHaves.done` never could. The Must-haves counter could not reach
+ *  100% on a correct site. This test is the drift alarm: modelled on SCAN_ITEM_IDS /
+ *  needsScan, which is the same shape done correctly. */
+describe('live-probe coverage (#659)', () => {
+  it('every liveProbe rubric item has an evaluator, and vice versa', () => {
+    const rubricProbes = RUBRIC.filter((r) => r.liveProbe === true).map(
+      (r) => r.id
+    )
+    expect([...PROBE_ITEM_IDS].sort()).toEqual(rubricProbes.sort())
+  })
+
+  it('evaluateProbe returns a verdict for every liveProbe item', () => {
+    const ids = evaluateProbe(input()).map((r) => r.id)
+    expect(ids.sort()).toEqual([...PROBE_ITEM_IDS].sort())
+  })
+
+  it('no probed item can be left pending once a probe has run', () => {
+    // The bug in one line: a `required` item stuck on `pending` is excluded from the
+    // denominator but still counted in mustHaves.total.
+    for (const id of PROBE_ITEM_IDS) {
+      const r = evaluateProbe(input()).find((x) => x.id === id)
+      expect(r?.status === 'pass' || r?.status === 'fail').toBe(true)
+    }
+  })
+
+  it('core-web-vitals is NOT a header-probe item', () => {
+    // LCP/INP/CLS need field data (CrUX) or a lab run; a single response's headers
+    // cannot decide them. It is an attestable manual item, not a permanent `pending`.
+    const cwv = RUBRIC.find((r) => r.id === 'performance.core-web-vitals')!
+    expect(cwv.liveProbe).not.toBe(true)
+    expect([...PROBE_ITEM_IDS]).not.toContain('performance.core-web-vitals')
+  })
+})
+
+describe('evaluateProbe — security.content-type-options', () => {
+  const nosniff = (v: string) =>
+    evaluateProbe(
+      input({ headers: new Headers({ 'x-content-type-options': v }) })
+    ).find((x) => x.id === 'security.content-type-options')
+
+  it('passes on nosniff (what Setu itself emits)', () => {
+    expect(nosniff('nosniff')?.status).toBe('pass')
+  })
+
+  it('is case-insensitive', () => {
+    expect(nosniff('NoSniff')?.status).toBe('pass')
+  })
+
+  it('fails when the header is absent', () => {
+    const r = evaluateProbe(input()).find(
+      (x) => x.id === 'security.content-type-options'
+    )
+    expect(r?.status).toBe('fail')
+  })
+
+  it('fails on a value that is not nosniff', () => {
+    expect(nosniff('sniff')?.status).toBe('fail')
+  })
+})
+
+describe('evaluateProbe — security.csp', () => {
+  const csp = (headers: Record<string, string>) =>
+    evaluateProbe(input({ headers: new Headers(headers) })).find(
+      (x) => x.id === 'security.csp'
+    )
+
+  it('passes on an enforcing policy with a fetch directive', () => {
+    expect(
+      csp({
+        'content-security-policy': "default-src 'self'; script-src 'self'"
+      })?.status
+    ).toBe('pass')
+  })
+
+  it('fails when only Report-Only is sent — observe mode blocks nothing', () => {
+    const r = csp({
+      'content-security-policy-report-only': "default-src 'self'"
+    })
+    expect(r?.status).toBe('fail')
+    expect(r?.detail.toLowerCase()).toContain('report-only')
+  })
+
+  it('fails when the header is absent', () => {
+    const r = evaluateProbe(input()).find((x) => x.id === 'security.csp')
+    expect(r?.status).toBe('fail')
+  })
+
+  it('fails on a policy with no fetch directive to enforce', () => {
+    expect(
+      csp({ 'content-security-policy': 'upgrade-insecure-requests' })?.status
+    ).toBe('fail')
   })
 })

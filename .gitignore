@@ -44,3 +44,8 @@ e2e/.auth/
 
 # vitest browser-mode failure screenshots (#293 — apps/admin/test-browser/**)
 apps/admin/test-browser/__screenshots__/
+
+# curl/httpie cookie jars from manual API poking. Session tokens must never be
+# committed — env only (#650). The three that had been tracked were untracked in
+# the same commit; they were expired and localhost-scoped, so no rotation was needed.
+cookies-*.txt

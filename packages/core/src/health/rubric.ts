@@ -953,8 +953,7 @@ export const RUBRIC: RubricItem[] = [
     title: 'Core Web Vitals (LCP, INP, CLS)',
     guidance:
       'Core Web Vitals measure loading, responsiveness, and visual stability. Hit LCP ≤ 2.5s, INP ≤ 200ms, and CLS ≤ 0.1 at the 75th percentile of real users.',
-    url: 'https://specification.website/spec/performance/core-web-vitals',
-    liveProbe: true
+    url: 'https://specification.website/spec/performance/core-web-vitals'
   },
   {
     id: 'performance.image-optimization',

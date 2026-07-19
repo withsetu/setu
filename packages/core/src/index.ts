@@ -41,7 +41,9 @@ export {
 } from './permalinks/resolve'
 export {
   resolvePermalinkMap,
+  incumbentFromUrlMap,
   type PermalinkEntry,
+  type PermalinkMapOptions,
   type PermalinkMapResult
 } from './permalinks/resolve-map'
 export {
@@ -54,7 +56,7 @@ export {
   formatFrontmatterDate
 } from './permalinks/frontmatter-date'
 export { DEFAULT_SETTINGS } from './settings/defaults'
-export { parseSettings } from './settings/schema'
+export { parseSettings, parseSettingsWithWarnings } from './settings/schema'
 
 export type {
   EntryRef,
@@ -167,7 +169,11 @@ export type {
   PublishResult,
   PublishService
 } from './publish/types'
-export { contentPath, parseContentPath } from './publish/content-path'
+export {
+  contentPath,
+  parseContentPath,
+  isCanonicalPathSegment
+} from './publish/content-path'
 export { createPublishService } from './publish/publish-service'
 
 export type { LoadResult, ReadDeps, ReadService } from './read/types'
@@ -395,7 +401,7 @@ export {
   scoreAudit
 } from './health/run-audit'
 export { auditScanFromEntries, SCAN_ITEM_IDS } from './health/scan-data'
-export { evaluateProbe, mergeProbe } from './health/probe'
+export { evaluateProbe, mergeProbe, PROBE_ITEM_IDS } from './health/probe'
 export { parseHealthState, setHealthRecord } from './health/health-state'
 
 export type {

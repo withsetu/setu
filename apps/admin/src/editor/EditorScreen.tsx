@@ -13,6 +13,7 @@ import {
   isValidEntrySlug,
   parseFrontmatterDate,
   parseMdoc,
+  rawFrontmatterOf,
   resolvePermalinkConfig,
   serializeMdoc,
   tiptapToMarkdoc
@@ -130,6 +131,10 @@ export function EditorScreen() {
   const docRef = useRef<TiptapDoc>(BLANK)
   const metaRef = useRef<Record<string, unknown>>({})
   const baseShaRef = useRef<string | null>(null)
+  // #666: the committed file this buffer forked from. Its raw frontmatter text is
+  // what serializeMdoc re-emits for untouched keys, so preview and the history
+  // diff baseline stay byte-identical to what publish actually writes.
+  const baseContentRef = useRef<string | null>(null)
   const committing = useRef(false)
   // Slug just minted from a compose save OR just renamed → the in-memory doc is
   // canonical; don't reload over it.
@@ -192,6 +197,7 @@ export function EditorScreen() {
         docRef.current = BLANK
         metaRef.current = initialMeta
         baseShaRef.current = null
+        baseContentRef.current = null
         loadedTitleRef.current = ''
         manualSlugRef.current = null
         setManualSlug(null)
@@ -238,6 +244,9 @@ export function EditorScreen() {
       baseShaRef.current = justMinted
         ? baseShaRef.current
         : (draft?.baseSha ?? null)
+      baseContentRef.current = justMinted
+        ? baseContentRef.current
+        : (draft?.baseContent ?? null)
       loadedTitleRef.current = attrString(meta['title'])
       setInitialDoc(content)
       setMetadata(meta)
@@ -490,7 +499,8 @@ export function EditorScreen() {
     if (!previewApi) return
     const content = serializeMdoc({
       frontmatter: metaRef.current,
-      body: tiptapToMarkdoc(docRef.current)
+      body: tiptapToMarkdoc(docRef.current),
+      rawFrontmatter: rawFrontmatterOf(baseContentRef.current)
     })
     await apiFetch(`${previewApi}/preview`, {
       method: 'POST',
@@ -558,6 +568,7 @@ export function EditorScreen() {
   const onRestored = async (sha: string) => {
     await data.deleteDraft(ref)
     baseShaRef.current = null
+    baseContentRef.current = null
     await index.reindexEntries([ref], sha).catch(() => {})
     setReloadKey((k) => k + 1)
   }
@@ -908,7 +919,8 @@ export function EditorScreen() {
           getEditorContent={() =>
             serializeMdoc({
               frontmatter: metaRef.current,
-              body: tiptapToMarkdoc(docRef.current)
+              body: tiptapToMarkdoc(docRef.current),
+              rawFrontmatter: rawFrontmatterOf(baseContentRef.current)
             })
           }
         />

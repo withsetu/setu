@@ -8,7 +8,7 @@ import type { Category } from './types'
 import { parseCategories, serializeCategories } from './parse'
 import { removeCategory } from './ops'
 import { removeCategory as stripCategoryFromMeta } from '../bulk/mutations'
-import { serializeMdoc } from '../markdoc/frontmatter'
+import { rawFrontmatterOf, serializeMdoc } from '../markdoc/frontmatter'
 import { tiptapToMarkdoc } from '../markdoc/to-markdoc'
 import { contentPath } from '../publish/content-path'
 import { TAXONOMY_PATH } from './service'
@@ -52,7 +52,9 @@ export function createCategoryDeleter(deps: CategoryDeleterDeps) {
         const next = stripCategoryFromMeta(draft.metadata, slug)
         const serialized = serializeMdoc({
           frontmatter: next,
-          body: tiptapToMarkdoc(draft.content)
+          body: tiptapToMarkdoc(draft.content),
+          // #666: stripping one category must not reformat the rest of the frontmatter.
+          rawFrontmatter: rawFrontmatterOf(draft.baseContent)
         })
         changes.push({ path: contentPath(ref), content: serialized })
         pending.push({ ref, content: draft.content, next, serialized })

@@ -180,7 +180,11 @@ export type { LoadResult, ReadDeps, ReadService } from './read/types'
 export { createReadService } from './read/read-service'
 
 export type { MdocFile } from './markdoc/frontmatter'
-export { parseMdoc, serializeMdoc } from './markdoc/frontmatter'
+export {
+  parseMdoc,
+  serializeMdoc,
+  rawFrontmatterOf
+} from './markdoc/frontmatter'
 
 export type {
   Action,

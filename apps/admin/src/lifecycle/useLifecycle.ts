@@ -9,6 +9,7 @@ import {
   contentPath,
   deployedSnapshotFor,
   deriveLifecycle,
+  rawFrontmatterOf,
   serializeMdoc,
   tiptapToMarkdoc
 } from '@setu/core'
@@ -24,8 +25,11 @@ export async function lifecycleFor(
   const path = contentPath(ref)
   const draftStr = draft
     ? serializeMdoc({
+        // #666: must match the publish path's serialization exactly, or an entry with
+        // retained raw frontmatter would show 'edited' forever after publishing.
         frontmatter: draft.metadata,
-        body: tiptapToMarkdoc(draft.content)
+        body: tiptapToMarkdoc(draft.content),
+        rawFrontmatter: rawFrontmatterOf(draft.baseContent)
       })
     : null
   const committed = await git.readFile(path)

@@ -143,7 +143,12 @@ function stripMarker(inline: TiptapNode[]): TiptapNode[] {
 }
 
 /** Markdoc list → Tiptap list, recursively. Checklist detection is per level. Each
- *  item becomes [paragraph, ...nested lists]. */
+ *  item becomes [paragraph, ...every other block child].
+ *
+ *  #658: this used to keep only the item's first paragraph plus nested lists — the
+ *  read-side mirror of the serializer bug. A second paragraph, a table, an image or
+ *  a code block inside a list item survived in Git but vanished the moment the entry
+ *  was opened, so the next save wrote the loss back. */
 function listToTiptap(node: MdNode): TiptapNode {
   const task = isTaskList(node)
   const listType = task
@@ -156,14 +161,23 @@ function listToTiptap(node: MdNode): TiptapNode {
     content: (node.children ?? []).map((item) => {
       const inlineNode = itemInlineNode(item)
       const inline = inlineNode ? inlineToTiptap(inlineNode) : []
-      const nested = (item.children ?? [])
-        .filter((c) => c.type === 'list')
-        .map(listToTiptap)
+      // The paragraph that supplied the item's inline text is consumed into the
+      // leading paragraph below; every OTHER block child is carried through the
+      // normal block converter, so nested lists, tables, images and code blocks
+      // all survive (#658).
+      const consumed = (item.children ?? []).find(
+        (c) =>
+          c.type === 'paragraph' && c.children?.includes(inlineNode as never)
+      )
+      const rest = (item.children ?? [])
+        .filter((c) => c.type !== 'inline' && c !== consumed)
+        .map(blockToTiptap)
+        .filter((n): n is TiptapNode => n !== null)
       const paragraph: TiptapNode = {
         type: 'paragraph',
         content: task ? stripMarker(inline) : inline
       }
-      const content = [paragraph, ...nested]
+      const content = [paragraph, ...rest]
       if (task)
         return {
           type: 'taskItem',
@@ -322,9 +336,17 @@ export function markdocToTiptap(
   const isPreserve = (node: MdNode): boolean =>
     hasError(node) || (node.type === 'tag' && !known.has(node.tag ?? ''))
 
-  const lines = source.split('\n')
+  // Markdoc (via markdown-it) normalizes CR and CRLF to LF BEFORE tokenizing, so its
+  // `location.line` numbers are indices into the normalized text. A bare `\r` is a line
+  // break there but not to `source.split('\n')`, which desynchronized the two index
+  // spaces and made every subsequent passthrough slice start one line too early —
+  // dropping the tag's own opening line and duplicating the preceding block, growing
+  // the document without bound on every save (#674). Normalize once, up front, and
+  // feed the SAME text to both the parser and the line index so they cannot drift.
+  const text = source.replace(/\r\n?/g, '\n')
+  const lines = text.split('\n')
   // `location` is supported at runtime (spike-proven) but not in Markdoc's published parse types.
-  const ast = (Markdoc.parse as (s: string, a?: unknown) => MdNode)(source, {
+  const ast = (Markdoc.parse as (s: string, a?: unknown) => MdNode)(text, {
     location: true
   })
   const kids = ast.children ?? []
@@ -355,7 +377,28 @@ export function markdocToTiptap(
       continue
     }
     const tt = blockToTiptap(node)
-    if (tt) out.push(tt)
+    if (tt) {
+      out.push(tt)
+    } else {
+      // #664 fail-safe: `blockToTiptap` returned null, i.e. a block type the editor
+      // cannot model. Deleting it would destroy user content silently, so preserve the
+      // source lines verbatim instead — the same escape hatch tags and errors use.
+      //
+      // No node type the CURRENT parser emits reaches here, so this is insurance, not
+      // a live fix. Verified against @markdoc/markdoc 0.5.7: `NodeType` (src/types.ts)
+      // has no footnote/html/reference-definition member; the tokenizer disables
+      // `code` and `lheading` (src/tokenizer/index.ts), so indented code and setext
+      // headings are parsed as paragraphs; and `comment` requires a Tokenizer option
+      // `Markdoc.parse` does not accept. The five losses reported on #664 (footnote
+      // definitions, fence meta, link titles, reference definitions, indented code)
+      // are all parser- or attribute-level and are NOT fixed by this branch — see the
+      // issue. This branch is what stops a future Markdoc node type from being deleted
+      // on first save rather than surfacing as a visible passthrough.
+      out.push({
+        type: 'passthrough',
+        attrs: { raw: slice(startOf(i), startOf(i + 1)), flagged: false }
+      })
+    }
     i++
   }
   return { type: 'doc', content: out }

@@ -22,30 +22,34 @@ const LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ '.split(
  *    `\`  escape erosion:  "\\\\" -> "\\",  "\\_x" -> "_x",  "\\[y]" -> "[y]"
  *         and, in a list item, "- b \\*x" -> "- b *x" (an escaped literal asterisk
  *         becoming an active emphasis marker on the next save).            [#675]
- *    `*` `_` `#`  escape non-idempotency: markers gained or lost a leading
- *         backslash across successive round-trips.                         [#676]
- *    '`'  code-span fence width erosion: "``x``" -> "`x`".                  [#677]
+ *    `*` `_` `#`  escape non-idempotency: emphasis/heading markers gained or lost a
+ *         leading backslash across successive round-trips, e.g.
+ *         "- |']#\rb" -> "- |']# b" -> "- |']\\# b".                       [#676]
+ *    '`'  code-span fence width erosion: "``x``" -> "`x`" ("# 中``b中 ` `" was
+ *         unstable across two round-trips).                                [#677]
  *
- *  KNOWN OPEN DEFECTS still excluded — all structural, NOT escaping. Each needs
- *  its own issue; do not re-litigate them here:
+ *  ALSO FIXED, and now covered by the widened generator below: tag blocks with
+ *  multi-line bodies (#674) — a bare "\r" desynchronized Markdoc's location line
+ *  numbering from `source.split('\n')`, so the passthrough slicing in markdocToTiptap
+ *  dropped the opening "{% callout %}" line and duplicated the preceding block,
+ *  GROWING the document on every save (~15% of random tag-bearing documents). That is
+ *  why `taggedDocument` now carries the wide alphabet too, not just `proseDocument`.
  *
- *    tag blocks with multi-line bodies: the passthrough line-slicing in
- *         markdocToTiptap drops the opening "{% callout %}" line and duplicates the
- *         preceding block, GROWING the document on every save (~15% of random
- *         tag-bearing documents). This is why `proseDocument` (not `taggedDocument`)
- *         carries the widened alphabet.
- *    `*`  is held out because it is the only character that can synthesise
- *         EMPHASIS, and emphasis exposes two defects that escaping cannot fix:
- *         (a) delimiter-run adjacency — two sibling inline runs that both carry
- *             `italic` serialize as "*a**`b`*", whose "**" re-parses as a literal
- *             asterisk pair, LOSING the second run's italic mark;
- *         (b) list looseness — a list containing an empty item is re-emitted by
- *             Markdoc.format with blank lines between items, which re-reads as a
- *             tight list, so the document settles one pass late
- *             ("- a\r*\n\n# a\n" is the minimal counterexample).
- *         Both need a delimiter-selection/normalisation design, not an escape rule.
- *         `_` (the other emphasis character) IS generated: it never opens emphasis
- *         intraword, so the generator cannot build a delimiter run out of it.
+ *  `*` IS THE ONLY CHARACTER STILL EXCLUDED, and the reason is structural rather than
+ *  escaping: it is the only generatable character that can synthesise EMPHASIS, which
+ *  exposes two defects no escape rule can close.
+ *
+ *    (a) delimiter-run adjacency — two sibling inline runs that both carry `italic`
+ *        serialize as "*a**`b`*", whose "**" re-parses as a literal asterisk pair,
+ *        LOSING the second run's italic mark.                              [#693]
+ *    (b) list looseness — a list containing an empty item is re-emitted by
+ *        Markdoc.format with blank lines between items, which re-reads as a tight
+ *        list, so the document settles one pass late ("- a\r*\n\n# a\n" is the
+ *        minimal counterexample).                                          [#694]
+ *
+ *  Both need a delimiter-selection/normalisation design; do not re-litigate them here.
+ *  `_` (the other emphasis character) IS generated: it never opens emphasis intraword,
+ *  so the generator cannot build a delimiter run out of it.
  */
 const METACHARS = [
   '[',
@@ -83,8 +87,7 @@ const bullets = (text: fc.Arbitrary<string>) =>
     .array(text, { minLength: 1, maxLength: 3 })
     .map((items) => items.map((i) => `- ${i}`).join('\n'))
 
-/** Documents of prose blocks only. Used for the widened alphabet, because tag blocks
- *  hit the passthrough-growth defect documented above. */
+/** Documents of prose blocks only. */
 const proseDocument = (text: fc.Arbitrary<string>) =>
   fc
     .array(fc.oneof(text, heading(text), bullets(text)), {
@@ -127,6 +130,33 @@ describe('round-trip idempotency (property-based)', () => {
         expect(roundtrip(s1)).toBe(s1)
       }),
       { numRuns: 6000 }
+    )
+  })
+
+  /** #674. Tag blocks over the WIDE alphabet — the case the generator used to exclude.
+   *  Every other defect in this slice converges after one pass, so a fixed-point check
+   *  alone could not distinguish them; this one never converged, the document grew
+   *  without bound. Asserting the fixed point over tag-bearing wide-alphabet documents
+   *  is exactly the regression guard. */
+  it('reaches a stable fixed point for metacharacter-heavy tag blocks', () => {
+    fc.assert(
+      fc.property(taggedDocument(wideText), (s0) => {
+        const s1 = roundtrip(s0)
+        expect(roundtrip(s1)).toBe(s1)
+      }),
+      { numRuns: 5000 }
+    )
+  })
+
+  /** #674, the sharper form: the defect made the document GROW every save. Length must
+   *  never increase across successive round-trips of an already-round-tripped doc. */
+  it('never grows a tag-bearing document across successive saves', () => {
+    fc.assert(
+      fc.property(taggedDocument(wideText), (s0) => {
+        const s1 = roundtrip(s0)
+        expect(roundtrip(s1).length).toBeLessThanOrEqual(s1.length)
+      }),
+      { numRuns: 5000 }
     )
   })
 })
@@ -176,7 +206,11 @@ describe('round-trip byte-stability (property-based)', () => {
       .tuple(fc.integer({ min: 1, max: 6 }), canonicalInline)
       .map(([lvl, t]) => `${'#'.repeat(lvl)} ${t}`),
     listBlock,
-    canonicalInline.map((t) => `{% callout %}\n${t}\n{% /callout %}`)
+    canonicalInline.map((t) => `{% callout %}\n${t}\n{% /callout %}`),
+    // A passthrough tag with a multi-line body — the #674 shape, byte-for-byte.
+    fc
+      .tuple(word, canonicalInline)
+      .map(([v, t]) => `{% if $${v} %}\n${t}\n{% /if %}`)
   )
 
   const isList = (b: string) => b.startsWith('- ')

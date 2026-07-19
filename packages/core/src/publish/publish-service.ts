@@ -1,5 +1,5 @@
 import { tiptapToMarkdoc } from '../markdoc/to-markdoc'
-import { serializeMdoc } from '../markdoc/frontmatter'
+import { rawFrontmatterOf, serializeMdoc } from '../markdoc/frontmatter'
 import { contentPath } from './content-path'
 import type {
   PublishDeps,
@@ -37,9 +37,14 @@ export function createPublishService(deps: PublishDeps): PublishService {
       }
 
       // Serialize metadata → YAML frontmatter + the compiled Markdoc body.
+      // #666: baseContent is the exact committed file this draft forked from, so its
+      // frontmatter text is the authoritative source for every key the author did not
+      // change — pass it through and those keys are re-emitted byte-for-byte instead
+      // of being re-dumped (which loses large-int precision, dates, quoting, comments).
       const content = serializeMdoc({
         frontmatter: draft.metadata,
-        body: tiptapToMarkdoc(draft.content)
+        body: tiptapToMarkdoc(draft.content),
+        rawFrontmatter: rawFrontmatterOf(draft.baseContent)
       })
       const commitMessage =
         message ?? `Publish ${ref.collection}/${ref.locale}/${ref.slug}`

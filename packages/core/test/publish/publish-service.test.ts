@@ -275,4 +275,68 @@ describe('createPublishService', () => {
     expect(parsed.frontmatter).toEqual({ title: 'Hello', status: 'published' })
     expect(parsed.body).toBe(tiptapToMarkdoc(doc('hello')))
   })
+
+  /** #666: publishing re-dumped the whole frontmatter object, so a body-only edit
+   *  rewrote metadata the author never touched. baseContent is the exact committed
+   *  file this draft forked from — it is the raw YAML source for retention. */
+  it('preserves untouched frontmatter byte-for-byte when only the body changed', async () => {
+    const committed =
+      '---\n# external system id — do NOT reformat\nexternalId: 12345678901234567890\ndate: 2024-01-01\nver: 1.10\ntitle: "Hello"\n---\n' +
+      tiptapToMarkdoc(doc('v1'))
+    await git.commitFile({
+      path: 'content/post/en/hello.mdoc',
+      content: committed,
+      message: 'seed',
+      author
+    })
+    // Mirror the read service's fork, including the DB's JSON round-trip of metadata.
+    const meta = JSON.parse(
+      JSON.stringify(parseMdoc(committed).frontmatter)
+    ) as Record<string, unknown>
+    await data.saveDraft({
+      ...ref,
+      content: doc('v2'),
+      metadata: meta,
+      baseSha: await git.headSha(),
+      baseContent: committed
+    })
+    const r = await svc().publish({ ref, author })
+    expect(r.status).toBe('published')
+    if (r.status !== 'published') throw new Error('unreachable')
+    const file = (await git.readFile(r.path))!
+    expect(file).toBe(
+      '---\n# external system id — do NOT reformat\nexternalId: 12345678901234567890\ndate: 2024-01-01\nver: 1.10\ntitle: "Hello"\n---\n' +
+        tiptapToMarkdoc(doc('v2'))
+    )
+  })
+
+  it('rewrites only the frontmatter key that actually changed', async () => {
+    const committed =
+      '---\nexternalId: 12345678901234567890\ntitle: "Old"\n---\n' +
+      tiptapToMarkdoc(doc('v1'))
+    await git.commitFile({
+      path: 'content/post/en/hello.mdoc',
+      content: committed,
+      message: 'seed',
+      author
+    })
+    await data.saveDraft({
+      ...ref,
+      content: doc('v1'),
+      // externalId comes from the parse so the test never writes a JS number
+      // literal that itself loses precision — the point is the FILE text survives.
+      metadata: {
+        externalId: parseMdoc(committed).frontmatter['externalId'],
+        title: 'New'
+      },
+      baseSha: await git.headSha(),
+      baseContent: committed
+    })
+    const r = await svc().publish({ ref, author })
+    if (r.status !== 'published') throw new Error('unreachable')
+    const file = (await git.readFile(r.path))!
+    expect(file).toContain('externalId: 12345678901234567890')
+    expect(file).toContain('New')
+    expect(file).not.toContain('Old')
+  })
 })

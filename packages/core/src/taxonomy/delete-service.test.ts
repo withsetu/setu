@@ -150,3 +150,55 @@ describe('createCategoryDeleter', () => {
     expect((await index.getMeta()).indexedSha).toBe(await git.headSha())
   })
 })
+
+/** #713 — this strip loop serializes EVERY entry that references the category, so a
+ *  single unserializable stored draft threw and the whole category delete failed:
+ *  the category stayed, no entry was stripped, and the user saw a raw error. */
+describe('createCategoryDeleter — one bad entry does not abort the delete (#713)', () => {
+  const badDoc = {
+    type: 'doc',
+    content: [
+      {
+        type: 'paragraph',
+        content: [{ type: 'text', text: 'x', marks: [{ type: 'underline' }] }]
+      }
+    ]
+  } as unknown as TiptapDoc
+
+  it('strips the healthy entries, reports the bad one, and still removes the category', async () => {
+    const { data, git, read, idx } = await setup()
+    // A third entry in 'eng' whose stored body the serializer cannot handle.
+    await data.saveDraft({
+      collection: 'post',
+      locale: 'en',
+      slug: 'bad',
+      content: badDoc,
+      metadata: { title: 'Bad', categories: ['eng'] },
+      baseSha: null
+    })
+    await idx.rebuild()
+
+    const deleter = createCategoryDeleter({
+      git,
+      data,
+      read,
+      index: idx,
+      author
+    })
+    const res = await deleter.remove('eng')
+
+    // The property: the healthy referencing entry was still stripped.
+    expect(res.strippedCount).toBe(1)
+    expect(res.categories.find((c) => c.slug === 'eng')).toBeUndefined()
+    // …and the entry that could not be rewritten is REPORTED, not silently dropped:
+    // it keeps a dangling 'eng' slug, and the caller has to be able to say so.
+    expect(res.skipped).toHaveLength(1)
+    expect(res.skipped[0]!.ref.slug).toBe('bad')
+    expect(res.skipped[0]!.message).toContain('underline')
+
+    const aContent = await git.readFile('content/post/en/a.mdoc')
+    expect(aContent!).not.toContain('eng')
+    const yaml = await git.readFile('taxonomy/categories.yaml')
+    expect(yaml).not.toContain('eng')
+  })
+})

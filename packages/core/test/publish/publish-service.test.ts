@@ -340,3 +340,59 @@ describe('createPublishService', () => {
     expect(file).not.toContain('Old')
   })
 })
+
+/** The deliberate ASYMMETRY to #713/#714b. The fan-out paths (content-index,
+ *  bulk, taxonomy delete) now scope a per-entry failure to its own row, because
+ *  there one bad entry must not cost the other N-1. Publish is the opposite
+ *  case: it acts on ONE entry the user explicitly asked to publish, so a body
+ *  the serializer cannot round-trip must FAIL LOUDLY rather than commit
+ *  silently-lossy content — that is exactly what #665 was designed for. This
+ *  pins it, so a later "let's catch this everywhere" pass cannot quietly turn
+ *  publish into a silent-loss path. */
+describe('publish still fails loudly on an unserializable body (#665, not #713)', () => {
+  it('throws instead of committing lossy content, and commits nothing', async () => {
+    const data = fakeData()
+    const git = fakeGit()
+    const ref: EntryRef = { collection: 'post', locale: 'en', slug: 'hello' }
+    await data.saveDraft({
+      ...ref,
+      content: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              { type: 'text', text: 'x', marks: [{ type: 'underline' }] }
+            ]
+          }
+        ]
+      } as unknown as TiptapDoc,
+      metadata: { title: 'T' }
+    })
+    await expect(
+      createPublishService({ data, git }).publish({
+        ref,
+        author: { name: 'Ed', email: 'ed@x.com' }
+      })
+    ).rejects.toThrow(/unrecognized mark type/)
+    expect(await git.headSha()).toBeNull()
+  })
+
+  it('throws on a non-canonical ref rather than minting an unparseable path (#670)', async () => {
+    const data = fakeData()
+    const git = fakeGit()
+    const ref: EntryRef = {
+      collection: 'post',
+      locale: 'en',
+      slug: 'bad slug '
+    }
+    await data.saveDraft({ ...ref, content: doc('hi'), metadata: {} })
+    await expect(
+      createPublishService({ data, git }).publish({
+        ref,
+        author: { name: 'Ed', email: 'ed@x.com' }
+      })
+    ).rejects.toThrow(/canonical path segment/)
+    expect(await git.headSha()).toBeNull()
+  })
+})

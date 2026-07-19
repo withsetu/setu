@@ -203,3 +203,53 @@ describe('ContentTable', () => {
     expect(onSort).toHaveBeenCalledWith('title')
   })
 })
+
+/** #713/#714b — an entry whose row the index could not fully derive must render as a
+ *  MARKED row, never be omitted: a missing row is indistinguishable from a deleted
+ *  entry, which is the silent-loss class the throws were added to close. */
+describe('ContentTable — entries that could not be indexed (#713/#714b)', () => {
+  const err =
+    'tiptapToMarkdoc: unrecognized mark type "underline" — add a case in buildInline'
+
+  it('still renders the row, and marks it with the reason', () => {
+    wrap(<ContentTable {...base} rows={[row({ indexError: err })]} />)
+    // The row is present and still navigable — the user can open and fix it.
+    expect(screen.getByRole('link', { name: 'Hi' })).toHaveAttribute(
+      'href',
+      '/edit/post/en/hi'
+    )
+    // …and it carries the actual reason, for hover AND screen readers.
+    const mark = screen.getByRole('img', { name: /Needs attention/ })
+    expect(mark).toHaveAttribute('title', `Needs attention: ${err}`)
+    expect(mark.getAttribute('aria-label')).toContain('unrecognized mark type')
+  })
+
+  it('does not mark a healthy row', () => {
+    wrap(<ContentTable {...base} rows={[row()]} />)
+    expect(screen.queryByRole('img', { name: /Needs attention/ })).toBeNull()
+  })
+
+  it('a broken row does not hide its healthy neighbours', () => {
+    wrap(
+      <ContentTable
+        {...base}
+        rows={[
+          row({
+            ref: { collection: 'post', locale: 'en', slug: 'ok' },
+            title: 'Fine'
+          }),
+          row({
+            ref: { collection: 'post', locale: 'en', slug: 'bad' },
+            title: 'Broken',
+            indexError: err
+          })
+        ]}
+      />
+    )
+    expect(screen.getByRole('link', { name: 'Fine' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Broken' })).toBeInTheDocument()
+    expect(
+      screen.getAllByRole('img', { name: /Needs attention/ })
+    ).toHaveLength(1)
+  })
+})

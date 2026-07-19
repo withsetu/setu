@@ -62,6 +62,11 @@ export interface ContentRow {
    *  parsePageSeoOverride — blank strings and noindex:false don't count). Indicator
    *  only: the list never ships the override VALUES (#577). */
   hasSeoOverrides: boolean
+  /** Set when this entry could not be fully derived (#713/#714b): the failure message.
+   *  The row is still emitted, deliberately — see the try/catch in listContentEntries.
+   *  Absent on every healthy row, so `indexError !== undefined` is the only test a
+   *  consumer needs. */
+  indexError?: string
 }
 
 /** What the topology knows about the live deploy — server truth (#208), replacing the
@@ -140,19 +145,59 @@ export function listContentEntries(
   return order.map((ref) => {
     const draft = draftByKey.get(keyOf(ref)) ?? null
     const committedStr = committedByKey.get(keyOf(ref)) ?? null
-    const draftStr = draft
-      ? serializeMdoc({
-          // #666: same retention as the publish path, or a just-published entry would
-          // compare unequal to its own committed file and read as pending 'edited'.
-          frontmatter: draft.metadata,
-          body: tiptapToMarkdoc(draft.content),
-          rawFrontmatter: rawFrontmatterOf(draft.baseContent)
-        })
-      : null
+
+    // #713/#714b — BLAST RADIUS. Two derivations here throw by design, and both
+    // throws are right: `tiptapToMarkdoc` refuses to silently eat an unknown
+    // node/mark (#665), and `contentPath` refuses to mint a path from a
+    // non-canonical segment (#670). What was wrong is that they ran unguarded
+    // inside this per-entry fan-out, so ONE bad entry rejected the whole map —
+    // `rebuild()`/`ensureBuilt()` threw and the admin content list rendered
+    // nothing at all, losing the other N-1 healthy rows.
+    //
+    // Neither input is schema-validated on the way in: stored draft JSON never
+    // passes through a ProseMirror schema and outlives the schema it was written
+    // under (re-enable underline, or upgrade Tiptap, and old drafts start
+    // failing), and `DataPort.saveDraft` does no slug validation, so a draft
+    // persisted before #670 is enough. Committed content cannot reach the second
+    // case — every committed `.mdoc` was swept canonical — so the exposure is
+    // legacy DB drafts either way.
+    //
+    // The failure is therefore scoped to its own row. The row is still EMITTED,
+    // carrying `indexError`: a missing row is indistinguishable from a deleted
+    // entry, so dropping it would trade a loud total failure for a quiet partial
+    // one — the same silent-loss class #665/#670 were closing. A row that says
+    // "this entry is broken" is the only outcome the user can act on.
+    let draftStr: string | null = null
+    let deployed: string | null = null
+    let indexError: string | undefined
+    try {
+      draftStr = draft
+        ? serializeMdoc({
+            // #666: same retention as the publish path, or a just-published entry would
+            // compare unequal to its own committed file and read as pending 'edited'.
+            frontmatter: draft.metadata,
+            body: tiptapToMarkdoc(draft.content),
+            rawFrontmatter: rawFrontmatterOf(draft.baseContent)
+          })
+        : null
+      deployed = deployedOf(contentPath(ref), committedStr)
+    } catch (err) {
+      indexError = err instanceof Error ? err.message : String(err)
+      // Fall back to the committed-only view: it is the honest one when the draft
+      // cannot be serialized or the entry's own path cannot be minted.
+      draftStr = null
+      deployed = null
+      // Logged as well as surfaced on the row: a skipped row nobody looks at is
+      // just a slower silent loss, and the server-side index build has no UI.
+      console.warn(
+        `listContentEntries: ${ref.collection}/${ref.locale}/${ref.slug} could not be indexed — ${indexError}`
+      )
+    }
+
     const lifecycle = deriveLifecycle({
       draft: draftStr,
       committed: committedStr,
-      deployed: deployedOf(contentPath(ref), committedStr)
+      deployed
     })
     const featuredImage = featuredImageOf(draft, committedStr)
     return {
@@ -169,7 +214,8 @@ export function listContentEntries(
       audit: auditFactsOf(committedStr),
       ...(featuredImage !== undefined ? { featuredImage } : {}),
       hasFeaturedImage: featuredImage !== undefined,
-      hasSeoOverrides: hasSeoOverridesOf(draft, committedStr)
+      hasSeoOverrides: hasSeoOverridesOf(draft, committedStr),
+      ...(indexError !== undefined ? { indexError } : {})
     }
   })
 }

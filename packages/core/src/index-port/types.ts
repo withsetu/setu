@@ -30,6 +30,10 @@ export interface EntryIndexRow {
   hasFeaturedImage: boolean
   /** Frontmatter `seo:` block sets any override — indicator only, never values (#577). */
   hasSeoOverrides: boolean
+  /** Why this entry could not be fully derived (#713/#714b). Persisted with the row so
+   *  the admin list can mark it after a reload, instead of the entry looking healthy
+   *  until something else trips over it. */
+  indexError?: string
 }
 
 export type SortKey = 'updatedAt' | 'title' | 'status' | 'locale'
@@ -167,6 +171,7 @@ export function projectRow(row: ContentRow): EntryIndexRow {
   }
   if (row.lifecycle.pending !== undefined) out.pending = row.lifecycle.pending
   if (row.featuredImage !== undefined) out.featuredImage = row.featuredImage
+  if (row.indexError !== undefined) out.indexError = row.indexError
   return out
 }
 
@@ -191,6 +196,7 @@ export function rowToContentRow(r: EntryIndexRow): ContentRow {
       ? { featuredImage: r.featuredImage }
       : {}),
     hasFeaturedImage: r.hasFeaturedImage,
-    hasSeoOverrides: r.hasSeoOverrides
+    hasSeoOverrides: r.hasSeoOverrides,
+    ...(r.indexError !== undefined ? { indexError: r.indexError } : {})
   }
 }

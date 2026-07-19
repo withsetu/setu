@@ -27,7 +27,14 @@ export function DeleteCategoryDialog({
   const confirm = async () => {
     if (!node) return
     try {
-      await remove(node.slug)
+      const { skippedCount } = await remove(node.slug)
+      // #713/#714b: the category IS gone, but an entry the serializer could not
+      // rewrite still carries its slug. Reporting an unqualified success there
+      // would hide a dangling reference the user is the only one who can fix.
+      if (skippedCount > 0)
+        notify.error(
+          `Category deleted, but ${skippedCount} ${skippedCount === 1 ? 'entry' : 'entries'} could not be updated and still reference it — see the content list for entries needing attention.`
+        )
     } catch (e) {
       notify.error(e instanceof Error ? e.message : String(e))
     }

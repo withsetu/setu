@@ -1,13 +1,7 @@
 import { useCallback, useState } from 'react'
 
 export type ColumnKey =
-  | 'status'
-  | 'tags'
-  | 'categories'
-  | 'featured'
-  | 'seo'
-  | 'locale'
-  | 'updated'
+  'status' | 'tags' | 'categories' | 'featured' | 'seo' | 'locale' | 'updated'
 const KEY = 'setu-list-columns'
 
 function load(): Partial<Record<ColumnKey, boolean>> {

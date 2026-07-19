@@ -1,10 +1,7 @@
 import type { Category } from './types'
 
 export type TaxonomyErrorCode =
-  | 'parent-not-found'
-  | 'not-found'
-  | 'cycle'
-  | 'empty-name'
+  'parent-not-found' | 'not-found' | 'cycle' | 'empty-name'
 
 /** A validation failure from a taxonomy op. `code` lets the UI show a message. */
 export class TaxonomyError extends Error {

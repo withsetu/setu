@@ -1,8 +1,5 @@
 export type HeroLayout =
-  | 'centered'
-  | 'split-left'
-  | 'split-right'
-  | 'background'
+  'centered' | 'split-left' | 'split-right' | 'background'
 
 export function heroClasses(
   layout: HeroLayout,

@@ -232,9 +232,7 @@ describe('#658 property: tiptapToMarkdoc never drops a leaf', () => {
         )
         .map((parts) => {
           const listType = parts[parts.length - 1] as
-            | 'bulletList'
-            | 'orderedList'
-            | 'taskList'
+            'bulletList' | 'orderedList' | 'taskList'
           const blocks = parts.slice(0, -1) as TiptapNode[]
           // Everything after the first block lives INSIDE one list item — exactly
           // the position #658 destroyed.

@@ -104,11 +104,7 @@ export interface DemoEngine {
 // ---------------------------------------------------------------------------
 
 export type DemoJobKind =
-  | 'seed'
-  | 'unseed-generated'
-  | 'reset-sample'
-  | 'reset-zero'
-  | 'fetch-dump'
+  'seed' | 'unseed-generated' | 'reset-sample' | 'reset-zero' | 'fetch-dump'
 export type DemoJobStatus = 'running' | 'done' | 'failed' | 'cancelled'
 
 export interface DemoJob {

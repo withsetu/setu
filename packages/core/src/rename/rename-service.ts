@@ -12,10 +12,7 @@ export interface RenameDeps {
 }
 
 export type RenameRefusal =
-  | 'invalid-slug'
-  | 'target-exists'
-  | 'absent'
-  | 'unchanged'
+  'invalid-slug' | 'target-exists' | 'absent' | 'unchanged'
 
 export interface RenameResult {
   renamed: boolean

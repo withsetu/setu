@@ -5,10 +5,14 @@ function compare(a: EntryIndexRow, b: EntryIndexRow, key: SortKey): number {
   if (key === 'title') return a.titleLower.localeCompare(b.titleLower)
   if (key === 'status') return a.status.localeCompare(b.status)
   if (key === 'locale') return a.locale.localeCompare(b.locale)
-  // updatedAt: null → -Infinity so that when direction is negated (desc), nulls land last
+  // updatedAt: null → -Infinity so that when direction is negated (desc), nulls land last.
+  // Compare by sign, NOT by subtraction (#661): two nulls both map to -Infinity and
+  // `-Infinity - -Infinity` is NaN, which Array.prototype.sort coerces to "keep order" —
+  // so the tiebreak below was never reached for the all-null case, which is EVERY row on
+  // a Git-seeded site (updatedAt is null for entries without a draft).
   const av = a.updatedAt ?? -Infinity
   const bv = b.updatedAt ?? -Infinity
-  return av - bv
+  return av === bv ? 0 : av < bv ? -1 : 1
 }
 
 export function runQuery(
@@ -42,9 +46,18 @@ export function runQuery(
   if (q.hasSeoOverrides !== undefined)
     xs = xs.filter((r) => (r.hasSeoOverrides === true) === q.hasSeoOverrides)
   const sort = q.sort ?? { key: 'updatedAt' as SortKey, dir: 'desc' as const }
+  // Total order (#661): every sort key can tie — and the DEFAULT one ties for the
+  // whole list on a Git-seeded site, because `updatedAt` is null for every entry
+  // without a draft. A partial order let the result fall through to the adapter's
+  // storage order (db-sqlite's `loadAll()` has no ORDER BY → sqlite rowid), so a
+  // re-add reshuffled pagination and an entry could land on two pages or on none.
+  // `key` is unique per entry, and the tiebreak is applied AFTER the direction
+  // negation so it stays ascending in both directions — same discipline as
+  // `related-posts.ts`'s byRecencyThenKey.
   const sorted = [...xs].sort((a, b) => {
     const c = compare(a, b, sort.key)
-    return sort.dir === 'asc' ? c : -c
+    if (c !== 0) return sort.dir === 'asc' ? c : -c
+    return a.key.localeCompare(b.key)
   })
   const total = sorted.length
   return { rows: sorted.slice(q.offset, q.offset + q.limit), total }

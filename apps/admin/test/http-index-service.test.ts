@@ -183,7 +183,11 @@ describe('createHttpIndexService · query', () => {
       hasFeaturedImage: false,
       hasSeoOverrides: false
     })
-    await index.setMeta({ indexedSha: 'old', version: INDEX_VERSION })
+    await index.setMeta({
+      indexedSha: 'old',
+      deployedSha: null,
+      version: INDEX_VERSION
+    })
     await service.query(q())
     failing.on = true
     const offline = await service.query(q())
@@ -224,7 +228,11 @@ describe('createHttpIndexService · query', () => {
       hasSeoOverrides: false
     })
     // Stamp the cache with the sentinel from the PREVIOUS schema version.
-    await index.setMeta({ indexedSha: 'x', version: INDEX_CACHE_VERSION + 1 })
+    await index.setMeta({
+      indexedSha: 'x',
+      deployedSha: null,
+      version: INDEX_CACHE_VERSION + 1
+    })
     // Offline from the first touch: the mismatched sentinel must clear the cache
     // BEFORE the fallback read, so the stale row is never served.
     failing.on = true

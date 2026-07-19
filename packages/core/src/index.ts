@@ -54,7 +54,7 @@ export {
   formatFrontmatterDate
 } from './permalinks/frontmatter-date'
 export { DEFAULT_SETTINGS } from './settings/defaults'
-export { parseSettings } from './settings/schema'
+export { parseSettings, parseSettingsWithWarnings } from './settings/schema'
 
 export type {
   EntryRef,

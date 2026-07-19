@@ -36,6 +36,25 @@ const isSafePart = (part: string): boolean =>
   part !== '' && part !== '.' && part !== '..' && !URL_HOSTILE.test(part)
 
 /**
+ * `encodeURIComponent`, completed (#714a).
+ *
+ * That function leaves `! ~ * ' ( )` unescaped, and `'` is the one member of that
+ * set which `URL_HOSTILE` flags — so the guard reported `o'brien` as "not URL-safe —
+ * served as o'brien", naming an input and an output that were byte-identical. It was
+ * the only survivor of all 17 hostile characters: everything else in the class is
+ * escaped by `encodeURIComponent` already.
+ *
+ * Escaped rather than dropped from `URL_HOSTILE`, because the reason `'` is in that
+ * class is the same as `<`, `>`, `"` and a backtick: not URL structure (RFC 3986
+ * permits `'` in a path as a sub-delimiter) but the HTML/attribute context these
+ * paths are written into, where a bare `'` closes a single-quoted `href`. `%27` is
+ * the canonical encoding and decodes back to `'`, so the mapping stays INJECTIVE —
+ * two entries can still never merge onto one URL.
+ */
+const encodePart = (part: string): string =>
+  encodeURIComponent(part).replace(/'/g, '%27')
+
+/**
  * Guard a data-derived segment (`:slug`, `:collection`) on its way into a URL (#670).
  * `pattern.ts` claimed `SLUG_SEGMENT` made this impossible, but only `:category` was
  * guarded — these two were interpolated raw.
@@ -68,7 +87,7 @@ function urlSegment(
           // has to be escaped explicitly or it would still traverse.
           part === '.' || part === '..'
           ? part.replace(/\./g, '%2E')
-          : encodeURIComponent(part)
+          : encodePart(part)
     )
     .filter((part) => part !== '')
   const out = safe.length > 0 ? safe.join('/') : 'untitled'

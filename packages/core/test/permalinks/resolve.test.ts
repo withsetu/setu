@@ -169,6 +169,63 @@ describe('resolvePermalink guards :slug and :collection (#670)', () => {
     expect(r.warnings.join('\n')).toContain(':collection')
   })
 
+  it('every character the guard flags is actually changed by the remedy', () => {
+    // #714a: the guard flagged `'` but the remedy did not act on it —
+    // `encodeURIComponent` leaves `'` unescaped (it sits in that function's
+    // unescaped set with `! ~ * ( )`), so the warning named an input and an
+    // output that were byte-identical. A guard that reports success without
+    // acting is worse than no guard at all, because it stops anyone looking.
+    //
+    // Asserted against `:collection` (NOT nested) so every character goes
+    // through the same encode path — a nested `:slug` keeps its `/` by design.
+    // This pins the CONTRACT, not one character: whatever `URL_HOSTILE` flags,
+    // the served value must actually differ from the raw input.
+    const hostile = [
+      '\u0000',
+      '\u0001',
+      '\u001f',
+      ' ',
+      '\u007f',
+      '\u009f',
+      '/',
+      '\\',
+      '?',
+      '#',
+      '%',
+      '<',
+      '>',
+      '"',
+      "'",
+      '`',
+      '{',
+      '}',
+      '|',
+      '^',
+      '[',
+      ']'
+    ]
+    for (const ch of hostile) {
+      const collection = `a${ch}b`
+      const r = resolvePermalink(ref({ collection }), ':collection')
+      expect(
+        r.warnings,
+        `hostile character ${JSON.stringify(ch)} was not flagged`
+      ).toHaveLength(1)
+      expect(
+        r.path,
+        `hostile character ${JSON.stringify(ch)} survived the remedy`
+      ).not.toBe(collection)
+    }
+  })
+
+  it('percent-encodes an apostrophe rather than reporting a no-op (#714a)', () => {
+    const r = resolvePermalink(ref({ slug: "o'brien" }), ':slug')
+    expect(r.path).toBe('o%27brien')
+    expect(r.warnings).toHaveLength(1)
+    // The warning must name the value actually served, not echo the input.
+    expect(r.warnings[0]).toContain('o%27brien')
+  })
+
   it('encoding is injective — two unsafe slugs never merge onto one URL', () => {
     const a = resolvePermalink(ref({ slug: 'a b' }), ':slug').path
     const b = resolvePermalink(ref({ slug: 'a-b' }), ':slug').path

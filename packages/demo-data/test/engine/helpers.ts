@@ -136,16 +136,14 @@ export function makeStubImage(): ImagePort {
       Promise.resolve({ width: 800, height: 600, format: 'jpeg' }),
     generate: (_source: Uint8Array, specs: VariantSpec[]) =>
       Promise.resolve(
-        specs.map(
-          (spec): GeneratedVariant => ({
-            name: spec.name,
-            width: spec.width,
-            height: Math.round((spec.width * 3) / 4),
-            format: spec.format,
-            contentType: `image/${spec.format}`,
-            body: new Uint8Array([1, 2, 3])
-          })
-        )
+        specs.map((spec): GeneratedVariant => ({
+          name: spec.name,
+          width: spec.width,
+          height: Math.round((spec.width * 3) / 4),
+          format: spec.format,
+          contentType: `image/${spec.format}`,
+          body: new Uint8Array([1, 2, 3])
+        }))
       ),
     placeholder: () => Promise.resolve('data:image/webp;base64,AA==')
   }

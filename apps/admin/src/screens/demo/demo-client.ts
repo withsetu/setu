@@ -13,11 +13,7 @@ export interface DemoDataset {
 }
 
 export type DemoJobKind =
-  | 'seed'
-  | 'unseed-generated'
-  | 'reset-sample'
-  | 'reset-zero'
-  | 'fetch-dump'
+  'seed' | 'unseed-generated' | 'reset-sample' | 'reset-zero' | 'fetch-dump'
 export type DemoJobStatus = 'running' | 'done' | 'failed' | 'cancelled'
 
 export interface DemoSeedUser {

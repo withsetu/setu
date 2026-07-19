@@ -37,8 +37,7 @@ export interface NormalizedOembed {
 
 export type OembedFailure = 'unsupported' | 'fetch_failed' | 'invalid_response'
 export type OembedResult =
-  | { ok: true; data: NormalizedOembed }
-  | { ok: false; reason: OembedFailure }
+  { ok: true; data: NormalizedOembed } | { ok: false; reason: OembedFailure }
 
 /** Cap on stored provider HTML. It's sandboxed at render, but we never persist an absurd payload. */
 const MAX_HTML = 32_768

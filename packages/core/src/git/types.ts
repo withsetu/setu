@@ -22,8 +22,7 @@ export interface CommitResult {
 
 /** One change in a multi-file commit: a write (create/update) or a delete. */
 export type FileChange =
-  | { path: string; content: string }
-  | { path: string; delete: true }
+  { path: string; content: string } | { path: string; delete: true }
 
 /** A multi-file commit request: all changes land in ONE atomic commit. */
 export interface CommitFilesInput {

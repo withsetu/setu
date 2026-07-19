@@ -59,12 +59,7 @@ function FormsGroup() {
 }
 
 type GroupId =
-  | 'general'
-  | 'reading'
-  | 'media'
-  | 'identity'
-  | 'permalinks'
-  | 'forms'
+  'general' | 'reading' | 'media' | 'identity' | 'permalinks' | 'forms'
 const BASE_GROUPS: { id: GroupId; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'reading', label: 'Content & Reading' },

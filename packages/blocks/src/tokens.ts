@@ -1,12 +1,7 @@
 /** The canonical style axes a standard block may be themeable on. Carried as data so the
  *  contract is MCP-introspectable; not enforced at runtime. */
 export type BlockStyleAxis =
-  | 'accent'
-  | 'surface'
-  | 'text'
-  | 'tone'
-  | 'radius'
-  | 'typography'
+  'accent' | 'surface' | 'text' | 'tone' | 'radius' | 'typography'
 
 export interface BlockToken {
   name: `--${string}`

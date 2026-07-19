@@ -43,7 +43,8 @@ const {
   resolvePermalinkConfig,
   parseFrontmatterDate,
   parseSettings,
-  incumbentFromUrlMap
+  incumbentFromUrlMap,
+  DEFAULT_LOCALE
 } = await jiti.import('@setu/core')
 
 const SITE_CONFIG_PATH = path.join(ROOT, 'apps', 'site', 'setu.config.ts')
@@ -177,8 +178,28 @@ async function buildPermalinkMap(rows, contentDir) {
     { uncategorized: settings.permalinks.uncategorized, incumbent }
   )
   for (const w of warnings) console.warn(`[gen-relations] permalinks: ${w}`)
-  paths.set('page/en/home', '')
-  if (settings.reading.homepage) paths.set(settings.reading.homepage, '')
+  // Root overrides (#660) — must match apps/site/src/lib/permalinks.ts exactly: the
+  // configured `reading.homepage` owns the root of its locale, `page/<locale>/home` owns
+  // every other locale's root (so `page/fr/home` is `fr`, not the 404 `fr/page/home`).
+  const homepageId = settings.reading.homepage || undefined
+  const homepageLocale = homepageId?.split('/')[1]
+  const rootIds = new Map()
+  if (homepageId) rootIds.set(homepageId, homepageLocale ?? DEFAULT_LOCALE)
+  for (const row of rows) {
+    if (row.collection !== 'page' || row.slug !== 'home') continue
+    if (row.locale === homepageLocale) continue
+    rootIds.set(row.key, row.locale)
+  }
+  for (const [id, locale] of rootIds) {
+    const rootPath = locale === DEFAULT_LOCALE ? '' : locale
+    for (const [otherId, otherPath] of paths)
+      if (otherPath === rootPath && otherId !== id)
+        console.warn(
+          `[gen-relations] permalinks: "${id}" is the root for locale "${locale || DEFAULT_LOCALE}", ` +
+            `but "${otherId}" already resolves to "/${rootPath}" — that entry is now unreachable.`
+        )
+    paths.set(id, rootPath)
+  }
   return paths
 }
 

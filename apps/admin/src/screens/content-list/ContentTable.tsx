@@ -233,7 +233,8 @@ export function ContentTable({
                           r.ref.collection,
                           undefined,
                           settings
-                        )
+                        ),
+                        settings.reading.homepage || undefined
                       )}
                       target="_blank"
                       rel="noopener noreferrer"

@@ -158,6 +158,7 @@ describe('Dashboard', () => {
       ensureBuilt: vi.fn(async () => {}),
       rebuild: vi.fn(async () => {}),
       reindexEntry: vi.fn(async () => {}),
+      reindexEntries: vi.fn(async () => {}),
       reindexAfterDeploy: vi.fn(async () => {}),
       markSyncedAt: vi.fn(async () => {}),
       query,

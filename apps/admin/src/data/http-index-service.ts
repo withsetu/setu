@@ -515,6 +515,14 @@ export function createHttpIndexService(
     else await index.upsert(projectRow(rows[0]!))
   }
 
+  /** Same contract as core's: reindex every ref, then stamp — and reject on the
+   *  first failure without stamping (#655). `markSyncedAt` is a no-op here (the
+   *  server owns indexedSha), so the stamp is implicit; what still matters is that
+   *  a failing entry surfaces instead of being swallowed per-ref. */
+  async function reindexEntries(refs: EntryRef[]): Promise<void> {
+    for (const ref of refs) await reindexEntry(ref)
+  }
+
   async function refreshServer(): Promise<void> {
     const res = await fetchImpl(`${apiBase}/api/index/refresh`, {
       method: 'POST'
@@ -530,6 +538,7 @@ export function createHttpIndexService(
     // rebuild == "force a re-derivation" — the server-side one.
     rebuild: refreshServer,
     reindexEntry,
+    reindexEntries,
     // Deploy-derived lifecycle (staged→live) changes without a HEAD move; the
     // server can't see that from sha-compares, so ask it to re-derive.
     reindexAfterDeploy: refreshServer,

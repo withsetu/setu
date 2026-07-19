@@ -32,6 +32,15 @@ export interface IndexService {
   rebuild(): Promise<void>
   ensureBuilt(): Promise<void>
   reindexEntry(ref: EntryRef): Promise<void>
+  /** Reindex every ref a commit touched, THEN record the index as synced at `sha`
+   *  — and only if every reindex succeeded (#655). Callers must use this instead of
+   *  hand-rolling `for (ref) reindexEntry(ref).catch(() => {})` + `markSyncedAt(sha)`:
+   *  that shape swallows the per-ref failure and stamps the sha anyway, which tells
+   *  `ensureBuilt`'s out-of-band gate the commit is fully imported while a row is
+   *  stale — so the stale row is never rescanned again. Rejects on the first
+   *  failure, leaving `indexedSha` behind HEAD so the next load self-heals.
+   *  `sha` may be null for an op that committed nothing. */
+  reindexEntries(refs: EntryRef[], sha: string | null): Promise<void>
   reindexAfterDeploy(): Promise<void>
   markSyncedAt(sha: string): Promise<void>
   query(q: IndexQuery): Promise<{ rows: ContentRow[]; total: number }>
@@ -182,6 +191,16 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
     return serialize(async () => reindexRef(ref, await committed))
   }
 
+  /** See the interface doc. The loop and the stamp are ONE operation so the stamp
+   *  cannot outrun the work: the first rejection propagates and no sha is recorded. */
+  async function reindexEntries(
+    refs: EntryRef[],
+    sha: string | null
+  ): Promise<void> {
+    for (const ref of refs) await reindexEntry(ref)
+    if (sha !== null) await markSyncedAt(sha)
+  }
+
   // The git HEAD whose deploy snapshot the index last absorbed (deploys don't move git,
   // they change `deployedAt` for every path that differs from the PREVIOUS deploy — which
   // is exactly diffPaths(previous deploy head, current head)). Session-scoped on purpose:
@@ -280,6 +299,7 @@ export function createIndexService(deps: IndexServiceDeps): IndexService {
     rebuild,
     ensureBuilt,
     reindexEntry,
+    reindexEntries,
     reindexAfterDeploy,
     markSyncedAt,
     query,

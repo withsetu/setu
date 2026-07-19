@@ -167,7 +167,9 @@ describe('round-trip byte-stability (property-based)', () => {
     // Two blank-line-separated bullet blocks are ONE loose list in Markdown, which
     // legitimately re-serializes as a single tight list. Drop the adjacency so the
     // generator only emits documents that are already canonical.
-    .map((bs) => bs.filter((b, i) => !(i > 0 && isList(b) && isList(bs[i - 1]!))))
+    .map((bs) =>
+      bs.filter((b, i) => !(i > 0 && isList(b) && isList(bs[i - 1]!)))
+    )
     .filter((bs) => bs.length > 0)
     .map((bs) => bs.join('\n\n') + '\n')
 

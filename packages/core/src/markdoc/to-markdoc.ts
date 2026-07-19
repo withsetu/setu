@@ -214,43 +214,34 @@ function buildBlock(node: TiptapNode): InstanceType<typeof N> {
 const formatNative = (node: TiptapNode): string =>
   Markdoc.format(new N('document', {}, [buildBlock(node)])).replace(/\n+$/, '')
 
-/** Escape a string attribute value: backslash → \\, double-quote → \". */
-function escapeAttrString(val: string): string {
-  return val.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
-}
-
 /** Serialize an `imageBlock` node to a self-closing {% image ... /%} tag.
- *  Returns the tag WITHOUT a trailing newline — the caller's join('\n\n') supplies it. */
+ *  Returns the tag WITHOUT a trailing newline — the caller's join('\n\n') supplies it.
+ *
+ *  #668: this used to build the tag by hand with an `escapeAttrString` that escaped
+ *  only backslash and double-quote. A caption carrying a newline or a tab was emitted
+ *  raw, producing an unterminated attribute; re-reading that file yielded a flagged
+ *  passthrough and the author saw an "Unparsed Markdoc" blob. Markdoc's own formatter
+ *  escapes the full set, so it does the quoting now — the same seam openTagFor uses. */
 function imageBlockToMarkdoc(node: TiptapNode): string {
   const attrs = node.attrs ?? {}
   const mdAttrs =
     (attrs['mdAttrs'] as Record<string, unknown> | undefined) ?? {}
 
-  // Emit src/alt/caption/align first (when present), then any remaining keys — no key is dropped.
+  // Emit src/alt/caption/align first (when present), then any remaining keys — no key
+  // is dropped. Markdoc.format emits attributes in object insertion order, so this
+  // reordering is load-bearing: it is what keeps existing files byte-stable.
   const leadKeys = ['src', 'alt', 'caption', 'align']
-  const remainingKeys = Object.keys(mdAttrs).filter(
-    (k) => !leadKeys.includes(k)
-  )
-  const orderedKeys = [
-    ...leadKeys.filter((k) => k in mdAttrs),
-    ...remainingKeys
-  ]
+  const ordered: Record<string, unknown> = {}
+  for (const key of leadKeys) if (key in mdAttrs) ordered[key] = mdAttrs[key]
+  for (const key of Object.keys(mdAttrs))
+    if (!leadKeys.includes(key)) ordered[key] = mdAttrs[key]
 
-  const parts: string[] = []
-  for (const key of orderedKeys) {
-    const val = mdAttrs[key]
-    if (typeof val === 'string') parts.push(`${key}="${escapeAttrString(val)}"`)
-    else if (typeof val === 'number' || typeof val === 'boolean')
-      parts.push(`${key}=${val}`)
-    // Any other JSON value (object/array — not expected in practice for image attrs, but
-    // frontmatter is user-authored/unknown-typed) — JSON.stringify instead of `String(val)`,
-    // which would silently serialize it as the literal text "[object Object]" and corrupt
-    // the persisted Markdoc (@typescript-eslint/no-base-to-string caught this).
-    else if (val != null)
-      parts.push(`${key}="${escapeAttrString(JSON.stringify(val))}"`)
-  }
-
-  return `{% image ${parts.join(' ')} /%}`
+  // Markdoc.format wraps a tag opening wider than 80 chars across lines. The
+  // hand-rolled serializer never did, and image `src` paths routinely exceed it, so
+  // keep it on one line or every existing {% image %} would be rewritten.
+  return selfClosingTagFor('image', ordered, {
+    maxTagOpeningWidth: Number.POSITIVE_INFINITY
+  })
 }
 
 /** The set of body-bearing tag node types serialized at the STRING level (open tag +
@@ -279,11 +270,19 @@ const TAG_NODE_TYPES: Record<string, (node: TiptapNode) => string> = {
  *  self-closing tag is formatted and its ` /%}` tail rewritten to ` %}` — so attribute
  *  ordering/quoting/escaping stays byte-identical to what Markdoc.format produced when
  *  whole subtrees went through it (round-trip stability for existing content). */
-function openTagFor(tag: string, mdAttrs: Record<string, unknown>): string {
-  const selfClosing = Markdoc.format(
-    new N('document', {}, [new N('tag', mdAttrs, [], tag)])
+function selfClosingTagFor(
+  tag: string,
+  mdAttrs: Record<string, unknown>,
+  opts?: { maxTagOpeningWidth?: number }
+): string {
+  return Markdoc.format(
+    new N('document', {}, [new N('tag', mdAttrs, [], tag)]),
+    opts
   ).replace(/\n+$/, '')
-  return selfClosing.replace(/ \/%\}$/, ' %}')
+}
+
+function openTagFor(tag: string, mdAttrs: Record<string, unknown>): string {
+  return selfClosingTagFor(tag, mdAttrs).replace(/ \/%\}$/, ' %}')
 }
 
 /** Serialize a body-bearing tag node at the string level (see TAG_NODE_TYPES). */

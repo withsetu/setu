@@ -64,12 +64,12 @@ describe('tiptapToMarkdoc', () => {
     })
 
     it('keeps italic and strike around a code span', () => {
-      expect(tiptapToMarkdoc(para([{ type: 'italic' }, { type: 'code' }]))).toBe(
-        '*`api`*\n'
-      )
-      expect(tiptapToMarkdoc(para([{ type: 'strike' }, { type: 'code' }]))).toBe(
-        '~~`api`~~\n'
-      )
+      expect(
+        tiptapToMarkdoc(para([{ type: 'italic' }, { type: 'code' }]))
+      ).toBe('*`api`*\n')
+      expect(
+        tiptapToMarkdoc(para([{ type: 'strike' }, { type: 'code' }]))
+      ).toBe('~~`api`~~\n')
     })
 
     it('round-trips the mark set in both directions', () => {
@@ -211,8 +211,8 @@ describe('tiptapToMarkdoc', () => {
     expect(tiptapToMarkdoc(doc)).toBe('{% if $x %}\nHi\n{% /if %}\n')
   })
 
-  it('serializes an imageBlock non-primitive mdAttr via JSON.stringify, never "[object Object]"', () => {
-    const md = tiptapToMarkdoc({
+  it('serializes an imageBlock non-primitive mdAttr as a native Markdoc object, never "[object Object]"', () => {
+    const doc: TiptapDoc = {
       type: 'doc',
       content: [
         {
@@ -226,11 +226,23 @@ describe('tiptapToMarkdoc', () => {
           }
         }
       ]
-    })
+    }
+    const md = tiptapToMarkdoc(doc)
     expect(md).not.toContain('[object Object]')
+    // #668: routing through Markdoc's own formatter emits native object syntax.
+    // The previous hand-rolled escaper JSON.stringify'd the object into a STRING
+    // attribute, which re-read as the string '{"x":0.5,"y":0.25}' — a type change on
+    // every save. The native form re-reads as the object it started as.
     expect(md).toBe(
-      '{% image src="/media/2026/07/photo.jpg" alt="A photo" focalPoint="{\\"x\\":0.5,\\"y\\":0.25}" /%}\n'
+      '{% image src="/media/2026/07/photo.jpg" alt="A photo" focalPoint={x: 0.5, y: 0.25} /%}\n'
     )
+    const reread = markdocToTiptap(md, { knownBlockTags: new Set(['image']) })
+    expect(reread.content[0]?.attrs?.mdAttrs).toEqual({
+      src: '/media/2026/07/photo.jpg',
+      alt: 'A photo',
+      focalPoint: { x: 0.5, y: 0.25 }
+    })
+    expect(tiptapToMarkdoc(reread)).toBe(md)
   })
 
   it('serializes a contactBlock back to a {% contact %} tag and round-trips its attrs', () => {

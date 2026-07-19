@@ -273,3 +273,51 @@ describe('#658 property: tiptapToMarkdoc never drops a leaf', () => {
     )
   })
 })
+
+/** The seam between the two halves of this slice: origin/main's string-level list
+ *  serializer (#658, above) and this branch's position-dependent escaping contract
+ *  (#652/#676, ./escape-inline.ts). `buildListItem` used to pass the position
+ *  explicitly; folding every item child through `serializeBlock` means the position
+ *  now has to be threaded, and a mechanical merge silently drops it in one direction
+ *  or the other. Each case below pins one position. */
+describe('#652 x #658: escape position inside a list item', () => {
+  const rt = (s: string) => tiptapToMarkdoc(markdocToTiptap(s))
+
+  // A plain bullet's text IS at a block start: "- # x" would be a heading inside
+  // the item, so the escape must survive. Position: `block-start`.
+  it.each([
+    ['heading marker', '- \\# not a heading\n'],
+    ['blockquote marker', '- \\> not a quote\n'],
+    ['bullet marker', '- \\- not a bullet\n']
+  ])('keeps a bullet item %s escaped', (_name, src) => {
+    expect(rt(src)).toBe(src)
+  })
+
+  // A task item's text follows the "[x] " marker, so it is NOT at a block start and
+  // must NOT gain an escape — otherwise every existing task list is rewritten on its
+  // next save. Position: `after-inline-marker`.
+  it.each([
+    ['heading marker', '- [x] # a\n'],
+    ['blockquote marker', '- [ ] > b\n'],
+    ['bullet marker', '- [x] - c\n']
+  ])('leaves a task item %s unescaped', (_name, src) => {
+    expect(rt(src)).toBe(src)
+  })
+
+  // A SECOND paragraph sits on its own indented line, so it is at a block start in
+  // its own right even though the item's first paragraph was not the whole story.
+  it('escapes a block marker in a list item second paragraph', () => {
+    const src = '- one\n\n  \\# not a heading\n'
+    expect(rt(src)).toBe(src)
+  })
+
+  // Only reachable once both halves are merged: the widened alphabet generates "#"
+  // inside a bullet, and the string-level serializer is what writes multi-block items.
+  // An empty leading paragraph must not be written, or the blank line after the marker
+  // makes CommonMark read the item as empty and expel the heading out of the list.
+  it('does not expel later children when the first paragraph is empty', () => {
+    const once = rt('- #\n')
+    expect(once).toBe('- # \n')
+    expect(rt(once)).toBe(once)
+  })
+})

@@ -2,8 +2,29 @@ import Markdoc from '@markdoc/markdoc'
 import type { TiptapDoc, TiptapNode } from './types'
 import { tableToGfm } from './table-gfm'
 import { ATOM_NODE_TO_TAG } from './atom-blocks'
+import {
+  codeSpan,
+  decodeProtected,
+  escapeText,
+  protectText
+} from './escape-inline'
 
 const N = Markdoc.Ast.Node
+
+/** A `text` node whose content is already final markdown source. `protectText`
+ *  hides it from `Markdoc.format`'s own text escaper, which would otherwise
+ *  double-escape what `escapeText`/`codeSpan` just produced (see
+ *  ./escape-inline for the contract). `tiptapToMarkdoc` decodes once at the end. */
+const rawText = (source: string): InstanceType<typeof N> =>
+  new N('text', { content: protectText(source) })
+
+/** An autolink `<https://…>` is the canonical form Markdoc.format emits when a
+ *  link's text equals its href, and we must keep emitting it or every such line
+ *  in existing content would be rewritten to `[href](href)`. Markdoc compares
+ *  the FORMATTED children to the href, which protected text can never equal, so
+ *  the case is recognised here instead — and, unlike Markdoc, only for a real
+ *  URI scheme, so a non-URL link text is not turned into raw HTML. */
+const AUTOLINK_SCHEME = /^[a-zA-Z][a-zA-Z0-9+.-]*:/
 
 /** Mark types buildInline serializes. Kept next to the loops it guards (#665). */
 const SERIALIZED_MARKS = new Set([
@@ -23,9 +44,15 @@ const SERIALIZED_MARKS = new Set([
 const UNPERSISTED_MARKS = new Set<string>([])
 
 export function buildInline(
-  content: TiptapNode[] = []
+  content: TiptapNode[] = [],
+  /** Where this inline run sits, for the position-dependent escape rules:
+   *  `block` = paragraph / list item (first characters are at a line start, so
+   *  `#`, `>`, `-`, `1.` are block markers); `heading` = heading content (a
+   *  TRAILING `#` run is the ATX closing sequence); `inline` = table cells and
+   *  anything else, where no positional rule applies. See ./escape-inline. */
+  context: 'block' | 'heading' | 'inline' = 'inline'
 ): InstanceType<typeof N>[] {
-  return content.map((t) => {
+  return content.map((t, index) => {
     if (t.type === 'hardBreak') return new N('hardbreak')
     if (t.type === 'image') {
       const a = t.attrs ?? {}
@@ -42,10 +69,33 @@ export function buildInline(
     // the mark loop instead of wrapping (#653) — and to-tiptap emits `code` last, so
     // the link/bold/italic/strike built before it was silently discarded:
     // [`api`](https://example.com) collapsed to `api`, losing the href entirely.
-    const hasCode = (t.marks ?? []).some((m) => m.type === 'code')
+    const marks = t.marks ?? []
+    const text = t.text ?? ''
+
+    // Autolink: exactly one link mark whose href is the visible text.
+    const soleLink = marks.length === 1 && marks[0]!.type === 'link'
+    if (soleLink) {
+      const href = (marks[0]!.attrs as Record<string, unknown>)?.['href']
+      if (href === text && AUTOLINK_SCHEME.test(text))
+        return rawText(`<${text}>`)
+    }
+
+    const hasCode = marks.some((m) => m.type === 'code')
+    // A code span's content is literal — backslash-escaping it would corrupt it.
+    // The fence width carries the ambiguity instead (#677); `Markdoc.format`'s
+    // own `code` case hard-codes a single backtick, so it is bypassed here.
+    // A positional rule only binds when nothing else occupies that position:
+    // a leading `**`/`[` from a mark, or a preceding sibling run, displaces it.
+    const bare = marks.length === 0
     let n: InstanceType<typeof N> = hasCode
-      ? new N('code', { content: t.text })
-      : new N('text', { content: t.text })
+      ? rawText(codeSpan(text))
+      : rawText(
+          escapeText(text, {
+            atBlockStart: context === 'block' && index === 0 && bare,
+            atHeadingEnd:
+              context === 'heading' && index === content.length - 1 && bare
+          })
+        )
     // Apply markdown-native marks first (innermost), then tag marks (outermost).
     // This ensures {% sub %}**b**{% /sub %} rather than **{% sub %}b{% /sub %}**,
     // which Markdoc.format cannot render cleanly across inline tag boundaries.
@@ -86,6 +136,23 @@ export function buildInline(
   })
 }
 
+/** Where a block sits relative to the start of a line, for the position-dependent
+ *  escape rules in ./escape-inline.
+ *
+ *  `block-start` — the block's own first character is the first character of its
+ *    line, so a leading `#`, `>`, `-`, `+` or `1.` would parse as a block marker
+ *    and must be escaped. This is the case for every top-level block, for a
+ *    blockquote's or tag body's children, for a plain bullet's first paragraph,
+ *    AND for a list item's SECOND paragraph or any nested block — those sit on
+ *    their own indented line, where `# x` really is a heading.
+ *  `after-inline-marker` — the block's text is emitted on the same line AFTER
+ *    something else, so no block marker can start there. Today that is exactly a
+ *    task item's first paragraph, which follows the `[x] ` / `[ ] ` marker.
+ *    Escaping there would be spurious churn: `- [x] # a` re-reads as the literal
+ *    text `# a` with no escape needed, so adding one would rewrite existing files
+ *    on their next save. */
+type BlockPosition = 'block-start' | 'after-inline-marker'
+
 /** Attach a Markdoc `{% align="…" %}` annotation to a built block node when the Tiptap
  *  node has a center/right textAlign. left/null/undefined → no annotation (clean default).
  *  Mirrors the `tag.inline = true` write pattern in buildInline. */
@@ -100,7 +167,12 @@ function withAlign(
   return built
 }
 
-function buildBlock(node: TiptapNode): InstanceType<typeof N> {
+function buildBlock(
+  node: TiptapNode,
+  /** Position of THIS node only — it governs the node's own inline content and is
+   *  never inherited by children, which always start their own line. */
+  position: BlockPosition = 'block-start'
+): InstanceType<typeof N> {
   const attrs = node.attrs ?? {}
   // Childless atom blocks ({% hero /%}, {% gallery /%}, …) are driven by the shared
   // ATOM_TAG_TO_NODE map (see ./atom-blocks) so this direction and to-tiptap can't drift.
@@ -117,14 +189,21 @@ function buildBlock(node: TiptapNode): InstanceType<typeof N> {
     case 'heading':
       return withAlign(
         new N('heading', { level: attrs['level'] }, [
-          new N('inline', {}, buildInline(node.content))
+          new N('inline', {}, buildInline(node.content, 'heading'))
         ]),
         node
       )
     case 'paragraph':
       return withAlign(
         new N('paragraph', {}, [
-          new N('inline', {}, buildInline(node.content))
+          new N(
+            'inline',
+            {},
+            buildInline(
+              node.content,
+              position === 'block-start' ? 'block' : 'inline'
+            )
+          )
         ]),
         node
       )
@@ -139,7 +218,7 @@ function buildBlock(node: TiptapNode): InstanceType<typeof N> {
       return new N(
         'tag',
         attrs['mdAttrs'] ?? {},
-        (node.content ?? []).map(buildBlock),
+        (node.content ?? []).map((c) => buildBlock(c)),
         'callout'
       )
     case 'setuBlock': {
@@ -152,7 +231,7 @@ function buildBlock(node: TiptapNode): InstanceType<typeof N> {
       return new N(
         'tag',
         (attrs['mdAttrs'] ?? {}) as Record<string, unknown>,
-        (node.content ?? []).map(buildBlock),
+        (node.content ?? []).map((c) => buildBlock(c)),
         tag
       )
     }
@@ -161,7 +240,7 @@ function buildBlock(node: TiptapNode): InstanceType<typeof N> {
       return new N(
         'tag',
         (attrs['mdAttrs'] ?? {}) as Record<string, unknown>,
-        (node.content ?? []).map(buildBlock),
+        (node.content ?? []).map((c) => buildBlock(c)),
         node.type
       )
     default:
@@ -174,8 +253,14 @@ function buildBlock(node: TiptapNode): InstanceType<typeof N> {
   }
 }
 
-const formatNative = (node: TiptapNode): string =>
-  Markdoc.format(new N('document', {}, [buildBlock(node)])).replace(/\n+$/, '')
+const formatNative = (
+  node: TiptapNode,
+  position: BlockPosition = 'block-start'
+): string =>
+  Markdoc.format(new N('document', {}, [buildBlock(node, position)])).replace(
+    /\n+$/,
+    ''
+  )
 
 /** Serialize an `imageBlock` node to a self-closing {% image ... /%} tag.
  *  Returns the tag WITHOUT a trailing newline — the caller's join('\n\n') supplies it.
@@ -252,7 +337,7 @@ function openTagFor(tag: string, mdAttrs: Record<string, unknown>): string {
 function tagBlockToMarkdoc(tag: string, node: TiptapNode): string {
   const mdAttrs =
     (node.attrs?.['mdAttrs'] as Record<string, unknown> | undefined) ?? {}
-  const body = (node.content ?? []).map(serializeBlock).join('\n\n')
+  const body = (node.content ?? []).map((c) => serializeBlock(c)).join('\n\n')
   return `${openTagFor(tag, mdAttrs)}\n${body}\n{% /${tag} %}`
 }
 
@@ -263,7 +348,7 @@ function tagBlockToMarkdoc(tag: string, node: TiptapNode): string {
  *  so schema-valid inside a blockquote. They hit the default arm and were destroyed
  *  ("> > \n> > \n"). Byte-identical to Markdoc.format for prose-only blockquotes. */
 function blockquoteToMarkdoc(node: TiptapNode): string {
-  const body = (node.content ?? []).map(serializeBlock).join('\n\n')
+  const body = (node.content ?? []).map((c) => serializeBlock(c)).join('\n\n')
   return body
     .split('\n')
     .map((line) => (line === '' ? '> ' : `> ${line}`))
@@ -301,8 +386,36 @@ function listItemToMarkdoc(
   indent: string,
   task: boolean
 ): string {
-  const children = item.content ?? []
-  const parts = children.map(serializeBlock)
+  const all = item.content ?? []
+  // An item whose FIRST child is an empty paragraph but which carries further blocks
+  // cannot be written with that paragraph: it would put a blank line immediately after
+  // the marker, and CommonMark says an item beginning with a blank line is EMPTY — so
+  // re-reading expelled every remaining child out of the list ("- #" round-tripped to
+  // "-\n\n  # ", which re-read as a bare item plus a top-level heading). Dropping the
+  // empty leading paragraph is lossless: `markdocToTiptap` re-inserts it, because the
+  // Tiptap `listItem` schema is `paragraph block*` and so requires one.
+  //
+  // This shape is only reachable now that the two sides are merged: origin/main's
+  // string-level item serializer (#658) is what emits multi-block items at all, and
+  // this branch's widened property-test alphabet (#676) is what first generates a `#`
+  // inside a bullet. Neither side could produce it alone.
+  const children =
+    all.length > 1 &&
+    all[0]?.type === 'paragraph' &&
+    (all[0].content ?? []).length === 0
+      ? all.slice(1)
+      : all
+  // The position context the #652 escaping contract needs, threaded through the
+  // #658 string-level structure: only a TASK item's first paragraph is displaced
+  // off the line start (by the `[x] ` marker). A plain bullet's first paragraph,
+  // and every later child of either kind of item, does begin its own line — so it
+  // keeps `block-start` and a leading `#`/`>`/`-`/`1.` is still escaped.
+  const parts = children.map((child, i) =>
+    serializeBlock(
+      child,
+      task && i === 0 ? 'after-inline-marker' : 'block-start'
+    )
+  )
   // A nested list hugs its parent item (no blank line) — that is what Markdoc.format
   // emitted. Any other block is separated by a blank line, which is what makes a
   // multi-block item parse back as belonging to the item rather than ending it.
@@ -330,7 +443,10 @@ function listItemToMarkdoc(
 
 /** Serialize one block node to Markdoc source. Used for top-level blocks AND,
  *  recursively, for the children of body-bearing tags. */
-function serializeBlock(node: TiptapNode): string {
+function serializeBlock(
+  node: TiptapNode,
+  position: BlockPosition = 'block-start'
+): string {
   if (LIST_TYPES.has(node.type)) return listToMarkdoc(node)
   if (node.type === 'blockquote') return blockquoteToMarkdoc(node)
   if (node.type === 'passthrough') {
@@ -341,9 +457,16 @@ function serializeBlock(node: TiptapNode): string {
   if (node.type === 'imageBlock') return imageBlockToMarkdoc(node)
   const tagOf = TAG_NODE_TYPES[node.type]
   if (tagOf) return tagBlockToMarkdoc(tagOf(node), node)
-  return formatNative(node)
+  // Only the native path carries inline text of its own; every branch above either
+  // has no inline content or opens a line of its own, so `position` cannot bind there.
+  return formatNative(node, position)
 }
 
 export function tiptapToMarkdoc(doc: TiptapDoc): string {
-  return doc.content.map(serializeBlock).join('\n\n') + '\n'
+  // Single decode point for the escaping contract: every inline text node was
+  // handed to Markdoc pre-escaped and sentinel-protected (see ./escape-inline),
+  // and this is where the protection comes back off.
+  return decodeProtected(
+    doc.content.map((c) => serializeBlock(c)).join('\n\n') + '\n'
+  )
 }

@@ -10,14 +10,23 @@ const alignOf = (cell: TiptapNode): Align =>
   (cell.attrs?.['align'] as Align) ?? null
 
 /** Render a Tiptap table cell's first paragraph to an escaped GFM table-cell string.
- *  Reuses buildInline + Markdoc to format inline marks, then escapes for a pipe cell. */
+ *  Reuses buildInline + Markdoc to format inline marks, then escapes for a pipe cell.
+ *
+ *  Cell content is NOT at a block start (a `| ` precedes it), so `#`/`>`/`-` need
+ *  no escape here. `buildInline` has already applied the inline escaping contract
+ *  (see ./escape-inline), so the only thing left is the cell delimiter: `|` has to
+ *  be escaped because GFM splits rows on pipes BEFORE inline parsing, which is also
+ *  why it must be escaped inside code spans. This used to additionally double every
+ *  backslash (`\\` -> `\\\\`), which was compensating for Markdoc.format never
+ *  escaping backslashes at all; now that `escapeText` emits `\\` for a literal
+ *  backslash, doubling here would corrupt every escape in a cell. */
 function cellToGfm(cell: TiptapNode): string {
   const para = (cell.content ?? []).find((c) => c.type === 'paragraph')
-  const inline = buildInline(para?.content ?? [])
+  const inline = buildInline(para?.content ?? [], 'inline')
   const md = Markdoc.format(
     new N('paragraph', {}, [new N('inline', {}, inline)])
   ).replace(/\n+$/, '')
-  return md.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\n/g, '<br>')
+  return md.replace(/\|/g, '\\|').replace(/\n/g, '<br>')
 }
 
 /** Serialize a Tiptap `table` node to a GFM pipe table: header row, alignment separator

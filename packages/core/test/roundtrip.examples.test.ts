@@ -146,7 +146,17 @@ describe('checklist content-safety negatives', () => {
   })
 
   it('a partial-marker list keeps its literal [ ] text (not silently converted)', () => {
-    expect(roundtrip('- [ ] a\n- b\n')).toBe('- [ ] a\n- b\n')
+    // The escaping contract (#652) escapes `[`/`]` in text content, so the
+    // literal marker is written back ESCAPED. That is strictly safer here: the
+    // list is not a checklist (only one item carries a marker), and `\[ \]`
+    // cannot later be re-read as one if the other items change. The text and
+    // the list type are unchanged, and the escaped form is byte-stable.
+    const out = roundtrip('- [ ] a\n- b\n')
+    expect(out).toBe('- \\[ \\] a\n- b\n')
+    expect(roundtrip(out)).toBe(out)
+    const [list] = markdocToTiptap(out).content
+    expect(list?.type).toBe('bulletList')
+    expect(list?.content?.[0]?.content?.[0]?.content?.[0]?.text).toBe('[ ] a')
   })
 
   it('uppercase [X] normalises to lowercase [x] and stays checked', () => {

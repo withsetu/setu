@@ -14,24 +14,42 @@ const LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ '.split(
  *  image brackets, parens, quotes, tilde, pipe, hard line breaks, CR, tab, and
  *  non-ASCII up to astral plane (#651).
  *
- *  KNOWN OPEN DEFECTS — deliberately NOT in this set, each an independent byte-drift
- *  bug found by this generator while widening it. They are excluded so this test is
- *  honestly green rather than permanently red; every one needs its own issue. These
- *  are corruption, not acceptable normalization:
+ *  The backslash, `*`, `_`, `#` and backtick were excluded here as known-open
+ *  escaping defects. The escaping contract in `src/markdoc/escape-inline.ts`
+ *  (#652/#675/#676/#677) closed all four, so `\`, `_`, `#` and backtick are now
+ *  generated:
  *
  *    `\`  escape erosion:  "\\\\" -> "\\",  "\\_x" -> "_x",  "\\[y]" -> "[y]"
  *         and, in a list item, "- b \\*x" -> "- b *x" (an escaped literal asterisk
- *         becomes an active emphasis marker on the next save).
- *    `*` `_` `#`  escape non-idempotency: emphasis/heading markers gain or lose a
+ *         becoming an active emphasis marker on the next save).            [#675]
+ *    `*` `_` `#`  escape non-idempotency: emphasis/heading markers gained or lost a
  *         leading backslash across successive round-trips, e.g.
- *         "- |']#\rb" -> "- |']# b" -> "- |']\\# b".
- *    '`'  code-span fence width erosion: "``x``" -> "`x`" ("# 中``b中 ` `" is
- *         unstable across two round-trips).
+ *         "- |']#\rb" -> "- |']# b" -> "- |']\\# b".                       [#676]
+ *    '`'  code-span fence width erosion: "``x``" -> "`x`" ("# 中``b中 ` `" was
+ *         unstable across two round-trips).                                [#677]
  *
- *  FIXED and now covered by the widened generator below: tag blocks with multi-line
- *  bodies (#674) — a bare "\r" desynchronized Markdoc's location line numbering from
- *  `source.split('\n')`, so passthrough slicing dropped the opening "{% callout %}"
- *  line and duplicated the preceding block, GROWING the document on every save.
+ *  ALSO FIXED, and now covered by the widened generator below: tag blocks with
+ *  multi-line bodies (#674) — a bare "\r" desynchronized Markdoc's location line
+ *  numbering from `source.split('\n')`, so the passthrough slicing in markdocToTiptap
+ *  dropped the opening "{% callout %}" line and duplicated the preceding block,
+ *  GROWING the document on every save (~15% of random tag-bearing documents). That is
+ *  why `taggedDocument` now carries the wide alphabet too, not just `proseDocument`.
+ *
+ *  `*` IS THE ONLY CHARACTER STILL EXCLUDED, and the reason is structural rather than
+ *  escaping: it is the only generatable character that can synthesise EMPHASIS, which
+ *  exposes two defects no escape rule can close.
+ *
+ *    (a) delimiter-run adjacency — two sibling inline runs that both carry `italic`
+ *        serialize as "*a**`b`*", whose "**" re-parses as a literal asterisk pair,
+ *        LOSING the second run's italic mark.                              [#693]
+ *    (b) list looseness — a list containing an empty item is re-emitted by
+ *        Markdoc.format with blank lines between items, which re-reads as a tight
+ *        list, so the document settles one pass late ("- a\r*\n\n# a\n" is the
+ *        minimal counterexample).                                          [#694]
+ *
+ *  Both need a delimiter-selection/normalisation design; do not re-litigate them here.
+ *  `_` (the other emphasis character) IS generated: it never opens emphasis intraword,
+ *  so the generator cannot build a delimiter run out of it.
  */
 const METACHARS = [
   '[',
@@ -43,6 +61,10 @@ const METACHARS = [
   "'",
   '~',
   '|',
+  '\\',
+  '_',
+  '#',
+  '`',
   '\n',
   '\r',
   '\t',
@@ -107,7 +129,7 @@ describe('round-trip idempotency (property-based)', () => {
         const s1 = roundtrip(s0)
         expect(roundtrip(s1)).toBe(s1)
       }),
-      { numRuns: 1000 }
+      { numRuns: 6000 }
     )
   })
 
@@ -209,7 +231,7 @@ describe('round-trip byte-stability (property-based)', () => {
       fc.property(canonicalDocument, (s0) => {
         expect(roundtrip(s0)).toBe(s0)
       }),
-      { numRuns: 1000 }
+      { numRuns: 6000 }
     )
   })
 })

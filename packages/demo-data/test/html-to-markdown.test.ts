@@ -35,6 +35,18 @@ describe('htmlToMarkdown', () => {
     ).toBe('Before.\n\nAfter.')
   })
 
+  it('drops script elements that a single strip pass would reconstitute', () => {
+    // One replace pass removes the inner `<script>x</script>`, which rejoins
+    // `<scr` + `ipt>` into a fresh `<script>` element. Stripping must repeat
+    // until stable or the script text leaks into the body.
+    const out = htmlToMarkdown(
+      '<p>Before.</p><scr<script>x</script>ipt>alert("pwned")</script><p>After.</p>'
+    )
+    expect(out).not.toContain('alert')
+    expect(out).not.toContain('<script')
+    expect(out).toBe('Before.\n\nAfter.')
+  })
+
   it('decodes common entities', () => {
     expect(
       htmlToMarkdown('<p>Arts &amp; Crafts &#8212; d&#xE9;cor&nbsp;!</p>')
@@ -56,5 +68,14 @@ describe('htmlToText', () => {
 
   it('drops script/style element content', () => {
     expect(htmlToText('<p>ok</p><script>alert(1)</script>')).toBe('ok')
+  })
+
+  it('drops script elements that a single strip pass would reconstitute', () => {
+    const out = htmlToText(
+      '<p>ok</p><scr<script>x</script>ipt>alert("pwned")</script>'
+    )
+    expect(out).not.toContain('alert')
+    expect(out).not.toContain('<script')
+    expect(out).toBe('ok')
   })
 })

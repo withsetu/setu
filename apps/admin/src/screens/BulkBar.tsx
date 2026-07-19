@@ -70,9 +70,10 @@ export function BulkBar({
     setBusy(true)
     try {
       const r = await op()
-      for (const ref of r.applied) await index.reindexEntry(ref).catch(() => {})
-      if (r.committedSha)
-        await index.markSyncedAt(r.committedSha).catch(() => {})
+      // One call, so a failed reindex can never leave the commit marked synced
+      // (#655): with a bulk DELETE that stranded the removed rows as permanently
+      // visible, because the stamped sha stopped ensureBuilt ever rescanning them.
+      await index.reindexEntries(r.applied, r.committedSha).catch(() => {})
       const skipped = r.skipped.length ? ` · ${r.skipped.length} skipped` : ''
       notify.success(
         `${label} ${r.applied.length} post${r.applied.length === 1 ? '' : 's'}${skipped}`

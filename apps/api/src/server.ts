@@ -56,7 +56,7 @@ import { createUsersApi } from './users'
 import { createDemoApi } from './demo'
 import { resolveSessionActor } from './auth/resolve-session-actor'
 import type { ResolveActor } from './auth/resolve-actor'
-import { allowedOrigins } from './auth/allowed-origins'
+import { allowedOrigins, resolveAdminOrigin } from './auth/allowed-origins'
 import { originGuard, originMatches } from './auth/origin-guard'
 import { authUnconfiguredGuard } from './auth/auth-unconfigured-guard'
 import {
@@ -76,7 +76,8 @@ import { resumeActiveJob } from './server-resume'
 import {
   resolveSetuMode,
   resolveAuthSecret,
-  resolveRateLimitOverrides
+  resolveRateLimitOverrides,
+  resolvePreviewEnabled
 } from './config'
 import { resolveGitIdentity } from './auth/git-identity'
 import { buildLocalTokenOptions } from './local-token'
@@ -148,10 +149,29 @@ const submissionsDb =
   process.env.SETU_SUBMISSIONS_DB ?? `${dir}/.setu/submissions.db`
 const notifyTo = process.env.SETU_FORMS_NOTIFY_TO
 const notifyFrom = process.env.SETU_FORMS_NOTIFY_FROM
-// Admin SPA origin — same env + default that allowed-origins.ts uses for the CORS/origin
-// allowlist. Read once here and shared by the reset-email default callback (below) and the
-// local-handshake log line (bottom of this file).
-const adminOrigin = process.env.SETU_ADMIN_ORIGIN ?? 'http://localhost:5173'
+// Admin SPA origin, from allowed-origins.ts's mode-aware resolver — the SAME derivation that
+// builds the CORS/origin allowlist, not a second reading of SETU_ADMIN_ORIGIN (#642). It is
+// `undefined` on a self-hosted boot with SETU_ADMIN_ORIGIN unset: outside local mode there is no
+// localhost default, because the allowlist has none either (#628) and a callback built on an
+// origin the allowlist rejects is worse than no callback. Shared by the reset-email default
+// callback (below) and the local-handshake log line (bottom of this file).
+const adminOrigin = resolveAdminOrigin(process.env)
+// The credentialed CORS/origin allowlist, derived ONCE at boot and shared by every consumer below
+// (better-auth's trustedOrigins, the cors() origin callback, originGuard). Deriving it per request
+// meant a misconfigured server re-emitted allowed-origins.ts's fail-loud console.error on every
+// request (#642); allowedOrigins memoises too, but the single boot-time const is what makes the
+// "computed once" property visible at the call sites.
+const originAllowlist = allowedOrigins(process.env)
+// Honest degradation, once at boot (#642): an operator who configured an outbound sender but no
+// admin origin would otherwise see password reset silently answer RESET_PASSWORD_DISABLED with no
+// clue why. allowed-origins.ts already logged that SETU_ADMIN_ORIGIN is missing; this names the
+// specific feature that is off as a result.
+if (notifyFrom && adminOrigin === undefined) {
+  console.error(
+    '[auth] password reset is DISABLED: SETU_ADMIN_ORIGIN is unset outside local mode, so there is ' +
+      'no admin origin to send the reset link to. Set SETU_ADMIN_ORIGIN to the admin SPA origin.'
+  )
+}
 
 // Email transport (#248 forms notifications; #364 password-reset emails share it). Selected by
 // SETU_EMAIL_ADAPTER, defaulting to the zero-config console adapter (dev: logs instead of
@@ -183,8 +203,11 @@ let authRef: ReturnType<typeof createAuth> | undefined
 // getToken-retries-failed-persist) lives on buildLocalTokenOptions in ./local-token. `identity`
 // is resolved once here via `resolveGitIdentity`, matching "read git config once at boot" from
 // the task brief, not on every exchange attempt.
+// `adminOrigin !== undefined` is a type narrowing, not an extra condition: resolveAdminOrigin
+// always returns a string in local mode (that is where its localhost default lives), so this is
+// still exactly "the local topology".
 const localToken =
-  mode === 'local'
+  mode === 'local' && adminOrigin !== undefined
     ? buildLocalTokenOptions({
         dir,
         adminOrigin,
@@ -223,7 +246,7 @@ const auth = authConfigured
       db: authDb,
       secret: authSecret,
       baseURL,
-      trustedOrigins: allowedOrigins(process.env),
+      trustedOrigins: originAllowlist,
       captcha: authCaptchaFromEnv(),
       socialProviders: authSocialProvidersFromEnv(),
       localToken,
@@ -245,16 +268,24 @@ const auth = authConfigured
       // createSubmissionService's `if (email && notifyTo && notifyFrom)` guard below).
       // resetRedirectTo: where the emailed link lands when the /request-password-reset caller
       // omitted redirectTo — without it better-auth's callback route 302s the click to
-      // /error?error=INVALID_TOKEN (see the option's doc). The admin origin is already on the
-      // trustedOrigins allowlist above, so better-auth's originCheck accepts this callback. The
-      // admin SPA's /reset-password screen is the next task on this branch.
-      email: notifyFrom
-        ? {
-            send: (msg) => email.send(msg),
-            from: notifyFrom,
-            resetRedirectTo: `${adminOrigin}/reset-password`
-          }
-        : undefined
+      // /error?error=INVALID_TOKEN (see the option's doc). It is built from `adminOrigin`, which
+      // comes from the same resolver as `trustedOrigins` above, so the callback origin is on that
+      // allowlist BY CONSTRUCTION and better-auth's originCheck accepts it (#642 — previously the
+      // two were derived separately and a self-hosted boot with SETU_ADMIN_ORIGIN unset emailed a
+      // http://localhost:5173 link that the server's own originCheck then rejected).
+      // The whole `email` option is omitted when `adminOrigin` is undefined — i.e. self-hosted
+      // with SETU_ADMIN_ORIGIN unset — for the same reason it is omitted without `notifyFrom`:
+      // there is no honest value for a required field, so reset stays DISABLED (better-auth
+      // answers RESET_PASSWORD_DISABLED) rather than sending a link that cannot work. The boot
+      // log already names the missing variable; see the warning below.
+      email:
+        notifyFrom && adminOrigin
+          ? {
+              send: (msg) => email.send(msg),
+              from: notifyFrom,
+              resetRedirectTo: `${adminOrigin}/reset-password`
+            }
+          : undefined
     })
   : undefined
 authRef = auth
@@ -382,8 +413,7 @@ app.use(
   cors({
     origin: (origin) => {
       if (!origin) return undefined
-      const allowed = allowedOrigins(process.env)
-      return allowed.some((pattern) => originMatches(origin, pattern))
+      return originAllowlist.some((pattern) => originMatches(origin, pattern))
         ? origin
         : undefined
     },
@@ -408,7 +438,7 @@ app.use(
 // behind the origin check.
 app.use(
   '*',
-  originGuard(() => allowedOrigins(process.env), {
+  originGuard(() => originAllowlist, {
     publicPaths: ['/forms/submit']
   })
 )
@@ -460,11 +490,13 @@ app.route(
   })
 )
 // In-editor preview is dev-only (the site route that renders the slot exists only under `astro dev`
-// and its GET carries no session cookie, so the slot can't be auth-gated). Mount it only outside
-// production so it isn't an unauthenticated read/write surface on a real server (#419).
+// and its GET carries no session cookie, so the slot can't be auth-gated). It is an unauthenticated
+// read/write surface, so it is mounted ONLY in the local topology outside production — see
+// resolvePreviewEnabled for why the old NODE_ENV-only gate (#419) left it mounted on a default
+// self-hosted boot (#627). Everywhere else the routes are physically absent and /preview 404s.
 app.route(
   '/',
-  createPreviewApi({ enabled: process.env.NODE_ENV !== 'production' })
+  createPreviewApi({ enabled: resolvePreviewEnabled(process.env) })
 )
 app.route(
   '/',
@@ -622,7 +654,7 @@ console.log(
 console.log(
   `[captcha] provider=${captchaProvider || '(none)'} secretConfigured=${captchaStatus.secretConfigured}`
 )
-if (localToken) {
+if (localToken && adminOrigin !== undefined) {
   // The ONE place the token is ever logged — this is the intended handoff channel to the admin.
   // Never log the token (or this URL) anywhere else. (adminOrigin is the shared const near the
   // top of this file.) `localToken.token` is the boot-initial token; after any exchange the

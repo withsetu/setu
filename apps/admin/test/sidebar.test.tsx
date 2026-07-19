@@ -8,6 +8,11 @@ import { AppSidebar } from '../src/shell/AppSidebar'
 
 vi.mock('../src/deploy/deploy', () => ({
   useDeploy: () => ({
+    running: false,
+    startedAt: null,
+    confirmOpen: false,
+    requestRebuild: () => {},
+    closeConfirm: () => {},
     status: null,
     deployInfo: () => ({ deployedSha: null, changed: [] }),
     refresh: () => Promise.resolve(),

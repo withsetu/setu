@@ -7,6 +7,7 @@ export type {
 } from './markdoc/types'
 export { markdocToTiptap } from './markdoc/to-tiptap'
 export { tiptapToMarkdoc } from './markdoc/to-markdoc'
+export { ATOM_TAG_TO_NODE, ATOM_NODE_TO_TAG } from './markdoc/atom-blocks'
 
 export type {
   SetuConfig,
@@ -40,7 +41,9 @@ export {
 } from './permalinks/resolve'
 export {
   resolvePermalinkMap,
+  incumbentFromUrlMap,
   type PermalinkEntry,
+  type PermalinkMapOptions,
   type PermalinkMapResult
 } from './permalinks/resolve-map'
 export {
@@ -53,7 +56,7 @@ export {
   formatFrontmatterDate
 } from './permalinks/frontmatter-date'
 export { DEFAULT_SETTINGS } from './settings/defaults'
-export { parseSettings } from './settings/schema'
+export { parseSettings, parseSettingsWithWarnings } from './settings/schema'
 
 export type {
   EntryRef,
@@ -166,7 +169,11 @@ export type {
   PublishResult,
   PublishService
 } from './publish/types'
-export { contentPath, parseContentPath } from './publish/content-path'
+export {
+  contentPath,
+  parseContentPath,
+  isCanonicalPathSegment
+} from './publish/content-path'
 export { createPublishService } from './publish/publish-service'
 
 export type { LoadResult, ReadDeps, ReadService } from './read/types'
@@ -183,7 +190,14 @@ export type {
   Authz
 } from './authz/types'
 export { createAuthz, DEFAULT_ROLES } from './authz/authz'
-export { ROLE_RANK, rankOf, outranks } from './authz/rank'
+export {
+  ROLE_RANK,
+  rankOf,
+  outranks,
+  parseRoleSet,
+  canonicalRoleOf,
+  isSingleKnownRole
+} from './authz/rank'
 
 export type {
   LifecycleState,
@@ -214,10 +228,11 @@ export { newCid, isCid } from './content-id/cid'
 export {
   matchProvider,
   oembedEndpoint,
-  OEMBED_PROVIDERS
+  OEMBED_PROVIDERS,
+  OEMBED_ENDPOINT_HOSTS
 } from './oembed/providers'
 export type { OembedProvider, OembedType } from './oembed/providers'
-export { resolveOembed } from './oembed/resolve'
+export { resolveOembed, OEMBED_MAX_BODY_BYTES } from './oembed/resolve'
 export type {
   NormalizedOembed,
   OembedResult,
@@ -228,10 +243,18 @@ export type {
   EntryIndexRow,
   SortKey,
   IndexQuery,
+  IndexStatusFilter,
   IndexMeta,
   IndexPort
 } from './index-port/types'
-export { indexKey, projectRow, rowToContentRow } from './index-port/types'
+export {
+  indexKey,
+  projectRow,
+  rowToContentRow,
+  INDEX_STATUS_FILTERS,
+  isIndexStatusFilter,
+  matchesStatusFilter
+} from './index-port/types'
 export type { AuditSummary } from './index-port/audit-summary'
 export {
   selectAuditSummary,
@@ -314,6 +337,7 @@ export { createRenameService } from './rename/rename-service'
 export {
   entrySlugify,
   isValidEntrySlug,
+  unicodeCaseFold,
   RESERVED_ENTRY_SLUG
 } from './rename/slug'
 
@@ -377,7 +401,7 @@ export {
   scoreAudit
 } from './health/run-audit'
 export { auditScanFromEntries, SCAN_ITEM_IDS } from './health/scan-data'
-export { evaluateProbe, mergeProbe } from './health/probe'
+export { evaluateProbe, mergeProbe, PROBE_ITEM_IDS } from './health/probe'
 export { parseHealthState, setHealthRecord } from './health/health-state'
 
 export type {

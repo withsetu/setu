@@ -82,9 +82,17 @@ export function createSqliteIndexPort(file: string): IndexPort {
         .from(indexMeta)
         .where(eq(indexMeta.scope, META_SCOPE))
         .get()
-      return row
-        ? (JSON.parse(row.meta) as IndexMeta)
-        : { indexedSha: null, version: 0 }
+      if (row === undefined)
+        return { indexedSha: null, deployedSha: null, version: 0 }
+      // Normalize a meta persisted before `deployedSha` existed (#662): the
+      // INDEX_VERSION bump will rebuild and rewrite it, but getMeta must never hand
+      // back `undefined` where the port promises `string | null`.
+      const stored = JSON.parse(row.meta) as Partial<IndexMeta>
+      return {
+        indexedSha: stored.indexedSha ?? null,
+        deployedSha: stored.deployedSha ?? null,
+        version: stored.version ?? 0
+      }
     },
     async setMeta(m) {
       const json = JSON.stringify(m)

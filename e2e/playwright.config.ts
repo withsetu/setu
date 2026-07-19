@@ -146,6 +146,14 @@ export default defineConfig({
       url: apiHealthUrl,
       cwd: repoRoot,
       env: {
+        // Explicit, not inherited (#643). The api's `dev` script happens to set SETU_MODE=local,
+        // and that indirection is what currently makes the in-editor preview slot mount in this
+        // harness — resolvePreviewEnabled requires local mode AND non-production (apps/api's
+        // config.ts, hardened in #627). Nothing in this file said so, so a change to that script
+        // would silently 404 /preview and take the preview specs with it. Declaring it here makes
+        // the harness's topology a property of the harness. Same value the script sets, so this
+        // changes no behavior; it removes a hidden dependency.
+        SETU_MODE: 'local',
         SETU_API_PORT: String(API_PORT),
         SETU_REPO_DIR: path.join(repoRoot, '.content-sandbox', 'e2e'),
         SETU_MEDIA_DIR: path.join(repoRoot, '.setu', 'e2e-uploads'),

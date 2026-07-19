@@ -10,6 +10,25 @@ export function resolveSetuMode(env: { SETU_MODE?: string }): SetuMode {
   return env.SETU_MODE === 'local' ? 'local' : 'self-hosted'
 }
 
+/** Is the in-editor preview slot mountable in this process? (#419 gate, hardened by #627.)
+ *
+ *  The slot is an UNAUTHENTICATED read/write surface: the site route that renders it exists only
+ *  under `astro dev` and its GET carries no session cookie, so it cannot be auth-gated. It must
+ *  therefore be physically absent anywhere that isn't a developer's own machine.
+ *
+ *  It used to be gated on `NODE_ENV !== 'production'` ALONE — but `apps/api`'s `start` script sets
+ *  no NODE_ENV and nothing else in the repo sets it for the API process, so the default self-hosted
+ *  boot mounted the slot (#627). Env-var-absent must mean locked, so the gate now leads with
+ *  `resolveSetuMode`, which already fails closed to 'self-hosted' when SETU_MODE is unset. The
+ *  NODE_ENV clause is kept as a second, independent lock (a local box running a production build
+ *  still gets nothing) — either one closing is enough. Same posture as the demo API's mount. */
+export function resolvePreviewEnabled(env: {
+  SETU_MODE?: string
+  NODE_ENV?: string
+}): boolean {
+  return resolveSetuMode(env) === 'local' && env.NODE_ENV !== 'production'
+}
+
 /** The auth secret. In local topology (SETU_MODE='local', via resolveSetuMode — which itself
  *  fails closed to 'self-hosted' when SETU_MODE is unset), fall back to an ephemeral per-boot
  *  secret when SETU_AUTH_SECRET is unset — sessions reset on restart, which is fine for a single

@@ -17,6 +17,7 @@
     "isomorphic-git": "^1.38.7"
   },
   "devDependencies": {
+    "@setu/db-memory": "workspace:*",
     "@setu/git-testing": "workspace:*",
     "@types/node": "^22.10.2",
     "typescript": "^5.6.3",

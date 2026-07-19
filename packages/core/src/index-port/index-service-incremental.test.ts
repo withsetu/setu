@@ -181,7 +181,11 @@ describe('createIndexService — incremental reindex on out-of-band HEAD change'
     const spy = spyGit([{ path: 'content/post/en/a.mdoc', content: mdoc('A') }])
     const { service, index } = serviceWith(spy.git)
     await service.ensureBuilt()
-    await index.setMeta({ indexedSha: null, version: INDEX_VERSION })
+    await index.setMeta({
+      ...(await index.getMeta()),
+      indexedSha: null,
+      version: INDEX_VERSION
+    })
     const before = spy.listCalls()
     await service.ensureBuilt()
     expect(spy.diffCalls()).toBe(0)
@@ -214,19 +218,49 @@ describe('createIndexService — incremental reindex on out-of-band HEAD change'
   })
 })
 
+/** `reindexAfterDeploy` is only ever called BECAUSE a deploy happened, so these
+ *  fixtures report real deploy truth. Since #662 the absorbed sha comes from
+ *  `deploy().deployedSha` and is persisted in IndexMeta — a null there honestly
+ *  means "nothing is live yet", which is the full-rebuild path, not a diff range. */
 describe('createIndexService — reindexAfterDeploy uses the diff path', () => {
-  it('first deploy rebuilds in full; later deploys reindex only what changed since the previous one', async () => {
+  /** A mutable deploy snapshot: `at(sha)` marks that sha as the live one. */
+  function deployState() {
+    let info: DeployInfo = NEVER_DEPLOYED
+    return {
+      get: () => info,
+      at: (sha: string | null) => {
+        info = { deployedSha: sha, changed: [] }
+      }
+    }
+  }
+
+  it('the first deploy has no absorbed sha to diff from → full rebuild', async () => {
+    const spy = spyGit([{ path: 'content/post/en/a.mdoc', content: mdoc('A') }])
+    const dep = deployState()
+    const { service, index } = serviceWith(spy.git, { deploy: dep.get })
+    await service.ensureBuilt()
+    expect((await index.getMeta()).deployedSha).toBeNull() // nothing live yet
+
+    const head = await spy.git.headSha()
+    dep.at(head)
+    const listsBefore = spy.listCalls()
+    await service.reindexAfterDeploy()
+    expect(spy.listCalls()).toBe(listsBefore + 1)
+    expect((await index.getMeta()).deployedSha).toBe(head)
+  })
+
+  it('later deploys reindex only what changed since the previous one', async () => {
     const spy = spyGit([
       { path: 'content/post/en/a.mdoc', content: mdoc('A') },
       { path: 'content/post/en/b.mdoc', content: mdoc('B') }
     ])
-    const { service } = serviceWith(spy.git)
+    const dep = deployState()
+    const { service } = serviceWith(spy.git, { deploy: dep.get })
     await service.ensureBuilt()
 
-    // Deploy 1: no prior deploy head to diff from → full rebuild.
-    const listsBefore = spy.listCalls()
+    // Deploy 1: nothing absorbed yet → full rebuild.
+    dep.at(await spy.git.headSha())
     await service.reindexAfterDeploy()
-    expect(spy.listCalls()).toBe(listsBefore + 1)
 
     // Edit b, sync the index for that commit (the steady-state single-edit path).
     const { sha } = await spy.git.commitFile({
@@ -235,10 +269,13 @@ describe('createIndexService — reindexAfterDeploy uses the diff path', () => {
       message: 'edit',
       author
     })
-    await service.reindexEntry({ collection: 'post', locale: 'en', slug: 'b' })
-    await service.markSyncedAt(sha)
+    await service.reindexEntries(
+      [{ collection: 'post', locale: 'en', slug: 'b' }],
+      sha
+    )
 
     // Deploy 2: only b changed since deploy 1 → diff path, no rescan, only b re-read.
+    dep.at(sha)
     const listsAfterFirstDeploy = spy.listCalls()
     spy.resetReads()
     await service.reindexAfterDeploy()
@@ -250,8 +287,10 @@ describe('createIndexService — reindexAfterDeploy uses the diff path', () => {
 
   it('a deploy with no git movement since the previous deploy is a no-op', async () => {
     const spy = spyGit([{ path: 'content/post/en/a.mdoc', content: mdoc('A') }])
-    const { service } = serviceWith(spy.git)
+    const dep = deployState()
+    const { service } = serviceWith(spy.git, { deploy: dep.get })
     await service.ensureBuilt()
+    dep.at(await spy.git.headSha())
     await service.reindexAfterDeploy() // first deploy: full rebuild
     const lists = spy.listCalls()
     const diffs = spy.diffCalls()
@@ -272,15 +311,18 @@ describe('createIndexService — reindexAfterDeploy uses the diff path', () => {
         throw new Error('unavailable')
       }
     }
-    const { service } = serviceWith(git)
+    const dep = deployState()
+    const { service } = serviceWith(git, { deploy: dep.get })
     await service.ensureBuilt()
+    dep.at(await git.headSha())
     await service.reindexAfterDeploy() // first deploy: rebuild
-    await git.commitFile({
+    const { sha } = await git.commitFile({
       path: 'content/post/en/b.mdoc',
       content: mdoc('B'),
       message: 'x',
       author
     })
+    dep.at(sha)
     const before = base.listCalls()
     await service.reindexAfterDeploy()
     expect(base.listCalls()).toBe(before + 1)

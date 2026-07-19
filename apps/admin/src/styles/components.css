@@ -284,3 +284,26 @@
   padding: 0 9px;
   font-size: 12px;
 }
+
+/* ---- DEPLOY PROGRESS (#571) ----
+   The publish control doubles as its own progress bar while a build runs. The sweep is
+   INDETERMINATE on purpose: the deploy job reports running/done/failed and nothing finer,
+   so a percentage would be invented. Honours prefers-reduced-motion (steady tint instead). */
+@keyframes setu-deploy-sweep {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(210%);
+  }
+}
+.deploy-progress-sweep {
+  animation: setu-deploy-sweep 1.5s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .deploy-progress-sweep {
+    animation: none;
+    width: 100%;
+    transform: none;
+  }
+}

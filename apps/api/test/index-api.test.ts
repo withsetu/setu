@@ -193,9 +193,11 @@ describe('GET /api/index/query', () => {
     ).toBe(400)
   })
 
-  it('400 on invalid input: missing collection, out-of-range limit, bad sort key', async () => {
+  it('400 on invalid input: out-of-range limit, bad sort key, empty collection', async () => {
     const { get } = makeHarness()
-    expect((await get('/api/index/query')).status).toBe(400)
+    // An EMPTY collection is still junk — min(1) rejects it. Omitting the param
+    // entirely is the deliberate cross-collection scope (#604), covered below.
+    expect((await get('/api/index/query?collection=')).status).toBe(400)
     expect(
       (await get('/api/index/query?collection=post&limit=1000')).status
     ).toBe(400)
@@ -208,6 +210,22 @@ describe('GET /api/index/query', () => {
     expect(
       (await get('/api/index/query?collection=post&offset=-1')).status
     ).toBe(400)
+  })
+
+  // #604: the dashboard's status tiles count post + page together, so their
+  // destination list has to be able to ask for both at once. No `collection` =
+  // every collection. Same content.view gate, same rows — no new read surface,
+  // just one request instead of two.
+  it('omitting collection queries across collections (#604)', async () => {
+    const { get } = makeHarness()
+    const res = await get('/api/index/query?limit=100')
+    expect(res.status).toBe(200)
+    const all = (await res.json()) as { rows: { collection: string }[] }
+    const scoped = (await (
+      await get('/api/index/query?collection=post&limit=100')
+    ).json()) as { rows: unknown[] }
+    expect(all.rows.length).toBeGreaterThanOrEqual(scoped.rows.length)
+    expect(new Set(all.rows.map((r) => r.collection)).size).toBeGreaterThan(0)
   })
 
   it('reflects an entry committed after the first build (refresh path)', async () => {
@@ -462,11 +480,14 @@ describe('POST /api/index/refresh', () => {
     }
     // Never deployed → both committed posts are staged.
     expect(await statuses()).toEqual(['staged', 'staged'])
-    // A deploy lands at HEAD (no new commit). ensureBuilt alone cannot see it:
-    // its sha-compare finds indexedSha === HEAD and skips the rebuild.
+    // A deploy lands at HEAD (no new commit). Git does not move, so the sha-compare
+    // cannot see it — but since #662 the index also records WHICH deploy its rows
+    // reflect, so ensureBuilt notices the deploy sha changed and re-derives on the
+    // next read. This is the out-of-band case: CI or a Pages hook deployed, and
+    // nobody called the refresh endpoint.
     deploy.info = { deployedSha: await git.headSha(), changed: [] }
-    expect(await statuses()).toEqual(['staged', 'staged'])
-    // The refresh endpoint forces the re-derivation → rows flip to live.
+    expect(await statuses()).toEqual(['live', 'live'])
+    // The refresh endpoint remains the explicit path and is idempotent.
     const res = await post('/api/index/refresh')
     expect(res.status).toBe(200)
     expect((await res.json()) as { ok: boolean }).toEqual({ ok: true })

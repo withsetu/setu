@@ -112,7 +112,13 @@ export function createHttpIndexService(
       const meta = await index.getMeta()
       if (meta.version !== INDEX_CACHE_VERSION) {
         await index.clear()
-        await index.setMeta({ indexedSha: null, version: INDEX_CACHE_VERSION })
+        // The offline cache tracks neither sha: the SERVER owns indexedSha, and
+        // the cache is re-derived from live deploy truth on every reindexEntry.
+        await index.setMeta({
+          indexedSha: null,
+          deployedSha: null,
+          version: INDEX_CACHE_VERSION
+        })
       }
     })().catch((err: unknown) => {
       cacheReady = null // retry on the next touch
@@ -128,10 +134,12 @@ export function createHttpIndexService(
 
   function queryParams(q: IndexQuery): URLSearchParams {
     const params = new URLSearchParams({
-      collection: q.collection,
       offset: String(q.offset),
       limit: String(q.limit)
     })
+    // Absent `collection` = the cross-collection scope (#604); the param is
+    // omitted rather than sent empty, which the server would reject as junk.
+    if (q.collection !== undefined) params.set('collection', q.collection)
     if (q.q !== undefined && q.q !== '') params.set('q', q.q)
     if (q.status !== undefined) params.set('status', q.status)
     if (q.locale !== undefined && q.locale !== '')
@@ -223,7 +231,10 @@ export function createHttpIndexService(
     q: IndexQuery,
     base: { rows: ContentRow[]; total: number }
   ): Promise<{ rows: ContentRow[]; total: number }> {
-    const drafts = await data.listDrafts({ collection: q.collection })
+    // No collection → every collection's drafts overlay (#604).
+    const drafts = await data.listDrafts(
+      q.collection !== undefined ? { collection: q.collection } : undefined
+    )
     if (drafts.length === 0) return base
     const rows = [...base.rows]
     let total = base.total
@@ -275,7 +286,7 @@ export function createHttpIndexService(
       // Order the injected drafts among themselves with the query's own
       // comparator (runQuery is the single sort impl shared by adapters).
       const sortedExtras = runQuery(extras.map(projectRow), {
-        collection: q.collection,
+        ...(q.collection !== undefined ? { collection: q.collection } : {}),
         offset: 0,
         limit: extras.length,
         ...(q.sort !== undefined ? { sort: q.sort } : {})
@@ -515,6 +526,14 @@ export function createHttpIndexService(
     else await index.upsert(projectRow(rows[0]!))
   }
 
+  /** Same contract as core's: reindex every ref, then stamp — and reject on the
+   *  first failure without stamping (#655). `markSyncedAt` is a no-op here (the
+   *  server owns indexedSha), so the stamp is implicit; what still matters is that
+   *  a failing entry surfaces instead of being swallowed per-ref. */
+  async function reindexEntries(refs: EntryRef[]): Promise<void> {
+    for (const ref of refs) await reindexEntry(ref)
+  }
+
   async function refreshServer(): Promise<void> {
     const res = await fetchImpl(`${apiBase}/api/index/refresh`, {
       method: 'POST'
@@ -530,6 +549,7 @@ export function createHttpIndexService(
     // rebuild == "force a re-derivation" — the server-side one.
     rebuild: refreshServer,
     reindexEntry,
+    reindexEntries,
     // Deploy-derived lifecycle (staged→live) changes without a HEAD move; the
     // server can't see that from sha-compares, so ask it to re-derive.
     reindexAfterDeploy: refreshServer,

@@ -95,7 +95,8 @@ export function ContentTable({
   onToggleAll,
   sort,
   onSort,
-  selectable = true
+  selectable = true,
+  showCollection = false
 }: {
   rows: ContentRow[]
   gen: number
@@ -113,6 +114,11 @@ export function ContentTable({
   // audience/read-only roles land in #379). Defaults true; ContentList passes the actor's
   // content.edit capability.
   selectable?: boolean
+  /** Show which collection each row belongs to. On in the cross-collection view
+   *  (/content) only — on /posts or /pages every row has the same answer, so the
+   *  column would be pure noise. Not in the columns menu for that reason: where
+   *  it appears it is required context, not a preference (#604). */
+  showCollection?: boolean
 }) {
   const reduce = useReducedMotion()
   const localeCol = visible.locale && showLocale
@@ -137,6 +143,7 @@ export function ContentTable({
           <TableHead className="w-full min-w-48">
             <SortHead label="Title" k="title" sort={sort} onSort={onSort} />
           </TableHead>
+          {showCollection && <TableHead className="w-24">Type</TableHead>}
           {visible.status && (
             <TableHead className="w-32">
               <SortHead label="Status" k="status" sort={sort} onSort={onSort} />
@@ -233,7 +240,8 @@ export function ContentTable({
                           r.ref.collection,
                           undefined,
                           settings
-                        )
+                        ),
+                        settings.reading.homepage || undefined
                       )}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -251,6 +259,11 @@ export function ContentTable({
                   /{r.ref.slug}
                 </div>
               </TableCell>
+              {showCollection && (
+                <TableCell className="capitalize text-muted-foreground">
+                  {r.ref.collection}
+                </TableCell>
+              )}
               {visible.status && (
                 <TableCell>
                   <span className="inline-flex items-center gap-1.5">

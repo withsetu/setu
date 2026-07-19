@@ -36,15 +36,16 @@ describe('diffRedirects', () => {
     expect(out).not.toContainEqual({ from: '/ancient', to: '/old' })
   })
 
-  it('collapses a chain formed within a single diff batch (/1→/2→/3 ⇒ /1→/3)', () => {
+  it('stops a batch chain at the first live path (a: /1→/2, b: /2→/3 ⇒ only /1→/2)', () => {
+    // #657: `a` now LIVES at /2, so /2 must not be redirected away, and /1 (a's old
+    // URL) must land on a's new home /2 — not on b's page at /3. The old behaviour
+    // collapsed straight through to /3 and also emitted /2→/3, burying a's page.
     const out = diffRedirects(
       m({ 'post/en/a': '/1', 'post/en/b': '/2' }),
       m({ 'post/en/a': '/2', 'post/en/b': '/3' }),
       []
     )
-    expect(out).toContainEqual({ from: '/1', to: '/3' })
-    expect(out).toContainEqual({ from: '/2', to: '/3' })
-    expect(out.find((r) => r.from === '/1')?.to).toBe('/3')
+    expect(out).toEqual([{ from: '/1', to: '/2' }])
   })
 
   it('drops a self-redirect (from === to after collapse)', () => {
@@ -75,5 +76,31 @@ describe('diffRedirects', () => {
       []
     )
     expect(out.map((r) => r.from)).toEqual([...out.map((r) => r.from)].sort())
+  })
+})
+
+/** #657 — a redirect whose `from` is a path something currently LIVES at makes that
+ *  page unreachable on Cloudflare Pages, where `_redirects` is evaluated ahead of
+ *  static assets. Never emit one, whatever the snapshot claims. */
+describe('diffRedirects never 301s away from a live path (#657)', () => {
+  it('drops a fresh redirect whose from is now occupied by another id', () => {
+    const prev = { a: '/blog/hello' }
+    const next = { a: '/blog/hello-2', b: '/blog/hello' }
+    expect(diffRedirects(prev, next, [])).toEqual([])
+  })
+
+  it('drops a pre-existing redirect that a new page has since reclaimed', () => {
+    const prev = { a: '/blog/hello-2' }
+    const next = { a: '/blog/hello-2', b: '/blog/old' }
+    const existing = [{ from: '/blog/old', to: '/blog/hello-2' }]
+    expect(diffRedirects(prev, next, existing)).toEqual([])
+  })
+
+  it('still emits redirects whose from is genuinely vacant', () => {
+    const prev = { a: '/blog/old' }
+    const next = { a: '/blog/new' }
+    expect(diffRedirects(prev, next, [])).toEqual([
+      { from: '/blog/old', to: '/blog/new' }
+    ])
   })
 })

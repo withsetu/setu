@@ -20,6 +20,19 @@ const authz = createAuthz(DEFAULT_ROLES)
  *  unauthenticated, any-origin submit route (also bounds the ReDoS-prone email input, #340). */
 const FORM_SUBMIT_MAX_BYTES = 1 * 1024 * 1024
 
+/** Max bytes for an authenticated admin CRUD body (#629). These routes were the last unbounded
+ *  `c.req.json()` calls in this factory: authentication narrows who can abuse them, it does not
+ *  bound what they can send, so one session could still buffer an arbitrary body into memory.
+ *  A submission write and an id-list mutation are both small; 1 MiB matches the public cap. */
+const FORM_ADMIN_MAX_BYTES = 1 * 1024 * 1024
+
+/** Cap an admin JSON body before `c.req.json()` parses it. */
+const adminBodyLimit = () =>
+  bodyLimit({
+    maxSize: FORM_ADMIN_MAX_BYTES,
+    onError: (c) => c.json({ error: 'too_large' }, 413)
+  })
+
 // c.req.json() returns `any` — untrusted HTTP input flowed straight into typed service
 // calls with only truthiness checks (caught by @typescript-eslint/no-unsafe-* when
 // type-aware linting came online, #267). These narrow to `unknown`-based shapes and
@@ -135,34 +148,40 @@ export function createFormsApi(opts: {
   const canView = requireCan('forms.view')
   const canManage = requireCan('forms.manage')
 
-  app.post('/forms/submissions', auth, canManage, async (c) => {
-    const body = asRecord(await c.req.json())
-    const fields = asRecord(body?.['fields'])
-    if (
-      !body ||
-      typeof body['formId'] !== 'string' ||
-      body['formId'] === '' ||
-      !fields
-    ) {
-      return c.json({ error: 'invalid' }, 400)
+  app.post(
+    '/forms/submissions',
+    adminBodyLimit(),
+    auth,
+    canManage,
+    async (c) => {
+      const body = asRecord(await c.req.json())
+      const fields = asRecord(body?.['fields'])
+      if (
+        !body ||
+        typeof body['formId'] !== 'string' ||
+        body['formId'] === '' ||
+        !fields
+      ) {
+        return c.json({ error: 'invalid' }, 400)
+      }
+      const input: SubmissionInput = {
+        formId: body['formId'],
+        ...(typeof body['formLabel'] === 'string'
+          ? { formLabel: body['formLabel'] }
+          : {}),
+        fields: Object.fromEntries(
+          Object.entries(fields).map(([k, v]) => [
+            k,
+            typeof v === 'string' ? v : ''
+          ])
+        ),
+        ...(asRecord(body['source'])
+          ? { source: body['source'] as SubmissionInput['source'] }
+          : {})
+      }
+      return c.json(await submissions.saveSubmission(input), 201)
     }
-    const input: SubmissionInput = {
-      formId: body['formId'],
-      ...(typeof body['formLabel'] === 'string'
-        ? { formLabel: body['formLabel'] }
-        : {}),
-      fields: Object.fromEntries(
-        Object.entries(fields).map(([k, v]) => [
-          k,
-          typeof v === 'string' ? v : ''
-        ])
-      ),
-      ...(asRecord(body['source'])
-        ? { source: body['source'] as SubmissionInput['source'] }
-        : {})
-    }
-    return c.json(await submissions.saveSubmission(input), 201)
-  })
+  )
 
   app.get('/forms/submissions', auth, canView, async (c) => {
     const q = c.req.query()
@@ -185,26 +204,38 @@ export function createFormsApi(opts: {
     return row ? c.json(row) : c.json({ error: 'not found' }, 404)
   })
 
-  app.patch('/forms/submissions/read', auth, canManage, async (c) => {
-    const body = asRecord(await c.req.json())
-    const ids = body?.['ids']
-    const read = body?.['read']
-    if (!isStringArray(ids) || typeof read !== 'boolean') {
-      return c.json({ error: 'invalid' }, 400)
+  app.patch(
+    '/forms/submissions/read',
+    adminBodyLimit(),
+    auth,
+    canManage,
+    async (c) => {
+      const body = asRecord(await c.req.json())
+      const ids = body?.['ids']
+      const read = body?.['read']
+      if (!isStringArray(ids) || typeof read !== 'boolean') {
+        return c.json({ error: 'invalid' }, 400)
+      }
+      await submissions.setRead(ids, read)
+      return c.json({ ok: true })
     }
-    await submissions.setRead(ids, read)
-    return c.json({ ok: true })
-  })
+  )
 
-  app.delete('/forms/submissions', auth, canManage, async (c) => {
-    const body = asRecord(await c.req.json())
-    const ids = body?.['ids']
-    if (!isStringArray(ids)) {
-      return c.json({ error: 'invalid' }, 400)
+  app.delete(
+    '/forms/submissions',
+    adminBodyLimit(),
+    auth,
+    canManage,
+    async (c) => {
+      const body = asRecord(await c.req.json())
+      const ids = body?.['ids']
+      if (!isStringArray(ids)) {
+        return c.json({ error: 'invalid' }, 400)
+      }
+      await submissions.deleteSubmissions(ids)
+      return c.json({ ok: true })
     }
-    await submissions.deleteSubmissions(ids)
-    return c.json({ ok: true })
-  })
+  )
 
   app.onError(apiOnError({ scope: 'forms' })) // #291: prod-generic, never err.message
   return app

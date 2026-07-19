@@ -19,10 +19,12 @@ import { strArr } from '../lib/post-row'
 
 export async function getStaticPaths() {
   const all = await getCollection('entries')
-  const homepage = loadSiteSettings().reading.homepage
   const map = await permalinkMap()
   return all
-    .filter((entry) => entry.id !== homepage && entry.id !== 'page/en/home')
+    // Whatever resolves to '' is the site root and is served by index.astro (#660). Deriving
+    // this from the map instead of hardcoding `page/en/home` + the homepage setting keeps the
+    // two in step, and lets `page/fr/home` (mapped to 'fr') be built HERE as /fr/.
+    .filter((entry) => map.get(entry.id) !== '')
     // #165: committed-but-unpublished entries get NO route at all. `published !== false`
     // is the only published-ness signal — same predicate as selectPosts/sitemap/feed.
     .filter(

@@ -46,6 +46,54 @@ async function makeOwner(
   return user
 }
 
+/** A user row with NO credential account — the shape of an invited/impersonation-target user. */
+async function makeUser(
+  auth: ReturnType<typeof createAuth>,
+  email: string,
+  role: string
+) {
+  const ctx = await auth.$context
+  return await ctx.internalAdapter.createUser({
+    email,
+    name: email,
+    role,
+    emailVerified: true
+  })
+}
+
+async function signInCookie(
+  auth: ReturnType<typeof createAuth>,
+  email: string,
+  password = 'a-strong-password-12'
+) {
+  const signin = await auth.api.signInEmail({
+    body: { email, password },
+    asResponse: true
+  })
+  return (signin.headers.get('set-cookie') ?? '').split(';')[0] ?? ''
+}
+
+/** Fold every `Set-Cookie` on a response into one `Cookie` request header. Impersonation sets
+ *  several cookies (the impersonated session token AND the stashed `admin_session`), and
+ *  `/admin/stop-impersonating` needs both — the single-header `.split(';')[0]` shortcut the
+ *  older tests use would drop one of them. `/admin/impersonate-user` also calls
+ *  `deleteSessionCookie(ctx)` BEFORE `setSessionCookie(ctx, …)`, so the session-token cookie is
+ *  emitted twice (first blank/expired, then real): last-writer-wins per name, blanks dropped —
+ *  which is exactly what a browser's cookie jar would end up holding. */
+function cookieHeaderFrom(res: Response) {
+  const jar = new Map<string, string>()
+  for (const raw of res.headers.getSetCookie()) {
+    const pair = raw.split(';')[0] ?? ''
+    const eq = pair.indexOf('=')
+    if (eq <= 0) continue
+    const name = pair.slice(0, eq)
+    const value = pair.slice(eq + 1)
+    if (value === '') jar.delete(name)
+    else jar.set(name, value)
+  }
+  return [...jar].map(([k, v]) => `${k}=${v}`).join('; ')
+}
+
 function adminRequest(
   path: string,
   cookie: string,
@@ -348,6 +396,164 @@ describe('auth event emission — onAuthEvent', () => {
     expect(deleted).toHaveLength(1)
     expect(deleted[0]?.targetId).toBe(target.id)
     expect(deleted[0]?.actorId).toBe(owner.id)
+  })
+
+  it('fires impersonation.started on admin impersonate-user, attributed to the impersonating admin (#632)', async () => {
+    const { events, auth } = makeAuth()
+    const owner = await makeOwner(
+      auth,
+      'owner@test.com',
+      'a-strong-password-12'
+    )
+    const victim = await makeUser(auth, 'victim@test.com', 'editor')
+    const cookie = await signInCookie(auth, 'owner@test.com')
+    events.length = 0
+
+    const res = await auth.handler(
+      adminRequest('/admin/impersonate-user', cookie, { userId: victim.id })
+    )
+    expect(res.status).toBe(200)
+
+    const started = events.filter((e) => e.type === 'impersonation.started')
+    expect(started).toHaveLength(1)
+    expect(started[0]?.actorId).toBe(owner.id)
+    expect(started[0]?.targetId).toBe(victim.id)
+    // Creating an impersonation session must NOT masquerade as a login.
+    expect(events.filter((e) => e.type === 'login.success')).toHaveLength(0)
+  })
+
+  it('fires impersonation.stopped on admin stop-impersonating, attributed to the impersonating admin (#632)', async () => {
+    const { events, auth } = makeAuth()
+    const owner = await makeOwner(
+      auth,
+      'owner@test.com',
+      'a-strong-password-12'
+    )
+    const victim = await makeUser(auth, 'victim@test.com', 'editor')
+    const adminCookie = await signInCookie(auth, 'owner@test.com')
+
+    const impersonate = await auth.handler(
+      adminRequest('/admin/impersonate-user', adminCookie, {
+        userId: victim.id
+      })
+    )
+    expect(impersonate.status).toBe(200)
+    const impersonatedCookie = cookieHeaderFrom(impersonate)
+    events.length = 0
+
+    const res = await auth.handler(
+      new Request('http://localhost:4444/api/auth/admin/stop-impersonating', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: impersonatedCookie,
+          origin: 'http://localhost:5173'
+        }
+      })
+    )
+    expect(res.status).toBe(200)
+
+    const stopped = events.filter((e) => e.type === 'impersonation.stopped')
+    expect(stopped).toHaveLength(1)
+    expect(stopped[0]?.actorId).toBe(owner.id)
+    expect(stopped[0]?.targetId).toBe(victim.id)
+    // Ending an impersonation must NOT masquerade as the victim logging out.
+    expect(events.filter((e) => e.type === 'logout')).toHaveLength(0)
+  })
+
+  it('fires admin.password-set on admin set-user-password, without leaking the new password (#632)', async () => {
+    const { events, auth } = makeAuth()
+    const owner = await makeOwner(
+      auth,
+      'owner@test.com',
+      'a-strong-password-12'
+    )
+    const target = await makeOwner(
+      auth,
+      'target@test.com',
+      'a-strong-password-12'
+    )
+    const cookie = await signInCookie(auth, 'owner@test.com')
+    events.length = 0
+
+    const res = await auth.handler(
+      adminRequest('/admin/set-user-password', cookie, {
+        userId: target.id,
+        newPassword: 'takeover-password-777'
+      })
+    )
+    expect(res.status).toBe(200)
+
+    const set = events.filter((e) => e.type === 'admin.password-set')
+    expect(set).toHaveLength(1)
+    expect(set[0]?.actorId).toBe(owner.id)
+    expect(set[0]?.targetId).toBe(target.id)
+    expect(JSON.stringify(events)).not.toContain('takeover-password-777')
+  })
+
+  it('fires admin.password-set when the target had no credential account yet (#632)', async () => {
+    const { events, auth } = makeAuth()
+    const owner = await makeOwner(
+      auth,
+      'owner@test.com',
+      'a-strong-password-12'
+    )
+    // No linkAccount — this user's `account` row is CREATED by set-user-password, not updated.
+    const target = await makeUser(auth, 'passwordless@test.com', 'editor')
+    const cookie = await signInCookie(auth, 'owner@test.com')
+    events.length = 0
+
+    const res = await auth.handler(
+      adminRequest('/admin/set-user-password', cookie, {
+        userId: target.id,
+        newPassword: 'takeover-password-777'
+      })
+    )
+    expect(res.status).toBe(200)
+
+    const set = events.filter((e) => e.type === 'admin.password-set')
+    expect(set).toHaveLength(1)
+    expect(set[0]?.actorId).toBe(owner.id)
+    expect(set[0]?.targetId).toBe(target.id)
+    expect(JSON.stringify(events)).not.toContain('takeover-password-777')
+  })
+
+  it('attributes an action taken WHILE impersonating to the real admin, recording the impersonated identity too (#632)', async () => {
+    const { events, auth } = makeAuth()
+    const owner = await makeOwner(
+      auth,
+      'owner@test.com',
+      'a-strong-password-12'
+    )
+    const puppet = await makeUser(auth, 'maintainer@test.com', 'maintainer')
+    const target = await makeUser(auth, 'target@test.com', 'author')
+    const adminCookie = await signInCookie(auth, 'owner@test.com')
+
+    const impersonate = await auth.handler(
+      adminRequest('/admin/impersonate-user', adminCookie, {
+        userId: puppet.id
+      })
+    )
+    expect(impersonate.status).toBe(200)
+    const impersonatedCookie = cookieHeaderFrom(impersonate)
+    events.length = 0
+
+    const res = await auth.handler(
+      adminRequest('/admin/set-role', impersonatedCookie, {
+        userId: target.id,
+        role: 'editor'
+      })
+    )
+    expect(res.status).toBe(200)
+
+    const changes = events.filter((e) => e.type === 'role.changed')
+    expect(changes).toHaveLength(1)
+    expect(changes[0]?.targetId).toBe(target.id)
+    // The audit trail must name the human who really acted…
+    expect(changes[0]?.actorId).toBe(owner.id)
+    // …AND whose identity they were wearing at the time.
+    expect(changes[0]?.meta?.impersonating).toBe(puppet.id)
+    expect(changes[0]?.meta?.role).toBe('editor')
   })
 
   it('no emitted event ever carries a password or token substring', async () => {

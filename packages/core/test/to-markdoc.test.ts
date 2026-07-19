@@ -34,6 +34,170 @@ describe('tiptapToMarkdoc', () => {
     expect(tiptapToMarkdoc(doc)).toBe('**b** *i*\n')
   })
 
+  // #653: the `code` arm ASSIGNED `n` instead of wrapping `[n]`, so it discarded every
+  // mark applied before it. to-tiptap emits `code` last in the mark list, so the link
+  // (or bold/italic/strike) was built first and then thrown away — silent data loss.
+  describe('a code mark keeps its sibling marks (#653)', () => {
+    const para = (marks: { type: string; attrs?: Record<string, unknown> }[]) =>
+      ({
+        type: 'doc',
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: 'api', marks }] }
+        ]
+      }) satisfies TiptapDoc
+
+    it('keeps the href of a linked code span', () => {
+      expect(
+        tiptapToMarkdoc(
+          para([
+            { type: 'link', attrs: { href: 'https://example.com' } },
+            { type: 'code' }
+          ])
+        )
+      ).toBe('[`api`](https://example.com)\n')
+    })
+
+    it('keeps bold around a code span', () => {
+      expect(tiptapToMarkdoc(para([{ type: 'bold' }, { type: 'code' }]))).toBe(
+        '**`api`**\n'
+      )
+    })
+
+    it('keeps italic and strike around a code span', () => {
+      expect(
+        tiptapToMarkdoc(para([{ type: 'italic' }, { type: 'code' }]))
+      ).toBe('*`api`*\n')
+      expect(
+        tiptapToMarkdoc(para([{ type: 'strike' }, { type: 'code' }]))
+      ).toBe('~~`api`~~\n')
+    })
+
+    it('round-trips the mark set in both directions', () => {
+      const src = '[`api`](https://example.com)\n'
+      const doc = markdocToTiptap(src)
+      const text = doc.content[0]!.content![0]!
+      expect(text.marks).toEqual([
+        { type: 'link', attrs: { href: 'https://example.com' } },
+        { type: 'code' }
+      ])
+      expect(tiptapToMarkdoc(doc)).toBe(src)
+
+      const bold = '**`api`**\n'
+      const boldDoc = markdocToTiptap(bold)
+      expect(boldDoc.content[0]!.content![0]!.marks).toEqual([
+        { type: 'bold' },
+        { type: 'code' }
+      ])
+      expect(tiptapToMarkdoc(boldDoc)).toBe(bold)
+    })
+  })
+
+  // #665: unrecognized nodes serialized to an empty paragraph and unrecognized marks
+  // were silently ignored, so a schema/serializer drift lost content with no signal.
+  // The module already takes the right posture for setuBlock (throws on a missing tag).
+  describe('unknown nodes and marks fail loudly (#665)', () => {
+    it('throws on an unrecognized block node type', () => {
+      expect(() =>
+        tiptapToMarkdoc({
+          type: 'doc',
+          content: [{ type: 'unknownNodeType' }]
+        })
+      ).toThrow(/unknownNodeType/)
+    })
+
+    it('throws on an unrecognized mark type', () => {
+      expect(() =>
+        tiptapToMarkdoc({
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                { type: 'text', text: 'x', marks: [{ type: 'underline' }] }
+              ]
+            }
+          ]
+        })
+      ).toThrow(/underline/)
+    })
+
+    it('still serializes every mark the editor can actually produce', () => {
+      const marks = [
+        'bold',
+        'italic',
+        'strike',
+        'code',
+        'subscript',
+        'superscript'
+      ]
+      for (const type of marks) {
+        expect(() =>
+          tiptapToMarkdoc({
+            type: 'doc',
+            content: [
+              {
+                type: 'paragraph',
+                content: [{ type: 'text', text: 'x', marks: [{ type }] }]
+              }
+            ]
+          })
+        ).not.toThrow()
+      }
+    })
+  })
+
+  // Prerequisite for the #665 throw: these three block types are `group: 'block'` and
+  // so are schema-valid inside a blockquote, but buildBlock had no case for them —
+  // they hit the default arm and were destroyed ("> > \n> > \n"). Routing blockquote
+  // bodies through the string-level serializer preserves them AND keeps the default
+  // arm reachable only by genuinely unknown types.
+  describe('blockquote preserves string-serialized children (#665)', () => {
+    it('keeps a table, an imageBlock and a passthrough nested in a blockquote', () => {
+      const out = tiptapToMarkdoc({
+        type: 'doc',
+        content: [
+          {
+            type: 'blockquote',
+            content: [
+              { type: 'paragraph', content: [{ type: 'text', text: 'note' }] },
+              {
+                type: 'imageBlock',
+                attrs: { mdAttrs: { src: '/a.png', alt: 'a' } }
+              },
+              { type: 'passthrough', attrs: { raw: '{% weird %}' } }
+            ]
+          }
+        ]
+      })
+      expect(out).toBe(
+        '> note\n> \n> {% image src="/a.png" alt="a" /%}\n> \n> {% weird %}\n'
+      )
+    })
+
+    it('leaves a plain blockquote byte-identical', () => {
+      expect(
+        tiptapToMarkdoc({
+          type: 'doc',
+          content: [
+            {
+              type: 'blockquote',
+              content: [
+                {
+                  type: 'paragraph',
+                  content: [{ type: 'text', text: 'line one' }]
+                },
+                {
+                  type: 'paragraph',
+                  content: [{ type: 'text', text: 'line two' }]
+                }
+              ]
+            }
+          ]
+        })
+      ).toBe('> line one\n> \n> line two\n')
+    })
+  })
+
   it('emits passthrough raw verbatim', () => {
     const doc: TiptapDoc = {
       type: 'doc',
@@ -47,8 +211,8 @@ describe('tiptapToMarkdoc', () => {
     expect(tiptapToMarkdoc(doc)).toBe('{% if $x %}\nHi\n{% /if %}\n')
   })
 
-  it('serializes an imageBlock non-primitive mdAttr via JSON.stringify, never "[object Object]"', () => {
-    const md = tiptapToMarkdoc({
+  it('serializes an imageBlock non-primitive mdAttr as a native Markdoc object, never "[object Object]"', () => {
+    const doc: TiptapDoc = {
       type: 'doc',
       content: [
         {
@@ -62,11 +226,23 @@ describe('tiptapToMarkdoc', () => {
           }
         }
       ]
-    })
+    }
+    const md = tiptapToMarkdoc(doc)
     expect(md).not.toContain('[object Object]')
+    // #668: routing through Markdoc's own formatter emits native object syntax.
+    // The previous hand-rolled escaper JSON.stringify'd the object into a STRING
+    // attribute, which re-read as the string '{"x":0.5,"y":0.25}' — a type change on
+    // every save. The native form re-reads as the object it started as.
     expect(md).toBe(
-      '{% image src="/media/2026/07/photo.jpg" alt="A photo" focalPoint="{\\"x\\":0.5,\\"y\\":0.25}" /%}\n'
+      '{% image src="/media/2026/07/photo.jpg" alt="A photo" focalPoint={x: 0.5, y: 0.25} /%}\n'
     )
+    const reread = markdocToTiptap(md, { knownBlockTags: new Set(['image']) })
+    expect(reread.content[0]?.attrs?.mdAttrs).toEqual({
+      src: '/media/2026/07/photo.jpg',
+      alt: 'A photo',
+      focalPoint: { x: 0.5, y: 0.25 }
+    })
+    expect(tiptapToMarkdoc(reread)).toBe(md)
   })
 
   it('serializes a contactBlock back to a {% contact %} tag and round-trips its attrs', () => {

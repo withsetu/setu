@@ -37,10 +37,35 @@ function decodeEntities(s: string): string {
     )
 }
 
+/** Apply a deleting `replace` repeatedly until the string stops changing.
+ *
+ *  A single pass is an incomplete sanitizer: removing a match rejoins the text
+ *  either side of it, which can spell out a fresh match
+ *  (`<scr<script>x</script>ipt>` → `<script>`), so one pass can leave behind
+ *  exactly what it was asked to remove.
+ *
+ *  Terminates because every pattern here has a non-empty minimum match and is
+ *  replaced by a strictly shorter string, so each iteration that changes
+ *  anything strictly shrinks `s`; string length is a non-negative integer, so
+ *  the loop can only run at most `s.length` times before no match remains.
+ */
+function stripUntilStable(
+  s: string,
+  pattern: RegExp,
+  replacement = ''
+): string {
+  let previous: string
+  do {
+    previous = s
+    s = s.replace(pattern, replacement)
+  } while (s !== previous)
+  return s
+}
+
 /** Drop script/style ELEMENTS including their text content — stripping only the
  *  tags would leak code text into bodies if a dump record were hostile. */
 const dropScriptStyle = (s: string): string =>
-  s.replace(/<(script|style)\b[\s\S]*?<\/\1\s*>/gi, '')
+  stripUntilStable(s, /<(script|style)\b[\s\S]*?<\/\1\s*>/gi)
 
 /** Convert AIC-vocabulary HTML into markdown. Unknown tags are stripped, never
  *  passed through — the output must be honest markdown. */
@@ -58,7 +83,7 @@ export function htmlToMarkdown(html: string): string {
   s = s.replace(/<\/p>/gi, '\n\n')
   s = s.replace(/<p[^>]*>/gi, '')
   // Anything else is stripped.
-  s = s.replace(/<[^>]+>/g, '')
+  s = stripUntilStable(s, /<[^>]+>/g)
   s = decodeEntities(s)
   // Tidy: strip trailing space per line, collapse 3+ newlines, trim.
   s = s
@@ -74,9 +99,14 @@ export function htmlToMarkdown(html: string): string {
  *  punctuation stays attached ("<strong>note</strong>." → "note."). */
 export function htmlToText(html: string): string {
   const stripped = decodeEntities(
-    dropScriptStyle(html)
-      .replace(/<\/?(?:p|br|ul|ol|li|div|h[1-6])[^>]*>/gi, ' ')
-      .replace(/<[^>]+>/g, '')
+    stripUntilStable(
+      stripUntilStable(
+        dropScriptStyle(html),
+        /<\/?(?:p|br|ul|ol|li|div|h[1-6])[^>]*>/gi,
+        ' '
+      ),
+      /<[^>]+>/g
+    )
   )
   return stripped.replace(/\s+/g, ' ').trim()
 }

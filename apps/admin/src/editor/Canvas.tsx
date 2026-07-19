@@ -22,19 +22,9 @@ import { registry } from '../blocks/registry'
 import { BlockActions } from './extensions/BlockActions'
 import { DragHandle } from './extensions/DragHandle'
 import { BlockMenu } from './extensions/BlockMenu'
-import { Callout } from './extensions/Callout'
-import { Columns, Column } from './extensions/Columns'
-import { ContactBlock } from './extensions/ContactBlock'
-import { HeroBlock } from './extensions/HeroBlock'
-import { GalleryBlock } from './extensions/GalleryBlock'
-import { SpacerBlock } from './extensions/SpacerBlock'
-import { VideoBlock } from './extensions/VideoBlock'
-import { QueryBlock } from './extensions/QueryBlock'
-import { LatestPostsBlock } from './extensions/LatestPostsBlock'
-import { EmbedBlock } from './extensions/EmbedBlock'
+import { buildBlockExtensions } from './block-registry'
 import { EmbedPaste } from './extensions/EmbedPaste'
 import type { RunQuery } from './QueryPreview'
-import { createSetuBlock } from './extensions/SetuBlock'
 import { Image } from './extensions/Image'
 import { ImageBlock } from './extensions/ImageBlock'
 import { ImageDragGuard } from './extensions/ImageDragGuard'
@@ -144,21 +134,17 @@ export function Canvas({
       BlockActions,
       KeyboardShortcuts,
       dragHandle,
-      Callout,
-      Columns,
-      Column,
-      ContactBlock,
-      HeroBlock,
-      GalleryBlock,
-      SpacerBlock,
-      VideoBlock,
-      QueryBlock.configure({ runQuery }),
-      LatestPostsBlock.configure({ runQuery }),
-      EmbedBlock,
+      // Every content-block node (callout, columns/column, the atoms, and the generic
+      // setuBlock fallback) is materialised from the single editor block registry
+      // (block-registry.ts) — the hand-listed block section of this array is gone (#563).
+      ...buildBlockExtensions({
+        runQuery,
+        blocks: registry.blocks,
+        blockCores
+      }),
       EmbedPaste.configure({
         apiBase: import.meta.env.VITE_SETU_API ?? ''
       }),
-      createSetuBlock(registry.blocks, blockCores),
       Passthrough,
       Image,
       ImageBlock,

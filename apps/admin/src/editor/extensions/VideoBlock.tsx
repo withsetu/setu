@@ -1,61 +1,36 @@
-import { Node, mergeAttributes } from '@tiptap/core'
-import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
-import type { ReactNodeViewProps } from '@tiptap/react'
 import { Video } from '@setu/blocks'
+import type { VideoProps } from '@setu/blocks'
 import { resolveMediaSrc } from '../media-src'
 import { attrStringOrUndefined } from '../attr-string'
+import { createAtomBlock, atomCoreView } from './atom-block'
 
-function VideoBlockView({ node, editor }: ReactNodeViewProps) {
-  const md = (node.attrs.mdAttrs ?? {}) as Record<string, unknown>
-  const apiBase =
-    (editor.storage as unknown as { imageBlock?: { apiBase?: string } })
-      .imageBlock?.apiBase ?? ''
+/** Map the video node's raw mdAttrs onto Video's props for the read-only canvas view.
+ *  `src` and `poster` are `/media/…` paths resolved against the canvas media origin;
+ *  booleans keep the same defaults the site's Video.astro applies (controls on unless
+ *  explicitly false; autoplay/loop/muted off unless explicitly true). */
+function videoProps(md: Record<string, unknown>, apiBase: string): VideoProps {
   const resolve = (attr: unknown): string | undefined => {
     const raw = attrStringOrUndefined(attr)
     return raw ? resolveMediaSrc(raw, apiBase || undefined) : undefined
   }
-  return (
-    <NodeViewWrapper>
-      <div className="setu-block" data-tag="video" contentEditable={false}>
-        <Video
-          src={resolve(md['src'])}
-          poster={resolve(md['poster'])}
-          caption={attrStringOrUndefined(md['caption'])}
-          controls={md['controls'] !== false}
-          autoplay={md['autoplay'] === true}
-          loop={md['loop'] === true}
-          muted={md['muted'] === true}
-          width={attrStringOrUndefined(md['width'])}
-        />
-      </div>
-    </NodeViewWrapper>
-  )
+  return {
+    src: resolve(md['src']),
+    poster: resolve(md['poster']),
+    caption: attrStringOrUndefined(md['caption']),
+    controls: md['controls'] !== false,
+    autoplay: md['autoplay'] === true,
+    loop: md['loop'] === true,
+    muted: md['muted'] === true,
+    width: attrStringOrUndefined(md['width'])
+  }
 }
 
 /** The `{% video %}` block — atom (props-only, no body); props edited in the inspector
  *  rail. Mirrors HeroBlock: mdAttrs JSON-only, kept out of the DOM, round-tripped by
- *  the core converter (to-tiptap maps video→videoBlock, to-markdoc emits self-closing). */
-export const VideoBlock = Node.create({
+ *  the core converter (to-tiptap maps video→videoBlock, to-markdoc emits self-closing).
+ *  Node.create boilerplate + the shared canvas view come from the atom-block factory (#562). */
+export const VideoBlock = createAtomBlock({
   name: 'videoBlock',
-  group: 'block',
-  atom: true,
-  draggable: true,
-  selectable: true,
-  addAttributes() {
-    return {
-      mdAttrs: { default: {}, renderHTML: () => ({}), parseHTML: () => ({}) }
-    }
-  },
-  parseHTML() {
-    return [{ tag: 'div[data-setu-video-block]' }]
-  },
-  renderHTML({ HTMLAttributes }) {
-    return [
-      'div',
-      mergeAttributes(HTMLAttributes, { 'data-setu-video-block': '' })
-    ]
-  },
-  addNodeView() {
-    return ReactNodeViewRenderer(VideoBlockView)
-  }
+  dataAttr: 'data-setu-video-block',
+  view: atomCoreView('video', Video, videoProps)
 })

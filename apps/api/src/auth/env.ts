@@ -26,28 +26,81 @@ export function authCaptchaFromEnv(
   }
 }
 
+/** A social provider as this module emits it: credentials plus the invite-only sign-up lock.
+ *
+ *  #624 — Setu is invite-only. `createAuth` sets `disableSignUp: true` on emailAndPassword so
+ *  `POST /api/auth/sign-up/email` has no legitimate caller, but the social providers carried NO
+ *  sign-up restriction: setting SETU_GITHUB_CLIENT_ID/SECRET (or the Google pair) silently
+ *  reopened open self-registration through the OAuth door. Any stranger could OAuth in and be
+ *  created with the schema default role `author` (packages/db-sqlite/src/schema.ts), and could
+ *  also permanently pre-empt first-run owner setup — the exact hole `disableSignUp` was added to
+ *  close for passwords.
+ *
+ *  BOTH flags are set, but — #645 — they do NOT both hold everywhere, and the original version of
+ *  this comment was wrong to claim `disableSignUp` "holds unconditionally". The two better-auth
+ *  routes that consume these flags read DIFFERENT PROPERTIES (verified in the installed
+ *  better-auth 1.6.23, read not assumed):
+ *    - `dist/context/create-context.mjs:102-103` hoists ONLY `disableImplicitSignUp` onto the
+ *      constructed provider; `disableSignUp` survives solely under `provider.options`.
+ *    - `dist/api/routes/callback.mjs:150`
+ *        provider.disableImplicitSignUp && !requestSignUp || provider.options?.disableSignUp
+ *      → reads our value. CLOSED.
+ *    - `dist/api/routes/sign-in.mjs:115`
+ *        provider.disableImplicitSignUp && !c.body.requestSignUp || provider.disableSignUp
+ *      → reads the TOP-LEVEL property, which is `undefined`. `requestSignUp` is caller-supplied
+ *      (`sign-in.mjs:35`), so `requestSignUp: true` made this falsy and PERMITTED sign-up.
+ *
+ *  These flags are therefore defence in depth, NOT the wall. The wall is
+ *  `packages/auth/src/signup-origin-guard.ts`: a `user.create.before` databaseHook that allowlists
+ *  the request paths Setu legitimately creates accounts from (`/setup`, `/admin/create-user`, and
+ *  host-side calls with no request context) and fails closed everywhere else — independent of any
+ *  better-auth flag plumbing. Read that file before changing anything here.
+ *
+ *  OAuth remains fully usable for its legitimate purpose: signing INTO, or linking to, an account
+ *  an admin already invited. Only account CREATION is refused. */
+interface SocialProviderConfig {
+  clientId: string
+  clientSecret: string
+  disableSignUp: true
+  disableImplicitSignUp: true
+}
+
+const SIGNUP_LOCKED = {
+  disableSignUp: true,
+  disableImplicitSignUp: true
+} as const
+
 /** better-auth's socialProviders option. Each provider is included only when BOTH its client id
- *  and secret are set — an incomplete pair is omitted (fail closed, not a broken provider). */
+ *  and secret are set — an incomplete pair is omitted (fail closed, not a broken provider) — and
+ *  every emitted provider is sign-up-locked (see `SocialProviderConfig`, #624). */
 export function authSocialProvidersFromEnv(
   env: NodeJS.ProcessEnv = process.env
 ):
   | {
-      github?: { clientId: string; clientSecret: string }
-      google?: { clientId: string; clientSecret: string }
+      github?: SocialProviderConfig
+      google?: SocialProviderConfig
     }
   | undefined {
   const out: {
-    github?: { clientId: string; clientSecret: string }
-    google?: { clientId: string; clientSecret: string }
+    github?: SocialProviderConfig
+    google?: SocialProviderConfig
   } = {}
   const githubId = env.SETU_GITHUB_CLIENT_ID
   const githubSecret = env.SETU_GITHUB_CLIENT_SECRET
   if (githubId && githubSecret)
-    out.github = { clientId: githubId, clientSecret: githubSecret }
+    out.github = {
+      clientId: githubId,
+      clientSecret: githubSecret,
+      ...SIGNUP_LOCKED
+    }
   const googleId = env.SETU_GOOGLE_CLIENT_ID
   const googleSecret = env.SETU_GOOGLE_CLIENT_SECRET
   if (googleId && googleSecret)
-    out.google = { clientId: googleId, clientSecret: googleSecret }
+    out.google = {
+      clientId: googleId,
+      clientSecret: googleSecret,
+      ...SIGNUP_LOCKED
+    }
   return Object.keys(out).length > 0 ? out : undefined
 }
 

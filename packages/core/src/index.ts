@@ -169,7 +169,11 @@ export type {
   PublishResult,
   PublishService
 } from './publish/types'
-export { contentPath, parseContentPath } from './publish/content-path'
+export {
+  contentPath,
+  parseContentPath,
+  isCanonicalPathSegment
+} from './publish/content-path'
 export { createPublishService } from './publish/publish-service'
 
 export type { LoadResult, ReadDeps, ReadService } from './read/types'

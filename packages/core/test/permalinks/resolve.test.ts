@@ -113,3 +113,77 @@ describe('resolvePermalink', () => {
     expect(resolvePermalink(post, ':collection/:slug').warnings).toEqual([])
   })
 })
+
+/** #670 — `pattern.ts` claimed SLUG_SEGMENT was shared so a rejected value "can never be
+ *  interpolated into a URL either", but `resolvePermalink` guarded only `:category`;
+ *  `:slug` and `:collection` were raw. */
+describe('resolvePermalink guards :slug and :collection (#670)', () => {
+  const ref = (over: Record<string, unknown> = {}) => ({
+    collection: 'post',
+    locale: 'en',
+    slug: 'hello',
+    ...over
+  })
+
+  it('passes ordinary slugs through untouched', () => {
+    const r = resolvePermalink(ref(), ':collection/:slug')
+    expect(r.path).toBe('post/hello')
+    expect(r.warnings).toEqual([])
+  })
+
+  it('passes non-ASCII slugs the system itself mints through untouched', () => {
+    // entrySlugify keeps \p{L}; SLUG_SEGMENT would have rejected these.
+    for (const slug of ['über-uns', 'café', 'à-propos']) {
+      const r = resolvePermalink(ref({ slug }), ':slug')
+      expect(r.path).toBe(slug)
+      expect(r.warnings).toEqual([])
+    }
+  })
+
+  it('a slug containing "/" cannot mint an extra path segment', () => {
+    // Nested slugs are supported (content/<c>/<l>/docs/intro.mdoc → 'docs/intro'), so the
+    // separators stay — what must not survive is a dot segment that climbs out.
+    const r = resolvePermalink(
+      ref({ slug: 'a/../../etc' }),
+      ':collection/:slug'
+    )
+    expect(r.path.split('/')).not.toContain('..')
+    expect(r.path).toBe('post/a/%2E%2E/%2E%2E/etc')
+    expect(r.warnings.join('\n')).toContain(':slug')
+  })
+
+  it('URL-structural characters in a slug are percent-encoded, with a warning', () => {
+    const r = resolvePermalink(ref({ slug: 'a?b#c' }), ':slug')
+    expect(r.path).toBe('a%3Fb%23c')
+    expect(r.warnings).toHaveLength(1)
+  })
+
+  it('guards :collection the same way', () => {
+    // A collection is ONE directory, so its '/' is encoded away rather than kept.
+    const r = resolvePermalink(
+      ref({ collection: '../secret' }),
+      ':collection/:slug'
+    )
+    expect(r.path.split('/')).toHaveLength(2)
+    expect(r.path).toBe('..%2Fsecret/hello')
+    expect(r.warnings.join('\n')).toContain(':collection')
+  })
+
+  it('encoding is injective — two unsafe slugs never merge onto one URL', () => {
+    const a = resolvePermalink(ref({ slug: 'a b' }), ':slug').path
+    const b = resolvePermalink(ref({ slug: 'a-b' }), ':slug').path
+    expect(a).not.toBe(b)
+  })
+
+  it('an empty slug never collapses the segment away', () => {
+    const r = resolvePermalink(ref({ slug: '' }), ':collection/:slug')
+    expect(r.path).toBe('post/untitled')
+    expect(r.warnings).toHaveLength(1)
+  })
+
+  it('nested slugs still pass through with their separators', () => {
+    const r = resolvePermalink(ref({ slug: 'docs/intro' }), ':slug')
+    expect(r.path).toBe('docs/intro')
+    expect(r.warnings).toEqual([])
+  })
+})

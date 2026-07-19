@@ -13,10 +13,15 @@ export const PERMALINK_TOKENS = [
 /** Today's hardcoded scheme — the fallback when neither config nor settings set a pattern. */
 export const DEFAULT_PERMALINK_PATTERN = ':collection/:slug'
 
-/** THE URL-segment slug rule for permalinks — lowercase letters, digits, hyphens.
- *  Shared by pattern-literal validation here and by `resolvePermalink`'s
- *  `:category` guard, so a value the validator would reject in a pattern can
- *  never be interpolated into a URL either. */
+/** THE URL-segment slug rule for permalink LITERALS and category slugs — lowercase
+ *  letters, digits, hyphens. Shared by pattern-literal validation here, by
+ *  `resolvePermalink`'s `:category` guard, and by the `permalinks.uncategorized`
+ *  setting (#671), so those three agree on one vocabulary.
+ *
+ *  It deliberately does NOT govern `:slug`/`:collection` (#670): `entrySlugify` keeps
+ *  `\p{L}`, so `über-uns` and `café` are identities the system itself mints, and this
+ *  ASCII-only rule would reject them. Those two tokens are guarded in `resolvePermalink`
+ *  against the traversal/URL-structural class instead, and percent-encoded if unsafe. */
 export const SLUG_SEGMENT = /^[a-z0-9-]+$/
 
 /** Validate a permalink pattern. Returns human-readable problems; empty array = valid.

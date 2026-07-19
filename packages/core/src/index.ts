@@ -41,7 +41,9 @@ export {
 } from './permalinks/resolve'
 export {
   resolvePermalinkMap,
+  incumbentFromUrlMap,
   type PermalinkEntry,
+  type PermalinkMapOptions,
   type PermalinkMapResult
 } from './permalinks/resolve-map'
 export {

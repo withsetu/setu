@@ -376,13 +376,26 @@ export function FormsInbox() {
                             New
                           </Badge>
                         )}
-                        {s.fields['email'] ?? s.fields['name'] ?? '(no email)'}
+                        {/* #554: visitor-typed values — cap + truncate so a long one can't
+                            stretch the table; the full value lives in the detail dialog. */}
+                        <span
+                          title={
+                            s.fields['email'] ?? s.fields['name'] ?? undefined
+                          }
+                          className="inline-block max-w-72 truncate align-bottom"
+                        >
+                          {s.fields['email'] ??
+                            s.fields['name'] ??
+                            '(no email)'}
+                        </span>
                       </td>
                       <td
                         className="px-3 py-2 text-muted-foreground"
                         title={s.source?.url ?? undefined}
                       >
-                        {pageOf(s)}
+                        <span className="inline-block max-w-64 truncate align-bottom">
+                          {pageOf(s)}
+                        </span>
                       </td>
                       <td className="px-3 py-2 text-muted-foreground">
                         {new Date(s.createdAt).toLocaleString()}

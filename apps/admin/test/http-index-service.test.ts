@@ -11,7 +11,10 @@ import type {
   MediaUsage,
   TiptapDoc
 } from '@setu/core'
-import { createHttpIndexService } from '../src/data/http-index-service'
+import {
+  createHttpIndexService,
+  INDEX_CACHE_VERSION
+} from '../src/data/http-index-service'
 
 const doc = (text: string): TiptapDoc => ({
   type: 'doc',
@@ -49,6 +52,9 @@ const serverRow = (
   tags: [],
   categories: [],
   mediaRefs: [],
+  audit: { audited: false, hasTitle: true, imagesWithoutAlt: 0, h1Count: 0 },
+  hasFeaturedImage: false,
+  hasSeoOverrides: false,
   ...over
 })
 
@@ -123,6 +129,30 @@ describe('createHttpIndexService · query', () => {
     expect(offline.rows[0]!.title).toBe('Alpha')
   })
 
+  it('forwards the hasFeaturedImage filter to the server and omits it when unset (#576)', async () => {
+    const { service, calls } = makeHarness({
+      routes: { '/api/index/query': () => ({ rows: [], total: 0 }) }
+    })
+    await service.query(q({ hasFeaturedImage: true }))
+    expect(calls[0]!.url.searchParams.get('hasFeaturedImage')).toBe('true')
+    await service.query(q({ hasFeaturedImage: false }))
+    expect(calls[1]!.url.searchParams.get('hasFeaturedImage')).toBe('false')
+    await service.query(q())
+    expect(calls[2]!.url.searchParams.has('hasFeaturedImage')).toBe(false)
+  })
+
+  it('forwards the hasSeoOverrides filter to the server and omits it when unset (#577)', async () => {
+    const { service, calls } = makeHarness({
+      routes: { '/api/index/query': () => ({ rows: [], total: 0 }) }
+    })
+    await service.query(q({ hasSeoOverrides: true }))
+    expect(calls[0]!.url.searchParams.get('hasSeoOverrides')).toBe('true')
+    await service.query(q({ hasSeoOverrides: false }))
+    expect(calls[1]!.url.searchParams.get('hasSeoOverrides')).toBe('false')
+    await service.query(q())
+    expect(calls[2]!.url.searchParams.has('hasSeoOverrides')).toBe(false)
+  })
+
   it('flushes a pre-existing locally-built index before its first cache use', async () => {
     const { service, index, failing } = makeHarness({
       routes: {
@@ -143,13 +173,64 @@ describe('createHttpIndexService · query', () => {
       date: null,
       tags: [],
       categories: [],
-      mediaRefs: []
+      mediaRefs: [],
+      audit: {
+        audited: false,
+        hasTitle: true,
+        imagesWithoutAlt: 0,
+        h1Count: 0
+      },
+      hasFeaturedImage: false,
+      hasSeoOverrides: false
     })
     await index.setMeta({ indexedSha: 'old', version: INDEX_VERSION })
     await service.query(q())
     failing.on = true
     const offline = await service.query(q())
     expect(offline.rows.map((r) => r.ref.slug)).toEqual(['fresh'])
+  })
+
+  it('invalidates an offline cache stamped with a PRIOR schema sentinel (#593)', async () => {
+    // The cache sentinel is derived from INDEX_VERSION, so a bump moves it. A cache
+    // written under the previous schema (its sentinel one off from the current) must
+    // be cleared before use — otherwise stale-shape rows (e.g. rows lacking the
+    // `audit` field added in v7) would be served offline.
+    const { service, index, failing } = makeHarness({
+      routes: {
+        '/api/index/query': () => ({ rows: [serverRow('fresh')], total: 1 })
+      }
+    })
+    await index.upsert({
+      key: 'post\0en\0oldshape',
+      collection: 'post',
+      locale: 'en',
+      slug: 'oldshape',
+      title: 'Old shape',
+      titleLower: 'old shape',
+      status: 'staged',
+      updatedAt: 1,
+      hasDraft: false,
+      date: null,
+      tags: [],
+      categories: [],
+      mediaRefs: [],
+      audit: {
+        audited: false,
+        hasTitle: true,
+        imagesWithoutAlt: 0,
+        h1Count: 0
+      },
+      hasFeaturedImage: false,
+      hasSeoOverrides: false
+    })
+    // Stamp the cache with the sentinel from the PREVIOUS schema version.
+    await index.setMeta({ indexedSha: 'x', version: INDEX_CACHE_VERSION + 1 })
+    // Offline from the first touch: the mismatched sentinel must clear the cache
+    // BEFORE the fallback read, so the stale row is never served.
+    failing.on = true
+    const offline = await service.query(q())
+    expect(offline.rows).toEqual([])
+    expect((await index.getMeta()).version).toBe(INDEX_CACHE_VERSION)
   })
 
   it('overlays a local draft on its server row: draft fields win, pending re-derived', async () => {
@@ -244,6 +325,59 @@ describe('createHttpIndexService · query', () => {
     expect(calls).toHaveLength(2)
     expect(calls[0]!.url.searchParams.get('limit')).toBe('100')
     expect(calls[1]!.url.searchParams.get('offset')).toBe('100')
+  })
+})
+
+describe('createHttpIndexService · stats (count semantics)', () => {
+  it('counts committed/server truth only — a local-only draft shows in the query but is NOT counted (owner-approved 2026-07-17)', async () => {
+    const serverStats = {
+      post: { total: 1, draft: 0, staged: 1, live: 0, unpublished: 0 }
+    }
+    const { service } = makeHarness({
+      routes: {
+        '/api/index/stats': () => serverStats,
+        '/api/index/query': (url) =>
+          url.searchParams.get('offset') === '0'
+            ? { rows: [serverRow('a')], total: 1 }
+            : { rows: [], total: 1 }
+      },
+      // A local-only uncommitted draft — autosave scratch the server never saw.
+      drafts: [draftInput('b', { title: 'Bravo' })]
+    })
+    // Resume editing (the query) surfaces the local draft via the overlay…
+    const listed = await service.query(q())
+    expect(listed.rows.map((r) => r.ref.slug)).toContain('b')
+    expect(listed.total).toBe(2)
+    // …but the At-a-glance counts reflect committed truth only: the local-only
+    // draft is intentionally not counted (deliberate, owner-approved 2026-07-17).
+    const stats = await service.stats()
+    expect(stats).toEqual(serverStats)
+    expect(stats['post']!.draft).toBe(0)
+    expect(stats['post']!.total).toBe(1)
+  })
+
+  it('falls back to the cached rows for stats when the network drops', async () => {
+    const { service, failing } = makeHarness({
+      routes: {
+        '/api/index/query': () => ({
+          rows: [
+            serverRow('a', { lifecycle: { state: 'staged' } }),
+            serverRow('b', { lifecycle: { state: 'draft' } })
+          ],
+          total: 2
+        })
+      }
+    })
+    await service.query(q()) // primes the cache
+    failing.on = true
+    const stats = await service.stats()
+    expect(stats['post']).toEqual({
+      total: 2,
+      draft: 1,
+      staged: 1,
+      live: 0,
+      unpublished: 0
+    })
   })
 })
 

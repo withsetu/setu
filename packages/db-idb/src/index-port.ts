@@ -2,13 +2,15 @@ import { openDB } from 'idb'
 import type { EntryIndexRow, IndexMeta, IndexPort } from '@setu/core'
 import {
   runQuery,
+  selectIndexStats,
   selectDistinctTags,
   selectDistinctLocales,
   selectCategoryCounts,
   selectTagCounts,
   selectReferencedBy,
   selectEntriesByCategory,
-  selectEntriesByTag
+  selectEntriesByTag,
+  selectAuditSummary
 } from '@setu/core'
 
 /** IndexedDB-backed IndexPort. Rows are tiny (no bodies), so `query` loads the
@@ -27,6 +29,10 @@ export async function createIdbIndexPort(
     async query(q) {
       const all = (await db.getAll('entries')) as EntryIndexRow[]
       return runQuery(all, q)
+    },
+    async stats() {
+      const all = (await db.getAll('entries')) as EntryIndexRow[]
+      return selectIndexStats(all)
     },
     async upsert(row) {
       await db.put('entries', row, row.key)
@@ -79,6 +85,10 @@ export async function createIdbIndexPort(
     async entriesByTag(tag) {
       const all = (await db.getAll('entries')) as EntryIndexRow[]
       return selectEntriesByTag(all, tag)
+    },
+    async auditSummary() {
+      const all = (await db.getAll('entries')) as EntryIndexRow[]
+      return selectAuditSummary(all)
     }
   }
 }

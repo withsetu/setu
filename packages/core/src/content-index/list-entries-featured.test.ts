@@ -29,6 +29,7 @@ describe('listContentEntries — featuredImage', () => {
       deploy: noDeploy
     })
     expect(rows[0]!.featuredImage).toBe('/media/2026/06/a.webp')
+    expect(rows[0]!.hasFeaturedImage).toBe(true)
   })
 
   it('reads featuredImage from committed frontmatter when there is no draft', () => {
@@ -45,6 +46,7 @@ describe('listContentEntries — featuredImage', () => {
       deploy: noDeploy
     })
     expect(rows[0]!.featuredImage).toBe('/media/2026/06/b.webp')
+    expect(rows[0]!.hasFeaturedImage).toBe(true)
   })
 
   it('omits featuredImage when absent or blank', () => {
@@ -58,5 +60,7 @@ describe('listContentEntries — featuredImage', () => {
     })
     expect(rows[0]!.featuredImage).toBeUndefined()
     expect(rows[1]!.featuredImage).toBeUndefined()
+    expect(rows[0]!.hasFeaturedImage).toBe(false)
+    expect(rows[1]!.hasFeaturedImage).toBe(false)
   })
 })

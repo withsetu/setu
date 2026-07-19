@@ -251,4 +251,63 @@ describe('TagsTab', () => {
       await screen.findByText(/Tags appear here as you add them to content/i)
     ).toBeInTheDocument()
   })
+
+  // #582: while tag counts load, the list shell paints with skeleton rows — never
+  // the "Tags appear here" empty state (loading ≠ empty).
+  it('paints skeleton rows — not the empty state — while loading, then fills (#582)', async () => {
+    const Wrapper = await makeWrapper()
+    const { container } = render(<TagsTab />, { wrapper: Wrapper })
+
+    // Synchronously after render the store hasn't resolved: skeletons, no empty flash.
+    expect(
+      container.querySelectorAll('[data-slot="skeleton"]').length
+    ).toBeGreaterThan(0)
+    expect(screen.queryByText(/tags appear here/i)).not.toBeInTheDocument()
+
+    // Data lands: real rows replace the skeletons.
+    await screen.findByDisplayValue('react')
+    expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(0)
+    expect(screen.queryByText(/tags appear here/i)).not.toBeInTheDocument()
+  })
+
+  it('shows the empty state only after loading finishes with zero tags (#582)', async () => {
+    // Empty data port — no entries, no tags.
+    const data = createMemoryDataPort([])
+    const git = createMemoryGitPort()
+    const indexPort = createMemoryIndexPort()
+    const idx = createIndexService({
+      data,
+      git,
+      index: indexPort,
+      deploy: () => ({ deployedSha: null, changed: [] })
+    })
+    await idx.rebuild()
+    const services = servicesFor(data, git, indexPort)
+
+    const { container } = render(
+      <MemoryRouter>
+        <ServicesProvider services={services}>
+          <DeployProvider>
+            <IndexProvider>
+              <TagsProvider>
+                <NotificationProvider>
+                  <TagsTab />
+                </NotificationProvider>
+              </TagsProvider>
+            </IndexProvider>
+          </DeployProvider>
+        </ServicesProvider>
+      </MemoryRouter>
+    )
+
+    // Still loading: skeletons, and the empty state must NOT flash early.
+    expect(
+      container.querySelectorAll('[data-slot="skeleton"]').length
+    ).toBeGreaterThan(0)
+    expect(screen.queryByText(/tags appear here/i)).not.toBeInTheDocument()
+
+    // Load settles with zero tags: NOW the empty state appears, skeletons gone.
+    expect(await screen.findByText(/tags appear here/i)).toBeInTheDocument()
+    expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(0)
+  })
 })

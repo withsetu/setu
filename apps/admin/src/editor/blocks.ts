@@ -6,10 +6,7 @@ import type { BlockCategory } from '@setu/core'
 import { registry } from '../blocks/registry'
 import { BLOCK_TYPES } from './block-types'
 import { pickImageAndInsert, imageBlockFromSrc } from './image-insert'
-import {
-  ensureFormId,
-  DEFAULT_SUCCESS_MESSAGE
-} from './extensions/contact-helpers'
+import { insertPayloadForTag } from './block-registry'
 import type { SlashBlock } from './slash-model'
 
 export type { SlashBlock } from './slash-model'
@@ -119,65 +116,26 @@ const toIconName = (raw: string | undefined): IconName =>
 export function slashBlocks(): SlashBlock[] {
   // `embed` is paste-driven (paste a provider URL → EmbedPaste auto-inserts a resolved embed);
   // there's no useful cold slash-insert without a URL, so keep it out of the slash menu.
+  // `editor.hidden` blocks (structural children like `column`) are parent-managed.
   const fromBlocks: SlashBlock[] = registry.blocks
-    .filter((b) => b.tag !== 'embed')
+    .filter((b) => b.tag !== 'embed' && !b.editor?.hidden)
     .map((b) => ({
       title: b.editor?.label ?? b.tag,
       subtitle: `Insert a ${b.tag} block`,
       icon: toIconName(b.editor?.icon),
       group: b.editor?.group ?? DEFAULT_BLOCK_CATEGORY,
       keywords: b.editor?.keywords ?? [],
+      // The per-tag insert payload comes from the single editor block registry
+      // (block-registry.ts): a registered block's own payload, or the generic setuBlock
+      // fallback for any folder block without a dedicated node. The else-if chain that
+      // used to live here — one arm per block, a second copy of "the block exists" — is
+      // gone (#563).
       run: (e: Editor, r: Range) => {
-        const chain = e.chain().focus().deleteRange(r)
-        if (b.tag === 'contact') {
-          chain.insertContent({
-            type: 'contactBlock',
-            attrs: {
-              mdAttrs: ensureFormId({
-                formLabel: 'Contact',
-                subject: false,
-                nameRequired: true,
-                subjectRequired: false,
-                messageRequired: true,
-                successMessage: DEFAULT_SUCCESS_MESSAGE
-              })
-            }
-          })
-        } else if (b.tag === 'callout') {
-          chain.insertContent({
-            type: 'callout',
-            attrs: { mdAttrs: { type: 'info' } },
-            content: [{ type: 'paragraph' }]
-          })
-        } else if (b.tag === 'hero') {
-          chain.insertContent({
-            type: 'heroBlock',
-            attrs: {
-              mdAttrs: { headline: 'Hero headline', layout: 'centered' }
-            }
-          })
-        } else if (b.tag === 'query') {
-          chain.insertContent({
-            type: 'queryBlock',
-            attrs: {
-              mdAttrs: {
-                collection: 'post',
-                sort: 'newest',
-                layout: 'grid',
-                columns: 3,
-                limit: 10,
-                showImage: true
-              }
-            }
-          })
-        } else {
-          chain.insertContent({
-            type: 'setuBlock',
-            attrs: { tag: b.tag, mdAttrs: {} },
-            content: [{ type: 'paragraph' }]
-          })
-        }
-        chain.run()
+        e.chain()
+          .focus()
+          .deleteRange(r)
+          .insertContent(insertPayloadForTag(b.tag))
+          .run()
       }
     }))
   return [...BUILTINS, ...fromBlocks]

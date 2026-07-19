@@ -251,6 +251,29 @@ export function runDataPortContract(
       expect(await db.getLock(ref)).toBeNull()
       await expect(db.deleteLock(ref)).resolves.toBeUndefined()
     })
+
+    it('listLocks returns all held locks; empty when none; drops deleted', async () => {
+      expect(await db.listLocks()).toEqual([])
+      await db.putLock({
+        collection: 'post',
+        locale: 'en',
+        slug: 'a',
+        lockedBy: 'sarah@x.com',
+        lockedAt: 1
+      })
+      await db.putLock({
+        collection: 'page',
+        locale: 'en',
+        slug: 'b',
+        lockedBy: 'omar@x.com',
+        lockedAt: 2
+      })
+      const locks = await db.listLocks()
+      expect(locks).toHaveLength(2)
+      expect(locks.map((l) => l.slug).sort()).toEqual(['a', 'b'])
+      await db.deleteLock({ collection: 'post', locale: 'en', slug: 'a' })
+      expect((await db.listLocks()).map((l) => l.slug)).toEqual(['b'])
+    })
   })
 }
 
@@ -267,6 +290,14 @@ const irow = (over: Partial<EntryIndexRow>): EntryIndexRow => {
     tags: [] as string[],
     categories: [] as string[],
     mediaRefs: [] as string[],
+    audit: {
+      audited: false,
+      hasTitle: true,
+      imagesWithoutAlt: 0,
+      h1Count: 0
+    } as EntryIndexRow['audit'],
+    hasFeaturedImage: false,
+    hasSeoOverrides: false,
     ...over
   }
   return {
@@ -307,6 +338,74 @@ export function runIndexPortContract(
       expect(drafts.total).toBe(2)
       expect(drafts.rows).toHaveLength(1)
       expect(drafts.rows[0]!.slug).toBe('b') // updatedAt desc
+    })
+
+    it('stats: empty index → no collections', async () => {
+      expect(await ix.stats()).toEqual({})
+    })
+
+    it('stats: per-collection lifecycle tallies across mixed statuses', async () => {
+      await ix.upsertMany([
+        irow({ slug: 'a', collection: 'post', status: 'live' }),
+        irow({ slug: 'b', collection: 'post', status: 'live' }),
+        irow({ slug: 'c', collection: 'post', status: 'staged' }),
+        irow({ slug: 'd', collection: 'post', status: 'draft' }),
+        irow({ slug: 'e', collection: 'post', status: 'unpublished' }),
+        irow({ slug: 'about', collection: 'page', status: 'live' }),
+        irow({ slug: 'contact', collection: 'page', status: 'draft' })
+      ])
+      expect(await ix.stats()).toEqual({
+        post: { total: 5, draft: 1, staged: 1, live: 2, unpublished: 1 },
+        page: { total: 2, draft: 1, staged: 0, live: 1, unpublished: 0 }
+      })
+    })
+
+    it('filters by hasFeaturedImage in both directions (#576)', async () => {
+      await ix.upsertMany([
+        irow({ slug: 'with', hasFeaturedImage: true }),
+        irow({ slug: 'without', hasFeaturedImage: false })
+      ])
+      const withImg = await ix.query({
+        collection: 'post',
+        hasFeaturedImage: true,
+        offset: 0,
+        limit: 10
+      })
+      expect(withImg.rows.map((r) => r.slug)).toEqual(['with'])
+      const withoutImg = await ix.query({
+        collection: 'post',
+        hasFeaturedImage: false,
+        offset: 0,
+        limit: 10
+      })
+      expect(withoutImg.rows.map((r) => r.slug)).toEqual(['without'])
+      expect(
+        (await ix.query({ collection: 'post', offset: 0, limit: 10 })).total
+      ).toBe(2)
+    })
+
+    it('filters by hasSeoOverrides in both directions (#577)', async () => {
+      await ix.upsertMany([
+        irow({ slug: 'custom', hasSeoOverrides: true }),
+        irow({ slug: 'plain', hasSeoOverrides: false })
+      ])
+      const custom = await ix.query({
+        collection: 'post',
+        hasSeoOverrides: true,
+        offset: 0,
+        limit: 10
+      })
+      expect(custom.rows.map((r) => r.slug)).toEqual(['custom'])
+      const plain = await ix.query({
+        collection: 'post',
+        hasSeoOverrides: false,
+        offset: 0,
+        limit: 10
+      })
+      expect(plain.rows.map((r) => r.slug)).toEqual(['plain'])
+      expect(
+        (await ix.query({ collection: 'post', offset: 0, limit: 10 })).total
+      ).toBe(2)
     })
 
     it('remove and clear', async () => {
@@ -413,6 +512,49 @@ export function runIndexPortContract(
         slug: expect.any(String)
       })
       expect(await ix.entriesByTag('unknown')).toEqual([])
+    })
+
+    it('auditSummary rolls up per-row facts, scoped to audited rows, sorted', async () => {
+      const fact = (over: Partial<EntryIndexRow['audit']>) => ({
+        audited: true,
+        hasTitle: true,
+        imagesWithoutAlt: 0,
+        h1Count: 0,
+        ...over
+      })
+      await ix.upsertMany([
+        // audited, clean
+        irow({ slug: 'clean', locale: 'en', audit: fact({}) }),
+        // audited offenders
+        irow({
+          slug: 'no-title',
+          locale: 'en',
+          audit: fact({ hasTitle: false })
+        }),
+        irow({
+          slug: 'bad-alt',
+          locale: 'fr',
+          audit: fact({ imagesWithoutAlt: 2 })
+        }),
+        irow({ slug: 'two-h1', locale: 'en', audit: fact({ h1Count: 1 }) }),
+        // NOT audited (unpublished/draft) — excluded from every list, incl. locale
+        irow({
+          slug: 'hidden',
+          locale: 'de',
+          audit: fact({ audited: false, hasTitle: false, h1Count: 3 })
+        })
+      ])
+      const s = await ix.auditSummary()
+      expect(s.entryIds).toEqual([
+        'post/en/clean',
+        'post/en/no-title',
+        'post/en/two-h1',
+        'post/fr/bad-alt'
+      ])
+      expect(s.titleOffenders).toEqual(['post/en/no-title'])
+      expect(s.altOffenders).toEqual([{ ref: 'post/fr/bad-alt', count: 2 }])
+      expect(s.h1Offenders).toEqual(['post/en/two-h1'])
+      expect(s.locales).toEqual(['en', 'fr']) // 'de' row is unaudited → absent
     })
   })
 }

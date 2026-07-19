@@ -7,6 +7,7 @@ export type {
 } from './markdoc/types'
 export { markdocToTiptap } from './markdoc/to-tiptap'
 export { tiptapToMarkdoc } from './markdoc/to-markdoc'
+export { ATOM_TAG_TO_NODE, ATOM_NODE_TO_TAG } from './markdoc/atom-blocks'
 
 export type {
   SetuConfig,
@@ -183,7 +184,14 @@ export type {
   Authz
 } from './authz/types'
 export { createAuthz, DEFAULT_ROLES } from './authz/authz'
-export { ROLE_RANK, rankOf, outranks } from './authz/rank'
+export {
+  ROLE_RANK,
+  rankOf,
+  outranks,
+  parseRoleSet,
+  canonicalRoleOf,
+  isSingleKnownRole
+} from './authz/rank'
 
 export type {
   LifecycleState,
@@ -195,7 +203,8 @@ export { deriveLifecycle } from './lifecycle/derive'
 export type {
   ContentRow,
   DeployInfo,
-  ListContentEntriesInput
+  ListContentEntriesInput,
+  EntryAuditFacts
 } from './content-index/list-entries'
 export {
   listContentEntries,
@@ -213,10 +222,11 @@ export { newCid, isCid } from './content-id/cid'
 export {
   matchProvider,
   oembedEndpoint,
-  OEMBED_PROVIDERS
+  OEMBED_PROVIDERS,
+  OEMBED_ENDPOINT_HOSTS
 } from './oembed/providers'
 export type { OembedProvider, OembedType } from './oembed/providers'
-export { resolveOembed } from './oembed/resolve'
+export { resolveOembed, OEMBED_MAX_BODY_BYTES } from './oembed/resolve'
 export type {
   NormalizedOembed,
   OembedResult,
@@ -231,6 +241,11 @@ export type {
   IndexPort
 } from './index-port/types'
 export { indexKey, projectRow, rowToContentRow } from './index-port/types'
+export type { AuditSummary } from './index-port/audit-summary'
+export {
+  selectAuditSummary,
+  EMPTY_AUDIT_SUMMARY
+} from './index-port/audit-summary'
 export { runQuery } from './index-port/run-query'
 export {
   selectDistinctTags,
@@ -238,6 +253,8 @@ export {
 } from './index-port/distinct-tags'
 export { selectCategoryCounts } from './index-port/category-counts'
 export { selectTagCounts } from './index-port/tag-counts'
+export type { IndexStats, CollectionStats } from './index-port/stats'
+export { selectIndexStats } from './index-port/stats'
 export { selectEntriesByCategory } from './index-port/entries-by-category'
 export { selectEntriesByTag } from './index-port/entries-by-tag'
 export type {
@@ -331,6 +348,8 @@ export {
 
 export type { StandardBlock } from './blocks/standard/types'
 export { STANDARD_BLOCKS } from './blocks/standard'
+export { COLUMN_LAYOUTS, columnCountFor } from './blocks/standard/columns'
+export type { ColumnLayout } from './blocks/standard/columns'
 export { mergeBlockSources } from './blocks/merge-sources'
 
 export type { CaptchaPort } from './captcha/captcha-port'
@@ -345,6 +364,7 @@ export type {
   SiteCapabilities,
   AuditEntry,
   AuditContext,
+  AuditScanData,
   CheckResult,
   CategoryScore,
   AuditResult,
@@ -359,7 +379,13 @@ export { RUBRIC } from './health/rubric'
 export { SITE_CAPABILITIES } from './health/capabilities'
 export { scanBody } from './health/scan'
 export { EVALUATORS, APPLIES_WHEN } from './health/checks'
-export { runAudit, scoreAudit } from './health/run-audit'
+export {
+  runAudit,
+  runInstantChecks,
+  runScanChecks,
+  scoreAudit
+} from './health/run-audit'
+export { auditScanFromEntries, SCAN_ITEM_IDS } from './health/scan-data'
 export { evaluateProbe, mergeProbe } from './health/probe'
 export { parseHealthState, setHealthRecord } from './health/health-state'
 

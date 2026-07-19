@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { runAudit, scanBody, SITE_CAPABILITIES } from '../src/index'
-import type { AuditContext } from '../src/index'
+import {
+  runAudit,
+  scanBody,
+  auditScanFromEntries,
+  SITE_CAPABILITIES
+} from '../src/index'
+import type { AuditContext, AuditEntry } from '../src/index'
 
 const ctx = (over: Partial<AuditContext> = {}): AuditContext => ({
   settings: {
@@ -11,11 +16,16 @@ const ctx = (over: Partial<AuditContext> = {}): AuditContext => ({
       feed: { enabled: false }
     }
   },
-  entries: [{ id: 'page/en/home', data: { title: 'Home' }, body: 'Hello' }],
+  scan: auditScanFromEntries([
+    { id: 'page/en/home', data: { title: 'Home' }, body: 'Hello' }
+  ]),
   capabilities: SITE_CAPABILITIES,
   health: { items: {}, sections: {} },
   ...over
 })
+
+const scanOf = (entries: AuditEntry[]): AuditContext['scan'] =>
+  auditScanFromEntries(entries)
 
 describe('scanBody', () => {
   it('flags images without alt and counts h1s', () => {
@@ -56,7 +66,9 @@ describe('runAudit', () => {
   it('fails image-alt with offenders', () => {
     const a = runAudit(
       ctx({
-        entries: [{ id: 'post/en/p', data: { title: 'P' }, body: '![](x.png)' }]
+        scan: scanOf([
+          { id: 'post/en/p', data: { title: 'P' }, body: '![](x.png)' }
+        ])
       })
     )
     const r = a.results.find((x) => x.id === 'accessibility.image-alt')!
@@ -192,10 +204,10 @@ describe('runAudit', () => {
     )
     const multi = runAudit(
       ctx({
-        entries: [
+        scan: scanOf([
           { id: 'page/en/home', data: { title: 'H' }, body: '' },
           { id: 'post/fr/x', data: { title: 'X' }, body: '' }
-        ]
+        ])
       })
     )
     expect(

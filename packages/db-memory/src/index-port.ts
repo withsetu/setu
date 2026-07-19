@@ -6,13 +6,15 @@ import type {
 } from '@setu/core'
 import {
   runQuery,
+  selectIndexStats,
   selectDistinctTags,
   selectDistinctLocales,
   selectCategoryCounts,
   selectTagCounts,
   selectReferencedBy,
   selectEntriesByCategory,
-  selectEntriesByTag
+  selectEntriesByTag,
+  selectAuditSummary
 } from '@setu/core'
 
 /** In-memory IndexPort (Map-backed). Value semantics via structuredClone. */
@@ -22,6 +24,9 @@ export function createMemoryIndexPort(): IndexPort {
   return {
     async query(q: IndexQuery) {
       return runQuery([...rows.values()], q)
+    },
+    async stats() {
+      return selectIndexStats([...rows.values()])
     },
     async upsert(row) {
       rows.set(row.key, structuredClone(row))
@@ -61,6 +66,9 @@ export function createMemoryIndexPort(): IndexPort {
     },
     async entriesByTag(tag) {
       return selectEntriesByTag([...rows.values()], tag)
+    },
+    async auditSummary() {
+      return selectAuditSummary([...rows.values()])
     }
   }
 }

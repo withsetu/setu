@@ -7,14 +7,20 @@ export interface ResolvedControl {
   control: BlockControl
   default?: unknown
   options?: string[]
+  /** Numeric bounds/step for number-backed controls (from zod .min/.max/.multipleOf). */
+  min?: number
+  max?: number
+  step?: number
 }
 
 /** String-backed controls a hint may upgrade a (non-enum) String prop to. `category`/`tag`
- *  render a searchable taxonomy picker in the inspector but store a single slug string. */
+ *  render a searchable taxonomy picker in the inspector but store a single slug string.
+ *  `media` picks an image from the library; `video` picks a video file. */
 const STRING_CONTROLS: ReadonlySet<BlockControl> = new Set([
   'text',
   'textarea',
   'media',
+  'video',
   'url',
   'color',
   'category',
@@ -31,6 +37,10 @@ const ENUM_HINTS: ReadonlySet<BlockControl> = new Set([
 
 /** Controls a hint may upgrade a Number prop to. */
 const NUMBER_HINTS: ReadonlySet<BlockControl> = new Set(['number', 'slider'])
+
+/** Controls valid for an Array prop. There is no generic array editor — an array prop
+ *  MUST pick one of these explicitly (see the throw below). */
+const ARRAY_HINTS: ReadonlySet<BlockControl> = new Set(['media-list'])
 
 /** Map a block's zod props (+ optional per-prop control hints) to an ordered list of
  *  controls for the inspector. Hints override the zod-derived control but must be
@@ -54,30 +64,34 @@ export function resolveControls(
         : a.type === 'Boolean'
           ? 'switch'
           : 'text'
+    const shared = {
+      ...(a.default !== undefined ? { default: a.default } : {}),
+      ...(a.matches ? { options: a.matches } : {}),
+      ...(a.min !== undefined ? { min: a.min } : {}),
+      ...(a.max !== undefined ? { max: a.max } : {}),
+      ...(a.step !== undefined ? { step: a.step } : {})
+    }
     const hint = hints[name]
     if (hint === undefined) {
-      return {
-        name,
-        control: derived,
-        ...(a.default !== undefined ? { default: a.default } : {}),
-        ...(a.matches ? { options: a.matches } : {})
-      }
+      // No inspector control can render an arbitrary array — require an explicit,
+      // type-compatible hint instead of silently falling back to a text box.
+      if (a.type === 'Array')
+        throw new Error(
+          `resolveControls: array prop "${name}" needs an explicit control hint (e.g. 'media-list')`
+        )
+      return { name, control: derived, ...shared }
     }
     // a hint is only valid if compatible with the zod type
     const ok =
       (a.matches && ENUM_HINTS.has(hint)) ||
       (a.type === 'Number' && NUMBER_HINTS.has(hint)) ||
       (a.type === 'Boolean' && hint === 'switch') ||
-      (a.type === 'String' && !a.matches && STRING_CONTROLS.has(hint))
+      (a.type === 'String' && !a.matches && STRING_CONTROLS.has(hint)) ||
+      (a.type === 'Array' && ARRAY_HINTS.has(hint))
     if (!ok)
       throw new Error(
         `resolveControls: hint "${hint}" incompatible with prop "${name}" (zod ${a.type}${a.matches ? ' enum' : ''})`
       )
-    return {
-      name,
-      control: hint,
-      ...(a.default !== undefined ? { default: a.default } : {}),
-      ...(a.matches ? { options: a.matches } : {})
-    }
+    return { name, control: hint, ...shared }
   })
 }

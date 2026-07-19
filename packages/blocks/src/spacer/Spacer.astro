@@ -1,0 +1,11 @@
+---
+// {% spacer height=N /%} — adjustable vertical whitespace (#183). Renders an empty,
+// aria-hidden div whose only job is its height. The value is clamped to the contract's
+// 8–200px range so a hand-authored out-of-range attribute can't distort the layout.
+import './spacer.css'
+const { height = 48 } = Astro.props
+const n = Number(height)
+const h = Math.round(Math.min(200, Math.max(8, Number.isFinite(n) ? n : 48)))
+---
+
+<div class="blk-spacer" style={`--blk-spacer-h: ${h}px`} aria-hidden="true"></div>

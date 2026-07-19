@@ -232,3 +232,53 @@ describe('POST /media — media settings (both formats + lqip)', () => {
     }
   )
 })
+
+// #629 — POST /media used to `await c.req.formData()` (fully buffering the multipart body) and
+// only THEN compare file.size to maxBytes: a multi-GB upload OOM'd the process before any check
+// ran. Every sibling route caps BEFORE parsing (app.ts 10 MiB, forms.ts 1 MiB, preview.ts 1 MiB);
+// this one now does too.
+describe('POST /media — request body cap before parsing (#629)', () => {
+  /** Declares a Content-Length far beyond the cap; bodyLimit must reject on the header alone,
+   *  so the (small) actual body is never parsed and the resolver is never consulted. */
+  function oversizePost(
+    app: ReturnType<typeof createUploadApi>,
+    declared: number
+  ) {
+    return app.fetch(
+      new Request('http://test/media', {
+        method: 'POST',
+        headers: {
+          'content-type': 'multipart/form-data; boundary=----x',
+          'content-length': String(declared)
+        },
+        body: '------x--\r\n'
+      })
+    )
+  }
+
+  it('413s a body whose declared size exceeds the configured per-file max', async () => {
+    let resolved = false
+    const { app } = makeApp(
+      () => {
+        resolved = true
+        return owner
+      },
+      { maxBytes: 1024 }
+    )
+    const res = await oversizePost(app, 500 * 1024 * 1024)
+    expect(res.status).toBe(413)
+    expect(resolved).toBe(false) // rejected before the handler chain ran
+  })
+
+  it('413s an oversized body even with the default 25 MiB max', async () => {
+    const { app } = makeApp(() => owner)
+    const res = await oversizePost(app, 2 * 1024 * 1024 * 1024)
+    expect(res.status).toBe(413)
+  })
+
+  it('still accepts a normal upload (the cap allows multipart overhead)', async () => {
+    const { app } = makeApp(() => owner, { maxBytes: 1024 })
+    const res = await post(app, png(64, 'ok.png'))
+    expect(res.status).toBe(201)
+  })
+})

@@ -123,6 +123,49 @@ describe('resolveSessionActor', () => {
     expect(actor).toBeNull()
   })
 
+  // #630: better-auth persists a multi-role assignment as a comma-joined string and its own
+  // `hasPermission` grants if ANY component authorizes — so `/api/auth/admin/*` kept working for
+  // such a user while THIS resolver's exact-match `ROLES.includes(role)` returned null, 401ing
+  // them out of every other `/api/*` route. Writes are now single-role-only (see
+  // packages/auth/src/single-role-guard.ts), but any row persisted before that guard must still
+  // resolve — read-tolerant, write-strict.
+  it('resolves an already-persisted multi-role user to its highest role (#630)', async () => {
+    const { db, auth } = makeAuth()
+    const u = await createUser(auth, 'multi@b.co', 'hunter2hunter2', 'admin')
+    await db
+      .update(userTable)
+      .set({ role: 'maintainer,admin' })
+      .where(eq(userTable.id, u.id))
+    const actor = await signInAndResolve(auth, 'multi@b.co', 'hunter2hunter2')
+    expect(actor).toEqual({
+      id: u.id,
+      role: 'admin',
+      gitAuthor: { name: 'A', email: 'multi@b.co' }
+    })
+  })
+
+  it('ignores unknown components of a multi-role value (#630)', async () => {
+    const { db, auth } = makeAuth()
+    const u = await createUser(auth, 'mixed@b.co', 'hunter2hunter2', 'editor')
+    await db
+      .update(userTable)
+      .set({ role: 'subscriber,editor' })
+      .where(eq(userTable.id, u.id))
+    const actor = await signInAndResolve(auth, 'mixed@b.co', 'hunter2hunter2')
+    expect(actor?.role).toBe('editor')
+  })
+
+  it('still returns null when NO component is a staff role (#630 fails closed)', async () => {
+    const { db, auth } = makeAuth()
+    const u = await createUser(auth, 'none@b.co', 'hunter2hunter2', 'editor')
+    await db
+      .update(userTable)
+      .set({ role: 'subscriber,visitor' })
+      .where(eq(userTable.id, u.id))
+    const actor = await signInAndResolve(auth, 'none@b.co', 'hunter2hunter2')
+    expect(actor).toBeNull()
+  })
+
   it('returns null for no cookie', async () => {
     const { auth } = makeAuth()
     const actor = await resolveSessionActor(auth)(

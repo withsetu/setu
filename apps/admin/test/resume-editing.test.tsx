@@ -16,6 +16,9 @@ function row(over: Partial<ContentRow> = {}): ContentRow {
     tags: [],
     categories: [],
     mediaRefs: [],
+    audit: { audited: false, hasTitle: true, imagesWithoutAlt: 0, h1Count: 0 },
+    hasFeaturedImage: false,
+    hasSeoOverrides: false,
     ...over
   }
 }
@@ -39,11 +42,29 @@ describe('ResumeEditing', () => {
     wrap(<ResumeEditing rows={[row({ lifecycle: { state: 'live' } })]} />)
     expect(screen.getByText('Live').className).toContain('bg-success')
   })
+  // #554: the truncated title stays reachable in full via the title attribute.
+  it('truncates a long title with the full title on hover (#554)', () => {
+    const long = 'Adelaide '.repeat(31).concat('Adelaide').slice(0, 285)
+    wrap(<ResumeEditing rows={[row({ title: long })]} />)
+    const el = screen.getByTitle(long)
+    expect(el).toHaveTextContent(long)
+    expect(el.className).toContain('truncate')
+  })
   it('shows an empty state with a create link when there are no rows', () => {
     wrap(<ResumeEditing rows={[]} />)
     expect(screen.getByText(/No edits yet/)).toBeInTheDocument()
     expect(
       screen.getByRole('link', { name: /create your first post/ })
     ).toHaveAttribute('href', '/edit/post/en/new')
+  })
+  // #572: while entries load, the card shell paints with skeleton rows — no premature
+  // "No edits yet" empty state.
+  it('renders skeleton rows instead of the empty state while loading (#572)', () => {
+    const { container } = wrap(<ResumeEditing loading rows={[]} />)
+    expect(screen.getByText('Resume editing')).toBeInTheDocument()
+    expect(
+      container.querySelectorAll('[data-slot="skeleton"]').length
+    ).toBeGreaterThan(0)
+    expect(screen.queryByText(/No edits yet/)).toBeNull()
   })
 })

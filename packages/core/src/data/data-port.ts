@@ -11,6 +11,9 @@ export interface DataPort {
   listDrafts(filter?: DraftFilter): Promise<Draft[]>
 
   getLock(ref: EntryRef): Promise<Lock | null>
+  /** All currently-held locks, in one call. Feeds the dashboard's "Who's
+   *  editing" widget without an O(entries) per-ref getLock loop (#587). */
+  listLocks(): Promise<Lock[]>
   /** Upsert the lock for an entry (storage only; acquire/TTL policy is core's). */
   putLock(lock: Lock): Promise<void>
   deleteLock(ref: EntryRef): Promise<void>

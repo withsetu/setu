@@ -400,3 +400,52 @@ describe('createFormsApi — authz enforcement (#362, the PII hole)', () => {
     expect(submit.status).toBe(200)
   })
 })
+
+// #629 — the admin CRUD routes parsed `c.req.json()` with no cap. They're authenticated, but a
+// single compromised/lazy editor session could OOM the process; the public submit route has been
+// capped since #419 and these are the remaining unbounded JSON bodies in this factory.
+describe('createFormsApi — admin CRUD body caps (#629)', () => {
+  const oversize = (
+    app: ReturnType<typeof createFormsApi>,
+    path: string,
+    method: string
+  ) =>
+    app.fetch(
+      new Request(`http://x${path}`, {
+        method,
+        headers: {
+          'content-type': 'application/json',
+          'content-length': String(50 * 1024 * 1024)
+        },
+        body: '{}'
+      })
+    )
+
+  it('413s an oversized POST /forms/submissions', async () => {
+    const { app } = makeApp()
+    expect((await oversize(app, '/forms/submissions', 'POST')).status).toBe(413)
+  })
+
+  it('413s an oversized PATCH /forms/submissions/read', async () => {
+    const { app } = makeApp()
+    expect(
+      (await oversize(app, '/forms/submissions/read', 'PATCH')).status
+    ).toBe(413)
+  })
+
+  it('413s an oversized DELETE /forms/submissions', async () => {
+    const { app } = makeApp()
+    expect((await oversize(app, '/forms/submissions', 'DELETE')).status).toBe(
+      413
+    )
+  })
+
+  it('still accepts a normal-sized admin write', async () => {
+    const { app } = makeApp()
+    const res = await post(app, '/forms/submissions', {
+      formId: 'contact',
+      fields: { email: 'a@b.c' }
+    })
+    expect(res.status).toBe(201)
+  })
+})

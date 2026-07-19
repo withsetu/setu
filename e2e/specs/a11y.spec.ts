@@ -25,15 +25,9 @@ async function scanAndAssert(
   page: import('@playwright/test').Page,
   surface: string
 ) {
-  const results = await new AxeBuilder({ page })
-    .withTags(TAGS)
-    // `.dev-reset` (main.tsx's "Reset to sample content" button) only exists because
-    // this harness runs against `vite dev` — it's compiled out of production by Vite
-    // (`import.meta.env.DEV` guard) and never ships, so it is test-environment
-    // scaffolding, not a product surface. Excluding it is the "trivially fix in
-    // test-setup" case the brief calls out, not a violation to allowlist.
-    .exclude('.dev-reset')
-    .analyze()
+  // (The old `.dev-reset` floating button exclusion is gone: #513's Demo Data
+  // panel absorbed the control and the overlay no longer exists, #492.)
+  const results = await new AxeBuilder({ page }).withTags(TAGS).analyze()
   const { known, unexpected } = classifyViolations(results)
   console.log(formatKnownViolations(surface, known))
   expect(unexpected, formatUnexpectedViolations(surface, unexpected)).toEqual(
@@ -42,10 +36,26 @@ async function scanAndAssert(
 }
 
 test.describe('admin a11y (axe, WCAG 2.1 AA)', () => {
+  // Audit the SETTLED DOM, not a transient one. motion/react entrance animations
+  // (ResumeEditing rows, ContentTable rows) fade in via opacity 0→1; scanning
+  // mid-fade makes axe read the opacity-BLENDED color (e.g. --foreground on white
+  // rendered as a light gray), which fails color-contrast only because it isn't
+  // fully painted yet. The components already branch on `useReducedMotion()` to skip
+  // the animation, so reducing motion renders them at their true, final colors —
+  // exactly the state a contrast audit should measure. This was the #601 flake:
+  // the count of rows caught mid-fade varied run to run. (Same mechanism the visual
+  // project reduces motion for — see e2e/playwright.config.ts.)
+  test.use({ contextOptions: { reducedMotion: 'reduce' } })
+
   test('dashboard', async ({ page }) => {
     const dashboard = new DashboardPage(page)
     await dashboard.goto()
     await expect(dashboard.heading).toBeVisible()
+    // The dashboard paints skeleton placeholders (StatTiles / SiteDeployCard /
+    // ResumeEditing) while the content index loads (#572). Wait for the real content
+    // to replace them so the scan audits the loaded dashboard — the state that
+    // actually renders the deploy/status text — not the decorative loading shell.
+    await expect(page.locator('[data-slot="skeleton"]')).toHaveCount(0)
 
     await scanAndAssert(page, 'dashboard')
   })

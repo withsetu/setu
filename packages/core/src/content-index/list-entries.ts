@@ -6,7 +6,25 @@ import { parseMdoc, serializeMdoc } from '../markdoc/frontmatter'
 import { tiptapToMarkdoc } from '../markdoc/to-markdoc'
 import { normalizeTags } from '../tags/normalize'
 import { parseFrontmatterDate } from '../permalinks/frontmatter-date'
+import { scanBody } from '../markdoc/scan-body'
+import { parsePageSeoOverride } from '../seo/page-override'
 import { extractMediaRefs } from './extract-media-refs'
+
+/** Site Health content-audit facts (#593), precomputed per entry from the
+ *  COMMITTED content at index time. Lives here beside {@link ContentRow} (the
+ *  index-port projection re-exports it) so the content-index → index-port edge
+ *  stays one-directional. */
+export interface EntryAuditFacts {
+  /** committed && `published !== false` — the set the audit covers (mirrors the
+   *  old `loadAuditEntries` filter). The facts below only count when true. */
+  audited: boolean
+  /** Committed frontmatter has a non-empty `title`. */
+  hasTitle: boolean
+  /** Images in the committed body missing alt text. */
+  imagesWithoutAlt: number
+  /** `<h1>` headings in the committed body (the page template emits its own). */
+  h1Count: number
+}
 
 /** One row in the merged content list: an entry that exists as a draft, as a
  *  committed Git file, or both. */
@@ -30,6 +48,16 @@ export interface ContentRow {
   mediaRefs: string[]
   /** Featured image src from frontmatter `featuredImage` (for list/preview thumbnails). */
   featuredImage?: string
+  /** Site Health content-audit facts (#593), from the COMMITTED content only —
+   *  draft-blind, so it matches the old git-walk audit that never saw drafts. */
+  audit: EntryAuditFacts
+  /** Whether the live version has a featured image (`featuredImage` present and non-blank).
+   *  Indexed so the list can show/filter the indicator without shipping the src (#576). */
+  hasFeaturedImage: boolean
+  /** Whether the live version's frontmatter `seo:` block sets any override (per
+   *  parsePageSeoOverride — blank strings and noindex:false don't count). Indicator
+   *  only: the list never ships the override VALUES (#577). */
+  hasSeoOverrides: boolean
 }
 
 /** What the topology knows about the live deploy — server truth (#208), replacing the
@@ -131,9 +159,42 @@ export function listContentEntries(
       tags: tagsOf(draft, committedStr),
       categories: categoriesOf(draft, committedStr),
       mediaRefs: mediaRefsOf(draftStr, committedStr),
-      ...(featuredImage !== undefined ? { featuredImage } : {})
+      audit: auditFactsOf(committedStr),
+      ...(featuredImage !== undefined ? { featuredImage } : {}),
+      hasFeaturedImage: featuredImage !== undefined,
+      hasSeoOverrides: hasSeoOverridesOf(draft, committedStr)
     }
   })
+}
+
+const NOT_AUDITED: EntryAuditFacts = {
+  audited: false,
+  hasTitle: false,
+  imagesWithoutAlt: 0,
+  h1Count: 0
+}
+
+/** Site Health facts from the COMMITTED content (draft-blind — the old audit
+ *  walked Git only). Uncommitted or `published: false` → not part of the audited
+ *  set; the body is only parsed for entries that are (bounded, build-time work).
+ *
+ *  COLLECTION SCOPE (#593, deliberate widening): the old `loadAuditEntries` walked
+ *  only `content/post` + `content/page`. This runs per index row — i.e. over EVERY
+ *  content collection — so the audit now covers all committed, published content,
+ *  not just post/page. That is intentional and arguably more correct: a published
+ *  entry in any future collection should still be checked for a missing title /
+ *  alt text / stray H1. Today post + page are the only content collections, so the
+ *  offender sets are identical to the old walk (the parity test asserts this on a
+ *  post/page fixture). If a non-post/page collection ever holds committed `.mdoc`,
+ *  it will be audited too — by design, not by accident. */
+function auditFactsOf(committedStr: string | null): EntryAuditFacts {
+  if (committedStr === null) return NOT_AUDITED
+  const { frontmatter, body } = parseMdoc(committedStr)
+  if (frontmatter['published'] === false) return NOT_AUDITED
+  const title = frontmatter['title']
+  const hasTitle = typeof title === 'string' && title.trim() !== ''
+  const { imagesWithoutAlt, h1Count } = scanBody(body)
+  return { audited: true, hasTitle, imagesWithoutAlt, h1Count }
 }
 
 /** Featured image src from the live version's frontmatter `featuredImage` (draft's when a
@@ -148,6 +209,21 @@ function featuredImageOf(
       ? parseMdoc(committedStr).frontmatter['featuredImage']
       : undefined
   return typeof raw === 'string' && raw.length > 0 ? raw : undefined
+}
+
+/** Whether the live version's frontmatter sets any per-page SEO override — the same
+ *  defensive `seo:` block parse the resolvers use, so "set" here means exactly "would
+ *  change the rendered head". Draft's frontmatter wins when a draft exists (#577). */
+function hasSeoOverridesOf(
+  draft: Draft | null,
+  committedStr: string | null
+): boolean {
+  const frontmatter = draft
+    ? draft.metadata
+    : committedStr !== null
+      ? parseMdoc(committedStr).frontmatter
+      : {}
+  return Object.keys(parsePageSeoOverride(frontmatter)).length > 0
 }
 
 /** Media keys referenced by the live version (draft's serialized doc when a draft

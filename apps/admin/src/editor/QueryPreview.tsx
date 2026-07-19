@@ -46,16 +46,37 @@ export function queryFromAttrs(a: QueryAttrs): IndexQuery {
   return q
 }
 
+/** Locale-aware short date in UTC — a frontmatter date is a calendar date, not an instant
+ *  (mirrors the site renderers), so the preview label can't drift across timezones. */
+function fmtPreviewDate(ms: number, locale: string): string {
+  return new Date(ms).toLocaleDateString(locale || undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC'
+  })
+}
+
 /** Live, in-canvas preview of what the query block will render: the real matching entries
- *  from the content index, in the chosen layout / column count. */
+ *  from the content index, in the chosen layout / column count. Shared with the latest-posts
+ *  block (#192), which pins the query to "newest posts" and adds date/excerpt toggles. */
 export function QueryPreview({
   attrs,
   runQuery,
-  apiBase
+  apiBase,
+  header = 'Query',
+  showDate = false,
+  showExcerpt = false
 }: {
   attrs: QueryAttrs
   runQuery: RunQuery | undefined
   apiBase?: string
+  /** Chrome label naming the block this preview is standing in for. */
+  header?: string
+  /** Render each row's real publish date from the index. */
+  showDate?: boolean
+  /** Excerpts aren't in the content index — render an honest ghost line instead. */
+  showExcerpt?: boolean
 }) {
   const [rows, setRows] = useState<ContentRow[]>([])
   const [total, setTotal] = useState(0)
@@ -111,7 +132,7 @@ export function QueryPreview({
     >
       <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-1.5">
         <span className="text-xs font-medium text-muted-foreground">
-          Query ·{' '}
+          {header} ·{' '}
           {layout === 'grid'
             ? `grid · ${columns} col${columns === 1 ? '' : 's'}`
             : 'list'}
@@ -183,6 +204,21 @@ export function QueryPreview({
                   <p className="truncate text-sm font-medium text-foreground">
                     {row ? row.title : ' '}
                   </p>
+                  {showDate && row && row.date !== null && (
+                    <time
+                      className="mt-0.5 block text-xs text-muted-foreground"
+                      dateTime={new Date(row.date).toISOString().slice(0, 10)}
+                    >
+                      {fmtPreviewDate(row.date, row.locale)}
+                    </time>
+                  )}
+                  {showExcerpt && row && (
+                    <span
+                      className="mt-1.5 block h-2 w-4/5 rounded-sm bg-muted"
+                      title="Excerpt appears on the published site"
+                      aria-hidden="true"
+                    />
+                  )}
                 </div>
               </li>
             ))}

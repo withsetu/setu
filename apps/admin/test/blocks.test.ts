@@ -54,3 +54,42 @@ describe('slashBlocks — hero deduplication', () => {
     expect((insertedContent[0] as { type: string }).type).toBe('heroBlock')
   })
 })
+
+describe('slashBlocks — spacer (#183)', () => {
+  it('offers Spacer in the layout group with gap/space keywords', () => {
+    const spacer = slashBlocks().find((b) => b.title === 'Spacer')
+    expect(spacer).toBeDefined()
+    expect(spacer!.group).toBe('layout')
+    expect(spacer!.keywords).toContain('gap')
+    expect(spacer!.keywords).toContain('space')
+  })
+
+  it('spacer entry inserts an attribute-free spacerBlock atom (not a setuBlock)', () => {
+    const spacer = slashBlocks().find((b) => b.title === 'Spacer')
+    expect(spacer).toBeDefined()
+    if (!spacer) return
+
+    const insertedContent: unknown[] = []
+    const chain = {
+      focus: () => chain,
+      deleteRange: (_r: unknown) => chain,
+      insertContent: (content: unknown) => {
+        insertedContent.push(content)
+        return chain
+      },
+      run: () => true
+    }
+    const mockEditor = { chain: () => chain } as any
+    spacer.run(mockEditor, { from: 0, to: 0 })
+
+    expect(insertedContent).toHaveLength(1)
+    const node = insertedContent[0] as {
+      type: string
+      attrs: { mdAttrs: Record<string, unknown> }
+      content?: unknown
+    }
+    expect(node.type).toBe('spacerBlock')
+    expect(node.attrs.mdAttrs).toEqual({})
+    expect(node.content).toBeUndefined()
+  })
+})

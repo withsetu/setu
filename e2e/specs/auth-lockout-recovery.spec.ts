@@ -3,7 +3,6 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test, expect, type Page } from '@playwright/test'
-import { hideDevReset } from '../lib/hide-dev-reset'
 import { LoginPage } from '../pages/LoginPage'
 import { DashboardPage } from '../pages/DashboardPage'
 
@@ -104,7 +103,6 @@ test('#386: a passwordless local owner recovers from sign-out via the rotated ha
   })
 
   await test.step('sign-out is guarded: the passwordless AlertDialog offers all three actions', async () => {
-    await hideDevReset(page)
     await page.getByRole('button', { name: localOwnerLabel() }).click()
     await page.getByRole('menuitem', { name: 'Sign out' }).click()
 

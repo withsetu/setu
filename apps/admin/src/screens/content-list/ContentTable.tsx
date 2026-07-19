@@ -1,6 +1,13 @@
 import { Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'motion/react'
-import { ArrowDown, ArrowUp, ExternalLink } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  ExternalLink,
+  FileSearch,
+  Image
+} from 'lucide-react'
 import type { ContentRow, SortKey } from '@setu/core'
 import { resolvePermalinkConfig } from '@setu/core'
 import {
@@ -52,6 +59,30 @@ function SortHead({
   )
 }
 
+/** Boolean indicator cell content (#576/#577): a subtle tick or muted dash, never a
+ *  value. `title` + aria-label carry the meaning for hover and screen readers. */
+function IndicatorMark({ on, onLabel, offLabel }: IndicatorMarkProps) {
+  return (
+    <span
+      role="img"
+      aria-label={on ? onLabel : offLabel}
+      title={on ? onLabel : offLabel}
+      className={
+        on
+          ? 'inline-flex items-center justify-center'
+          : 'text-muted-foreground/50'
+      }
+    >
+      {on ? <Check aria-hidden="true" className="size-4 text-success" /> : '—'}
+    </span>
+  )
+}
+interface IndicatorMarkProps {
+  on: boolean
+  onLabel: string
+  offLabel: string
+}
+
 export function ContentTable({
   rows,
   gen,
@@ -99,7 +130,11 @@ export function ContentTable({
               />
             </TableHead>
           )}
-          <TableHead>
+          {/* w-full: the Title column absorbs whatever width the fixed-width trailing columns
+              leave over — see the matching w-full max-w-0 on the title cells below (#554).
+              min-w-48: content-sized columns (long tag/category chips) must never squeeze the
+              primary column below readability — past that the wrapper scrolls, the title holds. */}
+          <TableHead className="w-full min-w-48">
             <SortHead label="Title" k="title" sort={sort} onSort={onSort} />
           </TableHead>
           {visible.status && (
@@ -110,6 +145,28 @@ export function ContentTable({
           {visible.tags && <TableHead className="w-44">Tags</TableHead>}
           {visible.categories && (
             <TableHead className="w-36">Categories</TableHead>
+          )}
+          {visible.featured && (
+            <TableHead className="w-16 text-center">
+              <span
+                className="inline-flex items-center justify-center"
+                title="Featured image"
+              >
+                <Image aria-hidden="true" className="size-4" />
+                <span className="sr-only">Featured image</span>
+              </span>
+            </TableHead>
+          )}
+          {visible.seo && (
+            <TableHead className="w-16 text-center">
+              <span
+                className="inline-flex items-center justify-center"
+                title="Custom SEO"
+              >
+                <FileSearch aria-hidden="true" className="size-4" />
+                <span className="sr-only">Custom SEO</span>
+              </span>
+            </TableHead>
           )}
           {localeCol && (
             <TableHead className="w-24">
@@ -155,11 +212,16 @@ export function ContentTable({
                   />
                 </TableCell>
               )}
-              <TableCell>
+              {/* #554: w-full + max-w-0 bound the cell to the column's share of the table width —
+                  without the max-width an auto-layout cell grows to fit its content and the inner
+                  `truncate` never engages, so a long title stretched the table past the viewport.
+                  min-w-48 (with the header) keeps that share readable when chip columns are wide. */}
+              <TableCell className="w-full min-w-48 max-w-0">
                 <div className="flex items-center gap-1.5">
                   <Link
                     to={`/edit/${r.ref.collection}/${r.ref.locale}/${r.ref.slug}`}
-                    className="truncate text-[15px] font-medium text-foreground hover:underline"
+                    title={r.title}
+                    className="min-w-0 truncate text-[15px] font-medium text-foreground hover:underline"
                   >
                     {r.title}
                   </Link>
@@ -182,7 +244,10 @@ export function ContentTable({
                     </a>
                   )}
                 </div>
-                <div className="mt-0.5 truncate text-[12.5px] text-muted-foreground">
+                <div
+                  title={`/${r.ref.slug}`}
+                  className="mt-0.5 truncate text-[12.5px] text-muted-foreground"
+                >
                   /{r.ref.slug}
                 </div>
               </TableCell>
@@ -206,6 +271,24 @@ export function ContentTable({
               {visible.categories && (
                 <TableCell>
                   <Chips items={r.categories} name={categoryName} />
+                </TableCell>
+              )}
+              {visible.featured && (
+                <TableCell className="text-center">
+                  <IndicatorMark
+                    on={r.hasFeaturedImage}
+                    onLabel="Has featured image"
+                    offLabel="No featured image"
+                  />
+                </TableCell>
+              )}
+              {visible.seo && (
+                <TableCell className="text-center">
+                  <IndicatorMark
+                    on={r.hasSeoOverrides}
+                    onLabel="Custom SEO set"
+                    offLabel="No custom SEO"
+                  />
                 </TableCell>
               )}
               {localeCol && (

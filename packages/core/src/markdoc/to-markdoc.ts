@@ -1,6 +1,7 @@
 import Markdoc from '@markdoc/markdoc'
 import type { TiptapDoc, TiptapNode } from './types'
 import { tableToGfm } from './table-gfm'
+import { ATOM_NODE_TO_TAG } from './atom-blocks'
 
 const N = Markdoc.Ast.Node
 
@@ -90,6 +91,17 @@ function withAlign(
 
 function buildBlock(node: TiptapNode): InstanceType<typeof N> {
   const attrs = node.attrs ?? {}
+  // Childless atom blocks ({% hero /%}, {% gallery /%}, …) are driven by the shared
+  // ATOM_TAG_TO_NODE map (see ./atom-blocks) so this direction and to-tiptap can't drift.
+  const atomTag = ATOM_NODE_TO_TAG[node.type]
+  if (atomTag) {
+    return new N(
+      'tag',
+      (attrs['mdAttrs'] ?? {}) as Record<string, unknown>,
+      [],
+      atomTag
+    )
+  }
   switch (node.type) {
     case 'heading':
       return withAlign(
@@ -133,34 +145,6 @@ function buildBlock(node: TiptapNode): InstanceType<typeof N> {
         (node.content ?? []).map(buildBlock),
         'callout'
       )
-    case 'contactBlock':
-      return new N(
-        'tag',
-        (attrs['mdAttrs'] ?? {}) as Record<string, unknown>,
-        [],
-        'contact'
-      )
-    case 'heroBlock':
-      return new N(
-        'tag',
-        (attrs['mdAttrs'] ?? {}) as Record<string, unknown>,
-        [],
-        'hero'
-      )
-    case 'queryBlock':
-      return new N(
-        'tag',
-        (attrs['mdAttrs'] ?? {}) as Record<string, unknown>,
-        [],
-        'query'
-      )
-    case 'embedBlock':
-      return new N(
-        'tag',
-        (attrs['mdAttrs'] ?? {}) as Record<string, unknown>,
-        [],
-        'embed'
-      )
     case 'setuBlock': {
       const tag = attrs['tag']
       if (typeof tag !== 'string' || tag === '') {
@@ -175,6 +159,14 @@ function buildBlock(node: TiptapNode): InstanceType<typeof N> {
         tag
       )
     }
+    case 'columns':
+    case 'column':
+      return new N(
+        'tag',
+        (attrs['mdAttrs'] ?? {}) as Record<string, unknown>,
+        (node.content ?? []).map(buildBlock),
+        node.type
+      )
     default:
       return new N('paragraph', {}, [])
   }
@@ -222,18 +214,61 @@ function imageBlockToMarkdoc(node: TiptapNode): string {
   return `{% image ${parts.join(' ')} /%}`
 }
 
-export function tiptapToMarkdoc(doc: TiptapDoc): string {
-  const blocks = doc.content.map((node) => {
+/** The set of body-bearing tag node types serialized at the STRING level (open tag +
+ *  recursively serialized children + close tag) instead of through Markdoc.format.
+ *  Rationale: several block types (imageBlock, table, passthrough) have string-only
+ *  serializers with no faithful Markdoc AST form — routing a tag's children through
+ *  Markdoc.format alone silently DROPPED those nodes (an `{% image /%}` inside a
+ *  callout body vanished on save). String-level recursion reuses the exact same
+ *  per-type serializers at every nesting depth. */
+const TAG_NODE_TYPES: Record<string, (node: TiptapNode) => string> = {
+  callout: () => 'callout',
+  columns: () => 'columns',
+  column: () => 'column',
+  setuBlock: (node) => {
+    const tag = node.attrs?.['tag']
+    if (typeof tag !== 'string' || tag === '') {
+      throw new Error(
+        'tiptapToMarkdoc: setuBlock node is missing its "tag" attribute'
+      )
+    }
+    return tag
+  }
+}
+
+/** Open-tag text (`{% tag attr="v" %}`) via Markdoc's own formatter — a synthetic
+ *  self-closing tag is formatted and its ` /%}` tail rewritten to ` %}` — so attribute
+ *  ordering/quoting/escaping stays byte-identical to what Markdoc.format produced when
+ *  whole subtrees went through it (round-trip stability for existing content). */
+function openTagFor(tag: string, mdAttrs: Record<string, unknown>): string {
+  const selfClosing = Markdoc.format(
+    new N('document', {}, [new N('tag', mdAttrs, [], tag)])
+  ).replace(/\n+$/, '')
+  return selfClosing.replace(/ \/%\}$/, ' %}')
+}
+
+/** Serialize a body-bearing tag node at the string level (see TAG_NODE_TYPES). */
+function tagBlockToMarkdoc(tag: string, node: TiptapNode): string {
+  const mdAttrs =
+    (node.attrs?.['mdAttrs'] as Record<string, unknown> | undefined) ?? {}
+  const body = (node.content ?? []).map(serializeBlock).join('\n\n')
+  return `${openTagFor(tag, mdAttrs)}\n${body}\n{% /${tag} %}`
+}
+
+/** Serialize one block node to Markdoc source. Used for top-level blocks AND,
+ *  recursively, for the children of body-bearing tags. */
+function serializeBlock(node: TiptapNode): string {
+  if (node.type === 'passthrough') {
     const raw = node.attrs?.['raw']
-    return node.type === 'passthrough'
-      ? typeof raw === 'string'
-        ? raw
-        : ''
-      : node.type === 'table'
-        ? tableToGfm(node)
-        : node.type === 'imageBlock'
-          ? imageBlockToMarkdoc(node)
-          : formatNative(node)
-  })
-  return blocks.join('\n\n') + '\n'
+    return typeof raw === 'string' ? raw : ''
+  }
+  if (node.type === 'table') return tableToGfm(node)
+  if (node.type === 'imageBlock') return imageBlockToMarkdoc(node)
+  const tagOf = TAG_NODE_TYPES[node.type]
+  if (tagOf) return tagBlockToMarkdoc(tagOf(node), node)
+  return formatNative(node)
+}
+
+export function tiptapToMarkdoc(doc: TiptapDoc): string {
+  return doc.content.map(serializeBlock).join('\n\n') + '\n'
 }

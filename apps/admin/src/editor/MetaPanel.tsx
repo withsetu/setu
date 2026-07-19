@@ -6,6 +6,21 @@ import { DateField } from './DateField'
 import { SeoSection } from './SeoSection'
 import { SlugField } from './SlugField'
 
+/** Whether the editor offers Categories/Tags for entries in `collection`.
+ *
+ *  v1 is post-only (WordPress parity: categories and tags are post taxonomies;
+ *  pages carry none unless a type opts in). When custom collections land, this
+ *  becomes a lookup on the collection's config — each collection declaring its
+ *  supported taxonomies, read here AND by list filters/archive routes (#580).
+ *  Generalize HERE, not by scattering `collection === '…'` checks.
+ *
+ *  Data honesty: hand-authored `tags`/`categories` frontmatter on other
+ *  collections is left untouched — the fields just aren't offered, and every
+ *  panel edit spreads the full metadata map, so unmanaged keys round-trip. */
+function collectionSupportsTaxonomies(collection: string): boolean {
+  return collection === 'post'
+}
+
 /** The frontmatter value that feeds the permalink date tokens: `date` ?? `pubDate`. */
 function dateValue(metadata: Record<string, unknown>): string | undefined {
   const raw = metadata['date'] ?? metadata['pubDate']
@@ -117,28 +132,32 @@ export function MetaPanel({
           apiBase={apiBase}
         />
       </Section>
-      <Section title="Categories">
-        <CategoryField
-          selected={
-            Array.isArray(metadata['categories'])
-              ? (metadata['categories'] as string[])
-              : []
-          }
-          onChange={(next) => onChange({ ...metadata, categories: next })}
-          editable={editable}
-        />
-      </Section>
-      <Section title="Tags">
-        <TagField
-          selected={
-            Array.isArray(metadata['tags'])
-              ? (metadata['tags'] as string[])
-              : []
-          }
-          onChange={(next) => onChange({ ...metadata, tags: next })}
-          editable={editable}
-        />
-      </Section>
+      {collectionSupportsTaxonomies(collection) && (
+        <>
+          <Section title="Categories">
+            <CategoryField
+              selected={
+                Array.isArray(metadata['categories'])
+                  ? (metadata['categories'] as string[])
+                  : []
+              }
+              onChange={(next) => onChange({ ...metadata, categories: next })}
+              editable={editable}
+            />
+          </Section>
+          <Section title="Tags">
+            <TagField
+              selected={
+                Array.isArray(metadata['tags'])
+                  ? (metadata['tags'] as string[])
+                  : []
+              }
+              onChange={(next) => onChange({ ...metadata, tags: next })}
+              editable={editable}
+            />
+          </Section>
+        </>
+      )}
       <Section title="SEO">
         <SeoSection
           metadata={metadata}

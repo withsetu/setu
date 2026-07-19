@@ -51,6 +51,13 @@ const pagination = {
   limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(50)
 }
 
+// Query-string booleans are the literal strings 'true'/'false' — z.coerce.boolean()
+// would turn ANY non-empty string (including "false") into true, so enum + compare.
+const boolParam = z
+  .enum(['true', 'false'])
+  .transform((v) => v === 'true')
+  .optional()
+
 const contentQuerySchema = z.object({
   collection: z.string().min(1),
   q: z.string().optional(),
@@ -58,6 +65,8 @@ const contentQuerySchema = z.object({
   locale: z.string().optional(),
   tag: z.string().optional(),
   category: z.string().optional(),
+  hasFeaturedImage: boolParam,
+  hasSeoOverrides: boolParam,
   sort: z.enum(['updatedAt', 'title', 'status', 'locale']).optional(),
   dir: z.enum(['asc', 'desc']).optional(),
   ...pagination
@@ -91,6 +100,7 @@ export interface IndexApiDeps {
     IndexService,
     | 'ensureBuilt'
     | 'query'
+    | 'stats'
     | 'distinctTags'
     | 'distinctLocales'
     | 'categoryCounts'
@@ -98,6 +108,7 @@ export interface IndexApiDeps {
     | 'referencedBy'
     | 'entriesByCategory'
     | 'entriesByTag'
+    | 'auditSummary'
   >
   media: Pick<MediaIndexService, 'ensureBuilt' | 'query'>
   /** Force a re-derivation of deploy-derived lifecycle (staged → live flips).
@@ -138,12 +149,27 @@ export function createIndexApi(deps: IndexApiDeps) {
       ...(p.locale !== undefined ? { locale: p.locale } : {}),
       ...(p.tag !== undefined ? { tag: p.tag } : {}),
       ...(p.category !== undefined ? { category: p.category } : {}),
+      ...(p.hasFeaturedImage !== undefined
+        ? { hasFeaturedImage: p.hasFeaturedImage }
+        : {}),
+      ...(p.hasSeoOverrides !== undefined
+        ? { hasSeoOverrides: p.hasSeoOverrides }
+        : {}),
       ...(p.sort !== undefined
         ? { sort: { key: p.sort, dir: p.dir ?? 'desc' } }
         : {})
     }
     await deps.index.ensureBuilt()
     return c.json(await deps.index.query(q))
+  })
+
+  // At-a-glance dashboard counts: per-collection lifecycle tallies in ONE call
+  // over body-free rows (#587). content.view — same read surface as
+  // /api/index/query, no bodies exposed. No query params: index-global by
+  // design, like /facets.
+  app.get('/api/index/stats', auth, canViewContent, async (c) => {
+    await deps.index.ensureBuilt()
+    return c.json(await deps.index.stats())
   })
 
   // Facets are index-global by design: the underlying port helpers
@@ -189,6 +215,16 @@ export function createIndexApi(deps: IndexApiDeps) {
     if (!parsed.success) return c.json({ error: 'invalid' }, 400)
     await deps.index.ensureBuilt()
     return c.json(await deps.index.entriesByTag(parsed.data.tag))
+  })
+
+  // Body-free Site Health content facts (#593) — the cached content scan reads
+  // this instead of walking every published .mdoc from Git. `content.view`
+  // matches the other /api/index routes: it exposes nothing beyond what
+  // /api/index/query already serves (entry refs + which lack a title/alt/H1),
+  // and forcing the ensureBuilt derivation grants a reader nothing new.
+  app.get('/api/index/audit-summary', auth, canViewContent, async (c) => {
+    await deps.index.ensureBuilt()
+    return c.json(await deps.index.auditSummary())
   })
 
   // POST because it mutates server state — but only DERIVED state (index rows

@@ -1,6 +1,6 @@
 import { APIError } from '@better-auth/core/error'
 import type { GenericEndpointContext } from '@better-auth/core'
-import { rankOf, outranks } from '@setu/core'
+import { rankOf, outranks, canonicalRoleOf, parseRoleSet } from '@setu/core'
 import type { UserWithAdminFields } from './last-owner-guard'
 
 /** #364: server-side rank enforcement in the better-auth mutation pipeline. `last-owner-guard.ts`
@@ -76,21 +76,18 @@ function forbidden(message: string): never {
   throw new APIError('FORBIDDEN', { message })
 }
 
-/** `role` may be a single string or (defensively) a comma-joined/array multi-role value — see
- *  `last-owner-guard.ts`'s `roleSetIncludesAdmin` for the same shape note. Every component must
- *  resolve to a KNOWN, non-zero rank for the assignment to be considered valid at all; an unknown
- *  component fails closed rather than silently treating it as "rank 0, therefore below everyone". */
-function parseRoleComponents(role: unknown): string[] {
-  if (Array.isArray(role)) return role.map(String)
-  if (typeof role === 'string') return role.split(',').filter(Boolean)
-  return []
-}
-
-/** True only when EVERY component of `role` is a known role strictly below `actorRank`. Used both
- *  for "the role being newly assigned" (set-role/update-user/create-user) — a maintainer must never
- *  be able to hand out a role at or above their own rank, even indirectly via a multi-role string. */
+/** True only when EVERY component of `role` is a known role strictly below `actorRank`. Used for
+ *  "the role being newly assigned" (set-role/update-user/create-user) — a maintainer must never be
+ *  able to hand out a role at or above their own rank, even indirectly via a multi-role string.
+ *
+ *  #630 made multi-role assignment unrepresentable (`single-role-guard.ts` runs ahead of this hook
+ *  and rejects it outright), so `components` is a single element in practice. The per-component
+ *  check is kept as defence in depth rather than collapsed to a scalar: an unknown component still
+ *  fails closed here instead of silently reading as "rank 0, therefore below everyone".
+ *  `parseRoleSet` is core's shared shape parser — the same one `canonicalRoleOf` and the
+ *  last-admin guard use, so all four consumers now split roles identically (#630). */
 function allComponentsBelowRank(role: unknown, actorRank: number): boolean {
-  const components = parseRoleComponents(role)
+  const components = parseRoleSet(role)
   if (components.length === 0) return false
   return components.every((r) => {
     const rank = rankOf(r)
@@ -99,17 +96,24 @@ function allComponentsBelowRank(role: unknown, actorRank: number): boolean {
 }
 
 /** Resolves the acting user's role off the hook's live session context. Returns `undefined` when
- *  no session (or no role) is present — callers must fail closed on that, not treat it as "rank 0
- *  guest" (a guest should never reach these routes in the first place; `undefined` here signals a
- *  gap in our own assumptions, not a legitimate low-privilege caller). */
+ *  no session (or no usable role) is present — callers must fail closed on that, not treat it as
+ *  "rank 0 guest" (a guest should never reach these routes in the first place; `undefined` here
+ *  signals a gap in our own assumptions, not a legitimate low-privilege caller).
+ *
+ *  #630: canonicalized through core's `canonicalRoleOf`, so a row persisted as a comma-joined
+ *  multi-role value resolves to its HIGHEST known component. Previously this returned the raw
+ *  column, and an `'admin,maintainer'` actor then failed `actorRole === 'admin'` below and hit
+ *  `rankOf(...) === 0` -> hard forbidden, even though better-auth's own `hasPermission` (which
+ *  splits on `,` and grants if ANY component grants) had already authorized them onto the route.
+ *  Writes are now single-role-only (`single-role-guard.ts`); this is the read-tolerant half.
+ *  A role with no known component still resolves to `undefined` — fail closed, unchanged. */
 function resolveActorRole(context: GenericEndpointContext): string | undefined {
   const session = (
     context.context as unknown as {
       session?: { user?: { role?: string | null } }
     }
   ).session
-  const role = session?.user?.role
-  return typeof role === 'string' && role.length > 0 ? role : undefined
+  return canonicalRoleOf(session?.user?.role) ?? undefined
 }
 
 /** Gates `/admin/create-user`: a non-admin actor may only create a user whose (possibly comma-
@@ -187,14 +191,18 @@ export function rankGuardUpdateHook() {
     )) as (UserWithAdminFields & Record<string, unknown>) | null
     if (!target) return // target doesn't exist — let the route's own NOT_FOUND check handle it
 
-    const targetRank = rankOf(target.role ?? '')
+    // #630: canonicalize the TARGET's role too, for the same reason as the actor's — a legacy
+    // `'admin,maintainer'` target must read as an admin (rank 4), not as an unknown rank-0 row
+    // that a maintainer would then be allowed to "outrank" and manage.
+    const targetRole = canonicalRoleOf(target.role) ?? ''
+    const targetRank = rankOf(targetRole)
     // Fail closed on an unknown/garbage target role: `outranks` alone treats an unrecognized target
     // as rank 0 (bottom of the ladder), which would let a known actor "outrank" it by default — see
     // rank.ts's own division-of-responsibility note. A real action must validate the target is a
     // KNOWN role first.
     if (targetRank <= 0)
       forbidden('cannot act on a user with an unrecognized role')
-    if (!outranks(actorRole, target.role ?? '')) {
+    if (!outranks(actorRole, targetRole)) {
       forbidden('cannot manage a user at or above your own rank')
     }
 

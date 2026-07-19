@@ -134,13 +134,24 @@ export function EditorScreen() {
   // Slug just minted from a compose save OR just renamed → the in-memory doc is
   // canonical; don't reload over it.
   const mintedRef = useRef<string | null>(null)
-  // Identity for the keyed subtrees (Canvas/MetaPanel): stable across a
-  // compose-mint or rename — the same entry under a new name; remounting would
-  // kill an open picker dialog mid-interaction (#490) and drop the caret on
-  // first autosave. Changes only on real navigation to a different entry (load
-  // effect, !justMinted) — history restore still remounts via the `:reloadKey`
-  // suffix.
-  const identityRef = useRef(`${collection}/${locale}/${slug}`)
+  // Entry identity for the keyed Canvas/MetaPanel subtrees (#549). A self-
+  // initiated slug change (compose-mint claiming its slug on first autosave, or
+  // a rename done here — both stamp mintedRef before navigating) is the SAME
+  // entry: remounting on it drops transient UI state mid-interaction (an open
+  // picker in the rail, editor focus). Only a real entry switch advances the
+  // epoch; mintedRef is still set at this point because the load effect (which
+  // clears it) runs after render.
+  const entryIdentRef = useRef({ ref: '', epoch: 0 })
+  {
+    const cur = `${collection}/${locale}/${slug}`
+    if (entryIdentRef.current.ref !== cur) {
+      entryIdentRef.current = {
+        ref: cur,
+        epoch:
+          entryIdentRef.current.epoch + (mintedRef.current === slug ? 0 : 1)
+      }
+    }
+  }
   // Compose mode: a slug the author explicitly chose before the first save. The
   // ref feeds the mint (autosave closes over refs); the state re-renders the field.
   const manualSlugRef = useRef<string | null>(null)
@@ -163,16 +174,15 @@ export function EditorScreen() {
   useEffect(() => {
     let live = true
     // Arriving from a compose-mint or a rename (mintedRef holds this slug): the
-    // in-memory doc/meta is canonical, and the keyed Canvas/MetaPanel keep the
-    // mint-stable identityRef key so they never remount — no reseed-ordering
-    // hazard (nothing remounts, so nothing can mount against a stale
-    // initialDoc). Skipping the 'loading' phase keeps the whole editor body —
-    // including an open Radix dialog like the featured-image picker — mounted
-    // across the mint (#490). Real navigation (!justMinted) advances the
-    // identity and shows 'loading' as before.
+    // in-memory doc/meta is canonical AND the entry epoch kept the keyed
+    // Canvas/MetaPanel mounted (same entry) — so skip the 'loading' phase
+    // cycle: its early-return unmounts the whole editor stage, dropping an
+    // open picker dialog, focus, and scroll ~600ms after the user's first
+    // edit (#549). (The old "MUST remount to re-seed" rationale applied when
+    // the Canvas key contained the slug; with the epoch key nothing reseeds
+    // on a self-mint, so there is no stale-initialDoc hazard.)
     const justMinted = mintedRef.current === slug
     mintedRef.current = null
-    if (!justMinted) identityRef.current = `${collection}/${locale}/${slug}`
     if (!justMinted) setPhase('loading')
     void (async () => {
       if (composing) {
@@ -295,7 +305,9 @@ export function EditorScreen() {
           },
           EDITOR_ID
         )
-        navigate(`/edit/${collection}/${locale}/${newSlug}`, { replace: true })
+        void navigate(`/edit/${collection}/${locale}/${newSlug}`, {
+          replace: true
+        })
         await reindex({ collection, locale, slug: newSlug })
         return result
       }
@@ -349,7 +361,9 @@ export function EditorScreen() {
       if (!result.renamed) return result
       mintedRef.current = newSlug
       if (result.committedSha) baseShaRef.current = result.committedSha
-      navigate(`/edit/${collection}/${locale}/${newSlug}`, { replace: true })
+      void navigate(`/edit/${collection}/${locale}/${newSlug}`, {
+        replace: true
+      })
       // Awaited: success (toast/return) must imply both index rows are settled,
       // or a hard navigation right after can lose the writes (see reindex doc).
       await Promise.all([
@@ -806,11 +820,11 @@ export function EditorScreen() {
               onBlur={() => void onTitleBlur()}
             />
             <Canvas
-              // identityRef: mint/rename-stable (#490) so a compose-mint never
-              // remounts the canvas mid-typing; a history restore (#466) still
-              // remounts via reloadKey so it re-seeds from the re-forked
-              // initialDoc (see the load effect).
-              key={`${identityRef.current}:${reloadKey}`}
+              // reloadKey: a history restore (#466) must remount the canvas so
+              // it re-seeds from the re-forked initialDoc (see the load effect).
+              // Epoch, not slug (#549): a self-rename/compose-mint keeps the
+              // mount (same entry; the load effect keeps the in-memory doc).
+              key={`${collection}/${locale}/${entryIdentRef.current.epoch}:${reloadKey}`}
               initialContent={initialDoc}
               editable={editable}
               onChange={onDocChange}
@@ -828,20 +842,34 @@ export function EditorScreen() {
               <BlockInspector
                 tag={selectedBlock.tag}
                 mdAttrs={selectedBlock.mdAttrs}
-                onChange={selectedBlock.update}
+                onChange={(name, value) => {
+                  // A columns layout change must reconcile the column COUNT too
+                  // (grow: append empty columns; shrink: move trailing content
+                  // into the last kept column) — a plain attr write would desync
+                  // the layout from the actual children.
+                  if (
+                    selectedBlock.tag === 'columns' &&
+                    name === 'layout' &&
+                    typeof value === 'string' &&
+                    editor
+                  ) {
+                    editor.commands.setColumnsLayout(selectedBlock.pos, value)
+                    return
+                  }
+                  selectedBlock.update(name, value)
+                }}
                 apiBase={apiBase}
               />
             </div>
           </aside>
         ) : (
           <MetaPanel
-            // Entry-keyed like Canvas, via the mint-stable identity (#490):
-            // panel fields hold per-entry snapshots (CategoryField's orphan
-            // union) that must not survive navigation to a different entry
-            // (#366) — preserved because the load effect advances identityRef
-            // on real navigation before the panel re-renders in 'ready' — nor
-            // a history restore (#466, the reloadKey suffix).
-            key={`${identityRef.current}:${reloadKey}`}
+            // Entry-keyed like Canvas: panel fields hold per-entry snapshots
+            // (CategoryField's orphan union) that must not survive navigation
+            // to a different entry (#366) — nor a history restore (#466).
+            // Epoch, not slug (#549): a self-rename is the same entry (see
+            // the Canvas key).
+            key={`${collection}/${locale}/${entryIdentRef.current.epoch}:${reloadKey}`}
             metadata={metadata}
             collection={collection}
             locale={locale}

@@ -6,6 +6,8 @@ const ICONS = {
     '<path d="M16 8V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2"/><rect x="9" y="8" width="11" height="13" rx="2"/>',
   image:
     '<rect x="3" y="3" width="18" height="18" rx="2.4"/><circle cx="8.5" cy="8.5" r="1.6"/><path d="M21 15.5l-4.5-4.5L5 21"/>',
+  gallery:
+    '<path d="M3 15V5a2 2 0 0 1 2-2h10"/><rect x="7" y="7" width="14" height="14" rx="2"/><circle cx="11.5" cy="11.5" r="1.4"/><path d="M21 16.5 17.5 13 8.5 21"/>',
   forms:
     '<rect x="8" y="2.5" width="8" height="4" rx="1.2"/><path d="M16 4.5h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2h2"/><path d="M9.5 12.5h5M9.5 16.5h5M7 12.5h.01M7 16.5h.01"/>',
   globe:
@@ -50,6 +52,8 @@ const ICONS = {
   columns:
     '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/>',
   hero: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 13h18M8 17h8"/>',
+  spacer:
+    '<path d="M5 4h14M5 20h14"/><path d="M12 8.5v7"/><path d="m9.5 10.5 2.5-2.5 2.5 2.5M9.5 13.5l2.5 2.5 2.5-2.5"/>',
   table:
     '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/>',
   video:

@@ -793,7 +793,14 @@ function UserList({ refreshSignal }: { refreshSignal: number }) {
                           {initialOf(user.name, user.email)}
                         </AvatarFallback>
                       </Avatar>
-                      <span className="font-medium">{user.name || '—'}</span>
+                      {/* #554: names are free text — cap + truncate so a long one can't
+                          stretch the table; full name on hover. */}
+                      <span
+                        title={user.name || undefined}
+                        className="max-w-72 truncate font-medium"
+                      >
+                        {user.name || '—'}
+                      </span>
                       {user.id === actor.id && (
                         <span className="text-xs text-muted-foreground">
                           (you)
@@ -802,7 +809,13 @@ function UserList({ refreshSignal }: { refreshSignal: number }) {
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {user.email}
+                    {/* #554: same cap-and-truncate treatment as the name. */}
+                    <span
+                      title={user.email}
+                      className="block max-w-80 truncate"
+                    >
+                      {user.email}
+                    </span>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1.5">
@@ -938,7 +951,7 @@ function OwnerPasswordCard({ onChanged }: { onChanged: () => void }) {
         </CardTitle>
         <CardDescription>
           {hasPassword === false
-            ? 'Signing in from this machine needs no password. Signing in remotely — over a tunnel or a hosted server — requires one.'
+            ? 'On this machine, the owner signs in with its local sign-in link — no password. Anywhere else — a tunnel, another device, a hosted server — needs an email and password.'
             : 'Update the password you use to sign in.'}
         </CardDescription>
       </CardHeader>

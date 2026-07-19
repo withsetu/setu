@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
-import type { Role } from '@setu/core'
+import { canonicalRoleOf, type Role } from '@setu/core'
 import { authClient } from './auth-client'
 import { ActorProvider } from './actor'
 import { useCapabilities } from '../lib/useCapabilities'
@@ -12,7 +12,6 @@ import { ResetPasswordScreen } from './ResetPasswordScreen'
 import { AuthNotConfigured } from './AuthNotConfigured'
 import { Skeleton } from '@/components/ui/skeleton'
 
-const ROLES: readonly string[] = ['admin', 'maintainer', 'editor', 'author']
 const apiBase = import.meta.env.VITE_SETU_API ?? ''
 
 const HASH_TOKEN_RE = /^#setu-token=(.+)$/
@@ -114,9 +113,13 @@ export function SessionGate({ children }: { children: ReactNode }) {
     // #379: unknown/audience roles get no back-office access — the real admin.access gate is
     // deferred to #379; the server already fails closed. This UI fallback is UX-only (server
     // enforces) and uses the least-privileged staff role.
-    const role: Role = ROLES.includes(user.role ?? '')
-      ? (user.role as Role)
-      : 'author'
+    //
+    // #630: the fourth consumer of the multi-role shape, fixed for the same reason as
+    // resolve-session-actor.ts — an exact match dropped a legacy `'admin,maintainer'` user to the
+    // 'author' fallback, so the server (which now canonicalizes to `admin`) would grant every
+    // action while this UI hid the nav and screens for all of them. `canonicalRoleOf` returns the
+    // highest known component, keeping the UX gate and the server gate telling the same story.
+    const role: Role = canonicalRoleOf(user.role) ?? 'author'
     return (
       <ActorProvider actor={{ id: user.id, role }}>{children}</ActorProvider>
     )

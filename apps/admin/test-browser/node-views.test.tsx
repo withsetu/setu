@@ -4,9 +4,11 @@ import { page } from '@vitest/browser/context'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import type { JSONContent } from '@tiptap/core'
+import type { ContentRow } from '@setu/core'
 import { HeroBlock } from '../src/editor/extensions/HeroBlock'
 import { ImageBlock } from '../src/editor/extensions/ImageBlock'
 import { ContactBlock } from '../src/editor/extensions/ContactBlock'
+import { LatestPostsBlock } from '../src/editor/extensions/LatestPostsBlock'
 import { Callout } from '../src/editor/extensions/Callout'
 import {
   ensureFormId,
@@ -148,6 +150,80 @@ describe('ContactBlock node view (real browser)', () => {
       .element(page.getByLabelText('Subject field'))
       .toBeInTheDocument()
     await expect.element(page.getByLabelText('Subject field')).toBeChecked()
+  })
+})
+
+describe('LatestPostsBlock node view (real browser)', () => {
+  const row = (
+    slug: string,
+    title: string,
+    date: number | null
+  ): ContentRow => ({
+    ref: { collection: 'post', locale: 'en', slug },
+    title,
+    locale: 'en',
+    lifecycle: { state: 'live' },
+    updatedAt: date,
+    hasDraft: false,
+    date,
+    tags: [],
+    categories: [],
+    mediaRefs: [],
+    audit: { audited: false, hasTitle: true, imagesWithoutAlt: 0, h1Count: 0 },
+    hasFeaturedImage: false,
+    hasSeoOverrides: false
+  })
+
+  it('renders REAL post titles + dates from the injected content-index query (#192)', async () => {
+    const runQuery = () =>
+      Promise.resolve({
+        rows: [
+          row('newest', 'Newest post', Date.UTC(2026, 5, 20)),
+          row('older', 'Older post', null)
+        ],
+        total: 2
+      })
+    render(
+      <Harness
+        extensions={[StarterKit, LatestPostsBlock.configure({ runQuery })]}
+        content={{
+          type: 'doc',
+          content: [{ type: 'latestPostsBlock', attrs: { mdAttrs: {} } }]
+        }}
+      />
+    )
+    // Live preview — actual titles from the (stubbed) index, not a grey placeholder.
+    await expect.element(page.getByText('Newest post')).toBeInTheDocument()
+    await expect.element(page.getByText('Older post')).toBeInTheDocument()
+    // showDate defaults ON for latest-posts: the dated row renders a formatted date.
+    await expect.element(page.getByText('Jun 20, 2026')).toBeInTheDocument()
+    // Chrome header names the block, with the count from the query.
+    await expect.element(page.getByText(/Latest Posts ·/)).toBeInTheDocument()
+    await expect.element(page.getByText('2 posts')).toBeInTheDocument()
+  })
+
+  it('hides dates when showDate=false', async () => {
+    const runQuery = () =>
+      Promise.resolve({
+        rows: [row('newest', 'Dated post', Date.UTC(2026, 5, 20))],
+        total: 1
+      })
+    render(
+      <Harness
+        extensions={[StarterKit, LatestPostsBlock.configure({ runQuery })]}
+        content={{
+          type: 'doc',
+          content: [
+            {
+              type: 'latestPostsBlock',
+              attrs: { mdAttrs: { showDate: false } }
+            }
+          ]
+        }}
+      />
+    )
+    await expect.element(page.getByText('Dated post')).toBeInTheDocument()
+    await expect.element(page.getByText('Jun 20, 2026')).not.toBeInTheDocument()
   })
 })
 

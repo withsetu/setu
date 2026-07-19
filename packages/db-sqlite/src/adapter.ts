@@ -119,6 +119,9 @@ export function createSqliteAdapter(file: string): DataPort {
       const row = db.select().from(locks).where(whereLock(ref)).get()
       return row ? rowToLock(row) : null
     },
+    async listLocks() {
+      return db.select().from(locks).all().map(rowToLock)
+    },
     async putLock(lock) {
       db.insert(locks)
         .values({

@@ -7,6 +7,7 @@ import type {
   TiptapNode
 } from './types'
 import { defaultKnownBlockTags } from '../config/default-config'
+import { ATOM_TAG_TO_NODE } from './atom-blocks'
 
 // Markdoc AST node attributes are `unknown` (parsed, untyped input — see MdNode in
 // ./types). A real `src`/`alt`/`title`/`content` attribute is always a string coming out
@@ -188,6 +189,35 @@ function alignAttr(
   return isAligned(node) ? { textAlign: String(node.attributes.align) } : {}
 }
 
+/** `{% columns %}` → the bespoke multi-slot `columns` node (#181), but ONLY when the
+ *  tag is well-formed for the editor schema (`column{2,4}`): every child a `column`
+ *  tag and 2–4 of them. Anything else returns null so the caller falls back to the
+ *  generic setuBlock path, which round-trips arbitrary structure verbatim. Each empty
+ *  column seeds one empty paragraph (the Tiptap `column` node requires `block+`). */
+function columnsToTiptap(node: MdNode): TiptapNode | null {
+  const kids = node.children ?? []
+  const allColumns =
+    kids.length >= 2 &&
+    kids.length <= 4 &&
+    kids.every((k) => k.type === 'tag' && k.tag === 'column')
+  if (!allColumns) return null
+  const columns = kids.map((k): TiptapNode => {
+    const body = (k.children ?? [])
+      .map(blockToTiptap)
+      .filter((n): n is TiptapNode => n !== null)
+    return {
+      type: 'column',
+      attrs: { mdAttrs: k.attributes },
+      content: body.length ? body : [{ type: 'paragraph', content: [] }]
+    }
+  })
+  return {
+    type: 'columns',
+    attrs: { mdAttrs: node.attributes },
+    content: columns
+  }
+}
+
 function blockToTiptap(node: MdNode): TiptapNode | null {
   switch (node.type) {
     case 'heading':
@@ -226,6 +256,12 @@ function blockToTiptap(node: MdNode): TiptapNode | null {
       return { type: 'horizontalRule' }
     case 'tag': {
       const tag = node.tag ?? ''
+      if (tag === 'columns') {
+        const columns = columnsToTiptap(node)
+        if (columns) return columns
+        // Structurally invalid (stray non-column children, out-of-range count):
+        // fall through to the generic setuBlock chrome — never drop content.
+      }
       const kids = (node.children ?? [])
         .map(blockToTiptap)
         .filter((n): n is TiptapNode => n !== null)
@@ -239,17 +275,11 @@ function blockToTiptap(node: MdNode): TiptapNode | null {
       if (tag === 'image') {
         return { type: 'imageBlock', attrs: { mdAttrs: node.attributes } }
       }
-      if (tag === 'contact') {
-        return { type: 'contactBlock', attrs: { mdAttrs: node.attributes } }
-      }
-      if (tag === 'hero') {
-        return { type: 'heroBlock', attrs: { mdAttrs: node.attributes } }
-      }
-      if (tag === 'query') {
-        return { type: 'queryBlock', attrs: { mdAttrs: node.attributes } }
-      }
-      if (tag === 'embed') {
-        return { type: 'embedBlock', attrs: { mdAttrs: node.attributes } }
+      // Childless atom blocks ({% hero %} → heroBlock, …) are driven by the shared
+      // ATOM_TAG_TO_NODE map (see ./atom-blocks) so this direction and to-markdoc can't drift.
+      const atomNode = ATOM_TAG_TO_NODE[tag]
+      if (atomNode) {
+        return { type: atomNode, attrs: { mdAttrs: node.attributes } }
       }
       return {
         type: 'setuBlock',

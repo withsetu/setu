@@ -32,6 +32,22 @@ describe('selectPosts', () => {
     expect(selectPosts(rows, q()).map((r) => r.slug)).toEqual(['a'])
   })
 
+  // #580 — a categorized/tagged PAGE must never surface in post archive queries.
+  it('excludes other-collection rows even when their category/tag matches', () => {
+    const rows = [
+      row('a', { categories: ['news'], tags: ['x'] }),
+      {
+        ...row('about', { categories: ['news'], tags: ['x'] }),
+        id: 'page/en/about',
+        collection: 'page'
+      }
+    ]
+    expect(
+      selectPosts(rows, q({ category: 'news' })).map((r) => r.slug)
+    ).toEqual(['a'])
+    expect(selectPosts(rows, q({ tag: 'x' })).map((r) => r.slug)).toEqual(['a'])
+  })
+
   it('excludes only entries with published:false (absent/true stay)', () => {
     const rows = [
       row('a', { published: false }),

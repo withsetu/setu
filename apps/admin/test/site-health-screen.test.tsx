@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, within, fireEvent } from '@testing-library/react'
 import type { AuditResult, HealthState } from '@setu/core'
 import { SiteHealthView } from '../src/screens/SiteHealth'
-import type { ProbeState } from '../src/health/useAudit'
+import type { ProbeState, ScanState } from '../src/health/useAudit'
 
 const emptyHealth: HealthState = { items: {}, sections: {} }
 const noProbe = {
@@ -123,6 +123,56 @@ describe('SiteHealthView', () => {
     // Clicking Foundations (disabling it) calls toggle('section', 'foundations', 'na')
     fireEvent.click(foundationsCheckbox)
     expect(toggle).toHaveBeenCalledWith('section', 'foundations', 'na')
+  })
+})
+
+describe('SiteHealthView — content-scan control (#593)', () => {
+  const renderScan = (
+    scanState: ScanState,
+    scannedAt: string | null,
+    scan = vi.fn()
+  ) => {
+    render(
+      <SiteHealthView
+        audit={audit}
+        toggle={() => {}}
+        health={emptyHealth}
+        {...noProbe}
+        scan={scan}
+        scanState={scanState}
+        scannedAt={scannedAt}
+      />
+    )
+    return scan
+  }
+
+  it('prompts a first scan and offers "Scan site" when never scanned', () => {
+    renderScan({ status: 'idle' }, null)
+    expect(screen.getByText(/haven.t been scanned yet/i)).toBeTruthy()
+    expect(screen.getByRole('button', { name: /scan site/i })).toBeTruthy()
+  })
+
+  it('shows the last-scanned time and a "Re-scan" button once scanned', () => {
+    renderScan({ status: 'idle' }, new Date().toISOString())
+    expect(screen.getByText(/last scanned/i)).toBeTruthy()
+    expect(screen.getByRole('button', { name: /re-scan/i })).toBeTruthy()
+  })
+
+  it('runs the scan when the button is clicked', () => {
+    const scan = renderScan({ status: 'idle' }, new Date().toISOString())
+    fireEvent.click(screen.getByRole('button', { name: /re-scan/i }))
+    expect(scan).toHaveBeenCalledOnce()
+  })
+
+  it('disables the button and shows progress while scanning', () => {
+    renderScan({ status: 'scanning' }, null)
+    const btn = screen.getByRole('button', { name: /scanning/i })
+    expect((btn as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('surfaces an honest error when the scan fails', () => {
+    renderScan({ status: 'error' }, null)
+    expect(screen.getByText(/couldn.t run the scan/i)).toBeTruthy()
   })
 })
 

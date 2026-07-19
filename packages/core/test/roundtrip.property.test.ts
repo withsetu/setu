@@ -147,19 +147,28 @@ describe('round-trip byte-stability (property-based)', () => {
     words.map((t) => `*\`${t}\`*`)
   )
 
+  const listBlock = fc
+    .array(canonicalInline, { minLength: 1, maxLength: 3 })
+    .map((items) => items.map((i) => `- ${i}`).join('\n'))
+
   const canonicalBlock = fc.oneof(
     canonicalInline,
     fc
       .tuple(fc.integer({ min: 1, max: 6 }), canonicalInline)
       .map(([lvl, t]) => `${'#'.repeat(lvl)} ${t}`),
-    fc
-      .array(canonicalInline, { minLength: 1, maxLength: 3 })
-      .map((items) => items.map((i) => `- ${i}`).join('\n')),
+    listBlock,
     canonicalInline.map((t) => `{% callout %}\n${t}\n{% /callout %}`)
   )
 
+  const isList = (b: string) => b.startsWith('- ')
+
   const canonicalDocument = fc
     .array(canonicalBlock, { minLength: 1, maxLength: 5 })
+    // Two blank-line-separated bullet blocks are ONE loose list in Markdown, which
+    // legitimately re-serializes as a single tight list. Drop the adjacency so the
+    // generator only emits documents that are already canonical.
+    .map((bs) => bs.filter((b, i) => !(i > 0 && isList(b) && isList(bs[i - 1]!))))
+    .filter((bs) => bs.length > 0)
     .map((bs) => bs.join('\n\n') + '\n')
 
   it('round-trips canonical Markdoc byte-for-byte', () => {

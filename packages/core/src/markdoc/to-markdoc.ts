@@ -19,12 +19,21 @@ export function buildInline(
       if (a.title != null && a.title !== '') attrs.title = a.title
       return new N('image', attrs)
     }
-    let n: InstanceType<typeof N> = new N('text', { content: t.text })
+    // A `code` mark becomes the INNERMOST node, whatever its position in the mark
+    // array. Markdoc's `code` node renders from its `content` attribute and ignores
+    // its children, so it can only ever be a leaf. It previously ASSIGNED `n` inside
+    // the mark loop instead of wrapping (#653) — and to-tiptap emits `code` last, so
+    // the link/bold/italic/strike built before it was silently discarded:
+    // [`api`](https://example.com) collapsed to `api`, losing the href entirely.
+    const hasCode = (t.marks ?? []).some((m) => m.type === 'code')
+    let n: InstanceType<typeof N> = hasCode
+      ? new N('code', { content: t.text })
+      : new N('text', { content: t.text })
     // Apply markdown-native marks first (innermost), then tag marks (outermost).
     // This ensures {% sub %}**b**{% /sub %} rather than **{% sub %}b{% /sub %}**,
     // which Markdoc.format cannot render cleanly across inline tag boundaries.
     for (const m of t.marks ?? []) {
-      if (m.type === 'code') n = new N('code', { content: t.text })
+      if (m.type === 'code') continue
       else if (m.type === 'bold') n = new N('strong', { marker: '**' }, [n])
       else if (m.type === 'italic') n = new N('em', { marker: '*' }, [n])
       else if (m.type === 'strike') n = new N('s', {}, [n])

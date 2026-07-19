@@ -34,6 +34,64 @@ describe('tiptapToMarkdoc', () => {
     expect(tiptapToMarkdoc(doc)).toBe('**b** *i*\n')
   })
 
+  // #653: the `code` arm ASSIGNED `n` instead of wrapping `[n]`, so it discarded every
+  // mark applied before it. to-tiptap emits `code` last in the mark list, so the link
+  // (or bold/italic/strike) was built first and then thrown away — silent data loss.
+  describe('a code mark keeps its sibling marks (#653)', () => {
+    const para = (marks: { type: string; attrs?: Record<string, unknown> }[]) =>
+      ({
+        type: 'doc',
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: 'api', marks }] }
+        ]
+      }) satisfies TiptapDoc
+
+    it('keeps the href of a linked code span', () => {
+      expect(
+        tiptapToMarkdoc(
+          para([
+            { type: 'link', attrs: { href: 'https://example.com' } },
+            { type: 'code' }
+          ])
+        )
+      ).toBe('[`api`](https://example.com)\n')
+    })
+
+    it('keeps bold around a code span', () => {
+      expect(tiptapToMarkdoc(para([{ type: 'bold' }, { type: 'code' }]))).toBe(
+        '**`api`**\n'
+      )
+    })
+
+    it('keeps italic and strike around a code span', () => {
+      expect(tiptapToMarkdoc(para([{ type: 'italic' }, { type: 'code' }]))).toBe(
+        '*`api`*\n'
+      )
+      expect(tiptapToMarkdoc(para([{ type: 'strike' }, { type: 'code' }]))).toBe(
+        '~~`api`~~\n'
+      )
+    })
+
+    it('round-trips the mark set in both directions', () => {
+      const src = '[`api`](https://example.com)\n'
+      const doc = markdocToTiptap(src)
+      const text = doc.content[0]!.content![0]!
+      expect(text.marks).toEqual([
+        { type: 'link', attrs: { href: 'https://example.com' } },
+        { type: 'code' }
+      ])
+      expect(tiptapToMarkdoc(doc)).toBe(src)
+
+      const bold = '**`api`**\n'
+      const boldDoc = markdocToTiptap(bold)
+      expect(boldDoc.content[0]!.content![0]!.marks).toEqual([
+        { type: 'bold' },
+        { type: 'code' }
+      ])
+      expect(tiptapToMarkdoc(boldDoc)).toBe(bold)
+    })
+  })
+
   it('emits passthrough raw verbatim', () => {
     const doc: TiptapDoc = {
       type: 'doc',

@@ -20,8 +20,8 @@ everything else restates standing practice.
 4. **Security checklist at pick time and review time** — docs/security-standards.md. New route →
    server-side authz + fail-closed. New input → Zod. Fetch → safe helper. New dep → supply-chain
    check. (§3.1)
-5. **Auth/authz changes need the wrong-actor e2e.** No e2e that blocks the wrong actor → the PR is
-   blocked. (§3.3)
+5. **Auth/authz changes need the wrong-actor e2e** — and it must be kill-shot tested (disable the
+   fix, prove the test fails). No e2e that blocks the wrong actor → the PR is blocked. (§3.3)
 6. **Topology check on every function.** If it needs fs / native deps / long compute, it is a
    Node-topology capability: detect and degrade honestly, never silently. (§1)
 7. **Saved ≠ live.** Committing to Git does not update a static site. Never imply it did. (§1)
@@ -187,17 +187,34 @@ The full standard with the worked "good vs. skeleton" case study: [docs/quality-
    actor, and add the e2e proving the **right actor is admitted and the wrong actor is blocked**
    (pattern: `e2e/specs/auth-role-gate.spec.ts`). A new top-level user flow (login/publish/upload)
    needs one browser e2e. Every UAT bug on #371 lived in a seam no unit test crossed.
-4. **PR:** the body is exactly these parts, in order, and nothing after them: `Closes #N` · what &
+4. **⊕ Kill-shot every security-relevant test.** Before trusting it, **disable the fix and confirm
+   the test actually fails**, then restore. A normal test fails loudly when the feature breaks, so a
+   broken one gets found; a security test only ever fires on the attack path, so a broken one is
+   silent forever and reads as coverage — worse than no test, because it stops anyone looking again.
+   Real cases, all from the #618 slice-1 work: the #623 e2e asserted "the write didn't land" via
+   `GET /git/file`, which resolves at HEAD, while the adapter writes to disk *before* `git.add` — it
+   passed against deliberately-vulnerable code. The e2e harness's default `storageState` is the
+   **admin's**, so an "unauthenticated" spec runs authenticated unless it explicitly clears cookies
+   (#634). A stub returning the same status regardless of the option under test makes the assertion
+   vacuous (#638). Paste the kill-shot result in the PR alongside the passing run.
+5. **PR:** the body is exactly these parts, in order, and nothing after them: `Closes #N` · what &
    why · how it was verified (commands, what you clicked, screenshots for UI) · security-checklist
    lines · spun-off issues. The harness's default "🤖 Generated with [Claude Code]" footer is
    **banned** in this repo — end the body at the spun-off list. Credit lives in the commit trailer
    (`Co-Authored-By: Claude <noreply@anthropic.com>`), nowhere else.
-5. **Review blocks on polish AND security, not just correctness.** Every whole-branch review
+6. **Review blocks on polish AND security, not just correctness.** Every whole-branch review
    dispatch includes the rubric from docs/quality-bar.md (driven? matches design? reuses?
    complete? table-stakes UX? wrong-actor e2e for authz?) and the security checklist. A correct,
    well-tested skeleton is `Needs fixes`.
-6. **Merging is the owner's call.** PR up + review clean → hand to owner for UAT. Deferred scope
+7. **Merging is the owner's call.** PR up + review clean → hand to owner for UAT. Deferred scope
    and follow-ups become issues (spin off, don't bury).
+8. **⊕ Closing an epic? Run `/improve` across its PRs first.** Per-PR review and cross-cutting
+   audit catch different classes: every block PR in the #176 wave passed review on its own merits,
+   and reading all six together still surfaced three real structural defects (#561–#563). Audit the
+   wave as a unit before the epic closes — that is the only moment the whole shape is visible.
+   Vet each finding against the code before filing (auditors over-report), fix the top 1–3 in the
+   same session, and record rejections on the epic so later passes don't re-litigate settled
+   design. Cadence and backfill ledger: #618.
 
 ## 4 · Failure modes a weaker model WILL hit here
 

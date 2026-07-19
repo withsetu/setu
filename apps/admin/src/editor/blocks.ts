@@ -6,10 +6,7 @@ import type { BlockCategory } from '@setu/core'
 import { registry } from '../blocks/registry'
 import { BLOCK_TYPES } from './block-types'
 import { pickImageAndInsert, imageBlockFromSrc } from './image-insert'
-import {
-  ensureFormId,
-  DEFAULT_SUCCESS_MESSAGE
-} from './extensions/contact-helpers'
+import { insertPayloadForTag } from './block-registry'
 import type { SlashBlock } from './slash-model'
 
 export type { SlashBlock } from './slash-model'
@@ -128,93 +125,17 @@ export function slashBlocks(): SlashBlock[] {
       icon: toIconName(b.editor?.icon),
       group: b.editor?.group ?? DEFAULT_BLOCK_CATEGORY,
       keywords: b.editor?.keywords ?? [],
+      // The per-tag insert payload comes from the single editor block registry
+      // (block-registry.ts): a registered block's own payload, or the generic setuBlock
+      // fallback for any folder block without a dedicated node. The else-if chain that
+      // used to live here — one arm per block, a second copy of "the block exists" — is
+      // gone (#563).
       run: (e: Editor, r: Range) => {
-        const chain = e.chain().focus().deleteRange(r)
-        if (b.tag === 'contact') {
-          chain.insertContent({
-            type: 'contactBlock',
-            attrs: {
-              mdAttrs: ensureFormId({
-                formLabel: 'Contact',
-                subject: false,
-                nameRequired: true,
-                subjectRequired: false,
-                messageRequired: true,
-                successMessage: DEFAULT_SUCCESS_MESSAGE
-              })
-            }
-          })
-        } else if (b.tag === 'callout') {
-          chain.insertContent({
-            type: 'callout',
-            attrs: { mdAttrs: { type: 'info' } },
-            content: [{ type: 'paragraph' }]
-          })
-        } else if (b.tag === 'columns') {
-          const emptyColumn = {
-            type: 'column',
-            content: [{ type: 'paragraph' }]
-          }
-          chain.insertContent({
-            type: 'columns',
-            attrs: { mdAttrs: { layout: '50-50' } },
-            content: [emptyColumn, emptyColumn]
-          })
-        } else if (b.tag === 'hero') {
-          chain.insertContent({
-            type: 'heroBlock',
-            attrs: {
-              mdAttrs: { headline: 'Hero headline', layout: 'centered' }
-            }
-          })
-        } else if (b.tag === 'gallery') {
-          // Fresh gallery starts empty: the canvas shows an inviting empty state and
-          // the inspector's media-list control appends images from the library.
-          chain.insertContent({
-            type: 'galleryBlock',
-            attrs: { mdAttrs: {} }
-          })
-        } else if (b.tag === 'spacer') {
-          // Attribute-free insert: the canvas/renderer apply the contract default
-          // (48px) and the serialized form stays a clean `{% spacer /%}`.
-          chain.insertContent({ type: 'spacerBlock', attrs: { mdAttrs: {} } })
-        } else if (b.tag === 'video') {
-          // Empty mdAttrs → the atom renders its inviting placeholder; the author
-          // picks the file via the inspector's media control (contract defaults
-          // cover controls/autoplay/loop/muted/width).
-          chain.insertContent({
-            type: 'videoBlock',
-            attrs: { mdAttrs: {} }
-          })
-        } else if (b.tag === 'query') {
-          chain.insertContent({
-            type: 'queryBlock',
-            attrs: {
-              mdAttrs: {
-                collection: 'post',
-                sort: 'newest',
-                layout: 'grid',
-                columns: 3,
-                limit: 10,
-                showImage: true
-              }
-            }
-          })
-        } else if (b.tag === 'latest-posts') {
-          // Zero-config (#192): empty attrs round-trip as a clean {% latest-posts /%}
-          // and the contract defaults (5 newest posts, list, dates on) apply everywhere.
-          chain.insertContent({
-            type: 'latestPostsBlock',
-            attrs: { mdAttrs: {} }
-          })
-        } else {
-          chain.insertContent({
-            type: 'setuBlock',
-            attrs: { tag: b.tag, mdAttrs: {} },
-            content: [{ type: 'paragraph' }]
-          })
-        }
-        chain.run()
+        e.chain()
+          .focus()
+          .deleteRange(r)
+          .insertContent(insertPayloadForTag(b.tag))
+          .run()
       }
     }))
   return [...BUILTINS, ...fromBlocks]

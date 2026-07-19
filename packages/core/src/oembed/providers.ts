@@ -300,6 +300,17 @@ const DOMAIN_INDEX: [string, OembedProvider][] = OEMBED_PROVIDERS.flatMap((p) =>
   p.domains.map((d) => [d, p] as [string, OembedProvider])
 )
 
+/** Every hostname the oEmbed resolver may ever contact — the endpoint hosts of the registry
+ *  above, deduped and lowercased. This is the `allowHosts` allowlist for safeFetch (#626): it
+ *  pins EVERY redirect hop to a provider-owned host, not just the first request. Without it a
+ *  provider 302 to `169.254.169.254` (or anywhere else) would be followed blindly.
+ *  See safe-fetch.ts's `allowHosts` doc, which names this registry as its intended consumer. */
+export const OEMBED_ENDPOINT_HOSTS: readonly string[] = Array.from(
+  new Set(
+    OEMBED_PROVIDERS.map((p) => new URL(p.endpoint).hostname.toLowerCase())
+  )
+).sort()
+
 /** Return the allow-listed provider for a pasted URL, or null if the host isn't allow-listed
  *  (→ the caller must NOT fetch anything). Matches on registrable-domain suffix so provider
  *  subdomains resolve, while look-alike hosts do not. Never throws. */

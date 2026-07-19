@@ -42,8 +42,11 @@ export type OembedResult =
 
 /** Cap on stored provider HTML. It's sandboxed at render, but we never persist an absurd payload. */
 const MAX_HTML = 32_768
-/** Cap on the raw response body we parse. */
-const MAX_BODY = 262_144
+/** Cap on the raw response body we parse. Exported so the transport layer that actually fetches
+ *  (apps/api's safeFetch adapter, #626) enforces the SAME ceiling while STREAMING — the check
+ *  below is a last-resort backstop that runs after `res.text()` has already buffered. */
+export const OEMBED_MAX_BODY_BYTES = 262_144
+const MAX_BODY = OEMBED_MAX_BODY_BYTES
 const TIMEOUT_MS = 5000
 
 export interface ResolveOembedOptions {

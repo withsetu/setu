@@ -1,6 +1,7 @@
 import Markdoc from '@markdoc/markdoc'
 import type { TiptapDoc, TiptapNode } from './types'
 import { tableToGfm } from './table-gfm'
+import { ATOM_NODE_TO_TAG } from './atom-blocks'
 
 const N = Markdoc.Ast.Node
 
@@ -90,6 +91,17 @@ function withAlign(
 
 function buildBlock(node: TiptapNode): InstanceType<typeof N> {
   const attrs = node.attrs ?? {}
+  // Childless atom blocks ({% hero /%}, {% gallery /%}, …) are driven by the shared
+  // ATOM_TAG_TO_NODE map (see ./atom-blocks) so this direction and to-tiptap can't drift.
+  const atomTag = ATOM_NODE_TO_TAG[node.type]
+  if (atomTag) {
+    return new N(
+      'tag',
+      (attrs['mdAttrs'] ?? {}) as Record<string, unknown>,
+      [],
+      atomTag
+    )
+  }
   switch (node.type) {
     case 'heading':
       return withAlign(
@@ -132,62 +144,6 @@ function buildBlock(node: TiptapNode): InstanceType<typeof N> {
         attrs['mdAttrs'] ?? {},
         (node.content ?? []).map(buildBlock),
         'callout'
-      )
-    case 'contactBlock':
-      return new N(
-        'tag',
-        (attrs['mdAttrs'] ?? {}) as Record<string, unknown>,
-        [],
-        'contact'
-      )
-    case 'heroBlock':
-      return new N(
-        'tag',
-        (attrs['mdAttrs'] ?? {}) as Record<string, unknown>,
-        [],
-        'hero'
-      )
-    case 'galleryBlock':
-      return new N(
-        'tag',
-        (attrs['mdAttrs'] ?? {}) as Record<string, unknown>,
-        [],
-        'gallery'
-      )
-    case 'spacerBlock':
-      return new N(
-        'tag',
-        (attrs['mdAttrs'] ?? {}) as Record<string, unknown>,
-        [],
-        'spacer'
-      )
-    case 'videoBlock':
-      return new N(
-        'tag',
-        (attrs['mdAttrs'] ?? {}) as Record<string, unknown>,
-        [],
-        'video'
-      )
-    case 'queryBlock':
-      return new N(
-        'tag',
-        (attrs['mdAttrs'] ?? {}) as Record<string, unknown>,
-        [],
-        'query'
-      )
-    case 'latestPostsBlock':
-      return new N(
-        'tag',
-        (attrs['mdAttrs'] ?? {}) as Record<string, unknown>,
-        [],
-        'latest-posts'
-      )
-    case 'embedBlock':
-      return new N(
-        'tag',
-        (attrs['mdAttrs'] ?? {}) as Record<string, unknown>,
-        [],
-        'embed'
       )
     case 'setuBlock': {
       const tag = attrs['tag']

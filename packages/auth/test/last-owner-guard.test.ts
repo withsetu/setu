@@ -5,6 +5,18 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { eq } from 'drizzle-orm'
 import { user as userTable } from '@setu/db-sqlite/schema'
 import { createAuth } from '../src'
+import {
+  lastAdminGuardHook,
+  lastAdminDeleteGuardHook
+} from '../src/last-owner-guard'
+import type { GenericEndpointContext } from '@better-auth/core'
+
+/** The only user fields the last-admin guard hooks read (see `UserWithAdminFields`). */
+interface MinimalUser {
+  id: string
+  role: string | null
+  banned?: boolean | null
+}
 
 /** Reads a user row straight off drizzle (properly typed with `role`/`banned` via
  *  packages/db-sqlite's schema) rather than `internalAdapter.findUserById` — whose inferred return
@@ -665,5 +677,234 @@ describe('server-side last-owner enforcement (databaseHooks.user.update.before)'
     expect(survivingActiveOwners.length).toBeGreaterThanOrEqual(1)
     void resAtoB
     void resBtoA
+  })
+})
+
+// #625 — `roleSetIncludesAdmin` was comma-aware, but three siblings compared the role with exact
+// equality: the target-is-admin check (`target.role !== 'admin'`), the other-active-admins count
+// query (`{field:'role', value:'admin'}`), and the delete guard's (`deletedUser.role !== 'admin'`).
+// better-auth persists multi-role assignments as a comma-joined string (`parseRoles` in
+// admin/routes.mjs) and its own permission check splits on comma (admin/has-permission.mjs), so
+// `'admin,maintainer'` IS a real, fully privileged admin. The mismatch cut both ways:
+//   - BYPASS: an admin whose role is `'admin,maintainer'` was invisible to the target check, so
+//     they could be demoted/banned/deleted straight past the guard → zero admins → a permanently
+//     un-administrable instance.
+//   - FALSE POSITIVE: the count query missed multi-role admins, so a legitimate demotion of a
+//     single-role admin was wrongly 400'd while a multi-role admin was sitting right there.
+describe('last-admin guard is comma-role aware (#625)', () => {
+  const MULTI = 'admin,maintainer'
+
+  async function soleMultiRoleAdmin() {
+    const { db, auth } = makeAuth()
+    const owner = await makeUser(auth, {
+      email: 'multi@test.com',
+      name: 'Multi',
+      role: MULTI,
+      password: 'a-strong-password-12'
+    })
+    const cookie = await signInCookie(
+      auth,
+      'multi@test.com',
+      'a-strong-password-12'
+    )
+    return { db, auth, owner, cookie }
+  }
+
+  // End-to-end fence: whatever layer answers first, none of the three dangerous mutations may
+  // leave a sole `'admin,maintainer'` admin demoted, banned or deleted. Empirically, the outer
+  // layers currently answer BEFORE the last-admin guard for this shape:
+  //   - /admin/ban-user and /admin/remove-user: better-auth refuses a self-targeted ban/removal
+  //     outright ('You cannot ban yourself' / 'You cannot remove yourself').
+  //   - /admin/set-role and /admin/update-user: Setu's own rank-guard 403s, because it exempts
+  //     only the exact role `'admin'` and `rankOf('admin,maintainer')` is 0 → 'unrecognized role'.
+  //     That fail-closed is safe here but it also means a legitimate multi-role admin cannot use
+  //     the admin routes at all — a separate defect from #625, worth its own issue.
+  // So this test asserts the OUTCOME (rejected, still an active admin), and the direct-hook tests
+  // below pin the #625 fix itself at the layer the bug actually lived in.
+  it('rejects demote/ban/delete of the sole "admin,maintainer" admin through the real routes', async () => {
+    for (const [path, body] of [
+      ['/admin/set-role', { role: 'author' }],
+      ['/admin/ban-user', {}],
+      ['/admin/remove-user', {}],
+      ['/admin/update-user', { data: { role: 'editor' } }]
+    ] as const) {
+      const { db, auth, owner, cookie } = await soleMultiRoleAdmin()
+      const res = await auth.handler(
+        adminRequest(path, cookie, { userId: owner.id, ...body })
+      )
+      expect(res.status, path).toBeGreaterThanOrEqual(400)
+      const persisted = await findUserRow(db, owner.id)
+      expect(persisted, `${path} — user still exists`).toBeDefined()
+      expect(persisted?.role, path).toBe(MULTI)
+      expect(persisted?.banned, path).toBeFalsy()
+    }
+  })
+
+  // The guard hooks themselves, driven directly — this is where the #625 bug lived, and the only
+  // layer at which it can be observed in isolation (see the note above). Before the fix, the
+  // target checks were `target.role !== 'admin'` / `deletedUser.role !== 'admin'`, so each of
+  // these returned early and the mutation sailed through with ZERO admins left behind.
+  describe('the guard hooks themselves recognise a comma-joined admin role', () => {
+    const TARGET = 'target-id'
+
+    /** Minimal stand-in for the live `GenericEndpointContext` the hooks read: the target lookup
+     *  plus the adapter surface `isLastActiveAdmin` uses (`count` for the exact-role fast path,
+     *  `findMany` for the multi-role scan). `users` is the whole table; the stub applies the same
+     *  "other, non-banned" filter the real where-clause does. */
+    function stubContext(path: string, users: MinimalUser[]) {
+      const others = users.filter((u) => u.id !== TARGET && !u.banned)
+      return {
+        path,
+        body: { userId: TARGET },
+        context: {
+          internalAdapter: {
+            findUserById: async (id: string) =>
+              users.find((u) => u.id === id) ?? null
+          },
+          adapter: {
+            count: async () => others.filter((u) => u.role === 'admin').length,
+            findMany: async ({
+              limit,
+              offset
+            }: {
+              limit?: number
+              offset?: number
+            }) => others.slice(offset ?? 0, (offset ?? 0) + (limit ?? 1000))
+          }
+        }
+      } as unknown as GenericEndpointContext
+    }
+
+    const soleMultiAdmin: MinimalUser[] = [{ id: TARGET, role: MULTI }]
+
+    it('blocks set-role demotion of a sole "admin,maintainer" admin', async () => {
+      await expect(
+        lastAdminGuardHook()(
+          { role: 'author' },
+          stubContext('/admin/set-role', soleMultiAdmin)
+        )
+      ).rejects.toThrow(/last admin/i)
+    })
+
+    it('blocks ban-user of a sole "admin,maintainer" admin', async () => {
+      await expect(
+        lastAdminGuardHook()(
+          { banned: true },
+          stubContext('/admin/ban-user', soleMultiAdmin)
+        )
+      ).rejects.toThrow(/last admin/i)
+    })
+
+    it('blocks update-user role demotion of a sole "admin,maintainer" admin', async () => {
+      await expect(
+        lastAdminGuardHook()(
+          { role: 'editor' },
+          stubContext('/admin/update-user', soleMultiAdmin)
+        )
+      ).rejects.toThrow(/last admin/i)
+    })
+
+    it('blocks remove-user of a sole "admin,maintainer" admin', async () => {
+      await expect(
+        lastAdminDeleteGuardHook()(
+          { id: TARGET, role: MULTI },
+          stubContext('/admin/remove-user', soleMultiAdmin)
+        )
+      ).rejects.toThrow(/last admin/i)
+    })
+
+    it('ALLOWS the demotion when another "admin,maintainer" admin exists (count-side fix)', async () => {
+      await expect(
+        lastAdminGuardHook()(
+          { role: 'author' },
+          stubContext('/admin/set-role', [
+            { id: TARGET, role: 'admin' },
+            { id: 'other', role: MULTI }
+          ])
+        )
+      ).resolves.toBeUndefined()
+    })
+
+    it('still blocks when the only other multi-role admin is BANNED', async () => {
+      await expect(
+        lastAdminGuardHook()(
+          { role: 'author' },
+          stubContext('/admin/set-role', [
+            { id: TARGET, role: 'admin' },
+            { id: 'other', role: MULTI, banned: true }
+          ])
+        )
+      ).rejects.toThrow(/last admin/i)
+    })
+
+    it('is a no-op for a promotion TOWARD a comma-joined admin role', async () => {
+      await expect(
+        lastAdminGuardHook()(
+          { role: MULTI },
+          stubContext('/admin/set-role', soleMultiAdmin)
+        )
+      ).resolves.toBeUndefined()
+    })
+  })
+
+  // The inverse misfire: the count query's exact `role = 'admin'` filter could not see B, so
+  // demoting A — with a perfectly good second admin present — was wrongly rejected.
+  it('ALLOWS demoting admin A when admin B holds "admin,maintainer" (no false positive)', async () => {
+    const { db, auth } = makeAuth()
+    const a = await makeUser(auth, {
+      email: 'a@test.com',
+      name: 'A',
+      role: 'admin',
+      password: 'a-strong-password-12'
+    })
+    await makeUser(auth, {
+      email: 'b@test.com',
+      name: 'B',
+      role: MULTI
+    })
+    const cookie = await signInCookie(
+      auth,
+      'a@test.com',
+      'a-strong-password-12'
+    )
+
+    const res = await auth.handler(
+      adminRequest('/admin/set-role', cookie, { userId: a.id, role: 'author' })
+    )
+    expect(res.status).toBe(200)
+    expect((await findUserRow(db, a.id))?.role).toBe('author')
+  })
+
+  it('still counts a BANNED multi-role admin as inactive (banned semantics unchanged)', async () => {
+    const { db, auth } = makeAuth()
+    const owner = await makeUser(auth, {
+      email: 'owner@test.com',
+      name: 'Owner',
+      role: 'admin',
+      password: 'a-strong-password-12'
+    })
+    const banned = await makeUser(auth, {
+      email: 'banned@test.com',
+      name: 'Banned',
+      role: MULTI
+    })
+    await db
+      .update(userTable)
+      .set({ banned: true })
+      .where(eq(userTable.id, banned.id))
+    const cookie = await signInCookie(
+      auth,
+      'owner@test.com',
+      'a-strong-password-12'
+    )
+
+    const res = await auth.handler(
+      adminRequest('/admin/set-role', cookie, {
+        userId: owner.id,
+        role: 'author'
+      })
+    )
+    expect(res.status).toBe(400)
+    expect((await findUserRow(db, owner.id))?.role).toBe('admin')
   })
 })

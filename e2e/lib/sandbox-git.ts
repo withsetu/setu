@@ -75,6 +75,28 @@ export function sandboxContentFile(
   )
 }
 
+/** Read ANY repo-relative path from the sandbox's WORKING TREE, or null when absent.
+ *
+ *  Second sanctioned exception (#623, same rationale as `sandboxContentFile`): the authz bypass
+ *  this proves is *about* a file landing on disk at a path the gate never authorized, so a direct
+ *  filesystem read is the only assertion that can see it. Crucially it is NOT interchangeable with
+ *  the api's `GET /git/file`, which resolves at HEAD: `commitFiles` writes the working tree BEFORE
+ *  `git.add`, so a bypass whose commit later fails still leaves the unauthorized bytes on disk —
+ *  invisible to a HEAD read, visible here. (Measured against the pre-fix gate: every one of the
+ *  seven bypass spellings left a marker-bearing `settings.json`/`theme-options.json` in the
+ *  working tree while `/git/file` still reported null.)
+ *
+ *  Deliberately un-scoped, unlike the entry-scoped readers above — the paths at issue are repo
+ *  ROOT files (`settings.json`, `theme-options.json`) that no `(collection, locale, slug)` triple
+ *  can name. */
+export function sandboxRepoFile(repoPath: string): string | null {
+  try {
+    return readFileSync(path.join(sandboxDir, repoPath), 'utf8')
+  } catch {
+    return null
+  }
+}
+
 /** The sandbox content repo's working-tree status for ONE entry's content file
  *  (`git status --porcelain -- <path>`) — empty string means this entry's change is
  *  fully committed. Scoped to the entry, not the whole tree, for two reasons: the api

@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { Node, mergeAttributes } from '@tiptap/core'
-import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
+import { NodeViewWrapper } from '@tiptap/react'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { STANDARD_BLOCKS, resolveControls } from '@setu/core'
+import { createAtomBlock } from './atom-block'
 
 // Single source of truth for the height range: the spacer contract's zod schema.
 // resolveControls lifts .min/.max/.default — the same numbers the inspector slider
@@ -124,29 +124,11 @@ function SpacerBlockView({
 /** The `{% spacer %}` block (#183) — atom (props-only, no body). Mirrors HeroBlock:
  *  mdAttrs JSON-only, kept out of the DOM, round-tripped by the core converter
  *  (to-tiptap maps spacer→spacerBlock, to-markdoc emits a self-closing {% spacer /%}).
- *  The node view adds a drag-to-resize handle; height is also editable via the
- *  inspector rail's slider. */
-export const SpacerBlock = Node.create({
+ *  Keeps a bespoke node view — the drag-to-resize handle (height is also editable via
+ *  the inspector rail's slider) — passed to the shared atom-block factory, which only
+ *  owns the Node.create boilerplate here, not the interactive view (#562). */
+export const SpacerBlock = createAtomBlock({
   name: 'spacerBlock',
-  group: 'block',
-  atom: true,
-  draggable: true,
-  selectable: true,
-  addAttributes() {
-    return {
-      mdAttrs: { default: {}, renderHTML: () => ({}), parseHTML: () => ({}) }
-    }
-  },
-  parseHTML() {
-    return [{ tag: 'div[data-setu-spacer-block]' }]
-  },
-  renderHTML({ HTMLAttributes }) {
-    return [
-      'div',
-      mergeAttributes(HTMLAttributes, { 'data-setu-spacer-block': '' })
-    ]
-  },
-  addNodeView() {
-    return ReactNodeViewRenderer(SpacerBlockView)
-  }
+  dataAttr: 'data-setu-spacer-block',
+  view: SpacerBlockView
 })

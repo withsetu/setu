@@ -17,6 +17,11 @@ import { GlobalCommands } from '../src/command/GlobalCommands'
 const mockRebuild = vi.fn(() => Promise.resolve())
 vi.mock('../src/deploy/deploy', () => ({
   useDeploy: () => ({
+    running: false,
+    startedAt: null,
+    confirmOpen: false,
+    requestRebuild: () => {},
+    closeConfirm: () => {},
     status: {
       deployedSha: null,
       deployedAt: null,

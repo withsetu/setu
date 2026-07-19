@@ -30,13 +30,51 @@ describe('entrySlugify', () => {
     expect(entrySlugify(nfc)).toBe('café')
   })
 
-  // NFKC also maps the compatibility characters onto their expansions, so one spelling of a
-  // name cannot masquerade as another.
-  it('NFKC-folds compatibility characters (#669)', () => {
+  // #654: compatibility characters fold into ASCII on a case-folding filesystem (APFS/NTFS),
+  // so a slug carrying one collides with a DIFFERENT published entry. NFKC folds them at the
+  // minting step, so the collision can never be minted in the first place.
+  it('NFKC-folds compatibility characters (#654)', () => {
     expect(entrySlugify('ﬁle')).toBe('file') // U+FB01 ligature fi
     expect(entrySlugify('ſettings')).toBe('settings') // U+017F long s
     expect(entrySlugify('Ⅻ')).toBe('xii') // U+216B roman numeral
     expect(entrySlugify('µ')).toBe('μ') // U+00B5 micro → U+03BC greek mu
+  })
+
+  // The residue NFKC does not reach: characters whose case FOLD differs from their simple
+  // lowercase mapping. `ß`→`ss`, `ı`→`i`, `ς`→`σ` all collide on a case-folding filesystem.
+  it('case-folds the characters toLowerCase() leaves alone (#654)', () => {
+    expect(entrySlugify('Straße')).toBe('strasse')
+    expect(entrySlugify('ırmak')).toBe('irmak')
+    expect(entrySlugify('Ελλάς')).toBe('ελλάσ')
+  })
+
+  it('is idempotent — every output is a fixed point (the validation invariant)', () => {
+    const corpus = [
+      'Hello World!',
+      'Über uns',
+      'Déjà Vu'.normalize('NFD'),
+      'ﬁle',
+      'Straße',
+      'İstanbul',
+      'ırmak',
+      'Ελλάς',
+      '日本語',
+      'ǰ',
+      'Ⅻ',
+      'µ',
+      'ſettings'
+    ]
+    for (const text of corpus) {
+      const once = entrySlugify(text)
+      expect(entrySlugify(once), `idempotent for ${JSON.stringify(text)}`).toBe(
+        once
+      )
+      if (once !== '')
+        expect(
+          isValidEntrySlug(once),
+          `valid for ${JSON.stringify(text)}`
+        ).toBe(true)
+    }
   })
 
   it('trims hyphen floods linearly (ReDoS guard: no polynomial backtracking)', () => {
@@ -67,6 +105,36 @@ describe('isValidEntrySlug', () => {
       'sp ace'
     ]) {
       expect(isValidEntrySlug(bad)).toBe(false)
+    }
+  })
+
+  // #654: THE security property. A valid slug must be its own case-fold and its own NFKC form,
+  // so no two distinct valid slugs can resolve to the same file on a case-folding filesystem.
+  it('rejects fold-unstable slugs that would collide on APFS/NTFS (#654)', () => {
+    for (const bad of [
+      'ﬁle', // U+FB01 — folds onto the published `file`
+      'ſettings', // U+017F — folds onto `settings`
+      'µ', // U+00B5 — folds onto the Greek `μ`
+      'straße', // folds onto `strasse`
+      'ırmak', // folds onto `irmak`
+      'ελλάς', // final sigma folds onto `σ` (context-free, as APFS folds it)
+      // NFD (`e` + U+0301 COMBINING ACUTE), written as an escape so no editor can silently
+      // recompose it. Same file as the NFC `café` on APFS, so only one of the two may be valid.
+      'cafe\u0301'
+    ]) {
+      expect(
+        isValidEntrySlug(bad),
+        `isValidEntrySlug(${JSON.stringify(bad)})`
+      ).toBe(false)
+    }
+  })
+
+  it('still accepts genuinely-Unicode slugs that are fold-stable', () => {
+    for (const ok of ['über-uns', 'café', 'déjà-vu', '日本語', 'μ', 'ελλάσ']) {
+      expect(
+        isValidEntrySlug(ok),
+        `isValidEntrySlug(${JSON.stringify(ok)})`
+      ).toBe(true)
     }
   })
 })

@@ -190,21 +190,69 @@ describe('git write gate — content-path casing bypass of the publish gate (#64
     }
   })
 
-  // Class C, deliberately NOT closed here and filed separately: `content/blog/en/ſive.mdoc` folds
-  // to `live.mdoc`... no — to `sive.mdoc`; the point is that U+017F case-FOLDS into ASCII while
-  // `toLowerCase()` leaves it alone, so a slug carrying such a character is its own folded form
-  // and passes this rule while still colliding on APFS. Closing that needs a real Unicode
-  // case-fold (which JS does not expose) and cannot reuse `toLowerCase`. #644's ASCII rule is
-  // root-only precisely because slugs legitimately carry non-ASCII, so it does not reach here
-  // either. Asserted as a KNOWN GAP so the next reader finds it documented rather than assuming
-  // this file closed it.
-  it('KNOWN GAP: a non-ASCII slug that case-folds into ASCII is still accepted (see the spun-off issue)', async () => {
+  // Class C — the KNOWN GAP this file used to PIN as accepted, now CLOSED (#654, which is #648's
+  // acceptance criterion). U+017F case-FOLDS into ASCII while `toLowerCase()` leaves it alone, so
+  // `content/blog/en/ſive.mdoc` was its own `toLowerCase` form, passed the class-A/B rule, and
+  // still resolved to `live.mdoc`'s neighbourhood on APFS. The old note claimed JS exposes no
+  // Unicode case-fold — it exposes enough: `s.toUpperCase().toLowerCase()` collapses exactly the
+  // characters whose FOLD differs from their simple lowercase mapping (`ſ`→`s`, `ﬁ`→`fi`,
+  // `ß`→`ss`, `ı`→`i`), and `normalize('NFC')` closes the composed/decomposed half. `foldRepoPath`
+  // now does both, so the same one rule that rejects `Content/…` rejects these too.
+  //
+  // Still a rejection of the CLASS, not an enumeration: any character whose fold or normalization
+  // moves it is caught, including ones no one here thought of.
+  const FOLD_VARIANTS = [
+    'content/blog/en/ſive.mdoc', // U+017F long s
+    'content/blog/en/ﬁle.mdoc', // U+FB01 ligature fi
+    'content/blog/en/straße.mdoc', // ß folds to ss
+    'content/blog/en/ırmak.mdoc', // dotless ı folds to i
+    'content/blog/en/cafe\u0301.mdoc' // NFD (e + U+0301) — same inode as the NFC café.mdoc
+  ]
+
+  it('fails CLOSED for a non-ASCII slug that case-folds or re-normalizes (#654, closes #648)', async () => {
     const git = await gitWithLivePost()
-    await expect(
-      writeActionForChanges(
-        [{ path: 'content/blog/en/ſive.mdoc', content: DRAFT_CONTENT }],
-        git
+    for (const path of FOLD_VARIANTS) {
+      await expect(
+        writeActionForChanges([{ path, content: DRAFT_CONTENT }], git),
+        `writeActionForChanges ${JSON.stringify(path)}`
+      ).resolves.toBe('settings.manage')
+    }
+  })
+
+  it('refuses an AUTHOR writing any fold-variant, and nothing lands (#654)', async () => {
+    for (const path of FOLD_VARIANTS) {
+      const git = await gitWithLivePost()
+      const before = await git.list()
+      const app = createGitApi(git, asRole('author'))
+      const res = await write(
+        app,
+        '/git/commit',
+        JSON.stringify({ path, content: DRAFT_CONTENT, message: 'm', author })
       )
-    ).resolves.toBe('content.edit')
+      expect(res.status, `POST /git/commit ${JSON.stringify(path)}`).toBe(400)
+      expect(await git.list(), `tree after ${JSON.stringify(path)}`).toEqual(
+        before
+      )
+    }
+  })
+
+  // The stronger fold must not start rejecting the fold-STABLE non-ASCII slugs the product
+  // supports — that is the line between "reject the collision class" and "ban i18n".
+  it('still admits fold-stable non-ASCII slugs after the stronger fold (#654)', async () => {
+    const git = createMemoryGitPort()
+    const app = createGitApi(git, asRole('author'))
+    for (const path of [
+      'content/blog/de/über-uns.mdoc',
+      'content/blog/fr/café.mdoc',
+      'content/blog/ja/日本語.mdoc',
+      'content/blog/el/ελλάσ.mdoc'
+    ]) {
+      const res = await write(
+        app,
+        '/git/commit',
+        JSON.stringify({ path, content: DRAFT_CONTENT, message: 'm', author })
+      )
+      expect(res.status, `POST /git/commit ${JSON.stringify(path)}`).toBe(200)
+    }
   })
 })

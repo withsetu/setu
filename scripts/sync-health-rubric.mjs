@@ -141,14 +141,18 @@ const SEV_MAP = {
   avoid: 'avoid'
 }
 
-// Items that have a live probe in the engine (security headers + CWV)
-// These ids use the STABLE ids (see ID_OVERRIDES below), not the spec slug
+// Items that have a live probe in the engine — response-header checks only.
+// MUST equal PROBE_ITEM_IDS in packages/core/src/health/probe.ts: a `liveProbe` item with
+// no evaluator resolves to `pending` forever, which scoring drops from the denominator
+// while `mustHaves.total` still counts it (#659). A test pins the two sets together.
+// Core Web Vitals is deliberately NOT here: LCP/INP/CLS need field data (CrUX) or a lab
+// run, not one response's headers, so it is an attestable manual item.
+// These ids use the STABLE ids (see ID_OVERRIDES below), not the spec slug.
 const LIVE_PROBE_IDS = new Set([
   'security.https',
   'security.hsts',
   'security.csp',
-  'security.content-type-options',
-  'performance.core-web-vitals'
+  'security.content-type-options'
 ])
 
 /**

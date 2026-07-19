@@ -388,7 +388,7 @@ export {
   scoreAudit
 } from './health/run-audit'
 export { auditScanFromEntries, SCAN_ITEM_IDS } from './health/scan-data'
-export { evaluateProbe, mergeProbe } from './health/probe'
+export { evaluateProbe, mergeProbe, PROBE_ITEM_IDS } from './health/probe'
 export { parseHealthState, setHealthRecord } from './health/health-state'
 
 export type {

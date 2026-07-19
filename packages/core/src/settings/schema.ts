@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { DEFAULT_SETTINGS } from './defaults'
 import type { SiteSettings } from './types'
-import { validatePermalinkPattern } from '../permalinks/pattern'
+import { validatePermalinkPattern, SLUG_SEGMENT } from '../permalinks/pattern'
 
 // Every group is `.partial().passthrough()`: partial so a half-written file merges over
 // defaults, passthrough so an unknown future field inside a group survives an older admin
@@ -67,8 +67,6 @@ const permalinksSchema = groupObject({
   patterns: z.unknown(),
   uncategorized: z.string()
 })
-
-const validSlug = /^[a-z0-9-]+$/
 
 type Rec = Record<string, unknown>
 
@@ -218,7 +216,7 @@ export function parseSettingsWithWarnings(raw: unknown): {
   const patterns = salvagePatterns(permalinks.patterns, warnings)
   const uncategorized = permalinks.uncategorized
   const validUncategorized =
-    typeof uncategorized === 'string' && validSlug.test(uncategorized)
+    typeof uncategorized === 'string' && SLUG_SEGMENT.test(uncategorized)
   if (uncategorized !== undefined && !validUncategorized)
     warnings.push(
       'permalinks.uncategorized: must be lowercase letters, digits, or hyphens — reset to default'

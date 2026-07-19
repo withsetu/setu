@@ -4,6 +4,7 @@ import {
   parseSettingsWithWarnings
 } from '../../src/settings/schema'
 import { DEFAULT_SETTINGS } from '../../src/settings/defaults'
+import { SLUG_SEGMENT } from '../../src/permalinks/pattern'
 
 /** #656 — one wrong type must reset only the field that is wrong. The old
  *  all-or-nothing `settingsSchema.safeParse(raw)` reverted EVERY group (including
@@ -163,4 +164,29 @@ describe('parseSettingsWithWarnings (#656)', () => {
     })
     expect(warnings).toEqual([])
   })
+})
+
+/** #671 — `schema.ts` used to re-declare `/^[a-z0-9-]+$/`, an exact copy of
+ *  `SLUG_SEGMENT` from a module it already imported. Two copies of a URL-safety rule
+ *  drift; this pins the settings validator to the shared one. */
+describe('permalinks.uncategorized uses the shared SLUG_SEGMENT rule (#671)', () => {
+  const cases = [
+    'misc',
+    'my-bucket',
+    'a1',
+    'NOT-A-SLUG',
+    'has space',
+    'has/slash',
+    'has.dot',
+    'ünicode',
+    ''
+  ]
+  for (const value of cases) {
+    it(`agrees with SLUG_SEGMENT for ${JSON.stringify(value)}`, () => {
+      const accepted =
+        parseSettings({ permalinks: { uncategorized: value } }).permalinks
+          .uncategorized === value
+      expect(accepted).toBe(SLUG_SEGMENT.test(value))
+    })
+  }
 })

@@ -22,19 +22,160 @@ const authz = createAuthz(DEFAULT_ROLES)
  *  them, bypassing the action the admin UI gates them behind (failure mode #13):
  *    - `settings.json`      → `settings.manage` (admin only; UAT 2026-07-05)
  *    - `theme-options.json` → `theme.manage`    (maintainer+/admin; the Appearance screen's gate — #419)
- *  Keys MUST be lowercase — the lookup case-folds the path (see `normalizeRepoPath`) so `Settings.json`
- *  on a case-insensitive filesystem (macOS/Windows), which is the SAME inode, cannot slip the gate. */
+ *  Keys MUST be lowercase AND ASCII — the lookup case-folds the path (see `foldRepoPath`) so
+ *  `Settings.json` on a case-insensitive filesystem (macOS/Windows), which is the SAME inode,
+ *  cannot slip the gate. `isCanonicalRepoPath` guarantees every repo-ROOT path reaching that
+ *  lookup is ASCII, which is what makes the fold faithful (see #644 there). */
 const PATH_WRITE_ACTION: Record<string, Action> = {
   'settings.json': 'settings.manage',
   'theme-options.json': 'theme.manage'
 }
 
-/** Normalize a repo-relative path for gate matching: drop a leading `./` or `/` so `./settings.json`
- *  and `/settings.json` can't slip past the check, and lowercase it so a case-only variant
- *  (`Settings.json`) can't either on a case-insensitive filesystem. (Deeper `../` traversal is the
- *  git port's concern, not the gate's.) Used ONLY for gate matching — the actual write uses the
- *  caller's original path. */
-const normalizeRepoPath = (p: string) => p.replace(/^\.?\/+/, '').trim()
+/** Case-fold a repo path for gate matching, so a case-only variant can't slip the classification
+ *  on a case-insensitive filesystem (macOS/Windows), where it is the SAME inode. Used ONLY for
+ *  matching — the actual write uses the caller's path, which `isCanonicalRepoPath` has already
+ *  proven identical modulo case.
+ *
+ *  `toLowerCase()` is Unicode SIMPLE CASE MAPPING, strictly weaker than the filesystem's case
+ *  FOLDING. That gap is not papered over here; it is closed by rejection in `isCanonicalRepoPath`
+ *  (#644 for repo-root paths, #647 for content paths), which is what makes this a faithful fold
+ *  on every path the gate ever sees. Read those rules before relying on this one. */
+const foldRepoPath = (p: string) => p.toLowerCase()
+
+/** Hard ceiling on an accepted repo path, enforced in `isCanonicalRepoPath`.
+ *
+ *  #648: the path is attacker-controlled and is compiled into a RegExp by `foldCollidingPaths`, and
+ *  it is matched against every committed content path, so an unbounded path is both a compile-cost
+ *  and a match-cost amplifier. Bounding it at the gate is the fail-CLOSED way to cap that (a
+ *  too-long path is rejected, never waved through unmatched). 1024 is far above anything real —
+ *  every legitimate path is `content/<collection>/<locale>/<slug>.mdoc` with a slug derived by
+ *  `entrySlugify` — and comfortably under the 255-byte-per-component / 4096-byte-per-path limits
+ *  that ext4, APFS and NTFS impose anyway, so nothing writable on disk is being rejected. */
+const MAX_REPO_PATH_LENGTH = 1024
+
+/** Escapes every RegExp metacharacter so an interpolated string matches LITERALLY.
+ *
+ *  Load-bearing for #648: without it, a slug like `a.+` would be compiled as a PATTERN and match
+ *  unrelated committed paths (a false `content.publish` at best, a RegExp-injection primitive at
+ *  worst), and a crafted slug could introduce nested quantifiers — the classic ReDoS shape. Fully
+ *  escaped and anchored, the compiled pattern is a literal-only alternation-free match, which is
+ *  linear in the input, so no attacker-supplied path can make matching super-linear. */
+const escapeRegExp = (s: string) => s.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')
+
+/** Committed paths that case-FOLD onto `p` under Unicode SIMPLE CASE FOLDING but are not literally
+ *  `p` — i.e. the OTHER files a write to `p` could actually land on, on a case-insensitive
+ *  filesystem (APFS/HFS+, NTFS).
+ *
+ *  #648: `foldRepoPath` is `toLowerCase()`, Unicode simple case MAPPING, which is strictly weaker
+ *  than the case FOLDING those filesystems resolve names by. #644 and #647 closed their halves by
+ *  REJECTING inputs where the two relations could disagree, but neither reaches the SLUG segment
+ *  and neither can: slugs legitimately carry non-ASCII (`entrySlugify` keeps `\p{L}`, so
+ *  `content/blog/en/café.mdoc` is a real post), and a slug whose characters fold without
+ *  lowercasing — U+017F LONG S folds to `s`; final sigma `ς` folds onto medial `σ` — is ITS OWN
+ *  `toLowerCase` form, so it passes both rules while still resolving onto the neighbouring post.
+ *
+ *  JavaScript does expose the needed relation after all: a `RegExp` with the `iu` flags matches by
+ *  ECMA-262 Canonicalize, which IS Unicode simple case folding. Verified on node 22:
+ *    /^ſive$/iu.test('sive')   -> true    the U+017F bypass
+ *    /^ςigma$/iu.test('σigma') -> true    neither side ASCII — the fold RELATION, not an ASCII rule
+ *    /^café$/iu.test('cafe')   -> false   accents are NOT folded; `café` stays a distinct post
+ *    /^ß$/iu.test('ss')        -> false   simple, not FULL, folding
+ *  Simple folding is the CORRECT relation here precisely because it is the one APFS/HFS+ and NTFS
+ *  case tables implement — they do not fold ß->ss either. Full folding would over-reject real
+ *  slugs without closing anything the filesystem actually collides.
+ *
+ *  This is a rejection of the CLASS, not an enumeration of spellings (the #623/#644/#647 lesson):
+ *  it asks the fold relation itself, so it covers every character in the gap, including ones added
+ *  by a future Unicode revision of the engine's case tables.
+ *
+ *  Used ONLY to widen the #382 committed-state read below. The write still uses the caller's own
+ *  path — `isCanonicalRepoPath` has already proven it canonical. */
+function foldCollidingPaths(p: string, committed: readonly string[]): string[] {
+  // `isCanonicalRepoPath` guarantees the bound; belt-and-braces for direct callers.
+  if (p.length > MAX_REPO_PATH_LENGTH) return []
+  const folded = new RegExp(`^${escapeRegExp(p)}$`, 'iu')
+  return committed.filter((c) => c !== p && folded.test(c))
+}
+
+/** True iff `p` is a CANONICAL repo-relative path: non-empty, relative, no `.`/`..` segments, no
+ *  repeated slashes, no leading/trailing slash, no surrounding whitespace, no backslash or NUL,
+ *  and — for the parts the gate classifies on — canonically cased.
+ *
+ *  #623: the gate used to *normalize* (`p.replace(/^\.?\/+/, '').trim()`), which stripped only ONE
+ *  leading `./` or `/` and did no path normalization at all — while the git adapter's `safePath`
+ *  (packages/git-local/src/adapter.ts) uses `path.resolve`, which normalizes fully. The two
+ *  disagreed, and every disagreement was a gate bypass: `content/../settings.json` gated as
+ *  `content.edit` while the adapter wrote `settings.json`; `content/blog/en/./post.mdoc` made
+ *  `parseContentPath` fail, skipping BOTH the publish check and the committed-state upgrade while
+ *  the adapter wrote the real post.
+ *
+ *  The fix REJECTS non-canonical paths instead of normalizing them. Normalizing only ever closes
+ *  the spellings we thought of; rejecting closes the class. The admin client (and every legitimate
+ *  caller) always sends canonical paths — they come from the content index and the editor — so
+ *  nothing legitimate is lost, and with the path guaranteed canonical the gate's view and the
+ *  adapter's write are the same path by construction. */
+export function isCanonicalRepoPath(p: unknown): p is string {
+  if (typeof p !== 'string' || p === '') return false
+  if (p.length > MAX_REPO_PATH_LENGTH) return false
+  if (p !== p.trim()) return false
+  if (p.includes('\\') || p.includes('\0')) return false
+  if (p.startsWith('/') || p.endsWith('/')) return false
+  if (p.includes('//')) return false
+  if (p.split('/').some((seg) => seg === '.' || seg === '..')) return false
+  // #644: a repo-ROOT path must additionally be ASCII. `foldRepoPath` folds with
+  // `String.prototype.toLowerCase()` — Unicode SIMPLE CASE MAPPING — while a case-insensitive
+  // filesystem (APFS/NTFS) resolves names by Unicode CASE FOLDING, a strictly LARGER relation.
+  // Characters in the gap fold into ASCII without `toLowerCase` touching them, and each one is a
+  // `PATH_WRITE_ACTION` bypass. Confirmed on macOS/APFS: `'ſ'.toLowerCase() !== 's'` (U+017F), yet
+  // writing `ſettings.json` and reading `settings.json` hits ONE file — the same inode. So an
+  // author (content.edit, NOT settings.manage) could send `ſettings.json`, miss the lookup, be
+  // gated as ordinary content, and drive the adapter into the real settings file.
+  //
+  // REJECT THE CLASS, DON'T ENUMERATE THE SPELLINGS (the #623 lesson): U+017F is one of an
+  // open-ended set of non-ASCII characters that case-fold into ASCII, so folding "better" only
+  // ever closes the ones we thought of. Restricted to ASCII inputs, Unicode case folding and
+  // `toLowerCase` COINCIDE — so this rejection is what makes `foldRepoPath` a faithful fold and
+  // gives the gate its property: no two distinct ACCEPTED root paths can resolve to the same file
+  // without the gate classifying them identically.
+  //
+  // Scoped to the ROOT on purpose. Every `PATH_WRITE_ACTION` key is a root file, so this is
+  // exactly enough to close that lookup — while content paths legitimately carry non-ASCII slugs
+  // (`entrySlugify` keeps `\p{L}`, so "Café" yields `content/blog/en/café.mdoc`), and a repo-wide
+  // ASCII rule would reject real posts. That narrowness is the reason the sibling case-variant
+  // hole on the `content/` PREFIX is a separate issue, not a silent widening of this one.
+  if (!p.includes('/') && !/^[\x20-\x7e]+$/.test(p)) return false
+  // #647: the `content/` half of the same class #644 closed for the root. `parseContentPath` is
+  // CASE-SENSITIVE (`/^content\/…\.mdoc$/`), and `writeActionForChanges` uses its match as the
+  // trigger for BOTH the publish check and the #382 committed-state upgrade. On a case-folding
+  // filesystem every spelling that parser misses is a live post an author can rewrite. Measured
+  // against a seeded LIVE `content/blog/en/live.mdoc`, sending `published: false` content:
+  //     content/blog/en/live.mdoc -> content.publish   (correct)
+  //     Content/blog/en/live.mdoc -> content.edit      parser misses; no publish check at all
+  //     content/blog/en/live.MDOC -> content.edit      parser misses on the extension
+  //     content/blog/en/Live.mdoc -> content.edit      parser MATCHES, but `git.readFile` misses
+  //                                                    (git's index is case-SENSITIVE), so the
+  //                                                    committed-state upgrade never fires
+  // Two different mechanisms, one boundary — fixing only the first would leave the second open.
+  //
+  // The rule: if the FOLDED path is a content path, the literal path must already BE its folded
+  // form. Rejection, not fold-insensitive classification: making `parseContentPath` case-blind
+  // would silently start accepting `CONTENT/…` in its OTHER callers (the content index at
+  // packages/core/src/index-port/index-service.ts, demo planning, the admin editor), which is a
+  // far larger blast radius than this gate. This keeps the change local and fail-closed.
+  //
+  // Deliberately narrow: it only fires when the folded form parses as content, so ordinary repo
+  // files that legitimately carry uppercase (`README.md`, `docs/GUIDE.md`, `LICENSE`) are
+  // untouched, and canonical non-ASCII slugs (`content/blog/en/café.mdoc`) fold to themselves and
+  // pass.
+  //
+  // The residual this rule cannot reach — a slug carrying a character that case-FOLDS onto another
+  // without `toLowerCase` touching it (U+017F LONG S; final vs medial sigma), so it IS its own
+  // folded form and is accepted here, correctly, as a legal slug — is closed by #648 in
+  // `foldCollidingPaths` / the #382 committed-state read below, not by rejection.
+  if (parseContentPath(foldRepoPath(p)) !== null && p !== foldRepoPath(p))
+    return false
+  return true
+}
 
 /** Max bytes for a git write body. Generous enough for a bulk commit-files (hundreds of small
  *  `.mdoc` files in one atomic commit) yet a hard DoS ceiling on unbounded `c.req.json()`. Media
@@ -64,7 +205,12 @@ function publishesLiveContent(content: string): boolean {
  *  ladder each higher action's holders are a subset of the lower's (content.edit ⊂ content.publish ⊂
  *  theme.manage ⊂ settings.manage), so requiring the single strongest action a commit needs correctly
  *  implies the others — no actor can hold the strongest without the rest. A mixed commit therefore
- *  can't smuggle a privileged change past a lower-privilege one. */
+ *  can't smuggle a privileged change past a lower-privilege one.
+ *
+ *  #622: that subset property lives in ANOTHER package (`DEFAULT_ROLES`, packages/core/src/authz)
+ *  and was asserted only in this prose. It is now pinned by a test next to the data —
+ *  packages/core/test/authz/write-action-ladder.test.ts — so the edit that breaks the assumption
+ *  fails in the package that made it, not silently here. */
 const WRITE_ACTION_RANK: Record<string, number> = {
   'content.edit': 0,
   'content.publish': 1,
@@ -72,8 +218,19 @@ const WRITE_ACTION_RANK: Record<string, number> = {
   'settings.manage': 3
 }
 
-/** Rank of a derived write action; floors at 0 (`content.edit`) for anything off the ladder. */
-const writeActionRank = (a: Action): number => WRITE_ACTION_RANK[a] ?? 0
+/** Rank of a derived write action. #622: an action OFF the ladder ranks `Infinity` — the strongest
+ *  possible — not 0. The old `?? 0` floored an unknown action at `content.edit`, the WEAKEST rung,
+ *  so any future action that reached this gate without a rank entry would have been silently
+ *  downgraded to the permission every staff role holds. Ranking it strongest instead makes the
+ *  reduction in `writeActionForChanges` fail CLOSED: the unknown action becomes the required one,
+ *  and `authz.can` denies it for every role (no role's permission set contains an action that is
+ *  not on the matrix), so the request 403s rather than being admitted on `content.edit`.
+ *
+ *  Unreachable today: every action `actionForChange` can return is a `PATH_WRITE_ACTION` value or
+ *  one of the two literals, and all four are in the table. This is a REGRESSION GUARD for the next
+ *  entry added to `PATH_WRITE_ACTION` (or a new derived action) without a matching rank. */
+export const writeActionRank = (a: Action): number =>
+  WRITE_ACTION_RANK[a] ?? Infinity
 
 /** The write permission a single change requires, from its path and (for writes) NEW content only.
  *  (The committed-state half of the rule lives in `writeActionForChanges`, which can read git.)
@@ -83,12 +240,12 @@ const writeActionRank = (a: Action): number => WRITE_ACTION_RANK[a] ?? 0
  *     only needs `content.edit`
  *   - everything else (drafts, taxonomy, deletes) → `content.edit` */
 function actionForChange({ path, content }: WriteChange): Action {
-  const p = normalizeRepoPath(path)
-  const overrideAction = PATH_WRITE_ACTION[p.toLowerCase()]
+  // `path` is guaranteed canonical here — `writeActionForChanges` fails closed before this runs.
+  const overrideAction = PATH_WRITE_ACTION[foldRepoPath(path)]
   if (overrideAction) return overrideAction
   if (
     content !== undefined &&
-    parseContentPath(p) &&
+    parseContentPath(path) &&
     publishesLiveContent(content)
   )
     return 'content.publish'
@@ -112,19 +269,49 @@ export async function writeActionForChanges(
   changes: WriteChange[],
   git: GitPort
 ): Promise<Action> {
+  // #623 fail-closed backstop for DIRECT callers (history-api.ts's restore route calls this
+  // function outside `requireWrite`): a non-canonical path means the gate and the adapter would
+  // disagree about which file is being written, so demand the STRONGEST action on the ladder
+  // rather than guess. `requireWrite` rejects these with a 400 before they ever get here, so this
+  // branch is reachable only from a direct call — which is exactly what it exists to protect.
+  if (!changes.every((c) => isCanonicalRepoPath(c.path)))
+    return 'settings.manage'
+
   const publishRank = writeActionRank('content.publish')
   let strongest: Action = 'content.edit'
+
+  // #648: the committed content tree, listed at most ONCE per call and only if a change actually
+  // reaches the committed-state read below. `list('content/')` is a literal prefix filter in every
+  // adapter, which is sound here because #647 already guarantees the `content/` prefix of anything
+  // classified as a content path is literally lowercase.
+  let contentTree: string[] | null = null
+  const committedContentPaths = async () =>
+    (contentTree ??= await git.list('content/'))
+
   for (const change of changes) {
     let needed = actionForChange(change)
-    const p = normalizeRepoPath(change.path)
+    const p = change.path
     if (
       writeActionRank(needed) < publishRank &&
       writeActionRank(strongest) < publishRank &&
       parseContentPath(p)
     ) {
-      const committed = await git.readFile(p)
-      if (committed !== null && publishesLiveContent(committed))
-        needed = 'content.publish'
+      // The literal path FIRST — the overwhelmingly common case, and the one that avoids listing
+      // the tree at all. Then (#648) every committed path that case-FOLDS onto it: git's index is
+      // case-SENSITIVE, so `readFile(p)` misses the very neighbour the filesystem would resolve
+      // this write onto. Checking the literal path in ADDITION to its fold-neighbours (rather than
+      // only when it misses) keeps this fail-closed when both spellings exist in the index at once
+      // — a state git permits and a case-insensitive checkout collapses unpredictably.
+      for (const candidate of [
+        p,
+        ...foldCollidingPaths(p, await committedContentPaths())
+      ]) {
+        const committed = await git.readFile(candidate)
+        if (committed !== null && publishesLiveContent(committed)) {
+          needed = 'content.publish'
+          break
+        }
+      }
     }
     if (writeActionRank(needed) > writeActionRank(strongest)) strongest = needed
   }
@@ -147,7 +334,28 @@ function requireWrite(
       } catch {
         return c.json({ error: 'invalid request body' }, 400)
       }
+      // #623: reject non-canonical paths BEFORE any permission derivation or write. A path the
+      // gate and the adapter would resolve differently is a malformed request, not a permission
+      // question — so this is a 400 for every role, admin included.
+      if (!changes.every((ch) => isCanonicalRepoPath(ch.path)))
+        return c.json(
+          { error: 'path must be canonical and repo-relative' },
+          400
+        )
       if (!authz.can(c.get('actor'), await writeActionForChanges(changes, git)))
+        return c.json({ error: 'forbidden' }, 403)
+      await next()
+    }
+  )
+}
+
+/** Capability gate for the git READ routes (#621): 403 when the already-authenticated actor lacks
+ *  `action`. Same shape as index-api.ts / forms.ts — `authMiddleware` first (401 for no actor),
+ *  this second (403 for the wrong actor). */
+function requireCan(action: Action) {
+  return createMiddleware<{ Variables: { actor: ResolvedActor } }>(
+    async (c, next) => {
+      if (!authz.can(c.get('actor'), action))
         return c.json({ error: 'forbidden' }, 403)
       await next()
     }
@@ -180,11 +388,17 @@ function requireWrite(
  *  is already live. The admin's HttpGitPort carries the session cookie (credentials: 'include' via
  *  apiFetch — apps/admin/src/data/Bootstrap.tsx).
  *
- *  The READ routes (head/file/list) are intentionally NOT gated: the admin's `bootstrapServices`
- *  reads `git.headSha()` at startup, BEFORE the user has a session (to decide seed-if-empty), so
- *  gating reads 401s that bootstrap read and hangs the whole admin on "Loading…" (caught in live
- *  UAT). #362 scopes the git hole to WRITES; making reads auth-aware needs bootstrap to defer its git
- *  read until after the session resolves — tracked with the actor-auth work in #110, not here.
+ *  The READ routes (#621): `/git/file`, `/git/list` and `/git/diff` require `authMiddleware` +
+ *  `content.view`. #362 left every read ungated on a deferral to **#110, which closed without the
+ *  follow-up ever landing** — so an unauthenticated caller could enumerate and read EVERY file in
+ *  the content repo: unpublished drafts, `settings.json`, the lot. `originGuard` does not cover it
+ *  either — its `SAFE_METHODS` short-circuit passes all GETs by design (that guard is CSRF, not
+ *  authz). The original justification was also strictly broader than the need it cited: the ONLY
+ *  pre-session git read is `seedIfEmpty` (apps/admin/src/data/store.tsx), and it calls
+ *  `git.headSha()` — nothing else. So `/git/head` alone stays ungated (a bare commit sha exposes no
+ *  repo content) with the bootstrap reason restated on the route itself, and every route that
+ *  returns repo content is gated. Zero role regression: `content.view` is in the shared `VIEW` set
+ *  held by all four roles (packages/core/src/authz/default-roles.ts).
  *
  *  CORS/origin policy is owned centrally by server.ts (the allowlisted `cors()` +
  *  `originGuard`), not per-factory — a factory-local permissive `cors()` here would
@@ -194,10 +408,19 @@ function requireWrite(
 export function createGitApi(git: GitPort, resolveActor: ResolveActor) {
   const app = new Hono<{ Variables: { actor: ResolvedActor } }>()
   const auth = authMiddleware(resolveActor)
+  // #621: every read that returns repo CONTENT is gated on `content.view` (held by all four
+  // roles, so no role loses access — this only closes the unauthenticated hole).
+  const canRead = requireCan('content.view')
 
+  // The ONE deliberately ungated route (#621). The admin's `seedIfEmpty`
+  // (apps/admin/src/data/store.tsx) calls `git.headSha()` BEFORE a session exists, to decide
+  // whether to seed sample drafts; gating it 401s that read and hangs the whole admin on
+  // "Loading…" (caught in live UAT under #362). The response is a bare commit sha (or null) — no
+  // repo content, no path names — so the exposure is a build-identity fingerprint, not the file
+  // enumeration that /git/file and /git/list were. Do NOT add content to this response.
   app.get('/git/head', async (c) => c.json({ sha: await git.headSha() }))
 
-  app.get('/git/file', async (c) => {
+  app.get('/git/file', auth, canRead, async (c) => {
     const path = c.req.query('path')
     if (path === undefined || path === '')
       return c.json({ error: 'path query is required' }, 400)
@@ -256,19 +479,20 @@ export function createGitApi(git: GitPort, resolveActor: ResolveActor) {
     }
   )
 
-  app.get('/git/list', async (c) => {
+  app.get('/git/list', auth, canRead, async (c) => {
     const prefix = c.req.query('prefix')
     return c.json({ paths: await git.list(prefix) })
   })
 
-  // Tree-to-tree diff between two commits (#450) — an ungated READ like
-  // head/file/list above (same posture, same #110 follow-up). Shas are
+  // Tree-to-tree diff between two commits (#450) — gated like the other content
+  // reads (#621): the changed-path list leaks the repo's structure and the
+  // existence of unpublished entries. Shas are
   // validated to 40-hex so arbitrary strings never reach the adapter; an
   // unknown-but-well-formed sha rejects in the adapter → the 500 envelope,
   // which HttpGitPort surfaces and the index service treats as "diff
   // unavailable → full rescan".
   const SHA40_RE = /^[0-9a-fA-F]{40}$/
-  app.get('/git/diff', async (c) => {
+  app.get('/git/diff', auth, canRead, async (c) => {
     const from = c.req.query('from')
     const to = c.req.query('to')
     if (

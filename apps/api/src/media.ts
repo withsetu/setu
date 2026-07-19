@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
 import {
   createAuthz,
   DEFAULT_ROLES,
@@ -29,6 +30,10 @@ function formatsFor(setting: 'webp' | 'avif' | 'both'): ImageFormat[] {
 }
 
 export const DEFAULT_MAX_BYTES = 25 * 1024 * 1024
+
+/** Slack added to the per-file cap for the multipart envelope (boundaries, part headers,
+ *  filename, any extra form fields) when sizing the transport-level bodyLimit (#629). */
+const MULTIPART_OVERHEAD_BYTES = 1024 * 1024
 
 /** content-type → file extension. Its keyset IS the default allowlist. */
 const EXT_BY_TYPE: Record<string, string> = {
@@ -132,109 +137,127 @@ export function createUploadApi(opts: UploadApiOptions) {
   // on createGitApi for why a factory-local cors() here would be a security hole once mounted.
   const app = new Hono<{ Variables: { actor: Actor } }>()
 
-  app.post('/media', authMiddleware(opts.resolveActor), async (c) => {
-    if (!authz.can(c.get('actor'), 'media.upload'))
-      return c.json({ error: 'forbidden' }, 403)
+  // #629: cap the request BEFORE anything parses it. `c.req.formData()` below fully buffers the
+  // multipart body, and the per-file `file.size` check can only run AFTER that — so without this
+  // a multi-GB upload OOMs the process before any limit is consulted. Every sibling route caps
+  // first (app.ts 10 MiB, forms.ts 1 MiB, history-api.ts 16 KiB, preview.ts 1 MiB); this is the
+  // transport-level ceiling, and `file.size > maxBytes` below stays as the precise per-file 413.
+  // The headroom covers multipart framing (boundaries, part headers, filename) plus base64-ish
+  // client encodings — deliberately generous, since its only job is to stop the pathological case.
+  const bodyMaxBytes = maxBytes + MULTIPART_OVERHEAD_BYTES
 
-    const form = await c.req.formData()
-    const file = form.get('file')
-    if (!(file instanceof File)) return c.json({ error: 'no file' }, 400)
+  app.post(
+    '/media',
+    bodyLimit({
+      maxSize: bodyMaxBytes,
+      onError: (c) => c.json({ error: 'file too large' }, 413)
+    }),
+    authMiddleware(opts.resolveActor),
+    async (c) => {
+      if (!authz.can(c.get('actor'), 'media.upload'))
+        return c.json({ error: 'forbidden' }, 403)
 
-    if (file.size > maxBytes) return c.json({ error: 'file too large' }, 413)
-    if (!allowed.has(file.type))
-      return c.json({ error: `unsupported type: ${file.type}` }, 415)
+      const form = await c.req.formData()
+      const file = form.get('file')
+      if (!(file instanceof File)) return c.json({ error: 'no file' }, 400)
 
-    const ext = EXT_BY_TYPE[file.type]
-    if (ext === undefined)
-      return c.json({ error: `unsupported type: ${file.type}` }, 415)
-    const now = new Date()
-    const yyyy = now.getUTCFullYear()
-    const mm = now.getUTCMonth() + 1
-    const slug = mediaSlug(file.name)
-    let mediaKey = mediaKeyOf(yyyy, mm, slug)
-    for (
-      let n = 2;
-      (await storage.exists(originalKey(mediaKey, ext))) ||
-      (await storage.exists(manifestKey(mediaKey)));
-      n += 1
-    ) {
-      if (n > 1000) throw new Error(`media key collision overflow for ${slug}`)
-      mediaKey = mediaKeyOf(yyyy, mm, `${slug}-${n}`)
-    }
-    const key = originalKey(mediaKey, ext)
-    const bytes = new Uint8Array(await file.arrayBuffer())
-    await storage.put(key, bytes, { contentType: file.type })
+      if (file.size > maxBytes) return c.json({ error: 'file too large' }, 413)
+      if (!allowed.has(file.type))
+        return c.json({ error: `unsupported type: ${file.type}` }, 415)
 
-    let manifest: MediaManifest | undefined
-    if (opts.image && GENERATABLE.has(file.type)) {
-      const media = resolveMedia()
-      try {
-        manifest = await ingestImage(
-          { image: opts.image, storage },
-          {
-            mediaKey,
-            bytes,
-            originalKey: key,
-            formats: formatsFor(media.imageFormat),
-            widths,
-            lqip: media.imageLqip
-          }
-        )
-      } catch (err) {
-        console.warn(
-          `media ingest failed for ${mediaKey}: ${err instanceof Error ? err.message : String(err)}`
-        )
+      const ext = EXT_BY_TYPE[file.type]
+      if (ext === undefined)
+        return c.json({ error: `unsupported type: ${file.type}` }, 415)
+      const now = new Date()
+      const yyyy = now.getUTCFullYear()
+      const mm = now.getUTCMonth() + 1
+      const slug = mediaSlug(file.name)
+      let mediaKey = mediaKeyOf(yyyy, mm, slug)
+      for (
+        let n = 2;
+        (await storage.exists(originalKey(mediaKey, ext))) ||
+        (await storage.exists(manifestKey(mediaKey)));
+        n += 1
+      ) {
+        if (n > 1000)
+          throw new Error(`media key collision overflow for ${slug}`)
+        mediaKey = mediaKeyOf(yyyy, mm, `${slug}-${n}`)
       }
-    }
+      const key = originalKey(mediaKey, ext)
+      const bytes = new Uint8Array(await file.arrayBuffer())
+      await storage.put(key, bytes, { contentType: file.type })
 
-    const isImage = file.type.startsWith('image/')
-    const smallest = manifest?.variants
-      .slice()
-      .sort((a, b) => a.width - b.width)[0]
-    const record: MediaRecord = {
-      mediaKey,
-      key,
-      thumbKey: smallest ? smallest.key : null,
-      filename: file.name,
-      contentType: file.type,
-      isImage,
-      width: manifest ? manifest.original.width : null,
-      height: manifest ? manifest.original.height : null,
-      bytes: file.size,
-      uploadedAt: Date.now()
-    }
-    await storage.put(
-      mediaRecordKey(mediaKey),
-      new TextEncoder().encode(JSON.stringify(record)),
-      {
-        contentType: 'application/json'
+      let manifest: MediaManifest | undefined
+      if (opts.image && GENERATABLE.has(file.type)) {
+        const media = resolveMedia()
+        try {
+          manifest = await ingestImage(
+            { image: opts.image, storage },
+            {
+              mediaKey,
+              bytes,
+              originalKey: key,
+              formats: formatsFor(media.imageFormat),
+              widths,
+              lqip: media.imageLqip
+            }
+          )
+        } catch (err) {
+          console.warn(
+            `media ingest failed for ${mediaKey}: ${err instanceof Error ? err.message : String(err)}`
+          )
+        }
       }
-    )
-    // Keep the server media index fresh (see UploadApiOptions.mediaIndex).
-    if (opts.mediaIndex) {
-      try {
-        await opts.mediaIndex.upsertOne(record)
-      } catch (err) {
-        console.warn(
-          `media index upsert failed for ${mediaKey}: ${err instanceof Error ? err.message : String(err)}`
-        )
-      }
-    }
 
-    return c.json(
-      {
-        id: mediaKey,
+      const isImage = file.type.startsWith('image/')
+      const smallest = manifest?.variants
+        .slice()
+        .sort((a, b) => a.width - b.width)[0]
+      const record: MediaRecord = {
+        mediaKey,
         key,
-        url: storage.url(key),
-        contentType: file.type,
-        size: file.size,
+        thumbKey: smallest ? smallest.key : null,
         filename: file.name,
-        record,
-        ...(manifest ? { manifest } : {})
-      },
-      201
-    )
-  })
+        contentType: file.type,
+        isImage,
+        width: manifest ? manifest.original.width : null,
+        height: manifest ? manifest.original.height : null,
+        bytes: file.size,
+        uploadedAt: Date.now()
+      }
+      await storage.put(
+        mediaRecordKey(mediaKey),
+        new TextEncoder().encode(JSON.stringify(record)),
+        {
+          contentType: 'application/json'
+        }
+      )
+      // Keep the server media index fresh (see UploadApiOptions.mediaIndex).
+      if (opts.mediaIndex) {
+        try {
+          await opts.mediaIndex.upsertOne(record)
+        } catch (err) {
+          console.warn(
+            `media index upsert failed for ${mediaKey}: ${err instanceof Error ? err.message : String(err)}`
+          )
+        }
+      }
+
+      return c.json(
+        {
+          id: mediaKey,
+          key,
+          url: storage.url(key),
+          contentType: file.type,
+          size: file.size,
+          filename: file.name,
+          record,
+          ...(manifest ? { manifest } : {})
+        },
+        201
+      )
+    }
+  )
 
   app.post(
     '/api/media/reprocess',

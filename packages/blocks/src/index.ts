@@ -52,13 +52,13 @@ export { sectionClasses } from './section/section-classes'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type BlockCore = ComponentType<any>
 
-/** Block tag -> its React visual core, for the editor's in-canvas rendering. Excludes
- *  callout (which keeps its own bespoke editor node view). */
+/** Block tag -> its React visual core, for the editor's generic in-canvas rendering
+ *  (`createSetuBlock`). Excludes callout (its own bespoke node view) and the atom blocks
+ *  hero/gallery/video: the converters route those tags to dedicated atom nodes
+ *  (heroBlock/galleryBlock/videoBlock), so the generic setuBlock path never resolves
+ *  them — their cores are consumed directly by the atom-block factory instead (#562). */
 export const blockCores: Record<string, BlockCore> = {
   notice: Notice,
-  hero: Hero,
-  gallery: Gallery,
-  video: Video,
   section: Section
 }
 

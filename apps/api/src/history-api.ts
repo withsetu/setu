@@ -6,7 +6,7 @@ import { createAuthz, DEFAULT_ROLES } from '@setu/core'
 import type { Action, GitPort } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
 import { apiOnError } from './errors'
-import { writeActionForChanges } from './app'
+import { writeActionForChanges, isCanonicalRepoPath } from './app'
 import type { ResolveActor, ResolvedActor } from './auth/resolve-actor'
 
 const authz = createAuthz(DEFAULT_ROLES)
@@ -41,7 +41,10 @@ const contentPathSchema = z
   .min(1)
   .max(1024)
   .regex(/^content\//)
-  .refine((p) => !p.includes('..'))
+  // #623: `..` alone was not enough — `content/./blog/en/post.mdoc` and `content//blog/...` also
+  // made the gate and the git adapter resolve different files. Require a fully canonical path so
+  // the write gate below sees exactly the path the adapter writes.
+  .refine(isCanonicalRepoPath)
 
 const shaSchema = z.string().regex(/^[0-9a-f]{40}$/)
 

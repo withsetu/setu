@@ -112,7 +112,7 @@ function salvageGroup(
     return {}
   }
   const whole = schema.safeParse(raw)
-  if (whole.success) return whole.data as Rec
+  if (whole.success) return whole.data
 
   const shape = schema.shape
   const out: Rec = {}
@@ -198,7 +198,7 @@ export function parseSettingsWithWarnings(raw: unknown): {
   const rd = DEFAULT_SETTINGS.reading
   const id = DEFAULT_SETTINGS.identity
   const nested = (key: keyof typeof rd): Rec =>
-    isPlainObject(reading[key]) ? (reading[key] as Rec) : {}
+    isPlainObject(reading[key]) ? reading[key] : {}
 
   const validEntity = (['person', 'organization'] as const).includes(
     identity.entityType as SiteSettings['identity']['entityType']
@@ -222,7 +222,7 @@ export function parseSettingsWithWarnings(raw: unknown): {
       'permalinks.uncategorized: must be lowercase letters, digits, or hyphens — reset to default'
     )
 
-  const settings = {
+  const settings: SiteSettings = {
     ...data,
     general: { ...DEFAULT_SETTINGS.general, ...general },
     reading: {
@@ -251,7 +251,7 @@ export function parseSettingsWithWarnings(raw: unknown): {
         ? uncategorized
         : DEFAULT_SETTINGS.permalinks.uncategorized
     }
-  } as unknown as SiteSettings
+  }
 
   return { settings, warnings }
 }

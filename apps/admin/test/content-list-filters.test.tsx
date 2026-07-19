@@ -134,12 +134,17 @@ describe('ContentList — filters', () => {
   // published|draft. Each must land IN the toolbar's filter state — a URL the
   // list silently ignored would show an unfiltered list under a filtered
   // heading, which is the redundancy #598 set out to remove.
-  it('round-trips every dashboard tile status from the URL into the filter control (#579)', async () => {
+  // #598 simplified the MENU to Live / Staged / Drafts, but every value below
+  // stays a valid URL filter — deep links and the index port contract depend on
+  // it. Each must still land IN the toolbar's filter state and be named there.
+  it('round-trips every valid status from the URL into the filter control (#579, #598)', async () => {
     for (const [param, shown] of [
       ['live', 'Live'],
       ['staged', 'Staged'],
+      ['not-published', 'Drafts'],
       ['published', 'Published'],
-      ['draft', 'Draft']
+      ['draft', 'Draft'],
+      ['unpublished', 'Unpublished']
     ] as const) {
       setup([`/posts?status=${param}`])
       const trigger = await screen.findByLabelText('Filter by status')
@@ -155,6 +160,28 @@ describe('ContentList — filters', () => {
     expect(await screen.findByText(/match these filters/i)).toBeTruthy()
     expect(screen.queryByText('Alpha')).toBeNull()
     expect(screen.queryByText('Beta')).toBeNull()
+  })
+
+  // The regression #598's menu shrink could have caused: dropping an option from
+  // the dropdown must not stop the value FILTERING when it arrives by URL.
+  // Both fixtures are DataPort-only drafts.
+  it('status=draft still filters even though it left the menu (#598)', async () => {
+    setup(['/posts?status=draft'])
+    expect(await screen.findByText('Alpha')).toBeTruthy()
+    expect(screen.getByText('Beta')).toBeTruthy()
+  })
+
+  it('status=unpublished still filters even though it left the menu (#598)', async () => {
+    setup(['/posts?status=unpublished'])
+    expect(await screen.findByText(/match these filters/i)).toBeTruthy()
+    expect(screen.queryByText('Alpha')).toBeNull()
+    expect(screen.queryByText('Beta')).toBeNull()
+  })
+
+  it('status=not-published keeps the drafts (#611)', async () => {
+    setup(['/posts?status=not-published'])
+    expect(await screen.findByText('Alpha')).toBeTruthy()
+    expect(screen.getByText('Beta')).toBeTruthy()
   })
 
   it('ignores a status the index cannot filter on, rather than emptying the list (#579)', async () => {

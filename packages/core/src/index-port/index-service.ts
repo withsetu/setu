@@ -22,7 +22,11 @@ import type { IndexStats } from './stats'
 // instead of session-scoped. Existing indexes have no value for it, and their rows were
 // derived under an unknown deploy snapshot, so the bump forces one clean rebuild that
 // records which deploy the rows actually reflect.
-export const INDEX_VERSION = 9
+// v10: rows may now carry `indexError` (#713/#714b) — an entry whose draft body or
+// path could not be derived is emitted as a MARKED row instead of aborting the whole
+// build. Existing indexes were built by a version that threw on such an entry, so they
+// either predate one or lost the whole list to it; the bump forces one clean rebuild.
+export const INDEX_VERSION = 10
 
 export interface IndexServiceDeps {
   data: DataPort

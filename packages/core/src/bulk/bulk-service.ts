@@ -8,11 +8,24 @@ import { contentPath } from '../publish/content-path'
 import { rawFrontmatterOf, serializeMdoc } from '../markdoc/frontmatter'
 import { tiptapToMarkdoc } from '../markdoc/to-markdoc'
 
+/** Why one entry of a batch was not applied. `absent` = no draft and no committed
+ *  file. `error` = the entry could not be derived at all (#713/#714b): its stored
+ *  body has a node/mark `tiptapToMarkdoc` refuses to serialize, or its ref has a
+ *  segment `contentPath` refuses to mint a path from. Both throws are correct — what
+ *  they must not do is take the other N-1 entries down with them, so they are caught
+ *  per entry and reported here. */
+export interface BulkSkip {
+  ref: EntryRef
+  reason: 'absent' | 'error'
+  /** The failure message, for `reason: 'error'` only. */
+  message?: string
+}
+
 export interface BulkResult {
   /** The one commit's sha, or null when nothing was committed. */
   committedSha: string | null
   applied: EntryRef[]
-  skipped: { ref: EntryRef; reason: 'absent' }[]
+  skipped: BulkSkip[]
 }
 
 export interface BulkDeps {
@@ -39,7 +52,7 @@ export function createBulkService(deps: BulkDeps): BulkService {
   return {
     async applyMetadata(refs, mutate, message) {
       const applied: EntryRef[] = []
-      const skipped: { ref: EntryRef; reason: 'absent' }[] = []
+      const skipped: BulkSkip[] = []
       const changes: FileChange[] = []
       const pending: {
         ref: EntryRef
@@ -55,14 +68,30 @@ export function createBulkService(deps: BulkDeps): BulkService {
           continue
         }
         const draft = loaded.draft
-        const next = mutate(draft.metadata)
-        const serialized = serializeMdoc({
-          frontmatter: next,
-          body: tiptapToMarkdoc(draft.content),
-          // #666: keep every key this bulk mutation did not touch byte-identical.
-          rawFrontmatter: rawFrontmatterOf(draft.baseContent)
-        })
-        changes.push({ path: contentPath(ref), content: serialized })
+        // #713/#714b: one unserializable stored draft, or one non-canonical ref, used
+        // to abort the ENTIRE batch — nothing was committed and the user got a raw
+        // error instead of the N-1 entries they asked to change. Scope it to the entry.
+        let next: Record<string, unknown>
+        let serialized: string
+        let path: string
+        try {
+          next = mutate(draft.metadata)
+          serialized = serializeMdoc({
+            frontmatter: next,
+            body: tiptapToMarkdoc(draft.content),
+            // #666: keep every key this bulk mutation did not touch byte-identical.
+            rawFrontmatter: rawFrontmatterOf(draft.baseContent)
+          })
+          path = contentPath(ref)
+        } catch (err) {
+          skipped.push({
+            ref,
+            reason: 'error',
+            message: err instanceof Error ? err.message : String(err)
+          })
+          continue
+        }
+        changes.push({ path, content: serialized })
         pending.push({ ref, content: draft.content, next, serialized })
         applied.push(ref)
       }
@@ -92,12 +121,28 @@ export function createBulkService(deps: BulkDeps): BulkService {
 
     async deleteEntries(refs, message) {
       const applied: EntryRef[] = []
+      const skipped: BulkSkip[] = []
       const changes: FileChange[] = []
 
       for (const ref of refs) {
-        const committed = await git.readFile(contentPath(ref))
-        if (committed !== null)
-          changes.push({ path: contentPath(ref), delete: true })
+        // #714b: `contentPath` throws on a non-canonical ref, which used to abort the
+        // batch before ANY entry was deleted. Skip rather than delete-anyway: a ref
+        // whose path cannot be minted is exactly the case where we cannot tell what
+        // committed file (if any) belongs to it, and dropping the draft on that guess
+        // would be unrecoverable. A skipped entry survives and is reported.
+        let path: string
+        try {
+          path = contentPath(ref)
+        } catch (err) {
+          skipped.push({
+            ref,
+            reason: 'error',
+            message: err instanceof Error ? err.message : String(err)
+          })
+          continue
+        }
+        const committed = await git.readFile(path)
+        if (committed !== null) changes.push({ path, delete: true })
         await data.deleteDraft(ref)
         applied.push(ref)
       }
@@ -114,7 +159,7 @@ export function createBulkService(deps: BulkDeps): BulkService {
         committedSha = sha
       }
 
-      return { committedSha, applied, skipped: [] }
+      return { committedSha, applied, skipped }
     }
   }
 }

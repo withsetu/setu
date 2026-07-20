@@ -26,7 +26,10 @@ export interface TaxonomyContextValue {
   create: (input: { name: string; parent: string | null }) => Promise<string>
   renameLabel: (slug: string, name: string) => Promise<void>
   reparent: (slug: string, parent: string | null) => Promise<void>
-  remove: (slug: string) => Promise<void>
+  /** Delete a category. Resolves with the entries that could NOT be stripped
+   *  (#713/#714b) — they keep a dangling reference to the deleted slug, so the
+   *  caller must tell the user rather than report an unqualified success. */
+  remove: (slug: string) => Promise<{ skippedCount: number }>
 }
 
 const TaxonomyContext = createContext<TaxonomyContextValue | null>(null)
@@ -95,9 +98,10 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
   )
   const remove = useCallback(
     async (slug: string) => {
-      const { categories: next } = await deleter.remove(slug)
+      const { categories: next, skipped } = await deleter.remove(slug)
       setCategories(next)
       void refreshCounts()
+      return { skippedCount: skipped.length }
     },
     [deleter, refreshCounts]
   )

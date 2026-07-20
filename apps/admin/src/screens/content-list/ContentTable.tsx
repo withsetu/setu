@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'motion/react'
 import {
+  AlertTriangle,
   ArrowDown,
   ArrowUp,
   Check,
@@ -232,6 +233,21 @@ export function ContentTable({
                   >
                     {r.title}
                   </Link>
+                  {/* #713/#714b: an entry the index could not fully derive is shown
+                      as a MARKED row, never omitted — a missing row is
+                      indistinguishable from a deleted entry. Same title+sr-only
+                      affordance IndicatorMark uses, so hover and screen readers both
+                      get the actual reason. */}
+                  {r.indexError !== undefined && (
+                    <span
+                      role="img"
+                      aria-label={`Needs attention: ${r.indexError}`}
+                      title={`Needs attention: ${r.indexError}`}
+                      className="shrink-0 text-destructive"
+                    >
+                      <AlertTriangle aria-hidden="true" className="size-3.5" />
+                    </span>
+                  )}
                   {published && (
                     <a
                       href={siteUrl(

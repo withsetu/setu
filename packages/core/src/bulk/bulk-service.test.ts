@@ -108,3 +108,93 @@ describe('bulkService.deleteEntries', () => {
     expect(await git.headSha()).toBeNull()
   })
 })
+
+/** #713 — `tiptapToMarkdoc` throws on a node/mark it does not serialize, and this
+ *  loop serializes EVERY selected entry. The throw used to escape `applyMetadata`,
+ *  so one legacy draft aborted the whole batch: nothing was committed, and the
+ *  user got an error instead of the N-1 entries they asked to change. */
+describe('bulkService — one bad entry does not abort the batch (#713)', () => {
+  const badDoc = {
+    type: 'doc',
+    content: [
+      {
+        type: 'paragraph',
+        content: [{ type: 'text', text: 'x', marks: [{ type: 'underline' }] }]
+      }
+    ]
+  } as unknown as TiptapDoc
+
+  it('applyMetadata applies the healthy entries and reports the bad one', async () => {
+    const { git, data, bulk } = setup([
+      { ref: ref('a'), frontmatter: { title: 'A' }, body: 'x' },
+      { ref: ref('b'), frontmatter: { title: 'B' }, body: 'y' }
+    ])
+    // A stored draft whose body the serializer cannot handle.
+    await data.saveDraft({
+      ...ref('bad'),
+      content: badDoc,
+      metadata: { title: 'Bad' },
+      baseSha: null
+    })
+
+    const r = await bulk.applyMetadata([ref('a'), ref('bad'), ref('b')], (m) =>
+      addCategory(m, 'news')
+    )
+
+    // The property: the good entries still landed.
+    expect(r.applied.map((x) => x.slug).sort()).toEqual(['a', 'b'])
+    expect(r.skipped).toHaveLength(1)
+    expect(r.skipped[0]!.ref.slug).toBe('bad')
+    expect(r.skipped[0]!.reason).toBe('error')
+    expect(r.skipped[0]!.message).toContain('underline')
+    const a = parseMdoc((await git.readFile(contentPath(ref('a'))))!)
+    expect(a.frontmatter.categories).toEqual(['news'])
+    const b = parseMdoc((await git.readFile(contentPath(ref('b'))))!)
+    expect(b.frontmatter.categories).toEqual(['news'])
+  })
+
+  it('applyMetadata skips a non-canonical ref instead of aborting (#714b)', async () => {
+    const { git, data, bulk } = setup([
+      { ref: ref('a'), frontmatter: { title: 'A' }, body: 'x' }
+    ])
+    const bad = ref('legacy slug ')
+    await data.saveDraft({
+      ...bad,
+      content: doc('legacy'),
+      metadata: { title: 'Legacy' },
+      baseSha: null
+    })
+
+    const r = await bulk.applyMetadata([ref('a'), bad], (m) =>
+      addCategory(m, 'news')
+    )
+
+    expect(r.applied.map((x) => x.slug)).toEqual(['a'])
+    expect(r.skipped).toHaveLength(1)
+    expect(r.skipped[0]!.reason).toBe('error')
+    const a = parseMdoc((await git.readFile(contentPath(ref('a'))))!)
+    expect(a.frontmatter.categories).toEqual(['news'])
+  })
+
+  it('deleteEntries skips a non-canonical ref and keeps deleting the rest', async () => {
+    const { git, data, bulk } = setup([
+      { ref: ref('a'), frontmatter: { title: 'A' }, body: 'x' }
+    ])
+    const bad = ref('legacy slug ')
+    await data.saveDraft({
+      ...bad,
+      content: doc('legacy'),
+      metadata: { title: 'Legacy' },
+      baseSha: null
+    })
+
+    const r = await bulk.deleteEntries([ref('a'), bad])
+
+    expect(r.applied.map((x) => x.slug)).toEqual(['a'])
+    expect(r.skipped).toHaveLength(1)
+    expect(r.skipped[0]!.reason).toBe('error')
+    expect(await git.readFile(contentPath(ref('a')))).toBeNull()
+    // A skipped entry is NOT destroyed — skipping must be recoverable.
+    expect(await data.getDraft(bad)).not.toBeNull()
+  })
+})

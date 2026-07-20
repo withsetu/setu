@@ -464,8 +464,7 @@ const ORDERED_MARKERS = ['1.', '1)'] as const
  *  `taskList` shares the bullet family: it writes a `-` marker too, so a checklist
  *  followed by a bullet list is the same collision, reachable from the editor. */
 function markerFor(node: TiptapNode, previous: string | undefined): string {
-  const family =
-    node.type === 'orderedList' ? ORDERED_MARKERS : BULLET_MARKERS
+  const family = node.type === 'orderedList' ? ORDERED_MARKERS : BULLET_MARKERS
   return previous === family[0] ? family[1] : family[0]
 }
 

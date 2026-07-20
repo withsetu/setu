@@ -177,7 +177,10 @@ describe('sibling lists keep their identity (#694)', () => {
     )
 
   it('two adjacent bullet lists stay two lists', () => {
-    expect(listShape('- a\n\n* b\n')).toEqual(['bulletList[1]', 'bulletList[1]'])
+    expect(listShape('- a\n\n* b\n')).toEqual([
+      'bulletList[1]',
+      'bulletList[1]'
+    ])
     expect(roundtrip('- a\n\n* b\n')).toBe('- a\n\n* b\n')
     expect(listShape(roundtrip('- a\n\n* b\n'))).toEqual([
       'bulletList[1]',

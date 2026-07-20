@@ -326,12 +326,42 @@ export async function writeActionForChanges(
   let strongest: Action = 'content.edit'
 
   // #648: the committed content tree, listed at most ONCE per call and only if a change actually
-  // reaches the committed-state read below. `list('content/')` is a literal prefix filter in every
-  // adapter, which is sound here because #647 already guarantees the `content/` prefix of anything
-  // classified as a content path is literally lowercase.
+  // reaches the committed-state read below.
+  //
+  // #742 — THE SELECTION STEP, corrected. This used to be `git.list('content/')`, justified by
+  // #647. That justification did not cover its own case: `list(prefix)` is a literal
+  // `startsWith` in every adapter (git-local, git-memory, git-http), and #647 constrains the
+  // INCOMING path — it guarantees nothing about COMMITTED ones, which is the entire premise of
+  // #648 (pre-existing repos, direct `git push`, other topologies may hold fold-unstable paths).
+  // So a committed `Content/blog/en/live.mdoc` was never a CANDIDATE, and the fold comparison
+  // #731 fixed never ran on it: an actor holding only `content.edit` could unpublish or DELETE
+  // that live post, which a case-folding checkout resolves onto the real inode. Only the ROOT
+  // segment was blind — once a path cleared the literal prefix, every segment below it was
+  // fold-compared — and it was blind completely.
+  //
+  // What the prefix ACTUALLY guarantees is nothing about the committed side, so the selection asks
+  // the fold RELATION, exactly as the comparison below does (#731's move, one level up).
+  //
+  // Honest note on `foldRepoPath` vs `toLowerCase` HERE: at this position they are provably the
+  // same function. `content/` is pure ASCII, and for ASCII strings case folding and `toLowerCase`
+  // coincide — enumerated the BMP+SMP against `unicodeCaseFold` and NO non-ASCII character folds
+  // onto any of `c`/`o`/`n`/`t`/`e`, so no fold-not-case root variant exists. `foldRepoPath` is
+  // used anyway so this half asks the SAME relation as every other half (the #731 lesson: a second
+  // opinion is a second bug), and because it can only ever be WIDER, never narrower. It buys no
+  // extra coverage today; it stops a future non-ASCII root prefix from silently needing it.
+  //
+  // LISTING COST (checked against all three adapters rather than assumed): git-local and
+  // git-memory already enumerate the WHOLE tree and then apply `startsWith`, so dropping the
+  // prefix costs them literally nothing. git-http passes the prefix to `/git/list` and would pay
+  // in wire bytes — but this function is SERVER-side (apps/api), where the port is git-local;
+  // git-http is the ADMIN's client port and never reaches here. So no topology pays for this. If
+  // that ever changes, the fix is a fold-aware filter on the port (a `foldPrefix` query param on
+  // `/git/list`), not a return to the literal prefix.
   let contentTree: string[] | null = null
   const committedContentPaths = async () =>
-    (contentTree ??= await git.list('content/'))
+    (contentTree ??= (await git.list()).filter((c) =>
+      foldRepoPath(c).startsWith('content/')
+    ))
 
   for (const change of changes) {
     let needed = actionForChange(change)

@@ -19,6 +19,7 @@ import {
   ensureFormId
 } from './contact-helpers'
 import { attrString } from '../attr-string'
+import { useMirroredField } from '../useMirroredField'
 
 function ContactView({ node, updateAttributes }: ReactNodeViewProps) {
   const mdAttrs = (node.attrs.mdAttrs ?? {}) as Record<string, unknown>
@@ -46,6 +47,17 @@ function ContactView({ node, updateAttributes }: ReactNodeViewProps) {
   )
   const fields = contactPreviewFields(mdAttrs)
 
+  // Form name and success message are free-text inputs: mirror their value in local
+  // state so clearing a field right after typing is not swallowed by 3.28's deferred
+  // node-view re-render (#691). (The Switches and the disabled preview fields below
+  // are non-editable, so they need no mirroring.)
+  const formLabelField = useMirroredField(formLabel, (v) =>
+    setAttrs({ formLabel: v })
+  )
+  const successField = useMirroredField(successMessage, (v) =>
+    setAttrs({ successMessage: v })
+  )
+
   return (
     <NodeViewWrapper>
       <div
@@ -68,9 +80,9 @@ function ContactView({ node, updateAttributes }: ReactNodeViewProps) {
                 <Label htmlFor={`${uid}-name`}>Form name</Label>
                 <Input
                   id={`${uid}-name`}
-                  value={formLabel}
+                  value={formLabelField.value}
                   placeholder="Contact"
-                  onChange={(e) => setAttrs({ formLabel: e.target.value })}
+                  onChange={(e) => formLabelField.onChange(e.target.value)}
                 />
               </div>
               <div className="flex items-center justify-between">
@@ -116,8 +128,8 @@ function ContactView({ node, updateAttributes }: ReactNodeViewProps) {
                 <Label htmlFor={`${uid}-success`}>Success message</Label>
                 <Input
                   id={`${uid}-success`}
-                  value={successMessage}
-                  onChange={(e) => setAttrs({ successMessage: e.target.value })}
+                  value={successField.value}
+                  onChange={(e) => successField.onChange(e.target.value)}
                 />
               </div>
             </PopoverContent>

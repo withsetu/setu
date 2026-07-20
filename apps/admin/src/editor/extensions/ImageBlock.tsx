@@ -2,6 +2,7 @@ import { Node, mergeAttributes } from '@tiptap/core'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { resolveMediaSrc } from '../media-src'
+import { useMirroredField } from '../useMirroredField'
 import { useToolbarRoving } from '../useToolbarRoving'
 import { replaceImage } from '../image-insert'
 import { AlignControl } from '../controls/align'
@@ -39,6 +40,13 @@ function ImageBlockView({
     if (next['alt'] === '') delete next['alt']
     updateAttributes({ mdAttrs: next })
   }
+
+  // Caption/alt are free-text inputs: mirror their value in local state so a clear
+  // right after typing is not swallowed by 3.28's deferred node-view re-render (#691).
+  const altField = useMirroredField(alt, (v) => setAttrs({ alt: v }))
+  const captionField = useMirroredField(caption, (v) =>
+    setAttrs({ caption: v })
+  )
 
   const onCaptionKeyDown = (e: React.KeyboardEvent) => {
     const pos = getPos()
@@ -118,8 +126,8 @@ function ImageBlockView({
           <input
             className="sib-alt"
             placeholder="Alt text…"
-            value={alt}
-            onChange={(e) => setAttrs({ alt: e.target.value })}
+            value={altField.value}
+            onChange={(e) => altField.onChange(e.target.value)}
             onKeyDown={(e) => e.stopPropagation()}
             data-toolbar-item
           />
@@ -146,8 +154,8 @@ function ImageBlockView({
         <input
           className="sib-caption"
           placeholder="Add a caption…"
-          value={caption}
-          onChange={(e) => setAttrs({ caption: e.target.value })}
+          value={captionField.value}
+          onChange={(e) => captionField.onChange(e.target.value)}
           onKeyDown={onCaptionKeyDown}
         />
       </figure>

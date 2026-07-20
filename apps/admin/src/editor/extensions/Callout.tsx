@@ -16,6 +16,7 @@ import {
 } from '@setu/blocks'
 import type { BlockIconName } from '@setu/blocks'
 import { useToolbarRoving } from '../useToolbarRoving'
+import { useMirroredField } from '../useMirroredField'
 import { attrString } from '../attr-string'
 
 /** If the caret sits at the very start of a callout's body, move keyboard focus
@@ -65,6 +66,10 @@ function CalloutView({
     if (next['icon'] === '') delete next['icon']
     updateAttributes({ mdAttrs: next })
   }
+
+  // The title is a free-text input: mirror its value in local state so a clear
+  // right after typing is not swallowed by 3.28's deferred node-view re-render (#691).
+  const titleField = useMirroredField(title, (v) => setAttrs({ title: v }))
 
   const keepFocus = (e: { preventDefault: () => void }) => e.preventDefault()
   const { ref: toolbarRef, onKeyDown: onToolbarKeyDown } = useToolbarRoving()
@@ -126,8 +131,8 @@ function CalloutView({
     <input
       className="callout-title"
       placeholder="Add a title…"
-      value={title}
-      onChange={(e) => setAttrs({ title: e.target.value })}
+      value={titleField.value}
+      onChange={(e) => titleField.onChange(e.target.value)}
       onKeyDown={(e) => {
         if (e.key === 'ArrowDown' || e.key === 'Enter') {
           e.preventDefault()

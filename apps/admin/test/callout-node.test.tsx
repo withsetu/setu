@@ -25,19 +25,35 @@ function Harness({ onReady }: { onReady: (getJSON: () => unknown) => void }) {
   return <EditorContent editor={editor} />
 }
 
+function mdAttrsOf(getJSON: () => unknown): Record<string, unknown> {
+  const json = getJSON() as {
+    content: Array<{
+      type: string
+      attrs?: { mdAttrs?: Record<string, unknown> }
+    }>
+  }
+  return json.content.find((n) => n.type === 'callout')?.attrs?.mdAttrs ?? {}
+}
+
 describe('Callout node view', () => {
   it('renders a title input and the body, and editing the title updates mdAttrs.title', async () => {
     let getJSON: () => unknown = () => ({})
     render(<Harness onReady={(g) => (getJSON = g)} />)
     const title = await screen.findByPlaceholderText(/add a title/i)
     fireEvent.change(title, { target: { value: 'Heads up' } })
-    const json = getJSON() as {
-      content: Array<{
-        type: string
-        attrs?: { mdAttrs?: Record<string, unknown> }
-      }>
-    }
-    const callout = json.content.find((n) => n.type === 'callout')
-    expect(callout?.attrs?.mdAttrs?.title).toBe('Heads up')
+    expect(mdAttrsOf(getJSON).title).toBe('Heads up')
+  })
+
+  // Regression guard for #691: under Tiptap 3.28 the node view re-renders on a
+  // deferred microtask, so a clear typed straight after a title was swallowed and
+  // the `title` key lingered. The mirrored-field input keeps the clear live.
+  it('the title input updates mdAttrs.title, and clearing it removes the key', async () => {
+    let getJSON: () => unknown = () => ({})
+    render(<Harness onReady={(g) => (getJSON = g)} />)
+    const title = await screen.findByPlaceholderText(/add a title/i)
+    fireEvent.change(title, { target: { value: 'Heads up' } })
+    expect(mdAttrsOf(getJSON).title).toBe('Heads up')
+    fireEvent.change(title, { target: { value: '' } })
+    expect(mdAttrsOf(getJSON).title).toBeUndefined()
   })
 })

@@ -229,6 +229,16 @@ const bullets = (text: fc.Arbitrary<string>) =>
  *  document is exactly the `---` … `---` pair the strip looked for. */
 const thematicBreak = fc.constantFrom('***', '---', '___')
 
+/** #744 — the second hole, and the same lesson. An item's nested list was generated
+ *  nowhere, so an EMPTY nested item — a bare `-` hugged to the parent's paragraph, which
+ *  CommonMark absorbs as a lazy continuation — could not be reached either. Written with
+ *  a blank line and a tab so the source is unambiguous about the nesting; the writer's
+ *  own spelling of the same tree is what the round-trip then has to preserve. */
+const nestedEmptyItem = (text: fc.Arbitrary<string>) =>
+  fc
+    .tuple(text, fc.constantFrom('*', '-', '1.'))
+    .map(([t, marker]) => `- ${t}\n\n\t${marker}`)
+
 /** Documents of prose blocks only. */
 const proseDocument = (text: fc.Arbitrary<string>) =>
   fc
@@ -237,7 +247,8 @@ const proseDocument = (text: fc.Arbitrary<string>) =>
         text,
         heading(text),
         bullets(text),
-        thematicBreak
+        thematicBreak,
+        nestedEmptyItem(text)
       ),
       {
         minLength: 1,
@@ -260,6 +271,7 @@ const taggedDocument = (text: fc.Arbitrary<string>) => {
         heading(text),
         bullets(text),
         thematicBreak,
+        nestedEmptyItem(text),
         callout,
         ifBlock
       ),
@@ -555,9 +567,11 @@ describe('round-trip byte-stability (property-based)', () => {
       .tuple(fc.integer({ min: 1, max: 6 }), canonicalInline)
       .map(([lvl, t]) => `${'#'.repeat(lvl)} ${t}`),
     listBlock,
-    // #743 in the writer's OWN spelling (`---`), so this property asserts the fix is a
-    // fixed point and not merely convergent.
+    // #743/#744 in the writer's OWN spelling, so this property asserts the fixes are
+    // fixed points and not merely convergent: `---` for a thematic break, and a blank
+    // line before an empty nested item (the separator #744 changed).
     fc.constant('---'),
+    canonicalInline.map((t) => `- ${t}\n\n  -`),
     canonicalInline.map((t) => `{% callout %}\n${t}\n{% /callout %}`),
     // A passthrough tag with a multi-line body — the #674 shape, byte-for-byte.
     fc

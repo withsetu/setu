@@ -111,9 +111,9 @@ const codeBlock = (code: string, language = ''): TiptapNode => ({
 })
 /** The body-text of the single cell in `content`'s serialized table. */
 const cellBody = (content: TiptapNode[]): string =>
-  tableToGfm(
-    table(row(headerCell('h')), row(multiCell(...content)))
-  ).split('\n')[2]!.replace(/^\| | \|$/g, '')
+  tableToGfm(table(row(headerCell('h')), row(multiCell(...content))))
+    .split('\n')[2]!
+    .replace(/^\| | \|$/g, '')
 
 describe('tableToGfm — multi-block cells (#752)', () => {
   it('keeps every paragraph, joined by <br>', () => {

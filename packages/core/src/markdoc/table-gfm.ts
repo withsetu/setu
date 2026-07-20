@@ -56,7 +56,10 @@ function codeInlineNodes(node: TiptapNode): TiptapNode[] {
  *  it byte-for-byte. Carries src/alt/title across; drops the block-only extras. */
 function inlineImageNode(node: TiptapNode): TiptapNode {
   const md = (node.attrs?.['mdAttrs'] ?? {}) as Record<string, unknown>
-  const attrs: Record<string, unknown> = { src: md['src'] ?? '', alt: md['alt'] ?? '' }
+  const attrs: Record<string, unknown> = {
+    src: md['src'] ?? '',
+    alt: md['alt'] ?? ''
+  }
   if (md['title'] != null && md['title'] !== '') attrs['title'] = md['title']
   return { type: 'image', attrs }
 }

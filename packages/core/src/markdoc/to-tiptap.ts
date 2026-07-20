@@ -378,7 +378,9 @@ function blockToTiptap(node: MdNode): TiptapNode | null {
       const cellToTiptap = (cell: MdNode, header: boolean): TiptapNode => ({
         type: header ? 'tableHeader' : 'tableCell',
         attrs: { align: cellAlign(cell) },
-        content: [{ type: 'paragraph', content: splitCellBreaks(collectInline(cell)) }]
+        content: [
+          { type: 'paragraph', content: splitCellBreaks(collectInline(cell)) }
+        ]
       })
       const rowToTiptap = (tr: MdNode, header: boolean): TiptapNode => ({
         type: 'tableRow',

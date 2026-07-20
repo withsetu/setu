@@ -652,17 +652,19 @@ describe('round-trip GFM tables (property-based, #752)', () => {
           minLength: ncols,
           maxLength: ncols
         }),
-        fc.array(
-          fc.array(cellText, { minLength: ncols, maxLength: ncols }),
-          { minLength: 1, maxLength: 3 }
-        )
+        fc.array(fc.array(cellText, { minLength: ncols, maxLength: ncols }), {
+          minLength: 1,
+          maxLength: 3
+        })
       )
       .map(([header, aligns, body]) => {
         const rowStr = (cells: string[]) => '| ' + cells.join(' | ') + ' |'
         return (
-          [rowStr(header), '| ' + aligns.join(' | ') + ' |', ...body.map(rowStr)].join(
-            '\n'
-          ) + '\n'
+          [
+            rowStr(header),
+            '| ' + aligns.join(' | ') + ' |',
+            ...body.map(rowStr)
+          ].join('\n') + '\n'
         )
       })
   )

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import fc from 'fast-check'
 import { markdocToTiptap, tiptapToMarkdoc } from '../src/index'
+import type { TiptapDoc, TiptapMark, TiptapNode } from '../src/index'
 
 /** Letters and a space — the ORIGINAL alphabet (#651). It can never generate an
  *  escape metacharacter, a newline, a tab or a non-ASCII byte, so it never exercised
@@ -152,6 +153,134 @@ const taggedDocument = (text: fc.Arbitrary<string>) => {
 }
 
 const roundtrip = (s: string) => tiptapToMarkdoc(markdocToTiptap(s))
+
+/* ------------------------------------------------------------------------- *
+ * #734 — the STRUCTURAL property.
+ *
+ * The two properties in this file are both blind to the same class: a
+ * transformation that is STABLE but not IDENTITY-PRESERVING. `rt(rt(s)) === rt(s)`
+ * says the bytes stop moving; `rt(s) === s` says already-canonical bytes never move.
+ * Neither says the document the AUTHOR sees is the document that comes back. A
+ * defect that destroys node identity on pass 1 and settles there satisfies both
+ * forever — which is exactly what #694 did (two sibling bullet lists silently became
+ * one list of two items, permanently, on the first save).
+ *
+ * So: `markdocToTiptap(s)` and `markdocToTiptap(rt(s))` must describe the same
+ * document. Node types, nesting, attributes and mark sets are compared EXACTLY;
+ * the writer is free to change the source spelling, never the tree.
+ *
+ * THE ALLOWED-CHANGE LIST IS EXACTLY ONE ENTRY, and it is a representation detail
+ * rather than a change to the document:
+ *
+ *   (1) Adjacent text runs carrying the SAME mark set may be split or merged.
+ *       A ProseMirror text sequence is a flat string with marks applied to ranges;
+ *       [ "a"(italic), "a"(italic) ] and [ "aa"(italic) ] are the same document, and
+ *       Tiptap itself normalizes the first to the second on load. `canonicalText`
+ *       below joins them on BOTH sides before comparing, so this is canonicalization,
+ *       not tolerance — no text and no mark can hide inside it.
+ *
+ * Every other normalization named in the comment at the top of this file was
+ * checked against the code, one shape at a time, and NONE of them needs an
+ * allowance: they are byte-level rewrites the reader maps back to an identical
+ * tree. Measured, not assumed (#712 exists because an exclusion rationale was
+ * asserted instead of verified):
+ *
+ *   intraword `_`      "a_b_c"     -> "a_b_c"    bytes equal, tree equal
+ *   min fence width    "``x``"     -> "`x`"      bytes differ, tree equal
+ *   `- #` trailing sp  "- #"       -> "- # "     bytes differ, tree equal
+ *   #693 adjacent runs "*a `b` c*" -> unchanged  bytes equal, tree equal
+ *   #716 nested em     "_a*a*_"    -> "*aa*"     bytes differ, tree equal ONLY
+ *                                                under (1) — this is the single
+ *                                                shape that entry exists for.
+ *
+ * Widening the list past (1) would re-introduce the vacuity this property is meant
+ * to remove, so a new failure here is a defect until proven otherwise.
+ * ------------------------------------------------------------------------- */
+
+/** A mark's identity for comparison: its type, plus the href that makes two `link`
+ *  marks genuinely different. Attribute ORDER is never compared. */
+const markKey = (m: TiptapMark): string =>
+  m.type === 'link' ? `link(${String(m.attrs?.['href'])})` : m.type
+
+const markSet = (node: TiptapNode): string =>
+  (node.marks ?? [])
+    .map(markKey)
+    .sort()
+    .join('|')
+
+/** Allowance (1): join neighbouring text runs that carry the same mark set. */
+function canonicalText(nodes: TiptapNode[]): TiptapNode[] {
+  const out: TiptapNode[] = []
+  for (const node of nodes) {
+    const prev = out[out.length - 1]
+    if (
+      prev &&
+      prev.type === 'text' &&
+      node.type === 'text' &&
+      markSet(prev) === markSet(node)
+    ) {
+      out[out.length - 1] = { ...prev, text: (prev.text ?? '') + (node.text ?? '') }
+    } else out.push(node)
+  }
+  return out
+}
+
+/** A comparable structural view: type, text, mark set, attributes (key-order
+ *  independent) and children, recursively. */
+function structure(node: TiptapNode | TiptapDoc): unknown {
+  const n = node as TiptapNode
+  const attrs = n.attrs
+    ? Object.fromEntries(
+        Object.entries(n.attrs).sort(([a], [b]) => (a < b ? -1 : 1))
+      )
+    : undefined
+  return {
+    type: n.type,
+    ...(n.text !== undefined ? { text: n.text } : {}),
+    ...(n.marks ? { marks: markSet(n) } : {}),
+    ...(attrs ? { attrs: JSON.stringify(attrs) } : {}),
+    ...(n.content ? { content: canonicalText(n.content).map(structure) } : {})
+  }
+}
+
+const structurallyEqual = (a: TiptapDoc, b: TiptapDoc): boolean =>
+  JSON.stringify(structure(a)) === JSON.stringify(structure(b))
+
+/** Assert the property, reporting the two trees when it fails so the counterexample
+ *  is readable rather than a bare `false`. */
+function expectStructuralIdentity(s0: string): void {
+  const before = markdocToTiptap(s0)
+  const after = markdocToTiptap(roundtrip(s0))
+  if (!structurallyEqual(before, after)) {
+    expect(
+      JSON.stringify(structure(after), null, 1),
+      `round-trip changed the document structure for ${JSON.stringify(s0)}`
+    ).toBe(JSON.stringify(structure(before), null, 1))
+  }
+}
+
+describe('round-trip structural identity (property-based)', () => {
+  it('preserves the node tree for metacharacter-heavy prose', () => {
+    fc.assert(
+      fc.property(proseDocument(wideText), expectStructuralIdentity),
+      { numRuns: 6000 }
+    )
+  })
+
+  it('preserves the node tree for metacharacter-heavy tag blocks', () => {
+    fc.assert(
+      fc.property(taggedDocument(wideText), expectStructuralIdentity),
+      { numRuns: 5000 }
+    )
+  })
+
+  it('preserves the node tree for plain-prose tag documents', () => {
+    fc.assert(
+      fc.property(taggedDocument(safeText), expectStructuralIdentity),
+      { numRuns: 200 }
+    )
+  })
+})
 
 describe('round-trip idempotency (property-based)', () => {
   it('reaches a stable fixed point for random documents', () => {

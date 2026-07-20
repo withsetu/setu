@@ -127,6 +127,13 @@ const LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ '.split(
  *  locally means `--testTimeout=3600000` and reading the per-test results rather than
  *  the process exit code.
  *
+ *  Re-verified on 2026-07-20 after the #743/#744 fixes, with the generators WIDENED by
+ *  those fixes (top-level thematic breaks and empty nested items — see `thematicBreak`
+ *  and `nestedEmptyItem` below): green at numRuns 250,000 on TWO seeds, all eight
+ *  properties both times — seed 174555214 (~2,000,000 executions, ~156s) and seed
+ *  20260720 (~106s). Two seeds is now the bar, not one: the round-4 reconcile had a
+ *  green seed and a red seed on the SAME code, and the red one is what found #744.
+ *
  *  #739 (OPEN) — a SECOND 250,000-run pass on a different seed (174555214) failed
  *  `never grows a tag-bearing document` after 116,043 tests: a tag body gains a blank
  *  line on the second save when an earlier sibling tag's variable name contains a `"`.
@@ -136,6 +143,12 @@ const LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ '.split(
  *  a live defect out of the generator is what let #735 hide. Expect this property to
  *  fail on a long local run until #739 lands; check the counterexample against #739
  *  before assuming you found something new.
+ *
+ *  #739 did NOT reproduce on the 2026-07-20 re-verification, on seed 174555214 — the
+ *  seed that originally found it. That is NOT evidence it is fixed, and the issue stays
+ *  open: adding two block shapes to these generators changes what every seed draws, so
+ *  the same number now walks a different document space entirely. A seed is only
+ *  comparable across runs of the SAME generator.
  */
 const METACHARS = [
   '*',
@@ -202,13 +215,46 @@ const bullets = (text: fc.Arbitrary<string>) =>
     .array(text, { minLength: 1, maxLength: 3 })
     .map((items) => items.map((i) => `- ${i}`).join('\n'))
 
+/** #743 — the input-space hole that let a content-destroying defect ship.
+ *
+ *  NO generator here ever emitted a top-level thematic break, so the eight properties
+ *  above could not reach `Markdoc.parse`'s unguarded frontmatter strip at all: a leading
+ *  `---` deleted every block up to the next `---`, and two saves were enough to lose an
+ *  arbitrary document. That is not a defect the properties missed by density — it was
+ *  outside what they could generate, which is the worse kind of gap and the reason this
+ *  is part of the fix rather than a follow-up.
+ *
+ *  All three spellings are generated. The one that matters is `---`: it is what the
+ *  writer emits, so it is what a SECOND save reads, and a run of these blocks in one
+ *  document is exactly the `---` … `---` pair the strip looked for. */
+const thematicBreak = fc.constantFrom('***', '---', '___')
+
+/** #744 — the second hole, and the same lesson. An item's nested list was generated
+ *  nowhere, so an EMPTY nested item — a bare `-` hugged to the parent's paragraph, which
+ *  CommonMark absorbs as a lazy continuation — could not be reached either. Written with
+ *  a blank line and a tab so the source is unambiguous about the nesting; the writer's
+ *  own spelling of the same tree is what the round-trip then has to preserve. */
+const nestedEmptyItem = (text: fc.Arbitrary<string>) =>
+  fc
+    .tuple(text, fc.constantFrom('*', '-', '1.'))
+    .map(([t, marker]) => `- ${t}\n\n\t${marker}`)
+
 /** Documents of prose blocks only. */
 const proseDocument = (text: fc.Arbitrary<string>) =>
   fc
-    .array(fc.oneof(text, heading(text), bullets(text)), {
-      minLength: 1,
-      maxLength: 6
-    })
+    .array(
+      fc.oneof(
+        text,
+        heading(text),
+        bullets(text),
+        thematicBreak,
+        nestedEmptyItem(text)
+      ),
+      {
+        minLength: 1,
+        maxLength: 6
+      }
+    )
     .filter((bs) => bs.length > 0)
     .map((bs) => bs.join('\n\n') + '\n')
 
@@ -219,10 +265,21 @@ const taggedDocument = (text: fc.Arbitrary<string>) => {
     .tuple(text, text)
     .map(([v, t]) => `{% if $${v.replace(/ /g, '')} %}\n${t}\n{% /if %}`)
   return fc
-    .array(fc.oneof(text, heading(text), bullets(text), callout, ifBlock), {
-      minLength: 1,
-      maxLength: 6
-    })
+    .array(
+      fc.oneof(
+        text,
+        heading(text),
+        bullets(text),
+        thematicBreak,
+        nestedEmptyItem(text),
+        callout,
+        ifBlock
+      ),
+      {
+        minLength: 1,
+        maxLength: 6
+      }
+    )
     .filter((bs) => bs.length > 0)
     .map((bs) => bs.join('\n\n') + '\n')
 }
@@ -510,6 +567,11 @@ describe('round-trip byte-stability (property-based)', () => {
       .tuple(fc.integer({ min: 1, max: 6 }), canonicalInline)
       .map(([lvl, t]) => `${'#'.repeat(lvl)} ${t}`),
     listBlock,
+    // #743/#744 in the writer's OWN spelling, so this property asserts the fixes are
+    // fixed points and not merely convergent: `---` for a thematic break, and a blank
+    // line before an empty nested item (the separator #744 changed).
+    fc.constant('---'),
+    canonicalInline.map((t) => `- ${t}\n\n  -`),
     canonicalInline.map((t) => `{% callout %}\n${t}\n{% /callout %}`),
     // A passthrough tag with a multi-line body — the #674 shape, byte-for-byte.
     fc

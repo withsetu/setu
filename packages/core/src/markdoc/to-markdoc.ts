@@ -532,6 +532,22 @@ const MARKER_LINE_RESPELLINGS: Record<string, string[]> = {
   horizontalRule: ['***', '___']
 }
 
+/** #744. Does this serialized list begin with an EMPTY item — a line that is nothing
+ *  but a bullet or ordinal marker?
+ *
+ *  It is the one shape that cannot be hugged to the preceding sibling. CommonMark lets
+ *  a list interrupt a paragraph only when its first item has CONTENT, so a bare `-`
+ *  written directly under the parent item's paragraph is not a list at all: it is a lazy
+ *  continuation of that paragraph, and the nested list was destroyed on save.
+ *
+ *  Unlike #725 there is no re-spelling escape hatch — every spelling of an empty item is
+ *  empty — so the separator has to change instead, and only here. `taskList` never
+ *  matches (`- [ ]` has content), which is why a checklist keeps its current bytes. */
+const EMPTY_ITEM_LINE = /^(?:[-*+]|\d{1,9}[.)])$/
+
+const opensWithEmptyItem = (text: string): boolean =>
+  EMPTY_ITEM_LINE.test(text.split('\n')[0] ?? '')
+
 /** Serialize a list at the string level so its items' children reuse the same
  *  per-type serializers as everywhere else.
  *
@@ -637,7 +653,8 @@ function listItemToMarkdoc(
   const body = parts
     .map(({ type, text }, i) => {
       if (i === 0) return text
-      const sep = LIST_TYPES.has(type) ? '\n' : '\n\n'
+      const sep =
+        LIST_TYPES.has(type) && !opensWithEmptyItem(text) ? '\n' : '\n\n'
       return sep + text
     })
     .join('')

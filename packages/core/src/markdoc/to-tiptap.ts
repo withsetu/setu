@@ -8,6 +8,7 @@ import type {
 } from './types'
 import { defaultKnownBlockTags } from '../config/default-config'
 import { ATOM_TAG_TO_NODE } from './atom-blocks'
+import { parseMdoc } from './frontmatter'
 
 // Markdoc AST node attributes are `unknown` (parsed, untyped input — see MdNode in
 // ./types). A real `src`/`alt`/`title`/`content` attribute is always a string coming out
@@ -365,6 +366,27 @@ function blockToTiptap(node: MdNode): TiptapNode | null {
   }
 }
 
+/** #743, half one: re-spell the `---` that opened a BOGUS frontmatter fence as `***`,
+ *  the other legal spelling of the same thematic break, so Markdoc's frontmatter rule
+ *  cannot claim it.
+ *
+ *  Length- and line-count-preserving by construction: only the three characters on the
+ *  FIRST line change, so `location.line` and the `lines` index built from the ORIGINAL
+ *  text stay in the same coordinate space (the #674 lesson — a parser input that drifts
+ *  from the line index corrupts every passthrough slice after it). Only the parser ever
+ *  sees this text; passthrough `raw` is still sliced from the author's own bytes, and a
+ *  thematic break's Tiptap node carries no spelling at all, so nothing downstream can
+ *  tell the difference. */
+function respellFrontmatterFence(text: string): string {
+  const nl = text.indexOf('\n')
+  const first = nl === -1 ? text : text.slice(0, nl)
+  const rest = nl === -1 ? '' : text.slice(nl)
+  // A container prefix (`> `, `> > `, a list marker) may sit before it: Markdoc's rule
+  // runs on the block ruler and reads line 0 of whatever container it is inside.
+  if (!/---[ \t]*$/.test(first)) return text
+  return first.replace(/---([ \t]*)$/, '***$1') + rest
+}
+
 export function markdocToTiptap(
   source: string,
   opts: RoundtripOptions = {}
@@ -385,9 +407,31 @@ export function markdocToTiptap(
   const text = source.replace(/\r\n?/g, '\n')
   const lines = text.split('\n')
   // `location` is supported at runtime (spike-proven) but not in Markdoc's published parse types.
-  const ast = (Markdoc.parse as (s: string, a?: unknown) => MdNode)(text, {
-    location: true
-  })
+  const parse = Markdoc.parse as (s: string, a?: unknown) => MdNode
+  let ast = parse(text, { location: true })
+
+  // #743: Markdoc DELETES a leading `---` … `---` span into `ast.attributes.frontmatter`
+  // with no YAML-shape guard of any kind — its rule is "line 0 trims to `---` and some
+  // later line does too". A document whose first block is a thematic break therefore lost
+  // every block up to the next one, and this reader never even looked at the attribute.
+  // Two saves were enough to destroy arbitrary content, because the writer normalises the
+  // author's `***` to `---` on pass 1 and pass 2 then reads its own output.
+  //
+  // `parseMdoc` (./frontmatter.ts) has always drawn this line correctly — frontmatter is a
+  // CLOSED, ANCHORED fence whose YAML is a plain object — and it is reused verbatim here
+  // rather than re-derived, so the two paths cannot drift apart again. Anything Markdoc
+  // claimed that `parseMdoc` would not is body content: re-parse with the fence re-spelled.
+  //
+  // The rule is registered on the block ruler and only checks `startLine == 0` in whatever
+  // CONTAINER it is running in, so a leading blockquote reaches it too: `"> ---\n> \n> ---"`
+  // was emptied on the FIRST read, with no second save needed.
+  const claimed = ast.attributes?.['frontmatter']
+  if (
+    typeof claimed === 'string' &&
+    parseMdoc(text).rawFrontmatter === undefined
+  )
+    ast = parse(respellFrontmatterFence(text), { location: true })
+
   const kids = ast.children ?? []
   const out: TiptapNode[] = []
 

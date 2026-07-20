@@ -21,6 +21,29 @@ const hasError = (node: MdNode): boolean =>
   node.type === 'error' ||
   (Array.isArray(node.errors) && node.errors.length > 0)
 
+/** Add `mark` to an inline run's mark list, unless a mark of that type is already
+ *  carried. A ProseMirror mark set is a SET: the same type cannot appear twice, and
+ *  Tiptap collapses a duplicate on load. Markdown nesting does not respect that —
+ *  CommonMark reads `_a*a*_` as em(text, em(text)), so descending this tree while
+ *  blindly appending produced a run holding `italic` twice.
+ *
+ *  That is model state the editor can never hold, and the writer wrapped such a run in
+ *  two delimiter pairs (`_a*a*_` -> `*a*a**`), whose trailing `**` re-parses as a
+ *  literal asterisk pair — the same delimiter-run corruption as #693, reached from the
+ *  reader rather than the writer. Collapsing here drops only the redundant nesting;
+ *  no text and no mark is lost.
+ *
+ *  `link` is compared by href as well, so genuinely different nested links are kept
+ *  distinct rather than silently merged into the outer one. */
+const withMark = (marks: TiptapMark[], mark: TiptapMark): TiptapMark[] =>
+  marks.some(
+    (m) =>
+      m.type === mark.type &&
+      (m.type !== 'link' || m.attrs?.['href'] === mark.attrs?.['href'])
+  )
+    ? marks
+    : [...marks, mark]
+
 function inlineToTiptap(node: MdNode, marks: TiptapMark[] = []): TiptapNode[] {
   const kids = node.children ?? []
   switch (node.type) {
@@ -36,30 +59,33 @@ function inlineToTiptap(node: MdNode, marks: TiptapMark[] = []): TiptapNode[] {
       ]
     case 'strong':
       return kids.flatMap((c) =>
-        inlineToTiptap(c, [...marks, { type: 'bold' }])
+        inlineToTiptap(c, withMark(marks, { type: 'bold' }))
       )
     case 'em':
       return kids.flatMap((c) =>
-        inlineToTiptap(c, [...marks, { type: 'italic' }])
+        inlineToTiptap(c, withMark(marks, { type: 'italic' }))
       )
     case 's':
       return kids.flatMap((c) =>
-        inlineToTiptap(c, [...marks, { type: 'strike' }])
+        inlineToTiptap(c, withMark(marks, { type: 'strike' }))
       )
     case 'code':
       return [
         {
           type: 'text',
           text: String(node.attributes.content),
-          marks: [...marks, { type: 'code' }]
+          marks: withMark(marks, { type: 'code' })
         }
       ]
     case 'link':
       return kids.flatMap((c) =>
-        inlineToTiptap(c, [
-          ...marks,
-          { type: 'link', attrs: { href: node.attributes.href } }
-        ])
+        inlineToTiptap(
+          c,
+          withMark(marks, {
+            type: 'link',
+            attrs: { href: node.attributes.href }
+          })
+        )
       )
     case 'hardbreak':
       return [{ type: 'hardBreak' }]
@@ -82,11 +108,11 @@ function inlineToTiptap(node: MdNode, marks: TiptapMark[] = []): TiptapNode[] {
     case 'tag': {
       if (node.tag === 'sub')
         return kids.flatMap((c) =>
-          inlineToTiptap(c, [...marks, { type: 'subscript' }])
+          inlineToTiptap(c, withMark(marks, { type: 'subscript' }))
         )
       if (node.tag === 'sup')
         return kids.flatMap((c) =>
-          inlineToTiptap(c, [...marks, { type: 'superscript' }])
+          inlineToTiptap(c, withMark(marks, { type: 'superscript' }))
         )
       return []
     }

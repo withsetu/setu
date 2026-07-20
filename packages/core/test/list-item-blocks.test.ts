@@ -319,3 +319,134 @@ describe('#652 x #658: escape position inside a list item', () => {
     expect(rt(once)).toBe(once)
   })
 })
+
+/** #711 — a REGRESSION where the two fixes above meet. The empty-leading-paragraph
+ *  drop (#652 x #658, directly above) was written for BULLET items and applied to task
+ *  items too. For a bullet that is sound: the marker `- ` carries no text, so promoting
+ *  the item's second child onto the marker line is exactly what CommonMark reads back.
+ *
+ *  A task item's marker line already carries the `[x] ` checkbox, which makes that line
+ *  INLINE content — a heading, a table or a fence glued after it is re-read as literal
+ *  paragraph text, so the block was destroyed on save:
+ *
+ *    task item [empty p, heading]   -> "- [ ] # x"  re-read as one paragraph
+ *    task item [empty p, table]     -> never converged; collapsed to one line
+ *    task item [empty p, codeBlock] -> never converged; mangled into escaped backticks
+ *
+ *  The drop's justification does not transfer either: an item that begins with a blank
+ *  line is EMPTY in CommonMark, but a task item's first line is `- [ ]`, which is not
+ *  blank — so keeping the empty paragraph is safe here and losing the block is not. */
+describe('#711 task items keep a block that follows an empty first paragraph', () => {
+  const emptyP: TiptapNode = { type: 'paragraph' }
+  const taskDoc = (children: TiptapNode[]): TiptapDoc => ({
+    type: 'doc',
+    content: [
+      {
+        type: 'taskList',
+        content: [
+          { type: 'listItem', attrs: { checked: false }, content: children }
+        ]
+      }
+    ]
+  })
+
+  const heading: TiptapNode = {
+    type: 'heading',
+    attrs: { level: 1 },
+    content: [{ type: 'text', text: 'x' }]
+  }
+  const codeBlock: TiptapNode = {
+    type: 'codeBlock',
+    attrs: { language: '' },
+    content: [{ type: 'text', text: 'zz' }]
+  }
+  const table: TiptapNode = {
+    type: 'table',
+    content: [
+      {
+        type: 'tableRow',
+        content: [{ type: 'tableHeader', content: [p('a')] }]
+      },
+      { type: 'tableRow', content: [{ type: 'tableCell', content: [p('b')] }] }
+    ]
+  }
+
+  /** The child kinds the item has after a save + re-read. */
+  const itemChildren = (md: string): string[] => {
+    const list = markdocToTiptap(md).content[0] as TiptapNode
+    return (list.content?.[0]?.content ?? []).map((c) => c.type)
+  }
+
+  it.each([
+    ['heading', heading, 'heading'],
+    ['code block', codeBlock, 'codeBlock'],
+    ['table', table, 'table']
+  ])(
+    'keeps a %s that follows an empty first paragraph',
+    (_name, block, kind) => {
+      const md = tiptapToMarkdoc(taskDoc([emptyP, block]))
+      // The block must survive the save as a BLOCK, not as inline text glued to
+      // the `[ ] ` marker — that is the shape the reader silently flattens.
+      expect(itemChildren(md)).toContain(kind)
+      // ...and it must still be inside the task item, not expelled to top level.
+      expect(markdocToTiptap(md).content).toHaveLength(1)
+    }
+  )
+
+  it.each([
+    ['heading', heading],
+    ['code block', codeBlock],
+    ['table', table]
+  ])('converges on the next save for a %s', (_name, block) => {
+    const save1 = tiptapToMarkdoc(taskDoc([emptyP, block]))
+    const save2 = tiptapToMarkdoc(markdocToTiptap(save1))
+    expect(save2).toBe(save1)
+  })
+
+  it('keeps the checked state on the marker', () => {
+    const md = tiptapToMarkdoc({
+      type: 'doc',
+      content: [
+        {
+          type: 'taskList',
+          content: [
+            {
+              type: 'listItem',
+              attrs: { checked: true },
+              content: [emptyP, heading]
+            }
+          ]
+        }
+      ]
+    })
+    expect(md.startsWith('- [x]')).toBe(true)
+    const list = markdocToTiptap(md).content[0] as TiptapNode
+    expect(list.content?.[0]?.attrs?.['checked']).toBe(true)
+  })
+
+  // The CONTROL: a bullet item must still drop the empty paragraph. If this starts
+  // emitting "-\n\n  # x" the #652 x #658 fix above has been undone.
+  it('still drops the empty first paragraph for a bullet item', () => {
+    expect(tiptapToMarkdoc(listDoc('bulletList', [[emptyP, heading]]))).toBe(
+      '- # x\n'
+    )
+  })
+
+  // The drop is about what can occupy the MARKER LINE, not about the kind of list.
+  // A paragraph can sit after `[ ] `, so promoting it is still both safe and the
+  // tidier output — a task item should not be forced onto three lines just because
+  // the editor left an empty first paragraph.
+  it('still drops the empty first paragraph when the next child is a paragraph', () => {
+    expect(tiptapToMarkdoc(taskDoc([emptyP, p('a')]))).toBe('- [ ] a\n')
+  })
+
+  // The other half of the same invariant, reached from the opposite side: a task item
+  // with NO leading paragraph at all. The `paragraph block*` schema does not produce
+  // this, but nothing in the serializer depends on the schema holding, and gluing the
+  // block onto `[ ] ` flattens it exactly as the dropped-paragraph case did.
+  it('does not glue a non-paragraph first child onto the marker', () => {
+    const md = tiptapToMarkdoc(taskDoc([heading]))
+    expect(md).toBe('- [ ]\n\n  # x\n')
+    expect(itemChildren(md)).toContain('heading')
+  })
+})

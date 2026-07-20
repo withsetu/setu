@@ -1,5 +1,5 @@
 import Markdoc from '@markdoc/markdoc'
-import type { TiptapDoc, TiptapNode } from './types'
+import type { TiptapDoc, TiptapMark, TiptapNode } from './types'
 import { tableToGfm } from './table-gfm'
 import { ATOM_NODE_TO_TAG } from './atom-blocks'
 import {
@@ -43,6 +43,89 @@ const SERIALIZED_MARKS = new Set([
  *  in buildInline. (`textAlign` is an attribute, not a mark; see withAlign.) */
 const UNPERSISTED_MARKS = new Set<string>([])
 
+/** Marks that nest INSIDE any tag mark, in `Markdoc.format`'s own vocabulary. */
+const NATIVE_MARKS = new Set(['bold', 'italic', 'strike', 'link'])
+
+/** Marks serialized as an inline Markdoc tag ({% sub %} / {% sup %}). */
+const TAG_MARKS = new Set(['subscript', 'superscript'])
+
+/** One serialized inline run, plus the marks still to be wrapped around it,
+ *  OUTERMOST first. Splitting "render the leaf" from "wrap the marks" is what
+ *  lets adjacent runs share a delimiter pair (#693) — the leaf keeps its own
+ *  position-dependent escaping, which depends on its index in the ORIGINAL run
+ *  list and so cannot be recomputed after grouping. */
+interface InlineRun {
+  node: InstanceType<typeof N>
+  marks: TiptapMark[]
+}
+
+/** Whether two marks open the same construct, and so may share one delimiter
+ *  pair across adjacent runs. `link` is the only one with a distinguishing
+ *  attribute: two neighbouring links to different hrefs must stay separate. */
+const sameMark = (a: TiptapMark, b: TiptapMark): boolean =>
+  a.type === b.type &&
+  (a.type !== 'link' || a.attrs?.['href'] === b.attrs?.['href'])
+
+function wrapMark(
+  m: TiptapMark,
+  children: InstanceType<typeof N>[]
+): InstanceType<typeof N> {
+  switch (m.type) {
+    case 'bold':
+      return new N('strong', { marker: '**' }, children)
+    case 'italic':
+      return new N('em', { marker: '*' }, children)
+    case 'strike':
+      return new N('s', {}, children)
+    case 'link':
+      return new N('link', { href: m.attrs?.['href'] }, children)
+    default: {
+      const tag = new N(
+        'tag',
+        {},
+        children,
+        m.type === 'subscript' ? 'sub' : 'sup'
+      )
+      tag.inline = true
+      return tag
+    }
+  }
+}
+
+/** Wrap `runs` in their marks, merging each MAXIMAL group of adjacent runs that
+ *  share the mark at this depth so it emits ONE delimiter pair.
+ *
+ *  #693: the previous version wrapped every run individually, so `*a `b` c*` —
+ *  three runs that all carry `italic`, the middle one also carrying `code` (the
+ *  model #653 established) — came out as `*a**`b`**c*`. The doubled `**` re-parses
+ *  as a literal asterisk pair rather than emphasis, so the mark was lost, a stray
+ *  `**` was rendered, and the next save escaped it: the file never converged.
+ *
+ *  Merging is the only sound repair. Marker alternation (`*` vs `_`) is only
+ *  conditionally safe (`_` does not open emphasis intraword), and separating the
+ *  runs with an HTML comment is not idempotent. */
+function nestRuns(runs: InlineRun[], depth: number): InstanceType<typeof N>[] {
+  const out: InstanceType<typeof N>[] = []
+  let i = 0
+  while (i < runs.length) {
+    const mark = runs[i]!.marks[depth]
+    if (!mark) {
+      out.push(runs[i]!.node)
+      i += 1
+      continue
+    }
+    let end = i + 1
+    while (end < runs.length) {
+      const next = runs[end]!.marks[depth]
+      if (!next || !sameMark(mark, next)) break
+      end += 1
+    }
+    out.push(wrapMark(mark, nestRuns(runs.slice(i, end), depth + 1)))
+    i = end
+  }
+  return out
+}
+
 export function buildInline(
   content: TiptapNode[] = [],
   /** Where this inline run sits, for the position-dependent escape rules:
@@ -52,8 +135,8 @@ export function buildInline(
    *  anything else, where no positional rule applies. See ./escape-inline. */
   context: 'block' | 'heading' | 'inline' = 'inline'
 ): InstanceType<typeof N>[] {
-  return content.map((t, index) => {
-    if (t.type === 'hardBreak') return new N('hardbreak')
+  const runs = content.map((t, index): InlineRun => {
+    if (t.type === 'hardBreak') return { node: new N('hardbreak'), marks: [] }
     if (t.type === 'image') {
       const a = t.attrs ?? {}
       const attrs: Record<string, unknown> = {
@@ -61,14 +144,8 @@ export function buildInline(
         alt: a.alt ?? ''
       }
       if (a.title != null && a.title !== '') attrs.title = a.title
-      return new N('image', attrs)
+      return { node: new N('image', attrs), marks: [] }
     }
-    // A `code` mark becomes the INNERMOST node, whatever its position in the mark
-    // array. Markdoc's `code` node renders from its `content` attribute and ignores
-    // its children, so it can only ever be a leaf. It previously ASSIGNED `n` inside
-    // the mark loop instead of wrapping (#653) — and to-tiptap emits `code` last, so
-    // the link/bold/italic/strike built before it was silently discarded:
-    // [`api`](https://example.com) collapsed to `api`, losing the href entirely.
     const marks = t.marks ?? []
     const text = t.text ?? ''
 
@@ -77,9 +154,26 @@ export function buildInline(
     if (soleLink) {
       const href = (marks[0]!.attrs as Record<string, unknown>)?.['href']
       if (href === text && AUTOLINK_SCHEME.test(text))
-        return rawText(`<${text}>`)
+        return { node: rawText(`<${text}>`), marks: [] }
     }
 
+    // #665: an unrecognized mark used to be dropped without a sound, so schema/
+    // serializer drift silently ate formatting. Fail loudly instead — same posture
+    // as the setuBlock missing-tag throw below.
+    for (const m of marks) {
+      if (!SERIALIZED_MARKS.has(m.type) && !UNPERSISTED_MARKS.has(m.type)) {
+        throw new Error(
+          `tiptapToMarkdoc: unrecognized mark type "${m.type}" — add a case in buildInline, or add it to UNPERSISTED_MARKS if it is deliberately not persisted`
+        )
+      }
+    }
+
+    // A `code` mark becomes the INNERMOST node, whatever its position in the mark
+    // array. Markdoc's `code` node renders from its `content` attribute and ignores
+    // its children, so it can only ever be a leaf. It previously ASSIGNED `n` inside
+    // the mark loop instead of wrapping (#653) — and to-tiptap emits `code` last, so
+    // the link/bold/italic/strike built before it was silently discarded:
+    // [`api`](https://example.com) collapsed to `api`, losing the href entirely.
     const hasCode = marks.some((m) => m.type === 'code')
     // A code span's content is literal — backslash-escaping it would corrupt it.
     // The fence width carries the ambiguity instead (#677); `Markdoc.format`'s
@@ -87,7 +181,7 @@ export function buildInline(
     // A positional rule only binds when nothing else occupies that position:
     // a leading `**`/`[` from a mark, or a preceding sibling run, displaces it.
     const bare = marks.length === 0
-    let n: InstanceType<typeof N> = hasCode
+    const node = hasCode
       ? rawText(codeSpan(text))
       : rawText(
           escapeText(text, {
@@ -96,44 +190,21 @@ export function buildInline(
               context === 'heading' && index === content.length - 1 && bare
           })
         )
-    // Apply markdown-native marks first (innermost), then tag marks (outermost).
-    // This ensures {% sub %}**b**{% /sub %} rather than **{% sub %}b{% /sub %}**,
-    // which Markdoc.format cannot render cleanly across inline tag boundaries.
-    for (const m of t.marks ?? []) {
-      if (m.type === 'code') continue
-      else if (m.type === 'bold') n = new N('strong', { marker: '**' }, [n])
-      else if (m.type === 'italic') n = new N('em', { marker: '*' }, [n])
-      else if (m.type === 'strike') n = new N('s', {}, [n])
-      else if (m.type === 'link')
-        n = new N(
-          'link',
-          { href: (m.attrs as Record<string, unknown>)?.href },
-          [n]
-        )
+
+    // `to-tiptap` appends marks as it DESCENDS, so the array is already ordered
+    // outermost-first — which is the order `nestRuns` needs. Tag marks are hoisted
+    // outside every native mark regardless: {% sub %}**b**{% /sub %} rather than
+    // **{% sub %}b{% /sub %}**, which Markdoc.format cannot render cleanly across
+    // inline tag boundaries. `code` is excluded — it is the leaf, built above.
+    return {
+      node,
+      marks: [
+        ...marks.filter((m) => TAG_MARKS.has(m.type)),
+        ...marks.filter((m) => NATIVE_MARKS.has(m.type))
+      ]
     }
-    for (const m of t.marks ?? []) {
-      if (m.type === 'subscript') {
-        const tag = new N('tag', {}, [n], 'sub')
-        tag.inline = true
-        n = tag
-      } else if (m.type === 'superscript') {
-        const tag = new N('tag', {}, [n], 'sup')
-        tag.inline = true
-        n = tag
-      }
-    }
-    // #665: an unrecognized mark used to be dropped by both loops without a sound, so
-    // schema/serializer drift silently ate formatting. Fail loudly instead — same
-    // posture as the setuBlock missing-tag throw below.
-    for (const m of t.marks ?? []) {
-      if (!SERIALIZED_MARKS.has(m.type) && !UNPERSISTED_MARKS.has(m.type)) {
-        throw new Error(
-          `tiptapToMarkdoc: unrecognized mark type "${m.type}" — add a case in buildInline, or add it to UNPERSISTED_MARKS if it is deliberately not persisted`
-        )
-      }
-    }
-    return n
   })
+  return nestRuns(runs, 0)
 }
 
 /** Where a block sits relative to the start of a line, for the position-dependent
@@ -406,23 +477,44 @@ function listItemToMarkdoc(
       ? all.slice(1)
       : all
   // The position context the #652 escaping contract needs, threaded through the
-  // #658 string-level structure: only a TASK item's first paragraph is displaced
-  // off the line start (by the `[x] ` marker). A plain bullet's first paragraph,
-  // and every later child of either kind of item, does begin its own line — so it
-  // keeps `block-start` and a leading `#`/`>`/`-`/`1.` is still escaped.
-  const parts = children.map((child, i) =>
-    serializeBlock(
+  // #658 string-level structure: only a TASK item's first paragraph is displaced off
+  // the line start (by the `[x] ` marker). A plain bullet's first paragraph, and every
+  // later child of either kind of item, does begin its own line — so it keeps
+  // `block-start` and a leading `#`/`>`/`-`/`1.` is still escaped.
+  //
+  // #711 — the regression, and the invariant that closes it. The marker-line paragraph
+  // is identified by IDENTITY, never by index. Indexing `children` was the bug: once
+  // the drop above could remove `all[0]`, "index 0" silently stopped meaning "the
+  // paragraph on the marker line" and started meaning "whatever survived the drop".
+  //
+  // That matters because a task item's marker line already carries the `[x] ` checkbox,
+  // which makes it INLINE content — only a paragraph can live there. A heading, table or
+  // fence promoted onto it was emitted as `- [ ] # x`, which the reader flattens back to
+  // literal paragraph text: the block was destroyed on save, and the file never settled.
+  // (A bullet is immune: its bare `- ` marker opens a fresh block context, so `- # x` is
+  // a real heading inside the item.)
+  const markerParagraph =
+    task && children[0]?.type === 'paragraph' ? children[0] : undefined
+  const parts = children.map((child) => ({
+    type: child.type,
+    text: serializeBlock(
       child,
-      task && i === 0 ? 'after-inline-marker' : 'block-start'
+      child === markerParagraph ? 'after-inline-marker' : 'block-start'
     )
-  )
+  }))
+  // Nothing paragraph-shaped is available for the marker line, so leave it bare and let
+  // every child begin an indented line of its own. `- [ ]` on its own line is still a
+  // task marker to the reader, and — unlike the bullet case above — it is not a blank
+  // line, so the following blocks stay inside the item instead of being expelled.
+  if (task && markerParagraph === undefined)
+    parts.unshift({ type: 'paragraph', text: '' })
   // A nested list hugs its parent item (no blank line) — that is what Markdoc.format
   // emitted. Any other block is separated by a blank line, which is what makes a
   // multi-block item parse back as belonging to the item rather than ending it.
   const body = parts
-    .map((text, i) => {
+    .map(({ type, text }, i) => {
       if (i === 0) return text
-      const sep = LIST_TYPES.has(children[i]?.type ?? '') ? '\n' : '\n\n'
+      const sep = LIST_TYPES.has(type) ? '\n' : '\n\n'
       return sep + text
     })
     .join('')

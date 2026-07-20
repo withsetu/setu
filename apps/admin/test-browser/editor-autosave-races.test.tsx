@@ -1,9 +1,10 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
-import { page } from '@vitest/browser/context'
+import { page, userEvent } from '@vitest/browser/context'
 import type { ReactNode } from 'react'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
-import type { DataPort, DraftInput, IndexService } from '@setu/core'
+import type { DataPort, DraftInput, EntryRef, IndexService } from '@setu/core'
+import { contentPath, serializeMdoc } from '@setu/core'
 import { createMemoryDataPort } from '@setu/db-memory'
 import { createMemoryGitPort } from '@setu/git-memory'
 import { ActorProvider } from '../src/auth/actor'
@@ -197,4 +198,144 @@ describe('compose autosave does not double-mint (#753)', () => {
       })
       .toBe(1)
   }, 20000)
+})
+
+// ---------------------------------------------------------------------------------
+// #754 — history restore does not pause autosave. `onRestored` deletes the draft
+// so the reload re-forks the restored content from Git HEAD; a debounce firing (or
+// a save already in flight) after that delete re-creates the draft with the
+// pre-restore buffer, silently resurrecting the discarded edit.
+// ---------------------------------------------------------------------------------
+
+const SHA_HEAD = 'a'.repeat(40)
+const SHA_OLD = 'b'.repeat(40)
+const SHA_RESTORE = 'c'.repeat(40)
+const HEAD_CONTENT = '---\ntitle: Hello\n---\nThe slow brown fox.'
+const OLD_CONTENT = '---\ntitle: Hello\n---\nThe quick brown fox.'
+
+function stubHistoryFetch() {
+  const json = (body: unknown) =>
+    new Response(JSON.stringify(body), { status: 200 })
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      const u = url
+      if (u.includes('/api/capabilities'))
+        return json({
+          capabilities: {
+            imageProcessing: false,
+            writableMediaStore: false,
+            backgroundJobs: false,
+            history: true
+          }
+        })
+      if (u.includes('/api/history/restore')) return json({ sha: SHA_RESTORE })
+      if (u.includes('/api/history/file')) {
+        const sha = new URL(u, 'http://x').searchParams.get('sha')
+        return json({ content: sha === SHA_OLD ? OLD_CONTENT : HEAD_CONTENT })
+      }
+      if (u.includes('/api/history'))
+        return json({
+          entries: [
+            {
+              sha: SHA_HEAD,
+              author: 'E2E Admin',
+              email: 'admin@setu.test',
+              date: new Date().toISOString(),
+              subject: 'Publish post/en/hello'
+            },
+            {
+              sha: SHA_OLD,
+              author: 'E2E Author',
+              email: 'author@setu.test',
+              date: new Date(Date.now() - 3_600_000).toISOString(),
+              subject: 'Save draft post/en/hello'
+            }
+          ]
+        })
+      return new Response('not found', { status: 404 })
+    })
+  )
+}
+
+describe('history restore quiesces autosave (#754)', () => {
+  it('a save frozen mid-restore must not resurrect the discarded draft', async () => {
+    stubHistoryFetch()
+    const helloRef: EntryRef = {
+      collection: 'post',
+      locale: 'en',
+      slug: 'hello'
+    }
+    const { data, base, arm, releaseGatedSave, gatedEntered } = gatedDataPort()
+    const services = servicesFor(
+      data,
+      createMemoryGitPort([
+        {
+          path: contentPath(helloRef),
+          content: serializeMdoc({
+            frontmatter: { title: 'Hello' },
+            body: 'The slow brown fox.'
+          })
+        }
+      ])
+    )
+    renderEditor('/edit/post/en/hello', services)
+
+    const canvas = page.getByLabelText('Content editor')
+    await expect
+      .element(page.getByText('The slow brown fox.'))
+      .toBeInTheDocument()
+
+    // Load's fork-on-open write has landed; arm so the NEXT save (the autosave
+    // from typing) is the one that freezes.
+    arm()
+
+    // Dirty the buffer → autosave fires and freezes on the gated saveDraft:
+    // a save is now in flight with the pre-restore "INTRUDER" buffer.
+    await canvas.click()
+    await userEvent.keyboard('INTRUDER ')
+    await expect.poll(() => gatedEntered(), { timeout: 8000 }).toBe(true)
+
+    // Restore the older revision through the real History panel while that save
+    // is still frozen. With the fix, onRestored waits for it to drain and then
+    // deletes it; without, the delete happens first and the release re-creates it.
+    await page.getByRole('button', { name: 'History', exact: true }).click()
+    await page
+      .getByRole('button', { name: /Save draft post\/en\/hello/ })
+      .click()
+    const restoreBtn = page.getByRole('button', {
+      name: 'Restore this revision'
+    })
+    await expect.element(restoreBtn).toBeEnabled()
+    await restoreBtn.click()
+    await page
+      .getByRole('alertdialog')
+      .getByRole('button', { name: 'Restore', exact: true })
+      .click()
+
+    // Let the frozen save land — after the delete in the buggy ordering.
+    releaseGatedSave()
+
+    // The editor re-forked from HEAD — the discarded "INTRUDER" edit is gone from
+    // the canvas (exact match: the buggy resurrection shows "INTRUDER The slow…").
+    await expect
+      .element(page.getByText('The slow brown fox.', { exact: true }), {
+        timeout: 8000
+      })
+      .toBeInTheDocument()
+    // And no persisted draft holds the discarded pre-restore buffer. (loadForEdit
+    // legitimately re-forks a draft from the restored HEAD, so the draft need not
+    // be null — it must simply not be the INTRUDER one the frozen save wrote.)
+    await expect
+      .poll(
+        async () => {
+          const d = await base.getDraft(helloRef)
+          return d ? JSON.stringify(d.content).includes('INTRUDER') : false
+        },
+        { timeout: 8000 }
+      )
+      .toBe(false)
+    // Sanity: the restore path really did run through the gated save.
+    expect(gatedEntered()).toBe(true)
+  }, 25000)
 })

@@ -272,7 +272,7 @@ export function EditorScreen() {
     void refreshLifecycle()
   }, [deployStatus, refreshLifecycle])
 
-  useAutosave({
+  const autosave = useAutosave({
     enabled: editable,
     rev,
     getInput: (): DraftInput => ({
@@ -589,11 +589,22 @@ export function EditorScreen() {
    *  bump reloadKey to re-run the load effect (which also remounts the keyed
    *  Canvas/MetaPanel and re-derives lifecycle + the live gate). */
   const onRestored = async (sha: string) => {
-    await data.deleteDraft(ref)
-    baseShaRef.current = null
-    baseContentRef.current = null
-    await index.reindexEntries([ref], sha).catch(() => {})
-    setReloadKey((k) => k + 1)
+    // #754: quiesce autosave before touching storage. deleteDraft drops the DB
+    // draft so the reload re-forks the restored content from HEAD; a debounce
+    // firing (or a save already in flight) after that delete re-creates the draft
+    // with the pre-restore buffer, silently defeating the restore. pause() stops
+    // new saves + cancels the pending timer; settled() waits out any in-flight one.
+    autosave.pause()
+    try {
+      await autosave.settled()
+      await data.deleteDraft(ref)
+      baseShaRef.current = null
+      baseContentRef.current = null
+      await index.reindexEntries([ref], sha).catch(() => {})
+      setReloadKey((k) => k + 1)
+    } finally {
+      autosave.resume()
+    }
   }
 
   useRegisterCommands([

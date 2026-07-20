@@ -3,6 +3,19 @@ import fc from 'fast-check'
 import { markdocToTiptap, tiptapToMarkdoc } from '../src/index'
 import type { TiptapDoc, TiptapMark, TiptapNode } from '../src/index'
 
+/** Per-property timeout. These are property tests running thousands of round-trips each, so they
+ *  are orders of magnitude slower than a unit test — and CI runners are slower still, under load
+ *  from every other package's suite running in parallel.
+ *
+ *  #740: the byte-stability property takes ~240ms locally and took **7599ms** on CI, tripping
+ *  vitest's default 5s testTimeout and turning a green suite red. The failure is indistinguishable
+ *  from a genuine hang in the log, which is the expensive part — a red CI that means "the runner
+ *  was busy" trains people to re-run rather than read.
+ *
+ *  120s is far above the observed CI worst case (~7.6s) and still catches a real hang. Raising
+ *  `numRuns` locally needs `--testTimeout` raised too; see the run-count note below. */
+const PROPERTY_TIMEOUT_MS = 120_000
+
 /** Letters and a space — the ORIGINAL alphabet (#651). It can never generate an
  *  escape metacharacter, a newline, a tab or a non-ASCII byte, so it never exercised
  *  any of the hard serialization paths. Kept because the plain-prose fixed point is
@@ -347,72 +360,109 @@ function expectStructuralIdentity(s0: string): void {
 }
 
 describe('round-trip structural identity (property-based)', () => {
-  it('preserves the node tree for metacharacter-heavy prose', () => {
-    fc.assert(fc.property(proseDocument(wideText), expectStructuralIdentity), {
-      numRuns: 6000
-    })
-  })
+  it(
+    'preserves the node tree for metacharacter-heavy prose',
+    () => {
+      fc.assert(
+        fc.property(proseDocument(wideText), expectStructuralIdentity),
+        {
+          numRuns: 6000
+        }
+      )
+    },
+    PROPERTY_TIMEOUT_MS
+  )
 
-  it('preserves the node tree for metacharacter-heavy tag blocks', () => {
-    fc.assert(fc.property(taggedDocument(wideText), expectStructuralIdentity), {
-      numRuns: 5000
-    })
-  })
+  it(
+    'preserves the node tree for metacharacter-heavy tag blocks',
+    () => {
+      fc.assert(
+        fc.property(taggedDocument(wideText), expectStructuralIdentity),
+        {
+          numRuns: 5000
+        }
+      )
+    },
+    PROPERTY_TIMEOUT_MS
+  )
 
-  it('preserves the node tree for plain-prose tag documents', () => {
-    fc.assert(fc.property(taggedDocument(safeText), expectStructuralIdentity), {
-      numRuns: 200
-    })
-  })
+  it(
+    'preserves the node tree for plain-prose tag documents',
+    () => {
+      fc.assert(
+        fc.property(taggedDocument(safeText), expectStructuralIdentity),
+        {
+          numRuns: 200
+        }
+      )
+    },
+    PROPERTY_TIMEOUT_MS
+  )
 })
 
 describe('round-trip idempotency (property-based)', () => {
-  it('reaches a stable fixed point for random documents', () => {
-    fc.assert(
-      fc.property(taggedDocument(safeText), (s0) => {
-        const s1 = roundtrip(s0)
-        expect(roundtrip(s1)).toBe(s1)
-      }),
-      { numRuns: 200 }
-    )
-  })
+  it(
+    'reaches a stable fixed point for random documents',
+    () => {
+      fc.assert(
+        fc.property(taggedDocument(safeText), (s0) => {
+          const s1 = roundtrip(s0)
+          expect(roundtrip(s1)).toBe(s1)
+        }),
+        { numRuns: 200 }
+      )
+    },
+    PROPERTY_TIMEOUT_MS
+  )
 
-  it('reaches a stable fixed point for metacharacter-heavy prose', () => {
-    fc.assert(
-      fc.property(proseDocument(wideText), (s0) => {
-        const s1 = roundtrip(s0)
-        expect(roundtrip(s1)).toBe(s1)
-      }),
-      { numRuns: 6000 }
-    )
-  })
+  it(
+    'reaches a stable fixed point for metacharacter-heavy prose',
+    () => {
+      fc.assert(
+        fc.property(proseDocument(wideText), (s0) => {
+          const s1 = roundtrip(s0)
+          expect(roundtrip(s1)).toBe(s1)
+        }),
+        { numRuns: 6000 }
+      )
+    },
+    PROPERTY_TIMEOUT_MS
+  )
 
   /** #674. Tag blocks over the WIDE alphabet — the case the generator used to exclude.
    *  Every other defect in this slice converges after one pass, so a fixed-point check
    *  alone could not distinguish them; this one never converged, the document grew
    *  without bound. Asserting the fixed point over tag-bearing wide-alphabet documents
    *  is exactly the regression guard. */
-  it('reaches a stable fixed point for metacharacter-heavy tag blocks', () => {
-    fc.assert(
-      fc.property(taggedDocument(wideText), (s0) => {
-        const s1 = roundtrip(s0)
-        expect(roundtrip(s1)).toBe(s1)
-      }),
-      { numRuns: 5000 }
-    )
-  })
+  it(
+    'reaches a stable fixed point for metacharacter-heavy tag blocks',
+    () => {
+      fc.assert(
+        fc.property(taggedDocument(wideText), (s0) => {
+          const s1 = roundtrip(s0)
+          expect(roundtrip(s1)).toBe(s1)
+        }),
+        { numRuns: 5000 }
+      )
+    },
+    PROPERTY_TIMEOUT_MS
+  )
 
   /** #674, the sharper form: the defect made the document GROW every save. Length must
    *  never increase across successive round-trips of an already-round-tripped doc. */
-  it('never grows a tag-bearing document across successive saves', () => {
-    fc.assert(
-      fc.property(taggedDocument(wideText), (s0) => {
-        const s1 = roundtrip(s0)
-        expect(roundtrip(s1).length).toBeLessThanOrEqual(s1.length)
-      }),
-      { numRuns: 5000 }
-    )
-  })
+  it(
+    'never grows a tag-bearing document across successive saves',
+    () => {
+      fc.assert(
+        fc.property(taggedDocument(wideText), (s0) => {
+          const s1 = roundtrip(s0)
+          expect(roundtrip(s1).length).toBeLessThanOrEqual(s1.length)
+        }),
+        { numRuns: 5000 }
+      )
+    },
+    PROPERTY_TIMEOUT_MS
+  )
 })
 
 /** Byte-stability (#651). The fixed-point property above only ever asserted
@@ -480,12 +530,16 @@ describe('round-trip byte-stability (property-based)', () => {
     .filter((bs) => bs.length > 0)
     .map((bs) => bs.join('\n\n') + '\n')
 
-  it('round-trips canonical Markdoc byte-for-byte', () => {
-    fc.assert(
-      fc.property(canonicalDocument, (s0) => {
-        expect(roundtrip(s0)).toBe(s0)
-      }),
-      { numRuns: 6000 }
-    )
-  })
+  it(
+    'round-trips canonical Markdoc byte-for-byte',
+    () => {
+      fc.assert(
+        fc.property(canonicalDocument, (s0) => {
+          expect(roundtrip(s0)).toBe(s0)
+        }),
+        { numRuns: 6000 }
+      )
+    },
+    PROPERTY_TIMEOUT_MS
+  )
 })

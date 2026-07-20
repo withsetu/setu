@@ -130,6 +130,93 @@ describe('renameService.renameSlug — refusals', () => {
     }
   })
 
+  // #742 — the same fold-blindness family as #731/#742's API half, in the SELECTION step rather
+  // than the comparison. The #654 guard above folds correctly, but it only ever sees
+  // `git.list(dirPrefix)` where `dirPrefix` is the LITERALLY-cased
+  // `content/<collection>/<locale>/`. Every adapter implements that prefix as a literal
+  // `startsWith`, so a committed path whose ROOT, COLLECTION or LOCALE segment differs by case or
+  // fold is not in the listed set at all — and its fold-collision with the rename target is
+  // therefore never seen. Narrower than the API half (collection and locale are constrained by the
+  // ref, and the slug segment was already covered because it lives INSIDE the listed directory),
+  // but the same root cause and the same consequence: `renameSlug` reports success and the write
+  // lands on the victim's inode on a case-folding checkout.
+  //
+  // The fix asks the fold relation for the prefix too:
+  // `unicodeCaseFold(p).startsWith(unicodeCaseFold(dirPrefix))` over an unfiltered listing. Unlike
+  // the SLUG segment, the directory segments admit no fold-not-case witness here: `content` is
+  // ASCII (enumerated the BMP+SMP — nothing non-ASCII folds onto any of its letters), and the
+  // collection/locale segments come from the ref. Folding both sides is still correct — one
+  // relation, and it can only ever be wider — it just is not separately observable, so these
+  // victims are case-variants and the comment says so rather than implying more.
+  it('refuses when the committed fold-collision differs in a DIRECTORY segment (#742)', async () => {
+    // Every segment ABOVE the slug, which is what the literal `dirPrefix` filter excluded.
+    const victims = [
+      'Content/post/en/file.mdoc', // root segment
+      'CONTENT/post/en/file.mdoc', // root segment
+      'content/Post/en/file.mdoc', // collection segment
+      'content/post/EN/file.mdoc', // locale segment
+      'Content/Post/EN/file.mdoc' // every directory segment at once
+    ]
+    for (const victim of victims) {
+      const git = createMemoryGitPort([
+        {
+          path: contentPath(ref('a')),
+          content: serializeMdoc({ frontmatter: { title: 'A' }, body: 'x' })
+        },
+        {
+          path: victim,
+          content: serializeMdoc({
+            frontmatter: { title: 'Victim' },
+            body: 'v'
+          })
+        }
+      ])
+      const rename = createRenameService({
+        data: createMemoryDataPort(),
+        git,
+        author
+      })
+      expect(
+        (await rename.renameSlug(ref('a'), 'file')).reason,
+        `renameSlug(a → "file") with ${JSON.stringify(victim)} committed`
+      ).toBe('target-exists')
+    }
+  })
+
+  // The discrimination half: widening the listed set must not refuse renames that collide with
+  // NOTHING. These are real neighbours an author must keep being able to rename past — a different
+  // slug, and paths outside the content tree entirely.
+  it('still allows a rename whose fold-neighbours are genuinely different files (#742)', async () => {
+    const git = createMemoryGitPort([
+      {
+        path: contentPath(ref('a')),
+        content: serializeMdoc({ frontmatter: { title: 'A' }, body: 'x' })
+      },
+      {
+        path: 'content/post/en/other.mdoc',
+        content: serializeMdoc({ frontmatter: { title: 'O' }, body: 'o' })
+      },
+      {
+        path: 'Content/post/de/file.mdoc', // different LOCALE — not a collision
+        content: serializeMdoc({ frontmatter: { title: 'D' }, body: 'd' })
+      },
+      {
+        path: 'docs/post/en/file.mdoc', // outside the content tree — not a collision
+        content: serializeMdoc({ frontmatter: { title: 'X' }, body: 'x' })
+      },
+      {
+        path: 'contents/post/en/file.mdoc', // `contents/` is not `content/`
+        content: serializeMdoc({ frontmatter: { title: 'X' }, body: 'x' })
+      }
+    ])
+    const rename = createRenameService({
+      data: createMemoryDataPort(),
+      git,
+      author
+    })
+    expect((await rename.renameSlug(ref('a'), 'file')).renamed).toBe(true)
+  })
+
   it('refuses when the target slug has a draft', async () => {
     const { rename, data } = setup([
       { ref: ref('a'), frontmatter: { title: 'A' }, body: 'x' }

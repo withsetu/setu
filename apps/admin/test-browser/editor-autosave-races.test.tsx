@@ -339,3 +339,65 @@ describe('history restore quiesces autosave (#754)', () => {
     expect(gatedEntered()).toBe(true)
   }, 25000)
 })
+
+// ---------------------------------------------------------------------------------
+// #755(a) — rename in-flight bypass. `renamingRef` was checked at the TOP of the
+// autosave `save`, so a save already PAST that line (in flight) was not blocked:
+// followRename deleted the old-ref draft and the in-flight save landed after,
+// orphaning a draft at the old slug. The fix awaits the in-flight save before the
+// service moves storage.
+// ---------------------------------------------------------------------------------
+
+describe('rename awaits the in-flight autosave (#755a)', () => {
+  it('a save frozen during rename must not orphan a draft at the old slug', async () => {
+    const alphaRef: EntryRef = {
+      collection: 'post',
+      locale: 'en',
+      slug: 'post-alpha'
+    }
+    const { data, base, arm, releaseGatedSave, gatedEntered } = gatedDataPort()
+    const services = servicesFor(
+      data,
+      createMemoryGitPort([
+        {
+          path: contentPath(alphaRef),
+          content: serializeMdoc({
+            frontmatter: { title: 'Alpha' },
+            body: 'Alpha body.'
+          })
+        }
+      ])
+    )
+    renderEditor('/edit/post/en/post-alpha', services)
+
+    const canvas = page.getByLabelText('Content editor')
+    await expect.element(page.getByText('Alpha body.')).toBeInTheDocument()
+
+    // Load's fork-on-open write has landed; arm so the autosave is the frozen one.
+    arm()
+
+    // Edit → autosave freezes on the gated saveDraft: an autosave for the OLD ref
+    // (post-alpha) is now in flight.
+    await canvas.click()
+    await userEvent.keyboard('EDIT ')
+    await expect.poll(() => gatedEntered(), { timeout: 8000 }).toBe(true)
+
+    // Rename via the real Slug field while that save is frozen.
+    const slugInput = page.getByRole('textbox', { name: 'Slug' })
+    await slugInput.fill('post-renamed')
+    await page.getByRole('button', { name: 'Apply slug' }).click()
+
+    // Release the frozen old-ref save. In the buggy ordering it lands after the
+    // rename deleted the old draft — the orphan. With the fix, the rename waited.
+    releaseGatedSave()
+
+    await expect
+      .element(page.getByTestId('loc'), { timeout: 8000 })
+      .toHaveTextContent('/edit/post/en/post-renamed')
+
+    // No draft left behind at the OLD slug.
+    await expect
+      .poll(() => base.getDraft(alphaRef), { timeout: 8000 })
+      .toBeNull()
+  }, 25000)
+})

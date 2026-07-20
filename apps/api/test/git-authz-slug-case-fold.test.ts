@@ -20,23 +20,26 @@ import type { ResolveActor } from '../src/auth/resolve-actor'
 //   content/blog/en/sive.mdoc  -> content.publish   (control: the live post)
 //   content/blog/en/ſive.mdoc  -> content.edit      U+017F LONG S folds to `s`  (the bypass)
 //
-// THE FIX: JavaScript DOES expose Unicode simple case folding — `RegExp` with the `iu` flags
-// canonicalizes both sides by ECMA-262 Canonicalize, which IS simple case folding. So the gate's
-// committed-state read (#382) no longer asks only "is the LITERAL path live?" (git's index is
-// case-SENSITIVE, so that read misses) but "is the literal path, OR any committed path that
-// case-folds onto it, live?". Verified in node 22 (v22.18.0), not assumed:
+// THE FIX: the gate's committed-state read (#382) no longer asks only "is the LITERAL path live?"
+// (git's index is case-SENSITIVE, so that read misses) but "is the literal path, OR any committed
+// path that case-folds onto it, live?".
 //
-//   /^ſive$/iu.test('sive')   -> true    U+017F LATIN SMALL LETTER LONG S folds to `s`
-//   /^ςigma$/iu.test('σigma') -> true    final vs medial sigma fold together — and NEITHER is
-//                                        ASCII, so this is the fold RELATION, not an ASCII rule
-//   /^café$/iu.test('cafe')   -> false   accents are NOT folded — `café` stays a distinct post
-//   /^日本語$/iu.test('日本語')  -> true    non-Latin scripts are unaffected
-//   /^ß$/iu.test('ss')        -> false   FULL folding only; simple folding is the correct relation
-//                                        here, since APFS/HFS+ and NTFS case tables do not fold
-//                                        ß->ss either
+// #648 answered "case-folds onto" with a `RegExp` under the `iu` flags, whose ECMA-262 Canonicalize
+// IS Unicode simple case folding. #731 replaced that with the SHARED `unicodeCaseFold` — the same
+// fold the canonical-path rule, slug minting and the rename guard use — because the two relations
+// disagreed on NORMALIZATION and the gap was a live bypass (see the #731 block further down). The
+// witnesses below are unchanged by that swap; they are properties of the fold RELATION, not of how
+// it is computed:
 //
-// Simple (not full) folding is therefore the relation that MATCHES the filesystems this defends
-// against — using full folding would over-reject without closing anything real.
+//   ſive ~ sive     U+017F LATIN SMALL LETTER LONG S folds to `s`
+//   ςigma ~ σigma   final vs medial sigma fold together — and NEITHER is ASCII, so this is the
+//                   fold RELATION, not a smuggled-in ASCII rule
+//   café !~ cafe    accents are NOT case — `café` stays a distinct post
+//   日本語 ~ 日本語    non-Latin scripts are unaffected
+//
+// The one behavioural difference: `unicodeCaseFold` DOES fold `ß`->`ss`, which APFS/NTFS case
+// tables do not. Here that only ever widens the committed-state read, so it can over-upgrade an
+// exotic spelling to `content.publish` but can never miss a collision — it fails closed.
 //
 // Why classify-together rather than reject (the shape #644/#647 used): the acceptance for this
 // issue is that the fold-variant derives the SAME action as the post it collides with. Rejecting
@@ -337,6 +340,97 @@ describe('git write gate — slug case-FOLD bypass of the publish gate (#648)', 
     ).resolves.toBe('content.edit')
   })
 
+  // ---------------------------------------------------------------------------------------------
+  // #731 — the two halves of this defence disagreeing about what "the same file" means.
+  //
+  // The PREVENTIVE half (`unicodeCaseFold`, packages/core/src/rename/slug.ts) NFC-normalizes before
+  // folding, so it treats a composed and a decomposed spelling as ONE file — which is what APFS
+  // does, since it normalizes names before hashing them. The DETECTIVE half (`foldCollidingPaths`)
+  // was left compiling `new RegExp('^' + escaped + '$', 'iu')`, and ECMA-262 Canonicalize is simple
+  // case folding with NO normalization: `/^café$/iu.test('café')` is FALSE.
+  //
+  // So a repo carrying a DECOMPOSED live post — committed before these rules, by direct `git push`,
+  // or by a topology that writes NFD (macOS's own APIs historically hand back NFD) — was invisible
+  // to the committed-state read for a COMPOSED incoming path, which `isCanonicalRepoPath` correctly
+  // admits (NFC is the canonical spelling). Measured against the real `writeActionForChanges`
+  // before the fix:
+  //
+  //   committed NFD `café.mdoc` (live) + incoming NFC `café.mdoc` (published: false)
+  //     unpublish-by-write -> content.edit     (want content.publish)
+  //     delete             -> content.edit     (want content.publish)
+  //
+  // That is the #382 boundary reopened: a `content.edit` holder silently unpublishing or DELETING a
+  // live post. The fix makes the detective half ask the SAME fold as everything else —
+  // `unicodeCaseFold(committed) === unicodeCaseFold(incoming)` — rather than a second, weaker
+  // opinion. One definition, per the note at the top of `unicodeCaseFold`: a second opinion is a
+  // second bug.
+  //
+  // These are expressed committed-side because that is the only direction that reaches
+  // `foldCollidingPaths`; the reverse (NFC committed / NFD incoming) is rejected one rule earlier
+  // and is pinned below so the pair stays symmetric.
+
+  /** `café` spelled DECOMPOSED: `e` + U+0301 COMBINING ACUTE ACCENT. Written with an explicit
+   *  escape so the assertion cannot be silently changed by an editor normalizing this file. */
+  const NFD_CAFE = 'content/blog/en/café.mdoc'
+  /** The same word spelled COMPOSED: U+00E9. This is the canonical spelling the gate admits. */
+  const NFC_CAFE = 'content/blog/en/café.mdoc'
+
+  it('derives content.publish when the COMMITTED live post is spelled NFD and the write is NFC', async () => {
+    expect(NFD_CAFE).not.toBe(NFC_CAFE) // guard: the two spellings really are distinct strings
+    const git = await gitWithLivePosts(NFD_CAFE)
+    await expect(
+      writeActionForChanges([{ path: NFC_CAFE, content: DRAFT_CONTENT }], git)
+    ).resolves.toBe('content.publish')
+  })
+
+  it('requires content.publish to DELETE a live post committed NFD through its NFC spelling', async () => {
+    const git = await gitWithLivePosts(NFD_CAFE)
+    await expect(
+      writeActionForChanges([{ path: NFC_CAFE }], git)
+    ).resolves.toBe('content.publish')
+  })
+
+  it('refuses an AUTHOR writing over a COMMITTED NFD live post, and nothing lands', async () => {
+    const git = await gitWithLivePosts(NFD_CAFE)
+    const before = await git.list()
+    const app = createGitApi(git, asRole('author'))
+    const res = await write(
+      app,
+      '/git/commit',
+      JSON.stringify({
+        path: NFC_CAFE,
+        content: DRAFT_CONTENT,
+        message: 'm',
+        author
+      })
+    )
+    expect(res.status).toBe(403)
+    expect(await git.list()).toEqual(before)
+  })
+
+  // The reverse direction, unchanged by #731: an NFD INCOMING path is not its own fold, so
+  // `isCanonicalRepoPath` rejects it before any committed-state read. Stronger than
+  // `content.publish`, and pinned so a future loosening of that rule cannot quietly make this the
+  // weaker `content.edit`.
+  it('still rejects an NFD incoming path against an NFC committed live post', async () => {
+    const git = await gitWithLivePosts(NFC_CAFE)
+    await expect(
+      writeActionForChanges([{ path: NFD_CAFE, content: DRAFT_CONTENT }], git)
+    ).resolves.toBe('settings.manage')
+    const app = createGitApi(git, asRole('admin'))
+    const res = await write(
+      app,
+      '/git/commit',
+      JSON.stringify({
+        path: NFD_CAFE,
+        content: DRAFT_CONTENT,
+        message: 'm',
+        author
+      })
+    )
+    expect(res.status).toBe(400)
+  })
+
   // The anti-OVER-rejection property: `foldCollidingPaths` must upgrade only when the path it
   // matches is actually LIVE. Expressed committed-side, where the fold-match genuinely runs — the
   // committed neighbour is the fold-variant and it is a DRAFT, so the write stays `content.edit`.
@@ -400,8 +494,11 @@ describe('git write gate — slug case-FOLD bypass of the publish gate (#648)', 
     }
   })
 
-  // ReDoS / RegExp-injection guard: the candidate path is attacker-controlled and is compiled into
-  // a RegExp. It must be escaped (so metacharacters match literally, not as a pattern) and bounded.
+  // Literal-match guard. #648 needed this because the candidate path was compiled into a RegExp and
+  // had to be escaped; #731 replaced that with a string comparison, so metacharacters are literal
+  // by construction and the ReDoS/injection surface is gone. The assertion is kept as a BEHAVIOUR
+  // pin — a fold must match the same file, never a pattern-ful neighbour — so any future
+  // reintroduction of pattern matching here fails loudly instead of silently.
   it('treats regex metacharacters in a slug literally, not as a pattern', async () => {
     const git = await gitWithLivePosts('content/blog/en/aaaa.mdoc')
     // `.` and `+` would match `aaaa.mdoc` if the path were interpolated unescaped.
@@ -413,7 +510,9 @@ describe('git write gate — slug case-FOLD bypass of the publish gate (#648)', 
     ).resolves.toBe('content.edit')
   })
 
-  it('rejects an absurdly long path rather than compiling it into a RegExp', async () => {
+  // `MAX_REPO_PATH_LENGTH` is defence in depth since #731 (no RegExp is compiled any more), but it
+  // still caps per-request work fail-closed, and this pins that it rejects rather than waves through.
+  it('rejects an absurdly long path rather than folding it against the whole tree', async () => {
     const git = createMemoryGitPort()
     const app = createGitApi(git, asRole('admin'))
     const path = `content/blog/en/${'a'.repeat(5000)}.mdoc`

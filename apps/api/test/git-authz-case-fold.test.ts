@@ -48,13 +48,22 @@ const asRole =
   () => ({ id: 'u', role })
 const author = { name: 'T', email: 't@x.com' }
 
-/** Every fold-equivalent spelling of a PATH_WRITE_ACTION key that `toLowerCase` does NOT fold.
- *  U+017F folds to 's'; U+212A (KELVIN SIGN) folds to 'k' and is included as a second,
- *  independent witness that the fix closes a CLASS and not a single character. */
+/** Non-ASCII repo-ROOT paths the gate must refuse. The first two are genuine fold-variants of a
+ *  `PATH_WRITE_ACTION` key that `toLowerCase` does NOT fold — U+017F folds to 's' — and are the
+ *  witnesses for the bypass itself.
+ *
+ *  #731 CORRECTION: the third entry was described here as a fold-variant of a gate key, and it is
+ *  not. U+212A KELVIN SIGN folds to 'k', so that path folds to `kettings.json` — which is not a key
+ *  in `PATH_WRITE_ACTION` (`settings.json`, `theme-options.json`). It therefore never witnessed a
+ *  bypass, and the assertions below passed for a different reason than the comment claimed. Neither
+ *  gate key contains a `k`, so no real U+212A variant of one exists; rather than drop the entry it
+ *  is KEPT with its actual role stated — a second, independent witness that the ROOT-ASCII
+ *  canonical rule (#644) refuses non-ASCII root paths as a CLASS, whether or not the path collides
+ *  with a gate key. That is a real property worth pinning; it just is not the fold property. */
 const FOLD_VARIANTS = [
-  'ſettings.json', // ſettings.json  -> settings.json
-  'theme-optionſ.json', // theme-optionſ.json -> theme-options.json
-  'Kettings.json' // Kettings.json (KELVIN SIGN) — same shape, different char
+  'ſettings.json', // U+017F -> folds to settings.json — the bypass
+  'theme-optionſ.json', // U+017F -> folds to theme-options.json — the bypass
+  'Kettings.json' // U+212A -> folds to kettings.json — NOT a gate key; root-ASCII witness only
 ]
 
 const write = (

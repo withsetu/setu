@@ -287,6 +287,29 @@ export function EditorScreen() {
       // autosave firing in this window would resurrect the old draft.
       if (renamingRef.current) return { saved: true }
       if (composing) {
+        // Re-entrancy guard (#753): a follow-up save queued while the first mint
+        // was in flight runs THIS same compose closure synchronously — before
+        // React re-renders onto the minted slug (so `composing`/`saveRef` are
+        // still the compose ones). Without this it would mint a SECOND slug and
+        // create a duplicate draft. `mintedRef` already holds the slug the
+        // in-flight mint claimed: save under it like a normal entry instead of
+        // re-minting (mirrors the renaming path's shape).
+        if (mintedRef.current) {
+          const minted = mintedRef.current
+          const result = await authoring.save(
+            {
+              collection,
+              locale,
+              slug: minted,
+              content: input.content,
+              metadata: input.metadata,
+              baseSha: baseShaRef.current
+            },
+            EDITOR_ID
+          )
+          await reindex({ collection, locale, slug: minted })
+          return result
+        }
         // First save of a new entry: mint a real slug — the author's explicit
         // choice when they applied one, else derived from the title — persist
         // under it, and replace the URL so this becomes a normal entry.

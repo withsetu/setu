@@ -75,10 +75,12 @@ export function useAutosave(opts: {
     }
   }, [])
 
-  // Tab close / refresh with unsaved work: attempt a final save and warn.
+  // Tab close / refresh with unsaved work: attempt a final save and warn. Skip
+  // when a save is already in flight (#753 sibling) — the flush would duplicate
+  // that write, mirroring the unmount flush's `!inFlight` guard.
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent): void => {
-      if (!dirty.current) return
+      if (!dirty.current || inFlight.current) return
       void saveRef.current(getInputRef.current())
       e.preventDefault()
       e.returnValue = ''

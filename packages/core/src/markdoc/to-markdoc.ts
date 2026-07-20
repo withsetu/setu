@@ -49,6 +49,16 @@ const NATIVE_MARKS = new Set(['bold', 'italic', 'strike', 'link'])
 /** Marks serialized as an inline Markdoc tag ({% sub %} / {% sup %}). */
 const TAG_MARKS = new Set(['subscript', 'superscript'])
 
+/** Does this run END a line, so that the NEXT run begins at column 0? A soft break
+ *  is a `\n` inside a text node (#667) and a hard break is its own node; either way
+ *  the run after it is at a block start and its leading `#`/`>`/`-`/`1.` is a live
+ *  block marker. The line-start rule cannot be answered inside `escapeText` alone,
+ *  because the break and the marker routinely sit in DIFFERENT runs — `*a*\n# b` is
+ *  three of them. */
+const endsLine = (t: TiptapNode | undefined): boolean =>
+  t?.type === 'hardBreak' ||
+  (t?.type === 'text' && (t.text ?? '').endsWith('\n'))
+
 /** One serialized inline run, plus the marks still to be wrapped around it,
  *  OUTERMOST first. Splitting "render the leaf" from "wrap the marks" is what
  *  lets adjacent runs share a delimiter pair (#693) — the leaf keeps its own
@@ -185,7 +195,16 @@ export function buildInline(
       ? rawText(codeSpan(text))
       : rawText(
           escapeText(text, {
-            atBlockStart: context === 'block' && index === 0 && bare,
+            // Offset 0 of the block keeps the original rule (a mark's own opening
+            // delimiter displaces the marker). A run that FOLLOWS a break is at a
+            // line start regardless of its marks: the delimiter that opened them
+            // sits on the previous line, so it displaces nothing here. Escaping is
+            // idempotent, so erring towards an extra backslash is safe; erring the
+            // other way splits the block (#667).
+            atBlockStart:
+              index === 0
+                ? context === 'block' && bare
+                : endsLine(content[index - 1]),
             atHeadingEnd:
               context === 'heading' && index === content.length - 1 && bare
           })

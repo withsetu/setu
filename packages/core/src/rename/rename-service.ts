@@ -73,9 +73,28 @@ export function createRenameService(deps: RenameDeps): RenameService {
       // still sitting in the tree and would still be overwritten. Compare folded, over the one
       // directory the write can land in (bounded: one collection+locale, admin-volume, and
       // renames are rare).
+      // #742: the fold comparison below is only ever as good as the set it runs over, and
+      // `git.list(dirPrefix)` is a LITERAL `startsWith` in every adapter. A committed
+      // `Content/post/en/x.mdoc` or `content/Post/en/x.mdoc` is therefore outside the listed set
+      // entirely, so its fold-collision with the target is never seen — `renameSlug` reports
+      // success and the write lands on the victim's inode on a case-folding checkout, which is
+      // precisely the silent data loss #654 exists to prevent. Narrower than the write gate's
+      // version of this bug (collection and locale are pinned by the ref, and the slug segment was
+      // already covered because it lives inside the listed directory), same root cause.
+      //
+      // The prefix is now folded on BOTH sides, so selection and comparison ask one relation.
+      // Cost: git-local/git-memory list the whole tree regardless of prefix, so nothing changes
+      // there; this service DOES run in the admin over git-http, where the prefix saved wire bytes
+      // — accepted because renames are rare and admin-volume, and no smaller sound candidate set
+      // exists (a fold-colliding path shares no literal prefix with the target). If repo scale
+      // makes the payload matter, the answer is a fold-aware `/git/list` filter on the port, not a
+      // literal prefix that reopens this.
       const dirPrefix = newPath.slice(0, newPath.lastIndexOf('/') + 1)
       const foldedTarget = unicodeCaseFold(newPath)
-      const existing = await git.list(dirPrefix)
+      const foldedDirPrefix = unicodeCaseFold(dirPrefix)
+      const existing = (await git.list()).filter((p) =>
+        unicodeCaseFold(p).startsWith(foldedDirPrefix)
+      )
       if (existing.some((p) => unicodeCaseFold(p) === foldedTarget))
         return refuse('target-exists')
 

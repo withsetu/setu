@@ -599,6 +599,30 @@ function listItemToMarkdoc(
     .join('\n')
 }
 
+/** #726: `Markdoc.format` only ever emits BACKTICK fences, and passed the fence's
+ *  INFO STRING (what the editor surfaces as the code block's language) through
+ *  unescaped. CommonMark forbids a backtick there precisely because it would close
+ *  the fence early — so "~~~`" was written as "````" and everything after it was
+ *  re-parsed as fresh content: the document GREW on every save.
+ *
+ *  An info string has no escape mechanism at all, so the faithful repair is the
+ *  other legal spelling: a TILDE fence may carry backticks in its info string.
+ *  Returns null for every ordinary language, so the canonical backtick fence — and
+ *  the byte-stability of every code block already in Git — is untouched. */
+function tildeFencedCodeBlock(node: TiptapNode): string | null {
+  // Narrowed rather than String()-coerced: a non-string attribute would stringify to
+  // "[object Object]" and be written into the file as the language.
+  const language = node.attrs?.['language']
+  if (typeof language !== 'string' || !language.includes('`')) return null
+  const content = node.content?.[0]?.text ?? ''
+  const longestRun = (content.match(/~+/g) ?? []).reduce(
+    (n, run) => Math.max(n, run.length),
+    0
+  )
+  const fence = '~'.repeat(Math.max(3, longestRun + 1))
+  return `${fence}${language}\n${content === '' ? '' : content + '\n'}${fence}`
+}
+
 /** Serialize one block node to Markdoc source. Used for top-level blocks AND,
  *  recursively, for the children of body-bearing tags. */
 function serializeBlock(
@@ -612,6 +636,10 @@ function serializeBlock(
     return typeof raw === 'string' ? raw : ''
   }
   if (node.type === 'table') return tableToGfm(node)
+  if (node.type === 'codeBlock') {
+    const tilde = tildeFencedCodeBlock(node)
+    if (tilde !== null) return tilde
+  }
   if (node.type === 'imageBlock') return imageBlockToMarkdoc(node)
   const tagOf = TAG_NODE_TYPES[node.type]
   if (tagOf) return tagBlockToMarkdoc(tagOf(node), node)

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import fc from 'fast-check'
 import { markdocToTiptap, tiptapToMarkdoc } from '../src/index'
+import type { TiptapDoc, TiptapMark, TiptapNode } from '../src/index'
 
 /** Letters and a space — the ORIGINAL alphabet (#651). It can never generate an
  *  escape metacharacter, a newline, a tab or a non-ASCII byte, so it never exercised
@@ -35,38 +36,44 @@ const LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ '.split(
  *  GROWING the document on every save (~15% of random tag-bearing documents). That is
  *  why `taggedDocument` now carries the wide alphabet too, not just `proseDocument`.
  *
- *  `*` used to be excluded as well, for two defects it alone could synthesise. The
- *  first is now fixed and the second is narrowly scoped, so `*` IS generated:
+ *  `*` used to be excluded as well, for two defects it alone could synthesise. BOTH
+ *  are now fixed, so `*` is generated with no filter of any kind:
  *
  *    (a) delimiter-run adjacency — sibling inline runs that both carry `italic`
  *        serialized as "*a**`b`**c*", whose "**" re-parsed as a literal asterisk
  *        pair, LOSING the mark. FIXED: `buildInline` now merges adjacent runs that
  *        share a mark, so one delimiter pair spans the whole run.          [#693]
- *    (b) marker normalisation — the writer rewrites a `*` or `+` bullet marker to
- *        `-`, so a `*` list ADJACENT to a `-` list is emitted with the SAME marker
- *        as its neighbour and the two merge. STILL OPEN, so `noAliasBulletList`
- *        below drops exactly the blocks that open such a list rather than dropping
- *        `*` from the alphabet wholesale.                                  [#694]
+ *    (b) sibling-list merging — the writer normalised a `*` or `+` bullet marker to
+ *        `-`, so a `*` list ADJACENT to a `-` list was emitted with the SAME marker
+ *        as its neighbour and the two merged into ONE list. FIXED by
+ *        `serializeSiblings`, so the shape is now GENERATED rather than filtered out
+ *        and the `withoutAliasBulletLists` exclusion is gone.               [#694]
  *
- *        This used to be described here as "the document settles one pass late",
- *        which understated it. Re-scoped 2026-07-20, measured: "- a\n\n* b\n" is
- *        TWO bulletList nodes of one item each; one save emits "- a\n\n- b\n",
- *        which re-reads as ONE bulletList of two items. The structural merge lands
- *        on pass 1 and is never recovered — list identity is LOST, not deferred.
- *        Pass 2 only drops the now-meaningless blank line ("- a\n- b\n"), and that
+ *        The severity was long understated here as "the document settles one pass
+ *        late". Re-scoped 2026-07-20, measured: "- a\n\n* b\n" is TWO bulletList
+ *        nodes of one item each; the old writer emitted "- a\n\n- b\n", which
+ *        re-reads as ONE bulletList of two items. The structural merge landed on
+ *        pass 1 and was never recovered — list identity was LOST, not deferred.
+ *        Pass 2 only dropped the now-meaningless blank line ("- a\n- b\n"), and that
  *        cosmetic step is the whole of what "settles late" ever referred to. The
- *        fixed-point property cannot see this: the merged document IS a fixed
- *        point, and a correct one for the wrong document.
+ *        fixed-point property cannot see this at all: the merged document IS a fixed
+ *        point, and a correct one for the wrong document. That blind spot is exactly
+ *        why the STRUCTURAL properties below exist (#734) — they compare node trees,
+ *        so a merge that is stable in bytes still fails them.
  *
- *        Coupled to #725, same root cause on the same line (to-markdoc.ts's `-`
- *        normalisation): there the rewritten marker fused with the item's own
- *        first line into a thematic break. #725 is FIXED and #694 is NOT — the
- *        #725 guard acts on the marker LINE (marker + first child), while #694 is
- *        about the marker's relationship to a SIBLING list, which no per-item
- *        guard can see. Verified after the #725 fix landed: the four adjacency
- *        counterexamples above still merge. Whatever closes #694 has to preserve
- *        the alias marker (or otherwise separate the lists), and that is a
- *        separate change to the same seam.
+ *        #694 and #725 share a root cause (to-markdoc.ts's `-` normalisation) and
+ *        act on the SAME emitted line, so they had to be made to compose rather
+ *        than merely coexist. #694 chooses the item's MARKER from sibling position;
+ *        #725 respells the marker line's CONTENT when the two would fuse into a
+ *        thematic break. The composition is ordered: `serializeSiblings` picks the
+ *        marker, `listToMarkdoc` threads it into `listItemToMarkdoc`'s `prefix`, and
+ *        `fusesWithMarkerLine` is evaluated against THAT prefix — so the fusion check
+ *        always sees the marker that will really be written. This matters because the
+ *        alternation widened the bullet alphabet from `-` to `-`/`*`: with a `*`
+ *        marker it is `* ***` that fuses (not `* ---`), and the respelling `.find`
+ *        re-tests each candidate against the live prefix instead of assuming `-`.
+ *        Closes #735, which was this interaction observed on a branch that had #694
+ *        without #725.
  *
  *  #712: `_` is generated for the same reason as every other metacharacter, NOT
  *  because it is structurally safer than `*`. The old rationale here claimed the
@@ -92,10 +99,30 @@ const LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ '.split(
  *  backtick in a fence info string grows the document). Both are fixed.
  *
  *  Verified on 2026-07-20, after the #667/#725/#726 fixes: green at numRuns 250,000 and
- *  again at 400,000 on all five properties below (~2,000,000 executions, ~121s). That
- *  400,000 is the number actually run — do not restate it as a bound that was never
- *  measured. This is the third over-general comment this epic has had to correct, so:
- *  if you raise the ceiling, put the count you ran here, not the count you intended.
+ *  again at 400,000 on the five properties that existed then (~2,000,000 executions,
+ *  ~121s). Those are the numbers actually run — do not restate either as a bound that
+ *  was never measured. This is the third over-general comment this epic has had to
+ *  correct, so: if you raise the ceiling, put the count you ran here, not the count you
+ *  intended.
+ *
+ *  Re-verified on 2026-07-20 after merging rounds 4 and 5 (#667/#725/#726 with
+ *  #694/#734), on the EIGHT properties that exist now — the three structural ones
+ *  included, and with the #735 filter deleted: green at numRuns 250,000, ~2,000,000
+ *  executions, ~106s. 250,000 is the number run; 400,000 has not been re-run against
+ *  the structural properties. Note that a run this long trips vitest's default 5s
+ *  testTimeout and its reporter's `onTaskUpdate` RPC deadline, so raising the ceiling
+ *  locally means `--testTimeout=3600000` and reading the per-test results rather than
+ *  the process exit code.
+ *
+ *  #739 (OPEN) — a SECOND 250,000-run pass on a different seed (174555214) failed
+ *  `never grows a tag-bearing document` after 116,043 tests: a tag body gains a blank
+ *  line on the second save when an earlier sibling tag's variable name contains a `"`.
+ *  It is PRE-EXISTING (reproduced against origin/main with #694 reverted, identical
+ *  lengths 86 -> 85 -> 87 -> 87) and is deliberately NOT filtered out here — the
+ *  density is ~1 in 120,000, so it cannot reach the committed counts, and filtering
+ *  a live defect out of the generator is what let #735 hide. Expect this property to
+ *  fail on a long local run until #739 lands; check the counterexample against #739
+ *  before assuming you found something new.
  */
 const METACHARS = [
   '*',
@@ -128,23 +155,34 @@ const textFrom = (alphabet: string[]) =>
 const safeText = textFrom(LETTERS)
 const wideText = textFrom([...LETTERS, ...METACHARS])
 
-/** #694 (still open). A block that opens a bullet list with an ALIAS marker (`*` or
- *  `+`). The writer normalises those to `-`, so such a list adjacent to a `-` list
- *  merges into one on the second pass and the document settles one pass late. The
- *  exclusion is deliberately this narrow — it drops only the looseness shape, and
- *  leaves `*` generated everywhere it exercises escaping and emphasis: intraword
- *  ("x*y"), at a block start ("*x"), inside headings, and inside tag bodies.
+/** #735 — CLOSED by #725, and the exclusion it needed is gone. Recorded here because
+ *  it is the one defect this branch filed that no single round could have resolved.
  *
- *  `\r` counts as a line separator here, not just `\n`: markdown-it breaks lines on a
- *  bare CR, so "# a\r*" really is a heading followed by a `*` list. A marker may also
- *  carry up to three leading spaces and still be a marker. Missing either was
- *  worth one false-green pass of this filter. */
-const opensAliasBulletList = (block: string) =>
-  /(^|[\n\r]) {0,3}[*+]([ \t]|$)/m.test(block)
-
-const withoutAliasBulletLists = (blocks: string[]) =>
-  blocks.filter((b) => !opensAliasBulletList(b))
-
+ *  `listItemToMarkdoc` drops an item's empty leading paragraph and promotes the next
+ *  block onto the marker line. When the promoted block serialized to a line of nothing
+ *  but marker characters and spaces, that line was a THEMATIC BREAK to CommonMark,
+ *  which outranks a list marker — so the list was destroyed and replaced by a
+ *  top-level horizontalRule:
+ *
+ *    "- ***"   -> "- ---"  -> horizontalRule   (the bulletList was gone)
+ *    "- *\t*"  -> "- - -"  -> horizontalRule   (three nested lists, gone)
+ *
+ *  Both were perfect fixed points afterwards, which is why no idempotency or
+ *  byte-stability property ever saw them and only the structural property did.
+ *
+ *  `- ***` is EXACTLY the respelling #725 emits, so it read as this branch's marker
+ *  alternation colliding with #725's repair — a defect that would exist only in the
+ *  merged result. It is not. The two mechanisms compose: #694 picks the marker,
+ *  #725's `fusesWithMarkerLine` is then evaluated against the prefix built FROM that
+ *  marker, and its respelling `.find` re-tests each candidate against the live prefix.
+ *  So `- ***` is emitted only where it does not fuse, and `* ***` — which does fuse —
+ *  is respelled to `___` instead. Both counterexamples above now round-trip as a
+ *  bulletList with their structure intact.
+ *
+ *  Measured, not assumed: with the filter DELETED (and the #736 precondition below
+ *  still in place), all eight properties are green at numRuns 250,000 — ~2,000,000
+ *  executions, ~106s. The shape's old density was about 1 document in 120,000, so
+ *  250,000 runs is roughly a 2x margin over first detection. */
 const heading = (text: fc.Arbitrary<string>) => text.map((t) => `# ${t}`)
 const bullets = (text: fc.Arbitrary<string>) =>
   fc
@@ -158,7 +196,6 @@ const proseDocument = (text: fc.Arbitrary<string>) =>
       minLength: 1,
       maxLength: 6
     })
-    .map(withoutAliasBulletLists)
     .filter((bs) => bs.length > 0)
     .map((bs) => bs.join('\n\n') + '\n')
 
@@ -173,12 +210,161 @@ const taggedDocument = (text: fc.Arbitrary<string>) => {
       minLength: 1,
       maxLength: 6
     })
-    .map(withoutAliasBulletLists)
     .filter((bs) => bs.length > 0)
     .map((bs) => bs.join('\n\n') + '\n')
 }
 
 const roundtrip = (s: string) => tiptapToMarkdoc(markdocToTiptap(s))
+
+/* ------------------------------------------------------------------------- *
+ * #734 — the STRUCTURAL property.
+ *
+ * The two properties in this file are both blind to the same class: a
+ * transformation that is STABLE but not IDENTITY-PRESERVING. `rt(rt(s)) === rt(s)`
+ * says the bytes stop moving; `rt(s) === s` says already-canonical bytes never move.
+ * Neither says the document the AUTHOR sees is the document that comes back. A
+ * defect that destroys node identity on pass 1 and settles there satisfies both
+ * forever — which is exactly what #694 did (two sibling bullet lists silently became
+ * one list of two items, permanently, on the first save).
+ *
+ * So: `markdocToTiptap(s)` and `markdocToTiptap(rt(s))` must describe the same
+ * document. Node types, nesting, attributes and mark sets are compared EXACTLY;
+ * the writer is free to change the source spelling, never the tree.
+ *
+ * THE ALLOWED-CHANGE LIST IS EXACTLY ONE ENTRY, and it is a representation detail
+ * rather than a change to the document:
+ *
+ *   (1) Adjacent text runs carrying the SAME mark set may be split or merged.
+ *       A ProseMirror text sequence is a flat string with marks applied to ranges;
+ *       [ "a"(italic), "a"(italic) ] and [ "aa"(italic) ] are the same document, and
+ *       Tiptap itself normalizes the first to the second on load. `canonicalText`
+ *       below joins them on BOTH sides before comparing, so this is canonicalization,
+ *       not tolerance — no text and no mark can hide inside it.
+ *
+ * Every other normalization named in the comment at the top of this file was
+ * checked against the code, one shape at a time, and NONE of them needs an
+ * allowance: they are byte-level rewrites the reader maps back to an identical
+ * tree. Measured, not assumed (#712 exists because an exclusion rationale was
+ * asserted instead of verified):
+ *
+ *   intraword `_`      "a_b_c"     -> "a_b_c"    bytes equal, tree equal
+ *   min fence width    "``x``"     -> "`x`"      bytes differ, tree equal
+ *   `- #` trailing sp  "- #"       -> "- # "     bytes differ, tree equal
+ *   #693 adjacent runs "*a `b` c*" -> unchanged  bytes equal, tree equal
+ *   #716 nested em     "_a*a*_"    -> "*aa*"     bytes differ, tree equal ONLY
+ *                                                under (1) — this is the single
+ *                                                shape that entry exists for.
+ *
+ * Widening the list past (1) would re-introduce the vacuity this property is meant
+ * to remove, so a new failure here is a defect until proven otherwise.
+ * ------------------------------------------------------------------------- */
+
+/** A mark's identity for comparison: its type, plus the href that makes two `link`
+ *  marks genuinely different. Attribute ORDER is never compared. */
+const markKey = (m: TiptapMark): string =>
+  m.type === 'link' ? `link(${String(m.attrs?.['href'])})` : m.type
+
+const markSet = (node: TiptapNode): string =>
+  (node.marks ?? []).map(markKey).sort().join('|')
+
+/** Allowance (1): join neighbouring text runs that carry the same mark set. */
+function canonicalText(nodes: TiptapNode[]): TiptapNode[] {
+  const out: TiptapNode[] = []
+  for (const node of nodes) {
+    const prev = out[out.length - 1]
+    if (
+      prev &&
+      prev.type === 'text' &&
+      node.type === 'text' &&
+      markSet(prev) === markSet(node)
+    ) {
+      out[out.length - 1] = {
+        ...prev,
+        text: (prev.text ?? '') + (node.text ?? '')
+      }
+    } else out.push(node)
+  }
+  return out
+}
+
+/** A comparable structural view: type, text, mark set, attributes (key-order
+ *  independent) and children, recursively. */
+function structure(node: TiptapNode | TiptapDoc): unknown {
+  const n = node as TiptapNode
+  const attrs = n.attrs
+    ? Object.fromEntries(
+        Object.entries(n.attrs).sort(([a], [b]) => (a < b ? -1 : 1))
+      )
+    : undefined
+  return {
+    type: n.type,
+    ...(n.text !== undefined ? { text: n.text } : {}),
+    ...(n.marks ? { marks: markSet(n) } : {}),
+    ...(attrs ? { attrs: JSON.stringify(attrs) } : {}),
+    ...(n.content ? { content: canonicalText(n.content).map(structure) } : {})
+  }
+}
+
+const structurallyEqual = (a: TiptapDoc, b: TiptapDoc): boolean =>
+  JSON.stringify(structure(a)) === JSON.stringify(structure(b))
+
+/** #736 (OPEN, and also found BY this property; pre-existing, see the issue).
+ *  `Markdoc.format` DELETES leading/trailing whitespace inside a `bold`/`italic`/
+ *  `strike` delimiter pair rather than moving it outside, because CommonMark cannot
+ *  express `* P *` as emphasis — so the character is lost on save. `link`, `code` and
+ *  the tag marks are unaffected; only the three delimiter marks lose data.
+ *
+ *  Detected on the READ TREE, not guessed from the source text: this is the exact
+ *  shape, not an approximation of it. From source it needs whitespace against a soft
+ *  line break inside emphasis (`*P\t\r|g*`), measured at ~1 document in 120,000 —
+ *  which at these run counts is a ~5%-per-run flake, the same magnitude that got #716
+ *  fixed rather than shipped. Skipped here so the gate is not flaky; the defect is
+ *  tracked, not hidden.
+ *
+ *  The naive per-run fix regresses #693 (the whitespace between two runs of one
+ *  emphasis span is INTERIOR to it, so hoisting per run splits one delimiter pair into
+ *  three). The fix belongs in `nestRuns`, at the group boundary — see the issue. */
+const DELIMITER_MARKS = new Set(['bold', 'italic', 'strike'])
+
+const hasEdgeWhitespaceInDelimiterMark = (node: TiptapNode): boolean =>
+  (node.type === 'text' &&
+    /^\s|\s$/.test(node.text ?? '') &&
+    (node.marks ?? []).some((m) => DELIMITER_MARKS.has(m.type))) ||
+  (node.content ?? []).some(hasEdgeWhitespaceInDelimiterMark)
+
+/** Assert the property, reporting the two trees when it fails so the counterexample
+ *  is readable rather than a bare `false`. */
+function expectStructuralIdentity(s0: string): void {
+  const before = markdocToTiptap(s0)
+  fc.pre(!before.content.some(hasEdgeWhitespaceInDelimiterMark))
+  const after = markdocToTiptap(roundtrip(s0))
+  if (!structurallyEqual(before, after)) {
+    expect(
+      JSON.stringify(structure(after), null, 1),
+      `round-trip changed the document structure for ${JSON.stringify(s0)}`
+    ).toBe(JSON.stringify(structure(before), null, 1))
+  }
+}
+
+describe('round-trip structural identity (property-based)', () => {
+  it('preserves the node tree for metacharacter-heavy prose', () => {
+    fc.assert(fc.property(proseDocument(wideText), expectStructuralIdentity), {
+      numRuns: 6000
+    })
+  })
+
+  it('preserves the node tree for metacharacter-heavy tag blocks', () => {
+    fc.assert(fc.property(taggedDocument(wideText), expectStructuralIdentity), {
+      numRuns: 5000
+    })
+  })
+
+  it('preserves the node tree for plain-prose tag documents', () => {
+    fc.assert(fc.property(taggedDocument(safeText), expectStructuralIdentity), {
+      numRuns: 200
+    })
+  })
+})
 
 describe('round-trip idempotency (property-based)', () => {
   it('reaches a stable fixed point for random documents', () => {

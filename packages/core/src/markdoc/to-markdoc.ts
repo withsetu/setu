@@ -427,7 +427,7 @@ function openTagFor(tag: string, mdAttrs: Record<string, unknown>): string {
 function tagBlockToMarkdoc(tag: string, node: TiptapNode): string {
   const mdAttrs =
     (node.attrs?.['mdAttrs'] as Record<string, unknown> | undefined) ?? {}
-  const body = (node.content ?? []).map((c) => serializeBlock(c)).join('\n\n')
+  const body = serializeSiblings(node.content ?? []).join('\n\n')
   return `${openTagFor(tag, mdAttrs)}\n${body}\n{% /${tag} %}`
 }
 
@@ -438,7 +438,7 @@ function tagBlockToMarkdoc(tag: string, node: TiptapNode): string {
  *  so schema-valid inside a blockquote. They hit the default arm and were destroyed
  *  ("> > \n> > \n"). Byte-identical to Markdoc.format for prose-only blockquotes. */
 function blockquoteToMarkdoc(node: TiptapNode): string {
-  const body = (node.content ?? []).map((c) => serializeBlock(c)).join('\n\n')
+  const body = serializeSiblings(node.content ?? []).join('\n\n')
   return body
     .split('\n')
     .map((line) => (line === '' ? '> ' : `> ${line}`))
@@ -446,6 +446,65 @@ function blockquoteToMarkdoc(node: TiptapNode): string {
 }
 
 const LIST_TYPES = new Set(['bulletList', 'orderedList', 'taskList'])
+
+/** The two interchangeable markers for each list family, preferred form first.
+ *  CommonMark starts a NEW list whenever the marker character changes, and that is
+ *  the only signal in the syntax that distinguishes two sibling lists from one. */
+const BULLET_MARKERS = ['-', '*'] as const
+const ORDERED_MARKERS = ['1.', '1)'] as const
+
+/** #694. The marker for `node`, given the marker the PRECEDING SIBLING list used
+ *  (undefined when the previous sibling was not a list).
+ *
+ *  The writer normalises every bullet marker to `-`, so two sibling lists — which
+ *  the reader only ever produces because the source distinguished them BY their
+ *  markers — were written as `- a\n\n- b`. Two same-marker lists separated by a blank
+ *  line are ONE loose list in CommonMark, so the pair re-read as a single list of two
+ *  items: node identity destroyed on the first save and never recoverable, because
+ *  pass 2 has nothing left to tell it there were ever two lists.
+ *
+ *  The marker is chosen from sibling POSITION and never stored on the node. Two
+ *  alternatives were considered and rejected:
+ *
+ *    - carrying the source marker as a node attribute — it needs a default for lists
+ *      created in the editor (which have no source marker), so two editor-made
+ *      adjacent lists both take the default and merge again: the defect survives in
+ *      exactly the case the editor is for. It also puts invisible state on the node
+ *      for an author to lose by splitting or re-ordering a list.
+ *    - emitting a separator between the lists — anything that survives the read
+ *      becomes a node of its own and is re-emitted next save, i.e. it accumulates.
+ *      That is #674 in a new costume.
+ *
+ *  Position-derived alternation is total (every list gets a marker), stable (the
+ *  marker is a pure function of the sibling sequence, so re-saving reproduces it
+ *  byte-for-byte), and self-repairing (deleting or re-ordering a list recomputes its
+ *  neighbours' markers — nothing can go stale).
+ *
+ *  `taskList` shares the bullet family: it writes a `-` marker too, so a checklist
+ *  followed by a bullet list is the same collision, reachable from the editor. */
+function markerFor(node: TiptapNode, previous: string | undefined): string {
+  const family = node.type === 'orderedList' ? ORDERED_MARKERS : BULLET_MARKERS
+  return previous === family[0] ? family[1] : family[0]
+}
+
+/** Serialize a run of SIBLING blocks, threading each list's chosen marker to the
+ *  next one so no two adjacent lists can merge on the next read (#694). Every place
+ *  that serializes a sibling sequence goes through here — top level, tag bodies,
+ *  blockquotes and the children of a single list item — because the merge happens at
+ *  any depth. */
+function serializeSiblings(
+  nodes: TiptapNode[],
+  positionOf: (node: TiptapNode) => BlockPosition = () => 'block-start'
+): string[] {
+  let previousMarker: string | undefined
+  return nodes.map((node) => {
+    const marker = LIST_TYPES.has(node.type)
+      ? markerFor(node, previousMarker)
+      : undefined
+    previousMarker = marker
+    return serializeBlock(node, positionOf(node), marker)
+  })
+}
 
 /** A line CommonMark reads as a THEMATIC BREAK: three or more of `-`, `*` or `_`,
  *  all the same character, spaces and tabs allowed between them and after. */
@@ -487,8 +546,7 @@ const MARKER_LINE_RESPELLINGS: Record<string, string[]> = {
  *  Output is byte-identical to what `Markdoc.format` produced for the ordinary
  *  shapes (tight items, nested lists, task markers) — see the byte-stability test —
  *  so existing files are not rewritten on their next save. */
-function listToMarkdoc(node: TiptapNode): string {
-  const marker = node.type === 'orderedList' ? '1.' : '-'
+function listToMarkdoc(node: TiptapNode, marker: string): string {
   const indent = ' '.repeat(marker.length + 1)
   const task = node.type === 'taskList'
   return (node.content ?? [])
@@ -547,13 +605,9 @@ function listItemToMarkdoc(
   // serialization, where the child's actual first line is known.
   const markerParagraph =
     task && children[0]?.type === 'paragraph' ? children[0] : undefined
-  const parts = children.map((child) => ({
-    type: child.type,
-    text: serializeBlock(
-      child,
-      child === markerParagraph ? 'after-inline-marker' : 'block-start'
-    )
-  }))
+  const parts = serializeSiblings(children, (child) =>
+    child === markerParagraph ? 'after-inline-marker' : 'block-start'
+  ).map((text, i) => ({ type: children[i]!.type, text }))
   // Nothing paragraph-shaped is available for the marker line, so leave it bare and let
   // every child begin an indented line of its own. `- [ ]` on its own line is still a
   // task marker to the reader, and — unlike the bullet case above — it is not a blank
@@ -627,9 +681,14 @@ function tildeFencedCodeBlock(node: TiptapNode): string | null {
  *  recursively, for the children of body-bearing tags. */
 function serializeBlock(
   node: TiptapNode,
-  position: BlockPosition = 'block-start'
+  position: BlockPosition = 'block-start',
+  /** The list marker chosen for this node by `serializeSiblings` (#694). Only a list
+   *  node uses it; absent means "no preceding sibling list", i.e. the preferred
+   *  marker of the node's own family. */
+  listMarker?: string
 ): string {
-  if (LIST_TYPES.has(node.type)) return listToMarkdoc(node)
+  if (LIST_TYPES.has(node.type))
+    return listToMarkdoc(node, listMarker ?? markerFor(node, undefined))
   if (node.type === 'blockquote') return blockquoteToMarkdoc(node)
   if (node.type === 'passthrough') {
     const raw = node.attrs?.['raw']
@@ -652,7 +711,5 @@ export function tiptapToMarkdoc(doc: TiptapDoc): string {
   // Single decode point for the escaping contract: every inline text node was
   // handed to Markdoc pre-escaped and sentinel-protected (see ./escape-inline),
   // and this is where the protection comes back off.
-  return decodeProtected(
-    doc.content.map((c) => serializeBlock(c)).join('\n\n') + '\n'
-  )
+  return decodeProtected(serializeSiblings(doc.content).join('\n\n') + '\n')
 }

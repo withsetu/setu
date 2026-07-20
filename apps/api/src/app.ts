@@ -52,27 +52,19 @@ const foldRepoPath = (p: string) => unicodeCaseFold(p)
 
 /** Hard ceiling on an accepted repo path, enforced in `isCanonicalRepoPath`.
  *
- *  #648: the path is attacker-controlled and is compiled into a RegExp by `foldCollidingPaths`, and
- *  it is matched against every committed content path, so an unbounded path is both a compile-cost
- *  and a match-cost amplifier. Bounding it at the gate is the fail-CLOSED way to cap that (a
- *  too-long path is rejected, never waved through unmatched). 1024 is far above anything real —
- *  every legitimate path is `content/<collection>/<locale>/<slug>.mdoc` with a slug derived by
- *  `entrySlugify` — and comfortably under the 255-byte-per-component / 4096-byte-per-path limits
- *  that ext4, APFS and NTFS impose anyway, so nothing writable on disk is being rejected. */
+ *  #648 introduced this to bound an attacker-controlled path being compiled into a RegExp by
+ *  `foldCollidingPaths`. #731 removed that RegExp — the fold is now a string comparison — so this
+ *  is no longer the primary mitigation for anything: it is defence in depth. It still earns its
+ *  keep by capping per-request work (the path is folded and compared against every committed
+ *  content path) and by doing so fail-CLOSED — a too-long path is rejected, never waved through
+ *  unmatched. 1024 is far above anything real — every legitimate path is
+ *  `content/<collection>/<locale>/<slug>.mdoc` with a slug derived by `entrySlugify` — and
+ *  comfortably under the 255-byte-per-component / 4096-byte-per-path limits that ext4, APFS and
+ *  NTFS impose anyway, so nothing writable on disk is being rejected. */
 const MAX_REPO_PATH_LENGTH = 1024
 
-/** Escapes every RegExp metacharacter so an interpolated string matches LITERALLY.
- *
- *  Load-bearing for #648: without it, a slug like `a.+` would be compiled as a PATTERN and match
- *  unrelated committed paths (a false `content.publish` at best, a RegExp-injection primitive at
- *  worst), and a crafted slug could introduce nested quantifiers — the classic ReDoS shape. Fully
- *  escaped and anchored, the compiled pattern is a literal-only alternation-free match, which is
- *  linear in the input, so no attacker-supplied path can make matching super-linear. */
-const escapeRegExp = (s: string) => s.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')
-
-/** Committed paths that case-FOLD onto `p` under Unicode SIMPLE CASE FOLDING but are not literally
- *  `p` — i.e. the OTHER files a write to `p` could actually land on, on a case-insensitive
- *  filesystem (APFS/HFS+, NTFS).
+/** Committed paths that case-FOLD onto `p` but are not literally `p` — i.e. the OTHER files a
+ *  write to `p` could actually land on, on a case-insensitive filesystem (APFS/HFS+, NTFS).
  *
  *  #648: `foldRepoPath` was `toLowerCase()`, Unicode simple case MAPPING, strictly weaker than the
  *  case FOLDING those filesystems resolve names by. #644 and #647 closed their halves by REJECTING
@@ -94,27 +86,38 @@ const escapeRegExp = (s: string) => s.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')
  *      git's case-SENSITIVE index makes the literal `readFile` miss it.
  *  Nothing else in the gate looks in that direction, so removing this reopens it.
  *
- *  JavaScript does expose the needed relation after all: a `RegExp` with the `iu` flags matches by
- *  ECMA-262 Canonicalize, which IS Unicode simple case folding. Verified on node 22:
- *    /^ſive$/iu.test('sive')   -> true    the U+017F bypass
- *    /^ςigma$/iu.test('σigma') -> true    neither side ASCII — the fold RELATION, not an ASCII rule
- *    /^café$/iu.test('cafe')   -> false   accents are NOT folded; `café` stays a distinct post
- *    /^ß$/iu.test('ss')        -> false   simple, not FULL, folding
- *  Simple folding is the CORRECT relation here precisely because it is the one APFS/HFS+ and NTFS
- *  case tables implement — they do not fold ß->ss either. Full folding would over-reject real
- *  slugs without closing anything the filesystem actually collides.
+ *  #731: this asks `foldRepoPath` — THE shared `unicodeCaseFold` — exactly like every other half of
+ *  this gate. It used to compile `new RegExp('^' + escapeRegExp(p) + '$', 'iu')` instead, because
+ *  ECMA-262 Canonicalize under `/iu` IS Unicode simple case folding and JS exposes no
+ *  `toCaseFold()`. That was a SECOND opinion about what "the same file" means, and it disagreed
+ *  with the first on NORMALIZATION: `/iu` folds case but does not normalize, while
+ *  `unicodeCaseFold` NFC-normalizes first — which is what APFS does, since it normalizes names
+ *  before hashing them. Measured on the real gate before the fix, with a live DECOMPOSED
+ *  `content/blog/en/café.mdoc` committed (`e` + U+0301) and the COMPOSED spelling (U+00E9) incoming
+ *  — a path `isCanonicalRepoPath` correctly admits, NFC being the canonical form:
+ *    unpublish-by-write -> content.edit   (should be content.publish)
+ *    delete             -> content.edit   (should be content.publish)
+ *  i.e. a `content.edit` holder silently unpublishing or DELETING a live post — the #382 boundary,
+ *  reopened. Residue from #654, which upgraded the preventive half and left this one on the older
+ *  relation it was written against.
+ *
+ *  The comparison keeps every property the RegExp had — `ſ`/`s` and `ς`/`σ` still fold together,
+ *  `café`/`cafe` still do NOT (accents are not case) — and drops the attacker-controlled RegExp
+ *  construction entirely, which is what `escapeRegExp` existed to make safe. `unicodeCaseFold` does
+ *  additionally over-fold `ß`->`ss` where APFS keeps them apart; that only ever widens the
+ *  committed-state read, so it costs a needless upgrade to `content.publish` on an exotic spelling
+ *  and can never miss a collision. Over-fold fails closed here; under-fold is the bug above.
  *
  *  This is a rejection of the CLASS, not an enumeration of spellings (the #623/#644/#647 lesson):
- *  it asks the fold relation itself, so it covers every character in the gap, including ones added
- *  by a future Unicode revision of the engine's case tables.
+ *  it asks the fold relation itself, so it covers every character in the gap.
  *
  *  Used ONLY to widen the #382 committed-state read below. The write still uses the caller's own
  *  path — `isCanonicalRepoPath` has already proven it canonical. */
 function foldCollidingPaths(p: string, committed: readonly string[]): string[] {
   // `isCanonicalRepoPath` guarantees the bound; belt-and-braces for direct callers.
   if (p.length > MAX_REPO_PATH_LENGTH) return []
-  const folded = new RegExp(`^${escapeRegExp(p)}$`, 'iu')
-  return committed.filter((c) => c !== p && folded.test(c))
+  const folded = foldRepoPath(p)
+  return committed.filter((c) => c !== p && foldRepoPath(c) === folded)
 }
 
 /** True iff `p` is a CANONICAL repo-relative path: non-empty, relative, no `.`/`..` segments, no

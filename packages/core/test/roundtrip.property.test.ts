@@ -42,12 +42,31 @@ const LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ '.split(
  *        serialized as "*a**`b`**c*", whose "**" re-parsed as a literal asterisk
  *        pair, LOSING the mark. FIXED: `buildInline` now merges adjacent runs that
  *        share a mark, so one delimiter pair spans the whole run.          [#693]
- *    (b) list looseness — the writer normalises a `*` or `+` bullet marker to `-`,
- *        so a `*` list ADJACENT to a `-` list merges into one list on the second
- *        pass and the document settles one pass late ("- a\n\n*\n" is the minimal
- *        counterexample). STILL OPEN, so `noAliasBulletList` below drops exactly
- *        the blocks that open such a list — the looseness shape — rather than
- *        dropping `*` from the alphabet wholesale.                         [#694]
+ *    (b) marker normalisation — the writer rewrites a `*` or `+` bullet marker to
+ *        `-`, so a `*` list ADJACENT to a `-` list is emitted with the SAME marker
+ *        as its neighbour and the two merge. STILL OPEN, so `noAliasBulletList`
+ *        below drops exactly the blocks that open such a list rather than dropping
+ *        `*` from the alphabet wholesale.                                  [#694]
+ *
+ *        This used to be described here as "the document settles one pass late",
+ *        which understated it. Re-scoped 2026-07-20, measured: "- a\n\n* b\n" is
+ *        TWO bulletList nodes of one item each; one save emits "- a\n\n- b\n",
+ *        which re-reads as ONE bulletList of two items. The structural merge lands
+ *        on pass 1 and is never recovered — list identity is LOST, not deferred.
+ *        Pass 2 only drops the now-meaningless blank line ("- a\n- b\n"), and that
+ *        cosmetic step is the whole of what "settles late" ever referred to. The
+ *        fixed-point property cannot see this: the merged document IS a fixed
+ *        point, and a correct one for the wrong document.
+ *
+ *        Coupled to #725, same root cause on the same line (to-markdoc.ts's `-`
+ *        normalisation): there the rewritten marker fused with the item's own
+ *        first line into a thematic break. #725 is FIXED and #694 is NOT — the
+ *        #725 guard acts on the marker LINE (marker + first child), while #694 is
+ *        about the marker's relationship to a SIBLING list, which no per-item
+ *        guard can see. Verified after the #725 fix landed: the four adjacency
+ *        counterexamples above still merge. Whatever closes #694 has to preserve
+ *        the alias marker (or otherwise separate the lists), and that is a
+ *        separate change to the same seam.
  *
  *  #712: `_` is generated for the same reason as every other metacharacter, NOT
  *  because it is structurally safer than `*`. The old rationale here claimed the
@@ -66,9 +85,17 @@ const LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ '.split(
  *  `withMark` in ../src/markdoc/to-tiptap.ts now deduplicates. At roughly 1 document in
  *  200,000 it was a live CI flake at these run counts, not a curiosity.
  *
- *  These counts are the CI budget, not the evidence. The widened alphabet was confirmed
- *  green at numRuns 200,000 on every property below (~1,000,000 executions) before the
- *  counts were restored — raise them locally, not in CI, to re-confirm.
+ *  These counts are the CI budget, not the evidence — raise them locally, not in CI, to
+ *  re-confirm. The claim that used to sit here ("confirmed green at numRuns 200,000 on
+ *  every property") was NOT true when it was written: the suite went red at 250,000 via
+ *  #725 (a thematic break as a bullet's first child leaves the list) and #726 (a
+ *  backtick in a fence info string grows the document). Both are fixed.
+ *
+ *  Verified on 2026-07-20, after the #667/#725/#726 fixes: green at numRuns 250,000 and
+ *  again at 400,000 on all five properties below (~2,000,000 executions, ~121s). That
+ *  400,000 is the number actually run — do not restate it as a bound that was never
+ *  measured. This is the third over-general comment this epic has had to correct, so:
+ *  if you raise the ceiling, put the count you ran here, not the count you intended.
  */
 const METACHARS = [
   '*',

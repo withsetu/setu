@@ -89,8 +89,21 @@ function inlineToTiptap(node: MdNode, marks: TiptapMark[] = []): TiptapNode[] {
       )
     case 'hardbreak':
       return [{ type: 'hardBreak' }]
+    /** #667: a SOFT break — the plain newline a hard-wrapped paragraph is made of —
+     *  used to become a single space, and `buildInline` had no inverse, so the first
+     *  save reflowed every hard-wrapped paragraph onto one line. Rendered HTML is
+     *  identical either way, which is exactly why it went unnoticed; in a Git-backed
+     *  CMS it means one save produces a WHOLE-FILE diff, burying the real change in
+     *  review and destroying `git blame`.
+     *
+     *  It is modelled as a `\n` inside a text node rather than as a new schema node:
+     *  a bare `text` node is already legal everywhere inline content is, so no editor
+     *  extension is needed, and it collapses to a space in the canvas exactly as it
+     *  does in rendered HTML. Carrying `marks` is load-bearing — a dedicated node
+     *  would split `*a\nb*` into two runs and so into two delimiter pairs, which is
+     *  the #693 corruption class. */
     case 'softbreak':
-      return [{ type: 'text', text: ' ' }]
+      return [{ type: 'text', text: '\n', ...(marks.length ? { marks } : {}) }]
     case 'image':
       return [
         {

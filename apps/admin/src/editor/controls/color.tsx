@@ -7,7 +7,7 @@ export function ColorControl({ value, onChange, meta }: ControlProps) {
     <div className="flex items-center gap-2">
       <input
         type="color"
-        aria-label={meta.name}
+        id={`bi-${meta.name}`}
         value={hex.slice(0, 7)}
         onChange={(e) => onChange(e.target.value + (hex.slice(7) || 'ff'))}
         className="h-8 w-10 rounded border border-border bg-transparent p-0.5"

@@ -14,6 +14,7 @@ export function Combobox({
   allowFreeText = true,
   placeholder,
   ariaLabel,
+  id,
   disabled = false,
   className = ''
 }: {
@@ -24,6 +25,9 @@ export function Combobox({
   allowFreeText?: boolean
   placeholder?: string
   ariaLabel: string
+  /** Associates a visible `<label htmlFor>` with the combobox input (so clicking the
+   *  label focuses it). Optional — most call sites rely on `ariaLabel` alone. */
+  id?: string
   disabled?: boolean
   className?: string
 }) {
@@ -50,6 +54,7 @@ export function Combobox({
     <div className={`combo ${className}`.trim()}>
       <input
         type="text"
+        id={id}
         className="combo-input"
         role="combobox"
         aria-expanded={show}

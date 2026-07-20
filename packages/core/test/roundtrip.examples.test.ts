@@ -164,6 +164,70 @@ describe('checklist content-safety negatives', () => {
   })
 })
 
+/** #694. Two SIBLING lists are one document node each; the reader only ever produces
+ *  the pair because the source distinguished them by their markers. The writer used to
+ *  normalise every bullet marker to `-`, so the pair was written `- a\n\n- b` — one
+ *  loose list in CommonMark — and came back as ONE list of two items. Identity was
+ *  destroyed on the first save and never recoverable, and both existing round-trip
+ *  properties were blind to it because the corrupted form is perfectly stable. */
+describe('sibling lists keep their identity (#694)', () => {
+  const listShape = (src: string) =>
+    markdocToTiptap(src).content.map(
+      (n) => `${n.type}[${(n.content ?? []).length}]`
+    )
+
+  it('two adjacent bullet lists stay two lists', () => {
+    expect(listShape('- a\n\n* b\n')).toEqual(['bulletList[1]', 'bulletList[1]'])
+    expect(roundtrip('- a\n\n* b\n')).toBe('- a\n\n* b\n')
+    expect(listShape(roundtrip('- a\n\n* b\n'))).toEqual([
+      'bulletList[1]',
+      'bulletList[1]'
+    ])
+  })
+
+  it('normalises the `+` alias but still keeps the two lists apart', () => {
+    expect(roundtrip('- a\n\n+ b\n')).toBe('- a\n\n* b\n')
+    expect(listShape(roundtrip('- a\n\n+ b\n'))).toEqual([
+      'bulletList[1]',
+      'bulletList[1]'
+    ])
+  })
+
+  it('alternates back on a third adjacent list rather than accumulating', () => {
+    const out = roundtrip('* a\n\n- b\n\n* c\n')
+    expect(out).toBe('- a\n\n* b\n\n- c\n')
+    // Stable: the marker is a function of sibling position, so re-saving is a no-op.
+    expect(roundtrip(out)).toBe(out)
+    expect(listShape(out)).toEqual([
+      'bulletList[1]',
+      'bulletList[1]',
+      'bulletList[1]'
+    ])
+  })
+
+  it('keeps two adjacent ordered lists apart with the `1)` delimiter', () => {
+    expect(roundtrip('1. a\n\n1) b\n')).toBe('1. a\n\n1) b\n')
+    expect(listShape('1. a\n\n1) b\n')).toEqual([
+      'orderedList[1]',
+      'orderedList[1]'
+    ])
+  })
+
+  it('a lone list still uses the preferred marker of its family', () => {
+    expect(roundtrip('* a\n')).toBe('- a\n')
+    expect(roundtrip('1) a\n')).toBe('1. a\n')
+  })
+
+  it('separates a checklist from a bullet list that follows it', () => {
+    // Reachable from the editor (a checklist, then a bullet list under it), where
+    // both would otherwise be written with `-` and merge into one plain list.
+    const src = '- [x] a\n\n* b\n'
+    expect(roundtrip(src)).toBe(src)
+    expect(listShape(src)).toEqual(['taskList[1]', 'bulletList[1]'])
+    expect(listShape(roundtrip(src))).toEqual(['taskList[1]', 'bulletList[1]'])
+  })
+})
+
 describe('table content-safety', () => {
   it('a pipe in cell text round-trips without breaking the grid', () => {
     const src = '| a | b |\n| --- | --- |\n| x \\| y | z |\n'

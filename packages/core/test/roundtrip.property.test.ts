@@ -36,19 +36,20 @@ const LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ '.split(
  *  GROWING the document on every save (~15% of random tag-bearing documents). That is
  *  why `taggedDocument` now carries the wide alphabet too, not just `proseDocument`.
  *
- *  `*` used to be excluded as well, for two defects it alone could synthesise. The
- *  first is now fixed and the second is narrowly scoped, so `*` IS generated:
+ *  `*` used to be excluded as well, for two defects it alone could synthesise. BOTH
+ *  are now fixed, so `*` is generated with no filter of any kind:
  *
  *    (a) delimiter-run adjacency — sibling inline runs that both carry `italic`
  *        serialized as "*a**`b`**c*", whose "**" re-parsed as a literal asterisk
  *        pair, LOSING the mark. FIXED: `buildInline` now merges adjacent runs that
  *        share a mark, so one delimiter pair spans the whole run.          [#693]
- *    (b) list looseness — the writer normalises a `*` or `+` bullet marker to `-`,
- *        so a `*` list ADJACENT to a `-` list merges into one list on the second
- *        pass and the document settles one pass late ("- a\n\n*\n" is the minimal
- *        counterexample). STILL OPEN, so `noAliasBulletList` below drops exactly
- *        the blocks that open such a list — the looseness shape — rather than
- *        dropping `*` from the alphabet wholesale.                         [#694]
+ *    (b) sibling-list merging — the writer normalised a `*` or `+` bullet marker to
+ *        `-`, so a `*` list ADJACENT to a `-` list came back out with its neighbour's
+ *        marker and the two merged into ONE list ("- a\n\n* b\n" is the minimal
+ *        counterexample: two lists of one item each become one list of two). The
+ *        fixed-point property saw only "settles one pass late"; the damage was that
+ *        node identity died on pass 1. FIXED: `serializeSiblings` alternates the
+ *        marker across adjacent lists, and the shape is now generated.     [#694]
  *
  *  #712: `_` is generated for the same reason as every other metacharacter, NOT
  *  because it is structurally safer than `*`. The old rationale here claimed the
@@ -102,28 +103,38 @@ const textFrom = (alphabet: string[]) =>
 const safeText = textFrom(LETTERS)
 const wideText = textFrom([...LETTERS, ...METACHARS])
 
-/** #694 (still open). A block that opens a bullet list with an ALIAS marker (`*` or
- *  `+`). The writer normalises those to `-`, so such a list adjacent to a `-` list
- *  merges into one on the second pass and the document settles one pass late. The
- *  exclusion is deliberately this narrow — it drops only the looseness shape, and
- *  leaves `*` generated everywhere it exercises escaping and emphasis: intraword
- *  ("x*y"), at a block start ("*x"), inside headings, and inside tag bodies.
+/** #735 (OPEN, and found BY the structural property below on its first run — it is
+ *  pre-existing, and not something the #694 fix introduced: `origin/main`'s serializer
+ *  produces the identical loss).
  *
- *  `\r` counts as a line separator here, not just `\n`: markdown-it breaks lines on a
- *  bare CR, so "# a\r*" really is a heading followed by a `*` list. A marker may also
- *  carry up to three leading spaces and still be a marker. Missing either was
- *  worth one false-green pass of this filter. */
-const opensAliasBulletList = (block: string) =>
-  /(^|[\n\r]) {0,3}[*+]([ \t]|$)/m.test(block)
-
-const withoutAliasBulletLists = (blocks: string[]) =>
-  blocks.filter((b) => !opensAliasBulletList(b))
+ *  `listItemToMarkdoc` drops an item's empty leading paragraph and promotes the next
+ *  block onto the marker line. When the promoted block serializes to a line of nothing
+ *  but marker characters and spaces, that line is a THEMATIC BREAK to CommonMark, which
+ *  outranks a list marker — so the list is destroyed and replaced by a top-level
+ *  horizontalRule:
+ *
+ *    "- ***"   -> "- ---"  -> horizontalRule   (the bulletList is gone)
+ *    "- *\t*"  -> "- - -"  -> horizontalRule   (three nested lists, gone)
+ *
+ *  Both are perfect fixed points afterwards, which is why neither existing property
+ *  ever saw them.
+ *
+ *  This drops EXACTLY that shape: a bullet item whose entire text is marker characters
+ *  and whitespace. It is the only exclusion in this file. Everything else `*` can build
+ *  — intraword, at a block start, in headings, in tag bodies, and adjacent sibling
+ *  lists (#694) — is generated. Verified narrow: with only this filter the structural
+ *  property is green at numRuns 250,000, and removing it reproduces #735 within ~2,500. */
+const isMarkerOnlyItem = (block: string) =>
+  /(^|[\n\r])- [ \t]*[*+\-_][ \t*+\-_]*$/m.test(block)
 
 const heading = (text: fc.Arbitrary<string>) => text.map((t) => `# ${t}`)
 const bullets = (text: fc.Arbitrary<string>) =>
   fc
     .array(text, { minLength: 1, maxLength: 3 })
     .map((items) => items.map((i) => `- ${i}`).join('\n'))
+
+const withoutMarkerOnlyItems = (blocks: string[]) =>
+  blocks.filter((b) => !isMarkerOnlyItem(b))
 
 /** Documents of prose blocks only. */
 const proseDocument = (text: fc.Arbitrary<string>) =>
@@ -132,7 +143,7 @@ const proseDocument = (text: fc.Arbitrary<string>) =>
       minLength: 1,
       maxLength: 6
     })
-    .map(withoutAliasBulletLists)
+    .map(withoutMarkerOnlyItems)
     .filter((bs) => bs.length > 0)
     .map((bs) => bs.join('\n\n') + '\n')
 
@@ -147,7 +158,7 @@ const taggedDocument = (text: fc.Arbitrary<string>) => {
       minLength: 1,
       maxLength: 6
     })
-    .map(withoutAliasBulletLists)
+    .map(withoutMarkerOnlyItems)
     .filter((bs) => bs.length > 0)
     .map((bs) => bs.join('\n\n') + '\n')
 }

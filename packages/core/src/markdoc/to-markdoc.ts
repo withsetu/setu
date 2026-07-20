@@ -447,6 +447,32 @@ function blockquoteToMarkdoc(node: TiptapNode): string {
 
 const LIST_TYPES = new Set(['bulletList', 'orderedList', 'taskList'])
 
+/** A line CommonMark reads as a THEMATIC BREAK: three or more of `-`, `*` or `_`,
+ *  all the same character, spaces and tabs allowed between them and after. */
+const THEMATIC_BREAK_LINE =
+  /^ {0,3}(?:(?:-[ \t]*){3,}|(?:\*[ \t]*){3,}|(?:_[ \t]*){3,})$/
+
+/** #725. Does the marker line — the item's `- `/`1. `/`- [x] ` prefix followed by
+ *  the first line of its first child — still OPEN A LIST ITEM, or do the two fuse
+ *  into a different block?
+ *
+ *  Thematic-break recognition runs BEFORE list-item recognition, and it is the one
+ *  rule that can see through a bullet marker: `- ` + `---` is the line `- ---`,
+ *  which is four `-` separated by a space, i.e. a thematic break. Nothing else in
+ *  CommonMark can fuse this way, because every other block opener is recognised
+ *  only after the marker has been consumed. */
+const fusesWithMarkerLine = (prefix: string, block: string): boolean =>
+  THEMATIC_BREAK_LINE.test(prefix + (block.split('\n')[0] ?? ''))
+
+/** Equivalent spellings of a block, tried in order when its canonical one fuses
+ *  with the marker. A thematic break has three interchangeable spellings and only
+ *  the one sharing the marker's character can fuse, so an alternative always
+ *  exists — but this is keyed by node type so the repair generalises rather than
+ *  hard-coding a second special case next to #711's. */
+const MARKER_LINE_RESPELLINGS: Record<string, string[]> = {
+  horizontalRule: ['***', '___']
+}
+
 /** Serialize a list at the string level so its items' children reuse the same
  *  per-type serializers as everywhere else.
  *
@@ -510,8 +536,15 @@ function listItemToMarkdoc(
   // which makes it INLINE content — only a paragraph can live there. A heading, table or
   // fence promoted onto it was emitted as `- [ ] # x`, which the reader flattens back to
   // literal paragraph text: the block was destroyed on save, and the file never settled.
-  // (A bullet is immune: its bare `- ` marker opens a fresh block context, so `- # x` is
-  // a real heading inside the item.)
+  //
+  // #725 corrects what this comment used to claim next — that "a bullet is immune: its
+  // bare `- ` marker opens a fresh block context". That holds for every block opener
+  // recognised AFTER the marker is consumed (`- # x` really is a heading inside the
+  // item), and it is false for the one rule recognised BEFORE it: a thematic break.
+  // `- ` + `---` is the line `- ---`, which is read as a thematic break, so the item
+  // and everything after it left the list entirely. The marker line is therefore
+  // guarded on BOTH sides below — the task rule here, the fusion rule after
+  // serialization, where the child's actual first line is known.
   const markerParagraph =
     task && children[0]?.type === 'paragraph' ? children[0] : undefined
   const parts = children.map((child) => ({
@@ -525,8 +558,25 @@ function listItemToMarkdoc(
   // every child begin an indented line of its own. `- [ ]` on its own line is still a
   // task marker to the reader, and — unlike the bullet case above — it is not a blank
   // line, so the following blocks stay inside the item instead of being expelled.
+  const prefix = task
+    ? `${marker} ${item.attrs?.['checked'] === true ? '[x] ' : '[ ] '}`
+    : `${marker} `
   if (task && markerParagraph === undefined)
     parts.unshift({ type: 'paragraph', text: '' })
+  // #725: the second half of the marker-line guard. Now that the first child's own
+  // first line is known, reject the composition that fuses (see fusesWithMarkerLine)
+  // and re-spell the block instead — `- ***` is the same thematic break and cannot
+  // fuse with a `-` marker. Falling back to pushing the block off the marker line is
+  // the same escape hatch the task branch above uses; it is unreachable today because
+  // a thematic break is the only fusing block and it always has a spelling left.
+  const first = parts[0]
+  if (first && fusesWithMarkerLine(prefix, first.text)) {
+    const alt = (MARKER_LINE_RESPELLINGS[first.type] ?? []).find(
+      (spelling) => !fusesWithMarkerLine(prefix, spelling)
+    )
+    if (alt !== undefined) first.text = alt
+    else parts.unshift({ type: 'paragraph', text: '' })
+  }
   // A nested list hugs its parent item (no blank line) — that is what Markdoc.format
   // emitted. Any other block is separated by a blank line, which is what makes a
   // multi-block item parse back as belonging to the item rather than ending it.
@@ -537,9 +587,6 @@ function listItemToMarkdoc(
       return sep + text
     })
     .join('')
-  const prefix = task
-    ? `${marker} ${item.attrs?.['checked'] === true ? '[x] ' : '[ ] '}`
-    : `${marker} `
   // Blank lines stay blank (never indent-only), and an empty item is just its marker.
   // Deliberately NOT a blanket trailing-space strip: that would edit the contents of
   // a fenced code block inside the item, which is the very loss this fixes.

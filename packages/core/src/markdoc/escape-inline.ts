@@ -135,8 +135,32 @@ export interface TextPosition {
 }
 
 /** Escape literal text so that re-parsing it yields the same literal text.
- *  See the module comment for the full contract. */
+ *  See the module comment for the full contract.
+ *
+ *  #667: a text node can now contain a SOFT BREAK, so "block start" is a property of
+ *  every LINE, not just of offset 0. It is not enough that a marker could not
+ *  interrupt a paragraph in the source — markdown-it strips a continuation line's
+ *  leading whitespace, so `"a\n\t#"` (inert: the `#` is indented four columns) is read
+ *  as the text `"a\n#"` and re-emitted at column 0, where it IS an ATX heading and
+ *  splits the paragraph in two. Found by the property suite at ~23k runs, not by
+ *  reasoning; the reasoning ("a marker that can interrupt a paragraph can never
+ *  FOLLOW a soft break") was true of the parse and false of the round-trip. */
 export function escapeText(text: string, position: TextPosition = {}): string {
+  const lines = text.split('\n')
+  return lines
+    .map((line, i) =>
+      escapeLine(line, {
+        // Line 0 inherits the caller's judgement (a leading `**`/`[` from a mark
+        // displaces the marker); every later line starts at column 0 unconditionally.
+        atBlockStart: i === 0 ? position.atBlockStart : true,
+        atHeadingEnd: position.atHeadingEnd && i === lines.length - 1
+      })
+    )
+    .join('\n')
+}
+
+/** `escapeText` for a single line — the whole contract except the soft-break split. */
+function escapeLine(text: string, position: TextPosition = {}): string {
   const { atBlockStart = false, atHeadingEnd = false } = position
   let out = ''
   for (let i = 0; i < text.length; i++) {

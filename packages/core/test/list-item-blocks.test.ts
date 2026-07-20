@@ -450,3 +450,105 @@ describe('#711 task items keep a block that follows an empty first paragraph', (
     expect(itemChildren(md)).toContain('heading')
   })
 })
+
+/** #725. `to-markdoc` used to normalise every bullet marker to `-`. A list item whose
+ *  first child is a thematic break was therefore written as `- ---`, and CommonMark
+ *  reads a line of `-` and spaces as a THEMATIC BREAK before it ever considers a list:
+ *  the two-item list came back as a top-level `<hr>` plus a one-item list. The item's
+ *  content was not merely reordered, it left the list.
+ *
+ *  This is the same class as #711 (a block promoted onto a marker line that cannot
+ *  carry it) reached from the bullet side, which #711 believed was immune.
+ *
+ *  Since #694 the bullet marker is no longer always `-` — it alternates `-`/`*` across
+ *  adjacent sibling lists — so the guard can no longer assume which character it is
+ *  defending against. That is why `fusesWithMarkerLine` takes the PREFIX rather than
+ *  hard-coding `- `, and why the respelling `.find` re-tests every candidate: under a
+ *  `*` marker the fusing spelling is `***`, not `---`, and the repair has to flip the
+ *  other way. The last case below is that composition. */
+describe('#725 a thematic break as a list item first child stays in the list', () => {
+  const hr: TiptapNode = { type: 'horizontalRule' }
+  const topLevel = (md: string) =>
+    (markdocToTiptap(md).content ?? []).map((n) => n.type)
+  /** The child kinds the FIRST item has after a save + re-read. */
+  const itemChildren = (md: string): string[] => {
+    const list = markdocToTiptap(md).content[0] as TiptapNode
+    return (list.content?.[0]?.content ?? []).map((c) => c.type)
+  }
+
+  it('does not emit a marker line that re-reads as a thematic break', () => {
+    const md = tiptapToMarkdoc(listDoc('bulletList', [[hr], [p('a')]]))
+    expect(md).not.toContain('- ---')
+    expect(topLevel(md)).toEqual(['bulletList'])
+    expect(itemChildren(md)).toContain('horizontalRule')
+  })
+
+  it('round-trips the source shape that first exposed it', () => {
+    const once = tiptapToMarkdoc(markdocToTiptap('* ---\n* a\n'))
+    expect(topLevel(once)).toEqual(['bulletList'])
+    // …and is a fixed point from there: no further drift on later saves.
+    expect(tiptapToMarkdoc(markdocToTiptap(once))).toBe(once)
+  })
+
+  it('is reachable through the `_` spelling too', () => {
+    const once = tiptapToMarkdoc(markdocToTiptap('- ___\n- a\n'))
+    expect(topLevel(once)).toEqual(['bulletList'])
+    expect(tiptapToMarkdoc(markdocToTiptap(once))).toBe(once)
+  })
+
+  it('keeps a lone thematic-break item inside its list', () => {
+    const md = tiptapToMarkdoc(listDoc('bulletList', [[hr]]))
+    expect(topLevel(md)).toEqual(['bulletList'])
+  })
+
+  /** The controls: shapes that were already stable and must not move. An ordered
+   *  marker and a task marker cannot fuse with a `-`/`_`/`*` run, and a top-level
+   *  thematic break keeps its canonical `---` spelling. */
+  it('leaves the non-fusing markers and the top-level rule untouched', () => {
+    expect(tiptapToMarkdoc(listDoc('orderedList', [[hr], [p('a')]]))).toBe(
+      '1. ---\n1. a\n'
+    )
+    expect(tiptapToMarkdoc({ type: 'doc', content: [hr] })).toBe('---\n')
+    expect(tiptapToMarkdoc(markdocToTiptap('- # h\n- a\n'))).toBe(
+      '- # h\n- a\n'
+    )
+    expect(tiptapToMarkdoc(markdocToTiptap('> ---\n'))).toBe('> ---\n')
+    expect(tiptapToMarkdoc(markdocToTiptap('- a\n\n  ---\n'))).toBe(
+      '- a\n\n  ---\n'
+    )
+    expect(tiptapToMarkdoc(markdocToTiptap('- [ ] ---\n'))).toBe('- [ ] ---\n')
+  })
+
+  /** #694 x #725 — the composition, which neither round could test alone. #694 picks
+   *  the item's MARKER from sibling position; #725 respells the marker line's CONTENT.
+   *  Both act on the same emitted line, so the guard must run against the marker that
+   *  is actually written, not the `-` it used to be able to assume.
+   *
+   *  A second adjacent list takes the `*` marker. `* ---` does NOT fuse (the run has
+   *  to be all one character), so the rule keeps its canonical spelling there — the
+   *  mirror image of the `- ***` the first list needs. Getting this backwards emits a
+   *  line that re-reads as a thematic break and silently drops a list. */
+  it('respells against the alternated marker, not a hard-coded `-`', () => {
+    const src = '- a\n\n* ---\n* b\n'
+    const once = tiptapToMarkdoc(markdocToTiptap(src))
+    expect(once).toBe('- a\n\n* ---\n* b\n')
+    expect(topLevel(once)).toEqual(['bulletList', 'bulletList'])
+    expect(tiptapToMarkdoc(markdocToTiptap(once))).toBe(once)
+    // ...and in the same document the FIRST list, which takes `-`, still respells to
+    // `- ***`. Built structurally: `- ---` cannot be written as source, because it
+    // already reads as a thematic break — that is the defect, seen from the read side.
+    const twoLists = tiptapToMarkdoc({
+      type: 'doc',
+      content: [
+        { type: 'bulletList', content: [{ type: 'listItem', content: [hr] }] },
+        {
+          type: 'bulletList',
+          content: [{ type: 'listItem', content: [p('c')] }]
+        }
+      ]
+    })
+    expect(twoLists).toBe('- ***\n\n* c\n')
+    expect(topLevel(twoLists)).toEqual(['bulletList', 'bulletList'])
+    expect(tiptapToMarkdoc(markdocToTiptap(twoLists))).toBe(twoLists)
+  })
+})

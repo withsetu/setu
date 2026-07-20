@@ -44,12 +44,36 @@ const LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ '.split(
  *        pair, LOSING the mark. FIXED: `buildInline` now merges adjacent runs that
  *        share a mark, so one delimiter pair spans the whole run.          [#693]
  *    (b) sibling-list merging — the writer normalised a `*` or `+` bullet marker to
- *        `-`, so a `*` list ADJACENT to a `-` list came back out with its neighbour's
- *        marker and the two merged into ONE list ("- a\n\n* b\n" is the minimal
- *        counterexample: two lists of one item each become one list of two). The
- *        fixed-point property saw only "settles one pass late"; the damage was that
- *        node identity died on pass 1. FIXED: `serializeSiblings` alternates the
- *        marker across adjacent lists, and the shape is now generated.     [#694]
+ *        `-`, so a `*` list ADJACENT to a `-` list was emitted with the SAME marker
+ *        as its neighbour and the two merged into ONE list. FIXED by
+ *        `serializeSiblings`, so the shape is now GENERATED rather than filtered out
+ *        and the `withoutAliasBulletLists` exclusion is gone.               [#694]
+ *
+ *        The severity was long understated here as "the document settles one pass
+ *        late". Re-scoped 2026-07-20, measured: "- a\n\n* b\n" is TWO bulletList
+ *        nodes of one item each; the old writer emitted "- a\n\n- b\n", which
+ *        re-reads as ONE bulletList of two items. The structural merge landed on
+ *        pass 1 and was never recovered — list identity was LOST, not deferred.
+ *        Pass 2 only dropped the now-meaningless blank line ("- a\n- b\n"), and that
+ *        cosmetic step is the whole of what "settles late" ever referred to. The
+ *        fixed-point property cannot see this at all: the merged document IS a fixed
+ *        point, and a correct one for the wrong document. That blind spot is exactly
+ *        why the STRUCTURAL properties below exist (#734) — they compare node trees,
+ *        so a merge that is stable in bytes still fails them.
+ *
+ *        #694 and #725 share a root cause (to-markdoc.ts's `-` normalisation) and
+ *        act on the SAME emitted line, so they had to be made to compose rather
+ *        than merely coexist. #694 chooses the item's MARKER from sibling position;
+ *        #725 respells the marker line's CONTENT when the two would fuse into a
+ *        thematic break. The composition is ordered: `serializeSiblings` picks the
+ *        marker, `listToMarkdoc` threads it into `listItemToMarkdoc`'s `prefix`, and
+ *        `fusesWithMarkerLine` is evaluated against THAT prefix — so the fusion check
+ *        always sees the marker that will really be written. This matters because the
+ *        alternation widened the bullet alphabet from `-` to `-`/`*`: with a `*`
+ *        marker it is `* ***` that fuses (not `* ---`), and the respelling `.find`
+ *        re-tests each candidate against the live prefix instead of assuming `-`.
+ *        Closes #735, which was this interaction observed on a branch that had #694
+ *        without #725.
  *
  *  #712: `_` is generated for the same reason as every other metacharacter, NOT
  *  because it is structurally safer than `*`. The old rationale here claimed the
@@ -68,9 +92,37 @@ const LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ '.split(
  *  `withMark` in ../src/markdoc/to-tiptap.ts now deduplicates. At roughly 1 document in
  *  200,000 it was a live CI flake at these run counts, not a curiosity.
  *
- *  These counts are the CI budget, not the evidence. The widened alphabet was confirmed
- *  green at numRuns 200,000 on every property below (~1,000,000 executions) before the
- *  counts were restored — raise them locally, not in CI, to re-confirm.
+ *  These counts are the CI budget, not the evidence — raise them locally, not in CI, to
+ *  re-confirm. The claim that used to sit here ("confirmed green at numRuns 200,000 on
+ *  every property") was NOT true when it was written: the suite went red at 250,000 via
+ *  #725 (a thematic break as a bullet's first child leaves the list) and #726 (a
+ *  backtick in a fence info string grows the document). Both are fixed.
+ *
+ *  Verified on 2026-07-20, after the #667/#725/#726 fixes: green at numRuns 250,000 and
+ *  again at 400,000 on the five properties that existed then (~2,000,000 executions,
+ *  ~121s). Those are the numbers actually run — do not restate either as a bound that
+ *  was never measured. This is the third over-general comment this epic has had to
+ *  correct, so: if you raise the ceiling, put the count you ran here, not the count you
+ *  intended.
+ *
+ *  Re-verified on 2026-07-20 after merging rounds 4 and 5 (#667/#725/#726 with
+ *  #694/#734), on the EIGHT properties that exist now — the three structural ones
+ *  included, and with the #735 filter deleted: green at numRuns 250,000, ~2,000,000
+ *  executions, ~106s. 250,000 is the number run; 400,000 has not been re-run against
+ *  the structural properties. Note that a run this long trips vitest's default 5s
+ *  testTimeout and its reporter's `onTaskUpdate` RPC deadline, so raising the ceiling
+ *  locally means `--testTimeout=3600000` and reading the per-test results rather than
+ *  the process exit code.
+ *
+ *  #739 (OPEN) — a SECOND 250,000-run pass on a different seed (174555214) failed
+ *  `never grows a tag-bearing document` after 116,043 tests: a tag body gains a blank
+ *  line on the second save when an earlier sibling tag's variable name contains a `"`.
+ *  It is PRE-EXISTING (reproduced against origin/main with #694 reverted, identical
+ *  lengths 86 -> 85 -> 87 -> 87) and is deliberately NOT filtered out here — the
+ *  density is ~1 in 120,000, so it cannot reach the committed counts, and filtering
+ *  a live defect out of the generator is what let #735 hide. Expect this property to
+ *  fail on a long local run until #739 lands; check the counterexample against #739
+ *  before assuming you found something new.
  */
 const METACHARS = [
   '*',
@@ -103,42 +155,39 @@ const textFrom = (alphabet: string[]) =>
 const safeText = textFrom(LETTERS)
 const wideText = textFrom([...LETTERS, ...METACHARS])
 
-/** #735 (OPEN, and found BY the structural property below on its first run — it is
- *  pre-existing, and not something the #694 fix introduced: `origin/main`'s serializer
- *  produces the identical loss).
+/** #735 — CLOSED by #725, and the exclusion it needed is gone. Recorded here because
+ *  it is the one defect this branch filed that no single round could have resolved.
  *
  *  `listItemToMarkdoc` drops an item's empty leading paragraph and promotes the next
- *  block onto the marker line. When the promoted block serializes to a line of nothing
- *  but marker characters and spaces, that line is a THEMATIC BREAK to CommonMark, which
- *  outranks a list marker — so the list is destroyed and replaced by a top-level
- *  horizontalRule:
+ *  block onto the marker line. When the promoted block serialized to a line of nothing
+ *  but marker characters and spaces, that line was a THEMATIC BREAK to CommonMark,
+ *  which outranks a list marker — so the list was destroyed and replaced by a
+ *  top-level horizontalRule:
  *
- *    "- ***"   -> "- ---"  -> horizontalRule   (the bulletList is gone)
+ *    "- ***"   -> "- ---"  -> horizontalRule   (the bulletList was gone)
  *    "- *\t*"  -> "- - -"  -> horizontalRule   (three nested lists, gone)
  *
- *  Both are perfect fixed points afterwards, which is why neither existing property
- *  ever saw them.
+ *  Both were perfect fixed points afterwards, which is why no idempotency or
+ *  byte-stability property ever saw them and only the structural property did.
  *
- *  This drops EXACTLY that shape: a bullet item whose entire text is marker characters
- *  and whitespace. Everything else `*` can build — intraword, at a block start, in
- *  headings, in tag bodies, and adjacent sibling lists (#694) — is generated.
+ *  `- ***` is EXACTLY the respelling #725 emits, so it read as this branch's marker
+ *  alternation colliding with #725's repair — a defect that would exist only in the
+ *  merged result. It is not. The two mechanisms compose: #694 picks the marker,
+ *  #725's `fusesWithMarkerLine` is then evaluated against the prefix built FROM that
+ *  marker, and its respelling `.find` re-tests each candidate against the live prefix.
+ *  So `- ***` is emitted only where it does not fuse, and `* ***` — which does fuse —
+ *  is respelled to `___` instead. Both counterexamples above now round-trip as a
+ *  bulletList with their structure intact.
  *
- *  Measured, not assumed. With this filter and the #736 precondition below, all three
- *  structural properties are green at numRuns 250,000. Without them the density is
- *  about 1 document in 120,000, so a single CI run at these counts fails only a few
- *  percent of the time — which is exactly why the shape survived unnoticed, and why it
- *  is filtered rather than left to flake. */
-const isMarkerOnlyItem = (block: string) =>
-  /(^|[\n\r])- [ \t]*[*+\-_][ \t*+\-_]*$/m.test(block)
-
+ *  Measured, not assumed: with the filter DELETED (and the #736 precondition below
+ *  still in place), all eight properties are green at numRuns 250,000 — ~2,000,000
+ *  executions, ~106s. The shape's old density was about 1 document in 120,000, so
+ *  250,000 runs is roughly a 2x margin over first detection. */
 const heading = (text: fc.Arbitrary<string>) => text.map((t) => `# ${t}`)
 const bullets = (text: fc.Arbitrary<string>) =>
   fc
     .array(text, { minLength: 1, maxLength: 3 })
     .map((items) => items.map((i) => `- ${i}`).join('\n'))
-
-const withoutMarkerOnlyItems = (blocks: string[]) =>
-  blocks.filter((b) => !isMarkerOnlyItem(b))
 
 /** Documents of prose blocks only. */
 const proseDocument = (text: fc.Arbitrary<string>) =>
@@ -147,7 +196,6 @@ const proseDocument = (text: fc.Arbitrary<string>) =>
       minLength: 1,
       maxLength: 6
     })
-    .map(withoutMarkerOnlyItems)
     .filter((bs) => bs.length > 0)
     .map((bs) => bs.join('\n\n') + '\n')
 
@@ -162,7 +210,6 @@ const taggedDocument = (text: fc.Arbitrary<string>) => {
       minLength: 1,
       maxLength: 6
     })
-    .map(withoutMarkerOnlyItems)
     .filter((bs) => bs.length > 0)
     .map((bs) => bs.join('\n\n') + '\n')
 }

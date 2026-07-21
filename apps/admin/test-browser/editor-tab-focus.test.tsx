@@ -215,3 +215,84 @@ describe('#757 Tab is still consumed by the cases that act on it', () => {
     expect(editor.state.selection.from).toBeGreaterThan(before)
   })
 })
+
+// ---------------------------------------------------------------------------------
+// #783 — the sibling #757 left behind. The Shift-Tab table branch ran
+// `goToPreviousCell()` and returned true regardless of whether it moved, so in the
+// FIRST cell (where prosemirror-tables has nowhere to go) ProseMirror still
+// preventDefault'd and the browser's native backward focus never ran: a keyboard user
+// could not get out of a table backwards. The asymmetry that hid it — #757's "inside a
+// table Tab always acts" is true for Tab (it appends a row) and false for Shift-Tab.
+// ---------------------------------------------------------------------------------
+
+/** Caret positions inside each table cell, in document order. Derived from the doc
+ *  rather than from a click: an empty cell is a few pixels tall, and clicking one
+ *  lands the caret wherever the browser's hit-test decides (it lands in row 2 here) —
+ *  which cell the caret is in is the whole point of this pair of tests. */
+function cellCaretPositions(editor: Editor): number[] {
+  const positions: number[] = []
+  editor.state.doc.descendants((node, pos) => {
+    const name = node.type.name
+    if (name === 'tableHeader' || name === 'tableCell') positions.push(pos + 2)
+    return true
+  })
+  return positions
+}
+
+/** Editor with a 2×2 table, real browser focus in the canvas and the caret in the
+ *  cell `pick` chooses. */
+async function renderTableAt(
+  pick: (caretPositions: number[]) => number
+): Promise<Editor> {
+  render(
+    <Harness
+      extensions={[
+        StarterKit,
+        KeyboardShortcuts,
+        Table.configure({ resizable: false }),
+        TableRow,
+        TableHeader,
+        TableCell
+      ]}
+      content={{
+        type: 'doc',
+        content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }]
+      }}
+    />
+  )
+  const editor = testEditor()
+  editor.chain().focus().insertTable({ rows: 2, cols: 2 }).run()
+  await expect.element(page.getByRole('table')).toBeInTheDocument()
+  // Click into the canvas for real browser focus, then place the caret exactly.
+  await userEvent.click(editorEl().querySelector('th') as HTMLElement)
+  editor.commands.setTextSelection(pick(cellCaretPositions(editor)))
+  expect(document.activeElement).toBe(editorEl())
+  expect(editor.isActive('table')).toBe(true)
+  return editor
+}
+
+describe('#783 Shift-Tab falls through in the first table cell', () => {
+  it('moves focus backward out of the canvas from the first cell', async () => {
+    const editor = await renderTableAt((cells) => cells[0])
+    const before = editor.state.selection.from
+
+    await userEvent.keyboard('{Shift>}{Tab}{/Shift}')
+
+    // Nothing to move to inside the table → the browser's backward focus must run.
+    expect(editor.state.selection.from).toBe(before)
+    expect(document.activeElement).not.toBe(editorEl())
+    expect((document.activeElement as HTMLInputElement)?.className).toContain(
+      'ed-title'
+    )
+  })
+
+  it('still moves to the previous cell from a later cell', async () => {
+    const editor = await renderTableAt((cells) => cells[1])
+    const before = editor.state.selection.from
+
+    await userEvent.keyboard('{Shift>}{Tab}{/Shift}')
+
+    expect(document.activeElement).toBe(editorEl())
+    expect(editor.state.selection.from).toBeLessThan(before)
+  })
+})

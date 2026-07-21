@@ -3,8 +3,16 @@ import { render, cleanup } from '@testing-library/react'
 import { page } from '@vitest/browser/context'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
+import { Node } from '@tiptap/core'
 import type { Editor, Extensions, JSONContent } from '@tiptap/core'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
+import { ATOM_TAG_TO_NODE } from '@setu/core'
+import { blockCores } from '@setu/blocks'
+import {
+  buildBlockExtensions,
+  insertPayloadForTag
+} from '../src/editor/block-registry'
+import { registry } from '../src/blocks/registry'
 import { GalleryBlock } from '../src/editor/extensions/GalleryBlock'
 import { HeroBlock } from '../src/editor/extensions/HeroBlock'
 import { VideoBlock } from '../src/editor/extensions/VideoBlock'
@@ -163,6 +171,177 @@ describe.each([
     })
   }
 )
+
+// ---------------------------------------------------------------------------------
+// #786 — the ring above is convention, not a guard. The list of atoms up there is
+// hard-coded, so a block added tomorrow is simply not covered, and there was no
+// `.ProseMirror-selectednode` fallback, so a bespoke view that forgets `is-selected`
+// renders NO affordance with a fully green suite — the exact shape of #778.
+//
+// Two structural closures, both browser-mode (paint + real selection DOM):
+//  1. a property over the REGISTRY, so a new atom is covered on arrival;
+//  2. the fallback itself, proven on a node view that carries no Setu class at all.
+// ---------------------------------------------------------------------------------
+
+/** Every style that could carry a selection affordance, for an element subtree. */
+function affordanceSnapshot(root: HTMLElement): string[] {
+  const els = [root, ...Array.from(root.querySelectorAll('*'))] as HTMLElement[]
+  return els.map((el) => {
+    const s = getComputedStyle(el)
+    return [
+      s.outlineStyle,
+      s.outlineWidth,
+      s.outlineColor,
+      s.borderColor,
+      s.borderStyle,
+      s.boxShadow,
+      s.opacity
+    ].join('|')
+  })
+}
+
+const registryExtensions = [
+  StarterKit,
+  ...buildBlockExtensions({ blocks: registry.blocks, blockCores })
+]
+
+function RegistryHarness() {
+  const editor = useEditor({
+    immediatelyRender: false,
+    extensions: registryExtensions,
+    content: { type: 'doc', content: [{ type: 'paragraph' }] },
+    editorProps: {
+      attributes: { class: 'setu-prose', 'aria-label': 'Content editor' }
+    }
+  })
+  ;(
+    window as unknown as { __setuTestEditor?: Editor | null }
+  ).__setuTestEditor = editor
+  return <EditorContent editor={editor} />
+}
+
+const selectFirstOfType = (editor: Editor, nodeType: string): void => {
+  let pos = -1
+  editor.state.doc.descendants((n, p) => {
+    if (pos === -1 && n.type.name === nodeType) pos = p
+  })
+  if (pos === -1) throw new Error(`no ${nodeType} node found to select`)
+  editor.view.dispatch(
+    editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, pos))
+  )
+}
+
+describe.each(Object.keys(ATOM_TAG_TO_NODE))(
+  '#786 every registry atom paints SOME selection affordance — %s',
+  (tag) => {
+    const node = ATOM_TAG_TO_NODE[tag]!
+    it(`${tag} looks different in the canvas while node-selected`, async () => {
+      render(<RegistryHarness />)
+      await expect
+        .element(page.getByLabelText('Content editor'))
+        .toBeInTheDocument()
+      const editor = testEditor()
+      // `embed` is paste-driven and has no cold slash payload (see #563's wiring test).
+      editor
+        .chain()
+        .focus()
+        .insertContent(
+          tag === 'embed'
+            ? { type: node, attrs: { mdAttrs: {} } }
+            : insertPayloadForTag(tag)
+        )
+        .run()
+      // insertContent leaves the fresh atom node-SELECTED, which would make the
+      // before/after snapshot compare selected against selected — vacuous.
+      deselect(editor)
+      await new Promise((r) => setTimeout(r, 250)) // node view mount + transitions
+
+      const canvas = document.querySelector('.ProseMirror') as HTMLElement
+      const before = affordanceSnapshot(canvas)
+
+      selectFirstOfType(editor, node)
+      await new Promise((r) => setTimeout(r, 250)) // 0.15s transitions settle
+
+      const after = affordanceSnapshot(canvas)
+      // The property, not the mechanism: outline ring, border tint, revealed label —
+      // any of them is fine, silence is not. A new atom that renders nothing on
+      // selection fails here the day it lands, instead of shipping like #778 did.
+      expect(
+        after.length === before.length && after.some((s, i) => s !== before[i]),
+        `selecting {% ${tag} %} changed nothing visible in the canvas`
+      ).toBe(true)
+    })
+  }
+)
+
+/** An atom whose view carries none of the Setu selection classes — the "next bespoke
+ *  view forgets" case #786 is about. */
+const BespokeAtom = Node.create({
+  name: 'bespokeAtom',
+  group: 'block',
+  atom: true,
+  selectable: true,
+  parseHTML: () => [{ tag: 'div[data-bespoke]' }],
+  renderHTML: () => ['div', { 'data-bespoke': '', class: 'bespoke' }, 'bespoke']
+})
+
+describe('#786 .ProseMirror-selectednode fallback', () => {
+  it('rings a selectable node whose view sets no Setu class at all', async () => {
+    render(
+      <Harness
+        extensions={[StarterKit, BespokeAtom]}
+        content={{
+          type: 'doc',
+          content: [{ type: 'paragraph' }, { type: 'bespokeAtom' }]
+        }}
+      />
+    )
+    const el = () => document.querySelector('[data-bespoke]') as HTMLElement
+    await expect.poll(el).toBeTruthy()
+    expect(getComputedStyle(el()).outlineStyle).toBe('none')
+
+    selectNode(testEditor(), 2)
+    await new Promise((r) => setTimeout(r, 0))
+
+    const selected = document.querySelector(
+      '.ProseMirror-selectednode'
+    ) as HTMLElement
+    expect(selected).toBeTruthy()
+    const style = getComputedStyle(selected)
+    expect(style.outlineStyle).not.toBe('none')
+    expect(parseFloat(style.outlineWidth)).toBeGreaterThan(0)
+    expect(style.outlineColor).not.toBe('rgba(0, 0, 0, 0)')
+  })
+
+  it('does not double-ring a block that already handles its own selection', async () => {
+    render(
+      <Harness
+        extensions={[StarterKit, HeroBlock]}
+        content={{
+          type: 'doc',
+          content: [
+            { type: 'paragraph' },
+            { type: 'heroBlock', attrs: { mdAttrs: { headline: 'Ringed' } } }
+          ]
+        }}
+      />
+    )
+    await expect
+      .element(page.getByRole('heading', { name: 'Ringed' }))
+      .toBeInTheDocument()
+    selectNode(testEditor(), 2)
+    await new Promise((r) => setTimeout(r, 0))
+
+    // The inner .setu-block keeps the one ring #778 established…
+    expect(getComputedStyle(wrapperFor('hero')).outlineStyle).not.toBe('none')
+    // …and the outer ProseMirror wrapper stays bare, so the look is unchanged.
+    const outer = document.querySelector(
+      '.ProseMirror-selectednode'
+    ) as HTMLElement
+    expect(outer.classList.contains('setu-block')).toBe(false)
+    expect(getComputedStyle(outer).outlineStyle).toBe('none')
+  })
+})
 
 describe('#778 the selection ring reads in dark mode too', () => {
   it('computes a visible outline under [data-theme="dark"]', async () => {

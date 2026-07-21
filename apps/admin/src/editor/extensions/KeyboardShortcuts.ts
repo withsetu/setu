@@ -77,11 +77,16 @@ export const KeyboardShortcuts = Extension.create({
         }
         return false
       },
+      // Shift-Tab: previous cell in a table, outdent in a list — consumed ONLY when
+      // one of those actually happens. The table branch used to return true whatever
+      // `goToPreviousCell` did, and in the FIRST cell it does nothing (there is no
+      // previous cell), so Shift-Tab was preventDefault'd and the browser's native
+      // backward focus never ran — no keyboard way back out of a table (#783). Tab's
+      // "inside a table it always acts" (#757) holds for Tab, which appends a row at
+      // the end; Shift-Tab simply has nowhere to go.
       'Shift-Tab': () => {
-        if (this.editor.isActive('table')) {
-          this.editor.chain().focus().goToPreviousCell().run()
-          return true
-        }
+        if (this.editor.isActive('table'))
+          return this.editor.chain().focus().goToPreviousCell().run()
         if (this.editor.isActive('taskItem'))
           return this.editor.chain().focus().liftListItem('taskItem').run()
         if (this.editor.isActive('listItem'))

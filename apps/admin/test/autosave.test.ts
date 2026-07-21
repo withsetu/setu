@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import type { DraftInput, TiptapDoc } from '@setu/core'
 import { useAutosave } from '../src/editor/useAutosave'
+import type { SaveStatus } from '../src/editor/useAutosave'
 
 const emptyDoc: TiptapDoc = { type: 'doc', content: [] }
 
@@ -24,7 +25,7 @@ describe('useAutosave', () => {
         baseSha: null
       }),
       save,
-      onStatus: (s: 'idle' | 'saving' | 'saved') => statuses.push(s),
+      onStatus: (s: SaveStatus) => statuses.push(s),
       delayMs: 800
     })
     const { rerender } = renderHook((p) => useAutosave(p), {
@@ -367,5 +368,113 @@ describe('useAutosave — flushes respect the pause (#771)', () => {
     expect(fireBeforeUnload()).toBe(false)
     unmount()
     expect(save).not.toHaveBeenCalled()
+  })
+})
+
+// ---------------------------------------------------------------------------------
+// #782 — a FAILED save must never be indistinguishable from a successful one. The
+// loop used to await inside try/`finally` with no catch and no look at the declared
+// `{ saved }`, so a rejection (offline, 5xx, throwing DataPort) or a refusal (the
+// draft lock is held → `{ saved: false }`, nothing written) cleared `dirty` and
+// reported 'saved'. That disarmed the #770 tab-close warning in exactly the case
+// where work is provably unwritten. Coverage was vacuous: the only rejecting test
+// asserted that settled() resolved, and nothing else.
+// ---------------------------------------------------------------------------------
+
+describe('useAutosave — a failed save is reported as failed (#782)', () => {
+  const props = (
+    rev: number,
+    save: Save,
+    onStatus: (s: SaveStatus) => void
+  ) => ({
+    enabled: true,
+    rev,
+    getInput: input,
+    save,
+    onStatus,
+    delayMs: 800
+  })
+
+  it('a REJECTED save reports error, keeps dirty, and keeps the tab-close warning armed', async () => {
+    const save = vi.fn(async () => {
+      throw new Error('offline')
+    }) as unknown as Save
+    const statuses: SaveStatus[] = []
+    const { rerender } = renderHook((p) => useAutosave(p), {
+      initialProps: props(0, save, (s) => statuses.push(s))
+    })
+    rerender(props(1, save, (s) => statuses.push(s)))
+    await vi.advanceTimersByTimeAsync(800)
+
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(statuses).toContain('saving')
+    expect(statuses).not.toContain('saved')
+    expect(statuses.at(-1)).toBe('error')
+    // dirty is not observable directly — the tab-close warning IS the observable.
+    expect(fireBeforeUnload()).toBe(true)
+  })
+
+  it('a `{ saved: false }` refusal (lock held — nothing written) is a failure too', async () => {
+    const save = vi.fn(async () => ({ saved: false }))
+    const statuses: SaveStatus[] = []
+    const { rerender } = renderHook((p) => useAutosave(p), {
+      initialProps: props(0, save, (s) => statuses.push(s))
+    })
+    rerender(props(1, save, (s) => statuses.push(s)))
+    await vi.advanceTimersByTimeAsync(800)
+
+    expect(statuses).not.toContain('saved')
+    expect(statuses.at(-1)).toBe('error')
+    expect(fireBeforeUnload()).toBe(true)
+  })
+
+  it('a later successful save clears the failure: error → saved, warning disarmed', async () => {
+    let fail = true
+    const save = vi.fn(async () => {
+      if (fail) throw new Error('offline')
+      return { saved: true }
+    }) as unknown as Save
+    const statuses: SaveStatus[] = []
+    const { rerender } = renderHook((p) => useAutosave(p), {
+      initialProps: props(0, save, (s) => statuses.push(s))
+    })
+    rerender(props(1, save, (s) => statuses.push(s)))
+    await vi.advanceTimersByTimeAsync(800)
+    expect(statuses.at(-1)).toBe('error')
+
+    fail = false
+    rerender(props(2, save, (s) => statuses.push(s)))
+    await vi.advanceTimersByTimeAsync(800)
+
+    expect(statuses.at(-1)).toBe('saved')
+    expect(fireBeforeUnload()).toBe(false)
+  })
+
+  it('a follow-up queued behind a failed save still reports the follow-up honestly', async () => {
+    // save #1 freezes in flight and then rejects; the queued follow-up succeeds —
+    // it writes the NEWEST buffer, so the drain is a real save.
+    let rejectFirst!: (e: Error) => void
+    const first = new Promise<{ saved: boolean }>((_, rj) => {
+      rejectFirst = rj
+    })
+    let call = 0
+    const save = vi.fn(() =>
+      call++ === 0 ? first : Promise.resolve({ saved: true })
+    )
+    const statuses: SaveStatus[] = []
+    const { rerender } = renderHook((p) => useAutosave(p), {
+      initialProps: props(0, save, (s) => statuses.push(s))
+    })
+    rerender(props(1, save, (s) => statuses.push(s)))
+    await vi.advanceTimersByTimeAsync(800)
+    rerender(props(2, save, (s) => statuses.push(s)))
+    await vi.advanceTimersByTimeAsync(800) // queued behind the frozen save
+
+    rejectFirst(new Error('offline'))
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(save).toHaveBeenCalledTimes(2)
+    expect(statuses.at(-1)).toBe('saved')
+    expect(fireBeforeUnload()).toBe(false)
   })
 })

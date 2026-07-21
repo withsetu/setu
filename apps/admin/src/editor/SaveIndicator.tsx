@@ -1,4 +1,4 @@
-import { Check, Loader2, Lock } from 'lucide-react'
+import { Check, Loader2, Lock, TriangleAlert } from 'lucide-react'
 import type { SaveStatus } from './useAutosave'
 
 /** Quiet save-state indicator for the editor strip center. Shows ONLY persistence
@@ -27,6 +27,20 @@ export function SaveIndicator({
     return (
       <span className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground">
         <Loader2 className="size-3.5 animate-spin" /> Saving…
+      </span>
+    )
+  }
+  // The last attempt did not persist (#782). Said plainly, because the alternative
+  // — the old behaviour — was showing "Backed up" over work that only exists in
+  // this tab, right up until the tab closes without a warning.
+  if (status === 'error') {
+    return (
+      <span
+        role="status"
+        className="inline-flex items-center gap-1.5 text-[13px] font-medium text-destructive"
+      >
+        <TriangleAlert className="size-3.5" /> Not backed up — your changes are
+        only in this tab
       </span>
     )
   }

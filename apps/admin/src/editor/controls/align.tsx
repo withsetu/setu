@@ -15,7 +15,7 @@ export function AlignControl({ value, onChange, meta }: ControlProps) {
         if (v) onChange(v)
       }}
       className="flex-wrap justify-start"
-      aria-label={meta.name}
+      aria-labelledby={`bi-label-${meta.name}`}
     >
       {options.map((o) => (
         <ToggleGroupItem

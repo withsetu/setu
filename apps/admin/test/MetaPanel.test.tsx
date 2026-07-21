@@ -6,6 +6,7 @@ import { ServicesProvider, servicesFor } from '../src/data/store'
 import { DeployProvider } from '../src/deploy/deploy'
 import { IndexProvider } from '../src/data/index-store'
 import { TaxonomyProvider } from '../src/data/taxonomy-store'
+import { NotificationProvider } from '../src/ui/notify'
 import { MetaPanel } from '../src/editor/MetaPanel'
 
 function setup(props?: Partial<React.ComponentProps<typeof MetaPanel>>) {
@@ -29,15 +30,17 @@ function setup(props?: Partial<React.ComponentProps<typeof MetaPanel>>) {
     apiBase: 'http://localhost:4444'
   }
   render(
-    <ServicesProvider services={services}>
-      <DeployProvider>
-        <IndexProvider>
-          <TaxonomyProvider>
-            <MetaPanel {...defaults} {...props} />
-          </TaxonomyProvider>
-        </IndexProvider>
-      </DeployProvider>
-    </ServicesProvider>
+    <NotificationProvider>
+      <ServicesProvider services={services}>
+        <DeployProvider>
+          <IndexProvider>
+            <TaxonomyProvider>
+              <MetaPanel {...defaults} {...props} />
+            </TaxonomyProvider>
+          </IndexProvider>
+        </DeployProvider>
+      </ServicesProvider>
+    </NotificationProvider>
   )
   return { onChange }
 }

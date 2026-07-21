@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/dialog'
 import { MediaBrowser, DEFAULT_SORT } from '../media/MediaBrowser'
 import type { MediaFilters } from '../media/MediaBrowser'
+import { useNotify } from '../ui/notify'
 import { srcFromUploadUrl } from './image-insert'
 
 export interface MediaPickerModalProps {
@@ -36,6 +37,7 @@ export function MediaPickerModal({
   title,
   kind = 'image'
 }: MediaPickerModalProps) {
+  const notify = useNotify()
   const [filters, setFilters] = useState<MediaFilters>({
     q: '',
     type: 'all',
@@ -71,7 +73,7 @@ export function MediaPickerModal({
             filters={filters}
             setFilters={(patch) => setFilters((f) => ({ ...f, ...patch }))}
             onUploaded={(r) => pick(srcFromUploadUrl(r.url))}
-            onError={(msg) => console.error('upload error:', msg)}
+            onError={(msg) => notify.error(msg)}
             onPick={pick}
           />
         </div>

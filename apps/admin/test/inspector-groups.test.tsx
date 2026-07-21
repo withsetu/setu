@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import { NotificationProvider } from '../src/ui/notify'
 import { BlockInspector } from '../src/editor/BlockInspector'
+
+// BlockInspector mounts MediaPickerModal → useNotify() (#756).
+const wrapper = NotificationProvider
 
 /**
  * Task 6: Grouping — inspector renders Content/Layout/Style sections
@@ -20,7 +24,8 @@ describe('inspector groups', () => {
         mdAttrs={{ headline: 'Hi', layout: 'centered' }}
         onChange={() => {}}
         apiBase=""
-      />
+      />,
+      { wrapper }
     )
     // Content and Layout group HEADERS should be visible. Target headings specifically:
     // a field label (e.g. the "Layout" select) can share text with a group header.
@@ -35,7 +40,7 @@ describe('inspector groups', () => {
     expect(
       screen.getByRole('heading', { level: 3, name: 'Style' })
     ).toBeInTheDocument()
-    expect(screen.getByLabelText('textColor')).toBeInTheDocument()
+    expect(screen.getByLabelText('Text Color')).toBeInTheDocument()
     expect(screen.queryByLabelText('parallax')).toBeNull()
   })
 
@@ -46,7 +51,8 @@ describe('inspector groups', () => {
         mdAttrs={{ headline: 'Hi', layout: 'background' }}
         onChange={() => {}}
         apiBase=""
-      />
+      />,
+      { wrapper }
     )
     expect(
       screen.getByRole('heading', { level: 3, name: 'Content' })
@@ -69,7 +75,8 @@ describe('inspector groups', () => {
         mdAttrs={{ type: 'info', text: 'Note' }}
         onChange={() => {}}
         apiBase=""
-      />
+      />,
+      { wrapper }
     )
     // No group headers should appear (no groups declared)
     expect(screen.queryByRole('heading', { level: 3 })).toBeNull()

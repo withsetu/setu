@@ -382,7 +382,11 @@ describe('useAutosave — flushes respect the pause (#771)', () => {
 // ---------------------------------------------------------------------------------
 
 describe('useAutosave — a failed save is reported as failed (#782)', () => {
-  const props = (rev: number, save: Save, onStatus: (s: SaveStatus) => void) => ({
+  const props = (
+    rev: number,
+    save: Save,
+    onStatus: (s: SaveStatus) => void
+  ) => ({
     enabled: true,
     rev,
     getInput: input,
@@ -454,7 +458,9 @@ describe('useAutosave — a failed save is reported as failed (#782)', () => {
       rejectFirst = rj
     })
     let call = 0
-    const save = vi.fn(() => (call++ === 0 ? first : Promise.resolve({ saved: true })))
+    const save = vi.fn(() =>
+      call++ === 0 ? first : Promise.resolve({ saved: true })
+    )
     const statuses: SaveStatus[] = []
     const { rerender } = renderHook((p) => useAutosave(p), {
       initialProps: props(0, save, (s) => statuses.push(s))

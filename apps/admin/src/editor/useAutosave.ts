@@ -173,9 +173,11 @@ export function useAutosave(opts: {
   useEffect(() => {
     return () => {
       if (dirty.current && !inFlight.current && !paused.current) {
-        void saveRef.current(getInputRef.current()).catch((err: unknown) =>
-          console.error('[autosave] unmount flush failed', err)
-        )
+        void saveRef
+          .current(getInputRef.current())
+          .catch((err: unknown) =>
+            console.error('[autosave] unmount flush failed', err)
+          )
       }
     }
   }, [])
@@ -192,9 +194,11 @@ export function useAutosave(opts: {
     const onBeforeUnload = (e: BeforeUnloadEvent): void => {
       if (!dirty.current) return
       if (!inFlight.current && !paused.current) {
-        void saveRef.current(getInputRef.current()).catch((err: unknown) =>
-          console.error('[autosave] beforeunload flush failed', err)
-        )
+        void saveRef
+          .current(getInputRef.current())
+          .catch((err: unknown) =>
+            console.error('[autosave] beforeunload flush failed', err)
+          )
       }
       e.preventDefault()
       e.returnValue = ''

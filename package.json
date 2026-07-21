@@ -61,7 +61,8 @@
     },
     "overrides": {
       "brace-expansion@1": "1.1.16",
-      "shell-quote": ">=1.9.0"
+      "shell-quote": ">=1.9.0",
+      "svgo": ">=4.0.2"
     }
   }
 }

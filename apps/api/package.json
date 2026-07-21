@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@hono/node-server": "2.0.10",
+    "@hono/node-server": "2.0.11",
     "@setu/auth": "workspace:*",
     "@setu/captcha-recaptcha": "workspace:*",
     "@setu/captcha-turnstile": "workspace:*",

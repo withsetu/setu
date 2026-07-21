@@ -45,21 +45,21 @@ export const seedDrafts: DraftInput[] = [
     locale: 'en',
     slug: 'the-quiet-week',
     content: doc('The quiet week before a launch.'),
-    metadata: { title: 'The quiet week before a launch', status: 'published' }
+    metadata: { title: 'The quiet week before a launch' }
   },
   {
     collection: 'post',
     locale: 'en',
     slug: 'release-notes',
     content: doc('What shipped.'),
-    metadata: { title: 'Release notes', status: 'draft' }
+    metadata: { title: 'Release notes' }
   },
   {
     collection: 'page',
     locale: 'en',
     slug: 'about',
     content: doc('About us.'),
-    metadata: { title: 'About', status: 'published' }
+    metadata: { title: 'About' }
   }
 ]
 

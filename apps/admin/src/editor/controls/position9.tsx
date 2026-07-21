@@ -42,7 +42,7 @@ export function Position9({ value, onChange, meta }: ControlProps) {
   return (
     <div
       role="radiogroup"
-      aria-label={meta.name}
+      aria-labelledby={`bi-label-${meta.name}`}
       // Focusable (not tabbable): the radios carry a roving tabIndex; the group itself
       // must still be focusable for the role (jsx-a11y/interactive-supports-focus).
       tabIndex={-1}

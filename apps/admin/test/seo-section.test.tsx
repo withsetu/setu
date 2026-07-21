@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import { NotificationProvider } from '../src/ui/notify'
 import { SeoSection } from '../src/editor/SeoSection'
 
 function renderSeo(metadata: Record<string, unknown> = { title: 'My Post' }) {
@@ -11,7 +12,9 @@ function renderSeo(metadata: Record<string, unknown> = { title: 'My Post' }) {
       editable
       onChange={onChange}
       apiBase=""
-    />
+    />,
+    // SeoSection's featured-image picker mounts MediaPickerModal → useNotify (#756).
+    { wrapper: NotificationProvider }
   )
   return { onChange }
 }

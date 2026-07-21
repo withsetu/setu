@@ -341,6 +341,112 @@ describe('history restore quiesces autosave (#754)', () => {
 })
 
 // ---------------------------------------------------------------------------------
+// #771 — the tab-close window inside the #754 restore. `onRestored` pauses
+// autosave, but the beforeunload/unmount flushes never consulted `paused`: an
+// edit made while the restore is running left `dirty` set, so closing the tab
+// between `deleteDraft` and `resume()` re-created the draft with the pre-restore
+// buffer through the flush — defeating the restore by the back door.
+// ---------------------------------------------------------------------------------
+
+/** instantIndex, but `reindexEntries` freezes on a gate — which is exactly where
+ *  `onRestored` sits AFTER `deleteDraft` and BEFORE `resume()`. That holds the
+ *  restore open in its paused window so the test can close the tab inside it. */
+function gatedIndex(): { index: IndexService; release: () => void } {
+  let release: () => void = () => {}
+  const gate = new Promise<void>((r) => {
+    release = r
+  })
+  const index = {
+    ...instantIndex(),
+    reindexEntries: async (): Promise<void> => {
+      await gate
+    }
+  } as unknown as IndexService
+  return { index, release: () => release() }
+}
+
+describe('the flushes respect the restore pause (#771)', () => {
+  it('closing the tab mid-restore must not re-create the discarded draft', async () => {
+    stubHistoryFetch()
+    const helloRef: EntryRef = {
+      collection: 'post',
+      locale: 'en',
+      slug: 'hello'
+    }
+    const base = createMemoryDataPort([])
+    const services = servicesFor(
+      base,
+      createMemoryGitPort([
+        {
+          path: contentPath(helloRef),
+          content: serializeMdoc({
+            frontmatter: { title: 'Hello' },
+            body: 'The slow brown fox.'
+          })
+        }
+      ])
+    )
+    const { index, release } = gatedIndex()
+    renderEditor('/edit/post/en/hello', services, { index })
+
+    const canvas = page.getByLabelText('Content editor')
+    await expect
+      .element(page.getByText('The slow brown fox.'))
+      .toBeInTheDocument()
+
+    // Restore the older revision through the real History panel. onRestored
+    // pauses autosave, deletes the draft, then freezes on the gated reindex —
+    // we are now INSIDE the paused window, before resume().
+    await page.getByRole('button', { name: 'History', exact: true }).click()
+    await page
+      .getByRole('button', { name: /Save draft post\/en\/hello/ })
+      .click()
+    const restoreBtn = page.getByRole('button', {
+      name: 'Restore this revision'
+    })
+    await expect.element(restoreBtn).toBeEnabled()
+    await restoreBtn.click()
+    await page
+      .getByRole('alertdialog')
+      .getByRole('button', { name: 'Restore', exact: true })
+      .click()
+
+    // A keystroke lands inside that window: the debounce is short-circuited by
+    // the pause, but it still marks the buffer dirty.
+    await canvas.click()
+    await userEvent.keyboard('LATE ')
+
+    // The tab is closed right there. The flush must NOT write under the restore.
+    window.dispatchEvent(new Event('beforeunload', { cancelable: true }))
+    await new Promise((r) => setTimeout(r, 50))
+
+    const afterFlush = await base.getDraft(helloRef)
+    expect(
+      afterFlush ? JSON.stringify(afterFlush.content).includes('LATE') : false
+    ).toBe(false)
+
+    // Let the restore finish; the re-fork from HEAD must still win (the restore
+    // commit is stubbed at the API, so HEAD in the memory git port is unchanged —
+    // the point is that the "LATE " keystroke did not survive as a draft).
+    release()
+    await expect
+      .element(page.getByText('The slow brown fox.', { exact: true }), {
+        timeout: 8000
+      })
+      .toBeInTheDocument()
+    await expect
+      .poll(
+        async () => {
+          const d = await base.getDraft(helloRef)
+          return d ? JSON.stringify(d.content).includes('LATE') : false
+        },
+        { timeout: 8000 }
+      )
+      .toBe(false)
+  }, 25000)
+})
+
+// ---------------------------------------------------------------------------------
 // #755(a) — rename in-flight bypass. `renamingRef` was checked at the TOP of the
 // autosave `save`, so a save already PAST that line (in flight) was not blocked:
 // followRename deleted the old-ref draft and the in-flight save landed after,

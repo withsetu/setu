@@ -146,8 +146,9 @@ describe('useAutosave', () => {
 // ---------------------------------------------------------------------------------
 // The imperative handle (pause/resume/settled) and the two flush paths that must
 // respect it. #770: the beforeunload guard swallowed the browser's unsaved-work
-// prompt whenever a save was in flight — the case where the newest edit is
-// provably unwritten.
+// prompt whenever a save was in flight. #771: neither flush consulted `paused`,
+// so a tab close (or unmount) mid-rename/restore bypassed the quiescence
+// primitive and re-created / orphaned a draft.
 // ---------------------------------------------------------------------------------
 
 type Save = (input: DraftInput) => Promise<{ saved: boolean }>
@@ -242,5 +243,129 @@ describe('useAutosave — beforeunload warning (#770)', () => {
     await vi.advanceTimersByTimeAsync(800) // drains → clean
     expect(fireBeforeUnload()).toBe(false)
     expect(save).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('useAutosave — handle: pause / resume / settled', () => {
+  const props = (rev: number, save: Save) => ({
+    enabled: true,
+    rev,
+    getInput: input,
+    save,
+    onStatus: () => {},
+    delayMs: 800
+  })
+
+  it('pause blocks new saves; resume restores normal operation', async () => {
+    const save = vi.fn(async () => ({ saved: true }))
+    const { result, rerender } = renderHook((p) => useAutosave(p), {
+      initialProps: props(0, save)
+    })
+    result.current.pause()
+    rerender(props(1, save))
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(save).not.toHaveBeenCalled()
+    result.current.resume()
+    rerender(props(2, save))
+    await vi.advanceTimersByTimeAsync(800)
+    expect(save).toHaveBeenCalledTimes(1)
+  })
+
+  it('settled() resolves immediately when idle', async () => {
+    const save = vi.fn(async () => ({ saved: true }))
+    const { result } = renderHook((p) => useAutosave(p), {
+      initialProps: props(0, save)
+    })
+    let done = false
+    void result.current.settled().then(() => {
+      done = true
+    })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(done).toBe(true)
+  })
+
+  it('settled() waits out an in-flight save', async () => {
+    const { save, release } = gatedSave()
+    const { result, rerender } = renderHook((p) => useAutosave(p), {
+      initialProps: props(0, save)
+    })
+    rerender(props(1, save))
+    await vi.advanceTimersByTimeAsync(800)
+    let done = false
+    void result.current.settled().then(() => {
+      done = true
+    })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(done).toBe(false)
+    release()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(done).toBe(true)
+  })
+
+  it('settled() resolves even when the in-flight save rejects', async () => {
+    let reject!: (e: Error) => void
+    const gate = new Promise<{ saved: boolean }>((_, rj) => {
+      reject = rj
+    })
+    const save = vi.fn(() => gate)
+    const { result, rerender } = renderHook((p) => useAutosave(p), {
+      initialProps: props(0, save)
+    })
+    rerender(props(1, save))
+    await vi.advanceTimersByTimeAsync(800)
+    let done = false
+    void result.current.settled().then(() => {
+      done = true
+    })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(done).toBe(false)
+    reject(new Error('offline'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(done).toBe(true)
+  })
+})
+
+describe('useAutosave — flushes respect the pause (#771)', () => {
+  const props = (rev: number, save: Save) => ({
+    enabled: true,
+    rev,
+    getInput: input,
+    save,
+    onStatus: () => {},
+    delayMs: 800
+  })
+
+  it('the unmount flush does not write while paused', async () => {
+    const save = vi.fn(async () => ({ saved: true }))
+    const { result, rerender, unmount } = renderHook((p) => useAutosave(p), {
+      initialProps: props(0, save)
+    })
+    rerender(props(1, save)) // dirty, debounce pending
+    result.current.pause() // rename/restore owns storage now
+    unmount()
+    expect(save).not.toHaveBeenCalled()
+  })
+
+  it('the beforeunload flush does not write while paused (but still warns)', async () => {
+    const save = vi.fn(async () => ({ saved: true }))
+    const { result, rerender } = renderHook((p) => useAutosave(p), {
+      initialProps: props(0, save)
+    })
+    rerender(props(1, save))
+    result.current.pause()
+    expect(fireBeforeUnload()).toBe(true) // work is unsaved — still prompt
+    expect(save).not.toHaveBeenCalled() // …but never write under the lifecycle op
+  })
+
+  it('pause({ discard: true }) drops the buffer: no warning and no flush write', async () => {
+    const save = vi.fn(async () => ({ saved: true }))
+    const { result, rerender, unmount } = renderHook((p) => useAutosave(p), {
+      initialProps: props(0, save)
+    })
+    rerender(props(1, save))
+    result.current.pause({ discard: true }) // restore: the buffer is being thrown away
+    expect(fireBeforeUnload()).toBe(false)
+    unmount()
+    expect(save).not.toHaveBeenCalled()
   })
 })

@@ -10,8 +10,15 @@ export type SaveStatus = 'idle' | 'saving' | 'saved'
 export interface AutosaveHandle {
   /** Suspend autosave: cancels the pending debounce and drops any queued
    *  follow-up, so no NEW save starts until `resume`. A save already in flight is
-   *  NOT interrupted — await `settled()` to wait it out. */
-  pause: () => void
+   *  NOT interrupted — await `settled()` to wait it out. The unmount and
+   *  beforeunload flushes also hold off while paused, so a navigation or tab
+   *  close mid-operation cannot write under it (#771).
+   *
+   *  `discard: true` additionally clears the unsaved-work flag: the caller is
+   *  about to throw the current buffer away (history restore #754), so the
+   *  buffer must not survive as a tab-close warning or a flush write. Renames
+   *  keep the buffer (`followRename` persists it explicitly) and pass nothing. */
+  pause: (opts?: { discard?: boolean }) => void
   /** Re-enable autosave. The next `rev` change schedules normally. */
   resume: () => void
   /** Resolves once no save is in flight (immediately if none is). Pair with
@@ -59,13 +66,16 @@ export function useAutosave(opts: {
   // Stable handle — its methods close over the refs above, so identity never
   // changes across renders (a lifecycle caller can hold it without re-subscribing).
   const handle = useRef<AutosaveHandle>({
-    pause: () => {
+    pause: (opts?: { discard?: boolean }) => {
       paused.current = true
       pending.current = false
       if (timer.current) {
         clearTimeout(timer.current)
         timer.current = null
       }
+      // The caller is discarding the buffer (restore): nothing is pending-unsaved
+      // any more, so neither flush nor the tab-close warning should fire for it.
+      if (opts?.discard) dirty.current = false
     },
     resume: () => {
       paused.current = false
@@ -98,7 +108,10 @@ export function useAutosave(opts: {
         inFlight.current = false
         if (pending.current && !paused.current) {
           pending.current = false
-          void run()
+          // Swallow: every state transition lives in this finally, and a
+          // rejected save escaping a fire-and-forget call is an unhandled
+          // rejection (surfaces as a console error / vitest unhandled error).
+          void run().catch(() => {})
         } else {
           // Queue idle (drained, or paused mid-queue). Only report 'saved' on a
           // real drain — a pause is not a completed save.
@@ -114,7 +127,7 @@ export function useAutosave(opts: {
       }
     }
 
-    timer.current = setTimeout(() => void run(), delayMs)
+    timer.current = setTimeout(() => void run().catch(() => {}), delayMs)
     return () => {
       if (timer.current) clearTimeout(timer.current)
     }
@@ -123,9 +136,11 @@ export function useAutosave(opts: {
   // Content safety: if we unmount (navigate away) with a scheduled-but-unfired
   // change, flush one final save so the debounce window can't drop it. Unmount-
   // only ([]) — NOT in the debounce cleanup, which runs on every rev change.
+  // Paused (#771): a rename/restore owns the storage, so writing here would
+  // re-create a just-deleted draft or land under the old ref after a move.
   useEffect(() => {
     return () => {
-      if (dirty.current && !inFlight.current) {
+      if (dirty.current && !inFlight.current && !paused.current) {
         void saveRef.current(getInputRef.current())
       }
     }
@@ -137,11 +152,12 @@ export function useAutosave(opts: {
   //    exactly the case where the newest edit is provably unwritten and dies
   //    with the page, so suppressing the prompt there loses work silently;
   //  - skip only the WRITE when a save is in flight (it would duplicate that
-  //    write, mirroring the unmount flush's `!inFlight` guard).
+  //    write, mirroring the unmount flush's `!inFlight` guard) or when paused
+  //    for a rename/restore that owns the storage (#771).
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent): void => {
       if (!dirty.current) return
-      if (!inFlight.current) {
+      if (!inFlight.current && !paused.current) {
         void saveRef.current(getInputRef.current())
       }
       e.preventDefault()

@@ -12,6 +12,8 @@ const REFUSAL_MESSAGES: Record<NonNullable<RenameResult['reason']>, string> = {
   'target-exists': 'Already used by another entry in this collection/locale.',
   'invalid-slug': 'Use lowercase letters, numbers, and hyphens.',
   absent: 'This entry no longer exists — reload and try again.',
+  locked:
+    'This entry is locked by another editor, so your changes could not be saved — nothing was renamed.',
   unchanged: ''
 }
 

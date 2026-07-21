@@ -22,7 +22,7 @@ import type { TiptapDoc, TiptapNode } from '../src/index'
  *  arriving through the #667 soft-break representation.
  *
  *  Editor-side prevention (stopping Shift-Enter from making the break at all) is a
- *  separate, additive concern — see the follow-up issue; the writer must be safe
+ *  separate, additive concern — #790; the writer must be safe
  *  regardless, because core is a port and takes Tiptap JSON from any caller. */
 const doc = (content: TiptapNode[]): TiptapDoc => ({ type: 'doc', content })
 

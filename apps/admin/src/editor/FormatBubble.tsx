@@ -278,6 +278,20 @@ export function FormatBubble({ editor }: { editor: Editor }) {
       if (!isEscape(e)) return
       // Defer to an inner popup (Turn-into menu / link input) when one is open —
       // its own Esc closes it; this listener must not also collapse the selection.
+      //
+      // Two guards, because focus can be in two places when the Esc fires:
+      //  (a) INSIDE the popup (link URL field, or a Turn-into menu row). Here the popup's
+      //      own React onKeyDown closes it AND, under React 19, that close is flushed
+      //      synchronously — so `registerBubblePopup`'s cleanup has already cleared
+      //      `isBubblePopupOpen()` by the time this document-phase listener runs, and the
+      //      flag alone can no longer defer. The event target still resolves its detached
+      //      `.link-input` / `.ti-menu` ancestor, so key off that instead. (Without this,
+      //      the first Esc canceled the link input AND destroyed the user's selection.)
+      //  (b) on a control that does NOT handle Esc itself (e.g. the Turn-into trigger)
+      //      while the menu is open — nothing closes the popup, so the flag is still set
+      //      and correctly defers.
+      const target = e.target as Element | null
+      if (target?.closest?.('.link-input, .ti-menu')) return
       if (!bubbleEscapeShouldCollapse(editor)) return
       e.preventDefault()
       collapseSelectionOnEscape(editor)

@@ -273,7 +273,7 @@ async function renderTableAt(
 
 describe('#783 Shift-Tab falls through in the first table cell', () => {
   it('moves focus backward out of the canvas from the first cell', async () => {
-    const editor = await renderTableAt((cells) => cells[0])
+    const editor = await renderTableAt((cells) => cells[0]!)
     const before = editor.state.selection.from
 
     await userEvent.keyboard('{Shift>}{Tab}{/Shift}')
@@ -287,7 +287,7 @@ describe('#783 Shift-Tab falls through in the first table cell', () => {
   })
 
   it('still moves to the previous cell from a later cell', async () => {
-    const editor = await renderTableAt((cells) => cells[1])
+    const editor = await renderTableAt((cells) => cells[1]!)
     const before = editor.state.selection.from
 
     await userEvent.keyboard('{Shift>}{Tab}{/Shift}')

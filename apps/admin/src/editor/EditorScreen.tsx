@@ -593,7 +593,10 @@ export function EditorScreen() {
     // firing (or a save already in flight) after that delete re-creates the draft
     // with the pre-restore buffer, silently defeating the restore. pause() stops
     // new saves + cancels the pending timer; settled() waits out any in-flight one.
-    autosave.pause()
+    // `discard`: the pre-restore buffer is being thrown away, so it must not
+    // survive as a tab-close warning or an unmount/beforeunload flush write that
+    // would re-create the very draft deleteDraft is about to drop (#771).
+    autosave.pause({ discard: true })
     try {
       await autosave.settled()
       await data.deleteDraft(ref)

@@ -7,7 +7,12 @@ import path from 'node:path'
 import { test } from 'node:test'
 import { pathToFileURL } from 'node:url'
 
-import { isDirectInvocation, readLoginLink } from './auth-login-link.mjs'
+import {
+  isDirectInvocation,
+  openCommandFor,
+  parseArgs,
+  readLoginLink
+} from './auth-login-link.mjs'
 
 function makeRoot() {
   return mkdtempSync(path.join(tmpdir(), 'setu-login-link-'))
@@ -89,6 +94,22 @@ test('empty/whitespace-only file → same helpful error', () => {
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
+})
+
+// --open (#779): hand-transcribing a single-use, rotating token between terminal and browser is
+// where sign-in failures came from. The no-flag behaviour must stay byte-identical.
+test('parseArgs: --open opts in, no flag stays the default print-only behaviour', () => {
+  assert.deepEqual(parseArgs([]), { open: false })
+  assert.deepEqual(parseArgs(['--open']), { open: true })
+  assert.deepEqual(parseArgs(['-o']), { open: true })
+  assert.deepEqual(parseArgs(['--something-else']), { open: false })
+})
+
+test('openCommandFor: macOS/Linux openers, honest null elsewhere', () => {
+  assert.deepEqual(openCommandFor('darwin'), { cmd: 'open', args: [] })
+  assert.deepEqual(openCommandFor('linux'), { cmd: 'xdg-open', args: [] })
+  assert.equal(openCommandFor('win32'), null)
+  assert.equal(openCommandFor('sunos'), null)
 })
 
 // The direct-invocation guard compares FILESYSTEM PATHS, never string-built `file://` URLs: a

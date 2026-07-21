@@ -15,9 +15,12 @@
 //
 // Kept dependency-free (node builtins only), same pattern as content-sandbox.mjs.
 //
-// Usage:  node scripts/auth-login-link.mjs        (or `pnpm auth:login-link` from the repo root)
+// Usage:  node scripts/auth-login-link.mjs           (or `pnpm auth:login-link` from the repo root)
+//         node scripts/auth-login-link.mjs --open   (also open it in the default browser, #779)
 
+import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
+import { platform } from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -56,12 +59,47 @@ export function readLoginLink(rootDir, env = process.env) {
   )
 }
 
-function main() {
+/** CLI flags. `--open`/`-o` opts into launching the browser; anything else is ignored so the
+ *  no-flag invocation keeps its exact existing behaviour (#779). */
+export function parseArgs(argv) {
+  return { open: argv.includes('--open') || argv.includes('-o') }
+}
+
+/** The platform's "open this URL in the default browser" command, or null where there isn't a
+ *  standard one — the caller then prints the URL and says why it did not open, rather than
+ *  failing or pretending. */
+export function openCommandFor(plat) {
+  if (plat === 'darwin') return { cmd: 'open', args: [] }
+  if (plat === 'linux') return { cmd: 'xdg-open', args: [] }
+  return null
+}
+
+function main(argv = []) {
+  const { open } = parseArgs(argv)
   try {
     const { url, file } = readLoginLink(process.cwd())
     // The note goes to stderr so stdout stays exactly one URL (pipe/copy friendly).
     console.error(`(from ${file})`)
     console.log(url)
+    if (open) {
+      const opener = openCommandFor(platform())
+      if (!opener) {
+        console.error(
+          `(--open: no known browser opener on ${platform()} — open the URL above manually)`
+        )
+        return
+      }
+      try {
+        // The URL is read from our own 0600 handshake file and passed as an argv element to
+        // execFileSync — no shell, so nothing in it can be interpreted as a command.
+        execFileSync(opener.cmd, [...opener.args, url], { stdio: 'ignore' })
+        console.error(`(opened with ${opener.cmd})`)
+      } catch {
+        console.error(
+          `(--open: \`${opener.cmd}\` failed — open the URL above manually)`
+        )
+      }
+    }
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err))
     process.exit(1)
@@ -78,4 +116,5 @@ export function isDirectInvocation(argv1, metaUrl) {
   return path.resolve(argv1) === fileURLToPath(metaUrl)
 }
 
-if (isDirectInvocation(process.argv[1], import.meta.url)) main()
+if (isDirectInvocation(process.argv[1], import.meta.url))
+  main(process.argv.slice(2))

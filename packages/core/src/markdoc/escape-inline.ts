@@ -132,6 +132,14 @@ export interface TextPosition {
   /** The LAST inline run of a heading, where a trailing `#` run is the ATX
    *  closing sequence rather than literal text. */
   atHeadingEnd?: boolean
+  /** #772: this run sits inside a GFM table cell, where NO offset is ever a block
+   *  start — the whole cell is one physical line, and the `<br>`s that a folded
+   *  multi-block cell carries are HTML, not newlines. Suppresses the positional
+   *  rules on every line, including the per-line reset below (a `\n` in a cell's
+   *  text is flattened to a `<br>` by `cellToGfm`, so it never reaches column 0
+   *  either). Without it the writer added a backslash after each `<br>` that the
+   *  fold had just written unescaped, so one save never settled the file. */
+  inCell?: boolean
 }
 
 /** Escape literal text so that re-parsing it yields the same literal text.
@@ -151,8 +159,13 @@ export function escapeText(text: string, position: TextPosition = {}): string {
     .map((line, i) =>
       escapeLine(line, {
         // Line 0 inherits the caller's judgement (a leading `**`/`[` from a mark
-        // displaces the marker); every later line starts at column 0 unconditionally.
-        atBlockStart: i === 0 ? position.atBlockStart : true,
+        // displaces the marker); every later line starts at column 0 unconditionally
+        // — unless this is a table cell, which has no column 0 at all (see inCell).
+        atBlockStart: position.inCell
+          ? false
+          : i === 0
+            ? position.atBlockStart
+            : true,
         atHeadingEnd: position.atHeadingEnd && i === lines.length - 1
       })
     )

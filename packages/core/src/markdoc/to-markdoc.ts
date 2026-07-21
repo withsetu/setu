@@ -141,9 +141,10 @@ export function buildInline(
   /** Where this inline run sits, for the position-dependent escape rules:
    *  `block` = paragraph / list item (first characters are at a line start, so
    *  `#`, `>`, `-`, `1.` are block markers); `heading` = heading content (a
-   *  TRAILING `#` run is the ATX closing sequence); `inline` = table cells and
-   *  anything else, where no positional rule applies. See ./escape-inline. */
-  context: 'block' | 'heading' | 'inline' = 'inline'
+   *  TRAILING `#` run is the ATX closing sequence); `cell` = a GFM table cell, where
+   *  no offset is EVER a block start, not even after a break (#772); `inline` =
+   *  anything else, where no positional rule applies at offset 0. See ./escape-inline. */
+  context: 'block' | 'heading' | 'inline' | 'cell' = 'inline'
 ): InstanceType<typeof N>[] {
   const runs = content.map((t, index): InlineRun => {
     if (t.type === 'hardBreak') return { node: new N('hardbreak'), marks: [] }
@@ -206,7 +207,10 @@ export function buildInline(
                 ? context === 'block' && bare
                 : endsLine(content[index - 1]),
             atHeadingEnd:
-              context === 'heading' && index === content.length - 1 && bare
+              context === 'heading' && index === content.length - 1 && bare,
+            // #772: overrides both of the above. A cell is one physical line whose
+            // breaks are `<br>` HTML, so a marker can never open a block in it.
+            inCell: context === 'cell'
           })
         )
 

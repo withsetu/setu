@@ -173,6 +173,20 @@ The full standard with the worked "good vs. skeleton" case study: [docs/quality-
   scripts? license allowlisted? prefer existing ports over new HTTP/util deps).
 - **⊕ Dev-only tooling** (seeders, reset buttons, debug panels) is gated `import.meta.env.DEV` so
   it's dead-code-eliminated from production — physically absent, not hidden.
+- **⊕ A comment stating an invariant must name the test that enforces it, or be worded as intent
+  ("intended to …") rather than fact ("is …").** A comment that asserts a property the adjacent code
+  doesn't enforce doesn't just fail to help — it **suppresses the check**, because it sits exactly
+  where a reader goes to verify that property. Same logic as the kill-shot rule (§3.3 #4): a test
+  that can never fail reads as coverage; an invariant comment with no test behind it reads as
+  verification. Both are worse than nothing, because they stop anyone looking again.
+  Real cases: `useAutosave.ts` said `dirty` is "cleared only when the queue fully drains (a real
+  'saved')" while the code cleared it in `finally` on failure too — so #770 shipped, reviewed and
+  green, having missed the one unsaved case that matters, and the false claim spread into #773's
+  body where it would have misdirected the next implementer (#782). `splitCellBreaks` was commented
+  as leaving code spans alone while checking only `node.type`, having copied `node.marks` two lines
+  below — the guard the comment described was never written (#785). Also #712, #725, #731, #740,
+  #742. Wording is the cheap half; the durable half is that "must name a test" turns an
+  unfalsifiable claim into a failing test at authoring time.
 
 ### 3.3 Ship (the `/ship` skill walks this end-to-end)
 
@@ -205,7 +219,9 @@ The full standard with the worked "good vs. skeleton" case study: [docs/quality-
 6. **Review blocks on polish AND security, not just correctness.** Every whole-branch review
    dispatch includes the rubric from docs/quality-bar.md (driven? matches design? reuses?
    complete? table-stakes UX? wrong-actor e2e for authz?) and the security checklist. A correct,
-   well-tested skeleton is `Needs fixes`.
+   well-tested skeleton is `Needs fixes`. **Check every comment's claim against the adjacent code**
+   (§3.2): review is where these have actually been caught, and a comment asserting an unenforced
+   invariant is a defect in its own right — it will stop the next reader from looking.
 7. **Merging is the owner's call.** PR up + review clean → hand to owner for UAT. Deferred scope
    and follow-ups become issues (spin off, don't bury).
 8. **⊕ Closing an epic? Run `/improve` across its PRs first.** Per-PR review and cross-cutting
@@ -242,6 +258,7 @@ Each has happened in this repo. When your plan pattern-matches a row, apply the 
 | 18 | **The `-r test` Blind Spot** | Believing `pnpm -r test` / `pnpm typecheck` covered e2e (it never does — e2e is outside the workspace on purpose) | UI/auth journeys changed → run `pnpm e2e` and `pnpm exec tsc -p e2e --noEmit` explicitly |
 | 19 | **Status-Draft Hallucination** | Filtering on `status: draft` frontmatter (shipped an RSS bug that dropped a live post) | `published !== false` is the ONLY published-ness signal (§1) |
 | 20 | **The Yanked-Checkout Phantom** | Mid-UAT the shared main checkout gets switched by another session → HMR serves half-main → phantom bugs | Bizarre UAT failure → check `git branch --show-current` + `git reflog` FIRST, before chasing code |
+| 21 | **The Comment That Vouches** | A comment asserts an invariant the code never enforces, so the next reader stops checking there — `dirty` "cleared only on a real 'saved'" while `finally` cleared it on failure too, which is how #770 shipped green with the data-loss case still open (#782); the claim then spread into an issue body (#773). Also #712, #725, #731, #740, #742, #785 | §3.2: an invariant comment names its test or is worded as intent. Reviewing? Check each comment's claim against the adjacent code — treat a false one as a defect, not a nit |
 
 ## 5 · Quality bar per deliverable — checkable criteria
 

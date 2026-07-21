@@ -187,6 +187,19 @@
 .setu-image.is-selected {
   border-radius: var(--r-sm);
 }
+/* Fallback ring (#786). The rules above are a convention every current view happens to
+   follow; nothing enforces it, so the next bespoke node view that forgets `is-selected`
+   reproduces #778 with a green suite. ProseMirror puts `.ProseMirror-selectednode` on
+   the OUTER node-view wrapper of any selected node, so this catches whatever the view
+   itself did not — including nodes with no Setu class at all. `:not(:has(.is-selected))`
+   keeps it strictly a fallback: a view that already paints its own state (every atom
+   today, the spacer's dashed treatment included) is left exactly as #778 shaped it, with
+   no second outer ring. */
+.ProseMirror-selectednode:not(:has(.is-selected)) {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
 .bp-field {
   display: inline-flex;
   align-items: center;

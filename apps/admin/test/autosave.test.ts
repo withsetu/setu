@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
-import type { TiptapDoc } from '@setu/core'
+import type { DraftInput, TiptapDoc } from '@setu/core'
 import { useAutosave } from '../src/editor/useAutosave'
 
 const emptyDoc: TiptapDoc = { type: 'doc', content: [] }
@@ -140,5 +140,107 @@ describe('useAutosave', () => {
     // Unmount BEFORE advancing the timer — the debounced save never fires on its own.
     unmount()
     expect(save).toHaveBeenCalledTimes(1) // the unmount flush saved exactly once
+  })
+})
+
+// ---------------------------------------------------------------------------------
+// The imperative handle (pause/resume/settled) and the two flush paths that must
+// respect it. #770: the beforeunload guard swallowed the browser's unsaved-work
+// prompt whenever a save was in flight — the case where the newest edit is
+// provably unwritten.
+// ---------------------------------------------------------------------------------
+
+type Save = (input: DraftInput) => Promise<{ saved: boolean }>
+
+const input = (): DraftInput => ({
+  collection: 'post',
+  locale: 'en',
+  slug: 'x',
+  content: emptyDoc,
+  metadata: {},
+  baseSha: null
+})
+
+/** A save frozen on a gate, so a test can hold one write in flight deterministically. */
+function gatedSave(): { save: Save; release: () => void } {
+  let release!: () => void
+  const gate = new Promise<void>((r) => {
+    release = r
+  })
+  const save = vi.fn(async () => {
+    await gate
+    return { saved: true }
+  })
+  return { save, release }
+}
+
+/** Dispatch a real beforeunload and report whether the browser would warn. */
+function fireBeforeUnload(): boolean {
+  const e = new Event('beforeunload', { cancelable: true })
+  window.dispatchEvent(e)
+  return e.defaultPrevented
+}
+
+describe('useAutosave — beforeunload warning (#770)', () => {
+  it('warns when dirty with nothing in flight, and flushes one save (case L)', async () => {
+    const save = vi.fn(async () => ({ saved: true }))
+    const props = (rev: number) => ({
+      enabled: true,
+      rev,
+      getInput: input,
+      save,
+      onStatus: () => {},
+      delayMs: 800
+    })
+    const { rerender } = renderHook((p) => useAutosave(p), {
+      initialProps: props(0)
+    })
+    rerender(props(1)) // dirty, debounce pending, nothing in flight
+    expect(fireBeforeUnload()).toBe(true)
+    expect(save).toHaveBeenCalledTimes(1)
+  })
+
+  it('STILL warns while a save is in flight with a queued follow-up (case K)', async () => {
+    const { save, release } = gatedSave()
+    const props = (rev: number) => ({
+      enabled: true,
+      rev,
+      getInput: input,
+      save,
+      onStatus: () => {},
+      delayMs: 800
+    })
+    const { rerender } = renderHook((p) => useAutosave(p), {
+      initialProps: props(0)
+    })
+    rerender(props(1))
+    await vi.advanceTimersByTimeAsync(800) // save #1 starts and freezes in flight
+    rerender(props(2))
+    await vi.advanceTimersByTimeAsync(800) // newer edit queues behind it
+    // That newer edit is provably unsaved — the browser MUST prompt.
+    expect(fireBeforeUnload()).toBe(true)
+    // …but no duplicate write while one is in flight.
+    expect(save).toHaveBeenCalledTimes(1)
+    release()
+    await vi.advanceTimersByTimeAsync(0)
+  })
+
+  it('does not warn when clean', async () => {
+    const save = vi.fn(async () => ({ saved: true }))
+    const props = (rev: number) => ({
+      enabled: true,
+      rev,
+      getInput: input,
+      save,
+      onStatus: () => {},
+      delayMs: 800
+    })
+    const { rerender } = renderHook((p) => useAutosave(p), {
+      initialProps: props(0)
+    })
+    rerender(props(1))
+    await vi.advanceTimersByTimeAsync(800) // drains → clean
+    expect(fireBeforeUnload()).toBe(false)
+    expect(save).toHaveBeenCalledTimes(1)
   })
 })

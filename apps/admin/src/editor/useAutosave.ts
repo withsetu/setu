@@ -131,13 +131,19 @@ export function useAutosave(opts: {
     }
   }, [])
 
-  // Tab close / refresh with unsaved work: attempt a final save and warn. Skip
-  // when a save is already in flight (#753 sibling) — the flush would duplicate
-  // that write, mirroring the unmount flush's `!inFlight` guard.
+  // Tab close / refresh with unsaved work: warn, and flush a final save when we
+  // can. The warning and the write are separate decisions (#770):
+  //  - warn whenever `dirty` — an in-flight save with a queued follow-up is
+  //    exactly the case where the newest edit is provably unwritten and dies
+  //    with the page, so suppressing the prompt there loses work silently;
+  //  - skip only the WRITE when a save is in flight (it would duplicate that
+  //    write, mirroring the unmount flush's `!inFlight` guard).
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent): void => {
-      if (!dirty.current || inFlight.current) return
-      void saveRef.current(getInputRef.current())
+      if (!dirty.current) return
+      if (!inFlight.current) {
+        void saveRef.current(getInputRef.current())
+      }
       e.preventDefault()
       e.returnValue = ''
     }

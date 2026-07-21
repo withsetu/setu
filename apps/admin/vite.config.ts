@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 
@@ -12,7 +13,25 @@ import { fileURLToPath } from 'node:url'
 // pnpm deduplication or hoisting decisions.
 const require = createRequire(import.meta.url)
 
-export default defineConfig({
+// #779: the browser cannot read git, so the branch this dev server is serving is injected at
+// config time. `vite build` gets the EMPTY STRING — the branch name (and with it any hint of the
+// developer's worktree layout) is physically absent from a production bundle, independently of the
+// `import.meta.env.DEV` guard that drops the badge itself. One `git` call at startup, cached by
+// vite for the process lifetime.
+function currentBranch(): string {
+  try {
+    return execFileSync('git', ['branch', '--show-current'], {
+      cwd: fileURLToPath(new URL('.', import.meta.url)),
+      stdio: ['ignore', 'pipe', 'ignore']
+    })
+      .toString()
+      .trim()
+  } catch {
+    return '' // not a git checkout (a tarball install, CI export) — badge simply does not render
+  }
+}
+
+export default defineConfig(({ command }) => ({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
@@ -58,5 +77,10 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./test/setup.ts'],
     include: ['test/**/*.test.{ts,tsx}']
+  },
+  define: {
+    __SETU_DEV_BRANCH__: JSON.stringify(
+      command === 'serve' ? currentBranch() : ''
+    )
   }
-})
+}))

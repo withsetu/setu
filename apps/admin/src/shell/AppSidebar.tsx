@@ -29,6 +29,7 @@ import type { Action } from '@setu/core'
 import { DeployControl } from '../deploy/DeployControl'
 import { useCan } from '../auth/actor'
 import { siteUrl } from './site-url'
+import { DevBadge } from './DevBadge'
 import { ThemeToggle } from './ThemeToggle'
 import { UserMenu } from './UserMenu'
 
@@ -144,6 +145,10 @@ export function AppSidebar() {
             <span className="text-xs text-muted-foreground">
               Local workspace
             </span>
+            {/* #779: DEV-ONLY tab identifier (branch · port). The guard is a literal `false` in a
+                production build, so the badge — and the module — are dead-code-eliminated, not
+                hidden. */}
+            {import.meta.env.DEV && <DevBadge />}
           </div>
         </div>
       </SidebarHeader>

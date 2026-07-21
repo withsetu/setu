@@ -21,7 +21,7 @@ import {
 import { attrString } from '../attr-string'
 import { useMirroredField } from '../useMirroredField'
 
-function ContactView({ node, updateAttributes }: ReactNodeViewProps) {
+function ContactView({ node, updateAttributes, selected }: ReactNodeViewProps) {
   const mdAttrs = (node.attrs.mdAttrs ?? {}) as Record<string, unknown>
   const uid = useId()
 
@@ -61,7 +61,7 @@ function ContactView({ node, updateAttributes }: ReactNodeViewProps) {
   return (
     <NodeViewWrapper>
       <div
-        className="setu-contact-block rounded-lg border bg-card p-4"
+        className={`setu-contact-block setu-canvas-card rounded-lg border bg-card p-4${selected ? ' is-selected' : ''}`}
         data-contact
         contentEditable={false}
       >

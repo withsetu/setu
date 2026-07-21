@@ -4,7 +4,7 @@ import type { ReactNodeViewProps } from '@tiptap/react'
 import { QueryPreview } from '../QueryPreview'
 import type { QueryAttrs, RunQuery } from '../QueryPreview'
 
-function QueryBlockView({ node, editor }: ReactNodeViewProps) {
+function QueryBlockView({ node, editor, selected }: ReactNodeViewProps) {
   const md = (node.attrs.mdAttrs ?? {}) as QueryAttrs
   // runQuery is injected by Canvas from the live IndexProvider (same pattern as
   // imageBlock.apiBase) so the node view stays out of React context.
@@ -16,7 +16,11 @@ function QueryBlockView({ node, editor }: ReactNodeViewProps) {
   const apiBase = storage.imageBlock?.apiBase
   return (
     <NodeViewWrapper>
-      <div className="setu-block" data-tag="query" contentEditable={false}>
+      <div
+        className={`setu-block${selected ? ' is-selected' : ''}`}
+        data-tag="query"
+        contentEditable={false}
+      >
         <QueryPreview attrs={md} runQuery={runQuery} apiBase={apiBase} />
       </div>
     </NodeViewWrapper>

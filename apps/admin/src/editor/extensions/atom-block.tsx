@@ -32,17 +32,26 @@ export function atomApiBase(editor: Editor): string {
  *  props — the ONLY per-block variation once the `.setu-block` wrapper is shared. `tag`
  *  is the Markdoc tag the wrapper advertises as `data-tag` (the inspector rail keys on
  *  it). The view holds no state, so it cannot drive the selection→transaction render
- *  loop that white-screened the editor twice (CLAUDE.md §4 #3). */
+ *  loop that white-screened the editor twice (CLAUDE.md §4 #3) — `selected` is a prop
+ *  ProseMirror pushes, not state we derive.
+ *
+ *  `selected` drives the canvas selection ring (`.setu-block.is-selected`, styled once
+ *  in editor.css): these atoms are edited entirely from the inspector rail, so without
+ *  it nothing on the page says WHICH block the rail is editing (#778). */
 export function atomCoreView<P extends object>(
   tag: string,
   Core: ComponentType<P>,
   mapProps: (md: Record<string, unknown>, apiBase: string) => P
 ): ComponentType<ReactNodeViewProps> {
-  return function AtomCoreView({ node, editor }: ReactNodeViewProps) {
+  return function AtomCoreView({ node, editor, selected }: ReactNodeViewProps) {
     const md = (node.attrs.mdAttrs ?? {}) as Record<string, unknown>
     return (
       <NodeViewWrapper>
-        <div className="setu-block" data-tag={tag} contentEditable={false}>
+        <div
+          className={`setu-block${selected ? ' is-selected' : ''}`}
+          data-tag={tag}
+          contentEditable={false}
+        >
           <Core {...mapProps(md, atomApiBase(editor))} />
         </div>
       </NodeViewWrapper>

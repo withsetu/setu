@@ -1,5 +1,6 @@
 import { Extension } from '@tiptap/core'
 import type { Editor } from '@tiptap/core'
+import { TextSelection } from '@tiptap/pm/state'
 import {
   requestLinkEdit,
   requestShortcuts,
@@ -7,26 +8,32 @@ import {
 } from '../editor-events'
 import { collapseSelectionOnEscape } from '../dismiss'
 
-/** What Tab should do in the editor body. Tab is ALWAYS consumed (never allowed to
- *  escape the contenteditable to embedded inputs like a callout title):
+/** What Tab should do in the editor body. Tab is consumed ONLY where it actually does
+ *  something; anything else falls through to the browser's native focus advance, so the
+ *  block-inspector / meta-panel rail after the canvas has a forward keyboard path (#757):
  *  - `cell`: caret in a table → move to the next cell (table cell nav takes
  *    precedence over bubble/indent inside a table).
- *  - `bubble`: a non-empty text selection is showing the format bubble → move focus into it.
- *  - `indent`: caret in a list → sink the list item (a no-op on a first/top item, but
- *    still consumed — so it never escapes).
- *  - `consume`: caret elsewhere → swallow Tab (no-op). Pure. */
+ *  - `bubble`: a non-empty TEXT selection is showing the format bubble → move focus into
+ *    it. Restricted to a TextSelection because that is exactly what FormatBubble renders
+ *    for: a NodeSelection on an atom is "non-empty" too, and used to consume Tab while
+ *    focusing nothing at all — the worst case, since an atom's only editing UI IS the rail.
+ *  - `indent`: caret in a list → sink the list item. Whether it is consumed depends on
+ *    whether the sink lands: on a first/un-sinkable item nothing happens, so Tab falls
+ *    through rather than dying silently.
+ *  - `escape`: caret elsewhere → let the browser move focus. Pure. */
 export function tabActionFor(
   editor: Editor
-): 'cell' | 'bubble' | 'indent' | 'consume' {
+): 'cell' | 'bubble' | 'indent' | 'escape' {
   if (editor.isActive('table')) return 'cell'
-  if (!editor.state.selection.empty) return 'bubble'
+  const { selection } = editor.state
+  if (selection instanceof TextSelection && !selection.empty) return 'bubble'
   if (editor.isActive('listItem') || editor.isActive('taskItem'))
     return 'indent'
-  return 'consume'
+  return 'escape'
 }
 
 /** Advance to the next table cell; if already in the last cell, append a row and move
- *  into it. Returns true (Tab is always consumed in the editor body). */
+ *  into it. Returns true — inside a table Tab always acts, so it is always consumed. */
 export function advanceCellOrAddRow(editor: Editor): boolean {
   const moved = editor.chain().focus().goToNextCell().run()
   if (!moved) editor.chain().focus().addRowAfter().goToNextCell().run()
@@ -49,21 +56,26 @@ export const KeyboardShortcuts = Extension.create({
         requestShortcuts()
         return true
       },
-      // Tab: into the bubble on a selection; indent in a list; otherwise consume.
-      // ALWAYS returns true so focus never escapes the editor to embedded inputs
-      // (e.g. a callout title). We do the list indent ourselves rather than fall
-      // through, because StarterKit declines Tab on a first/un-sinkable item.
+      // Tab: next cell in a table; into the bubble on a text selection; indent in a
+      // list. Returns true ONLY when one of those actually happened — returning true
+      // unconditionally preventDefault'd Tab even for a no-op, which killed the
+      // browser's native focus advance and left the inspector/meta rail with no
+      // forward keyboard path at all (#757). We still do the list indent ourselves
+      // rather than fall through, because StarterKit declines Tab on a first item.
       Tab: () => {
         const action = tabActionFor(this.editor)
-        if (action === 'cell') advanceCellOrAddRow(this.editor)
-        else if (action === 'bubble') requestFocusToolbar()
-        else if (action === 'indent') {
+        if (action === 'cell') return advanceCellOrAddRow(this.editor)
+        if (action === 'bubble') {
+          requestFocusToolbar()
+          return true
+        }
+        if (action === 'indent') {
           const itemType = this.editor.isActive('taskItem')
             ? 'taskItem'
             : 'listItem'
-          this.editor.chain().focus().sinkListItem(itemType).run()
+          return this.editor.chain().focus().sinkListItem(itemType).run()
         }
-        return true
+        return false
       },
       'Shift-Tab': () => {
         if (this.editor.isActive('table')) {

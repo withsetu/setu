@@ -37,7 +37,7 @@ export function latestPostsQueryAttrs(a: LatestPostsAttrs): QueryAttrs {
   return out
 }
 
-function LatestPostsView({ node, editor }: ReactNodeViewProps) {
+function LatestPostsView({ node, editor, selected }: ReactNodeViewProps) {
   const md = (node.attrs.mdAttrs ?? {}) as LatestPostsAttrs
   // runQuery is injected by Canvas from the live IndexProvider (same pattern as
   // queryBlock.runQuery / imageBlock.apiBase) so the node view stays out of React context.
@@ -48,7 +48,7 @@ function LatestPostsView({ node, editor }: ReactNodeViewProps) {
   return (
     <NodeViewWrapper>
       <div
-        className="setu-block"
+        className={`setu-block${selected ? ' is-selected' : ''}`}
         data-tag="latest-posts"
         contentEditable={false}
       >

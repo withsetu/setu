@@ -17,14 +17,14 @@ interface EmbedAttrs {
 /** In-canvas preview card for the embed block — a static representation from the resolved
  *  oEmbed attrs (no async, no selection-driven state → jsdom-safe). The real interactive player
  *  renders on the published site (blocks/embed/embed.astro). */
-function EmbedBlockView({ node }: ReactNodeViewProps) {
+function EmbedBlockView({ node, selected }: ReactNodeViewProps) {
   const md = (node.attrs.mdAttrs ?? {}) as EmbedAttrs
   const label = md.providerLabel ?? md.provider ?? 'Embed'
   const isVideo = md.mediaType === 'video'
   return (
     <NodeViewWrapper>
       <div
-        className="my-4 overflow-hidden rounded-lg border border-border bg-card"
+        className={`setu-canvas-card my-4 overflow-hidden rounded-lg border border-border bg-card${selected ? ' is-selected' : ''}`}
         data-tag="embed"
         contentEditable={false}
       >

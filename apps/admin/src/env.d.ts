@@ -15,3 +15,8 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+/** Git branch of the checkout this bundle was served from, injected by vite (#779).
+ *  Empty string in `vite build` output — the dev badge is dev-only and carries no branch or
+ *  path information into a production bundle. */
+declare const __SETU_DEV_BRANCH__: string

@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 
@@ -20,7 +21,24 @@ import { fileURLToPath } from 'node:url'
 // so anything importable in the jsdom project is importable here too.
 const require = createRequire(import.meta.url)
 
+// Mirrors vite.config.ts's injection (#779): the browser suite mounts the real AppSidebar, which
+// renders the dev badge, so this project needs the same build-time constant. Kept as its own
+// small function rather than shared through an import so neither config gains a runtime dep.
+function currentBranch(): string {
+  try {
+    return execFileSync('git', ['branch', '--show-current'], {
+      cwd: fileURLToPath(new URL('.', import.meta.url)),
+      stdio: ['ignore', 'pipe', 'ignore']
+    })
+      .toString()
+      .trim()
+  } catch {
+    return ''
+  }
+}
+
 export default defineConfig({
+  define: { __SETU_DEV_BRANCH__: JSON.stringify(currentBranch()) },
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {

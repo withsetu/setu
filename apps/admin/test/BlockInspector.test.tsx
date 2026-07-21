@@ -1,6 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import { NotificationProvider } from '../src/ui/notify'
 import { BlockInspector } from '../src/editor/BlockInspector'
+
+// BlockInspector mounts MediaPickerModal, which calls useNotify() (#756) — every
+// render must sit under a NotificationProvider.
+const wrapper = NotificationProvider
 
 describe('BlockInspector', () => {
   it('renders a control per hero prop and writes edits via onChange', () => {
@@ -11,17 +16,19 @@ describe('BlockInspector', () => {
         mdAttrs={{ headline: 'Hi', layout: 'centered' }}
         onChange={onChange}
         apiBase=""
-      />
+      />,
+      { wrapper }
     )
     const headline = screen.getByLabelText<HTMLInputElement>('headline')
     expect(headline.value).toBe('Hi')
     fireEvent.change(headline, { target: { value: 'Welcome' } })
     expect(onChange).toHaveBeenCalledWith('headline', 'Welcome')
-    // textarea for subhead, select for layout present
+    // textarea for subhead, segmented toggle group for layout present. The layout
+    // control is a toggle group named by the visible "Layout" label (aria-labelledby).
     expect(screen.getByLabelText('subhead').tagName.toLowerCase()).toBe(
       'textarea'
     )
-    expect(screen.getByLabelText('layout')).toBeInTheDocument()
+    expect(screen.getByLabelText('Layout')).toBeInTheDocument()
   })
 
   it('renders an unknown tag as an empty inspector (no crash)', () => {
@@ -31,7 +38,8 @@ describe('BlockInspector', () => {
         mdAttrs={{}}
         onChange={() => {}}
         apiBase=""
-      />
+      />,
+      { wrapper }
     )
     expect(
       screen.getByText(/no editable properties|select a block/i)
@@ -46,9 +54,10 @@ describe('BlockInspector', () => {
         mdAttrs={{ layout: 'centered' }}
         onChange={() => {}}
         apiBase=""
-      />
+      />,
+      { wrapper }
     )
-    expect(screen.queryByLabelText('overlayColor')).toBeNull() // hidden on centered
+    expect(screen.queryByLabelText('Overlay Color')).toBeNull() // hidden on centered
     rerender(
       <BlockInspector
         tag="hero"
@@ -57,7 +66,7 @@ describe('BlockInspector', () => {
         apiBase=""
       />
     )
-    expect(screen.getByLabelText('overlayColor')).toBeInTheDocument() // shown on background
+    expect(screen.getByLabelText('Overlay Color')).toBeInTheDocument() // shown on background
   })
 
   it('video: renders grouped controls with media pickers and playback switches', () => {
@@ -67,7 +76,8 @@ describe('BlockInspector', () => {
         mdAttrs={{ src: '/media/clip.mp4' }}
         onChange={() => {}}
         apiBase=""
-      />
+      />,
+      { wrapper }
     )
     // media pickers, not raw text boxes: a set src shows a player + Replace/Remove,
     // an empty poster shows the library button
@@ -94,7 +104,8 @@ describe('BlockInspector', () => {
         mdAttrs={{ src: '/media/clip.mp4' }}
         onChange={onChange}
         apiBase=""
-      />
+      />,
+      { wrapper }
     )
     const muted = screen.getByLabelText<HTMLButtonElement>('muted')
     expect(muted).not.toBeDisabled()
@@ -117,7 +128,13 @@ describe('BlockInspector', () => {
   it('video: empty src also accepts a pasted video-file URL (Enter commits)', () => {
     const onChange = vi.fn()
     render(
-      <BlockInspector tag="video" mdAttrs={{}} onChange={onChange} apiBase="" />
+      <BlockInspector
+        tag="video"
+        mdAttrs={{}}
+        onChange={onChange}
+        apiBase=""
+      />,
+      { wrapper }
     )
     const url = screen.getByLabelText<HTMLInputElement>('Video file URL')
     fireEvent.change(url, {

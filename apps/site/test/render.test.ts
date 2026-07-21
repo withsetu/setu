@@ -181,6 +181,35 @@ describe('render pipeline — table column alignment', () => {
   })
 })
 
+/* #769 — the render side of the #752 multi-block-cell fold. The writer folds a cell's
+ * block children joined by a literal `<br>`, and the reader heals it back to a hardBreak,
+ * so the editor round-trip is perfect. Nothing healed it on the way OUT: Markdoc parses a
+ * GFM cell as inline content with raw HTML disabled, so `one<br>two` reached the page as
+ * the ESCAPED literal text `one&lt;br&gt;two` — a reader of the published site saw the
+ * markup. The td/th transforms now split cell text on `<br>` into real `br` tags. */
+describe('render pipeline — folded multi-block table cell (#769)', () => {
+  it('renders a folded cell break as a real <br>, not literal text', () => {
+    expect(html).toContain('<td>one<br/>two</td>')
+  })
+  it('never leaks the escaped literal marker onto the page', () => {
+    expect(html).not.toContain('&lt;br&gt;')
+    expect(html).not.toContain('&lt;br/&gt;')
+  })
+  it('splits inside a mark, keeping the formatting on both sides', () => {
+    expect(html).toContain(
+      '<td style="text-align:center"><strong>bold</strong><br/>plain</td>'
+    )
+  })
+  it('turns ONLY <br> into markup — every other tag stays escaped text', () => {
+    // The split builds an array of plain strings + real `br` tags; no `set:html`,
+    // so nothing else in a cell is ever interpreted. Guards the fix against being
+    // "simplified" into an innerHTML assignment later.
+    expect(html).toContain('&lt;script&gt;bad()&lt;/script&gt;')
+    expect(html).not.toContain('<script>bad()</script>')
+    expect(html).toContain('&lt;img src=x&gt;')
+  })
+})
+
 describe('render pipeline — baseline + passthrough', () => {
   it('renders a hard break (static passthrough content)', () => {
     expect(html).toContain('<br')

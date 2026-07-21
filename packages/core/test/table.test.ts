@@ -100,6 +100,18 @@ const bulletList = (...items: string[]): TiptapNode => ({
   type: 'bulletList',
   content: items.map((t) => ({ type: 'listItem', content: [P(t)] }))
 })
+const orderedList = (...items: string[]): TiptapNode => ({
+  type: 'orderedList',
+  content: items.map((t) => ({ type: 'listItem', content: [P(t)] }))
+})
+const taskList = (...items: [string, boolean][]): TiptapNode => ({
+  type: 'taskList',
+  content: items.map(([t, checked]) => ({
+    type: 'taskItem',
+    attrs: { checked },
+    content: [P(t)]
+  }))
+})
 const imageBlock = (src: string, alt = ''): TiptapNode => ({
   type: 'imageBlock',
   attrs: { mdAttrs: { src, alt } }
@@ -223,6 +235,70 @@ describe('multi-block cell round-trip (#752)', () => {
   it('drops nothing from an image-only cell (the verified loss)', () => {
     const s1 = cellDocSource([imageBlock('/a.png', 'cat')])
     expect(s1).toContain('![cat](/a.png)')
+  })
+
+  /* #772 — the fold converged only after a SECOND save. `serializeBlock` emitted a
+   * folded block's STRUCTURAL markers raw (`- a`, `1. b`, `- [x] c`, `---`), the reader
+   * re-read them as literal cell text — a GFM cell is inline-only, so they are text —
+   * and the next save escaped them. One save produced a file that a no-op second save
+   * still rewrote: churn in `git blame` for no content change. Both halves are fixed —
+   * a cell has no block start ANYWHERE (`<br>` is HTML, not a newline), so the writer
+   * stops adding positional escapes inside one; and a folded list writes its markers as
+   * the literal text they will be read as. */
+  describe('the fold converges on the FIRST write (#772)', () => {
+    const firstWriteStable = (content: TiptapNode[]): void => {
+      const s1 = cellDocSource(content)
+      expect(rt(s1)).toBe(s1)
+    }
+    it('a bullet list after a paragraph', () =>
+      firstWriteStable([P('intro'), bulletList('alpha', 'beta')]))
+    it('an ordered list', () =>
+      firstWriteStable([P('intro'), orderedList('one', 'two')]))
+    it('a task list', () =>
+      firstWriteStable([taskList(['done', true], ['todo', false])]))
+    it('two adjacent bullet lists (alternating markers)', () =>
+      firstWriteStable([bulletList('a'), bulletList('b')]))
+    it('a horizontal rule between paragraphs', () =>
+      firstWriteStable([P('a'), { type: 'horizontalRule' }, P('b')]))
+    it('a blockquote after a paragraph', () =>
+      firstWriteStable([
+        P('a'),
+        { type: 'blockquote', content: [P('quoted')] }
+      ]))
+    it('a heading', () =>
+      firstWriteStable([
+        P('a'),
+        {
+          type: 'heading',
+          attrs: { level: 2 },
+          content: [{ type: 'text', text: 'Title' }]
+        }
+      ]))
+  })
+
+  /* The other half of #772: a cell that is ALREADY in Git must not gain backslashes on
+   * an unrelated save. These are the exact shapes the old writer produced. */
+  describe('an already-folded cell in Git is never re-escaped (#772)', () => {
+    const unchanged = (cell: string): void => {
+      const src = `| h |\n| --- |\n| ${cell} |\n`
+      expect(rt(src)).toBe(src)
+    }
+    it('a bullet marker after a break', () => unchanged('intro<br>- alpha'))
+    it('an ordinal marker after a break', () => unchanged('1. one<br>1. two'))
+    it('a thematic-break run after a break', () => unchanged('a<br>---<br>b'))
+    it('a heading marker after a break', () => unchanged('a<br># Title'))
+    it('a blockquote marker after a break', () => unchanged('a<br>> quoted'))
+    // The ONE shape that cannot be kept byte-identical, and why. A `[` in a cell opens a
+    // link (`| [x](y) |` really is one), so a literal `[x]` MUST carry its escape — the
+    // old fold wrote the task marker as bare structure, which was never a stable spelling
+    // of literal text. Cells folded by the previous writer are corrected exactly once,
+    // on their next save, and are stable from then on.
+    it('normalises a folded task marker to its literal spelling, once', () => {
+      const src = '| h |\n| --- |\n| - [x] done |\n'
+      const r1 = rt(src)
+      expect(r1).toBe('| h |\n| --- |\n| - \\[x\\] done |\n')
+      expect(rt(r1)).toBe(r1)
+    })
   })
 
   it('heals a literal <br> typed in a cell into a hard break, byte-stably', () => {

@@ -22,13 +22,20 @@ const CELL_UNWRAP = new Set(['callout', 'columns', 'column', 'setuBlock'])
  *  single-paragraph path, kept byte-identical so existing tables are never rewritten.
  *
  *  Cell content is NOT at a block start (a `| ` precedes it), so `#`/`>`/`-` need no
- *  escape here — `buildInline('inline')` applies exactly that contract, and it also
+ *  escape here — `buildInline('cell')` applies exactly that contract, and it also
  *  escapes a `{%` in literal text so a cell's prose can never masquerade as a Markdoc
  *  tag. Deliberately routes paragraphs through `buildInline` rather than `serializeBlock`
  *  so a cell-nested paragraph's `textAlign` never emits an `{% align %}` annotation into
- *  the cell (see `withAlign`) — whole-column alignment is the header's job. */
+ *  the cell (see `withAlign`) — whole-column alignment is the header's job.
+ *
+ *  #772: `'cell'`, not `'inline'`. They differ only AFTER a hard break, and that is
+ *  exactly where the churn lived: `'inline'` treats a run following a break as being at
+ *  a line start (true of a paragraph, whose break is a real newline) and escaped the
+ *  `-`/`1.`/`#`/`>`/`---` that the fold had just written unescaped one save earlier. A
+ *  cell's breaks are `<br>` HTML on one physical line, so nothing in it is ever at a
+ *  block start. */
 function inlineToCell(content: TiptapNode[]): string {
-  const inline = buildInline(content, 'inline')
+  const inline = buildInline(content, 'cell')
   return Markdoc.format(
     new N('paragraph', {}, [new N('inline', {}, inline)])
   ).replace(/\n+$/, '')
@@ -64,6 +71,56 @@ function inlineImageNode(node: TiptapNode): TiptapNode {
   return { type: 'image', attrs }
 }
 
+const LIST_TYPES = new Set(['bulletList', 'orderedList', 'taskList'])
+
+/** The cell spelling of a list marker. Always the FIRST marker of the family —
+ *  `serializeSiblings`' alternation (#694) exists so two adjacent lists cannot merge
+ *  on the next read, and inside a cell there are no lists to merge: the whole thing
+ *  is flattened to literal text. Using `*` here would only add a backslash. */
+const listMarker = (list: TiptapNode, item: TiptapNode): string => {
+  if (list.type === 'orderedList') return '1. '
+  if (list.type !== 'taskList') return '- '
+  return item.attrs?.['checked'] === true ? '- [x] ' : '- [ ] '
+}
+
+/** Fold a list into the cell's inline form: the marker as LITERAL TEXT, then the
+ *  item's own content, one `hardBreak` between items.
+ *
+ *  #772 — why this exists rather than `serializeBlock(list)`. A GFM cell is inline-only,
+ *  so a folded list's `- ` / `1. ` / `- [x] ` markers are not markers on the way back in;
+ *  the reader sees them as ordinary cell text. `serializeBlock` emits them as STRUCTURE,
+ *  unescaped, so the next save escaped them as the text they had become (`- \[x\] done`)
+ *  and the file changed on a save that changed no content. Building the marker as a text
+ *  node instead hands it to the SAME escaper the reader's round trip will use, so the
+ *  first write is already the fixed point. (`-` and `1.` need no escape in a cell; the
+ *  task marker's `[`/`]` do, and now get it on write one.) */
+function listCellInline(node: TiptapNode, depth: number): TiptapNode[] {
+  const out: TiptapNode[] = []
+  ;(node.content ?? []).forEach((item) => {
+    if (out.length > 0) out.push({ type: 'hardBreak' })
+    out.push({
+      type: 'text',
+      text: '    '.repeat(depth) + listMarker(node, item)
+    })
+    ;(item.content ?? []).forEach((child, j) => {
+      if (j > 0) out.push({ type: 'hardBreak' })
+      out.push(...blockCellInline(child, depth + 1))
+    })
+  })
+  return out
+}
+
+/** One block's inline form inside a cell. Anything without one keeps the existing
+ *  `serializeBlock` path via `cellFragments`; here it can only be reached as a list
+ *  item's child, where it is wrapped in a text node so the escaper still owns it. */
+function blockCellInline(node: TiptapNode, depth: number): TiptapNode[] {
+  if (node.type === 'paragraph') return node.content ?? []
+  if (node.type === 'imageBlock') return [inlineImageNode(node)]
+  if (node.type === 'codeBlock') return codeInlineNodes(node)
+  if (LIST_TYPES.has(node.type)) return listCellInline(node, depth)
+  return [{ type: 'text', text: serializeBlock(node) }]
+}
+
 /** Fold a table cell's block children into inline-safe GFM fragments — one per line,
  *  `<br>`-joined by `cellToGfm`.
  *
@@ -76,15 +133,20 @@ function inlineImageNode(node: TiptapNode): TiptapNode {
  *  so the block STRUCTURE (list markers, a fence) flattens to text, but nothing is lost.
  *
  *  Paragraphs use the inline path (byte-identity + no `{% align %}` leak); a block image
- *  becomes an inline image; the body-bearing tag wrappers are unwrapped (see
- *  CELL_UNWRAP). Everything else — lists, code, blockquotes, thematic rules — is reused
- *  verbatim from `serializeBlock`, whose text already carries the inline escaping, so a
- *  literal `-`/`#`/`{%` in it re-reads as itself. */
+ *  becomes an inline image; a code block becomes code spans; lists are flattened to their
+ *  literal marker text (#772, see `listCellInline`); the body-bearing tag wrappers are
+ *  unwrapped (see CELL_UNWRAP). Everything else — blockquotes, headings, thematic rules,
+ *  nested tables — is reused verbatim from `serializeBlock`, whose text already carries
+ *  the inline escaping, so a literal `-`/`#`/`{%` in it re-reads as itself; their leading
+ *  markers need no escape either, because a cell has no block start (#772). */
 function cellFragments(nodes: TiptapNode[]): string[] {
   return nodes.flatMap((n) => {
     if (n.type === 'paragraph') return [inlineToCell(n.content ?? [])]
     if (n.type === 'imageBlock') return [inlineToCell([inlineImageNode(n)])]
     if (n.type === 'codeBlock') return [inlineToCell(codeInlineNodes(n))]
+    // #772: a list's markers are literal text once folded — build them as text so the
+    // escaper, not `Markdoc.format`'s list structure, decides their bytes.
+    if (LIST_TYPES.has(n.type)) return [inlineToCell(listCellInline(n, 0))]
     if (CELL_UNWRAP.has(n.type)) return cellFragments(n.content ?? [])
     return [serializeBlock(n)]
   })

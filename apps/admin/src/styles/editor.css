@@ -168,6 +168,25 @@
   gap: 8px 16px;
   margin-bottom: 8px;
 }
+/* Canvas selection ring (#778). Atom blocks — gallery/hero/video/query/latest-posts,
+   plus the embed and contact cards and the inline image — are edited entirely from the
+   inspector rail, so the canvas is the only place that can say WHICH block the rail is
+   editing. ProseMirror's own `.ProseMirror-selectednode` is unstyled here, and the node
+   views that DID set an `is-selected` class had nothing painting it; this is that one
+   rule. `--ring` is theme-scoped in tokens.css, so it reads in light and dark alike.
+   The spacer keeps its own dashed-border treatment (below) — it has no card to ring. */
+.setu-block.is-selected,
+.setu-canvas-card.is-selected,
+.setu-image.is-selected {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+/* The outline follows the element's own corner radius; the card views already carry
+   one (rounded-lg), these two don't. */
+.setu-block.is-selected,
+.setu-image.is-selected {
+  border-radius: var(--r-sm);
+}
 .bp-field {
   display: inline-flex;
   align-items: center;

@@ -145,7 +145,20 @@ const collectInline = (node: MdNode): TiptapNode[] =>
  *  breaks as `<br>`, and without this they would re-read as the literal characters
  *  `<br>`, whose `<` the next save escapes to `\<br>` — the break decays to visible text.
  *  markdown-it has already resolved any `\<br>` escape to `<br>` before we see it, so only
- *  the bare form needs matching. */
+ *  the bare form needs matching.
+ *
+ *  #772 — the known, deliberate casualty. An author who writes `\<br>` in a cell MEANS the
+ *  visible characters `<br>`, and this rule turns them into a real break: the escape is
+ *  reinterpreted, not just reformatted. It cannot be told apart here. Markdoc hands a cell
+ *  over as a SINGLE `text` node whose content has already had every backslash escape
+ *  resolved and (raw HTML being off) any `<br>` re-inlined as text, so `a\<br>b` and `a<br>b`
+ *  arrive byte-identical, with no location detail below the line to separate them. No
+ *  writer-side spelling escapes it either — `&lt;br>` and `&#60;br>` are both decoded back
+ *  to `<br>` before this runs. The only fix is re-deriving cell text from the raw source by
+ *  offset, a second coordinate system in the reader for the one shape it would rescue (the
+ *  #674 class of bug). Left alone deliberately: a bare `<br>` in a cell is a line break in
+ *  GFM everywhere else too, and #769 made the published page agree, so healing it is the
+ *  behaviour that matches the rest of the world; only the escaped spelling loses. */
 const CELL_BR = /<br\s*\/?>/gi
 
 /** Split every text node in a cell's inline run on `<br>`, interleaving `hardBreak`

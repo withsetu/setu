@@ -221,6 +221,7 @@ export function buildStatus({
       branch: row.branch,
       upstream: up.upstream ?? null,
       behind: up.behind ?? null,
+      base: up.base ?? null,
       detached: up.detached === true
     })
   }
@@ -364,7 +365,11 @@ export function render(status) {
     out.push(...checkoutNotes(checkout, mine))
   }
 
-  if (status.checkouts.some((c) => c.behind !== null)) {
+  if (
+    status.checkouts.some(
+      (c) => c.behind !== null || (c.base != null && c.base.behind !== null)
+    )
+  ) {
     out.push('')
     out.push(
       '  (behind-count is measured against the last `git fetch` — this command never fetches)'
@@ -402,14 +407,41 @@ function checkoutNotes(checkout, rows) {
       `      · branch \`${checkout.branch}\` has no upstream — cannot compare this checkout against a remote`
     ]
   }
-  if (checkout.behind === 0) return []
+  const lines = []
   const alsoStale = rows.some((r) => r.stale)
+  if (checkout.behind > 0) {
+    lines.push(
+      `      ⚠ this checkout is ${plural(checkout.behind, 'commit')} behind ` +
+        `${checkout.upstream} — run \`git pull\`; restarting the server(s) alone will not help` +
+        (alsoStale ? ' (pull first, then restart the flagged servers above)' : '')
+    )
+  }
+  lines.push(...baseNote(checkout))
+  return lines
+}
+
+/** The `origin/main` comparison — a DIFFERENT question from the upstream count above ("am I
+ *  working against stale main?" vs "have I pushed everything?"), and the one that matters here:
+ *  CLAUDE.md §8 makes `origin/main` the hub, so a feature branch level with its own pushed ref
+ *  reads a reassuring `behind 0` in precisely the case that needs the warning. */
+function baseNote(checkout) {
+  const base = checkout.base
+  if (!base) return []
+  // The main checkout tracks origin/main itself — the two counts are the same fact, said once.
+  if (base.ref === checkout.upstream) return []
+  if (!base.present) {
+    return [
+      `      · could not compare against ${base.ref} (ref not found) — cannot tell whether this branch is stale`
+    ]
+  }
+  if (!base.behind) return []
   return [
-    `      ⚠ this checkout is ${checkout.behind} commit${checkout.behind === 1 ? '' : 's'} behind ` +
-      `${checkout.upstream} — run \`git pull\`; restarting the server(s) alone will not help` +
-      (alsoStale ? ' (pull first, then restart the flagged servers above)' : '')
+    `      ⚠ this branch is ${plural(base.behind, 'commit')} behind ${base.ref} — ` +
+      `merge ${base.ref} into it before you trust a test run`
   ]
 }
+
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`
 
 // ---------------------------------------------------------------------------- real seams
 
@@ -515,19 +547,39 @@ export function depsChangedAt(root) {
  *  read-only. The count is therefore only as fresh as the last fetch, which the output states.
  *  Detached HEAD and no-upstream both degrade to "cannot tell" rather than a bogus 0. */
 export function upstreamOf(root) {
+  const base = baseComparison(root)
   const detached = git(root, ['symbolic-ref', '-q', 'HEAD']) === ''
-  if (detached) return { upstream: null, behind: null, detached: true }
+  if (detached) return { upstream: null, behind: null, base, detached: true }
   const upstream = git(root, [
     'rev-parse',
     '--abbrev-ref',
     '--symbolic-full-name',
     '@{upstream}'
   ])
-  if (!upstream) return { upstream: null, behind: null }
+  if (!upstream) return { upstream: null, behind: null, base }
   const raw = git(root, ['rev-list', '--count', 'HEAD..@{upstream}'])
   const n = Number(raw)
-  if (!raw || !Number.isFinite(n)) return { upstream, behind: null }
-  return { upstream, behind: n }
+  if (!raw || !Number.isFinite(n)) return { upstream, behind: null, base }
+  return { upstream, behind: n, base }
+}
+
+/** How far this branch trails the integration branch. `origin/main` is not a guess here:
+ *  CLAUDE.md §8 fixes it as the hub every branch is cut from and synced with. A missing ref (a
+ *  clone with a different default, or no remote) reports `present: false` rather than 0 — the
+ *  whole point is not to print a reassuring number we did not measure. Never fetches. */
+const BASE_REF = 'origin/main'
+function baseComparison(root) {
+  const present =
+    git(root, ['rev-parse', '--verify', '--quiet', `${BASE_REF}^{commit}`]) !==
+    ''
+  if (!present) return { ref: BASE_REF, behind: null, present: false }
+  const raw = git(root, ['rev-list', '--count', `HEAD..${BASE_REF}`])
+  const n = Number(raw)
+  return {
+    ref: BASE_REF,
+    behind: raw && Number.isFinite(n) ? n : null,
+    present: true
+  }
 }
 
 /** `ps eww` env for one pid. Returns null when the env is unreadable (restricted, or a platform

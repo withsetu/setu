@@ -8,9 +8,12 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
 
+import { execFileSync } from 'node:child_process'
+
 import {
   LSOF_LISTEN_ARGS,
   buildStatus,
+  upstreamOf,
   formatUptime,
   loginLinkFor,
   parseCwd,
@@ -19,6 +22,17 @@ import {
   render,
   roleFor
 } from './dev-status.mjs'
+
+/** Run git against a THROWAWAY fixture repo. Always `-C <dir>`: these are the only mutating git
+ *  calls in the suite and they must never be able to reach the checkout running the tests. */
+const fixtureGit = (dir, ...args) =>
+  execFileSync(
+    'git',
+    ['-C', dir, '-c', 'user.name=T', '-c', 'user.email=t@t.test', ...args],
+    { stdio: 'pipe' }
+  )
+    .toString()
+    .trim()
 
 const NOW = new Date('2026-07-21T12:00:00Z')
 const minutesAgo = (m) => new Date(NOW.getTime() - m * 60_000)
@@ -32,7 +46,11 @@ function deps(over = {}) {
     startedAt: () => null,
     headMovedAt: () => null,
     depsChangedAt: () => null,
-    upstreamOf: () => ({ upstream: 'origin/main', behind: 0 }),
+    upstreamOf: () => ({
+      upstream: 'origin/main',
+      behind: 0,
+      base: { ref: 'origin/main', behind: 0, present: true }
+    }),
     envOf: () => ({}),
     loginLink: () => ({ error: 'none' }),
     home: '/Users/dev',
@@ -263,6 +281,72 @@ test('detached HEAD → named as such, no bogus behind-count', () => {
   const out = render(status)
   assert.match(out, /detached HEAD/i)
   assert.doesNotMatch(out, /git pull/)
+})
+
+// CLAUDE.md §8: `origin/main` is the hub, branches are cut from it and synced by merging it back
+// in. So for a feature worktree "behind origin/main" is the number that matters — and
+// `HEAD..@{upstream}` resolves to the branch's OWN pushed ref, reading a reassuring 0 in exactly
+// the case that needs warning. The two counts answer different questions and both are printed.
+test('a feature branch level with its own upstream but behind origin/main is still warned', () => {
+  const status = buildStatus(
+    deps({
+      listeners: [{ pid: 2, port: 5183 }],
+      cwdOf: () => '/Users/dev/wt/ed/apps/admin',
+      worktreeOf: () => ({ root: '/Users/dev/wt/ed', branch: 'ed-757' }),
+      startedAt: () => minutesAgo(5),
+      upstreamOf: () => ({
+        upstream: 'origin/ed-757',
+        behind: 0, // everything pushed — the reassuring zero
+        base: { ref: 'origin/main', behind: 14, present: true }
+      })
+    })
+  )
+  assert.equal(status.checkouts[0].base.behind, 14)
+  const out = render(status)
+  assert.match(out, /14 commits behind origin\/main/)
+  assert.match(out, /merge origin\/main into it/)
+  // "have I pushed everything?" is a different question and is not conflated with it.
+  assert.doesNotMatch(out, /git pull/)
+})
+
+test('origin/main missing → says it could not compare, never prints 0', () => {
+  const status = buildStatus(
+    deps({
+      listeners: [{ pid: 2, port: 5183 }],
+      cwdOf: () => '/Users/dev/wt/ed/apps/admin',
+      worktreeOf: () => ({ root: '/Users/dev/wt/ed', branch: 'ed-757' }),
+      startedAt: () => minutesAgo(5),
+      upstreamOf: () => ({
+        upstream: 'origin/ed-757',
+        behind: 0,
+        base: { ref: 'origin/main', behind: null, present: false }
+      })
+    })
+  )
+  const out = render(status)
+  assert.match(out, /could not compare .*origin\/main/)
+  assert.doesNotMatch(out, /0 commits/)
+  assert.doesNotMatch(out, /merge origin\/main into it/)
+})
+
+test('the main checkout does not report the same fact twice', () => {
+  const status = buildStatus(
+    deps({
+      listeners: [{ pid: 2, port: 5173 }],
+      cwdOf: () => '/Users/dev/setu/apps/admin',
+      worktreeOf: () => ({ root: '/Users/dev/setu', branch: 'main' }),
+      startedAt: () => minutesAgo(5),
+      upstreamOf: () => ({
+        upstream: 'origin/main',
+        behind: 6,
+        base: { ref: 'origin/main', behind: 6, present: true }
+      })
+    })
+  )
+  const out = render(status)
+  assert.equal(out.split('behind origin/main').length - 1, 1)
+  assert.match(out, /git pull/)
+  assert.doesNotMatch(out, /merge origin\/main into it/)
 })
 
 test('an up-to-date checkout with fresh servers reports no warnings at all', () => {
@@ -580,5 +664,64 @@ test('loginLinkFor wraps readLoginLink: url on success, error string on failure'
     )
   } finally {
     rmSync(root, { recursive: true, force: true })
+  }
+})
+
+// The seam above is unit-tested through injection; this exercises the REAL git plumbing, which is
+// where a wrong revision range would hide. It builds the exact situation CLAUDE.md §8 produces: a
+// feature branch cut from main, pushed (so its own upstream is level), while origin/main moves on.
+test('upstreamOf against real git: level with own upstream, behind origin/main', () => {
+  const tmp = mkdtempSync(path.join(tmpdir(), 'setu-upstream-'))
+  const originDir = path.join(tmp, 'origin')
+  const cloneDir = path.join(tmp, 'clone')
+  try {
+    mkdirSync(originDir)
+    fixtureGit(originDir, 'init', '-q', '-b', 'main')
+    writeFileSync(path.join(originDir, 'a.txt'), 'one\n')
+    fixtureGit(originDir, 'add', '-A')
+    fixtureGit(originDir, 'commit', '-qm', 'one')
+    execFileSync('git', ['clone', '-q', originDir, cloneDir], { stdio: 'pipe' })
+
+    // A feature branch cut from main, pushed → its own upstream is level.
+    fixtureGit(cloneDir, 'checkout', '-q', '-b', 'feat-1')
+    writeFileSync(path.join(cloneDir, 'b.txt'), 'mine\n')
+    fixtureGit(cloneDir, 'add', '-A')
+    fixtureGit(cloneDir, 'commit', '-qm', 'my work')
+    fixtureGit(cloneDir, 'push', '-q', '-u', 'origin', 'feat-1')
+
+    // Meanwhile main moves on by two commits, and the clone fetches (but does not merge).
+    for (const n of ['two', 'three']) {
+      writeFileSync(path.join(originDir, `${n}.txt`), `${n}\n`)
+      fixtureGit(originDir, 'add', '-A')
+      fixtureGit(originDir, 'commit', '-qm', n)
+    }
+    fixtureGit(cloneDir, 'fetch', '-q', 'origin')
+
+    const res = upstreamOf(cloneDir)
+    assert.equal(res.upstream, 'origin/feat-1')
+    assert.equal(res.behind, 0, 'everything pushed — the reassuring zero')
+    assert.deepEqual(res.base, { ref: 'origin/main', behind: 2, present: true })
+  } finally {
+    rmSync(tmp, { recursive: true, force: true })
+  }
+})
+
+test('upstreamOf against real git: no remote at all → present:false, not 0', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'setu-upstream-solo-'))
+  try {
+    fixtureGit(dir, 'init', '-q', '-b', 'main')
+    writeFileSync(path.join(dir, 'a.txt'), 'one\n')
+    fixtureGit(dir, 'add', '-A')
+    fixtureGit(dir, 'commit', '-qm', 'one')
+    const res = upstreamOf(dir)
+    assert.equal(res.upstream, null)
+    assert.equal(res.behind, null)
+    assert.deepEqual(res.base, {
+      ref: 'origin/main',
+      behind: null,
+      present: false
+    })
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
   }
 })

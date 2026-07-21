@@ -413,7 +413,9 @@ function checkoutNotes(checkout, rows) {
     lines.push(
       `      ⚠ this checkout is ${plural(checkout.behind, 'commit')} behind ` +
         `${checkout.upstream} — run \`git pull\`; restarting the server(s) alone will not help` +
-        (alsoStale ? ' (pull first, then restart the flagged servers above)' : '')
+        (alsoStale
+          ? ' (pull first, then restart the flagged servers above)'
+          : '')
     )
   }
   lines.push(...baseNote(checkout))

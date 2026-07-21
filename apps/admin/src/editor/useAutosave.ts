@@ -1,7 +1,10 @@
 import { useEffect, useRef } from 'react'
 import type { DraftInput } from '@setu/core'
 
-export type SaveStatus = 'idle' | 'saving' | 'saved'
+/** `error` = the last save attempt did NOT persist — it rejected (offline, 5xx, a
+ *  throwing DataPort) or was refused (`{ saved: false }`). The buffer stays dirty and
+ *  the tab-close warning stays armed; the next edit schedules another attempt (#782). */
+export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
 /** Imperative handle for quiescing autosave around a lifecycle operation that
  *  mutates the same storage autosave writes to (slug rename #755, history restore
@@ -58,7 +61,8 @@ export function useAutosave(opts: {
   const paused = useRef(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   // True once a change is scheduled but not yet persisted. Cleared only when the
-  // queue fully drains (a real 'saved'). Drives the unmount + beforeunload flush.
+  // queue fully drains AND the last save actually persisted (#782) — a rejected or
+  // refused save leaves it set. Drives the unmount + beforeunload flush.
   const dirty = useRef(false)
   // Resolvers for settled() — drained when the in-flight save's queue goes idle.
   const settleWaiters = useRef<Array<() => void>>([])
@@ -102,22 +106,44 @@ export function useAutosave(opts: {
       }
       inFlight.current = true
       onStatusRef.current('saving')
+      // Did this attempt actually persist? Only a resolved call that did NOT
+      // report `{ saved: false }` counts (#782). A rejection and a refusal are
+      // the same thing to the author: their work is still only in the buffer.
+      let persisted = false
       try {
-        await saveRef.current(getInputRef.current())
+        const result = await saveRef.current(getInputRef.current())
+        persisted = result.saved === true
+        if (!persisted) {
+          // authoring.save returns { saved: false } when the draft lock is held
+          // elsewhere — nothing was written. Silent today would mean silent loss.
+          console.error('[autosave] save refused — nothing was written')
+        }
+      } catch (err) {
+        console.error('[autosave] save failed', err)
       } finally {
         inFlight.current = false
         if (pending.current && !paused.current) {
           pending.current = false
-          // Swallow: every state transition lives in this finally, and a
-          // rejected save escaping a fire-and-forget call is an unhandled
-          // rejection (surfaces as a console error / vitest unhandled error).
-          void run().catch(() => {})
+          // The follow-up writes the NEWEST buffer, so it — not this attempt —
+          // decides the final status. `run` handles its own save failure above,
+          // so this catch only guards an unexpected throw (a status callback,
+          // say) from becoming an unhandled rejection; it logs, never swallows.
+          void run().catch((err: unknown) =>
+            console.error('[autosave] unexpected autosave error', err)
+          )
         } else {
           // Queue idle (drained, or paused mid-queue). Only report 'saved' on a
-          // real drain — a pause is not a completed save.
+          // real drain of a save that PERSISTED — a pause is not a completed
+          // save, and neither is a rejection or a refusal (#782). On failure the
+          // buffer stays dirty, so the unmount/tab-close flush and the browser's
+          // unsaved-work prompt (#770) both stay armed.
           if (!paused.current) {
-            dirty.current = false
-            onStatusRef.current('saved')
+            if (persisted) {
+              dirty.current = false
+              onStatusRef.current('saved')
+            } else {
+              onStatusRef.current('error')
+            }
           }
           // Wake anyone awaiting quiescence (settled()).
           const waiters = settleWaiters.current
@@ -127,7 +153,13 @@ export function useAutosave(opts: {
       }
     }
 
-    timer.current = setTimeout(() => void run().catch(() => {}), delayMs)
+    timer.current = setTimeout(
+      () =>
+        void run().catch((err: unknown) =>
+          console.error('[autosave] unexpected autosave error', err)
+        ),
+      delayMs
+    )
     return () => {
       if (timer.current) clearTimeout(timer.current)
     }
@@ -141,7 +173,9 @@ export function useAutosave(opts: {
   useEffect(() => {
     return () => {
       if (dirty.current && !inFlight.current && !paused.current) {
-        void saveRef.current(getInputRef.current())
+        void saveRef.current(getInputRef.current()).catch((err: unknown) =>
+          console.error('[autosave] unmount flush failed', err)
+        )
       }
     }
   }, [])
@@ -158,7 +192,9 @@ export function useAutosave(opts: {
     const onBeforeUnload = (e: BeforeUnloadEvent): void => {
       if (!dirty.current) return
       if (!inFlight.current && !paused.current) {
-        void saveRef.current(getInputRef.current())
+        void saveRef.current(getInputRef.current()).catch((err: unknown) =>
+          console.error('[autosave] beforeunload flush failed', err)
+        )
       }
       e.preventDefault()
       e.returnValue = ''

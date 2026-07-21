@@ -77,9 +77,18 @@ const endsLine = (t: TiptapNode | undefined): boolean =>
  *  core is a port and serializes Tiptap JSON from any caller.
  *
  *  A raw `\n` inside a heading text node — the #667 soft-break representation — is the
- *  identical defect by another route and folds the same way. Leading, trailing and
- *  doubled spaces are suppressed so the folded output is immediately byte-stable
- *  rather than converging on a second save. */
+ *  identical defect by another route and folds the same way.
+ *
+ *  On spacing, precisely: the fold suppresses a space when the run BEFORE the break
+ *  already ends in whitespace, and emits nothing for a leading or trailing break. It
+ *  does NOT inspect the run AFTER the break, so `'one' + break + ' two'` folds to
+ *  `## one  two` — two spaces. That is deliberate rather than overlooked: it stays
+ *  byte-stable (it re-reads and re-writes identically, no second-save convergence) and
+ *  HTML collapses the pair, so it is invisible in the rendered heading. Tightening it
+ *  would mean trimming author-written leading whitespace, which is a bigger liberty
+ *  than leaving a collapsed double space.
+ *
+ *  Enforced by `packages/core/test/heading-single-line.test.ts`. */
 function foldHeadingBreaks(content: TiptapNode[]): TiptapNode[] {
   const out: TiptapNode[] = []
   let pendingBreak = false

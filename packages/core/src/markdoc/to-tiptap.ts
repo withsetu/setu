@@ -171,8 +171,13 @@ const CELL_BR = /<br\s*\/?>/gi
  *  `<code>` element on the published page became two, in content the author never
  *  edited. Code-span content is literal by definition, which is why the writer refuses
  *  to escape it (see escape-inline) and why the site renderer leaves a `<br>` inside a
- *  code span alone (`markdoc.config.mjs`; its payload is an attribute with no children
- *  to split). This is the reader agreeing with both. */
+ *  code span alone (`markdoc.config.mjs`, which skips `child.name === 'code'` by an
+ *  EXPLICIT exemption — the transform emits `Tag('code', {}, ['a<br>b'])`, so the
+ *  payload is a child string and the recursion would otherwise reach it). This is the
+ *  reader agreeing with both.
+ *
+ *  Enforced by `packages/core/test/table-cell-code-span.test.ts` (this side) and
+ *  `apps/site/test/table-cell-breaks.test.ts` (the renderer side). */
 function splitCellBreaks(inline: TiptapNode[]): TiptapNode[] {
   return inline.flatMap((node) => {
     if (node.type !== 'text' || typeof node.text !== 'string') return [node]

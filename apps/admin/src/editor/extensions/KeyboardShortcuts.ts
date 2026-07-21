@@ -11,8 +11,11 @@ import { collapseSelectionOnEscape } from '../dismiss'
 /** What Tab should do in the editor body. Tab is consumed ONLY where it actually does
  *  something; anything else falls through to the browser's native focus advance, so the
  *  block-inspector / meta-panel rail after the canvas has a forward keyboard path (#757):
- *  - `cell`: caret in a table → move to the next cell (table cell nav takes
- *    precedence over bubble/indent inside a table).
+ *  - `cell`: caret in a table → we do NOTHING and decline, letting
+ *    @tiptap/extension-table's own Tab/Shift-Tab keymap act (#799). The branch still
+ *    exists so a text selection inside a cell can't be claimed by `bubble` first —
+ *    test-browser/editor-tab-focus.test.tsx "lets cell navigation win over the format
+ *    bubble for a selection inside a cell" is what enforces that ordering.
  *  - `bubble`: a non-empty TEXT selection is showing the format bubble → move focus into
  *    it. Restricted to a TextSelection because that is exactly what FormatBubble renders
  *    for: a NodeSelection on an atom is "non-empty" too, and used to consume Tab while
@@ -32,14 +35,6 @@ export function tabActionFor(
   return 'escape'
 }
 
-/** Advance to the next table cell; if already in the last cell, append a row and move
- *  into it. Returns true — inside a table Tab always acts, so it is always consumed. */
-export function advanceCellOrAddRow(editor: Editor): boolean {
-  const moved = editor.chain().focus().goToNextCell().run()
-  if (!moved) editor.chain().focus().addRowAfter().goToNextCell().run()
-  return true
-}
-
 /** Editor-level custom keymaps that need app coordination (the mark/block-move
  *  shortcuts live in StarterKit/BlockActions). Mod-k opens the link editor for a
  *  non-empty selection; Mod-/ opens the shortcuts cheat sheet. */
@@ -56,15 +51,22 @@ export const KeyboardShortcuts = Extension.create({
         requestShortcuts()
         return true
       },
-      // Tab: next cell in a table; into the bubble on a text selection; indent in a
-      // list. Returns true ONLY when one of those actually happened — returning true
-      // unconditionally preventDefault'd Tab even for a no-op, which killed the
-      // browser's native focus advance and left the inspector/meta rail with no
-      // forward keyboard path at all (#757). We still do the list indent ourselves
-      // rather than fall through, because StarterKit declines Tab on a first item.
+      // Tab: into the bubble on a text selection; indent in a list. Returns true ONLY
+      // when one of those actually happened — returning true unconditionally
+      // preventDefault'd Tab even for a no-op, which killed the browser's native focus
+      // advance and left the inspector/meta rail with no forward keyboard path at all
+      // (#757). We still do the list indent ourselves rather than fall through, because
+      // StarterKit declines Tab on a first item.
+      //
+      // Tables are the table extension's job (#799): it ships the same
+      // next-cell/append-row behaviour we had duplicated, plus the
+      // `if (!can().addRowAfter()) return false` guard we had dropped — without which
+      // Tab was consumed for a no-op wherever a row can't be appended, re-creating the
+      // very #757 trap above. Declining here hands it over (this extension is declared
+      // LAST in Canvas.tsx, so its keymap runs first).
       Tab: () => {
         const action = tabActionFor(this.editor)
-        if (action === 'cell') return advanceCellOrAddRow(this.editor)
+        if (action === 'cell') return false
         if (action === 'bubble') {
           requestFocusToolbar()
           return true
@@ -77,16 +79,13 @@ export const KeyboardShortcuts = Extension.create({
         }
         return false
       },
-      // Shift-Tab: previous cell in a table, outdent in a list — consumed ONLY when
-      // one of those actually happens. The table branch used to return true whatever
-      // `goToPreviousCell` did, and in the FIRST cell it does nothing (there is no
-      // previous cell), so Shift-Tab was preventDefault'd and the browser's native
-      // backward focus never ran — no keyboard way back out of a table (#783). Tab's
-      // "inside a table it always acts" (#757) holds for Tab, which appends a row at
-      // the end; Shift-Tab simply has nowhere to go.
+      // Shift-Tab: outdent in a list — consumed ONLY when that actually happens.
+      // Tables are the table extension's job here too (#799); its `Shift-Tab` is
+      // `goToPreviousCell()`, which is exactly what this branch had duplicated, and it
+      // already returns false in the FIRST cell so the browser's native backward focus
+      // runs (#783 — enforced by test-browser/editor-tab-focus.test.tsx "moves focus
+      // backward out of the canvas from the first cell").
       'Shift-Tab': () => {
-        if (this.editor.isActive('table'))
-          return this.editor.chain().focus().goToPreviousCell().run()
         if (this.editor.isActive('taskItem'))
           return this.editor.chain().focus().liftListItem('taskItem').run()
         if (this.editor.isActive('listItem'))

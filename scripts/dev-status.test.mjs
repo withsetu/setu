@@ -30,7 +30,9 @@ function deps(over = {}) {
     cwdOf: () => null,
     worktreeOf: () => null,
     startedAt: () => null,
-    commitsSince: () => ({ count: 0 }),
+    headMovedAt: () => null,
+    depsChangedAt: () => null,
+    upstreamOf: () => ({ upstream: 'origin/main', behind: 0 }),
     envOf: () => ({}),
     loginLink: () => ({ error: 'none' }),
     home: '/Users/dev',
@@ -128,26 +130,154 @@ test('a running stack lists role, port, worktree, branch, uptime and its login l
   assert.match(out, /http:\/\/localhost:5173\/#setu-token=abc/)
 })
 
-test('a server started before commits landed is flagged stale (the load-bearing warning)', () => {
+// AXIS 1 — the process is older than the working tree. Restart fixes it. The signal is when the
+// checkout's HEAD last MOVED (a pull/checkout lands files on disk) and when dependencies were
+// last reinstalled — not `rev-list --since`, which counts commits by AUTHOR date and so both
+// misses a pull of week-old commits and fires on commits that never reached this disk.
+test('a server older than the last HEAD move is flagged, with a restart prescription', () => {
   const status = buildStatus(
     deps({
       listeners: [{ pid: 2, port: 5173 }],
       cwdOf: () => '/Users/dev/setu/apps/admin',
       worktreeOf: () => ({ root: '/Users/dev/setu', branch: 'main' }),
       startedAt: () => minutesAgo(60 * 48),
-      commitsSince: (root, since) => {
+      headMovedAt: (root) => {
         assert.equal(root, '/Users/dev/setu')
-        assert.equal(since.getTime(), minutesAgo(60 * 48).getTime())
-        return { count: 47 }
+        return minutesAgo(180)
       },
       loginLink: () => ({ url: 'http://localhost:5173/#setu-token=abc' })
     })
   )
-  assert.deepEqual(status.rows[0].stale, { commits: 47 })
+  assert.deepEqual(
+    status.rows[0].stale.marks.map((m) => m.kind),
+    ['code']
+  )
   const out = render(status)
   assert.match(out, /up 2d/)
-  assert.match(out, /47 commits/)
+  assert.match(out, /HEAD moved 3h ago/)
   assert.match(out, /restart/i)
+  // Restarting DOES fix this axis, so it must not be told to pull.
+  assert.doesNotMatch(out, /git pull/)
+})
+
+// The #779 story exactly: `pnpm install` swapped node_modules under a two-day-old vite, and a
+// lazy route 404'd. HEAD never moved; only the dependency tree did.
+test('a server older than the last dependency install is flagged too', () => {
+  const status = buildStatus(
+    deps({
+      listeners: [{ pid: 2, port: 5173 }],
+      cwdOf: () => '/Users/dev/setu/apps/admin',
+      worktreeOf: () => ({ root: '/Users/dev/setu', branch: 'main' }),
+      startedAt: () => minutesAgo(60 * 48),
+      depsChangedAt: () => minutesAgo(300)
+    })
+  )
+  assert.deepEqual(
+    status.rows[0].stale.marks.map((m) => m.kind),
+    ['deps']
+  )
+  assert.match(render(status), /dependencies were reinstalled 5h ago/)
+})
+
+// AXIS 2 — the working tree is older than the remote. `git fetch` moves a ref but touches no
+// files, so the process is perfectly current with a disk that is behind. Restarting reloads the
+// identical code and reports success — the false resolution this check exists to prevent.
+test('a checkout behind its upstream prescribes git pull, NOT a restart', () => {
+  const status = buildStatus(
+    deps({
+      listeners: [
+        { pid: 1, port: 4444 },
+        { pid: 2, port: 5173 },
+        { pid: 3, port: 4321 }
+      ],
+      cwdOf: (pid) =>
+        `/Users/dev/setu/apps/${{ 1: 'api', 2: 'admin', 3: 'site' }[pid]}`,
+      worktreeOf: () => ({ root: '/Users/dev/setu', branch: 'main' }),
+      startedAt: () => minutesAgo(2), // current with the disk
+      upstreamOf: () => ({ upstream: 'origin/main', behind: 6 })
+    })
+  )
+  assert.equal(status.checkouts.length, 1)
+  assert.equal(status.checkouts[0].behind, 6)
+  assert.equal(
+    status.rows.every((r) => r.stale === null),
+    true
+  )
+  const out = render(status)
+  assert.match(out, /6 commits behind origin\/main/)
+  assert.match(out, /git pull/)
+  assert.match(out, /restarting.*will not help/i)
+  // A property of the CHECKOUT: said once, not repeated on all three rows.
+  assert.equal(out.split('behind origin/main').length - 1, 1)
+  // Read-only: the comparison is only as fresh as the last fetch, and we say so rather than
+  // silently fetching.
+  assert.match(out, /last .*fetch/i)
+})
+
+test('both axes at once → pull first, then restart', () => {
+  const status = buildStatus(
+    deps({
+      listeners: [{ pid: 2, port: 5173 }],
+      cwdOf: () => '/Users/dev/setu/apps/admin',
+      worktreeOf: () => ({ root: '/Users/dev/setu', branch: 'main' }),
+      startedAt: () => minutesAgo(60 * 48),
+      headMovedAt: () => minutesAgo(120),
+      upstreamOf: () => ({ upstream: 'origin/main', behind: 6 })
+    })
+  )
+  const out = render(status)
+  assert.match(out, /HEAD moved 2h ago/)
+  assert.match(out, /pull first, then restart/i)
+})
+
+test('no upstream configured → says it cannot tell, never a silent all-clear', () => {
+  const status = buildStatus(
+    deps({
+      listeners: [{ pid: 2, port: 5173 }],
+      cwdOf: () => '/Users/dev/setu/apps/admin',
+      worktreeOf: () => ({ root: '/Users/dev/setu', branch: 'wip-branch' }),
+      startedAt: () => minutesAgo(5),
+      upstreamOf: () => ({ upstream: null, behind: null })
+    })
+  )
+  assert.equal(status.checkouts[0].behind, null)
+  const out = render(status)
+  assert.match(out, /no upstream/i)
+  assert.doesNotMatch(out, /git pull/)
+  assert.doesNotMatch(out, /behind/)
+})
+
+test('detached HEAD → named as such, no bogus behind-count', () => {
+  const status = buildStatus(
+    deps({
+      listeners: [{ pid: 2, port: 5173 }],
+      cwdOf: () => '/Users/dev/setu/apps/admin',
+      worktreeOf: () => ({
+        root: '/Users/dev/setu',
+        branch: 'detached@abc1234'
+      }),
+      startedAt: () => minutesAgo(5),
+      upstreamOf: () => ({ upstream: null, behind: null, detached: true })
+    })
+  )
+  const out = render(status)
+  assert.match(out, /detached HEAD/i)
+  assert.doesNotMatch(out, /git pull/)
+})
+
+test('an up-to-date checkout with fresh servers reports no warnings at all', () => {
+  const status = buildStatus(
+    deps({
+      listeners: [{ pid: 2, port: 5173 }],
+      cwdOf: () => '/Users/dev/setu/apps/admin',
+      worktreeOf: () => ({ root: '/Users/dev/setu', branch: 'main' }),
+      startedAt: () => minutesAgo(5),
+      headMovedAt: () => minutesAgo(600), // moved BEFORE the server started — fine
+      depsChangedAt: () => minutesAgo(900)
+    })
+  )
+  assert.equal(status.rows[0].stale, null)
+  assert.doesNotMatch(render(status), /⚠/)
 })
 
 test('non-default ports are reported as-is (a worktree stack on 4455/5183)', () => {

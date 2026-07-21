@@ -13,9 +13,22 @@
 //      returns every connected browser tab, and a Chrome pid's cwd is not a worktree.
 //   2. pid → cwd  (`lsof -a -p <pid> -d cwd -Fn`), cwd → worktree root + branch (`git rev-parse`
 //      / `git branch --show-current`). Anything whose root is not a Setu checkout is dropped.
-//   3. STALENESS: process start time (`ps -o lstart=`) vs commits landed in that worktree since.
-//      A server started before N commits is serving code you are no longer editing — the
-//      "This screen couldn't be loaded" ghost in #779 was exactly this, two days old.
+//   3. STALENESS has TWO independent axes, which need DIFFERENT fixes and can co-occur:
+//        a. The PROCESS is older than the WORKING TREE — restart fixes it. Measured as process
+//           start (`ps -o lstart=`) vs when this checkout's HEAD last moved (the per-worktree
+//           reflog's mtime: a pull/checkout lands files on disk and appends to it) and when
+//           dependencies were last installed (node_modules/.modules.yaml's mtime — the #779
+//           ghost was `pnpm install` swapping node_modules under a two-day-old vite).
+//        b. The WORKING TREE is older than the REMOTE — only `git pull` fixes it. `git fetch`
+//           moves a ref but touches no file, so a watcher-restarted server is perfectly current
+//           with a disk that is 6 commits behind. Prescribing "restart" there reloads the
+//           identical code and reports success: a false resolution, worse than silence.
+//      Reported per checkout (b) vs per process (a), because that is what each is a property of.
+//      `rev-list --since` was the original proxy and is wrong for both: it counts commits by
+//      AUTHOR date, so it misses a pull of week-old commits and fires on commits that never
+//      reached this disk.
+//      This command NEVER fetches — that would mutate refs other sessions rely on — so the
+//      behind-count is only as fresh as the last fetch, and the output says so.
 //   4. WIRING: a stack is wired by ENV, not by location, so worktree A's admin can be pointed at
 //      main's api and sandbox. `ps eww <pid>` exposes VITE_SETU_API / SETU_API_URL /
 //      SETU_CONTENT_DIR for your own processes; we resolve those back to a worktree and flag a
@@ -26,7 +39,7 @@
 // Usage:  node scripts/dev-status.mjs      (or `pnpm dev:status` from the repo root)
 
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { homedir, platform } from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
@@ -132,12 +145,26 @@ export function buildStatus({
   cwdOf,
   worktreeOf,
   startedAt,
-  commitsSince,
+  headMovedAt,
+  depsChangedAt,
+  upstreamOf,
   envOf,
   loginLink,
   home,
   now
 }) {
+  // One git/fs lookup per ROOT, not per process: three servers in one worktree share a HEAD.
+  const memo = (fn) => {
+    const cache = new Map()
+    return (root) => {
+      if (!cache.has(root)) cache.set(root, fn(root))
+      return cache.get(root)
+    }
+  }
+  const headMoved = memo(headMovedAt)
+  const depsChanged = memo(depsChangedAt)
+  const upstream = memo(upstreamOf)
+
   const rows = []
   for (const { pid, port } of listeners) {
     const cwd = cwdOf(pid)
@@ -146,7 +173,13 @@ export function buildStatus({
     if (!wt) continue // not a Setu worktree — someone else's server
     const started = startedAt(pid)
     const uptimeMs = started ? now.getTime() - started.getTime() : null
-    const since = started ? commitsSince(wt.root, started) : null
+    // Axis (a): anything that changed the code on disk AFTER this process booted.
+    const marks = started
+      ? [
+          { kind: 'code', at: headMoved(wt.root) },
+          { kind: 'deps', at: depsChanged(wt.root) }
+        ].filter((m) => m.at && m.at.getTime() > started.getTime())
+      : []
     rows.push({
       pid,
       port,
@@ -156,7 +189,7 @@ export function buildStatus({
       branch: wt.branch,
       startedAt: started,
       uptimeMs,
-      stale: since && since.count > 0 ? { commits: since.count } : null,
+      stale: marks.length > 0 ? { marks } : null,
       env: envOf(pid)
     })
   }
@@ -175,6 +208,22 @@ export function buildStatus({
   // Wiring needs the full row set (a target port is resolved to another row's worktree), so it
   // runs as a second pass.
   for (const row of rows) row.wiring = wiringFor(row, rows, home)
+
+  // Axis (b) is a property of the CHECKOUT, so it is computed once per root and rendered once —
+  // not repeated on every server that happens to run from it.
+  const checkouts = []
+  for (const row of rows) {
+    if (checkouts.some((c) => c.root === row.root)) continue
+    const up = upstream(row.root) ?? {}
+    checkouts.push({
+      root: row.root,
+      display: row.display,
+      branch: row.branch,
+      upstream: up.upstream ?? null,
+      behind: up.behind ?? null,
+      detached: up.detached === true
+    })
+  }
 
   const links = []
   for (const row of rows) {
@@ -202,7 +251,7 @@ export function buildStatus({
     })
   }
 
-  return { rows, links }
+  return { rows, checkouts, links, now }
 }
 
 /** Compare a process's env wiring against its own worktree. Returns
@@ -279,25 +328,47 @@ export function render(status) {
     branch: Math.max(...status.rows.map((r) => r.branch.length), 6)
   }
 
+  const ago = (at, now) => formatUptime(now - at.getTime())
+
   const out = ['RUNNING']
-  for (const row of status.rows) {
+  for (const checkout of status.checkouts) {
+    const mine = status.rows.filter((r) => r.root === checkout.root)
+    for (const row of mine) {
+      out.push(
+        `  ${pad(row.role, w.role)}  ${pad(`:${row.port}`, w.port)}  ` +
+          `${pad(row.display, w.dir)}  ${pad(row.branch, w.branch)}  ` +
+          `up ${formatUptime(row.uptimeMs)}`
+      )
+      // Axis (a): this process is older than the code on disk. Restart is the right fix, and the
+      // message names WHAT changed so the advice is checkable rather than a vague "stale" — both
+      // causes on one line, since the prescription is the same single restart.
+      if (row.stale) {
+        const causes = row.stale.marks.map((m) =>
+          m.kind === 'code'
+            ? `this checkout's HEAD moved ${ago(m.at, status.now)} ago`
+            : `dependencies were reinstalled ${ago(m.at, status.now)} ago`
+        )
+        out.push(
+          `      ⚠ started ${formatUptime(row.uptimeMs)} ago, but ${causes.join(' and ')} — ` +
+            'it is serving stale code; restart this server'
+        )
+      }
+      for (const issue of row.wiring.issues) out.push(`      ⚠ ${issue}`)
+      if (!row.wiring.known) {
+        out.push(
+          '      · wiring unknown (could not read this process’s env) — cannot confirm which api/content it uses'
+        )
+      }
+    }
+    // Axis (b): a property of the CHECKOUT — printed once under its stack, never per row.
+    out.push(...checkoutNotes(checkout, mine))
+  }
+
+  if (status.checkouts.some((c) => c.behind !== null)) {
+    out.push('')
     out.push(
-      `  ${pad(row.role, w.role)}  ${pad(`:${row.port}`, w.port)}  ` +
-        `${pad(row.display, w.dir)}  ${pad(row.branch, w.branch)}  ` +
-        `up ${formatUptime(row.uptimeMs)}`
+      '  (behind-count is measured against the last `git fetch` — this command never fetches)'
     )
-    if (row.stale) {
-      out.push(
-        `      ⚠ started before ${row.stale.commits} commit${row.stale.commits === 1 ? '' : 's'} on this branch — ` +
-          'it is serving stale code; restart it'
-      )
-    }
-    for (const issue of row.wiring.issues) out.push(`      ⚠ ${issue}`)
-    if (!row.wiring.known) {
-      out.push(
-        '      · wiring unknown (could not read this process’s env) — cannot confirm which api/content it uses'
-      )
-    }
   }
 
   out.push('')
@@ -316,6 +387,29 @@ export function render(status) {
 }
 
 const firstLine = (s) => String(s).split('\n')[0].trim()
+
+/** The per-checkout lines: behind-origin (axis b) and the honest can't-tell cases. Kept separate
+ *  from the per-process lines because the two axes need DIFFERENT fixes — restarting a server
+ *  whose checkout is behind reloads the identical code and looks like success. */
+function checkoutNotes(checkout, rows) {
+  if (checkout.detached) {
+    return [
+      `      · ${checkout.display} is on a detached HEAD — no upstream to compare against`
+    ]
+  }
+  if (checkout.behind === null) {
+    return [
+      `      · branch \`${checkout.branch}\` has no upstream — cannot compare this checkout against a remote`
+    ]
+  }
+  if (checkout.behind === 0) return []
+  const alsoStale = rows.some((r) => r.stale)
+  return [
+    `      ⚠ this checkout is ${checkout.behind} commit${checkout.behind === 1 ? '' : 's'} behind ` +
+      `${checkout.upstream} — run \`git pull\`; restarting the server(s) alone will not help` +
+      (alsoStale ? ' (pull first, then restart the flagged servers above)' : '')
+  ]
+}
 
 // ---------------------------------------------------------------------------- real seams
 
@@ -385,18 +479,55 @@ export function startedAt(pid) {
   return Number.isNaN(d.getTime()) ? null : d
 }
 
-/** Commits on this worktree's HEAD that landed after `since` — i.e. how far behind the running
- *  server's code is. */
-export function commitsSince(root, since) {
-  const n = Number(
-    git(root, [
-      'rev-list',
-      '--count',
-      `--since=${since.toISOString()}`,
-      'HEAD'
-    ]) || '0'
-  )
-  return { count: Number.isFinite(n) ? n : 0 }
+const mtimeOf = (file) => {
+  try {
+    return statSync(file).mtime
+  } catch {
+    return null
+  }
+}
+
+/** When this checkout's HEAD last MOVED — i.e. when a pull/checkout/commit last changed the files
+ *  on disk. The per-worktree reflog (`logs/HEAD`, resolved via `--git-path` so linked worktrees
+ *  get their OWN log, not the main checkout's) is appended on every HEAD update, so its mtime is
+ *  exactly that moment. Cheap: one stat.
+ *
+ *  What it proves: a server that started before this is running code the disk no longer has.
+ *  What it does NOT prove: that the process is broken — vite/tsx/astro all watch files, so an
+ *  edit after boot is usually picked up. It is the reinstall/branch-jump class this catches, the
+ *  class watchers miss. Uncommitted edits move no ref and are deliberately not flagged. */
+export function headMovedAt(root) {
+  const rel = git(root, ['rev-parse', '--git-path', 'logs/HEAD'])
+  if (!rel) return null
+  return mtimeOf(path.resolve(root, rel))
+}
+
+/** When dependencies were last installed. pnpm rewrites `node_modules/.modules.yaml` on every
+ *  install, so its mtime dates the tree the process is (or is no longer) running against — the
+ *  #779 failure exactly: `pnpm install` swapped node_modules under a two-day-old vite and a lazy
+ *  route 404'd, which reads as an application bug. */
+export function depsChangedAt(root) {
+  return mtimeOf(path.join(root, 'node_modules', '.modules.yaml'))
+}
+
+/** How far this checkout trails its tracking branch — `rev-list --count HEAD..@{upstream}`.
+ *  NEVER fetches: that would mutate refs other sessions are reading, and this command is
+ *  read-only. The count is therefore only as fresh as the last fetch, which the output states.
+ *  Detached HEAD and no-upstream both degrade to "cannot tell" rather than a bogus 0. */
+export function upstreamOf(root) {
+  const detached = git(root, ['symbolic-ref', '-q', 'HEAD']) === ''
+  if (detached) return { upstream: null, behind: null, detached: true }
+  const upstream = git(root, [
+    'rev-parse',
+    '--abbrev-ref',
+    '--symbolic-full-name',
+    '@{upstream}'
+  ])
+  if (!upstream) return { upstream: null, behind: null }
+  const raw = git(root, ['rev-list', '--count', 'HEAD..@{upstream}'])
+  const n = Number(raw)
+  if (!raw || !Number.isFinite(n)) return { upstream, behind: null }
+  return { upstream, behind: n }
 }
 
 /** `ps eww` env for one pid. Returns null when the env is unreadable (restricted, or a platform
@@ -437,7 +568,9 @@ function main() {
     cwdOf,
     worktreeOf,
     startedAt,
-    commitsSince,
+    headMovedAt,
+    depsChangedAt,
+    upstreamOf,
     envOf,
     loginLink: (root) => loginLinkFor(root),
     home: homedir(),

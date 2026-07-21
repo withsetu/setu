@@ -605,3 +605,90 @@ describe('round-trip byte-stability (property-based)', () => {
     PROPERTY_TIMEOUT_MS
   )
 })
+
+/* ------------------------------------------------------------------------- *
+ * #752 — GFM tables.
+ *
+ * A HARD limit worth stating: the #752 defect — a multi-BLOCK cell (a second
+ * paragraph, a list, an image, a code block) losing everything but its first
+ * paragraph — is UNREACHABLE from Markdoc source. A GFM cell is inline-only, so
+ * `Markdoc.parse` never yields a cell with more than one block; the multi-block
+ * shape exists only as an EDITOR tree (press Enter in a cell, slash-insert, paste).
+ * The source-driven properties here therefore cannot generate it, and it would be
+ * the #734 "stable but wrong tree" trap to pretend otherwise. That shape is covered
+ * directly, at the tree level, by `table.test.ts` (content-survival + a byte-stable
+ * fixed point through the full read/write cycle).
+ *
+ * What IS reachable from source, and is guarded below, is the inline-cell table
+ * round-trip this fix also touched: header + alignment separator + body rows, inline
+ * marks, an escaped pipe, and — new in #752 — a `<br>` healing back to a hardBreak on
+ * read (so it never decays to the site-visible literal `\<br>`). Cell text is drawn
+ * from letters only so a raw newline or pipe can never break the row structure; the
+ * `<br>` and `\|` forms are added explicitly.
+ * ------------------------------------------------------------------------- */
+describe('round-trip GFM tables (property-based, #752)', () => {
+  const tword = fc
+    .array(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split('')), {
+      minLength: 1,
+      maxLength: 6
+    })
+    .map((a) => a.join(''))
+  const twords = fc
+    .array(tword, { minLength: 1, maxLength: 3 })
+    .map((w) => w.join(' '))
+  const cellText = fc.oneof(
+    twords,
+    twords.map((t) => `**${t}**`),
+    twords.map((t) => `*${t}*`),
+    twords.map((t) => `\`${t}\``),
+    fc.tuple(twords, twords).map(([a, b]) => `${a}<br>${b}`),
+    fc.tuple(twords, twords).map(([a, b]) => `${a} \\| ${b}`)
+  )
+  const gfmTable = fc.integer({ min: 1, max: 3 }).chain((ncols) =>
+    fc
+      .tuple(
+        fc.array(cellText, { minLength: ncols, maxLength: ncols }),
+        fc.array(fc.constantFrom('---', ':--', ':-:', '--:'), {
+          minLength: ncols,
+          maxLength: ncols
+        }),
+        fc.array(fc.array(cellText, { minLength: ncols, maxLength: ncols }), {
+          minLength: 1,
+          maxLength: 3
+        })
+      )
+      .map(([header, aligns, body]) => {
+        const rowStr = (cells: string[]) => '| ' + cells.join(' | ') + ' |'
+        return (
+          [
+            rowStr(header),
+            '| ' + aligns.join(' | ') + ' |',
+            ...body.map(rowStr)
+          ].join('\n') + '\n'
+        )
+      })
+  )
+
+  it(
+    'round-trips a canonical GFM table byte-for-byte',
+    () => {
+      fc.assert(
+        fc.property(gfmTable, (s0) => {
+          expect(roundtrip(s0)).toBe(s0)
+        }),
+        { numRuns: 5000 }
+      )
+    },
+    PROPERTY_TIMEOUT_MS
+  )
+
+  it(
+    'preserves the node tree for a GFM table',
+    () => {
+      fc.assert(fc.property(gfmTable, expectStructuralIdentity), {
+        numRuns: 5000
+      })
+    },
+    PROPERTY_TIMEOUT_MS
+  )
+})

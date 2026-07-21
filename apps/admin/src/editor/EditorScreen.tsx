@@ -164,9 +164,6 @@ export function EditorScreen() {
   // The title whose slugified form the current slug was derived from — while they
   // still match (and nothing is committed), a title edit re-derives the slug.
   const loadedTitleRef = useRef('')
-  // True while followRename is moving the entry: pauses autosave so a debounce
-  // firing mid-move can't re-create the just-deleted old-ref draft.
-  const renamingRef = useRef(false)
   const previewWin = useRef<Window | null>(null)
   const previewNonce = useRef(0)
   const previewApi = import.meta.env.VITE_SETU_API
@@ -272,7 +269,7 @@ export function EditorScreen() {
     void refreshLifecycle()
   }, [deployStatus, refreshLifecycle])
 
-  useAutosave({
+  const autosave = useAutosave({
     enabled: editable,
     rev,
     getInput: (): DraftInput => ({
@@ -282,11 +279,30 @@ export function EditorScreen() {
       baseSha: baseShaRef.current
     }),
     save: async (input) => {
-      // A rename is moving this entry right now: followRename already saved the
-      // latest doc/meta to the OLD ref and the service is re-keying it — an
-      // autosave firing in this window would resurrect the old draft.
-      if (renamingRef.current) return { saved: true }
       if (composing) {
+        // Re-entrancy guard (#753): a follow-up save queued while the first mint
+        // was in flight runs THIS same compose closure synchronously — before
+        // React re-renders onto the minted slug (so `composing`/`saveRef` are
+        // still the compose ones). Without this it would mint a SECOND slug and
+        // create a duplicate draft. `mintedRef` already holds the slug the
+        // in-flight mint claimed: save under it like a normal entry instead of
+        // re-minting (mirrors the renaming path's shape).
+        if (mintedRef.current) {
+          const minted = mintedRef.current
+          const result = await authoring.save(
+            {
+              collection,
+              locale,
+              slug: minted,
+              content: input.content,
+              metadata: input.metadata,
+              baseSha: baseShaRef.current
+            },
+            EDITOR_ID
+          )
+          await reindex({ collection, locale, slug: minted })
+          return result
+        }
         // First save of a new entry: mint a real slug — the author's explicit
         // choice when they applied one, else derived from the title — persist
         // under it, and replace the URL so this becomes a normal entry.
@@ -351,12 +367,15 @@ export function EditorScreen() {
     opts: { silent?: boolean } = {}
   ): Promise<RenameResult> => {
     const wasCommitted = lifecycle.state !== 'draft'
-    renamingRef.current = true
+    // Pause first (no NEW save starts), then quiesce (#755a): a save already PAST
+    // the pause check is mid-write to the OLD ref — wait it out BEFORE the service
+    // deletes that draft, or it lands after and orphans a draft at the old slug.
+    // Flipping a flag in-flight saves have already passed is not enough.
+    autosave.pause()
     try {
+      await autosave.settled()
       // Save-before-rename (mirrors commit()'s save-before-publish): the service
-      // moves what's in STORAGE, so persist the latest keystrokes first — and
-      // autosave is paused (renamingRef) so a debounce firing mid-move can't
-      // resurrect the old-ref draft after the service deletes it.
+      // moves what's in STORAGE, so persist the latest keystrokes first.
       await authoring.save(
         {
           ...ref,
@@ -392,7 +411,7 @@ export function EditorScreen() {
         )
       return result
     } finally {
-      renamingRef.current = false
+      autosave.resume()
     }
   }
 
@@ -465,8 +484,11 @@ export function EditorScreen() {
         },
         EDITOR_ID
       )
-      // Fire-and-forget is safe here: publish below re-reindexes + awaits.
-      void reindex(ref)
+      // #755b: NO optimistic pre-publish reindex here. It reindexes the DRAFT
+      // state and, being fire-and-forget, can resolve AFTER the awaited
+      // post-publish reindex below — clobbering the published row with a stale
+      // draft one (harmful in the local topology, where the index is
+      // authoritative). The awaited reindexEntries at publish time fully covers it.
       const r = await publish.publish({
         ref,
         author: OWNER_AUTHOR, // fallback only — the api stamps the session identity (#382)
@@ -566,11 +588,22 @@ export function EditorScreen() {
    *  bump reloadKey to re-run the load effect (which also remounts the keyed
    *  Canvas/MetaPanel and re-derives lifecycle + the live gate). */
   const onRestored = async (sha: string) => {
-    await data.deleteDraft(ref)
-    baseShaRef.current = null
-    baseContentRef.current = null
-    await index.reindexEntries([ref], sha).catch(() => {})
-    setReloadKey((k) => k + 1)
+    // #754: quiesce autosave before touching storage. deleteDraft drops the DB
+    // draft so the reload re-forks the restored content from HEAD; a debounce
+    // firing (or a save already in flight) after that delete re-creates the draft
+    // with the pre-restore buffer, silently defeating the restore. pause() stops
+    // new saves + cancels the pending timer; settled() waits out any in-flight one.
+    autosave.pause()
+    try {
+      await autosave.settled()
+      await data.deleteDraft(ref)
+      baseShaRef.current = null
+      baseContentRef.current = null
+      await index.reindexEntries([ref], sha).catch(() => {})
+      setReloadKey((k) => k + 1)
+    } finally {
+      autosave.resume()
+    }
   }
 
   useRegisterCommands([

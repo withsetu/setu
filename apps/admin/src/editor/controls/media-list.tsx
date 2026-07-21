@@ -128,6 +128,7 @@ export function MediaListControl({ value, onChange, meta }: ControlProps) {
       <Button
         type="button"
         variant="outline"
+        id={`bi-${meta.name}`}
         onClick={() => setPickerOpen(true)}
         className={
           items.length === 0

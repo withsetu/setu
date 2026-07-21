@@ -16,7 +16,7 @@ export function SegmentedSelect(props: ControlProps) {
         if (v) props.onChange(v)
       }}
       className="flex-wrap justify-start"
-      aria-label={props.meta.name}
+      aria-labelledby={`bi-label-${props.meta.name}`}
     >
       {options.map((o) => (
         <ToggleGroupItem

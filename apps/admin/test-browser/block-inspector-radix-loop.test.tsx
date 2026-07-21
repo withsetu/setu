@@ -6,6 +6,7 @@ import StarterKit from '@tiptap/starter-kit'
 import type { Editor } from '@tiptap/core'
 import { z } from 'zod'
 import { createSetuBlock } from '../src/editor/extensions/SetuBlock'
+import { NotificationProvider } from '../src/ui/notify'
 import { BlockInspector } from '../src/editor/BlockInspector'
 import { useSelectedBlock } from '../src/editor/useSelectedBlock'
 import { registry } from '../src/blocks/registry'
@@ -147,7 +148,11 @@ describe('BlockInspector against a real editor — Radix update-loop regression'
     }
 
     renderCount = 0
-    const { unmount } = render(<Harness />)
+    const { unmount } = render(
+      <NotificationProvider>
+        <Harness />
+      </NotificationProvider>
+    )
 
     // Select the fixture block by clicking its real rendered node view — the path a
     // user actually takes, not a synthetic ProseMirror selection dispatch.

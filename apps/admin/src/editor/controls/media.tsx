@@ -46,6 +46,7 @@ function MediaControlBase({
         <Button
           type="button"
           variant="outline"
+          id={`bi-${meta.name}`}
           aria-label={meta.name}
           onClick={() => meta.onPickMedia(meta.name)}
           className="h-24 w-full border-dashed text-muted-foreground"

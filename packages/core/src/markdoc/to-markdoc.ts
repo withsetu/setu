@@ -59,6 +59,62 @@ const endsLine = (t: TiptapNode | undefined): boolean =>
   t?.type === 'hardBreak' ||
   (t?.type === 'text' && (t.text ?? '').endsWith('\n'))
 
+/** #784 — a heading is ONE physical line, and unlike a table cell it has no fold to
+ *  spell a break with. A GFM cell got `<br>` (#752/#769) because HTML is the cell's
+ *  own escape hatch and the reader/renderer could be taught to heal it; an ATX heading
+ *  has no such construct in Markdown, so the writer used to let a `hardBreak` escape as
+ *  a real newline — which does not "lose the break", it DESTROYS the document: the
+ *  heading kept a trailing `\` and the rest of it re-read as a separate paragraph.
+ *
+ *  So breaks are folded to a single space here, before any run is built. This is LOSSY
+ *  and chosen deliberately: losing a break the author cannot see in the rendered
+ *  heading anyway beats losing the heading. The alternatives were worse — a literal
+ *  `<br>` would need matching reader and site-renderer halves (and heading slugs are
+ *  derived from these same children), and disallowing `hardBreak` in the editor's
+ *  heading schema cannot be expressed without also excluding `image`, which today
+ *  round-trips fine and would be silently dropped from existing content on load.
+ *  Editor-side prevention is additive and belongs on top of this, never instead of it:
+ *  core is a port and serializes Tiptap JSON from any caller.
+ *
+ *  A raw `\n` inside a heading text node — the #667 soft-break representation — is the
+ *  identical defect by another route and folds the same way. Leading, trailing and
+ *  doubled spaces are suppressed so the folded output is immediately byte-stable
+ *  rather than converging on a second save. */
+function foldHeadingBreaks(content: TiptapNode[]): TiptapNode[] {
+  const out: TiptapNode[] = []
+  let pendingBreak = false
+  for (const node of content) {
+    if (node.type === 'hardBreak') {
+      pendingBreak = true
+      continue
+    }
+    const text = node.type === 'text' ? (node.text ?? '') : null
+    const folded: TiptapNode =
+      text !== null && /[\r\n]/.test(text)
+        ? { ...node, text: text.replace(/[\r\n]+/g, ' ') }
+        : node
+    if (pendingBreak) {
+      pendingBreak = false
+      // Nothing before it: the space would be leading padding the reader trims away.
+      const prev = out[out.length - 1]
+      const prevText = prev?.type === 'text' ? (prev.text ?? '') : null
+      if (prev && !(prevText !== null && /\s$/.test(prevText))) {
+        // Merge into the preceding run when that run can carry it, so a break inside
+        // a mark does not split one delimiter pair into two (`**one two**`, not
+        // `**one** **two**`). A code span is excluded — its content is literal, so
+        // padding it would change the code, not the spacing around it.
+        const mergeable =
+          prevText !== null && !(prev.marks ?? []).some((m) => m.type === 'code')
+        if (mergeable)
+          out[out.length - 1] = { ...prev, text: `${prevText as string} ` }
+        else out.push({ type: 'text', text: ' ' })
+      }
+    }
+    out.push(folded)
+  }
+  return out
+}
+
 /** One serialized inline run, plus the marks still to be wrapped around it,
  *  OUTERMOST first. Splitting "render the leaf" from "wrap the marks" is what
  *  lets adjacent runs share a delimiter pair (#693) — the leaf keeps its own
@@ -146,7 +202,11 @@ export function buildInline(
    *  anything else, where no positional rule applies at offset 0. See ./escape-inline. */
   context: 'block' | 'heading' | 'inline' | 'cell' = 'inline'
 ): InstanceType<typeof N>[] {
-  const runs = content.map((t, index): InlineRun => {
+  // #784: applied HERE rather than at the heading call site so every future caller
+  // that passes `'heading'` inherits it — the index-dependent escape rules below all
+  // run against the folded array, so no position ever sees a break that cannot exist.
+  const inline = context === 'heading' ? foldHeadingBreaks(content) : content
+  const runs = inline.map((t, index): InlineRun => {
     if (t.type === 'hardBreak') return { node: new N('hardbreak'), marks: [] }
     if (t.type === 'image') {
       const a = t.attrs ?? {}
@@ -205,9 +265,9 @@ export function buildInline(
             atBlockStart:
               index === 0
                 ? context === 'block' && bare
-                : endsLine(content[index - 1]),
+                : endsLine(inline[index - 1]),
             atHeadingEnd:
-              context === 'heading' && index === content.length - 1 && bare,
+              context === 'heading' && index === inline.length - 1 && bare,
             // #772: overrides both of the above. A cell is one physical line whose
             // breaks are `<br>` HTML, so a marker can never open a block in it.
             inCell: context === 'cell'

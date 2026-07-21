@@ -11,7 +11,6 @@ import {
   TableHeader,
   TableCell
 } from '@tiptap/extension-table'
-import { TextAlign } from '@tiptap/extension-text-align'
 import type { Editor } from '@tiptap/core'
 import type { EditorView } from '@tiptap/pm/view'
 import tippy from 'tippy.js'
@@ -31,6 +30,7 @@ import { ImageDragGuard } from './extensions/ImageDragGuard'
 import { Passthrough } from './extensions/Passthrough'
 import { SlashCommand } from './extensions/SlashCommand'
 import { KeyboardShortcuts } from './extensions/KeyboardShortcuts'
+import { CellAwareTextAlign } from './extensions/CellAwareTextAlign'
 import { requestLinkEdit } from './editor-events'
 import { LinkTools } from './extensions/LinkTools'
 import { FormatBubble } from './FormatBubble'
@@ -127,7 +127,7 @@ export function Canvas({
       TableRow,
       AlignTableHeader,
       AlignTableCell,
-      TextAlign.configure({
+      CellAwareTextAlign.configure({
         types: ['heading', 'paragraph'],
         alignments: ['left', 'center', 'right']
       }),

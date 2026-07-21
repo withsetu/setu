@@ -138,6 +138,37 @@ function inlineToTiptap(node: MdNode, marks: TiptapMark[] = []): TiptapNode[] {
 const collectInline = (node: MdNode): TiptapNode[] =>
   (node.children ?? []).flatMap((c) => inlineToTiptap(c))
 
+/** A literal `<br>` (any spelling) inside a table cell. Markdoc parses a GFM cell as
+ *  INLINE content and never recognises `<br>` as a break — it lands as literal text — so
+ *  the reader restores it to a `hardBreak` node here. This is the inverse of the writer's
+ *  `\n` -> `<br>` cell flattening (#752): a multi-block cell serialises its inter-block
+ *  breaks as `<br>`, and without this they would re-read as the literal characters
+ *  `<br>`, whose `<` the next save escapes to `\<br>` — the break decays to visible text.
+ *  markdown-it has already resolved any `\<br>` escape to `<br>` before we see it, so only
+ *  the bare form needs matching. */
+const CELL_BR = /<br\s*\/?>/gi
+
+/** Split every text node in a cell's inline run on `<br>`, interleaving `hardBreak`
+ *  nodes and preserving each fragment's marks. Non-text inline nodes pass through. */
+function splitCellBreaks(inline: TiptapNode[]): TiptapNode[] {
+  return inline.flatMap((node) => {
+    if (node.type !== 'text' || typeof node.text !== 'string') return [node]
+    const pieces = node.text.split(CELL_BR)
+    if (pieces.length === 1) return [node]
+    const out: TiptapNode[] = []
+    pieces.forEach((piece, i) => {
+      if (i > 0) out.push({ type: 'hardBreak' })
+      if (piece !== '')
+        out.push({
+          type: 'text',
+          text: piece,
+          ...(node.marks ? { marks: node.marks } : {})
+        })
+    })
+    return out
+  })
+}
+
 /** GFM task marker at the very start of an item's text: "[ ] ", "[x] ", "[X] ",
  *  or a bare "[ ]"/"[x]" at end of line (an empty task row). */
 const TASK_RE = /^\[( |x|X)\](?: |$)/
@@ -347,7 +378,9 @@ function blockToTiptap(node: MdNode): TiptapNode | null {
       const cellToTiptap = (cell: MdNode, header: boolean): TiptapNode => ({
         type: header ? 'tableHeader' : 'tableCell',
         attrs: { align: cellAlign(cell) },
-        content: [{ type: 'paragraph', content: collectInline(cell) }]
+        content: [
+          { type: 'paragraph', content: splitCellBreaks(collectInline(cell)) }
+        ]
       })
       const rowToTiptap = (tr: MdNode, header: boolean): TiptapNode => ({
         type: 'tableRow',

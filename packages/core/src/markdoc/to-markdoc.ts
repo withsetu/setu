@@ -695,8 +695,10 @@ function tildeFencedCodeBlock(node: TiptapNode): string | null {
 }
 
 /** Serialize one block node to Markdoc source. Used for top-level blocks AND,
- *  recursively, for the children of body-bearing tags. */
-function serializeBlock(
+ *  recursively, for the children of body-bearing tags. Exported so the GFM table
+ *  serializer can fold a multi-block cell's children through the SAME per-type
+ *  serializers (#752) — the #658 lesson, applied to table cells. */
+export function serializeBlock(
   node: TiptapNode,
   position: BlockPosition = 'block-start',
   /** The list marker chosen for this node by `serializeSiblings` (#694). Only a list

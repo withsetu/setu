@@ -162,10 +162,21 @@ const collectInline = (node: MdNode): TiptapNode[] =>
 const CELL_BR = /<br\s*\/?>/gi
 
 /** Split every text node in a cell's inline run on `<br>`, interleaving `hardBreak`
- *  nodes and preserving each fragment's marks. Non-text inline nodes pass through. */
+ *  nodes and preserving each fragment's marks. Non-text inline nodes pass through.
+ *
+ *  #785 — a code span is EXEMPT. Markdoc hands one over as a text node carrying a
+ *  `code` mark (the `code` case above), not as a distinct node type, so the plain
+ *  `type !== 'text'` guard did not cover it and `` `a<br>b` `` came back as two code
+ *  runs around a real break. Saving then rewrote the cell to `` `a`<br>`b` `` — one
+ *  `<code>` element on the published page became two, in content the author never
+ *  edited. Code-span content is literal by definition, which is why the writer refuses
+ *  to escape it (see escape-inline) and why the site renderer leaves a `<br>` inside a
+ *  code span alone (`markdoc.config.mjs`; its payload is an attribute with no children
+ *  to split). This is the reader agreeing with both. */
 function splitCellBreaks(inline: TiptapNode[]): TiptapNode[] {
   return inline.flatMap((node) => {
     if (node.type !== 'text' || typeof node.text !== 'string') return [node]
+    if ((node.marks ?? []).some((m) => m.type === 'code')) return [node]
     const pieces = node.text.split(CELL_BR)
     if (pieces.length === 1) return [node]
     const out: TiptapNode[] = []

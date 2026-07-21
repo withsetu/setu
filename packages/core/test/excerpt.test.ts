@@ -15,7 +15,9 @@ describe('#787 — excerpt() strips block-level table syntax', () => {
       '',
       'And then some prose.'
     ].join('\n')
-    expect(excerpt(body)).toBe('Feature Notes Fast one two And then some prose.')
+    expect(excerpt(body)).toBe(
+      'Feature Notes Fast one two And then some prose.'
+    )
   })
 
   it('drops a thematic break rather than leaving its dashes', () => {
@@ -38,7 +40,9 @@ describe('#787 — excerpt() strips block-level table syntax', () => {
 
   it('leaves the existing strips working', () => {
     expect(
-      excerpt('# Title\n\n{% hero title="x" /%}\n\n![alt](/a.png) [text](/b) *em*')
+      excerpt(
+        '# Title\n\n{% hero title="x" /%}\n\n![alt](/a.png) [text](/b) *em*'
+      )
     ).toBe('Title text em')
   })
 

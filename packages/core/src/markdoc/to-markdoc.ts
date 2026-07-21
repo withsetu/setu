@@ -104,9 +104,9 @@ function foldHeadingBreaks(content: TiptapNode[]): TiptapNode[] {
         // `**one** **two**`). A code span is excluded — its content is literal, so
         // padding it would change the code, not the spacing around it.
         const mergeable =
-          prevText !== null && !(prev.marks ?? []).some((m) => m.type === 'code')
-        if (mergeable)
-          out[out.length - 1] = { ...prev, text: `${prevText as string} ` }
+          prevText !== null &&
+          !(prev.marks ?? []).some((m) => m.type === 'code')
+        if (mergeable) out[out.length - 1] = { ...prev, text: `${prevText} ` }
         else out.push({ type: 'text', text: ' ' })
       }
     }

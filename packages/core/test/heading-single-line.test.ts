@@ -24,8 +24,7 @@ import type { TiptapDoc, TiptapNode } from '../src/index'
  *  Editor-side prevention (stopping Shift-Enter from making the break at all) is a
  *  separate, additive concern — see the follow-up issue; the writer must be safe
  *  regardless, because core is a port and takes Tiptap JSON from any caller. */
-const doc = (content: TiptapNode[]): TiptapDoc =>
-  ({ type: 'doc', content }) as TiptapDoc
+const doc = (content: TiptapNode[]): TiptapDoc => ({ type: 'doc', content })
 
 const heading = (content: TiptapNode[]): TiptapDoc =>
   doc([{ type: 'heading', attrs: { level: 2 }, content }])

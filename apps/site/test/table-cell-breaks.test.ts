@@ -26,15 +26,18 @@ import markdocConfig from '../markdoc.config.mjs'
  */
 const CELL_SRC = '| H1 | H2 |\n| --- | --- |\n| one<br>two | **a**<br>b |\n'
 
-/** #785 — a `<br>` inside a CODE SPAN is not a fold and must stay literal. Markdoc gives
- *  a code span its payload as an attribute with no children, so this renderer never
- *  touched it; the reader in @setu/core used to split it anyway (a code span is a text
- *  node carrying a `code` mark there), which rewrote the cell on save and turned one
- *  `<code>` element into two. This pins the renderer half of the agreement. */
+/** #785 — a `<br>` inside a CODE SPAN is not a fold and must stay literal. BOTH sides
+ *  used to split it: the reader in @setu/core (a code span arrives there as a text node
+ *  carrying a `code` mark, which its `type !== 'text'` guard missed), and this renderer,
+ *  whose comment claimed the `code` transform kept its payload in attributes with no
+ *  children — it does not, it emits `Tag('code', {}, ['a<br>b'])`, so the recursion
+ *  reached straight into the span. This pins the renderer half of the agreement. */
 const CODE_SRC = '| H1 |\n| --- |\n| `a<br>b` |\n'
 
 /** The transformed tree, resolved exactly as the preview resolves it. */
-async function transformAsPreviewDoes(src: string = CELL_SRC): Promise<unknown> {
+async function transformAsPreviewDoes(
+  src: string = CELL_SRC
+): Promise<unknown> {
   // The preview maps th/td to real .astro components; the resolve step only cares that
   // the key is PRESENT (it overwrites `render` with whatever it is handed), so plain
   // strings stand in for the components here and keep this a pure-node test. The casts

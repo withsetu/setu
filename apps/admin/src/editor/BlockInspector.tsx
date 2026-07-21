@@ -107,7 +107,7 @@ export function BlockInspector({
     const force = activeForce(c.name)
     return (
       <div key={c.name} className="flex flex-col gap-1.5">
-        <Label htmlFor={`bi-${c.name}`}>
+        <Label id={`bi-label-${c.name}`} htmlFor={`bi-${c.name}`}>
           {editor?.labels?.[c.name] ?? humanizeLabel(c.name)}
         </Label>
         <Control

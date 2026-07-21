@@ -10,6 +10,7 @@ export function TagAutocomplete({
   exclude = [],
   placeholder,
   ariaLabel,
+  id,
   disabled = false
 }: {
   value: string
@@ -18,6 +19,8 @@ export function TagAutocomplete({
   exclude?: string[]
   placeholder?: string
   ariaLabel: string
+  /** Forwarded to the combobox input to associate a visible `<label htmlFor>`. */
+  id?: string
   disabled?: boolean
 }) {
   const index = useIndex()
@@ -60,6 +63,7 @@ export function TagAutocomplete({
       allowFreeText
       placeholder={placeholder}
       ariaLabel={ariaLabel}
+      id={id}
       disabled={disabled}
     />
   )

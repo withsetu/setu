@@ -3,9 +3,13 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { createMediaIndexService } from '@setu/core'
 import { createMemoryMediaIndexPort } from '@setu/db-memory'
 import { MediaIndexProvider } from '../src/data/media-index-store'
+import { NotificationProvider } from '../src/ui/notify'
 import { MediaListControl } from '../src/editor/controls/media-list'
 import { controlRegistry } from '../src/editor/controls/registry'
 import type { MediaRecord } from '@setu/core'
+
+// MediaListControl mounts MediaPickerModal, which calls useNotify() (#756).
+const wrapper = NotificationProvider
 
 const meta = {
   name: 'images',
@@ -25,7 +29,8 @@ describe('MediaListControl', () => {
 
   it('renders a thumbnail + alt/caption inputs per image', () => {
     const { container } = render(
-      <MediaListControl value={IMAGES} onChange={() => {}} meta={meta} />
+      <MediaListControl value={IMAGES} onChange={() => {}} meta={meta} />,
+      { wrapper }
     )
     // decorative thumbnails (alt="") have no img role — query the elements directly
     const thumbs = container.querySelectorAll('img')
@@ -40,7 +45,12 @@ describe('MediaListControl', () => {
 
   it('writes alt edits back as a new images array', () => {
     const onChange = vi.fn()
-    render(<MediaListControl value={IMAGES} onChange={onChange} meta={meta} />)
+    render(
+      <MediaListControl value={IMAGES} onChange={onChange} meta={meta} />,
+      {
+        wrapper
+      }
+    )
     fireEvent.change(screen.getByLabelText('Alt text for image 2'), {
       target: { value: 'Beach' }
     })
@@ -52,7 +62,12 @@ describe('MediaListControl', () => {
 
   it('reorders with move up/down and removes items', () => {
     const onChange = vi.fn()
-    render(<MediaListControl value={IMAGES} onChange={onChange} meta={meta} />)
+    render(
+      <MediaListControl value={IMAGES} onChange={onChange} meta={meta} />,
+      {
+        wrapper
+      }
+    )
     // first item cannot move up, last cannot move down
     expect(screen.getByLabelText('Move image 1 up')).toBeDisabled()
     expect(screen.getByLabelText('Move image 2 down')).toBeDisabled()
@@ -84,7 +99,8 @@ describe('MediaListControl', () => {
     render(
       <MediaIndexProvider service={svc}>
         <MediaListControl value={[]} onChange={onChange} meta={meta} />
-      </MediaIndexProvider>
+      </MediaIndexProvider>,
+      { wrapper }
     )
     fireEvent.click(screen.getByRole('button', { name: /add images/i }))
     await waitFor(() => expect(screen.getByText('cat.png')).toBeInTheDocument())
@@ -132,7 +148,8 @@ describe('MediaListControl', () => {
       render(
         <MediaIndexProvider service={svc}>
           <MediaListControl value={[]} onChange={onChange} meta={meta} />
-        </MediaIndexProvider>
+        </MediaIndexProvider>,
+        { wrapper }
       )
       fireEvent.click(screen.getByRole('button', { name: /add images/i }))
       const input = await screen.findByTestId('media-dropzone-input')

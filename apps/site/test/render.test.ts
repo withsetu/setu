@@ -192,13 +192,25 @@ describe('render pipeline — folded multi-block table cell (#769)', () => {
     expect(html).toContain('<td>one<br/>two</td>')
   })
   it('never leaks the escaped literal marker onto the page', () => {
-    expect(html).not.toContain('&lt;br&gt;')
-    expect(html).not.toContain('&lt;br/&gt;')
+    // Outside code spans, where a `<br>` IS the fold marker and must have become an
+    // element. Inside `<code>` the same characters are literal content and staying
+    // escaped is the correct outcome (#785) — hence the narrowing rather than a
+    // blanket search over the whole page.
+    const outsideCode = html.replace(/<code>[\s\S]*?<\/code>/g, '')
+    expect(outsideCode).not.toContain('&lt;br&gt;')
+    expect(outsideCode).not.toContain('&lt;br/&gt;')
   })
   it('splits inside a mark, keeping the formatting on both sides', () => {
     expect(html).toContain(
       '<td style="text-align:center"><strong>bold</strong><br/>plain</td>'
     )
+  })
+  /** #785 — a code span is not a fold. Its content is literal, the reader leaves it
+   *  whole, and the page must show the same characters the editor does: ONE `<code>`
+   *  holding `a&lt;br&gt;b`, not two around a real break. */
+  it('leaves a <br> inside a code span literal, in one <code>', () => {
+    expect(html).toContain('<td><code>a&lt;br&gt;b</code></td>')
+    expect(html).not.toContain('<code>a</code><br/><code>b</code>')
   })
   it('turns ONLY <br> into markup — every other tag stays escaped text', () => {
     // The split builds an array of plain strings + real `br` tags; no `set:html`,

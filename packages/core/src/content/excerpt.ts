@@ -5,6 +5,14 @@ export function excerpt(body: string, max = 200): string {
     .replace(/\{%[\s\S]*?%\}/g, ' ') // markdoc tags (lazy: tolerates % / newlines in body)
     .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ') // images
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1') // links → text
+    // #787: whole lines that are PURE structure — a GFM delimiter row (`| --- | :-: |`),
+    // a thematic break, a setext underline. Dropping the line is the only honest option:
+    // strip their characters individually and the leftover `---` reads as prose. This
+    // runs before the character strips below so the `|` rule cannot eat the row's shape
+    // first. Anchored per line (`m`), so a hyphen inside a sentence is never touched.
+    .replace(/^[ \t]*\|?[ \t:|-]*[-=]{2,}[ \t:|=-]*$/gm, ' ')
+    .replace(/<br\s*\/?>/gi, ' ') // the folded multi-block cell marker (#752)
+    .replace(/\|/g, ' ') // table pipes
     .replace(/[#>*_`~]/g, ' ') // md punctuation
     .replace(/\s+/g, ' ')
     .trim()

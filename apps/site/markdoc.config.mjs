@@ -72,9 +72,19 @@ const CELL_BR = /<br\s*\/?>/gi
 /** Split every string in a transformed cell's children on `<br>`, interleaving real
  *  `br` tags. Recurses into tag children so a break inside a mark (`**a<br>b**`)
  *  splits with the formatting intact — the same shape `splitCellBreaks` produces,
- *  which preserves each fragment's marks. Markdoc's `code`/`image` tags carry their
- *  payload in ATTRIBUTES with no children, so a `<br>` inside a code span is left
- *  literal, exactly as it reads back in the editor. */
+ *  which preserves each fragment's marks.
+ *
+ *  #785 — a CODE span is exempt, on both sides. This comment used to claim Markdoc's
+ *  `code` tag "carries its payload in ATTRIBUTES with no children, so a `<br>` inside a
+ *  code span is left literal, exactly as it reads back in the editor". Neither half was
+ *  true. The transform emits `Tag('code', {}, ['a<br>b'])` — the payload is a CHILD
+ *  string — so the recursion split it here and the page rendered a real break inside
+ *  `<code>`; and the reader (`splitCellBreaks` in @setu/core to-tiptap) split it too,
+ *  because a code span arrives there as a TEXT node carrying a `code` mark, which its
+ *  `type !== 'text'` guard did not cover. Code-span content is literal by definition —
+ *  the writer will not even escape it (see escape-inline) — and a cell fold never puts
+ *  a `<br>` inside a span in the first place: the fold joins a cell's BLOCK children.
+ *  Both sides now leave it alone, so the editor, the file and the page agree. */
 function splitCellBreaks(children) {
   const out = []
   for (const child of children) {
@@ -84,6 +94,8 @@ function splitCellBreaks(children) {
         if (i > 0) out.push(new Markdoc.Tag('br'))
         if (part !== '') out.push(part)
       })
+    } else if (child instanceof Markdoc.Tag && child.name === 'code') {
+      out.push(child)
     } else if (child instanceof Markdoc.Tag && Array.isArray(child.children)) {
       out.push(
         new Markdoc.Tag(

@@ -9,12 +9,21 @@ export class LoginPage {
     return this.page.getByText('Sign in to Setu')
   }
 
+  /** #812: label-based, not `#login-email`/`#login-password`. This is the screen `auth.setup.ts`
+   *  drives for EVERY role before EVERY project, and it was the one place the harness opted out of
+   *  its own a11y forcing function (CLAUDE.md §5): selecting by raw CSS id keeps passing after the
+   *  `<Label htmlFor>` association breaks — label detached, `htmlFor` dropped, `<Input>` swapped
+   *  for a custom component — so an accessible-name regression on the login form would ship green.
+   *  LoginScreen.tsx renders `<Label htmlFor="login-email">Email</Label>` +
+   *  `<Label htmlFor="login-password">Password</Label>`, so these resolve through the real
+   *  accessibility tree, and a broken association is now a hard setup-project failure.
+   *  (`MediaPage.ts`'s `data-testid` remains the genuine last-resort case; this was not one.) */
   get emailInput() {
-    return this.page.locator('#login-email')
+    return this.page.getByLabel('Email')
   }
 
   get passwordInput() {
-    return this.page.locator('#login-password')
+    return this.page.getByLabel('Password')
   }
 
   get submit() {

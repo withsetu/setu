@@ -55,7 +55,27 @@ test.describe('admin a11y (axe, WCAG 2.1 AA)', () => {
     // ResumeEditing) while the content index loads (#572). Wait for the real content
     // to replace them so the scan audits the loaded dashboard — the state that
     // actually renders the deploy/status text — not the decorative loading shell.
+    //
+    // #812: the negative alone could not fail. A zero-count on a selector that matches NOTHING is
+    // indistinguishable from a zero-count on a page that finished loading — rename
+    // `data-slot="skeleton"` (a plausible shadcn upgrade) and this resolves on the first poll,
+    // axe then scans the loading shell, and the scan comes back emptier than before, i.e. greener.
+    // The #572 bug it was written for would silently un-fix. So it is paired with POSITIVE
+    // controls that only the LOADED dashboard can satisfy, both rendered exclusively in the
+    // non-`loading` branch of their widget:
+    //   - SiteDeployCard's "View site" button (widgets/SiteDeployCard.tsx renders skeleton lines
+    //     instead while loading), and
+    //   - a StatTiles tile that is a LINK carrying its count (widgets/StatTiles.tsx renders
+    //     `<StatSkeleton>` — a bare label, no link, no number — while loading). The `\d` in the
+    //     accessible name is what makes it a real settle signal.
+    // Both are scoped to `main`: the AppSidebar has its OWN "View site" and "Posts" links which
+    // render regardless of load state, so an unscoped locator would be satisfied by the loading
+    // shell — reintroducing exactly the vacuity this pairing exists to remove.
+    // With these, "nothing rendered" and "loading finished" stop looking identical.
+    const main = page.getByRole('main')
     await expect(page.locator('[data-slot="skeleton"]')).toHaveCount(0)
+    await expect(main.getByRole('link', { name: 'View site' })).toBeVisible()
+    await expect(main.getByRole('link', { name: /\d+\s*Posts/ })).toBeVisible()
 
     await scanAndAssert(page, 'dashboard')
   })

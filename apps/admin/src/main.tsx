@@ -12,6 +12,7 @@ import { AppMediaIndexProvider } from './data/media-index-store'
 import { TaxonomyProvider } from './data/taxonomy-store'
 import { TagsProvider } from './data/tags-store'
 import { NotificationProvider } from './ui/notify'
+import { UnhandledRejectionReporter } from './ui/UnhandledRejectionReporter'
 import { CommandRegistryProvider } from './command/registry'
 import { SettingsProvider } from './data/settings-store'
 import { Toaster } from '@/components/ui/sonner'
@@ -45,6 +46,10 @@ createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <Bootstrap>
         <NotificationProvider>
+          {/* Outside AuthBoundary so it is listening before the session
+              resolves — a failing sign-in exchange is exactly the kind of
+              rejection nothing else reports. */}
+          <UnhandledRejectionReporter />
           <AuthBoundary>
             <DeployProvider>
               <IndexProvider>

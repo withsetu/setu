@@ -375,8 +375,12 @@ export function EditorScreen() {
     try {
       await autosave.settled()
       // Save-before-rename (mirrors commit()'s save-before-publish): the service
-      // moves what's in STORAGE, so persist the latest keystrokes first.
-      await authoring.save(
+      // moves what's in STORAGE, so persist the latest keystrokes first. A refused
+      // save wrote nothing (the draft lock is held elsewhere), so renaming anyway
+      // would move a draft this author never saw — refuse instead (#798;
+      // test/editor-commit-failures.test.tsx "refuses the rename instead of
+      // renaming around an unsaved buffer").
+      const saved = await authoring.save(
         {
           ...ref,
           content: docRef.current,
@@ -385,6 +389,8 @@ export function EditorScreen() {
         },
         EDITOR_ID
       )
+      if (!saved.saved)
+        return { renamed: false, committedSha: null, reason: 'locked' }
       const result = await renameService.renameSlug(ref, newSlug)
       if (!result.renamed) return result
       mintedRef.current = newSlug
@@ -452,30 +458,40 @@ export function EditorScreen() {
       loadedTitleRef.current = newTitle
       return
     }
-    const taken = await existingSlugs(data, git, collection, locale)
-    taken.delete(slug)
-    const newSlug = uniqueSlug(base, taken)
-    if (newSlug === slug) return
-    // Best-effort: auto-derive silently skips on failure (the field still works
-    // for an explicit rename, which surfaces its own errors).
+    // Best-effort: auto-derive silently keeps the current slug on any failure (the
+    // field still works for an explicit rename, which surfaces its own errors).
+    // The `try` covers the slug LOOKUP too (#798): it is an awaited port read that
+    // can reject, and this whole function is invoked as `void onTitleBlur()`, so a
+    // rejection escaping here becomes an unhandled rejection nothing reports.
     try {
+      const taken = await existingSlugs(data, git, collection, locale)
+      taken.delete(slug)
+      const newSlug = uniqueSlug(base, taken)
+      if (newSlug === slug) return
       const result = await followRename(newSlug, { silent: true })
       if (result.renamed) loadedTitleRef.current = newTitle
     } catch {
       /* keep the current slug */
     }
   }
+  /** Save the buffer, then commit it to Git. EVERY exit reports to the author:
+   *  a rejection, a refused save and an empty publish are all visibly distinct
+   *  from success (#798), because "the button did nothing" reads as "it worked".
+   *  `label` names the action in those messages — Publish, Save draft and
+   *  Unpublish all land here. Enforced by test/editor-commit-failures.test.tsx. */
   const commit = async (opts?: {
     message?: string
     toast?: (sha: string) => string
+    label?: string
   }) => {
     if (committing.current) return
+    const label = opts?.label ?? 'publish'
     committing.current = true
     try {
       // Save-before-publish: publish reads storage, not the in-memory doc. Always
       // serialize the LATEST metaRef.current (Publish/Unpublish/Save-draft mutate
       // it first).
-      await authoring.save(
+      const saved = await authoring.save(
         {
           ...ref,
           content: docRef.current,
@@ -484,6 +500,15 @@ export function EditorScreen() {
         },
         EDITOR_ID
       )
+      // Refused: the draft lock is held elsewhere and NOTHING was written. Publish
+      // reads storage, so continuing would commit whatever draft is there — a
+      // stale or another editor's — under a confident "Published · sha" toast.
+      if (!saved.saved) {
+        notify.error(
+          `Couldn't ${label} — this entry is locked by another editor, so your changes weren't saved.`
+        )
+        return
+      }
       // #755b: NO optimistic pre-publish reindex here. It reindexes the DRAFT
       // state and, being fire-and-forget, can resolve AFTER the awaited
       // post-publish reindex below — clobbering the published row with a stale
@@ -509,7 +534,19 @@ export function EditorScreen() {
         await refreshLifecycle()
       } else if (r.status === 'conflict') {
         notify.error('The published version moved — reload to continue.')
+      } else {
+        // 'nothing': publish found no draft to commit. We just saved one, so this
+        // means storage lost it under us — say so instead of looking inert.
+        notify.error(
+          `Nothing was saved — this entry's draft could not be found. Reload and try again.`
+        )
       }
+    } catch (err) {
+      console.error(`[editor] ${label} failed`, err)
+      // No claim about what did or didn't persist: the throw can come from the
+      // draft save (nothing written) or from the Git commit (the draft IS saved
+      // locally), and guessing wrong here is the same lie in the other direction.
+      notify.error(`Couldn't ${label}. Check your connection and try again.`)
     } finally {
       committing.current = false
     }
@@ -556,14 +593,15 @@ export function EditorScreen() {
     setMetadata(metaRef.current)
     void commit({
       message: `Save draft ${collection}/${locale}/${slug}`,
-      toast: (sha) => 'Draft saved · ' + sha.slice(0, 7)
+      toast: (sha) => 'Draft saved · ' + sha.slice(0, 7),
+      label: 'save the draft'
     })
   }
   // Non-destructive: flag the draft published:false and commit (content stays in Git).
   const onUnpublish = () => {
     metaRef.current = { ...metaRef.current, published: false }
     setMetadata(metaRef.current)
-    void commit()
+    void commit({ label: 'unpublish' })
   }
   const canSaveDraft =
     (can('content.edit') || can('content.create')) &&

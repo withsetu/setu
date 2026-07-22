@@ -8,10 +8,7 @@ import {
   TableHeader,
   TableCell
 } from '@tiptap/extension-table'
-import {
-  tabActionFor,
-  advanceCellOrAddRow
-} from '../src/editor/extensions/KeyboardShortcuts'
+import { tabActionFor } from '../src/editor/extensions/KeyboardShortcuts'
 
 let editor: Editor
 afterEach(() => editor?.destroy())
@@ -85,6 +82,10 @@ const makeTable = () => {
 // canvas a one-way forward focus trap and is the defect this suite now guards against.
 // Where focus actually LANDS is a real-browser question: test-browser/editor-tab-focus.
 describe('tabActionFor', () => {
+  // 'cell' means "decline and let @tiptap/extension-table's keymap act" (#799). The
+  // classification still has to happen BEFORE 'bubble', or a text selection inside a
+  // cell would open the format bubble instead of moving on — that ordering is proved
+  // in test-browser/editor-tab-focus.test.tsx, where real Tab keystrokes run.
   it("returns 'cell' when the caret is inside a table", () => {
     editor = makeTable()
     // caret is inside the table after insertTable
@@ -117,16 +118,5 @@ describe('tabActionFor', () => {
     editor.chain().setTextSelection({ from: 1, to: 5 }).toggleTaskList().run()
     editor.commands.setTextSelection(3)
     expect(tabActionFor(editor)).toBe('indent')
-  })
-})
-
-describe('advanceCellOrAddRow', () => {
-  it('adds a new row when advancing past the last cell', () => {
-    editor = makeTable()
-    const rowCount = () => (editor.getJSON() as any).content[0].content.length
-    const cells = rowCount() * 2 // 2 cols
-    // advance through every existing cell, then once more past the last → should add a row
-    for (let i = 0; i < cells; i++) advanceCellOrAddRow(editor)
-    expect(rowCount()).toBe(3) // started 2 rows, last-cell advance appended one
   })
 })

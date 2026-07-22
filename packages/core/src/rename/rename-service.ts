@@ -11,8 +11,12 @@ export interface RenameDeps {
   author: GitAuthor
 }
 
+/** `locked` is not returned by `renameSlug` itself — the caller owns the
+ *  save-before-rename step and refuses with it when that save reports
+ *  `{ saved: false }` (#798). It lives here because `RenameResult` is the shared
+ *  vocabulary the UI's `onRename` contract speaks. */
 export type RenameRefusal =
-  'invalid-slug' | 'target-exists' | 'absent' | 'unchanged'
+  'invalid-slug' | 'target-exists' | 'absent' | 'unchanged' | 'locked'
 
 export interface RenameResult {
   renamed: boolean

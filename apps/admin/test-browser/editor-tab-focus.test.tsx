@@ -11,7 +11,7 @@ import {
   TableCell
 } from '@tiptap/extension-table'
 import type { Editor, Extensions, JSONContent } from '@tiptap/core'
-import { NodeSelection } from '@tiptap/pm/state'
+import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { KeyboardShortcuts } from '../src/editor/extensions/KeyboardShortcuts'
 import { HeroBlock } from '../src/editor/extensions/HeroBlock'
 
@@ -29,6 +29,18 @@ import { HeroBlock } from '../src/editor/extensions/HeroBlock'
 // ---------------------------------------------------------------------------------
 
 afterEach(cleanup)
+
+/** Canvas.tsx declares Table… then KeyboardShortcuts LAST, and tiptap reverses the
+ *  extension list before building keymap plugins (`[...this.extensions].reverse()`
+ *  in ExtensionManager's `get plugins()`, @tiptap/core 3.28.0), so the last-declared
+ *  extension's Tab handler runs FIRST. Every harness below must therefore keep
+ *  KeyboardShortcuts last, or it measures the table extension's keymap instead of
+ *  ours — which is exactly how #757's table test came to pass with our handler
+ *  deleted (#799). */
+const withShortcutsLast = (extensions: Extensions): Extensions => [
+  ...extensions,
+  KeyboardShortcuts
+]
 
 /** Title input before the canvas, rail button after it — the real EditorScreen tab
  *  order (ed-title → ProseMirror → BlockInspector/MetaPanel aside) in miniature. */
@@ -66,7 +78,7 @@ describe('#757 Tab falls through when the editor does not act on it', () => {
   it('moves focus out of the canvas to the next control at a plain caret', async () => {
     render(
       <Harness
-        extensions={[StarterKit, KeyboardShortcuts]}
+        extensions={withShortcutsLast([StarterKit])}
         content={{
           type: 'doc',
           content: [
@@ -91,7 +103,7 @@ describe('#757 Tab falls through when the editor does not act on it', () => {
   it('moves focus to the rail when an atom block is node-selected', async () => {
     render(
       <Harness
-        extensions={[StarterKit, KeyboardShortcuts, HeroBlock]}
+        extensions={withShortcutsLast([StarterKit, HeroBlock])}
         content={{
           type: 'doc',
           content: [
@@ -130,7 +142,7 @@ describe('#757 Tab is still consumed by the cases that act on it', () => {
   it('indents a list item and keeps focus in the canvas', async () => {
     render(
       <Harness
-        extensions={[StarterKit, KeyboardShortcuts, TaskList, TaskItem]}
+        extensions={withShortcutsLast([StarterKit, TaskList, TaskItem])}
         content={{
           type: 'doc',
           content: [
@@ -176,44 +188,6 @@ describe('#757 Tab is still consumed by the cases that act on it', () => {
       editorEl().querySelectorAll('ul ul li').length
     ).toBeGreaterThanOrEqual(1)
   })
-
-  it('moves between table cells and keeps focus in the canvas', async () => {
-    render(
-      <Harness
-        extensions={[
-          StarterKit,
-          KeyboardShortcuts,
-          Table.configure({ resizable: false }),
-          TableRow,
-          TableHeader,
-          TableCell
-        ]}
-        content={{
-          type: 'doc',
-          content: [
-            { type: 'paragraph', content: [{ type: 'text', text: 'x' }] }
-          ]
-        }}
-      />
-    )
-    const editor = testEditor()
-    editor
-      .chain()
-      .focus()
-      .insertTable({ rows: 2, cols: 2, withHeaderRow: true })
-      .run()
-    await expect.element(page.getByRole('table')).toBeInTheDocument()
-
-    // Put real focus in the first header cell.
-    await userEvent.click(document.querySelector('th') as HTMLElement)
-    expect(document.activeElement).toBe(editorEl())
-
-    const before = editor.state.selection.from
-    await userEvent.keyboard('{Tab}')
-
-    expect(document.activeElement).toBe(editorEl())
-    expect(editor.state.selection.from).toBeGreaterThan(before)
-  })
 })
 
 // ---------------------------------------------------------------------------------
@@ -246,14 +220,13 @@ async function renderTableAt(
 ): Promise<Editor> {
   render(
     <Harness
-      extensions={[
+      extensions={withShortcutsLast([
         StarterKit,
-        KeyboardShortcuts,
         Table.configure({ resizable: false }),
         TableRow,
         TableHeader,
         TableCell
-      ]}
+      ])}
       content={{
         type: 'doc',
         content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }]
@@ -294,5 +267,65 @@ describe('#783 Shift-Tab falls through in the first table cell', () => {
 
     expect(document.activeElement).toBe(editorEl())
     expect(editor.state.selection.from).toBeLessThan(before)
+  })
+})
+
+// ---------------------------------------------------------------------------------
+// #799 — Tab inside a table. Setu's Tab handler used to re-implement
+// @tiptap/extension-table's own keymap, minus its `if (!can().addRowAfter()) return
+// false` guard: it hard-returned true, so wherever a row could not be appended Tab was
+// consumed for a no-op — the #757 focus trap, rebuilt. Those branches are deleted; the
+// only Setu behaviour left in a table is DECLINING (`tabActionFor` still classifies a
+// table caret as 'cell' so the format-bubble branch cannot claim Tab first), after
+// which the table extension acts. The old test for this could not fail: it asserted
+// only that the caret moved forward, which the library does on its own.
+// ---------------------------------------------------------------------------------
+
+/** Which cell (0-based, document order) the caret sits in. */
+function cellIndexOf(editor: Editor): number {
+  const cells = cellCaretPositions(editor)
+  const at = editor.state.selection.from
+  return cells.filter((p) => p <= at).length - 1
+}
+
+describe('#799 Tab in a table is handled by the table extension, not by us', () => {
+  it('moves from the first cell to the second, keeping focus in the canvas', async () => {
+    const editor = await renderTableAt((cells) => cells[0]!)
+    expect(cellIndexOf(editor)).toBe(0)
+
+    await userEvent.keyboard('{Tab}')
+
+    expect(document.activeElement).toBe(editorEl())
+    expect(cellIndexOf(editor)).toBe(1)
+  })
+
+  it('appends a row from the last cell and lands the caret in it', async () => {
+    const editor = await renderTableAt((cells) => cells[cells.length - 1]!)
+    const rowCount = () => editorEl().querySelectorAll('tr').length
+    const before = rowCount()
+    expect(cellIndexOf(editor)).toBe(cellCaretPositions(editor).length - 1)
+
+    await userEvent.keyboard('{Tab}')
+
+    expect(document.activeElement).toBe(editorEl())
+    expect(rowCount()).toBe(before + 1)
+    // First cell of the appended row — the last cell of the old table + 1.
+    expect(cellIndexOf(editor)).toBe(before * 2)
+  })
+
+  it('lets cell navigation win over the format bubble for a selection inside a cell', async () => {
+    const editor = await renderTableAt((cells) => cells[0]!)
+    editor.commands.insertContent('abc')
+    const from = cellCaretPositions(editor)[0]!
+    editor.commands.setTextSelection({ from, to: from + 3 })
+    // Precondition: this is exactly the shape the 'bubble' branch fires on, so a
+    // table caret MUST be classified before it.
+    expect(editor.state.selection).toBeInstanceOf(TextSelection)
+    expect(editor.state.selection.empty).toBe(false)
+
+    await userEvent.keyboard('{Tab}')
+
+    expect(document.activeElement).toBe(editorEl())
+    expect(cellIndexOf(editor)).toBe(1)
   })
 })

@@ -7,6 +7,39 @@ import {
   requestFocusToolbar
 } from '../editor-events'
 import { collapseSelectionOnEscape } from '../dismiss'
+import { showCaretHint } from '../caret-hint'
+
+/** The copy the author sees when a break is refused. Informational, not an error:
+ *  this is a keystroke a writer may hit by habit, and telling them off for it would be
+ *  worse than the bug being fixed (#790). */
+export const HEADING_SINGLE_LINE_HINT = 'Headings are a single line'
+
+/** Shift-Enter / Mod-Enter inside a heading: refuse the break and say why.
+ *
+ *  A `hardBreak` in a heading cannot survive a save — `tiptapToMarkdoc` folds it to a
+ *  single space, because an ATX heading has no way to spell a break and letting one
+ *  escape as a real newline used to split the document in half. That fold stays (core
+ *  is a port and serializes documents we never see), but it means the editor was
+ *  showing the author a break that would be gone on reload, silently. So the break is
+ *  never made here.
+ *
+ *  The caret is left exactly where it was: the alternatives — dropping out into a new
+ *  paragraph, or moving to the end of the heading — invent a structural edit the author
+ *  did not ask for. What keeps this from reading as a dead key is the hint, not caret
+ *  motion.
+ *
+ *  Returns false everywhere else, so hard-break's own binding still runs: a paragraph
+ *  keeps its break, and a table cell keeps the `<br>` fold that is deliberately
+ *  different (#752/#769/#772). `$from` is the one that decides, because that is the
+ *  block a break would land in when a selection spans two of them.
+ *
+ *  Enforced by apps/admin/test-browser/heading-single-line.test.tsx — including the
+ *  paragraph half, which is what stops this becoming a global break ban. */
+function refuseBreakInHeading(editor: Editor): boolean {
+  if (editor.state.selection.$from.parent.type.name !== 'heading') return false
+  showCaretHint(editor, HEADING_SINGLE_LINE_HINT)
+  return true
+}
 
 /** What Tab should do in the editor body. Tab is consumed ONLY where it actually does
  *  something; anything else falls through to the browser's native focus advance, so the
@@ -47,6 +80,11 @@ export const KeyboardShortcuts = Extension.create({
         requestLinkEdit()
         return true
       },
+      // Both of these are @tiptap/extension-hard-break's bindings. StarterKit is
+      // declared BEFORE this extension in Canvas.tsx and tiptap reverses the list when
+      // building keymap plugins, so ours runs first and can decline.
+      'Shift-Enter': () => refuseBreakInHeading(this.editor),
+      'Mod-Enter': () => refuseBreakInHeading(this.editor),
       'Mod-/': () => {
         requestShortcuts()
         return true

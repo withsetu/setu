@@ -5,6 +5,12 @@
 #     (a single root directory covers packages/* and apps/* too; no per-workspace entries
 #     needed — see https://docs.github.com/en/code-security/dependabot/ecosystems-supported-by-dependabot/supported-ecosystems-and-repositories).
 #   - github-actions: keeps our workflow actions (ci.yml, codeql.yml, gitleaks.yml) patched.
+#   - docker: the gitleaks scanner image. Dependabot cannot see an image reference embedded
+#     in a workflow `run:` block or in a shell hook — which is where this digest used to
+#     live, duplicated — so #817 moved it into .github/gitleaks/Dockerfile, a file that is
+#     never built and exists purely so Dependabot has a parseable `FROM` to bump. The
+#     workflow and .githooks/pre-push both read that line. A frozen digest means newly
+#     released detector rules never reach us, so this entry is the point of the exercise.
 # Updates are GROUPED to cut PR noise: minor+patch land together in one PR per ecosystem;
 # majors are excluded from the group so they still arrive as individual, reviewable PRs.
 # Security CI foundation: #218 · CI epic: #216.
@@ -34,3 +40,11 @@ updates:
         update-types:
           - "minor"
           - "patch"
+
+  # Exactly one image (the gitleaks scanner), so no grouping — every bump is its own PR.
+  # Expect one triage pass per bump: new detector rules can surface findings in existing
+  # history, and the CI job scans full history.
+  - package-ecosystem: "docker"
+    directory: "/.github/gitleaks"
+    schedule:
+      interval: "weekly"

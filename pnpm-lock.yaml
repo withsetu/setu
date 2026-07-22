@@ -8,6 +8,8 @@ overrides:
   brace-expansion@1: 1.1.16
   shell-quote: '>=1.9.0'
   svgo: '>=4.0.2'
+  sharp: '>=0.35.0'
+  fast-xml-parser: '>=5.10.1'
 
 importers:
 
@@ -844,7 +846,7 @@ importers:
         specifier: workspace:*
         version: link:../core
       sharp:
-        specifier: ^0.35.3
+        specifier: '>=0.35.0'
         version: 0.35.3(@types/node@22.19.21)
     devDependencies:
       '@setu/image-testing':
@@ -11505,7 +11507,7 @@ snapshots:
 
   node-abi@3.92.0:
     dependencies:
-      semver: 7.8.4
+      semver: 7.8.5
 
   node-fetch-native@1.6.7: {}
 

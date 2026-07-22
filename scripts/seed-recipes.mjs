@@ -35,22 +35,39 @@ import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
 import { createJiti } from 'jiti'
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url))
-const args = process.argv.slice(2)
-const refresh = args.includes('--refresh')
-const name = args.find((a) => !a.startsWith('--')) ?? 'recipes'
-const countArg = args.find((a) => a.startsWith('--count='))
-const count = countArg
-  ? Number.parseInt(countArg.slice('--count='.length), 10)
-  : null
-if (count !== null && (!Number.isFinite(count) || count < 1))
-  throw new Error(`--count must be a positive integer, got ${countArg}`)
+import { isDirectInvocation } from './auth-login-link.mjs'
+import { sandboxPath } from './content-sandbox.mjs'
 
-const SANDBOX = path.join(ROOT, '.content-sandbox', name)
-const CACHE = path.join(SANDBOX, '.cache', 'meals.json')
-const OUT_DIR = path.join(SANDBOX, 'content', 'post', 'en')
+const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const API = 'https://www.themealdb.com/api/json/v1/1/search.php?f='
 const LETTERS = 'abcdefghijklmnopqrstuvwxyz'.split('')
+
+/** CLI args → `{ refresh, name, count }`. Pure and exported so the argv shape is testable
+ *  without running the seeder (which rewrites a sandbox's whole content tree). */
+export function parseSeedArgs(argv) {
+  const refresh = argv.includes('--refresh')
+  const name = argv.find((a) => !a.startsWith('--')) ?? 'recipes'
+  const countArg = argv.find((a) => a.startsWith('--count='))
+  const count = countArg
+    ? Number.parseInt(countArg.slice('--count='.length), 10)
+    : null
+  if (count !== null && (!Number.isFinite(count) || count < 1))
+    throw new Error(`--count must be a positive integer, got ${countArg}`)
+  return { refresh, name, count }
+}
+
+/** Sandbox paths for `name`, routed through content-sandbox.mjs's `sandboxPath` so the SAME name
+ *  validation guards this script's `rmSync` as guards `content:reset` (#814): unvalidated, `name`
+ *  = '..' made the rmSync below delete the canonical `content/` tree. Enforced by the shared
+ *  refusal-case table in content-sandbox.test.mjs plus the routing test in seed-recipes.test.mjs. */
+export function seedPaths(root, name) {
+  const sandbox = sandboxPath(root, name)
+  return {
+    sandbox,
+    cache: path.join(sandbox, '.cache', 'meals.json'),
+    outDir: path.join(sandbox, 'content', 'post', 'en')
+  }
+}
 
 // Reuse core's frontmatter serializer + tag normalizer (jiti imports the TS source).
 const coreReq = createRequire(
@@ -89,11 +106,11 @@ const STOPLIST = new Set(
   ])
 )
 
-async function loadMeals() {
-  if (!refresh && existsSync(CACHE)) {
-    const meals = JSON.parse(readFileSync(CACHE, 'utf8'))
+async function loadMeals({ refresh, cache }) {
+  if (!refresh && existsSync(cache)) {
+    const meals = JSON.parse(readFileSync(cache, 'utf8'))
     console.log(
-      `seed-recipes: using cached ${meals.length} meals (${path.relative(ROOT, CACHE)})`
+      `seed-recipes: using cached ${meals.length} meals (${path.relative(ROOT, cache)})`
     )
     return meals
   }
@@ -108,8 +125,8 @@ async function loadMeals() {
   }
   const meals = [...byId.values()]
   console.log(`\nseed-recipes: fetched ${meals.length} unique meals`)
-  mkdirSync(path.dirname(CACHE), { recursive: true })
-  writeFileSync(CACHE, JSON.stringify(meals))
+  mkdirSync(path.dirname(cache), { recursive: true })
+  writeFileSync(cache, JSON.stringify(meals))
   return meals
 }
 
@@ -174,8 +191,10 @@ function toMdoc(meal) {
   return { frontmatter, body }
 }
 
-async function main() {
-  const meals = await loadMeals()
+async function main(argv) {
+  const { refresh, name, count } = parseSeedArgs(argv)
+  const { sandbox: SANDBOX, cache, outDir: OUT_DIR } = seedPaths(ROOT, name)
+  const meals = await loadMeals({ refresh, cache })
 
   // Fresh content tree each run (cache is preserved).
   rmSync(path.join(SANDBOX, 'content'), { recursive: true, force: true })
@@ -214,4 +233,7 @@ async function main() {
   )
 }
 
-await main()
+// Run only as a script, never on import: this module's main() wipes and rewrites a sandbox's
+// content tree, so an ungated top-level call made any co-located unit test destructive (#814).
+if (isDirectInvocation(process.argv[1], import.meta.url))
+  await main(process.argv.slice(2))

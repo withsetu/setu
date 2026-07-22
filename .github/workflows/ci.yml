@@ -27,15 +27,31 @@ on:
     # on every merge, so main is always covered; this weekly run just catches drift (#462).
     - cron: '17 3 * * 1'
 
-# Cancel superseded runs on the same branch/PR so only the latest commit is checked.
+# Least-privilege GITHUB_TOKEN (#813). Nothing in this workflow writes back to the repo:
+# checkout/setup-node/cache/upload-artifact and the turbo cache adapter (which writes to
+# the Actions *cache*, not the repository) all work with read-only contents. Declared at
+# the top level so both jobs inherit it and neither silently picks up the repo/org default.
+permissions:
+  contents: read
+
+# Superseding policy (#817). Only PR pushes should cancel their predecessor — there, an
+# older commit's run is genuinely obsolete. For push-to-main, the weekly cron and manual
+# dispatch, `github.ref` is `refs/heads/main` for ALL of them, so a single ref-keyed group
+# made them cancel each other: the Monday full-matrix run died to the first merge of the
+# morning (reported as *cancelled*, so nobody was paged), and back-to-back merges left the
+# earlier commit with no full-matrix signal. Keying non-PR events on `github.sha` and
+# turning cancellation off keeps every one of those runs.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
     name: typecheck + test
     runs-on: ubuntu-latest
+    # Bounded so a hung typecheck/test can't hold a runner for the 6-hour default (#817).
+    # Headroom over the observed full-suite wall time, which includes a chromium download.
+    timeout-minutes: 30
     # Skip while the PR is a draft (#462 — saves the expensive run until it's ready). Non-PR
     # events (push/schedule/workflow_dispatch) have no `pull_request` context, so the first
     # clause keeps them running; only a draft PR is skipped.
@@ -47,8 +63,13 @@ jobs:
           fetch-depth: 0
 
       # pnpm must be installed before setup-node so its `cache: pnpm` can find the store.
+      # Pinned by commit SHA (third-party action, supply-chain hygiene — #281 posture; the
+      # tag-pinning carve-out is for GitHub-owned actions/* and github/* only, and pnpm/ is
+      # not GitHub-owned). This is the action that installs the package manager, so it runs
+      # before every other supply-chain control in this file. The trailing version comment
+      # is what lets Dependabot keep the pin current (#813).
       - name: Install pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
 
       - name: Setup Node
         uses: actions/setup-node@v7
@@ -73,13 +94,25 @@ jobs:
       # PR: derive a since-SHA (merge-base with the base branch) and a scope mode.
       #   - docs-only (all changed files are *.md/*.mdx) -> skip typecheck/test.
       #   - otherwise -> affected: turbo `...[<sha>]` (changed packages + dependents,
-      #     resolved through turbo's own task-graph `dependsOn` edges — see turbo.json).
+      #     resolved through the PACKAGE dependency graph — i.e. workspace deps in each
+      #     package.json, not turbo.json's `dependsOn`, which governs task hashing and
+      #     ordering. A file that maps to no package therefore selects no tasks at all,
+      #     which is what the root-impact guard below exists to catch (#817).
       # Push: no since-SHA -> full suite. Diagnostics print what will run.
+      #
+      # `github.base_ref` crosses into the shell as an env var rather than being
+      # interpolated into the script body (#813): the value then arrives as data instead
+      # of being textually substituted before bash parses the line. base_ref itself is a
+      # branch name that must already exist upstream, so this is hardening, not a live
+      # hole — but the idiom is the one that gets copied for head_ref and PR titles, which
+      # ARE attacker-controlled on a public repo.
       - name: Determine affected scope
         id: scope
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            base="${{ github.base_ref }}"
+            base="$BASE_REF"
             git fetch --no-tags --quiet origin "+refs/heads/$base:refs/remotes/origin/$base"
             since="$(git merge-base "origin/$base" HEAD)"
             changed="$(git diff --name-only "$since" HEAD)"
@@ -135,6 +168,25 @@ jobs:
           echo "::group::pnpm audit (full — informational, all severities)"
           pnpm dlx pnpm@11.13.0 audit || true
           echo "::endgroup::"
+
+          # Non-vacuity canary (#817). Every hop above is a workaround (synthetic probe dir,
+          # a different pnpm major, an endpoint that has already broken twice — see the note
+          # on this step). If any hop degrades, `pnpm audit` prints zero advisories and exits
+          # 0, so a DEAD gate and a clean tree look identical and stay green forever. Assert
+          # the scan actually examined packages before believing its verdict.
+          # `|| true` here is safe and necessary: this invocation is diagnostic, not the gate
+          # (audit exits non-zero whenever ANY advisory exists, including moderate/low), and
+          # the real gate below still runs unguarded.
+          audit_json="$(pnpm dlx pnpm@11.13.0 audit --json || true)"
+          examined="$(printf '%s' "$audit_json" | jq -r '.metadata.totalDependencies // empty' 2>/dev/null || true)"
+          case "$examined" in '' | *[!0-9]*) examined=-1 ;; esac
+          if [ "$examined" -le 0 ]; then
+            echo "::error::pnpm audit examined 0 packages (or emitted no scan metadata) — the audit gate is VACUOUS, not clean. Fix the audit path before trusting a green build."
+            printf '%s\n' "$audit_json" | head -c 4000
+            exit 1
+          fi
+          echo "Canary OK: audit examined $examined packages."
+
           echo "Gating on high+ severity (moderate/low above are informational):"
           pnpm dlx pnpm@11.13.0 audit --audit-level=high
 
@@ -238,8 +290,9 @@ jobs:
           # Full history for the docs-only check (merge-base diff, same as `check`).
           fetch-depth: 0
 
+      # SHA-pinned for the same reason as the `check` job above (#813).
       - name: Install pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
 
       - name: Setup Node
         uses: actions/setup-node@v7
@@ -255,9 +308,13 @@ jobs:
       # one; revisit if a third consumer appears).
       - name: Determine scope
         id: scope
+        # base_ref bound as data, not interpolated into the script (#813) — see the
+        # matching note on the `check` job's scope step.
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            base="${{ github.base_ref }}"
+            base="$BASE_REF"
             git fetch --no-tags --quiet origin "+refs/heads/$base:refs/remotes/origin/$base"
             changed="$(git diff --name-only "$(git merge-base "origin/$base" HEAD)" HEAD)"
             if [ -n "$changed" ] && ! printf '%s\n' "$changed" | grep -qvE '\.mdx?$'; then
@@ -265,7 +322,7 @@ jobs:
               echo "skip=true" >> "$GITHUB_OUTPUT"
             fi
           fi
-          # Full 3-browser matrix on push-to-main and the nightly cron; PR lane otherwise.
+          # Full 3-browser matrix on push-to-main and the weekly cron; PR lane otherwise.
           if [ "${{ github.event_name }}" != "pull_request" ]; then
             echo "full=1" >> "$GITHUB_OUTPUT"
           fi
@@ -301,7 +358,7 @@ jobs:
           fi
 
       # PR lane: chromium (all specs) + webkit (editor specs) + visual (chromium snapshots).
-      # Push/nightly: E2E_FULL_MATRIX adds firefox-full + webkit-full over everything.
+      # Push/weekly cron: E2E_FULL_MATRIX adds firefox-full + webkit-full over everything.
       - name: Run E2E
         run: |
           if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi

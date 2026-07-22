@@ -8,6 +8,15 @@ The pick-time checklist below is part of the Definition of Done: a feature that 
 input, fetch, or dependency without answering these questions is not done, exactly as a
 skeleton UI is not done.
 
+**Where a finding gets filed** is a separate question from whether it's real, and the repo has
+been public since 2026-07-14 — so route by **exploitability, not by topic**. If publishing the
+description would hand someone a working probe against a *deployed* Setu, draft a private
+[security advisory](https://github.com/withsetu/setu/security/advisories) instead of opening an
+issue. Everything else — CI/dev-tooling hardening, defence-in-depth, and missing coverage for a
+gate that already fails closed — is a public issue with the `security` label, and better off in
+the open. Either way, write the fix rather than the probe path. Full rule in CLAUDE.md §3.1;
+external reporting policy and scope in [SECURITY.md](../SECURITY.md).
+
 ## Pick-time checklist
 
 Answer these for ANY issue before writing code. Most answers are "N/A" in one line — the point is

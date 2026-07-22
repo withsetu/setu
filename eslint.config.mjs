@@ -3,12 +3,18 @@
 // Scope decisions (see issue #267 for the full plan):
 //  - Type-aware typescript-eslint via `projectService` — auto-discovers the nearest
 //    tsconfig.json per file instead of us hand-listing all 26 package tsconfigs.
-//  - react-hooks + jsx-a11y are scoped to `apps/admin/**` ONLY. Themes/site and shared
-//    block components render on the front end and are deliberately NOT bound to admin
+//  - react-hooks stays scoped to `apps/admin/**` ONLY. Themes/site and shared block
+//    components render on the front end and are deliberately NOT bound to admin
 //    conventions (see CLAUDE.md "Admin vs. front-end themes") — they get base TS rules
-//    only, even where they happen to use JSX (packages/blocks, packages/email-templates).
-//  - `.astro` files are NOT linted in this increment — astro-eslint tooling is out of
-//    scope for T1 (documented exclusion, revisit in a follow-up issue if desired).
+//    only, even where they happen to use JSX.
+//  - jsx-a11y was admin-only in T1 and is NOT any more (#819): it now also covers
+//    packages/theme-default and packages/blocks, plus every `.astro` file. That is the
+//    opposite of the shadcn-conventions argument above — accessibility is a property of
+//    the rendered page, and the public rendering path is where it matters MOST. The
+//    admin-only scope meant a11y rules ran on the internal tool and not on what visitors
+//    read, while apps/site/test/a11y.test.ts already runs axe over those same pages.
+//  - `.astro` files ARE linted (#819, was deferred in T1): eslint-plugin-astro's flat
+//    config + astro-eslint-parser, syntactic and a11y rules only — see the astro block.
 //  - `prototype/` is excluded: three frozen, pre-rebrand (2026-06-18) spike directories,
 //    each with its own package.json + lockfile outside the pnpm workspace. Not part of
 //    the product's TS project graph and not actively maintained.
@@ -21,12 +27,13 @@
 //    `allowDefaultProject`, which project-service supports for a small, explicit glob.
 // This config file itself runs under Node (only the LINTED edge dirs must stay
 // Node-free), so importing node builtins HERE is fine — see the edge-guard block below.
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { builtinModules } from 'node:module'
 import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
 import reactHooks from 'eslint-plugin-react-hooks'
 import jsxA11y from 'eslint-plugin-jsx-a11y'
+import astro from 'eslint-plugin-astro'
 import eslintConfigPrettier from 'eslint-config-prettier'
 import globals from 'globals'
 
@@ -48,9 +55,9 @@ const IGNORES = [
   'prototype/**',
   // Ambient type shims (not in any package's tsconfig program, so type-aware linting can't
   // parse them) — e.g. types/jsdom-shim.d.ts, which blocks the vitest→lib.dom leak (#405)
-  'types/**',
-  // Not TS/JS — out of scope for this increment (see header comment)
-  '**/*.astro'
+  'types/**'
+  // `'**/*.astro'` used to sit here (#267 T1's documented deferral). Removed in #819 —
+  // eslint-plugin-astro now lints them; see the astro block below.
 ]
 
 // ---- Edge-guard rule inputs (#434) ----
@@ -84,6 +91,32 @@ const NODE_BUILTIN_PATHS = builtinModules.map((name) => ({
   message: NODE_BUILTIN_IMPORT_MESSAGE
 }))
 
+// ---- allowDefaultProject list for the per-package vitest configs (#818) ----
+// Every packages/*/vitest.config.ts is a tool config that vitest's esbuild transform
+// evaluates directly, so it is deliberately outside its package's tsconfig `include` and
+// needs a projectService single-file program. WITH ONE EXCEPTION: theme-default's source is
+// flat at the package root, so its tsconfig `include` is `["*.ts", "*.d.ts"]` and its
+// vitest.config.ts is ALREADY in a real program — projectService hard-errors on a file that
+// matches both ("was included by allowDefaultProject but also was found in the project
+// service"). The exception is DERIVED, not hardcoded to a package name, by asking each
+// tsconfig whether its `include` reaches the package root.
+// Not expressed as a `!`-negated glob: allowDefaultProject entries go through minimatch
+// individually, so a `!` entry inverts to "match everything else" and silently pulls the
+// whole repo into the default project — measured, 1084 parse errors, not a theory.
+// Same JSONC caveat as the edge tsconfig read above: these must stay comment-free JSON.
+const packagesDir = new URL('./packages/', import.meta.url)
+const PACKAGE_VITEST_CONFIGS = readdirSync(packagesDir)
+  .filter((pkg) => existsSync(new URL(`${pkg}/vitest.config.ts`, packagesDir)))
+  .filter((pkg) => {
+    const tsconfig = JSON.parse(
+      readFileSync(new URL(`${pkg}/tsconfig.json`, packagesDir), 'utf8')
+    )
+    const include = tsconfig.include ?? []
+    // A root-relative glob like "*.ts" covers the package root; "src"/"test" do not.
+    return !include.some((glob) => glob.startsWith('*'))
+  })
+  .map((pkg) => `packages/${pkg}/vitest.config.ts`)
+
 export default tseslint.config(
   { ignores: IGNORES },
 
@@ -101,7 +134,11 @@ export default tseslint.config(
       'packages/*/**/*.{ts,tsx}',
       'apps/*/**/*.{ts,tsx}',
       'e2e/**/*.ts',
-      'blocks/*/block.ts'
+      'blocks/*/block.ts',
+      // Root-level shared vitest config (#818) — real, load-bearing config that every
+      // package's own vitest.config.ts re-exports, so it gets the same treatment as the
+      // per-package tool configs rather than sitting outside the linted set entirely.
+      'vitest.shared.ts'
     ],
     extends: [...tseslint.configs.recommendedTypeChecked],
     languageOptions: {
@@ -122,25 +159,34 @@ export default tseslint.config(
           // NOT apps/site/vitest.config.ts: site's tsconfig includes `**/*`, so its
           // config file IS in a real project already (projectService errors if a file
           // matches both).
-          // apps/admin/vitest.browser.config.ts + vitest.workspace.ts (#293): same
+          // apps/admin/vitest.browser.config.ts + vitest.config.ts (#293, renamed off
+          // vitest.workspace.ts in #818; apps/api gained one too): same
           // "tool config outside the package's own tsconfig include" shape as the
           // vitest.config.ts convention above — apps/admin/tsconfig.json's `include`
           // is `["src", "test", "test-browser"]`, deliberately not the repo root, so
           // these two files need the same single-file-program treatment.
+          // PACKAGE_VITEST_CONFIGS is derived above rather than globbed, so that
+          // packages/theme-default (whose config file IS inside a real program) is left
+          // out — see that block's comment for why a `!` glob cannot do this job.
           allowDefaultProject: [
-            'packages/*/vitest.config.ts',
+            ...PACKAGE_VITEST_CONFIGS,
+            'vitest.shared.ts',
             'apps/admin/vite.config.ts',
+            'apps/admin/vitest.config.ts',
             'apps/admin/vitest.browser.config.ts',
-            'apps/admin/vitest.workspace.ts'
+            'apps/api/vitest.config.ts'
           ],
-          // 17 packages follow this convention identically (verified by grep — every
-          // vitest.config.ts in the repo is a root-level tool config outside its
-          // package's tsconfig), well over typescript-eslint's default cap of 8 files.
-          // These are tiny (~5-15 line) config files; the single-file-program cost per
-          // file is negligible next to the type-aware program builds this repo already
-          // pays for src/test. Opting into the explicit "THIS_WILL_SLOW_DOWN_LINTING"
-          // flag rather than silently letting the guard reject the glob.
-          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 20
+          // Every package follows this convention identically (a root-level tool config
+          // outside its package's tsconfig), well over typescript-eslint's default cap of
+          // 8 files. #818 gave the 9 remaining config-less packages and apps/api one each,
+          // taking the match count from 20 to 28 — the old ceiling of exactly 20 then
+          // FAILED the lint run outright ("Too many files (>20) have matched the default
+          // project"), so it is raised with headroom for the next few packages. These are
+          // tiny (~5-25 line) config files; the single-file-program cost per file is
+          // negligible next to the type-aware program builds this repo already pays for
+          // src/test. Opting into the explicit "THIS_WILL_SLOW_DOWN_LINTING" flag rather
+          // than silently letting the guard reject the glob.
+          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 40
         },
         tsconfigRootDir: import.meta.dirname
       }
@@ -173,12 +219,84 @@ export default tseslint.config(
     }
   },
 
-  // ---- react-hooks + jsx-a11y, admin ONLY (per #267 scope) ----
+  // ---- Astro components (#819) ----
+  // Until this block, `**/*.astro` sat in IGNORES and the ENTIRE public rendering path —
+  // apps/site 12 files, packages/blocks 9, packages/theme-default 6, packages/image-astro 2,
+  // repo-root blocks/ 5 — was read by no linter at all, while apps/site/test/a11y.test.ts
+  // runs axe over exactly those rendered pages. `flat/recommended` brings astro-eslint-parser
+  // (so the frontmatter script and the template are both parsed) plus the plugin's own rules;
+  // `flat/jsx-a11y-recommended` layers the same accessibility rule set the admin already runs
+  // onto the templates, which is where it matters most.
+  // NOT type-aware: astro-eslint-parser can supply type information via
+  // `parserOptions.project`, but no tsconfig in this repo has .astro files in its `include`
+  // (apps/site's astro-generated tsconfig covers them through `.astro/types.d.ts`, not as
+  // program roots), so requesting it would fail per-file rather than lint. Syntactic rules,
+  // the astro rule set and jsx-a11y are what this block is for; the type-aware net still
+  // stops at the .astro boundary and that is now a known, narrower gap rather than a total one.
+  ...astro.configs['flat/recommended'],
+  // The plugin ships jsx-a11y as `flat/jsx-a11y-recommended`, whose LAST entry declares the
+  // `jsx-a11y` plugin with NO `files` key — i.e. globally. Flat config refuses two configs
+  // that both define the same plugin name for the same file ("Cannot redefine plugin
+  // 'jsx-a11y'"), which is exactly what happens against the admin block below, so that entry
+  // is re-scoped to `**/*.astro` here instead of spread as-is. Everything but the plugin/rules
+  // pair (parser, globals) already came from `flat/recommended` above.
+  {
+    files: ['**/*.astro'],
+    ...astro.configs['flat/jsx-a11y-recommended'].at(-1)
+  },
+
+  // ---- Two tuned .astro a11y rules (#819) ----
+  // The whole 35-file first-run baseline was THREE errors, so this is triage of named
+  // sites, not a sweep. Both tunes are also applied to the .tsx side below where the same
+  // rule fires on the same component.
+  {
+    files: ['**/*.astro'],
+    rules: {
+      // DOWNGRADED to warn, tracked as #826. packages/blocks/src/video/Video.astro renders
+      // a user-supplied video URL and the block contract has NO captions field, so there is
+      // no track file to point at — the only way to make this rule pass today is to emit an
+      // empty <track>, which satisfies the linter while telling a screen-reader user a lie.
+      // It is a genuine gap in the Video block, so it stays visible rather than off, and
+      // #826 carries the contract + editor-control work that lets it go back to error.
+      'astro/jsx-a11y/media-has-caption': 'warn',
+      // NARROWED, not disabled. jsx-a11y's recommended `handlers` list for this rule includes
+      // onLoad and onError, and packages/image-astro/src/Image.astro:38,43 puts an inline
+      // `onload` on the blur-up <img> to add `is-loaded` once the full image decodes. `load`
+      // is fired by the browser, never by a user, so it cannot be the "keyboard user can't
+      // reach this" hazard the rule exists to catch — that is a false positive on this rule's
+      // own terms. The interaction handlers it DOES catch (click/mouse/key on a non-
+      // interactive element) all stay on.
+      'astro/jsx-a11y/no-noninteractive-element-interactions': [
+        'error',
+        {
+          handlers: [
+            'onClick',
+            'onMouseDown',
+            'onMouseUp',
+            'onKeyPress',
+            'onKeyDown',
+            'onKeyUp'
+          ]
+        }
+      ]
+    }
+  },
+
+  // ---- react-hooks (admin only) + jsx-a11y (admin AND the front-end render path) ----
+  // The two plugins are declared in one block because flat config refuses to let two
+  // configs define the same plugin name for the same file, and their file sets overlap.
+  // react-hooks rules are then re-scoped OFF for the non-admin globs below — the front-end
+  // packages are not bound to admin's React conventions (#267), only to its a11y bar (#819).
   {
     files: [
       'apps/admin/src/**/*.{ts,tsx}',
       'apps/admin/test/**/*.{ts,tsx}',
-      'apps/admin/test-browser/**/*.{ts,tsx}'
+      'apps/admin/test-browser/**/*.{ts,tsx}',
+      // #819: the public rendering path. `.astro` templates are covered separately by the
+      // astro block above (different parser); these are the .tsx/.ts renderers that sit
+      // beside them — packages/blocks' React block components and theme-default's helpers.
+      'packages/theme-default/**/*.{ts,tsx}',
+      'packages/blocks/**/*.{ts,tsx}'
     ],
     plugins: {
       'react-hooks': reactHooks,
@@ -204,8 +322,30 @@ export default tseslint.config(
       'react-hooks/purity': 'warn',
       'react-hooks/immutability': 'warn',
       'react-hooks/preserve-manual-memoization': 'warn',
-      'react-hooks/static-components': 'warn'
+      'react-hooks/static-components': 'warn',
+      // Same finding and same reasoning as the .astro tune above (#826): Video.tsx:59 is the
+      // editor-canvas twin of Video.astro's <video>, blocked on the same missing captions
+      // field in the block contract. Kept as a warning so the gap stays on screen.
+      'jsx-a11y/media-has-caption': 'warn'
     }
+  },
+
+  // ---- ...and react-hooks back OFF for the front-end packages (#819) ----
+  // The block above had to declare both plugins together (flat config forbids redefining a
+  // plugin for the same file), but only jsx-a11y was in scope to widen. Turning every
+  // react-hooks rule off here keeps #267's deliberate "themes are not bound to admin React
+  // conventions" decision intact instead of quietly importing a second rule set with it.
+  {
+    files: [
+      'packages/theme-default/**/*.{ts,tsx}',
+      'packages/blocks/**/*.{ts,tsx}'
+    ],
+    rules: Object.fromEntries(
+      Object.keys(reactHooks.configs.flat.recommended.rules).map((rule) => [
+        rule,
+        'off'
+      ])
+    )
   },
 
   // ---- Test files: relax the `any`-hygiene family (T2 decision, #267) ----
@@ -232,8 +372,9 @@ export default tseslint.config(
       // vite.config.ts resolves to an error type there) — same relaxation applies.
       'packages/*/vitest.config.ts',
       'apps/*/vite.config.ts',
+      'apps/*/vitest.config.ts',
       'apps/admin/vitest.browser.config.ts',
-      'apps/admin/vitest.workspace.ts'
+      'vitest.shared.ts'
     ],
     rules: {
       '@typescript-eslint/no-unsafe-assignment': 'off',

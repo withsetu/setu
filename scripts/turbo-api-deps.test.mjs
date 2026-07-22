@@ -62,7 +62,7 @@ test('stripJsonComments strips // comments but not // inside strings', () => {
   })
 })
 
-test('@setu/api#typecheck and #test depend on every workspace dep in apps/api/package.json', () => {
+test('@setu/api#typecheck, #test and #lint depend on every workspace dep in apps/api/package.json', () => {
   const turbo = JSON.parse(
     stripJsonComments(readFileSync(path.join(repoRoot, 'turbo.json'), 'utf8'))
   )
@@ -82,7 +82,9 @@ test('@setu/api#typecheck and #test depend on every workspace dep in apps/api/pa
     'expected apps/api to declare workspace deps'
   )
 
-  for (const task of ['typecheck', 'test']) {
+  // `lint` joined the list in #819: @setu/api#lint enumerates the same edges by hand for the
+  // same #310-cycle reason, so it drifts the same way and needs the same guard.
+  for (const task of ['typecheck', 'test', 'lint']) {
     const key = `@setu/api#${task}`
     const dependsOn = turbo.tasks?.[key]?.dependsOn
     assert.ok(

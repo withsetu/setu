@@ -6,21 +6,32 @@
  *
  * Usage:
  *   node scripts/sync-health-rubric.mjs
+ *   node scripts/sync-health-rubric.mjs --allow-shrink   # accept a >20% smaller rubric
  *
  * Requirements: Node 18+ (native fetch). No extra dependencies.
  * Must be run from the repo root (or any directory — paths are resolved from this file).
  *
  * Safety: on ANY error (network, parse, validation) the script prints the error and exits
  * non-zero WITHOUT writing to rubric.ts. The current rubric is never overwritten with garbage.
+ * That promise used to have a hole (#816): the likeliest failure — an upstream reformat — made
+ * ITEM_RE match nothing, and an EMPTY parse validated clean and overwrote the rubric with just
+ * the three EXTRA_ITEMS. The refusals that close it, each covered by sync-health-rubric.test.mjs:
+ *   - an unmapped `## ` section throws (a renamed section used to vanish behind a console.warn)
+ *   - a mapped section that yields zero items throws, as does one missing from the markdown
+ *   - fewer than MIN_ITEMS items throws
+ *   - a >20% shrink against the committed rubric.ts throws unless --allow-shrink is passed
  *
  * After a successful run, verify with:
  *   pnpm --filter @setu/core test -- health-rubric
  *   pnpm --filter @setu/core test -- health-audit
  */
 
-import { writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
+import process from 'node:process'
+
+import { isDirectInvocation } from './auth-login-link.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const RUBRIC_PATH = resolve(__dirname, '../packages/core/src/health/rubric.ts')
@@ -121,7 +132,7 @@ async function getChecklist() {
 // Markdown → RubricItem[] parser
 // ---------------------------------------------------------------------------
 
-const SECTION_TO_CATEGORY = {
+export const SECTION_TO_CATEGORY = {
   Foundations: 'foundations',
   SEO: 'seo',
   Accessibility: 'accessibility',
@@ -270,19 +281,30 @@ const EXTRA_ITEMS = [
 const ITEM_RE =
   /^- \[ \] \*\*(.+?)\*\* _\((\w+)\)_ — (.+?)\n\s+(https:\/\/specification\.website\/spec\/[^\s]+)/gm
 
-function parseChecklist(markdown) {
-  const sections = markdown.split(/^## /m).filter(Boolean)
+export function parseChecklist(markdown) {
+  const chunks = markdown.split(/^## /m)
   const items = []
   const seen = new Set()
+  // Items parsed per mapped section name — the evidence for the coverage refusals below.
+  const perSection = new Map()
+  // Everything before the first `## ` is the document title/preamble, not a section. Only that
+  // one chunk is exempt; any OTHER unmapped heading is a rename or a new section and throws.
+  const hasLeadingPreamble = !/^## /.test(markdown)
 
-  for (const section of sections) {
+  for (const [i, section] of chunks.entries()) {
+    if (i === 0 && hasLeadingPreamble) continue
+    if (!section.trim()) continue
     const nameEnd = section.indexOf('\n')
     const secName = section.slice(0, nameEnd).trim()
     const category = SECTION_TO_CATEGORY[secName]
     if (!category) {
-      console.warn(`  [warn] Unknown section: "${secName}" — skipped`)
-      continue
+      throw new Error(
+        `Unknown checklist section "${secName}" — the upstream spec renamed or added a section. ` +
+          'Update SECTION_TO_CATEGORY (and ID_OVERRIDES if ids move) rather than letting a whole ' +
+          'category silently disappear from rubric.ts.'
+      )
     }
+    perSection.set(secName, perSection.get(secName) ?? 0)
     const body = section.slice(nameEnd)
     let m
     ITEM_RE.lastIndex = 0
@@ -322,7 +344,26 @@ function parseChecklist(markdown) {
         item.liveProbe = true
       }
       items.push(item)
+      perSection.set(secName, perSection.get(secName) + 1)
     }
+  }
+
+  // Coverage: every section we know how to map must be present AND must have yielded items. A
+  // reformat that leaves the headings intact but breaks ITEM_RE shows up here as a zero, which is
+  // the failure the old code turned into a silent empty rubric (#816).
+  for (const secName of Object.keys(SECTION_TO_CATEGORY)) {
+    const n = perSection.get(secName)
+    if (n === undefined)
+      throw new Error(
+        `Checklist section "${secName}" is missing from the upstream markdown — refusing to ` +
+          'write a rubric with that whole category dropped. If the section was genuinely retired ' +
+          'upstream, remove it from SECTION_TO_CATEGORY deliberately.'
+      )
+    if (n === 0)
+      throw new Error(
+        `Checklist section "${secName}" produced 0 items — the item format upstream no longer ` +
+          'matches ITEM_RE. Refusing to overwrite rubric.ts.'
+      )
   }
 
   return items
@@ -351,7 +392,17 @@ const VALID_CATEGORIES = new Set([
   'i18n'
 ])
 
-function validate(items) {
+/** Hard floor on the parsed item count. The committed rubric has ~143 items; anything near zero
+ *  means the parse collapsed, not that the spec shrank. Enforced by the "validate refuses a
+ *  collapsed item count" test. */
+export const MIN_ITEMS = 20
+
+export function validate(items) {
+  if (items.length < MIN_ITEMS)
+    throw new Error(
+      `Only ${items.length} item(s) parsed, below the floor of ${MIN_ITEMS} — the upstream ` +
+        'format almost certainly changed. Refusing to overwrite rubric.ts.'
+    )
   const ids = items.map((r) => r.id)
   if (new Set(ids).size !== ids.length) {
     const dup = ids.find((id, i) => ids.indexOf(id) !== i)
@@ -460,10 +511,60 @@ function generateRubricTs(specItems, extraItems, syncedAt) {
 }
 
 // ---------------------------------------------------------------------------
+// Spec / Setu-specific split
+// ---------------------------------------------------------------------------
+
+/** Append the Setu-specific items whose ids are NOT already in the spec, and report exactly which
+ *  ones were appended. The old code re-derived the split by slicing `EXTRA_ITEMS.length` off the
+ *  tail unconditionally — so on the designed collision branch (an EXTRA_ITEMS id that now exists
+ *  upstream) fewer items had been appended than the slice assumed, and genuine SPEC items were
+ *  emitted under "Setu-specific (not in the spec checklist)" while the log reported a count that
+ *  never happened (#816). Enforced by the "appendExtras returns the extras it ACTUALLY appended"
+ *  test, whose collision case fails against the slice. */
+export function appendExtras(specItems, extras = EXTRA_ITEMS) {
+  const specIds = new Set(specItems.map((r) => r.id))
+  const extraItems = []
+  const collisions = []
+  for (const extra of extras) {
+    if (specIds.has(extra.id)) collisions.push(extra.id)
+    else extraItems.push(extra)
+  }
+  return {
+    specItems,
+    extraItems,
+    items: [...specItems, ...extraItems],
+    collisions
+  }
+}
+
+/** Count RubricItem entries in rubric.ts source. Matches both this script's own emitted shape
+ *  (`{ id: "x", … }`) and the prettier-reformatted committed file (`id: 'x',` on its own line). */
+export function countRubricItems(source) {
+  return (source.match(/\bid:\s*['"]/g) ?? []).length
+}
+
+const SHRINK_TOLERANCE = 0.2
+
+/** Refuse a rubric that is more than 20% smaller than the one on disk. A partial parse failure
+ *  passes the floor and the per-section checks (some items in every section) while still dropping
+ *  a third of the product's checks; only a size comparison catches that. `--allow-shrink` is the
+ *  deliberate opt-in for a genuine upstream reduction. */
+export function assertNoShrink(newCount, existingCount, allowShrink) {
+  if (allowShrink || !existingCount) return
+  if (newCount < existingCount * (1 - SHRINK_TOLERANCE))
+    throw new Error(
+      `Refusing a ${Math.round((1 - newCount / existingCount) * 100)}% shrink: ${newCount} items ` +
+        `vs ${existingCount} in the committed rubric.ts. Re-run with --allow-shrink if the spec ` +
+        'genuinely removed that many checks.'
+    )
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
-async function main() {
+async function main(argv = []) {
+  const allowShrink = argv.includes('--allow-shrink')
   console.log(
     'sync-health-rubric: fetching checklist from specification.website MCP…'
   )
@@ -503,23 +604,36 @@ async function main() {
   }
 
   // Append Setu-specific items (they pass validation manually; ids must not collide with spec ids)
-  const specIds = new Set(items.map((r) => r.id))
-  for (const extra of EXTRA_ITEMS) {
-    if (specIds.has(extra.id)) {
-      console.warn(
-        `  [warn] EXTRA_ITEMS id "${extra.id}" now exists in the spec — review and remove from EXTRA_ITEMS.`
-      )
-    } else {
-      items.push(extra)
-    }
-  }
+  const {
+    items: allItems,
+    specItems,
+    extraItems,
+    collisions
+  } = appendExtras(items)
+  for (const id of collisions)
+    console.warn(
+      `  [warn] EXTRA_ITEMS id "${id}" now exists in the spec — review and remove from EXTRA_ITEMS.`
+    )
   console.log(
-    `  ✓ Appended ${EXTRA_ITEMS.length} Setu-specific items → total ${items.length}`
+    `  ✓ Appended ${extraItems.length} Setu-specific items → total ${allItems.length}`
   )
 
+  let existingCount = 0
+  try {
+    existingCount = countRubricItems(readFileSync(RUBRIC_PATH, 'utf8'))
+  } catch {
+    existingCount = 0 // first run / no file to compare against
+  }
+  try {
+    assertNoShrink(allItems.length, existingCount, allowShrink)
+  } catch (err) {
+    console.error(
+      `\n[ERROR] Size check failed — rubric.ts NOT modified.\n  ${err.message}`
+    )
+    process.exit(1)
+  }
+
   const syncedAt = new Date().toISOString().slice(0, 10)
-  const specItems = items.slice(0, items.length - EXTRA_ITEMS.length)
-  const extraItems = items.slice(items.length - EXTRA_ITEMS.length)
   const output = generateRubricTs(specItems, extraItems, syncedAt)
 
   try {
@@ -531,16 +645,19 @@ async function main() {
 
   console.log(`  ✓ Written: ${RUBRIC_PATH}`)
   console.log(
-    `\nsync-health-rubric: done — ${items.length} items written to rubric.ts (${specItems.length} spec + ${extraItems.length} Setu-specific)`
+    `\nsync-health-rubric: done — ${allItems.length} items written to rubric.ts (${specItems.length} spec + ${extraItems.length} Setu-specific)`
   )
   console.log(
     '\nNext steps:\n  pnpm --filter @setu/core test -- health-rubric\n  pnpm --filter @setu/core test -- health-audit'
   )
 }
 
-main().catch((err) => {
-  console.error(
-    `\n[FATAL] Unexpected error — rubric.ts NOT modified.\n  ${err.stack ?? err}`
-  )
-  process.exit(1)
-})
+// Run only as a script: this module writes committed product source, so importing it for a unit
+// test must never trigger a fetch-and-overwrite (#816 needed the parser under test).
+if (isDirectInvocation(process.argv[1], import.meta.url))
+  main(process.argv.slice(2)).catch((err) => {
+    console.error(
+      `\n[FATAL] Unexpected error — rubric.ts NOT modified.\n  ${err.stack ?? err}`
+    )
+    process.exit(1)
+  })

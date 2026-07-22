@@ -1,7 +1,6 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 
@@ -21,24 +20,18 @@ import { fileURLToPath } from 'node:url'
 // so anything importable in the jsdom project is importable here too.
 const require = createRequire(import.meta.url)
 
-// Mirrors vite.config.ts's injection (#779): the browser suite mounts the real AppSidebar, which
-// renders the dev badge, so this project needs the same build-time constant. Kept as its own
-// small function rather than shared through an import so neither config gains a runtime dep.
-function currentBranch(): string {
-  try {
-    return execFileSync('git', ['branch', '--show-current'], {
-      cwd: fileURLToPath(new URL('.', import.meta.url)),
-      stdio: ['ignore', 'pipe', 'ignore']
-    })
-      .toString()
-      .trim()
-  } catch {
-    return ''
-  }
-}
-
+// The browser suite mounts the real AppSidebar, which renders DevBadge, so this project still
+// has to DEFINE `__SETU_DEV_BRANCH__` — DevBadge's `typeof` guard would fall back to '' anyway,
+// but leaving the constant undefined here would mean the browser project compiles a different
+// expression than either real build. It is pinned to the EMPTY STRING rather than the actual
+// branch (#818): this config previously called `git branch --show-current` unconditionally, so
+// the suite's compiled output — and any cache entry keyed off it — varied by which worktree
+// happened to run it, while vite.config.ts:82-84 already zeroes the same constant for
+// `command !== 'serve'`. '' is what a production build injects and what a test therefore should
+// see; DevBadge renders nothing for a falsy branch, which no test asserts against today
+// (grep: the constant appears only in env.d.ts and DevBadge.tsx).
 export default defineConfig({
-  define: { __SETU_DEV_BRANCH__: JSON.stringify(currentBranch()) },
+  define: { __SETU_DEV_BRANCH__: JSON.stringify('') },
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
@@ -125,6 +118,16 @@ export default defineConfig({
     name: 'browser',
     globals: true,
     include: ['test-browser/**/*.test.{ts,tsx}'],
+    // REAL BROWSER: each file boots a Vite server, launches chromium and mounts a live
+    // React tree — for the heaviest specs that is the whole Tiptap editor plus the Radix
+    // control rail (see the #589 note above on how much graph the first import pulls).
+    // vitest's 5s default was never sized for that: it covers browser launch + connect +
+    // first-paint before a single assertion runs, and a cold CI runner with no warmed
+    // esbuild cache is exactly where it bites (#818; related flakes #718, #684, #636).
+    // 30s/60s is a hang gate for a suite whose warm local runs are ~1-3s per file, not a
+    // blanket raise — the jsdom project next door deliberately keeps the 5s default.
+    testTimeout: 30_000,
+    hookTimeout: 60_000,
     // No setupFiles here on purpose: apps/admin/test/setup.ts polyfills jsdom gaps
     // (document.elementFromPoint, Range.getClientRects, matchMedia) that a real browser
     // already implements correctly — porting it in would silently shadow real behavior

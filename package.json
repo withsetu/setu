@@ -20,6 +20,8 @@
     "typecheck": "pnpm -r typecheck",
     "typecheck:turbo": "turbo run typecheck",
     "lint": "eslint .",
+    "lint:turbo": "turbo run lint && pnpm run lint:root",
+    "lint:root": "eslint . --ignore-pattern \"apps/**\" --ignore-pattern \"packages/**\"",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -38,6 +40,7 @@
     "concurrently": "^10.0.3",
     "eslint": "^9.39.4",
     "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-astro": "^1.7.0",
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.7.0",
@@ -45,7 +48,8 @@
     "prettier": "^3.9.5",
     "turbo": "^2.10.5",
     "typescript": "^5.6.3",
-    "typescript-eslint": "^8.64.0"
+    "typescript-eslint": "^8.64.0",
+    "vitest": "^3.2.7"
   },
   "packageManager": "pnpm@10.33.0",
   "pnpm": {
@@ -62,7 +66,9 @@
     "overrides": {
       "brace-expansion@1": "1.1.16",
       "shell-quote": ">=1.9.0",
-      "svgo": ">=4.0.2"
+      "svgo": ">=4.0.2",
+      "sharp": ">=0.35.0",
+      "fast-xml-parser": ">=5.10.1"
     }
   }
 }

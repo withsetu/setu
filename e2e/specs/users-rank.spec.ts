@@ -198,6 +198,30 @@ test.describe('maintainer below-rank user management + rank gate parity (#364, #
     }
   })
 
+  // ## Kill-shot for the #812 tightening below (CLAUDE.md §3.3 #4) — recorded 2026-07-21, chromium
+  //
+  // Both rank-guard hooks in packages/auth/src/rank-guard.ts were short-circuited (an early
+  // `return` at the top of `rankGuardCreateHook`'s and `rankGuardUpdateHook`'s returned
+  // functions), the spec proven RED, then restored and re-run green:
+  //     ✘ wrong-actor API: the better-auth admin routes reject a maintainer acting at/above
+  //       their own rank
+  //       Error: maintainer set-role on an admin        Expected: 403 / Received: 400
+  //       Error: maintainer create-user role=admin      Expected: 403 / Received: 200
+  //       Error: the rejected create-user must not have created the account
+  //         Expected value: not "chromium-users-rank-api-reject-vfstia@setu.test"
+  //         Received array: [admin-e2e@, author-e2e@, editor-e2e@, maintainer-e2e@,
+  //                          chromium-users-rank-api-reject-vfstia@setu.test]
+  //
+  // The set-role line is the whole reason #812 was filed: with the rank guard GONE, that call
+  // still came back 400 — from the separate last-admin guard, which independently refuses to
+  // demote the only active admin — so the old `>= 400 && < 500` band PASSED against a build with
+  // no rank guard at all. The exact-status assertion is what turns that into a failure.
+  //
+  // Honest limit of the state controls: for the same reason, "the admin's role is unchanged"
+  // stayed GREEN under this sabotage — the last-admin guard, not the rank guard, is what kept the
+  // demotion from landing. It is the create-user control that catches the breach, and it did. The
+  // role check is still worth keeping: it covers the case where a rank-guard regression coincides
+  // with a target that is NOT the last admin.
   test('wrong-actor API: the better-auth admin routes reject a maintainer acting at/above their own rank', async ({
     page
   }) => {
@@ -214,10 +238,11 @@ test.describe('maintainer below-rank user management + rank gate parity (#364, #
     })
     expect(listRes.ok()).toBe(true)
     const { users } = (await listRes.json()) as {
-      users: { id: string; email: string }[]
+      users: { id: string; email: string; role: string | null }[]
     }
     const admin = users.find((u) => u.email === 'admin-e2e@setu.test')
     expect(admin).toBeTruthy()
+    expect(admin!.role).toBe('admin')
 
     // rank-guard.ts's rankGuardUpdateHook: a maintainer may only set-role a target strictly
     // below their own rank — an admin target is always rejected, regardless of the role handed
@@ -229,25 +254,64 @@ test.describe('maintainer below-rank user management + rank gate parity (#364, #
         data: { userId: admin!.id, role: 'author' }
       }
     )
-    expect(setRoleRes.status()).toBeGreaterThanOrEqual(400)
-    expect(setRoleRes.status()).toBeLessThan(500)
+    // #812: this used to assert only `>= 400 && < 500`, which ANY 4xx satisfies — a 404 if
+    // better-auth relocates `/admin/set-role`, a 401 if the maintainer session expires, a 400
+    // from payload-shape drift. Each is coverage rot that reports as a working rank guard
+    // forever. Pin the exact status AND the guard's own message instead, so the assertion can
+    // only pass when THIS guard is what rejected the call: `rank-guard.ts`'s `forbidden()` throws
+    // better-call's `APIError('FORBIDDEN', { message })`, and `toResponse` serializes an APIError
+    // as `statusCode` + the `body` object verbatim (better-call 1.3.7's to-response.mjs), so the
+    // wire shape is 403 + `{ message }`.
+    expect(setRoleRes.status(), 'maintainer set-role on an admin').toBe(403)
+    expect((await setRoleRes.json()) as unknown).toMatchObject({
+      message: 'cannot manage a user at or above your own rank'
+    })
 
     // rank-guard.ts's rankGuardCreateHook: a maintainer may never hand out a role at/above their
     // own rank, even via the direct better-auth route the UI's InviteUserDialog never offers.
+    const rejectedEmail = uniqueEmail('users-rank-api-reject')
     const createUserRes = await page.request.post(
       `${apiUrl}/api/auth/admin/create-user`,
       {
         headers: { origin: adminOrigin },
         data: {
-          email: uniqueEmail('users-rank-api-reject'),
+          email: rejectedEmail,
           password: 'e2e-Password-123456',
           name: 'Should Not Be Created',
           role: 'admin'
         }
       }
     )
-    expect(createUserRes.status()).toBeGreaterThanOrEqual(400)
-    expect(createUserRes.status()).toBeLessThan(500)
+    expect(createUserRes.status(), 'maintainer create-user role=admin').toBe(
+      403
+    )
+    expect((await createUserRes.json()) as unknown).toMatchObject({
+      message: 'cannot assign a role at or above your own rank'
+    })
+
+    // #812 state control — the half that was missing entirely. A status code says the response
+    // was a rejection; it does not say the MUTATION didn't land. `git-path-canonical-gate.spec.
+    // ts:114-118` insists on exactly this distinction ("not merely that a status code came back,
+    // but that NO write landed") and this spec was inconsistent with the suite's own strongest
+    // rule. Re-read the real roster and assert both attempted mutations are absent from it.
+    const afterRes = await page.request.get(`${apiUrl}/api/users`, {
+      headers: { origin: adminOrigin }
+    })
+    expect(afterRes.ok()).toBe(true)
+    const { users: after } = (await afterRes.json()) as {
+      users: { id: string; email: string; role: string | null }[]
+    }
+    // The demotion never happened: the admin is still an admin.
+    expect(
+      after.find((u) => u.email === 'admin-e2e@setu.test')?.role,
+      'the rejected set-role must not have demoted the admin'
+    ).toBe('admin')
+    // The peer-rank account was never created. `rejectedEmail` is uniqueTitle-derived, so its
+    // absence is unambiguous — no other project or re-run could have created or removed it.
+    expect(
+      after.map((u) => u.email),
+      'the rejected create-user must not have created the account'
+    ).not.toContain(rejectedEmail)
   })
 })
 

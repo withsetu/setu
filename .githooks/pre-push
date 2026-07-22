@@ -1,10 +1,13 @@
 #!/bin/sh
 # gitleaks pre-push hook (#325) — blocks secrets BEFORE they enter shared history.
-# Interim for GitHub push protection (GHAS-gated on this private repo; see #218).
+# Local-first line of defence: it catches a secret while the commit can still be amended,
+# which is cheaper than any server-side gate. CI's gitleaks job is the backstop (#218).
 #
 # Scans only the commit ranges being pushed. Scanner preference:
 #   1. local `gitleaks` binary (fast)
-#   2. the same digest-pinned Docker image CI uses (.github/workflows/gitleaks.yml)
+#   2. the same digest-pinned Docker image CI uses — the reference is read from
+#      .github/gitleaks/Dockerfile, the single source this hook and the workflow share
+#      so the two can't drift apart on a bump (#817)
 #   3. neither available -> WARN LOUDLY but allow the push (a hook that hard-fails on
 #      missing tooling would block contributors who never installed anything; CI's
 #      gitleaks job remains the backstop).
@@ -17,22 +20,40 @@
 
 set -u
 
-IMAGE='ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f'
 ZERO=0000000000000000000000000000000000000000
 
 # Main repository root (parent of the common .git dir) — correct in worktrees too.
 common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0
 repo_root=$(dirname "$common_dir")
 
+# Image reference, shared with .github/workflows/gitleaks.yml — see the header note.
+# Deliberately NOT resolved from $repo_root: that is the MAIN checkout, and a push from a
+# linked worktree must use the digest on the branch being pushed, not whatever the main
+# checkout happens to have checked out (or, for a brand-new file, nothing at all). So try
+# the hook's own directory and the current working tree first, and keep $repo_root only as
+# a last resort. An empty result degrades to the "no scanner" branch below (loud warning,
+# push allowed) rather than running `docker run ''`.
+IMAGE=''
+hook_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" 2>/dev/null && pwd) || hook_dir=''
+for candidate in \
+  "${hook_dir:+$hook_dir/../.github/gitleaks/Dockerfile}" \
+  ".github/gitleaks/Dockerfile" \
+  "$repo_root/.github/gitleaks/Dockerfile"; do
+  [ -n "$candidate" ] && [ -f "$candidate" ] || continue
+  IMAGE=$(sed -n 's/^FROM  *//p' "$candidate" | head -n 1)
+  [ -n "$IMAGE" ] && break
+done
+
 scan_range() {
   range="$1"
   if command -v gitleaks >/dev/null 2>&1; then
     gitleaks git --redact --exit-code 1 --log-opts "$range" "$repo_root"
-  elif command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  elif [ -n "$IMAGE" ] && command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
     docker run --rm -v "$repo_root:/repo" "$IMAGE" git --redact --exit-code 1 --log-opts "$range" /repo
   else
     echo "" >&2
-    echo "⚠️  gitleaks pre-push: NO scanner available (no gitleaks binary, no Docker)." >&2
+    echo "⚠️  gitleaks pre-push: NO scanner available (no gitleaks binary, and no Docker" >&2
+    echo "⚠️  or no image reference in .github/gitleaks/Dockerfile)." >&2
     echo "⚠️  Push allowed UNSCANNED — CI's gitleaks job is the only secret gate now." >&2
     echo "⚠️  Fix: brew install gitleaks   (or start Docker)" >&2
     echo "" >&2

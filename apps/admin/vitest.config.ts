@@ -1,4 +1,4 @@
-import { defineWorkspace } from 'vitest/config'
+import { defineConfig } from 'vitest/config'
 
 // Two vitest "projects" sharing one `vitest run` invocation (#293):
 //   - vite.config.ts's existing `test` block — jsdom, apps/admin/test/**, UNTOUCHED
@@ -10,7 +10,15 @@ import { defineWorkspace } from 'vitest/config'
 // Split, not migrate: nothing moves from test/ to test-browser/; the two suites cover
 // different concerns (jsdom = logic, browser = interaction) and both run under one
 // `vitest run` / `pnpm test`.
-export default defineWorkspace([
-  './vite.config.ts',
-  './vitest.browser.config.ts'
-])
+//
+// #818: this was `defineWorkspace([…])` in vitest.workspace.ts, which printed a DEPRECATED
+// banner on every run — the workspace file is deprecated as of vitest 3.2 and removed in
+// vitest 4, with `test.projects` as the replacement (it takes the same list of project
+// config paths). Renamed to vitest.config.ts because that is the file vitest resolves
+// first; vite.config.ts stays exactly where it is and is referenced below as a project, so
+// the jsdom suite's environment/setup/include are untouched.
+export default defineConfig({
+  test: {
+    projects: ['./vite.config.ts', './vitest.browser.config.ts']
+  }
+})

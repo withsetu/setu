@@ -101,3 +101,83 @@ describe('EditorScreen preview', () => {
     expect(openMock.mock.calls[0]![1]).toBe('setu-preview')
   })
 })
+
+// ---------------------------------------------------------------------------------
+// #804 — Preview must never be silently inert. `onPreview` awaited the POST with no
+// `catch` and was called as a bare `void onPreview()`; there is no
+// `unhandledrejection` handler in apps/admin/src and the React error boundary does
+// not see async rejections. Offline, on a 5xx, or with pop-ups blocked, clicking
+// Preview produced no toast, no tab and no state change. Same shape as #798's
+// commit(), one function away in the same file.
+// ---------------------------------------------------------------------------------
+describe('#804 a failed preview is never silent', () => {
+  /** fetch stub: the /preview POST behaves as `preview`, everything else (the
+   *  DeployProvider status GET) answers 200 so only the POST is under test. */
+  function stubFetch(preview: () => Promise<unknown>) {
+    const fetchMock = vi.fn((input: unknown) =>
+      String(input).includes('/preview')
+        ? preview()
+        : Promise.resolve({ ok: true, json: async () => ({}) })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    return fetchMock
+  }
+
+  const clickPreview = () =>
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: /preview the draft in your site theme/i
+      })
+    )
+
+  async function readyEditor() {
+    vi.stubEnv('VITE_SETU_API', 'http://localhost:4444')
+    vi.stubEnv('VITE_SETU_SITE', 'http://localhost:4321')
+    renderEditor()
+    await screen.findByDisplayValue('Release notes')
+  }
+
+  it('reports an error and opens no tab when the preview POST rejects', async () => {
+    stubFetch(() => Promise.reject(new Error('offline')))
+    const openMock = vi.fn()
+    vi.stubGlobal('open', openMock)
+
+    await readyEditor()
+    clickPreview()
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/couldn't open the preview/i)
+    expect(openMock).not.toHaveBeenCalled()
+  })
+
+  it('reports an error and opens no tab when the api answers 5xx', async () => {
+    // A non-ok response means the draft was never stored: opening the tab would
+    // show the PREVIOUS preview and read as success.
+    stubFetch(() =>
+      Promise.resolve({ ok: false, status: 500, json: async () => ({}) })
+    )
+    const openMock = vi.fn()
+    vi.stubGlobal('open', openMock)
+
+    await readyEditor()
+    clickPreview()
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/couldn't open the preview/i)
+    expect(openMock).not.toHaveBeenCalled()
+  })
+
+  it('reports an error when the browser blocks the preview pop-up', async () => {
+    stubFetch(() => Promise.resolve({ ok: true, json: async () => ({}) }))
+    vi.stubGlobal(
+      'open',
+      vi.fn(() => null)
+    )
+
+    await readyEditor()
+    clickPreview()
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/pop-up/i)
+  })
+})

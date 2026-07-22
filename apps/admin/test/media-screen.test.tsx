@@ -329,4 +329,44 @@ describe('Media screen', () => {
     // The mocked uploadFile returns filename 'dog.jpg' → toast says 'Uploaded dog.jpg'
     await screen.findByText(/Uploaded dog\.jpg/)
   })
+
+  // -------------------------------------------------------------------------------
+  // #804 — `void mediaIndex.upsertOne(result.record)` discarded a rejection after a
+  // SUCCESSFUL upload, so a failed index write was indistinguishable from success:
+  // no toast, and (in a topology where the client index is the read source) no tile.
+  // The upload itself is unaffected — the file and its record are already stored
+  // server-side — so the fix says exactly that and re-queries the grid, which is the
+  // recovery in the server-backed topology.
+  // -------------------------------------------------------------------------------
+  it('reports a failed index update after a successful upload, and still re-queries the grid', async () => {
+    const { services, mediaIndex } = await buildProviders()
+    const query = vi.fn(mediaIndex.query)
+    const failingIndex = {
+      ...mediaIndex,
+      query,
+      upsertOne: () => Promise.reject(new Error('index write failed'))
+    }
+    render(<Media />, { wrapper: wrapper(services, failingIndex) })
+
+    // Let the grid finish its mount-time load before counting re-queries.
+    await waitFor(() => expect(screen.getByText('cat.png')).toBeInTheDocument())
+    const queriesBefore = query.mock.calls.length
+
+    const input = await screen.findByTestId('media-dropzone-input')
+    const file = new File([new Uint8Array([1])], 'dog.jpg', {
+      type: 'image/jpeg'
+    })
+    fireEvent.change(input, { target: { files: [file] } })
+
+    // The upload succeeded — say so — but the failure is visible too, and claims
+    // nothing about the file itself.
+    await screen.findByText('Uploaded dog.jpg')
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/media list/i)
+
+    // Recovery: the grid re-queries rather than trusting the write that failed.
+    await waitFor(() =>
+      expect(query.mock.calls.length).toBeGreaterThan(queriesBefore)
+    )
+  })
 })

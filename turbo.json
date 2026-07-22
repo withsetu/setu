@@ -54,9 +54,26 @@
   // typecheck programs. It lives outside every package dir, so no package's $TURBO_DEFAULT$
   // reaches it — without this entry, editing the shim (whose whole job is keeping DOM types
   // out of Node/edge code, #405) changes typecheck outcomes repo-wide and busts nothing.
+  // `vitest.shared.ts` (#818): every package's vitest.config.ts now re-exports or merges this
+  // one root file, so it is a real input to all 29 `test` tasks and — like types/** above — it
+  // sits outside every package dir, where no $TURBO_DEFAULT$ reaches it. Without this entry,
+  // narrowing the shared `include` glob would cache-hit every suite in the repo and quietly
+  // stop collecting files.
+  // The lint entries (#819) exist for the new `lint` task below: eslint.config.mjs is the whole
+  // rule set, and it READS packages/core/tsconfig.edge.json at config-load time (eslint.config
+  // .mjs:64) to derive the edge-guard file list, so editing that tsconfig's `include` changes
+  // lint outcomes in packages that don't otherwise depend on core. .prettierrc.json/.prettierignore
+  // are listed because eslint-config-prettier's effect and the format:check gate both key off
+  // them. They are declared GLOBALLY rather than per-task because a rule change can flip any
+  // package's lint result, and turbo has no per-task way to say "all packages".
   "globalDependencies": [
     "tsconfig.base.json",
     "types/**",
+    "vitest.shared.ts",
+    "eslint.config.mjs",
+    ".prettierrc.json",
+    ".prettierignore",
+    "packages/core/tsconfig.edge.json",
     "pnpm-lock.yaml",
     "pnpm-workspace.yaml",
     ".nvmrc"
@@ -91,8 +108,19 @@
     // content sandbox), and turbo hashes only git-tracked files — so this glob is intended to
     // start covering it the day one is committed, and covers nothing until then. url-map.json
     // and redirects.json ARE tracked, and their kill-shots are in the #809 PR.
+    // `env` (#818): scripts/gen-relations.mjs:22 and gen-redirects.mjs read
+    // `process.env.SETU_CONTENT_DIR ?? path.join(ROOT, 'content')`. When it is set they walk an
+    // ENTIRELY DIFFERENT content tree than the `../../content/**` glob above hashes — and the
+    // root `dev` script exports it (`SETU_CONTENT_DIR=$PWD/.content-sandbox/dev/content`), so it
+    // is routinely set in a developer's shell. turbo 2 defaults to strict env mode, which strips
+    // undeclared variables from the task's environment, while `pnpm -r typecheck` inherits them:
+    // that is how `pnpm typecheck` and `pnpm typecheck:turbo`, presented as interchangeable in
+    // the root package.json, could operate on different content trees with nothing recording it.
+    // Declaring it folds its VALUE into the hash and passes it through, so the two agree.
+    // Expect a one-time full cache miss for anyone who has it set — correct, not a regression.
     "@setu/site#typecheck": {
       "dependsOn": ["^typecheck"],
+      "env": ["SETU_CONTENT_DIR"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "../../blocks/**",
@@ -116,13 +144,98 @@
       "outputs": []
     },
 
+    // ---- lint (#819) ------------------------------------------------------------------
+    // `pnpm lint` was one repo-wide `eslint .` outside the task graph: uncached, serial, and
+    // rebuilding a full type-aware TS program per package on every run — the same programs
+    // `typecheck` had just built. Per-package `eslint .` scripts + this task make it cacheable
+    // and parallel, and per-package on a PR (turbo's `...[merge-base]` filter in ci.yml).
+    // `^lint` is here for the SAME hash-folding reason as `^typecheck` (see header): type-aware
+    // rules read a dependency's source, so without the edge, editing packages/core would replay
+    // apps/site's cached lint pass. And for the same reason as typecheck, the three packages
+    // inside the #310 cycle need explicit edges instead of `^` — the overrides below mirror
+    // @setu/core#typecheck, @setu/git-http#typecheck and @setu/api#typecheck one for one.
+    // CAVEAT, stated because it is not obvious: this task graph does NOT cover the root-level
+    // surfaces (scripts/*.mjs, e2e/**, blocks/*/block.ts, root *.mjs, vitest.shared.ts) — no
+    // workspace package owns them. `pnpm lint:root` is what lints those, and `pnpm lint:turbo`
+    // runs both. Plain `pnpm lint` remains a single repo-wide `eslint .` and is still the
+    // authoritative full sweep.
+    "lint": {
+      "dependsOn": ["^lint"],
+      "outputs": []
+    },
+    // No `^lint` edge — cyclic, exactly as for @setu/core#typecheck above.
+    "@setu/core#lint": {
+      "outputs": []
+    },
+    // Explicit acyclic edge to @setu/core, mirroring @setu/git-http#typecheck. Same input
+    // globs too: packages/git-http/tsconfig.json includes `test`, and the contract test
+    // imports apps/api, git-testing and git-memory source, so type-aware lint reads them.
+    "@setu/git-http#lint": {
+      "dependsOn": ["@setu/core#lint"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../../apps/api/src/**",
+        "../git-testing/src/**",
+        "../git-memory/src/**"
+      ],
+      "outputs": []
+    },
+    // Hand-maintained for the same cycle reason as @setu/api#typecheck — and kept honest by
+    // the same guard: scripts/turbo-api-deps.test.mjs now asserts this list too.
+    "@setu/api#lint": {
+      "dependsOn": [
+        "@setu/core#lint",
+        "@setu/auth#lint",
+        "@setu/demo-data#lint",
+        "@setu/git-http#lint",
+        "@setu/db-memory#lint",
+        "@setu/db-sqlite#lint",
+        "@setu/email-console#lint",
+        "@setu/email-resend#lint",
+        "@setu/email-templates#lint",
+        "@setu/git-local#lint",
+        "@setu/git-memory#lint",
+        "@setu/captcha-recaptcha#lint",
+        "@setu/captcha-turnstile#lint",
+        "@setu/image-sharp#lint",
+        "@setu/image-testing#lint",
+        "@setu/storage-local#lint"
+      ],
+      "outputs": []
+    },
+    // admin's lint reads the repo-root blocks/** it glob-imports, same as #test/#build.
+    "@setu/admin#lint": {
+      "dependsOn": ["^lint"],
+      "inputs": ["$TURBO_DEFAULT$", "../../blocks/**"],
+      "outputs": []
+    },
+    // site's type-aware lint resolves the same generated surface its typecheck does (astro
+    // sync types, gen-blocks output), so it takes the same external inputs and the same
+    // SETU_CONTENT_DIR declaration.
+    "@setu/site#lint": {
+      "dependsOn": ["^lint"],
+      "env": ["SETU_CONTENT_DIR"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../../blocks/**",
+        "../../content/**",
+        "../../scripts/gen-blocks.mjs",
+        "../../scripts/gen-relations.mjs",
+        "../../url-map.json",
+        "../../redirects.json",
+        "../../settings.json"
+      ],
+      "outputs": []
+    },
+
     // ---- test -----------------------------------------------------------------------
     "test": {
       "dependsOn": ["^test"],
       "outputs": []
     },
 
-    // @setu/admin#test (#293) runs TWO vitest projects via vitest.workspace.ts: the existing
+    // @setu/admin#test (#293) runs TWO vitest projects via vitest.config.ts (`test.projects`,
+    // migrated off the deprecated vitest.workspace.ts in #818): the existing
     // jsdom suite (vite.config.ts) plus a real-chromium component-test project
     // (vitest.browser.config.ts, apps/admin/test-browser/**) via the playwright provider.
     // It stays CACHEABLE — deliberately not `cache: false`. Turbo's cache key hashes this
@@ -268,8 +381,11 @@
     // DELIBERATE, EYES-OPEN CAVEAT: gen-redirects.mjs *writes* url-map.json and redirects.json,
     // so a green run can move its own next-run hash (one extra miss, then it settles). That is
     // the honest trade — the alternative is a build that cache-hits across a redirect change.
+    // `env`: same SETU_CONTENT_DIR reasoning as @setu/site#typecheck above — this task runs the
+    // same three generators inside a real `astro build`.
     "@setu/site#test": {
       "dependsOn": ["^test", "@setu/site#typecheck"],
+      "env": ["SETU_CONTENT_DIR"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "../../blocks/**",
@@ -301,8 +417,11 @@
     },
     // site#build's inputs mirror site#test's (same prebuild, same three generators, same
     // repo-root JSON siblings — see the #809 gap-5 note above site#test, caveat included).
+    // `env`: same SETU_CONTENT_DIR reasoning as @setu/site#typecheck above — the prebuild
+    // generators pick the content tree this build reads.
     "@setu/site#build": {
       "dependsOn": ["^typecheck"],
+      "env": ["SETU_CONTENT_DIR"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "../../blocks/**",

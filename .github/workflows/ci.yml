@@ -99,7 +99,7 @@ jobs:
             else
               echo "since=$since" >> "$GITHUB_OUTPUT"
               echo "turbo's affected scope for '...[${since:0:9}]':"
-              pnpm exec turbo run typecheck test --filter "...[$since]" --dry-run 2>&1 \
+              pnpm exec turbo run typecheck test lint --filter "...[$since]" --dry-run 2>&1 \
                 | grep -E '^\s+•\s+(Packages in scope|Running)' | sed 's/^/  /' || true
             fi
           else
@@ -138,16 +138,22 @@ jobs:
           echo "Gating on high+ severity (moderate/low above are informational):"
           pnpm dlx pnpm@11.13.0 audit --audit-level=high
 
-      # Lint + format gate (#267). Repo-wide (one root eslint.config.mjs), so unlike the
-      # turbo step below it is NOT affected-filtered — and therefore needs the site's
-      # generated artifacts (markdoc.blocks.generated.mjs + .astro types) regardless of
-      # whether the PR touched the site; the prep line regenerates them (~1.4s).
-      # Warnings are TOLERATED (no --max-warnings 0): the 36-warning baseline is the
-      # react-hooks/React-Compiler set tracked in #338 (34) plus 2 in apps/admin/
-      # test-browser/ (#293 — the same render-counting-harness pattern already used by
-      # several apps/admin/test/ files, e.g. test/format-bubble.test.tsx) — flip to
-      # zero-warnings when #338 lands.
-      - name: Lint + format check
+      # Lint (root surfaces) + format gate (#267, split in #819).
+      # The PACKAGE half of lint now rides the turbo step below as a `lint` task — cached,
+      # parallel and affected-filtered like typecheck/test, instead of one uncached repo-wide
+      # `eslint .` rebuilding every type-aware TS program on every run. What is left here is
+      # `lint:root`: scripts/*.mjs, e2e/**, blocks/*/block.ts, root *.mjs and vitest.shared.ts
+      # — the surfaces no workspace package owns, so no turbo task can reach them. Dropping
+      # this line would silently un-lint them (that trade is called out in turbo.json's lint
+      # comment too).
+      # The site's generated artifacts (markdoc.blocks.generated.mjs + .astro types) are
+      # regenerated here (~1.4s) because @setu/site#lint and #typecheck both need them and
+      # this step runs first, regardless of whether the PR touched the site.
+      # Warnings are TOLERATED (no --max-warnings 0): the 60-warning baseline is the
+      # react-hooks/React-Compiler set tracked in #338, 2 in apps/admin/test-browser/ (#293),
+      # and 2 jsx-a11y/media-has-caption on the Video block's two renderers (#819/#826, no
+      # captions field in the block contract yet) — flip to zero-warnings when both land.
+      - name: Lint (root surfaces) + format check
         # Raise the V8 old-space above the ~2GB runner default: `eslint .` runs
         # typescript-eslint's type-aware rules, which build a full TS program per tsconfig
         # across the whole monorepo. The vitest 3 upgrade (larger type surface — vite 8,
@@ -159,11 +165,11 @@ jobs:
         run: |
           if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
           node scripts/gen-blocks.mjs && node scripts/gen-relations.mjs && pnpm --filter @setu/site exec astro sync
-          pnpm lint
+          pnpm run lint:root
           pnpm format:check
 
       # Playwright's chromium browser, for apps/admin's real-browser component-test
-      # project (#293 — apps/admin/test-browser/**, vitest.workspace.ts +
+      # project (#293 — apps/admin/test-browser/**, vitest.config.ts +
       # vitest.browser.config.ts). Deliberately installed HERE (in `check`, alongside
       # the rest of the unit-ish suite) rather than moved into the `e2e` job below:
       # these are component tests (single components/hooks mounted in isolation, no
@@ -203,13 +209,15 @@ jobs:
       # cache and chromium never launches — the browser suite is skipped precisely when nothing
       # it covers changed. The chromium install above is therefore sometimes unused; it stays
       # because a cache miss must not fail for a missing browser.
-      - name: Typecheck + test (incl. core edge build)
+      # NODE_OPTIONS mirrors the lint step above: the `lint` task added here (#819) runs the
+      # same type-aware rules, now one package at a time instead of one whole-repo program.
+      - name: Typecheck + test + lint (incl. core edge build)
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: |
           if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
           since='${{ steps.scope.outputs.since }}'
-          if [ -n "$since" ]; then pnpm exec turbo run typecheck test --filter "...[$since]"; else pnpm exec turbo run typecheck test; fi
-
-      # Lint: no linter is configured in the repo yet (#267). When it lands, add the step here.
+          if [ -n "$since" ]; then pnpm exec turbo run typecheck test lint --filter "...[$since]"; else pnpm exec turbo run typecheck test lint; fi
 
       # Repo-script tests aren't a workspace package (not part of turbo's task graph);
       # run unless the change is docs-only.

@@ -84,10 +84,24 @@ export function Media() {
     )
   }
 
+  /** #804: the index write is the only part that can fail here — the file and its
+   *  record are already stored server-side by the time this runs, and in the
+   *  server-backed topology `upsertOne` is cache upkeep only (see
+   *  data/http-media-index-service.ts), so the refreshKey re-query below is a real
+   *  recovery. The success toast therefore stands regardless; a rejection adds a
+   *  second, narrower message instead of being discarded, which is how a failed
+   *  index write used to be indistinguishable from a clean upload.
+   *  Enforced by test/media-screen.test.tsx. */
   function onUploaded(result: UploadResult) {
-    void mediaIndex.upsertOne(result.record)
+    const filename = result.record.filename
+    void mediaIndex.upsertOne(result.record).catch((err: unknown) => {
+      console.error('[media] index update after upload failed', err)
+      notify.error(
+        `Uploaded ${filename}, but the media list couldn't be updated — reload the page if it's missing.`
+      )
+    })
     setRefreshKey((k) => k + 1)
-    notify.success('Uploaded ' + result.record.filename)
+    notify.success('Uploaded ' + filename)
   }
 
   async function requestDelete() {

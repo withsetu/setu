@@ -554,25 +554,46 @@ export function EditorScreen() {
 
   // Preview the CURRENT in-memory draft (unsaved edits included) through the real site theme:
   // compile it the same way publish does, push it to the api's preview slot, open/refresh the tab.
+  /** Every exit reports (#804, same shape as commit() above): a rejected POST, a
+   *  non-ok response and a blocked pop-up each used to leave the button looking
+   *  inert, and "the button did nothing" reads as "it worked".
+   *  Enforced by test/editor-preview.test.tsx. */
   const onPreview = async () => {
     if (!previewApi) return
-    const content = serializeMdoc({
-      frontmatter: metaRef.current,
-      body: tiptapToMarkdoc(docRef.current),
-      rawFrontmatter: rawFrontmatterOf(baseContentRef.current)
-    })
-    await apiFetch(`${previewApi}/preview`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ content, collection, locale, slug })
-    })
-    // A changing nonce forces the named tab to navigate → re-fetch the just-pushed draft.
-    const url = `${siteUrl()}/preview?n=${(previewNonce.current += 1)}`
-    if (previewWin.current && !previewWin.current.closed) {
-      previewWin.current.location.href = url
-      previewWin.current.focus()
-    } else {
-      previewWin.current = window.open(url, 'setu-preview')
+    try {
+      const content = serializeMdoc({
+        frontmatter: metaRef.current,
+        body: tiptapToMarkdoc(docRef.current),
+        rawFrontmatter: rawFrontmatterOf(baseContentRef.current)
+      })
+      const res = await apiFetch(`${previewApi}/preview`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ content, collection, locale, slug })
+      })
+      // Non-ok means the api never stored this draft. Opening the tab anyway would
+      // show the PREVIOUS preview — the most convincing possible false success.
+      if (!res.ok) throw new Error(`preview push failed (${res.status})`)
+      // A changing nonce forces the named tab to navigate → re-fetch the just-pushed draft.
+      const url = `${siteUrl()}/preview?n=${(previewNonce.current += 1)}`
+      if (previewWin.current && !previewWin.current.closed) {
+        previewWin.current.location.href = url
+        previewWin.current.focus()
+      } else {
+        const win = window.open(url, 'setu-preview')
+        if (!win) {
+          notify.error(
+            "Couldn't open the preview tab — allow pop-ups for this site, then try again."
+          )
+          return
+        }
+        previewWin.current = win
+      }
+    } catch (err) {
+      console.error('[editor] preview failed', err)
+      notify.error(
+        "Couldn't open the preview. Check your connection and try again."
+      )
     }
   }
 

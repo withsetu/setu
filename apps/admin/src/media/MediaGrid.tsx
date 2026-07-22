@@ -3,11 +3,17 @@ import type { MediaIndexQuery, MediaIndexRow } from '@setu/core'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { useMediaIndex } from '../data/media-index-store'
+import { useNotify } from '../ui/notify'
 import { resolveMediaSrc } from '../editor/media-src'
 
 /** Items per page; the grid owns paging (Load more), ignoring any offset/limit
  *  on the incoming query so both /media and the picker paginate identically. */
 export const MEDIA_PAGE_SIZE = 24
+
+/** Shown both in place of the grid and as the toast, so the failure is visible
+ *  whether the reader is looking at the grid or elsewhere on the screen. */
+const LOAD_FAILED_MESSAGE =
+  "Couldn't load the media library. Check your connection and try again."
 
 export interface PickPayload {
   src: string
@@ -63,9 +69,12 @@ export function MediaGrid({
   onSelect
 }: MediaGridProps) {
   const index = useMediaIndex()
+  const notify = useNotify()
   const [rows, setRows] = useState<MediaIndexRow[] | null>(null)
   const [total, setTotal] = useState(0)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [retryKey, setRetryKey] = useState(0)
   const refreshedRef = useRef(false)
 
   // Query one page (PAGE_SIZE rows from `offset`), overriding any offset/limit the
@@ -79,29 +88,39 @@ export function MediaGrid({
 
   // (Re)load the first page whenever the filter changes. SWR: query the cache, then
   // refresh from the feed once on mount and re-query.
+  //
+  // #833: every await here is inside the try. `rows` is only ever set on the
+  // success path, so an escaping rejection used to leave the grid on its loading
+  // skeleton forever — a broken library looked exactly like a slow one.
   useEffect(() => {
     let live = true
     void (async () => {
-      await index.ensureBuilt()
-      const r = await pageAt(0)
-      if (live) {
+      try {
+        await index.ensureBuilt()
+        const r = await pageAt(0)
+        if (!live) return
         setRows(r.rows)
         setTotal(r.total)
-      }
-      if (!refreshedRef.current) {
-        refreshedRef.current = true
-        await index.refresh()
-        const r2 = await pageAt(0)
-        if (live) {
+        setLoadFailed(false)
+        if (!refreshedRef.current) {
+          refreshedRef.current = true
+          await index.refresh()
+          const r2 = await pageAt(0)
+          if (!live) return
           setRows(r2.rows)
           setTotal(r2.total)
         }
+      } catch (err) {
+        if (!live) return
+        console.error('[media] loading the media library failed', err)
+        setLoadFailed(true)
+        notify.error(LOAD_FAILED_MESSAGE)
       }
     })()
     return () => {
       live = false
     }
-  }, [index, pageAt])
+  }, [index, pageAt, notify, retryKey])
 
   const loadMore = async () => {
     setLoadingMore(true)
@@ -109,6 +128,13 @@ export function MediaGrid({
       const r = await pageAt(rows?.length ?? 0)
       setRows((prev) => [...(prev ?? []), ...r.rows])
       setTotal(r.total)
+    } catch (err) {
+      // Keeps the rows already on screen: only the extra page is missing, and
+      // the button re-enables so the reader can just try again.
+      console.error('[media] loading another page of media failed', err)
+      notify.error(
+        "Couldn't load more media. Check your connection and try again."
+      )
     } finally {
       setLoadingMore(false)
     }
@@ -120,6 +146,31 @@ export function MediaGrid({
     } else {
       onSelect?.(row)
     }
+  }
+
+  // A failed FIRST load has no rows to show, so the failure takes the grid's
+  // place: an honest, retryable state the reader can tell apart from "empty".
+  // A later failure (the SWR refresh, or Load more) keeps the rows it already
+  // has and reports through the toast alone.
+  if (rows === null && loadFailed) {
+    return (
+      <div
+        role="alert"
+        className="flex flex-col items-center gap-3 px-5 py-12 text-center"
+      >
+        <p className="text-sm text-muted-foreground">{LOAD_FAILED_MESSAGE}</p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setLoadFailed(false)
+            setRetryKey((k) => k + 1)
+          }}
+        >
+          Try again
+        </Button>
+      </div>
+    )
   }
 
   if (rows === null) {

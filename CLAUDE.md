@@ -203,6 +203,14 @@ The full standard with the worked "good vs. skeleton" case study: [docs/quality-
   below — the guard the comment described was never written (#785). Also #712, #725, #731, #740,
   #742. Wording is the cheap half; the durable half is that "must name a test" turns an
   unfalsifiable claim into a failing test at authoring time.
+  **"Names the test" means a literal path — `packages/core/test/foo.test.ts` — not an issue
+  number.** The first audit of this rule (round 4 of slice 3) found **zero of six** new comments
+  naming a test; every one cited an issue instead, which is what they already did before the rule
+  existed. An issue points at a rationale; only a filename points at something that FAILS when the
+  invariant breaks. Worse, the very commit that fixed one false claim reintroduced it verbatim two
+  files over — a claim can be wrong in an issue body too (#773), so citing one proves nothing.
+  If no test enforces it, that is the signal: either write the test, or word it as intent and stop
+  pretending. Reviewers: a fact-worded invariant with no filename is a finding, not a nit.
 
 ### 3.3 Ship (the `/ship` skill walks this end-to-end)
 

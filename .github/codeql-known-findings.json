@@ -20,6 +20,12 @@
       "note": "Maintainer-script URL substring check."
     },
     {
+      "ruleId": "js/incomplete-url-substring-sanitization",
+      "uri": "scripts/sync-health-rubric.test.mjs",
+      "issue": "#831",
+      "note": "Test-only URL substring check — asserts parsed items point at the spec host. Same benign shape as the two entries above (verified against the code, not assumed): an assertion over data this script itself generated, not a sanitiser on untrusted input."
+    },
+    {
       "ruleId": "js/polynomial-redos",
       "uri": "packages/core/src/content/excerpt.ts",
       "issue": "#340",

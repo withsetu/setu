@@ -249,10 +249,12 @@ jobs:
       # typecheck+test run as one turbo invocation per lane (readable, task-graph-ordered
       # log output — see turbo.json for the `dependsOn` graph this scope resolves through).
       # Remote cache via the adapter step above (#273): unchanged task hashes replay from
-      # GitHub's cache across runs; changed code always misses and executes. apps/admin#test
-      # is NOT cached by turbo (see turbo.json's admin#test override, #293) so this always
-      # actually launches chromium — no stale-cache risk of silently skipping the browser
-      # suite.
+      # GitHub's cache across runs; changed code always misses and executes. @setu/admin#test
+      # IS cacheable like every other task (turbo.json documents why, #293/#809): if apps/admin's
+      # source and the repo-root blocks/** it imports are both unchanged, that task replays from
+      # cache and chromium never launches — the browser suite is skipped precisely when nothing
+      # it covers changed. The chromium install above is therefore sometimes unused; it stays
+      # because a cache miss must not fail for a missing browser.
       - name: Typecheck + test (incl. core edge build)
         run: |
           if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi

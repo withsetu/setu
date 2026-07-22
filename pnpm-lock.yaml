@@ -958,6 +958,9 @@ importers:
       '@setu/blocks':
         specifier: workspace:*
         version: link:../blocks
+      '@setu/core':
+        specifier: workspace:*
+        version: link:../core
     devDependencies:
       astro:
         specifier: 7.1.1

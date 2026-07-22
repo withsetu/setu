@@ -49,8 +49,14 @@
   // back to plain `^typecheck`/`^test`.
   // ---------------------------------------------------------------------------------
 
+  // `types/**` (#809 gap 2): tsconfig.base.json's `paths` maps "jsdom" ->
+  // ./types/jsdom-shim.d.ts, and EVERY package extends that base, so the shim sits in all 26
+  // typecheck programs. It lives outside every package dir, so no package's $TURBO_DEFAULT$
+  // reaches it — without this entry, editing the shim (whose whole job is keeping DOM types
+  // out of Node/edge code, #405) changes typecheck outcomes repo-wide and busts nothing.
   "globalDependencies": [
     "tsconfig.base.json",
+    "types/**",
     "pnpm-lock.yaml",
     "pnpm-workspace.yaml",
     ".nvmrc"
@@ -75,6 +81,16 @@
     // covered by ^typecheck via those packages' own typecheck tasks). $TURBO_DEFAULT$
     // keeps the package's own default inputs (src/**, package.json, tsconfig, etc.)
     // in addition to the extra external globs.
+    // gen-relations also reads two repo-root JSON files (#809 gap 5): settings.json and
+    // url-map.json, via `path.join(contentDir, '..', …)` (gen-relations.mjs:55,68) — they are
+    // SIBLINGS of content/, so `../../content/**` never covered them. redirects.json is listed
+    // alongside them because it is the other half of the same generated redirect pair and a
+    // typecheck run reads whatever gen-relations resolved against. No gen-redirects.mjs here:
+    // apps/site's `typecheck` script runs only gen-blocks + gen-relations (#217).
+    // Note on settings.json: no such file is tracked at the repo root today (it lives in the
+    // content sandbox), and turbo hashes only git-tracked files — so this glob is intended to
+    // start covering it the day one is committed, and covers nothing until then. url-map.json
+    // and redirects.json ARE tracked, and their kill-shots are in the #809 PR.
     "@setu/site#typecheck": {
       "dependsOn": ["^typecheck"],
       "inputs": [
@@ -82,7 +98,10 @@
         "../../blocks/**",
         "../../content/**",
         "../../scripts/gen-blocks.mjs",
-        "../../scripts/gen-relations.mjs"
+        "../../scripts/gen-relations.mjs",
+        "../../url-map.json",
+        "../../redirects.json",
+        "../../settings.json"
       ],
       "outputs": []
     },
@@ -103,19 +122,24 @@
       "outputs": []
     },
 
-    // @setu/admin#test (#293) now runs TWO vitest projects via vitest.workspace.ts: the
-    // existing jsdom suite (vite.config.ts) plus a real-chromium component-test project
+    // @setu/admin#test (#293) runs TWO vitest projects via vitest.workspace.ts: the existing
+    // jsdom suite (vite.config.ts) plus a real-chromium component-test project
     // (vitest.browser.config.ts, apps/admin/test-browser/**) via the playwright provider.
-    // Deliberately NOT special-cased with `cache: false` here — turbo's cache key hashes
-    // this package's SOURCE (the plain `test` task's default inputs already cover
-    // apps/admin's own tree), which is exactly the same contract every other task in this
-    // graph relies on; it was never turbo's job to hash "is chromium installed" any more
-    // than it hashes "is Node installed". A cache hit means "this exact source already
-    // passed", identical to how the jsdom half of this same task behaves today — adding a
-    // browser project doesn't change that contract, so no override is needed. (CI installs
-    // chromium fresh every run before invoking turbo — see ci.yml's `check` job — so this
-    // is a non-issue there regardless; the reasoning above is about local/cache-hit honesty
-    // in general, not a CI-specific workaround.)
+    // It stays CACHEABLE — deliberately not `cache: false`. Turbo's cache key hashes this
+    // package's source, which is the same contract every other task here relies on; it was
+    // never turbo's job to hash "is chromium installed" any more than it hashes "is Node
+    // installed". A cache hit means "this exact source already passed", identical to how the
+    // jsdom half of the same task behaves. Consequence, stated plainly because ci.yml used to
+    // deny it (#809 gap 6): a cache hit here DOES skip launching chromium. That is intended.
+    // The override below exists for a different reason (#809 gap 3): apps/admin/src/blocks/
+    // registry.ts glob-imports `../../../../blocks/*/block.ts`, so repo-root blocks/** is a
+    // real source input to admin's tests, exactly as it already is for every @setu/site task.
+    // Without it, editing a block contract cache-hits admin's suite.
+    "@setu/admin#test": {
+      "dependsOn": ["^test"],
+      "inputs": ["$TURBO_DEFAULT$", "../../blocks/**"],
+      "outputs": []
+    },
 
     // Same cycle reasoning as @setu/core#typecheck: no topological `^test` edge (would
     // be cyclic through db-memory/git-memory). UNLIKE typecheck, core's tests genuinely
@@ -137,8 +161,18 @@
     // packages/git-http/test/contract.test.ts imports @setu/api) and api depends back on
     // git-http for real — a topological ^typecheck/^test edge would re-enter that cycle.
     // Named explicitly instead of `^`, which only pulls in the real, acyclic dependency.
+    // RULE (#809 gap 4): packages/git-http/tsconfig.json has `"include": ["src", "test"]`, so
+    // tsc compiles the contract test too and reads the same three siblings the test imports.
+    // Any package whose tsconfig `include` covers `test` needs its #typecheck inputs to match
+    // its #test inputs — otherwise typecheck cache-hits across a sibling's source change.
     "@setu/git-http#typecheck": {
       "dependsOn": ["@setu/core#typecheck"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../../apps/api/src/**",
+        "../git-testing/src/**",
+        "../git-memory/src/**"
+      ],
       "outputs": []
     },
     // git-http's contract test ALSO imports @setu/git-testing (runGitPortContract — verified:
@@ -147,12 +181,15 @@
     // -> api -> git-http), so it's covered the same way as core#test's db-memory/git-memory
     // fixtures: explicit `inputs`, not `dependsOn` (which would recreate the cycle). Without
     // this glob, editing git-testing's source would NOT bust this task's cache — a false green.
+    // @setu/git-memory is covered the same way (#809 gap 4): the contract test imports it as the
+    // concrete GitPort the suite actually drives, so its source is a real input to this task.
     "@setu/git-http#test": {
       "dependsOn": ["@setu/core#test"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "../../apps/api/src/**",
-        "../git-testing/src/**"
+        "../git-testing/src/**",
+        "../git-memory/src/**"
       ],
       "outputs": []
     },
@@ -167,9 +204,16 @@
     // @setu/db-testing and @setu/git-testing are NOT api dependencies (grep confirms
     // apps/api/package.json has neither, and apps/api/{src,test}/**/*.ts imports neither)
     // — they were fabricated in an earlier draft of this file and are deliberately absent.
+    // Because this list is hand-maintained it drifts silently: @setu/auth and @setu/demo-data
+    // were missing until #809, so editing packages/auth replayed api's cached tests without
+    // ever running against the change. scripts/turbo-api-deps.test.mjs (`pnpm test:scripts`)
+    // now asserts both lists below cover every `workspace:*` dep in apps/api/package.json —
+    // that test, not this comment, is what keeps the claim true.
     "@setu/api#typecheck": {
       "dependsOn": [
         "@setu/core#typecheck",
+        "@setu/auth#typecheck",
+        "@setu/demo-data#typecheck",
         "@setu/git-http#typecheck",
         "@setu/db-memory#typecheck",
         "@setu/db-sqlite#typecheck",
@@ -189,6 +233,8 @@
     "@setu/api#test": {
       "dependsOn": [
         "@setu/core#test",
+        "@setu/auth#test",
+        "@setu/demo-data#test",
         "@setu/git-http#test",
         "@setu/db-memory#test",
         "@setu/db-sqlite#test",
@@ -216,6 +262,12 @@
     // config/integration files already inside $TURBO_DEFAULT$. Correctness over
     // speed per the brief: kept cacheable because the input set IS fully enumerable
     // (nothing dynamic/unbounded), unlike a task reading arbitrary user/network state.
+    // prebuild runs THREE generators, not two (#809 gap 5): gen-redirects.mjs is what keeps a
+    // renamed slug from becoming a dead URL, and a cache hit here would ship a stale _redirects
+    // into dist/. Its two JSON files plus settings.json are listed as inputs as well.
+    // DELIBERATE, EYES-OPEN CAVEAT: gen-redirects.mjs *writes* url-map.json and redirects.json,
+    // so a green run can move its own next-run hash (one extra miss, then it settles). That is
+    // the honest trade — the alternative is a build that cache-hits across a redirect change.
     "@setu/site#test": {
       "dependsOn": ["^test", "@setu/site#typecheck"],
       "inputs": [
@@ -223,7 +275,11 @@
         "../../blocks/**",
         "../../content/**",
         "../../scripts/gen-blocks.mjs",
-        "../../scripts/gen-relations.mjs"
+        "../../scripts/gen-relations.mjs",
+        "../../scripts/gen-redirects.mjs",
+        "../../url-map.json",
+        "../../redirects.json",
+        "../../settings.json"
       ],
       "outputs": []
     },
@@ -235,10 +291,16 @@
     // graph) — so `build` stays a graph leaf with no dependents wired to it. Declared
     // here only so `turbo run build` works for these two; outputs point at their real
     // artifact dirs so a future consumer could cache-restore them.
+    // admin's bundle compiles the repo-root blocks/** it glob-imports (#809 gap 3), so that
+    // directory is an input here too — otherwise turbo can restore a dist/** built against the
+    // PREVIOUS block contracts and hand it straight to a deploy.
     "@setu/admin#build": {
       "dependsOn": ["^typecheck"],
+      "inputs": ["$TURBO_DEFAULT$", "../../blocks/**"],
       "outputs": ["dist/**"]
     },
+    // site#build's inputs mirror site#test's (same prebuild, same three generators, same
+    // repo-root JSON siblings — see the #809 gap-5 note above site#test, caveat included).
     "@setu/site#build": {
       "dependsOn": ["^typecheck"],
       "inputs": [
@@ -246,7 +308,11 @@
         "../../blocks/**",
         "../../content/**",
         "../../scripts/gen-blocks.mjs",
-        "../../scripts/gen-relations.mjs"
+        "../../scripts/gen-relations.mjs",
+        "../../scripts/gen-redirects.mjs",
+        "../../url-map.json",
+        "../../redirects.json",
+        "../../settings.json"
       ],
       "outputs": ["dist/**"]
     }

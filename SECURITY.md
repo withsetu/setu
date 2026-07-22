@@ -10,6 +10,10 @@ expect, and what counts as in scope.
 private between you and the maintainers, gives us a private fork to develop the fix in, and lets
 us credit you on the published advisory.
 
+If you'd rather not use GitHub, email **security@setu.build**. Please include the same details as
+below. The advisory channel is still preferred — it keeps the fix and the disclosure in one
+thread — but a report by email is far better than no report.
+
 Please do **not** open a public issue for anything that would expose a running Setu instance.
 Everything else — CI hardening, dependency posture, missing test coverage for a gate that already
 enforces correctly — belongs in a normal public issue with the `security` label, and we would
@@ -36,12 +40,22 @@ We'll keep you in the loop through the advisory thread rather than going quiet u
 ships. If we conclude something isn't exploitable, we'll say so with our reasoning rather than
 closing it silently — and we may still fix it as hardening.
 
+### Coordinated disclosure
+
+We ask for **90 days** from your report before public disclosure, which is standard practice and
+long enough for us to ship a fix. If we fix it sooner we'll publish sooner — the advisory goes out
+when the fix does, not on a timer. If a fix is going to take longer, we'll say so in the thread and
+agree an extension with you rather than going quiet.
+
+You're free to disclose after 90 days whether or not we've shipped. We'd ask that you tell us
+first, and if something is being actively exploited, say so — we'll drop the window and move.
+
 ### Safe harbour
 
 We won't pursue or support legal action against anyone acting in good faith under this policy:
-research on your own instance, no access to or modification of other people's data, no
-degradation of a service you don't run, and a reasonable window for us to fix before public
-disclosure. If you're unsure whether something is in bounds, ask first in the advisory thread.
+research on your own instance, no access to or modification of other people's data, no degradation
+of a service you don't run, and the disclosure window above. If you're unsure whether something is
+in bounds, ask first in the advisory thread — asking is always in bounds.
 
 ## Supported versions
 

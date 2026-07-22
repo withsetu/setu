@@ -310,7 +310,27 @@ function wiringFor(row, rows, home) {
 
 const pad = (s, n) => String(s).padEnd(n)
 
-export function render(status) {
+/** CLI flags. `--show-links` opts INTO printing full sign-in links; the default is truncated
+ *  (#820) because this command's output routinely ends up in issues, PR comments and agent
+ *  transcripts, while `pnpm auth:login-link` is the explicit single-credential request. */
+export function parseStatusArgs(argv = []) {
+  return { showLinks: argv.includes('--show-links') }
+}
+
+/** Origin + path + a short token stub — enough to see WHICH admin a link points at (that is what
+ *  the cross-worktree note below is read against) without carrying a usable handshake credential.
+ *  A token shorter than `keep` is left alone rather than padded. Enforced by the "SIGN IN block
+ *  truncates the token by default" and "truncateLink keeps the origin" tests. */
+export function truncateLink(url, keep = 6) {
+  const m = /^(.*[#?&]setu-token=)([^&]*)/.exec(url)
+  if (!m) return url.length > 48 ? `${url.slice(0, 48)}…` : url
+  const token = m[2]
+  return token.length > keep
+    ? `${m[1]}${token.slice(0, keep)}…`
+    : `${m[1]}${token}`
+}
+
+export function render(status, { showLinks = false } = {}) {
   if (status.rows.length === 0) {
     const ports = Object.entries(DEFAULT_PORTS)
       .map(([p, role]) => `${role} :${p}`)
@@ -380,11 +400,18 @@ export function render(status) {
   out.push('SIGN IN')
   const lw = Math.max(...status.links.map((l) => l.branch.length), 6)
   for (const link of status.links) {
-    out.push(
-      `  → ${pad(link.branch, lw)}  ${link.url ?? `(${firstLine(link.error)})`}`
-    )
+    const shown = link.url
+      ? showLinks
+        ? link.url
+        : truncateLink(link.url)
+      : `(${firstLine(link.error)})`
+    out.push(`  → ${pad(link.branch, lw)}  ${shown}`)
     if (link.note) out.push(`      ⚠ ${link.note}`)
   }
+  if (!showLinks && status.links.some((l) => l.url))
+    out.push(
+      '  (sign-in tokens truncated — `pnpm auth:login-link` for the full link, or --show-links)'
+    )
   out.push('')
   out.push('  (read-only: this command never stops or restarts anything)')
   out.push('')
@@ -630,7 +657,9 @@ function main() {
     home: homedir(),
     now: new Date()
   })
-  process.stdout.write(`${render(status)}\n`)
+  process.stdout.write(
+    `${render(status, parseStatusArgs(process.argv.slice(2)))}\n`
+  )
 }
 
 if (isDirectInvocation(process.argv[1], import.meta.url)) main()

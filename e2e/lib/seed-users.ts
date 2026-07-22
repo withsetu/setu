@@ -21,6 +21,18 @@ export const E2E_USERS = {
     role: 'author',
     password: 'e2e-Password-123456'
   },
+  // #811: the roles ladder is admin > maintainer > editor > author, and `editor` was the one rung
+  // with no session anywhere in the harness — so nothing proved an editor CAN publish (the
+  // capability that separates them from an author) or CANNOT reach `users.*`. A permission-matrix
+  // edit collapsing editor into author, or promoting it toward maintainer, was invisible to e2e in
+  // both directions. `auth.setup.ts` loops over every key here, so this one entry mints the
+  // storage state too. Asserted both ways in auth-editor-rung.spec.ts.
+  editor: {
+    email: 'editor-e2e@setu.test',
+    name: 'E2E Editor',
+    role: 'editor',
+    password: 'e2e-Password-123456'
+  },
   // #364: the below-rank-management + rank-gate-parity e2e (users-rank.spec.ts) needs a real
   // maintainer session — maintainer outranks editor/author but not admin, the exact middle rung
   // the rank guard exists to enforce.

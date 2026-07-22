@@ -22,9 +22,13 @@ on:
     # 03:17 UTC Monday weekly job so the two never contend for runner minutes).
     - cron: '44 5 * * 3'
 
+# Both triggers (push to main, weekly cron) evaluate `github.ref` to `refs/heads/main`, so a
+# ref-keyed group made them cancel each other and a cancelled run reports as *cancelled*,
+# not failed — the scan would go missing silently. Neither event has anything to supersede,
+# so key on the event + commit and never cancel (#817).
 concurrency:
-  group: codeql-${{ github.ref }}
-  cancel-in-progress: true
+  group: codeql-${{ github.event_name }}-${{ github.sha }}
+  cancel-in-progress: false
 
 jobs:
   analyze:

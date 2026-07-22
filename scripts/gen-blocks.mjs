@@ -27,14 +27,33 @@ const jiti = createJiti(import.meta.url, {
   }
 })
 
-async function loadEntries() {
-  if (!existsSync(BLOCKS_DIR)) return []
+/** A block folder name IS the block's tag, and it flows into generated JavaScript the site imports
+ *  at build time (`component('blocks/<tag>/<tag>.astro')`). The consumer concatenates it into
+ *  single-quoted JS string literals without escaping, so a quote or backslash breaks out of the
+ *  literal and a `../` produces a specifier outside the blocks tree (#820). Same shape as the
+ *  Markdoc tag grammar: lowercase, alphanumeric + dashes, must start with a letter.
+ *  Enforced by the BAD_TAGS table in gen-blocks.test.mjs. */
+const TAG_RE = /^[a-z][a-z0-9-]*$/
+
+export function assertValidTag(tag) {
+  if (!TAG_RE.test(tag))
+    throw new Error(
+      `gen-blocks: invalid block folder ${JSON.stringify(tag)} — a block tag must match ` +
+        '/^[a-z][a-z0-9-]*$/ (lowercase letters, digits and dashes, starting with a letter). ' +
+        'Rename the folder under blocks/.'
+    )
+  return tag
+}
+
+export async function loadEntries(blocksDir = BLOCKS_DIR) {
+  if (!existsSync(blocksDir)) return []
   const entries = []
-  for (const tag of readdirSync(BLOCKS_DIR)) {
-    const folder = path.join(BLOCKS_DIR, tag)
+  for (const tag of readdirSync(blocksDir)) {
+    const folder = path.join(blocksDir, tag)
     if (!statSync(folder).isDirectory()) continue
     const blockTs = path.join(folder, 'block.ts')
-    if (!existsSync(blockTs)) continue
+    if (!existsSync(blockTs)) continue // not a block folder — stray dirs are skipped, not rejected
+    assertValidTag(tag)
     const astro = path.join(folder, `${tag}.astro`)
     if (!existsSync(astro))
       throw new Error(`block "${tag}": missing ${tag}.astro`)

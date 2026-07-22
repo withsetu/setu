@@ -18,6 +18,8 @@ import {
   loginLinkFor,
   parseCwd,
   parseListeners,
+  parseStatusArgs,
+  truncateLink,
   parsePsEnv,
   render,
   roleFor
@@ -724,4 +726,94 @@ test('upstreamOf against real git: no remote at all → present:false, not 0', (
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+// --- #820: dev:status is a routine "what's running" command whose output gets pasted into issues,
+// PRs and agent transcripts. It must not carry every discoverable worktree's admin sign-in
+// credential in there by default. `pnpm auth:login-link` stays the explicit way to get one.
+// Deliberately low-entropy and self-describing: a realistic random-looking token here trips the
+// gitleaks pre-push scan (generic-api-key) even though nothing about it is real.
+const LONG_TOKEN = 'not-a-real-token-not-a-real-token-not-a-real-token'
+
+function statusWithLink(url) {
+  return buildStatus(
+    deps({
+      listeners: [{ pid: 2, port: 5173 }],
+      cwdOf: () => '/Users/dev/setu/apps/admin',
+      worktreeOf: () => ({ root: '/Users/dev/setu', branch: 'main' }),
+      startedAt: () => minutesAgo(3),
+      loginLink: () => ({ url })
+    })
+  )
+}
+
+test('the SIGN IN block truncates the token by default and says where to get the full link', () => {
+  const url = `http://localhost:5173/#setu-token=${LONG_TOKEN}`
+  const out = render(statusWithLink(url))
+  assert.doesNotMatch(
+    out,
+    new RegExp(LONG_TOKEN),
+    'the full token must not appear in default output'
+  )
+  assert.match(out, /http:\/\/localhost:5173\/#setu-token=/) // the origin is still useful
+  assert.match(out, /pnpm auth:login-link/)
+  assert.match(out, /--show-links/)
+})
+
+test('--show-links prints the full sign-in link verbatim', () => {
+  const url = `http://localhost:5173/#setu-token=${LONG_TOKEN}`
+  const out = render(statusWithLink(url), { showLinks: true })
+  assert.match(out, new RegExp(LONG_TOKEN))
+  assert.doesNotMatch(out, /pnpm auth:login-link/)
+})
+
+test('truncateLink keeps the origin and a token stub, never the whole token', () => {
+  assert.equal(
+    truncateLink(`http://localhost:5173/#setu-token=${LONG_TOKEN}`),
+    'http://localhost:5173/#setu-token=not-a-…'
+  )
+  // A short token is not padded into looking longer than it is, and is still cut.
+  assert.equal(
+    truncateLink('http://localhost:5173/#setu-token=abc'),
+    'http://localhost:5173/#setu-token=abc'
+  )
+  // A URL with no recognisable token is still bounded.
+  assert.ok(
+    truncateLink(`http://localhost:5173/${'a'.repeat(200)}`).length < 80
+  )
+})
+
+test('the cross-worktree link warning survives truncation (#820 keeps the note)', () => {
+  const status = buildStatus(
+    deps({
+      listeners: [
+        { pid: 2, port: 5173 },
+        { pid: 3, port: 5183 }
+      ],
+      cwdOf: (pid) =>
+        pid === 2
+          ? '/Users/dev/setu/apps/admin'
+          : '/Users/dev/setu/.claude/worktrees/ed/apps/admin',
+      worktreeOf: (cwd) =>
+        cwd.includes('worktrees/ed')
+          ? { root: '/Users/dev/setu/.claude/worktrees/ed', branch: 'ed-1' }
+          : { root: '/Users/dev/setu', branch: 'main' },
+      startedAt: () => minutesAgo(3),
+      loginLink: (root) => ({
+        url:
+          root === '/Users/dev/setu'
+            ? `http://localhost:5183/#setu-token=${LONG_TOKEN}`
+            : `http://localhost:5173/#setu-token=${LONG_TOKEN}`
+      })
+    })
+  )
+  const out = render(status)
+  assert.match(out, /not this worktree/)
+  assert.doesNotMatch(out, new RegExp(LONG_TOKEN))
+})
+
+test('parseStatusArgs reads --show-links', () => {
+  assert.deepEqual(parseStatusArgs([]), { showLinks: false })
+  assert.deepEqual(parseStatusArgs(['--show-links']), { showLinks: true })
+  assert.deepEqual(parseStatusArgs(['--other']), { showLinks: false })
 })

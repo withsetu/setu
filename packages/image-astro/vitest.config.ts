@@ -1,2 +1,2 @@
-import { defineConfig } from 'vitest/config'
-export default defineConfig({ test: { include: ['test/**/*.test.ts'] } })
+// Discovery contract lives in the repo-root vitest.shared.ts (#818). No local overrides.
+export { default } from '../../vitest.shared'

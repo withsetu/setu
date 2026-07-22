@@ -11,14 +11,21 @@ name: Gitleaks
 # `gh api orgs/withsetu`), so gitleaks-action would fail closed here without that secret.
 # The underlying `gitleaks/gitleaks` scanner itself is MIT-licensed and free for anyone —
 # this job runs that scanner's official container directly, no license needed.
-# Pinned by image digest (third-party image, supply-chain hygiene — matches ci.yml's
-# SHA-pinning convention for non-GitHub-owned actions).
+# The digest-pinned image reference lives in .github/gitleaks/Dockerfile and is read from
+# there by both this job and .githooks/pre-push, so the two can no longer drift and
+# Dependabot has something it can actually parse (#817).
 # Security CI foundation: #218 · CI epic: #216.
 
 on:
   pull_request:
   push:
     branches: [main]
+
+# Least-privilege GITHUB_TOKEN (#813): this job only reads the checkout and runs a
+# container against it — nothing writes back. Declared at the top level so the job cannot
+# inherit the repository/org default scope.
+permissions:
+  contents: read
 
 concurrency:
   group: gitleaks-${{ github.ref }}
@@ -36,7 +43,10 @@ jobs:
 
       - name: Run gitleaks
         run: |
-          docker run --rm \
-            -v "$PWD:/repo" \
-            ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
-            git /repo --redact -v
+          image="$(sed -n 's/^FROM  *//p' .github/gitleaks/Dockerfile | head -n 1)"
+          if [ -z "$image" ]; then
+            echo "::error::no FROM line in .github/gitleaks/Dockerfile — cannot resolve the gitleaks image."
+            exit 1
+          fi
+          echo "gitleaks image: $image"
+          docker run --rm -v "$PWD:/repo" "$image" git /repo --redact -v

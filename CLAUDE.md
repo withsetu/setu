@@ -119,6 +119,22 @@ The full standard with the worked "good vs. skeleton" case study: [docs/quality-
    `area:seo|feed|site-health|identity|editor|admin|media|taxonomy|content-index|blocks|forms|settings|theme|infra|deploy|docs`
    plus `tech-debt`, `epic`, `security`. Epics = issue labeled `epic` with a `- [ ] #child` list.
    The `gh` token has `repo` scope but NOT `project` scope.
+   **⊕ Public issue or private advisory? Route by exploitability, never by topic** (the repo has
+   been public since 2026-07-14, so this is a live decision on every security-labelled finding):
+   - **Private [security advisory](https://github.com/withsetu/setu/security/advisories) — draft it,
+     don't open an issue** — when publishing the description would hand someone a working probe
+     against a **deployed or released Setu**: reachable by an actor who isn't already trusted, and
+     affecting people who *run* Setu rather than this repo's own pipeline. Fix in the advisory's
+     private fork, publish on release.
+   - **Public issue + `security` label** — everything else, and this is the common case: hardening
+     of our own CI/dev tooling, defence-in-depth, and **missing test coverage for a gate that
+     already exists and already fails closed**. A test gap is not an exposure; the pipeline is
+     already readable by anyone.
+   - **Either way, write the fix, not the probe path.** "Add server-side wrong-actor coverage for
+     `content.publish`" is safe to publish; "the publish gate has no server-side test" is a map.
+   Routing on the word "security" instead of on exploitability errs in *both* directions — it
+   leaks real exposures into public issues and buries routine hardening in a channel reviewers
+   stop reading. Reporting policy and the intake path live in [SECURITY.md](SECURITY.md).
 2. **Design lives in the issue** (owner decision 2026-07-01): epic body = design narrative, child
    issues = increments, comments = discussion. Do NOT commit specs/plans to
    the repo (design lives in the issue). Test: *standard the code upholds → repo doc; unit of work →

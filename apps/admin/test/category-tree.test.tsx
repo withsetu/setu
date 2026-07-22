@@ -249,5 +249,11 @@ describe('CategoryTree "Move to" reparent picker (#592)', () => {
     fireEvent.keyDown(leaf, { key: ' ', code: 'Space' })
     await screen.findByRole('listbox')
     expect(screen.getAllByRole('listbox')).toHaveLength(1)
-  })
+    // Explicit timeout, not the 5s jsdom default: this test deliberately mounts 150 rows
+    // (150 comboboxes) to pin the #592 perf shape, so it is an order of magnitude slower
+    // than every other test in this file BY DESIGN. On a loaded CI runner it exceeded 5s
+    // and turned main red (#831). Raising it here rather than globally keeps the 5s
+    // default doing its job everywhere else — a global raise would mask genuine hangs,
+    // which is the reasoning #818 already applied to the real-I/O suites.
+  }, 30_000)
 })

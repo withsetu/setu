@@ -15,6 +15,16 @@ import { useNotify } from '../ui/notify'
 import { TagAutocomplete } from '../ui/TagAutocomplete'
 import { CategoryPicker } from '../ui/CategoryPicker'
 import { Button } from '@/components/ui/button'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction
+} from '@/components/ui/alert-dialog'
 
 function flattenCats(
   nodes: ReturnType<typeof buildTree>,
@@ -52,6 +62,7 @@ export function BulkBar({
   const [cat, setCat] = useState('')
   const [tagVal, setTagVal] = useState('')
   const [busy, setBusy] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const keyOf = (r: ContentRow) =>
     `${r.ref.collection}/${r.ref.locale}/${r.ref.slug}`
@@ -111,12 +122,7 @@ export function BulkBar({
     )
   }
   const del = () => {
-    if (
-      !window.confirm(
-        `Delete ${refs.length} post${refs.length === 1 ? '' : 's'}? This commits their removal.`
-      )
-    )
-      return
+    setConfirmDelete(false)
     void run(() => bulk.deleteEntries(refs), 'Deleted')
   }
 
@@ -183,7 +189,7 @@ export function BulkBar({
         size="sm"
         variant="destructive"
         disabled={busy}
-        onClick={del}
+        onClick={() => setConfirmDelete(true)}
       >
         Delete
       </Button>
@@ -203,6 +209,29 @@ export function BulkBar({
           will also go live.
         </span>
       )}
+
+      {/* #856: the styled shadcn confirm every other destructive admin flow uses
+          (Media delete, DeleteTagDialog…), replacing the lone native
+          window.confirm. Dark-mode-aware and keyboard-operable. */}
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {refs.length} post{refs.length === 1 ? '' : 's'}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This commits their removal from the repository.
+              {pendingCount > 0
+                ? ` ${pendingCount} of these ${pendingCount === 1 ? 'has' : 'have'} unpublished changes.`
+                : ''}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={del}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

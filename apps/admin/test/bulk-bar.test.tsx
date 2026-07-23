@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import type { ContentRow } from '@setu/core'
 import { contentPath, serializeMdoc } from '@setu/core'
 import { createMemoryGitPort } from '@setu/git-memory'
@@ -100,16 +100,28 @@ describe('BulkBar', () => {
     expect(a.frontmatter.tags).toEqual(['news'])
   })
 
-  it('deletes selected entries after confirm and notifies', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+  // #856: the destructive confirm is the styled shadcn AlertDialog now, not the
+  // native window.confirm — clicking Delete opens the dialog, and its action
+  // (not a browser prompt) performs the delete.
+  it('deletes selected entries via the AlertDialog confirm and notifies', async () => {
     const { git } = setup([row('a')])
+    const path = contentPath({ collection: 'post', locale: 'en', slug: 'a' })
+    // The toolbar Delete button only OPENS the dialog — nothing is deleted yet.
     fireEvent.click(screen.getByRole('button', { name: /^delete$/i }))
+    const dialog = await screen.findByRole('alertdialog')
+    expect(await git.readFile(path)).not.toBeNull()
+    // Confirm inside the dialog (the action button, not the toolbar trigger).
+    fireEvent.click(within(dialog).getByRole('button', { name: /^delete$/i }))
     expect(await screen.findByText(/Deleted 1/i)).toBeTruthy()
-    expect(
-      await git.readFile(
-        contentPath({ collection: 'post', locale: 'en', slug: 'a' })
-      )
-    ).toBeNull()
+    expect(await git.readFile(path)).toBeNull()
+  })
+
+  it('does not use the native window.confirm for bulk delete (#856)', () => {
+    const confirmSpy = vi.spyOn(window, 'confirm')
+    setup([row('a')])
+    fireEvent.click(screen.getByRole('button', { name: /^delete$/i }))
+    expect(confirmSpy).not.toHaveBeenCalled()
+    confirmSpy.mockRestore()
   })
 
   it('shows the unpublished-changes heads-up count', () => {

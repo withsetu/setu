@@ -56,7 +56,9 @@ export function NewCategoryForm() {
           <SelectItem value="none">No parent</SelectItem>
           {rows.map((r) => (
             <SelectItem key={r.slug} value={r.slug}>
-              {r.name}
+              {/* #856: indent by depth so the hierarchy is legible, matching
+                  ListToolbar.tsx and CategoryTree. */}
+              <span style={{ paddingLeft: r.depth * 12 }}>{r.name}</span>
             </SelectItem>
           ))}
         </SelectContent>

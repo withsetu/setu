@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within
+} from '@testing-library/react'
 import type { ContentRow } from '@setu/core'
 import { contentPath, serializeMdoc } from '@setu/core'
 import { createMemoryGitPort } from '@setu/git-memory'

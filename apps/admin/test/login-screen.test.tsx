@@ -5,18 +5,25 @@ import { authClient } from '../src/auth/auth-client'
 
 vi.mock('../src/auth/auth-client', () => ({
   authClient: {
-    signIn: { email: vi.fn(), social: vi.fn() }
+    signIn: { email: vi.fn(), social: vi.fn() },
+    requestPasswordReset: vi.fn()
   }
 }))
 
 const mockSignInEmail = vi.mocked(authClient.signIn.email)
 const mockSignInSocial = vi.mocked(authClient.signIn.social)
+const mockRequestPasswordReset = vi.mocked(authClient.requestPasswordReset)
 
 interface AuthCaps {
   enabled: boolean
   providers: ('github' | 'google')[]
   captcha: { provider: 'turnstile' | 'recaptcha'; siteKey: string } | null
   needsSetup: boolean
+}
+
+interface EmailCaps {
+  transport: string
+  deliverable: boolean
 }
 
 const NO_PROVIDERS_NO_CAPTCHA: AuthCaps = {
@@ -26,7 +33,10 @@ const NO_PROVIDERS_NO_CAPTCHA: AuthCaps = {
   needsSetup: false
 }
 
-function stubCapabilities(auth: AuthCaps, mode?: string) {
+const DELIVERABLE: EmailCaps = { transport: 'resend', deliverable: true }
+const UNDELIVERABLE: EmailCaps = { transport: 'console', deliverable: false }
+
+function stubCapabilities(auth: AuthCaps, mode?: string, email?: EmailCaps) {
   vi.stubGlobal(
     'fetch',
     vi.fn(
@@ -39,7 +49,8 @@ function stubCapabilities(auth: AuthCaps, mode?: string) {
               backgroundJobs: true
             },
             auth,
-            ...(mode ? { mode } : {})
+            ...(mode ? { mode } : {}),
+            ...(email ? { email } : {})
           }),
           { status: 200 }
         )
@@ -269,5 +280,160 @@ describe('LoginScreen', () => {
       screen.queryByText(/on the machine running setu\?/i)
     ).not.toBeInTheDocument()
     expect(screen.queryByText('pnpm auth:login-link')).not.toBeInTheDocument()
+  })
+})
+
+// #500: capability-aware self-service password reset entry on the login card.
+describe('LoginScreen — forgot password (#500)', () => {
+  async function openForgot() {
+    render(<LoginScreen />)
+    fireEvent.click(
+      await screen.findByRole('button', { name: /forgot password\?/i })
+    )
+  }
+
+  it('deliverable email: the link opens an email-entry step that sends the reset request with the admin-origin redirect', async () => {
+    stubCapabilities(NO_PROVIDERS_NO_CAPTCHA, undefined, DELIVERABLE)
+    mockRequestPasswordReset.mockResolvedValue({
+      data: { status: true, message: 'ok' },
+      error: null
+    })
+
+    await openForgot()
+
+    const emailInput = await screen.findByLabelText(/email/i)
+    fireEvent.change(emailInput, { target: { value: 'ada@setu.dev' } })
+    fireEvent.submit(emailInput.closest('form')!)
+
+    await waitFor(() =>
+      expect(mockRequestPasswordReset).toHaveBeenCalledWith({
+        email: 'ada@setu.dev',
+        redirectTo: `${window.location.origin}/reset-password`
+      })
+    )
+    // Enumeration-safe uniform copy: the SAME message whether or not the account exists (the
+    // server already answers uniformly — better-auth 1.6.23 request-password-reset).
+    expect(
+      await screen.findByText(/if an account exists for that email/i)
+    ).toBeInTheDocument()
+  })
+
+  it('prefills the forgot step with whatever email was already typed on the sign-in form', async () => {
+    stubCapabilities(NO_PROVIDERS_NO_CAPTCHA, undefined, DELIVERABLE)
+    render(<LoginScreen />)
+
+    fireEvent.change(await screen.findByLabelText(/email/i), {
+      target: { value: 'typed@setu.dev' }
+    })
+    fireEvent.click(
+      screen.getByRole('button', { name: /forgot password\?/i })
+    )
+
+    expect(await screen.findByLabelText(/email/i)).toHaveValue(
+      'typed@setu.dev'
+    )
+  })
+
+  it('rejects an invalid email with a field error and never calls the API', async () => {
+    stubCapabilities(NO_PROVIDERS_NO_CAPTCHA, undefined, DELIVERABLE)
+    await openForgot()
+
+    const emailInput = await screen.findByLabelText(/email/i)
+    fireEvent.change(emailInput, { target: { value: 'not-an-email' } })
+    fireEvent.submit(emailInput.closest('form')!)
+
+    expect(await screen.findByText(/enter a valid email/i)).toBeInTheDocument()
+    expect(mockRequestPasswordReset).not.toHaveBeenCalled()
+  })
+
+  it('a failed request surfaces a visible error DISTINCT from the sent copy (silent-async rule: uniform copy is for account existence, never for transport failure)', async () => {
+    stubCapabilities(NO_PROVIDERS_NO_CAPTCHA, undefined, DELIVERABLE)
+    mockRequestPasswordReset.mockResolvedValue({
+      data: null,
+      error: { status: 500, message: 'boom' }
+    })
+
+    await openForgot()
+    const emailInput = await screen.findByLabelText(/email/i)
+    fireEvent.change(emailInput, { target: { value: 'ada@setu.dev' } })
+    fireEvent.submit(emailInput.closest('form')!)
+
+    expect(
+      await screen.findByText(/couldn't send the reset email/i)
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(/if an account exists for that email/i)
+    ).not.toBeInTheDocument()
+  })
+
+  it('a thrown (network-level) failure also surfaces the visible error, not the sent copy', async () => {
+    stubCapabilities(NO_PROVIDERS_NO_CAPTCHA, undefined, DELIVERABLE)
+    mockRequestPasswordReset.mockRejectedValue(new Error('network down'))
+
+    await openForgot()
+    const emailInput = await screen.findByLabelText(/email/i)
+    fireEvent.change(emailInput, { target: { value: 'ada@setu.dev' } })
+    fireEvent.submit(emailInput.closest('form')!)
+
+    expect(
+      await screen.findByText(/couldn't send the reset email/i)
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(/if an account exists for that email/i)
+    ).not.toBeInTheDocument()
+  })
+
+  it('maps a 429 to the wait-a-moment message', async () => {
+    stubCapabilities(NO_PROVIDERS_NO_CAPTCHA, undefined, DELIVERABLE)
+    mockRequestPasswordReset.mockResolvedValue({
+      data: null,
+      error: { status: 429, message: 'Too many requests' }
+    })
+
+    await openForgot()
+    const emailInput = await screen.findByLabelText(/email/i)
+    fireEvent.change(emailInput, { target: { value: 'ada@setu.dev' } })
+    fireEvent.submit(emailInput.closest('form')!)
+
+    expect(
+      await screen.findByText(/too many attempts.*wait a moment/i)
+    ).toBeInTheDocument()
+  })
+
+  it('undeliverable email: the link shows honest not-configured copy instead of an email form — never a dead button', async () => {
+    stubCapabilities(NO_PROVIDERS_NO_CAPTCHA, undefined, UNDELIVERABLE)
+    await openForgot()
+
+    expect(
+      await screen.findByText(/password reset isn[’']t configured for this site/i)
+    ).toBeInTheDocument()
+    // No email-entry form on this path.
+    expect(screen.queryByLabelText(/email/i)).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /send reset link/i })
+    ).not.toBeInTheDocument()
+    expect(mockRequestPasswordReset).not.toHaveBeenCalled()
+  })
+
+  it('missing email capability block (fetch failed / older api): fails closed to the honest copy', async () => {
+    stubCapabilities(NO_PROVIDERS_NO_CAPTCHA) // no email block at all
+    await openForgot()
+
+    expect(
+      await screen.findByText(/password reset isn[’']t configured for this site/i)
+    ).toBeInTheDocument()
+  })
+
+  it('back to sign in returns to the sign-in form', async () => {
+    stubCapabilities(NO_PROVIDERS_NO_CAPTCHA, undefined, DELIVERABLE)
+    await openForgot()
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: /back to sign in/i })
+    )
+    expect(
+      await screen.findByRole('button', { name: /^sign in$/i })
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText(/password/i)).toBeInTheDocument()
   })
 })

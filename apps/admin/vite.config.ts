@@ -79,8 +79,21 @@ export default defineConfig(({ command }) => ({
     include: ['test/**/*.test.{ts,tsx}']
   },
   define: {
+    // The branch is injected only in `serve` (dev) mode; `vite build` injects '' so no
+    // branch/path leaks into a production bundle (see DevBadge.tsx). The e2e harness runs
+    // admin via `vite` — i.e. serve mode — so without an override the badge renders during
+    // e2e, and its text is the CURRENT GIT BRANCH. That made the visual baselines
+    // branch-dependent: a PR run checks out a detached merge ref (empty branch → no badge)
+    // while a push-to-main run is on `main` (badge renders), so baselines captured in one
+    // context could never match the other (#830). `SETU_ADMIN_DEV_BADGE=off`, set by the
+    // e2e webServer (e2e/playwright.config.ts), forces the badge off so the harness's
+    // rendered output is a property of the harness rather than of whichever ref CI checked
+    // out — the same reasoning that makes the harness declare SETU_MODE explicitly (#643).
+    // Enforced by e2e/specs/screens.visual.spec.ts, which shoots the shell.
     __SETU_DEV_BRANCH__: JSON.stringify(
-      command === 'serve' ? currentBranch() : ''
+      command === 'serve' && process.env.SETU_ADMIN_DEV_BADGE !== 'off'
+        ? currentBranch()
+        : ''
     )
   }
 }))

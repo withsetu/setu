@@ -17,6 +17,7 @@ import {
   createServices,
   servicesFor
 } from '../src/data/store'
+import { NotificationProvider } from '../src/ui/notify'
 import { Appearance } from '../src/screens/Appearance'
 
 beforeEach(() => localStorage.clear())
@@ -24,9 +25,11 @@ afterEach(() => localStorage.clear())
 
 function renderAppearance(services = createServices()) {
   const wrapper = (children: ReactNode) => (
-    <ActorProvider>
-      <ServicesProvider services={services}>{children}</ServicesProvider>
-    </ActorProvider>
+    <NotificationProvider>
+      <ActorProvider>
+        <ServicesProvider services={services}>{children}</ServicesProvider>
+      </ActorProvider>
+    </NotificationProvider>
   )
   return render(wrapper(<Appearance />))
 }

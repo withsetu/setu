@@ -9,20 +9,27 @@ import {
   SelectItem
 } from '@/components/ui/select'
 import { useTaxonomy } from '../../data/taxonomy-store'
+import { useNotify } from '../../ui/notify'
 import { buildTree } from '@setu/core'
 import { flatten } from './CategoryTree'
 
 export function NewCategoryForm() {
   const { categories, create } = useTaxonomy()
+  const notify = useNotify()
   const [name, setName] = useState('')
   const [parent, setParent] = useState<string>('')
   const rows = flatten(buildTree(categories))
   const add = async () => {
     const trimmed = name.trim()
     if (!trimmed) return
-    await create({ name: trimmed, parent: parent || null })
-    setName('')
-    setParent('')
+    try {
+      await create({ name: trimmed, parent: parent || null })
+      // Clear only on success — a failed create keeps the typed name so it isn't lost.
+      setName('')
+      setParent('')
+    } catch (e) {
+      notify.error(e instanceof Error ? e.message : String(e))
+    }
   }
   return (
     <div className="mb-6 flex items-center gap-2">

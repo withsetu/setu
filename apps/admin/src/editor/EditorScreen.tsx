@@ -169,9 +169,19 @@ export function EditorScreen() {
   const previewApi = import.meta.env.VITE_SETU_API
 
   const refreshLifecycle = useCallback(async () => {
-    const d = await data.getDraft(ref)
-    setLifecycle(await lifecycleFor(ref, d, git, deployInfo()))
-  }, [data, git, ref, deployInfo])
+    try {
+      const d = await data.getDraft(ref)
+      setLifecycle(await lifecycleFor(ref, d, git, deployInfo()))
+    } catch (err) {
+      // Invoked as `void refreshLifecycle()` from two effects and awaited once after a publish;
+      // a rejection here used to freeze the lifecycle pill on a stale value with no signal (#837).
+      // Caught inside so it never masks the publish's own success toast at the awaited call site.
+      console.error('[editor] refreshing the lifecycle status failed', err)
+      notify.error(
+        "Couldn't refresh the publish status. Check your connection and try again."
+      )
+    }
+  }, [data, git, ref, deployInfo, notify])
 
   useEffect(() => {
     let live = true

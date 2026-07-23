@@ -341,6 +341,14 @@ function InviteUserDialog({ onCreated }: { onCreated: () => void }) {
       reset()
       setOpen(false)
       onCreated()
+    } catch (err) {
+      // better-auth handles the `{ error }` RETURN channel above, but a network-level failure
+      // REJECTS (@better-fetch/fetch's betterFetch awaits fetch() unguarded, and this client sets
+      // no catchAllError) — unreported before (#836). Claims nothing about what took effect.
+      console.error('[users] creating a user failed', err)
+      notify.error(
+        'Could not create user. Check your connection and try again.'
+      )
     } finally {
       setSubmitting(false)
     }
@@ -523,6 +531,12 @@ function UserRowActions({
       }
       notify.success(`${user.name || user.email} is now ${next}`)
       onChanged()
+    } catch (err) {
+      // Network-level failure REJECTS rather than returning `{ error }` (#836).
+      console.error('[users] changing a role failed', err)
+      notify.error(
+        'Could not change role. Check your connection and try again.'
+      )
     } finally {
       setChangingRole(false)
     }
@@ -546,6 +560,12 @@ function UserRowActions({
           : `${user.name || user.email} disabled`
       )
       onChanged()
+    } catch (err) {
+      // Network-level failure REJECTS rather than returning `{ error }` (#836).
+      console.error('[users] updating user status failed', err)
+      notify.error(
+        'Could not update user status. Check your connection and try again.'
+      )
     } finally {
       setBanning(false)
     }
@@ -569,6 +589,12 @@ function UserRowActions({
         return
       }
       notify.success(`Password reset email sent to ${user.email}`)
+    } catch (err) {
+      // Network-level failure REJECTS rather than returning `{ error }` (#836).
+      console.error('[users] sending a reset email failed', err)
+      notify.error(
+        'Could not send the reset email. Check your connection and try again.'
+      )
     } finally {
       setResetting(false)
     }
@@ -698,6 +724,7 @@ function UserList({ refreshSignal }: { refreshSignal: number }) {
   const notify = useNotify()
   const [users, setUsers] = useState<AdminUser[] | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadFailed, setLoadFailed] = useState(false)
   const [credentialStatus, setCredentialStatus] = useState<
     Record<string, boolean>
   >({})
@@ -713,6 +740,7 @@ function UserList({ refreshSignal }: { refreshSignal: number }) {
 
   async function load() {
     setLoading(true)
+    setLoadFailed(false)
     try {
       // The roster comes from Setu's own `users.view`-gated route (apps/api/src/users.ts), NOT
       // better-auth's admin `listUsers` — the plugin authorizes list against its own admin-only role
@@ -736,6 +764,13 @@ function UserList({ refreshSignal }: { refreshSignal: number }) {
       // Dates arrive as ISO strings over JSON (formatDate handles both string and Date).
       const data = (await listRes.json()) as { users: AdminUser[] }
       setUsers(data.users ?? [])
+    } catch (err) {
+      // apiFetch REJECTS when the api is unreachable; without this `users` stayed null and the
+      // render fell through to `loading || users === null ? <Skeleton>` — three skeleton rows
+      // forever (#835). Show a retryable error in their place instead.
+      console.error('[users] loading the user list failed', err)
+      setLoadFailed(true)
+      notify.error("Couldn't load users. Check your connection and try again.")
     } finally {
       setLoading(false)
     }
@@ -758,7 +793,16 @@ function UserList({ refreshSignal }: { refreshSignal: number }) {
         {canInvite && <InviteUserDialog onCreated={() => void load()} />}
       </CardHeader>
       <CardContent>
-        {loading || users === null ? (
+        {users === null && loadFailed ? (
+          <div role="alert" className="flex flex-col items-start gap-3 py-4">
+            <p className="text-sm text-muted-foreground">
+              Couldn't load users. Check your connection and try again.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => void load()}>
+              Try again
+            </Button>
+          </div>
+        ) : loading || users === null ? (
           <div className="space-y-3">
             {[0, 1, 2].map((i) => (
               <div key={i} className="flex items-center gap-3">
@@ -938,6 +982,16 @@ function OwnerPasswordCard({ onChanged }: { onChanged: () => void }) {
       // notifying unconditionally is simpler and harmless (an extra re-fetch, not an extra
       // mutation) and keeps this card from needing to know UserList's internals.
       onChanged()
+    } catch (err) {
+      // #836 lists the four UserRowActions sites explicitly, but its premise is "every authClient.*
+      // call site" — these two (changePassword / admin.setUserPassword) share the same
+      // `{ error }`-handled / no-catch shape and REJECT on a network failure just the same.
+      console.error('[users] setting the password failed', err)
+      notify.error(
+        hasPassword
+          ? 'Could not change password. Check your connection and try again.'
+          : 'Could not set password. Check your connection and try again.'
+      )
     } finally {
       setSubmitting(false)
     }

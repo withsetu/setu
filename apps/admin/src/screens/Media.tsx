@@ -132,9 +132,19 @@ export function Media() {
     }
   }
 
-  function onCopyUrl() {
-    const url = resolveMediaSrc('/media/' + selected!.key, apiBase)
-    void navigator.clipboard?.writeText(url)
+  async function onCopyUrl() {
+    if (!selected) return
+    const url = resolveMediaSrc('/media/' + selected.key, apiBase)
+    try {
+      // Rejects when clipboard permission is denied, and there was no success feedback
+      // either way before (#837).
+      if (!navigator.clipboard) throw new Error('Clipboard unavailable')
+      await navigator.clipboard.writeText(url)
+      notify.success('URL copied to clipboard')
+    } catch (err) {
+      console.error('[media] copying the media URL failed', err)
+      notify.error("Couldn't copy the URL to the clipboard.")
+    }
   }
 
   const usedNote =
@@ -191,7 +201,11 @@ export function Media() {
                   </p>
                 </div>
                 <div className="flex gap-2 border-t p-4">
-                  <Button variant="outline" size="sm" onClick={onCopyUrl}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void onCopyUrl()}
+                  >
                     Copy URL
                   </Button>
                   <Button

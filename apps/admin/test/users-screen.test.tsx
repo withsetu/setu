@@ -1026,4 +1026,59 @@ describe('UsersScreen', () => {
       )
     })
   })
+
+  // #835: apiFetch REJECTS when the api is unreachable — `users` stayed null and the render fell
+  // through to `loading || users === null ? <Skeleton>`, so an offline visit showed three skeleton
+  // rows forever. Now it renders a retryable error instead.
+  describe('offline load (#835)', () => {
+    it('renders a retryable error, not an eternal skeleton, when the roster fetch rejects', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      mockListAccounts.mockResolvedValue({ data: [], error: null })
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string) =>
+          String(url).includes('/api/users')
+            ? Promise.reject(new Error('offline'))
+            : new Response('{}', { status: 200 })
+        )
+      )
+
+      renderAsActor('admin')
+
+      const retry = await screen.findByRole('button', { name: /try again/i })
+      // Not the loading skeleton (rows use a Skeleton with no accessible text; assert the error is
+      // present in its place) and not "No users yet".
+      expect(screen.queryByText(/no users yet/i)).not.toBeInTheDocument()
+      expect(retry).toBeInTheDocument()
+    })
+  })
+
+  // #836: better-auth's admin actions handle the `{ error }` RETURN channel but a network failure
+  // REJECTS. Without a catch that rejection was silent.
+  describe('offline auth action (#836)', () => {
+    it('reports a generic error when setRole rejects (api unreachable)', async () => {
+      mockListUsers.mockResolvedValue({
+        data: { users: [OWNER, EDITOR], total: 2 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({
+        data: [{ id: 'a1', providerId: 'credential' }],
+        error: null
+      })
+      mockSetRole.mockRejectedValue(new Error('offline'))
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      renderAsActor('admin')
+      await screen.findByText('Eve Editor')
+
+      fireEvent.click(
+        screen.getByRole('combobox', { name: /change role for eve editor/i })
+      )
+      fireEvent.click(await screen.findByRole('option', { name: /^author$/i }))
+
+      expect(
+        await screen.findByText(/could not change role/i)
+      ).toBeInTheDocument()
+    })
+  })
 })

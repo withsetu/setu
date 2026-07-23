@@ -72,6 +72,7 @@ export function FormsInbox() {
   const [active, setActive] = useState<Submission | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const [pendingDelete, setPendingDelete] = useState<string[] | null>(null)
+  const [listFailed, setListFailed] = useState(false)
 
   const form = params.get('form') ?? ''
   const readParam = params.get('read') ?? '' // '', 'true', 'false'
@@ -107,9 +108,17 @@ export function FormsInbox() {
     setSelected(new Set())
   }, [form, readParam, q])
 
-  // Load distinct forms for filter dropdown.
+  // Load distinct forms for the filter dropdown. Auxiliary to the list query below: on failure
+  // the filter just shows no options, and the list effect's own error state + toast already
+  // surfaces the outage (both share `refreshKey`, so Try again recovers them together) — so this
+  // logs rather than firing a second toast for the same root cause.
   useEffect(() => {
-    void submissions.distinctForms().then(setForms)
+    void submissions
+      .distinctForms()
+      .then(setForms)
+      .catch((err: unknown) => {
+        console.error('[forms] loading the forms filter failed', err)
+      })
   }, [submissions, refreshKey])
 
   // Run the query.
@@ -124,16 +133,27 @@ export function FormsInbox() {
       if (readParam === 'true') filter.read = true
       if (readParam === 'false') filter.read = false
       if (q) filter.q = q
-      const r = await submissions.listSubmissions(filter)
-      if (live) {
+      try {
+        const r = await submissions.listSubmissions(filter)
+        if (!live) return
         setRows(r.rows)
         setTotal(r.total)
+        setListFailed(false)
+      } catch (err) {
+        // `rows` is only ever set on success, so an escaping rejection used to park the inbox on
+        // "Loading…" forever (#835). Show a retryable error in its place instead.
+        if (!live) return
+        console.error('[forms] loading submissions failed', err)
+        setListFailed(true)
+        notify.error(
+          "Couldn't load submissions. Check your connection and try again."
+        )
       }
     })()
     return () => {
       live = false
     }
-  }, [submissions, page, form, readParam, q, refreshKey])
+  }, [submissions, page, form, readParam, q, refreshKey, notify])
 
   const refresh = () => setRefreshKey((k) => k + 1)
 
@@ -151,22 +171,45 @@ export function FormsInbox() {
   }
 
   const toggleRead = async (s: Submission) => {
-    await submissions.setRead([s.id], !s.read)
-    notify.success(s.read ? 'Marked unread' : 'Marked read')
-    refresh()
-    // Keep active panel in sync.
-    setActive((a) => (a && a.id === s.id ? { ...a, read: !s.read } : a))
+    try {
+      await submissions.setRead([s.id], !s.read)
+      notify.success(s.read ? 'Marked unread' : 'Marked read')
+      refresh()
+      // Keep active panel in sync.
+      setActive((a) => (a && a.id === s.id ? { ...a, read: !s.read } : a))
+    } catch (e) {
+      notify.error(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  // The two bulk mark-read/unread buttons share this; each used to be an inline
+  // `setRead(...).then(...)` chain with no `.catch`, reporting nothing on failure (#837).
+  const markSelected = async (read: boolean) => {
+    const selectedIds = new Set(selected)
+    try {
+      await submissions.setRead([...selectedIds], read)
+      notify.success(read ? 'Marked read' : 'Marked unread')
+      setActive((a) => (a && selectedIds.has(a.id) ? { ...a, read } : a))
+      setSelected(new Set())
+      refresh()
+    } catch (e) {
+      notify.error(e instanceof Error ? e.message : String(e))
+    }
   }
 
   const removeMany = async (ids: string[]) => {
     if (ids.length === 0) return
-    await submissions.deleteSubmissions(ids)
-    notify.success(
-      `Deleted ${ids.length} submission${ids.length === 1 ? '' : 's'}`
-    )
-    setSelected(new Set())
-    if (active && ids.includes(active.id)) setActive(null)
-    refresh()
+    try {
+      await submissions.deleteSubmissions(ids)
+      notify.success(
+        `Deleted ${ids.length} submission${ids.length === 1 ? '' : 's'}`
+      )
+      setSelected(new Set())
+      if (active && ids.includes(active.id)) setActive(null)
+      refresh()
+    } catch (e) {
+      notify.error(e instanceof Error ? e.message : String(e))
+    }
   }
 
   const exportCsv = async () => {
@@ -178,17 +221,21 @@ export function FormsInbox() {
     if (readParam === 'true') filter.read = true
     if (readParam === 'false') filter.read = false
     if (q) filter.q = q
-    const all = await submissions.listSubmissions(filter)
-    const blob = new Blob([submissionsToCsv(all.rows)], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'submissions.csv'
-    a.click()
-    URL.revokeObjectURL(url)
-    notify.success(
-      `Exported ${all.rows.length} submission${all.rows.length === 1 ? '' : 's'}`
-    )
+    try {
+      const all = await submissions.listSubmissions(filter)
+      const blob = new Blob([submissionsToCsv(all.rows)], { type: 'text/csv' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'submissions.csv'
+      a.click()
+      URL.revokeObjectURL(url)
+      notify.success(
+        `Exported ${all.rows.length} submission${all.rows.length === 1 ? '' : 's'}`
+      )
+    } catch (e) {
+      notify.error(e instanceof Error ? e.message : String(e))
+    }
   }
 
   const pageKeys = (rows ?? []).map((r) => r.id)
@@ -264,7 +311,23 @@ export function FormsInbox() {
         </div>
 
         {/* Content */}
-        {rows === null ? (
+        {rows === null && listFailed ? (
+          <div role="alert" className="flex flex-col items-start gap-3 py-8">
+            <p className="text-sm text-muted-foreground">
+              Couldn't load submissions. Check your connection and try again.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setListFailed(false)
+                refresh()
+              }}
+            >
+              Try again
+            </Button>
+          </div>
+        ) : rows === null ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">
@@ -282,38 +345,14 @@ export function FormsInbox() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => {
-                    const selectedIds = new Set(selected)
-                    void submissions
-                      .setRead([...selectedIds], true)
-                      .then(() => {
-                        notify.success('Marked read')
-                        setActive((a) =>
-                          a && selectedIds.has(a.id) ? { ...a, read: true } : a
-                        )
-                        setSelected(new Set())
-                        refresh()
-                      })
-                  }}
+                  onClick={() => void markSelected(true)}
                 >
                   Mark read
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => {
-                    const selectedIds = new Set(selected)
-                    void submissions
-                      .setRead([...selectedIds], false)
-                      .then(() => {
-                        notify.success('Marked unread')
-                        setActive((a) =>
-                          a && selectedIds.has(a.id) ? { ...a, read: false } : a
-                        )
-                        setSelected(new Set())
-                        refresh()
-                      })
-                  }}
+                  onClick={() => void markSelected(false)}
                 >
                   Mark unread
                 </Button>

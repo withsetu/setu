@@ -102,6 +102,14 @@ export function LoginScreen() {
       }
       // On success, SessionGate's useSession picks up the new session and swaps this screen out —
       // nothing to navigate to here.
+    } catch {
+      // A network-level failure REJECTS instead of returning `{ error }` (better-fetch awaits
+      // fetch() unguarded and this client sets no catchAllError) — silent before (#836). Surface
+      // the SAME generic copy mapSignInError gives an unknown error, so a failed reach is
+      // indistinguishable from any other failure and never hints at whether the account exists.
+      setError('Something went wrong signing in — please try again.')
+      captchaHandle.current?.reset()
+      setCaptchaToken('')
     } finally {
       setSubmitting(false)
     }

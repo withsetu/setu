@@ -91,6 +91,12 @@ export function ResetPasswordScreen() {
       // (LoginScreen) — there is no separate "/login" route; any pathname other than
       // "/reset-password" resolves there while signed out.
       void navigate('/')
+    } catch {
+      // Network-level failure REJECTS rather than returning `{ error }` — silent before (#836).
+      // Same generic fallback mapResetError gives an unknown error.
+      setFormError(
+        'Something went wrong resetting your password — please try again.'
+      )
     } finally {
       setSubmitting(false)
     }

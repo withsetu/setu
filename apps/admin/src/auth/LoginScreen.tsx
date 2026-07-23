@@ -69,7 +69,10 @@ function mapResetRequestError(error: AuthClientError): string {
  *  the sign-in card's exact header chrome instead of forking a lookalike. */
 function Wordmark() {
   return (
-    <span aria-hidden className="mx-auto mb-2 flex size-10 items-center justify-center">
+    <span
+      aria-hidden
+      className="mx-auto mb-2 flex size-10 items-center justify-center"
+    >
       <svg viewBox="0 0 32 32" width={36} height={36} fill="none">
         <rect x="1" y="1" width="30" height="30" rx="9" fill="var(--primary)" />
         <path

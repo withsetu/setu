@@ -72,11 +72,23 @@ describe('tag archive', () => {
   })
 })
 
-describe('post page taxonomy chips', () => {
-  it('links a post to its category (by name) and tag archives', () => {
+describe('post page taxonomy chips (#860 BLOCK-4)', () => {
+  it('links a post to its category (by name) and tag archives, trailing-slash form', () => {
     const p = page('post/kitchen-sink')
-    expect(p).toMatch(/href="\/category\/recipes"[^>]*>\s*Recipes\s*</)
-    expect(p).toContain('href="/tag/astro"')
-    expect(p).toContain('href="/tag/cms"')
+    // Trailing slash matches the directory-format served route (was `/category/recipes` — a
+    // needless redirect hop) and agrees with the sitemap <loc> spelling.
+    expect(p).toMatch(/href="\/category\/recipes\/"[^>]*>\s*Recipes\s*</)
+    expect(p).toContain('href="/tag/astro/"')
+    expect(p).toContain('href="/tag/cms/"')
+  })
+
+  it('chip href == generated route path == sitemap loc (three-way agreement)', () => {
+    // The chip advertises `/tag/astro/`; the route actually builds that directory; the sitemap
+    // lists the same path. One spelling everywhere — the whole point of #860.
+    const chipHref = '/tag/astro/'
+    expect(page('post/kitchen-sink')).toContain(`href="${chipHref}"`)
+    expect(exists('tag/astro')).toBe(true) // dist/tag/astro/index.html — the served route
+    const tagmap = readFileSync(join(appDir, 'dist', 'tag-sitemap.xml'), 'utf8')
+    expect(tagmap).toContain(`<loc>http://localhost:4321${chipHref}</loc>`)
   })
 })

@@ -132,7 +132,9 @@ body {
   vertical-align: -0.16em;
   border: 1.5px solid var(--border, #cbd5e1);
   border-radius: 4px;
-  background: var(--surface, #fff);
+  /* --canvas is the defined white input surface (--surface was never a token, so the `#fff`
+     fallback was always used). See packages/blocks/src/tokens.css. */
+  background: var(--canvas, #fff);
 }
 .prose li.task input[type='checkbox']:checked {
   background-color: var(--accent);

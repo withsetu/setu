@@ -22,7 +22,8 @@ beforeAll(() => {
     env: { ...process.env, SETU_SITE_URL: 'https://example.com' }
   })
   index = read('sitemap.xml')
-  postmap = read('post-sitemap.xml')
+  // The post sitemap now shards at the 50k cap (#859); the first (only, here) shard is -1.
+  postmap = read('post-sitemap-1.xml')
   pagemap = read('page-sitemap.xml')
   robots = read('robots.txt')
   xslExists = existsSync(join(appDir, 'dist', 'sitemap.xsl'))
@@ -34,7 +35,9 @@ describe('sitemap index (#225)', () => {
     expect(index).toContain(
       '<?xml-stylesheet type="text/xsl" href="/sitemap.xsl"?>'
     )
-    expect(index).toContain('<loc>https://example.com/post-sitemap.xml</loc>')
+    // Post section is sharded (#859): the index lists post-sitemap-1.xml, not the old single file.
+    expect(index).toContain('<loc>https://example.com/post-sitemap-1.xml</loc>')
+    expect(index).not.toContain('/post-sitemap.xml<')
     expect(index).toContain('<loc>https://example.com/page-sitemap.xml</loc>')
   })
   it('ships the XSL stylesheet with the setu.build backlink', () => {
@@ -45,7 +48,7 @@ describe('sitemap index (#225)', () => {
 })
 
 describe('sub-sitemaps', () => {
-  it('post-sitemap.xml lists published posts and excludes published:false', () => {
+  it('post-sitemap-1.xml lists published posts and excludes published:false', () => {
     expect(postmap).toContain('<urlset')
     expect(postmap).toMatch(
       /<loc>https:\/\/example\.com\/post\/astro-on-the-edge\/<\/loc>/

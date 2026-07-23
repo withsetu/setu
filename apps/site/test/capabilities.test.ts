@@ -130,9 +130,10 @@ describe('SITE_CAPABILITIES matches real output', () => {
     expect(SITE_CAPABILITIES.sitemapIndex).toBe(
       distReadHas('sitemap.xml', /<sitemapindex/)
     )
-    // post-sitemap carries Google image-extension entries for entries with images.
+    // post-sitemap carries Google image-extension entries for entries with images. The post
+    // sitemap shards at the 50k cap (#859); the first shard is post-sitemap-1.xml.
     expect(SITE_CAPABILITIES.imageSitemaps).toBe(
-      distReadHas('post-sitemap.xml', /<image:image>/)
+      distReadHas('post-sitemap-1.xml', /<image:image>/)
     )
     expect(SITE_CAPABILITIES.robotsTxt).toBe(distHas('robots.txt'))
     expect(SITE_CAPABILITIES.customError).toBe(distHas('404.html'))

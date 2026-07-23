@@ -171,6 +171,25 @@ describe('LoginScreen', () => {
     expect(await screen.findByText(/something went wrong/i)).toBeInTheDocument()
   })
 
+  // #836: a network-level failure REJECTS (better-fetch awaits fetch() unguarded, no catchAllError)
+  // rather than returning `{ error }` — silent before. The catch surfaces the SAME generic copy an
+  // unknown error gets, so it never distinguishes "no such account" from "network down".
+  it('shows a generic error when the sign-in client rejects (api unreachable)', async () => {
+    mockSignInEmail.mockRejectedValue(new Error('Failed to fetch'))
+
+    render(<LoginScreen />)
+    await fillForm()
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
+
+    expect(await screen.findByText(/something went wrong/i)).toBeInTheDocument()
+    // The button returns to its ready state rather than spinning forever.
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: /sign in/i })
+      ).not.toBeDisabled()
+    )
+  })
+
   it('renders no social buttons when capabilities.auth.providers is empty', async () => {
     render(<LoginScreen />)
     await screen.findByLabelText(/email/i)

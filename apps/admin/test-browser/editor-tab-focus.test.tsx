@@ -30,13 +30,21 @@ import { HeroBlock } from '../src/editor/extensions/HeroBlock'
 
 afterEach(cleanup)
 
-/** Canvas.tsx declares Table… then KeyboardShortcuts LAST, and tiptap reverses the
- *  extension list before building keymap plugins (`[...this.extensions].reverse()`
- *  in ExtensionManager's `get plugins()`, @tiptap/core 3.28.0), so the last-declared
- *  extension's Tab handler runs FIRST. Every harness below must therefore keep
- *  KeyboardShortcuts last, or it measures the table extension's keymap instead of
- *  ours — which is exactly how #757's table test came to pass with our handler
- *  deleted (#799). */
+/** Tiptap reverses the extension list before building keymap plugins
+ *  (`[...this.extensions].reverse()` in ExtensionManager's `get plugins()`,
+ *  @tiptap/core 3.28.0), so a LATER-declared extension's Tab handler runs FIRST.
+ *
+ *  What matters is a RELATION, not an absolute position: `KeyboardShortcuts` is
+ *  declared after `Table`/`TableRow` in Canvas.tsx. It is NOT last there — `dragHandle`,
+ *  the block extensions, `SlashCommand` and `LinkTools` all follow it — and an earlier
+ *  version of this comment said "LAST", which was simply wrong. Harnesses below must
+ *  preserve the after-Table relation; the helper name is historical.
+ *
+ *  Nothing automatically enforces this — that is the point of writing it down. Get the
+ *  order wrong and the tests still PASS while measuring @tiptap/extension-table's
+ *  keymap instead of ours, which is exactly how #757's table test kept passing with our
+ *  handler deleted (#799). When adding a harness here, verify by deleting the behaviour
+ *  under test and confirming your test fails. */
 const withShortcutsLast = (extensions: Extensions): Extensions => [
   ...extensions,
   KeyboardShortcuts

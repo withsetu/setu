@@ -53,10 +53,16 @@ function mapResetError(error: AuthClientError): string {
 export function ResetPasswordScreen() {
   const notify = useNotify()
   const navigate = useNavigate()
+  // #453 (second clause): Setu does NOT revoke sessions on reset, so a signed-in visitor
+  // completing an emailed link (the passwordless-maintainer recovery path — SessionGate lets
+  // token-carrying visits through while signed in) stays signed in afterwards. The success copy
+  // branches on this: telling a still-signed-in user to "sign in with your new password" would
+  // be false. Covered by apps/admin/test/reset-password-screen.test.tsx ("signed-in visitor…").
+  const session = authClient.useSession()
   const [params] = useSearchParams()
   const token = params.get('token')
   // #453: better-auth's `/reset-password/:token` callback 302s an expired/used link here as
-  // `?error=INVALID_TOKEN` with NO token param (1.6.23 dist/api/routes/password.mjs's
+  // `?error=INVALID_TOKEN` with NO token param (1.6.24 dist/api/routes/password.mjs's
   // redirectError). Landing with any error param means the visitor clicked a real emailed link
   // that no longer works — tell them that, not that the link is malformed. Covered by
   // apps/admin/test/reset-password-screen.test.tsx.
@@ -92,10 +98,13 @@ export function ResetPasswordScreen() {
         setFormError(mapResetError(error))
         return
       }
-      notify.success('Password reset — sign in with your new password.')
-      // Drops the token off the URL and lands on SessionGate's normal signed-out fallback
-      // (LoginScreen) — there is no separate "/login" route; any pathname other than
-      // "/reset-password" resolves there while signed out.
+      notify.success(
+        session.data?.user
+          ? 'Password updated.'
+          : 'Password reset — sign in with your new password.'
+      )
+      // Drops the token off the URL; "/" resolves through SessionGate — the LoginScreen for a
+      // signed-out visitor, the dashboard for a still-signed-in one.
       void navigate('/')
     } finally {
       setSubmitting(false)

@@ -126,6 +126,10 @@ The full standard with the worked "good vs. skeleton" case study: [docs/quality-
      against a **deployed or released Setu**: reachable by an actor who isn't already trusted, and
      affecting people who *run* Setu rather than this repo's own pipeline. Fix in the advisory's
      private fork, publish on release.
+     **⊕ Pre-1.0 with zero releases and zero deployments (the state until #474): the "deployed or
+     released Setu" precondition is never met, so every security finding is public-issue class until
+     first release — fix it before v1.0, and re-evaluate the routing at release when the precondition
+     can start to bite.**
    - **Public issue + `security` label** — everything else, and this is the common case: hardening
      of our own CI/dev tooling, defence-in-depth, and **missing test coverage for a gate that
      already exists and already fails closed**. A test gap is not an exposure; the pipeline is

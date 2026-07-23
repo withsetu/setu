@@ -5,16 +5,26 @@ interface Props {
 }
 const { categories, tags } = Astro.props
 const has = categories.length > 0 || tags.length > 0
+// Encode a taxonomy slug into a single URL path segment EXACTLY as Astro's static-route generator
+// does (astro/dist/core/routing/generator.js `sanitizeParams`: Unicode-normalize, then #→%23,
+// ?→%3F). NOT encodeURIComponent — it additionally escapes '/' and space and would diverge from the
+// served /category|/tag route path, breaking the link for a tag like `c#4` (which otherwise
+// truncates at the fragment). The trailing slash matches the directory-format served URL, so the
+// chip href is byte-identical to the route path and the sitemap <loc>. (#860 BLOCK-4; the sitemap
+// twin is `encodeTaxonomySlug` in apps/site/src/lib/sitemap.ts.) Enforced by
+// apps/site/test/taxonomy-archive.test.ts (built chip href == route dir == sitemap loc) +
+// apps/site/test/sitemap.test.ts (the encoder).
+const seg = (s: string) => s.normalize().replace(/#/g, '%23').replace(/\?/g, '%3F')
 ---
 
 {has && (
   /* `measure-post` is PostLayout's reading-column width class — keeps the chips aligned to the article column. */
   <nav class="setu-taxonomy measure-post" aria-label="Categories and tags">
     {categories.map((c) => (
-      <a class="setu-chip setu-chip--cat" href={`/category/${c.slug}`}>{c.name}</a>
+      <a class="setu-chip setu-chip--cat" href={`/category/${seg(c.slug)}/`}>{c.name}</a>
     ))}
     {tags.map((t) => (
-      <a class="setu-chip setu-chip--tag" href={`/tag/${t}`}>#{t}</a>
+      <a class="setu-chip setu-chip--tag" href={`/tag/${seg(t)}/`}>#{t}</a>
     ))}
   </nav>
 )}
@@ -25,7 +35,9 @@ const has = categories.length > 0 || tags.length > 0
     display: inline-flex; align-items: center; height: 1.85rem; padding: 0 0.7rem;
     border: 1px solid var(--border, #e5e7eb); border-radius: 999px;
     font-size: 0.85rem; color: var(--text, inherit); text-decoration: none;
-    background: var(--surface, transparent);
+    /* --surface-2 is the block token contract's subtle raised-surface fill (--surface was never
+       defined, so this silently fell back to transparent). See packages/blocks/src/tokens.css. */
+    background: var(--surface-2);
   }
   .setu-chip--cat { font-weight: 600; }
   .setu-chip:hover { border-color: var(--accent, #4f46e5); color: var(--accent, #4f46e5); }

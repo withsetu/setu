@@ -8,6 +8,7 @@ import { ServicesProvider, servicesFor } from '../src/data/store'
 import { DeployProvider } from '../src/deploy/deploy'
 import { IndexProvider } from '../src/data/index-store'
 import { TaxonomyProvider } from '../src/data/taxonomy-store'
+import { TagsProvider } from '../src/data/tags-store'
 import { NotificationProvider } from '../src/ui/notify'
 import { ActorProvider } from '../src/auth/actor'
 import { ContentList } from '../src/screens/ContentList'
@@ -40,11 +41,13 @@ function setup() {
         <DeployProvider>
           <IndexProvider>
             <TaxonomyProvider>
-              <NotificationProvider>
-                <ActorProvider>
-                  <ContentList collection="post" title="Posts" />
-                </ActorProvider>
-              </NotificationProvider>
+              <TagsProvider>
+                <NotificationProvider>
+                  <ActorProvider>
+                    <ContentList collection="post" title="Posts" />
+                  </ActorProvider>
+                </NotificationProvider>
+              </TagsProvider>
             </TaxonomyProvider>
           </IndexProvider>
         </DeployProvider>

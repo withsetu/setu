@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within
+} from '@testing-library/react'
 import type { ContentRow } from '@setu/core'
 import { contentPath, serializeMdoc } from '@setu/core'
 import { createMemoryGitPort } from '@setu/git-memory'
@@ -7,9 +13,23 @@ import { createMemoryDataPort } from '@setu/db-memory'
 import { ServicesProvider, servicesFor } from '../src/data/store'
 import { DeployProvider } from '../src/deploy/deploy'
 import { IndexProvider } from '../src/data/index-store'
-import { TaxonomyProvider } from '../src/data/taxonomy-store'
+import { TaxonomyProvider, useTaxonomy } from '../src/data/taxonomy-store'
+import { TagsProvider, useTags } from '../src/data/tags-store'
 import { NotificationProvider } from '../src/ui/notify'
 import { BulkBar } from '../src/screens/BulkBar'
+
+/** Renders the tag + category counts the app-level stores currently hold, so a
+ *  test can assert BulkBar refreshed them (#854) without a reload. */
+function CountsProbe() {
+  const { counts: tagCounts } = useTags()
+  const { counts: catCounts } = useTaxonomy()
+  return (
+    <div>
+      <div data-testid="tag-counts">{JSON.stringify(tagCounts)}</div>
+      <div data-testid="cat-counts">{JSON.stringify(catCounts)}</div>
+    </div>
+  )
+}
 
 const TAXONOMY_YAML = `- slug: news\n  name: News\n  parent: null\n`
 
@@ -51,14 +71,17 @@ function setup(rows: ContentRow[], { withTaxonomy = false } = {}) {
       <DeployProvider>
         <IndexProvider>
           <TaxonomyProvider>
-            <NotificationProvider>
-              <BulkBar
-                rows={rows}
-                selected={selected}
-                onClear={onClear}
-                onDone={onDone}
-              />
-            </NotificationProvider>
+            <TagsProvider>
+              <NotificationProvider>
+                <BulkBar
+                  rows={rows}
+                  selected={selected}
+                  onClear={onClear}
+                  onDone={onDone}
+                />
+                <CountsProbe />
+              </NotificationProvider>
+            </TagsProvider>
           </TaxonomyProvider>
         </IndexProvider>
       </DeployProvider>
@@ -83,16 +106,28 @@ describe('BulkBar', () => {
     expect(a.frontmatter.tags).toEqual(['news'])
   })
 
-  it('deletes selected entries after confirm and notifies', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+  // #856: the destructive confirm is the styled shadcn AlertDialog now, not the
+  // native window.confirm — clicking Delete opens the dialog, and its action
+  // (not a browser prompt) performs the delete.
+  it('deletes selected entries via the AlertDialog confirm and notifies', async () => {
     const { git } = setup([row('a')])
+    const path = contentPath({ collection: 'post', locale: 'en', slug: 'a' })
+    // The toolbar Delete button only OPENS the dialog — nothing is deleted yet.
     fireEvent.click(screen.getByRole('button', { name: /^delete$/i }))
+    const dialog = await screen.findByRole('alertdialog')
+    expect(await git.readFile(path)).not.toBeNull()
+    // Confirm inside the dialog (the action button, not the toolbar trigger).
+    fireEvent.click(within(dialog).getByRole('button', { name: /^delete$/i }))
     expect(await screen.findByText(/Deleted 1/i)).toBeTruthy()
-    expect(
-      await git.readFile(
-        contentPath({ collection: 'post', locale: 'en', slug: 'a' })
-      )
-    ).toBeNull()
+    expect(await git.readFile(path)).toBeNull()
+  })
+
+  it('does not use the native window.confirm for bulk delete (#856)', () => {
+    const confirmSpy = vi.spyOn(window, 'confirm')
+    setup([row('a')])
+    fireEvent.click(screen.getByRole('button', { name: /^delete$/i }))
+    expect(confirmSpy).not.toHaveBeenCalled()
+    confirmSpy.mockRestore()
   })
 
   it('shows the unpublished-changes heads-up count', () => {
@@ -130,5 +165,41 @@ describe('BulkBar', () => {
       ))!
     )
     expect(a.frontmatter.categories).toEqual(['news'])
+  })
+
+  // #854: a bulk tag-add must refresh the app-level tags store so a brand-new
+  // tag appears in TagsTab (and existing counts stay fresh) without a reload.
+  it('refreshes the tags store counts after a bulk tag-add (#854)', async () => {
+    setup([row('a'), row('b')])
+    await waitFor(() =>
+      expect(screen.getByTestId('tag-counts').textContent).toBe('{}')
+    )
+    const input = screen.getByLabelText('Bulk tag')
+    fireEvent.change(input, { target: { value: 'fresh' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await screen.findByText(/Added .*fresh.* to 2/i)
+    // Without the refresh the store would still read {} until a reload.
+    await waitFor(() => {
+      const counts = JSON.parse(
+        screen.getByTestId('tag-counts').textContent ?? '{}'
+      ) as Record<string, number>
+      expect(counts.fresh).toBe(2)
+    })
+  })
+
+  // #852: a transport failure on a bulk action shows the curated connection
+  // message, never the raw thrown error.
+  it('shows the curated connection message when a bulk op fails (#852)', async () => {
+    const { git } = setup([row('a')])
+    // Force the commit to reject with a cryptic transport error (the shape
+    // git-http throws when the api is unreachable).
+    vi.spyOn(git, 'commitFiles').mockRejectedValue(new Error('Failed to fetch'))
+    const input = screen.getByLabelText('Bulk tag')
+    fireEvent.change(input, { target: { value: 'x' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(
+      await screen.findByText(/Couldn't update the selected posts\./i)
+    ).toBeTruthy()
+    expect(screen.queryByText(/Failed to fetch/i)).toBeNull()
   })
 })

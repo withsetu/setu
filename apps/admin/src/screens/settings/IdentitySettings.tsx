@@ -4,6 +4,7 @@ import { parseSettings, DEFAULT_SETTINGS } from '@setu/core'
 import type { IdentitySettings as IdentityValues } from '@setu/core'
 import { useServices, OWNER_AUTHOR } from '../../data/store'
 import { useNotify } from '../../ui/notify'
+import { connectionError } from '../../ui/error-message'
 import { useRefreshSettings } from '../../data/settings-store'
 import {
   SettingsLoadError,
@@ -197,8 +198,10 @@ export function IdentitySettings() {
       setPublished(cleaned)
       refreshSettings()
       notify.success('Settings saved')
-    } catch (e) {
-      notify.error(e instanceof Error ? e.message : String(e))
+    } catch {
+      // #852: the throw is a git.commitFile transport failure — values are
+      // validated client-side before this, so curate rather than echo it.
+      notify.error(connectionError('save your settings'))
     } finally {
       setSaving(false)
     }

@@ -10,7 +10,8 @@ import {
 } from '@/components/ui/select'
 import { useTaxonomy } from '../../data/taxonomy-store'
 import { useNotify } from '../../ui/notify'
-import { buildTree } from '@setu/core'
+import { connectionError } from '../../ui/error-message'
+import { buildTree, TaxonomyError } from '@setu/core'
 import { flatten } from './CategoryTree'
 
 export function NewCategoryForm() {
@@ -28,7 +29,13 @@ export function NewCategoryForm() {
       setName('')
       setParent('')
     } catch (e) {
-      notify.error(e instanceof Error ? e.message : String(e))
+      // #852: a TaxonomyError is a meaningful validation message (duplicate name,
+      // missing parent) — show it. Anything else is transport — curate it.
+      notify.error(
+        e instanceof TaxonomyError
+          ? e.message
+          : connectionError('add the category')
+      )
     }
   }
   return (
@@ -56,7 +63,9 @@ export function NewCategoryForm() {
           <SelectItem value="none">No parent</SelectItem>
           {rows.map((r) => (
             <SelectItem key={r.slug} value={r.slug}>
-              {r.name}
+              {/* #856: indent by depth so the hierarchy is legible, matching
+                  ListToolbar.tsx and CategoryTree. */}
+              <span style={{ paddingLeft: r.depth * 12 }}>{r.name}</span>
             </SelectItem>
           ))}
         </SelectContent>

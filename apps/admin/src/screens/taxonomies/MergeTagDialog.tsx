@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { useTags } from '../../data/tags-store'
 import { useNotify } from '../../ui/notify'
+import { connectionError } from '../../ui/error-message'
 
 export type PendingMerge = {
   from: string
@@ -34,8 +35,9 @@ export function MergeTagDialog({
       notify.success(
         `Merged "${pending.from}" into "${pending.to}" across ${applied} ${applied === 1 ? 'entry' : 'entries'}`
       )
-    } catch (e) {
-      notify.error(e instanceof Error ? e.message : String(e))
+    } catch {
+      // #852: merge is a pure DataPort mutation — a throw is transport.
+      notify.error(connectionError('merge the tags'))
     }
     onClose()
   }

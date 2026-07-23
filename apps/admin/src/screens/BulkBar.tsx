@@ -10,10 +10,22 @@ import {
 import { useServices } from '../data/store'
 import { useIndex } from '../data/index-store'
 import { useTaxonomy } from '../data/taxonomy-store'
+import { useTags } from '../data/tags-store'
 import { useNotify } from '../ui/notify'
+import { connectionError } from '../ui/error-message'
 import { TagAutocomplete } from '../ui/TagAutocomplete'
 import { CategoryPicker } from '../ui/CategoryPicker'
 import { Button } from '@/components/ui/button'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction
+} from '@/components/ui/alert-dialog'
 
 function flattenCats(
   nodes: ReturnType<typeof buildTree>,
@@ -40,7 +52,8 @@ export function BulkBar({
   const { bulk } = useServices()
   const index = useIndex()
   const notify = useNotify()
-  const { categories } = useTaxonomy()
+  const { categories, refreshCounts: refreshCatCounts } = useTaxonomy()
+  const { refreshCounts: refreshTagCounts } = useTags()
   const nameBySlug = useMemo(
     () =>
       new Map(flattenCats(buildTree(categories)).map((c) => [c.slug, c.name])),
@@ -50,6 +63,7 @@ export function BulkBar({
   const [cat, setCat] = useState('')
   const [tagVal, setTagVal] = useState('')
   const [busy, setBusy] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const keyOf = (r: ContentRow) =>
     `${r.ref.collection}/${r.ref.locale}/${r.ref.slug}`
@@ -65,7 +79,8 @@ export function BulkBar({
       applied: EntryRef[]
       skipped: { ref: EntryRef }[]
     }>,
-    label: string
+    label: string,
+    failAction: string
   ) => {
     setBusy(true)
     try {
@@ -74,13 +89,22 @@ export function BulkBar({
       // (#655): with a bulk DELETE that stranded the removed rows as permanently
       // visible, because the stamped sha stopped ensureBuilt ever rescanning them.
       await index.reindexEntries(r.applied, r.committedSha).catch(() => {})
+      // #854: a bulk metadata edit changes tag/category usage, but the taxonomy
+      // and tags stores only refresh on their OWN CRUD — refresh both here so a
+      // newly-added tag shows up in TagsTab and the category "Used by" counts
+      // stay fresh without a full reload.
+      void refreshTagCounts()
+      void refreshCatCounts()
       const skipped = r.skipped.length ? ` · ${r.skipped.length} skipped` : ''
       notify.success(
         `${label} ${r.applied.length} post${r.applied.length === 1 ? '' : 's'}${skipped}`
       )
       onDone()
-    } catch (e) {
-      notify.error(e instanceof Error ? e.message : String(e))
+    } catch {
+      // #852: the throw here is a transport/DataPort failure (commit or reindex),
+      // never a user-facing server message — curate it rather than echo the raw
+      // "Failed to fetch" (same rationale as EditorScreen.tsx:556-559).
+      notify.error(connectionError(failAction))
     } finally {
       setBusy(false)
     }
@@ -88,28 +112,31 @@ export function BulkBar({
 
   const applyCat = (mut: typeof bulkAddCategory, verb: string) => {
     if (!cat) return
-    void run(() => bulk.applyMetadata(refs, (m) => mut(m, cat)), verb).then(
-      () => {
-        setCat('')
-        setCatVal('')
-      }
-    )
+    void run(
+      () => bulk.applyMetadata(refs, (m) => mut(m, cat)),
+      verb,
+      'update the selected posts'
+    ).then(() => {
+      setCat('')
+      setCatVal('')
+    })
   }
   const applyTag = (rawTag: string, mut: typeof bulkAddTag, verb: string) => {
     const t = rawTag.trim()
     if (!t) return
-    void run(() => bulk.applyMetadata(refs, (m) => mut(m, t)), verb).then(() =>
-      setTagVal('')
-    )
+    void run(
+      () => bulk.applyMetadata(refs, (m) => mut(m, t)),
+      verb,
+      'update the selected posts'
+    ).then(() => setTagVal(''))
   }
   const del = () => {
-    if (
-      !window.confirm(
-        `Delete ${refs.length} post${refs.length === 1 ? '' : 's'}? This commits their removal.`
-      )
+    setConfirmDelete(false)
+    void run(
+      () => bulk.deleteEntries(refs),
+      'Deleted',
+      'delete the selected posts'
     )
-      return
-    void run(() => bulk.deleteEntries(refs), 'Deleted')
   }
 
   return (
@@ -175,7 +202,7 @@ export function BulkBar({
         size="sm"
         variant="destructive"
         disabled={busy}
-        onClick={del}
+        onClick={() => setConfirmDelete(true)}
       >
         Delete
       </Button>
@@ -195,6 +222,29 @@ export function BulkBar({
           will also go live.
         </span>
       )}
+
+      {/* #856: the styled shadcn confirm every other destructive admin flow uses
+          (Media delete, DeleteTagDialog…), replacing the lone native
+          window.confirm. Dark-mode-aware and keyboard-operable. */}
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {refs.length} post{refs.length === 1 ? '' : 's'}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This commits their removal from the repository.
+              {pendingCount > 0
+                ? ` ${pendingCount} of these ${pendingCount === 1 ? 'has' : 'have'} unpublished changes.`
+                : ''}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={del}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

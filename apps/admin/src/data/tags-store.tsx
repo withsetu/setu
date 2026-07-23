@@ -22,6 +22,12 @@ export interface TagsContextValue {
     to: string
   ) => Promise<{ applied: number; merged: boolean }>
   remove: (tag: string) => Promise<{ applied: number }>
+  /** Re-read tag counts from the index. The store only refreshes on its OWN
+   *  rename/delete; callers that change tag membership another way (e.g.
+   *  BulkBar's bulk add/remove for #854) must call this so a newly-added tag
+   *  appears in TagsTab and existing counts stay fresh without a reload.
+   *  Enforced by apps/admin/test/bulk-bar.test.tsx. */
+  refreshCounts: () => Promise<void>
 }
 
 const TagsContext = createContext<TagsContextValue | null>(null)
@@ -83,8 +89,8 @@ export function TagsProvider({ children }: { children: ReactNode }) {
   )
 
   const value = useMemo<TagsContextValue>(
-    () => ({ counts, loading, rename, remove }),
-    [counts, loading, rename, remove]
+    () => ({ counts, loading, rename, remove, refreshCounts }),
+    [counts, loading, rename, remove, refreshCounts]
   )
   return <TagsContext.Provider value={value}>{children}</TagsContext.Provider>
 }

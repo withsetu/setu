@@ -10,6 +10,7 @@ import {
 import type { PermalinksSettings as PermalinksValues } from '@setu/core'
 import { useServices, OWNER_AUTHOR } from '../../data/store'
 import { useNotify } from '../../ui/notify'
+import { connectionError } from '../../ui/error-message'
 import { useRefreshSettings } from '../../data/settings-store'
 import {
   SettingsLoadError,
@@ -274,8 +275,10 @@ export function PermalinksSettings() {
       setPublished(cleaned)
       refreshSettings()
       notify.success('Settings saved')
-    } catch (e) {
-      notify.error(e instanceof Error ? e.message : String(e))
+    } catch {
+      // #852: git.commitFile transport failure; permalink values are validated
+      // client-side before this — curate rather than echo it.
+      notify.error(connectionError('save your settings'))
     } finally {
       setSaving(false)
     }

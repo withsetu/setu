@@ -119,7 +119,8 @@ describe('DeleteCategoryDialog', () => {
         create: vi.fn(),
         renameLabel: vi.fn(),
         reparent: vi.fn(),
-        remove: removeFn
+        remove: removeFn,
+        refreshCounts: vi.fn()
       })
 
     try {
@@ -147,7 +148,8 @@ describe('DeleteCategoryDialog', () => {
         create: vi.fn(),
         renameLabel: vi.fn(),
         reparent: vi.fn(),
-        remove: removeFn
+        remove: removeFn,
+        refreshCounts: vi.fn()
       })
     try {
       render(
@@ -174,7 +176,8 @@ describe('DeleteCategoryDialog', () => {
         create: vi.fn(),
         renameLabel: vi.fn(),
         reparent: vi.fn(),
-        remove: removeFn
+        remove: removeFn,
+        refreshCounts: vi.fn()
       })
     try {
       render(
@@ -205,7 +208,8 @@ describe('DeleteCategoryDialog', () => {
         create: vi.fn(),
         renameLabel: vi.fn(),
         reparent: vi.fn(),
-        remove: removeFn
+        remove: removeFn,
+        refreshCounts: vi.fn()
       })
     try {
       render(
@@ -232,7 +236,8 @@ describe('DeleteCategoryDialog', () => {
         create: vi.fn(),
         renameLabel: vi.fn(),
         reparent: vi.fn(),
-        remove: vi.fn().mockResolvedValue(undefined)
+        remove: vi.fn().mockResolvedValue(undefined),
+        refreshCounts: vi.fn()
       })
     try {
       render(

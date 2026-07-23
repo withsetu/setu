@@ -3,6 +3,7 @@ import { parseSettings, DEFAULT_SETTINGS } from '@setu/core'
 import type { MediaSettings as MediaValues } from '@setu/core'
 import { useServices, OWNER_AUTHOR } from '../../data/store'
 import { useNotify } from '../../ui/notify'
+import { connectionError } from '../../ui/error-message'
 import { useCapabilities } from '../../lib/useCapabilities'
 import { apiFetch } from '../../lib/api-fetch'
 import {
@@ -198,8 +199,9 @@ export function MediaSettings() {
       setRaw(next)
       setPublished(values)
       notify.success('Settings saved')
-    } catch (e) {
-      notify.error(e instanceof Error ? e.message : String(e))
+    } catch {
+      // #852: git.commitFile transport failure — curate rather than echo it.
+      notify.error(connectionError('save your settings'))
     } finally {
       setSaving(false)
     }
@@ -224,11 +226,13 @@ export function MediaSettings() {
         setReprocessProgress({ processed: data.processed, total: data.total })
         startPolling()
       }
-    } catch (e) {
+    } catch {
       if (mountedRef.current) {
         setReprocessing(false)
         setReprocessProgress(null)
-        notify.error(e instanceof Error ? e.message : String(e))
+        // #852: the throw is an apiFetch transport error / bare status code, not a
+        // user-facing server message — curate it.
+        notify.error(connectionError('reprocess your media library'))
       }
     }
   }

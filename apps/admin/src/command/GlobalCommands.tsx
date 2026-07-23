@@ -7,6 +7,7 @@ import {
   Image,
   Palette,
   Settings,
+  Activity,
   Plus,
   Rocket,
   SunMoon
@@ -91,6 +92,11 @@ export function GlobalCommands() {
       title: 'Appearance',
       group: 'Go to',
       icon: Palette,
+      // #855: gate to match AppSidebar.tsx (theme.manage) — an unguarded palette
+      // entry lets a role without access select it and be silently bounced to
+      // /dashboard by RequireCan (app.tsx). Route + server already enforce; this
+      // only stops the palette advertising an action the role can't take.
+      enabled: () => can('theme.manage'),
       run: () => {
         void navigate('/appearance')
       }
@@ -100,8 +106,23 @@ export function GlobalCommands() {
       title: 'Settings',
       group: 'Go to',
       icon: Settings,
+      // #855: gate to match AppSidebar.tsx (settings.view). See nav.appearance.
+      enabled: () => can('settings.view'),
       run: () => {
         void navigate('/settings')
+      }
+    },
+    {
+      id: 'nav.health',
+      title: 'Site Health',
+      group: 'Go to',
+      icon: Activity,
+      keywords: 'audit checks',
+      // #855: was absent from the palette entirely; gated to match
+      // AppSidebar.tsx (sitehealth.view) — the route lives at /health.
+      enabled: () => can('sitehealth.view'),
+      run: () => {
+        void navigate('/health')
       }
     },
     {

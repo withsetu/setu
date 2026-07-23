@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import type { CategoryNode } from '@setu/core'
-import { buildTree } from '@setu/core'
+import { buildTree, TaxonomyError } from '@setu/core'
 import { useTaxonomy } from '../../data/taxonomy-store'
 import { useNotify } from '../../ui/notify'
+import { connectionError } from '../../ui/error-message'
 import { NewCategoryForm } from './NewCategoryForm'
 import { CategoryTree, CategoryTreeSkeleton, flatten } from './CategoryTree'
 import { DeleteCategoryDialog } from './DeleteCategoryDialog'
@@ -17,7 +18,13 @@ export function CategoriesTab() {
     try {
       await reparent(slug, parent)
     } catch (e) {
-      notify.error(e instanceof Error ? e.message : String(e))
+      // #852: a TaxonomyError (e.g. "Move would create a cycle") is meaningful —
+      // show it; a transport failure is not — curate it.
+      notify.error(
+        e instanceof TaxonomyError
+          ? e.message
+          : connectionError('move the category')
+      )
     }
   }
 
@@ -27,7 +34,12 @@ export function CategoriesTab() {
     try {
       await renameLabel(slug, name)
     } catch (e) {
-      notify.error(e instanceof Error ? e.message : String(e))
+      // #852: TaxonomyError → meaningful validation message; else transport → curate.
+      notify.error(
+        e instanceof TaxonomyError
+          ? e.message
+          : connectionError('rename the category')
+      )
     }
   }
 

@@ -52,7 +52,7 @@ const forgotSchema = z.object({
 })
 
 /** Maps a `requestPasswordReset` failure to visible copy (#500). Enumeration safety lives on the
- *  SERVER: better-auth 1.6.23's `/request-password-reset` answers the identical `{ status: true }`
+ *  SERVER: better-auth 1.6.24's `/request-password-reset` answers the identical `{ status: true }`
  *  whether or not the account exists (verified in the installed package's
  *  dist/api/routes/password.mjs — the unknown-email branch even simulates the token work to
  *  equalize timing). So any `error` reaching this mapper is a REAL failure — transport, rate
@@ -92,14 +92,24 @@ function Wordmark() {
  *
  *  Success copy is deliberately uniform ("If an account exists…") regardless of account
  *  existence — matching the server's own enumeration-safe response. Failures (transport, 429) are
- *  the one thing that MUST break that uniformity: see mapResetRequestError's comment. */
+ *  the one thing that MUST break that uniformity: see mapResetRequestError's comment.
+ *
+ *  Captcha (#500 review Finding 1): better-auth's captcha plugin protects
+ *  `/request-password-reset` BY DEFAULT (verified in installed 1.6.24:
+ *  dist/plugins/captcha/constants.mjs `defaultEndpoints`; a missing `x-captcha-response` header
+ *  400s before the route runs), so on a captcha-configured deployment this form mounts its own
+ *  widget and threads the token exactly like the sign-in form — otherwise every submit would
+ *  dead-end. Exercised by apps/admin/test/login-screen.test.tsx ("captcha configured: forgot
+ *  submit stays disabled…"). */
 function ForgotPasswordCard({
   deliverable,
   initialEmail,
+  captcha,
   onBack
 }: {
   deliverable: boolean
   initialEmail: string
+  captcha: { provider: 'turnstile' | 'recaptcha'; siteKey: string } | null
   onBack: () => void
 }) {
   const [email, setEmail] = useState(initialEmail)
@@ -107,10 +117,37 @@ function ForgotPasswordCard({
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [sent, setSent] = useState(false)
+  const [captchaToken, setCaptchaToken] = useState('')
+  const widgetRef = useRef<HTMLDivElement>(null)
+  const captchaHandle = useRef<{
+    reset: () => void
+    cleanup: () => void
+  } | null>(null)
+
+  // The widget's DOM node only exists while the form shows (deliverable, not yet sent).
+  const showForm = deliverable && !sent
+
+  useEffect(() => {
+    if (!captcha || !showForm || !widgetRef.current) return
+    const handle = mountCaptcha({
+      provider: captcha.provider,
+      siteKey: captcha.siteKey,
+      el: widgetRef.current,
+      onToken: setCaptchaToken
+    })
+    captchaHandle.current = handle
+    return () => {
+      handle.cleanup()
+      captchaHandle.current = null
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [captcha?.provider, captcha?.siteKey, showForm])
+
+  const captchaPending = !!captcha && captchaToken === ''
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    if (submitting || sent) return
+    if (submitting || sent || captchaPending) return
     const parsed = forgotSchema.safeParse({ email })
     if (!parsed.success) {
       setFieldError(parsed.error.issues[0]?.message ?? 'Enter a valid email')
@@ -120,14 +157,24 @@ function ForgotPasswordCard({
     setError(null)
     setSubmitting(true)
     try {
-      const { error: requestError } = await authClient.requestPasswordReset({
-        email: parsed.data.email,
-        // Explicit, same-origin redirect (mirrors UsersScreen's sendReset): better-auth
-        // origin-checks it, and the emailed link lands on our /reset-password screen.
-        redirectTo: `${window.location.origin}/reset-password`
-      })
+      const { error: requestError } = await authClient.requestPasswordReset(
+        {
+          email: parsed.data.email,
+          // Explicit, same-origin redirect (mirrors the Users screen's reset trigger):
+          // better-auth origin-checks it, and the emailed link lands on our /reset-password
+          // screen.
+          redirectTo: `${window.location.origin}/reset-password`
+        },
+        captchaToken
+          ? { headers: { 'x-captcha-response': captchaToken } }
+          : undefined
+      )
       if (requestError) {
         setError(mapResetRequestError(requestError))
+        // Captcha tokens are single-use: the failed request consumed this one, so re-arm the
+        // widget before the retry the error copy invites.
+        captchaHandle.current?.reset()
+        setCaptchaToken('')
         return
       }
       setSent(true)
@@ -135,6 +182,8 @@ function ForgotPasswordCard({
       // A thrown (network-level) failure is still a failure the user is waiting on — report it,
       // never let it collapse into silence or fake the uniform success copy (CLAUDE.md §3.2).
       setError("Couldn't send the reset email — please try again.")
+      captchaHandle.current?.reset()
+      setCaptchaToken('')
     } finally {
       setSubmitting(false)
     }
@@ -183,7 +232,22 @@ function ForgotPasswordCard({
               </p>
             )}
 
-            <Button type="submit" className="w-full" disabled={submitting}>
+            {captcha && (
+              <div className="grid gap-1.5">
+                <div ref={widgetRef} />
+                {captchaPending && (
+                  <p className="text-xs text-muted-foreground">
+                    Complete the challenge above to continue.
+                  </p>
+                )}
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={submitting || captchaPending}
+            >
               {submitting && (
                 <span
                   aria-hidden
@@ -247,7 +311,8 @@ export function LoginScreen() {
   useEffect(() => {
     // Any previously issued token is stale whenever this effect re-runs (provider changed, or the
     // widget was unmounted by a switch to the forgot step) — clear it so the submit gate can't
-    // ride a token the remounted widget never issued.
+    // ride a token the remounted widget never issued. Enforced by
+    // apps/admin/test/login-screen.test.tsx ("captcha survives a round trip to the forgot step").
     setCaptchaToken('')
     if (!captcha || !widgetRef.current) return
     const handle = mountCaptcha({
@@ -262,7 +327,7 @@ export function LoginScreen() {
       captchaHandle.current = null
     }
     // `view` is a dep so returning from the forgot step re-mounts the captcha widget (its DOM node
-    // is unmounted while the forgot card is showing).
+    // is unmounted while the forgot card is showing) — same test as above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [captcha?.provider, captcha?.siteKey, view])
 
@@ -298,6 +363,7 @@ export function LoginScreen() {
         <ForgotPasswordCard
           deliverable={emailCaps?.deliverable === true}
           initialEmail={email}
+          captcha={captcha}
           onBack={() => setView('signin')}
         />
       </div>

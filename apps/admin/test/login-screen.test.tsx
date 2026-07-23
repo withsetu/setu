@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { LoginScreen } from '../src/auth/LoginScreen'
 import { authClient } from '../src/auth/auth-client'
 
@@ -35,6 +35,39 @@ const NO_PROVIDERS_NO_CAPTCHA: AuthCaps = {
 
 const DELIVERABLE: EmailCaps = { transport: 'resend', deliverable: true }
 const UNDELIVERABLE: EmailCaps = { transport: 'console', deliverable: false }
+
+const WITH_CAPTCHA: AuthCaps = {
+  enabled: true,
+  providers: [],
+  captcha: { provider: 'turnstile', siteKey: 'site-key-1' },
+  needsSetup: false
+}
+
+/** Stateful turnstile stub: every widget render registers its callback; tokens are issued only
+ *  when the test says so (optionally auto-issuing for the first N renders via `autoTokens`).
+ *  This is what lets tests observe the "disabled until the widget issues a token" window that
+ *  the original always-auto-issuing stub (the sign-in captcha test above) skips past. */
+function stubTurnstile(autoTokens: string[] = []) {
+  const callbacks: Array<(t: string) => void> = []
+  let renders = 0
+  ;(window as unknown as { turnstile: unknown }).turnstile = {
+    render: (_el: HTMLElement, opts: { callback: (t: string) => void }) => {
+      callbacks.push(opts.callback)
+      const auto = autoTokens[renders]
+      renders++
+      if (auto) opts.callback(auto)
+      return `widget-${renders}`
+    },
+    reset: vi.fn()
+  }
+  return {
+    /** Issue a token from the MOST RECENTLY mounted widget (the visible one). */
+    issue: (t: string) => act(() => callbacks[callbacks.length - 1]!(t)),
+    cleanup: () => {
+      delete (window as unknown as { turnstile?: unknown }).turnstile
+    }
+  }
+}
 
 function stubCapabilities(auth: AuthCaps, mode?: string, email?: EmailCaps) {
   vi.stubGlobal(
@@ -306,16 +339,102 @@ describe('LoginScreen — forgot password (#500)', () => {
     fireEvent.submit(emailInput.closest('form')!)
 
     await waitFor(() =>
-      expect(mockRequestPasswordReset).toHaveBeenCalledWith({
-        email: 'ada@setu.dev',
-        redirectTo: `${window.location.origin}/reset-password`
-      })
+      expect(mockRequestPasswordReset).toHaveBeenCalledWith(
+        {
+          email: 'ada@setu.dev',
+          redirectTo: `${window.location.origin}/reset-password`
+        },
+        undefined // no captcha configured -> no fetchOptions (mirrors the sign-in call shape)
+      )
     )
     // Enumeration-safe uniform copy: the SAME message whether or not the account exists (the
-    // server already answers uniformly — better-auth 1.6.23 request-password-reset).
+    // server already answers uniformly — better-auth 1.6.24 request-password-reset).
     expect(
       await screen.findByText(/if an account exists for that email/i)
     ).toBeInTheDocument()
+  })
+
+  // #500 review Finding 1: better-auth's captcha plugin protects /request-password-reset BY
+  // DEFAULT (1.6.24 dist/plugins/captcha/constants.mjs defaultEndpoints) — without the
+  // x-captcha-response header a captcha-configured deployment 400s every forgot submit before
+  // the route runs, i.e. the exact dead control #500 forbids.
+  it('captcha configured: forgot submit stays disabled until the widget issues a token, then threads it as x-captcha-response', async () => {
+    stubCapabilities(WITH_CAPTCHA, undefined, DELIVERABLE)
+    const turnstile = stubTurnstile() // no auto-issue: the pending window must be observable
+    mockRequestPasswordReset.mockResolvedValue({
+      data: { status: true, message: 'ok' },
+      error: null
+    })
+
+    await openForgot()
+
+    const send = await screen.findByRole('button', {
+      name: /send reset link/i
+    })
+    expect(send).toBeDisabled()
+    expect(screen.getByText(/complete the challenge/i)).toBeInTheDocument()
+
+    turnstile.issue('forgot-captcha-tok')
+    await waitFor(() => expect(send).not.toBeDisabled())
+
+    const emailInput = screen.getByLabelText(/email/i)
+    fireEvent.change(emailInput, { target: { value: 'ada@setu.dev' } })
+    fireEvent.submit(emailInput.closest('form')!)
+
+    await waitFor(() =>
+      expect(mockRequestPasswordReset).toHaveBeenCalledWith(
+        {
+          email: 'ada@setu.dev',
+          redirectTo: `${window.location.origin}/reset-password`
+        },
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'x-captcha-response': 'forgot-captcha-tok'
+          })
+        })
+      )
+    )
+
+    turnstile.cleanup()
+  })
+
+  // #500 review Finding 2: leaving the forgot step must re-mount the sign-in captcha widget and
+  // discard the stale token — the widget's DOM node was unmounted, so a token issued before the
+  // switch belongs to a dead widget. Sign-in must stay gated until the remounted widget
+  // re-issues. (This is the test the view-keyed captcha effect in LoginScreen.tsx names.)
+  it('captcha survives a round trip to the forgot step: stale token discarded, sign-in disabled until re-issued', async () => {
+    stubCapabilities(WITH_CAPTCHA, undefined, DELIVERABLE)
+    // First render (the sign-in widget) auto-issues; every later render just registers.
+    const turnstile = stubTurnstile(['tok-1'])
+
+    render(<LoginScreen />)
+    await fillForm()
+    const signInBefore = screen.getByRole('button', { name: /^sign in$/i })
+    await waitFor(() => expect(signInBefore).not.toBeDisabled())
+
+    fireEvent.click(screen.getByRole('button', { name: /forgot password\?/i }))
+    await screen.findByRole('button', { name: /send reset link/i })
+    fireEvent.click(screen.getByRole('button', { name: /back to sign in/i }))
+
+    // Back on sign-in: the remounted widget has NOT re-issued, so submit must be gated again.
+    const signIn = await screen.findByRole('button', { name: /^sign in$/i })
+    expect(signIn).toBeDisabled()
+    expect(screen.getByText(/complete the challenge/i)).toBeInTheDocument()
+
+    turnstile.issue('tok-2')
+    await waitFor(() => expect(signIn).not.toBeDisabled())
+
+    fireEvent.submit(signIn.closest('form')!)
+    await waitFor(() =>
+      expect(mockSignInEmail).toHaveBeenCalledWith(
+        { email: 'ada@setu.dev', password: 'hunter2' },
+        expect.objectContaining({
+          headers: expect.objectContaining({ 'x-captcha-response': 'tok-2' })
+        })
+      )
+    )
+
+    turnstile.cleanup()
   })
 
   it('prefills the forgot step with whatever email was already typed on the sign-in form', async () => {

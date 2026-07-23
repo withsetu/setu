@@ -55,6 +55,12 @@ export function ResetPasswordScreen() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const token = params.get('token')
+  // #453: better-auth's `/reset-password/:token` callback 302s an expired/used link here as
+  // `?error=INVALID_TOKEN` with NO token param (1.6.23 dist/api/routes/password.mjs's
+  // redirectError). Landing with any error param means the visitor clicked a real emailed link
+  // that no longer works — tell them that, not that the link is malformed. Covered by
+  // apps/admin/test/reset-password-screen.test.tsx.
+  const errorParam = params.get('error')
   const [newPassword, setNewPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [errors, setErrors] = useState<ResetErrors>({})
@@ -104,7 +110,9 @@ export function ResetPasswordScreen() {
           <CardDescription>
             {token
               ? 'Choose a new password for your account.'
-              : 'This reset link is missing its token — ask for a new one from the sign-in screen.'}
+              : errorParam
+                ? 'This reset link has expired or was already used — ask for a new one from the sign-in screen.'
+                : 'This reset link is missing its token — ask for a new one from the sign-in screen.'}
           </CardDescription>
         </CardHeader>
         <CardContent>

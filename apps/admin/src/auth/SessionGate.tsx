@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { useLocation } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import { canonicalRoleOf, type Role } from '@setu/core'
 import { authClient } from './auth-client'
 import { ActorProvider } from './actor'
@@ -97,17 +97,29 @@ export function SessionGate({ children }: { children: ReactNode }) {
     )
   }
 
+  const user = session.data?.user as
+    | { id: string; role?: string | null }
+    | undefined
+
   // #364: the emailed password-reset link's callback lands here (packages/auth/src/
   // reset-password-email.ts's default `redirectTo`, and UsersScreen.tsx's row-action trigger,
   // both point at this exact admin-origin route). It must render for a SIGNED-OUT visitor — the
-  // entire point of the flow — so this check sits ahead of both the `user` branch and the
-  // needsSetup/LoginScreen fallback below, rendering unconditionally on session state. (A
-  // signed-IN admin navigating here directly is a rare, harmless edge case — better-auth's
-  // `/reset-password` endpoint itself doesn't require session state either.)
-  if (location.pathname === '/reset-password') return <ResetPasswordScreen />
-
-  const user = session.data?.user as
-    { id: string; role?: string | null } | undefined
+  // entire point of the flow — so this check sits ahead of the needsSetup/LoginScreen fallback
+  // below.
+  //
+  // #453: a SIGNED-IN visitor is split on whether the URL carries a reset payload. A bare visit
+  // (no token, no error) used to unmount the whole app shell just to show a "missing its token"
+  // card — redirect into the app instead. But a signed-in user who clicked a real emailed link
+  // (token present — e.g. a passwordless maintainer who emailed themselves a reset link, #453's
+  // recovery path; better-auth's `/reset-password` endpoint doesn't require a signed-out session)
+  // or landed from an expired one (`?error=INVALID_TOKEN`) must still see the reset screen.
+  // Covered by apps/admin/test/session-gate.test.tsx.
+  if (location.pathname === '/reset-password') {
+    const params = new URLSearchParams(location.search)
+    const hasResetPayload = params.has('token') || params.has('error')
+    if (user && !hasResetPayload) return <Navigate to="/" replace />
+    return <ResetPasswordScreen />
+  }
   if (user) {
     // #379: unknown/audience roles get no back-office access — the real admin.access gate is
     // deferred to #379; the server already fails closed. This UI fallback is UX-only (server

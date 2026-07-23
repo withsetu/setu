@@ -91,4 +91,23 @@ describe('ResetPasswordScreen', () => {
     expect(screen.queryByLabelText(/new password/i)).not.toBeInTheDocument()
     expect(mockResetPassword).not.toHaveBeenCalled()
   })
+
+  // #453: better-auth's /reset-password/:token callback 302s expired/used links to
+  // /reset-password?error=INVALID_TOKEN (no token param) — that is an expired-link landing, not a
+  // malformed one, and must say so instead of the missing-token copy.
+  it('shows the expired-or-used message (not the missing-token copy) when landing with ?error=INVALID_TOKEN', () => {
+    renderScreen('/reset-password?error=INVALID_TOKEN')
+
+    expect(
+      screen.getByText(/expired or was already used/i)
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(/missing its token/i)
+    ).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/new password/i)).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /back to sign in/i })
+    ).toBeInTheDocument()
+    expect(mockResetPassword).not.toHaveBeenCalled()
+  })
 })

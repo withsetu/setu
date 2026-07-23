@@ -21,6 +21,16 @@ export function CategoriesTab() {
     }
   }
 
+  // Matches onReparent above: a failed rename used to go straight to the store as
+  // `void renameLabel(...)`, reporting nothing (#837).
+  const onRename = async (slug: string, name: string) => {
+    try {
+      await renameLabel(slug, name)
+    } catch (e) {
+      notify.error(e instanceof Error ? e.message : String(e))
+    }
+  }
+
   return (
     <div>
       <NewCategoryForm />
@@ -36,7 +46,7 @@ export function CategoriesTab() {
         <CategoryTree
           rows={rows}
           counts={counts}
-          onRename={(slug, name) => void renameLabel(slug, name)}
+          onRename={(slug, name) => void onRename(slug, name)}
           onReparent={(slug, parent) => void onReparent(slug, parent)}
           onDelete={setPendingDelete}
         />

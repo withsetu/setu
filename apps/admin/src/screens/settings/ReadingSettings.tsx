@@ -8,6 +8,10 @@ import { useServices, OWNER_AUTHOR } from '../../data/store'
 import { useRefreshSettings } from '../../data/settings-store'
 import { useIndex } from '../../data/index-store'
 import { useNotify } from '../../ui/notify'
+import {
+  SettingsLoadError,
+  SETTINGS_LOAD_FAILED_MESSAGE
+} from './SettingsLoadError'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -50,30 +54,40 @@ export function ReadingSettings() {
   const [published, setPublished] = useState<ReadingValues | null>(null)
   const [saving, setSaving] = useState(false)
   const [pages, setPages] = useState<{ id: string; title: string }[]>([])
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [retryKey, setRetryKey] = useState(0)
 
   useEffect(() => {
     let live = true
     void (async () => {
-      const content = await git.readFile(SETTINGS_PATH)
-      let parsedRaw: Record<string, unknown> = {}
       try {
-        parsedRaw = content
-          ? (JSON.parse(content) as Record<string, unknown>)
-          : {}
-      } catch {
-        parsedRaw = {}
-      }
-      const reading = parseSettings(parsedRaw).reading
-      if (live) {
+        // Only git.readFile can reject; a malformed file is swallowed to {} → defaults.
+        const content = await git.readFile(SETTINGS_PATH)
+        let parsedRaw: Record<string, unknown> = {}
+        try {
+          parsedRaw = content
+            ? (JSON.parse(content) as Record<string, unknown>)
+            : {}
+        } catch {
+          parsedRaw = {}
+        }
+        const reading = parseSettings(parsedRaw).reading
+        if (!live) return
         setRaw(parsedRaw)
         setValues(reading)
         setPublished(reading)
+        setLoadFailed(false)
+      } catch (err) {
+        if (!live) return
+        console.error('[settings] reading reading settings failed', err)
+        setLoadFailed(true)
+        notify.error(SETTINGS_LOAD_FAILED_MESSAGE)
       }
     })()
     return () => {
       live = false
     }
-  }, [git])
+  }, [git, notify, retryKey])
 
   useEffect(() => {
     let live = true
@@ -130,6 +144,17 @@ export function ReadingSettings() {
     values.homepage === '' || pages.some((p) => p.id === values.homepage)
       ? pages
       : [{ id: values.homepage, title: values.homepage }, ...pages]
+
+  if (loadFailed && published === null) {
+    return (
+      <SettingsLoadError
+        onRetry={() => {
+          setLoadFailed(false)
+          setRetryKey((k) => k + 1)
+        }}
+      />
+    )
+  }
 
   return (
     <div className="max-w-xl space-y-5">

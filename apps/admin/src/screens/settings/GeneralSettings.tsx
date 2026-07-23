@@ -4,6 +4,10 @@ import type { GeneralSettings as GeneralValues } from '@setu/core'
 import { useServices, OWNER_AUTHOR } from '../../data/store'
 import { useNotify } from '../../ui/notify'
 import { useRefreshSiteTitle } from '../../data/settings-store'
+import {
+  SettingsLoadError,
+  SETTINGS_LOAD_FAILED_MESSAGE
+} from './SettingsLoadError'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -51,30 +55,41 @@ export function GeneralSettings() {
   const [values, setValues] = useState<GeneralValues>(DEFAULT_SETTINGS.general)
   const [published, setPublished] = useState<GeneralValues | null>(null)
   const [saving, setSaving] = useState(false)
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [retryKey, setRetryKey] = useState(0)
 
   useEffect(() => {
     let live = true
     void (async () => {
-      const content = await git.readFile(SETTINGS_PATH)
-      let parsedRaw: Record<string, unknown> = {}
       try {
-        parsedRaw = content
-          ? (JSON.parse(content) as Record<string, unknown>)
-          : {}
-      } catch {
-        parsedRaw = {}
-      }
-      const general = parseSettings(parsedRaw).general
-      if (live) {
+        // Only git.readFile can reject here; a malformed (unparseable) file is deliberately
+        // swallowed to {} → defaults, so it is NOT a load failure.
+        const content = await git.readFile(SETTINGS_PATH)
+        let parsedRaw: Record<string, unknown> = {}
+        try {
+          parsedRaw = content
+            ? (JSON.parse(content) as Record<string, unknown>)
+            : {}
+        } catch {
+          parsedRaw = {}
+        }
+        const general = parseSettings(parsedRaw).general
+        if (!live) return
         setRaw(parsedRaw)
         setValues(general)
         setPublished(general)
+        setLoadFailed(false)
+      } catch (err) {
+        if (!live) return
+        console.error('[settings] reading general settings failed', err)
+        setLoadFailed(true)
+        notify.error(SETTINGS_LOAD_FAILED_MESSAGE)
       }
     })()
     return () => {
       live = false
     }
-  }, [git])
+  }, [git, notify, retryKey])
 
   const dirty = published !== null && !sameGeneral(values, published)
 
@@ -101,6 +116,17 @@ export function GeneralSettings() {
     } finally {
       setSaving(false)
     }
+  }
+
+  if (loadFailed && published === null) {
+    return (
+      <SettingsLoadError
+        onRetry={() => {
+          setLoadFailed(false)
+          setRetryKey((k) => k + 1)
+        }}
+      />
+    )
   }
 
   return (

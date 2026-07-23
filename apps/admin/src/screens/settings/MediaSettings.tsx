@@ -5,6 +5,10 @@ import { useServices, OWNER_AUTHOR } from '../../data/store'
 import { useNotify } from '../../ui/notify'
 import { useCapabilities } from '../../lib/useCapabilities'
 import { apiFetch } from '../../lib/api-fetch'
+import {
+  SettingsLoadError,
+  SETTINGS_LOAD_FAILED_MESSAGE
+} from './SettingsLoadError'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -56,6 +60,8 @@ export function MediaSettings() {
   const [values, setValues] = useState<MediaValues>(DEFAULT_SETTINGS.media)
   const [published, setPublished] = useState<MediaValues | null>(null)
   const [saving, setSaving] = useState(false)
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [retryKey, setRetryKey] = useState(0)
   const [reprocessing, setReprocessing] = useState(false)
   const [reprocessProgress, setReprocessProgress] = useState<{
     processed: number
@@ -121,26 +127,34 @@ export function MediaSettings() {
   useEffect(() => {
     let live = true
     void (async () => {
-      const content = await git.readFile(SETTINGS_PATH)
-      let parsedRaw: Record<string, unknown> = {}
       try {
-        parsedRaw = content
-          ? (JSON.parse(content) as Record<string, unknown>)
-          : {}
-      } catch {
-        parsedRaw = {}
-      }
-      const media = parseSettings(parsedRaw).media
-      if (live) {
+        // Only git.readFile can reject; a malformed file is swallowed to {} → defaults.
+        const content = await git.readFile(SETTINGS_PATH)
+        let parsedRaw: Record<string, unknown> = {}
+        try {
+          parsedRaw = content
+            ? (JSON.parse(content) as Record<string, unknown>)
+            : {}
+        } catch {
+          parsedRaw = {}
+        }
+        const media = parseSettings(parsedRaw).media
+        if (!live) return
         setRaw(parsedRaw)
         setValues(media)
         setPublished(media)
+        setLoadFailed(false)
+      } catch (err) {
+        if (!live) return
+        console.error('[settings] reading media settings failed', err)
+        setLoadFailed(true)
+        notify.error(SETTINGS_LOAD_FAILED_MESSAGE)
       }
     })()
     return () => {
       live = false
     }
-  }, [git])
+  }, [git, notify, retryKey])
 
   // On mount, read status once to resume a job that may already be running
   useEffect(() => {
@@ -225,6 +239,17 @@ export function MediaSettings() {
           (reprocessProgress.processed / reprocessProgress.total) * 100
         )
       : 0
+
+  if (loadFailed && published === null) {
+    return (
+      <SettingsLoadError
+        onRetry={() => {
+          setLoadFailed(false)
+          setRetryKey((k) => k + 1)
+        }}
+      />
+    )
+  }
 
   return (
     <div className="max-w-xl space-y-5">

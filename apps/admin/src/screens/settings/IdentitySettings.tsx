@@ -5,6 +5,10 @@ import type { IdentitySettings as IdentityValues } from '@setu/core'
 import { useServices, OWNER_AUTHOR } from '../../data/store'
 import { useNotify } from '../../ui/notify'
 import { useRefreshSettings } from '../../data/settings-store'
+import {
+  SettingsLoadError,
+  SETTINGS_LOAD_FAILED_MESSAGE
+} from './SettingsLoadError'
 import { MediaPickerModal } from '../../editor/MediaPickerModal'
 import { resolveMediaSrc } from '../../editor/media-src'
 import { Button } from '@/components/ui/button'
@@ -117,30 +121,40 @@ export function IdentitySettings() {
   )
   const [published, setPublished] = useState<IdentityValues | null>(null)
   const [saving, setSaving] = useState(false)
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [retryKey, setRetryKey] = useState(0)
 
   useEffect(() => {
     let live = true
     void (async () => {
-      const content = await git.readFile(SETTINGS_PATH)
-      let parsedRaw: Record<string, unknown> = {}
       try {
-        parsedRaw = content
-          ? (JSON.parse(content) as Record<string, unknown>)
-          : {}
-      } catch {
-        parsedRaw = {}
-      }
-      const identity = parseSettings(parsedRaw).identity
-      if (live) {
+        // Only git.readFile can reject; a malformed file is swallowed to {} → defaults.
+        const content = await git.readFile(SETTINGS_PATH)
+        let parsedRaw: Record<string, unknown> = {}
+        try {
+          parsedRaw = content
+            ? (JSON.parse(content) as Record<string, unknown>)
+            : {}
+        } catch {
+          parsedRaw = {}
+        }
+        const identity = parseSettings(parsedRaw).identity
+        if (!live) return
         setRaw(parsedRaw)
         setValues(identity)
         setPublished(identity)
+        setLoadFailed(false)
+      } catch (err) {
+        if (!live) return
+        console.error('[settings] reading identity settings failed', err)
+        setLoadFailed(true)
+        notify.error(SETTINGS_LOAD_FAILED_MESSAGE)
       }
     })()
     return () => {
       live = false
     }
-  }, [git])
+  }, [git, notify, retryKey])
 
   const dirty = published !== null && !sameIdentity(values, published)
   const set = (patch: Partial<IdentityValues>) =>
@@ -188,6 +202,17 @@ export function IdentitySettings() {
     } finally {
       setSaving(false)
     }
+  }
+
+  if (loadFailed && published === null) {
+    return (
+      <SettingsLoadError
+        onRetry={() => {
+          setLoadFailed(false)
+          setRetryKey((k) => k + 1)
+        }}
+      />
+    )
   }
 
   return (

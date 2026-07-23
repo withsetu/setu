@@ -7,6 +7,11 @@ import { PageHeader } from '../shell/PageHeader'
 import { PageBody } from '../shell/PageBody'
 import { useServices } from '../data/store'
 import { useCan } from '../auth/actor'
+import { useNotify } from '../ui/notify'
+import {
+  SettingsLoadError,
+  SETTINGS_LOAD_FAILED_MESSAGE
+} from './settings/SettingsLoadError'
 
 const STORAGE_KEY = 'setu-theme-options'
 // The committed file the site reads (content-repo root); see apps/site/src/lib/site-config.ts.
@@ -45,6 +50,7 @@ const isHex = (v: string) =>
 export function Appearance() {
   const { git } = useServices()
   const can = useCan()
+  const notify = useNotify()
   const [values, setValues] = useState<Record<string, string>>(loadValues)
   // The currently-published values (what the live site renders). null until the baseline loads;
   // absent file → the live state is the theme defaults.
@@ -52,28 +58,42 @@ export function Appearance() {
     null
   )
   const [publishing, setPublishing] = useState(false)
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [retryKey, setRetryKey] = useState(0)
 
   useEffect(() => {
     let live = true
     void (async () => {
-      const raw = await git.readFile(THEME_OPTIONS_PATH)
-      let committed = defaults()
-      if (raw) {
-        try {
-          committed = {
-            ...defaults(),
-            ...(JSON.parse(raw) as Record<string, string>)
+      try {
+        // Only git.readFile can reject; a malformed committed file is swallowed → defaults, so it
+        // is NOT a load failure. A failed read must NOT fall through to a "Published" button over
+        // theme options that were never read from the repo (#837).
+        const raw = await git.readFile(THEME_OPTIONS_PATH)
+        let committed = defaults()
+        if (raw) {
+          try {
+            committed = {
+              ...defaults(),
+              ...(JSON.parse(raw) as Record<string, string>)
+            }
+          } catch {
+            // malformed committed file → treat the live state as defaults
           }
-        } catch {
-          // malformed committed file → treat the live state as defaults
         }
+        if (!live) return
+        setPublished(committed)
+        setLoadFailed(false)
+      } catch (err) {
+        if (!live) return
+        console.error('[appearance] reading theme options failed', err)
+        setLoadFailed(true)
+        notify.error(SETTINGS_LOAD_FAILED_MESSAGE)
       }
-      if (live) setPublished(committed)
     })()
     return () => {
       live = false
     }
-  }, [git])
+  }, [git, notify, retryKey])
 
   useEffect(() => {
     try {
@@ -102,6 +122,14 @@ export function Appearance() {
         author: AUTHOR
       })
       setPublished({ ...values })
+    } catch (err) {
+      // Without this a failed publish left the button reading "Publish appearance" with no toast
+      // and no state change — the click did nothing at all (#837). Claims nothing about what
+      // committed, per #798.
+      console.error('[appearance] publishing theme options failed', err)
+      notify.error(
+        "Couldn't publish your appearance changes. Check your connection and try again."
+      )
     } finally {
       setPublishing(false)
     }
@@ -118,7 +146,7 @@ export function Appearance() {
         subtitle="Customize how your site looks. Changes preview live and are remembered."
         actions={
           <>
-            {canPublish && (
+            {canPublish && !loadFailed && (
               <button
                 type="button"
                 className="btn btn-primary btn-md"
@@ -143,48 +171,64 @@ export function Appearance() {
         }
       />
       <PageBody>
-        <div className="customize">
-          <div className="cz-controls" role="group" aria-label="Theme options">
-            {themeOptions.map((opt) => (
-              <Control
-                key={opt.key}
-                opt={opt}
-                value={values[opt.key] ?? opt.default}
-                onChange={(v) => set(opt.key, v)}
-                onReset={() => resetKey(opt.key, opt.default)}
-              />
-            ))}
-          </div>
-          <div className="cz-preview">
+        {loadFailed && published === null ? (
+          <SettingsLoadError
+            onRetry={() => {
+              setLoadFailed(false)
+              setRetryKey((k) => k + 1)
+            }}
+          />
+        ) : (
+          <div className="customize">
             <div
-              className="cz-preview-card"
-              style={previewStyle}
-              data-testid="cz-preview"
+              className="cz-controls"
+              role="group"
+              aria-label="Theme options"
             >
-              {/* .cz-page's max-width tracks --measure-page (content width) so the column
+              {themeOptions.map((opt) => (
+                <Control
+                  key={opt.key}
+                  opt={opt}
+                  value={values[opt.key] ?? opt.default}
+                  onChange={(v) => set(opt.key, v)}
+                  onReset={() => resetKey(opt.key, opt.default)}
+                />
+              ))}
+            </div>
+            <div className="cz-preview">
+              <div
+                className="cz-preview-card"
+                style={previewStyle}
+                data-testid="cz-preview"
+              >
+                {/* .cz-page's max-width tracks --measure-page (content width) so the column
                   visibly narrows/widens — the gutters around it are the page margins. */}
-              <div className="cz-page">
-                <h2 className="cz-h">The quick brown fox</h2>
-                <p className="cz-p">
-                  Jumps over the lazy dog. This is how your body copy reads —
-                  the font, size and rhythm of everyday paragraphs on your site.
-                </p>
-                <button type="button" className="cz-btn" tabIndex={-1}>
-                  Primary button
-                </button>
-                <Callout
-                  tone="accent"
-                  icon="info"
-                  title={<span className="callout-title-static">Pro tip</span>}
-                >
-                  <div className="callout-body">
-                    <p>Callouts pick up your accent and corner style too.</p>
-                  </div>
-                </Callout>
+                <div className="cz-page">
+                  <h2 className="cz-h">The quick brown fox</h2>
+                  <p className="cz-p">
+                    Jumps over the lazy dog. This is how your body copy reads —
+                    the font, size and rhythm of everyday paragraphs on your
+                    site.
+                  </p>
+                  <button type="button" className="cz-btn" tabIndex={-1}>
+                    Primary button
+                  </button>
+                  <Callout
+                    tone="accent"
+                    icon="info"
+                    title={
+                      <span className="callout-title-static">Pro tip</span>
+                    }
+                  >
+                    <div className="callout-body">
+                      <p>Callouts pick up your accent and corner style too.</p>
+                    </div>
+                  </Callout>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
       </PageBody>
     </>
   )

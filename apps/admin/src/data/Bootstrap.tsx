@@ -68,142 +68,160 @@ export function Bootstrap({ children }: { children: ReactNode }) {
     message: string
     description: string
   } | null>(null)
+  // Bootstrap is mounted OUTSIDE NotificationProvider/UnhandledRejectionReporter/<Toaster/> (they
+  // are its children, gated behind services !== null in main.tsx), so a bootstrap-stage rejection
+  // is the one failure the global safety net cannot see (#835). Rather than the risky hoist of
+  // NotificationProvider above Bootstrap — which would also break the carefully-sequenced
+  // `degraded` toast that depends on <Toaster/> mounting with `services` — Bootstrap renders its
+  // OWN error + retry instead. The degraded branches below already fall back to in-memory; this
+  // catches the residual case where even that second bootstrapServices call rejects
+  // (it re-reads git.headSha()) and nothing would otherwise set `services`.
+  const [bootFailed, setBootFailed] = useState(false)
+  const [retryKey, setRetryKey] = useState(0)
 
   useEffect(() => {
     let live = true
     void (async () => {
-      const apiBase = import.meta.env.VITE_SETU_API
-      let ready: Services
-      let degradeNotice: { message: string; description: string } | null = null
-      if (apiBase) {
-        // Server-backed GitPort (Cut A): Publish commits to the real repo via the API.
-        // Drafts stay in-browser (IndexedDB) this cut — but IDB is not guaranteed to be
-        // available (wedged, over-quota, private-mode) and its open() has no native timeout, so
-        // this whole branch degrades to in-memory equivalents on failure/timeout rather than
-        // hanging the app forever on "Loading…" (#248 — the bug that motivated this).
-        // apiFetch threaded in as the adapter's injectable fetch: admin (localhost:5173) and api
-        // (localhost:4444) are cross-origin, so every request must carry `credentials: 'include'`
-        // or the Better Auth session cookie is silently dropped (#248 Task 6 — see lib/api-fetch.ts).
-        const git = createHttpGitPort({ baseUrl: apiBase, fetch: apiFetch })
-        const submissions = createHttpSubmissionAdapter({
-          baseUrl: apiBase,
-          fetchImpl: apiFetch
-        })
-        try {
-          const data = await withTimeout(
-            createIdbDataPort(),
-            IDB_OPEN_TIMEOUT_MS,
-            'IndexedDB (drafts) open'
-          )
-          // Persistent, cross-tab content index (shared via IndexedDB).
-          const index = await withTimeout(
-            createIdbIndexPort(),
-            IDB_OPEN_TIMEOUT_MS,
-            'IndexedDB (content index) open'
-          )
-          const mediaIndexPort = await withTimeout(
-            createIdbMediaIndexPort(),
-            IDB_OPEN_TIMEOUT_MS,
-            'IndexedDB (media index) open'
-          )
-          // Server-backed media index (#464 Increment B): reads go through
-          // /api/index/media/query; the IDB port becomes the offline cache.
-          const mediaIndex = createHttpMediaIndexService({
-            apiBase,
-            fetchImpl: apiFetch,
-            mediaIndex: mediaIndexPort
+      try {
+        const apiBase = import.meta.env.VITE_SETU_API
+        let ready: Services
+        let degradeNotice: { message: string; description: string } | null =
+          null
+        if (apiBase) {
+          // Server-backed GitPort (Cut A): Publish commits to the real repo via the API.
+          // Drafts stay in-browser (IndexedDB) this cut — but IDB is not guaranteed to be
+          // available (wedged, over-quota, private-mode) and its open() has no native timeout, so
+          // this whole branch degrades to in-memory equivalents on failure/timeout rather than
+          // hanging the app forever on "Loading…" (#248 — the bug that motivated this).
+          // apiFetch threaded in as the adapter's injectable fetch: admin (localhost:5173) and api
+          // (localhost:4444) are cross-origin, so every request must carry `credentials: 'include'`
+          // or the Better Auth session cookie is silently dropped (#248 Task 6 — see lib/api-fetch.ts).
+          const git = createHttpGitPort({ baseUrl: apiBase, fetch: apiFetch })
+          const submissions = createHttpSubmissionAdapter({
+            baseUrl: apiBase,
+            fetchImpl: apiFetch
           })
-          ready = await bootstrapServices(
-            data,
-            git,
-            index,
-            mediaIndex,
-            submissions,
-            apiBase
-          )
-        } catch (err) {
-          console.error(
-            'IndexedDB unavailable or timed out — local drafts/index will not persist this session.',
-            err
-          )
-          degradeNotice = {
-            message:
-              'Local storage is unavailable — drafts won’t be saved between reloads this session.',
-            description:
-              'Publishing still works normally. Try a different browser or disabling private/incognito mode to restore local persistence.'
+          try {
+            const data = await withTimeout(
+              createIdbDataPort(),
+              IDB_OPEN_TIMEOUT_MS,
+              'IndexedDB (drafts) open'
+            )
+            // Persistent, cross-tab content index (shared via IndexedDB).
+            const index = await withTimeout(
+              createIdbIndexPort(),
+              IDB_OPEN_TIMEOUT_MS,
+              'IndexedDB (content index) open'
+            )
+            const mediaIndexPort = await withTimeout(
+              createIdbMediaIndexPort(),
+              IDB_OPEN_TIMEOUT_MS,
+              'IndexedDB (media index) open'
+            )
+            // Server-backed media index (#464 Increment B): reads go through
+            // /api/index/media/query; the IDB port becomes the offline cache.
+            const mediaIndex = createHttpMediaIndexService({
+              apiBase,
+              fetchImpl: apiFetch,
+              mediaIndex: mediaIndexPort
+            })
+            ready = await bootstrapServices(
+              data,
+              git,
+              index,
+              mediaIndex,
+              submissions,
+              apiBase
+            )
+          } catch (err) {
+            console.error(
+              'IndexedDB unavailable or timed out — local drafts/index will not persist this session.',
+              err
+            )
+            degradeNotice = {
+              message:
+                'Local storage is unavailable — drafts won’t be saved between reloads this session.',
+              description:
+                'Publishing still works normally. Try a different browser or disabling private/incognito mode to restore local persistence.'
+            }
+            // Same degrade-to-memory shape as the no-API branch below: the GitPort/submissions stay
+            // server-backed (they were never IDB — nothing to fall back for), only the IDB-backed
+            // pieces (drafts, content index, media index) swap to in-memory/no-op equivalents.
+            // Index/media reads stay server-backed too — only their offline CACHE degrades to memory.
+            const mediaIndex = createHttpMediaIndexService({
+              apiBase,
+              fetchImpl: apiFetch,
+              mediaIndex: createMemoryMediaIndexPort()
+            })
+            ready = await bootstrapServices(
+              createMemoryDataPort(),
+              git,
+              createMemoryIndexPort(),
+              mediaIndex,
+              submissions,
+              apiBase
+            )
           }
-          // Same degrade-to-memory shape as the no-API branch below: the GitPort/submissions stay
-          // server-backed (they were never IDB — nothing to fall back for), only the IDB-backed
-          // pieces (drafts, content index, media index) swap to in-memory/no-op equivalents.
-          // Index/media reads stay server-backed too — only their offline CACHE degrades to memory.
-          const mediaIndex = createHttpMediaIndexService({
-            apiBase,
-            fetchImpl: apiFetch,
-            mediaIndex: createMemoryMediaIndexPort()
-          })
-          ready = await bootstrapServices(
-            createMemoryDataPort(),
-            git,
-            createMemoryIndexPort(),
-            mediaIndex,
-            submissions,
-            apiBase
-          )
-        }
-      } else {
-        try {
-          const data = await withTimeout(
-            createIdbDataPort(),
-            IDB_OPEN_TIMEOUT_MS,
-            'IndexedDB (drafts) open'
-          )
-          const git = await withTimeout(
-            createIdbGitPort(),
-            IDB_OPEN_TIMEOUT_MS,
-            'IndexedDB (git) open'
-          )
-          // Persistent, cross-tab content index (shared via IndexedDB).
-          const index = await withTimeout(
-            createIdbIndexPort(),
-            IDB_OPEN_TIMEOUT_MS,
-            'IndexedDB (content index) open'
-          )
-          const mediaIndexPort = await withTimeout(
-            createIdbMediaIndexPort(),
-            IDB_OPEN_TIMEOUT_MS,
-            'IndexedDB (media index) open'
-          )
-          const mediaIndex = createMediaIndexService({
-            mediaIndex: mediaIndexPort,
-            fetchRaw: async () => []
-          })
-          ready = await bootstrapServices(data, git, index, mediaIndex)
-        } catch (err) {
-          console.error(
-            'IndexedDB unavailable — using in-memory storage for this session.',
-            err
-          )
-          degradeNotice = {
-            message:
-              'Local storage is unavailable — nothing will be saved this session.',
-            description:
-              'Try a different browser or disabling private/incognito mode to restore local persistence.'
+        } else {
+          try {
+            const data = await withTimeout(
+              createIdbDataPort(),
+              IDB_OPEN_TIMEOUT_MS,
+              'IndexedDB (drafts) open'
+            )
+            const git = await withTimeout(
+              createIdbGitPort(),
+              IDB_OPEN_TIMEOUT_MS,
+              'IndexedDB (git) open'
+            )
+            // Persistent, cross-tab content index (shared via IndexedDB).
+            const index = await withTimeout(
+              createIdbIndexPort(),
+              IDB_OPEN_TIMEOUT_MS,
+              'IndexedDB (content index) open'
+            )
+            const mediaIndexPort = await withTimeout(
+              createIdbMediaIndexPort(),
+              IDB_OPEN_TIMEOUT_MS,
+              'IndexedDB (media index) open'
+            )
+            const mediaIndex = createMediaIndexService({
+              mediaIndex: mediaIndexPort,
+              fetchRaw: async () => []
+            })
+            ready = await bootstrapServices(data, git, index, mediaIndex)
+          } catch (err) {
+            console.error(
+              'IndexedDB unavailable — using in-memory storage for this session.',
+              err
+            )
+            degradeNotice = {
+              message:
+                'Local storage is unavailable — nothing will be saved this session.',
+              description:
+                'Try a different browser or disabling private/incognito mode to restore local persistence.'
+            }
+            ready = await bootstrapServices(
+              createMemoryDataPort(),
+              createMemoryGitPort()
+            )
           }
-          ready = await bootstrapServices(
-            createMemoryDataPort(),
-            createMemoryGitPort()
-          )
         }
-      }
-      if (live) {
-        setServices(ready)
-        if (degradeNotice) setDegraded(degradeNotice)
+        if (live) {
+          setServices(ready)
+          if (degradeNotice) setDegraded(degradeNotice)
+        }
+      } catch (err) {
+        // Even the in-memory fallback failed (or something else escaped) — surface it instead of
+        // sitting on "Loading…" forever, which nothing above Bootstrap can report (#835).
+        console.error('Setu failed to start.', err)
+        if (live) setBootFailed(true)
       }
     })()
     return () => {
       live = false
     }
-  }, [])
+  }, [retryKey])
 
   // Fires only once `services` has committed (i.e. `<Toaster/>` — a sibling inside the now-mounted
   // `children` — is guaranteed to exist to receive it). See the `degraded` state comment above.
@@ -217,6 +235,27 @@ export function Bootstrap({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [services])
 
+  if (services === null && bootFailed) {
+    return (
+      <div className="boot-loading" role="alert">
+        <div
+          style={{ display: 'grid', gap: '0.75rem', justifyItems: 'center' }}
+        >
+          <p>Setu couldn’t start. Check your connection and try again.</p>
+          <button
+            type="button"
+            className="btn btn-primary btn-md"
+            onClick={() => {
+              setBootFailed(false)
+              setRetryKey((k) => k + 1)
+            }}
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    )
+  }
   if (services === null) {
     return (
       <div className="boot-loading" role="status" aria-live="polite">

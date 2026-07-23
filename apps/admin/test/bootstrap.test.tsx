@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { createMemoryDataPort } from '@setu/db-memory'
 import { createMemoryGitPort } from '@setu/git-memory'
 import { bootstrapServices, seedDrafts } from '../src/data/store'
@@ -154,4 +154,52 @@ describe('Bootstrap — IndexedDB resilience (server-backed / apiBase branch)', 
     )
     expect(screen.getByText('App rendered')).toBeInTheDocument()
   })
+
+  // #835: the degraded branch falls back to in-memory adapters, but that second bootstrapServices
+  // call re-reads git.headSha(); if THAT rejects too, nothing set `services` and the whole SPA sat
+  // on "Loading…" forever — the one failure the reporter (a child of Bootstrap) cannot see. Now
+  // Bootstrap renders its own error + retry.
+  it('renders its own error + retry instead of hanging on "Loading…" when bootstrap fails outright', async () => {
+    vi.stubEnv('VITE_SETU_API', 'http://localhost:4444')
+    const { createIdbDataPort } = await import('@setu/db-idb')
+    vi.mocked(createIdbDataPort).mockRejectedValue(new Error('IDB unavailable'))
+    // Make the fallback path's bootstrapServices throw: its seedIfEmpty awaits git.headSha().
+    const { createHttpGitPort } = await import('@setu/git-http')
+    vi.mocked(createHttpGitPort).mockReturnValue({
+      headSha: vi.fn().mockRejectedValue(new Error('api unreachable')),
+      readFile: vi.fn().mockResolvedValue(null),
+      commitFile: vi.fn(),
+      commitFiles: vi.fn(),
+      list: vi.fn().mockResolvedValue([]),
+      diffPaths: vi.fn().mockResolvedValue([])
+    })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const { Bootstrap } = await import('../src/data/Bootstrap')
+    render(
+      <Bootstrap>
+        <div>App rendered</div>
+      </Bootstrap>
+    )
+
+    const retry = await screen.findByRole('button', { name: /try again/i })
+    expect(retry).toBeInTheDocument()
+    // The app never rendered — this is a hard failure, not a degraded success.
+    expect(screen.queryByText('App rendered')).not.toBeInTheDocument()
+
+    // Retry with a healthy headSha recovers into the app.
+    vi.mocked(createHttpGitPort).mockReturnValue({
+      headSha: vi.fn().mockResolvedValue(null),
+      readFile: vi.fn().mockResolvedValue(null),
+      commitFile: vi.fn(),
+      commitFiles: vi.fn(),
+      list: vi.fn().mockResolvedValue([]),
+      diffPaths: vi.fn().mockResolvedValue([])
+    })
+    fireEvent.click(retry)
+    await waitFor(
+      () => expect(screen.getByText('App rendered')).toBeInTheDocument(),
+      { timeout: 8000 }
+    )
+  }, 10000)
 })

@@ -81,6 +81,13 @@ export function ProfileDialog({
       }
       notify.success('Name updated')
       onOpenChange(false)
+    } catch (err) {
+      // Network-level failure REJECTS rather than returning `{ error }` — silent before (#836).
+      // Reports through the same channel (useNotify) the `{ error }` branch uses.
+      console.error('[profile] updating the display name failed', err)
+      notify.error(
+        'Could not update your name. Check your connection and try again.'
+      )
     } finally {
       setSubmitting(false)
     }

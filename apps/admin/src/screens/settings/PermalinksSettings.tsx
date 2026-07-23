@@ -11,6 +11,10 @@ import type { PermalinksSettings as PermalinksValues } from '@setu/core'
 import { useServices, OWNER_AUTHOR } from '../../data/store'
 import { useNotify } from '../../ui/notify'
 import { useRefreshSettings } from '../../data/settings-store'
+import {
+  SettingsLoadError,
+  SETTINGS_LOAD_FAILED_MESSAGE
+} from './SettingsLoadError'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -176,30 +180,40 @@ export function PermalinksSettings() {
   )
   const [published, setPublished] = useState<PermalinksValues | null>(null)
   const [saving, setSaving] = useState(false)
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [retryKey, setRetryKey] = useState(0)
 
   useEffect(() => {
     let live = true
     void (async () => {
-      const content = await git.readFile(SETTINGS_PATH)
-      let parsedRaw: Record<string, unknown> = {}
       try {
-        parsedRaw = content
-          ? (JSON.parse(content) as Record<string, unknown>)
-          : {}
-      } catch {
-        parsedRaw = {}
-      }
-      const permalinks = parseSettings(parsedRaw).permalinks
-      if (live) {
+        // Only git.readFile can reject; a malformed file is swallowed to {} → defaults.
+        const content = await git.readFile(SETTINGS_PATH)
+        let parsedRaw: Record<string, unknown> = {}
+        try {
+          parsedRaw = content
+            ? (JSON.parse(content) as Record<string, unknown>)
+            : {}
+        } catch {
+          parsedRaw = {}
+        }
+        const permalinks = parseSettings(parsedRaw).permalinks
+        if (!live) return
         setRaw(parsedRaw)
         setValues(permalinks)
         setPublished(permalinks)
+        setLoadFailed(false)
+      } catch (err) {
+        if (!live) return
+        console.error('[settings] reading permalink settings failed', err)
+        setLoadFailed(true)
+        notify.error(SETTINGS_LOAD_FAILED_MESSAGE)
       }
     })()
     return () => {
       live = false
     }
-  }, [git])
+  }, [git, notify, retryKey])
 
   const setPattern = (collection: string, pattern: string | undefined) =>
     setValues((v) => {
@@ -265,6 +279,17 @@ export function PermalinksSettings() {
     } finally {
       setSaving(false)
     }
+  }
+
+  if (loadFailed && published === null) {
+    return (
+      <SettingsLoadError
+        onRetry={() => {
+          setLoadFailed(false)
+          setRetryKey((k) => k + 1)
+        }}
+      />
+    )
   }
 
   return (

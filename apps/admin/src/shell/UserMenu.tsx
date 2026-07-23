@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { authClient } from '../auth/auth-client'
 import { useHasPassword } from '../auth/use-has-password'
+import { useNotify } from '../ui/notify'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   AlertDialog,
@@ -45,6 +46,7 @@ import { ProfileDialog } from './ProfileDialog'
 export function UserMenu() {
   const { data } = authClient.useSession()
   const navigate = useNavigate()
+  const notify = useNotify()
   const [profileOpen, setProfileOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [guardOpen, setGuardOpen] = useState(false)
@@ -57,6 +59,16 @@ export function UserMenu() {
 
   const label = user.name || user.email || 'Signed in'
   const initial = (user.name || user.email || '?').charAt(0).toUpperCase()
+
+  // `authClient.signOut()` was fired as bare `void ...` at both call sites; a network failure
+  // rejects and left the user still signed in with no feedback (#836). Promise.resolve wraps the
+  // call so the .catch is attached safely regardless of the client's exact return.
+  const signOut = () => {
+    void Promise.resolve(authClient.signOut()).catch((err: unknown) => {
+      console.error('[auth] sign out failed', err)
+      notify.error("Couldn't sign out. Check your connection and try again.")
+    })
+  }
 
   async function onSignOutSelect() {
     if (checking) return
@@ -76,7 +88,7 @@ export function UserMenu() {
       return
     }
     // Has a password — or still unknown after the retry (never trap a user who wants to leave).
-    void authClient.signOut()
+    signOut()
   }
 
   return (
@@ -141,10 +153,7 @@ export function UserMenu() {
             >
               Set password
             </AlertDialogAction>
-            <AlertDialogAction
-              variant="ghost"
-              onClick={() => void authClient.signOut()}
-            >
+            <AlertDialogAction variant="ghost" onClick={signOut}>
               Sign out anyway
             </AlertDialogAction>
           </AlertDialogFooter>

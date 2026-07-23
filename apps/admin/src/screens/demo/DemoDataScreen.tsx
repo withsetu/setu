@@ -302,6 +302,15 @@ function DemoDataPanel({ apiBase }: { apiBase: string }) {
   const [imageSizeMix, setImageSizeMix] = useState<ImageSizeMix>('mixed')
   const [errors, setErrors] = useState<Record<string, string>>({})
 
+  // A failed cancel used to report nothing (`void cancel()` at both call sites) (#837).
+  const onCancel = async () => {
+    try {
+      await cancel()
+    } catch (e) {
+      notify.error(e instanceof Error ? e.message : String(e))
+    }
+  }
+
   // -- job transition side effects (notify once per terminal transition) -----
   const job = status?.job ?? null
   const lastSeen = useRef<string>('')
@@ -681,7 +690,7 @@ function DemoDataPanel({ apiBase }: { apiBase: string }) {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => void cancel()}
+                  onClick={() => void onCancel()}
                 >
                   Cancel
                 </Button>
@@ -781,7 +790,7 @@ function DemoDataPanel({ apiBase }: { apiBase: string }) {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => void cancel()}
+                onClick={() => void onCancel()}
               >
                 Cancel
               </Button>

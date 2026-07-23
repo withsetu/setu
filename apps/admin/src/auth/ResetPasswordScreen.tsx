@@ -107,6 +107,12 @@ export function ResetPasswordScreen() {
       // Drops the token off the URL; "/" resolves through SessionGate — the LoginScreen for a
       // signed-out visitor, the dashboard for a still-signed-in one.
       void navigate('/')
+    } catch {
+      // Network-level failure REJECTS rather than returning `{ error }` — silent before (#836).
+      // Same generic fallback mapResetError gives an unknown error.
+      setFormError(
+        'Something went wrong resetting your password — please try again.'
+      )
     } finally {
       setSubmitting(false)
     }

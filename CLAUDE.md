@@ -275,6 +275,18 @@ The full standard with the worked "good vs. skeleton" case study: [docs/quality-
    Vet each finding against the code before filing (auditors over-report), fix the top 1–3 in the
    same session, and record rejections on the epic so later passes don't re-litigate settled
    design. Cadence and backfill ledger: #618.
+9. **⊕ `/improve deep` fires on staleness, not on activity.** The per-epic pass (#8) covers the
+   surface an epic *touched*; the deep tier exists for the opposite — long-lived code no recent
+   epic has gone near, which is exactly where quiet rot accumulates. So do NOT hang it off
+   epic-close (redundant with #8) or off a raw merge counter (merges cluster in the hot area, which
+   is the one that least needs it). Instead: the epic (#618) holds a **deep-sweep ledger** — every
+   subsystem with the date it was last deep-swept. At each **checkpoint — whichever comes first,
+   4 weeks or 15 merges to `main`** (both tunable; the calendar bound stops a quiet month rotting,
+   the merge bound catches a busy burst) — run `/improve deep <subsystem>` on the **single
+   least-recently-swept** subsystem, then stamp its date. One subsystem per checkpoint, round-robin
+   by staleness, so every subsystem is reached on a bounded cadence regardless of how quiet it has
+   been. Same anti-theater discipline as #8 (vet before filing, cap and rank, fix top 1–3, record
+   rejections). Whoever notices a checkpoint is due opens the sweep; if none is due, do nothing.
 
 ## 4 · Failure modes a weaker model WILL hit here
 

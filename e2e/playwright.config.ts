@@ -177,7 +177,14 @@ export default defineConfig({
       cwd: repoRoot,
       env: {
         VITE_SETU_API: apiUrl,
-        VITE_SETU_SITE: 'http://localhost:4321'
+        VITE_SETU_SITE: 'http://localhost:4321',
+        // Suppress the dev-only branch badge (apps/admin/src/shell/DevBadge.tsx). vite runs
+        // in serve mode here, so it would otherwise inject the current git branch into the
+        // admin shell — making the visual baselines depend on which ref CI checked out (a PR
+        // merge ref has an empty branch, `main` does not), which is exactly why those
+        // baselines flipped red on push-to-main while passing on PRs (#830). Off here makes
+        // the harness's rendered shell a property of the harness, not of the checkout.
+        SETU_ADMIN_DEV_BADGE: 'off'
       },
       reuseExistingServer: !process.env.CI,
       timeout: 30_000

@@ -53,8 +53,7 @@ describe('media-client', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(
-        async () =>
-          new Response('{"error":"media is in use"}', { status: 409 })
+        async () => new Response('{"error":"media is in use"}', { status: 409 })
       )
     )
     const err = await deleteMedia('http://x', 'k').catch((e: unknown) => e)

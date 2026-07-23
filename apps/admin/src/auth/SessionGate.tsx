@@ -98,8 +98,7 @@ export function SessionGate({ children }: { children: ReactNode }) {
   }
 
   const user = session.data?.user as
-    | { id: string; role?: string | null }
-    | undefined
+    { id: string; role?: string | null } | undefined
 
   // #364: the emailed password-reset link's callback lands here (packages/auth/src/
   // reset-password-email.ts's default `redirectTo`, and UsersScreen.tsx's row-action trigger,

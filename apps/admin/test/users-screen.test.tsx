@@ -205,7 +205,7 @@ beforeEach(() => {
     isRefetching: false,
     error: null,
     refetch: vi.fn()
-  } as never)
+  })
 })
 
 afterEach(() => {
@@ -692,7 +692,7 @@ describe('UsersScreen', () => {
         isRefetching: false,
         error: null,
         refetch: vi.fn()
-      } as never)
+      })
       mockRequestPasswordReset.mockResolvedValue({
         data: { status: true, message: 'ok' },
         error: null
@@ -732,11 +732,8 @@ describe('UsersScreen', () => {
         isRefetching: false,
         error: null,
         refetch: vi.fn()
-      } as never)
-      stubCredentialStatus(
-        {},
-        { transport: 'console', deliverable: false }
-      )
+      })
+      stubCredentialStatus({}, { transport: 'console', deliverable: false })
 
       renderAsActor('maintainer', 'maint-2')
 
@@ -765,7 +762,7 @@ describe('UsersScreen', () => {
         isRefetching: false,
         error: null,
         refetch: vi.fn()
-      } as never)
+      })
       mockRequestPasswordReset.mockResolvedValue({
         data: null,
         error: { status: 500, message: 'smtp exploded' }

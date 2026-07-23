@@ -113,9 +113,7 @@ function ForgotPasswordCard({
     if (submitting || sent) return
     const parsed = forgotSchema.safeParse({ email })
     if (!parsed.success) {
-      setFieldError(
-        parsed.error.issues[0]?.message ?? 'Enter a valid email'
-      )
+      setFieldError(parsed.error.issues[0]?.message ?? 'Enter a valid email')
       return
     }
     setFieldError(null)
@@ -169,7 +167,6 @@ function ForgotPasswordCard({
                 name="email"
                 type="email"
                 autoComplete="email"
-                autoFocus
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}

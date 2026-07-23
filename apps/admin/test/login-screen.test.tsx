@@ -325,13 +325,9 @@ describe('LoginScreen — forgot password (#500)', () => {
     fireEvent.change(await screen.findByLabelText(/email/i), {
       target: { value: 'typed@setu.dev' }
     })
-    fireEvent.click(
-      screen.getByRole('button', { name: /forgot password\?/i })
-    )
+    fireEvent.click(screen.getByRole('button', { name: /forgot password\?/i }))
 
-    expect(await screen.findByLabelText(/email/i)).toHaveValue(
-      'typed@setu.dev'
-    )
+    expect(await screen.findByLabelText(/email/i)).toHaveValue('typed@setu.dev')
   })
 
   it('rejects an invalid email with a field error and never calls the API', async () => {
@@ -405,7 +401,9 @@ describe('LoginScreen — forgot password (#500)', () => {
     await openForgot()
 
     expect(
-      await screen.findByText(/password reset isn[’']t configured for this site/i)
+      await screen.findByText(
+        /password reset isn[’']t configured for this site/i
+      )
     ).toBeInTheDocument()
     // No email-entry form on this path.
     expect(screen.queryByLabelText(/email/i)).not.toBeInTheDocument()
@@ -420,7 +418,9 @@ describe('LoginScreen — forgot password (#500)', () => {
     await openForgot()
 
     expect(
-      await screen.findByText(/password reset isn[’']t configured for this site/i)
+      await screen.findByText(
+        /password reset isn[’']t configured for this site/i
+      )
     ).toBeInTheDocument()
   })
 

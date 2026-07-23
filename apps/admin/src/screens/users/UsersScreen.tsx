@@ -907,7 +907,9 @@ function OwnerPasswordCard({ onChanged }: { onChanged: () => void }) {
     if (sendingReset) return
     const selfEmail = session.data?.user.email
     if (!selfEmail) {
-      notify.error('Could not determine your account email — reload and try again.')
+      notify.error(
+        'Could not determine your account email — reload and try again.'
+      )
       return
     }
     setSendingReset(true)

@@ -98,12 +98,8 @@ describe('ResetPasswordScreen', () => {
   it('shows the expired-or-used message (not the missing-token copy) when landing with ?error=INVALID_TOKEN', () => {
     renderScreen('/reset-password?error=INVALID_TOKEN')
 
-    expect(
-      screen.getByText(/expired or was already used/i)
-    ).toBeInTheDocument()
-    expect(
-      screen.queryByText(/missing its token/i)
-    ).not.toBeInTheDocument()
+    expect(screen.getByText(/expired or was already used/i)).toBeInTheDocument()
+    expect(screen.queryByText(/missing its token/i)).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/new password/i)).not.toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /back to sign in/i })

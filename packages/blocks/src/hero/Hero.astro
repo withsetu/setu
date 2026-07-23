@@ -2,25 +2,48 @@
 import './hero.css'
 import Image from '@setu/image-astro/Image.astro'
 import { heroClasses, sizesForLayout } from './hero-classes'
-const { headline, subhead, image, ctaLabel, ctaHref, layout = 'centered', textPosition = 'center', textAlign, overlayColor, textColor, parallax, width } = Astro.props
+import { safeLinkHref, isSafeColor } from '../sanitize'
+const { headline, subhead, image, imageAlt, ctaLabel, ctaHref, layout = 'centered', textPosition = 'center', textAlign, overlayColor, textColor, parallax, width } = Astro.props
 const cls = heroClasses(layout, textPosition, width, textAlign)
 const sizes = sizesForLayout(layout)
+// #857: overlayColor/textColor are author-controlled and interpolated into an inline
+// style — an invalid value like `red;background:url(x)` would inject a declaration, so
+// each goes through isSafeColor and the custom property is DROPPED when invalid (the
+// scrim falls back to its literal safe default). Tested in
+// packages/blocks/test/sanitize.test.ts.
+const scrim = isSafeColor(overlayColor) ? overlayColor : 'rgba(15,17,26,0.55)'
+const safeTextColor = isSafeColor(textColor) ? textColor : null
 const style = [
-  layout === 'background' ? `--blk-hero-scrim: ${overlayColor ?? 'rgba(15,17,26,0.55)'}` : null,
-  textColor ? `--blk-hero-text-color: ${textColor}` : null,
+  layout === 'background' ? `--blk-hero-scrim: ${scrim}` : null,
+  safeTextColor ? `--blk-hero-text-color: ${safeTextColor}` : null,
 ].filter(Boolean).join('; ') || undefined
+// #857: the CTA href goes through the scheme allowlist — a `javascript:`/`data:` value
+// renders the label as non-link text (a <span>), never a live link.
+const safeCtaHref = safeLinkHref(ctaHref)
+// #862: the image is content (not decoration) in split layouts, so it must carry a real
+// alt there; only the background layout, where the image is purely decorative behind the
+// text, gets the empty alt. Fall back to the headline when no explicit imageAlt is set.
+const altText = layout === 'background' ? '' : (imageAlt ?? headline ?? '')
 const parallaxOn = Boolean(parallax) && layout === 'background'
+// #862: headline is required by the contract but Markdoc validation is non-blocking, so a
+// blank headline can reach here — skip the <h2> entirely rather than emit an empty heading
+// (axe empty-heading). Verified in apps/site/test/hero-block.test.ts.
+const hasHeadline = typeof headline === 'string' && headline.trim() !== ''
 ---
 <section class={cls} style={style} data-parallax={parallaxOn ? '' : undefined}>
   {image && (
     <div class="blk-hero-media">
-      <Image src={image} alt="" sizes={sizes} />
+      <Image src={image} alt={altText} sizes={sizes} />
     </div>
   )}
   <div class="blk-hero-text">
-    <h2 class="blk-hero-headline">{headline}</h2>
+    {hasHeadline && <h2 class="blk-hero-headline">{headline}</h2>}
     {subhead && <p class="blk-hero-subhead">{subhead}</p>}
-    {ctaLabel && <a class="blk-hero-cta" href={ctaHref || '#'}>{ctaLabel}</a>}
+    {ctaLabel && (
+      safeCtaHref
+        ? <a class="blk-hero-cta" href={safeCtaHref}>{ctaLabel}</a>
+        : <span class="blk-hero-cta">{ctaLabel}</span>
+    )}
   </div>
 </section>
 {parallaxOn && (

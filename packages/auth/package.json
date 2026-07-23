@@ -14,10 +14,10 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@better-auth/core": "1.6.23",
+    "@better-auth/core": "1.6.24",
     "@setu/core": "workspace:*",
     "@setu/db-sqlite": "workspace:*",
-    "better-auth": "1.6.23",
+    "better-auth": "1.6.24",
     "drizzle-orm": "^0.45.2",
     "zod": "^4.4.3"
   },

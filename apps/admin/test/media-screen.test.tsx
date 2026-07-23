@@ -49,8 +49,9 @@ vi.mock('../src/media/upload-client', async (orig) => ({
   }))
 }))
 
-// import the mock so we can assert on it
-import { deleteMedia } from '../src/media/media-client'
+// import the mock so we can assert on it (MediaTransportError comes from the real
+// module — `orig()` is spread above, so only `deleteMedia` is replaced)
+import { deleteMedia, MediaTransportError } from '../src/media/media-client'
 
 afterEach(() => vi.clearAllMocks())
 
@@ -268,13 +269,8 @@ describe('Media screen', () => {
     ).toBeInTheDocument()
   })
 
-  it('surfaces delete errors as an error toast notification', async () => {
-    vi.mocked(deleteMedia as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-      new Error('server error')
-    )
-    const { services, mediaIndex } = await buildProviders()
-    render(<Media />, { wrapper: wrapper(services, mediaIndex) })
-
+  /** Open the detail panel for cat.png and confirm the delete. */
+  async function deleteTheCat() {
     await waitFor(() =>
       expect(
         screen.getByRole('button', { name: /cat\.png/i })
@@ -287,10 +283,38 @@ describe('Media screen', () => {
       expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
     )
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+  }
 
-    await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent('server error')
-    })
+  // -------------------------------------------------------------------------------
+  // #870 — the delete catch echoed `err.message` for every failure, so a transport
+  // failure showed fetch's raw "Failed to fetch". Blindly curating it would have
+  // swallowed the server's own reason (a 409 "media is in use"), which is the #852
+  // inversion — so the two directions BOTH matter, and both are asserted here.
+  // -------------------------------------------------------------------------------
+  it('curates a transport failure instead of echoing "Failed to fetch"', async () => {
+    vi.mocked(deleteMedia as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new MediaTransportError(new TypeError('Failed to fetch'))
+    )
+    const { services, mediaIndex } = await buildProviders()
+    render(<Media />, { wrapper: wrapper(services, mediaIndex) })
+    await deleteTheCat()
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/check your connection/i)
+    expect(alert).not.toHaveTextContent(/failed to fetch/i)
+  })
+
+  it('shows the server’s own reason verbatim on a response error', async () => {
+    vi.mocked(deleteMedia as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error('media is in use')
+    )
+    const { services, mediaIndex } = await buildProviders()
+    render(<Media />, { wrapper: wrapper(services, mediaIndex) })
+    await deleteTheCat()
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('media is in use')
+    expect(alert).not.toHaveTextContent(/check your connection/i)
   })
 
   it('surfaces a success toast after a successful delete', async () => {

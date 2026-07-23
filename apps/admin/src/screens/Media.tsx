@@ -11,10 +11,11 @@ import {
 import type { MediaFilters } from '../media/MediaBrowser'
 import { useMediaIndex } from '../data/media-index-store'
 import { useIndex } from '../data/index-store'
-import { deleteMedia } from '../media/media-client'
+import { deleteMedia, MediaTransportError } from '../media/media-client'
 import { resolveMediaSrc } from '../editor/media-src'
 import type { UploadResult } from '../media/upload-client'
 import { useNotify } from '../ui/notify'
+import { connectionError } from '../ui/error-message'
 import {
   Sheet,
   SheetContent,
@@ -126,7 +127,19 @@ export function Media() {
       setRefreshKey((k) => k + 1)
       notify.success('Deleted ' + deletedFilename)
     } catch (err) {
-      notify.error(err instanceof Error ? err.message : String(err))
+      console.error('[media] deleting the file failed', err)
+      // #870: a MediaTransportError never reached the server, so its message is
+      // fetch's raw "Failed to fetch" — curate it. Anything else came BACK from the
+      // API and carries the reason (a 409 "media is in use", a 404), which beats a
+      // generic line; curating it too would be the #852 inversion.
+      // Both directions enforced by apps/admin/test/media-screen.test.tsx.
+      notify.error(
+        err instanceof MediaTransportError
+          ? connectionError('delete the file')
+          : err instanceof Error
+            ? err.message
+            : String(err)
+      )
     } finally {
       setDeleting(false)
     }

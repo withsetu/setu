@@ -17,7 +17,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@hono/node-server": "2.0.10",
+    "@hono/node-server": "2.0.11",
     "@setu/auth": "workspace:*",
     "@setu/captcha-recaptcha": "workspace:*",
     "@setu/captcha-turnstile": "workspace:*",
@@ -42,7 +42,7 @@
     "@types/node": "^22.10.2",
     "better-sqlite3": "^12.11.1",
     "drizzle-orm": "^0.45.2",
-    "isomorphic-git": "^1.38.9",
+    "isomorphic-git": "^1.38.10",
     "tsx": "^4.23.1",
     "typescript": "^5.6.3",
     "vitest": "^3.2.6"

@@ -3,10 +3,11 @@ import type { GetStaticPaths, Page } from 'astro'
 import PageLayout from '@theme/PageLayout.astro'
 import ArchiveList from '@theme/ArchiveList.astro'
 import { getCollection } from 'astro:content'
-import { selectPosts, distinctCategorySlugs, categoryNameMap, DEFAULT_LOCALE, type PostRow } from '@setu/core'
+import { selectPosts, categoryNameMap, DEFAULT_LOCALE, type PostRow } from '@setu/core'
 import { loadThemeOptions } from '../../../lib/site-config'
 import { loadSiteSettings } from '../../../lib/site-settings'
 import { loadCategories } from '../../../lib/categories'
+import { bucketPostsByTerm } from '../../../lib/build-cache'
 import { toPostRow } from '../../../lib/post-row'
 import { pageSeo } from '../../../lib/seo'
 import { resolveMediaBase } from '@setu/image-astro'
@@ -18,11 +19,15 @@ export const getStaticPaths = (async ({ paginate }) => {
   const rows = (await getCollection('entries')).map((e) =>
     toPostRow({ id: e.id, data: e.data as Record<string, unknown>, body: (e as { body?: string }).body }, map.get(e.id)),
   )
+  // One filter+sort of the whole collection, then a single O(posts) bucketing pass by category —
+  // instead of a full filter+sort per distinct slug (#858). Iterating the newest-sorted `published`
+  // preserves each bucket's order, and sorting the keys reproduces distinctCategorySlugs' order, so
+  // the emitted paths (and each page's posts) are byte-identical to the per-slug selectPosts.
   const published = selectPosts(rows, { collection: 'post', locale: DEFAULT_LOCALE, sort: 'newest', limit: rows.length, offset: 0 })
-  return distinctCategorySlugs(published, DEFAULT_LOCALE).flatMap((slug) => {
-    const posts = selectPosts(rows, { collection: 'post', locale: DEFAULT_LOCALE, category: slug, sort: 'newest', limit: rows.length, offset: 0 })
-    return paginate(posts, { params: { slug }, pageSize: perPage })
-  })
+  const buckets = bucketPostsByTerm(published, (p) => p.categories)
+  return [...buckets.keys()]
+    .sort((a, b) => a.localeCompare(b))
+    .flatMap((slug) => paginate(buckets.get(slug)!, { params: { slug }, pageSize: perPage }))
 }) satisfies GetStaticPaths
 
 const { page } = Astro.props as { page: Page<PostRow> }

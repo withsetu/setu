@@ -90,29 +90,43 @@ export function ReadingSettings() {
     }
   }, [git, notify, retryKey])
 
+  // #871: this only feeds the Homepage picker's OPTIONS, so a failure here is scoped —
+  // the rest of the form loaded from git and stays usable, and `homepageOptions` below
+  // keeps the current homepage selectable with `pages === []`. So it degrades to
+  // "current value only" rather than to `SettingsLoadError`; what it owes the user is a
+  // message naming what's missing (§4 #22 — the global reporter can't name the control).
+  // Enforced by apps/admin/test/reading-settings.test.tsx.
   useEffect(() => {
     let live = true
     void (async () => {
-      await index.ensureBuilt()
-      const r = await index.query({
-        collection: 'page',
-        offset: 0,
-        limit: 1000,
-        sort: { key: 'title', dir: 'asc' }
-      })
-      if (live) {
-        setPages(
-          r.rows.map((row) => ({
-            id: `${row.ref.collection}/${row.ref.locale}/${row.ref.slug}`,
-            title: row.title
-          }))
+      try {
+        await index.ensureBuilt()
+        const r = await index.query({
+          collection: 'page',
+          offset: 0,
+          limit: 1000,
+          sort: { key: 'title', dir: 'asc' }
+        })
+        if (live) {
+          setPages(
+            r.rows.map((row) => ({
+              id: `${row.ref.collection}/${row.ref.locale}/${row.ref.slug}`,
+              title: row.title
+            }))
+          )
+        }
+      } catch (err) {
+        if (!live) return
+        console.error('[settings] loading the page list failed', err)
+        notify.error(
+          "Couldn't load your pages, so the Homepage list may be incomplete. Reload to try again."
         )
       }
     })()
     return () => {
       live = false
     }
-  }, [index])
+  }, [index, notify])
 
   const dirty = published !== null && !sameReading(values, published)
   const set = (patch: Partial<ReadingValues>) =>

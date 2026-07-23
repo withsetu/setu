@@ -533,7 +533,28 @@ app.route(
 // its tables (authDb, above) — not a separate connection — so credential-status always reflects
 // live account state. `resolveActor` here already fails closed to null when auth is unconfigured
 // (see its own comment above), which authMiddleware turns into a 401 for this route too.
-app.route('/', createUsersApi({ db: authDb, resolveActor }))
+app.route(
+  '/',
+  createUsersApi({
+    db: authDb,
+    resolveActor,
+    // #500 review: the admin-surface reset triggers call better-auth SERVER-SIDE so the captcha
+    // plugin (which protects the public HTTP /request-password-reset by default) keeps guarding
+    // the unauthenticated surface without asking authenticated staff to solve challenges.
+    // Injected under EXACTLY the same condition as createAuth's `email:` option above
+    // (auth exists + notifyFrom + adminOrigin) so the route's 409 and better-auth's
+    // RESET_PASSWORD_DISABLED can never disagree about whether reset is wired. redirectTo is
+    // omitted on purpose: packages/auth's withDefaultResetCallback fills in
+    // `${adminOrigin}/reset-password`, the same default the emailed-link flow already uses.
+    ...(auth && notifyFrom && adminOrigin
+      ? {
+          requestPasswordReset: async (email: string) => {
+            await auth.api.requestPasswordReset({ body: { email } })
+          }
+        }
+      : {})
+  })
+)
 
 // Demo Data control plane (#513, epic #509) — dev tooling: mounted ONLY in the
 // local topology outside production (the createPreviewApi gating precedent);

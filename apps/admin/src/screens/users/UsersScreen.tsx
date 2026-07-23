@@ -551,24 +551,33 @@ function UserRowActions({
     }
   }
 
-  /** Triggers better-auth's public `/request-password-reset` (Task 3's `withDefaultResetCallback`
-   *  only fills in a MISSING `redirectTo` — passing it explicitly here, rather than relying on that
-   *  default, keeps the emailed link's destination visible at the call site and origin-checked
-   *  against whatever admin origin actually sent the request). No confirm step: unlike disable,
-   *  sending an email is non-destructive and reversible (the user just ignores it). */
+  /** Triggers the reset email via the server-gated `POST /api/users/send-reset`
+   *  (apps/api/src/users.ts) rather than better-auth's public `/request-password-reset` (#500
+   *  review Finding 1, the pre-existing #364 gap): the captcha plugin protects that public
+   *  endpoint by default, so this signed-in row action would 400 on every captcha-configured
+   *  deployment — the server route calls better-auth internally (captcha is an anti-bot gate for
+   *  the unauthenticated surface, not for an authz-gated admin action) and its rank/self rules
+   *  mirror `resetOffered` above. The emailed link's destination comes from the server's default
+   *  callback (`${adminOrigin}/reset-password` — packages/auth's withDefaultResetCallback). No
+   *  confirm step: unlike disable, sending an email is non-destructive and reversible (the user
+   *  just ignores it). Covered by apps/admin/test/users-screen.test.tsx ("sends a reset email
+   *  for an outranked row…"). */
   async function sendReset() {
     if (resetting) return
     setResetting(true)
     try {
-      const { error } = await authClient.requestPasswordReset({
-        email: user.email,
-        redirectTo: `${window.location.origin}/reset-password`
+      const res = await apiFetch(`${apiBase}/api/users/send-reset`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ userId: user.id })
       })
-      if (error) {
-        notify.error(error.message || 'Could not send the reset email')
+      if (!res.ok) {
+        notify.error('Could not send the reset email')
         return
       }
       notify.success(`Password reset email sent to ${user.email}`)
+    } catch {
+      notify.error('Could not send the reset email')
     } finally {
       setResetting(false)
     }
@@ -879,18 +888,21 @@ function UserList({ refreshSignal }: { refreshSignal: number }) {
  *  #453: `user:set-password` is deliberately ADMIN-only (packages/auth/src/action-statements.ts),
  *  so for a passwordless NON-admin — a maintainer who only ever signed in via a social provider —
  *  the set-password form above would 403 on submit. That actor gets the self-service path
- *  instead: better-auth's public `/request-password-reset` sent to their own session email
- *  (better-auth 1.6.23's `/reset-password` CREATES the credential account when none exists —
- *  dist/api/routes/password.mjs — so the emailed link genuinely grants them a password). When
- *  reset emails can't go out (`email.deliverable` false), honest copy replaces the button —
- *  never a control that could only dead-end. Covered by
- *  apps/admin/test/users-screen.test.tsx's "passwordless maintainer" cases. */
+ *  instead: a reset email to their own address (better-auth 1.6.24's `/reset-password` CREATES
+ *  the credential account when none exists — dist/api/routes/password.mjs — so the emailed link
+ *  genuinely grants them a password). The send goes through the server-gated
+ *  `POST /api/users/send-reset` (#500 review Finding 1): better-auth's captcha plugin protects
+ *  the public `/request-password-reset` endpoint by default, so calling it from this signed-in
+ *  surface would 400 on captcha-configured deployments — the server route triggers the reset
+ *  internally instead (apps/api/src/users.ts). When reset emails can't go out
+ *  (`email.deliverable` false), honest copy replaces the button — never a control that could
+ *  only dead-end. Covered by apps/admin/test/users-screen.test.tsx's "passwordless maintainer"
+ *  cases. */
 function OwnerPasswordCard({ onChanged }: { onChanged: () => void }) {
   const actor = useActor()
   const notify = useNotify()
   const { hasPassword, refresh: refreshHasPassword } = useHasPassword()
   const { email: emailCaps } = useCapabilities()
-  const session = authClient.useSession()
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -905,24 +917,18 @@ function OwnerPasswordCard({ onChanged }: { onChanged: () => void }) {
 
   async function emailResetLink() {
     if (sendingReset) return
-    const selfEmail = session.data?.user.email
-    if (!selfEmail) {
-      notify.error(
-        'Could not determine your account email — reload and try again.'
-      )
-      return
-    }
     setSendingReset(true)
     try {
-      const { error } = await authClient.requestPasswordReset({
-        email: selfEmail,
-        redirectTo: `${window.location.origin}/reset-password`
+      const res = await apiFetch(`${apiBase}/api/users/send-reset`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ userId: actor.id })
       })
-      if (error) {
-        notify.error(error.message || 'Could not send the reset email')
+      if (!res.ok) {
+        notify.error('Could not send the reset email')
         return
       }
-      notify.success(`Password reset email sent to ${selfEmail}`)
+      notify.success('Password reset email sent — check your inbox.')
     } catch {
       notify.error('Could not send the reset email')
     } finally {

@@ -55,8 +55,9 @@ vi.mock('../src/auth/auth-client', () => ({
     },
     changePassword: vi.fn(),
     listAccounts: vi.fn(),
-    requestPasswordReset: vi.fn(),
-    useSession: vi.fn()
+    // Kept mocked so tests can assert the signed-in surfaces NEVER call the captcha-protected
+    // public endpoint (#500 review Finding 1) — the real sends go through apiFetch.
+    requestPasswordReset: vi.fn()
   }
 }))
 
@@ -68,7 +69,6 @@ const mockSetUserPassword = vi.mocked(authClient.admin.setUserPassword)
 const mockChangePassword = vi.mocked(authClient.changePassword)
 const mockListAccounts = vi.mocked(authClient.listAccounts)
 const mockRequestPasswordReset = vi.mocked(authClient.requestPasswordReset)
-const mockUseSession = vi.mocked(authClient.useSession)
 
 const now = new Date('2026-01-01T00:00:00Z')
 
@@ -162,12 +162,29 @@ function stubCredentialStatus(
   emailCaps: { transport: string; deliverable: boolean } = {
     transport: 'console',
     deliverable: true
-  }
+  },
+  // #500 review: the reset triggers now POST the server-gated /api/users/send-reset (the
+  // captcha-exempt server-side path) instead of better-auth's public client endpoint. The stub
+  // records each call's parsed body and answers with `sendReset.status`.
+  sendReset: { status: number } = { status: 200 }
 ) {
+  const sendResetCalls: Array<{ userId?: string }> = []
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string) => {
+    vi.fn(async (url: string, init?: RequestInit) => {
       const u = String(url)
+      if (u.includes('/api/users/send-reset')) {
+        // apiFetch always sends the body as a JSON string; anything else should explode here.
+        sendResetCalls.push(
+          JSON.parse(init?.body as string) as { userId?: string }
+        )
+        return new Response(
+          JSON.stringify(
+            sendReset.status === 200 ? { status: true } : { error: 'nope' }
+          ),
+          { status: sendReset.status }
+        )
+      }
       if (u.includes('/api/users/credential-status')) {
         return new Response(JSON.stringify(status), { status: 200 })
       }
@@ -191,21 +208,13 @@ function stubCredentialStatus(
       return new Response('not found', { status: 404 })
     })
   )
+  return { sendResetCalls }
 }
 
 beforeEach(() => {
   // Default: OWNER/EDITOR/DISABLED_AUTHOR (the fixtures below) all have credential accounts, matching
   // the existing tests' assumption that nothing about password state was previously being asserted.
   stubCredentialStatus({ 'owner-1': true, 'editor-1': true, 'author-1': true })
-  // #453: OwnerPasswordCard reads the current user's email off the session for the self
-  // reset-email path. Defaults to the OWNER fixture; maintainer tests override.
-  mockUseSession.mockReturnValue({
-    data: { user: { id: 'owner-1', email: 'owner@setu.dev' } },
-    isPending: false,
-    isRefetching: false,
-    error: null,
-    refetch: vi.fn()
-  })
 })
 
 afterEach(() => {
@@ -680,23 +689,19 @@ describe('UsersScreen', () => {
     // `user:set-password` is deliberately admin-only (packages/auth/src/action-statements.ts), so
     // admin.setUserPassword would 403. When reset emails can go out, the card offers the
     // self-service reset-email path instead; when they can't, honest copy — never a dead form.
-    it('passwordless maintainer + deliverable email: offers "Email me a reset link" (no 403-ing set-password form) and sends it to their own email', async () => {
+    // #500 review Finding 1: the send goes through the server-gated POST /api/users/send-reset
+    // (captcha-exempt server-side better-auth call), NEVER the public client endpoint the
+    // captcha plugin would 400 on a captcha-configured deployment.
+    it('passwordless maintainer + deliverable email: offers "Email me a reset link" (no 403-ing set-password form) and POSTs the server-gated send-reset route for themselves', async () => {
       mockListUsers.mockResolvedValue({
         data: { users: [MAINTAINER_USER], total: 1 },
         error: null
       })
       mockListAccounts.mockResolvedValue({ data: [], error: null })
-      mockUseSession.mockReturnValue({
-        data: { user: { id: 'maint-2', email: 'maintainer@setu.dev' } },
-        isPending: false,
-        isRefetching: false,
-        error: null,
-        refetch: vi.fn()
-      })
-      mockRequestPasswordReset.mockResolvedValue({
-        data: { status: true, message: 'ok' },
-        error: null
-      })
+      const { sendResetCalls } = stubCredentialStatus(
+        {},
+        { transport: 'resend', deliverable: true }
+      )
 
       renderAsActor('maintainer', 'maint-2')
 
@@ -709,15 +714,14 @@ describe('UsersScreen', () => {
 
       fireEvent.click(sendBtn)
       await waitFor(() =>
-        expect(mockRequestPasswordReset).toHaveBeenCalledWith({
-          email: 'maintainer@setu.dev',
-          redirectTo: `${window.location.origin}/reset-password`
-        })
+        expect(sendResetCalls).toEqual([{ userId: 'maint-2' }])
       )
       expect(
-        await screen.findByText(/reset email sent to maintainer@setu\.dev/i)
+        await screen.findByText(/password reset email sent/i)
       ).toBeInTheDocument()
       expect(mockSetUserPassword).not.toHaveBeenCalled()
+      // The captcha-protected public endpoint must NOT be used from this signed-in surface.
+      expect(mockRequestPasswordReset).not.toHaveBeenCalled()
     })
 
     it('passwordless maintainer + undeliverable email: honest not-configured copy, no dead button', async () => {
@@ -726,13 +730,6 @@ describe('UsersScreen', () => {
         error: null
       })
       mockListAccounts.mockResolvedValue({ data: [], error: null })
-      mockUseSession.mockReturnValue({
-        data: { user: { id: 'maint-2', email: 'maintainer@setu.dev' } },
-        isPending: false,
-        isRefetching: false,
-        error: null,
-        refetch: vi.fn()
-      })
       stubCredentialStatus({}, { transport: 'console', deliverable: false })
 
       renderAsActor('maintainer', 'maint-2')
@@ -756,17 +753,11 @@ describe('UsersScreen', () => {
         error: null
       })
       mockListAccounts.mockResolvedValue({ data: [], error: null })
-      mockUseSession.mockReturnValue({
-        data: { user: { id: 'maint-2', email: 'maintainer@setu.dev' } },
-        isPending: false,
-        isRefetching: false,
-        error: null,
-        refetch: vi.fn()
-      })
-      mockRequestPasswordReset.mockResolvedValue({
-        data: null,
-        error: { status: 500, message: 'smtp exploded' }
-      })
+      stubCredentialStatus(
+        {},
+        { transport: 'resend', deliverable: true },
+        { status: 500 }
+      )
 
       renderAsActor('maintainer', 'maint-2')
 
@@ -774,7 +765,9 @@ describe('UsersScreen', () => {
         await screen.findByRole('button', { name: /email me a reset link/i })
       )
 
-      expect(await screen.findByText(/smtp exploded/i)).toBeInTheDocument()
+      expect(
+        await screen.findByText(/could not send the reset email/i)
+      ).toBeInTheDocument()
     })
 
     it('a passwordless ADMIN keeps the direct set-password form (the #248 remote-access path, unchanged)', async () => {
@@ -953,14 +946,10 @@ describe('UsersScreen', () => {
         data: [{ id: 'a1', providerId: 'credential' }],
         error: null
       })
-      stubCredentialStatus(
+      const { sendResetCalls } = stubCredentialStatus(
         { 'owner-1': true, 'editor-1': true },
         { transport: 'console', deliverable: true }
       )
-      mockRequestPasswordReset.mockResolvedValue({
-        data: { status: true, message: '' },
-        error: null
-      })
 
       renderAsActor('admin', 'owner-1')
       await screen.findByText('Eve Editor')
@@ -975,12 +964,12 @@ describe('UsersScreen', () => {
         })
       )
 
+      // #500 review Finding 1: the row action POSTs the server-gated send-reset route (the
+      // captcha-exempt server-side path), never the captcha-protected public client endpoint.
       await waitFor(() =>
-        expect(mockRequestPasswordReset).toHaveBeenCalledWith({
-          email: 'editor@setu.dev',
-          redirectTo: `${window.location.origin}/reset-password`
-        })
+        expect(sendResetCalls).toEqual([{ userId: 'editor-1' }])
       )
+      expect(mockRequestPasswordReset).not.toHaveBeenCalled()
       expect(
         await screen.findByText(
           /password reset email sent to editor@setu\.dev/i

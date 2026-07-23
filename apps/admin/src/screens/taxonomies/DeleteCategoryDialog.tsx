@@ -1,4 +1,4 @@
-import type { CategoryNode } from '@setu/core'
+import { TaxonomyError, type CategoryNode } from '@setu/core'
 import {
   AlertDialog,
   AlertDialogContent,
@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { useTaxonomy } from '../../data/taxonomy-store'
 import { useNotify } from '../../ui/notify'
+import { connectionError } from '../../ui/error-message'
 
 export function DeleteCategoryDialog({
   node,
@@ -36,7 +37,13 @@ export function DeleteCategoryDialog({
           `Category deleted, but ${skippedCount} ${skippedCount === 1 ? 'entry' : 'entries'} could not be updated and still reference it — see the content list for entries needing attention.`
         )
     } catch (e) {
-      notify.error(e instanceof Error ? e.message : String(e))
+      // #852: TaxonomyError (e.g. the slug vanished under us) carries a meaningful
+      // message; otherwise it's a transport failure — curate it.
+      notify.error(
+        e instanceof TaxonomyError
+          ? e.message
+          : connectionError('delete the category')
+      )
     }
     onClose()
   }

@@ -4,6 +4,7 @@ import type { Submission, FormSummary } from '@setu/core'
 import { submissionsToCsv } from '@setu/core'
 import { useServices } from '../data/store'
 import { useNotify } from '../ui/notify'
+import { connectionError } from '../ui/error-message'
 import { PageHeader } from '../shell/PageHeader'
 import { PageBody } from '../shell/PageBody'
 import { Input } from '@/components/ui/input'
@@ -164,8 +165,9 @@ export function FormsInbox() {
         await submissions.setRead([s.id], true)
         setActive((a) => (a && a.id === s.id ? { ...a, read: true } : a))
         refresh()
-      } catch (e) {
-        notify.error(e instanceof Error ? e.message : String(e))
+      } catch {
+        // #852: submission ops are pure DataPort mutations — a throw is transport.
+        notify.error(connectionError('mark this as read'))
       }
     }
   }
@@ -177,8 +179,8 @@ export function FormsInbox() {
       refresh()
       // Keep active panel in sync.
       setActive((a) => (a && a.id === s.id ? { ...a, read: !s.read } : a))
-    } catch (e) {
-      notify.error(e instanceof Error ? e.message : String(e))
+    } catch {
+      notify.error(connectionError('update the submission'))
     }
   }
 
@@ -192,8 +194,8 @@ export function FormsInbox() {
       setActive((a) => (a && selectedIds.has(a.id) ? { ...a, read } : a))
       setSelected(new Set())
       refresh()
-    } catch (e) {
-      notify.error(e instanceof Error ? e.message : String(e))
+    } catch {
+      notify.error(connectionError('update the submissions'))
     }
   }
 
@@ -207,8 +209,8 @@ export function FormsInbox() {
       setSelected(new Set())
       if (active && ids.includes(active.id)) setActive(null)
       refresh()
-    } catch (e) {
-      notify.error(e instanceof Error ? e.message : String(e))
+    } catch {
+      notify.error(connectionError('delete the submissions'))
     }
   }
 
@@ -233,8 +235,8 @@ export function FormsInbox() {
       notify.success(
         `Exported ${all.rows.length} submission${all.rows.length === 1 ? '' : 's'}`
       )
-    } catch (e) {
-      notify.error(e instanceof Error ? e.message : String(e))
+    } catch {
+      notify.error(connectionError('export the submissions'))
     }
   }
 

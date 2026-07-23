@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { normalizeTag } from '@setu/core'
 import { useTags } from '../../data/tags-store'
 import { useNotify } from '../../ui/notify'
+import { connectionError } from '../../ui/error-message'
 import { TagToolbar, type TagSort } from './TagToolbar'
 import { TagList, TagListSkeleton, type TagRow } from './TagList'
 import { DeleteTagDialog } from './DeleteTagDialog'
@@ -45,8 +46,10 @@ export function TagsTab() {
       notify.success(
         `Renamed "${from}" → "${target}" across ${applied} ${applied === 1 ? 'entry' : 'entries'}`
       )
-    } catch (e) {
-      notify.error(e instanceof Error ? e.message : String(e))
+    } catch {
+      // #852: tag rename is validated client-side before this try (normalizeTag,
+      // merge-detection); a throw here is a transport failure — curate it.
+      notify.error(connectionError('rename the tag'))
     }
   }
 

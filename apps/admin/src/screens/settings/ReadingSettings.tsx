@@ -8,6 +8,7 @@ import { useServices, OWNER_AUTHOR } from '../../data/store'
 import { useRefreshSettings } from '../../data/settings-store'
 import { useIndex } from '../../data/index-store'
 import { useNotify } from '../../ui/notify'
+import { connectionError } from '../../ui/error-message'
 import {
   SettingsLoadError,
   SETTINGS_LOAD_FAILED_MESSAGE
@@ -132,8 +133,9 @@ export function ReadingSettings() {
       setPublished(values)
       notify.success('Settings saved')
       refreshSettings()
-    } catch (e) {
-      notify.error(e instanceof Error ? e.message : String(e))
+    } catch {
+      // #852: git.commitFile transport failure — curate rather than echo it.
+      notify.error(connectionError('save your settings'))
     } finally {
       setSaving(false)
     }

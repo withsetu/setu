@@ -180,4 +180,20 @@ describe('BulkBar', () => {
       expect(counts.fresh).toBe(2)
     })
   })
+
+  // #852: a transport failure on a bulk action shows the curated connection
+  // message, never the raw thrown error.
+  it('shows the curated connection message when a bulk op fails (#852)', async () => {
+    const { git } = setup([row('a')])
+    // Force the commit to reject with a cryptic transport error (the shape
+    // git-http throws when the api is unreachable).
+    vi.spyOn(git, 'commitFiles').mockRejectedValue(new Error('Failed to fetch'))
+    const input = screen.getByLabelText('Bulk tag')
+    fireEvent.change(input, { target: { value: 'x' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(
+      await screen.findByText(/Couldn't update the selected posts\./i)
+    ).toBeTruthy()
+    expect(screen.queryByText(/Failed to fetch/i)).toBeNull()
+  })
 })

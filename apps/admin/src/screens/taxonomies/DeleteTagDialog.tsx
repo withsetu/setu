@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { useTags } from '../../data/tags-store'
 import { useNotify } from '../../ui/notify'
+import { connectionError } from '../../ui/error-message'
 
 export function DeleteTagDialog({
   row,
@@ -25,8 +26,9 @@ export function DeleteTagDialog({
     if (!row) return
     try {
       await remove(row.tag)
-    } catch (e) {
-      notify.error(e instanceof Error ? e.message : String(e))
+    } catch {
+      // #852: tag delete is a pure DataPort mutation — a throw is transport.
+      notify.error(connectionError('delete the tag'))
     }
     onClose()
   }

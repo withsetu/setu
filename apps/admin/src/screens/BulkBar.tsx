@@ -12,6 +12,7 @@ import { useIndex } from '../data/index-store'
 import { useTaxonomy } from '../data/taxonomy-store'
 import { useTags } from '../data/tags-store'
 import { useNotify } from '../ui/notify'
+import { connectionError } from '../ui/error-message'
 import { TagAutocomplete } from '../ui/TagAutocomplete'
 import { CategoryPicker } from '../ui/CategoryPicker'
 import { Button } from '@/components/ui/button'
@@ -78,7 +79,8 @@ export function BulkBar({
       applied: EntryRef[]
       skipped: { ref: EntryRef }[]
     }>,
-    label: string
+    label: string,
+    failAction: string
   ) => {
     setBusy(true)
     try {
@@ -98,8 +100,11 @@ export function BulkBar({
         `${label} ${r.applied.length} post${r.applied.length === 1 ? '' : 's'}${skipped}`
       )
       onDone()
-    } catch (e) {
-      notify.error(e instanceof Error ? e.message : String(e))
+    } catch {
+      // #852: the throw here is a transport/DataPort failure (commit or reindex),
+      // never a user-facing server message — curate it rather than echo the raw
+      // "Failed to fetch" (same rationale as EditorScreen.tsx:556-559).
+      notify.error(connectionError(failAction))
     } finally {
       setBusy(false)
     }
@@ -107,23 +112,31 @@ export function BulkBar({
 
   const applyCat = (mut: typeof bulkAddCategory, verb: string) => {
     if (!cat) return
-    void run(() => bulk.applyMetadata(refs, (m) => mut(m, cat)), verb).then(
-      () => {
-        setCat('')
-        setCatVal('')
-      }
-    )
+    void run(
+      () => bulk.applyMetadata(refs, (m) => mut(m, cat)),
+      verb,
+      'update the selected posts'
+    ).then(() => {
+      setCat('')
+      setCatVal('')
+    })
   }
   const applyTag = (rawTag: string, mut: typeof bulkAddTag, verb: string) => {
     const t = rawTag.trim()
     if (!t) return
-    void run(() => bulk.applyMetadata(refs, (m) => mut(m, t)), verb).then(() =>
-      setTagVal('')
-    )
+    void run(
+      () => bulk.applyMetadata(refs, (m) => mut(m, t)),
+      verb,
+      'update the selected posts'
+    ).then(() => setTagVal(''))
   }
   const del = () => {
     setConfirmDelete(false)
-    void run(() => bulk.deleteEntries(refs), 'Deleted')
+    void run(
+      () => bulk.deleteEntries(refs),
+      'Deleted',
+      'delete the selected posts'
+    )
   }
 
   return (

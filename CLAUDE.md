@@ -189,6 +189,26 @@ The full standard with the worked "good vs. skeleton" case study: [docs/quality-
   scripts? license allowlisted? prefer existing ports over new HTTP/util deps).
 - **⊕ Dev-only tooling** (seeders, reset buttons, debug panels) is gated `import.meta.env.DEV` so
   it's dead-code-eliminated from production — physically absent, not hidden.
+- **⊕ Async work that nobody awaits must report its own failure.** `void someAsync()`, a `.then()`
+  chain, an `async` event handler and an async effect IIFE all discard rejections — React routes
+  none of them to an error boundary. A `try`/`finally` with no `catch` is the same bug wearing a
+  seatbelt: the spinner stops, the failure vanishes. Every such call site owes the user a specific
+  message through `useNotify()` (or an inline error), and — if the failure leaves a state the user
+  is waiting on — an explicit error state that is distinguishable from *empty* and offers a retry.
+  **A loading skeleton that never resolves is not a degraded success; it is an unreported failure.**
+  `apps/admin/src/media/MediaGrid.tsx` is the reference shape. The global
+  `UnhandledRejectionReporter` is a net for what slips through, not permission to skip this: it
+  cannot name the action, unstick the state, or say what to retry. And never invert the lie —
+  report failure only when something actually failed (#834 correctly declined to add an error toast
+  to a path that had succeeded).
+  This class has produced a user-visible defect **six** times: #782 (a failed save reported
+  "Saved" and disarmed the tab-close warning), #798 (Publish/Save draft/Unpublish did nothing),
+  #804 (Preview inert; a 5xx showed the PREVIOUS preview as a false success), #833 (an eternal
+  loading skeleton), #835, #837 (five settings screens render a disabled button labelled "Saved"
+  over defaults that were never read from the repo). A 130-site audit found ~22 silent call sites
+  against ~95 provably safe ones, which is also why a lint rule banning bare `void <async>()` is
+  the WRONG tool: 4:1 false positives trains suppression, and it would miss the
+  `try`/`finally`-with-no-`catch` family entirely — where most of the real damage above lives.
 - **⊕ A comment stating an invariant must name the test that enforces it, or be worded as intent
   ("intended to …") rather than fact ("is …").** A comment that asserts a property the adjacent code
   doesn't enforce doesn't just fail to help — it **suppresses the check**, because it sits exactly
@@ -283,6 +303,7 @@ Each has happened in this repo. When your plan pattern-matches a row, apply the 
 | 19 | **Status-Draft Hallucination** | Filtering on `status: draft` frontmatter (shipped an RSS bug that dropped a live post) | `published !== false` is the ONLY published-ness signal (§1) |
 | 20 | **The Yanked-Checkout Phantom** | Mid-UAT the shared main checkout gets switched by another session → HMR serves half-main → phantom bugs | Bizarre UAT failure → check `git branch --show-current` + `git reflog` FIRST, before chasing code |
 | 21 | **The Comment That Vouches** | A comment asserts an invariant the code never enforces, so the next reader stops checking there — `dirty` "cleared only on a real 'saved'" while `finally` cleared it on failure too, which is how #770 shipped green with the data-loss case still open (#782); the claim then spread into an issue body (#773). Also #712, #725, #731, #740, #742, #785 | §3.2: an invariant comment names its test or is worded as intent. Reviewing? Check each comment's claim against the adjacent code — treat a false one as a defect, not a nit |
+| 22 | **The Silent Async** | A rejection nobody catches disappears entirely — no toast, no boundary, no console error — so a failed action is indistinguishable from a successful one, or the spinner simply never stops. Six user-visible defects: #782, #798, #804, #833, #835, #837 | §3.2: unawaited async reports its own failure, with an error state distinguishable from *empty* where the user is waiting. `UnhandledRejectionReporter` is a net, not a substitute |
 
 ## 5 · Quality bar per deliverable — checkable criteria
 

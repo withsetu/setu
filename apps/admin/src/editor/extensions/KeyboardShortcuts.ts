@@ -100,8 +100,12 @@ export const KeyboardShortcuts = Extension.create({
       // next-cell/append-row behaviour we had duplicated, plus the
       // `if (!can().addRowAfter()) return false` guard we had dropped — without which
       // Tab was consumed for a no-op wherever a row can't be appended, re-creating the
-      // very #757 trap above. Declining here hands it over (this extension is declared
-      // LAST in Canvas.tsx, so its keymap runs first).
+      // very #757 trap above. Declining here hands it over. Precedence holds because
+      // this extension is declared AFTER Table in Canvas.tsx and tiptap reverses the
+      // list before building keymap plugins, so our Tab keymap runs before the table
+      // extension's — the relation that matters, not an absolute position (it is NOT
+      // last: dragHandle/SlashCommand/LinkTools follow it). Nothing enforces this;
+      // get the order wrong and the table's keymap silently wins (#799).
       Tab: () => {
         const action = tabActionFor(this.editor)
         if (action === 'cell') return false

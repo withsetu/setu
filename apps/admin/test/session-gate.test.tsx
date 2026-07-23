@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { NotificationProvider } from '../src/ui/notify'
 import { SessionGate } from '../src/auth/SessionGate'
 import { useActor } from '../src/auth/actor'
 import { authClient } from '../src/auth/auth-client'
@@ -329,6 +330,82 @@ describe('SessionGate', () => {
     expect(
       screen.queryByRole('button', { name: /create admin account/i })
     ).not.toBeInTheDocument()
+  })
+
+  // #453: a SIGNED-IN user visiting /reset-password bare (no token, no error) used to unmount the
+  // whole app shell and show the reset screen — redirect them into the app instead.
+  it('redirects a signed-in visitor at a bare /reset-password to the dashboard instead of unmounting the shell', async () => {
+    stubCapabilities(ENABLED_NO_SETUP)
+    mockUseSession.mockReturnValue({
+      data: { user: { id: 'u1', role: 'admin' } },
+      isPending: false,
+      isRefetching: false,
+      error: null,
+      refetch: vi.fn()
+    } as never)
+
+    render(
+      <MemoryRouter initialEntries={['/reset-password']}>
+        <SessionGate>
+          <div>App</div>
+        </SessionGate>
+      </MemoryRouter>
+    )
+
+    expect(await screen.findByText('App')).toBeInTheDocument()
+    expect(screen.queryByText(/reset your password/i)).not.toBeInTheDocument()
+  })
+
+  // #453: but a signed-in user who CLICKED an emailed reset link (token present) is completing a
+  // legitimate flow — e.g. a passwordless maintainer emailing themselves a reset link from the
+  // Users screen — and must still get the reset form, not a redirect that eats the token.
+  it('still renders the reset screen for a signed-in visitor whose URL carries a token', async () => {
+    stubCapabilities(ENABLED_NO_SETUP)
+    mockUseSession.mockReturnValue({
+      data: { user: { id: 'u1', role: 'maintainer' } },
+      isPending: false,
+      isRefetching: false,
+      error: null,
+      refetch: vi.fn()
+    } as never)
+
+    render(
+      <MemoryRouter initialEntries={['/reset-password?token=tok-1']}>
+        {/* NotificationProvider mirrors main.tsx's real nesting — ResetPasswordScreen calls
+            useNotify, which throws outside the provider. */}
+        <NotificationProvider>
+          <SessionGate>
+            <div>App</div>
+          </SessionGate>
+        </NotificationProvider>
+      </MemoryRouter>
+    )
+
+    expect(await screen.findByText(/reset your password/i)).toBeInTheDocument()
+    expect(screen.queryByText('App')).not.toBeInTheDocument()
+  })
+
+  it('renders the reset screen for a signed-out visitor at /reset-password (the #364 flow, unchanged)', async () => {
+    stubCapabilities(ENABLED_NO_SETUP)
+    mockUseSession.mockReturnValue({
+      data: null,
+      isPending: false,
+      isRefetching: false,
+      error: null,
+      refetch: vi.fn()
+    })
+
+    render(
+      <MemoryRouter initialEntries={['/reset-password?token=tok-1']}>
+        <NotificationProvider>
+          <SessionGate>
+            <div>App</div>
+          </SessionGate>
+        </NotificationProvider>
+      </MemoryRouter>
+    )
+
+    expect(await screen.findByText(/reset your password/i)).toBeInTheDocument()
   })
 
   // UAT 2026-07-05: the instance booted at 0 users → capabilities cached needsSetup:true. After the

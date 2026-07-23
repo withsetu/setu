@@ -145,10 +145,16 @@ export interface SetuAuthClient {
   // accessed property chain (`toKebabCase("requestPasswordReset")` -> `/request-password-reset`),
   // so `authClient.requestPasswordReset` / `authClient.resetPassword` are the only property names
   // that route to these two endpoints at all — confirmed by literal derivation, not guesswork.
-  requestPasswordReset: (data: {
-    email: string
-    redirectTo?: string
-  }) => Promise<{
+  // The second positional arg is the same better-fetch options object signIn.email documents
+  // above — how the captcha token (`x-captcha-response`) reaches the server on the forgot flow
+  // (#500 review Finding 1: the captcha plugin protects /request-password-reset by default).
+  requestPasswordReset: (
+    data: {
+      email: string
+      redirectTo?: string
+    },
+    fetchOptions?: { headers?: Record<string, string> }
+  ) => Promise<{
     data: { status: boolean; message: string } | null
     error: AuthClientError | null
   }>

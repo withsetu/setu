@@ -55,6 +55,8 @@ vi.mock('../src/auth/auth-client', () => ({
     },
     changePassword: vi.fn(),
     listAccounts: vi.fn(),
+    // Kept mocked so tests can assert the signed-in surfaces NEVER call the captcha-protected
+    // public endpoint (#500 review Finding 1) — the real sends go through apiFetch.
     requestPasswordReset: vi.fn()
   }
 }))
@@ -160,12 +162,29 @@ function stubCredentialStatus(
   emailCaps: { transport: string; deliverable: boolean } = {
     transport: 'console',
     deliverable: true
-  }
+  },
+  // #500 review: the reset triggers now POST the server-gated /api/users/send-reset (the
+  // captcha-exempt server-side path) instead of better-auth's public client endpoint. The stub
+  // records each call's parsed body and answers with `sendReset.status`.
+  sendReset: { status: number } = { status: 200 }
 ) {
+  const sendResetCalls: Array<{ userId?: string }> = []
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string) => {
+    vi.fn(async (url: string, init?: RequestInit) => {
       const u = String(url)
+      if (u.includes('/api/users/send-reset')) {
+        // apiFetch always sends the body as a JSON string; anything else should explode here.
+        sendResetCalls.push(
+          JSON.parse(init?.body as string) as { userId?: string }
+        )
+        return new Response(
+          JSON.stringify(
+            sendReset.status === 200 ? { status: true } : { error: 'nope' }
+          ),
+          { status: sendReset.status }
+        )
+      }
       if (u.includes('/api/users/credential-status')) {
         return new Response(JSON.stringify(status), { status: 200 })
       }
@@ -189,6 +208,7 @@ function stubCredentialStatus(
       return new Response('not found', { status: 404 })
     })
   )
+  return { sendResetCalls }
 }
 
 beforeEach(() => {
@@ -664,6 +684,108 @@ describe('UsersScreen', () => {
         })
       )
     })
+
+    // #453: a passwordless MAINTAINER (social-login only) cannot use the set-password form —
+    // `user:set-password` is deliberately admin-only (packages/auth/src/action-statements.ts), so
+    // admin.setUserPassword would 403. When reset emails can go out, the card offers the
+    // self-service reset-email path instead; when they can't, honest copy — never a dead form.
+    // #500 review Finding 1: the send goes through the server-gated POST /api/users/send-reset
+    // (captcha-exempt server-side better-auth call), NEVER the public client endpoint the
+    // captcha plugin would 400 on a captcha-configured deployment.
+    it('passwordless maintainer + deliverable email: offers "Email me a reset link" (no 403-ing set-password form) and POSTs the server-gated send-reset route for themselves', async () => {
+      mockListUsers.mockResolvedValue({
+        data: { users: [MAINTAINER_USER], total: 1 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({ data: [], error: null })
+      const { sendResetCalls } = stubCredentialStatus(
+        {},
+        { transport: 'resend', deliverable: true }
+      )
+
+      renderAsActor('maintainer', 'maint-2')
+
+      const sendBtn = await screen.findByRole('button', {
+        name: /email me a reset link/i
+      })
+      expect(
+        screen.queryByRole('button', { name: /^set password$/i })
+      ).not.toBeInTheDocument()
+
+      fireEvent.click(sendBtn)
+      await waitFor(() =>
+        expect(sendResetCalls).toEqual([{ userId: 'maint-2' }])
+      )
+      expect(
+        await screen.findByText(/password reset email sent/i)
+      ).toBeInTheDocument()
+      expect(mockSetUserPassword).not.toHaveBeenCalled()
+      // The captcha-protected public endpoint must NOT be used from this signed-in surface.
+      expect(mockRequestPasswordReset).not.toHaveBeenCalled()
+    })
+
+    it('passwordless maintainer + undeliverable email: honest not-configured copy, no dead button', async () => {
+      mockListUsers.mockResolvedValue({
+        data: { users: [MAINTAINER_USER], total: 1 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({ data: [], error: null })
+      stubCredentialStatus({}, { transport: 'console', deliverable: false })
+
+      renderAsActor('maintainer', 'maint-2')
+
+      expect(
+        await screen.findByText(
+          /password reset emails aren[’']t configured for this site/i
+        )
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /email me a reset link/i })
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /^set password$/i })
+      ).not.toBeInTheDocument()
+    })
+
+    it('a failed self reset-email request surfaces an error toast, not silence', async () => {
+      mockListUsers.mockResolvedValue({
+        data: { users: [MAINTAINER_USER], total: 1 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({ data: [], error: null })
+      stubCredentialStatus(
+        {},
+        { transport: 'resend', deliverable: true },
+        { status: 500 }
+      )
+
+      renderAsActor('maintainer', 'maint-2')
+
+      fireEvent.click(
+        await screen.findByRole('button', { name: /email me a reset link/i })
+      )
+
+      expect(
+        await screen.findByText(/could not send the reset email/i)
+      ).toBeInTheDocument()
+    })
+
+    it('a passwordless ADMIN keeps the direct set-password form (the #248 remote-access path, unchanged)', async () => {
+      mockListUsers.mockResolvedValue({
+        data: { users: [OWNER], total: 1 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({ data: [], error: null })
+
+      renderAsActor('admin')
+
+      expect(
+        await screen.findByRole('button', { name: /^set password$/i })
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /email me a reset link/i })
+      ).not.toBeInTheDocument()
+    })
   })
 
   describe('credential status ("No password" row status)', () => {
@@ -824,14 +946,10 @@ describe('UsersScreen', () => {
         data: [{ id: 'a1', providerId: 'credential' }],
         error: null
       })
-      stubCredentialStatus(
+      const { sendResetCalls } = stubCredentialStatus(
         { 'owner-1': true, 'editor-1': true },
         { transport: 'console', deliverable: true }
       )
-      mockRequestPasswordReset.mockResolvedValue({
-        data: { status: true, message: '' },
-        error: null
-      })
 
       renderAsActor('admin', 'owner-1')
       await screen.findByText('Eve Editor')
@@ -846,12 +964,12 @@ describe('UsersScreen', () => {
         })
       )
 
+      // #500 review Finding 1: the row action POSTs the server-gated send-reset route (the
+      // captcha-exempt server-side path), never the captcha-protected public client endpoint.
       await waitFor(() =>
-        expect(mockRequestPasswordReset).toHaveBeenCalledWith({
-          email: 'editor@setu.dev',
-          redirectTo: `${window.location.origin}/reset-password`
-        })
+        expect(sendResetCalls).toEqual([{ userId: 'editor-1' }])
       )
+      expect(mockRequestPasswordReset).not.toHaveBeenCalled()
       expect(
         await screen.findByText(
           /password reset email sent to editor@setu\.dev/i

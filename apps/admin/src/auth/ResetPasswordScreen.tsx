@@ -53,7 +53,8 @@ function mapResetError(error: AuthClientError): string {
 export function ResetPasswordScreen() {
   const notify = useNotify()
   const navigate = useNavigate()
-  // #453 (second clause): Setu does NOT revoke sessions on reset, so a signed-in visitor
+  // #453 (second clause): Setu leaves `revokeSessionsOnPasswordReset` unset (better-auth
+  // opt-in, verified 1.6.24), intending that a reset does not revoke sessions — so a signed-in visitor
   // completing an emailed link (the passwordless-maintainer recovery path — SessionGate lets
   // token-carrying visits through while signed in) stays signed in afterwards. The success copy
   // branches on this: telling a still-signed-in user to "sign in with your new password" would

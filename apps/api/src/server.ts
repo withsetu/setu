@@ -542,8 +542,10 @@ app.route(
     // plugin (which protects the public HTTP /request-password-reset by default) keeps guarding
     // the unauthenticated surface without asking authenticated staff to solve challenges.
     // Injected under EXACTLY the same condition as createAuth's `email:` option above
-    // (auth exists + notifyFrom + adminOrigin) so the route's 409 and better-auth's
-    // RESET_PASSWORD_DISABLED can never disagree about whether reset is wired. redirectTo is
+    // (auth exists + notifyFrom + adminOrigin) — intended to keep the route's 409 and
+    // better-auth's RESET_PASSWORD_DISABLED in agreement about whether reset is wired; the two
+    // expressions are hand-mirrored (here and the `email:` ternary above), so a change to one
+    // must change the other. redirectTo is
     // omitted on purpose: packages/auth's withDefaultResetCallback fills in
     // `${adminOrigin}/reset-password`, the same default the emailed-link flow already uses.
     ...(auth && notifyFrom && adminOrigin

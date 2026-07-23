@@ -30,6 +30,12 @@ export interface TaxonomyContextValue {
    *  (#713/#714b) — they keep a dangling reference to the deleted slug, so the
    *  caller must tell the user rather than report an unqualified success. */
   remove: (slug: string) => Promise<{ skippedCount: number }>
+  /** Re-read the per-category "Used by" counts from the index. The store only
+   *  refreshes these on its OWN create/delete; callers that mutate category
+   *  membership another way (e.g. BulkBar's bulk add/remove for #854) must call
+   *  this so the counts don't go stale until a reload.
+   *  Enforced by apps/admin/test/bulk-bar.test.tsx. */
+  refreshCounts: () => Promise<void>
 }
 
 const TaxonomyContext = createContext<TaxonomyContextValue | null>(null)
@@ -114,9 +120,19 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
       create,
       renameLabel,
       reparent,
-      remove
+      remove,
+      refreshCounts
     }),
-    [categories, counts, loading, create, renameLabel, reparent, remove]
+    [
+      categories,
+      counts,
+      loading,
+      create,
+      renameLabel,
+      reparent,
+      remove,
+      refreshCounts
+    ]
   )
   return (
     <TaxonomyContext.Provider value={value}>

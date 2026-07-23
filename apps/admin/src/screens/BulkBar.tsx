@@ -10,6 +10,7 @@ import {
 import { useServices } from '../data/store'
 import { useIndex } from '../data/index-store'
 import { useTaxonomy } from '../data/taxonomy-store'
+import { useTags } from '../data/tags-store'
 import { useNotify } from '../ui/notify'
 import { TagAutocomplete } from '../ui/TagAutocomplete'
 import { CategoryPicker } from '../ui/CategoryPicker'
@@ -40,7 +41,8 @@ export function BulkBar({
   const { bulk } = useServices()
   const index = useIndex()
   const notify = useNotify()
-  const { categories } = useTaxonomy()
+  const { categories, refreshCounts: refreshCatCounts } = useTaxonomy()
+  const { refreshCounts: refreshTagCounts } = useTags()
   const nameBySlug = useMemo(
     () =>
       new Map(flattenCats(buildTree(categories)).map((c) => [c.slug, c.name])),
@@ -74,6 +76,12 @@ export function BulkBar({
       // (#655): with a bulk DELETE that stranded the removed rows as permanently
       // visible, because the stamped sha stopped ensureBuilt ever rescanning them.
       await index.reindexEntries(r.applied, r.committedSha).catch(() => {})
+      // #854: a bulk metadata edit changes tag/category usage, but the taxonomy
+      // and tags stores only refresh on their OWN CRUD — refresh both here so a
+      // newly-added tag shows up in TagsTab and the category "Used by" counts
+      // stay fresh without a full reload.
+      void refreshTagCounts()
+      void refreshCatCounts()
       const skipped = r.skipped.length ? ` · ${r.skipped.length} skipped` : ''
       notify.success(
         `${label} ${r.applied.length} post${r.applied.length === 1 ? '' : 's'}${skipped}`

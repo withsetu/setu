@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import type { ContentRow } from '@setu/core'
 import { contentPath, serializeMdoc } from '@setu/core'
 import { createMemoryGitPort } from '@setu/git-memory'
@@ -7,9 +7,23 @@ import { createMemoryDataPort } from '@setu/db-memory'
 import { ServicesProvider, servicesFor } from '../src/data/store'
 import { DeployProvider } from '../src/deploy/deploy'
 import { IndexProvider } from '../src/data/index-store'
-import { TaxonomyProvider } from '../src/data/taxonomy-store'
+import { TaxonomyProvider, useTaxonomy } from '../src/data/taxonomy-store'
+import { TagsProvider, useTags } from '../src/data/tags-store'
 import { NotificationProvider } from '../src/ui/notify'
 import { BulkBar } from '../src/screens/BulkBar'
+
+/** Renders the tag + category counts the app-level stores currently hold, so a
+ *  test can assert BulkBar refreshed them (#854) without a reload. */
+function CountsProbe() {
+  const { counts: tagCounts } = useTags()
+  const { counts: catCounts } = useTaxonomy()
+  return (
+    <div>
+      <div data-testid="tag-counts">{JSON.stringify(tagCounts)}</div>
+      <div data-testid="cat-counts">{JSON.stringify(catCounts)}</div>
+    </div>
+  )
+}
 
 const TAXONOMY_YAML = `- slug: news\n  name: News\n  parent: null\n`
 
@@ -51,14 +65,17 @@ function setup(rows: ContentRow[], { withTaxonomy = false } = {}) {
       <DeployProvider>
         <IndexProvider>
           <TaxonomyProvider>
-            <NotificationProvider>
-              <BulkBar
-                rows={rows}
-                selected={selected}
-                onClear={onClear}
-                onDone={onDone}
-              />
-            </NotificationProvider>
+            <TagsProvider>
+              <NotificationProvider>
+                <BulkBar
+                  rows={rows}
+                  selected={selected}
+                  onClear={onClear}
+                  onDone={onDone}
+                />
+                <CountsProbe />
+              </NotificationProvider>
+            </TagsProvider>
           </TaxonomyProvider>
         </IndexProvider>
       </DeployProvider>
@@ -130,5 +147,25 @@ describe('BulkBar', () => {
       ))!
     )
     expect(a.frontmatter.categories).toEqual(['news'])
+  })
+
+  // #854: a bulk tag-add must refresh the app-level tags store so a brand-new
+  // tag appears in TagsTab (and existing counts stay fresh) without a reload.
+  it('refreshes the tags store counts after a bulk tag-add (#854)', async () => {
+    setup([row('a'), row('b')])
+    await waitFor(() =>
+      expect(screen.getByTestId('tag-counts').textContent).toBe('{}')
+    )
+    const input = screen.getByLabelText('Bulk tag')
+    fireEvent.change(input, { target: { value: 'fresh' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await screen.findByText(/Added .*fresh.* to 2/i)
+    // Without the refresh the store would still read {} until a reload.
+    await waitFor(() => {
+      const counts = JSON.parse(
+        screen.getByTestId('tag-counts').textContent ?? '{}'
+      ) as Record<string, number>
+      expect(counts.fresh).toBe(2)
+    })
   })
 })

@@ -874,16 +874,59 @@ function UserList({ refreshSignal }: { refreshSignal: number }) {
  *  endpoint is `createAuthEndpoint.serverOnly`, i.e. NOT reachable over HTTP from this browser
  *  client at all; the admin endpoint is the only client-reachable route that can set a password
  *  with no existing credential account. Owners already hold `user:set-password` in the admin
- *  plugin's role map (packages/auth/src/index.ts), so no new permission is needed. */
+ *  plugin's role map (packages/auth/src/index.ts), so no new permission is needed.
+ *
+ *  #453: `user:set-password` is deliberately ADMIN-only (packages/auth/src/action-statements.ts),
+ *  so for a passwordless NON-admin — a maintainer who only ever signed in via a social provider —
+ *  the set-password form above would 403 on submit. That actor gets the self-service path
+ *  instead: better-auth's public `/request-password-reset` sent to their own session email
+ *  (better-auth 1.6.23's `/reset-password` CREATES the credential account when none exists —
+ *  dist/api/routes/password.mjs — so the emailed link genuinely grants them a password). When
+ *  reset emails can't go out (`email.deliverable` false), honest copy replaces the button —
+ *  never a control that could only dead-end. Covered by
+ *  apps/admin/test/users-screen.test.tsx's "passwordless maintainer" cases. */
 function OwnerPasswordCard({ onChanged }: { onChanged: () => void }) {
   const actor = useActor()
   const notify = useNotify()
   const { hasPassword, refresh: refreshHasPassword } = useHasPassword()
+  const { email: emailCaps } = useCapabilities()
+  const session = authClient.useSession()
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [errors, setErrors] = useState<PasswordErrors>({})
   const [submitting, setSubmitting] = useState(false)
+  const [sendingReset, setSendingReset] = useState(false)
+
+  // The no-credential branch splits by role: admin may call admin.setUserPassword on itself;
+  // everyone else (maintainer is the only other role that can reach this screen — users.view)
+  // must go through the reset-email path.
+  const passwordlessNonAdmin = hasPassword === false && actor.role !== 'admin'
+
+  async function emailResetLink() {
+    if (sendingReset) return
+    const selfEmail = session.data?.user.email
+    if (!selfEmail) {
+      notify.error('Could not determine your account email — reload and try again.')
+      return
+    }
+    setSendingReset(true)
+    try {
+      const { error } = await authClient.requestPasswordReset({
+        email: selfEmail,
+        redirectTo: `${window.location.origin}/reset-password`
+      })
+      if (error) {
+        notify.error(error.message || 'Could not send the reset email')
+        return
+      }
+      notify.success(`Password reset email sent to ${selfEmail}`)
+    } catch {
+      notify.error('Could not send the reset email')
+    } finally {
+      setSendingReset(false)
+    }
+  }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -941,6 +984,33 @@ function OwnerPasswordCard({ onChanged }: { onChanged: () => void }) {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  if (passwordlessNonAdmin) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Set a password</CardTitle>
+          <CardDescription>
+            {emailCaps?.deliverable
+              ? 'You signed in without a password. Email yourself a reset link to set one.'
+              : 'You signed in without a password. Password reset emails aren’t configured for this site — contact your site administrator to set one up.'}
+          </CardDescription>
+        </CardHeader>
+        {emailCaps?.deliverable && (
+          <CardContent>
+            <Button
+              type="button"
+              className="w-fit"
+              disabled={sendingReset}
+              onClick={() => void emailResetLink()}
+            >
+              {sendingReset ? 'Sending…' : 'Email me a reset link'}
+            </Button>
+          </CardContent>
+        )}
+      </Card>
+    )
   }
 
   return (

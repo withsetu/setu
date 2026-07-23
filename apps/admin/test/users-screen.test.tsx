@@ -55,7 +55,8 @@ vi.mock('../src/auth/auth-client', () => ({
     },
     changePassword: vi.fn(),
     listAccounts: vi.fn(),
-    requestPasswordReset: vi.fn()
+    requestPasswordReset: vi.fn(),
+    useSession: vi.fn()
   }
 }))
 
@@ -67,6 +68,7 @@ const mockSetUserPassword = vi.mocked(authClient.admin.setUserPassword)
 const mockChangePassword = vi.mocked(authClient.changePassword)
 const mockListAccounts = vi.mocked(authClient.listAccounts)
 const mockRequestPasswordReset = vi.mocked(authClient.requestPasswordReset)
+const mockUseSession = vi.mocked(authClient.useSession)
 
 const now = new Date('2026-01-01T00:00:00Z')
 
@@ -195,6 +197,15 @@ beforeEach(() => {
   // Default: OWNER/EDITOR/DISABLED_AUTHOR (the fixtures below) all have credential accounts, matching
   // the existing tests' assumption that nothing about password state was previously being asserted.
   stubCredentialStatus({ 'owner-1': true, 'editor-1': true, 'author-1': true })
+  // #453: OwnerPasswordCard reads the current user's email off the session for the self
+  // reset-email path. Defaults to the OWNER fixture; maintainer tests override.
+  mockUseSession.mockReturnValue({
+    data: { user: { id: 'owner-1', email: 'owner@setu.dev' } },
+    isPending: false,
+    isRefetching: false,
+    error: null,
+    refetch: vi.fn()
+  } as never)
 })
 
 afterEach(() => {
@@ -663,6 +674,127 @@ describe('UsersScreen', () => {
           currentPassword: 'old-password-123'
         })
       )
+    })
+
+    // #453: a passwordless MAINTAINER (social-login only) cannot use the set-password form —
+    // `user:set-password` is deliberately admin-only (packages/auth/src/action-statements.ts), so
+    // admin.setUserPassword would 403. When reset emails can go out, the card offers the
+    // self-service reset-email path instead; when they can't, honest copy — never a dead form.
+    it('passwordless maintainer + deliverable email: offers "Email me a reset link" (no 403-ing set-password form) and sends it to their own email', async () => {
+      mockListUsers.mockResolvedValue({
+        data: { users: [MAINTAINER_USER], total: 1 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({ data: [], error: null })
+      mockUseSession.mockReturnValue({
+        data: { user: { id: 'maint-2', email: 'maintainer@setu.dev' } },
+        isPending: false,
+        isRefetching: false,
+        error: null,
+        refetch: vi.fn()
+      } as never)
+      mockRequestPasswordReset.mockResolvedValue({
+        data: { status: true, message: 'ok' },
+        error: null
+      })
+
+      renderAsActor('maintainer', 'maint-2')
+
+      const sendBtn = await screen.findByRole('button', {
+        name: /email me a reset link/i
+      })
+      expect(
+        screen.queryByRole('button', { name: /^set password$/i })
+      ).not.toBeInTheDocument()
+
+      fireEvent.click(sendBtn)
+      await waitFor(() =>
+        expect(mockRequestPasswordReset).toHaveBeenCalledWith({
+          email: 'maintainer@setu.dev',
+          redirectTo: `${window.location.origin}/reset-password`
+        })
+      )
+      expect(
+        await screen.findByText(/reset email sent to maintainer@setu\.dev/i)
+      ).toBeInTheDocument()
+      expect(mockSetUserPassword).not.toHaveBeenCalled()
+    })
+
+    it('passwordless maintainer + undeliverable email: honest not-configured copy, no dead button', async () => {
+      mockListUsers.mockResolvedValue({
+        data: { users: [MAINTAINER_USER], total: 1 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({ data: [], error: null })
+      mockUseSession.mockReturnValue({
+        data: { user: { id: 'maint-2', email: 'maintainer@setu.dev' } },
+        isPending: false,
+        isRefetching: false,
+        error: null,
+        refetch: vi.fn()
+      } as never)
+      stubCredentialStatus(
+        {},
+        { transport: 'console', deliverable: false }
+      )
+
+      renderAsActor('maintainer', 'maint-2')
+
+      expect(
+        await screen.findByText(
+          /password reset emails aren[’']t configured for this site/i
+        )
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /email me a reset link/i })
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /^set password$/i })
+      ).not.toBeInTheDocument()
+    })
+
+    it('a failed self reset-email request surfaces an error toast, not silence', async () => {
+      mockListUsers.mockResolvedValue({
+        data: { users: [MAINTAINER_USER], total: 1 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({ data: [], error: null })
+      mockUseSession.mockReturnValue({
+        data: { user: { id: 'maint-2', email: 'maintainer@setu.dev' } },
+        isPending: false,
+        isRefetching: false,
+        error: null,
+        refetch: vi.fn()
+      } as never)
+      mockRequestPasswordReset.mockResolvedValue({
+        data: null,
+        error: { status: 500, message: 'smtp exploded' }
+      })
+
+      renderAsActor('maintainer', 'maint-2')
+
+      fireEvent.click(
+        await screen.findByRole('button', { name: /email me a reset link/i })
+      )
+
+      expect(await screen.findByText(/smtp exploded/i)).toBeInTheDocument()
+    })
+
+    it('a passwordless ADMIN keeps the direct set-password form (the #248 remote-access path, unchanged)', async () => {
+      mockListUsers.mockResolvedValue({
+        data: { users: [OWNER], total: 1 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({ data: [], error: null })
+
+      renderAsActor('admin')
+
+      expect(
+        await screen.findByRole('button', { name: /^set password$/i })
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /email me a reset link/i })
+      ).not.toBeInTheDocument()
     })
   })
 

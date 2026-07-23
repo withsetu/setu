@@ -109,6 +109,30 @@ describe('GlobalCommands', () => {
     )
   })
 
+  // #855: the nav commands must be gated the same way AppSidebar hides the
+  // routes — otherwise a role without access selects the palette entry and is
+  // silently bounced to /dashboard by RequireCan.
+  it.each([
+    ['cmd-nav.appearance'],
+    ['cmd-nav.settings'],
+    ['cmd-nav.health']
+  ])('%s is enabled for an admin (default actor)', (id) => {
+    const { getByTestId } = render(<GlobalCommands />, { wrapper: wrap() })
+    expect(getByTestId(id).getAttribute('data-enabled')).toBe('true')
+  })
+
+  it.each([
+    ['cmd-nav.appearance'],
+    ['cmd-nav.settings'],
+    ['cmd-nav.health']
+  ])('%s is disabled for an author (lacks the capability)', (id) => {
+    // author is the lowest staff role; it lacks theme.manage / settings.view /
+    // sitehealth.view (all Maintainer+).
+    const author: Actor = { id: 'a', role: 'author' }
+    const { getByTestId } = render(<GlobalCommands />, { wrapper: wrap(author) })
+    expect(getByTestId(id).getAttribute('data-enabled')).toBe('false')
+  })
+
   it('renders null (no DOM output from GlobalCommands itself)', () => {
     const { container } = render(
       <MemoryRouter>

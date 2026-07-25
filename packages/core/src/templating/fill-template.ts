@@ -186,13 +186,19 @@ export const HTML_TO_TEXT_MAX_INPUT = 100_000
  * `-->` after it ends the walk — no later one can have one either.
  *
  * The BOUND is pinned by packages/core/test/templating/fill-template.test.ts ("drops unclosed
- * comments in one pass, not one per comment"). The OUTPUT — that this still removes what the
- * pattern removed, and still leaves what it left — is pinned by the same file's "removes comment
- * spans exactly as the pattern it replaced did", which is the assertion that fails if the walk's
- * arithmetic drifts. It needed writing: no existing input in the suite contained an HTML comment
- * at all, so changing `close + 3` to `close + 2` passed all 1439 core tests.
+ * comments in one pass, not one per comment"). The OUTPUT is pinned there twice: by the
+ * enumerated "removes comment spans exactly as the pattern it replaced did", and — for the general
+ * claim, which no enumeration can carry — by "agrees with the pattern it replaced on 2,000 random
+ * inputs", which differential-tests this function against the regex itself. The enumeration needed
+ * writing because no existing input in the suite contained an HTML comment at all, so changing
+ * `close + 3` to `close + 2` passed all 1439 core tests; the property test needed writing because
+ * an enumeration provably missed a real deviation in the sibling walk below.
+ *
+ * Exported for that differential only — deliberately NOT on the package barrel, the same posture
+ * as `isUsableTemplateField` in ../email/template-registry.ts. It has no consumer outside this
+ * module.
  */
-function stripComments(html: string): string {
+export function stripComments(html: string): string {
   let out = ''
   let cursor = 0
   for (;;) {
@@ -206,8 +212,10 @@ function stripComments(html: string): string {
   return cursor === 0 ? html : out + html.slice(cursor)
 }
 
-/** Closers for {@link stripScriptStyle}, built per call — a module-level `/g` regex would carry
- *  `lastIndex` between calls. */
+/** Closers for {@link stripScriptStyle}. Built per call for symmetry with the `open` regex, which
+ *  genuinely must be per-call because the walk both reads and WRITES its `lastIndex`. These two do
+ *  not need it — every use assigns `lastIndex` immediately before `exec` — so this is tidiness,
+ *  not a correctness requirement. */
 const scriptStyleClosers = (): Map<string, RegExp> =>
   new Map([
     ['script', /<\/script>/gi],
@@ -225,12 +233,21 @@ const scriptStyleClosers = (): Map<string, RegExp> =>
  * tag name, since a closer not found from position p can never be found from any q >= p.
  *
  * Output equivalence to the pattern it replaced is pinned by
- * packages/core/test/templating/fill-template.test.ts ("removes script and style spans exactly as
- * the pattern it replaced did"), which covers the cases the tag-name backreference decides:
- * `<script>` may not be closed by `</style>`, an unclosed `<script>` must not swallow a later
- * well-formed `<style>` span, and the match is case-insensitive on both ends.
+ * packages/core/test/templating/fill-template.test.ts, in two layers that are NOT redundant.
+ * "removes script and style spans exactly as the pattern it replaced did" enumerates the cases the
+ * tag-name backreference decides — `<script>` may not be closed by `</style>`, an unclosed
+ * `<script>` must not swallow a later well-formed `<style>` span, the match is case-insensitive on
+ * both ends. "agrees with the pattern it replaced on 2,000 random inputs" carries the GENERAL
+ * claim, and it earned its place: deleting the `open.lastIndex = cursor` line below survives all
+ * of the enumerated cases and the whole 45-test file, while deviating from the replaced pattern on
+ * ~0.9% of random inputs — 82% of those deviations are invisible end to end because the later tag
+ * strip removes the difference, which is exactly why an end-to-end table is a weak oracle for a
+ * helper.
+ *
+ * Exported for that differential only — deliberately NOT on the package barrel; see
+ * {@link stripComments}.
  */
-function stripScriptStyle(html: string): string {
+export function stripScriptStyle(html: string): string {
   const open = /<(script|style)\b[^<>]*>/gi
   const closers = scriptStyleClosers()
   const exhausted = new Set<string>()
@@ -286,16 +303,25 @@ function stripScriptStyle(html: string): string {
  * an HTML parser. Enforced by packages/core/test/templating/fill-template.test.ts ("finishes
  * pathological markup inside a generous wall-clock bound").
  *
- * The anchor LABEL is a BOUNDED lazy run, `{0,4000}?` rather than `*?`. Unbounded, it was the
- * second-largest cost left: an unclosed `<a>` made it scan the whole remainder, i.e. the
- * O(unclosed anchors x input) shape #941 named. Flattening it to `[^<]*` would have removed the
- * cost but also the URL from `<a href="…"><strong>Reset</strong></a>` — ordinary HTML-email shape
- * whose URL is the only actionable thing in a password-reset body. The bound keeps both: a label
- * with inline markup still resolves, and a missing `</a>` costs 4000 steps instead of 100,000. A
- * label longer than 4000 characters is not treated as a link (its text survives, its URL does
- * not); no shipped template comes within two orders of magnitude of that. Both halves are pinned
- * by packages/core/test/templating/fill-template.test.ts ("keeps the URL of a link whose label
- * carries inline markup" and "finishes pathological markup inside a generous wall-clock bound").
+ * The anchor LABEL is a BOUNDED lazy run, `{0,4000}?` rather than `*?`. This one is
+ * DEFENCE-IN-DEPTH, not a wall-clock win today, and the distinction is worth stating plainly
+ * because the first two versions of this comment got it wrong in both directions. Measured in
+ * isolation at the 100 KB ceiling, best-of-7: `*?` is ~33 ms and `{0,4000}?` is ~41 ms — the bound
+ * COSTS about 7 ms. V8 compiles an unbounded lazy run followed by a literal into a memchr-style
+ * scan for that literal, while a counted quantifier falls back to a per-character loop, so 4,000
+ * slow steps are dearer than 100,000 fast ones. What the bound buys is that the label's cost stops
+ * depending on {@link HTML_TO_TEXT_MAX_INPUT}: it is O(4,000) per unclosed anchor rather than
+ * O(ceiling), so raising that ceiling later cannot quietly reintroduce the
+ * O(unclosed anchors x input) shape #941 named. It is intended as insurance, and no wall-clock
+ * test bites for it — do not expect one to.
+ *
+ * Flattening the label to `[^<]*` (what #941 proposed) is the option that is genuinely wrong: it
+ * drops the URL from `<a href="…"><strong>Reset</strong></a>`, ordinary HTML-email shape whose URL
+ * is the only actionable thing in a password-reset body. The observable trade the bound does make
+ * — a label longer than 4,000 characters is not treated as a link, so its text survives and its
+ * URL does not — is pinned by packages/core/test/templating/fill-template.test.ts ("keeps the URL
+ * of a link whose label carries inline markup" and "drops the URL of a link whose label exceeds
+ * the label bound"). No shipped template comes within two orders of magnitude of 4,000.
  */
 export function htmlToPlainText(html: string): string {
   const bounded =

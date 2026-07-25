@@ -46,9 +46,17 @@ const FORM_SUBMIT_MAX_BYTES = 1 * 1024 * 1024
  *   whole-body cap was also its only storage bound. 2,000 characters is the de-facto browser URL
  *   limit.
  *
- * `honeypot` and `captchaToken` are deliberately NOT capped here: neither is stored and neither is
- * rendered — the honeypot is only tested for emptiness and the token is handed to the captcha
- * adapter — so the whole-body cap is the right and only bound for them.
+ * What is NOT capped here, and why — stated rather than implied, because "every value is bounded"
+ * would be false:
+ *
+ * - `honeypot` and `captchaToken` come from the same body but are neither stored nor rendered: the
+ *   honeypot is only tested for emptiness and the token is handed to the captcha adapter. The
+ *   whole-body cap is the right and only bound for them.
+ * - `source.referrer` and `source.userAgent` ARE persisted, but they come from request HEADERS
+ *   (`referer` / `user-agent`), not the body, so this function never sees them. Their bound is the
+ *   server's header limit — 16,384 bytes on Node by default (`http.maxHeaderSize`, verified on the
+ *   Node 22 this repo pins), and a platform-imposed limit on the edge topology. That is a real
+ *   bound, just not one applied here.
  *
  * 200 characters is far past any real form id or label (the admin UI shows them in a column);
  * 10,000 is far past a contact-form message and still well inside the body cap; 100 fields is far
@@ -141,9 +149,10 @@ const asRecord = (v: unknown): Record<string, unknown> | null =>
 const isStringArray = (v: unknown): v is string[] =>
   Array.isArray(v) && v.every((x) => typeof x === 'string')
 
-/** #935: true when every STORED-or-RENDERED value in a public submission is within its cap.
+/** #935: true when every BODY-supplied value that gets stored or rendered is within its cap.
  *  Non-string values are not measured — they are coerced to '' / dropped below, so they carry
- *  nothing. `honeypot` and `captchaToken` are out of scope by design; see the constants above. */
+ *  nothing. Header-derived `source` fields never reach this function, and `honeypot` /
+ *  `captchaToken` are out of scope by design; the constants above say what bounds each instead. */
 const withinValueCaps = (
   formId: string,
   formLabel: unknown,

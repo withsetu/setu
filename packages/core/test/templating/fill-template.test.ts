@@ -4,6 +4,8 @@ import {
   escapeHtml,
   htmlToPlainText,
   HTML_TO_TEXT_MAX_INPUT,
+  stripComments,
+  stripScriptStyle,
   tokenNamesIn,
   unknownTokensIn,
   type TokenSpec
@@ -329,6 +331,86 @@ describe('htmlToPlainText', () => {
     })
   })
 
+  /**
+   * The general half of the equivalence claim, which no enumeration can carry.
+   *
+   * The oracles below are the #941-TIGHTENED patterns — attribute runs already `[^<>]` — i.e.
+   * exactly the shapes the two walks replaced, and NOT the pre-#941 `[^>]` ones that were the
+   * actual defect. Their only remaining flaw is the O(unclosed spans x input) lazy scan, which at
+   * the <=200-character inputs used here is microseconds. Nothing exploitable is embedded, and the
+   * REFERENCE_ONLY_ prefix plus this comment are the guard against anyone copying them back into
+   * src/.
+   *
+   * This exists because the enumerated tables above PROVABLY missed a real deviation: deleting
+   * `open.lastIndex = cursor` from stripScriptStyle survives every enumerated case and the whole
+   * file, while diverging from the oracle on ~0.9% of random inputs — 82% of those divergences are
+   * masked end to end by the later tag strip. A differential run once during development would not
+   * help either: per CLAUDE.md §3.3 #4, a check that fires zero times against the NEXT change
+   * reads as coverage without being any. The seed is fixed so a failure reproduces exactly.
+   */
+  describe('the span walks agree with the patterns they replaced', () => {
+    const REFERENCE_ONLY_pre941Comment = (s: string): string =>
+      s.replace(/<!--[\s\S]*?-->/g, '')
+    const REFERENCE_ONLY_pre941Span = (s: string): string =>
+      s.replace(/<(script|style)\b[^<>]*>[\s\S]*?<\/\1>/gi, '')
+
+    // Deterministic PRNG (mulberry32) — a differential that shuffles per run is a flaky test, and
+    // a failure nobody can reproduce is not evidence.
+    const seeded = (seed: number) => (): number => {
+      seed = (seed + 0x6d2b79f5) | 0
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+    }
+    // Atoms chosen so openers, closers, mismatched closers, case variants and the surrounding
+    // markup collide densely at short lengths — the region where the walks' cursor arithmetic and
+    // the patterns' backtracking can disagree.
+    const ATOMS = [
+      '<!--',
+      '-->',
+      '<script>',
+      '</script>',
+      '<style>',
+      '</style>',
+      '<SCRIPT >',
+      '</SCRIPT>',
+      '<scriptx>',
+      '<p>',
+      '</p>',
+      '<',
+      '>',
+      '\n',
+      'a',
+      'KEEP'
+    ]
+    const corpus = (seed: number, count: number): string[] => {
+      const rand = seeded(seed)
+      return Array.from({ length: count }, () => {
+        let s = ''
+        const n = 1 + Math.floor(rand() * 12)
+        for (let i = 0; i < n; i += 1)
+          s += ATOMS[Math.floor(rand() * ATOMS.length)] as string
+        return s.slice(0, 200)
+      })
+    }
+
+    it('agrees with the pattern it replaced on 2,000 random inputs', () => {
+      for (const input of corpus(0x5e7c, 2_000))
+        expect(stripComments(input), JSON.stringify(input)).toBe(
+          REFERENCE_ONLY_pre941Comment(input)
+        )
+    })
+
+    // KILL-SHOT TARGET for stripScriptStyle's cursor arithmetic, including the
+    // `open.lastIndex = cursor` line that the enumerated table cannot reach.
+    it('agrees with the span pattern it replaced on 2,000 random inputs', () => {
+      for (const input of corpus(0x9a3f, 2_000))
+        expect(stripScriptStyle(input), JSON.stringify(input)).toBe(
+          REFERENCE_ONLY_pre941Span(input)
+        )
+    })
+  })
+
   describe('removes script and style spans exactly as the pattern it replaced did', () => {
     it.each([
       ['a script span', '<script>a()</script>b', 'b'],
@@ -361,17 +443,21 @@ describe('htmlToPlainText', () => {
  * template cap does NOT bound its input: the input is the RENDERED body, which carries visitor
  * field content and grows again when that content is HTML-escaped.
  *
- * Four bounds, all needed, each measured at the 100 KB ceiling on this machine:
+ * Four bounds, each measured at the 100 KB ceiling on this machine. THREE of them are what makes
+ * the wall-clock assertion below pass; the fourth is insurance and is honestly labelled as such:
  *
  * - the input CEILING itself;
  * - every tag-internal run tightened from `[^>]` to `[^<>]`. This was by far the largest term:
  *   `'<a href="x'` repeated to 100 KB took ~22 MINUTES with the old patterns, scaling cubically
  *   (2.7 ms at 1 KB, 90 ms at 4 KB, 5.4 s at 16 KB), and takes ~1 ms now;
- * - the two lazy SPAN scans (`<!-- … -->`, `<script|style> … </>`) replaced by forward `indexOf`
- *   walks: ~470 ms -> ~1 ms and ~100 ms -> ~2 ms respectively on 100 KB of unclosed openers;
- * - the anchor LABEL run bounded to `{0,4000}?`. It was not the dominant cost the issue took it
- *   for, but it was the second-largest term left once the attribute runs were fixed, and it is
- *   the O(unclosed anchors x input) shape #941 actually named.
+ * - the two lazy SPAN scans (`<!-- … -->`, `<script|style> … </>`) replaced by forward walks:
+ *   ~470 ms -> ~1 ms and ~100 ms -> ~2 ms respectively on 100 KB of unclosed openers;
+ * - the anchor LABEL run bounded to `{0,4000}?`, which COSTS ~7 ms today (`*?` measures ~33 ms
+ *   against the bound's ~41 ms, best-of-7 in isolation: V8 turns an unbounded lazy run followed
+ *   by a literal into a memchr-style scan, while a counted quantifier is a per-character loop).
+ *   It is kept because it decouples the label's cost from HTML_TO_TEXT_MAX_INPUT rather than
+ *   because it is faster — see the note on htmlToPlainText. No assertion in this block bites for
+ *   it; the two output tests above are what pin it.
  */
 describe('htmlToPlainText is bounded (#941)', () => {
   it('truncates input past the hard ceiling', () => {
@@ -390,9 +476,9 @@ describe('htmlToPlainText is bounded (#941)', () => {
   // Deliberately a BOUND, not a curve: the whole corpus measures 56-71 ms in this suite, so 3 s
   // leaves more than an order of magnitude of headroom and cannot flake on a loaded CI runner,
   // while still failing loudly the moment a superlinear pattern comes back. The largest single
-  // contributor is now the stray-`</a>` input at ~56 ms — that is the bounded label run doing
-  // its 4000 steps per unclosed anchor, which is the cost the bound trades for keeping
-  // inline-markup labels resolvable. Every other input is under 10 ms.
+  // contributor is the stray-`</a>` input at ~56 ms, which is the label run — slightly DEARER
+  // than it would be unbounded (see the block comment above); reverting the label bound leaves
+  // this corpus at ~48 ms and green. Every other input is under 10 ms.
   it('finishes pathological markup inside a generous wall-clock bound', () => {
     const pad = (s: string, n = HTML_TO_TEXT_MAX_INPUT): string =>
       s.length >= n ? s.slice(0, n) : s + 'y'.repeat(n - s.length)
@@ -417,13 +503,18 @@ describe('htmlToPlainText is bounded (#941)', () => {
   })
 
   // KILL-SHOT TARGET for the comment scan specifically: `/<!--[\s\S]*?-->/g` back in place of
-  // stripComments takes this input from ~1 ms to ~470 ms. It needs its own assertion because the
-  // corpus bound above is wide enough to absorb that regression on its own — a bound generous
+  // stripComments takes this input from ~1 ms to ~240-470 ms. It needs its own assertion because
+  // the corpus bound above is wide enough to absorb that regression on its own — a bound generous
   // enough not to flake is too generous to catch a several-fold regression in one of its steps.
+  //
+  // The bound is 50 ms, not 200: at 200 the mutant's slowest observed run (242 ms) cleared the
+  // bound by only 1.2x, which is thin enough that a fast machine could let the regression through.
+  // 50 ms keeps ~50x headroom over the ~1 ms this actually takes while putting the mutant ~5x
+  // outside — the same shape as the script-span bound below.
   it('drops unclosed comments in one pass, not one per comment', () => {
     const started = Date.now()
     htmlToPlainText('<!--'.repeat(HTML_TO_TEXT_MAX_INPUT / 4))
-    expect(Date.now() - started).toBeLessThan(200)
+    expect(Date.now() - started).toBeLessThan(50)
   })
 
   // Same reasoning, same shape, for the other lazy span: the pattern takes this input to ~100 ms,

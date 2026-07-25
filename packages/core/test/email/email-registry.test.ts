@@ -557,10 +557,11 @@ describe('security', () => {
         })
       )
       expect(out.subject.length).toBeLessThanOrEqual(EMAIL_TEMPLATE_MAX_SUBJECT)
-      expect(
-        [...out.subject].every((c) => c.codePointAt(0) !== undefined)
-      ).toBe(true)
-      // No unpaired surrogate survives: every code unit in D800-DFFF belongs to a full pair.
+      // No unpaired surrogate survives — a high one with no low after it, or a low one with no
+      // high before it. These two regexes are the WHOLE assertion. An earlier version also spread
+      // the string and checked `codePointAt(0) !== undefined`, which is true of a lone surrogate
+      // too and so proved nothing: a vacuous assertion sitting in a security test is the #638
+      // class, worse than no assertion because it reads as coverage.
       expect(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(out.subject)).toBe(false)
       expect(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(out.subject)).toBe(
         false

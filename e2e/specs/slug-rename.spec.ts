@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { ContentListPage } from '../pages/ContentListPage'
 import { uniqueTitle } from '../lib/unique-title'
+import { watchNotifications } from '../lib/notifications'
 
 // No `editor-` prefix: chromium-only per e2e/playwright.config.ts testMatch — renaming a
 // slug is an input/button/toast flow in the meta panel, not a contenteditable surface.
@@ -24,27 +25,28 @@ test('rename a published post’s slug from the editor meta panel', async ({
   await expect(page).not.toHaveURL(/\/edit\/post\/en\/new$/)
   await editor.publish()
 
+  // Start recording notifications BEFORE the action that produces one (#636). The toast
+  // below auto-dismisses after 4s and `followRename` awaits the move commit plus both
+  // identities' reindex before pushing it, so a live-locator wait is a bet on looking while
+  // it happens to be on screen — a bet CI lost repeatedly on runs where the rename itself
+  // had plainly succeeded. The recorder turns "is it visible right now" into "did it happen".
+  const notifications = await watchNotifications(page)
+
   // Rename in the meta panel: clear the slug, type the new one, apply with Enter.
   const slugInput = page.getByRole('textbox', { name: 'Slug' })
   await slugInput.fill(newSlug)
   await slugInput.press('Enter')
 
-  // The success toast is explicit that the redirect waits for the next rebuild
-  // (saved ≠ live). Assert it right away — notifications auto-dismiss after 4s.
-  // Generous timeout: followRename AWAITS the move commit plus both identities'
-  // reindex before toasting (by design — success must imply durable index rows),
-  // so under load the toast can land after the default 5s window; once shown it
-  // stays 4s and the poll catches it (same pattern as the visual spec's 15s waits).
-  await expect(
-    page
-      .getByRole('region', { name: 'Notifications', exact: true })
-      .getByText(/^Slug renamed — the old URL will 301/)
-  ).toBeVisible({ timeout: 15_000 })
-
-  // The editor followed the entry to its new identity: URL and header breadcrumb.
-  await expect(page).toHaveURL(new RegExp(`/edit/post/en/${newSlug}$`))
+  // Durable outcomes first — the editor followed the entry to its new identity (URL, header
+  // breadcrumb) and the field re-synced. These are states, not events: they can be waited on
+  // for as long as a loaded runner needs without any chance of arriving-then-vanishing.
+  await expect(page).toHaveURL(new RegExp(`/edit/post/en/${newSlug}$`), {
+    timeout: 30_000
+  })
   await expect(page.getByText(`post / ${newSlug}`)).toBeVisible()
-
-  // And the slug field itself re-synced to the applied value.
   await expect(slugInput).toHaveValue(newSlug)
+
+  // And the success toast really was shown, with the wording that keeps saved ≠ live honest:
+  // the 301 only takes effect on the next rebuild.
+  await notifications.expectMatching(/^Slug renamed — the old URL will 301/)
 })

@@ -376,7 +376,6 @@ export function EditorScreen() {
     newSlug: string,
     opts: { silent?: boolean } = {}
   ): Promise<RenameResult> => {
-    const wasCommitted = lifecycle.state !== 'draft'
     // Pause first (no NEW save starts), then quiesce (#755a): a save already PAST
     // the pause check is mid-write to the OLD ref — wait it out BEFORE the service
     // deletes that draft, or it lands after and orphans a draft at the old slug.
@@ -419,9 +418,17 @@ export function EditorScreen() {
           result.committedSha
         )
         .catch(() => {})
+      // The redirect line is owed exactly when a committed file MOVED, and `committedSha`
+      // is the move commit's sha — `renameSlug` sets it only after finding the old path in
+      // Git (packages/core/src/rename/rename-service.ts), so it reads canonical state at
+      // rename time. It replaces `lifecycle.state !== 'draft'`, a React value refreshed
+      // asynchronously AFTER publish's own toast: renaming inside that window claimed the
+      // entry was never committed and dropped the 301 warning (#947). Enforced by
+      // apps/admin/test/editor-screen.test.tsx's "renaming a COMMITTED entry reports the
+      // 301, even when the cached lifecycle is stale".
       if (!opts.silent)
         notify.success(
-          wasCommitted
+          result.committedSha
             ? 'Slug renamed — the old URL will 301 after the next rebuild'
             : 'Slug renamed'
         )

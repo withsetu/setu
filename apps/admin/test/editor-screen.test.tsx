@@ -236,6 +236,41 @@ describe('EditorScreen', () => {
     expect(await screen.findByText('Slug renamed')).toBeInTheDocument()
   })
 
+  it('renaming a COMMITTED entry reports the 301, even when the cached lifecycle is stale (#947)', async () => {
+    const services = createServices()
+    renderEditor(services, '/edit/post/en/release-notes')
+    await screen.findByDisplayValue('Release notes')
+
+    // Commit the entry behind the editor's back. `lifecycle` is React state refreshed only
+    // on load and after a publish, so this is the shape of the window #947 was reported in:
+    // the entry IS committed while the editor's cached derivation still reads 'draft'. (In
+    // the real defect the gap is publish's own `notify.success` -> `await reindexEntries` ->
+    // `await refreshLifecycle`; here it is simply never refreshed, which is the same stale
+    // state held still.) Git is canonical, so the toast must follow Git, not the cache.
+    await services.git.commitFiles({
+      changes: [
+        {
+          path: 'content/post/en/release-notes.mdoc',
+          content: '---\ntitle: Release notes\n---\n\nWhat shipped.\n'
+        }
+      ],
+      message: 'Publish post/en/release-notes',
+      author: { name: 'Other Editor', email: 'other@setu.dev' }
+    })
+
+    const slugInput = screen.getByRole('textbox', { name: 'Slug' })
+    fireEvent.change(slugInput, { target: { value: 'renamed-notes' } })
+    fireEvent.keyDown(slugInput, { key: 'Enter' })
+
+    // The rename made a real move commit, so the old URL has something to 301 FROM — and
+    // saying so is the saved≠live half of this flow (the redirect needs the next rebuild).
+    expect(
+      await screen.findByText(
+        'Slug renamed — the old URL will 301 after the next rebuild'
+      )
+    ).toBeInTheDocument()
+  })
+
   it('auto-derives the slug from the title on blur while never committed and untouched', async () => {
     const services = createServices()
     renderEditor(services, '/edit/post/en/release-notes')

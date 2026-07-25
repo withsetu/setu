@@ -90,8 +90,7 @@ test('publish twice, inspect the diff, restore the older revision; author sees a
   const confirm = page.getByRole('alertdialog')
   await expect(confirm).toContainText(/never rewritten/)
   await expect(confirm).toContainText('This discards your unsaved changes.')
-  await confirm.getByRole('button', { name: 'Restore', exact: true }).click()
-  await expect(editor.restoredToast).toBeVisible()
+  await editor.confirmRestore()
 
   // The editor reloads the restored content in place: title and body revert,
   // and the discard the user just consented to actually happened.

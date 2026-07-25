@@ -64,14 +64,31 @@ export const STAGING_PORTS = {
   mailpitUi: 18026
 }
 
-/** The four origins from #869. Subdomains, deliberately — distinct origins force the honest
- *  problems (Secure/SameSite cookies, CORS allowlist, SETU_ADMIN_ORIGIN) that only surface on
- *  real deployments today. */
+/** The four origins from #869, on the default front port. Subdomains, deliberately — distinct
+ *  origins force the honest problems (Secure/SameSite cookies, CORS allowlist,
+ *  SETU_ADMIN_ORIGIN) that only surface on real deployments today. */
 export const STAGING_ORIGINS = {
   site: 'https://setu.localhost',
   admin: 'https://admin.setu.localhost',
   api: 'https://api.setu.localhost',
   mailpit: 'https://mailpit.setu.localhost'
+}
+
+/** The origins for a given overlay: on the default `:443` they are STAGING_ORIGINS verbatim;
+ *  with `SETU_STAGING_HTTPS_PORT` overridden (another stack — Docker Desktop, DDEV — may own
+ *  443/80 on this machine) every origin gains the explicit port suffix. Derived, never
+ *  auto-fallen-back-to: the origins are BAKED into the admin/site builds, so a port that
+ *  changed silently between runs would desync builds from the proxy. Enforced by the
+ *  stagingOriginsFor tests in scripts/staging.test.mjs. */
+export function stagingOriginsFor(overlay) {
+  const httpsPort = overlay.SETU_STAGING_HTTPS_PORT ?? '443'
+  const suffix = httpsPort === '443' ? '' : `:${httpsPort}`
+  return {
+    site: `https://setu.localhost${suffix}`,
+    admin: `https://admin.setu.localhost${suffix}`,
+    api: `https://api.setu.localhost${suffix}`,
+    mailpit: `https://mailpit.setu.localhost${suffix}`
+  }
 }
 
 /** Every filesystem location the staging profile owns, all under the gitignored
@@ -132,7 +149,11 @@ function stagingDefaults() {
     SETU_FORMS_NOTIFY_FROM: 'staging@setu.localhost',
     SETU_CAPTCHA_PROVIDER: 'turnstile',
     SETU_TURNSTILE_SITE_KEY: '1x00000000000000000000AA',
-    SETU_TURNSTILE_SECRET: '1x0000000000000000000000000000000AA'
+    SETU_TURNSTILE_SECRET: '1x0000000000000000000000000000000AA',
+    // Caddy's front ports. Defaults are the real thing (clean port-less origins); override
+    // in .env when another stack (Docker Desktop, DDEV, a local nginx) owns 443/80.
+    SETU_STAGING_HTTPS_PORT: '443',
+    SETU_STAGING_HTTP_PORT: '80'
   }
 }
 
@@ -150,21 +171,22 @@ export function stagingOverlay(dotenv) {
  *  serves. Every claim here is enforced by the apiEnvFor tests in scripts/staging.test.mjs. */
 export function apiEnvFor({ root, overlay, secret }) {
   const p = stagingPaths(root)
+  const origins = stagingOriginsFor(overlay)
   return {
     NODE_ENV: 'production',
     SETU_API_PORT: String(STAGING_PORTS.api),
     SETU_REPO_DIR: p.sandbox,
     SETU_MEDIA_DIR: path.join(p.sandbox, '.setu', 'uploads'),
-    SETU_MEDIA_PUBLIC_URL: `${STAGING_ORIGINS.api}/media`,
-    SETU_BASE_URL: STAGING_ORIGINS.api,
-    SETU_ADMIN_ORIGIN: STAGING_ORIGINS.admin,
-    SETU_TRUSTED_ORIGINS: STAGING_ORIGINS.site,
+    SETU_MEDIA_PUBLIC_URL: `${origins.api}/media`,
+    SETU_BASE_URL: origins.api,
+    SETU_ADMIN_ORIGIN: origins.admin,
+    SETU_TRUSTED_ORIGINS: origins.site,
     SETU_AUTH_SECRET: secret,
     // Deploy-rebuild parity (site build env, flowing through makeBuildRunner):
     SETU_CONTENT_DIR: path.join(p.sandbox, 'content'),
-    SETU_SITE_URL: STAGING_ORIGINS.site,
-    SETU_API_URL: STAGING_ORIGINS.api,
-    PUBLIC_SETU_MEDIA: STAGING_ORIGINS.api,
+    SETU_SITE_URL: origins.site,
+    SETU_API_URL: origins.api,
+    PUBLIC_SETU_MEDIA: origins.api,
     ...overlay
   }
 }
@@ -172,9 +194,10 @@ export function apiEnvFor({ root, overlay, secret }) {
 /** Vite build env for the admin SPA — the api/site origins are BAKED IN at build time
  *  (import.meta.env), which is exactly the production shape. */
 export function adminBuildEnvFor(overlay) {
+  const origins = stagingOriginsFor(overlay)
   return {
-    VITE_SETU_API: STAGING_ORIGINS.api,
-    VITE_SETU_SITE: STAGING_ORIGINS.site,
+    VITE_SETU_API: origins.api,
+    VITE_SETU_SITE: origins.site,
     ...overlay
   }
 }
@@ -192,12 +215,13 @@ export function siteBuildEnvFor({ root, overlay }) {
           PUBLIC_CAPTCHA_SITE_KEY: overlay.SETU_TURNSTILE_SITE_KEY
         }
       : {}
+  const origins = stagingOriginsFor(overlay)
   return {
     SETU_CONTENT_DIR: path.join(p.sandbox, 'content'),
-    SETU_SITE_URL: STAGING_ORIGINS.site,
-    SETU_API_URL: STAGING_ORIGINS.api,
-    PUBLIC_SETU_MEDIA: STAGING_ORIGINS.api,
-    PUBLIC_SETU_API_BASE: STAGING_ORIGINS.api,
+    SETU_SITE_URL: origins.site,
+    SETU_API_URL: origins.api,
+    PUBLIC_SETU_MEDIA: origins.api,
+    PUBLIC_SETU_API_BASE: origins.api,
     ...captcha,
     ...overlay
   }
@@ -208,14 +232,23 @@ export function siteBuildEnvFor({ root, overlay }) {
  *  `admin off` = no localhost:2019 admin socket, so two Caddy instances can't collide and the
  *  only way to stop this one is the recorded pid — which is how staging:stop works anyway.
  *  Shape enforced by the caddyfileFor tests in scripts/staging.test.mjs. */
-export function caddyfileFor(paths) {
-  const host = (origin) => origin.replace('https://', '')
+export function caddyfileFor(paths, overlay = stagingOverlay({})) {
+  // Addresses are bare hostnames; the global http_port/https_port options decide where they
+  // bind, so a custom front port changes ONE place and every site follows.
+  const host = (origin) => origin.replace('https://', '').replace(/:\d+$/, '')
+  const origins = stagingOriginsFor(overlay)
+  const httpsPort = overlay.SETU_STAGING_HTTPS_PORT ?? '443'
+  const httpPort = overlay.SETU_STAGING_HTTP_PORT ?? '80'
+  const portLines =
+    httpsPort === '443' && httpPort === '80'
+      ? ''
+      : `\n	http_port ${httpPort}\n	https_port ${httpsPort}`
   return `{
 	admin off
-	local_certs
+	local_certs${portLines}
 }
 
-${host(STAGING_ORIGINS.site)} {
+${host(origins.site)} {
 	root * ${paths.siteDist}
 	encode gzip
 	file_server
@@ -225,18 +258,18 @@ ${host(STAGING_ORIGINS.site)} {
 	}
 }
 
-${host(STAGING_ORIGINS.admin)} {
+${host(origins.admin)} {
 	root * ${paths.adminDist}
 	encode gzip
 	try_files {path} /index.html
 	file_server
 }
 
-${host(STAGING_ORIGINS.api)} {
+${host(origins.api)} {
 	reverse_proxy 127.0.0.1:${STAGING_PORTS.api}
 }
 
-${host(STAGING_ORIGINS.mailpit)} {
+${host(origins.mailpit)} {
 	reverse_proxy 127.0.0.1:${STAGING_PORTS.mailpitUi}
 }
 `
@@ -417,6 +450,7 @@ async function start() {
       `[staging] loaded ${Object.keys(dotenv).length} override(s) from .env`
     )
   const overlay = stagingOverlay(dotenv)
+  const origins = stagingOriginsFor(overlay)
 
   // Already running? Refuse — never stack a second instance on the first.
   const existing = readPidsFile(paths.pidsFile)
@@ -436,12 +470,16 @@ async function start() {
   }
 
   // Port preflight — report, never kill (that is staging:stop's job, and only for OUR pids).
-  for (const [name, port] of [
-    ['api', STAGING_PORTS.api],
-    ['mailpit smtp', STAGING_PORTS.smtp],
-    ['mailpit ui', STAGING_PORTS.mailpitUi],
-    ['caddy http', 80],
-    ['caddy https', 443]
+  // The Caddy front ports get a tailored message: 443/80 being owned by another stack
+  // (Docker Desktop, DDEV, a local nginx) is common, and the fix is a .env line, not a kill.
+  const httpsPort = Number(overlay.SETU_STAGING_HTTPS_PORT ?? '443')
+  const httpPort = Number(overlay.SETU_STAGING_HTTP_PORT ?? '80')
+  for (const [name, port, isFront] of [
+    ['api', STAGING_PORTS.api, false],
+    ['mailpit smtp', STAGING_PORTS.smtp, false],
+    ['mailpit ui', STAGING_PORTS.mailpitUi, false],
+    ['caddy http', httpPort, true],
+    ['caddy https', httpsPort, true]
   ]) {
     const pids = listenersOf(port)
     if (pids.length > 0) {
@@ -449,6 +487,13 @@ async function start() {
         `staging: port ${port} (${name}) is already in use by pid ${pids.join(', ')} — ` +
           'stop whatever holds it (or `pnpm staging:stop` if it is a leftover staging run).'
       )
+      if (isFront)
+        console.error(
+          'staging: if another stack permanently owns 443/80 on this machine, pick free front ' +
+            'ports in .env instead, e.g.:\n' +
+            '  SETU_STAGING_HTTPS_PORT=8443\n  SETU_STAGING_HTTP_PORT=8480\n' +
+            'The staging origins then carry the port suffix (https://admin.setu.localhost:8443).'
+        )
       process.exit(1)
     }
   }
@@ -468,7 +513,7 @@ async function start() {
   runBuild('admin SPA', '@setu/admin', adminBuildEnvFor(overlay))
   runBuild('site', '@setu/site', siteBuildEnvFor({ root: REPO_ROOT, overlay }))
 
-  writeFileSync(paths.caddyfile, caddyfileFor(paths))
+  writeFileSync(paths.caddyfile, caddyfileFor(paths, overlay))
 
   // --- spawn the three long-lived processes ---
   let setupToken = null
@@ -480,7 +525,10 @@ async function start() {
     if (shuttingDown) return
     shuttingDown = true
     console.log('\n[staging] stopping…')
-    await stopRecorded(records)
+    // Children only — the 'staging' record is THIS process (recorded for staging:stop's
+    // benefit); group-signalling ourselves here would kill this handler before the pid-file
+    // cleanup below ever ran.
+    await stopRecorded(records.filter((r) => r.name !== 'staging'))
     rmSync(paths.pidsFile, { force: true })
     process.exit(code)
   }
@@ -574,20 +622,20 @@ async function start() {
   console.log(`
 [staging] up — self-hosted Node topology parity (prod builds + HTTPS + SMTP):
 
-    site      ${STAGING_ORIGINS.site}
-    admin     ${STAGING_ORIGINS.admin}
-    api       ${STAGING_ORIGINS.api}/api/capabilities
-    mailpit   ${STAGING_ORIGINS.mailpit}
+    site      ${origins.site}
+    admin     ${origins.admin}
+    api       ${origins.api}/api/capabilities
+    mailpit   ${origins.mailpit}
 `)
   if (setupToken) {
     console.log(
-      `[staging] FIRST RUN — no users yet. Open ${STAGING_ORIGINS.admin}, and create the owner\n` +
+      `[staging] FIRST RUN — no users yet. Open ${origins.admin}, and create the owner\n` +
         `[staging] account with this one-time setup token:\n[staging]\n` +
         `[staging]     ${setupToken}\n`
     )
   } else if (capabilities?.auth?.needsSetup === false) {
     console.log(
-      `[staging] sign in at ${STAGING_ORIGINS.admin} with your existing staging account.`
+      `[staging] sign in at ${origins.admin} with your existing staging account.`
     )
   }
   console.log(
@@ -603,8 +651,8 @@ async function stopCommand() {
     console.log('staging: not running (no pid file) — nothing to stop.')
     return
   }
-  // The parent (a foreground `pnpm staging`) is stopped LAST: killing it first would fire its
-  // own shutdown concurrently with ours. Children first, idempotently; then the parent.
+  // Split so the parent (a foreground `pnpm staging`) can be signalled FIRST — see the
+  // ordering comment below the plan.
   const children = state.records.filter((r) => r.name !== 'staging')
   const parents = state.records.filter((r) => r.name === 'staging')
   const plan = planStop([...children, ...parents], {
@@ -625,8 +673,29 @@ async function stopCommand() {
     rmSync(paths.pidsFile, { force: true })
     return
   }
-  await stopRecorded(plan.stop)
-  const survivors = plan.stop.filter((r) => isAlive(r.pid))
+  const stopChildren = plan.stop.filter((r) => r.name !== 'staging')
+  const stopParents = plan.stop.filter((r) => r.name === 'staging')
+  // Parent FIRST, with a plain SIGTERM (never a group kill): its own handler flips its
+  // shuttingDown flag and cascades to the children itself. Signalling children first made the
+  // parent's exit-guard see caddy die "unexpectedly" and exit 1 mid-teardown; escalating on the
+  // parent at stopRecorded's tempo SIGKILLed it before its pid-file cleanup. Both observed on
+  // the first live stop cycle of #869.
+  for (const r of stopParents) {
+    try {
+      process.kill(r.pid, 'SIGTERM')
+    } catch {
+      /* already gone */
+    }
+  }
+  if (stopParents.length > 0) await sleep(1500)
+  // Orphan net: whatever is still alive (parent already dead, or no parent recorded).
+  await stopRecorded(stopChildren.filter((r) => isAlive(r.pid)))
+  const deadline = Date.now() + 6000
+  let survivors = plan.stop.filter((r) => isAlive(r.pid))
+  while (survivors.length > 0 && Date.now() < deadline) {
+    await sleep(300)
+    survivors = plan.stop.filter((r) => isAlive(r.pid))
+  }
   if (survivors.length > 0) {
     console.error(
       `staging: could not stop ${survivors.map((r) => `${r.name} pid ${r.pid}`).join(', ')}`

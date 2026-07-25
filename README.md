@@ -47,6 +47,12 @@ that otherwise only surface on real deployments:
 | `https://api.setu.localhost` | the api, booted in self-hosted posture |
 | `https://mailpit.setu.localhost` | Mailpit's web UI (captured email) |
 
+Caddy fronts `:443`/`:80` by default (macOS allows unprivileged low-port binding). If another
+stack on your machine permanently owns those ports (Docker Desktop, DDEV, a local nginx), set
+`SETU_STAGING_HTTPS_PORT`/`SETU_STAGING_HTTP_PORT` in `.env` — every staging origin then carries
+the explicit suffix (e.g. `https://admin.setu.localhost:8443`); the preflight error tells you
+exactly this when it detects the collision.
+
 **Signing in (first run):** the api boots in self-hosted posture with an empty user table, so it
 mints a one-time **setup token** — `pnpm staging` prints it once the stack is ready. Open
 `https://admin.setu.localhost`, and the setup screen asks for that token to create the owner

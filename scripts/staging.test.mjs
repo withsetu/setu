@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import {
   STAGING_PORTS,
   STAGING_ORIGINS,
+  stagingOriginsFor,
   parseDotenv,
   stagingOverlay,
   stagingPaths,
@@ -54,6 +55,43 @@ test('staging origins are the four subdomain HTTPS origins from #869', () => {
     api: 'https://api.setu.localhost',
     mailpit: 'https://mailpit.setu.localhost'
   })
+})
+
+test('stagingOriginsFor is STAGING_ORIGINS verbatim on the default front port', () => {
+  assert.deepEqual(stagingOriginsFor(stagingOverlay({})), STAGING_ORIGINS)
+})
+
+test('stagingOriginsFor adds the port suffix when 443 is overridden (Docker/DDEV machines)', () => {
+  const overlay = stagingOverlay({ SETU_STAGING_HTTPS_PORT: '8443' })
+  assert.deepEqual(stagingOriginsFor(overlay), {
+    site: 'https://setu.localhost:8443',
+    admin: 'https://admin.setu.localhost:8443',
+    api: 'https://api.setu.localhost:8443',
+    mailpit: 'https://mailpit.setu.localhost:8443'
+  })
+})
+
+test('a front-port override flows into api env, build envs, and Caddyfile together', () => {
+  const overlay = stagingOverlay({
+    SETU_STAGING_HTTPS_PORT: '8443',
+    SETU_STAGING_HTTP_PORT: '8480'
+  })
+  const api = apiEnvFor({ root: ROOT, overlay, secret: SECRET })
+  assert.equal(api.SETU_ADMIN_ORIGIN, 'https://admin.setu.localhost:8443')
+  assert.equal(api.SETU_BASE_URL, 'https://api.setu.localhost:8443')
+  const admin = adminBuildEnvFor(overlay)
+  assert.equal(admin.VITE_SETU_API, 'https://api.setu.localhost:8443')
+  const caddy = caddyfileFor(stagingPaths(ROOT), overlay)
+  assert.ok(caddy.includes('https_port 8443'))
+  assert.ok(caddy.includes('http_port 8480'))
+  // Addresses stay bare hostnames — the global ports decide where they bind.
+  assert.ok(caddy.includes('admin.setu.localhost {'))
+})
+
+test('the default Caddyfile sets no port overrides (clean 443/80)', () => {
+  const caddy = caddyfileFor(stagingPaths(ROOT), stagingOverlay({}))
+  assert.ok(!caddy.includes('https_port'))
+  assert.ok(!caddy.includes('http_port'))
 })
 
 // ---------------------------------------------------------------------------

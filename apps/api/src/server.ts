@@ -58,7 +58,11 @@ import {
 } from './deploy-wiring'
 import { createUsersApi } from './users'
 import { createEmailApi, resetRestartRequired } from './email'
-import { createResetEmailSender, resetEmailEnabled } from './reset-email-gate'
+import {
+  createResetEmailSender,
+  resetEmailEnabled,
+  resetEmailRefusal
+} from './reset-email-gate'
 import { createDemoApi } from './demo'
 import { resolveSessionActor } from './auth/resolve-session-actor'
 import type { ResolveActor } from './auth/resolve-actor'
@@ -420,11 +424,20 @@ const auth = authConfigured
                 resolveTransport: () => email.resolve().effective,
                 resolveFrom: () => liveFrom().effective ?? undefined,
                 adminOrigin,
-                onRefused: (reason) =>
+                onRefused: (reason) => {
                   console.error(
                     `[auth] password-reset email NOT sent: ${reason}. No link was delivered; ` +
                       'the requester saw the usual "check your email" response.'
                   )
+                  // #912: also through the audit seam — a recovery path silently not working is
+                  // a security-relevant event (CLAUDE.md §5, API-route checklist), and the
+                  // console.error above is operator prose, not a structured record. `reason` is
+                  // reset-email-gate.ts's own string: no address, no token (events.ts).
+                  logAuthEvent({
+                    type: 'password-reset.refused',
+                    meta: { reason }
+                  })
+                }
               }),
               // #499: resolve the message BODY at send time too, through the same live template
               // resolver every other send path uses, so an admin's stored override applies with
@@ -717,7 +730,18 @@ app.route(
       ? {
           requestPasswordReset: async (email: string) => {
             await auth.api.requestPasswordReset({ body: { email } })
-          }
+          },
+          // #912: the same predicate over the same LIVE resolvers the sender above uses
+          // (`email.resolve().effective` / `liveFrom()`), so the route's honest 409 and the
+          // sender's refusal cannot disagree about what "deliverable" means. Without it the
+          // route answered `{ status: true }` over a refused send, because the refusal happens
+          // inside better-auth's send hook and never comes back out.
+          resetEmailRefusal: () =>
+            resetEmailRefusal({
+              from: liveFrom().effective ?? undefined,
+              adminOrigin,
+              effectiveTransport: email.resolve().effective
+            })
         }
       : {})
   })

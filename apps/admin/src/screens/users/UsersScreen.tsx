@@ -592,7 +592,22 @@ function UserRowActions({
         body: JSON.stringify({ userId: user.id })
       })
       if (!res.ok) {
-        notify.error('Could not send the reset email')
+        // #912: the server now distinguishes "refused — nothing was sent" from the other
+        // failures, so say which. `email_not_deliverable` is the case that used to arrive as a
+        // green "Password reset email sent to …" over a message the server declined to hand to
+        // the console adapter. The row's `resetGuard` normally disables the button on
+        // `email.deliverable`, but that is read once on mount and is client-side (§4 #13) —
+        // this is the server telling us at action time.
+        const body = (await res.json().catch(() => ({}))) as { error?: string }
+        notify.error(
+          body.error === 'email_not_deliverable'
+            ? 'No reset email was sent — this site has no email transport that can deliver one. Pick a provider in Settings → Email.'
+            : res.status === 409
+              ? "No reset email was sent — password reset isn't configured on this server."
+              : res.status === 403
+                ? 'No reset email was sent — you do not have permission to reset this account.'
+                : 'Could not send the reset email'
+        )
         return
       }
       notify.success(`Password reset email sent to ${user.email}`)

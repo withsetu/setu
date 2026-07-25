@@ -4,7 +4,7 @@ import type { Submission, FormSummary } from '@setu/core'
 import { submissionsToCsv } from '@setu/core'
 import { useServices } from '../data/store'
 import { useNotify } from '../ui/notify'
-import { connectionError } from '../ui/error-message'
+import { submissionError } from '../ui/error-message'
 import { PageHeader } from '../shell/PageHeader'
 import { PageBody } from '../shell/PageBody'
 import { Input } from '@/components/ui/input'
@@ -73,7 +73,9 @@ export function FormsInbox() {
   const [active, setActive] = useState<Submission | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const [pendingDelete, setPendingDelete] = useState<string[] | null>(null)
-  const [listFailed, setListFailed] = useState(false)
+  // The message to show in place of the list, not just a flag: a 403 and an
+  // offline api are different things to tell someone (#912).
+  const [listError, setListError] = useState<string | null>(null)
 
   const form = params.get('form') ?? ''
   const readParam = params.get('read') ?? '' // '', 'true', 'false'
@@ -139,16 +141,15 @@ export function FormsInbox() {
         if (!live) return
         setRows(r.rows)
         setTotal(r.total)
-        setListFailed(false)
+        setListError(null)
       } catch (err) {
         // `rows` is only ever set on success, so an escaping rejection used to park the inbox on
         // "Loading…" forever (#835). Show a retryable error in its place instead.
         if (!live) return
         console.error('[forms] loading submissions failed', err)
-        setListFailed(true)
-        notify.error(
-          "Couldn't load submissions. Check your connection and try again."
-        )
+        const message = submissionError(err, 'load submissions')
+        setListError(message)
+        notify.error(message)
       }
     })()
     return () => {
@@ -165,9 +166,12 @@ export function FormsInbox() {
         await submissions.setRead([s.id], true)
         setActive((a) => (a && a.id === s.id ? { ...a, read: true } : a))
         refresh()
-      } catch {
-        // #852: submission ops are pure DataPort mutations — a throw is transport.
-        notify.error(connectionError('mark this as read'))
+      } catch (err) {
+        // #912: a throw here is NOT necessarily transport — createHttpSubmissionAdapter
+        // throws SubmissionApiError for any non-2xx, so a 403 or a 413 arrives the same
+        // way an offline api does. `submissionError` is what tells them apart.
+        console.error('[forms] marking the submission read failed', err)
+        notify.error(submissionError(err, 'mark this as read'))
       }
     }
   }
@@ -179,8 +183,9 @@ export function FormsInbox() {
       refresh()
       // Keep active panel in sync.
       setActive((a) => (a && a.id === s.id ? { ...a, read: !s.read } : a))
-    } catch {
-      notify.error(connectionError('update the submission'))
+    } catch (err) {
+      console.error('[forms] updating the submission failed', err)
+      notify.error(submissionError(err, 'update the submission'))
     }
   }
 
@@ -194,8 +199,9 @@ export function FormsInbox() {
       setActive((a) => (a && selectedIds.has(a.id) ? { ...a, read } : a))
       setSelected(new Set())
       refresh()
-    } catch {
-      notify.error(connectionError('update the submissions'))
+    } catch (err) {
+      console.error('[forms] updating the submissions failed', err)
+      notify.error(submissionError(err, 'update the submissions'))
     }
   }
 
@@ -209,8 +215,9 @@ export function FormsInbox() {
       setSelected(new Set())
       if (active && ids.includes(active.id)) setActive(null)
       refresh()
-    } catch {
-      notify.error(connectionError('delete the submissions'))
+    } catch (err) {
+      console.error('[forms] deleting the submissions failed', err)
+      notify.error(submissionError(err, 'delete the submissions'))
     }
   }
 
@@ -235,8 +242,9 @@ export function FormsInbox() {
       notify.success(
         `Exported ${all.rows.length} submission${all.rows.length === 1 ? '' : 's'}`
       )
-    } catch {
-      notify.error(connectionError('export the submissions'))
+    } catch (err) {
+      console.error('[forms] exporting the submissions failed', err)
+      notify.error(submissionError(err, 'export the submissions'))
     }
   }
 
@@ -313,16 +321,14 @@ export function FormsInbox() {
         </div>
 
         {/* Content */}
-        {rows === null && listFailed ? (
+        {rows === null && listError !== null ? (
           <div role="alert" className="flex flex-col items-start gap-3 py-8">
-            <p className="text-sm text-muted-foreground">
-              Couldn't load submissions. Check your connection and try again.
-            </p>
+            <p className="text-sm text-muted-foreground">{listError}</p>
             <Button
               variant="outline"
               size="sm"
               onClick={() => {
-                setListFailed(false)
+                setListError(null)
                 refresh()
               }}
             >

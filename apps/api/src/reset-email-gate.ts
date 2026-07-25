@@ -39,11 +39,27 @@ export interface ResetEmailPreconditions {
  * need no email at all. Branches pinned by apps/api/test/reset-email-gate.test.ts.
  */
 export function resetEmailEnabled(p: ResetEmailPreconditions): boolean {
-  return (
-    Boolean(p.from) &&
-    Boolean(p.adminOrigin) &&
-    p.effectiveTransport !== 'console'
-  )
+  return resetEmailRefusal(p) === null
+}
+
+/**
+ * Why a reset email would be refused for these preconditions, or `null` when it would be sent.
+ *
+ * The reason strings are the SAME ones `createResetEmailSender` reports, because that sender is
+ * this function's only other caller (#912) — a route that wants to tell an admin why nothing was
+ * sent therefore cannot drift from what the sender actually does. They are operator prose in the
+ * boot-log register: no credential values, no paths. Branches pinned by
+ * apps/api/test/reset-email-gate.test.ts.
+ */
+export function resetEmailRefusal(p: ResetEmailPreconditions): string | null {
+  if (p.effectiveTransport === 'console')
+    return (
+      'the effective email transport is the console adapter, which writes messages to this ' +
+      'server log instead of delivering them — a reset link must never be logged'
+    )
+  if (!p.from || !p.adminOrigin)
+    return 'no from-address or admin origin is configured'
+  return null
 }
 
 /**
@@ -60,8 +76,15 @@ export function resetEmailEnabled(p: ResetEmailPreconditions): boolean {
  * answers a uniform `{ status: true }` whether or not the account exists (and swallows
  * sendResetPassword errors anyway), so a throw would change nothing the caller can see while
  * losing our named reason. `onRefused` is what makes the failure reported rather than silent
- * (CLAUDE.md §3.2) — server.ts points it at console.error. Pinned by
- * apps/api/test/reset-email-gate.test.ts.
+ * (CLAUDE.md §3.2) — server.ts points it at a console.error AND the onAuthEvent audit seam.
+ *
+ * #912: `onRefused` is not the whole story for an AUTHENTICATED caller. Because the refusal
+ * happens inside better-auth's send hook, it cannot travel back out through
+ * `auth.api.requestPasswordReset`, so `POST /api/users/send-reset` used to answer
+ * `{ status: true }` over a refusal and tell an admin an email had been sent. That route now
+ * evaluates `resetEmailRefusal` itself, on the SAME live resolvers, immediately before asking for
+ * the send — see its own comment in users.ts for what that does and does not guarantee. Pinned by
+ * apps/api/test/reset-email-gate.test.ts and apps/api/test/users-send-reset.test.ts.
  */
 export function createResetEmailSender(opts: {
   /** The live transport's send (server.ts's `email.send`). */
@@ -73,21 +96,14 @@ export function createResetEmailSender(opts: {
   onRefused: (reason: string) => void
 }): EmailPort['send'] {
   return async (msg) => {
-    const effectiveTransport = opts.resolveTransport()
     const from = opts.resolveFrom() ?? msg.from
-    if (
-      !resetEmailEnabled({
-        from,
-        adminOrigin: opts.adminOrigin,
-        effectiveTransport
-      })
-    ) {
-      opts.onRefused(
-        effectiveTransport === 'console'
-          ? 'the effective email transport is the console adapter, which writes messages to this ' +
-              'server log instead of delivering them — a reset link must never be logged'
-          : 'no from-address or admin origin is configured'
-      )
+    const refusal = resetEmailRefusal({
+      from,
+      adminOrigin: opts.adminOrigin,
+      effectiveTransport: opts.resolveTransport()
+    })
+    if (refusal !== null) {
+      opts.onRefused(refusal)
       return
     }
     await opts.send({ ...msg, from })

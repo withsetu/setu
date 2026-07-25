@@ -31,6 +31,13 @@ export interface UsersApiOptions {
    *  (no from-address / no admin origin — the same `email:` ternary server.ts feeds createAuth),
    *  and the route answers 409 honestly. */
   requestPasswordReset?: (email: string) => Promise<void>
+  /** #912: why a reset email would be refused RIGHT NOW, or null when it would be sent —
+   *  server.ts passes `resetEmailRefusal` over the same live transport/from-address resolvers the
+   *  sender itself uses. Needed because `requestPasswordReset` above resolves either way: the
+   *  refusal happens inside better-auth's send hook and cannot travel back out, so without this
+   *  the route answered `{ status: true }` over a message that was never sent. Omitted only where
+   *  `requestPasswordReset` is too (reset unwired at boot → the route's 409 fires first). */
+  resetEmailRefusal?: () => string | null
 }
 
 const sendResetBody = z.object({ userId: z.string().min(1).max(256) })
@@ -110,7 +117,8 @@ export function createUsersApi(opts: UsersApiOptions) {
    *  session; any OTHER target needs `users.view` AND strict rank (known role + outranks — an
    *  admin cannot trigger one for a peer admin, and an unknown/legacy target role fails closed
    *  for everyone). Fail-closed ladder: 401 unauth → 400 bad body → 403 unauthorized → 409 reset
-   *  not wired → 404 unknown target. Covered (incl. wrong-actor + kill-shot) by
+   *  not wired → 404 unknown target → 409 email not deliverable (#912, last so it reveals nothing
+   *  to an actor who failed a gate above). Covered (incl. wrong-actor + kill-shot) by
    *  apps/api/test/users-send-reset.test.ts. */
   app.post(
     '/api/users/send-reset',
@@ -147,6 +155,23 @@ export function createUsersApi(opts: UsersApiOptions) {
         const targetRole = canonicalRoleOf(target.role)
         if (targetRole === null || !outranks(actor.role, targetRole))
           return c.json({ error: 'forbidden' }, 403)
+      }
+
+      // #912: last, AFTER the authz ladder, so an unauthorized actor learns nothing about this
+      // deployment's email posture. `createResetEmailSender` refuses inside better-auth's send
+      // hook and its reason cannot come back out, so this asks the same question (the same
+      // function, over the same live resolvers server.ts hands the sender) a moment earlier and
+      // reports the answer instead of claiming a send. It is a read of live state, not a
+      // handshake with the sender: a settings.json change landing between this line and the send
+      // would still slip through — the sender's own `onRefused` is what records THAT, now via the
+      // onAuthEvent audit seam. The reason string stays server-side; the client gets a stable
+      // code, because this is the one branch a non-admin (a self-target) can also reach.
+      const refusal = opts.resetEmailRefusal?.() ?? null
+      if (refusal !== null) {
+        console.error(
+          `[api:users] send-reset refused for user ${userId}: ${refusal}`
+        )
+        return c.json({ error: 'email_not_deliverable' }, 409)
       }
 
       await opts.requestPasswordReset(target.email)

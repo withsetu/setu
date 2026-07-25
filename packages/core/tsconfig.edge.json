@@ -25,6 +25,7 @@
     "src/config",
     "src/settings",
     "src/seo",
+    "src/templating",
     "src/tags",
     "src/taxonomy",
     "src/media-index",

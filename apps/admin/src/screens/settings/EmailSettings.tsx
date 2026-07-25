@@ -10,6 +10,11 @@ import {
   SettingsLoadError,
   SETTINGS_LOAD_FAILED_MESSAGE
 } from './SettingsLoadError'
+import {
+  EmailTemplates,
+  validateEmailTemplates,
+  templatesFingerprint
+} from './EmailTemplates'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -343,10 +348,18 @@ export function EmailSettings() {
   const trimmed = values.fromAddress.trim()
   const providerDirty =
     published !== null && values.provider !== published.provider
+  // #499: templates join the SAME dirty state and the SAME Save button as the rest of the
+  // group — a from-address edit and a template edit are one commit and one "Saved" state,
+  // which is why Increment A put the provider control in the status card but kept its Save
+  // here. Key order in JSON is not meaningful, hence the sorted fingerprint.
+  const templateErrors = validateEmailTemplates(values.templates)
+  const hasTemplateErrors = Object.keys(templateErrors).length > 0
   const dirty =
     published !== null &&
     (trimmed !== published.fromAddress ||
-      values.provider !== published.provider)
+      values.provider !== published.provider ||
+      templatesFingerprint(values.templates) !==
+        templatesFingerprint(published.templates))
 
   // #890: what the picker shows. The stored value wins when set; otherwise the server's
   // resolved selection (which came from SETU_EMAIL_ADAPTER) — so an instance that has never
@@ -355,7 +368,7 @@ export function EmailSettings() {
   const shownProvider = values.provider || (status?.transport ?? '')
 
   const save = async () => {
-    if (saving || !dirty || raw === null) return
+    if (saving || !dirty || raw === null || hasTemplateErrors) return
     if (!fromAddressSchema.safeParse(trimmed).success) {
       setFieldError(FROM_ERROR)
       return
@@ -433,78 +446,97 @@ export function EmailSettings() {
   }
 
   return (
-    <div className="max-w-xl space-y-6">
+    <div className="space-y-8">
       {/* One form for the whole email group: the provider picker lives in the status card
           (that is where the transport is reported, so that is where it must be changeable)
-          while Save sits with the rest of the group, so a switch and a from-address edit are
-          one commit and one "Saved" state instead of two competing ones. */}
+          while Save sits with the rest of the group, so a switch, a from-address edit and a
+          template edit are one commit and one "Saved" state instead of three competing ones.
+          Delivery config stays narrow; the template editor below needs the width for its
+          side-by-side preview, so the max-width lives on the inner block, not the form. */}
       <form
-        className="space-y-6"
+        className="space-y-8"
         onSubmit={(e) => {
           e.preventDefault()
           void save()
         }}
       >
-        <ProviderStatus
-          status={status}
-          loading={statusLoading}
-          failed={statusFailed}
-          onRetry={() => {
-            setStatusFailed(false)
-            setStatusKey((k) => k + 1)
-          }}
-          provider={shownProvider}
-          onProviderChange={(next) =>
-            // Spread-patch, like the from-address below — never a whole-object replace.
-            setValues((v) => ({ ...v, provider: next }))
-          }
-          providerDirty={providerDirty}
-        />
-
-        <div className="space-y-1.5">
-          <Label htmlFor="email-from">From address</Label>
-          <Input
-            id="email-from"
-            inputMode="email"
-            autoComplete="email"
-            value={values.fromAddress}
-            onChange={(e) => {
-              setFieldError(null)
-              // Spread-patch (the GeneralSettings pattern), NEVER a whole-object replace:
-              // parseSettings passes unknown future keys inside the email group through
-              // (e.g. #499's templates), and `values` carries them at runtime — replacing
-              // the object here would silently drop them from the next save
-              // (apps/admin/test/email-settings.test.tsx pins survival; #885 review
-              // Finding 4).
-              setValues((v) => ({ ...v, fromAddress: e.target.value }))
+        <div className="max-w-xl space-y-6">
+          <ProviderStatus
+            status={status}
+            loading={statusLoading}
+            failed={statusFailed}
+            onRetry={() => {
+              setStatusFailed(false)
+              setStatusKey((k) => k + 1)
             }}
-            placeholder="hello@example.com"
-            aria-invalid={fieldError !== null}
-            aria-describedby={
-              fieldError !== null ? 'email-from-error' : 'email-from-help'
+            provider={shownProvider}
+            onProviderChange={(next) =>
+              // Spread-patch, like the from-address below — never a whole-object replace.
+              setValues((v) => ({ ...v, provider: next }))
             }
+            providerDirty={providerDirty}
           />
-          {fieldError !== null && (
-            <p id="email-from-error" className="text-sm text-destructive">
-              {fieldError}
+
+          <div className="space-y-1.5">
+            <Label htmlFor="email-from">From address</Label>
+            <Input
+              id="email-from"
+              inputMode="email"
+              autoComplete="email"
+              value={values.fromAddress}
+              onChange={(e) => {
+                setFieldError(null)
+                // Spread-patch (the GeneralSettings pattern), NEVER a whole-object replace:
+                // parseSettings passes unknown future keys inside the email group through
+                // (e.g. #499's templates), and `values` carries them at runtime — replacing
+                // the object here would silently drop them from the next save
+                // (apps/admin/test/email-settings.test.tsx pins survival; #885 review
+                // Finding 4).
+                setValues((v) => ({ ...v, fromAddress: e.target.value }))
+              }}
+              placeholder="hello@example.com"
+              aria-invalid={fieldError !== null}
+              aria-describedby={
+                fieldError !== null ? 'email-from-error' : 'email-from-help'
+              }
+            />
+            {fieldError !== null && (
+              <p id="email-from-error" className="text-sm text-destructive">
+                {fieldError}
+              </p>
+            )}
+            <p id="email-from-help" className="text-xs text-muted-foreground">
+              The sender for every email this site sends — password resets and
+              form notifications. Overrides the server&rsquo;s
+              SETU_FORMS_NOTIFY_FROM variable; leave empty to fall back to it.
             </p>
-          )}
-          <p id="email-from-help" className="text-xs text-muted-foreground">
-            The sender for every email this site sends — password resets and
-            form notifications. Overrides the server&rsquo;s
-            SETU_FORMS_NOTIFY_FROM variable; leave empty to fall back to it.
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Email settings apply as soon as you save — emails are sent live by
+            the API, so no site rebuild or redeploy is needed.
           </p>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Email settings apply as soon as you save — emails are sent live by the
-          API, so no site rebuild or redeploy is needed.
-        </p>
-        <Button type="submit" disabled={published === null || !dirty || saving}>
+
+        <EmailTemplates
+          overrides={values.templates}
+          errors={templateErrors}
+          onChange={(templates) =>
+            // Spread-patch like every other field here — never a whole-object replace, or the
+            // unknown future keys parseSettings passed through would be dropped from the next
+            // save (apps/admin/test/email-templates.test.tsx pins their survival).
+            setValues((v) => ({ ...v, templates }))
+          }
+        />
+
+        <Button
+          type="submit"
+          disabled={published === null || !dirty || saving || hasTemplateErrors}
+        >
           {saving ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}
         </Button>
       </form>
 
-      <div className="border-t pt-5 space-y-2">
+      <div className="max-w-xl border-t pt-5 space-y-2">
         <p className="text-sm font-medium">Send a test email</p>
         <p className="text-xs text-muted-foreground">
           Sends a fixed test message to your own account email — the recipient

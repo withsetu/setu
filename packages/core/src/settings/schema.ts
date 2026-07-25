@@ -2,6 +2,11 @@ import { z } from 'zod'
 import { DEFAULT_SETTINGS } from './defaults'
 import type { SiteSettings } from './types'
 import { validatePermalinkPattern, SLUG_SEGMENT } from '../permalinks/pattern'
+import {
+  EMAIL_TEMPLATE_MAX_BODY,
+  EMAIL_TEMPLATE_MAX_SUBJECT,
+  type EmailTemplateOverrides
+} from '../email/template-registry'
 
 // Every group is `.partial().passthrough()`: partial so a half-written file merges over
 // defaults, passthrough so an unknown future field inside a group survives an older admin
@@ -74,10 +79,30 @@ const permalinksSchema = groupObject({
 // credential — Resend and SMTP secrets stay env-only, because this file is Git-committed.
 // Lenient-parse behavior (invalid value → warning + default, sibling fields and other groups
 // untouched) is pinned by packages/core/src/settings/email-settings.test.ts.
+//
+// #499: `templates` stays `z.unknown()` here and is salvaged entry-by-entry below (the
+// permalinks.patterns precedent) — one malformed template must never cost you the others, and
+// certainly not the sibling from-address. Template TEXT is configuration, not a credential.
 const emailSchema = groupObject({
   fromAddress: z.union([z.literal(''), z.string().email()]),
-  provider: z.enum(['', 'console', 'resend', 'smtp'])
+  provider: z.enum(['', 'console', 'resend', 'smtp']),
+  templates: z.unknown()
 })
+
+/** One stored override. Size-capped at the boundary because settings.json is Git-canonical —
+ *  a template can arrive by `git push` without ever passing the api's settings-write gate. The
+ *  same caps are re-checked at render time (renderEmailTemplate), so neither layer is the only
+ *  defence; both halves are pinned by email-settings.test.ts + test/email/email-registry.test.ts. */
+const emailTemplateSchema = groupObject({
+  subject: z.string().max(EMAIL_TEMPLATE_MAX_SUBJECT),
+  html: z.string().max(EMAIL_TEMPLATE_MAX_BODY),
+  text: z.string().max(EMAIL_TEMPLATE_MAX_BODY)
+})
+
+/** Email type ids are slugs — core's own (`password-reset`) and any a plugin registers. Bounding
+ *  the KEY as well as the value is what stops settings.json being used as a scratch store under
+ *  arbitrary names. */
+const EMAIL_TYPE_ID = /^[a-z0-9][a-z0-9-]{0,63}$/
 
 type Rec = Record<string, unknown>
 
@@ -177,6 +202,43 @@ function salvagePatterns(
   return patterns
 }
 
+/** Validate `email.templates` entry-by-entry and field-by-field: a bad override drops only
+ *  itself (or only its own bad field), leaving every other template — and the shipped default it
+ *  falls back to — intact. Ids the running build doesn't know are KEPT: a plugin's type may not
+ *  be loaded yet, and dropping its override would silently discard the admin's work. */
+function salvageEmailTemplates(
+  raw: unknown,
+  warnings: string[]
+): EmailTemplateOverrides {
+  const out: EmailTemplateOverrides = {}
+  if (raw === undefined) return out
+  if (!isPlainObject(raw)) {
+    warnings.push('email.templates: expected an object — ignored')
+    return out
+  }
+  for (const [id, value] of Object.entries(raw)) {
+    if (!EMAIL_TYPE_ID.test(id)) {
+      warnings.push(
+        `email.templates.${id}: not a valid email type id — dropped, using the shipped default`
+      )
+      continue
+    }
+    if (!isPlainObject(value)) {
+      warnings.push(
+        `email.templates.${id}: expected an object — dropped, using the shipped default`
+      )
+      continue
+    }
+    out[id] = salvageGroup(
+      emailTemplateSchema,
+      value,
+      `email.templates.${id}`,
+      warnings
+    )
+  }
+  return out
+}
+
 /** Parse a raw settings value and deep-merge over DEFAULT_SETTINGS, reporting every key
  *  that had to be reset. Malformed or missing input → defaults (never throws). Each group
  *  and each field falls back independently (#656), and unknown future groups/fields are
@@ -263,7 +325,11 @@ export function parseSettingsWithWarnings(raw: unknown): {
         ? uncategorized
         : DEFAULT_SETTINGS.permalinks.uncategorized
     },
-    email: { ...DEFAULT_SETTINGS.email, ...email }
+    email: {
+      ...DEFAULT_SETTINGS.email,
+      ...email,
+      templates: salvageEmailTemplates(email.templates, warnings)
+    }
   }
 
   return { settings, warnings }

@@ -23,8 +23,8 @@ import { defineConfig } from 'vitest/config'
 // comment saying which real-world operation they are waiting on.
 export default defineConfig({
   test: {
-    // `{ts,tsx}` rather than the historical `.ts`: packages/blocks and
-    // packages/email-templates render JSX in their suites. Widening the extension set
+    // `{ts,tsx}` rather than the historical `.ts`: packages/blocks renders JSX in its
+    // suite (packages/email-templates did too, until #499 retired it). Widening the extension set
     // matches no additional file that exists today (verified by enumerating vitest's
     // collected file set before and after this change — see the #818 PR), it just stops
     // the next .tsx test from being silently invisible.

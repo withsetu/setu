@@ -1,3 +1,9 @@
+import {
+  renderEmailTemplate,
+  passwordResetValues,
+  PASSWORD_RESET_EMAIL
+} from '@setu/core'
+
 /** #364 review fix: better-auth's `/reset-password/:token` callback route treats an EMPTY
  *  `callbackURL` query param as invalid — `if (!token || !callbackURL) throw ctx.redirect(
  *  redirectError(ctx.context, callbackURL, { error: "INVALID_TOKEN" }))` (1.6.23
@@ -27,27 +33,41 @@ export function withDefaultResetCallback(
   return parsed.href
 }
 
-/** #364: the password-reset email body, built as a plain template string — NOT a React Email
- *  template. `packages/email-templates` today has exactly one slot (`renderSubmissionNotification`,
- *  a forms feature) with its own render engine and layout; a password-reset email is a different
- *  lifecycle event with a different, one-line data shape (a bare reset URL). Standing up a second
- *  template in that package for a single link would be premature ceremony — this plain string IS
- *  the entire feature. Promote it into `@setu/email-templates` the moment a SECOND auth-lifecycle
- *  email (e.g. email-verification) needs shared chrome/layout with this one. */
-export function resetPasswordEmailContent(url: string): {
+/** What the reset send path knows about the message it is building. `url` is the ONLY required
+ *  member and is always the link this module produced from better-auth's — never anything a
+ *  template supplied. */
+export interface ResetPasswordEmailInput {
+  url: string
+  userName?: string
+  userEmail?: string
+  siteTitle?: string
+}
+
+export type ResetPasswordEmailContent = {
   subject: string
   html: string
   text: string
-} {
-  return {
-    subject: 'Reset your Setu password',
-    html: `<p>We received a request to reset the password for your Setu account.</p>
-<p><a href="${url}">Reset your password</a></p>
-<p>This link will expire soon. If you didn't request this, you can safely ignore this email.</p>`,
-    text: `We received a request to reset the password for your Setu account.
+}
 
-Reset your password: ${url}
-
-This link will expire soon. If you didn't request this, you can safely ignore this email.`
-  }
+/**
+ * The password-reset email body.
+ *
+ * #364 wrote these strings inline here. #499 (epic #497) moved them into core's email TYPE
+ * registry — `PASSWORD_RESET_EMAIL` — so an admin can customize them in Settings → Email, and
+ * this function became the thin default: registry definition, no override, values built from
+ * the link. It is what @setu/auth uses when the caller injects no `content` resolver of its own
+ * (apps/api injects one that applies the admin's stored override live, per send).
+ *
+ * The move is byte-neutral: packages/auth/test/reset-password-email.test.ts asserts this equals
+ * the registry default, and packages/core/test/email/email-registry.test.ts holds the pre-#499
+ * strings verbatim, so a drift in either direction fails a test.
+ */
+export function resetPasswordEmailContent(
+  input: ResetPasswordEmailInput
+): ResetPasswordEmailContent {
+  return renderEmailTemplate(
+    PASSWORD_RESET_EMAIL,
+    undefined,
+    passwordResetValues(input)
+  )
 }

@@ -36,5 +36,5 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     titleSeparator: '·'
   },
   permalinks: { patterns: {}, uncategorized: 'uncategorized' },
-  email: { fromAddress: '', provider: '' }
+  email: { fromAddress: '', provider: '', templates: {} }
 }

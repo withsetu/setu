@@ -172,9 +172,20 @@ export function createAuth(opts: CreateAuthOptions) {
       ...(emailOpt
         ? {
             sendResetPassword: async ({ user, url }) => {
-              const content = resetPasswordEmailContent(
-                withDefaultResetCallback(url, emailOpt.resetRedirectTo)
+              // #499: the link is built HERE and handed to the body resolver — a customized
+              // template can place `{{reset_url}}` but never supply or alter one. `content`
+              // is apps/api's live resolver when injected (the admin's stored override,
+              // re-read per send), and the shipped default otherwise.
+              const link = withDefaultResetCallback(
+                url,
+                emailOpt.resetRedirectTo
               )
+              const render = emailOpt.content ?? resetPasswordEmailContent
+              const content = render({
+                url: link,
+                userName: user.name,
+                userEmail: user.email
+              })
               await emailOpt.send({
                 to: user.email,
                 from: emailOpt.from,

@@ -50,10 +50,22 @@ export function patchEmailGroup(
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v)
 
-/** The three fields the template editor can write. Comparing on them (rather than on the whole
- *  object) keeps an entry's unknown passthrough fields out of the dirty decision — they are
- *  carried along untouched either way, since `next`'s entries came from the same salvage that
- *  passed them through. */
+/**
+ * The three fields the template editor can write. Comparing on them rather than on the whole
+ * object keeps an entry's unknown passthrough fields out of the dirty DECISION — but be precise
+ * about what that does and does not preserve, because the two cases differ:
+ *
+ * - an entry salvage LET THROUGH keeps its unknown fields in `next` (salvageGroup passes them),
+ *   so they round-trip whether or not the admin edits the entry;
+ * - an entry salvage REJECTED whole — over EMAIL_TEMPLATE_MAX_ENTRY_BYTES, or a dropped over-cap
+ *   known field — is absent from (or hollowed out in) `next`, so customizing that id writes the
+ *   editor's entry over the stored one and the unknown fields go with it.
+ *
+ * The second is the per-ENTRY rule working as designed: the admin edited that entry. It is called
+ * out here because the arithmetic is not obvious from the comparison alone, and pinned by
+ * apps/admin/test/email-settings-patch.test.ts ("customizing an id whose stored entry salvage
+ * rejected replaces the stored entry, unknown fields included").
+ */
 const entryKey = (o: EmailTemplateOverride | undefined): string =>
   JSON.stringify([o?.subject ?? null, o?.html ?? null, o?.text ?? null])
 

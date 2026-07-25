@@ -36,8 +36,12 @@ export function createSettingsLoader(opts: {
     }
     const { settings, warnings } = parseSettingsWithWarnings(raw)
     // Sorted: two files carrying the same complaints in a different key order are the same
-    // problem, and re-logging on a reorder would defeat the point of the guard.
-    const key = [...warnings].sort().join('\n')
+    // problem, and re-logging on a reorder would defeat the point of the guard. Serialized with
+    // JSON.stringify rather than a join, because warning strings embed raw settings.json keys
+    // verbatim — a key containing a newline would make `['a\nb']` and `['a', 'b']` collide on a
+    // joined key and silence the second set (apps/api/test/settings-loader.test.ts, "two warning
+    // sets that a joined key would confuse are told apart").
+    const key = JSON.stringify([...warnings].sort())
     if (key !== reported) {
       reported = key
       if (warnings.length > 0) opts.onWarnings(warnings)

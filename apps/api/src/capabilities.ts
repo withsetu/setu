@@ -317,12 +317,34 @@ export function emailTransportOptions(
 export interface FromAddressResolution {
   effective: string | null
   source: 'settings' | 'env' | null
-  /** #942: why a SET env fallback was ignored, for the boot log — null when nothing was
-   *  rejected, including the unset/'' case, which is "not configured" rather than
-   *  "misconfigured". Never echoes the offending address (an operator's from-address is not a
-   *  credential, but the boot log is not the place to reprint it either); server.ts prints it
-   *  once at boot. Pinned by apps/api/test/capabilities.test.ts ("resolveFromAddress" describe). */
+  /** #942: why a SET env fallback was ignored — null when nothing was rejected, including the
+   *  unset/'' case, which is "not configured" rather than "misconfigured". States the FACT only;
+   *  each surface adds its own remediation, because the boot log's ("fix the variable") and the
+   *  admin screen's ("or just set one here") are different sentences. Never echoes the offending
+   *  address. Pinned by apps/api/test/capabilities.test.ts ("resolveFromAddress" describe). */
   problem: string | null
+}
+
+/** What `GET /api/email/status` is allowed to say about the from-address (#942/#953).
+ *
+ *  This projection exists because TypeScript will NOT catch the alternative: excess-property
+ *  checking does not apply to a variable in a property position, so writing `from,` into
+ *  server.ts's status literal typechecks clean and would ship every future field of
+ *  FromAddressResolution — including ones added for a server-side purpose — to the client in
+ *  silence. The key set is therefore pinned by a test, the same discipline the unauthenticated
+ *  capabilities payload already uses: apps/api/test/capabilities.test.ts
+ *  ("publicFrom exposes exactly the from-address keys the client is meant to see"). */
+export interface PublicFromAddress {
+  effective: string | null
+  source: 'settings' | 'env' | null
+  /** Deliberately public since #953: a from-address the server REJECTED is otherwise
+   *  indistinguishable on the screen from one that was never configured. Safe to serve — the
+   *  string names the variable, never its value, and this route is settings.view-gated. */
+  problem: string | null
+}
+
+export function publicFrom(r: FromAddressResolution): PublicFromAddress {
+  return { effective: r.effective, source: r.source, problem: r.problem }
 }
 
 /** The same rule the settings field enforces (packages/core/src/settings/schema.ts's
@@ -346,8 +368,8 @@ export function resolveFromAddress(
       effective: null,
       source: null,
       problem:
-        'SETU_FORMS_NOTIFY_FROM is not a valid email address — it is ignored, so no ' +
-        'from-address is configured. Fix it, or set one in Settings → Email.'
+        'SETU_FORMS_NOTIFY_FROM is set on the server but is not a valid email address, ' +
+        'so it is ignored and no from-address is configured'
     }
   }
   return { effective: null, source: null, problem: null }

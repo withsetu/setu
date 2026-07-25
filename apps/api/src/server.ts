@@ -79,6 +79,7 @@ import {
   createCapabilitiesApi,
   emailCapabilityFromEnv,
   emailTransportOptions,
+  publicFrom,
   resolveFromAddress,
   usableEmailTransport,
   type AuthCapabilities,
@@ -198,8 +199,13 @@ const notifyFrom = bootFrom.effective ?? undefined
 // resolveFromAddress's truthiness and then every gate downstream. It is now run through the same
 // z.string().email() the settings field uses and degrades to "none configured" — which, without
 // this line, would look exactly like never having set it. Boot only: the resolver is called per
-// send too, and this is a start-up misconfiguration, not a per-message event.
-if (bootFrom.problem !== null) console.error(`[email] ${bootFrom.problem}`)
+// send too, and this is a start-up misconfiguration, not a per-message event. The remediation
+// half is added here rather than carried in the problem string, because Settings → Email shows
+// the same string with a different next step (#953).
+if (bootFrom.problem !== null)
+  console.error(
+    `[email] ${bootFrom.problem}. Set a valid address there, or one in Settings → Email.`
+  )
 // #890: the provider's live reading, the exact sibling of `liveFrom` — settings.json's
 // `email.provider` WINS, SETU_EMAIL_ADAPTER is the fallback (capabilities.ts's
 // resolveEmailProvider, pinned order-sensitively by apps/api/test/capabilities.test.ts). Unlike
@@ -909,10 +915,13 @@ app.route(
         effectiveTransport: live.effective,
         deliverable: live.effective !== 'console' && from.effective !== null,
         mode,
-        // Named fields, not a spread of the whole resolution: #942 added a `problem` to it for
-        // the BOOT log, and spreading would have widened this response with it as a side effect
-        // rather than as a decision. Surfacing it on this screen is #953.
-        from: { effective: from.effective, source: from.source },
+        // capabilities.ts's projection, not a spread and not a hand-written literal: a literal
+        // here would be enforced by nothing (excess-property checking does not apply to a
+        // variable in a property position, so `from,` typechecks clean), whereas publicFrom's
+        // key set is pinned by apps/api/test/capabilities.test.ts. #953: `problem` is served
+        // deliberately, so the screen can name a REJECTED env from-address instead of calling it
+        // "not set".
+        from: publicFrom(from),
         secrets: {
           resendApiKey: Boolean(process.env.RESEND_API_KEY),
           // Selection-INDEPENDENT since #890: the picker has to say whether SMTP could be

@@ -36,7 +36,11 @@ interface StatusOverrides {
   effectiveTransport?: 'console' | 'resend' | 'smtp'
   deliverable?: boolean
   mode?: string
-  from?: { effective: string | null; source: 'settings' | 'env' | null }
+  from?: {
+    effective: string | null
+    source: 'settings' | 'env' | null
+    problem: string | null
+  }
   secrets?: {
     resendApiKey: boolean
     smtpConfigured: boolean
@@ -66,7 +70,7 @@ function consoleStatus(over: StatusOverrides = {}) {
     effectiveTransport: 'console' as const,
     deliverable: false,
     mode: 'local',
-    from: { effective: null, source: null },
+    from: { effective: null, source: null, problem: null },
     secrets: { resendApiKey: false, smtpConfigured: false, smtpProblem: null },
     resetRestartRequired: false,
     ...over
@@ -89,7 +93,7 @@ function resendStatus(over: StatusOverrides = {}) {
     effectiveTransport: 'resend',
     deliverable: true,
     mode: 'self-hosted',
-    from: { effective: 'noreply@example.com', source: 'env' },
+    from: { effective: 'noreply@example.com', source: 'env', problem: null },
     secrets: { resendApiKey: true, smtpConfigured: false, smtpProblem: null },
     ...over
   })
@@ -173,7 +177,11 @@ describe('EmailSettings — provider status card', () => {
       resendStatus({
         effectiveTransport: 'console',
         deliverable: false,
-        from: { effective: 'owner@example.com', source: 'settings' },
+        from: {
+          effective: 'owner@example.com',
+          source: 'settings',
+          problem: null
+        },
         secrets: {
           resendApiKey: false,
           smtpConfigured: false,
@@ -187,6 +195,40 @@ describe('EmailSettings — provider status card', () => {
       screen.getByText(/resend is selected but its api key is missing/i)
     ).toBeTruthy()
     expect(screen.queryByText(/ready to send/i)).toBeNull()
+  })
+
+  // #953: #942 made a malformed SETU_FORMS_NOTIFY_FROM resolve to null, which is the right gate
+  // behaviour but turned this row's fallback copy into an affirmative falsehood — it said the
+  // variable was not set while the server had it set and had rejected it. The stub is exactly
+  // what resolveFromAddress + publicFrom produce for that env (effective null, source null, a
+  // problem naming the variable), not an invented state (#638).
+  it('a REJECTED server from-address is named as rejected, never reported as "not set"', async () => {
+    stubEmailApi(
+      consoleStatus({
+        from: {
+          effective: null,
+          source: null,
+          problem:
+            'SETU_FORMS_NOTIFY_FROM is set on the server but is not a valid email address, so it is ignored and no from-address is configured'
+        }
+      })
+    )
+    renderEmail()
+    expect(
+      await screen.findByText(/SETU_FORMS_NOTIFY_FROM is set on the server/i)
+    ).toBeTruthy()
+    expect(screen.getByText(/set on the server, but not usable/i)).toBeTruthy()
+    // The old copy claimed the opposite of the truth — it must be gone, not merely joined.
+    expect(screen.queryByText(/not set — add one below/i)).toBeNull()
+  })
+
+  it('an actually-unset from-address still gets the plain "not set" copy, with no red line', async () => {
+    stubEmailApi(consoleStatus())
+    renderEmail()
+    expect(await screen.findByText(/not set — add one below/i)).toBeTruthy()
+    expect(
+      screen.queryByText(/SETU_FORMS_NOTIFY_FROM is set on the server/i)
+    ).toBeNull()
   })
 
   // #885 review Finding 1: the reset ENABLE gate is boot-frozen — when the from-address
@@ -585,7 +627,11 @@ describe('EmailSettings — test send', () => {
   it('console transport: reports "logged", never pretends it was delivered', async () => {
     stubEmailApi(
       consoleStatus({
-        from: { effective: 'owner@example.com', source: 'settings' }
+        from: {
+          effective: 'owner@example.com',
+          source: 'settings',
+          problem: null
+        }
       }),
       {
         status: 200,

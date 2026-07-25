@@ -177,6 +177,59 @@ describe('patchEmailGroup (#937)', () => {
     expect(out.templates).toEqual({ 'password-reset': entry })
   })
 
+  // Review F2: the boundary of the per-ENTRY rule, pinned rather than asserted in prose. An
+  // entry salvage let THROUGH round-trips its unknown fields; an entry salvage REJECTED whole is
+  // absent from `next`, so customizing that id writes the editor's entry over the stored one and
+  // the unknown fields go with it. Correct — the admin edited that entry — but not obvious, and
+  // the comment on `entryKey` used to claim the opposite.
+  it('an unknown field inside an ACCEPTED entry round-trips through an edit of that entry', () => {
+    const raw = {
+      email: {
+        templates: { 'password-reset': { subject: 'Old', futureField: 'keep' } }
+      }
+    }
+    const published = loaded(raw)
+    expect(published.templates['password-reset']).toMatchObject({
+      futureField: 'keep'
+    })
+    const out = patchEmailGroup(
+      raw.email,
+      published,
+      withField(published, {
+        templates: {
+          ...published.templates,
+          'password-reset': {
+            ...published.templates['password-reset'],
+            subject: 'New'
+          }
+        }
+      })
+    )
+    expect(out.templates).toEqual({
+      'password-reset': { subject: 'New', futureField: 'keep' }
+    })
+  })
+
+  it('customizing an id whose stored entry salvage rejected replaces the stored entry, unknown fields included', () => {
+    const raw = {
+      email: {
+        templates: {
+          'password-reset': { html: 'ok', futureField: 'x'.repeat(300_000) }
+        }
+      }
+    }
+    const published = loaded(raw)
+    expect(published.templates['password-reset']).toBeUndefined() // over the entry cap
+    const out = patchEmailGroup(
+      raw.email,
+      published,
+      withField(published, {
+        templates: { 'password-reset': { subject: 'Mine' } }
+      })
+    )
+    expect(out.templates).toEqual({ 'password-reset': { subject: 'Mine' } })
+  })
+
   it('unknown keys inside the email group survive (the #885 Finding 4 promise)', () => {
     const raw = { email: { fromAddress: 'a@b.co', futureKey: { x: 1 } } }
     const published = loaded(raw)

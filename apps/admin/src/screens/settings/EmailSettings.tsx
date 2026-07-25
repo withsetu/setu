@@ -45,7 +45,14 @@ interface EmailStatus {
   effectiveTransport: TransportId
   deliverable: boolean
   mode: string
-  from: { effective: string | null; source: 'settings' | 'env' | null }
+  /** #953: `problem` says why a SET `SETU_FORMS_NOTIFY_FROM` was rejected. Without it this screen
+   *  rendered "not set — add one below…" over an env var that IS set, which #942 turned from a
+   *  half-truth into a flat falsehood by making the rejected value resolve to null. */
+  from: {
+    effective: string | null
+    source: 'settings' | 'env' | null
+    problem: string | null
+  }
   secrets: {
     resendApiKey: boolean
     smtpConfigured: boolean
@@ -238,8 +245,20 @@ function ProviderStatus({
                       ? 'Settings (this screen)'
                       : 'the server environment (SETU_FORMS_NOTIFY_FROM)'
                   }`
-                : 'not set — add one below, or set SETU_FORMS_NOTIFY_FROM on the server'}
+                : status.from.problem !== null
+                  ? // #953: "not set" would be affirmatively FALSE here — the server variable is
+                    // set, it was rejected. The reason goes in the destructive line below, in the
+                    // same register as the SMTP/Resend "selected but not usable" lines.
+                    'set on the server, but not usable'
+                  : 'not set — add one below, or set SETU_FORMS_NOTIFY_FROM on the server'}
             </StatusRow>
+            {status.from.problem !== null && (
+              <p className="text-sm text-destructive">
+                {status.from.problem}. Emails have no sender until it is
+                corrected on the server &mdash; or set one below, which
+                overrides it.
+              </p>
+            )}
 
             {status.deliverable && (
               <p className="text-sm font-medium">Ready to send ✓</p>

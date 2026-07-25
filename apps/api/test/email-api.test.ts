@@ -35,7 +35,7 @@ function resendStatus(over: Partial<EmailStatus> = {}): EmailStatus {
     effectiveTransport: 'resend',
     deliverable: true,
     mode: 'self-hosted',
-    from: { effective: 'noreply@example.com', source: 'env' },
+    from: { effective: 'noreply@example.com', source: 'env', problem: null },
     secrets: { resendApiKey: true, smtpConfigured: false, smtpProblem: null },
     resetRestartRequired: false,
     ...over
@@ -279,7 +279,7 @@ describe('POST /api/email/test-send', () => {
     const built = build({
       status: resendStatus({
         deliverable: false,
-        from: { effective: null, source: null }
+        from: { effective: null, source: null, problem: null }
       })
     })
     const cookie = await signedIn(built, 'admin')
@@ -326,7 +326,11 @@ describe('POST /api/email/test-send', () => {
         transport: 'console',
         effectiveTransport: 'console',
         deliverable: false,
-        from: { effective: 'owner@example.com', source: 'settings' },
+        from: {
+          effective: 'owner@example.com',
+          source: 'settings',
+          problem: null
+        },
         secrets: {
           resendApiKey: false,
           smtpConfigured: false,
@@ -433,7 +437,11 @@ describe('test-send goes through the SETTINGS-chosen transport (live, no restart
           effectiveTransport: live.effective,
           deliverable: live.effective !== 'console',
           mode: 'self-hosted',
-          from: { effective: 'noreply@example.com', source: 'env' },
+          from: {
+            effective: 'noreply@example.com',
+            source: 'env',
+            problem: null
+          },
           secrets: {
             resendApiKey: Boolean(env.RESEND_API_KEY),
             smtpConfigured: emailTransportOptions(env).some(

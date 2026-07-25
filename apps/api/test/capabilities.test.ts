@@ -10,6 +10,7 @@ import {
   createCapabilitiesApi,
   emailCapabilityFromEnv,
   emailTransportOptions,
+  publicFrom,
   resolveEmailProvider,
   resolveFromAddress,
   smtpConfigFromEnv,
@@ -824,6 +825,37 @@ describe('capabilities', () => {
       expect(
         resolveFromAddress(undefined, { SETU_FORMS_NOTIFY_FROM: '' }).problem
       ).toBeNull()
+    })
+
+    // #942 review F1: server.ts used to build the status `from` as a named-field literal with a
+    // comment claiming that stopped a future spread from widening the response. It does not —
+    // excess-property checking does not apply to a variable in a property position, so `from,`
+    // typechecks clean and would ship every field of FromAddressResolution to the client. This
+    // is the enforcement the comment claimed: the ONE projection the route calls, with its key
+    // set pinned, mirroring the unauthenticated-capabilities key pin above.
+    it('publicFrom exposes exactly the from-address keys the client is meant to see', () => {
+      const r = resolveFromAddress(undefined, {
+        SETU_FORMS_NOTIFY_FROM: 'ops-at-env.example'
+      })
+      expect(Object.keys(publicFrom(r)).sort()).toEqual([
+        'effective',
+        'problem',
+        'source'
+      ])
+    })
+
+    it('publicFrom carries the three values through unchanged', () => {
+      expect(
+        publicFrom(
+          resolveFromAddress('owner@settings.example', {
+            SETU_FORMS_NOTIFY_FROM: 'ops@env.example'
+          })
+        )
+      ).toEqual({
+        effective: 'owner@settings.example',
+        source: 'settings',
+        problem: null
+      })
     })
 
     // The settings value still wins even when the env fallback is malformed — the fallback is

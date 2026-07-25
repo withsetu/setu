@@ -69,7 +69,35 @@ describe('createSettingsLoader (#937)', () => {
     })
     load()
     expect(logged).toHaveLength(2)
+    // The WHOLE set, not the delta: an operator reading the second report must not have to
+    // reconstruct it from the first. Asserting only the new warning would pass against a
+    // delta-only reporter.
     expect(logged[1]?.join('\n')).toContain('permalinks.uncategorized')
+    expect(logged[1]?.join('\n')).toContain('email.templates')
+  })
+
+  // The guard key must be ambiguity-free. Warning strings embed raw settings.json keys VERBATIM,
+  // so a key containing a newline can make two genuinely different warning sets join to the same
+  // string — and under a joined guard key the second set would be silenced entirely. The id below
+  // is crafted to do exactly that against {"A", "B"}; the assertions prove both halves, that the
+  // collision is real and that the loader still reports both.
+  it('two warning sets that a joined key would confuse are told apart', () => {
+    const NOT_AN_ID =
+      ': not a valid email type id — dropped, using the shipped default'
+    const colliding = `A${NOT_AN_ID}\nemail.templates.B`
+    const files = {
+      current: JSON.stringify({ email: { templates: { [colliding]: {} } } })
+    }
+    const { load, logged } = loaderOver(files)
+    load()
+    files.current = JSON.stringify({ email: { templates: { A: {}, B: {} } } })
+    load()
+    // The hazard, demonstrated: one warning and two warnings, indistinguishable once joined.
+    expect(logged[0]?.join('\n')).toBe(logged[1]?.join('\n'))
+    expect(logged[0]).toHaveLength(1)
+    expect(logged[1]).toHaveLength(2)
+    // …and reported anyway.
+    expect(logged).toHaveLength(2)
   })
 
   it('goes quiet when the file is fixed, and speaks again if it breaks a second time', () => {

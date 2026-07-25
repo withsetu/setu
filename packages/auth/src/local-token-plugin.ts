@@ -52,7 +52,8 @@ export interface LocalTokenOptions {
  *  parallel auth system.
  *
  *  Guards, in order, all fail-closed:
- *   1. `getToken()` non-null, else 404 — the endpoint "doesn't exist" outside local topology.
+ *   1. `getToken()` returns a non-empty token, else 404 — the endpoint "doesn't exist" outside
+ *      local topology. Empty string counts as absent (#899).
  *   2. Request body `token` matches the CURRENT `getToken()` via constant-time comparison, else
  *      401 — and a replay of the last-consumed token is 401 too (see below).
  *   3. `Host` header is a loopback host, else 403. Defence in depth ONLY: `Host` is
@@ -97,7 +98,11 @@ export function localToken(opts: LocalTokenOptions): BetterAuthPlugin {
           // loop. An await inserted between them would let two concurrent exchanges both
           // pass the checks against the same token.
           const token = opts.getToken()
-          if (token === null) throw ctx.error('NOT_FOUND')
+          // `!token`, not `token === null` (#899): an empty string is not a credential.
+          // With the strict check, a provider returning '' fell through to the comparison
+          // below, where a body of `{"token":""}` matches and mints a full admin session.
+          // packages/auth/test/local-token-plugin.test.ts covers the empty case.
+          if (!token) throw ctx.error('NOT_FOUND')
 
           // Defensive fallback for non-rotating providers: a replay of the exact token we
           // already consumed is always rejected, even when getToken() still returns it.

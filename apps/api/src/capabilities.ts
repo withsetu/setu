@@ -134,10 +134,17 @@ export function smtpConfigFromEnv(
  *  reset email actually go out" without server.ts having to re-derive its own boolean and pass it
  *  in separately — both call sites key off the identical env var name, so they can't drift. */
 export function emailCapabilityFromEnv(
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
+  // #498: settings.json's email.fromAddress — a second from-address source. A non-empty
+  // settings value wins over the env var; the env var is the fallback (the same precedence
+  // server.ts applies when building the actual messages). Precedence pinned by
+  // apps/api/test/capabilities.test.ts.
+  settingsFromAddress?: string
 ): EmailCapabilities {
   const transport = env.SETU_EMAIL_ADAPTER ?? 'console'
-  const hasFromAddress = Boolean(env.SETU_FORMS_NOTIFY_FROM)
+  const hasFromAddress = Boolean(
+    settingsFromAddress || env.SETU_FORMS_NOTIFY_FROM
+  )
   // #256: smtp only counts as real when its config parses — server.ts constructs the smtp
   // adapter from the same smtpConfigFromEnv result, so a partial config (no host, bad port,
   // half an auth pair) fails closed to console on BOTH sides instead of reporting a transport

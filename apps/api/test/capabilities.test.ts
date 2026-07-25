@@ -370,6 +370,40 @@ describe('capabilities', () => {
         })
       ).toEqual({ transport: 'smtp', deliverable: false })
     })
+
+    // #498: settings.json's email.fromAddress joins SETU_FORMS_NOTIFY_FROM as a from-address
+    // source. A non-empty settings value wins; the env var is the fallback — the same precedence
+    // server.ts applies when it builds the actual messages.
+    it('resend + settings from-address (no env) -> deliverable (settings alone satisfy the from requirement)', () => {
+      expect(
+        emailCapabilityFromEnv(
+          { SETU_EMAIL_ADAPTER: 'resend', RESEND_API_KEY: 'test-fake-key' },
+          'owner@example.com'
+        )
+      ).toEqual({ transport: 'resend', deliverable: true })
+    })
+
+    it('resend + empty settings value + env set -> deliverable (env is the fallback)', () => {
+      expect(
+        emailCapabilityFromEnv(
+          {
+            SETU_EMAIL_ADAPTER: 'resend',
+            RESEND_API_KEY: 'test-fake-key',
+            SETU_FORMS_NOTIFY_FROM: 'noreply@example.com'
+          },
+          ''
+        )
+      ).toEqual({ transport: 'resend', deliverable: true })
+    })
+
+    it('console + settings from-address -> still not deliverable (transport gates console, not the from)', () => {
+      expect(
+        emailCapabilityFromEnv(
+          { SETU_EMAIL_ADAPTER: 'console' },
+          'owner@example.com'
+        )
+      ).toEqual({ transport: 'console', deliverable: false })
+    })
   })
 
   describe('smtpConfigFromEnv (#256 — the single parser server.ts and emailCapabilityFromEnv share)', () => {

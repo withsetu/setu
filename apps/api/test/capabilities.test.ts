@@ -8,7 +8,8 @@ import { openSqliteDb, countUsers, user as userTable } from '@setu/db-sqlite'
 import {
   buildCapabilities,
   createCapabilitiesApi,
-  emailCapabilityFromEnv
+  emailCapabilityFromEnv,
+  smtpConfigFromEnv
 } from '../src/capabilities'
 import {
   socialProvidersEnabled,
@@ -314,6 +315,133 @@ describe('capabilities', () => {
           SETU_FORMS_NOTIFY_FROM: 'noreply@example.com'
         })
       ).toEqual({ transport: 'console', deliverable: false })
+    })
+
+    // #256: smtp joins resend as a real transport. `deliverable` requires the SAME two things
+    // server.ts requires to actually wire the send path: a usable smtp config (host + valid
+    // port + coherent auth pair) AND the from-address. Partial smtp config fails closed.
+    it('smtp fully configured + from-address -> deliverable', () => {
+      expect(
+        emailCapabilityFromEnv({
+          SETU_EMAIL_ADAPTER: 'smtp',
+          SETU_SMTP_HOST: '127.0.0.1',
+          SETU_SMTP_PORT: '1025',
+          SETU_FORMS_NOTIFY_FROM: 'noreply@example.com'
+        })
+      ).toEqual({ transport: 'smtp', deliverable: true })
+    })
+
+    it('smtp with no SETU_SMTP_PORT -> deliverable (defaults to 587)', () => {
+      expect(
+        emailCapabilityFromEnv({
+          SETU_EMAIL_ADAPTER: 'smtp',
+          SETU_SMTP_HOST: 'smtp.example.com',
+          SETU_FORMS_NOTIFY_FROM: 'noreply@example.com'
+        })
+      ).toEqual({ transport: 'smtp', deliverable: true })
+    })
+
+    it('smtp selected but SETU_SMTP_HOST unset -> not deliverable (fail closed)', () => {
+      expect(
+        emailCapabilityFromEnv({
+          SETU_EMAIL_ADAPTER: 'smtp',
+          SETU_FORMS_NOTIFY_FROM: 'noreply@example.com'
+        })
+      ).toEqual({ transport: 'smtp', deliverable: false })
+    })
+
+    it('smtp with an invalid SETU_SMTP_PORT -> not deliverable (fail closed)', () => {
+      expect(
+        emailCapabilityFromEnv({
+          SETU_EMAIL_ADAPTER: 'smtp',
+          SETU_SMTP_HOST: '127.0.0.1',
+          SETU_SMTP_PORT: 'not-a-port',
+          SETU_FORMS_NOTIFY_FROM: 'noreply@example.com'
+        })
+      ).toEqual({ transport: 'smtp', deliverable: false })
+    })
+
+    it('smtp configured but no SETU_FORMS_NOTIFY_FROM -> not deliverable (same rule as resend)', () => {
+      expect(
+        emailCapabilityFromEnv({
+          SETU_EMAIL_ADAPTER: 'smtp',
+          SETU_SMTP_HOST: '127.0.0.1',
+          SETU_SMTP_PORT: '1025'
+        })
+      ).toEqual({ transport: 'smtp', deliverable: false })
+    })
+  })
+
+  describe('smtpConfigFromEnv (#256 — the single parser server.ts and emailCapabilityFromEnv share)', () => {
+    it('parses a full config (host, port, secure, auth)', () => {
+      expect(
+        smtpConfigFromEnv({
+          SETU_SMTP_HOST: 'smtp.example.com',
+          SETU_SMTP_PORT: '465',
+          SETU_SMTP_SECURE: 'true',
+          SETU_SMTP_USER: 'u',
+          SETU_SMTP_PASS: 'p'
+        })
+      ).toEqual({
+        config: {
+          host: 'smtp.example.com',
+          port: 465,
+          secure: true,
+          auth: { user: 'u', pass: 'p' }
+        }
+      })
+    })
+
+    it('auth is omitted (not half-built) when user/pass are unset — Mailpit needs none', () => {
+      expect(
+        smtpConfigFromEnv({
+          SETU_SMTP_HOST: '127.0.0.1',
+          SETU_SMTP_PORT: '11025'
+        })
+      ).toEqual({ config: { host: '127.0.0.1', port: 11025, secure: false } })
+    })
+
+    it('defaults the port to 587 (submission) when SETU_SMTP_PORT is unset', () => {
+      expect(smtpConfigFromEnv({ SETU_SMTP_HOST: 'smtp.example.com' })).toEqual(
+        {
+          config: { host: 'smtp.example.com', port: 587, secure: false }
+        }
+      )
+    })
+
+    it('missing host -> problem naming the variable', () => {
+      const r = smtpConfigFromEnv({ SETU_SMTP_PORT: '1025' })
+      expect(r).toHaveProperty('problem')
+      expect((r as { problem: string }).problem).toContain('SETU_SMTP_HOST')
+    })
+
+    it('non-numeric / out-of-range port -> problem, never NaN in a config', () => {
+      for (const bad of ['abc', '0', '65536', '12.5']) {
+        const r = smtpConfigFromEnv({
+          SETU_SMTP_HOST: 'h',
+          SETU_SMTP_PORT: bad
+        })
+        expect(r, `port ${JSON.stringify(bad)}`).toHaveProperty('problem')
+      }
+    })
+
+    it('user without pass (and vice versa) -> problem; the message never echoes the values', () => {
+      const r1 = smtpConfigFromEnv({
+        SETU_SMTP_HOST: 'h',
+        SETU_SMTP_USER: 'only-user-value'
+      })
+      expect(r1).toHaveProperty('problem')
+      expect((r1 as { problem: string }).problem).not.toContain(
+        'only-user-value'
+      )
+      const r2 = smtpConfigFromEnv({
+        SETU_SMTP_HOST: 'h',
+        SETU_SMTP_PASS: 'secret-pass-value'
+      })
+      expect(r2).toHaveProperty('problem')
+      expect((r2 as { problem: string }).problem).not.toContain(
+        'secret-pass-value'
+      )
     })
   })
 

@@ -26,6 +26,7 @@
     "@setu/demo-data": "workspace:*",
     "@setu/email-console": "workspace:*",
     "@setu/email-resend": "workspace:*",
+    "@setu/email-smtp": "workspace:*",
     "@setu/email-templates": "workspace:*",
     "@setu/git-local": "workspace:*",
     "@setu/image-sharp": "workspace:*",

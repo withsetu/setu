@@ -61,7 +61,7 @@ const IGNORES = [
 ]
 
 // ---- Edge-guard rule inputs (#434) ----
-// The edge-reachable dir list is owned by packages/core/tsconfig.edge.json (`include`);
+// The edge-reachable module list is owned by packages/core/tsconfig.edge.json (`include`);
 // we READ it at config-load time so the two can never drift. The tsconfig-based edge
 // guard proves the TYPE graph is Node-free but cannot fail on a `node:` MODULE import
 // (with `types: []` the import just loses its types); this lint override is the guard
@@ -74,9 +74,16 @@ const edgeTsconfig = JSON.parse(
     'utf8'
   )
 )
-// `include` entries are dirs like "src/blocks" → glob packages/core/src/blocks/**/*.ts
-const edgeFiles = edgeTsconfig.include.map(
-  (dir) => `packages/core/${dir}/**/*.{ts,tsx}`
+// `include` entries are either dirs ("src/blocks" → glob packages/core/src/blocks/**/*.ts)
+// or single top-level modules ("src/version.ts" → that exact path). #892 assumed dirs only,
+// which left every top-level packages/core/src/*.ts outside this rule even when it was
+// edge-reachable (src/version.ts is imported by src/seo/resolve-seo.ts). Fixed in #913;
+// packages/core/test/edge-guard-allowlist.test.ts is what fails if a new top-level module
+// is added and listed in neither `include` nor that file's NODE_ONLY_ENTRYPOINTS.
+const edgeFiles = edgeTsconfig.include.map((entry) =>
+  /\.tsx?$/.test(entry)
+    ? `packages/core/${entry}`
+    : `packages/core/${entry}/**/*.{ts,tsx}`
 )
 // Every bare-resolvable Node builtin (fs, path, fs/promises, …) from the runtime itself.
 // These go in no-restricted-imports `paths` (EXACT specifier match), NOT `patterns`:

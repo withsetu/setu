@@ -13,7 +13,8 @@ import {
   resolveEmailProvider,
   resolveFromAddress,
   smtpConfigFromEnv,
-  usableEmailTransport
+  usableEmailTransport,
+  type EmailCapabilities
 } from '../src/capabilities'
 import {
   socialProvidersEnabled,
@@ -79,7 +80,11 @@ describe('capabilities', () => {
       auth: NO_AUTH,
       email: NO_EMAIL
     })
-    const app = createCapabilitiesApi(base, () => NO_AUTH)
+    const app = createCapabilitiesApi(
+      base,
+      () => NO_AUTH,
+      () => NO_EMAIL
+    )
     const res = await app.fetch(new Request('http://test/api/capabilities'))
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({
@@ -121,7 +126,8 @@ describe('capabilities', () => {
           auth: NO_AUTH,
           email: NO_EMAIL
         }),
-        () => NO_AUTH
+        () => NO_AUTH,
+        () => NO_EMAIL
       )
     )
     const res = await app.fetch(
@@ -154,7 +160,8 @@ describe('capabilities', () => {
           auth: NO_AUTH,
           email: NO_EMAIL
         }),
-        () => NO_AUTH
+        () => NO_AUTH,
+        () => NO_EMAIL
       )
     )
     const res = await app.fetch(
@@ -175,12 +182,16 @@ describe('capabilities', () => {
         auth: NO_AUTH,
         email: NO_EMAIL
       })
-      const app = createCapabilitiesApi(base, () => ({
-        enabled: true,
-        providers: [],
-        captcha: null,
-        needsSetup
-      }))
+      const app = createCapabilitiesApi(
+        base,
+        () => ({
+          enabled: true,
+          providers: [],
+          captcha: null,
+          needsSetup
+        }),
+        () => NO_EMAIL
+      )
 
       const first = await app.fetch(new Request('http://test/api/capabilities'))
       expect(((await first.json()) as any).auth.needsSetup).toBe(true)
@@ -190,6 +201,76 @@ describe('capabilities', () => {
         new Request('http://test/api/capabilities')
       )
       expect(((await second.json()) as any).auth.needsSetup).toBe(false)
+    })
+  })
+
+  // #890: the email block has the same problem `auth` was given a thunk for. Since the provider
+  // and the from-address both live in settings.json and both apply to the NEXT send with no
+  // restart, a boot snapshot here goes stale the moment an admin saves — and this block is what
+  // the admin's password-reset surfaces read: LoginScreen's "Forgot password?" card shows
+  // "reset isn't configured for this site" and UsersScreen hides the reset action while
+  // `deliverable` is false. A stale false there is the worst kind of dishonesty: reset genuinely
+  // works and the UI tells the user it doesn't.
+  describe('email block: computed per-request (a settings save must not need a restart)', () => {
+    it('reflects a live thunk, not a boot-time snapshot', async () => {
+      // Console + a from-address = the exact repro shape: not deliverable at boot, and reset IS
+      // wired at boot (a from-address exists), so #886's restart-required copy never fires and
+      // nothing else would tell the user the truth.
+      const env = {
+        SETU_SMTP_HOST: '127.0.0.1',
+        SETU_SMTP_PORT: '11025'
+      } as NodeJS.ProcessEnv
+      let provider = 'console'
+      const app = createCapabilitiesApi(
+        buildCapabilities({
+          writableMediaStore: true,
+          backgroundJobs: true,
+          history: false,
+          auth: NO_AUTH,
+          email: emailCapabilityFromEnv(env, 'owner@example.com', provider)
+        }),
+        () => NO_AUTH,
+        () => emailCapabilityFromEnv(env, 'owner@example.com', provider)
+      )
+
+      const first = (await (
+        await app.fetch(new Request('http://test/api/capabilities'))
+      ).json()) as { email: EmailCapabilities }
+      expect(first.email).toEqual({ transport: 'console', deliverable: false })
+
+      provider = 'smtp' // the admin saves Settings → Email; no restart
+
+      const second = (await (
+        await app.fetch(new Request('http://test/api/capabilities'))
+      ).json()) as { email: EmailCapabilities }
+      expect(second.email).toEqual({ transport: 'smtp', deliverable: true })
+    })
+
+    it('exposes ONLY transport + deliverable — the thunk must not widen an unauthenticated surface', async () => {
+      const app = createCapabilitiesApi(
+        buildCapabilities({
+          writableMediaStore: true,
+          backgroundJobs: true,
+          history: false,
+          auth: NO_AUTH,
+          email: NO_EMAIL
+        }),
+        () => NO_AUTH,
+        () =>
+          emailCapabilityFromEnv(
+            { RESEND_API_KEY: 'test-fake-key' },
+            'owner@example.com',
+            'resend'
+          )
+      )
+      const body = (await (
+        await app.fetch(new Request('http://test/api/capabilities'))
+      ).json()) as { email: Record<string, unknown> }
+      expect(Object.keys(body.email).sort()).toEqual([
+        'deliverable',
+        'transport'
+      ])
+      expect(JSON.stringify(body)).not.toContain('test-fake-key')
     })
   })
 
@@ -826,10 +907,13 @@ describe('capabilities', () => {
         auth: NO_AUTH,
         email: NO_EMAIL
       })
-      const app = createCapabilitiesApi(base, () =>
-        resolveAuthCapabilitiesLike(true, () => {
-          throw new Error('disk I/O error')
-        })
+      const app = createCapabilitiesApi(
+        base,
+        () =>
+          resolveAuthCapabilitiesLike(true, () => {
+            throw new Error('disk I/O error')
+          }),
+        () => NO_EMAIL
       )
       const res = await app.fetch(new Request('http://test/api/capabilities'))
       expect(res.status).toBe(200)

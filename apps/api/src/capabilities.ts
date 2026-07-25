@@ -16,9 +16,12 @@ export interface AuthCapabilities {
  *  with its API key, or smtp with a parseable config) AND a from-address from either source
  *  (settings.json `email.fromAddress` wins, `SETU_FORMS_NOTIFY_FROM` is the fallback —
  *  resolveFromAddress below). Both derivations are pinned by
- *  apps/api/test/capabilities.test.ts. This block is a BOOT snapshot on the unauthenticated
- *  /api/capabilities; the live per-request reading lives on the settings.view-gated
- *  GET /api/email/status (apps/api/src/email.ts). */
+ *  apps/api/test/capabilities.test.ts. Since #890 this block is resolved PER REQUEST on the
+ *  unauthenticated /api/capabilities (createCapabilitiesApi's `resolveEmail` thunk) — a settings
+ *  save must not need a restart to stop the admin's reset surfaces claiming reset is
+ *  unconfigured. It stays deliberately narrow (transport name + one boolean); the richer,
+ *  presence-bearing reading lives on the settings.view-gated GET /api/email/status
+ *  (apps/api/src/email.ts). */
 export interface EmailCapabilities {
   transport: string
   deliverable: boolean
@@ -260,9 +263,10 @@ export function resolveFromAddress(
   return { effective: null, source: null }
 }
 
-/** The boot-time email capability block for /api/capabilities. Built on the same two helpers
- *  above that server.ts wires the adapter and the /api/email/status thunk from, so this can't
- *  claim a transport is live that server.ts didn't actually construct.
+/** The email capability block for /api/capabilities. Built on the same two helpers above that
+ *  server.ts's live sender and the /api/email/status thunk resolve from, so this can't claim a
+ *  transport is live that the next send wouldn't actually use. server.ts calls it per request
+ *  (re-reading settings.json) via createCapabilitiesApi's `resolveEmail` thunk.
  *
  *  `deliverable` = a USABLE real transport (usableEmailTransport) AND a from-address from either
  *  source (resolveFromAddress — settings win, env fallback; #364 required the from because
@@ -283,17 +287,33 @@ export function emailCapabilityFromEnv(
   }
 }
 
-/** capabilities is mostly boot-time-static (image adapter, storage, mode), but the `auth` block's
- *  `needsSetup` flag is NOT — it depends on the current user-table row count, which changes the
- *  moment first-run setup creates the owner account. So `createCapabilitiesApi` takes the static
- *  shape plus a thunk for the auth block, and calls the thunk fresh on every request rather than
- *  baking a snapshot into the response returned once at boot. */
+/** capabilities is mostly boot-time-static (image adapter, storage, mode), but two blocks are NOT,
+ *  so each gets a thunk that is called fresh on every request instead of baking a snapshot into
+ *  the response returned once at boot:
+ *
+ *  - `auth.needsSetup` depends on the current user-table row count, which changes the moment
+ *    first-run setup creates the owner account.
+ *  - `email` (#890) depends on settings.json's `email.provider` + `email.fromAddress`, which an
+ *    admin can change at runtime and which apply to the next send with NO restart. A snapshot
+ *    here went stale on save, and this block is what the password-reset surfaces read
+ *    (LoginScreen's "Forgot password?" card, UsersScreen's reset action) — so a stale
+ *    `deliverable: false` told users reset was unconfigured while it genuinely worked. Pinned by
+ *    apps/api/test/capabilities.test.ts ("email block: computed per-request").
+ *
+ *  Both thunks are REQUIRED, not optional: an omittable one is an invitation to re-introduce the
+ *  snapshot. `base` still carries a boot value for each (buildCapabilities builds the whole
+ *  shape); the thunk is what the response actually uses. The endpoint is unauthenticated, so a
+ *  thunk must never widen the payload — the same test asserts `email` stays exactly
+ *  transport + deliverable. */
 export function createCapabilitiesApi(
   base: Omit<Capabilities, 'auth'>,
-  resolveAuth: () => AuthCapabilities
+  resolveAuth: () => AuthCapabilities,
+  resolveEmail: () => EmailCapabilities
 ) {
   const app = new Hono()
-  app.get('/api/capabilities', (c) => c.json({ ...base, auth: resolveAuth() }))
-  app.onError(apiOnError({ scope: 'capabilities' })) // #291: e.g. a throwing resolveAuth thunk
+  app.get('/api/capabilities', (c) =>
+    c.json({ ...base, auth: resolveAuth(), email: resolveEmail() })
+  )
+  app.onError(apiOnError({ scope: 'capabilities' })) // #291: e.g. a throwing thunk
   return app
 }

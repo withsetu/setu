@@ -74,7 +74,8 @@ import {
   emailTransportOptions,
   resolveFromAddress,
   usableEmailTransport,
-  type AuthCapabilities
+  type AuthCapabilities,
+  type EmailCapabilities
 } from './capabilities'
 import { createLiveEmailTransport } from './email-transport'
 import { runReprocessJob } from './reprocess-runner'
@@ -646,13 +647,15 @@ app.route(
 )
 
 // Settings → Email control plane (#498, #890): live provider status + admin-only test send.
-// `status` is a thunk (same pattern as the mediaSettings live getter above): BOTH the provider
-// and the from-address re-read settings.json per request, so a save in the admin is reflected
-// immediately — unlike /api/capabilities' email block, which stays the boot snapshot. It reads
-// the transport through `email.resolve()`, the same call the live sender makes, so what this
-// endpoint reports and what the next email actually goes through cannot drift. The secrets block
-// is presence booleans ONLY (never values); the problem strings are smtpConfigFromEnv's
-// boot-log-safe reasons (apps/api/test/capabilities.test.ts proves they never echo credentials).
+// `status` is a thunk (same pattern as the mediaSettings live getter above): BOTH the provider and
+// the from-address re-read settings.json per request, so a save in the admin is reflected
+// immediately. It reads the transport through `email.resolve()` — the same function, over the same
+// two sources, that the live sender resolves through — so the two are INTENDED to report the same
+// effective transport. That is a shared derivation, not an enforced invariant: this reading and the
+// sender's are separate calls, so a save landing between them changes the answer (which is exactly
+// what makes the provider a live control). The secrets block is presence booleans ONLY (never
+// values); the problem strings are smtpConfigFromEnv's boot-log-safe reasons
+// (apps/api/test/capabilities.test.ts proves they never echo credentials).
 app.route(
   '/',
   createEmailApi({
@@ -785,6 +788,23 @@ const resolveAuthCapabilities = (): AuthCapabilities => {
     needsSetup
   }
 }
+// #890: computed fresh per request, like resolveAuthCapabilities above and for the same reason —
+// it isn't boot-stable. Both halves of `deliverable` (the provider and the from-address) live in
+// settings.json and apply to the next send with no restart, so a boot snapshot here went stale
+// the moment an admin saved. That mattered beyond cosmetics: this block is what the admin's
+// password-reset surfaces read (LoginScreen's "Forgot password?" card, UsersScreen's reset
+// action), so a stale `deliverable: false` told users reset wasn't configured while it genuinely
+// worked. It re-reads settings.json per request — the same cost shape as resolveAuthCapabilities'
+// countUsers DB read — and loadSiteSettings already swallows a missing/corrupt file into defaults,
+// so this cannot throw the endpoint. Exposure is unchanged: transport name + one boolean.
+const resolveEmailCapabilities = (): EmailCapabilities => {
+  const settings = loadSiteSettings().email
+  return emailCapabilityFromEnv(
+    process.env,
+    settings.fromAddress,
+    settings.provider
+  )
+}
 app.route(
   '/',
   createCapabilitiesApi(
@@ -798,9 +818,10 @@ app.route(
         typeof git.log === 'function' && typeof git.readFileAt === 'function',
       mode,
       auth: resolveAuthCapabilities(), // boot-time value; createCapabilitiesApi re-derives per request via the thunk below
-      email: emailCapability
+      email: emailCapability // ditto — resolveEmailCapabilities below is what the response uses
     }),
-    resolveAuthCapabilities
+    resolveAuthCapabilities,
+    resolveEmailCapabilities
   )
 )
 

@@ -107,20 +107,35 @@ function SelectItem({
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Item> & {
   /** Optional secondary line under the option label — e.g. what the option does, or why a
-   *  `disabled` option is unavailable and what to do about it. Deliberately rendered OUTSIDE
-   *  `ItemText`: Radix portals ItemText into the closed trigger to show the current value, so
-   *  anything nested there would also appear in the trigger. Added for #890's provider picker;
-   *  optional, so every existing call site is unchanged. */
+   *  `disabled` option is unavailable and what to do about it. Added for #890's provider picker;
+   *  optional, so every existing call site is unchanged.
+   *
+   *  Two things this deliberately does NOT do, both pinned by
+   *  apps/admin/test/email-settings.test.tsx:
+   *  - It is not nested inside `ItemText`. Radix portals ItemText into the CLOSED trigger to
+   *    display the current value, so a nested description would render in the trigger too.
+   *  - It is not left out of the accessibility tree. Radix sets the item's `aria-labelledby` to
+   *    its ItemText id ALONE, so a description that is only visible text is never announced —
+   *    which for a disabled option means the user hears "dimmed" and never the reason. Hence the
+   *    generated id + `aria-describedby` below. */
   description?: React.ReactNode
 }) {
+  // Only used when a description is rendered; useId must still be called unconditionally.
+  const descriptionId = React.useId()
   return (
     <SelectPrimitive.Item
       data-slot="select-item"
+      // The `*:data-[slot=select-item-text]:*` trio targets the LABEL span (the same element the
+      // old `*:[span]:last:*` selectors hit when there was no description — a description span
+      // would otherwise steal them and break icon+label alignment for callers passing both).
       className={cn(
-        "relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+        "relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground *:data-[slot=select-item-text]:flex *:data-[slot=select-item-text]:items-center *:data-[slot=select-item-text]:gap-2",
         description !== undefined && 'flex-col items-start gap-0.5',
         className
       )}
+      {...(description !== undefined
+        ? { 'aria-describedby': descriptionId }
+        : {})}
       {...props}
     >
       <span
@@ -131,9 +146,12 @@ function SelectItem({
           <CheckIcon className="size-4" />
         </SelectPrimitive.ItemIndicator>
       </span>
-      <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+      <SelectPrimitive.ItemText data-slot="select-item-text">
+        {children}
+      </SelectPrimitive.ItemText>
       {description !== undefined && (
         <span
+          id={descriptionId}
           data-slot="select-item-description"
           className="text-xs text-muted-foreground"
         >

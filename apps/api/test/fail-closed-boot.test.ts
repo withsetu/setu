@@ -110,7 +110,11 @@ function makeDegradedApp() {
         providers: [],
         captcha: null,
         needsSetup: false
-      })
+      }),
+      // #890: the email block is a per-request thunk too. An auth-unconfigured boot still has to
+      // answer /api/capabilities (that is what this file asserts), so this thunk must not depend
+      // on auth being constructed.
+      () => ({ transport: 'console', deliverable: false })
     )
   )
 

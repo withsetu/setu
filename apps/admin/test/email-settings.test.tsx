@@ -234,6 +234,19 @@ describe('EmailSettings — provider status card', () => {
     expect(picker.textContent).toContain('Resend')
   })
 
+  // Radix portals an option's `ItemText` into the CLOSED trigger to display the current value, so
+  // a per-option description nested inside ItemText would also render in the trigger. The
+  // description is deliberately a sibling of ItemText (apps/admin/src/components/ui/select.tsx) —
+  // this asserts the separation instead of just claiming it.
+  it('the per-option description never leaks into the trigger', async () => {
+    stubEmailApi(consoleStatus())
+    renderEmail()
+    const picker = await screen.findByRole('combobox', { name: /provider/i })
+    expect(picker.textContent).toContain('Console (dev)')
+    expect(picker.textContent).not.toContain('Logs emails to')
+    expect(picker.textContent).not.toContain('RESEND_API_KEY')
+  })
+
   it('offers all three transports; the ones whose secret is missing are disabled and say what to add', async () => {
     stubEmailApi(consoleStatus()) // console-only env: no RESEND_API_KEY, no SETU_SMTP_HOST
     renderEmail()
@@ -249,12 +262,31 @@ describe('EmailSettings — provider status card', () => {
     expect(smtp).toHaveAttribute('aria-disabled', 'true')
     // Console needs no secret, so the picker can never have zero selectable options.
     expect(console_).not.toHaveAttribute('aria-disabled', 'true')
-    expect(resend.textContent).toContain(
+
+    // Radix sets an item's `aria-labelledby` to its ItemText id ALONE, so the remediation is not
+    // part of the accessible NAME — asserting `textContent` here would pass while a screen reader
+    // announced only "Resend, dimmed". It has to be reachable as the accessible DESCRIPTION.
+    expect(resend).toHaveAccessibleName('Resend')
+    expect(resend).toHaveAccessibleDescription(
       'Add RESEND_API_KEY to the server environment to enable Resend.'
     )
-    expect(smtp.textContent).toContain(
+    expect(smtp).toHaveAccessibleDescription(
       'Add SETU_SMTP_HOST to the server environment to enable SMTP.'
     )
+    // Usable options describe what they do, so the description is never an empty promise.
+    expect(console_).toHaveAccessibleDescription(
+      /logs emails to the api server console/i
+    )
+
+    // The LABEL span carries the slot the item's layout selectors target, and the description is
+    // a separate node. Without the slot the `*:data-[slot=select-item-text]:*` trio matches
+    // nothing and an option rendering `<Icon /> Label` loses its alignment — jsdom can't see the
+    // CSS, so the selector's target is what's assertable here.
+    const label = resend.querySelector('[data-slot="select-item-text"]')
+    expect(label?.textContent).toBe('Resend')
+    expect(
+      resend.querySelector('[data-slot="select-item-description"]')
+    ).not.toBeNull()
   })
 
   it('a usable transport is selectable even when it is not the current one', async () => {

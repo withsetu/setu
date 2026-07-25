@@ -510,10 +510,12 @@ export function EmailSettings() {
           Sends a fixed test message to your own account email — the recipient
           can&rsquo;t be chosen.
         </p>
+        {/* #890: `dirty` now covers the provider too, so this can no longer name the
+            from-address alone — the test send goes through whatever is SAVED, both fields. */}
         {dirty && (
           <p className="text-xs text-muted-foreground">
-            You have unsaved changes — the test uses the last saved
-            from-address.
+            You have unsaved changes — the test uses the saved provider and
+            from-address, not the ones above.
           </p>
         )}
         <Button

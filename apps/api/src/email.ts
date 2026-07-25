@@ -70,9 +70,15 @@ export interface EmailApiOptions {
    *  provider saved in the admin applies without an api restart. */
   status: () => EmailStatus
   /** The live sender (structural EmailPort['send'], like @setu/auth's email option — this
-   *  factory never imports a concrete adapter). Since #890 it re-resolves the transport per
-   *  call from the same settings + env `status` reads, so the transport this route REPORTS and
-   *  the one it sends through are the same reading. */
+   *  factory never imports a concrete adapter). Since #890 it re-resolves the transport per call
+   *  from the same settings + env that `status` reads, and both derive it through the one shared
+   *  predicate (usableEmailTransport), so they are intended to agree about which transport is
+   *  effective. They remain two INDEPENDENT readings, not one, at every level: a `status` GET and
+   *  a later test-send POST can legitimately disagree if settings changed in between — that is
+   *  the feature — and even inside one POST the `transport` this route reports comes from its own
+   *  `opts.status()` call while the adapter that sent re-resolved separately. Nothing here
+   *  enforces that those two agree; they are expected to, because both read the same two sources
+   *  through the same predicate a few microseconds apart. */
   send: EmailPort['send']
   /** Injectable clock for the rate-limiter tests. */
   now?: () => number

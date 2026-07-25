@@ -160,6 +160,51 @@ const ENTITIES: Record<string, string> = {
 }
 
 /**
+ * The hard ceiling on what {@link htmlToPlainText} will scan (#941).
+ *
+ * The 20 KB template cap does NOT bound this function's input: the input is the RENDERED body,
+ * which carries visitor-supplied field content and grows again when that content is
+ * HTML-escaped. Since `renderEmailTemplate` reaches here on every send whose HTML body was
+ * overridden, and that send is triggered by the anonymous `/forms/submit` route, "however big
+ * the render came out" is not an acceptable answer for how much work one submission may cost.
+ *
+ * 100 KB is several times the largest body any shipped template can produce, and small enough
+ * that the worst adversarial markup found for the whole chain costs ~160 ms rather than minutes
+ * (measured; see packages/core/test/templating/fill-template.test.ts, "finishes pathological
+ * markup inside a generous wall-clock bound", which asserts the bound this backs). The cut is a
+ * plain slice, so it can land inside a tag — this is a best-effort text derivation, and a
+ * truncated tail is stripped by the tag pass like any other.
+ */
+export const HTML_TO_TEXT_MAX_INPUT = 100_000
+
+/**
+ * Remove every `<!-- … -->` span in one forward pass.
+ *
+ * Exactly what `/<!--[\s\S]*?-->/g` matched, without its cost: that pattern re-scanned the whole
+ * remaining input from EVERY unclosed `<!--`, which measured ~850 ms on 100 KB of them (~360 ms
+ * inside the vitest run that asserts it). `indexOf`
+ * resumes where the last span ended, and the first `<!--` with no `-->` after it ends the walk —
+ * no later one can have one either. Pinned by
+ * packages/core/test/templating/fill-template.test.ts ("finishes pathological markup inside a
+ * generous wall-clock bound"); the equivalence to the pattern it replaced is pinned by
+ * "drops script and style content entirely" and the frozen bytes in
+ * packages/core/test/email/email-registry.test.ts.
+ */
+function stripComments(html: string): string {
+  let out = ''
+  let cursor = 0
+  for (;;) {
+    const open = html.indexOf('<!--', cursor)
+    if (open === -1) break
+    const close = html.indexOf('-->', open + 4)
+    if (close === -1) break
+    out += html.slice(cursor, open)
+    cursor = close + 3
+  }
+  return cursor === 0 ? html : out + html.slice(cursor)
+}
+
+/**
  * Derive a plain-text email part from an HTML one.
  *
  * Used only when an admin has overridden a template's HTML body but not its (optional) text
@@ -180,20 +225,40 @@ const ENTITIES: Record<string, string> = {
  * Deliberately a small deterministic transform, not an HTML parser: block-level tags become
  * line breaks, `<a>` keeps its URL in parentheses, script/style content is dropped, entities
  * are decoded, and blank-line runs are collapsed.
+ *
+ * **Every tag-internal run is `[^<>]`, never `[^>]` (#941).** An attribute run that may swallow
+ * `<` does not stop at the next tag, so on markup with unterminated tags the engine re-scans
+ * from every `<a`/`<` in the document: with `[^>]` this measured ~2 s on 100 KB of `'<a'`, and
+ * ~22 minutes (cubic in the input) on 100 KB of `'<a href="x'`. Bounding each run to its own tag
+ * makes the same corpus finish in single-digit milliseconds. `[^<>]` also rejects a `<` inside an
+ * attribute VALUE, which the old runs accepted — no shipped template has one, and this was never
+ * an HTML parser. Enforced by packages/core/test/templating/fill-template.test.ts ("finishes
+ * pathological markup inside a generous wall-clock bound").
+ *
+ * The anchor LABEL stays `[\s\S]*?` on purpose. It was the suspected cost and is not: bounding it
+ * to `[^<]*` would buy nothing measurable and would drop the URL from
+ * `<a href="…"><strong>Reset</strong></a>`, ordinary HTML-email shape whose URL is the only
+ * actionable thing in a password-reset body (packages/core/test/templating/fill-template.test.ts,
+ * "keeps the URL of a link whose label carries inline markup").
  */
 export function htmlToPlainText(html: string): string {
-  const text = html
-    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
+  const bounded =
+    html.length > HTML_TO_TEXT_MAX_INPUT
+      ? html.slice(0, HTML_TO_TEXT_MAX_INPUT)
+      : html
+  // Step order is unchanged from before #941: script/style spans go first, then comments.
+  const text = stripComments(
+    bounded.replace(/<(script|style)\b[^<>]*>[\s\S]*?<\/\1>/gi, '')
+  )
     .replace(/<br\s*\/?>/gi, '\n')
     // A link keeps its destination — an email body whose URLs vanished is useless.
     .replace(
-      /<a\b[^>]*\bhref\s*=\s*["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi,
+      /<a\b[^<>]*\bhref\s*=\s*["']([^"']*)["'][^<>]*>([\s\S]*?)<\/a>/gi,
       (_, href: string, label: string) => `${label.trim()} (${href})`
     )
     .replace(/<\/t[dh]>\s*(?=<t[dh]\b)/gi, ': ')
     .replace(/<\/(p|div|h[1-6]|li|tr|table|section|blockquote)>/gi, '\n\n')
-    .replace(/<[^>]+>/g, '')
+    .replace(/<[^<>]+>/g, '')
     .replace(/&#?\w+;/g, (m) => ENTITIES[m.toLowerCase()] ?? m)
   return text
     .split('\n')

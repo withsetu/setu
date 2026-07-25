@@ -3,6 +3,7 @@ import {
   fillTemplate,
   escapeHtml,
   htmlToPlainText,
+  HTML_TO_TEXT_MAX_INPUT,
   tokenNamesIn,
   unknownTokensIn,
   type TokenSpec
@@ -278,5 +279,84 @@ describe('htmlToPlainText', () => {
 
   it('collapses runaway blank lines', () => {
     expect(htmlToPlainText('<p>a</p><p></p><p></p><p>b</p>')).toBe('a\n\nb')
+  })
+
+  // The label may carry inline markup — `<a href="…"><strong>Reset</strong></a>` is ordinary
+  // HTML-email shape — and the URL has to survive it, because in a password-reset body the URL
+  // is the only actionable thing in the message. Pins the decision NOT to flatten the label to
+  // `[^<]*` when #941 bounded this function.
+  it('keeps the URL of a link whose label carries inline markup', () => {
+    expect(
+      htmlToPlainText('<p><a href="https://x/y"><strong>Click</strong></a></p>')
+    ).toBe('Click (https://x/y)')
+  })
+})
+
+/**
+ * #941 — this function is the only unbounded-duration step left on the anonymous
+ * `/forms/submit` → notification-email path (the same class as #340, #928).
+ *
+ * `renderEmailTemplate` calls it on every send whose HTML body was overridden, and the 20 KB
+ * template cap does NOT bound its input: the input is the RENDERED body, which carries visitor
+ * field content and grows again when that content is HTML-escaped.
+ *
+ * Two bounds, both needed. The ceiling caps the input; the tag patterns cap the work per byte.
+ * The cost was never really in the anchor LABEL scan — measured on this machine at the 100 KB
+ * ceiling, every `[^>]`-style attribute run was worth four orders of magnitude more than the
+ * label: `'<a href="x'` repeated to 100 KB took ~22 MINUTES with the old patterns (it scales
+ * cubically: 2.7 ms at 1 KB, 90 ms at 4 KB, 5.4 s at 16 KB) and takes ~1 ms now.
+ */
+describe('htmlToPlainText is bounded (#941)', () => {
+  it('truncates input past the hard ceiling', () => {
+    const out = htmlToPlainText(
+      `<p>head</p>${'x'.repeat(HTML_TO_TEXT_MAX_INPUT)}<p>tail</p>`
+    )
+    expect(out.startsWith('head')).toBe(true)
+    expect(out).not.toContain('tail')
+    expect(out.length).toBeLessThanOrEqual(HTML_TO_TEXT_MAX_INPUT)
+  })
+
+  // KILL-SHOT TARGET. Restore any of the old `[^>]` attribute runs (or drop the ceiling) and the
+  // first input alone blows past this bound — with the pre-#941 patterns it took ~3.9 s, and the
+  // unterminated-quote input ~5.4 s at the 16 KB used here.
+  //
+  // Deliberately a BOUND, not a curve: this whole corpus measures ~175 ms, so 3 s leaves ~17x of
+  // headroom and cannot flake on a loaded CI runner, while still failing loudly the moment a
+  // superlinear pattern comes back. (The ~175 ms is almost entirely the two unclosed-<script>
+  // inputs: that lazy span scan is still O(unclosed tags x input), bounded only by the ceiling.
+  // It was left alone because at the ceiling its worst case is ~160 ms, ~5x smaller than the
+  // comment scan that WAS restructured, for several times the code.)
+  it('finishes pathological markup inside a generous wall-clock bound', () => {
+    const pad = (s: string, n = HTML_TO_TEXT_MAX_INPUT): string =>
+      s.length >= n ? s.slice(0, n) : s + 'y'.repeat(n - s.length)
+    const inputs = [
+      // An attribute run that never reaches its `>`.
+      pad('<a'.repeat(HTML_TO_TEXT_MAX_INPUT / 2)),
+      // An href quote that is never closed — the cubic case, at 16 KB.
+      pad('<a href="x'.repeat(1600), 16_000),
+      // The shape the issue named: k unclosed anchors over a large payload.
+      pad('<a href="https://x/">'.repeat(1500)),
+      // A stray `</a>` up front, so no engine-level "the closer is absent" shortcut applies.
+      pad('</a>' + '<a href="x">'.repeat(HTML_TO_TEXT_MAX_INPUT / 12)),
+      // Unclosed comments and unclosed <script>, the other two lazy spans in the chain.
+      pad('<!--'.repeat(HTML_TO_TEXT_MAX_INPUT / 4)),
+      pad('-->' + '<!--'.repeat(HTML_TO_TEXT_MAX_INPUT / 4)),
+      pad('<script>'.repeat(HTML_TO_TEXT_MAX_INPUT / 8)),
+      pad("<a href=\"x<a href='y'></a><script>".repeat(2900))
+    ]
+    const started = Date.now()
+    for (const input of inputs) htmlToPlainText(input)
+    expect(Date.now() - started).toBeLessThan(3000)
+  })
+
+  // KILL-SHOT TARGET for the comment scan specifically. Put `/<!--[\s\S]*?-->/g` back in place of
+  // stripComments and this input goes from ~1 ms to ~360 ms (~850 ms outside the suite). It needs
+  // its own assertion because the corpus bound above is wide enough to absorb that regression on
+  // its own — a bound generous enough not to flake is too generous to catch a several-fold
+  // regression in one of its steps.
+  it('drops unclosed comments in one pass, not one per comment', () => {
+    const started = Date.now()
+    htmlToPlainText('<!--'.repeat(HTML_TO_TEXT_MAX_INPUT / 4))
+    expect(Date.now() - started).toBeLessThan(200)
   })
 })

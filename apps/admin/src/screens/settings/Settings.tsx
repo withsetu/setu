@@ -7,6 +7,7 @@ import { ReadingSettings } from './ReadingSettings'
 import { MediaSettings } from './MediaSettings'
 import { IdentitySettings } from './IdentitySettings'
 import { PermalinksSettings } from './PermalinksSettings'
+import { EmailSettings } from './EmailSettings'
 import { apiFetch } from '../../lib/api-fetch'
 import { useCan } from '../../auth/actor'
 
@@ -59,14 +60,21 @@ function FormsGroup() {
 }
 
 type GroupId =
-  'general' | 'reading' | 'media' | 'identity' | 'permalinks' | 'forms'
+  | 'general'
+  | 'reading'
+  | 'media'
+  | 'identity'
+  | 'permalinks'
+  | 'forms'
+  | 'email'
 const BASE_GROUPS: { id: GroupId; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'reading', label: 'Content & Reading' },
   { id: 'media', label: 'Media' },
   { id: 'identity', label: 'Identity & SEO' },
   { id: 'permalinks', label: 'Permalinks' },
-  { id: 'forms', label: 'Forms' }
+  { id: 'forms', label: 'Forms' },
+  { id: 'email', label: 'Email' }
 ]
 const COMING_SOON = ['Deploy']
 
@@ -132,6 +140,8 @@ export function Settings() {
                 <IdentitySettings />
               ) : active === 'permalinks' ? (
                 <PermalinksSettings />
+              ) : active === 'email' ? (
+                <EmailSettings />
               ) : (
                 <FormsGroup />
               )}

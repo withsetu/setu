@@ -9,15 +9,19 @@ export interface AuthCapabilities {
   needsSetup: boolean
 }
 
-/** #364: which email transport this boot selected, and whether it's the kind of adapter that
- *  actually delivers mail anywhere. `transport` mirrors `SETU_EMAIL_ADAPTER` verbatim (whatever
- *  value server.ts read to pick the real adapter object — 'console' | 'resend' | 'smtp' today);
- *  `deliverable`
- *  is `false` for dev/no-op transports (console) and for a real transport with no configured
- *  from-address (`SETU_FORMS_NOTIFY_FROM`) — server.ts only wires the real send path when both are
- *  true — and `true` only when both hold, so the admin UI can tell "reset emails will actually go
- *  out" from "they'll only ever show up in server logs, or never send at all" without hardcoding
- *  the transport name itself. */
+/** #364/#498/#890: which email transport this boot selected, and whether it's the kind of adapter
+ *  that actually delivers mail anywhere. `transport` is the RESOLVED selection (settings.json's
+ *  `email.provider` wins, `SETU_EMAIL_ADAPTER` is the fallback — resolveEmailProvider below);
+ *  `deliverable` requires BOTH a usable real transport (usableEmailTransport below — resend
+ *  with its API key, or smtp with a parseable config) AND a from-address from either source
+ *  (settings.json `email.fromAddress` wins, `SETU_FORMS_NOTIFY_FROM` is the fallback —
+ *  resolveFromAddress below). Both derivations are pinned by
+ *  apps/api/test/capabilities.test.ts. Since #890 this block is resolved PER REQUEST on the
+ *  unauthenticated /api/capabilities (createCapabilitiesApi's `resolveEmail` thunk) — a settings
+ *  save must not need a restart to stop the admin's reset surfaces claiming reset is
+ *  unconfigured. It stays deliberately narrow (transport name + one boolean); the richer,
+ *  presence-bearing reading lives on the settings.view-gated GET /api/email/status
+ *  (apps/api/src/email.ts). */
 export interface EmailCapabilities {
   transport: string
   deliverable: boolean
@@ -117,48 +121,199 @@ export function smtpConfigFromEnv(
   }
 }
 
-/** Reads the SAME env vars + selection logic server.ts uses to pick the real email adapter object
- *  (`SETU_EMAIL_ADAPTER`: 'resend' and 'smtp' are the real transports — anything unrecognized
- *  falls back to console there too), so this can't silently claim a transport is live that server.ts didn't
- *  actually wire up (mirrors the shared-env-parsing rationale in auth/env.ts). Add a branch here
- *  the same day a new real adapter is wired into server.ts's ternary — never infer "any non-console
- *  string is real" or the two will drift the moment an unrecognized value falls back silently.
+/** #890: which transport the instance is asked to use, and where that instruction came from.
+ *  Precedence mirrors resolveFromAddress below exactly: a non-empty settings.json
+ *  `email.provider` (chosen by an admin in Settings → Email) WINS; the `SETU_EMAIL_ADAPTER` env
+ *  var is the fallback for deployments configured before that control existed; console is the
+ *  zero-config default. `source` names the winner (it is served on GET /api/email/status, so the
+ *  order is observable), and the both-set case is pinned ORDER-SENSITIVELY by
+ *  apps/api/test/capabilities.test.ts ("resolveEmailProvider" describe — swapping the two
+ *  branches below fails it).
  *
- *  `deliverable` ALSO requires `SETU_FORMS_NOTIFY_FROM` (#364 fix): server.ts only passes
- *  `createAuth`'s `email` option (the thing that actually wires `POST /request-password-reset` to
- *  send) when `notifyFrom` is truthy (see the `email: notifyFrom ? {...} : undefined` ternary
- *  there) — a resend transport with no from-address still constructs a real adapter object at
- *  line ~126, but `auth.email` stays `undefined`, so reset stays `RESET_PASSWORD_DISABLED` even
- *  though this used to report `deliverable: true`. Reading `SETU_FORMS_NOTIFY_FROM` here (the same
- *  env var server.ts reads into `notifyFrom`) keeps this the single source of truth for "would a
- *  reset email actually go out" without server.ts having to re-derive its own boolean and pass it
- *  in separately — both call sites key off the identical env var name, so they can't drift. */
-export function emailCapabilityFromEnv(
-  env: NodeJS.ProcessEnv = process.env
-): EmailCapabilities {
-  const transport = env.SETU_EMAIL_ADAPTER ?? 'console'
-  const hasFromAddress = Boolean(env.SETU_FORMS_NOTIFY_FROM)
-  // #256: smtp only counts as real when its config parses — server.ts constructs the smtp
-  // adapter from the same smtpConfigFromEnv result, so a partial config (no host, bad port,
-  // half an auth pair) fails closed to console on BOTH sides instead of reporting a transport
-  // that would throw on first send.
-  const realTransport =
-    transport === 'resend' ||
-    (transport === 'smtp' && 'config' in smtpConfigFromEnv(env))
-  return { transport, deliverable: realTransport && hasFromAddress }
+ *  This resolves the CHOICE only. Whether the choice is usable — the secret may be absent — is
+ *  usableEmailTransport's job, and it fails safe to console. */
+export interface EmailProviderResolution {
+  selected: string
+  source: 'settings' | 'env' | 'default'
 }
 
-/** capabilities is mostly boot-time-static (image adapter, storage, mode), but the `auth` block's
- *  `needsSetup` flag is NOT — it depends on the current user-table row count, which changes the
- *  moment first-run setup creates the owner account. So `createCapabilitiesApi` takes the static
- *  shape plus a thunk for the auth block, and calls the thunk fresh on every request rather than
- *  baking a snapshot into the response returned once at boot. */
+export function resolveEmailProvider(
+  settingsProvider: string | undefined,
+  env: NodeJS.ProcessEnv = process.env
+): EmailProviderResolution {
+  if (settingsProvider)
+    return { selected: settingsProvider, source: 'settings' }
+  const fromEnv = env.SETU_EMAIL_ADAPTER
+  if (fromEnv) return { selected: fromEnv, source: 'env' }
+  return { selected: 'console', source: 'default' }
+}
+
+/** Which transport this instance selects (resolveEmailProvider above — settings win, env
+ *  fallback), and whether it is actually USABLE — the one predicate server.ts's adapter
+ *  resolution, emailCapabilityFromEnv (below) and the /api/email/status thunk all share, so
+ *  "which adapter sends the next email" and "what the admin screen reports" can't drift
+ *  (apps/api/test/capabilities.test.ts pins every branch):
+ *  - resend needs RESEND_API_KEY (#885 review Finding 2 — a keyless resend adapter throws on
+ *    first send, so it must not count as a real transport);
+ *  - smtp needs a parseable SETU_SMTP_* config (#256, via smtpConfigFromEnv);
+ *  - anything else (console, unset, unrecognized) is the console fallback.
+ *  `problem` is a boot-log-safe reason naming the missing/broken variable, never a value.
+ *
+ *  #890: this is ALSO the fail-safe for a provider stored in settings.json. That file is
+ *  Git-canonical, so an unusable value can arrive by `git push` without passing through the
+ *  api's settings-write gate — which is why the degradation lives here, at the point of use,
+ *  rather than only at the point of save. */
+export type UsableEmailTransport = {
+  /** The resolved transport name (settings > env > 'console'), verbatim. */
+  selected: string
+  /** Which source chose it. */
+  source: EmailProviderResolution['source']
+  /** The adapter kind that should actually be constructed for this selection. */
+  effective: 'console' | 'resend' | 'smtp'
+  /** Why a selected real transport fell back to console (null when nothing fell back —
+   *  including the unrecognized-value case, which the caller reports via `selected`). */
+  problem: string | null
+}
+
+export function usableEmailTransport(
+  env: NodeJS.ProcessEnv = process.env,
+  settingsProvider?: string
+): UsableEmailTransport {
+  const { selected, source } = resolveEmailProvider(settingsProvider, env)
+  if (selected === 'resend') {
+    if (env.RESEND_API_KEY)
+      return { selected, source, effective: 'resend', problem: null }
+    return {
+      selected,
+      source,
+      effective: 'console',
+      problem: 'RESEND_API_KEY is unset'
+    }
+  }
+  if (selected === 'smtp') {
+    const smtp = smtpConfigFromEnv(env)
+    if ('config' in smtp)
+      return { selected, source, effective: 'smtp', problem: null }
+    return { selected, source, effective: 'console', problem: smtp.problem }
+  }
+  return { selected, source, effective: 'console', problem: null }
+}
+
+/** #890: per-transport usability for the admin's provider dropdown. Deliberately INDEPENDENT of
+ *  which transport is currently selected — the screen has to disable the options it cannot honor
+ *  and say what to add, which the selected transport alone can't tell it. `problem` is
+ *  remediation copy naming the env var to set; like every string on this surface it never echoes
+ *  a credential value (apps/api/test/capabilities.test.ts asserts that for the SMTP auth case).
+ *  Console is always offered: it is the honest "log it, don't send it" choice and needs no
+ *  secret, so the picker can never end up with zero selectable options. */
+export interface EmailTransportOption {
+  id: 'console' | 'resend' | 'smtp'
+  usable: boolean
+  problem: string | null
+}
+
+export function emailTransportOptions(
+  env: NodeJS.ProcessEnv = process.env
+): EmailTransportOption[] {
+  const smtp = smtpConfigFromEnv(env)
+  const smtpUsable = 'config' in smtp
+  return [
+    { id: 'console', usable: true, problem: null },
+    {
+      id: 'resend',
+      usable: Boolean(env.RESEND_API_KEY),
+      problem: env.RESEND_API_KEY
+        ? null
+        : 'Add RESEND_API_KEY to the server environment to enable Resend.'
+    },
+    {
+      id: 'smtp',
+      usable: smtpUsable,
+      problem: smtpUsable
+        ? null
+        : !env.SETU_SMTP_HOST
+          ? 'Add SETU_SMTP_HOST to the server environment to enable SMTP.'
+          : // Host is present but the rest of the config is broken — the specific reason is
+            // more useful than "add SETU_SMTP_HOST", and smtpConfigFromEnv's problem strings
+            // are credential-safe by construction.
+            `SMTP is misconfigured: ${'problem' in smtp ? smtp.problem : ''}. Fix it in the server environment.`
+    }
+  ]
+}
+
+/** The one from-address the instance sends everything from, resolved with the #498 precedence:
+ *  a non-empty settings.json `email.fromAddress` WINS; the `SETU_FORMS_NOTIFY_FROM` env var is
+ *  the fallback for deployments configured before the Settings → Email screen existed. `source`
+ *  names the winner (it is served on GET /api/email/status, so the order is observable), and the
+ *  both-set case is pinned order-sensitively by apps/api/test/capabilities.test.ts
+ *  ("resolveFromAddress" describe — swapping the two branches below fails it). */
+export interface FromAddressResolution {
+  effective: string | null
+  source: 'settings' | 'env' | null
+}
+
+export function resolveFromAddress(
+  settingsFromAddress: string | undefined,
+  env: NodeJS.ProcessEnv = process.env
+): FromAddressResolution {
+  if (settingsFromAddress)
+    return { effective: settingsFromAddress, source: 'settings' }
+  const fromEnv = env.SETU_FORMS_NOTIFY_FROM
+  if (fromEnv) return { effective: fromEnv, source: 'env' }
+  return { effective: null, source: null }
+}
+
+/** The email capability block for /api/capabilities. Built on the same two helpers above that
+ *  server.ts's live sender and the /api/email/status thunk resolve from, so this can't claim a
+ *  transport is live that the next send wouldn't actually use. server.ts calls it per request
+ *  (re-reading settings.json) via createCapabilitiesApi's `resolveEmail` thunk.
+ *
+ *  `deliverable` = a USABLE real transport (usableEmailTransport) AND a from-address from either
+ *  source (resolveFromAddress — settings win, env fallback; #364 required the from because
+ *  server.ts only wires createAuth's `email:` option when one exists). Exposure stays exactly
+ *  what it was: the transport name + one boolean — secret PRESENCE never appears here (this
+ *  endpoint is unauthenticated; presence booleans live on the settings.view-gated
+ *  GET /api/email/status instead). */
+export function emailCapabilityFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+  settingsFromAddress?: string,
+  settingsProvider?: string
+): EmailCapabilities {
+  const usable = usableEmailTransport(env, settingsProvider)
+  const from = resolveFromAddress(settingsFromAddress, env)
+  return {
+    transport: usable.selected,
+    deliverable: usable.effective !== 'console' && from.effective !== null
+  }
+}
+
+/** capabilities is mostly boot-time-static (image adapter, storage, mode), but two blocks are NOT,
+ *  so each gets a thunk that is called fresh on every request instead of baking a snapshot into
+ *  the response returned once at boot:
+ *
+ *  - `auth.needsSetup` depends on the current user-table row count, which changes the moment
+ *    first-run setup creates the owner account.
+ *  - `email` (#890) depends on settings.json's `email.provider` + `email.fromAddress`, which an
+ *    admin can change at runtime and which apply to the next send with NO restart. A snapshot
+ *    here went stale on save, and this block is what the password-reset surfaces read
+ *    (LoginScreen's "Forgot password?" card, UsersScreen's reset action) — so a stale
+ *    `deliverable: false` told users reset was unconfigured while it genuinely worked. Pinned by
+ *    apps/api/test/capabilities.test.ts ("email block: computed per-request").
+ *
+ *  Both thunks are REQUIRED, not optional: an omittable one is an invitation to re-introduce the
+ *  snapshot. `base` still carries a boot value for each (buildCapabilities builds the whole
+ *  shape); the thunk is what the response actually uses. The endpoint is unauthenticated, so a
+ *  thunk must never widen the payload — the same test asserts `email` stays exactly
+ *  transport + deliverable. */
 export function createCapabilitiesApi(
   base: Omit<Capabilities, 'auth'>,
-  resolveAuth: () => AuthCapabilities
+  resolveAuth: () => AuthCapabilities,
+  resolveEmail: () => EmailCapabilities
 ) {
   const app = new Hono()
-  app.get('/api/capabilities', (c) => c.json({ ...base, auth: resolveAuth() }))
-  app.onError(apiOnError({ scope: 'capabilities' })) // #291: e.g. a throwing resolveAuth thunk
+  app.get('/api/capabilities', (c) =>
+    c.json({ ...base, auth: resolveAuth(), email: resolveEmail() })
+  )
+  app.onError(apiOnError({ scope: 'capabilities' })) // #291: e.g. a throwing thunk
   return app
 }

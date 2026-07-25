@@ -32,7 +32,12 @@ export interface SubmissionServiceDeps {
   captcha: CaptchaPort
   email?: EmailPort
   notifyTo?: string
-  notifyFrom?: string
+  /** Sender for the notification email. May be a thunk (#498): it is then re-resolved on EVERY
+   *  submission — both the notify gate and the message's `from` follow the live value, so a
+   *  from-address saved in Settings → Email applies without reconstructing the service
+   *  (packages/core/test/submissions/submission-service.test.ts pins this). A plain string
+   *  behaves as before. */
+  notifyFrom?: string | (() => string | undefined)
   /** Override the notification body. Defaults to a plain-text summary. May be
    *  async (React Email's render() is async — see Phase 5). */
   renderNotification?: (
@@ -117,11 +122,13 @@ export function createSubmissionService(
         return { ok: false, error: 'server' }
       }
 
-      // 5. Best-effort notify — never fails the submission.
-      if (email && notifyTo && notifyFrom) {
+      // 5. Best-effort notify — never fails the submission. The from-address is resolved HERE,
+      // per submission, so a thunk-shaped notifyFrom keeps both the gate and the sender live.
+      const from = typeof notifyFrom === 'function' ? notifyFrom() : notifyFrom
+      if (email && notifyTo && from) {
         try {
           const content = await render(saved)
-          await email.send({ to: notifyTo, from: notifyFrom, ...content })
+          await email.send({ to: notifyTo, from, ...content })
         } catch (e) {
           console.error('[submission-service] notify failed', e)
         }

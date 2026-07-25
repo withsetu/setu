@@ -54,6 +54,7 @@ import {
   makeBuildRunner
 } from './deploy-wiring'
 import { createUsersApi } from './users'
+import { createEmailApi, resetRestartRequired } from './email'
 import { createDemoApi } from './demo'
 import { resolveSessionActor } from './auth/resolve-session-actor'
 import type { ResolveActor } from './auth/resolve-actor'
@@ -70,9 +71,13 @@ import {
   buildCapabilities,
   createCapabilitiesApi,
   emailCapabilityFromEnv,
-  smtpConfigFromEnv,
-  type AuthCapabilities
+  emailTransportOptions,
+  resolveFromAddress,
+  usableEmailTransport,
+  type AuthCapabilities,
+  type EmailCapabilities
 } from './capabilities'
+import { createLiveEmailTransport } from './email-transport'
 import { runReprocessJob } from './reprocess-runner'
 import { resumeActiveJob } from './server-resume'
 import {
@@ -151,7 +156,23 @@ const siteSettings = loadSiteSettings()
 const submissionsDb =
   process.env.SETU_SUBMISSIONS_DB ?? `${dir}/.setu/submissions.db`
 const notifyTo = process.env.SETU_FORMS_NOTIFY_TO
-const notifyFrom = process.env.SETU_FORMS_NOTIFY_FROM
+// #498: THE place the two from-address sources meet — capabilities.ts's resolveFromAddress
+// (settings.json's email.fromAddress WINS; SETU_FORMS_NOTIFY_FROM is the fallback, precedence
+// pinned order-sensitively by apps/api/test/capabilities.test.ts). `liveFrom` is the live
+// reading (re-reads settings.json, so a save applies to the next email without a restart —
+// consumed by the /api/email status thunk, the reset-email send wrapper and the submission
+// service's notifyFrom thunk below); `notifyFrom` is the boot snapshot that ONLY the boot-time
+// wiring conditions key off (createAuth's `email:` option and the users-api reset injection —
+// the one email path whose ENABLE gate cannot follow a later save; see resetRestartRequired).
+const liveFrom = () =>
+  resolveFromAddress(loadSiteSettings().email.fromAddress, process.env)
+const notifyFrom = liveFrom().effective ?? undefined
+// #890: the provider's live reading, the exact sibling of `liveFrom` — settings.json's
+// `email.provider` WINS, SETU_EMAIL_ADAPTER is the fallback (capabilities.ts's
+// resolveEmailProvider, pinned order-sensitively by apps/api/test/capabilities.test.ts). Unlike
+// the from-address there is no boot snapshot to keep: every consumer below sends through the
+// live transport, so switching provider in the admin needs no restart.
+const liveProvider = () => loadSiteSettings().email.provider
 // Admin SPA origin, from allowed-origins.ts's mode-aware resolver — the SAME derivation that
 // builds the CORS/origin allowlist, not a second reading of SETU_ADMIN_ORIGIN (#642). It is
 // `undefined` on a self-hosted boot with SETU_ADMIN_ORIGIN unset: outside local mode there is no
@@ -176,42 +197,66 @@ if (notifyFrom && adminOrigin === undefined) {
   )
 }
 
-// Email transport (#248 forms notifications; #364 password-reset emails share it; #256 smtp).
-// Selected by SETU_EMAIL_ADAPTER, defaulting to the zero-config console adapter (dev: logs
-// instead of sending). emailCapabilityFromEnv is the single source of truth for which env value
-// maps to a REAL transport ('resend' | 'smtp') — reused here so this construction and the
-// /api/capabilities report below can never silently disagree about what's actually wired up.
-// smtp is a Node-topology capability (raw TCP sockets — no Workers), which is fine here: this
-// server entrypoint is Node-only; the edge topology has its own wiring.
-const emailCapability = emailCapabilityFromEnv(process.env)
-const smtpSelected = emailCapability.transport === 'smtp'
-const smtpEnv = smtpConfigFromEnv(process.env)
+// Email transport (#248 forms notifications; #364 password-reset emails share it; #256 smtp;
+// #890 the admin picks the provider). Selected by settings.json's `email.provider` with
+// SETU_EMAIL_ADAPTER as the fallback, defaulting to the zero-config console adapter (dev: logs
+// instead of sending). usableEmailTransport is the ONE usability predicate the live sender,
+// emailCapabilityFromEnv and the /api/email/status thunk all share (#885 review Finding 2 —
+// resend without RESEND_API_KEY falls back to console, like a partial smtp config), so the
+// sending adapter and every report of it can't silently disagree. smtp is a Node-topology
+// capability (raw TCP sockets — no Workers), which is fine here: this server entrypoint is
+// Node-only; the edge topology has its own wiring.
+const emailCapability = emailCapabilityFromEnv(
+  process.env,
+  siteSettings.email.fromAddress, // #498: settings from-address counts toward `deliverable`
+  siteSettings.email.provider // #890: boot snapshot of the settings-chosen provider
+)
+const emailTransport = usableEmailTransport(
+  process.env,
+  siteSettings.email.provider
+)
 // Honest degradation, once at boot (same pattern as the adminOrigin warning above): an operator
-// who asked for smtp but left it unusable would otherwise get a silent console fallback — a mail
-// black hole. Name the exact reason; never echo credential values (smtpConfigFromEnv's problem
-// strings are boot-log-safe — apps/api/test/capabilities.test.ts).
-if (smtpSelected && 'problem' in smtpEnv) {
+// who asked for a real transport but left it unusable would otherwise get a silent console
+// fallback — a mail black hole. Name the exact reason; never echo credential values (the
+// problem strings are boot-log-safe — apps/api/test/capabilities.test.ts).
+if (emailTransport.problem !== null) {
   console.error(
-    `[email] SMTP transport selected but not usable: ${smtpEnv.problem}. ` +
+    `[email] ${emailTransport.selected} transport selected but not usable: ${emailTransport.problem}. ` +
       'Falling back to the console adapter — no mail will be sent.'
   )
 }
-if (smtpSelected && 'config' in smtpEnv && !notifyFrom) {
+if (emailTransport.effective !== 'console' && !notifyFrom) {
   console.error(
-    '[email] SMTP transport is configured but SETU_FORMS_NOTIFY_FROM is unset — there is no ' +
-      'from-address, so email stays disabled (console adapter). Set SETU_FORMS_NOTIFY_FROM.'
+    `[email] the ${emailTransport.effective} transport is configured but no from-address is set — ` +
+      'email stays disabled until one exists. Set it in Settings → Email or via SETU_FORMS_NOTIFY_FROM.'
   )
 }
-const email = !emailCapability.deliverable
-  ? createConsoleEmailAdapter()
-  : smtpSelected
-    ? 'config' in smtpEnv
-      ? createSmtpEmailAdapter(smtpEnv.config)
-      : // Unreachable when deliverable (deliverable-for-smtp requires the config to parse —
-        // apps/api/test/capabilities.test.ts), kept as a fail-closed default: a future drift
-        // between the two derivations must degrade to console, never to a half-built resend.
-        createConsoleEmailAdapter()
-    : createResendEmailAdapter({ apiKey: process.env.RESEND_API_KEY ?? '' })
+// #890: the ONE sender every email path below uses. It re-resolves the transport per send from
+// the live settings + env (createLiveEmailTransport in ./email-transport, unit-tested in
+// apps/api/test/email-transport.test.ts), which is what makes the Settings → Email provider
+// dropdown a real control: a save applies to the next email with no api restart. Adapters are
+// built lazily and cached per kind, so a console-only instance never constructs a nodemailer
+// transport. Selection keys on the transport being USABLE — deliberately not on `deliverable`
+// (which also folds in the from-address), so an instance with resend/smtp configured but no
+// from-address yet still sends the moment one is saved. An unusable selection degrades to
+// console with a named reason rather than throwing at send time; that is the fail-safe for a
+// provider stored in Git-canonical settings.json, which can arrive without passing the api's
+// settings-write gate at all.
+const email = createLiveEmailTransport({
+  env: process.env,
+  provider: liveProvider,
+  adapters: {
+    console: () => createConsoleEmailAdapter(),
+    resend: (apiKey) => createResendEmailAdapter({ apiKey }),
+    smtp: (config) => createSmtpEmailAdapter(config)
+  },
+  onProblem: (problem, selected) => {
+    console.error(
+      `[email] the ${selected} transport is selected but not usable: ${problem}. ` +
+        'Falling back to the console adapter — no mail is being sent.'
+    )
+  }
+})
 
 // Ensure .setu/ parent dir exists before better-sqlite3 opens the DB file
 mkdirSync(`${dir}/.setu`, { recursive: true })
@@ -311,7 +356,17 @@ const auth = authConfigured
       email:
         notifyFrom && adminOrigin
           ? {
-              send: (msg) => email.send(msg),
+              // #498: re-resolve the from-address at SEND time (settings win, env fallback) so
+              // an admin editing Settings → Email applies to the next reset email without a
+              // restart; `from: notifyFrom` below stays as the boot-time fallback the option
+              // type requires. NOTE the ENABLE gate (`notifyFrom && adminOrigin`, this ternary)
+              // is still boot-time — resetRestartRequired in the status thunk below is how that
+              // is surfaced honestly; making it live is #886.
+              send: (msg) =>
+                email.send({
+                  ...msg,
+                  from: liveFrom().effective ?? msg.from
+                }),
               from: notifyFrom,
               resetRedirectTo: `${adminOrigin}/reset-password`
             }
@@ -338,7 +393,10 @@ const submit = createSubmissionService({
   captcha,
   email,
   notifyTo,
-  notifyFrom,
+  // #498 (#885 review Finding 1): a thunk, not the boot snapshot — the service re-resolves it
+  // per submission, so both the notify gate and the sender follow a from-address saved in
+  // Settings → Email without an api restart.
+  notifyFrom: () => liveFrom().effective ?? undefined,
   renderNotification: renderSubmissionEmail // React Email HTML/text
 })
 
@@ -588,6 +646,55 @@ app.route(
   })
 )
 
+// Settings → Email control plane (#498, #890): live provider status + admin-only test send.
+// `status` is a thunk (same pattern as the mediaSettings live getter above): BOTH the provider and
+// the from-address re-read settings.json per request, so a save in the admin is reflected
+// immediately. It reads the transport through `email.resolve()` — the same function, over the same
+// two sources, that the live sender resolves through — so the two are INTENDED to report the same
+// effective transport. That is a shared derivation, not an enforced invariant: this reading and the
+// sender's are separate calls, so a save landing between them changes the answer (which is exactly
+// what makes the provider a live control). The secrets block is presence booleans ONLY (never
+// values); the problem strings are smtpConfigFromEnv's boot-log-safe reasons
+// (apps/api/test/capabilities.test.ts proves they never echo credentials).
+app.route(
+  '/',
+  createEmailApi({
+    resolveActor,
+    send: (msg) => email.send(msg),
+    status: () => {
+      const from = liveFrom()
+      const live = email.resolve()
+      const transports = emailTransportOptions(process.env)
+      return {
+        transport: live.selected,
+        providerSource: live.source,
+        transports,
+        effectiveTransport: live.effective,
+        deliverable: live.effective !== 'console' && from.effective !== null,
+        mode,
+        from,
+        secrets: {
+          resendApiKey: Boolean(process.env.RESEND_API_KEY),
+          // Selection-INDEPENDENT since #890: the picker has to say whether SMTP could be
+          // chosen, which the currently-selected transport can't answer.
+          smtpConfigured:
+            transports.find((t) => t.id === 'smtp')?.usable ?? false,
+          smtpProblem: live.selected === 'smtp' ? live.problem : null
+        },
+        // Boot gate for reset = the exact createAuth `email:` condition above (auth exists +
+        // boot notifyFrom + adminOrigin); when it was off at boot but the live config would
+        // now satisfy it, only a restart turns reset on — say so (#885 review Finding 1).
+        resetRestartRequired: resetRestartRequired({
+          resetWiredAtBoot: Boolean(auth && notifyFrom && adminOrigin),
+          authConfigured,
+          adminOriginPresent: adminOrigin !== undefined,
+          liveFrom: from.effective
+        })
+      }
+    }
+  })
+)
+
 // Demo Data control plane (#513, epic #509) — dev tooling: mounted ONLY in the
 // local topology outside production (the createPreviewApi gating precedent);
 // everywhere else the routes are physically absent and /api/demo/* 404s. The
@@ -681,6 +788,23 @@ const resolveAuthCapabilities = (): AuthCapabilities => {
     needsSetup
   }
 }
+// #890: computed fresh per request, like resolveAuthCapabilities above and for the same reason —
+// it isn't boot-stable. Both halves of `deliverable` (the provider and the from-address) live in
+// settings.json and apply to the next send with no restart, so a boot snapshot here went stale
+// the moment an admin saved. That mattered beyond cosmetics: this block is what the admin's
+// password-reset surfaces read (LoginScreen's "Forgot password?" card, UsersScreen's reset
+// action), so a stale `deliverable: false` told users reset wasn't configured while it genuinely
+// worked. It re-reads settings.json per request — the same cost shape as resolveAuthCapabilities'
+// countUsers DB read — and loadSiteSettings already swallows a missing/corrupt file into defaults,
+// so this cannot throw the endpoint. Exposure is unchanged: transport name + one boolean.
+const resolveEmailCapabilities = (): EmailCapabilities => {
+  const settings = loadSiteSettings().email
+  return emailCapabilityFromEnv(
+    process.env,
+    settings.fromAddress,
+    settings.provider
+  )
+}
 app.route(
   '/',
   createCapabilitiesApi(
@@ -694,9 +818,10 @@ app.route(
         typeof git.log === 'function' && typeof git.readFileAt === 'function',
       mode,
       auth: resolveAuthCapabilities(), // boot-time value; createCapabilitiesApi re-derives per request via the thunk below
-      email: emailCapability
+      email: emailCapability // ditto — resolveEmailCapabilities below is what the response uses
     }),
-    resolveAuthCapabilities
+    resolveAuthCapabilities,
+    resolveEmailCapabilities
   )
 )
 

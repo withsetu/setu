@@ -68,6 +68,17 @@ const permalinksSchema = groupObject({
   uncategorized: z.string()
 })
 
+// #498/#890: for BOTH fields the empty string is a valid stored value meaning "not set here —
+// fall back to the env var, resolved server-side" (SETU_FORMS_NOTIFY_FROM / SETU_EMAIL_ADAPTER);
+// anything else must be a well-formed address / a known transport. Neither field is ever a
+// credential — Resend and SMTP secrets stay env-only, because this file is Git-committed.
+// Lenient-parse behavior (invalid value → warning + default, sibling fields and other groups
+// untouched) is pinned by packages/core/src/settings/email-settings.test.ts.
+const emailSchema = groupObject({
+  fromAddress: z.union([z.literal(''), z.string().email()]),
+  provider: z.enum(['', 'console', 'resend', 'smtp'])
+})
+
 type Rec = Record<string, unknown>
 
 const isPlainObject = (v: unknown): v is Rec =>
@@ -194,6 +205,7 @@ export function parseSettingsWithWarnings(raw: unknown): {
     'permalinks',
     warnings
   )
+  const email = salvageGroup(emailSchema, data.email, 'email', warnings)
 
   const rd = DEFAULT_SETTINGS.reading
   const id = DEFAULT_SETTINGS.identity
@@ -250,7 +262,8 @@ export function parseSettingsWithWarnings(raw: unknown): {
       uncategorized: validUncategorized
         ? uncategorized
         : DEFAULT_SETTINGS.permalinks.uncategorized
-    }
+    },
+    email: { ...DEFAULT_SETTINGS.email, ...email }
   }
 
   return { settings, warnings }

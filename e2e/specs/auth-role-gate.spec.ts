@@ -39,3 +39,24 @@ test('an author is denied the admin-only Users screen', async ({ page }) => {
   await expect(page).toHaveURL(/\/dashboard$/)
   await expect(dashboard.heading).toBeVisible()
 })
+
+// #498: Settings (now including Settings → Email's test-send surface) is `settings.view`
+// (maintainer+). Same UX-half caveat as above — the SERVER gates are asserted with kill-shots
+// at the route level in apps/api/test/email-api.test.ts (test-send: `settings.manage`;
+// status: `settings.view`); this proves the admin never OFFERS the surface to an author.
+test('an author is denied the Settings screen (incl. Settings → Email)', async ({
+  page
+}) => {
+  const dashboard = new DashboardPage(page)
+
+  await page.goto('/dashboard')
+  await expect(dashboard.heading).toBeVisible()
+
+  // (1) The nav never offers Settings to an author (`useCan` — UX).
+  await expect(page.getByRole('link', { name: 'Settings' })).toBeHidden()
+
+  // (2) A direct deep link is bounced back to the dashboard by `RequireCan`.
+  await page.goto('/settings')
+  await expect(page).toHaveURL(/\/dashboard$/)
+  await expect(dashboard.heading).toBeVisible()
+})

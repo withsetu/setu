@@ -71,6 +71,24 @@ export interface IdentitySettings {
   titleSeparator: string
 }
 
+/** Email settings (#498, epic #497). Provider credentials (Resend API key, SMTP
+ *  auth) are env-only and NEVER stored here — settings.json is Git-committed. */
+export interface EmailSettings {
+  /** Outbound sender address for every email this instance sends (password reset,
+   *  form notifications, test sends). Empty string = not set; the server then falls
+   *  back to the SETU_FORMS_NOTIFY_FROM env var (settings win over env — the
+   *  precedence is implemented where the two meet in apps/api/src/server.ts). */
+  fromAddress: string
+  /** #890: which transport the admin chose in Settings → Email. Empty string = not
+   *  chosen here, so the server falls back to the SETU_EMAIL_ADAPTER env var — which
+   *  is why an existing deployment that never opens the screen is unchanged. Choosing
+   *  a transport is configuration, not a credential: Resend/SMTP secrets stay env-only
+   *  and never enter this Git-committed file. Whether the chosen transport is USABLE is
+   *  a server-side question (its secret may be absent), resolved and failed-safe by
+   *  apps/api/src/capabilities.ts's usableEmailTransport. */
+  provider: '' | 'console' | 'resend' | 'smtp'
+}
+
 /** Site settings, grouped so future sections (identity/content/media/forms) add
  *  cleanly. Persisted as a Git-backed settings.json. Never holds secrets. */
 export interface SiteSettings {
@@ -79,4 +97,5 @@ export interface SiteSettings {
   media: MediaSettings
   identity: IdentitySettings
   permalinks: PermalinksSettings
+  email: EmailSettings
 }

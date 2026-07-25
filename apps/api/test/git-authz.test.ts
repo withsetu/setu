@@ -211,6 +211,30 @@ describe('createGitApi — settings-path write gate (settings.json → settings.
       (await write(app(asRole('maintainer')), '/git/commit', commitBody)).status
     ).toBe(200)
   })
+
+  // #890: Settings → Email's provider dropdown writes `email.provider` into settings.json
+  // through this same primitive — there is no dedicated route and therefore no second gate to
+  // keep in sync. The content of the file changes nothing about who may write it: choosing the
+  // email transport stays `settings.manage` (admin), like every other settings edit.
+  it('a settings.json write carrying email.provider is still admin-only (no per-field exemption)', async () => {
+    const providerWrite = JSON.stringify({
+      path: 'settings.json',
+      content: JSON.stringify({
+        email: { provider: 'smtp', fromAddress: 'owner@example.com' }
+      }),
+      message: 'm',
+      author
+    })
+    for (const role of ['maintainer', 'editor', 'author'] as Role[]) {
+      expect(
+        (await write(app(asRole(role)), '/git/commit', providerWrite)).status,
+        `${role} provider write`
+      ).toBe(403)
+    }
+    expect(
+      (await write(app(asRole('admin')), '/git/commit', providerWrite)).status
+    ).toBe(200)
+  })
 })
 
 // UAT 2026-07-05 — content.publish was enforced only in the admin UI (PublishMenu); the server gate

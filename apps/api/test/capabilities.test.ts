@@ -9,7 +9,12 @@ import {
   buildCapabilities,
   createCapabilitiesApi,
   emailCapabilityFromEnv,
-  smtpConfigFromEnv
+  emailTransportOptions,
+  resolveEmailProvider,
+  resolveFromAddress,
+  smtpConfigFromEnv,
+  usableEmailTransport,
+  type EmailCapabilities
 } from '../src/capabilities'
 import {
   socialProvidersEnabled,
@@ -75,7 +80,11 @@ describe('capabilities', () => {
       auth: NO_AUTH,
       email: NO_EMAIL
     })
-    const app = createCapabilitiesApi(base, () => NO_AUTH)
+    const app = createCapabilitiesApi(
+      base,
+      () => NO_AUTH,
+      () => NO_EMAIL
+    )
     const res = await app.fetch(new Request('http://test/api/capabilities'))
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({
@@ -117,7 +126,8 @@ describe('capabilities', () => {
           auth: NO_AUTH,
           email: NO_EMAIL
         }),
-        () => NO_AUTH
+        () => NO_AUTH,
+        () => NO_EMAIL
       )
     )
     const res = await app.fetch(
@@ -150,7 +160,8 @@ describe('capabilities', () => {
           auth: NO_AUTH,
           email: NO_EMAIL
         }),
-        () => NO_AUTH
+        () => NO_AUTH,
+        () => NO_EMAIL
       )
     )
     const res = await app.fetch(
@@ -171,12 +182,16 @@ describe('capabilities', () => {
         auth: NO_AUTH,
         email: NO_EMAIL
       })
-      const app = createCapabilitiesApi(base, () => ({
-        enabled: true,
-        providers: [],
-        captcha: null,
-        needsSetup
-      }))
+      const app = createCapabilitiesApi(
+        base,
+        () => ({
+          enabled: true,
+          providers: [],
+          captcha: null,
+          needsSetup
+        }),
+        () => NO_EMAIL
+      )
 
       const first = await app.fetch(new Request('http://test/api/capabilities'))
       expect(((await first.json()) as any).auth.needsSetup).toBe(true)
@@ -186,6 +201,76 @@ describe('capabilities', () => {
         new Request('http://test/api/capabilities')
       )
       expect(((await second.json()) as any).auth.needsSetup).toBe(false)
+    })
+  })
+
+  // #890: the email block has the same problem `auth` was given a thunk for. Since the provider
+  // and the from-address both live in settings.json and both apply to the NEXT send with no
+  // restart, a boot snapshot here goes stale the moment an admin saves — and this block is what
+  // the admin's password-reset surfaces read: LoginScreen's "Forgot password?" card shows
+  // "reset isn't configured for this site" and UsersScreen hides the reset action while
+  // `deliverable` is false. A stale false there is the worst kind of dishonesty: reset genuinely
+  // works and the UI tells the user it doesn't.
+  describe('email block: computed per-request (a settings save must not need a restart)', () => {
+    it('reflects a live thunk, not a boot-time snapshot', async () => {
+      // Console + a from-address = the exact repro shape: not deliverable at boot, and reset IS
+      // wired at boot (a from-address exists), so #886's restart-required copy never fires and
+      // nothing else would tell the user the truth.
+      const env = {
+        SETU_SMTP_HOST: '127.0.0.1',
+        SETU_SMTP_PORT: '11025'
+      } as NodeJS.ProcessEnv
+      let provider = 'console'
+      const app = createCapabilitiesApi(
+        buildCapabilities({
+          writableMediaStore: true,
+          backgroundJobs: true,
+          history: false,
+          auth: NO_AUTH,
+          email: emailCapabilityFromEnv(env, 'owner@example.com', provider)
+        }),
+        () => NO_AUTH,
+        () => emailCapabilityFromEnv(env, 'owner@example.com', provider)
+      )
+
+      const first = (await (
+        await app.fetch(new Request('http://test/api/capabilities'))
+      ).json()) as { email: EmailCapabilities }
+      expect(first.email).toEqual({ transport: 'console', deliverable: false })
+
+      provider = 'smtp' // the admin saves Settings → Email; no restart
+
+      const second = (await (
+        await app.fetch(new Request('http://test/api/capabilities'))
+      ).json()) as { email: EmailCapabilities }
+      expect(second.email).toEqual({ transport: 'smtp', deliverable: true })
+    })
+
+    it('exposes ONLY transport + deliverable — the thunk must not widen an unauthenticated surface', async () => {
+      const app = createCapabilitiesApi(
+        buildCapabilities({
+          writableMediaStore: true,
+          backgroundJobs: true,
+          history: false,
+          auth: NO_AUTH,
+          email: NO_EMAIL
+        }),
+        () => NO_AUTH,
+        () =>
+          emailCapabilityFromEnv(
+            { RESEND_API_KEY: 'test-fake-key' },
+            'owner@example.com',
+            'resend'
+          )
+      )
+      const body = (await (
+        await app.fetch(new Request('http://test/api/capabilities'))
+      ).json()) as { email: Record<string, unknown> }
+      expect(Object.keys(body.email).sort()).toEqual([
+        'deliverable',
+        'transport'
+      ])
+      expect(JSON.stringify(body)).not.toContain('test-fake-key')
     })
   })
 
@@ -370,6 +455,306 @@ describe('capabilities', () => {
         })
       ).toEqual({ transport: 'smtp', deliverable: false })
     })
+
+    // #498: settings.json's email.fromAddress joins SETU_FORMS_NOTIFY_FROM as a from-address
+    // source. A non-empty settings value wins; the env var is the fallback — the same precedence
+    // server.ts applies when it builds the actual messages.
+    it('resend + settings from-address (no env) -> deliverable (settings alone satisfy the from requirement)', () => {
+      expect(
+        emailCapabilityFromEnv(
+          { SETU_EMAIL_ADAPTER: 'resend', RESEND_API_KEY: 'test-fake-key' },
+          'owner@example.com'
+        )
+      ).toEqual({ transport: 'resend', deliverable: true })
+    })
+
+    it('resend + empty settings value + env set -> deliverable (env is the fallback)', () => {
+      expect(
+        emailCapabilityFromEnv(
+          {
+            SETU_EMAIL_ADAPTER: 'resend',
+            RESEND_API_KEY: 'test-fake-key',
+            SETU_FORMS_NOTIFY_FROM: 'noreply@example.com'
+          },
+          ''
+        )
+      ).toEqual({ transport: 'resend', deliverable: true })
+    })
+
+    it('console + settings from-address -> still not deliverable (transport gates console, not the from)', () => {
+      expect(
+        emailCapabilityFromEnv(
+          { SETU_EMAIL_ADAPTER: 'console' },
+          'owner@example.com'
+        )
+      ).toEqual({ transport: 'console', deliverable: false })
+    })
+
+    // #885 review Finding 2: a resend selection without its API key cannot deliver anything —
+    // reporting deliverable:true rendered "Ready to send ✓" directly under "API key: missing ✗".
+    it('resend WITHOUT RESEND_API_KEY -> not deliverable, even with a from-address (fail closed, like partial smtp)', () => {
+      expect(
+        emailCapabilityFromEnv(
+          {
+            SETU_EMAIL_ADAPTER: 'resend',
+            SETU_FORMS_NOTIFY_FROM: 'noreply@example.com'
+          },
+          'owner@example.com'
+        )
+      ).toEqual({ transport: 'resend', deliverable: false })
+    })
+
+    // #890: the boot snapshot follows the same provider precedence as everything else — a
+    // settings-chosen transport must be what /api/capabilities reports, not the env var it
+    // overrode.
+    it('a settings-chosen provider is the reported transport and counts toward deliverable', () => {
+      expect(
+        emailCapabilityFromEnv(
+          {
+            SETU_EMAIL_ADAPTER: 'console',
+            SETU_SMTP_HOST: '127.0.0.1',
+            SETU_SMTP_PORT: '11025'
+          },
+          'owner@example.com',
+          'smtp'
+        )
+      ).toEqual({ transport: 'smtp', deliverable: true })
+    })
+
+    it('a settings-chosen provider whose secret is missing is reported but NOT deliverable', () => {
+      expect(emailCapabilityFromEnv({}, 'owner@example.com', 'resend')).toEqual(
+        { transport: 'resend', deliverable: false }
+      )
+    })
+  })
+
+  // #885 review Finding 2: the ONE transport-usability predicate server.ts's adapter selection,
+  // emailCapabilityFromEnv and the /api/email/status thunk all share — so "which adapter is
+  // actually wired" and "what the admin screen reports" cannot drift.
+  describe('usableEmailTransport (shared transport-usability predicate)', () => {
+    it('console (or unset) -> effective console, no problem', () => {
+      expect(usableEmailTransport({})).toEqual({
+        selected: 'console',
+        source: 'default',
+        effective: 'console',
+        problem: null
+      })
+    })
+
+    it('resend with the API key -> effective resend', () => {
+      expect(
+        usableEmailTransport({
+          SETU_EMAIL_ADAPTER: 'resend',
+          RESEND_API_KEY: 'test-fake-key'
+        })
+      ).toEqual({
+        selected: 'resend',
+        source: 'env',
+        effective: 'resend',
+        problem: null
+      })
+    })
+
+    it('resend WITHOUT the API key -> falls back to console and names the missing variable (never its value)', () => {
+      expect(usableEmailTransport({ SETU_EMAIL_ADAPTER: 'resend' })).toEqual({
+        selected: 'resend',
+        source: 'env',
+        effective: 'console',
+        problem: 'RESEND_API_KEY is unset'
+      })
+    })
+
+    it('smtp with a usable config -> effective smtp', () => {
+      expect(
+        usableEmailTransport({
+          SETU_EMAIL_ADAPTER: 'smtp',
+          SETU_SMTP_HOST: '127.0.0.1',
+          SETU_SMTP_PORT: '1025'
+        })
+      ).toEqual({
+        selected: 'smtp',
+        source: 'env',
+        effective: 'smtp',
+        problem: null
+      })
+    })
+
+    it('smtp with an unusable config -> console + smtpConfigFromEnv problem string', () => {
+      expect(usableEmailTransport({ SETU_EMAIL_ADAPTER: 'smtp' })).toEqual({
+        selected: 'smtp',
+        source: 'env',
+        effective: 'console',
+        problem: 'SETU_SMTP_HOST is unset'
+      })
+    })
+
+    it('an unrecognized transport value -> console, selected reported verbatim', () => {
+      expect(usableEmailTransport({ SETU_EMAIL_ADAPTER: 'sendgrid' })).toEqual({
+        selected: 'sendgrid',
+        source: 'env',
+        effective: 'console',
+        problem: null
+      })
+    })
+
+    // #890 fail-safe: a provider STORED in settings.json is exactly as untrustworthy as an env
+    // var — settings.json is Git-canonical, so it can arrive by `git push` without ever passing
+    // through the api's write gate. The usability check is therefore the real enforcement point:
+    // an unusable stored provider must degrade to console with a named reason, never throw and
+    // never silently pretend to send.
+    it('a settings provider whose secret is missing falls back to console with the reason (fail-safe)', () => {
+      expect(usableEmailTransport({}, 'resend')).toEqual({
+        selected: 'resend',
+        source: 'settings',
+        effective: 'console',
+        problem: 'RESEND_API_KEY is unset'
+      })
+      expect(usableEmailTransport({}, 'smtp')).toEqual({
+        selected: 'smtp',
+        source: 'settings',
+        effective: 'console',
+        problem: 'SETU_SMTP_HOST is unset'
+      })
+    })
+
+    it('a usable settings provider is honored even when the env var names a different one', () => {
+      expect(
+        usableEmailTransport(
+          { SETU_EMAIL_ADAPTER: 'console', SETU_SMTP_HOST: '127.0.0.1' },
+          'smtp'
+        )
+      ).toEqual({
+        selected: 'smtp',
+        source: 'settings',
+        effective: 'smtp',
+        problem: null
+      })
+    })
+  })
+
+  // #890: the provider CHOICE precedence — settings.json's `email.provider` wins, the
+  // SETU_EMAIL_ADAPTER env var is the fallback, console is the zero-config default. Same shape
+  // and same discipline as resolveFromAddress below: `source` makes the winner observable (it is
+  // served on GET /api/email/status), and the both-set case is the ORDER-SENSITIVE kill-shot —
+  // swap the two branches in resolveEmailProvider and it fails.
+  describe('resolveEmailProvider (settings win, env fallback, console default)', () => {
+    it('BOTH set -> the settings value wins, source is "settings"', () => {
+      expect(
+        resolveEmailProvider('smtp', { SETU_EMAIL_ADAPTER: 'resend' })
+      ).toEqual({ selected: 'smtp', source: 'settings' })
+    })
+
+    it('settings empty, env set -> env is the fallback, source is "env"', () => {
+      expect(
+        resolveEmailProvider('', { SETU_EMAIL_ADAPTER: 'resend' })
+      ).toEqual({ selected: 'resend', source: 'env' })
+    })
+
+    it('settings set, env unset -> settings alone', () => {
+      expect(resolveEmailProvider('resend', {})).toEqual({
+        selected: 'resend',
+        source: 'settings'
+      })
+    })
+
+    it('neither -> the console default', () => {
+      expect(resolveEmailProvider(undefined, {})).toEqual({
+        selected: 'console',
+        source: 'default'
+      })
+    })
+  })
+
+  // #890: what the admin's provider dropdown renders. Usability is per-transport and INDEPENDENT
+  // of which one is currently selected — the screen has to disable the options it cannot honor
+  // and say what to add, which it can't do from the selected transport alone. `problem` is
+  // remediation copy naming the env var; like every other string on this surface it never echoes
+  // a credential value (asserted below).
+  describe('emailTransportOptions (per-transport usability for the picker)', () => {
+    it('console is always usable', () => {
+      const console_ = emailTransportOptions({}).find((t) => t.id === 'console')
+      expect(console_).toEqual({ id: 'console', usable: true, problem: null })
+    })
+
+    it('resend: usable only with RESEND_API_KEY, otherwise remediation naming the variable', () => {
+      const without = emailTransportOptions({}).find((t) => t.id === 'resend')
+      expect(without?.usable).toBe(false)
+      expect(without?.problem).toBe(
+        'Add RESEND_API_KEY to the server environment to enable Resend.'
+      )
+      const withKey = emailTransportOptions({
+        RESEND_API_KEY: 'test-fake-key'
+      }).find((t) => t.id === 'resend')
+      expect(withKey).toEqual({ id: 'resend', usable: true, problem: null })
+    })
+
+    it('smtp: unset host gets the "add SETU_SMTP_HOST" remediation; a usable config is usable', () => {
+      const without = emailTransportOptions({}).find((t) => t.id === 'smtp')
+      expect(without?.usable).toBe(false)
+      expect(without?.problem).toBe(
+        'Add SETU_SMTP_HOST to the server environment to enable SMTP.'
+      )
+      const withConfig = emailTransportOptions({
+        SETU_SMTP_HOST: '127.0.0.1',
+        SETU_SMTP_PORT: '11025'
+      }).find((t) => t.id === 'smtp')
+      expect(withConfig).toEqual({ id: 'smtp', usable: true, problem: null })
+    })
+
+    it('smtp misconfigured beyond a missing host: the specific reason, never a credential value', () => {
+      const opt = emailTransportOptions({
+        SETU_SMTP_HOST: '127.0.0.1',
+        SETU_SMTP_USER: 'postmaster',
+        SETU_SMTP_PASS: ''
+      }).find((t) => t.id === 'smtp')
+      expect(opt?.usable).toBe(false)
+      expect(opt?.problem).toContain(
+        'SETU_SMTP_USER and SETU_SMTP_PASS must be set together'
+      )
+      expect(opt?.problem).not.toContain('postmaster')
+    })
+
+    it('offers exactly the three known transports, console first', () => {
+      expect(emailTransportOptions({}).map((t) => t.id)).toEqual([
+        'console',
+        'resend',
+        'smtp'
+      ])
+    })
+  })
+
+  // #885 review Finding 3: precedence must be ORDER-SENSITIVE and observable — a boolean fold
+  // can't distinguish "settings win" from "env wins". `source` makes the winner explicit; the
+  // both-set case below is the kill-shot target (swap the order in resolveFromAddress and it
+  // fails).
+  describe('resolveFromAddress (settings win, env fallback)', () => {
+    it('BOTH set -> the settings value wins, source is "settings"', () => {
+      expect(
+        resolveFromAddress('owner@settings.example', {
+          SETU_FORMS_NOTIFY_FROM: 'ops@env.example'
+        })
+      ).toEqual({ effective: 'owner@settings.example', source: 'settings' })
+    })
+
+    it('settings empty, env set -> env is the fallback, source is "env"', () => {
+      expect(
+        resolveFromAddress('', { SETU_FORMS_NOTIFY_FROM: 'ops@env.example' })
+      ).toEqual({ effective: 'ops@env.example', source: 'env' })
+    })
+
+    it('settings set, env unset -> settings alone', () => {
+      expect(resolveFromAddress('owner@settings.example', {})).toEqual({
+        effective: 'owner@settings.example',
+        source: 'settings'
+      })
+    })
+
+    it('neither -> null/null', () => {
+      expect(resolveFromAddress(undefined, {})).toEqual({
+        effective: null,
+        source: null
+      })
+    })
   })
 
   describe('smtpConfigFromEnv (#256 — the single parser server.ts and emailCapabilityFromEnv share)', () => {
@@ -522,10 +907,13 @@ describe('capabilities', () => {
         auth: NO_AUTH,
         email: NO_EMAIL
       })
-      const app = createCapabilitiesApi(base, () =>
-        resolveAuthCapabilitiesLike(true, () => {
-          throw new Error('disk I/O error')
-        })
+      const app = createCapabilitiesApi(
+        base,
+        () =>
+          resolveAuthCapabilitiesLike(true, () => {
+            throw new Error('disk I/O error')
+          }),
+        () => NO_EMAIL
       )
       const res = await app.fetch(new Request('http://test/api/capabilities'))
       expect(res.status).toBe(200)

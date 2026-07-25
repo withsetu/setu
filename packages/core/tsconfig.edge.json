@@ -42,10 +42,5 @@
     "src/taxonomy",
     "src/url"
   ],
-  "exclude": [
-    "src/content-id",
-    "src/health",
-    "src/net",
-    "src/oembed"
-  ]
+  "exclude": ["src/content-id", "src/health", "src/net", "src/oembed"]
 }

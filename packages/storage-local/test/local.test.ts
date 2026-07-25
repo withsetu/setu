@@ -69,9 +69,9 @@ describe('storage-local — security + persistence', () => {
       const withSlash = createLocalStorage({ dir: `${dir}///`, baseUrl: '/u' })
       await withSlash.put('a/b.png', bytes('IMG'), { contentType: 'image/png' })
       const without = createLocalStorage({ dir, baseUrl: '/u' })
-      expect(new TextDecoder().decode((await without.get('a/b.png'))!.body)).toBe(
-        'IMG'
-      )
+      expect(
+        new TextDecoder().decode((await without.get('a/b.png'))!.body)
+      ).toBe('IMG')
       expect(await without.list()).toEqual(['a/b.png'])
     })
 

@@ -11,12 +11,22 @@
  *
  * Two rules worth reading before you use it:
  *
- * 1. **Escaping is on by default in an HTML context.** Every substituted value is
- *    HTML-escaped unless the token's own {@link TokenSpec} declares `rawHtml`. `rawHtml` lives
- *    in the VOCABULARY — i.e. in code — never in the template text, so a template author (an
- *    admin editing Settings → Email) has no syntax with which to opt a value out of escaping.
- *    Enforced by packages/core/test/templating/fill-template.test.ts ("escapes a rawHtml-named
- *    token when the vocabulary does not declare it") and, end to end, by
+ * 1. **The context is a REQUIRED argument, and an HTML context escapes everything.** In an HTML
+ *    context every substituted value is HTML-escaped unless the token's own {@link TokenSpec}
+ *    declares `rawHtml`. `rawHtml` lives in the VOCABULARY — i.e. in code — never in the template
+ *    text, so a template author (an admin editing Settings → Email) has no syntax with which to
+ *    opt a value out of escaping.
+ *
+ *    There is deliberately NO default context (#936). It used to default to `'text'`, the
+ *    non-escaping mode, so an HTML caller that omitted it substituted verbatim with no type
+ *    error and no runtime symptom until some value carried markup — the one place in this
+ *    subsystem where the safe path was opt-in. Flipping the default to `'html'` instead would
+ *    have entity-escaped SEO titles, so the signature carries the decision: omitting `context`
+ *    (or `opts` entirely) is a compile error, pinned by
+ *    packages/core/test/templating/fill-template.test.ts ("is a compile error to omit the
+ *    context", whose `@ts-expect-error` directives fail the typecheck the moment the member goes
+ *    back to optional). The escaping behavior itself is enforced by the same file ("escapes a
+ *    rawHtml-named token when the vocabulary does not declare it") and, end to end, by
  *    packages/core/test/email/email-registry.test.ts.
  *
  * 2. **Unknown tokens are STRIPPED, not left literal.** `{{nope}}` renders as the empty string.
@@ -76,8 +86,10 @@ export function escapeHtml(s: string): string {
 export interface FillOptions {
   /** `'html'` escapes every substituted value except the vocabulary's `rawHtml` tokens;
    *  `'text'` substitutes verbatim, there being no markup context to break out of.
-   *  Default `'text'`. */
-  context?: 'html' | 'text'
+   *
+   *  REQUIRED, with no default — see rule 1 in the module header (#936). Every caller knows
+   *  which part of a message it is building; the type system now makes it say so. */
+  context: 'html' | 'text'
   /** The context's token vocabulary. Only `rawHtml` is read here — an unlisted token still
    *  substitutes (escaped), so a caller with no vocabulary gets escape-everything, the safe
    *  default. */
@@ -105,9 +117,9 @@ const partOf = (v: TokenValue, context: 'html' | 'text'): string => {
 export function fillTemplate(
   tpl: string,
   values: TokenValues,
-  opts: FillOptions = {}
+  opts: FillOptions
 ): string {
-  const context = opts.context ?? 'text'
+  const context = opts.context
   const raw = new Set(
     (opts.vocabulary ?? []).filter((t) => t.rawHtml === true).map((t) => t.name)
   )
@@ -148,6 +160,119 @@ const ENTITIES: Record<string, string> = {
 }
 
 /**
+ * The hard ceiling on what {@link htmlToPlainText} will scan (#941).
+ *
+ * The 20 KB template cap does NOT bound this function's input: the input is the RENDERED body,
+ * which carries visitor-supplied field content and grows again when that content is
+ * HTML-escaped. Since `renderEmailTemplate` reaches here on every send whose HTML body was
+ * overridden, and that send is triggered by the anonymous `/forms/submit` route, "however big
+ * the render came out" is not an acceptable answer for how much work one submission may cost.
+ *
+ * 100 KB is several times the largest body any shipped template can produce, and small enough
+ * that the worst adversarial input found for the whole chain costs ~56 ms rather than minutes
+ * (measured; see packages/core/test/templating/fill-template.test.ts, "finishes pathological
+ * markup inside a generous wall-clock bound", which asserts the bound this backs). The cut is a
+ * plain slice, so it can land inside a tag — this is a best-effort text derivation, and a
+ * truncated tail is stripped by the tag pass like any other.
+ */
+export const HTML_TO_TEXT_MAX_INPUT = 100_000
+
+/**
+ * Remove every `<!-- … -->` span in one forward pass.
+ *
+ * Exactly what `/<!--[\s\S]*?-->/g` matched, without its cost: that pattern re-scanned the whole
+ * remaining input from EVERY unclosed `<!--`: on 100 KB of them the pattern measures ~470 ms and
+ * this walk ~1 ms. `indexOf` resumes where the last span ended, and the first `<!--` with no
+ * `-->` after it ends the walk — no later one can have one either.
+ *
+ * The BOUND is pinned by packages/core/test/templating/fill-template.test.ts ("drops unclosed
+ * comments in one pass, not one per comment"). The OUTPUT is pinned there twice: by the
+ * enumerated "removes comment spans exactly as the pattern it replaced did", and — for the general
+ * claim, which no enumeration can carry — by "agrees with the pattern it replaced on 2,000 random
+ * inputs", which differential-tests this function against the regex itself. The enumeration needed
+ * writing because no existing input in the suite contained an HTML comment at all, so changing
+ * `close + 3` to `close + 2` passed all 1439 core tests; the property test needed writing because
+ * an enumeration provably missed a real deviation in the sibling walk below.
+ *
+ * Exported for that differential only — deliberately NOT on the package barrel, the same posture
+ * as `isUsableTemplateField` in ../email/template-registry.ts. It has no consumer outside this
+ * module.
+ */
+export function stripComments(html: string): string {
+  let out = ''
+  let cursor = 0
+  for (;;) {
+    const open = html.indexOf('<!--', cursor)
+    if (open === -1) break
+    const close = html.indexOf('-->', open + 4)
+    if (close === -1) break
+    out += html.slice(cursor, open)
+    cursor = close + 3
+  }
+  return cursor === 0 ? html : out + html.slice(cursor)
+}
+
+/** Closers for {@link stripScriptStyle}. Built per call for symmetry with the `open` regex, which
+ *  genuinely must be per-call because the walk both reads and WRITES its `lastIndex`. These two do
+ *  not need it — every use assigns `lastIndex` immediately before `exec` — so this is tidiness,
+ *  not a correctness requirement. */
+const scriptStyleClosers = (): Map<string, RegExp> =>
+  new Map([
+    ['script', /<\/script>/gi],
+    ['style', /<\/style>/gi]
+  ])
+
+/**
+ * Remove every `<script …>…</script>` / `<style …>…</style>` span in one forward pass.
+ *
+ * Same shape and same reason as {@link stripComments}, for the same defect:
+ * `/<(script|style)\b[^<>]*>[\s\S]*?<\/\1>/gi` re-scanned the remaining input from every UNCLOSED
+ * opener: on 100 KB of `<script>` the pattern measures ~100 ms and this walk ~2 ms. Each closer
+ * search resumes from its own opener and every consumed span moves the cursor forward, so
+ * successful searches cost O(input) in total; `exhausted` caps the failing ones at one scan per
+ * tag name, since a closer not found from position p can never be found from any q >= p.
+ *
+ * Output equivalence to the pattern it replaced is pinned by
+ * packages/core/test/templating/fill-template.test.ts, in two layers that are NOT redundant.
+ * "removes script and style spans exactly as the pattern it replaced did" enumerates the cases the
+ * tag-name backreference decides — `<script>` may not be closed by `</style>`, an unclosed
+ * `<script>` must not swallow a later well-formed `<style>` span, the match is case-insensitive on
+ * both ends. "agrees with the pattern it replaced on 2,000 random inputs" carries the GENERAL
+ * claim, and it earned its place: deleting the `open.lastIndex = cursor` line below survives all
+ * of the enumerated cases and the whole 45-test file, while deviating from the replaced pattern on
+ * ~0.9% of random inputs — 82% of those deviations are invisible end to end because the later tag
+ * strip removes the difference, which is exactly why an end-to-end table is a weak oracle for a
+ * helper.
+ *
+ * Exported for that differential only — deliberately NOT on the package barrel; see
+ * {@link stripComments}.
+ */
+export function stripScriptStyle(html: string): string {
+  const open = /<(script|style)\b[^<>]*>/gi
+  const closers = scriptStyleClosers()
+  const exhausted = new Set<string>()
+  let out = ''
+  let cursor = 0
+  let m: RegExpExecArray | null
+  while ((m = open.exec(html)) !== null) {
+    const tag = (m[1] as string).toLowerCase()
+    if (exhausted.has(tag)) continue
+    const closer = closers.get(tag) as RegExp
+    closer.lastIndex = m.index + m[0].length
+    const close = closer.exec(html)
+    if (close === null) {
+      exhausted.add(tag)
+      continue
+    }
+    out += html.slice(cursor, m.index)
+    cursor = close.index + close[0].length
+    // Resume scanning after the span we just consumed, which is what a /g replace would do.
+    open.lastIndex = cursor
+  }
+  return cursor === 0 ? html : out + html.slice(cursor)
+}
+
+/**
  * Derive a plain-text email part from an HTML one.
  *
  * Used only when an admin has overridden a template's HTML body but not its (optional) text
@@ -168,20 +293,52 @@ const ENTITIES: Record<string, string> = {
  * Deliberately a small deterministic transform, not an HTML parser: block-level tags become
  * line breaks, `<a>` keeps its URL in parentheses, script/style content is dropped, entities
  * are decoded, and blank-line runs are collapsed.
+ *
+ * **Every tag-internal run is `[^<>]`, never `[^>]` (#941).** An attribute run that may swallow
+ * `<` does not stop at the next tag, so on markup with unterminated tags the engine re-scans
+ * from every `<a`/`<` in the document: with `[^>]` this measured ~2 s on 100 KB of `'<a'`, and
+ * ~22 minutes (cubic in the input) on 100 KB of `'<a href="x'`. Bounding each run to its own tag
+ * makes the same corpus finish in single-digit milliseconds. `[^<>]` also rejects a `<` inside an
+ * attribute VALUE, which the old runs accepted — no shipped template has one, and this was never
+ * an HTML parser. Enforced by packages/core/test/templating/fill-template.test.ts ("finishes
+ * pathological markup inside a generous wall-clock bound").
+ *
+ * The anchor LABEL is a BOUNDED lazy run, `{0,4000}?` rather than `*?`. This one is
+ * DEFENCE-IN-DEPTH, not a wall-clock win today, and the distinction is worth stating plainly
+ * because the first two versions of this comment got it wrong in both directions. Measured in
+ * isolation at the 100 KB ceiling, best-of-7: `*?` is ~33 ms and `{0,4000}?` is ~41 ms — the bound
+ * COSTS about 7 ms. V8 compiles an unbounded lazy run followed by a literal into a memchr-style
+ * scan for that literal, while a counted quantifier falls back to a per-character loop, so 4,000
+ * slow steps are dearer than 100,000 fast ones. What the bound buys is that the label's cost stops
+ * depending on {@link HTML_TO_TEXT_MAX_INPUT}: it is O(4,000) per unclosed anchor rather than
+ * O(ceiling), so raising that ceiling later cannot quietly reintroduce the
+ * O(unclosed anchors x input) shape #941 named. It is intended as insurance, and no wall-clock
+ * test bites for it — do not expect one to.
+ *
+ * Flattening the label to `[^<]*` (what #941 proposed) is the option that is genuinely wrong: it
+ * drops the URL from `<a href="…"><strong>Reset</strong></a>`, ordinary HTML-email shape whose URL
+ * is the only actionable thing in a password-reset body. The observable trade the bound does make
+ * — a label longer than 4,000 characters is not treated as a link, so its text survives and its
+ * URL does not — is pinned by packages/core/test/templating/fill-template.test.ts ("keeps the URL
+ * of a link whose label carries inline markup" and "drops the URL of a link whose label exceeds
+ * the label bound"). No shipped template comes within two orders of magnitude of 4,000.
  */
 export function htmlToPlainText(html: string): string {
-  const text = html
-    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
+  const bounded =
+    html.length > HTML_TO_TEXT_MAX_INPUT
+      ? html.slice(0, HTML_TO_TEXT_MAX_INPUT)
+      : html
+  // Step order is unchanged from before #941: script/style spans go first, then comments.
+  const text = stripComments(stripScriptStyle(bounded))
     .replace(/<br\s*\/?>/gi, '\n')
     // A link keeps its destination — an email body whose URLs vanished is useless.
     .replace(
-      /<a\b[^>]*\bhref\s*=\s*["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi,
+      /<a\b[^<>]*\bhref\s*=\s*["']([^"']*)["'][^<>]*>([\s\S]{0,4000}?)<\/a>/gi,
       (_, href: string, label: string) => `${label.trim()} (${href})`
     )
     .replace(/<\/t[dh]>\s*(?=<t[dh]\b)/gi, ': ')
     .replace(/<\/(p|div|h[1-6]|li|tr|table|section|blockquote)>/gi, '\n\n')
-    .replace(/<[^>]+>/g, '')
+    .replace(/<[^<>]+>/g, '')
     .replace(/&#?\w+;/g, (m) => ENTITIES[m.toLowerCase()] ?? m)
   return text
     .split('\n')

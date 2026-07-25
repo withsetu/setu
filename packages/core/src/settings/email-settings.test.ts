@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { parseSettings, parseSettingsWithWarnings } from './schema'
 import {
   EMAIL_TEMPLATE_MAX_BODY,
+  EMAIL_TEMPLATE_MAX_ENTRIES,
+  EMAIL_TEMPLATE_MAX_ENTRY_BYTES,
   EMAIL_TEMPLATE_MAX_SUBJECT
 } from '../email/template-registry'
 
@@ -198,6 +200,87 @@ describe('settings — email.templates', () => {
     })
     expect(settings.email.templates).toEqual({})
     expect(warnings.some((w) => w.startsWith('email.templates'))).toBe(true)
+  })
+
+  // #935. The per-field caps above only measure `subject`/`html`/`text`. The entry itself is
+  // `.partial().passthrough()` (the repo-wide forward-compat convention), so a field this build
+  // does not know passed through UNMEASURED, and nothing bounded the number of entries either —
+  // while template-registry.ts's cap doc asserted the opposite ("small enough that no one can
+  // turn settings.json into a payload store"). settings.json is Git-canonical, so the arriving
+  // path is `git push`, with no request-body cap in the way.
+  //
+  // Passthrough is KEPT and the whole serialized entry is measured instead — see the note on
+  // salvageEmailTemplates for why.
+  describe('the whole entry is bounded (#935)', () => {
+    // KILL-SHOT TARGET. Drop the serialized-size check in salvageEmailTemplates and the payload
+    // survives verbatim.
+    it('drops an entry whose unknown fields blow the entry cap, keeping the sibling entry', () => {
+      const { settings, warnings } = parseSettingsWithWarnings({
+        email: {
+          templates: {
+            'password-reset': {
+              subject: 'Fine',
+              futureField: 'p'.repeat(EMAIL_TEMPLATE_MAX_ENTRY_BYTES)
+            },
+            'form-notification': { subject: 'Kept' }
+          }
+        }
+      })
+      expect(settings.email.templates['password-reset']).toBeUndefined()
+      expect(settings.email.templates['form-notification']).toEqual({
+        subject: 'Kept'
+      })
+      expect(
+        warnings.some((w) => w.startsWith('email.templates.password-reset'))
+      ).toBe(true)
+    })
+
+    // The entry cap must never reject an entry whose KNOWN fields are all legal — that is the
+    // whole reason it is not simply the sum of the field caps. The rows are the escaping regimes
+    // `JSON.stringify` applies: 2x for quotes/backslashes/newlines, and 6x (`\u00XX`) for C0
+    // control characters and lone surrogates, which is the case that makes a maximal legal entry
+    // serialize to 241,834 characters. The cap started at 100,000 and would have rejected the
+    // last two rows, so "can never reject a legal entry" was false as written.
+    it.each([
+      ['quotes', '"'],
+      ['backslashes', '\\'],
+      ['newlines', '\n'],
+      ['C0 control characters', '\u0001'],
+      ['lone surrogates', '\uD800']
+    ])(
+      'keeps an entry of %s whose known fields all sit at their own caps',
+      (_name, ch) => {
+        const { settings, warnings } = parseSettingsWithWarnings({
+          email: {
+            templates: {
+              'password-reset': {
+                subject: ch.repeat(EMAIL_TEMPLATE_MAX_SUBJECT),
+                html: ch.repeat(EMAIL_TEMPLATE_MAX_BODY),
+                text: ch.repeat(EMAIL_TEMPLATE_MAX_BODY)
+              }
+            }
+          }
+        })
+        expect(settings.email.templates['password-reset']?.html).toHaveLength(
+          EMAIL_TEMPLATE_MAX_BODY
+        )
+        expect(warnings).toEqual([])
+      }
+    )
+
+    // KILL-SHOT TARGET. Drop the entry-count bound and all 300 survive.
+    it('bounds the number of entries, with a warning', () => {
+      const templates: Record<string, unknown> = {}
+      for (let i = 0; i < EMAIL_TEMPLATE_MAX_ENTRIES + 200; i += 1)
+        templates[`type-${i}`] = { subject: 'x' }
+      const { settings, warnings } = parseSettingsWithWarnings({
+        email: { templates }
+      })
+      expect(Object.keys(settings.email.templates)).toHaveLength(
+        EMAIL_TEMPLATE_MAX_ENTRIES
+      )
+      expect(warnings.some((w) => w.startsWith('email.templates'))).toBe(true)
+    })
   })
 
   it('a non-object templates value is ignored, with a warning, keeping siblings', () => {

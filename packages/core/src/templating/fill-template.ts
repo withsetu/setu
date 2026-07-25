@@ -157,6 +157,14 @@ const ENTITIES: Record<string, string> = {
  * has not been overridden — this is the fallback, not the primary path
  * (packages/core/test/email/email-registry.test.ts, "text part").
  *
+ * One case is deliberately conceded back (#920): when this returns nothing — markup with no
+ * words in it, such as an image-only body — `renderEmailTemplate` sends the shipped text after
+ * all, accepting exactly the mismatch described above. An empty text part is worse than a stale
+ * one, because a text-only client would render a blank message. See
+ * {@link RenderedEmail.textSource} in ../email/template-registry.ts; pinned by
+ * packages/core/test/email/email-registry.test.ts ("an overridden body whose text derivation is
+ * empty falls back to the shipped text").
+ *
  * Deliberately a small deterministic transform, not an HTML parser: block-level tags become
  * line breaks, `<a>` keeps its URL in parentheses, script/style content is dropped, entities
  * are decoded, and blank-line runs are collapsed.

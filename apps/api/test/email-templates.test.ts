@@ -90,6 +90,34 @@ describe('createLiveEmailTemplates — live resolution', () => {
     expect(out.html).toContain('We received a request')
   })
 
+  // #920. The gap this closes is specific to THIS layer: settings.json is Git-canonical, so a
+  // subject of `{{Reset_Url}}` — a well-formed, non-empty, in-cap string whose only token is a
+  // case typo — can arrive by `git push` without ever passing the editor. It used to strip to ''
+  // and every password-reset email went out with a blank subject line. Kill-shot: drop the
+  // render-time floor in renderTemplateField and this fails with subject === ''.
+  it('never emits an empty subject, whatever the stored override renders to', () => {
+    // Every shape here STRIPS to nothing: the grammar is `\w+`, so a case typo and an unknown
+    // name are both well-formed tokens with no value. (`{{reset-url}}` is deliberately NOT in
+    // this list — a hyphen is not `\w`, so it never matches the token grammar and survives as
+    // literal braces in the subject. Visible rather than blank, so the floor does not catch it
+    // and should not: tracked separately as #924.)
+    for (const subject of ['{{Reset_Url}}', '{{ RESET_URL }}', '{{nope}}'])
+      expect(
+        createLiveEmailTemplates({
+          settings: () => settingsWith({ 'password-reset': { subject } })
+        }).render(EMAIL_TYPE_PASSWORD_RESET, resetValues()).subject
+      ).toBe('Reset your Setu password')
+  })
+
+  it('never emits an empty body, whatever the stored override renders to', () => {
+    const out = createLiveEmailTemplates({
+      settings: () =>
+        settingsWith({ 'password-reset': { html: '{{Reset_Url}}' } })
+    }).render(EMAIL_TYPE_PASSWORD_RESET, resetValues())
+    expect(out.html).toContain('We received a request')
+    expect(out.text).toContain('Reset your password:')
+  })
+
   it('folds the live site title into the values, so {{site_title}} follows Settings → General', () => {
     let title = 'First'
     const live = createLiveEmailTemplates({

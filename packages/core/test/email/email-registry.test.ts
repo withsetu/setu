@@ -7,7 +7,9 @@ import {
   createEmailTypeRegistry,
   renderEmailTemplate,
   renderRegisteredEmail,
-  type EmailTypeDefinition
+  renderTemplateField,
+  type EmailTypeDefinition,
+  type RenderedEmail
 } from '../../src/email/template-registry'
 import { EMAIL_TYPES } from '../../src/email/templates'
 import {
@@ -231,13 +233,143 @@ describe('override resolution', () => {
   })
 })
 
+// #920. isUsableTemplateField only ever sees the template STRING. A string can be well-formed,
+// non-empty and within cap and still render to NOTHING, because unknown tokens are stripped and
+// the grammar is case-sensitive — which is how `{{Reset_Url}}` shipped password-reset emails with
+// a blank subject line. The floor is at RENDER time deliberately: settings.json is Git-canonical,
+// so a bad override can arrive by `git push` without ever passing the editor.
+describe('the render-time floor', () => {
+  const values = passwordResetValues({ url: 'https://x/reset' })
+
+  // KILL-SHOT TARGET. Make renderTemplateField `return out` instead of reporting null for a blank
+  // render (the pre-#920 behavior) and this fails with subject === ''.
+  it('a subject whose only token is a typo renders the shipped subject, not a blank one', () => {
+    const out = renderEmailTemplate(
+      PASSWORD_RESET_EMAIL,
+      { subject: '{{Reset_Url}}' },
+      values
+    )
+    expect(out.subject).toBe('Reset your Setu password')
+  })
+
+  // The shapes that strip to nothing are the ones the grammar MATCHES (`\w+`) but cannot resolve.
+  // A near-miss like `{{reset-url}}` is not one of them: a hyphen never matches, so it survives as
+  // literal braces — non-blank, so this floor deliberately lets it through. Tracked as #924.
+  it('a subject of nothing but an unknown token falls back', () => {
+    expect(
+      renderEmailTemplate(PASSWORD_RESET_EMAIL, { subject: '{{nope}}' }, values)
+        .subject
+    ).toBe('Reset your Setu password')
+  })
+
+  // A token that IS in the vocabulary but has no value renders as nothing too, so the floor
+  // cannot be a token-name check — it has to look at the rendered bytes.
+  it('a subject of a known token with no value falls back', () => {
+    const out = renderEmailTemplate(
+      PASSWORD_RESET_EMAIL,
+      { subject: '{{user_name}}' },
+      passwordResetValues({ url: 'https://x/reset' })
+    )
+    expect(out.subject).toBe('Reset your Setu password')
+  })
+
+  it('a subject that survives the render is still the admin’s', () => {
+    expect(
+      renderEmailTemplate(
+        PASSWORD_RESET_EMAIL,
+        { subject: 'Reset · {{nope}}' },
+        values
+      ).subject
+    ).toBe('Reset ·')
+  })
+
+  it('a body that renders to nothing falls back to the shipped body', () => {
+    const out = renderEmailTemplate(
+      PASSWORD_RESET_EMAIL,
+      { html: '{{Reset_Url}}' },
+      values
+    )
+    expect(out.html).toContain('We received a request')
+  })
+
+  // The html override did not survive, so the text part must not be DERIVED from it either —
+  // deriving from an empty body would hand a text-only client an empty message.
+  it('a body that renders to nothing takes the text part back to the shipped one', () => {
+    const out = renderEmailTemplate(
+      PASSWORD_RESET_EMAIL,
+      { html: '{{Reset_Url}}' },
+      values
+    )
+    expect(out.text).toContain('Reset your password: https://x/reset')
+  })
+
+  // Markup with no words in it renders non-empty as HTML but derives an empty text part.
+  it('an overridden body whose text derivation is empty falls back to the shipped text', () => {
+    const out = renderEmailTemplate(
+      PASSWORD_RESET_EMAIL,
+      { html: '<img src="{{reset_url}}" alt="">' },
+      values
+    )
+    expect(out.html).toBe('<img src="https://x/reset" alt="">')
+    expect(out.text).toContain('Reset your password: https://x/reset')
+  })
+
+  it('a text override that renders to nothing falls back rather than sending a blank part', () => {
+    const out = renderEmailTemplate(
+      PASSWORD_RESET_EMAIL,
+      { text: '{{Reset_Url}}' },
+      values
+    )
+    expect(out.text).toContain('Reset your password: https://x/reset')
+  })
+
+  it('the floor is per FIELD — a dead subject does not cost a good body', () => {
+    const out = renderEmailTemplate(
+      PASSWORD_RESET_EMAIL,
+      { subject: '{{Reset_Url}}', html: '<p>Custom {{reset_url}}</p>' },
+      values
+    )
+    expect(out.subject).toBe('Reset your Setu password')
+    expect(out.html).toBe('<p>Custom https://x/reset</p>')
+  })
+
+  // renderTemplateField is the seam the admin editor calls to refuse a Save (#920's
+  // authoring-time half). Same function the renderer uses, so the editor's answer cannot drift.
+  it('renderTemplateField reports a dead field as null and a live one verbatim', () => {
+    expect(
+      renderTemplateField(
+        PASSWORD_RESET_EMAIL,
+        'subject',
+        '{{Reset_Url}}',
+        values
+      )
+    ).toBeNull()
+    expect(
+      renderTemplateField(
+        PASSWORD_RESET_EMAIL,
+        'subject',
+        ' \n {{nope}} ',
+        values
+      )
+    ).toBeNull()
+    expect(
+      renderTemplateField(
+        PASSWORD_RESET_EMAIL,
+        'subject',
+        'Reset {{user_name}}',
+        { ...values, user_name: 'Ada' }
+      )
+    ).toBe('Reset Ada')
+  })
+})
+
 describe('text part', () => {
   const values = passwordResetValues({ url: 'https://x/reset' })
 
   it('uses the shipped default text when the html was not overridden', () => {
-    expect(
-      renderEmailTemplate(PASSWORD_RESET_EMAIL, {}, values).text
-    ).toContain('Reset your password: https://x/reset')
+    const out = renderEmailTemplate(PASSWORD_RESET_EMAIL, {}, values)
+    expect(out.text).toContain('Reset your password: https://x/reset')
+    expect(out.textSource).toBe('shipped')
   })
 
   // Without this the multipart message would pair a CUSTOMIZED html part with the SHIPPED text
@@ -249,6 +381,19 @@ describe('text part', () => {
       values
     )
     expect(out.text).toBe('Hello there\n\nReset (https://x/reset)')
+    expect(out.textSource).toBe('derived')
+  })
+
+  // `textSource` is what the editor's help text reads (#920 review F2), so the arm it reports
+  // has to be right for the third case too — not just for "overridden" vs "not".
+  it('reports the shipped arm when an overridden body derives nothing', () => {
+    const out = renderEmailTemplate(
+      PASSWORD_RESET_EMAIL,
+      { html: '<img src="{{reset_url}}" alt="">' },
+      values
+    )
+    expect(out.html).toBe('<img src="https://x/reset" alt="">')
+    expect(out.textSource).toBe('shipped')
   })
 
   it('an explicit text override wins over both', () => {
@@ -257,6 +402,7 @@ describe('text part', () => {
       { html: '<p>ignored</p>', text: 'Go to {{reset_url}}' },
       values
     )
+    expect(out.textSource).toBe('stored')
     expect(out.text).toBe('Go to https://x/reset')
   })
 })
@@ -361,21 +507,77 @@ describe('security', () => {
   })
 })
 
-describe('preview parity', () => {
-  // The whole point of rendering the editor preview through THIS function: a preview that can
-  // disagree with the sent mail is the defect epic #497 exists to remove. Same def, same
-  // override, same values ⇒ same bytes, in the admin and on the server.
-  it('sampleValues render deterministically for every type', () => {
-    for (const def of EMAIL_TYPES.list()) {
-      const a = renderEmailTemplate(def, {}, def.sampleValues)
-      const b = renderEmailTemplate(def, {}, def.sampleValues)
-      expect(a).toEqual(b)
-      expect(a.subject.length).toBeGreaterThan(0)
-      expect(a.html.length).toBeGreaterThan(0)
-      expect(a.text.length).toBeGreaterThan(0)
+/**
+ * What the editor's preview shows, frozen to the byte (#922).
+ *
+ * This block used to be called "preview parity" and compared `renderEmailTemplate(def, {},
+ * def.sampleValues)` to ITSELF — the same pure function over the same module-level constants, an
+ * assertion no mutation of the product could ever fail (the #638 vacuous-assertion class). It
+ * also could not have checked parity even in principle: parity is "the admin's preview IS the
+ * server's render", and that is a claim about the EDITOR, enforced in
+ * apps/admin/test/email-templates.test.tsx ("renders the preview with core's renderEmailTemplate
+ * over the type's sampleValues").
+ *
+ * What this file can pin, and now does, is the other half: the exact bytes the preview shows for
+ * every shipped type. Frozen literals, so a change anywhere in the pipeline — a default
+ * template, the escaping policy, the strip-unknown rule, the sample values, the new #920 floor —
+ * has to be re-typed here deliberately instead of sliding through.
+ */
+describe('the shipped defaults’ rendered preview', () => {
+  const RESET_URL =
+    'https://api.example.com/api/auth/reset-password/EXAMPLE-TOKEN?callbackURL=%2Freset-password'
+
+  const EXPECTED: Record<string, RenderedEmail> = {
+    'password-reset': {
+      subject: 'Reset your Setu password',
+      html: `<p>We received a request to reset the password for your Setu account.</p>
+<p><a href="${RESET_URL}">Reset your password</a></p>
+<p>This link will expire soon. If you didn't request this, you can safely ignore this email.</p>`,
+      text: `We received a request to reset the password for your Setu account.
+
+Reset your password: ${RESET_URL}
+
+This link will expire soon. If you didn't request this, you can safely ignore this email.`,
+      // No override at all, so the hand-written defaultText is what a text-only client gets.
+      textSource: 'shipped',
+      htmlSource: 'shipped'
+    },
+    'form-notification': {
+      subject: 'New submission: Contact',
+      html: `<h2 style="font-family:system-ui,sans-serif;font-size:20px;margin:0 0 16px">New submission: Contact</h2>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="font-family:system-ui,sans-serif;font-size:14px;border-collapse:collapse">
+<tr><td style="padding:4px 16px 4px 0;color:#71717a;vertical-align:top;white-space:nowrap">name</td><td style="padding:4px 0;white-space:pre-wrap">Ada Lovelace</td></tr>
+<tr><td style="padding:4px 16px 4px 0;color:#71717a;vertical-align:top;white-space:nowrap">email</td><td style="padding:4px 0;white-space:pre-wrap">ada@example.com</td></tr>
+<tr><td style="padding:4px 16px 4px 0;color:#71717a;vertical-align:top;white-space:nowrap">message</td><td style="padding:4px 0;white-space:pre-wrap">Hello — I’d like to know more about your work.</td></tr>
+</table>
+<p style="font-family:system-ui,sans-serif;font-size:12px;color:#71717a;margin:16px 0 0">Submitted 2026-01-15 09:41 UTC · form contact</p>`,
+      text: `New submission on "Contact"
+
+name: Ada Lovelace
+email: ada@example.com
+message: Hello — I’d like to know more about your work.
+
+Submitted 2026-01-15 09:41 UTC · form contact`,
+      textSource: 'shipped',
+      htmlSource: 'shipped'
     }
+  }
+
+  // Without this, adding a type would silently escape the pin above — the loop below only checks
+  // the types that happen to have an entry.
+  it('every registered type has a frozen expectation', () => {
+    expect(EMAIL_TYPES.list().map((t) => t.id)).toEqual(Object.keys(EXPECTED))
   })
 
+  it('renders each type’s sampleValues to exactly the frozen bytes', () => {
+    for (const def of EMAIL_TYPES.list())
+      expect(renderEmailTemplate(def, {}, def.sampleValues)).toEqual(
+        EXPECTED[def.id]
+      )
+  })
+
+  // The preview is what an admin judges their template by, so a token that did not resolve must
+  // never reach it looking like literal text.
   it('a sample preview contains no unresolved token braces', () => {
     for (const def of EMAIL_TYPES.list()) {
       const out = renderEmailTemplate(def, {}, def.sampleValues)

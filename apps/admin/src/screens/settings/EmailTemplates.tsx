@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   EMAIL_TYPES,
-  isUsableTemplateField,
   renderEmailTemplate,
+  renderTemplateField,
   unknownTokensIn,
   EMAIL_TEMPLATE_MAX_BODY,
   EMAIL_TEMPLATE_MAX_SUBJECT,
+  type EmailTemplateField,
   type EmailTemplateOverride,
   type EmailTemplateOverrides,
   type EmailTypeDefinition
@@ -35,33 +36,75 @@ import { Badge } from '@/components/ui/badge'
  * inheriting future improvements to the shipped default instead of freezing today's copy.
  */
 
-type FieldName = 'subject' | 'html'
+/** The template fields this editor exposes — core's `EmailTemplateField` minus `text`, which has
+ *  no control here (it is shown read-only under the preview and only honored when hand-written
+ *  into settings.json). Derived from core's union rather than re-typed, so a field added there
+ *  surfaces as a typecheck decision here instead of silently going unedited. */
+type FieldName = Exclude<EmailTemplateField, 'text'>
 
 export interface TemplateFieldErrors {
   subject?: string
   html?: string
 }
 
-/** Per-type, per-field validation — the same caps the settings schema and the renderer
- *  enforce, surfaced here so the admin finds out before saving rather than by silently getting
- *  the default back. */
+/**
+ * Per-type, per-field validation — the same rules the settings schema and the renderer enforce,
+ * surfaced here so the admin finds out before saving rather than by silently getting the default
+ * back. Two of them:
+ *
+ * 1. the size caps, and
+ * 2. **renders-to-nothing** (#920). A template can be non-empty, well within cap and still
+ *    produce no bytes at all: unknown tokens are stripped and the token grammar is
+ *    case-sensitive, so `{{Reset_Url}}` is a perfectly valid string that renders to ''. Stored,
+ *    that used to mean every password-reset email went out with a blank subject line.
+ *
+ * The emptiness question is answered by core's `renderTemplateField` — literally the function the
+ * renderer calls per field — so the RULE cannot drift from the server's. The ANSWER still can,
+ * and deliberately: this screen renders the type's `sampleValues`, while the server renders the
+ * values of a real send. A subject of exactly `{{user_name}}` therefore saves cleanly here (the
+ * sample name is "Ada Lovelace") and falls back at send time for a user with no display name —
+ * which is precisely why the render-time floor in `renderEmailTemplate`, not this check, is the
+ * layer that must hold. It is also the layer that catches an override arriving by `git push`,
+ * settings.json being Git-canonical. This is the authoring-time HALF of the fix.
+ * Pinned by apps/admin/test/email-templates.test.tsx ("blocks saving a subject that renders to
+ * nothing and says why").
+ *
+ * A type id with no registered definition is skipped: a plugin's type may simply not be loaded,
+ * and there is no vocabulary to render it against.
+ */
 export function validateEmailTemplates(
   overrides: EmailTemplateOverrides
 ): Record<string, TemplateFieldErrors> {
   const out: Record<string, TemplateFieldErrors> = {}
   for (const [id, o] of Object.entries(overrides)) {
     const errs: TemplateFieldErrors = {}
+    const def = EMAIL_TYPES.get(id)
+    const rendersToNothing = (field: FieldName, tpl: string): boolean =>
+      def !== undefined &&
+      renderTemplateField(def, field, tpl, def.sampleValues) === null
     if (
       typeof o.subject === 'string' &&
       o.subject.length > EMAIL_TEMPLATE_MAX_SUBJECT
     )
       errs.subject = `Too long — subjects are limited to ${EMAIL_TEMPLATE_MAX_SUBJECT} characters.`
+    else if (
+      typeof o.subject === 'string' &&
+      rendersToNothing('subject', o.subject)
+    )
+      errs.subject = EMPTY_RENDER_ERROR('subject')
     if (typeof o.html === 'string' && o.html.length > EMAIL_TEMPLATE_MAX_BODY)
       errs.html = `Too long — bodies are limited to ${EMAIL_TEMPLATE_MAX_BODY.toLocaleString()} characters.`
+    else if (typeof o.html === 'string' && rendersToNothing('html', o.html))
+      errs.html = EMPTY_RENDER_ERROR('body')
     if (errs.subject !== undefined || errs.html !== undefined) out[id] = errs
   }
   return out
 }
+
+/** Says what is wrong, why it is wrong, and what Setu would do instead — the token grammar is
+ *  case-sensitive, which is the overwhelmingly likely cause. */
+const EMPTY_RENDER_ERROR = (part: 'subject' | 'body'): string =>
+  `This renders to nothing, so Setu would send the shipped ${part} instead. Token names are case-sensitive — check them against the list below.`
 
 /** Stable serialization for the dirty-compare: key order in a JSON object is not meaningful,
  *  so sort before stringifying or a reordered save would look like a change. */
@@ -146,16 +189,13 @@ function TemplateCard({
   const html = override?.html ?? def.defaultHtml
   const customized = isCustomized(override)
   const preview = renderEmailTemplate(def, override, def.sampleValues)
-  // Which of renderEmailTemplate's three text-part arms will actually apply, decided with the
-  // SAME predicate it uses (isUsableTemplateField from @setu/core) rather than a UI-side guess
-  // — a whitespace-only body is "changed" to this component but unusable to the renderer, and
-  // the help text below must describe what really gets sent.
-  const textPartSource: 'stored' | 'derived' | 'shipped' =
-    isUsableTemplateField(override?.text, EMAIL_TEMPLATE_MAX_BODY)
-      ? 'stored'
-      : isUsableTemplateField(override?.html, EMAIL_TEMPLATE_MAX_BODY)
-        ? 'derived'
-        : 'shipped'
+  // Which of renderEmailTemplate's three text-part arms actually applied — READ from the render
+  // this card is already showing, never re-decided here. Re-deciding from the predicates got it
+  // wrong for the third arm (a usable, non-blank body whose derivation is empty), so the help
+  // text claimed "generated from this HTML" while the preview panel below showed the shipped
+  // text (#920 review F2, apps/admin/test/email-templates.test.tsx — "says the plain-text part is
+  // the shipped one for a body that derives to nothing").
+  const textPartSource = preview.textSource
   const unknown = [
     ...new Set([
       ...unknownTokensIn(subject, def.tokens),
@@ -248,7 +288,11 @@ function TemplateCard({
                   ? `The plain-text version sent alongside it comes from email.templates.${def.id}.text in settings.json — you can see it under the preview.`
                   : textPartSource === 'derived'
                     ? 'The plain-text version sent alongside it is generated from this HTML — you can see it under the preview.'
-                    : 'The plain-text version sent alongside it is the one Setu ships — it only follows this HTML once you change the HTML. You can see it under the preview.'}
+                    : preview.htmlSource === 'stored'
+                      ? // The third arm: the body IS overridden, but there are no words in it to
+                        // extract, so saying "once you change the HTML" would be false — they did.
+                        'This body has no text to extract, so the plain-text version sent alongside it is the one Setu ships. Add some words outside the markup and it will follow this HTML instead.'
+                      : 'The plain-text version sent alongside it is the one Setu ships — it only follows this HTML once you change the HTML. You can see it under the preview.'}
               </p>
             )}
           </div>

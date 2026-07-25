@@ -356,7 +356,76 @@ describe('EmailSettings — live preview', () => {
     )
   })
 
-  it('shows the derived plain-text part, byte-identical to core’s', async () => {
+  // #920 review F2. There is a THIRD arm: a body that is usable AND renders non-blank can still
+  // DERIVE an empty text part (markup with no words in it), and the renderer then sends the
+  // shipped text. The help text used to be computed from `isUsableTemplateField` alone, so it
+  // claimed "generated from this HTML" while the preview panel two inches away showed the shipped
+  // text — the two halves of one card disagreeing about the same email. Kill-shot: compute
+  // textPartSource from the predicates instead of from what renderEmailTemplate returned.
+  const IMAGE_ONLY_BODY = '<img src="{{reset_url}}" alt="">'
+
+  it('says the plain-text part is the shipped one for a body that derives to nothing', async () => {
+    stubApi()
+    renderEmail()
+    const body = await waitFor(() => bodyFor('Password reset'))
+    fireEvent.change(body, { target: { value: IMAGE_ONLY_BODY } })
+
+    const expected = renderEmailTemplate(
+      PASSWORD_RESET_EMAIL,
+      { html: IMAGE_ONLY_BODY },
+      PASSWORD_RESET_EMAIL.sampleValues
+    )
+    // Guard the guard: this case only bites while the body renders non-blank (so the authoring
+    // block lets it through) and its derivation is empty (so the shipped text wins).
+    expect(expected.html).not.toBe('')
+    expect(expected.textSource).toBe('shipped')
+
+    await waitFor(() =>
+      expect(
+        within(card('Password reset')).getByText(/Setu ships/i)
+      ).toBeTruthy()
+    )
+    const region = card('Password reset')
+    // The claim that was false: the body IS overridden, but nothing is generated from it.
+    expect(within(region).queryByText(/generated from this HTML/i)).toBeNull()
+    // …and the panel below agrees, byte for byte.
+    expect(
+      within(region).getByText(expected.text, { collapseWhitespace: false })
+    ).toBeTruthy()
+    // A legitimate save: an image-only body renders something, so it is not blocked.
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeEnabled()
+  })
+
+  // …and it says WHY, correctly. The generic shipped-arm wording ("it only follows this HTML once
+  // you change the HTML") is false here, because the admin just did change it. Kill-shot: drop the
+  // htmlSource branch and this fails on the "no text to extract" phrasing.
+  it('explains that a wordless body has no text to extract', async () => {
+    stubApi()
+    renderEmail()
+    const body = await waitFor(() => bodyFor('Password reset'))
+    fireEvent.change(body, { target: { value: IMAGE_ONLY_BODY } })
+    const region = () => card('Password reset')
+    await waitFor(() =>
+      expect(within(region()).getByText(/no text to extract/i)).toBeTruthy()
+    )
+    expect(within(region()).queryByText(/once you change the HTML/i)).toBeNull()
+
+    // The generic wording is still right when the body is genuinely untouched.
+    fireEvent.change(body, {
+      target: { value: PASSWORD_RESET_EMAIL.defaultHtml }
+    })
+    await waitFor(() =>
+      expect(
+        within(region()).getByText(/once you change the HTML/i)
+      ).toBeTruthy()
+    )
+  })
+
+  // #922: this was named "shows the derived plain-text part" while rendering with an EMPTY
+  // override — i.e. it exercised the SHIPPED-text arm, and the derived one (the whole reason
+  // htmlToPlainText exists) went unasserted. Renamed to what it proves; the derived arm gets its
+  // own test below.
+  it('shows the shipped plain-text part, byte-identical to core’s', async () => {
     stubApi()
     renderEmail()
     await waitFor(() => bodyFor('Password reset'))
@@ -370,6 +439,43 @@ describe('EmailSettings — live preview', () => {
         collapseWhitespace: false
       })
     ).toBeTruthy()
+  })
+
+  // The plain-text HALF of preview parity: once the HTML is overridden the text part is derived
+  // from it, and what the admin reads under the preview must be those exact bytes — a text-only
+  // recipient sees this, and nothing else shows it to the admin. Kill-shot: derive the panel's
+  // text in the UI instead of reading core's `preview.text` and this fails.
+  const OVERRIDE_HTML =
+    '<p>Hi {{user_name}}</p><p><a href="{{reset_url}}">Reset it</a></p>'
+
+  it('shows the DERIVED plain-text part once the HTML is overridden, byte-identical to core’s', async () => {
+    stubApi()
+    renderEmail()
+    const body = await waitFor(() => bodyFor('Password reset'))
+    fireEvent.change(body, { target: { value: OVERRIDE_HTML } })
+    const expected = renderEmailTemplate(
+      PASSWORD_RESET_EMAIL,
+      { html: OVERRIDE_HTML },
+      PASSWORD_RESET_EMAIL.sampleValues
+    )
+    // Guard the guard: if this ever equalled the shipped text the assertion below would pass
+    // without the derived arm ever running — exactly the hole #922 found.
+    const shipped = renderEmailTemplate(
+      PASSWORD_RESET_EMAIL,
+      {},
+      PASSWORD_RESET_EMAIL.sampleValues
+    ).text
+    expect(expected.text).not.toBe(shipped)
+    expect(expected.text).toBe(
+      'Hi Ada Lovelace\n\nReset it (https://api.example.com/api/auth/reset-password/EXAMPLE-TOKEN?callbackURL=%2Freset-password)'
+    )
+    await waitFor(() =>
+      expect(
+        within(card('Password reset')).getByText(expected.text, {
+          collapseWhitespace: false
+        })
+      ).toBeTruthy()
+    )
   })
 
   // Admin-authored HTML must not execute in the admin origin: the frame is sandboxed with no
@@ -396,6 +502,50 @@ describe('EmailSettings — validation, reset and save', () => {
       await within(card('Password reset')).findByText(/too long/i)
     ).toBeTruthy()
     expect(screen.getByRole('button', { name: /save changes/i })).toBeDisabled()
+  })
+
+  // #920. The authoring-time half of the render-time floor: a template can be non-empty, in-cap
+  // and still produce NOTHING, because unknown tokens strip to empty and the grammar is
+  // case-sensitive. The admin must find out here rather than by a user receiving a blank-subject
+  // email. Kill-shot: drop the renderTemplateField check in validateEmailTemplates and the Save
+  // button stays enabled.
+  it('blocks saving a subject that renders to nothing and says why', async () => {
+    stubApi()
+    renderEmail(seedWith({}))
+    const subject = await waitFor(() => subjectFor('Password reset'))
+    fireEvent.change(subject, { target: { value: '{{Reset_Url}}' } })
+    expect(
+      await within(card('Password reset')).findByText(/renders to nothing/i)
+    ).toBeTruthy()
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeDisabled()
+  })
+
+  it('blocks saving a body that renders to nothing and says why', async () => {
+    stubApi()
+    renderEmail(seedWith({}))
+    const body = await waitFor(() => bodyFor('Password reset'))
+    fireEvent.change(body, { target: { value: '{{nope}}' } })
+    expect(
+      await within(card('Password reset')).findByText(/renders to nothing/i)
+    ).toBeTruthy()
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeDisabled()
+  })
+
+  // The control: a template that still renders SOMETHING is not blocked, even when part of it
+  // is an unknown token (that stays a warning, not an error).
+  it('allows saving a subject that still renders something', async () => {
+    stubApi()
+    renderEmail(seedWith({}))
+    const subject = await waitFor(() => subjectFor('Password reset'))
+    fireEvent.change(subject, { target: { value: 'Reset · {{nope}}' } })
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: /save changes/i })
+      ).toBeEnabled()
+    )
+    expect(
+      within(card('Password reset')).queryByText(/renders to nothing/i)
+    ).toBeNull()
   })
 
   it('reset-to-default clears the stored override', async () => {

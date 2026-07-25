@@ -99,7 +99,8 @@ describe('createLiveEmailTemplates — live resolution', () => {
     // Every shape here STRIPS to nothing: the grammar is `\w+`, so a case typo and an unknown
     // name are both well-formed tokens with no value. (`{{reset-url}}` is deliberately NOT in
     // this list — a hyphen is not `\w`, so it never matches the token grammar and survives as
-    // literal braces in the subject. Visible rather than blank, and a separate defect.)
+    // literal braces in the subject. Visible rather than blank, so the floor does not catch it
+    // and should not: tracked separately as #924.)
     for (const subject of ['{{Reset_Url}}', '{{ RESET_URL }}', '{{nope}}'])
       expect(
         createLiveEmailTemplates({

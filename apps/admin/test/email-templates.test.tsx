@@ -356,6 +356,71 @@ describe('EmailSettings — live preview', () => {
     )
   })
 
+  // #920 review F2. There is a THIRD arm: a body that is usable AND renders non-blank can still
+  // DERIVE an empty text part (markup with no words in it), and the renderer then sends the
+  // shipped text. The help text used to be computed from `isUsableTemplateField` alone, so it
+  // claimed "generated from this HTML" while the preview panel two inches away showed the shipped
+  // text — the two halves of one card disagreeing about the same email. Kill-shot: compute
+  // textPartSource from the predicates instead of from what renderEmailTemplate returned.
+  const IMAGE_ONLY_BODY = '<img src="{{reset_url}}" alt="">'
+
+  it('says the plain-text part is the shipped one for a body that derives to nothing', async () => {
+    stubApi()
+    renderEmail()
+    const body = await waitFor(() => bodyFor('Password reset'))
+    fireEvent.change(body, { target: { value: IMAGE_ONLY_BODY } })
+
+    const expected = renderEmailTemplate(
+      PASSWORD_RESET_EMAIL,
+      { html: IMAGE_ONLY_BODY },
+      PASSWORD_RESET_EMAIL.sampleValues
+    )
+    // Guard the guard: this case only bites while the body renders non-blank (so the authoring
+    // block lets it through) and its derivation is empty (so the shipped text wins).
+    expect(expected.html).not.toBe('')
+    expect(expected.textSource).toBe('shipped')
+
+    await waitFor(() =>
+      expect(
+        within(card('Password reset')).getByText(/Setu ships/i)
+      ).toBeTruthy()
+    )
+    const region = card('Password reset')
+    // The claim that was false: the body IS overridden, but nothing is generated from it.
+    expect(within(region).queryByText(/generated from this HTML/i)).toBeNull()
+    // …and the panel below agrees, byte for byte.
+    expect(
+      within(region).getByText(expected.text, { collapseWhitespace: false })
+    ).toBeTruthy()
+    // A legitimate save: an image-only body renders something, so it is not blocked.
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeEnabled()
+  })
+
+  // …and it says WHY, correctly. The generic shipped-arm wording ("it only follows this HTML once
+  // you change the HTML") is false here, because the admin just did change it. Kill-shot: drop the
+  // htmlSource branch and this fails on the "no text to extract" phrasing.
+  it('explains that a wordless body has no text to extract', async () => {
+    stubApi()
+    renderEmail()
+    const body = await waitFor(() => bodyFor('Password reset'))
+    fireEvent.change(body, { target: { value: IMAGE_ONLY_BODY } })
+    const region = () => card('Password reset')
+    await waitFor(() =>
+      expect(within(region()).getByText(/no text to extract/i)).toBeTruthy()
+    )
+    expect(within(region()).queryByText(/once you change the HTML/i)).toBeNull()
+
+    // The generic wording is still right when the body is genuinely untouched.
+    fireEvent.change(body, {
+      target: { value: PASSWORD_RESET_EMAIL.defaultHtml }
+    })
+    await waitFor(() =>
+      expect(
+        within(region()).getByText(/once you change the HTML/i)
+      ).toBeTruthy()
+    )
+  })
+
   // #922: this was named "shows the derived plain-text part" while rendering with an EMPTY
   // override — i.e. it exercised the SHIPPED-text arm, and the derived one (the whole reason
   // htmlToPlainText exists) went unasserted. Renamed to what it proves; the derived arm gets its

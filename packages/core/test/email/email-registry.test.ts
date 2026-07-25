@@ -241,8 +241,8 @@ describe('override resolution', () => {
 describe('the render-time floor', () => {
   const values = passwordResetValues({ url: 'https://x/reset' })
 
-  // KILL-SHOT TARGET. Delete the `?? fillTemplate(def.defaultSubject, …)` fallback in
-  // renderEmailTemplate and this fails with subject === ''.
+  // KILL-SHOT TARGET. Make renderTemplateField `return out` instead of reporting null for a blank
+  // render (the pre-#920 behavior) and this fails with subject === ''.
   it('a subject whose only token is a typo renders the shipped subject, not a blank one', () => {
     const out = renderEmailTemplate(
       PASSWORD_RESET_EMAIL,
@@ -252,6 +252,9 @@ describe('the render-time floor', () => {
     expect(out.subject).toBe('Reset your Setu password')
   })
 
+  // The shapes that strip to nothing are the ones the grammar MATCHES (`\w+`) but cannot resolve.
+  // A near-miss like `{{reset-url}}` is not one of them: a hyphen never matches, so it survives as
+  // literal braces — non-blank, so this floor deliberately lets it through. Tracked as #924.
   it('a subject of nothing but an unknown token falls back', () => {
     expect(
       renderEmailTemplate(PASSWORD_RESET_EMAIL, { subject: '{{nope}}' }, values)
@@ -364,9 +367,9 @@ describe('text part', () => {
   const values = passwordResetValues({ url: 'https://x/reset' })
 
   it('uses the shipped default text when the html was not overridden', () => {
-    expect(
-      renderEmailTemplate(PASSWORD_RESET_EMAIL, {}, values).text
-    ).toContain('Reset your password: https://x/reset')
+    const out = renderEmailTemplate(PASSWORD_RESET_EMAIL, {}, values)
+    expect(out.text).toContain('Reset your password: https://x/reset')
+    expect(out.textSource).toBe('shipped')
   })
 
   // Without this the multipart message would pair a CUSTOMIZED html part with the SHIPPED text
@@ -378,6 +381,19 @@ describe('text part', () => {
       values
     )
     expect(out.text).toBe('Hello there\n\nReset (https://x/reset)')
+    expect(out.textSource).toBe('derived')
+  })
+
+  // `textSource` is what the editor's help text reads (#920 review F2), so the arm it reports
+  // has to be right for the third case too — not just for "overridden" vs "not".
+  it('reports the shipped arm when an overridden body derives nothing', () => {
+    const out = renderEmailTemplate(
+      PASSWORD_RESET_EMAIL,
+      { html: '<img src="{{reset_url}}" alt="">' },
+      values
+    )
+    expect(out.html).toBe('<img src="https://x/reset" alt="">')
+    expect(out.textSource).toBe('shipped')
   })
 
   it('an explicit text override wins over both', () => {
@@ -386,6 +402,7 @@ describe('text part', () => {
       { html: '<p>ignored</p>', text: 'Go to {{reset_url}}' },
       values
     )
+    expect(out.textSource).toBe('stored')
     expect(out.text).toBe('Go to https://x/reset')
   })
 })
@@ -520,7 +537,10 @@ describe('the shipped defaults’ rendered preview', () => {
 
 Reset your password: ${RESET_URL}
 
-This link will expire soon. If you didn't request this, you can safely ignore this email.`
+This link will expire soon. If you didn't request this, you can safely ignore this email.`,
+      // No override at all, so the hand-written defaultText is what a text-only client gets.
+      textSource: 'shipped',
+      htmlSource: 'shipped'
     },
     'form-notification': {
       subject: 'New submission: Contact',
@@ -537,7 +557,9 @@ name: Ada Lovelace
 email: ada@example.com
 message: Hello — I’d like to know more about your work.
 
-Submitted 2026-01-15 09:41 UTC · form contact`
+Submitted 2026-01-15 09:41 UTC · form contact`,
+      textSource: 'shipped',
+      htmlSource: 'shipped'
     }
   }
 

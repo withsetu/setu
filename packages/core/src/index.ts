@@ -125,7 +125,6 @@ export type {
 } from './email/template-registry'
 export {
   createEmailTypeRegistry,
-  isUsableTemplateField,
   renderEmailTemplate,
   renderRegisteredEmail,
   renderTemplateField,

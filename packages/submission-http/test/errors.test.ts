@@ -2,12 +2,13 @@ import { describe, it, expect } from 'vitest'
 import { createHttpSubmissionAdapter, SubmissionApiError } from '../src/index'
 
 /** A fetch that answers every request with one canned status + body. */
-const canned = (status: number, body: unknown): typeof fetch =>
-  (async () =>
+const canned =
+  (status: number, body: unknown): typeof fetch =>
+  async () =>
     new Response(JSON.stringify(body), {
       status,
       headers: { 'content-type': 'application/json' }
-    })) as typeof fetch
+    })
 
 const adapter = (status: number, body: unknown) =>
   createHttpSubmissionAdapter({

@@ -3,6 +3,7 @@ import {
   EMAIL_TYPES,
   isUsableTemplateField,
   renderEmailTemplate,
+  renderTemplateField,
   unknownTokensIn,
   EMAIL_TEMPLATE_MAX_BODY,
   EMAIL_TEMPLATE_MAX_SUBJECT,
@@ -42,26 +43,64 @@ export interface TemplateFieldErrors {
   html?: string
 }
 
-/** Per-type, per-field validation — the same caps the settings schema and the renderer
- *  enforce, surfaced here so the admin finds out before saving rather than by silently getting
- *  the default back. */
+/**
+ * Per-type, per-field validation — the same rules the settings schema and the renderer enforce,
+ * surfaced here so the admin finds out before saving rather than by silently getting the default
+ * back. Two of them:
+ *
+ * 1. the size caps, and
+ * 2. **renders-to-nothing** (#920). A template can be non-empty, well within cap and still
+ *    produce no bytes at all: unknown tokens are stripped and the token grammar is
+ *    case-sensitive, so `{{Reset_Url}}` is a perfectly valid string that renders to ''. Stored,
+ *    that used to mean every password-reset email went out with a blank subject line.
+ *
+ * The emptiness question is answered by core's `renderTemplateField` — literally the function
+ * the renderer calls per field — over the type's own `sampleValues`, so the editor's answer
+ * cannot drift from the server's. This is the authoring-time HALF of the fix: the render-time
+ * floor in `renderEmailTemplate` is the layer that must hold, because settings.json is
+ * Git-canonical and an override can arrive by `git push` without ever passing this screen.
+ * Pinned by apps/admin/test/email-templates.test.tsx ("blocks saving a subject that renders to
+ * nothing and says why").
+ *
+ * A type id with no registered definition is skipped: a plugin's type may simply not be loaded,
+ * and there is no vocabulary to render it against.
+ */
 export function validateEmailTemplates(
   overrides: EmailTemplateOverrides
 ): Record<string, TemplateFieldErrors> {
   const out: Record<string, TemplateFieldErrors> = {}
   for (const [id, o] of Object.entries(overrides)) {
     const errs: TemplateFieldErrors = {}
+    const def = EMAIL_TYPES.get(id)
+    const rendersToNothing = (
+      field: 'subject' | 'html',
+      tpl: string
+    ): boolean =>
+      def !== undefined &&
+      renderTemplateField(def, field, tpl, def.sampleValues) === null
     if (
       typeof o.subject === 'string' &&
       o.subject.length > EMAIL_TEMPLATE_MAX_SUBJECT
     )
       errs.subject = `Too long — subjects are limited to ${EMAIL_TEMPLATE_MAX_SUBJECT} characters.`
+    else if (
+      typeof o.subject === 'string' &&
+      rendersToNothing('subject', o.subject)
+    )
+      errs.subject = EMPTY_RENDER_ERROR('subject')
     if (typeof o.html === 'string' && o.html.length > EMAIL_TEMPLATE_MAX_BODY)
       errs.html = `Too long — bodies are limited to ${EMAIL_TEMPLATE_MAX_BODY.toLocaleString()} characters.`
+    else if (typeof o.html === 'string' && rendersToNothing('html', o.html))
+      errs.html = EMPTY_RENDER_ERROR('body')
     if (errs.subject !== undefined || errs.html !== undefined) out[id] = errs
   }
   return out
 }
+
+/** Says what is wrong, why it is wrong, and what Setu would do instead — the token grammar is
+ *  case-sensitive, which is the overwhelmingly likely cause. */
+const EMPTY_RENDER_ERROR = (part: 'subject' | 'body'): string =>
+  `This renders to nothing, so Setu would send the shipped ${part} instead. Token names are case-sensitive — check them against the list below.`
 
 /** Stable serialization for the dirty-compare: key order in a JSON object is not meaningful,
  *  so sort before stringifying or a reordered save would look like a change. */

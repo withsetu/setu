@@ -356,7 +356,11 @@ describe('EmailSettings — live preview', () => {
     )
   })
 
-  it('shows the derived plain-text part, byte-identical to core’s', async () => {
+  // #922: this was named "shows the derived plain-text part" while rendering with an EMPTY
+  // override — i.e. it exercised the SHIPPED-text arm, and the derived one (the whole reason
+  // htmlToPlainText exists) went unasserted. Renamed to what it proves; the derived arm gets its
+  // own test below.
+  it('shows the shipped plain-text part, byte-identical to core’s', async () => {
     stubApi()
     renderEmail()
     await waitFor(() => bodyFor('Password reset'))
@@ -370,6 +374,43 @@ describe('EmailSettings — live preview', () => {
         collapseWhitespace: false
       })
     ).toBeTruthy()
+  })
+
+  // The plain-text HALF of preview parity: once the HTML is overridden the text part is derived
+  // from it, and what the admin reads under the preview must be those exact bytes — a text-only
+  // recipient sees this, and nothing else shows it to the admin. Kill-shot: derive the panel's
+  // text in the UI instead of reading core's `preview.text` and this fails.
+  const OVERRIDE_HTML =
+    '<p>Hi {{user_name}}</p><p><a href="{{reset_url}}">Reset it</a></p>'
+
+  it('shows the DERIVED plain-text part once the HTML is overridden, byte-identical to core’s', async () => {
+    stubApi()
+    renderEmail()
+    const body = await waitFor(() => bodyFor('Password reset'))
+    fireEvent.change(body, { target: { value: OVERRIDE_HTML } })
+    const expected = renderEmailTemplate(
+      PASSWORD_RESET_EMAIL,
+      { html: OVERRIDE_HTML },
+      PASSWORD_RESET_EMAIL.sampleValues
+    )
+    // Guard the guard: if this ever equalled the shipped text the assertion below would pass
+    // without the derived arm ever running — exactly the hole #922 found.
+    const shipped = renderEmailTemplate(
+      PASSWORD_RESET_EMAIL,
+      {},
+      PASSWORD_RESET_EMAIL.sampleValues
+    ).text
+    expect(expected.text).not.toBe(shipped)
+    expect(expected.text).toBe(
+      'Hi Ada Lovelace\n\nReset it (https://api.example.com/api/auth/reset-password/EXAMPLE-TOKEN?callbackURL=%2Freset-password)'
+    )
+    await waitFor(() =>
+      expect(
+        within(card('Password reset')).getByText(expected.text, {
+          collapseWhitespace: false
+        })
+      ).toBeTruthy()
+    )
   })
 
   // Admin-authored HTML must not execute in the admin origin: the frame is sandboxed with no
@@ -396,6 +437,50 @@ describe('EmailSettings — validation, reset and save', () => {
       await within(card('Password reset')).findByText(/too long/i)
     ).toBeTruthy()
     expect(screen.getByRole('button', { name: /save changes/i })).toBeDisabled()
+  })
+
+  // #920. The authoring-time half of the render-time floor: a template can be non-empty, in-cap
+  // and still produce NOTHING, because unknown tokens strip to empty and the grammar is
+  // case-sensitive. The admin must find out here rather than by a user receiving a blank-subject
+  // email. Kill-shot: drop the renderTemplateField check in validateEmailTemplates and the Save
+  // button stays enabled.
+  it('blocks saving a subject that renders to nothing and says why', async () => {
+    stubApi()
+    renderEmail(seedWith({}))
+    const subject = await waitFor(() => subjectFor('Password reset'))
+    fireEvent.change(subject, { target: { value: '{{Reset_Url}}' } })
+    expect(
+      await within(card('Password reset')).findByText(/renders to nothing/i)
+    ).toBeTruthy()
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeDisabled()
+  })
+
+  it('blocks saving a body that renders to nothing and says why', async () => {
+    stubApi()
+    renderEmail(seedWith({}))
+    const body = await waitFor(() => bodyFor('Password reset'))
+    fireEvent.change(body, { target: { value: '{{nope}}' } })
+    expect(
+      await within(card('Password reset')).findByText(/renders to nothing/i)
+    ).toBeTruthy()
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeDisabled()
+  })
+
+  // The control: a template that still renders SOMETHING is not blocked, even when part of it
+  // is an unknown token (that stays a warning, not an error).
+  it('allows saving a subject that still renders something', async () => {
+    stubApi()
+    renderEmail(seedWith({}))
+    const subject = await waitFor(() => subjectFor('Password reset'))
+    fireEvent.change(subject, { target: { value: 'Reset · {{nope}}' } })
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: /save changes/i })
+      ).toBeEnabled()
+    )
+    expect(
+      within(card('Password reset')).queryByText(/renders to nothing/i)
+    ).toBeNull()
   })
 
   it('reset-to-default clears the stored override', async () => {

@@ -118,6 +118,7 @@ export {
 export type {
   EmailTypeDefinition,
   EmailTypeRegistry,
+  EmailTemplateField,
   EmailTemplateOverride,
   EmailTemplateOverrides,
   RenderedEmail
@@ -127,6 +128,7 @@ export {
   isUsableTemplateField,
   renderEmailTemplate,
   renderRegisteredEmail,
+  renderTemplateField,
   EMAIL_TEMPLATE_MAX_BODY,
   EMAIL_TEMPLATE_MAX_SUBJECT,
   EMAIL_TYPE_PASSWORD_RESET,

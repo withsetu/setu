@@ -11,12 +11,22 @@
  *
  * Two rules worth reading before you use it:
  *
- * 1. **Escaping is on by default in an HTML context.** Every substituted value is
- *    HTML-escaped unless the token's own {@link TokenSpec} declares `rawHtml`. `rawHtml` lives
- *    in the VOCABULARY — i.e. in code — never in the template text, so a template author (an
- *    admin editing Settings → Email) has no syntax with which to opt a value out of escaping.
- *    Enforced by packages/core/test/templating/fill-template.test.ts ("escapes a rawHtml-named
- *    token when the vocabulary does not declare it") and, end to end, by
+ * 1. **The context is a REQUIRED argument, and an HTML context escapes everything.** In an HTML
+ *    context every substituted value is HTML-escaped unless the token's own {@link TokenSpec}
+ *    declares `rawHtml`. `rawHtml` lives in the VOCABULARY — i.e. in code — never in the template
+ *    text, so a template author (an admin editing Settings → Email) has no syntax with which to
+ *    opt a value out of escaping.
+ *
+ *    There is deliberately NO default context (#936). It used to default to `'text'`, the
+ *    non-escaping mode, so an HTML caller that omitted it substituted verbatim with no type
+ *    error and no runtime symptom until some value carried markup — the one place in this
+ *    subsystem where the safe path was opt-in. Flipping the default to `'html'` instead would
+ *    have entity-escaped SEO titles, so the signature carries the decision: omitting `context`
+ *    (or `opts` entirely) is a compile error, pinned by
+ *    packages/core/test/templating/fill-template.test.ts ("is a compile error to omit the
+ *    context", whose `@ts-expect-error` directives fail the typecheck the moment the member goes
+ *    back to optional). The escaping behavior itself is enforced by the same file ("escapes a
+ *    rawHtml-named token when the vocabulary does not declare it") and, end to end, by
  *    packages/core/test/email/email-registry.test.ts.
  *
  * 2. **Unknown tokens are STRIPPED, not left literal.** `{{nope}}` renders as the empty string.
@@ -76,8 +86,10 @@ export function escapeHtml(s: string): string {
 export interface FillOptions {
   /** `'html'` escapes every substituted value except the vocabulary's `rawHtml` tokens;
    *  `'text'` substitutes verbatim, there being no markup context to break out of.
-   *  Default `'text'`. */
-  context?: 'html' | 'text'
+   *
+   *  REQUIRED, with no default — see rule 1 in the module header (#936). Every caller knows
+   *  which part of a message it is building; the type system now makes it say so. */
+  context: 'html' | 'text'
   /** The context's token vocabulary. Only `rawHtml` is read here — an unlisted token still
    *  substitutes (escaped), so a caller with no vocabulary gets escape-everything, the safe
    *  default. */
@@ -105,9 +117,9 @@ const partOf = (v: TokenValue, context: 'html' | 'text'): string => {
 export function fillTemplate(
   tpl: string,
   values: TokenValues,
-  opts: FillOptions = {}
+  opts: FillOptions
 ): string {
-  const context = opts.context ?? 'text'
+  const context = opts.context
   const raw = new Set(
     (opts.vocabulary ?? []).filter((t) => t.rawHtml === true).map((t) => t.name)
   )

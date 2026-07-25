@@ -7,6 +7,10 @@ import {
   unknownTokensIn,
   type TokenSpec
 } from '../../src/templating/fill-template'
+import { resolveSeo } from '../../src/seo/resolve-seo'
+import { DEFAULT_SETTINGS } from '../../src/settings/defaults'
+import { renderEmailTemplate } from '../../src/email/template-registry'
+import { PASSWORD_RESET_EMAIL } from '../../src/email/templates/password-reset'
 
 // #499 (epic #497): the ONE {{token}} engine. Promoted out of seo/resolve-seo.ts so email
 // templates, SEO titles and every future templated string share one syntax, one escaping
@@ -25,46 +29,52 @@ describe('escapeHtml', () => {
 })
 
 describe('fillTemplate — substitution', () => {
+  // `context` is required (#936); these cases are about the grammar, not the escaping policy,
+  // so they all state the text context explicitly.
+  const text = { context: 'text' } as const
+
   it('substitutes a known token', () => {
-    expect(fillTemplate('Hi {{name}}!', { name: 'Ada' })).toBe('Hi Ada!')
+    expect(fillTemplate('Hi {{name}}!', { name: 'Ada' }, text)).toBe('Hi Ada!')
   })
 
   it('tolerates inner whitespace in the token', () => {
-    expect(fillTemplate('Hi {{  name  }}!', { name: 'Ada' })).toBe('Hi Ada!')
+    expect(fillTemplate('Hi {{  name  }}!', { name: 'Ada' }, text)).toBe(
+      'Hi Ada!'
+    )
   })
 
   it('substitutes the same token everywhere it appears', () => {
-    expect(fillTemplate('{{name}}/{{name}}', { name: 'x' })).toBe('x/x')
+    expect(fillTemplate('{{name}}/{{name}}', { name: 'x' }, text)).toBe('x/x')
   })
 
   // The documented unknown-token rule: STRIP. Same behavior the promoted SEO helper always
   // had, so one rule covers every context — and a recipient never sees `{{oops}}` in their
   // inbox. The editor warns about unknown tokens at authoring time instead (unknownTokensIn).
   it('strips an unknown token rather than leaving it literal', () => {
-    expect(fillTemplate('Hi {{nope}}!', { name: 'Ada' })).toBe('Hi !')
+    expect(fillTemplate('Hi {{nope}}!', { name: 'Ada' }, text)).toBe('Hi !')
   })
 
   it('strips a known token whose value is absent or undefined', () => {
-    expect(fillTemplate('[{{name}}]', {})).toBe('[]')
-    expect(fillTemplate('[{{name}}]', { name: undefined })).toBe('[]')
+    expect(fillTemplate('[{{name}}]', {}, text)).toBe('[]')
+    expect(fillTemplate('[{{name}}]', { name: undefined }, text)).toBe('[]')
   })
 
   // Only `{{word}}` is a token. Anything else — including an attempt to smuggle a VALUE into
   // the template — is not matched, which is the structural reason a template can never supply
   // its own reset URL (see email-registry.test.ts's reset-URL integrity test).
   it('leaves non-token braces alone', () => {
-    expect(fillTemplate('{{reset_url=http://evil}}', {})).toBe(
+    expect(fillTemplate('{{reset_url=http://evil}}', {}, text)).toBe(
       '{{reset_url=http://evil}}'
     )
-    expect(fillTemplate('{{a-b}} {single} {{ }}', {})).toBe(
+    expect(fillTemplate('{{a-b}} {single} {{ }}', {}, text)).toBe(
       '{{a-b}} {single} {{ }}'
     )
   })
 
   it('does not re-scan a substituted value for tokens', () => {
-    expect(fillTemplate('{{name}}', { name: '{{link}}', link: 'X' })).toBe(
-      '{{link}}'
-    )
+    expect(
+      fillTemplate('{{name}}', { name: '{{link}}', link: 'X' }, text)
+    ).toBe('{{link}}')
   })
 })
 
@@ -141,6 +151,7 @@ describe('fillTemplate — singleLine', () => {
         '  {{a}}   {{b}}  ',
         { a: 'x', b: 'y' },
         {
+          context: 'text',
           singleLine: true
         }
       )
@@ -155,6 +166,7 @@ describe('fillTemplate — singleLine', () => {
         'Re: {{a}}\r\nBcc: evil@x',
         { a: 'b\nc' },
         {
+          context: 'text',
           singleLine: true
         }
       )
@@ -162,7 +174,62 @@ describe('fillTemplate — singleLine', () => {
   })
 
   it('is off by default so a text body keeps its line breaks', () => {
-    expect(fillTemplate('a\n\nb {{t}}', { t: 'c' })).toBe('a\n\nb c')
+    expect(fillTemplate('a\n\nb {{t}}', { t: 'c' }, { context: 'text' })).toBe(
+      'a\n\nb c'
+    )
+  })
+})
+
+// #936. `context` used to be optional and defaulted to `'text'` — the NON-escaping mode — so a
+// future HTML caller that forgot it got verbatim substitution with no type error, no lint signal
+// and no runtime symptom until a value carried markup. The fix is the SIGNATURE, not a new
+// default: flipping the default to `'html'` would have entity-escaped SEO titles instead.
+describe('fillTemplate — context is required (#936)', () => {
+  // KILL-SHOT TARGET. Make `context` optional again (or restore `opts: FillOptions = {}`) and
+  // this @ts-expect-error goes unused, which is itself a compile error (TS2578) — so
+  // `pnpm --filter @setu/core typecheck` fails. This assertion lives in the type checker
+  // because that is the only place the defect was ever observable.
+  it('is a compile error to omit the context', () => {
+    const withoutContext = () =>
+      // @ts-expect-error context is a required member of FillOptions
+      fillTemplate('Hi {{name}}!', { name: 'Ada' }, {})
+    const withoutOptions = () =>
+      // @ts-expect-error the whole options object is required too
+      fillTemplate('Hi {{name}}!', { name: 'Ada' })
+    // Neither closure is INVOKED — the assertion is the pair of directives above, and it is the
+    // typechecker that makes it. Calling them would only prove what the old default did.
+    expect(
+      [withoutContext, withoutOptions].every((f) => typeof f === 'function')
+    ).toBe(true)
+  })
+
+  // The two production callers, byte-for-byte. `context` moving into the signature must not move
+  // a single character of what a reader sees: an SEO <title> stays unescaped (this is why the
+  // default was NOT flipped to 'html'), and an email subject stays unescaped and single-line.
+  it('leaves the SEO title caller byte-identical', () => {
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      general: { ...DEFAULT_SETTINGS.general, title: 'Ada & Co' },
+      identity: {
+        ...DEFAULT_SETTINGS.identity,
+        titleTemplate: '{{title}} {{separator}} {{site}}'
+      }
+    }
+    expect(
+      resolveSeo(settings, {
+        title: 'Tea & <b>crumpets</b>',
+        canonical: 'https://x.test/tea'
+      }).title
+    ).toBe('Tea & <b>crumpets</b> · Ada & Co')
+  })
+
+  it('leaves the email subject caller byte-identical', () => {
+    const out = renderEmailTemplate(
+      PASSWORD_RESET_EMAIL,
+      { subject: 'Reset for {{user_name}}' },
+      { reset_url: 'https://x/reset', user_name: 'Ada & Co' }
+    )
+    expect(out.subject).toBe('Reset for Ada & Co')
   })
 })
 

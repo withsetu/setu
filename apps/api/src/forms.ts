@@ -54,9 +54,10 @@ const adminBodyLimit = () =>
 // calls with only truthiness checks (caught by @typescript-eslint/no-unsafe-* when
 // type-aware linting came online, #267). These narrow to `unknown`-based shapes and
 // fail closed (400) instead. NOTE: proper Zod schemas for this API are the standard
-// per docs/security-standards.md ("new input → Zod") — apps/api has no zod dependency
-// yet, so that upgrade is deliberately left to a follow-up rather than smuggling a new
-// dependency into the linter increment.
+// per docs/security-standards.md ("new input → Zod"). The reason originally recorded here
+// for deferring that — "apps/api has no zod dependency yet" — is no longer true: apps/api
+// depends on zod and capabilities.ts already uses it. The upgrade is #932; this comment used
+// to vouch for a deferral whose stated justification had expired (CLAUDE.md §4 #21).
 const asRecord = (v: unknown): Record<string, unknown> | null =>
   typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : null
 

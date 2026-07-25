@@ -1,5 +1,8 @@
 ---
+// #857: `align` is author-controlled and reaches an inline `text-align` sink, so clamp it
+// to an allowlist (drops `right;position:fixed`). Mirrors markdoc.config.mjs `matches`.
 const { align } = Astro.props
-const style = align && align !== 'left' ? `text-align:${align}` : undefined
+const alignOk = align === 'center' || align === 'right' || align === 'justify'
+const style = alignOk ? `text-align:${align}` : undefined
 ---
 <th style={style}><slot /></th>

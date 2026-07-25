@@ -6,21 +6,28 @@
 // build when unset — never a baked-in localhost URL).
 import './video.css'
 import { resolveMediaBase } from '@setu/image-astro'
+import { resolveMediaSrc } from '../safe-media-href'
 import { videoPlaybackAttrs, videoClasses } from './video-attrs'
 
 const { src = '', poster, caption, controls, autoplay, loop, muted, width } = Astro.props
 
 const base = resolveMediaBase(import.meta.env.PUBLIC_SETU_MEDIA, import.meta.env.DEV)
-const resolveUrl = (s: string) => (!s || /^https?:\/\//i.test(s) ? s : s.startsWith('/') ? `${base}${s}` : s)
+// #857: route src/poster through the shared media resolver instead of a local copy that
+// returned non-http/non-root strings unchanged — a protocol-relative `//host` (or its
+// `/\host` twin) would otherwise load media from an attacker-chosen origin. http(s) and
+// root-relative behavior is identical; anything else resolves to null (no element/attr).
+// Tested in packages/blocks/test/safe-media-href.test.ts.
+const resolvedSrc = resolveMediaSrc(src, base)
+const resolvedPoster = poster ? resolveMediaSrc(poster, base) : null
 
 const play = videoPlaybackAttrs({ controls, autoplay, loop, muted })
 ---
-{src && (
+{resolvedSrc && (
   <figure class={videoClasses(width)}>
     <video
       class="blk-video-player"
-      src={resolveUrl(src)}
-      poster={poster ? resolveUrl(poster) : undefined}
+      src={resolvedSrc}
+      poster={resolvedPoster ?? undefined}
       controls={play.controls}
       autoplay={play.autoplay}
       loop={play.loop}

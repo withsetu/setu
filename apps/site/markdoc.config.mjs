@@ -136,6 +136,18 @@ function thTransform(node, config) {
   return cellTag(config.nodes?.th?.render ?? 'th', node, config)
 }
 
+// #857: constrain the author-controlled `align` on paragraph/heading/th/td to a fixed set
+// — the same defence the `image` tag already gets via `matches`. The editor only ever
+// emits left/center/right (Canvas.tsx TextAlign + TableMenu setColumnAlign); `justify` is
+// included as a legitimate hand-authored typographic value. Content can be POSTed directly,
+// so this declaration pairs with the render-sink clamp in each component (safeTextAlign in
+// packages/blocks, mirrored inline) — an unlisted value like `right;position:fixed` is
+// dropped, never interpolated into `text-align:${align}`.
+const ALIGN_ATTR = {
+  type: String,
+  matches: ['left', 'center', 'right', 'justify']
+}
+
 export default defineMarkdocConfig({
   tags: {
     ...generatedTags,
@@ -159,12 +171,12 @@ export default defineMarkdocConfig({
     paragraph: {
       ...nodes.paragraph,
       render: component('./src/components/Paragraph.astro'),
-      attributes: { ...nodes.paragraph.attributes, align: { type: String } }
+      attributes: { ...nodes.paragraph.attributes, align: ALIGN_ATTR }
     },
     heading: {
       ...nodes.heading,
       render: component('./src/components/Heading.astro'),
-      attributes: { ...nodes.heading.attributes, align: { type: String } }
+      attributes: { ...nodes.heading.attributes, align: ALIGN_ATTR }
     },
     item: {
       ...nodes.item,
@@ -177,13 +189,13 @@ export default defineMarkdocConfig({
     th: {
       ...nodes.th,
       render: component('./src/components/Th.astro'),
-      attributes: { ...nodes.th.attributes, align: { type: String } },
+      attributes: { ...nodes.th.attributes, align: ALIGN_ATTR },
       transform: thTransform
     },
     td: {
       ...nodes.td,
       render: component('./src/components/Td.astro'),
-      attributes: { ...nodes.td.attributes, align: { type: String } },
+      attributes: { ...nodes.td.attributes, align: ALIGN_ATTR },
       transform: tdTransform
     }
   }

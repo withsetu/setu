@@ -28,6 +28,7 @@ interface StatusOverrides {
     smtpConfigured: boolean
     smtpProblem: string | null
   }
+  resetRestartRequired?: boolean
 }
 
 function consoleStatus(over: StatusOverrides = {}) {
@@ -38,6 +39,7 @@ function consoleStatus(over: StatusOverrides = {}) {
     mode: 'local',
     from: { effective: null, source: null },
     secrets: { resendApiKey: false, smtpConfigured: false, smtpProblem: null },
+    resetRestartRequired: false,
     ...over
   }
 }
@@ -122,10 +124,15 @@ describe('EmailSettings — provider status card', () => {
     expect(screen.getByText(/ready to send/i)).toBeTruthy()
   })
 
-  it('resend with the API key missing: honest ✗', async () => {
+  // #885 review Finding 2: this stub is EXACTLY what the server derives for
+  // SETU_EMAIL_ADAPTER=resend with no RESEND_API_KEY (usableEmailTransport falls back to
+  // console, deliverable false even with a from-address) — not an invented state (#638).
+  it('resend with the API key missing: honest red ✗ + console fallback, and NO "Ready to send"', async () => {
     stubEmailApi(
       resendStatus({
+        effectiveTransport: 'console',
         deliverable: false,
+        from: { effective: 'owner@example.com', source: 'settings' },
         secrets: {
           resendApiKey: false,
           smtpConfigured: false,
@@ -135,6 +142,30 @@ describe('EmailSettings — provider status card', () => {
     )
     renderEmail()
     expect(await screen.findByText(/RESEND_API_KEY.*missing/i)).toBeTruthy()
+    expect(
+      screen.getByText(/resend is selected but its api key is missing/i)
+    ).toBeTruthy()
+    expect(screen.queryByText(/ready to send/i)).toBeNull()
+  })
+
+  // #885 review Finding 1: the reset ENABLE gate is boot-frozen — when the from-address
+  // arrived after boot, the card must say a restart is needed instead of implying reset
+  // already works.
+  it('resetRestartRequired: shows the explicit "after the server restarts" line (and hides it otherwise)', async () => {
+    stubEmailApi(resendStatus({ resetRestartRequired: true }))
+    renderEmail()
+    expect(
+      await screen.findByText(
+        /password reset emails will start working after the server restarts/i
+      )
+    ).toBeTruthy()
+  })
+
+  it('resetRestartRequired false: no restart line', async () => {
+    stubEmailApi(resendStatus())
+    renderEmail()
+    await screen.findByText('Resend')
+    expect(screen.queryByText(/after the server restarts/i)).toBeNull()
   })
 
   it('smtp selected but unusable: shows the reason and the console fallback', async () => {
@@ -187,6 +218,57 @@ describe('EmailSettings — from-address save flow', () => {
       )
       expect(parsed.futureGroup).toEqual({ some: 'value' })
       expect((parsed.general as { title: string }).title).toBe('Kept')
+    })
+  })
+
+  // #885 review Finding 4: parseSettings passes unknown keys INSIDE the email group through
+  // (e.g. #499's future template keys) — a save must not drop them.
+  it('a passthrough key inside the email group survives a save', async () => {
+    stubEmailApi(consoleStatus())
+    const { git } = renderEmail({
+      email: {
+        fromAddress: 'old@example.com',
+        futureTemplates: { reset: 'hi' }
+      }
+    })
+    const input = await screen.findByLabelText(/from address/i)
+    await waitFor(() =>
+      expect((input as HTMLInputElement).value).toBe('old@example.com')
+    )
+    fireEvent.change(input, { target: { value: 'new@example.com' } })
+    fireEvent.click(screen.getByRole('button', { name: /save/i }))
+    await waitFor(async () => {
+      const raw = await git.readFile('settings.json')
+      expect(raw).not.toBeNull()
+      const email = (JSON.parse(raw as string) as Record<string, unknown>)
+        .email as Record<string, unknown>
+      expect(email.fromAddress).toBe('new@example.com')
+      expect(email.futureTemplates).toEqual({ reset: 'hi' })
+    })
+  })
+
+  // #885 review Finding 6: whitespace padding is not a change — trimmed before dirty-compare
+  // and before saving.
+  it('padding the published value with whitespace does not arm Save; a padded new value saves trimmed', async () => {
+    stubEmailApi(consoleStatus())
+    const { git } = renderEmail({ email: { fromAddress: 'a@b.co' } })
+    const input = await screen.findByLabelText(/from address/i)
+    await waitFor(() =>
+      expect((input as HTMLInputElement).value).toBe('a@b.co')
+    )
+
+    fireEvent.change(input, { target: { value: '  a@b.co  ' } })
+    // Not dirty: the button stays in its "Saved" resting state.
+    expect(screen.getByRole('button', { name: 'Saved' })).toBeTruthy()
+
+    fireEvent.change(input, { target: { value: '  owner@example.com  ' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    await waitFor(async () => {
+      const raw = await git.readFile('settings.json')
+      expect(raw).not.toBeNull()
+      expect(
+        (JSON.parse(raw as string).email as { fromAddress: string }).fromAddress
+      ).toBe('owner@example.com')
     })
   })
 

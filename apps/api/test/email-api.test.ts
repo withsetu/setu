@@ -7,7 +7,11 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { createAuth } from '@setu/auth'
 import { resolveSessionActor } from '../src/auth/resolve-session-actor'
-import { createEmailApi, type EmailStatus } from '../src/email'
+import {
+  createEmailApi,
+  resetRestartRequired,
+  type EmailStatus
+} from '../src/email'
 
 const TRUSTED_ORIGIN = 'http://localhost:5173'
 
@@ -21,6 +25,7 @@ function resendStatus(over: Partial<EmailStatus> = {}): EmailStatus {
     mode: 'self-hosted',
     from: { effective: 'noreply@example.com', source: 'env' },
     secrets: { resendApiKey: true, smtpConfigured: false, smtpProblem: null },
+    resetRestartRequired: false,
     ...over
   }
 }
@@ -155,6 +160,40 @@ function sendReq(cookie?: string, body?: unknown) {
     ...(body === undefined ? {} : { body: JSON.stringify(body) })
   })
 }
+
+// #885 review Finding 1: the reset send path is wired once at boot (createAuth's `email:`
+// option) — this pure helper is how server.ts decides when to tell the admin "reset will start
+// working after a restart": exactly when reset was NOT wired at boot but the live config now has
+// everything boot needed.
+describe('resetRestartRequired', () => {
+  const live = {
+    resetWiredAtBoot: false,
+    authConfigured: true,
+    adminOriginPresent: true,
+    liveFrom: 'owner@example.com'
+  }
+
+  it('true when reset was not wired at boot but a from-address now exists (auth + admin origin present)', () => {
+    expect(resetRestartRequired(live)).toBe(true)
+  })
+
+  it('false when reset was already wired at boot (nothing to restart for)', () => {
+    expect(resetRestartRequired({ ...live, resetWiredAtBoot: true })).toBe(
+      false
+    )
+  })
+
+  it('false when there is still no live from-address (a restart would change nothing)', () => {
+    expect(resetRestartRequired({ ...live, liveFrom: null })).toBe(false)
+  })
+
+  it('false when auth or the admin origin is missing (a restart alone would not enable reset)', () => {
+    expect(resetRestartRequired({ ...live, authConfigured: false })).toBe(false)
+    expect(resetRestartRequired({ ...live, adminOriginPresent: false })).toBe(
+      false
+    )
+  })
+})
 
 describe('GET /api/email/status', () => {
   it('401s with no session', async () => {

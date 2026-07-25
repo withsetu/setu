@@ -86,6 +86,35 @@ describe('createSubmissionService.submit', () => {
     expect((await submissions.listSubmissions()).total).toBe(1) // stored regardless
   })
 
+  // #498 (#885 review Finding 1): notifyFrom may be a thunk, resolved PER SUBMISSION — both the
+  // notify gate and the sender follow the live value, so a from-address saved in Settings → Email
+  // applies to the next form notification without an api restart.
+  it('notifyFrom as a thunk: gate and sender are live — a from-address appearing after construction enables notify with the new sender', async () => {
+    const submissions = createMemorySubmissionPort()
+    const sent: { from: string }[] = []
+    const email: EmailPort = {
+      send: async (m) => {
+        sent.push({ from: m.from })
+      }
+    }
+    const live: { from: string | undefined } = { from: undefined }
+    const svc = createSubmissionService({
+      submissions,
+      captcha: ok,
+      email,
+      notifyTo: 'owner@x.com',
+      notifyFrom: () => live.from
+    })
+
+    await svc.submit({ ...base })
+    expect(sent).toHaveLength(0) // no from-address anywhere yet → gate closed
+
+    live.from = 'newsroom@x.com' // the admin saved a from-address; no reconstruction
+    await svc.submit({ ...base })
+    expect(sent).toHaveLength(1)
+    expect(sent[0]!.from).toBe('newsroom@x.com')
+  })
+
   it('survives an async renderNotification that throws (best-effort)', async () => {
     const submissions = createMemorySubmissionPort()
     const email: EmailPort = { send: vi.fn(async () => {}) }

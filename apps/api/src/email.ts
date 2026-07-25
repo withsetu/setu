@@ -27,6 +27,30 @@ export interface EmailStatus {
     smtpConfigured: boolean
     smtpProblem: string | null
   }
+  /** #885 review Finding 1: password reset's ENABLE gate is wired once at boot (createAuth's
+   *  `email:` option in server.ts) — unlike test-send and form notifications, it cannot pick
+   *  up a from-address saved after boot until the server restarts. True exactly when a restart
+   *  alone would turn reset on; the screen renders it as an explicit "after the server
+   *  restarts" line. Derivation: resetRestartRequired below. Making the gate live is #886. */
+  resetRestartRequired: boolean
+}
+
+/** True exactly when restarting the server would newly enable password-reset emails: reset was
+ *  NOT wired at boot (no from-address existed then), and the live config now has everything the
+ *  boot wiring needs (auth configured, an admin origin for the reset link, a from-address).
+ *  Pinned by apps/api/test/email-api.test.ts ("resetRestartRequired" describe). */
+export function resetRestartRequired(opts: {
+  resetWiredAtBoot: boolean
+  authConfigured: boolean
+  adminOriginPresent: boolean
+  liveFrom: string | null
+}): boolean {
+  return (
+    !opts.resetWiredAtBoot &&
+    opts.authConfigured &&
+    opts.adminOriginPresent &&
+    opts.liveFrom !== null
+  )
 }
 
 export interface EmailApiOptions {

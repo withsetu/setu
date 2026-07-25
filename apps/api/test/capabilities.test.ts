@@ -9,7 +9,9 @@ import {
   buildCapabilities,
   createCapabilitiesApi,
   emailCapabilityFromEnv,
-  smtpConfigFromEnv
+  resolveFromAddress,
+  smtpConfigFromEnv,
+  usableEmailTransport
 } from '../src/capabilities'
 import {
   socialProvidersEnabled,
@@ -403,6 +405,110 @@ describe('capabilities', () => {
           'owner@example.com'
         )
       ).toEqual({ transport: 'console', deliverable: false })
+    })
+
+    // #885 review Finding 2: a resend selection without its API key cannot deliver anything —
+    // reporting deliverable:true rendered "Ready to send ✓" directly under "API key: missing ✗".
+    it('resend WITHOUT RESEND_API_KEY -> not deliverable, even with a from-address (fail closed, like partial smtp)', () => {
+      expect(
+        emailCapabilityFromEnv(
+          {
+            SETU_EMAIL_ADAPTER: 'resend',
+            SETU_FORMS_NOTIFY_FROM: 'noreply@example.com'
+          },
+          'owner@example.com'
+        )
+      ).toEqual({ transport: 'resend', deliverable: false })
+    })
+  })
+
+  // #885 review Finding 2: the ONE transport-usability predicate server.ts's adapter selection,
+  // emailCapabilityFromEnv and the /api/email/status thunk all share — so "which adapter is
+  // actually wired" and "what the admin screen reports" cannot drift.
+  describe('usableEmailTransport (shared transport-usability predicate)', () => {
+    it('console (or unset) -> effective console, no problem', () => {
+      expect(usableEmailTransport({})).toEqual({
+        selected: 'console',
+        effective: 'console',
+        problem: null
+      })
+    })
+
+    it('resend with the API key -> effective resend', () => {
+      expect(
+        usableEmailTransport({
+          SETU_EMAIL_ADAPTER: 'resend',
+          RESEND_API_KEY: 'test-fake-key'
+        })
+      ).toEqual({ selected: 'resend', effective: 'resend', problem: null })
+    })
+
+    it('resend WITHOUT the API key -> falls back to console and names the missing variable (never its value)', () => {
+      expect(usableEmailTransport({ SETU_EMAIL_ADAPTER: 'resend' })).toEqual({
+        selected: 'resend',
+        effective: 'console',
+        problem: 'RESEND_API_KEY is unset'
+      })
+    })
+
+    it('smtp with a usable config -> effective smtp', () => {
+      expect(
+        usableEmailTransport({
+          SETU_EMAIL_ADAPTER: 'smtp',
+          SETU_SMTP_HOST: '127.0.0.1',
+          SETU_SMTP_PORT: '1025'
+        })
+      ).toEqual({ selected: 'smtp', effective: 'smtp', problem: null })
+    })
+
+    it('smtp with an unusable config -> console + smtpConfigFromEnv problem string', () => {
+      expect(usableEmailTransport({ SETU_EMAIL_ADAPTER: 'smtp' })).toEqual({
+        selected: 'smtp',
+        effective: 'console',
+        problem: 'SETU_SMTP_HOST is unset'
+      })
+    })
+
+    it('an unrecognized transport value -> console, selected reported verbatim', () => {
+      expect(usableEmailTransport({ SETU_EMAIL_ADAPTER: 'sendgrid' })).toEqual({
+        selected: 'sendgrid',
+        effective: 'console',
+        problem: null
+      })
+    })
+  })
+
+  // #885 review Finding 3: precedence must be ORDER-SENSITIVE and observable — a boolean fold
+  // can't distinguish "settings win" from "env wins". `source` makes the winner explicit; the
+  // both-set case below is the kill-shot target (swap the order in resolveFromAddress and it
+  // fails).
+  describe('resolveFromAddress (settings win, env fallback)', () => {
+    it('BOTH set -> the settings value wins, source is "settings"', () => {
+      expect(
+        resolveFromAddress('owner@settings.example', {
+          SETU_FORMS_NOTIFY_FROM: 'ops@env.example'
+        })
+      ).toEqual({ effective: 'owner@settings.example', source: 'settings' })
+    })
+
+    it('settings empty, env set -> env is the fallback, source is "env"', () => {
+      expect(
+        resolveFromAddress('', { SETU_FORMS_NOTIFY_FROM: 'ops@env.example' })
+      ).toEqual({ effective: 'ops@env.example', source: 'env' })
+    })
+
+    it('settings set, env unset -> settings alone', () => {
+      expect(resolveFromAddress('owner@settings.example', {})).toEqual({
+        effective: 'owner@settings.example',
+        source: 'settings'
+      })
+    })
+
+    it('neither -> null/null', () => {
+      expect(resolveFromAddress(undefined, {})).toEqual({
+        effective: null,
+        source: null
+      })
     })
   })
 

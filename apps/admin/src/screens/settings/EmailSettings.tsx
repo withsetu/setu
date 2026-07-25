@@ -30,6 +30,10 @@ interface EmailStatus {
     smtpConfigured: boolean
     smtpProblem: string | null
   }
+  /** True when password reset was NOT wired at boot (no from-address existed then) but the
+   *  live config now has one — the one email path that needs a server restart to pick the
+   *  saved from-address up. Rendered as an explicit "after the server restarts" line. */
+  resetRestartRequired: boolean
 }
 
 const TRANSPORT_LABELS: Record<EmailStatus['effectiveTransport'], string> = {
@@ -108,7 +112,16 @@ function ProviderStatus({
                 </p>
               )}
             {status.effectiveTransport === 'console' &&
+              status.transport === 'resend' && (
+                <p className="text-sm text-destructive">
+                  Resend is selected but its API key is missing — emails fall
+                  back to the console until RESEND_API_KEY is set in the server
+                  environment.
+                </p>
+              )}
+            {status.effectiveTransport === 'console' &&
               status.transport !== 'smtp' &&
+              status.transport !== 'resend' &&
               status.transport !== 'console' && (
                 <p className="text-sm text-destructive">
                   The configured transport &ldquo;{status.transport}&rdquo;
@@ -124,14 +137,17 @@ function ProviderStatus({
               </p>
             )}
 
-            {status.effectiveTransport === 'resend' && (
+            {/* Secret-presence rows key on the SELECTED transport, so a resend boot with no
+                key still shows the red "missing ✗" line instead of hiding it behind the
+                console fallback (#885 review Finding 2). */}
+            {status.transport === 'resend' && (
               <StatusRow label="API key (RESEND_API_KEY)">
                 {status.secrets.resendApiKey
                   ? 'set via env ✓'
                   : 'missing ✗ — set it in the server environment'}
               </StatusRow>
             )}
-            {status.effectiveTransport === 'smtp' && (
+            {status.transport === 'smtp' && (
               <StatusRow label="SMTP connection (SETU_SMTP_*)">
                 {status.secrets.smtpConfigured
                   ? 'configured via env ✓'
@@ -159,6 +175,13 @@ function ProviderStatus({
                   Not ready — add a from-address below to enable sending.
                 </p>
               )}
+            {status.resetRestartRequired && (
+              <p className="text-sm text-destructive">
+                Password reset emails will start working after the server
+                restarts — the from-address was added after this server started.
+                Everything else uses it right away.
+              </p>
+            )}
           </>
         )}
       </CardContent>
@@ -245,12 +268,13 @@ export function EmailSettings() {
     }
   }, [statusKey])
 
-  const dirty =
-    published !== null && values.fromAddress !== published.fromAddress
+  // #885 review Finding 6: compare (and save) the TRIMMED value, so padding the published
+  // address with whitespace never arms the Save button or commits a cosmetic diff.
+  const trimmed = values.fromAddress.trim()
+  const dirty = published !== null && trimmed !== published.fromAddress
 
   const save = async () => {
     if (saving || !dirty || raw === null) return
-    const trimmed = values.fromAddress.trim()
     if (!fromAddressSchema.safeParse(trimmed).success) {
       setFieldError(FROM_ERROR)
       return
@@ -352,7 +376,13 @@ export function EmailSettings() {
             value={values.fromAddress}
             onChange={(e) => {
               setFieldError(null)
-              setValues({ fromAddress: e.target.value })
+              // Spread-patch (the GeneralSettings pattern), NEVER a whole-object replace:
+              // parseSettings passes unknown future keys inside the email group through
+              // (e.g. #499's templates), and `values` carries them at runtime — replacing
+              // the object here would silently drop them from the next save
+              // (apps/admin/test/email-settings.test.tsx pins survival; #885 review
+              // Finding 4).
+              setValues((v) => ({ ...v, fromAddress: e.target.value }))
             }}
             placeholder="hello@example.com"
             aria-invalid={fieldError !== null}

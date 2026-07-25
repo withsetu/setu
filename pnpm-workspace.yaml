@@ -1,3 +1,28 @@
 packages:
   - 'packages/*'
   - 'apps/*'
+
+# Audit allowlist for the CI gate (ci.yml "pnpm audit (gate: high)"). The gate runs
+# pnpm 11, which reads auditConfig from pnpm-workspace.yaml — not from package.json's
+# `pnpm` key — so ci.yml copies this file into its probe dir alongside the lockfile.
+# The pre-existing package.json allowlist (GHSA-67mh-4wv8-2f99, moderate esbuild SSRF
+# via drizzle-kit — never gates at high+) stays where it is for local pnpm 10 runs.
+# ignoreGhsas has no expiry mechanism, so every entry must (a) cover an advisory with
+# NO patched release inside the affected major and (b) carry a tracking issue that is
+# the entry's expiry.
+auditConfig:
+  ignoreGhsas:
+    # brace-expansion DoS (high). The advisory range <=5.0.7 spans every major, but
+    # upstream patched only v5 (5.0.8, published 2026-07-23). Our 5.x instance is
+    # updated to 5.0.8 (#880); this entry covers the residual 1.1.16 (the
+    # eslint > minimatch@3 family, lint-time tooling only), which is the
+    # maintenance-v1 dist-tag tip — no patched 1.x exists as of 2026-07-25.
+    # Expiry/re-check: #881.
+    - GHSA-mh99-v99m-4gvg
+    # react-router RSC-mode CSRF (high). Patched only in 8.3.0; no 7.x backport
+    # exists, and react-router-dom (what apps/admin depends on) has no v8 at all as
+    # of 2026-07-25, so moving off the range is a major migration, not a bump. Per
+    # the advisory the flaw is reachable only through the unstable RSC APIs; the
+    # admin has zero unstable_* react-router imports (grep-verified 2026-07-25).
+    # Expiry/re-check: #882.
+    - GHSA-qwww-vcr4-c8h2

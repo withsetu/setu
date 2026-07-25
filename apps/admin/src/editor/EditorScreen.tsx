@@ -376,7 +376,6 @@ export function EditorScreen() {
     newSlug: string,
     opts: { silent?: boolean } = {}
   ): Promise<RenameResult> => {
-    const wasCommitted = lifecycle.state !== 'draft'
     // Pause first (no NEW save starts), then quiesce (#755a): a save already PAST
     // the pause check is mid-write to the OLD ref — wait it out BEFORE the service
     // deletes that draft, or it lands after and orphans a draft at the old slug.
@@ -419,9 +418,17 @@ export function EditorScreen() {
           result.committedSha
         )
         .catch(() => {})
+      // The redirect line is owed exactly when a committed file MOVED, and `committedSha`
+      // is the move commit's sha — `renameSlug` sets it only after finding the old path in
+      // Git (packages/core/src/rename/rename-service.ts), so it reads canonical state at
+      // rename time. It replaces `lifecycle.state !== 'draft'`, a React value refreshed
+      // asynchronously AFTER publish's own toast: renaming inside that window claimed the
+      // entry was never committed and dropped the 301 warning (#947). Enforced by
+      // apps/admin/test/editor-screen.test.tsx's "renaming a COMMITTED entry reports the
+      // 301, even when the cached lifecycle is stale".
       if (!opts.silent)
         notify.success(
-          wasCommitted
+          result.committedSha
             ? 'Slug renamed — the old URL will 301 after the next rebuild'
             : 'Slug renamed'
         )
@@ -454,12 +461,17 @@ export function EditorScreen() {
    *  never been committed AND the slug still equals what this title minted (a
    *  manual slug edit or a `-2` suffix breaks the equality and ends derivation). */
   const onTitleBlur = async () => {
-    // Reviewed + waived: `lifecycle.state` is refreshed async after load, so for
-    // a blink after mount it can read 'draft' for a committed entry. Practically
-    // unreachable (a blur needs a focus + edit first, by which time the refresh
-    // has landed), and the worst case is a silent draft-only re-key that the
-    // next publish surfaces — never a lost commit.
-    if (composing || phase !== 'ready' || lifecycle.state !== 'draft') return
+    // `committedInGit`, NOT `lifecycle.state !== 'draft'` (#947). That predicate was wrong
+    // twice over here, and the earlier waiver on this line understated both: it is stale for
+    // the whole of publish's `notify.success` -> `await reindexEntries` -> `await
+    // refreshLifecycle` gap (publish, then edit the title — not a blink), and it is
+    // PERMANENTLY wrong for a committed `published: false` entry, which deriveLifecycle
+    // reports as 'draft' (packages/core/src/lifecycle/derive.ts). Either way the guard let a
+    // committed entry through, and the re-key below is not "draft-only": followRename makes
+    // a real move commit, 301ing a URL the author never asked to change, `silent: true` so
+    // not even a toast says so. Enforced by apps/admin/test/editor-screen.test.tsx's "does
+    // not auto-derive the slug of a COMMITTED entry on title blur".
+    if (composing || phase !== 'ready' || committedInGit) return
     const derivedFromLoaded = slugify(loadedTitleRef.current) || 'untitled'
     if (slug !== derivedFromLoaded) return
     const newTitle = attrString(metaRef.current['title'])
@@ -747,9 +759,30 @@ export function EditorScreen() {
   )
   // UX-only gate (the server's writeActionForChanges enforces regardless):
   // renaming a LIVE post moves a published URL — a commit an author can't make.
+  //
+  // `committedInGit` rather than `lifecycle.state !== 'draft'` (#947). NOT because the two are
+  // equivalent — they are not, and no test here holds them to it. What is enforced today is
+  // only the hint's rendering GIVEN the prop (apps/admin/test/SlugField.test.tsx, which passes
+  // `blockedReason` as a fixture); this derivation itself has no EditorScreen-level test, so
+  // reverting this one line leaves the whole admin jsdom suite green. Treat the following as
+  // intent, and re-derive it rather than trusting it:
+  //   - the motivation is staleness — `lifecycle` is refreshed asynchronously, so across
+  //     publish's `notify.success` -> `await reindexEntries` -> `await refreshLifecycle` gap the
+  //     old predicate read 'draft' for a committed entry and this hint silently did not render;
+  //   - divergence 1, committed `published: false` (deriveLifecycle reports 'draft'), is
+  //     excluded here anyway by the `published !== false` clause below;
+  //   - divergence 2, `committed === null` with a non-draft lifecycle, is NOT excluded. It is
+  //     real in the pure functions: deployedSnapshotFor returns MODIFIED_SINCE_DEPLOY for any
+  //     non-added changed path (packages/core/src/content-index/list-entries.ts), and
+  //     deploy-wiring.ts pushes `added: false` for a `D` line or a rename's old path, so a path
+  //     gone from HEAD since the last deploy derives 'live' while committedInGit is false. No
+  //     entry-delete flow exists today (`content.delete` is in the authz vocabulary with no
+  //     implementation), which leaves the rename's old slug reached by a stale URL as the only
+  //     way in — and there `renameSlug` refuses 'absent' regardless, so showing no block hint is
+  //     the right answer anyway. If an entry-delete flow ever lands, re-check this line.
   const renameBlockedReason =
     !composing &&
-    lifecycle.state !== 'draft' &&
+    committedInGit &&
     metadata['published'] !== false &&
     !can('content.publish')
       ? "Renaming a live post's URL requires publish permission"
@@ -993,7 +1026,13 @@ export function EditorScreen() {
               composing ? (manualSlug ?? (slugify(title) || 'untitled')) : slug
             }
             editable={editable}
-            committed={lifecycle.state !== 'draft'}
+            // SlugField renders the "old URL will redirect (301)" hint from this, so it must
+            // answer the same question `followRename`'s toast does — "is there a committed
+            // file to move" — from the same non-stale source (#947). `lifecycle.state !==
+            // 'draft'` answered a different question and answered it late; see the note on
+            // `onTitleBlur` above. Enforced by apps/admin/test/editor-screen.test.tsx's
+            // "warns that the old URL will 301 while typing a new slug on a committed entry".
+            committed={committedInGit}
             permalinkConfig={permalinkConfig}
             date={frontmatterDate}
             categories={frontmatterCategories}

@@ -30,7 +30,7 @@ export function CategoryPicker({
   ariaLabel: string
   disabled?: boolean
 }) {
-  const { categories } = useTaxonomy()
+  const { categories, categoriesFailed } = useTaxonomy()
   const rows = useMemo(() => flatten(buildTree(categories)), [categories])
   const q = value.trim().toLowerCase()
   const items = rows
@@ -52,6 +52,16 @@ export function CategoryPicker({
       placeholder={placeholder}
       ariaLabel={ariaLabel}
       disabled={disabled}
+      // #914 / §4 row 22: `allowFreeText={false}` means an empty list is a dead end, so
+      // "the registry read failed" must not render as "there are no categories". Unlike
+      // TagAutocomplete there is no keystroke-driven retry here — the registry is read
+      // once — so the text points at the only recovery the user has.
+      // Covered by apps/admin/test/category-picker.test.tsx.
+      hint={
+        categoriesFailed
+          ? 'Couldn’t load categories — reload the page to try again.'
+          : undefined
+      }
     />
   )
 }

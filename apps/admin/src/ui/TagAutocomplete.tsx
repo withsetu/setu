@@ -76,10 +76,12 @@ export function TagAutocomplete({
       id={id}
       disabled={disabled}
       // Inline rather than a toast: the effect re-runs on every keystroke, so a toast
-      // per character would be noise and the next keypress is already the retry.
+      // per character would be noise and the next keypress is already the retry — which
+      // the text now says out loud, since nothing else on screen reveals it (#914).
+      // Wording pinned by apps/admin/test/tag-autocomplete.test.tsx.
       hint={
         lookupFailed
-          ? 'Couldn’t load tag suggestions — you can still type a tag.'
+          ? 'Couldn’t load tag suggestions — keep typing to retry, or just type the tag you want.'
           : undefined
       }
     />

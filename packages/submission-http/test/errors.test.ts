@@ -70,6 +70,28 @@ describe('SubmissionApiError', () => {
     expect(err.status).toBe(502)
   })
 
+  // #914: `detail.error` was cast straight to `string`, so any JSON body that is not
+  // `{ error: <string> }` put a non-string (or threw) behind a `string | undefined` type —
+  // `err.code.startsWith(…)` at a call site would then blow up at runtime with the type
+  // system insisting it could not.
+  it.each([
+    ['a numeric error field', { error: 500 }],
+    ['an object error field', { error: { message: 'nope' } }],
+    ['a null error field', { error: null }],
+    ['a JSON body that is not an object', 'forbidden'],
+    ['a JSON null body', null],
+    ['a JSON array body', ['forbidden']]
+  ])('leaves code undefined for %s', async (_label, body) => {
+    const err = (await adapter(400, body)
+      .listSubmissions()
+      .catch((e: unknown) => e)) as SubmissionApiError
+
+    expect(err).toBeInstanceOf(SubmissionApiError)
+    expect(err.status).toBe(400)
+    expect(err.code).toBeUndefined()
+    expect(typeof err.message).toBe('string')
+  })
+
   it('reports the reason on a write path too (deleteSubmissions)', async () => {
     const err = (await adapter(403, { error: 'forbidden' })
       .deleteSubmissions(['a'])

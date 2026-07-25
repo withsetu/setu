@@ -21,6 +21,7 @@
     "src/health",
     "src/image",
     "src/index-port",
+    "src/index.ts",
     "src/lifecycle",
     "src/markdoc",
     "src/media-index",
@@ -41,7 +42,8 @@
     "src/tags",
     "src/taxonomy",
     "src/templating",
-    "src/url"
+    "src/url",
+    "src/version.ts"
   ],
-  "exclude": ["src/content-id", "src/health", "src/net", "src/oembed"]
+  "exclude": []
 }

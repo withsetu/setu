@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 import { ContentListPage } from './ContentListPage'
+import { watchNotifications } from '../lib/notifications'
 
 /** The post/page editor at `/edit/:collection/:locale/:slug` — EditorScreen.tsx.
  *  Autosave (per-browser IndexedDB, no team visibility) runs continuously: typing
@@ -69,10 +70,14 @@ export class EditorPage {
     return this.page.getByText('Staged', { exact: true })
   }
 
-  /** Invoke the real publish affordance and wait for the success toast. */
+  /** Invoke the real publish affordance and wait for the success toast — through the
+   *  notification RECORDER (e2e/lib/notifications.ts, #636), not a live locator, so a toast
+   *  that lands late on a contended runner and dismisses itself 4 s later still counts.
+   *  `publishedToast` above stays for negative assertions ("it's gone by now"). */
   async publish() {
+    const notifications = await watchNotifications(this.page)
     await this.publishButton.click()
-    await expect(this.publishedToast).toBeVisible()
+    await notifications.expectMatching(/^Published ·/)
   }
 
   /** PublishMenu's "Save draft" action (#382, WordPress-Contributor journey) —
@@ -83,15 +88,6 @@ export class EditorPage {
    *  action is available), which is exactly what the wrong-actor gate test asserts. */
   get saveDraftButton() {
     return this.page.getByRole('button', { name: 'Save draft', exact: true })
-  }
-
-  /** The success toast pushed by `notify.success` on Save draft — same
-   *  Notifications-region pattern as `publishedToast`, matching `onSaveDraft`'s
-   *  `Draft saved · <sha7>` toast text (EditorScreen.tsx). */
-  get draftSavedToast() {
-    return this.page
-      .getByRole('region', { name: 'Notifications', exact: true })
-      .getByText(/^Draft saved ·/)
   }
 
   /** The view-only banner shown when a non-publisher opens an already-live post —
@@ -106,10 +102,12 @@ export class EditorPage {
       .filter({ hasText: /This post is live/ })
   }
 
-  /** Invoke the real Save draft affordance and wait for the success toast. */
+  /** Invoke the real Save draft affordance and wait for the success toast — recorded, not
+   *  polled, for the same reason as `publish()` above (#636). */
   async saveDraft() {
+    const notifications = await watchNotifications(this.page)
     await this.saveDraftButton.click()
-    await expect(this.draftSavedToast).toBeVisible()
+    await notifications.expectMatching(/^Draft saved ·/)
   }
 
   /** The slash-command menu — CommandList in SlashCommand.tsx: `role="listbox"
@@ -396,17 +394,20 @@ export class EditorPage {
     })
   }
 
-  /** `notify.success`'s `Restored · <sha7>` toast — same Notifications-region
-   *  pattern as `publishedToast`. */
-  get restoredToast() {
-    return this.page
-      .getByRole('region', { name: 'Notifications', exact: true })
-      .getByText(/^Restored ·/)
-  }
-
   /** Open the History panel and wait for it. */
   async openHistory() {
     await this.historyButton.click()
     await expect(this.historyPanel).toBeVisible()
+  }
+
+  /** Confirm the open Restore dialog and wait for `notify.success`'s `Restored · <sha7>` —
+   *  recorded, not polled (#636), like `publish()`/`saveDraft()` above. */
+  async confirmRestore() {
+    const notifications = await watchNotifications(this.page)
+    await this.page
+      .getByRole('alertdialog')
+      .getByRole('button', { name: 'Restore', exact: true })
+      .click()
+    await notifications.expectMatching(/^Restored ·/)
   }
 }

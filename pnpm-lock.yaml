@@ -11,6 +11,11 @@ overrides:
   sharp: '>=0.35.0'
   fast-xml-parser: '>=5.10.1'
 
+patchedDependencies:
+  vitest@3.2.7:
+    hash: 3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac
+    path: patches/vitest@3.2.7.patch
+
 importers:
 
   .:
@@ -74,7 +79,7 @@ importers:
         version: 8.65.0(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3)
       vitest:
         specifier: ^3.2.7
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.19.21)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.19.21)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.19.21)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.19.21)(typescript@5.9.3))(tsx@4.23.1)
 
   apps/admin:
     dependencies:
@@ -238,6 +243,9 @@ importers:
       jsdom:
         specifier: ^25.0.1
         version: 25.0.1
+      nanostores:
+        specifier: ^1.4.1
+        version: 1.4.1
       playwright:
         specifier: 1.61.1
         version: 1.61.1
@@ -252,7 +260,7 @@ importers:
         version: 8.1.5(@types/node@22.20.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
 
   apps/api:
     dependencies:
@@ -337,7 +345,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.19.21)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.19.21)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.19.21)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.19.21)(typescript@5.9.3))(tsx@4.23.1)
 
   apps/site:
     dependencies:
@@ -392,7 +400,7 @@ importers:
         version: 8.0.0
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
 
   packages/auth:
     dependencies:
@@ -429,7 +437,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.19.21)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.19.21)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.19.21)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.19.21)(typescript@5.9.3))(tsx@4.23.1)
 
   packages/blocks:
     dependencies:
@@ -466,7 +474,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
 
   packages/captcha-recaptcha:
     dependencies:
@@ -482,7 +490,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
 
   packages/captcha-testing:
     dependencies:
@@ -495,7 +503,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
 
   packages/captcha-turnstile:
     dependencies:
@@ -511,7 +519,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
 
   packages/core:
     dependencies:
@@ -548,7 +556,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.19.21)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.19.21)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.19.21)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.19.21)(typescript@5.9.3))(tsx@4.23.1)
 
   packages/db-idb:
     dependencies:
@@ -570,7 +578,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
 
   packages/db-memory:
     dependencies:
@@ -586,7 +594,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
 
   packages/db-sqlite:
     dependencies:
@@ -617,7 +625,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.19.21)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.19.21)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.19.21)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.19.21)(typescript@5.9.3))(tsx@4.23.1)
 
   packages/db-testing:
     dependencies:
@@ -630,7 +638,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
 
   packages/demo-data:
     dependencies:
@@ -667,7 +675,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.19.21)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.19.21)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.19.21)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.19.21)(typescript@5.9.3))(tsx@4.23.1)
 
   packages/email-console:
     dependencies:
@@ -683,7 +691,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
 
   packages/email-resend:
     dependencies:
@@ -702,7 +710,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
 
   packages/email-smtp:
     dependencies:
@@ -724,7 +732,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
 
   packages/email-testing:
     dependencies:
@@ -737,7 +745,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
 
   packages/git-http:
     dependencies:
@@ -759,7 +767,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
 
   packages/git-idb:
     dependencies:
@@ -781,7 +789,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
 
   packages/git-local:
     dependencies:
@@ -806,7 +814,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.19.21)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.19.21)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.19.21)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.19.21)(typescript@5.9.3))(tsx@4.23.1)
 
   packages/git-memory:
     dependencies:
@@ -822,7 +830,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
 
   packages/git-testing:
     dependencies:
@@ -835,7 +843,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
 
   packages/image-astro:
     dependencies:
@@ -848,7 +856,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
 
   packages/image-sharp:
     dependencies:
@@ -870,7 +878,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.19.21)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.19.21)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.19.21)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.19.21)(typescript@5.9.3))(tsx@4.23.1)
 
   packages/image-testing:
     dependencies:
@@ -886,7 +894,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.19.21)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.19.21)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.19.21)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.19.21)(typescript@5.9.3))(tsx@4.23.1)
 
   packages/storage-local:
     dependencies:
@@ -905,7 +913,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.19.21)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.19.21)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.19.21)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.19.21)(typescript@5.9.3))(tsx@4.23.1)
 
   packages/storage-testing:
     dependencies:
@@ -918,7 +926,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
 
   packages/submission-http:
     dependencies:
@@ -940,7 +948,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
 
   packages/theme-default:
     dependencies:
@@ -980,7 +988,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^3.2.6
-        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
+        version: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
 
 packages:
 
@@ -9658,7 +9666,7 @@ snapshots:
       magic-string: 0.30.21
       sirv: 3.0.2
       tinyrainbow: 2.0.0
-      vitest: 3.2.7(@types/debug@4.1.13)(@types/node@22.19.21)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.19.21)(typescript@5.9.3))(tsx@4.23.1)
+      vitest: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.19.21)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.19.21)(typescript@5.9.3))(tsx@4.23.1)
       ws: 8.21.0
     optionalDependencies:
       playwright: 1.61.1
@@ -9678,7 +9686,7 @@ snapshots:
       magic-string: 0.30.21
       sirv: 3.0.2
       tinyrainbow: 2.0.0
-      vitest: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
+      vitest: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
       ws: 8.21.0
     optionalDependencies:
       playwright: 1.61.1
@@ -10012,7 +10020,7 @@ snapshots:
       drizzle-orm: 0.45.2(@types/better-sqlite3@7.6.13)(better-sqlite3@12.11.1)(kysely@0.29.4)
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
-      vitest: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
+      vitest: 3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
     transitivePeerDependencies:
       - '@cloudflare/workers-types'
       - '@opentelemetry/api'
@@ -12955,7 +12963,7 @@ snapshots:
     optionalDependencies:
       vite: 8.1.5(@types/node@22.20.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)
 
-  vitest@3.2.7(@types/debug@4.1.13)(@types/node@22.19.21)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.19.21)(typescript@5.9.3))(tsx@4.23.1):
+  vitest@3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.19.21)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.19.21)(typescript@5.9.3))(tsx@4.23.1):
     dependencies:
       '@types/chai': 5.2.3
       '@vitest/expect': 3.2.7
@@ -12999,7 +13007,7 @@ snapshots:
       - tsx
       - yaml
 
-  vitest@3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1):
+  vitest@3.2.7(patch_hash=3063f566480647d27f59cb041b39afbe7444427d019dcb5a743047a41e60b7ac)(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1):
     dependencies:
       '@types/chai': 5.2.3
       '@vitest/expect': 3.2.7

@@ -87,25 +87,40 @@ export function resetEmailRefusal(p: ResetEmailPreconditions): string | null {
  * apps/api/test/reset-email-gate.test.ts and apps/api/test/users-send-reset.test.ts.
  */
 export function createResetEmailSender(opts: {
-  /** The live transport's send (server.ts's `email.send`). */
-  send: EmailPort['send']
-  resolveTransport: () => UsableEmailTransport['effective']
+  /** The live transport's whole reading (server.ts's `email.resolve`), called ONCE per send —
+   *  see `sendVia` below for why it is the reading and not just `effective`. */
+  resolveTransport: () => UsableEmailTransport
+  /** Dispatch through a reading already in hand (server.ts's `email.sendVia`). */
+  sendVia: (
+    transport: UsableEmailTransport,
+    msg: Parameters<EmailPort['send']>[0]
+  ) => Promise<void>
   /** Live from-address; wins over the message's boot-time `from` when present (#498). */
   resolveFrom: () => string | undefined
   adminOrigin: string | undefined
   onRefused: (reason: string) => void
 }): EmailPort['send'] {
   return async (msg) => {
+    // #919: ONE reading per send, and the object that satisfied the gate is the object that
+    // dispatches. Previously this resolved for the gate and then called an `email.send` that
+    // resolved independently — two readings of a Git-canonical file, so a `git pull`/checkout
+    // landing between them admitted the message on 'smtp' and delivered it on 'console', i.e.
+    // wrote a live reset token into the server log. The from-address never had this shape: it is
+    // read once here and bound BY VALUE into the message below, so the address the gate judged is
+    // the address the adapter receives. Both properties are pinned by
+    // apps/api/test/reset-email-gate.test.ts ("delivers through the EXACT reading it gated on")
+    // and end-to-end by apps/api/test/reset-password-leak.test.ts.
+    const transport = opts.resolveTransport()
     const from = opts.resolveFrom() ?? msg.from
     const refusal = resetEmailRefusal({
       from,
       adminOrigin: opts.adminOrigin,
-      effectiveTransport: opts.resolveTransport()
+      effectiveTransport: transport.effective
     })
     if (refusal !== null) {
       opts.onRefused(refusal)
       return
     }
-    await opts.send({ ...msg, from })
+    await opts.sendVia(transport, { ...msg, from })
   }
 }

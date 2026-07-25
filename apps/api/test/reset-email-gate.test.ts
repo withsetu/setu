@@ -4,12 +4,25 @@ import {
   resetEmailEnabled,
   resetEmailRefusal
 } from '../src/reset-email-gate'
+import type { UsableEmailTransport } from '../src/capabilities'
 
 const enabled = {
   from: 'site@example.test',
   adminOrigin: 'https://admin.example.test',
   effectiveTransport: 'resend' as const
 }
+
+/** A `UsableEmailTransport` reading, as `createLiveEmailTransport().resolve()` would return one.
+ *  The sender takes the WHOLE reading (#919), not just `effective`, because the reading it gated
+ *  on is the one it hands back for dispatch. */
+const reading = (
+  effective: UsableEmailTransport['effective']
+): UsableEmailTransport => ({
+  selected: effective,
+  source: 'env',
+  effective,
+  problem: null
+})
 
 const message = {
   to: 'someone@example.test',
@@ -79,8 +92,8 @@ describe('resetEmailRefusal', () => {
   it('gives the sender its exact reason string', async () => {
     const onRefused = vi.fn()
     await createResetEmailSender({
-      send: vi.fn(),
-      resolveTransport: () => 'console',
+      sendVia: vi.fn(),
+      resolveTransport: () => reading('console'),
       resolveFrom: () => enabled.from,
       adminOrigin: enabled.adminOrigin,
       onRefused
@@ -93,11 +106,11 @@ describe('resetEmailRefusal', () => {
 
 describe('createResetEmailSender', () => {
   it('sends through the live transport, with the live from-address', async () => {
-    const send = vi.fn()
+    const sendVia = vi.fn()
     const onRefused = vi.fn()
     const sender = createResetEmailSender({
-      send,
-      resolveTransport: () => 'resend',
+      sendVia,
+      resolveTransport: () => reading('resend'),
       resolveFrom: () => 'live@example.test',
       adminOrigin: 'https://admin.example.test',
       onRefused
@@ -106,19 +119,44 @@ describe('createResetEmailSender', () => {
     await sender(message)
 
     expect(onRefused).not.toHaveBeenCalled()
-    expect(send).toHaveBeenCalledTimes(1)
-    expect(send.mock.calls[0]![0]).toMatchObject({
+    expect(sendVia).toHaveBeenCalledTimes(1)
+    expect(sendVia.mock.calls[0]![1]).toMatchObject({
       to: message.to,
       from: 'live@example.test',
       text: 'x'
     })
   })
 
-  it('falls back to the message from-address when nothing is live', async () => {
-    const send = vi.fn()
+  // #919, the TOCTOU this shape exists to close: the sender used to resolve the transport for the
+  // gate and then call a `send` that resolved AGAIN, so a settings.json rewrite landing between
+  // the two (Git-canonical file — a pull/checkout/deploy rewrites it with no coordination) could
+  // put a live reset token through the console adapter into the server log. Now the reading the
+  // gate decided on is the object handed to `sendVia`.
+  it('delivers through the EXACT reading it gated on, resolving only once', async () => {
+    const sendVia = vi.fn()
+    let calls = 0
+    const readings = [reading('smtp'), reading('console')]
     const sender = createResetEmailSender({
-      send,
-      resolveTransport: () => 'smtp',
+      sendVia,
+      // 'smtp' the first time, 'console' every time after — the flip mid-send.
+      resolveTransport: () => readings[Math.min(calls++, 1)]!,
+      resolveFrom: () => 'live@example.test',
+      adminOrigin: 'https://admin.example.test',
+      onRefused: vi.fn()
+    })
+
+    await sender(message)
+
+    expect(calls).toBe(1)
+    expect(sendVia).toHaveBeenCalledTimes(1)
+    expect(sendVia.mock.calls[0]![0]).toBe(readings[0])
+  })
+
+  it('falls back to the message from-address when nothing is live', async () => {
+    const sendVia = vi.fn()
+    const sender = createResetEmailSender({
+      sendVia,
+      resolveTransport: () => reading('smtp'),
       resolveFrom: () => undefined,
       adminOrigin: 'https://admin.example.test',
       onRefused: vi.fn()
@@ -126,17 +164,21 @@ describe('createResetEmailSender', () => {
 
     await sender(message)
 
-    expect(send.mock.calls[0]![0]).toMatchObject({ from: 'boot@example.test' })
+    // The from-address is bound by VALUE into the message the adapter receives — there is no
+    // second reading of it downstream, which is why it never had the transport's TOCTOU shape.
+    expect(sendVia.mock.calls[0]![1]).toMatchObject({
+      from: 'boot@example.test'
+    })
   })
 
   it('refuses to send when the transport drifts to console after boot (#890 live provider)', async () => {
-    const send = vi.fn()
+    const sendVia = vi.fn()
     const onRefused = vi.fn()
     // Boot could legitimately have wired reset (resend was usable then); settings.json now
     // names a provider that resolves to the console adapter.
     const sender = createResetEmailSender({
-      send,
-      resolveTransport: () => 'console',
+      sendVia,
+      resolveTransport: () => reading('console'),
       resolveFrom: () => 'live@example.test',
       adminOrigin: 'https://admin.example.test',
       onRefused
@@ -144,17 +186,17 @@ describe('createResetEmailSender', () => {
 
     await expect(sender(message)).resolves.toBeUndefined()
 
-    expect(send).not.toHaveBeenCalled()
+    expect(sendVia).not.toHaveBeenCalled()
     expect(onRefused).toHaveBeenCalledTimes(1)
     expect(String(onRefused.mock.calls[0]![0])).toContain('console adapter')
   })
 
   it('refuses when the from-address disappears after boot', async () => {
-    const send = vi.fn()
+    const sendVia = vi.fn()
     const onRefused = vi.fn()
     const sender = createResetEmailSender({
-      send,
-      resolveTransport: () => 'resend',
+      sendVia,
+      resolveTransport: () => reading('resend'),
       resolveFrom: () => undefined,
       adminOrigin: 'https://admin.example.test',
       onRefused
@@ -162,7 +204,7 @@ describe('createResetEmailSender', () => {
 
     await sender({ ...message, from: '' })
 
-    expect(send).not.toHaveBeenCalled()
+    expect(sendVia).not.toHaveBeenCalled()
     expect(onRefused).toHaveBeenCalledTimes(1)
   })
 })

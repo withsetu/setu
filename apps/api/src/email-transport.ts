@@ -24,6 +24,23 @@ export interface LiveEmailTransport {
   resolve: () => UsableEmailTransport
   /** An `EmailPort['send']` that re-resolves the transport on every call. */
   send: EmailPort['send']
+  /**
+   * #919: dispatch through an ALREADY-resolved reading — `sendVia(t, msg)` where `t` came from
+   * `resolve()`. For a caller that must DECIDE on the transport before handing over a message
+   * (apps/api/src/reset-email-gate.ts refuses a reset link to the console adapter), `resolve()`
+   * followed by `send()` is two independent readings, and settings.json is Git-canonical: a
+   * pull/checkout/deploy can rewrite it between them, so the gate would admit on reading A and
+   * deliver on reading B. This is the seam that lets the decision bind the dispatch.
+   *
+   * It is NOT a way to freeze a transport at boot: the caller still resolves per send, so the
+   * live-provider property (#890) is intact — the reading is just used once instead of twice.
+   * Pinned by apps/api/test/email-transport.test.ts ("sendVia binds a caller-resolved reading")
+   * and end-to-end by apps/api/test/reset-password-leak.test.ts.
+   */
+  sendVia: (
+    transport: UsableEmailTransport,
+    msg: Parameters<EmailPort['send']>[0]
+  ) => Promise<void>
 }
 
 /**
@@ -94,17 +111,28 @@ export function createLiveEmailTransport(opts: {
     return made
   }
 
+  /** The one dispatch path: report the reading's problem (once per change), then hand the
+   *  message to the adapter that reading names. `send` and `sendVia` differ ONLY in who resolved
+   *  — which is what keeps the fail-safe reporting on both (apps/api/test/email-transport.test.ts,
+   *  "still reports the problem carried by the resolution it was handed"). */
+  const dispatch = async (
+    transport: UsableEmailTransport,
+    msg: Parameters<EmailPort['send']>[0]
+  ): Promise<void> => {
+    if (transport.problem !== null && transport.problem !== lastProblem) {
+      lastProblem = transport.problem
+      opts.onProblem?.(transport.problem, transport.selected)
+    } else if (transport.problem === null) {
+      lastProblem = null
+    }
+    await adapterFor(transport.effective).send(msg)
+  }
+
   return {
     resolve,
+    sendVia: dispatch,
     send: async (msg) => {
-      const transport = resolve()
-      if (transport.problem !== null && transport.problem !== lastProblem) {
-        lastProblem = transport.problem
-        opts.onProblem?.(transport.problem, transport.selected)
-      } else if (transport.problem === null) {
-        lastProblem = null
-      }
-      await adapterFor(transport.effective).send(msg)
+      await dispatch(resolve(), msg)
     }
   }
 }

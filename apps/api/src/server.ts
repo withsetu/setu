@@ -419,9 +419,12 @@ const auth = authConfigured
               // instead of logging a credential. The ENABLE gate here is still boot-time —
               // resetRestartRequired in the status thunk below is how that is surfaced honestly;
               // making it live is #886.
+              // #919: the gate resolves the transport ONCE and delivers through that very
+              // reading via `sendVia` — `email.send` would have re-resolved, so a settings.json
+              // rewrite in between could admit on one reading and dispatch on another.
               send: createResetEmailSender({
-                send: (msg) => email.send(msg),
-                resolveTransport: () => email.resolve().effective,
+                resolveTransport: () => email.resolve(),
+                sendVia: (transport, msg) => email.sendVia(transport, msg),
                 resolveFrom: () => liveFrom().effective ?? undefined,
                 adminOrigin,
                 onRefused: (reason) => {

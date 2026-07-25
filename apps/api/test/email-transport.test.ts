@@ -178,6 +178,66 @@ describe('createLiveEmailTransport — fail-safe on an unusable stored provider 
   })
 })
 
+describe('createLiveEmailTransport — sendVia binds a caller-resolved reading (#919)', () => {
+  // The seam `send` alone could not offer: a caller that has to DECIDE on a resolution (the
+  // reset-email gate) needs the decision and the dispatch to be the same reading. `send`
+  // re-resolves internally, so gating on `resolve()` and then calling `send` is a TOCTOU —
+  // settings.json is Git-canonical and a checkout/pull can rewrite it between the two.
+  it('dispatches through the resolution it was handed, without re-resolving', async () => {
+    const { sent, adapters } = spyAdapters()
+    let provider = 'smtp'
+    const t = createLiveEmailTransport({
+      env: SMTP_ENV,
+      provider: () => provider,
+      adapters
+    })
+
+    const resolved = t.resolve()
+    // The flip the gate must not be exposed to: it lands AFTER the caller resolved.
+    provider = 'console'
+    await t.sendVia(resolved, MSG)
+
+    expect(sent.smtp).toHaveLength(1)
+    expect(sent.console).toEqual([])
+  })
+
+  it('still reports the problem carried by the resolution it was handed', async () => {
+    const { sent, adapters } = spyAdapters()
+    const onProblem = vi.fn()
+    const t = createLiveEmailTransport({
+      env: {},
+      provider: () => 'resend',
+      adapters,
+      onProblem
+    })
+
+    await t.sendVia(t.resolve(), MSG)
+
+    // resend with no key degrades to console — sendVia must not lose the fail-safe reporting
+    // that `send` does.
+    expect(sent.console).toHaveLength(1)
+    expect(onProblem).toHaveBeenCalledTimes(1)
+    expect(onProblem.mock.calls[0]?.[0]).toContain('RESEND_API_KEY is unset')
+  })
+
+  it('send is sendVia over a fresh resolution — still live per call', async () => {
+    const { sent, adapters } = spyAdapters()
+    let provider = 'console'
+    const t = createLiveEmailTransport({
+      env: SMTP_ENV,
+      provider: () => provider,
+      adapters
+    })
+
+    await t.send(MSG)
+    provider = 'smtp'
+    await t.send(MSG)
+
+    expect(sent.console).toHaveLength(1)
+    expect(sent.smtp).toHaveLength(1)
+  })
+})
+
 describe('createLiveEmailTransport — the warning is named, and not per-send spam', () => {
   it('reports each distinct problem once, not on every send', async () => {
     const { adapters } = spyAdapters()

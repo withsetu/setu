@@ -17,10 +17,23 @@ import {
 } from '@setu/core'
 import type { UsableEmailTransport } from '../src/capabilities'
 import { createLiveEmailTemplates } from '../src/email-templates'
+import { createLiveEmailTransport } from '../src/email-transport'
 import {
   createResetEmailSender,
   resetEmailEnabled
 } from '../src/reset-email-gate'
+
+/** A `UsableEmailTransport` reading of the given effective kind — what
+ *  `createLiveEmailTransport().resolve()` hands the gate, and (since #919) what the gate hands
+ *  back for dispatch. */
+const reading = (
+  effective: UsableEmailTransport['effective']
+): UsableEmailTransport => ({
+  selected: effective,
+  source: 'env',
+  effective,
+  problem: null
+})
 
 /** #894 end-to-end: the REAL better-auth reset flow, the REAL console adapter, and a REAL
  *  generated token — so the assertions cannot be vacuous the way a hand-written fake token or a
@@ -90,11 +103,11 @@ function harness(
       ? {
           email: {
             send: createResetEmailSender({
-              send: async (msg) => {
+              sendVia: async (_transport, msg) => {
                 tee.push(msg)
                 await consoleAdapter.send(msg)
               },
-              resolveTransport: () => effectiveTransport,
+              resolveTransport: () => reading(effectiveTransport),
               resolveFrom: () => FROM,
               adminOrigin: ADMIN_ORIGIN,
               onRefused: (reason) => refusals.push(reason)
@@ -278,8 +291,8 @@ describe('password reset never writes a token to the console transport (#894)', 
       rateLimit: { enabled: false },
       email: {
         send: createResetEmailSender({
-          send: (msg) => consoleAdapter.send(msg),
-          resolveTransport: () => live,
+          sendVia: (_transport, msg) => consoleAdapter.send(msg),
+          resolveTransport: () => reading(live),
           resolveFrom: () => FROM,
           adminOrigin: ADMIN_ORIGIN,
           onRefused
@@ -300,5 +313,89 @@ describe('password reset never writes a token to the console transport (#894)', 
     expect(res.status).toBe(200)
     expect(logged).toEqual([])
     expect(onRefused).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * #919: the gate's decision must BIND the dispatch. The sender used to resolve the transport
+   * for its gate and then call a `send` that resolved a second time, so a `settings.json` rewrite
+   * landing in that window — the file is Git-canonical, so a pull/checkout/deploy rewrites it with
+   * no coordination with the running process — admitted the message on reading A and delivered it
+   * on reading B. The whole wiring here is REAL: `createLiveEmailTransport` over a flipping
+   * `provider()`, the real better-auth flow, a real minted token, and the real console adapter.
+   *
+   * The assertion is that the console adapter is never CALLED, not that the log lacks the token:
+   * packages/email-console redacts, which is deliberate defence in depth (#910) and would mask a
+   * raw-token assertion here. What the gate promises is that the message never reaches that
+   * transport at all.
+   */
+  it('a provider flip between the gate and the dispatch cannot re-route the link to the console adapter (#919)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'reset-leak-toctou-'))
+    const sqlite = new Database(join(dir, 'auth.db'))
+    cleanups.push(() => {
+      sqlite.close()
+      rmSync(dir, { recursive: true, force: true })
+    })
+    const db = drizzle(sqlite)
+    migrate(db, { migrationsFolder: '../../packages/db-sqlite/drizzle' })
+
+    const logged: string[] = []
+    const consoleAdapter = createConsoleEmailAdapter((l) => logged.push(l))
+    const smtpSent: EmailMessage[] = []
+    // 'smtp' on the FIRST read, 'console' on every read after: the settings flip, at the worst
+    // possible instant. Pre-#919 the gate read first (smtp → admit) and the send read second
+    // (console → log the link).
+    let providerCalls = 0
+    const email = createLiveEmailTransport({
+      env: { SETU_SMTP_HOST: '127.0.0.1', SETU_SMTP_PORT: '11025' },
+      provider: () => (++providerCalls === 1 ? 'smtp' : 'console'),
+      adapters: {
+        console: () => consoleAdapter,
+        resend: () => consoleAdapter,
+        smtp: () => ({
+          send: async (msg: EmailMessage) => {
+            smtpSent.push(msg)
+          }
+        })
+      }
+    })
+    const onRefused = vi.fn()
+
+    const auth = createAuth({
+      db,
+      secret: 'test-secret-32-chars-minimum!!!!',
+      baseURL: 'http://localhost:4444',
+      trustedOrigins: [ADMIN_ORIGIN],
+      rateLimit: { enabled: false },
+      email: {
+        send: createResetEmailSender({
+          sendVia: (transport, msg) => email.sendVia(transport, msg),
+          resolveTransport: () => email.resolve(),
+          resolveFrom: () => FROM,
+          adminOrigin: ADMIN_ORIGIN,
+          onRefused
+        }),
+        from: FROM,
+        resetRedirectTo: `${ADMIN_ORIGIN}/reset-password`
+      }
+    })
+    await makeUser(auth)
+
+    const res = await auth.api.requestPasswordReset({
+      body: { email: USER_EMAIL, redirectTo: `${ADMIN_ORIGIN}/reset-password` },
+      asResponse: true
+    })
+
+    expect(res.status).toBe(200)
+    // The invariant: the console transport never saw the message.
+    expect(logged).toEqual([])
+    // And the feature still works — delivered through the very reading that was gated on.
+    expect(onRefused).not.toHaveBeenCalled()
+    expect(smtpSent).toHaveLength(1)
+    expect(smtpSent[0]!.to).toBe(USER_EMAIL)
+    expect(smtpSent[0]!.text).toContain(
+      `/reset-password/${tokenOf(smtpSent[0]!)}`
+    )
+    // One reading per send — the second `provider()` call is the whole defect.
+    expect(providerCalls).toBe(1)
   })
 })

@@ -46,3 +46,19 @@ export function entryUrlPath(
   }
   return resolvePermalink(ref, pattern, { uncategorized }).path
 }
+
+/** The single home of Setu's trailing-slash URL policy, at the PATH level: append `/` unless the
+ *  path already ends with one (the root `/` and already-slashed paths are preserved). The site
+ *  serves directory-format pages (`<path>/index.html` → served at `<path>/`), so every URL that
+ *  refers to an entry — the self-canonical, hreflang alternates, the sitemap `<loc>`, the RSS item
+ *  `<link>`, AND the internal navigation links a reader clicks (theme cards, related, latest-posts)
+ *  — must advertise that one spelling, or a crawler sees the same entry at `/about` and `/about/`
+ *  and splits the signal. Lives in core because the site output layer, the theme, and the block
+ *  renderers all need it and cannot share a helper from `apps/site`.
+ *
+ *  `entryUrlPath` above deliberately returns the SLASH-LESS form — it doubles as an Astro route
+ *  param, where a trailing slash would build `<path>//index.html`. So the slash is a DISPLAY-layer
+ *  concern applied here, at the href, not at the permalink source. Enforced by
+ *  packages/core/test/entry-url.test.ts and apps/site/test/url-consistency.test.ts. */
+export const ensureTrailingSlashPath = (path: string): string =>
+  path.endsWith('/') ? path : `${path}/`

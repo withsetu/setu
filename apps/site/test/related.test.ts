@@ -21,7 +21,7 @@ describe('related posts widget', () => {
     expect(html).toContain('Read Next')
   })
   it('links to the same-locale tagged sibling with a clean default-locale href', () => {
-    expect(html).toContain('href="/post/astro-on-the-edge"')
+    expect(html).toContain('href="/post/astro-on-the-edge/"')
     expect(html).toContain('Astro on the Edge')
   })
   it('ships zero JS for the widget (no island/script)', () => {

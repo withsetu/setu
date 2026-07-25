@@ -18,8 +18,8 @@ describe('{% related %} block', () => {
   it('renders a Related section with the curated posts', () => {
     expect(html).toContain('class="setu-related"')
     expect(html).toContain('Related')
-    expect(html).toContain('href="/post/featured-demo"')
-    expect(html).toContain('href="/post/astro-on-the-edge"')
+    expect(html).toContain('href="/post/featured-demo/"')
+    expect(html).toContain('href="/post/astro-on-the-edge/"')
   })
   it('preserves the authored order (featured-demo before astro-on-the-edge)', () => {
     expect(html.indexOf('/post/featured-demo')).toBeLessThan(

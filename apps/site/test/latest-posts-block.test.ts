@@ -32,8 +32,8 @@ describe('latest-posts block — zero-config default', () => {
   it('renders the most recent posts as a list with titles and dates', () => {
     const list = nthList(0)
     expect(list).toContain('blk-latest-posts is-list')
-    expect(list).toContain('href="/post/kitchen-sink"')
-    expect(list).toContain('href="/post/astro-on-the-edge"')
+    expect(list).toContain('href="/post/kitchen-sink/"')
+    expect(list).toContain('href="/post/astro-on-the-edge/"')
     // astro-on-the-edge.mdoc has date: 2026-06-20 → a <time> with a formatted label.
     expect(list).toMatch(
       /<time class="blk-latest-posts-date"[^>]*datetime="2026-06-20"/
@@ -82,10 +82,10 @@ describe('latest-posts block — grid variant with display toggles on', () => {
 describe('latest-posts block — locale filter (audit round)', () => {
   it('scopes the query to the author-set locale', () => {
     const fr = nthList(2)
-    expect(fr).toContain('href="/fr/post/bonjour"')
+    expect(fr).toContain('href="/fr/post/bonjour/"')
     expect(fr).toContain('Bonjour')
     // Default-locale (en) posts are excluded from a locale="fr" block.
-    expect(fr).not.toContain('href="/post/astro-on-the-edge"')
+    expect(fr).not.toContain('href="/post/astro-on-the-edge/"')
     expect(fr).not.toContain('Kitchen Sink')
   })
 })

@@ -4,6 +4,7 @@ import {
   distinctTagSlugs,
   DEFAULT_LOCALE,
   entryUrlPath,
+  ensureTrailingSlashPath,
   extractEmbedVideos
 } from '@setu/core'
 import { toPostRow } from './post-row'
@@ -66,13 +67,11 @@ const xmlEscape = (s: string): string =>
  *  which otherwise splits the canonical/translation-cluster signal. Takes an absolute href; the
  *  root `/` is preserved. Enforced by apps/site/test/url-consistency.test.ts +
  *  apps/site/test/seo-head.test.ts (the built canonical). */
-/** The one place the trailing-slash policy lives, at the PATH level: append `/` unless already
- *  present. Used by `withTrailingSlash` (URL-level, for canonical/hreflang/sitemap) and directly
- *  by the RSS feed item link (a relative path, absolutized later by @astrojs/rss) so all four
- *  URL surfaces share a single rule instead of re-implementing it (#887). The root `/` and any
- *  already-slashed path are preserved. Enforced by apps/site/test/url-consistency.test.ts. */
-export const ensureTrailingSlashPath = (path: string): string =>
-  path.endsWith('/') ? path : `${path}/`
+// The trailing-slash policy primitive now lives in @setu/core (`ensureTrailingSlashPath`, imported
+// above) so the theme + block renderers, which cannot import from apps/site, share the exact same
+// rule for their internal navigation links (#889). Re-exported so the site's own importers
+// (feed.ts) keep their `from './sitemap'` path unchanged.
+export { ensureTrailingSlashPath }
 
 export const withTrailingSlash = (href: string): string => {
   const u = new URL(href)

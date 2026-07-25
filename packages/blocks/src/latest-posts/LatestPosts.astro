@@ -8,7 +8,7 @@
 // pipeline, like every markdoc `component()` renderer. Card markup intentionally stays
 // minimal; a shared PostCard extraction is tracked in #175.
 import './latest-posts.css'
-import { selectPosts, entryUrlPath, DEFAULT_LOCALE, type PostRow } from '@setu/core'
+import { selectPosts, entryUrlPath, ensureTrailingSlashPath, DEFAULT_LOCALE, type PostRow } from '@setu/core'
 import { getCollection } from 'astro:content'
 import { permalinkMap } from 'setu:permalinks'
 import { toPostRow } from 'setu:post-row'
@@ -47,8 +47,12 @@ const posts = selectPosts(rows, {
   offset: 0,
 })
 const map = await permalinkMap()
+// Trailing-slash to match the canonical/sitemap/feed spelling (#889); entryUrlPath is slash-less
+// because it doubles as a route param, so the display slash is applied here.
 const hrefOf = (p: PostRow) =>
-  `/${map.get(p.id) ?? entryUrlPath({ collection: p.collection, locale: p.locale, slug: p.slug })}`
+  ensureTrailingSlashPath(
+    `/${map.get(p.id) ?? entryUrlPath({ collection: p.collection, locale: p.locale, slug: p.slug })}`
+  )
 
 // Locale-aware short date rendered in UTC — a frontmatter date is a calendar date, not an
 // instant, so it must not drift across server/reader timezones (mirrors query.astro).

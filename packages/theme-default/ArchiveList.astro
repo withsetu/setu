@@ -1,5 +1,5 @@
 ---
-import { entryUrlPath, DEFAULT_LOCALE, type PostRow } from '@setu/core'
+import { entryUrlPath, ensureTrailingSlashPath, DEFAULT_LOCALE, type PostRow } from '@setu/core'
 import type { Page } from 'astro'
 import { paginationWindow } from './pagination'
 
@@ -13,10 +13,15 @@ const { page, heading, basePath, mediaBase } = Astro.props
 
 const resolveImg = (s: string): string =>
   !s || /^https?:\/\//i.test(s) ? s : s.startsWith('/') ? `${mediaBase}${s}` : s
+// Internal post-card links share the site's trailing-slash policy so they match the canonical /
+// sitemap / feed spelling for the same entry (#889). entryUrlPath returns the slash-less form (it
+// doubles as a route param); the slash is a display-layer concern applied here.
 const hrefOf = (p: PostRow) =>
-  p.urlPath !== undefined
-    ? `/${p.urlPath}`
-    : `/${entryUrlPath({ collection: p.collection, locale: p.locale, slug: p.slug })}`
+  ensureTrailingSlashPath(
+    p.urlPath !== undefined
+      ? `/${p.urlPath}`
+      : `/${entryUrlPath({ collection: p.collection, locale: p.locale, slug: p.slug })}`
+  )
 // Locale-aware short date rendered in UTC (a frontmatter date is a calendar date, not an instant,
 // so it must not drift across timezones). Full dateFormat/timezone wiring is #157.
 const fmtDate = (ms: number, loc: string): string =>

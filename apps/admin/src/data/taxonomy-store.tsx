@@ -22,6 +22,18 @@ export interface TaxonomyContextValue {
   counts: Record<string, number>
   /** True until the initial categories + counts reads settle — loading ≠ empty (#582). */
   loading: boolean
+  /** True when the LAST categories read rejected, so `categories` is not the real
+   *  registry. #582 let consumers tell loading from empty; this lets them tell empty from
+   *  broken (#914, §4 row 22) — without it a picker confidently offers an empty list.
+   *  Enforced by apps/admin/test/taxonomy-store.test.tsx. */
+  categoriesFailed: boolean
+  /** True when the LAST counts read rejected, so every `counts[slug]` is missing rather
+   *  than zero. Kept separate from `categoriesFailed` on purpose: a counts outage must not
+   *  make a category picker claim its list is broken. Enforced by the same test file. */
+  countsFailed: boolean
+  /** Re-run both initial reads. The retry the two flags above owe the user — nothing else
+   *  re-reads the registry, so a transient failure was permanent until a full reload. */
+  reload: () => Promise<void>
   /** Create a category; returns the minted slug. */
   create: (input: { name: string; parent: string | null }) => Promise<string>
   renameLabel: (slug: string, name: string) => Promise<void>
@@ -61,27 +73,49 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
   const [categories, setCategories] = useState<Category[]>([])
   const [counts, setCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
+  const [categoriesFailed, setCategoriesFailed] = useState(false)
+  const [countsFailed, setCountsFailed] = useState(false)
 
   const refreshCounts = useCallback(
     () =>
       index
         .categoryCounts()
-        .then(setCounts)
-        .catch(() => {}),
+        .then((c) => {
+          setCounts(c)
+          setCountsFailed(false)
+        })
+        // #914: was `.catch(() => {})`. A rejection left every count missing, which reads
+        // on screen as "used by 0" — a delete confirmation then tells the user nothing
+        // references the category it is about to strip.
+        .catch(() => setCountsFailed(true)),
     [index]
   )
 
-  useEffect(() => {
-    // #582: flip `loading` only once both initial reads settle (success or failure),
-    // so screens can tell "still loading" from "loaded empty".
-    void Promise.all([
+  const readCategories = useCallback(
+    () =>
       service
         .read()
-        .then(setCategories)
-        .catch(() => {}),
-      refreshCounts()
-    ]).then(() => setLoading(false))
-  }, [service, refreshCounts])
+        .then((c) => {
+          setCategories(c)
+          setCategoriesFailed(false)
+        })
+        // #914: was `.catch(() => {})`, so a failed registry read was indistinguishable
+        // from "there are no categories" in every picker and in CategoriesTab.
+        .catch(() => setCategoriesFailed(true)),
+    [service]
+  )
+
+  const reload = useCallback(async () => {
+    setLoading(true)
+    // #582: flip `loading` only once both reads settle (success or failure), so screens
+    // can tell "still loading" from "loaded empty" — and, since #914, from "broken".
+    await Promise.all([readCategories(), refreshCounts()])
+    setLoading(false)
+  }, [readCategories, refreshCounts])
+
+  useEffect(() => {
+    void reload()
+  }, [reload])
 
   const create = useCallback(
     async (input: { name: string; parent: string | null }) => {
@@ -117,6 +151,9 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
       categories,
       counts,
       loading,
+      categoriesFailed,
+      countsFailed,
+      reload,
       create,
       renameLabel,
       reparent,
@@ -127,6 +164,9 @@ export function TaxonomyProvider({ children }: { children: ReactNode }) {
       categories,
       counts,
       loading,
+      categoriesFailed,
+      countsFailed,
+      reload,
       create,
       renameLabel,
       reparent,

@@ -41,8 +41,20 @@ export function createHttpSubmissionAdapter(opts: {
   const f = opts.fetchImpl
   const json = async (res: Response) => {
     if (!res.ok) {
-      const detail = (await res.json().catch(() => ({}))) as { error?: string }
-      throw new SubmissionApiError(res.status, detail.error)
+      // Narrowed rather than cast (#914). The old `as { error?: string }` trusted the
+      // remote body twice over: a JSON `null` body made `detail.error` throw a TypeError
+      // that replaced the real failure, and any non-string `error` landed in
+      // `SubmissionApiError.code` while the type said `string | undefined`.
+      // packages/submission-http/test/errors.test.ts covers both.
+      const detail: unknown = await res.json().catch(() => null)
+      const raw =
+        typeof detail === 'object' && detail !== null
+          ? (detail as { error?: unknown }).error
+          : undefined
+      throw new SubmissionApiError(
+        res.status,
+        typeof raw === 'string' ? raw : undefined
+      )
     }
     return res.json()
   }

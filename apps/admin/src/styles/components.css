@@ -99,8 +99,15 @@
 }
 
 /* ---- COMBOBOX ---- */
-/* Wrapper — establishes a positioning context for the dropdown */
+/* Outer wrapper — input+dropdown, then the hint line underneath */
 .combo {
+  position: relative;
+}
+
+/* Input + dropdown only. THIS is the dropdown's positioning context: anchoring it on
+   .combo instead made the hint line's height push the panel down (#914). Measured by
+   apps/admin/test-browser/combobox-hint-layout.test.tsx. */
+.combo-field {
   position: relative;
 }
 
@@ -179,6 +186,14 @@
   line-height: 1.4;
   color: var(--red);
 }
+/* NOTE: the hint element stays mounted even when empty (Combobox.tsx), and costs no
+   height while it is — an empty block box has no content height and its margins collapse
+   away through `.combo`. A `.combo-hint:empty { margin: 0 }` rule was written for this and
+   removed again: killing it changed nothing, so it was documentation pretending to be
+   enforcement. The property itself is asserted, in real chromium, by 'adds no vertical
+   space while the hint is empty' in apps/admin/test-browser/combobox-hint-layout.test.tsx
+   — which is what will fail if `.combo` ever gains padding or a flex display and the
+   collapse stops. */
 
 /* ---- NOTIFICATIONS ---- */
 /* A gentle downward slide/fade — drops in from the top-right */

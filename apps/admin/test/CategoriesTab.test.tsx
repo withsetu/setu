@@ -11,7 +11,7 @@ beforeAll(() => {
   }
 })
 import { MemoryRouter } from 'react-router-dom'
-import { createMemoryDataPort } from '@setu/db-memory'
+import { createMemoryDataPort, createMemoryIndexPort } from '@setu/db-memory'
 import { createMemoryGitPort } from '@setu/git-memory'
 import { ServicesProvider, servicesFor } from '../src/data/store'
 import { DeployProvider } from '../src/deploy/deploy'
@@ -44,6 +44,57 @@ const SEED_YAML = `- slug: eng
   name: React
   parent: frontend
 `
+
+/** As `wrap`, but the registry read rejects until `fixGit()` is called. */
+function wrapBrokenGit() {
+  const real = createMemoryGitPort([
+    { path: 'taxonomy/categories.yaml', content: SEED_YAML }
+  ])
+  let broken = true
+  const git = {
+    ...real,
+    readFile: (path: string) =>
+      broken ? Promise.reject(new Error('git down')) : real.readFile(path)
+  }
+  renderWith(servicesFor(createMemoryDataPort(), git))
+  return {
+    fixGit: () => {
+      broken = false
+    }
+  }
+}
+
+/** As `wrap`, but only the per-category usage counts fail to read. */
+function wrapBrokenCounts() {
+  const git = createMemoryGitPort([
+    { path: 'taxonomy/categories.yaml', content: SEED_YAML }
+  ])
+  const index = createMemoryIndexPort()
+  renderWith(
+    servicesFor(createMemoryDataPort(), git, {
+      ...index,
+      categoryCounts: () => Promise.reject(new Error('index down'))
+    })
+  )
+}
+
+function renderWith(services: ReturnType<typeof servicesFor>) {
+  return render(
+    <MemoryRouter>
+      <ServicesProvider services={services}>
+        <DeployProvider>
+          <IndexProvider>
+            <TaxonomyProvider>
+              <NotificationProvider>
+                <CategoriesTab />
+              </NotificationProvider>
+            </TaxonomyProvider>
+          </IndexProvider>
+        </DeployProvider>
+      </ServicesProvider>
+    </MemoryRouter>
+  )
+}
 
 function wrap(
   files: Array<{ path: string; content: string }> = [
@@ -201,5 +252,41 @@ describe('CategoriesTab', () => {
     // Load settles with zero rows: NOW the empty state appears, skeletons gone.
     expect(await screen.findByText(/no categories yet/i)).toBeInTheDocument()
     expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(0)
+  })
+
+  // #914 / §4 row 22: #582 separated loading from empty, but a FAILED registry read still
+  // landed on "No categories yet — add one above." — an invitation to recreate a taxonomy
+  // that is merely unreadable.
+  describe('a failed registry read (#914)', () => {
+    it('reports the failure instead of the empty state, and offers a retry', async () => {
+      wrapBrokenGit()
+
+      expect(await screen.findByText(/couldn’t load categories/i)).toBeVisible()
+      expect(screen.queryByText(/no categories yet/i)).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: /try again/i })
+      ).toBeInTheDocument()
+    })
+
+    it('recovers when the retry succeeds', async () => {
+      const { fixGit } = wrapBrokenGit()
+
+      await screen.findByText(/couldn’t load categories/i)
+      fixGit()
+      fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+
+      expect(await screen.findByDisplayValue('Frontend')).toBeInTheDocument()
+      expect(screen.queryByText(/couldn’t load categories/i)).toBeNull()
+    })
+  })
+
+  // #914: the "Used by" numbers come from a separate read. When THAT fails every count
+  // reads as unused, which is wrong in a different way from the list being unreadable —
+  // so it gets its own, weaker notice and does not hide the tree.
+  it('flags unreadable usage counts without hiding the categories', async () => {
+    wrapBrokenCounts()
+
+    expect(await screen.findByDisplayValue('Frontend')).toBeInTheDocument()
+    expect(screen.getByText(/couldn’t load usage counts/i)).toBeVisible()
   })
 })

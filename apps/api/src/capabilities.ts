@@ -63,11 +63,12 @@ export function buildCapabilities(opts: {
 }
 
 /** Parsed, validated SMTP connection config from `SETU_SMTP_*` env vars — the single parser
- *  shared by emailCapabilityFromEnv (below) and server.ts's adapter construction, so "reported
- *  deliverable" and "actually wired" can never disagree about what counts as a usable config
- *  (apps/api/test/capabilities.test.ts pins both sides). `problem` is a human-readable,
- *  boot-log-safe reason: it may echo the (non-secret) port value, and the test above proves it
- *  never echoes SETU_SMTP_USER/SETU_SMTP_PASS values. */
+ *  intended to be shared by emailCapabilityFromEnv (below) and server.ts's adapter construction.
+ *  apps/api/test/capabilities.test.ts pins the parser and the deliverable derivation; server.ts's
+ *  construction side is not covered by that test — it holds because server.ts calls this same
+ *  function on the same env, so keep it that way (don't fork a second parse there). `problem` is
+ *  a human-readable, boot-log-safe reason: it may echo the (non-secret) port value, and the test
+ *  above proves it never echoes SETU_SMTP_USER/SETU_SMTP_PASS values. */
 export type SmtpEnvResult =
   | {
       config: {

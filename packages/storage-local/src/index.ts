@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile, rm, stat, readdir } from 'node:fs/promises'
 import { dirname, join, normalize, sep, isAbsolute, relative } from 'node:path'
 import type { StoragePort, StoredObject } from '@setu/core'
+import { isInsideRoot, rootOf } from './root'
 
 export interface LocalStorageOptions {
   /** Directory under which objects are written. */
@@ -11,29 +12,22 @@ export interface LocalStorageOptions {
 
 const META = '.meta'
 
-/** Drop any run of trailing `/`. Exactly equivalent to `.replace(/\/+$/, '')`
- *  but a single linear scan — the anchored `\/+$` form is polynomial because the
- *  engine re-tries the quantifier from every start position (#340). */
+/** Drop any run of trailing `/` from a URL base. Exactly equivalent to
+ *  `.replace(/\/+$/, '')` but a single linear scan — the anchored `\/+$` form is
+ *  polynomial because the engine re-tries the quantifier from every start position (#340).
+ *  `/`-only on purpose: this is for `baseUrl`, where a backslash is an ordinary path
+ *  character. Filesystem paths use `rootOf` in ./root.ts instead, which also strips `sep`. */
 function stripTrailingSlashes(s: string): string {
   let end = s.length
   while (end > 0 && s.charCodeAt(end - 1) === 47 /* '/' */) end--
   return end === s.length ? s : s.slice(0, end)
 }
 
-/** The canonical form of `dir` used for every containment comparison: normalized,
- *  with any trailing separator removed. `normalize()` keeps a trailing slash, which
- *  made `root + sep` end in '//' so every key failed containment and was reported as
- *  a path traversal — total media failure from `SETU_MEDIA_DIR=/var/media/` (#896).
- *  Covered by the trailing-separator cases in packages/storage-local/test/local.test.ts. */
-function rootOf(dir: string): string {
-  const stripped = stripTrailingSlashes(normalize(dir))
-  // `dir` is the filesystem root ('/'): keep it, since '' would make the
-  // `root + sep` comparison below meaningless rather than merely redundant.
-  return stripped === '' ? normalize(dir) : stripped
-}
-
 /** Reject keys that are absolute, contain `..` segments, or otherwise escape `dir`;
- *  return the safe absolute path under `dir`. */
+ *  return the safe absolute path under `dir`. The absolute/`..` rejections are covered by
+ *  packages/storage-local/test/local.test.ts and test/root.test.ts; the containment backstop
+ *  below is covered as `isInsideRoot` in test/root.test.ts (see its comment for why it
+ *  cannot be reached through this function). */
 function resolveKey(dir: string, key: string): string {
   if (key.trim() === '') throw new Error('storage-local: empty key')
   if (isAbsolute(key) || key.split(/[\\/]/).includes('..')) {
@@ -41,7 +35,7 @@ function resolveKey(dir: string, key: string): string {
   }
   const root = rootOf(dir)
   const abs = normalize(join(root, key))
-  if (abs !== root && !abs.startsWith(root + sep)) {
+  if (!isInsideRoot(root, abs)) {
     throw new Error(`storage-local: key "${key}" escapes the storage dir`)
   }
   if (key.split(/[\\/]/)[0] === META) {

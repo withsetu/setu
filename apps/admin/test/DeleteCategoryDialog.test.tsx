@@ -103,6 +103,38 @@ describe('DeleteCategoryDialog', () => {
     expect(screen.getByText(/isn't used by any content/i)).toBeInTheDocument()
   })
 
+  // #914 / §4 row 22: a failed counts read left `counts` empty, so `counts[slug] ?? 0`
+  // told the user, in a destructive confirmation, that nothing references the category —
+  // the one place where "0" and "unknown" must not look alike.
+  it('says usage is unknown, not zero, when the counts read failed', async () => {
+    const spy = vi
+      .spyOn(await import('../src/data/taxonomy-store'), 'useTaxonomy')
+      .mockReturnValue({
+        categories: [],
+        loading: false,
+        counts: {},
+        categoriesFailed: false,
+        countsFailed: true,
+        reload: vi.fn(),
+        create: vi.fn(),
+        renameLabel: vi.fn(),
+        reparent: vi.fn(),
+        remove: vi.fn(),
+        refreshCounts: vi.fn()
+      })
+    try {
+      render(
+        <Wrapper>
+          <DeleteCategoryDialog node={makeNode()} onClose={vi.fn()} />
+        </Wrapper>
+      )
+      expect(screen.queryByText(/isn't used by any content/i)).toBeNull()
+      expect(screen.getByText(/couldn’t be checked/i)).toBeInTheDocument()
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
   it('shows "Used by 3 entries" when counts[slug]=3 and children note when node has children', async () => {
     const child = childNode()
     const node = makeNode({ children: [child] })
@@ -116,6 +148,9 @@ describe('DeleteCategoryDialog', () => {
         categories: [],
         loading: false,
         counts: { tech: 3 },
+        categoriesFailed: false,
+        countsFailed: false,
+        reload: vi.fn(),
         create: vi.fn(),
         renameLabel: vi.fn(),
         reparent: vi.fn(),
@@ -145,6 +180,9 @@ describe('DeleteCategoryDialog', () => {
         categories: [],
         loading: false,
         counts: { tech: 1 },
+        categoriesFailed: false,
+        countsFailed: false,
+        reload: vi.fn(),
         create: vi.fn(),
         renameLabel: vi.fn(),
         reparent: vi.fn(),
@@ -173,6 +211,9 @@ describe('DeleteCategoryDialog', () => {
         categories: [],
         loading: false,
         counts: {},
+        categoriesFailed: false,
+        countsFailed: false,
+        reload: vi.fn(),
         create: vi.fn(),
         renameLabel: vi.fn(),
         reparent: vi.fn(),
@@ -205,6 +246,9 @@ describe('DeleteCategoryDialog', () => {
         categories: [],
         loading: false,
         counts: {},
+        categoriesFailed: false,
+        countsFailed: false,
+        reload: vi.fn(),
         create: vi.fn(),
         renameLabel: vi.fn(),
         reparent: vi.fn(),
@@ -233,6 +277,9 @@ describe('DeleteCategoryDialog', () => {
         categories: [],
         loading: false,
         counts: { tech: 2 },
+        categoriesFailed: false,
+        countsFailed: false,
+        reload: vi.fn(),
         create: vi.fn(),
         renameLabel: vi.fn(),
         reparent: vi.fn(),

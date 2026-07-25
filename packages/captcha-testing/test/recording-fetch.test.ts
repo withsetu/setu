@@ -44,6 +44,44 @@ describe('createRecordingFetch', () => {
     expect(captchaContentType(requests[0]!)).toBe(CAPTCHA_CONTRACT_CONTENT_TYPE)
   })
 
+  // `captchaContentType` indexes the record with the literal 'content-type', so a record
+  // that kept the caller's casing would read as "no Content-Type at all" and every format
+  // assertion built on it would pass vacuously. #914 found the claim documented but
+  // unenforced.
+  it('lower-cases header names, whatever casing the caller used', async () => {
+    const { fetchImpl, requests } = createRecordingFetch(
+      () => new Response('{}')
+    )
+    await fetchImpl('https://provider.test/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'secret=s3cret'
+    })
+
+    expect(Object.keys(requests[0]!.headers)).toContain('content-type')
+    expect(Object.keys(requests[0]!.headers)).not.toContain('Content-Type')
+    expect(captchaContentType(requests[0]!)).toBe(CAPTCHA_CONTRACT_CONTENT_TYPE)
+  })
+
+  // The charset parameter is not hypothetical: `fetch` derives
+  // 'application/x-www-form-urlencoded;charset=UTF-8' from a URLSearchParams body, so
+  // every other Content-Type assertion here depends on the strip.
+  it('strips a ;charset parameter off the recorded Content-Type', async () => {
+    const { fetchImpl, requests } = createRecordingFetch(
+      () => new Response('{}')
+    )
+    await fetchImpl('https://provider.test/verify', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-www-form-urlencoded; charset=UTF-8'
+      },
+      body: 'secret=s3cret'
+    })
+
+    expect(requests[0]!.headers['content-type']).toContain('charset')
+    expect(captchaContentType(requests[0]!)).toBe(CAPTCHA_CONTRACT_CONTENT_TYPE)
+  })
+
   it('records a JSON body as JSON — the format the contract must reject', async () => {
     const { fetchImpl, requests } = createRecordingFetch(
       () => new Response('{}')

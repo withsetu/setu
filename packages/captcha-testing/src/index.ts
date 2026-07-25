@@ -3,13 +3,20 @@ import type { CaptchaPort } from '@setu/core'
 
 /** One record per request an adapter made through the injected transport. */
 export interface CaptchaRequestRecord {
-  /** Absolute request URL, as the adapter addressed it. */
+  /** Absolute request URL, as the adapter addressed it. Enforced by the url cases in
+   *  test/recording-fetch.test.ts. */
   url: string
   method: string
-  /** Request body, read as text (both shipped adapters send form-encoded). */
+  /** Request body, read as text. (The shipped adapters send it form-encoded — that is
+   *  enforced for each of them by the Content-Type case in the contract below, which
+   *  packages/captcha-turnstile/test/contract.test.ts and
+   *  packages/captcha-recaptcha/test/contract.test.ts run.) */
   body: string
-  /** Request headers, lower-cased names → values, as `Headers` yields them.
-   *  Recorded because the wire FORMAT is half of what an adapter must get right
+  /** Request headers, lower-cased names → values, as `Headers` yields them — enforced by
+   *  `it('lower-cases header names, whatever casing the caller used')` in
+   *  test/recording-fetch.test.ts, since `captchaContentType` below indexes this map with a
+   *  lower-case literal and would silently read "absent" otherwise.
+   *  Recorded at all because the wire FORMAT is half of what an adapter must get right
    *  and is invisible in the body text alone: a body the provider cannot parse
    *  takes captcha down entirely, and #911 proved the old body-only record could
    *  not see it (swapping URLSearchParams for JSON.stringify passed 10/10). */
@@ -26,12 +33,19 @@ export function captchaFields(req: CaptchaRequestRecord): URLSearchParams {
   return new URLSearchParams(req.body)
 }
 
-/** The record's Content-Type with any `;charset=…` parameter stripped. */
+/** The record's Content-Type with any `;charset=…` parameter stripped — enforced by
+ *  `it('strips a ;charset parameter off the recorded Content-Type')` in
+ *  test/recording-fetch.test.ts. Not cosmetic: `fetch` derives
+ *  `application/x-www-form-urlencoded;charset=UTF-8` from a URLSearchParams body, so every
+ *  comparison against CAPTCHA_CONTRACT_CONTENT_TYPE below depends on the strip. */
 export function captchaContentType(req: CaptchaRequestRecord): string {
   return (req.headers['content-type'] ?? '').split(';')[0]!.trim().toLowerCase()
 }
 
-/** What `captchaContentType` must equal: the encoding `captchaFields` parses.
+/** What `captchaContentType` must equal: the encoding `captchaFields` parses. That the two
+ *  agree — this constant, and what `captchaFields` can actually read — is enforced by
+ *  `it('records a JSON body as JSON — the format the contract must reject')` in
+ *  test/recording-fetch.test.ts, which asserts both halves flip together.
  *  A provider needing JSON would mean widening the contract — deliberately, with
  *  its own field-level assertions — not relaxing this one. */
 export const CAPTCHA_CONTRACT_CONTENT_TYPE = 'application/x-www-form-urlencoded'

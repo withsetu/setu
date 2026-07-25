@@ -98,6 +98,19 @@ describe('TagAutocomplete', () => {
     ).not.toBeNull()
   })
 
+  // #914: the notice named the failure but not the recovery. The effect re-runs on
+  // every keystroke, so typing IS the retry — but only the implementer knew that, which
+  // left the user with a red line and no next step (CLAUDE.md §3.2: an error state the
+  // user is waiting on has to offer the retry).
+  it('tells the user that typing again retries the lookup', async () => {
+    setup(vi.fn(), [], { failSuggestions: true })
+    fireEvent.change(screen.getByLabelText('Add a tag'), {
+      target: { value: 're' }
+    })
+    const notice = await screen.findByText(/couldn’t load tag suggestions/i)
+    expect(notice.textContent).toMatch(/keep typing|type again/i)
+  })
+
   it('keeps free-text entry working when suggestions fail', async () => {
     const { onSubmit } = setup(vi.fn(), [], { failSuggestions: true })
     const input = screen.getByLabelText('Add a tag')

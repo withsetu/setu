@@ -164,6 +164,48 @@ describe('createSubmissionService.submit', () => {
       expect(onNotifySkipped).not.toHaveBeenCalled()
     })
 
+    // The notify block is best-effort by contract: the row is already persisted when it runs, so
+    // NOTHING in it may turn a saved submission into a 500 at apps/api/src/forms.ts's handler
+    // (which awaits submit() in-request). The send and the renderer were already wrapped; the
+    // reporting callback and the live `notifyFrom` thunk — which reads settings.json in apps/api,
+    // so it really can throw — were not.
+    it('a throwing onNotifySkipped cannot fail a persisted submission', async () => {
+      const submissions = createMemorySubmissionPort()
+      const svc = createSubmissionService({
+        submissions,
+        captcha: ok,
+        email: { send: vi.fn(async () => {}) },
+        notifyTo: 'owner@x.com',
+        notifyFrom: () => undefined,
+        onNotifySkipped: () => {
+          throw new Error('logger exploded')
+        }
+      })
+
+      const r = await svc.submit({ ...base })
+
+      expect(r).toEqual({ ok: true, id: expect.any(String) })
+      expect((await submissions.listSubmissions()).total).toBe(1)
+    })
+
+    it('a throwing notifyFrom thunk cannot fail a persisted submission', async () => {
+      const submissions = createMemorySubmissionPort()
+      const svc = createSubmissionService({
+        submissions,
+        captcha: ok,
+        email: { send: vi.fn(async () => {}) },
+        notifyTo: 'owner@x.com',
+        notifyFrom: () => {
+          throw new Error('settings.json is unreadable')
+        }
+      })
+
+      const r = await svc.submit({ ...base })
+
+      expect(r).toEqual({ ok: true, id: expect.any(String) })
+      expect((await submissions.listSubmissions()).total).toBe(1)
+    })
+
     it('stays quiet on the happy path, and when there is no email port at all', async () => {
       const submissions = createMemorySubmissionPort()
       const onNotifySkipped = vi.fn()

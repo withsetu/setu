@@ -121,28 +121,37 @@ export function createSubmissionService(
         return { ok: false, error: 'server' }
       }
 
-      // 5. Best-effort notify — never fails the submission. The from-address is resolved HERE,
-      // per submission, so a thunk-shaped notifyFrom keeps both the gate and the sender live.
-      const from = typeof notifyFrom === 'function' ? notifyFrom() : notifyFrom
-      if (email && notifyTo && from) {
-        try {
+      // 5. Best-effort notify — never fails the submission. The row is ALREADY persisted here,
+      // and apps/api/src/forms.ts awaits submit() inside the request handler, so anything that
+      // escapes this block turns a saved submission into a 500 for the visitor. The whole block
+      // is therefore wrapped, not just the send: `notifyFrom` is a live thunk that reads
+      // settings.json in apps/api (it can throw on an unreadable file), and `onNotifySkipped` is
+      // caller-supplied. Both throw paths are pinned by
+      // packages/core/test/submissions/submission-service.test.ts ("cannot fail a persisted
+      // submission").
+      try {
+        // The from-address is resolved HERE, per submission, so a thunk-shaped notifyFrom keeps
+        // both the gate and the sender live.
+        const from =
+          typeof notifyFrom === 'function' ? notifyFrom() : notifyFrom
+        if (email && notifyTo && from) {
           const content = await render(saved)
           await email.send({ to: notifyTo, from, ...content })
-        } catch (e) {
-          console.error('[submission-service] notify failed', e)
+        } else if (email && notifyTo) {
+          // #921: notifications ARE configured (a transport and a recipient), so a missing
+          // from-address is a break, not a choice — and since #498 it is resolved live, so it
+          // can vanish mid-run from a Settings → Email save or a `git push` (settings.json is
+          // Git-canonical). Reporting is gated on `notifyTo` precisely so the never-configured
+          // case stays silent: claiming a failure that did not happen is the inverse defect
+          // (#834). The submission itself is already persisted — nothing is lost, the operator
+          // just stops being told, which is the part that was invisible.
+          deps.onNotifySkipped?.(
+            'no from-address is configured, so the form-notification email was not sent — the ' +
+              'submission was saved. Set one in Settings → Email (or SETU_FORMS_NOTIFY_FROM).'
+          )
         }
-      } else if (email && notifyTo) {
-        // #921: notifications ARE configured (a transport and a recipient), so a missing
-        // from-address is a break, not a choice — and since #498 it is resolved live, so it can
-        // vanish mid-run from a Settings → Email save or a `git push` (settings.json is
-        // Git-canonical). Reporting is gated on `notifyTo` precisely so the never-configured
-        // case stays silent: claiming a failure that did not happen is the inverse defect (#834).
-        // The submission itself is already persisted — nothing is lost, the operator just stops
-        // being told, which is the part that was invisible.
-        deps.onNotifySkipped?.(
-          'no from-address is configured, so the form-notification email was not sent — the ' +
-            'submission was saved. Set one in Settings → Email (or SETU_FORMS_NOTIFY_FROM).'
-        )
+      } catch (e) {
+        console.error('[submission-service] notify failed', e)
       }
 
       return { ok: true, id: saved.id }

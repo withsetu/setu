@@ -101,15 +101,17 @@ export function createResetEmailSender(opts: {
   onRefused: (reason: string) => void
 }): EmailPort['send'] {
   return async (msg) => {
-    // #919: ONE reading per send, and the object that satisfied the gate is the object that
-    // dispatches. Previously this resolved for the gate and then called an `email.send` that
-    // resolved independently — two readings of a Git-canonical file, so a `git pull`/checkout
-    // landing between them admitted the message on 'smtp' and delivered it on 'console', i.e.
-    // wrote a live reset token into the server log. The from-address never had this shape: it is
-    // read once here and bound BY VALUE into the message below, so the address the gate judged is
-    // the address the adapter receives. Both properties are pinned by
-    // apps/api/test/reset-email-gate.test.ts ("delivers through the EXACT reading it gated on")
-    // and end-to-end by apps/api/test/reset-password-leak.test.ts.
+    // #919: ONE reading per send of BOTH inputs, and what satisfied the gate is what dispatches —
+    // the transport as the very object handed to `sendVia`, the from-address bound by value into
+    // the message below. Previously this resolved the transport for the gate and then called an
+    // `email.send` that resolved independently — two readings of a Git-canonical file, so a
+    // `git pull`/checkout landing between them admitted the message on 'smtp' and delivered it on
+    // 'console', i.e. wrote a live reset token into the server log.
+    // Enforced by apps/api/test/reset-email-gate.test.ts ("delivers through the EXACT reading it
+    // gated on — transport AND from-address — resolving each once"), whose stubs answer
+    // DIFFERENTLY on a second call so one reading is distinguishable from two; a constant stub
+    // could not tell them apart, which is how the from-address half of this claim sat unenforced
+    // while the comment asserted it. End-to-end: apps/api/test/reset-password-leak.test.ts.
     const transport = opts.resolveTransport()
     const from = opts.resolveFrom() ?? msg.from
     const refusal = resetEmailRefusal({

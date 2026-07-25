@@ -497,7 +497,9 @@ const submit = createSubmissionService({
   // Because `notifyFrom` is live, clearing the from-address in Settings → Email (or a `git push`
   // that clears it) stops every form notification at once — previously with no log line at all,
   // while the visitor still saw `{ ok: true }`. The service only calls this when notifications
-  // are actually configured, so a deployment that never wanted them stays quiet.
+  // are actually configured, so a deployment that never wanted them stays quiet — both
+  // directions pinned by packages/core/test/submissions/submission-service.test.ts
+  // ("onNotifySkipped (#921)" describe), which also covers a throwing callback.
   onNotifySkipped: (reason) => {
     console.error(`[forms] form notification NOT sent: ${reason}`)
   }
@@ -772,7 +774,10 @@ app.route(
   '/',
   createEmailApi({
     resolveActor,
-    send: (msg) => email.send(msg),
+    // #919: the route resolves once and dispatches through that reading, so the transport it
+    // reports back to Settings → Email is the one that actually handled the message.
+    resolveTransport: () => email.resolve(),
+    sendVia: (transport, msg) => email.sendVia(transport, msg),
     status: () => {
       const from = liveFrom()
       const live = email.resolve()

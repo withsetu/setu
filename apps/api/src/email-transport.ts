@@ -33,9 +33,13 @@ export interface LiveEmailTransport {
    * deliver on reading B. This is the seam that lets the decision bind the dispatch.
    *
    * It is NOT a way to freeze a transport at boot: the caller still resolves per send, so the
-   * live-provider property (#890) is intact — the reading is just used once instead of twice.
-   * Pinned by apps/api/test/email-transport.test.ts ("sendVia binds a caller-resolved reading")
-   * and end-to-end by apps/api/test/reset-password-leak.test.ts.
+   * live-provider property (#890) survives — the reading is just used once instead of twice.
+   * Pinned at BOTH levels, because the seam and its caller can each break it independently:
+   * this module by apps/api/test/email-transport.test.ts ("sendVia binds a caller-resolved
+   * reading"), and the reset gate — the one caller that resolves for itself — by
+   * apps/api/test/reset-email-gate.test.ts ("re-resolves on every send"), which drives two sends
+   * through one long-lived sender with the provider changing in between. End-to-end:
+   * apps/api/test/reset-password-leak.test.ts.
    */
   sendVia: (
     transport: UsableEmailTransport,

@@ -132,24 +132,64 @@ describe('createResetEmailSender', () => {
   // the two (Git-canonical file — a pull/checkout/deploy rewrites it with no coordination) could
   // put a live reset token through the console adapter into the server log. Now the reading the
   // gate decided on is the object handed to `sendVia`.
-  it('delivers through the EXACT reading it gated on, resolving only once', async () => {
+  it('delivers through the EXACT reading it gated on — transport AND from-address — resolving each once', async () => {
     const sendVia = vi.fn()
-    let calls = 0
+    let transportCalls = 0
+    let fromCalls = 0
     const readings = [reading('smtp'), reading('console')]
     const sender = createResetEmailSender({
       sendVia,
-      // 'smtp' the first time, 'console' every time after — the flip mid-send.
-      resolveTransport: () => readings[Math.min(calls++, 1)]!,
-      resolveFrom: () => 'live@example.test',
+      // Both resolvers answer differently on a second call — the settings.json rewrite landing
+      // mid-send. BOTH stubs must flip: a constant stub cannot tell one reading from two, which
+      // is exactly how the from-address half of this claim went unenforced when this test only
+      // counted `resolveTransport` calls.
+      resolveTransport: () => readings[Math.min(transportCalls++, 1)]!,
+      resolveFrom: () => (fromCalls++ === 0 ? 'first@x.test' : 'second@x.test'),
       adminOrigin: 'https://admin.example.test',
       onRefused: vi.fn()
     })
 
     await sender(message)
 
-    expect(calls).toBe(1)
+    // The substantive assertions first: what the gate judged is what the adapter receives.
     expect(sendVia).toHaveBeenCalledTimes(1)
     expect(sendVia.mock.calls[0]![0]).toBe(readings[0])
+    expect(sendVia.mock.calls[0]![1]!.from).toBe('first@x.test')
+    // Corroboration: one reading each, so there is no window for a rewrite to land in.
+    expect(transportCalls).toBe(1)
+    expect(fromCalls).toBe(1)
+  })
+
+  // The other half of #919's claim: binding the gate to ONE reading must not freeze it. The
+  // sender is built once (server.ts builds it at boot), so if it cached its reading, a provider
+  // saved in Settings → Email would never reach it — which is the #890 property the whole live
+  // transport exists for. Two successive sends through ONE sender, transport and from-address
+  // changing in between.
+  it('re-resolves on every send — one reading per send, not one for the sender', async () => {
+    const sendVia = vi.fn()
+    let transport = reading('resend')
+    let from = 'first@x.test'
+    const sender = createResetEmailSender({
+      sendVia,
+      resolveTransport: () => transport,
+      resolveFrom: () => from,
+      adminOrigin: 'https://admin.example.test',
+      onRefused: vi.fn()
+    })
+
+    await sender(message)
+
+    // The admin saves a new provider and a new from-address; the sender is NOT rebuilt.
+    const second = reading('smtp')
+    transport = second
+    from = 'second@x.test'
+    await sender(message)
+
+    expect(sendVia).toHaveBeenCalledTimes(2)
+    expect(sendVia.mock.calls[0]![0]!.effective).toBe('resend')
+    expect(sendVia.mock.calls[0]![1]!.from).toBe('first@x.test')
+    expect(sendVia.mock.calls[1]![0]).toBe(second)
+    expect(sendVia.mock.calls[1]![1]!.from).toBe('second@x.test')
   })
 
   it('falls back to the message from-address when nothing is live', async () => {

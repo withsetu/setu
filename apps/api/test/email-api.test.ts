@@ -75,7 +75,16 @@ function makeApp(opts: { status?: EmailStatus; sendError?: Error } = {}) {
   const app = createEmailApi({
     resolveActor: resolveSessionActor(auth),
     status: () => status,
-    send: sendSpy,
+    // These unit tests inject `status` directly, so the transport reading is derived from it —
+    // keeping every existing assertion about `transport`/`result` meaning exactly what it did.
+    // The flip case that needs the two to DIVERGE lives in the live-transport describe below.
+    resolveTransport: () => ({
+      selected: status.transport,
+      source: status.providerSource,
+      effective: status.effectiveTransport,
+      problem: null
+    }),
+    sendVia: (_transport, msg) => sendSpy(msg),
     now: () => nowMs
   })
 
@@ -383,15 +392,27 @@ describe('test-send goes through the SETTINGS-chosen transport (live, no restart
 
     // Stands in for settings.json's `email.provider`; server.ts re-reads the file here.
     let provider = ''
-    const delivered: { kind: string; to: string }[] = []
+    // #919: when set, `provider()` answers `first` on its next read and `then` on every read
+    // after — a settings.json rewrite landing mid-request, which is what makes a route that
+    // reads twice disagree with itself.
+    let flip: { first: string; then: string; used: boolean } | null = null
+    const readProvider = () => {
+      if (!flip) return provider
+      if (!flip.used) {
+        flip.used = true
+        return flip.first
+      }
+      return flip.then
+    }
+    const delivered: { kind: string; to: string; text: string }[] = []
     const adapter = (kind: string) => ({
-      send: async (msg: { to: string }) => {
-        delivered.push({ kind, to: msg.to })
+      send: async (msg: { to: string; text?: string }) => {
+        delivered.push({ kind, to: msg.to, text: msg.text ?? '' })
       }
     })
     const email = createLiveEmailTransport({
       env,
-      provider: () => provider,
+      provider: readProvider,
       adapters: {
         console: () => adapter('console'),
         resend: () => adapter('resend'),
@@ -401,7 +422,8 @@ describe('test-send goes through the SETTINGS-chosen transport (live, no restart
 
     const app = createEmailApi({
       resolveActor: resolveSessionActor(auth),
-      send: (msg) => email.send(msg),
+      resolveTransport: () => email.resolve(),
+      sendVia: (transport, msg) => email.sendVia(transport, msg),
       status: () => {
         const live = email.resolve()
         return {
@@ -434,6 +456,9 @@ describe('test-send goes through the SETTINGS-chosen transport (live, no restart
       delivered,
       setProvider: (p: string) => {
         provider = p
+      },
+      flipProviderAfterFirstRead: (first: string, then: string) => {
+        flip = { first, then, used: false }
       }
     }
   }
@@ -522,5 +547,43 @@ describe('test-send goes through the SETTINGS-chosen transport (live, no restart
       transport: 'console'
     })
     expect(live.delivered.map((d) => d.kind)).toEqual(['console'])
+  })
+
+  /**
+   * #919, the test-send half. The route used to label the outcome and stamp `Transport: …` into
+   * the body from `opts.status()`'s reading, then dispatch through an `opts.send` that resolved
+   * AGAIN — so a settings.json rewrite landing between the two made the admin screen say "sent"
+   * over a message the console adapter had merely logged. That is precisely the lie the
+   * `result: 'logged' | 'sent'` distinction exists to prevent (card #7's saved≠live cousin).
+   *
+   * The provider stub answers 'smtp' on the first read and 'console' on every read after, so a
+   * route that reads twice cannot help but disagree with itself.
+   */
+  it('labels the outcome from the reading it actually dispatched through, even when the provider flips mid-request (#919)', async () => {
+    const live = makeLiveApp(SMTP_ENV)
+    await makeUser(live.auth, {
+      email: 'admin@test.com',
+      name: 'admin',
+      role: 'admin',
+      password: 'a-strong-password-12'
+    })
+    const cookie = await signInCookie(
+      live.auth,
+      'admin@test.com',
+      'a-strong-password-12'
+    )
+
+    live.flipProviderAfterFirstRead('smtp', 'console')
+
+    const res = await live.app.fetch(sendReq(cookie))
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { result: string; transport: string }
+
+    // Whichever reading won, the label and the adapter that actually sent must be the SAME one.
+    const dispatched = live.delivered.at(-1)!.kind
+    expect(body.transport).toBe(dispatched)
+    expect(body.result).toBe(dispatched === 'console' ? 'logged' : 'sent')
+    // And the body's own `Transport:` stamp must not contradict it either.
+    expect(live.delivered.at(-1)!.text).toContain(`Transport: ${dispatched}`)
   })
 })

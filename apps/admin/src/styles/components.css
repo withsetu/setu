@@ -170,6 +170,16 @@
   color: var(--accent-strong);
 }
 
+/* Inline status line under the input — used when suggestions can't be loaded (#905),
+   so an empty dropdown is never mistaken for "no matches". */
+.combo-hint {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  font-family: var(--font-ui);
+  line-height: 1.4;
+  color: var(--red);
+}
+
 /* ---- NOTIFICATIONS ---- */
 /* A gentle downward slide/fade — drops in from the top-right */
 @keyframes notifyIn {

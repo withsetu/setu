@@ -17,7 +17,7 @@
     "@setu/core": "workspace:*"
   },
   "devDependencies": {
-    "@setu/db-testing": "workspace:*",
+    "@setu/captcha-testing": "workspace:*",
     "typescript": "^5.6.3",
     "vitest": "^3.2.6"
   }

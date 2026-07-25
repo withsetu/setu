@@ -57,10 +57,14 @@ export function rawFrontmatterOf(
 
 /** Structural equality with Dates normalized to their ISO string.
  *
- *  The Date normalization is load-bearing: a draft's metadata round-trips through
- *  JSON in the DB, so a YAML `date: 2024-01-01` comes back as the ISO STRING that
- *  `Date.prototype.toJSON` produced. That is not an author edit, so it must not
- *  invalidate the retained raw text. */
+ *  The Date normalization is load-bearing because the DataPort adapters disagree
+ *  on the TYPE (#898 corrected this comment, which asserted the JSON shape as if
+ *  it were universal): db-sqlite round-trips draft metadata through JSON, so a
+ *  YAML `date: 2024-01-01` comes back as the ISO STRING `Date.prototype.toJSON`
+ *  produced, while db-memory and db-idb `structuredClone` it and hand back a real
+ *  `Date`. Neither is an author edit, so neither may invalidate the retained raw
+ *  text — hence normalizing both sides here rather than assuming one shape.
+ *  Enforced by packages/core/test/frontmatter-retention.test.ts. */
 function sameValue(a: unknown, b: unknown): boolean {
   const na = a instanceof Date ? a.toISOString() : a
   const nb = b instanceof Date ? b.toISOString() : b

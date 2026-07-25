@@ -89,8 +89,15 @@ export function singleRoleGuardCreateHook() {
  *  Deliberately not gated to specific PATHS (unlike `rank-guard.ts`/`last-owner-guard.ts`, which
  *  enumerate the admin routes they care about): those guards answer "may THIS actor do this HERE",
  *  a request-scoped question. This one asserts a data-shape invariant that holds for every
- *  request-borne writer, so it covers any current or future route that persists a role — including
- *  `POST /update-user`, the session-gated self-edit route that #410 showed can carry a `role` field.
+ *  request-borne writer, so it covers any current or future route that reaches
+ *  `internalAdapter.updateUser` with a role.
+ *
+ *  It does NOT cover `POST /update-user` — #898 corrected this comment for claiming it did.
+ *  better-auth declares `role` as `input: false` in its admin-plugin schema, so `parseInputData`
+ *  throws `FIELD_NOT_ALLOWED` (400) before `internalAdapter.updateUser` is ever called and this
+ *  hook never sees a role from that route. That path is held by the DEPENDENCY, not by anything in
+ *  Setu; packages/auth/test/rank-guard.test.ts pins it so a better-auth upgrade that relaxes the
+ *  filter fails CI instead of silently reopening self-escalation.
  *
  *  It IS gated on `context` being present, matching every sibling guard's "bootstrap/internal call
  *  — not this guard's concern" convention. `context` is `null` only for direct

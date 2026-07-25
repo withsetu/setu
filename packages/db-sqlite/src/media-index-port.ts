@@ -17,9 +17,16 @@ const META_SCOPE = 'media'
 
 /** better-sqlite3-backed MediaIndexPort (#464). Same deliberate v1 shape as
  *  createSqliteIndexPort: JSON rows keyed by mediaKey, reads load-all and
- *  delegate to the shared pure runMediaQuery (identical semantics to db-idb by
- *  construction; SQL-native querying deferred to #205). `file` is a path or
- *  ':memory:'. */
+ *  delegate to the shared pure `runMediaQuery` (SQL-native querying deferred to
+ *  #205). `file` is a path or ':memory:'.
+ *
+ *  Sharing `runMediaQuery` is not on its own enough to match db-idb: until #897
+ *  gave it a total order, tied rows fell through to each adapter's storage order
+ *  and the three adapters returned different pages for identical data — which is
+ *  exactly what disproved this comment's original "identical semantics by
+ *  construction" (#898). Parity is enforced by the shared MediaIndexPort
+ *  contract in packages/db-testing/src/index.ts, run against db-sqlite,
+ *  db-memory and db-idb. */
 export function createSqliteMediaIndexPort(file: string): MediaIndexPort {
   const sqlite = new Database(file)
   const db = drizzle(sqlite)

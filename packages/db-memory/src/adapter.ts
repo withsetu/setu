@@ -7,8 +7,17 @@ const key = (r: EntryRef) => `${r.collection}\0${r.locale}\0${r.slug}`
 /** An in-memory DataPort (Map-backed, browser-safe). Optionally seeded with
  *  drafts. **Value semantics**: inputs are deep-cloned on write and reads return
  *  deep clones, so callers can never mutate the adapter's internal state through a
- *  returned object — matching db-sqlite (which round-trips through JSON).
- *  Timestamps use Date.now() (epoch ms), matching db-sqlite. */
+ *  returned object. Timestamps use Date.now() (epoch ms), matching db-sqlite.
+ *
+ *  The ISOLATION property matches db-sqlite (which round-trips through JSON); the
+ *  value TYPES do not, and #898 corrected this comment for claiming they did.
+ *  `structuredClone` preserves a `Date`, JSON does not: `saveDraft({ metadata: {
+ *  date: new Date(...) } })` reads back as a real `Date` here and in db-idb, and
+ *  as an ISO string from db-sqlite. Reachable on the normal path — js-yaml parses
+ *  `date: 2026-01-01` into a `Date` and read-service feeds that straight into
+ *  `saveDraft` — so metadata consumers must tolerate both shapes.
+ *  packages/core/src/markdoc/frontmatter.ts does, covered by
+ *  packages/core/test/frontmatter-retention.test.ts. */
 export function createMemoryDataPort(seed: DraftInput[] = []): DataPort {
   const drafts = new Map<string, Draft>()
   const locks = new Map<string, Lock>()

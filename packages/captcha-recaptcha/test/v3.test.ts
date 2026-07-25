@@ -1,13 +1,20 @@
 import { describe, it, expect } from 'vitest'
-import { runCaptchaPortContract } from '@setu/db-testing'
+import {
+  runCaptchaPortContract,
+  CAPTCHA_CONTRACT_SECRET
+} from '@setu/captcha-testing'
 import { createRecaptchaV3Captcha } from '../src/index'
 
 // v3 satisfies the shared CaptchaPort contract: the contract's `{ success: true }` fixture has
 // no `score`, and a score-less response is treated as passing (threshold only bites when the
 // provider actually returns a score — a real v3 response always does).
-runCaptchaPortContract((fetchImpl) =>
-  createRecaptchaV3Captcha({ secret: 'secret', fetchImpl })
-)
+runCaptchaPortContract({
+  // Restated here rather than imported from the adapter: an assertion that reads
+  // its expected value out of the code under test can never fail (#891).
+  endpoint: 'https://www.google.com/recaptcha/api/siteverify',
+  makeAdapter: (fetchImpl) =>
+    createRecaptchaV3Captcha({ secret: CAPTCHA_CONTRACT_SECRET, fetchImpl })
+})
 
 const fakeFetch =
   (body: unknown, status = 200): typeof fetch =>

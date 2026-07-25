@@ -759,10 +759,27 @@ export function EditorScreen() {
   )
   // UX-only gate (the server's writeActionForChanges enforces regardless):
   // renaming a LIVE post moves a published URL — a commit an author can't make.
-  // `committedInGit` rather than `lifecycle.state !== 'draft'` (#947): same meaning here
-  // (the `published !== false` clause below already excludes the committed-draft case where
-  // the two genuinely diverge), minus the post-publish window in which the lifecycle value
-  // is still stale and this hint would silently not render.
+  //
+  // `committedInGit` rather than `lifecycle.state !== 'draft'` (#947). NOT because the two are
+  // equivalent — they are not, and no test here holds them to it. What is enforced today is
+  // only the hint's rendering GIVEN the prop (apps/admin/test/SlugField.test.tsx, which passes
+  // `blockedReason` as a fixture); this derivation itself has no EditorScreen-level test, so
+  // reverting this one line leaves the whole admin jsdom suite green. Treat the following as
+  // intent, and re-derive it rather than trusting it:
+  //   - the motivation is staleness — `lifecycle` is refreshed asynchronously, so across
+  //     publish's `notify.success` -> `await reindexEntries` -> `await refreshLifecycle` gap the
+  //     old predicate read 'draft' for a committed entry and this hint silently did not render;
+  //   - divergence 1, committed `published: false` (deriveLifecycle reports 'draft'), is
+  //     excluded here anyway by the `published !== false` clause below;
+  //   - divergence 2, `committed === null` with a non-draft lifecycle, is NOT excluded. It is
+  //     real in the pure functions: deployedSnapshotFor returns MODIFIED_SINCE_DEPLOY for any
+  //     non-added changed path (packages/core/src/content-index/list-entries.ts), and
+  //     deploy-wiring.ts pushes `added: false` for a `D` line or a rename's old path, so a path
+  //     gone from HEAD since the last deploy derives 'live' while committedInGit is false. No
+  //     entry-delete flow exists today (`content.delete` is in the authz vocabulary with no
+  //     implementation), which leaves the rename's old slug reached by a stale URL as the only
+  //     way in — and there `renameSlug` refuses 'absent' regardless, so showing no block hint is
+  //     the right answer anyway. If an entry-delete flow ever lands, re-check this line.
   const renameBlockedReason =
     !composing &&
     committedInGit &&

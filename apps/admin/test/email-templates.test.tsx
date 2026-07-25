@@ -217,11 +217,56 @@ describe('EmailSettings — token palette', () => {
     )
   })
 
-  it('defaults to the end of the body when nothing in the card has focus', async () => {
+  // A never-focused field has `selectionStart === 0`, NOT null, so "no caret yet" is
+  // indistinguishable from "caret at the start" unless focus is tracked explicitly. Nothing is
+  // typed or focused before the click here on purpose: the previous version of this test fired a
+  // change event first, which moves the caret to the end and made it pass over a fallback arm
+  // that was dead code — a test that vouched for a bug (§4 #21).
+  it('appends at the end of a body that has never been focused', async () => {
+    stubApi()
+    renderEmail()
+    await waitFor(() => bodyFor('Password reset'))
+    fireEvent.click(
+      within(card('Password reset')).getByRole('button', {
+        name: /insert .*user_name/i
+      })
+    )
+    await waitFor(() =>
+      expect(bodyFor('Password reset').value).toBe(
+        `${PASSWORD_RESET_EMAIL.defaultHtml}{{user_name}}`
+      )
+    )
+  })
+
+  it('appends at the end of a never-focused SUBJECT-less card too, without touching the subject', async () => {
+    stubApi()
+    renderEmail()
+    await waitFor(() => bodyFor('Password reset'))
+    fireEvent.click(
+      within(card('Password reset')).getByRole('button', {
+        name: /insert .*site_title/i
+      })
+    )
+    await waitFor(() =>
+      expect(bodyFor('Password reset').value).toBe(
+        `${PASSWORD_RESET_EMAIL.defaultHtml}{{site_title}}`
+      )
+    )
+    expect(subjectFor('Password reset').value).toBe(
+      PASSWORD_RESET_EMAIL.defaultSubject
+    )
+  })
+
+  // The other half of the same rule: once a field HAS held the caret, that caret is honored even
+  // after it loses focus — appending to the end would throw away where the admin was working.
+  it('still inserts at the caret of a field that was focused and then blurred', async () => {
     stubApi()
     renderEmail()
     const body = await waitFor(() => bodyFor('Password reset'))
     fireEvent.change(body, { target: { value: 'AB' } })
+    body.focus()
+    body.setSelectionRange(1, 1)
+    fireEvent.select(body)
     fireEvent.blur(body)
     fireEvent.click(
       within(card('Password reset')).getByRole('button', {
@@ -229,7 +274,7 @@ describe('EmailSettings — token palette', () => {
       })
     )
     await waitFor(() =>
-      expect(bodyFor('Password reset').value).toBe('AB{{user_name}}')
+      expect(bodyFor('Password reset').value).toBe('A{{user_name}}B')
     )
   })
 
@@ -288,6 +333,27 @@ describe('EmailSettings — live preview', () => {
     // The escaping the server applies is visible in the preview too — nothing is re-escaped
     // or un-escaped on the way to the frame.
     expect(expected.html).toContain('href="https://api.example.com')
+  })
+
+  // The help text under the body must describe what ACTUALLY happens. With no HTML override the
+  // sent text part is the type's hand-written `defaultText` (materially different wording for
+  // password reset); only an overridden HTML body makes the text part derived from it.
+  it('says the plain-text part is the shipped one until the HTML is overridden', async () => {
+    stubApi()
+    renderEmail()
+    const body = await waitFor(() => bodyFor('Password reset'))
+    const region = card('Password reset')
+    expect(
+      within(region).getByText(/plain-text version.*Setu ships/i)
+    ).toBeTruthy()
+    expect(within(region).queryByText(/generated from this HTML/i)).toBeNull()
+
+    fireEvent.change(body, { target: { value: '<p>Mine {{reset_url}}</p>' } })
+    await waitFor(() =>
+      expect(
+        within(card('Password reset')).getByText(/generated from this HTML/i)
+      ).toBeTruthy()
+    )
   })
 
   it('shows the derived plain-text part, byte-identical to core’s', async () => {

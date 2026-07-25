@@ -294,9 +294,11 @@ const email = createLiveEmailTransport({
 // one object, so "which override applies" has a single answer. `{{site_title}}` is folded in
 // from Settings → General, also live. An unreadable settings.json or a malformed override
 // degrades to the shipped default rather than sending garbage.
+// ONE getter, so one email costs one settings read — the same budget `liveFrom` (#498) and
+// `liveProvider` (#890) each pay. A getter per field made a single form submission parse
+// settings.json three times on a visitor-triggered path (#907 review F4).
 const emailTemplates = createLiveEmailTemplates({
-  overrides: () => loadSiteSettings().email.templates,
-  siteTitle: () => loadSiteSettings().general.title
+  settings: loadSiteSettings
 })
 
 // Ensure .setu/ parent dir exists before better-sqlite3 opens the DB file

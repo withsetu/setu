@@ -103,11 +103,20 @@ export function createEmailTypeRegistry(): EmailTypeRegistry {
   }
 }
 
-/** True when a stored override field is usable: a string with real content, within its cap.
- *  Everything else — absent, empty, whitespace-only, wrong type, oversized — means "use the
- *  shipped default", which is the DoD promise that a broken override can never send garbage. */
-const usable = (v: unknown, max: number): v is string =>
+/**
+ * True when a stored override field is usable: a string with real content, within its cap.
+ * Everything else — absent, empty, whitespace-only, wrong type, oversized — means "use the
+ * shipped default", which is the promise that a broken override can never send garbage.
+ *
+ * Exported because the admin editor needs the SAME answer to describe what it is about to send
+ * (e.g. whether the plain-text part will be derived from an overridden HTML body or is the
+ * shipped one). A second copy of this predicate in the UI would be free to drift from the one
+ * the server actually applies, which is the class of bug this whole epic removes.
+ */
+export const isUsableTemplateField = (v: unknown, max: number): v is string =>
   typeof v === 'string' && v.trim() !== '' && v.length <= max
+
+const usable = isUsableTemplateField
 
 /**
  * Render one email: the admin's override where it is usable, the shipped default everywhere

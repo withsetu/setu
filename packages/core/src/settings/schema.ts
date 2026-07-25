@@ -99,9 +99,13 @@ const emailTemplateSchema = groupObject({
   text: z.string().max(EMAIL_TEMPLATE_MAX_BODY)
 })
 
-/** Email type ids are slugs — core's own (`password-reset`) and any a plugin registers. Bounding
- *  the KEY as well as the value is what stops settings.json being used as a scratch store under
- *  arbitrary names. */
+/** Email type ids are slugs — core's own (`password-reset`) and any a plugin registers. This
+ *  bounds the KEY's shape and length only; it is not a size bound on the entry, because
+ *  `groupObject` is `.partial().passthrough()` (the repo-wide forward-compat convention), so
+ *  fields inside an override that this build doesn't know are passed through unmeasured. What
+ *  the key check buys is that every stored id is a plausible type id rather than arbitrary
+ *  free-form text — pinned by src/settings/email-settings.test.ts ("drops an entry whose id is
+ *  not a slug"). */
 const EMAIL_TYPE_ID = /^[a-z0-9][a-z0-9-]{0,63}$/
 
 type Rec = Record<string, unknown>

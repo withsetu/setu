@@ -1,9 +1,9 @@
 import {
   EMAIL_TYPES,
   renderRegisteredEmail,
-  type EmailTemplateOverrides,
   type EmailTypeRegistry,
   type RenderedEmail,
+  type SiteSettings,
   type TokenValues
 } from '@setu/core'
 
@@ -30,12 +30,13 @@ export interface LiveEmailTemplates {
  * defence — the same reasoning as #890's usableEmailTransport.
  */
 export function createLiveEmailTemplates(opts: {
-  /** Live getter for settings.json's `email.templates`. May throw (unreadable file) — treated
-   *  as "no overrides stored", which sends the shipped default rather than failing the send. */
-  overrides: () => EmailTemplateOverrides | undefined
-  /** Live getter for Settings → General's site title, folded in as `{{site_title}}` for every
-   *  type that declares the token. Optional; a caller-supplied value always wins. */
-  siteTitle?: () => string
+  /** Live getter for the WHOLE settings object — one read per render, deliberately, not one per
+   *  field it needs. Form notifications are visitor-triggered and that path already parses
+   *  settings.json once for the from-address; a getter per token source would have made a single
+   *  submission parse it three times (pinned by apps/api/test/email-templates.test.ts, "reads
+   *  settings exactly ONCE per render"). May throw (unreadable file) — treated as "nothing
+   *  stored", which sends the shipped default rather than failing the send. */
+  settings: () => SiteSettings
   /** Defaults to core's registry. Injectable so a test — or, once #302's extension seam lands,
    *  a plugin host — can supply a registry with extra types registered. */
   registry?: EmailTypeRegistry
@@ -43,24 +44,29 @@ export function createLiveEmailTemplates(opts: {
   const registry = opts.registry ?? EMAIL_TYPES
   return {
     render(typeId, values) {
-      let stored: EmailTemplateOverrides | undefined
+      let settings: SiteSettings | undefined
       try {
-        stored = opts.overrides()
+        settings = opts.settings()
       } catch {
-        stored = undefined
+        settings = undefined
       }
-      let siteTitle: string | undefined
-      try {
-        siteTitle = opts.siteTitle?.()
-      } catch {
-        siteTitle = undefined
-      }
+      // `|| 'Setu'` is the SAME fallback resolve-seo.ts applies to `general.title`, so an empty
+      // General title does not make `{{site_title}}` vanish from an email while the site's own
+      // <title> still says "Setu" (apps/api/test/email-templates.test.ts, 'falls back to "Setu"
+      // for an empty site title').
+      const siteTitle =
+        settings === undefined ? undefined : settings.general.title || 'Setu'
       // Ambient values first so an explicit one from the caller wins — the send paths know
       // more about their own context than this resolver does.
-      return renderRegisteredEmail(registry, typeId, stored, {
-        ...(siteTitle === undefined ? {} : { site_title: siteTitle }),
-        ...values
-      })
+      return renderRegisteredEmail(
+        registry,
+        typeId,
+        settings?.email.templates,
+        {
+          ...(siteTitle === undefined ? {} : { site_title: siteTitle }),
+          ...values
+        }
+      )
     }
   }
 }

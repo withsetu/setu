@@ -10,9 +10,17 @@ import {
 } from '../src/reset-password-email'
 
 // #499 (epic #497): the password-reset body moved into core's email TYPE registry so an admin
-// can customize it in Settings → Email. This file pins the two properties that move must NOT
-// have changed: the DEFAULT content is what it always was, and the emitted link is still the
-// one better-auth built (withDefaultResetCallback's #364 behavior).
+// can customize it in Settings → Email. What THIS file pins is the wiring on the auth side:
+// `resetPasswordEmailContent` still equals the registry's shipped default (so no second copy of
+// the body can drift in here), the URL lands in the anchor and in the text body, its query
+// separators survive unescaped, and the emitted link is still the one better-auth built
+// (withDefaultResetCallback's #364 behavior).
+//
+// It deliberately does NOT pin the WORDING: the first assertion below compares this function
+// against the registry, so changing PASSWORD_RESET_EMAIL.defaultHtml moves both sides and every
+// test here stays green. The literal pre-#499 strings live in
+// packages/core/test/email/email-registry.test.ts ("shipped defaults are byte-identical to the
+// pre-#499 output"), which is the test that fails on a one-character drift.
 
 const URL_WITH_CB =
   'https://api.test/api/auth/reset-password/tok?callbackURL=%2Fadmin'

@@ -124,6 +124,7 @@ export type {
 } from './email/template-registry'
 export {
   createEmailTypeRegistry,
+  isUsableTemplateField,
   renderEmailTemplate,
   renderRegisteredEmail,
   EMAIL_TEMPLATE_MAX_BODY,

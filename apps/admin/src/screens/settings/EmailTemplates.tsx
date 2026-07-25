@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   EMAIL_TYPES,
+  isUsableTemplateField,
   renderEmailTemplate,
   unknownTokensIn,
   EMAIL_TEMPLATE_MAX_BODY,
@@ -145,6 +146,16 @@ function TemplateCard({
   const html = override?.html ?? def.defaultHtml
   const customized = isCustomized(override)
   const preview = renderEmailTemplate(def, override, def.sampleValues)
+  // Which of renderEmailTemplate's three text-part arms will actually apply, decided with the
+  // SAME predicate it uses (isUsableTemplateField from @setu/core) rather than a UI-side guess
+  // — a whitespace-only body is "changed" to this component but unusable to the renderer, and
+  // the help text below must describe what really gets sent.
+  const textPartSource: 'stored' | 'derived' | 'shipped' =
+    isUsableTemplateField(override?.text, EMAIL_TEMPLATE_MAX_BODY)
+      ? 'stored'
+      : isUsableTemplateField(override?.html, EMAIL_TEMPLATE_MAX_BODY)
+        ? 'derived'
+        : 'shipped'
   const unknown = [
     ...new Set([
       ...unknownTokensIn(subject, def.tokens),
@@ -233,8 +244,11 @@ function TemplateCard({
                 id={`${bodyId}-help`}
                 className="text-xs text-muted-foreground"
               >
-                The plain-text version sent alongside it is generated from this
-                HTML — you can see it under the preview.
+                {textPartSource === 'stored'
+                  ? `The plain-text version sent alongside it comes from email.templates.${def.id}.text in settings.json — you can see it under the preview.`
+                  : textPartSource === 'derived'
+                    ? 'The plain-text version sent alongside it is generated from this HTML — you can see it under the preview.'
+                    : 'The plain-text version sent alongside it is the one Setu ships — it only follows this HTML once you change the HTML. You can see it under the preview.'}
               </p>
             )}
           </div>
@@ -310,6 +324,9 @@ export function EmailTemplates({
     typeId: string
     field: FieldName
   } | null>(null)
+  // `typeId:field` keys that have held the caret at least once. Needed because a never-focused
+  // input reports `selectionStart === 0` rather than null — see insertToken.
+  const touched = useRef(new Set<string>())
   const caret = useRef<{ key: string; pos: number } | null>(null)
 
   // Restore focus and place the caret AFTER the inserted token, once React has committed the
@@ -369,8 +386,21 @@ export function EmailTemplates({
     const el = fields.current[key]
     if (el === undefined) return
     const snippet = `{{${token}}}`
-    const start = el.selectionStart ?? el.value.length
-    const end = el.selectionEnd ?? start
+    // A field the admin has never put the caret in has `selectionStart === 0` — NOT null — so
+    // the caret alone cannot distinguish "at the very start" from "no caret yet". Reading it
+    // anyway inserted at position 0, i.e. BEFORE the whole template. Hence the explicit
+    // `touched` set: never focused ⇒ append at the end; focused even once ⇒ honor the caret,
+    // including after a blur. Both halves are pinned by
+    // apps/admin/test/email-templates.test.tsx ("appends at the end of a body that has never
+    // been focused" / "still inserts at the caret of a field that was focused and then blurred").
+    // `caretAt === null` means "there is no caret to honor", from either of two causes: the
+    // admin has never focused this field, or the element does not support selection at all
+    // (`selectionStart` is `number | null` in the DOM lib — unreachable for our text/textarea,
+    // kept because the type says so). Both append at the end.
+    const caretAt = touched.current.has(key) ? el.selectionStart : null
+    const start = caretAt ?? el.value.length
+    const end =
+      caretAt === null ? el.value.length : (el.selectionEnd ?? caretAt)
     caret.current = { key, pos: start + snippet.length }
     setField(
       def,
@@ -402,7 +432,10 @@ export function EmailTemplates({
             onChange(next)
           }}
           onInsert={(token) => insertToken(def, token)}
-          onFocusField={(field) => setFocused({ typeId: def.id, field })}
+          onFocusField={(field) => {
+            touched.current.add(`${def.id}:${field}`)
+            setFocused({ typeId: def.id, field })
+          }}
           registerField={(field, el) => {
             const key = `${def.id}:${field}`
             if (el === null) delete fields.current[key]

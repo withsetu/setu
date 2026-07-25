@@ -2,7 +2,14 @@ import { describe, it, expect, vi } from 'vitest'
 import { createMemorySubmissionPort } from '@setu/db-memory'
 import { createSubmissionService } from '@setu/core'
 import type { Actor, Role } from '@setu/core'
-import { createFormsApi, DEFAULT_SUBMIT_RATE } from '../src/forms'
+import {
+  createFormsApi,
+  DEFAULT_SUBMIT_RATE,
+  FORM_FIELD_MAX_COUNT,
+  FORM_FIELD_VALUE_MAX,
+  FORM_SOURCE_URL_MAX,
+  FORM_VALUE_MAX
+} from '../src/forms'
 import { createNotifyCeiling } from '../src/rate-limit'
 import type { ResolveActor } from '../src/auth/resolve-actor'
 
@@ -63,6 +70,98 @@ describe('createFormsApi — public submit body cap (413)', () => {
       })
     )
     expect(res.status).toBe(413)
+  })
+})
+
+// #935. The 1 MiB body cap above bounds the REQUEST; it bounds no single value inside it. An
+// anonymous submitter could therefore hand `formLabel` a ~1 MiB string, which the shipped
+// `New submission: {{form_label}}` subject puts straight into a mail header, and hand `fields`
+// half a million entries, each of which becomes a row in the notification email. The rendered
+// subject is now capped in core as well (packages/core/test/email/email-registry.test.ts) — this
+// is the other half: bound the values where they ENTER, so nothing downstream has to.
+describe('createFormsApi — per-value caps on the public submit route (#935)', () => {
+  const valid = { email: 'a@x.com', message: 'hi there' }
+
+  // KILL-SHOT TARGET. Remove the withinValueCaps guard in forms.ts and each of these stores a
+  // submission (200) instead of being refused.
+  it.each([
+    ['formId', { formId: 'c'.repeat(FORM_VALUE_MAX + 1), fields: valid }],
+    [
+      'formLabel',
+      {
+        formId: 'contact',
+        formLabel: 'L'.repeat(FORM_VALUE_MAX + 1),
+        fields: valid
+      }
+    ],
+    [
+      'a field name',
+      {
+        formId: 'contact',
+        fields: { ...valid, ['n'.repeat(FORM_VALUE_MAX + 1)]: 'x' }
+      }
+    ],
+    [
+      'a field value',
+      {
+        formId: 'contact',
+        fields: { ...valid, note: 'v'.repeat(FORM_FIELD_VALUE_MAX + 1) }
+      }
+    ],
+    [
+      'the field count',
+      {
+        formId: 'contact',
+        fields: {
+          ...valid,
+          ...Object.fromEntries(
+            Array.from({ length: FORM_FIELD_MAX_COUNT - 1 }, (_, i) => [
+              `f${i}`,
+              'x'
+            ])
+          )
+        }
+      }
+    ],
+    [
+      'a source url',
+      {
+        formId: 'contact',
+        fields: valid,
+        source: { url: `https://x.test/${'u'.repeat(FORM_SOURCE_URL_MAX)}` }
+      }
+    ]
+  ])('refuses an oversized %s with 400', async (_what, body) => {
+    const { app, submissions } = makeApp()
+    const res = await post(app, '/forms/submit', {
+      ...body,
+      captchaToken: 'tok'
+    })
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ ok: false, error: 'invalid' })
+    expect((await submissions.listSubmissions()).total).toBe(0)
+  })
+
+  // The caps are INCLUSIVE. Asserted at the exact boundary, including the field COUNT — which the
+  // refusal case above cannot reach, since it can only prove that count+1 is refused.
+  it('accepts values sitting exactly at their caps', async () => {
+    const { app } = makeApp()
+    const fields: Record<string, string> = {
+      ...valid,
+      note: 'v'.repeat(FORM_FIELD_VALUE_MAX)
+    }
+    fields['n'.repeat(FORM_VALUE_MAX)] = 'x'
+    while (Object.keys(fields).length < FORM_FIELD_MAX_COUNT)
+      fields[`f${Object.keys(fields).length}`] = 'x'
+    expect(Object.keys(fields)).toHaveLength(FORM_FIELD_MAX_COUNT)
+    const res = await post(app, '/forms/submit', {
+      formId: 'c'.repeat(FORM_VALUE_MAX),
+      formLabel: 'L'.repeat(FORM_VALUE_MAX),
+      fields,
+      source: { url: `https://x.test/${'u'.repeat(FORM_SOURCE_URL_MAX - 15)}` },
+      captchaToken: 'tok'
+    })
+    expect(res.status).toBe(200)
   })
 })
 

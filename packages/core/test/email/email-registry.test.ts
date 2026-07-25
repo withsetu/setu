@@ -491,6 +491,94 @@ describe('security', () => {
     expect(out.subject).not.toMatch(/[\r\n]/)
   })
 
+  // #935. `EMAIL_TEMPLATE_MAX_SUBJECT` capped the stored TEMPLATE; the RENDERED subject was
+  // uncapped, and `New submission: {{form_label}}` fills that token from an unauthenticated
+  // request body. Two consequences: after a 16-character prefix an anonymous submitter dictated
+  // the Subject of a message the operator's client shows as coming from the site's own
+  // from-address, and a ~1 MiB label produced a ~1 MiB Subject header, which RFC 5322 (998 octets
+  // per line) makes relays reject — losing the notification entirely, since submission-service.ts
+  // swallows the send failure into console.error.
+  //
+  // The cap lives in renderEmailTemplate, not at a call site, because the admin's live preview
+  // and the server's send BOTH go through it (see the preview-parity note in
+  // template-registry.ts); capping one side would break that parity.
+  describe('the rendered subject is capped (#935)', () => {
+    // KILL-SHOT TARGET. Remove capSubject in template-registry.ts and this reports 1_000_016.
+    it('caps a subject the shipped template built from a visitor-supplied label', () => {
+      const out = renderEmailTemplate(
+        FORM_NOTIFICATION_EMAIL,
+        {},
+        formNotificationValues({
+          id: 's1',
+          formId: 'contact',
+          formLabel: 'x'.repeat(1_000_000),
+          fields: {},
+          createdAt: 0
+        })
+      )
+      expect(out.subject.length).toBeLessThanOrEqual(EMAIL_TEMPLATE_MAX_SUBJECT)
+      expect(out.subject.startsWith('New submission: xxx')).toBe(true)
+      // Visibly truncated: the operator can tell the subject was cut, not just written oddly.
+      expect(out.subject.endsWith('…')).toBe(true)
+    })
+
+    // The override arm renders a template that is itself within cap, so only the VALUE can push
+    // the result over — the case the template-side cap structurally cannot see.
+    it('caps a subject an admin override built from a visitor-supplied value', () => {
+      const out = renderEmailTemplate(
+        FORM_NOTIFICATION_EMAIL,
+        { subject: 'Re: {{form_label}}' },
+        formNotificationValues({
+          id: 's1',
+          formId: 'contact',
+          formLabel: 'y'.repeat(50_000),
+          fields: {},
+          createdAt: 0
+        })
+      )
+      expect(out.subject.length).toBeLessThanOrEqual(EMAIL_TEMPLATE_MAX_SUBJECT)
+      expect(out.subject.startsWith('Re: yyy')).toBe(true)
+    })
+
+    // KILL-SHOT TARGET for the surrogate guard. A plain `slice` cuts UTF-16 code units, so a cap
+    // landing between a surrogate pair leaves a LONE surrogate in a mail header. The emoji is two
+    // code units, so putting one at the boundary forces the split.
+    it('never cuts an astral character in half', () => {
+      const out = renderEmailTemplate(
+        FORM_NOTIFICATION_EMAIL,
+        {},
+        formNotificationValues({
+          id: 's1',
+          formId: 'contact',
+          // 'New submission: ' is 16 chars, so the pairs straddle the 299-char boundary.
+          formLabel: '😀'.repeat(1_000),
+          fields: {},
+          createdAt: 0
+        })
+      )
+      expect(out.subject.length).toBeLessThanOrEqual(EMAIL_TEMPLATE_MAX_SUBJECT)
+      // No unpaired surrogate survives — a high one with no low after it, or a low one with no
+      // high before it. These two regexes are the WHOLE assertion. An earlier version also spread
+      // the string and checked `codePointAt(0) !== undefined`, which is true of a lone surrogate
+      // too and so proved nothing: a vacuous assertion sitting in a security test is the #638
+      // class, worse than no assertion because it reads as coverage.
+      expect(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(out.subject)).toBe(false)
+      expect(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(out.subject)).toBe(
+        false
+      )
+    })
+
+    it('leaves a subject at exactly the cap untouched', () => {
+      const exact = 'z'.repeat(EMAIL_TEMPLATE_MAX_SUBJECT)
+      const out = renderEmailTemplate(
+        PASSWORD_RESET_EMAIL,
+        { subject: exact },
+        passwordResetValues({ url: 'https://x/reset' })
+      )
+      expect(out.subject).toBe(exact)
+    })
+  })
+
   it('a token value cannot inject a mail header into the subject', () => {
     const out = renderEmailTemplate(
       FORM_NOTIFICATION_EMAIL,

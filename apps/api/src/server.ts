@@ -419,9 +419,12 @@ const auth = authConfigured
               // instead of logging a credential. The ENABLE gate here is still boot-time —
               // resetRestartRequired in the status thunk below is how that is surfaced honestly;
               // making it live is #886.
+              // #919: the gate resolves the transport ONCE and delivers through that very
+              // reading via `sendVia` — `email.send` would have re-resolved, so a settings.json
+              // rewrite in between could admit on one reading and dispatch on another.
               send: createResetEmailSender({
-                send: (msg) => email.send(msg),
-                resolveTransport: () => email.resolve().effective,
+                resolveTransport: () => email.resolve(),
+                sendVia: (transport, msg) => email.sendVia(transport, msg),
                 resolveFrom: () => liveFrom().effective ?? undefined,
                 adminOrigin,
                 onRefused: (reason) => {
@@ -489,7 +492,17 @@ const submit = createSubmissionService({
     emailTemplates.render(
       EMAIL_TYPE_FORM_NOTIFICATION,
       formNotificationValues(s)
-    )
+    ),
+  // #921 (CLAUDE.md §4 #22): the sibling of the reset sender's `onRefused` a few lines below.
+  // Because `notifyFrom` is live, clearing the from-address in Settings → Email (or a `git push`
+  // that clears it) stops every form notification at once — previously with no log line at all,
+  // while the visitor still saw `{ ok: true }`. The service only calls this when notifications
+  // are actually configured, so a deployment that never wanted them stays quiet — both
+  // directions pinned by packages/core/test/submissions/submission-service.test.ts
+  // ("onNotifySkipped (#921)" describe), which also covers a throwing callback.
+  onNotifySkipped: (reason) => {
+    console.error(`[forms] form notification NOT sent: ${reason}`)
+  }
 })
 
 const imageAdapter = createSharpImageAdapter()
@@ -761,7 +774,10 @@ app.route(
   '/',
   createEmailApi({
     resolveActor,
-    send: (msg) => email.send(msg),
+    // #919: the route resolves once and dispatches through that reading, so the transport it
+    // reports back to Settings → Email is the one that actually handled the message.
+    resolveTransport: () => email.resolve(),
+    sendVia: (transport, msg) => email.sendVia(transport, msg),
     status: () => {
       const from = liveFrom()
       const live = email.resolve()

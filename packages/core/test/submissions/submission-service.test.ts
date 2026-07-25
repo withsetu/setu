@@ -115,6 +115,124 @@ describe('createSubmissionService.submit', () => {
     expect(sent[0]!.from).toBe('newsroom@x.com')
   })
 
+  // #921 (CLAUDE.md §4 #22, silent-async): since #498 the from-address is resolved LIVE per
+  // submission, so clearing `email.fromAddress` in Settings → Email — or a `git push` that clears
+  // it, settings.json being Git-canonical — turns every form notification off instantly. The
+  // block used to be skipped with no log, no counter and no signal, and the visitor still saw
+  // `{ ok: true }`. The boot warning in apps/api/src/server.ts fires once and cannot cover this.
+  describe('onNotifySkipped (#921)', () => {
+    it('reports a named reason when notifications are configured but the from-address is gone', async () => {
+      const submissions = createMemorySubmissionPort()
+      const send = vi.fn(async () => {})
+      const onNotifySkipped = vi.fn()
+      const svc = createSubmissionService({
+        submissions,
+        captcha: ok,
+        email: { send },
+        notifyTo: 'owner@x.com',
+        notifyFrom: () => undefined,
+        onNotifySkipped
+      })
+
+      const r = await svc.submit({ ...base })
+
+      expect(r).toEqual({ ok: true, id: expect.any(String) })
+      expect(send).not.toHaveBeenCalled()
+      expect(onNotifySkipped).toHaveBeenCalledTimes(1)
+      const reason = String(onNotifySkipped.mock.calls[0]![0])
+      expect(reason).toContain('from-address')
+      // Operator prose, not a leak: the recipient address is a configured value, not something
+      // to echo into a log line that may be shipped.
+      expect(reason).not.toContain('owner@x.com')
+    })
+
+    // The inverse defect (#834 declined exactly this): reporting a failure that did not happen.
+    // An instance that never configured notifications is not broken, and must stay quiet.
+    it('stays quiet when notifications were never configured', async () => {
+      const submissions = createMemorySubmissionPort()
+      const onNotifySkipped = vi.fn()
+      const svc = createSubmissionService({
+        submissions,
+        captcha: ok,
+        email: { send: vi.fn(async () => {}) },
+        notifyFrom: () => undefined,
+        onNotifySkipped
+      })
+
+      await svc.submit({ ...base })
+
+      expect(onNotifySkipped).not.toHaveBeenCalled()
+    })
+
+    // The notify block is best-effort by contract: the row is already persisted when it runs, so
+    // NOTHING in it may turn a saved submission into a 500 at apps/api/src/forms.ts's handler
+    // (which awaits submit() in-request). The send and the renderer were already wrapped; the
+    // reporting callback and the live `notifyFrom` thunk — which reads settings.json in apps/api,
+    // so it really can throw — were not.
+    it('a throwing onNotifySkipped cannot fail a persisted submission', async () => {
+      const submissions = createMemorySubmissionPort()
+      const svc = createSubmissionService({
+        submissions,
+        captcha: ok,
+        email: { send: vi.fn(async () => {}) },
+        notifyTo: 'owner@x.com',
+        notifyFrom: () => undefined,
+        onNotifySkipped: () => {
+          throw new Error('logger exploded')
+        }
+      })
+
+      const r = await svc.submit({ ...base })
+
+      expect(r).toEqual({ ok: true, id: expect.any(String) })
+      expect((await submissions.listSubmissions()).total).toBe(1)
+    })
+
+    it('a throwing notifyFrom thunk cannot fail a persisted submission', async () => {
+      const submissions = createMemorySubmissionPort()
+      const svc = createSubmissionService({
+        submissions,
+        captcha: ok,
+        email: { send: vi.fn(async () => {}) },
+        notifyTo: 'owner@x.com',
+        notifyFrom: () => {
+          throw new Error('settings.json is unreadable')
+        }
+      })
+
+      const r = await svc.submit({ ...base })
+
+      expect(r).toEqual({ ok: true, id: expect.any(String) })
+      expect((await submissions.listSubmissions()).total).toBe(1)
+    })
+
+    it('stays quiet on the happy path, and when there is no email port at all', async () => {
+      const submissions = createMemorySubmissionPort()
+      const onNotifySkipped = vi.fn()
+
+      await createSubmissionService({
+        submissions,
+        captcha: ok,
+        email: { send: vi.fn(async () => {}) },
+        notifyTo: 'owner@x.com',
+        notifyFrom: 'site@x.com',
+        onNotifySkipped
+      }).submit({ ...base })
+      expect(onNotifySkipped).not.toHaveBeenCalled()
+
+      // No transport wired (an edge topology without email) — the from-address is not the
+      // reason anything is off here, so naming it would be a lie.
+      await createSubmissionService({
+        submissions,
+        captcha: ok,
+        notifyTo: 'owner@x.com',
+        notifyFrom: () => undefined,
+        onNotifySkipped
+      }).submit({ ...base })
+      expect(onNotifySkipped).not.toHaveBeenCalled()
+    })
+  })
+
   it('survives an async renderNotification that throws (best-effort)', async () => {
     const submissions = createMemorySubmissionPort()
     const email: EmailPort = { send: vi.fn(async () => {}) }

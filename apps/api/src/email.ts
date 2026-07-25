@@ -3,7 +3,7 @@ import { createAuthz, DEFAULT_ROLES } from '@setu/core'
 import type { EmailPort } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
 import type { ResolveActor, ResolvedActor } from './auth/resolve-actor'
-import type { EmailTransportOption } from './capabilities'
+import type { EmailTransportOption, UsableEmailTransport } from './capabilities'
 import { apiOnError } from './errors'
 
 const authz = createAuthz(DEFAULT_ROLES)
@@ -75,17 +75,22 @@ export interface EmailApiOptions {
   /** Live status thunk — server.ts re-reads settings.json per call so a from-address or
    *  provider saved in the admin applies without an api restart. */
   status: () => EmailStatus
-  /** The live sender (structural EmailPort['send'], like @setu/auth's email option — this
-   *  factory never imports a concrete adapter). Since #890 it re-resolves the transport per call
-   *  from the same settings + env that `status` reads, and both derive it through the one shared
-   *  predicate (usableEmailTransport), so they are intended to agree about which transport is
-   *  effective. They remain two INDEPENDENT readings, not one, at every level: a `status` GET and
-   *  a later test-send POST can legitimately disagree if settings changed in between — that is
-   *  the feature — and even inside one POST the `transport` this route reports comes from its own
-   *  `opts.status()` call while the adapter that sent re-resolved separately. Nothing here
-   *  enforces that those two agree; they are expected to, because both read the same two sources
-   *  through the same predicate a few microseconds apart. */
-  send: EmailPort['send']
+  /** #919: the live transport reading the test-send will BOTH report and dispatch through,
+   *  called once per request. A `status` GET and a later test-send POST still read independently
+   *  — settings can legitimately change in between, and that is the feature — but WITHIN one
+   *  POST the reading that labels the outcome is now the reading that sent. Previously this
+   *  route reported `opts.status()`'s transport while `send` re-resolved separately, so a
+   *  settings.json rewrite between the two made the screen say "sent" over a message the console
+   *  adapter had logged. Enforced by apps/api/test/email-api.test.ts ("labels the outcome from
+   *  the reading it actually dispatched through, even when the provider flips mid-request"),
+   *  whose provider stub answers differently on a second read. */
+  resolveTransport: () => UsableEmailTransport
+  /** Dispatch through a reading already in hand (server.ts's `email.sendVia`). Structural, like
+   *  the `send` it replaces — this factory never imports a concrete adapter. */
+  sendVia: (
+    transport: UsableEmailTransport,
+    msg: Parameters<EmailPort['send']>[0]
+  ) => Promise<void>
   /** Injectable clock for the rate-limiter tests. */
   now?: () => number
 }
@@ -171,19 +176,23 @@ export function createEmailApi(opts: EmailApiOptions) {
       recent.set(actor.id, stamps)
 
       const sentAt = new Date(t).toISOString()
+      // #919: ONE reading, used for the body's `Transport:` stamp, the dispatch, and the
+      // result label below — so the three cannot disagree. `status.effectiveTransport` above
+      // is a separate, earlier reading and is deliberately NOT used from here down.
+      const live = opts.resolveTransport()
       try {
-        await opts.send({
+        await opts.sendVia(live, {
           to,
           from,
           subject: 'Setu test email',
           html:
             '<p>This is a test email from your Setu site.</p>' +
             '<p>If you are reading this in your inbox, outbound email is working.</p>' +
-            `<p>Transport: ${status.effectiveTransport} · Sent: ${sentAt}</p>`,
+            `<p>Transport: ${live.effective} · Sent: ${sentAt}</p>`,
           text:
             'This is a test email from your Setu site.\n' +
             'If you are reading this in your inbox, outbound email is working.\n' +
-            `Transport: ${status.effectiveTransport} · Sent: ${sentAt}`
+            `Transport: ${live.effective} · Sent: ${sentAt}`
         })
       } catch (err) {
         // Honest failed-with-reason: this surface is admin-only and the adapters' errors are
@@ -194,10 +203,12 @@ export function createEmailApi(opts: EmailApiOptions) {
       }
 
       // Honest result: the console adapter LOGS instead of delivering — never dress that up
-      // as "sent" (card #7's saved≠live cousin: logged ≠ delivered).
+      // as "sent" (card #7's saved≠live cousin: logged ≠ delivered). Reported from `live`, the
+      // reading that actually dispatched above, so this can no longer describe a different
+      // transport than the one that handled the message (#919).
       return c.json({
-        result: status.effectiveTransport === 'console' ? 'logged' : 'sent',
-        transport: status.effectiveTransport,
+        result: live.effective === 'console' ? 'logged' : 'sent',
+        transport: live.effective,
         to
       })
     }

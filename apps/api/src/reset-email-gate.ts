@@ -87,25 +87,42 @@ export function resetEmailRefusal(p: ResetEmailPreconditions): string | null {
  * apps/api/test/reset-email-gate.test.ts and apps/api/test/users-send-reset.test.ts.
  */
 export function createResetEmailSender(opts: {
-  /** The live transport's send (server.ts's `email.send`). */
-  send: EmailPort['send']
-  resolveTransport: () => UsableEmailTransport['effective']
+  /** The live transport's whole reading (server.ts's `email.resolve`), called ONCE per send —
+   *  see `sendVia` below for why it is the reading and not just `effective`. */
+  resolveTransport: () => UsableEmailTransport
+  /** Dispatch through a reading already in hand (server.ts's `email.sendVia`). */
+  sendVia: (
+    transport: UsableEmailTransport,
+    msg: Parameters<EmailPort['send']>[0]
+  ) => Promise<void>
   /** Live from-address; wins over the message's boot-time `from` when present (#498). */
   resolveFrom: () => string | undefined
   adminOrigin: string | undefined
   onRefused: (reason: string) => void
 }): EmailPort['send'] {
   return async (msg) => {
+    // #919: ONE reading per send of BOTH inputs, and what satisfied the gate is what dispatches —
+    // the transport as the very object handed to `sendVia`, the from-address bound by value into
+    // the message below. Previously this resolved the transport for the gate and then called an
+    // `email.send` that resolved independently — two readings of a Git-canonical file, so a
+    // `git pull`/checkout landing between them admitted the message on 'smtp' and delivered it on
+    // 'console', i.e. wrote a live reset token into the server log.
+    // Enforced by apps/api/test/reset-email-gate.test.ts ("delivers through the EXACT reading it
+    // gated on — transport AND from-address — resolving each once"), whose stubs answer
+    // DIFFERENTLY on a second call so one reading is distinguishable from two; a constant stub
+    // could not tell them apart, which is how the from-address half of this claim sat unenforced
+    // while the comment asserted it. End-to-end: apps/api/test/reset-password-leak.test.ts.
+    const transport = opts.resolveTransport()
     const from = opts.resolveFrom() ?? msg.from
     const refusal = resetEmailRefusal({
       from,
       adminOrigin: opts.adminOrigin,
-      effectiveTransport: opts.resolveTransport()
+      effectiveTransport: transport.effective
     })
     if (refusal !== null) {
       opts.onRefused(refusal)
       return
     }
-    await opts.send({ ...msg, from })
+    await opts.sendVia(transport, { ...msg, from })
   }
 }

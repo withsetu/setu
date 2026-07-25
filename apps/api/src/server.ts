@@ -103,7 +103,7 @@ import { securityHeaders } from './security-headers'
 import { turnstileTestKeyNotice } from './captcha-test-keys'
 import { noCaptchaProviderNotice } from './captcha-notice'
 import { createNotifyCeiling, boundFromEnv } from './rate-limit'
-import { parseTrustedProxies } from './client-ip'
+import { parseTrustedProxies, parseTrustedProxyHeader } from './client-ip'
 import { getConnInfo } from '@hono/node-server/conninfo'
 
 // #248 Task 9: default audit-event consumer — a single structured log line. The REAL consumer
@@ -523,12 +523,38 @@ const submitBound = boundFromEnv({
 for (const problem of [...notifyBound.problems, ...submitBound.problems]) {
   console.error(`[forms] ${problem}`)
 }
-const notifyCeiling = createNotifyCeiling(notifyBound)
-// The trusted-proxy declaration. UNSET — the default — means the forwarded headers are never
-// believed and the per-IP bound keys on the socket peer, so a deployment sitting behind a CDN
-// without this set collapses to ONE bucket (over-limiting, never unlimited). That trade, and why
-// it is acceptable given layer 1 above, is written out in client-ip.ts.
-const trustedProxies = parseTrustedProxies(process.env.SETU_TRUSTED_PROXIES)
+const notifyCeiling = createNotifyCeiling({
+  ...notifyBound,
+  // #918 review F6: the ceiling doubles as a notification-SUPPRESSION primitive — sustained
+  // low-rate traffic inside the per-IP bound can hold it saturated, and the operator would
+  // otherwise just stop receiving mail. One line per window, distinct from the per-skip reason
+  // below so it is an alert rather than more of the same noise.
+  onSaturated: (reason) => {
+    console.error(`[forms] ${reason}`)
+  }
+})
+// The proxy declaration, in two deliberately separate parts (see client-ip.ts):
+//  - SETU_TRUSTED_PROXIES makes `x-forwarded-for` readable from those peers. Its right-walk is
+//    safe by construction because every mainstream proxy APPENDS to that header.
+//  - SETU_TRUSTED_PROXY_HEADER additionally believes ONE single-valued header (cf-connecting-ip,
+//    x-real-ip, …). It is a separate opt-in because a generic reverse proxy forwards unknown
+//    headers verbatim, so the address declaration alone must never make one believable — that
+//    was a real bypass, caught reviewing PR #933.
+// Both unset is the header-blind default: the per-IP bound keys on the socket peer, so a
+// deployment behind an undeclared CDN collapses to ONE bucket (over-limiting, never unlimited).
+const proxyTrust = {
+  proxies: parseTrustedProxies(process.env.SETU_TRUSTED_PROXIES),
+  header: parseTrustedProxyHeader(process.env.SETU_TRUSTED_PROXY_HEADER)
+}
+if (proxyTrust.header !== undefined && proxyTrust.proxies.length === 0) {
+  // Declaring a header without declaring who may send it would be meaningless — and dangerous if
+  // it were ever honoured — so say why it is being ignored rather than let it look configured.
+  console.error(
+    `[forms] SETU_TRUSTED_PROXY_HEADER=${proxyTrust.header} is IGNORED because ` +
+      'SETU_TRUSTED_PROXIES is unset: a forwarded header is only believable from a declared ' +
+      'proxy address. Set both, or neither.'
+  )
+}
 
 const submit = createSubmissionService({
   submissions,
@@ -784,8 +810,14 @@ app.route(
         return undefined
       }
     },
-    trustedProxies,
-    submitRateLimit: submitBound
+    proxyTrust,
+    submitRateLimit: submitBound,
+    // #918 review F2: the per-IP bound's accepted zero-config trade (an undeclared proxy
+    // collapses every visitor into one bucket) is only acceptable if the operator can notice it.
+    // Deduped inside the factory to one line per window.
+    onSubmitLimited: (message) => {
+      console.error(`[forms] ${message}`)
+    }
   })
 )
 app.route('/', createOembedApi({ resolveActor }))

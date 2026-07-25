@@ -63,6 +63,42 @@ describe('createWindowLimiter (#918 — extracted from email.ts, #885)', () => {
     expect(l.check('c')).toBe(false)
   })
 
+  // #918 review F4 — the honest limit of eviction. An earlier comment claimed an attacker who
+  // cycles addresses "still gets only max per address they use"; they do not, because they can
+  // evict their OWN exhausted bucket. The only property eviction guarantees is that it forgets.
+  it('eviction can forget the evicting callers OWN exhausted bucket', () => {
+    const l = createWindowLimiter({
+      max: 1,
+      windowMs: 60_000,
+      now: () => 0,
+      maxKeys: 3
+    })
+    l.record('attacker')
+    expect(l.check('attacker')).toBe(false) // exhausted
+    // Reach maxKeys other keys — cheap for anyone who can vary a source address.
+    l.record('a')
+    l.record('b')
+    l.record('c')
+    expect(l.check('attacker')).toBe(true) // their own bucket was evicted; they start fresh
+    expect(l.size).toBeLessThanOrEqual(3)
+  })
+
+  // #918 review F5 — fail-OPEN guard. `maxKeys: 0` would evict every key straight after
+  // recording it, so every caller would be permanently fresh and the limiter would be off.
+  it('clamps a non-positive maxKeys instead of silently disabling itself', () => {
+    for (const maxKeys of [0, -1]) {
+      const l = createWindowLimiter({
+        max: 1,
+        windowMs: 60_000,
+        now: () => 0,
+        maxKeys
+      })
+      l.record('a')
+      expect(l.check('a'), `maxKeys ${maxKeys}`).toBe(false)
+      expect(l.size, `maxKeys ${maxKeys}`).toBe(1)
+    }
+  })
+
   it('forgets a key whose stamps have all expired, without waiting for eviction', () => {
     let t = 0
     const l = createWindowLimiter({ max: 1, windowMs: 1_000, now: () => t })
@@ -123,6 +159,61 @@ describe('createNotifyCeiling (#918 — the hard outbound-mail bound)', () => {
     })
     ceiling()
     expect(String(ceiling())).toContain('SETU_FORMS_NOTIFY_MAX_PER_WINDOW')
+  })
+
+  // #918 review F6 — the ceiling is also a cheap notification-SUPPRESSION primitive: sustained
+  // low-rate traffic inside the per-IP bound keeps it saturated and the operator simply stops
+  // getting mail. The per-skip reason alone is one line per submission, which is noise, not an
+  // alert; this is the distinct once-per-window signal that notifications are OFF.
+  describe('the saturation alert', () => {
+    it('alerts once per window, not once per skip', () => {
+      let t = 0
+      const onSaturated = vi.fn()
+      const ceiling = createNotifyCeiling({
+        max: 1,
+        windowMs: 1_000,
+        now: () => t,
+        onSaturated
+      })
+
+      expect(ceiling()).toBeNull() // consumes the only slot
+      for (let i = 0; i < 20; i++) expect(ceiling()).not.toBeNull()
+      expect(onSaturated).toHaveBeenCalledTimes(1) // 20 skips, ONE alert
+
+      t = 1_000 // window slides: quota returns, one send, then saturated again
+      expect(ceiling()).toBeNull()
+      ceiling()
+      expect(onSaturated).toHaveBeenCalledTimes(2)
+    })
+
+    it('says notifications are off, that submissions are still saved, and how to fix it', () => {
+      const onSaturated = vi.fn()
+      const ceiling = createNotifyCeiling({
+        max: 1,
+        windowMs: 60_000,
+        now: () => 0,
+        onSaturated
+      })
+      ceiling()
+      ceiling()
+      const alert = String(onSaturated.mock.calls[0]![0])
+      expect(alert).toContain('SATURATED')
+      expect(alert).toContain('still being saved')
+      expect(alert).toContain('SETU_FORMS_NOTIFY_MAX_PER_WINDOW')
+      expect(alert).toContain('SETU_CAPTCHA_PROVIDER')
+    })
+
+    it('never fires while the ceiling is allowing sends', () => {
+      const onSaturated = vi.fn()
+      const ceiling = createNotifyCeiling({
+        max: 5,
+        windowMs: 60_000,
+        now: () => 0,
+        onSaturated
+      })
+      for (let i = 0; i < 5; i++) expect(ceiling()).toBeNull()
+      expect(onSaturated).not.toHaveBeenCalled()
+    })
   })
 })
 

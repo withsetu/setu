@@ -15,7 +15,11 @@ import { authMiddleware } from './auth/middleware'
 import { apiOnError } from './errors'
 import type { ResolveActor } from './auth/resolve-actor'
 import { createWindowLimiter } from './rate-limit'
-import { resolveClientIp, UNRESOLVED_IP_KEY } from './client-ip'
+import {
+  resolveClientIp,
+  UNRESOLVED_IP_KEY,
+  type ProxyTrust
+} from './client-ip'
 
 const authz = createAuthz(DEFAULT_ROLES)
 
@@ -35,13 +39,47 @@ const FORM_ADMIN_MAX_BYTES = 1 * 1024 * 1024
  *  SETU_FORMS_SUBMIT_MAX_PER_WINDOW / SETU_FORMS_SUBMIT_WINDOW_MS (server.ts).
  *
  *  `maxKeys` matters as much as the numbers: the key is a client address, so without a cap the
- *  limiter's own Map would be the DoS — see createWindowLimiter's note. 10k live buckets is a few
- *  hundred KiB and orders of magnitude more distinct sources than a real site sees in a minute. */
+ *  limiter's own Map would be the DoS — see createWindowLimiter's note. 10k live buckets measures
+ *  at ~1.6 MiB retained when every one is full (10k IPv4-shaped keys × 5 timestamps, heap delta
+ *  under --expose-gc), and is orders of magnitude more distinct sources than a real site sees in
+ *  a minute. An earlier version of this comment guessed "a few hundred KiB" without measuring. */
 export const DEFAULT_SUBMIT_RATE = {
   max: 5,
   windowMs: 60_000,
   maxKeys: 10_000
 } as const
+
+/** #918 review F2: the operator-facing line for the first refusal in a window.
+ *
+ *  Deliberately shaped around what this module can actually KNOW. It cannot tell a genuine
+ *  single-client flood from the zero-config proxy collapse (both look like one busy address), so
+ *  it reports the refusal and — only when no proxy is declared — names the collapse as the thing
+ *  to rule out. Never claims which one happened. The client address is included because an
+ *  operator debugging their own 429s needs it and it is already in every access log; it is an
+ *  address, not form PII. Pinned by apps/api/test/forms.test.ts ("reports the first refusal in a
+ *  window"). */
+function refusalMessage(
+  resolved: string | undefined,
+  trust: ProxyTrust,
+  rate: { max: number; windowMs: number }
+): string {
+  const who =
+    resolved === undefined
+      ? 'a caller whose address this topology does not expose (all such callers share ONE bucket)'
+      : `client ${resolved}`
+  const bound = `${rate.max} per ${Math.round(rate.windowMs / 1000)}s`
+  const hint =
+    trust.proxies.length === 0
+      ? ' If this server sits behind a reverse proxy or CDN, note that SETU_TRUSTED_PROXIES is ' +
+        'unset, so every visitor is being keyed on the proxy address — i.e. the whole internet ' +
+        'shares one bucket and legitimate visitors will be refused. Set SETU_TRUSTED_PROXIES to ' +
+        'the proxy address to key on real visitors.'
+      : ''
+  return (
+    `submit rate limit refused ${who} (bound: ${bound}). Further refusals in this window are ` +
+    `not logged.${hint}`
+  )
+}
 
 /** Cap an admin JSON body before `c.req.json()` parses it. */
 const adminBodyLimit = () =>
@@ -97,10 +135,13 @@ export function createFormsApi(opts: {
    *  would pass its own, or nothing). Omitted → every submission shares one bucket, which is
    *  over-limiting rather than unlimited. */
   socketIp?: (c: Context) => string | undefined
-  /** #918: addresses this deployment's own front proxies connect FROM (SETU_TRUSTED_PROXIES).
-   *  Empty — the default — means the forwarded headers are never believed. Read the trust model
-   *  in apps/api/src/client-ip.ts before changing anything here. */
-  trustedProxies?: readonly string[]
+  /** #918: what this deployment has declared about what sits in front of it —
+   *  `{ proxies }` from SETU_TRUSTED_PROXIES and the optional `header` from
+   *  SETU_TRUSTED_PROXY_HEADER. Empty — the default — means NO forwarded header is believed.
+   *  Read the three-level trust model in apps/api/src/client-ip.ts before changing anything
+   *  here; in particular, declaring a proxy address does not on its own make a single-valued
+   *  header believable, and that separation is load-bearing. */
+  proxyTrust?: ProxyTrust
   /** #918: override the submit bound. Defaults to DEFAULT_SUBMIT_RATE; `now` is a test seam. */
   submitRateLimit?: {
     max: number
@@ -108,13 +149,22 @@ export function createFormsApi(opts: {
     maxKeys?: number
     now?: () => number
   }
+  /** #918 review F2: called with a ready-to-log line the FIRST time the submit bound refuses in
+   *  each window (server.ts points it at console.error).
+   *
+   *  Without it, the accepted zero-config trade in client-ip.ts — a proxied deployment that has
+   *  not declared its proxy collapses to one shared bucket — is invisible: 429s are returned to
+   *  the caller and nowhere else, so the operator's own visitors would simply start failing
+   *  silently. Deduped per window so a sustained flood costs one line, not one per request
+   *  (apps/api/test/forms.test.ts, "reports the first refusal in a window"). */
+  onSubmitLimited?: (message: string) => void
 }) {
   const { submit, submissions, resolveActor } = opts
   const captchaStatus = opts.captchaStatus ?? {
     provider: '',
     secretConfigured: false
   }
-  const trustedProxies = opts.trustedProxies ?? []
+  const proxyTrust: ProxyTrust = opts.proxyTrust ?? { proxies: [] }
   const rate: {
     max: number
     windowMs: number
@@ -130,13 +180,16 @@ export function createFormsApi(opts: {
     maxKeys: rate.maxKeys ?? DEFAULT_SUBMIT_RATE.maxKeys,
     ...(rate.now ? { now: rate.now } : {})
   })
-  /** The bucket key: the trusted client address, or ONE shared bucket when the topology exposes
-   *  no peer. Never a value the request merely claims — see client-ip.ts. */
-  const limiterKey = (c: Context): string =>
+  /** The one trusted reading of who is calling — the bucket key AND (since the #933 review) the
+   *  captcha's `remoteip`. `undefined` means the topology exposed no socket peer. Never a value
+   *  the request merely claims: see client-ip.ts. */
+  const clientIp = (c: Context): string | undefined =>
     resolveClientIp(
       { header: (n) => c.req.header(n), socketIp: opts.socketIp?.(c) },
-      trustedProxies
-    ) ?? UNRESOLVED_IP_KEY
+      proxyTrust
+    )
+  // Timestamp of the last "we refused someone" report, so a flood costs one line per window.
+  let limitReportedAt: number | null = null
   const app = new Hono<{ Variables: { actor: Actor } }>()
 
   // --- status (read-only, no secret, no PII) ---
@@ -151,8 +204,14 @@ export function createFormsApi(opts: {
     // ATTEMPT counts, including ones that go on to fail validation or captcha — a limiter that
     // only counted accepted submissions would bound nothing.
     createMiddleware(async (c, next) => {
-      const key = limiterKey(c)
+      const resolved = clientIp(c)
+      const key = resolved ?? UNRESOLVED_IP_KEY
       if (!submitLimiter.check(key)) {
+        const t = (rate.now ?? Date.now)()
+        if (limitReportedAt === null || t - limitReportedAt >= rate.windowMs) {
+          limitReportedAt = t
+          opts.onSubmitLimited?.(refusalMessage(resolved, proxyTrust, rate))
+        }
         c.header('Retry-After', String(Math.ceil(rate.windowMs / 1000)))
         return c.json(
           { ok: false, error: 'rate_limited', retryAfterMs: rate.windowMs },
@@ -190,29 +249,34 @@ export function createFormsApi(opts: {
           ? { userAgent: c.req.header('user-agent') }
           : {})
       }
-      // #918 — TRUST MODEL, read this before reusing these headers for anything else.
+      // #918 — the captcha adapters' optional `remoteip`. It gets the SAME trusted reading the
+      // rate limiter keys on (client-ip.ts), never a raw header.
       //
-      // Both are client-settable: `curl -H 'x-forwarded-for: …'` puts any value here, so NOTHING
-      // that must bound an unauthenticated caller may key on them. The rate limiter above
-      // deliberately does not — it keys on the socket peer via client-ip.ts, and believes these
-      // headers only when the peer is a declared SETU_TRUSTED_PROXIES address.
+      // The first draft of this sent the raw `cf-connecting-ip` / `x-forwarded-for`, justified by
+      // the claim that the verifiers validate remoteip against the address the token was issued
+      // to — so a forged value would only break the forger's own submission. That claim was not
+      // verified, and it is false. Checked against the current vendor documentation (fetched
+      // 2026-07-25):
       //
-      // This value is a DIFFERENT thing: the captcha adapters' optional `remoteip`, advisory
-      // input to a third-party verifier that fails CLOSED on a mismatch (Turnstile/reCAPTCHA
-      // validate it against the address the token was issued to). Sending the forged value only
-      // makes the forger's own submission fail verification, so it is safe here and — unlike the
-      // socket peer — it is still the visitor's real address behind an as-yet-undeclared CDN,
-      // which is what keeps captcha working on a zero-config proxied deployment. Header first,
-      // socket peer as the fallback. `x-forwarded-for` is a list; remoteip takes one address, so
-      // the leftmost (conventionally the original client) is what goes over, not the whole chain.
-      const forwardedFor = c.req
-        .header('x-forwarded-for')
-        ?.split(',')[0]
-        ?.trim()
-      const captchaIp =
-        c.req.header('cf-connecting-ip') ??
-        (forwardedFor !== '' ? forwardedFor : undefined) ??
-        opts.socketIp?.(c)
+      //   - Cloudflare Turnstile siteverify documents `remoteip` as optional, described only as
+      //     "The visitor's IP address". No matching, no rejection semantics, and no remoteip
+      //     error code in its error-codes table.
+      //     developers.cloudflare.com/turnstile/get-started/server-side-validation/
+      //   - Google reCAPTCHA siteverify documents `remoteip` as "Optional. The user's IP address",
+      //     with no validation semantics and no related error code.
+      //     developers.google.com/recaptcha/docs/verify
+      //   - reCAPTCHA Enterprise's equivalent `Event.userIpAddress` is "Optional. The IP address
+      //     in the request from the user's device related to this event" — assessment input.
+      //     cloud.google.com/recaptcha/docs/reference/rest/v1/projects.assessments
+      //
+      // So forging it is not self-harm: at best it is ignored, at worst it feeds risk scoring,
+      // in which case an attacker could present a clean address to dodge IP reputation and
+      // attribute their solves to a victim's. Passing the trusted reading removes that entirely.
+      // The cost is that on a proxied deployment which has not declared its proxy the verifier
+      // sees the proxy address — poor risk signal, but no documented rejection, and the same one
+      // env var fixes it. Pinned by apps/api/test/forms.test.ts ("hands the captcha the trusted
+      // client address, never a forgeable header").
+      const captchaIp = clientIp(c)
       const result = await submit.submit({
         formId: body['formId'],
         formLabel:

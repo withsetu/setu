@@ -313,7 +313,9 @@ describe('createFormsApi — per-IP submit rate limit (#918)', () => {
   const limited = (opts?: {
     socketIp?: (() => string | undefined) | undefined
     trustedProxies?: string[]
+    trustedProxyHeader?: string
     max?: number
+    onSubmitLimited?: (m: string) => void
   }) => {
     const submissions = createMemorySubmissionPort()
     const submit = createSubmissionService({
@@ -325,8 +327,14 @@ describe('createFormsApi — per-IP submit rate limit (#918)', () => {
       submissions,
       resolveActor: unauthenticated,
       socketIp: opts?.socketIp ?? (() => '203.0.113.9'),
-      trustedProxies: opts?.trustedProxies ?? [],
-      submitRateLimit: { max: opts?.max ?? 3, windowMs: 60_000, now: () => 0 }
+      proxyTrust: {
+        proxies: opts?.trustedProxies ?? [],
+        ...(opts?.trustedProxyHeader ? { header: opts.trustedProxyHeader } : {})
+      },
+      submitRateLimit: { max: opts?.max ?? 3, windowMs: 60_000, now: () => 0 },
+      ...(opts?.onSubmitLimited
+        ? { onSubmitLimited: opts.onSubmitLimited }
+        : {})
     })
     return { app, submissions }
   }
@@ -390,6 +398,50 @@ describe('createFormsApi — per-IP submit rate limit (#918)', () => {
       max: 1,
       socketIp: () => '198.51.100.1',
       trustedProxies: ['198.51.100.1']
+    })
+    expect(
+      (await submitFrom(app, { 'x-forwarded-for': '1.2.3.4' })).status
+    ).toBe(200)
+    expect(
+      (await submitFrom(app, { 'x-forwarded-for': '1.2.3.4' })).status
+    ).toBe(429)
+    expect(
+      (await submitFrom(app, { 'x-forwarded-for': '5.6.7.8' })).status
+    ).toBe(200)
+  })
+
+  // THE review finding (PR #933, F1), at the route level. Declaring the proxy ADDRESS is the
+  // config an operator adds precisely to get working per-IP limiting; it must not simultaneously
+  // hand every caller a fresh bucket per request through a header a generic reverse proxy
+  // forwards verbatim. Kill-shot: believe cf-connecting-ip from any declared proxy in
+  // client-ip.ts and this test fails.
+  it('a forged cf-connecting-ip cannot mint fresh quota through a DECLARED non-Cloudflare proxy', async () => {
+    const { app, submissions } = limited({
+      max: 2,
+      socketIp: () => '127.0.0.1', // a local nginx/Caddy/Traefik front
+      trustedProxies: ['127.0.0.1']
+    })
+    const codes: number[] = []
+    for (let i = 0; i < 5; i++) {
+      codes.push(
+        (
+          await submitFrom(app, {
+            'x-forwarded-for': '203.0.113.7', // what the proxy actually set
+            'cf-connecting-ip': `9.9.9.${i}` // what the attacker added
+          })
+        ).status
+      )
+    }
+    expect(codes).toEqual([200, 200, 429, 429, 429])
+    expect((await submissions.listSubmissions()).total).toBe(2)
+  })
+
+  it('believes the single-valued header only once SETU_TRUSTED_PROXY_HEADER declares it', async () => {
+    const { app } = limited({
+      max: 1,
+      socketIp: () => '198.51.100.1',
+      trustedProxies: ['198.51.100.1'],
+      trustedProxyHeader: 'cf-connecting-ip'
     })
     expect(
       (await submitFrom(app, { 'cf-connecting-ip': '1.2.3.4' })).status
@@ -491,6 +543,131 @@ describe('createFormsApi — per-IP submit rate limit (#918)', () => {
       })
     )
     expect(res.status).toBe(429)
+  })
+
+  // #918 review F2 — the zero-config collapse-to-one-bucket trade is only acceptable if the
+  // operator can NOTICE it. A 429 goes to the caller and nowhere else, so without this the
+  // operator's own visitors would start failing silently.
+  describe('reports the first refusal in a window', () => {
+    it('logs once per window, not once per refused request', async () => {
+      const seen: string[] = []
+      const { app } = limited({ max: 1, onSubmitLimited: (m) => seen.push(m) })
+      await submitFrom(app) // consumes the only slot
+      for (let i = 0; i < 10; i++)
+        expect((await submitFrom(app)).status).toBe(429)
+      expect(seen).toHaveLength(1)
+      expect(seen[0]).toContain('submit rate limit refused')
+      expect(seen[0]).toContain('203.0.113.9')
+    })
+
+    it('names the undeclared-proxy collapse as the thing to rule out when no proxy is declared', async () => {
+      const seen: string[] = []
+      const { app } = limited({ max: 1, onSubmitLimited: (m) => seen.push(m) })
+      await submitFrom(app)
+      await submitFrom(app)
+      expect(seen[0]).toContain('SETU_TRUSTED_PROXIES')
+      expect(seen[0]).toContain('one bucket')
+    })
+
+    it('drops that hint once a proxy IS declared — the collapse cannot be the cause then', async () => {
+      const seen: string[] = []
+      const { app } = limited({
+        max: 1,
+        socketIp: () => '127.0.0.1',
+        trustedProxies: ['127.0.0.1'],
+        onSubmitLimited: (m) => seen.push(m)
+      })
+      await submitFrom(app, { 'x-forwarded-for': '203.0.113.7' })
+      await submitFrom(app, { 'x-forwarded-for': '203.0.113.7' })
+      expect(seen).toHaveLength(1)
+      expect(seen[0]).not.toContain('SETU_TRUSTED_PROXIES')
+      expect(seen[0]).toContain('203.0.113.7')
+    })
+
+    it('says so explicitly when the topology exposes no peer at all', async () => {
+      const seen: string[] = []
+      const { app } = limited({
+        max: 1,
+        socketIp: () => undefined,
+        onSubmitLimited: (m) => seen.push(m)
+      })
+      await submitFrom(app)
+      await submitFrom(app)
+      expect(seen[0]).toContain('does not expose')
+      expect(seen[0]).toContain('ONE bucket')
+    })
+
+    it('stays silent while nothing is being refused', async () => {
+      const seen: string[] = []
+      const { app } = limited({ max: 5, onSubmitLimited: (m) => seen.push(m) })
+      for (let i = 0; i < 5; i++)
+        expect((await submitFrom(app)).status).toBe(200)
+      expect(seen).toEqual([])
+    })
+  })
+
+  // #918 review F3 — the captcha's remoteip gets the SAME trusted reading the limiter keys on.
+  // No vendor documents remoteip validation (see the citation block at the call site), so a
+  // forged value is not self-harm: it is either ignored or feeds risk scoring, where a clean
+  // forged address helps the attacker and blames a victim.
+  describe('hands the captcha the trusted client address, never a forgeable header', () => {
+    const captchaSpy = () => {
+      const seen: (string | undefined)[] = []
+      return {
+        seen,
+        captcha: {
+          verify: async (_t: string, ip?: string) => {
+            seen.push(ip)
+            return true
+          }
+        }
+      }
+    }
+
+    const drive = async (
+      trustedProxies: string[],
+      headers: Record<string, string>,
+      socketIp = '203.0.113.9'
+    ) => {
+      const { seen, captcha } = captchaSpy()
+      const submissions = createMemorySubmissionPort()
+      const app = createFormsApi({
+        submit: createSubmissionService({ submissions, captcha }),
+        submissions,
+        resolveActor: unauthenticated,
+        socketIp: () => socketIp,
+        proxyTrust: { proxies: trustedProxies }
+      })
+      await submitFrom(app, headers)
+      return seen
+    }
+
+    it('sends the socket peer, not a forged cf-connecting-ip, with no proxy declared', async () => {
+      expect(
+        await drive([], {
+          'cf-connecting-ip': '9.9.9.9',
+          'x-forwarded-for': '8.8.8.8'
+        })
+      ).toEqual(['203.0.113.9'])
+    })
+
+    it('sends the proxy-reported client once a proxy IS declared', async () => {
+      expect(
+        await drive(
+          ['127.0.0.1'],
+          { 'x-forwarded-for': '203.0.113.7', 'cf-connecting-ip': '9.9.9.9' },
+          '127.0.0.1'
+        )
+      ).toEqual(['203.0.113.7'])
+    })
+
+    it('is the same value the limiter keys on, so the two cannot disagree', async () => {
+      // A forged header changes neither. If they ever diverged, one of them would be reading a
+      // claim rather than the resolved address.
+      const withForgery = await drive([], { 'cf-connecting-ip': '1.1.1.1' })
+      const without = await drive([], {})
+      expect(withForgery).toEqual(without)
+    })
   })
 
   it('is on by DEFAULT — a caller that configures nothing still gets a bound', async () => {

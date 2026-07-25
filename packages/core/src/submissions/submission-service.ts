@@ -50,6 +50,11 @@ export interface SubmissionServiceDeps {
   renderNotification?: (
     submission: Submission
   ) => NotificationContent | Promise<NotificationContent>
+  /** #921 (CLAUDE.md §4 #22): called with a named reason when a submission that SHOULD have
+   *  notified could not. Mirrors `createResetEmailSender`'s `onRefused` — apps/api points it at
+   *  console.error. Only the "configured, then broke" case fires (see the call site);
+   *  packages/core/test/submissions/submission-service.test.ts pins both directions. */
+  onNotifySkipped?: (reason: string) => void
 }
 
 /** Linear-time email floor check, exactly equivalent to the old
@@ -126,6 +131,18 @@ export function createSubmissionService(
         } catch (e) {
           console.error('[submission-service] notify failed', e)
         }
+      } else if (email && notifyTo) {
+        // #921: notifications ARE configured (a transport and a recipient), so a missing
+        // from-address is a break, not a choice — and since #498 it is resolved live, so it can
+        // vanish mid-run from a Settings → Email save or a `git push` (settings.json is
+        // Git-canonical). Reporting is gated on `notifyTo` precisely so the never-configured
+        // case stays silent: claiming a failure that did not happen is the inverse defect (#834).
+        // The submission itself is already persisted — nothing is lost, the operator just stops
+        // being told, which is the part that was invisible.
+        deps.onNotifySkipped?.(
+          'no from-address is configured, so the form-notification email was not sent — the ' +
+            'submission was saved. Set one in Settings → Email (or SETU_FORMS_NOTIFY_FROM).'
+        )
       }
 
       return { ok: true, id: saved.id }

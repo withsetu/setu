@@ -492,7 +492,15 @@ const submit = createSubmissionService({
     emailTemplates.render(
       EMAIL_TYPE_FORM_NOTIFICATION,
       formNotificationValues(s)
-    )
+    ),
+  // #921 (CLAUDE.md §4 #22): the sibling of the reset sender's `onRefused` a few lines below.
+  // Because `notifyFrom` is live, clearing the from-address in Settings → Email (or a `git push`
+  // that clears it) stops every form notification at once — previously with no log line at all,
+  // while the visitor still saw `{ ok: true }`. The service only calls this when notifications
+  // are actually configured, so a deployment that never wanted them stays quiet.
+  onNotifySkipped: (reason) => {
+    console.error(`[forms] form notification NOT sent: ${reason}`)
+  }
 })
 
 const imageAdapter = createSharpImageAdapter()

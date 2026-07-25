@@ -271,6 +271,68 @@ describe('EditorScreen', () => {
     ).toBeInTheDocument()
   })
 
+  // A COMMITTED entry whose frontmatter says `published: false` — the shape that proves
+  // `lifecycle.state !== 'draft'` was the wrong predicate for "does renaming move a URL".
+  // deriveLifecycle (packages/core/src/lifecycle/derive.ts) reports `draft` for it (never
+  // deployed AND hidden) while the file IS in Git, and scripts/gen-relations.mjs's
+  // buildUrlMap maps EVERY row carrying a cid regardless of `published` — so renaming it
+  // really does emit a 301. `committedInGit` is the predicate that says so, and unlike
+  // `lifecycle` it is never stale (set from `git.readFile` at load and synchronously in
+  // `commit()`).
+  const COMMITTED_DRAFT =
+    '---\ntitle: Release notes\npublished: false\n---\n\nWhat shipped.\n'
+
+  const seedCommitted = (services: Services, content: string) =>
+    services.git.commitFiles({
+      changes: [{ path: 'content/post/en/release-notes.mdoc', content }],
+      message: 'Save draft post/en/release-notes',
+      author: { name: 'Other Editor', email: 'other@setu.dev' }
+    })
+
+  it('warns that the old URL will 301 while typing a new slug on a committed entry (#947)', async () => {
+    const services = createServices()
+    await seedCommitted(services, COMMITTED_DRAFT)
+    renderEditor(services, '/edit/post/en/release-notes')
+    await screen.findByDisplayValue('Release notes')
+
+    // Staged, not applied: this is the PRE-action half of the honesty surface, the hint the
+    // author reads while deciding. It has to agree with the toast that follows the apply.
+    const slugInput = screen.getByRole('textbox', { name: 'Slug' })
+    fireEvent.change(slugInput, { target: { value: 'renamed-notes' } })
+
+    expect(
+      await screen.findByText(
+        'The old URL will redirect (301) after the next site rebuild.'
+      )
+    ).toBeInTheDocument()
+  })
+
+  it('does not auto-derive the slug of a COMMITTED entry on title blur (#947)', async () => {
+    const services = createServices()
+    await seedCommitted(services, COMMITTED_DRAFT)
+    renderEditor(services, '/edit/post/en/release-notes')
+    await screen.findByDisplayValue('Release notes')
+
+    const titleInput = screen.getByLabelText('Title')
+    fireEvent.change(titleInput, { target: { value: 'Launch retrospective' } })
+    fireEvent.blur(titleInput)
+
+    // Auto-derive is for entries that have NEVER been committed. On a committed one it calls
+    // `followRename(…, { silent: true })` — a real move commit that 301s a URL the author
+    // never asked to change, with no toast at all. The rejecting `findByText` gives the
+    // handler the same window the positive case below needs to complete in, so this is a
+    // bounded negative rather than a bet; the Git reads are the durable proof.
+    await expect(
+      screen.findByText('post / launch-retrospective')
+    ).rejects.toThrow()
+    expect(
+      await services.git.readFile('content/post/en/launch-retrospective.mdoc')
+    ).toBeNull()
+    expect(
+      await services.git.readFile('content/post/en/release-notes.mdoc')
+    ).not.toBeNull()
+  })
+
   it('auto-derives the slug from the title on blur while never committed and untouched', async () => {
     const services = createServices()
     renderEditor(services, '/edit/post/en/release-notes')

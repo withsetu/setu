@@ -34,8 +34,23 @@ interface ClientWithStore {
  *  deletes `globalThis.window` and advances the clock past the delay. Without this call that test
  *  throws the exact ReferenceError above. */
 export async function disposeAuthSessionAtom(): Promise<void> {
-  const { authClient } = await import('../../src/auth/auth-client')
-  const session = (authClient as unknown as ClientWithStore).$store?.atoms
-    ?.session
-  if (session) cleanStores(session)
+  // This runs in an `afterAll` for EVERY jsdom suite, most of which have nothing to do with
+  // auth. A throw here — a mock factory that fails to import, a shape that moves under a
+  // dependency bump — would fail those files in a hook they never asked for, turning a
+  // teardown convenience into exactly the kind of unexplained red this change exists to
+  // remove. So it reports and stands down instead. Not a silent swallow (§3.2): the message
+  // names the consequence, and the happy path has its own gate in
+  // apps/admin/test/session-atom-teardown.test.ts, which fails loudly if disposal stops
+  // working.
+  try {
+    const { authClient } = await import('../../src/auth/auth-client')
+    const session = (authClient as unknown as ClientWithStore | undefined)
+      ?.$store?.atoms?.session
+    if (session) cleanStores(session)
+  } catch (err) {
+    console.error(
+      '[test-setup] could not dispose the better-auth session atom; a stray teardown timer may reappear as an unhandled "window is not defined" (#495)',
+      err
+    )
+  }
 }

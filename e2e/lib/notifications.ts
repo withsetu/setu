@@ -22,7 +22,16 @@ import { expect, type Page } from '@playwright/test'
  *  true})`) keeps the same document and is unaffected.
  *
  *  Negative assertions ("the toast is gone") still belong on a live locator — see
- *  history-restore.spec.ts's `toBeHidden()` on the first publish toast. */
+ *  history-restore.spec.ts's `toBeHidden()` on the first publish toast.
+ *
+ *  LIFETIME. The observer is deliberately never disconnected: it is scoped to the page's
+ *  document and dies with it (a `goto`/reload replaces the document, Playwright closes the
+ *  context at end of test), and there is no teardown hook a page object could hang a
+ *  `disconnect()` on that would not also have to be threaded through every caller. The cost
+ *  it carries is one `querySelector` plus a short `querySelectorAll` per body mutation for
+ *  the rest of the page's life — including ProseMirror's, which mutates a lot; that is
+ *  accepted rather than unnoticed, and it is why `scan` stays this cheap and why callers
+ *  install the watch immediately before the action rather than at page load. */
 
 /** Key on `window` where the in-page recorder parks what it has seen. */
 const RECORD_KEY = '__setuRecordedNotifications'
@@ -62,10 +71,19 @@ function installRecorder(key: string): number {
   return messages.length
 }
 
+/** Default budget for `expectMatching`. It bounds how long the ACTION may take (the toast's
+ *  own 4s lifetime is irrelevant once recorded), so it wants to be generous — but it must stay
+ *  strictly under Playwright's per-test timeout, which e2e/playwright.config.ts leaves at the
+ *  30s default and which the rest of the spec is also spending from. At 30s this poll could
+ *  never elapse: the test would die first with the generic "Test timeout of 30000ms exceeded"
+ *  and the message below — the one naming which notification was missing, and printing every
+ *  notification that DID arrive — would never print. That message is the whole point of this
+ *  helper; #947 was diagnosed from it. */
+const DEFAULT_TIMEOUT_MS = 15_000
+
 export interface NotificationWatch {
   /** Assert that a toast matching `pattern` was rendered at some point AFTER this watch was
-   *  created — whether or not it is still on screen. The default timeout is deliberately
-   *  generous: it bounds how long the action may take, not how long the toast stays up. */
+   *  created — whether or not it is still on screen. */
   expectMatching(pattern: RegExp, options?: { timeout?: number }): Promise<void>
 }
 
@@ -90,7 +108,7 @@ export async function watchNotifications(
               { key: RECORD_KEY, from: alreadyRecorded }
             ),
           {
-            timeout: options.timeout ?? 30_000,
+            timeout: options.timeout ?? DEFAULT_TIMEOUT_MS,
             message: `expected a notification matching ${String(pattern)}`
           }
         )

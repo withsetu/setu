@@ -461,12 +461,17 @@ export function EditorScreen() {
    *  never been committed AND the slug still equals what this title minted (a
    *  manual slug edit or a `-2` suffix breaks the equality and ends derivation). */
   const onTitleBlur = async () => {
-    // Reviewed + waived: `lifecycle.state` is refreshed async after load, so for
-    // a blink after mount it can read 'draft' for a committed entry. Practically
-    // unreachable (a blur needs a focus + edit first, by which time the refresh
-    // has landed), and the worst case is a silent draft-only re-key that the
-    // next publish surfaces — never a lost commit.
-    if (composing || phase !== 'ready' || lifecycle.state !== 'draft') return
+    // `committedInGit`, NOT `lifecycle.state !== 'draft'` (#947). That predicate was wrong
+    // twice over here, and the earlier waiver on this line understated both: it is stale for
+    // the whole of publish's `notify.success` -> `await reindexEntries` -> `await
+    // refreshLifecycle` gap (publish, then edit the title — not a blink), and it is
+    // PERMANENTLY wrong for a committed `published: false` entry, which deriveLifecycle
+    // reports as 'draft' (packages/core/src/lifecycle/derive.ts). Either way the guard let a
+    // committed entry through, and the re-key below is not "draft-only": followRename makes
+    // a real move commit, 301ing a URL the author never asked to change, `silent: true` so
+    // not even a toast says so. Enforced by apps/admin/test/editor-screen.test.tsx's "does
+    // not auto-derive the slug of a COMMITTED entry on title blur".
+    if (composing || phase !== 'ready' || committedInGit) return
     const derivedFromLoaded = slugify(loadedTitleRef.current) || 'untitled'
     if (slug !== derivedFromLoaded) return
     const newTitle = attrString(metaRef.current['title'])
@@ -754,9 +759,13 @@ export function EditorScreen() {
   )
   // UX-only gate (the server's writeActionForChanges enforces regardless):
   // renaming a LIVE post moves a published URL — a commit an author can't make.
+  // `committedInGit` rather than `lifecycle.state !== 'draft'` (#947): same meaning here
+  // (the `published !== false` clause below already excludes the committed-draft case where
+  // the two genuinely diverge), minus the post-publish window in which the lifecycle value
+  // is still stale and this hint would silently not render.
   const renameBlockedReason =
     !composing &&
-    lifecycle.state !== 'draft' &&
+    committedInGit &&
     metadata['published'] !== false &&
     !can('content.publish')
       ? "Renaming a live post's URL requires publish permission"
@@ -1000,7 +1009,13 @@ export function EditorScreen() {
               composing ? (manualSlug ?? (slugify(title) || 'untitled')) : slug
             }
             editable={editable}
-            committed={lifecycle.state !== 'draft'}
+            // SlugField renders the "old URL will redirect (301)" hint from this, so it must
+            // answer the same question `followRename`'s toast does — "is there a committed
+            // file to move" — from the same non-stale source (#947). `lifecycle.state !==
+            // 'draft'` answered a different question and answered it late; see the note on
+            // `onTitleBlur` above. Enforced by apps/admin/test/editor-screen.test.tsx's
+            // "warns that the old URL will 301 while typing a new slug on a committed entry".
+            committed={committedInGit}
             permalinkConfig={permalinkConfig}
             date={frontmatterDate}
             categories={frontmatterCategories}

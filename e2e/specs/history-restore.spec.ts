@@ -36,8 +36,13 @@ test('publish twice, inspect the diff, restore the older revision; author sees a
   if (!slug)
     throw new Error(`expected a minted slug in the URL, got: ${page.url()}`)
   await editor.publish()
-  // The Published toast auto-dismisses in 4s; wait it out so the SECOND
-  // publish's toast assertion can't latch onto this one.
+  // Kept, but no longer for the reason it was written: the second publish's assertion can no
+  // longer latch onto this toast, because `watchNotifications` slices from the count recorded
+  // at the moment it is created (e2e/lib/notifications.ts). What it still buys — for the ~4s it
+  // costs, once per run — is the only coverage anywhere that notify.tsx's AUTODISMISS_MS
+  // actually fires. That is the premise the recorder is built on: if toasts stopped
+  // disappearing, every recorder-based assertion would keep passing and nothing else would
+  // notice this one had become the load-bearing check.
   await expect(editor.publishedToast).toBeHidden()
 
   // Revision 2: change the title (a frontmatter diff) and extend the body

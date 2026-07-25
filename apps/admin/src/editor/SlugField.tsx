@@ -36,7 +36,11 @@ export function SlugField({
   collection: string
   locale: string
   editable: boolean
-  /** Lifecycle past draft — the entry exists in Git, so a rename moves a URL. */
+  /** The entry has a committed file in Git, so a rename MOVES a URL and owes the author the
+   *  301 notice below. Deliberately not "lifecycle past draft" (#947): a committed
+   *  `published: false` entry is lifecycle-'draft' and still gets a redirect, because
+   *  scripts/gen-relations.mjs's buildUrlMap tracks every row with a cid regardless of
+   *  `published`. Callers pass `committedInGit`, never a lifecycle derivation. */
   committed: boolean
   permalinkConfig: ResolvedPermalinkConfig
   /** Frontmatter publish date (epoch ms) feeding the pattern's date tokens. */

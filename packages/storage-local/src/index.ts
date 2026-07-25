@@ -20,6 +20,18 @@ function stripTrailingSlashes(s: string): string {
   return end === s.length ? s : s.slice(0, end)
 }
 
+/** The canonical form of `dir` used for every containment comparison: normalized,
+ *  with any trailing separator removed. `normalize()` keeps a trailing slash, which
+ *  made `root + sep` end in '//' so every key failed containment and was reported as
+ *  a path traversal — total media failure from `SETU_MEDIA_DIR=/var/media/` (#896).
+ *  Covered by the trailing-separator cases in packages/storage-local/test/local.test.ts. */
+function rootOf(dir: string): string {
+  const stripped = stripTrailingSlashes(normalize(dir))
+  // `dir` is the filesystem root ('/'): keep it, since '' would make the
+  // `root + sep` comparison below meaningless rather than merely redundant.
+  return stripped === '' ? normalize(dir) : stripped
+}
+
 /** Reject keys that are absolute, contain `..` segments, or otherwise escape `dir`;
  *  return the safe absolute path under `dir`. */
 function resolveKey(dir: string, key: string): string {
@@ -27,7 +39,7 @@ function resolveKey(dir: string, key: string): string {
   if (isAbsolute(key) || key.split(/[\\/]/).includes('..')) {
     throw new Error(`storage-local: unsafe key "${key}"`)
   }
-  const root = normalize(dir)
+  const root = rootOf(dir)
   const abs = normalize(join(root, key))
   if (abs !== root && !abs.startsWith(root + sep)) {
     throw new Error(`storage-local: key "${key}" escapes the storage dir`)
@@ -51,7 +63,7 @@ export function createLocalStorage({
   const base = stripTrailingSlashes(baseUrl)
 
   // key has already passed resolveKey in the calling method (not absolute, no '..', not in .meta)
-  const metaPathFor = (key: string) => join(normalize(dir), META, key)
+  const metaPathFor = (key: string) => join(rootOf(dir), META, key)
 
   return {
     async put(key, body, opts) {
@@ -98,7 +110,7 @@ export function createLocalStorage({
       return `${base}/${key.replace(/^\/+/, '')}`
     },
     async list(prefix?: string): Promise<string[]> {
-      const root = normalize(dir)
+      const root = rootOf(dir)
       const out: string[] = []
       async function walk(abs: string): Promise<void> {
         let entries

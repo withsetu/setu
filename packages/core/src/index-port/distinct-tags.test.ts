@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { selectDistinctTags } from './distinct-tags'
+import { selectDistinctTags, tagMatchesPrefix } from './distinct-tags'
 import type { EntryIndexRow } from './types'
 
 const row = (slug: string, tags: string[]): EntryIndexRow => ({
@@ -38,5 +38,56 @@ describe('selectDistinctTags', () => {
   })
   it('returns [] when nothing matches', () => {
     expect(selectDistinctTags(rows, 'zzz', 10)).toEqual([])
+  })
+
+  // #895: the prefix was lowercased but the tag was not, so a capitalised tag was
+  // unreachable by EVERY non-empty prefix — the type-ahead showed nothing and the
+  // author created a duplicate, which is the one outcome it exists to prevent.
+  describe('capitalised tags (#895)', () => {
+    const mixed = [
+      row('a', ['JavaScript', 'Web Dev']),
+      row('b', ['javascript', 'jest'])
+    ]
+    it('matches a capitalised tag from a lowercase prefix', () => {
+      expect(selectDistinctTags(mixed, 'java', 10)).toEqual([
+        'JavaScript',
+        'javascript'
+      ])
+    })
+    it('matches a capitalised tag from a capitalised prefix', () => {
+      expect(selectDistinctTags(mixed, 'Java', 10)).toEqual([
+        'JavaScript',
+        'javascript'
+      ])
+    })
+    it('preserves the original casing rather than folding it', () => {
+      expect(selectDistinctTags(mixed, 'w', 10)).toEqual(['Web Dev'])
+    })
+    it('still excludes non-matches', () => {
+      expect(selectDistinctTags(mixed, 'je', 10)).toEqual(['jest'])
+    })
+  })
+})
+
+// The predicate is shared with the admin's draft-tag overlay
+// (apps/admin/src/data/http-index-service.ts), which used to keep its own copy.
+// Draft tags are normalized to lowercase before that overlay sees them, so the
+// mixed-case case is not observable from the admin side — it is covered here, on
+// the single implementation both call.
+describe('tagMatchesPrefix', () => {
+  it('folds both sides', () => {
+    expect(tagMatchesPrefix('JavaScript', 'java')).toBe(true)
+    expect(tagMatchesPrefix('javascript', 'JAVA')).toBe(true)
+    expect(tagMatchesPrefix('JavaScript', 'Java')).toBe(true)
+  })
+  it('trims the prefix but matches on the tag as given', () => {
+    expect(tagMatchesPrefix('JavaScript', '  java  ')).toBe(true)
+    expect(tagMatchesPrefix(' JavaScript', 'java')).toBe(false)
+  })
+  it('an empty prefix matches everything', () => {
+    expect(tagMatchesPrefix('JavaScript', '')).toBe(true)
+  })
+  it('is a prefix match, not a substring match', () => {
+    expect(tagMatchesPrefix('JavaScript', 'script')).toBe(false)
   })
 })

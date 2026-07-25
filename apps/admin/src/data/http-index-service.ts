@@ -20,7 +20,8 @@ import {
   normalizeTags,
   projectRow,
   rowToContentRow,
-  runQuery
+  runQuery,
+  tagMatchesPrefix
 } from '@setu/core'
 
 /** Server-backed IndexService for the admin (#464 Increment B).
@@ -374,11 +375,12 @@ export function createHttpIndexService(
     }
     // Union this browser's draft tags — the server can't see local drafts, and
     // the browser-built index included them (type-ahead must offer a tag you
-    // just typed into a draft). Same prefix semantics as selectDistinctTags.
-    const p = prefix.toLowerCase().trim()
+    // just typed into a draft). Shares core's predicate rather than re-deriving
+    // it: this was a hand-rolled copy and drifted into the same prefix-only fold
+    // as selectDistinctTags (#895).
     const out = new Set(server)
     for (const d of await data.listDrafts())
-      for (const t of draftTags(d)) if (t.startsWith(p)) out.add(t)
+      for (const t of draftTags(d)) if (tagMatchesPrefix(t, prefix)) out.add(t)
     return [...out].sort().slice(0, limit)
   }
 

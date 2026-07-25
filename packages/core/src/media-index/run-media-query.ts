@@ -26,9 +26,21 @@ export function runMediaQuery(
     key: 'uploadedAt' as MediaSortKey,
     dir: 'desc' as const
   }
+  // Total order (#897), the same fix runQuery carries for entries (#661): every
+  // sort key here can tie — `uploadedAt` for a whole seeded library stamped from
+  // one clock, `filename` for the same name in two date folders, `bytes` for two
+  // files of equal size. A partial order let the result fall through to the
+  // adapter's storage order (sqlite rowid / Map insertion / IDB key order), so the
+  // three adapters returned different pages for identical data, and a remove+upsert
+  // — what an incremental reindex does — moved the page boundary, showing one row
+  // twice and hiding another. `mediaKey` is unique per row, and the tiebreak is
+  // applied AFTER the direction negation so it stays ascending in both directions.
+  // Enforced by the tie cases in packages/db-testing/src/index.ts, run against
+  // db-sqlite, db-memory and db-idb.
   const sorted = [...xs].sort((a, b) => {
     const c = compare(a, b, sort.key)
-    return sort.dir === 'asc' ? c : -c
+    if (c !== 0) return sort.dir === 'asc' ? c : -c
+    return a.mediaKey.localeCompare(b.mediaKey)
   })
   return {
     rows: sorted.slice(q.offset, q.offset + q.limit),

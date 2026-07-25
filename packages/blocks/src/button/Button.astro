@@ -1,6 +1,16 @@
 ---
 import './button.css'
+import { safeLinkHref } from '../sanitize'
 const { href, variant = 'primary' } = Astro.props
+// #857: an author-controlled href goes through safeLinkHref's SCHEME ALLOWLIST. A
+// persisted `javascript:`/`data:` value returns null and renders as non-link text (a
+// <span>, same classes) — never a live link (middle-click/new-tab/no-JS bypass any
+// client-side guard). Tested in packages/blocks/test/sanitize.test.ts.
+const safeHref = safeLinkHref(href)
+const cls = `setu-button setu-button--${variant}`
 ---
-
-<a href={href} class={`setu-button setu-button--${variant}`}><slot /></a>
+{safeHref ? (
+  <a href={safeHref} class={cls}><slot /></a>
+) : (
+  <span class={cls}><slot /></span>
+)}

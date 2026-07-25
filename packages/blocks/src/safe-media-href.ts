@@ -21,3 +21,16 @@ export function safeMediaHref(src: string, base: string): string | null {
   if (src.startsWith('/') && !/^\/[/\\]/.test(src)) return `${base}${src}`
   return null
 }
+
+/** Resolve a media `src`/`poster` to the URL a block renders it from, or `null` when it
+ *  must not be loaded. Same allowlist as `safeMediaHref` — absolute `http(s):` unchanged,
+ *  root-relative `/…` prefixed with the media base — but named for the display sink (a
+ *  `<video src>`/`<img src>`) rather than an anchor. #857: the {% video %} block used a
+ *  local `resolveUrl` that returned non-http/non-root strings UNCHANGED, so a
+ *  protocol-relative `//host` src (or its `/\host` backslash twin) loaded media from an
+ *  attacker-chosen origin. Routing through here closes that; behavior for http(s) and
+ *  root-relative srcs is identical to the old local resolver. Callers skip rendering the
+ *  element (or drop the attribute) on null. */
+export function resolveMediaSrc(src: string, base: string): string | null {
+  return safeMediaHref(src, base)
+}

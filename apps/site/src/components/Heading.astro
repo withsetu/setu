@@ -1,7 +1,12 @@
 ---
 // Node override for headings: preserve the level + auto-generated id, add {% align %}.
+// #857: `align` is author-controlled and interpolated into an inline `text-align` style,
+// so it is clamped to an allowlist — an injection payload like `right;position:fixed` is
+// dropped (no style). Mirrors the `matches` constraint in markdoc.config.mjs. left/absent
+// stay clean (no style), matching the converter, which only annotates center/right.
 const { level = 1, id, align } = Astro.props
 const Tag = `h${level}`
-const style = align && align !== 'left' ? `text-align:${align}` : undefined
+const alignOk = align === 'center' || align === 'right' || align === 'justify'
+const style = alignOk ? `text-align:${align}` : undefined
 ---
 <Tag id={id} style={style}><slot /></Tag>

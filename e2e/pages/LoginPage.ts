@@ -30,6 +30,15 @@ export class LoginPage {
     return this.page.getByRole('button', { name: 'Sign in' })
   }
 
+  /** #500: the capability-aware self-service reset entry next to the password label. */
+  get forgotPassword() {
+    return this.page.getByRole('button', { name: 'Forgot password?' })
+  }
+
+  get backToSignIn() {
+    return this.page.getByRole('button', { name: 'Back to sign in' })
+  }
+
   /** Fill + submit the real form — issues the cross-origin `POST /api/auth/sign-in/email`
    *  (admin :5175 → api :4446) that exercises the CORS preflight + `Set-Cookie` session path no
    *  unit test covers. */

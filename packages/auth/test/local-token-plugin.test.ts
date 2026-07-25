@@ -156,6 +156,22 @@ describe('localToken plugin — POST /api/auth/local/exchange', () => {
     const res = await auth.handler(exchangeRequest('anything'))
     expect(res.status).toBe(404)
   })
+
+  // #899: the guard used to be `token === null`, so a provider handing back an EMPTY
+  // string would fall through to the constant-time comparison, where `{"token":""}`
+  // (the body schema is a bare z.string()) matches — minting a full admin session from
+  // a loopback request with no secret at all. No shipped provider does this
+  // (apps/api/src/local-token.ts always mints randomBytes(32)), but the empty case is
+  // cheap to close and high-consequence to leave open.
+  it('getToken() empty string is treated as no token -> 404, not a free session', async () => {
+    const { auth, setLocalUserId } = makeAuth({ token: '' })
+    const userId = await createLocalUser(auth)
+    setLocalUserId(userId)
+
+    const res = await auth.handler(exchangeRequest(''))
+    expect(res.status).toBe(404)
+    expect(res.headers.get('set-cookie')).toBeNull()
+  })
 })
 
 /** Mirrors the #386 server.ts contract: the provider holds a MUTABLE token and `consume()`

@@ -30,8 +30,11 @@ const entryId = (r: EntryIndexRow): string =>
   `${r.collection}/${r.locale}/${r.slug}`
 
 /** Roll up the precomputed per-row audit facts into an {@link AuditSummary}.
- *  The single pure impl every IndexPort adapter delegates to (cf. runQuery),
- *  so contract semantics match by construction. */
+ *  The single pure impl every IndexPort adapter delegates to (cf. runQuery).
+ *  Sharing it is intended to keep the adapters in step, but is not on its own a
+ *  proof — #897 showed a shared helper still diverges wherever its output order
+ *  is partial. The IndexPort contract in packages/db-testing/src/index.ts is
+ *  what actually holds the adapters to the same answers (#898). */
 export function selectAuditSummary(rows: EntryIndexRow[]): AuditSummary {
   const titleOffenders: string[] = []
   const altOffenders: { ref: string; count: number }[] = []

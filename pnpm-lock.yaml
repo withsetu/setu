@@ -477,9 +477,22 @@ importers:
         specifier: workspace:*
         version: link:../core
     devDependencies:
-      '@setu/db-testing':
+      '@setu/captcha-testing':
         specifier: workspace:*
-        version: link:../db-testing
+        version: link:../captcha-testing
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.6
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/browser@3.2.7)(jiti@2.7.0)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.1)
+
+  packages/captcha-testing:
+    dependencies:
+      '@setu/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
@@ -493,9 +506,9 @@ importers:
         specifier: workspace:*
         version: link:../core
     devDependencies:
-      '@setu/db-testing':
+      '@setu/captcha-testing':
         specifier: workspace:*
-        version: link:../db-testing
+        version: link:../captcha-testing
       typescript:
         specifier: ^5.6.3
         version: 5.9.3

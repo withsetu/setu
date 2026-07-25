@@ -6,16 +6,44 @@ import type {
   FormSummary
 } from '@setu/core'
 
+/** A non-2xx answer from the forms API, carrying BOTH the status and the
+ *  machine-readable reason the API sent (`{ error: 'forbidden' | 'invalid' |
+ *  'too_large' }` — apps/api/src/forms.ts). Before #899 every failure collapsed
+ *  into `Error('forms api <status>')`, so a 403 and a 400 were indistinguishable
+ *  at the call site; same shape as #870's `MediaTransportError`.
+ *  Covered by packages/submission-http/test/errors.test.ts. */
+export class SubmissionApiError extends Error {
+  readonly status: number
+  /** The API's `error` code, or `undefined` when the body carried none (or was
+   *  not JSON at all — a proxy's HTML 502, say). */
+  readonly code: string | undefined
+
+  constructor(status: number, code?: string) {
+    super(code ? `forms api ${status}: ${code}` : `forms api ${status}`)
+    this.name = 'SubmissionApiError'
+    this.status = status
+    this.code = code
+  }
+}
+
 /** A SubmissionPort backed by createFormsApi over HTTP. Mirrors git-http: the
- *  browser admin uses this to read/manage submissions stored by apps/api. */
+ *  browser admin uses this to read/manage submissions stored by apps/api.
+ *
+ *  `fetchImpl` is REQUIRED, not defaulted to bare `fetch` (#899): the browser
+ *  admin must pass `apiFetch`, since a bare `fetch` drops the cross-origin session
+ *  cookie and every call would 401. Making the choice explicit keeps a future
+ *  caller from inheriting that silently. */
 export function createHttpSubmissionAdapter(opts: {
   baseUrl: string
-  fetchImpl?: typeof fetch
+  fetchImpl: typeof fetch
 }): SubmissionPort {
   const base = opts.baseUrl.replace(/\/$/, '')
-  const f = opts.fetchImpl ?? fetch
+  const f = opts.fetchImpl
   const json = async (res: Response) => {
-    if (!res.ok) throw new Error(`forms api ${res.status}`)
+    if (!res.ok) {
+      const detail = (await res.json().catch(() => ({}))) as { error?: string }
+      throw new SubmissionApiError(res.status, detail.error)
+    }
     return res.json()
   }
 

@@ -29,8 +29,16 @@ const META_SCOPE = 'entry'
 /** better-sqlite3-backed IndexPort (#464). Deliberate v1: rows are stored as
  *  opaque JSON keyed by identity; every read loads the (tiny, body-free) rows
  *  and delegates filtering/sorting/facets to the SAME shared pure helpers
- *  db-idb uses, so contract semantics match by construction. SQL-native
- *  querying/FTS5 is deferred to #205. `file` is a path or ':memory:'. */
+ *  db-idb uses. SQL-native querying/FTS5 is deferred to #205. `file` is a path
+ *  or ':memory:'.
+ *
+ *  Sharing the helper is necessary but NOT sufficient for matching semantics: it
+ *  only equalises adapters where the helper imposes a TOTAL order, otherwise the
+ *  result falls through to each adapter's storage order. `runQuery` needed #661
+ *  to get there and `runMediaQuery` needed #897 — both after this comment first
+ *  claimed parity "by construction" (#898). What actually enforces parity is the
+ *  shared IndexPort contract in packages/db-testing/src/index.ts, run against
+ *  db-sqlite, db-memory and db-idb. */
 export function createSqliteIndexPort(file: string): IndexPort {
   const sqlite = new Database(file)
   const db = drizzle(sqlite)

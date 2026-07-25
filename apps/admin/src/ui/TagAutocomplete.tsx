@@ -25,12 +25,18 @@ export function TagAutocomplete({
 }) {
   const index = useIndex()
   const [matches, setMatches] = useState<string[]>([])
+  // Kept SEPARATE from `matches` on purpose (#905, §4 row 22): the old `catch` set an
+  // empty list, which renders identically to "no tag starts with that" — so a broken
+  // lookup looked like a confident "this tag is new" exactly when the picker is least
+  // trustworthy. Covered by apps/admin/test/tag-autocomplete.test.tsx.
+  const [lookupFailed, setLookupFailed] = useState(false)
   const excludeKey = exclude.join('\0')
 
   useEffect(() => {
     const q = value.trim()
     if (q === '') {
       setMatches([])
+      setLookupFailed(false)
       return
     }
     let cancelled = false
@@ -39,10 +45,14 @@ export function TagAutocomplete({
       void index
         .distinctTags(q, 8)
         .then((tags) => {
-          if (!cancelled) setMatches(tags.filter((t) => !excluded.has(t)))
+          if (cancelled) return
+          setMatches(tags.filter((t) => !excluded.has(t)))
+          setLookupFailed(false)
         })
         .catch(() => {
-          if (!cancelled) setMatches([])
+          if (cancelled) return
+          setMatches([])
+          setLookupFailed(true)
         })
     }, 150)
     return () => {
@@ -65,6 +75,13 @@ export function TagAutocomplete({
       ariaLabel={ariaLabel}
       id={id}
       disabled={disabled}
+      // Inline rather than a toast: the effect re-runs on every keystroke, so a toast
+      // per character would be noise and the next keypress is already the retry.
+      hint={
+        lookupFailed
+          ? 'Couldn’t load tag suggestions — you can still type a tag.'
+          : undefined
+      }
     />
   )
 }

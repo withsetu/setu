@@ -121,10 +121,16 @@ export function createLocalStorage({
           throw e
         }
         for (const ent of entries) {
-          if (ent.name === META) continue // skip the content-type sidecar namespace
           const child = join(abs, ent.name)
+          const rel = relative(root, child).split(sep).join('/')
+          // Skip the content-type sidecar namespace — but only where it IS the
+          // namespace: `resolveKey` reserves `.meta` as the first segment only, so
+          // matching on `ent.name` at every depth hid legitimate keys like
+          // `uploads/.meta/x.png` that put/exists accept (#899).
+          // packages/storage-local/test/list.test.ts covers both halves.
+          if (rel.split('/')[0] === META) continue
           if (ent.isDirectory()) await walk(child)
-          else out.push(relative(root, child).split(sep).join('/'))
+          else out.push(rel)
         }
       }
       await walk(root)

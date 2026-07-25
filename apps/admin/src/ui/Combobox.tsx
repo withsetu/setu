@@ -16,7 +16,8 @@ export function Combobox({
   ariaLabel,
   id,
   disabled = false,
-  className = ''
+  className = '',
+  hint
 }: {
   value: string
   onChange: (text: string) => void
@@ -30,10 +31,16 @@ export function Combobox({
   id?: string
   disabled?: boolean
   className?: string
+  /** Inline status line under the input, announced politely and wired up as the
+   *  input's `aria-describedby`. Intended for the "suggestions are unavailable"
+   *  case (#905), where an empty list would otherwise read as "no matches" — the
+   *  list itself keeps its own empty rendering. */
+  hint?: ReactNode
 }) {
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
   const listId = useId()
+  const hintId = useId()
   const show = open && items.length > 0
 
   const close = () => {
@@ -61,6 +68,7 @@ export function Combobox({
         aria-controls={listId}
         aria-activedescendant={active >= 0 ? `${listId}-${active}` : undefined}
         aria-label={ariaLabel}
+        aria-describedby={hint ? hintId : undefined}
         placeholder={placeholder}
         value={value}
         disabled={disabled}
@@ -107,6 +115,11 @@ export function Combobox({
             </li>
           ))}
         </ul>
+      )}
+      {hint && (
+        <p className="combo-hint" id={hintId} role="status">
+          {hint}
+        </p>
       )}
     </div>
   )

@@ -86,8 +86,11 @@ describe('#666 frontmatter raw-YAML retention', () => {
   })
 
   it('treats a Date and its ISO string as the same value (DB draft round-trip)', () => {
-    // A draft's metadata is JSON-serialized into the DB, so a YAML Date arrives
-    // back as an ISO string. That is not an author edit — the raw must survive.
+    // db-sqlite JSON-serializes a draft's metadata, so a YAML Date arrives back
+    // as an ISO string there (db-memory/db-idb structuredClone it and return a
+    // real Date — see packages/db-memory/src/adapter.ts). Neither is an author
+    // edit, so neither may invalidate the raw. This case pins the ISO-string
+    // side; the Date side is the `preserves a bare date` case above.
     const raw = '---\ndate: 2024-01-01\ntitle: Hi\n---\nbody\n'
     const meta = JSON.parse(
       JSON.stringify(parseMdoc(raw).frontmatter)

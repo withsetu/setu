@@ -113,9 +113,10 @@ export const verification = sqliteTable('verification', {
 
 // Server-side content/media index (#464). Deliberate v1: each row is stored as
 // an opaque JSON blob keyed by its identity, and the adapters load-all + delegate
-// to the same shared pure helpers db-idb uses — contract semantics match by
-// construction. Rows are tiny (no bodies); SQL-native querying/FTS5 is deferred
-// to #205.
+// to the same shared pure helpers db-idb uses. Rows are tiny (no bodies);
+// SQL-native querying/FTS5 is deferred to #205. Sharing the helper does not by
+// itself make the adapters agree (see the note on createSqliteIndexPort, #898) —
+// packages/db-testing/src/index.ts is what enforces that.
 export const entryIndex = sqliteTable('entry_index', {
   key: text('key').primaryKey(), // '<collection>\0<locale>\0<slug>'
   row: text('row').notNull() // JSON (EntryIndexRow)

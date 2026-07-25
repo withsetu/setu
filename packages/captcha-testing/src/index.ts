@@ -1,17 +1,40 @@
 import { describe, it, expect } from 'vitest'
 import type { CaptchaPort } from '@setu/core'
 
-/** One record per request an adapter made through the injected transport. The
- *  request is flattened to strings so the runner stays provider-agnostic: it
- *  asserts that the identifying values survived the hop, not how a given
- *  provider encodes them. */
+/** One record per request an adapter made through the injected transport. */
 export interface CaptchaRequestRecord {
   /** Absolute request URL, as the adapter addressed it. */
   url: string
   method: string
-  /** Request body, read as text (both shipped providers send form-encoded). */
+  /** Request body, read as text (both shipped adapters send form-encoded). */
   body: string
+  /** Request headers, lower-cased names → values, as `Headers` yields them.
+   *  Recorded because the wire FORMAT is half of what an adapter must get right
+   *  and is invisible in the body text alone: a body the provider cannot parse
+   *  takes captcha down entirely, and #911 proved the old body-only record could
+   *  not see it (swapping URLSearchParams for JSON.stringify passed 10/10). */
+  headers: Record<string, string>
 }
+
+/** The adapter's body parsed as the form encoding the contract requires, so
+ *  assertions are per-FIELD. A substring match on the flattened body cannot tell
+ *  `secret=<secret>&response=<token>` from the same two values swapped, which is
+ *  a total outage plus the site secret landing in the field providers log
+ *  (#911). Covered by test/recording-fetch.test.ts and by the 'what reaches the
+ *  provider' cases below. */
+export function captchaFields(req: CaptchaRequestRecord): URLSearchParams {
+  return new URLSearchParams(req.body)
+}
+
+/** The record's Content-Type with any `;charset=…` parameter stripped. */
+export function captchaContentType(req: CaptchaRequestRecord): string {
+  return (req.headers['content-type'] ?? '').split(';')[0]!.trim().toLowerCase()
+}
+
+/** What `captchaContentType` must equal: the encoding `captchaFields` parses.
+ *  A provider needing JSON would mean widening the contract — deliberately, with
+ *  its own field-level assertions — not relaxing this one. */
+export const CAPTCHA_CONTRACT_CONTENT_TYPE = 'application/x-www-form-urlencoded'
 
 /** A `fetch` that records what an adapter transmits and then returns `respond()`.
  *  This is the piece #891 was missing: the old contract injected a zero-parameter
@@ -26,7 +49,12 @@ export function createRecordingFetch(
   const requests: CaptchaRequestRecord[] = []
   const fetchImpl: typeof fetch = async (input, init) => {
     const req = new Request(input, init)
-    requests.push({ url: req.url, method: req.method, body: await req.text() })
+    requests.push({
+      url: req.url,
+      method: req.method,
+      headers: Object.fromEntries(req.headers),
+      body: await req.text()
+    })
     return respond()
   }
   return { fetchImpl, requests }
@@ -63,9 +91,10 @@ const ok = (body: unknown, status = 200): (() => Response) => {
  *  provider's answer (fail-closed on every non-success) and what it puts on the
  *  wire (endpoint, secret, token, remoteip).
  *
- *  The transmission half constrains adapters to a POST whose body carries the
- *  credentials; a provider needing query-string auth would need the contract
- *  widened rather than the endpoint assertion relaxed. */
+ *  The transmission half constrains adapters to a POST whose form-encoded body
+ *  carries the credentials in named fields; a provider needing query-string auth
+ *  or a JSON body would need the contract widened — with its own field-level
+ *  assertions — rather than the endpoint or encoding assertions relaxed. */
 export function runCaptchaPortContract(harness: CaptchaContractHarness): void {
   const { makeAdapter, endpoint } = harness
 
@@ -123,34 +152,67 @@ export function runCaptchaPortContract(harness: CaptchaContractHarness): void {
         expect(requests[0]?.method).toBe('POST')
       })
 
-      it('transmits the configured secret', async () => {
+      it('form-encodes the body and declares that encoding in Content-Type', async () => {
+        // The provider parses by Content-Type. An adapter that serialises some
+        // other way sends a body every provider rejects — captcha fully down —
+        // while the credential markers are all still present in the text, which
+        // is why every assertion below reads FIELDS, not substrings (#911).
         const req = await capture(ok({ success: true }))
-        expect(req.body).toContain(CAPTCHA_CONTRACT_SECRET)
+        expect(captchaContentType(req)).toBe(CAPTCHA_CONTRACT_CONTENT_TYPE)
       })
 
-      it('transmits the token it was asked to verify', async () => {
+      it('transmits the configured secret in the `secret` field', async () => {
         const req = await capture(ok({ success: true }))
-        expect(req.body).toContain(CAPTCHA_CONTRACT_TOKEN)
+        expect(captchaFields(req).get('secret')).toBe(CAPTCHA_CONTRACT_SECRET)
       })
 
-      it('transmits remoteip when the caller supplies one', async () => {
+      it('transmits the token it was asked to verify in the `response` field', async () => {
+        const req = await capture(ok({ success: true }))
+        expect(captchaFields(req).get('response')).toBe(CAPTCHA_CONTRACT_TOKEN)
+      })
+
+      it('never puts the secret in the token field, or the token in the secret field', async () => {
+        // Swapping the two is not merely a failed verification: the site secret
+        // goes out in the field the provider treats as user input and logs.
+        const fields = captchaFields(await capture(ok({ success: true })))
+        expect(fields.get('response')).not.toBe(CAPTCHA_CONTRACT_SECRET)
+        expect(fields.get('secret')).not.toBe(CAPTCHA_CONTRACT_TOKEN)
+      })
+
+      it('transmits remoteip in the `remoteip` field when the caller supplies one', async () => {
         const req = await capture(
           ok({ success: true }),
           CAPTCHA_CONTRACT_REMOTEIP
         )
-        expect(req.body).toContain(CAPTCHA_CONTRACT_REMOTEIP)
+        expect(captchaFields(req).get('remoteip')).toBe(
+          CAPTCHA_CONTRACT_REMOTEIP
+        )
       })
 
       it('omits remoteip when the caller supplies none', async () => {
         const req = await capture(ok({ success: true }))
-        expect(req.body).not.toContain('remoteip')
+        expect(captchaFields(req).has('remoteip')).toBe(false)
       })
 
-      it('still transmits the credentials when the provider rejects the token', async () => {
+      it('sends no fields beyond secret, response and remoteip', async () => {
+        // Keeps the adapter from smuggling the secret out a second time under
+        // another name, which the three assertions above would not notice.
+        const req = await capture(
+          ok({ success: true }),
+          CAPTCHA_CONTRACT_REMOTEIP
+        )
+        expect([...captchaFields(req).keys()].sort()).toEqual([
+          'remoteip',
+          'response',
+          'secret'
+        ])
+      })
+
+      it('still transmits the credentials in their own fields when the provider rejects the token', async () => {
         // A failing verification must be a real round trip, not a short circuit.
-        const req = await capture(ok({ success: false }))
-        expect(req.body).toContain(CAPTCHA_CONTRACT_SECRET)
-        expect(req.body).toContain(CAPTCHA_CONTRACT_TOKEN)
+        const fields = captchaFields(await capture(ok({ success: false })))
+        expect(fields.get('secret')).toBe(CAPTCHA_CONTRACT_SECRET)
+        expect(fields.get('response')).toBe(CAPTCHA_CONTRACT_TOKEN)
       })
     })
   })

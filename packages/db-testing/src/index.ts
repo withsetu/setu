@@ -566,6 +566,23 @@ export function runIndexPortContract(
       expect(await ix.distinctTags('zzz', 10)).toEqual([])
     })
 
+    // #895: every tag above is lowercase, which is why nothing caught a filter
+    // that folded the prefix but not the tag — a capitalised tag was unreachable
+    // by every non-empty prefix. Rows built by core's `tagsOf` are normalized to
+    // lowercase, so the port is not obliged to fold by anything upstream; it is
+    // obliged because `EntryIndexRow['tags']` is a plain string[] and every
+    // adapter must answer the same way for one.
+    it('distinctTags: matches case-insensitively and preserves original casing', async () => {
+      await ix.upsertMany([
+        irow({ slug: 'a', tags: ['JavaScript', 'Web Dev'] }),
+        irow({ slug: 'b', tags: ['jest'] })
+      ])
+      expect(await ix.distinctTags('java', 10)).toEqual(['JavaScript'])
+      expect(await ix.distinctTags('JAVA', 10)).toEqual(['JavaScript'])
+      expect(await ix.distinctTags('w', 10)).toEqual(['Web Dev'])
+      expect(await ix.distinctTags('je', 10)).toEqual(['jest'])
+    })
+
     it('distinctLocales: returns distinct locales sorted', async () => {
       await ix.upsertMany([
         irow({ slug: 'a', locale: 'fr' }),

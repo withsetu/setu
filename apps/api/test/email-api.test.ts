@@ -7,6 +7,8 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { createAuth } from '@setu/auth'
 import { resolveSessionActor } from '../src/auth/resolve-session-actor'
+import { emailTransportOptions } from '../src/capabilities'
+import { createLiveEmailTransport } from '../src/email-transport'
 import {
   createEmailApi,
   resetRestartRequired,
@@ -20,6 +22,16 @@ const TRUSTED_ORIGIN = 'http://localhost:5173'
 function resendStatus(over: Partial<EmailStatus> = {}): EmailStatus {
   return {
     transport: 'resend',
+    providerSource: 'env',
+    transports: [
+      { id: 'console', usable: true, problem: null },
+      { id: 'resend', usable: true, problem: null },
+      {
+        id: 'smtp',
+        usable: false,
+        problem: 'Add SETU_SMTP_HOST to the server environment to enable SMTP.'
+      }
+    ],
     effectiveTransport: 'resend',
     deliverable: true,
     mode: 'self-hosted',
@@ -338,5 +350,168 @@ describe('POST /api/email/test-send', () => {
     const body = (await res.json()) as { error: string; reason?: string }
     expect(body.error).toBe('send_failed')
     expect(body.reason).toContain('ECONNREFUSED')
+  })
+})
+
+// #890: the two seams composed exactly the way apps/api/src/server.ts composes them — a live
+// email transport whose provider getter re-reads settings, feeding BOTH `send` and the
+// transport half of `status`. The unit tests above inject `send` directly, so they can't show
+// the thing the owner actually asked for: that choosing a provider in the admin changes where
+// a test email goes, with no api restart.
+describe('test-send goes through the SETTINGS-chosen transport (live, no restart)', () => {
+  function makeLiveApp(env: NodeJS.ProcessEnv) {
+    const dir = mkdtempSync(join(tmpdir(), 'email-live-'))
+    const dbFile = join(dir, 'auth.db')
+    const sqlite = new Database(dbFile)
+    const db = drizzle(sqlite)
+    migrate(db, { migrationsFolder: '../../packages/db-sqlite/drizzle' })
+    const auth = createAuth({
+      db,
+      secret: 'test-secret-32-chars-minimum!!!!',
+      baseURL: 'http://localhost:4444',
+      trustedOrigins: [TRUSTED_ORIGIN]
+    })
+
+    // Stands in for settings.json's `email.provider`; server.ts re-reads the file here.
+    let provider = ''
+    const delivered: { kind: string; to: string }[] = []
+    const adapter = (kind: string) => ({
+      send: async (msg: { to: string }) => {
+        delivered.push({ kind, to: msg.to })
+      }
+    })
+    const email = createLiveEmailTransport({
+      env,
+      provider: () => provider,
+      adapters: {
+        console: () => adapter('console'),
+        resend: () => adapter('resend'),
+        smtp: () => adapter('smtp')
+      }
+    })
+
+    const app = createEmailApi({
+      resolveActor: resolveSessionActor(auth),
+      send: (msg) => email.send(msg),
+      status: () => {
+        const live = email.resolve()
+        return {
+          transport: live.selected,
+          providerSource: live.source,
+          transports: emailTransportOptions(env),
+          effectiveTransport: live.effective,
+          deliverable: live.effective !== 'console',
+          mode: 'self-hosted',
+          from: { effective: 'noreply@example.com', source: 'env' },
+          secrets: {
+            resendApiKey: Boolean(env.RESEND_API_KEY),
+            smtpConfigured: emailTransportOptions(env).some(
+              (t) => t.id === 'smtp' && t.usable
+            ),
+            smtpProblem: null
+          },
+          resetRestartRequired: false
+        } satisfies EmailStatus
+      }
+    })
+
+    cleanups.push(() => {
+      sqlite.close()
+      rmSync(dir, { recursive: true, force: true })
+    })
+    return {
+      app,
+      auth,
+      delivered,
+      setProvider: (p: string) => {
+        provider = p
+      }
+    }
+  }
+
+  const SMTP_ENV = {
+    SETU_EMAIL_ADAPTER: 'console',
+    SETU_SMTP_HOST: '127.0.0.1',
+    SETU_SMTP_PORT: '11025'
+  }
+
+  it('switching the stored provider between two sends changes the transport — the app is never rebuilt', async () => {
+    const live = makeLiveApp(SMTP_ENV)
+    await makeUser(live.auth, {
+      email: 'admin@test.com',
+      name: 'admin',
+      role: 'admin',
+      password: 'a-strong-password-12'
+    })
+    const cookie = await signInCookie(
+      live.auth,
+      'admin@test.com',
+      'a-strong-password-12'
+    )
+
+    const first = await live.app.fetch(sendReq(cookie))
+    expect(first.status).toBe(200)
+    expect(await first.json()).toMatchObject({
+      result: 'logged',
+      transport: 'console'
+    })
+
+    live.setProvider('smtp') // == the admin saving Settings → Email
+
+    const status = (await (
+      await live.app.fetch(statusReq(cookie))
+    ).json()) as EmailStatus
+    expect(status).toMatchObject({
+      transport: 'smtp',
+      providerSource: 'settings',
+      effectiveTransport: 'smtp'
+    })
+
+    const second = await live.app.fetch(sendReq(cookie))
+    expect(second.status).toBe(200)
+    expect(await second.json()).toMatchObject({
+      result: 'sent',
+      transport: 'smtp'
+    })
+    expect(live.delivered.map((d) => d.kind)).toEqual(['console', 'smtp'])
+  })
+
+  // The §4 #13 fail-safe, end to end: settings.json is Git-canonical, so an unusable provider
+  // can land there without ever passing the api's settings-write gate. The send must still
+  // succeed honestly (console, "logged") rather than 502 on an adapter that cannot work — and
+  // the status must SAY so instead of reporting a transport that isn't sending.
+  it('a stored provider whose secret is absent degrades to console and is reported honestly', async () => {
+    const live = makeLiveApp({ SETU_EMAIL_ADAPTER: 'console' })
+    live.setProvider('resend') // no RESEND_API_KEY in this env
+    await makeUser(live.auth, {
+      email: 'admin@test.com',
+      name: 'admin',
+      role: 'admin',
+      password: 'a-strong-password-12'
+    })
+    const cookie = await signInCookie(
+      live.auth,
+      'admin@test.com',
+      'a-strong-password-12'
+    )
+
+    const status = (await (
+      await live.app.fetch(statusReq(cookie))
+    ).json()) as EmailStatus
+    expect(status.transport).toBe('resend')
+    expect(status.effectiveTransport).toBe('console')
+    expect(status.deliverable).toBe(false)
+    expect(status.transports.find((t) => t.id === 'resend')).toMatchObject({
+      usable: false,
+      problem: 'Add RESEND_API_KEY to the server environment to enable Resend.'
+    })
+
+    const res = await live.app.fetch(sendReq(cookie))
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({
+      result: 'logged',
+      transport: 'console'
+    })
+    expect(live.delivered.map((d) => d.kind)).toEqual(['console'])
   })
 })

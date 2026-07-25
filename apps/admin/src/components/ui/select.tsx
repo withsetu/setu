@@ -103,13 +103,22 @@ function SelectLabel({
 function SelectItem({
   className,
   children,
+  description,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Item>) {
+}: React.ComponentProps<typeof SelectPrimitive.Item> & {
+  /** Optional secondary line under the option label — e.g. what the option does, or why a
+   *  `disabled` option is unavailable and what to do about it. Deliberately rendered OUTSIDE
+   *  `ItemText`: Radix portals ItemText into the closed trigger to show the current value, so
+   *  anything nested there would also appear in the trigger. Added for #890's provider picker;
+   *  optional, so every existing call site is unchanged. */
+  description?: React.ReactNode
+}) {
   return (
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
         "relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+        description !== undefined && 'flex-col items-start gap-0.5',
         className
       )}
       {...props}
@@ -123,6 +132,14 @@ function SelectItem({
         </SelectPrimitive.ItemIndicator>
       </span>
       <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+      {description !== undefined && (
+        <span
+          data-slot="select-item-description"
+          className="text-xs text-muted-foreground"
+        >
+          {description}
+        </span>
+      )}
     </SelectPrimitive.Item>
   )
 }

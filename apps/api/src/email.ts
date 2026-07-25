@@ -3,6 +3,7 @@ import { createAuthz, DEFAULT_ROLES } from '@setu/core'
 import type { EmailPort } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
 import type { ResolveActor, ResolvedActor } from './auth/resolve-actor'
+import type { EmailTransportOption } from './capabilities'
 import { apiOnError } from './errors'
 
 const authz = createAuthz(DEFAULT_ROLES)
@@ -12,9 +13,19 @@ const authz = createAuthz(DEFAULT_ROLES)
  *  `secrets` carries booleans (and smtpConfigFromEnv's boot-log-safe `problem` string,
  *  which apps/api/test/capabilities.test.ts proves never echoes credential values). */
 export interface EmailStatus {
-  /** SETU_EMAIL_ADAPTER verbatim — same convention as /api/capabilities' email block. */
+  /** The RESOLVED transport selection, verbatim — settings.json's `email.provider` wins,
+   *  `SETU_EMAIL_ADAPTER` is the fallback (#890, resolveEmailProvider). Same convention as
+   *  /api/capabilities' email block. */
   transport: string
-  /** The adapter actually wired at boot ('console' when a selected transport fell back). */
+  /** Which source chose it, so the screen can say whether the dropdown or the environment is
+   *  in charge (#890). */
+  providerSource: 'settings' | 'env' | 'default'
+  /** Per-transport usability for the provider dropdown — the options whose secret is absent
+   *  render disabled with `problem` as their remediation (#890). Independent of which one is
+   *  selected; console is always usable. */
+  transports: EmailTransportOption[]
+  /** The adapter the NEXT send would use ('console' when the selection fell back). Live, not a
+   *  boot snapshot: since #890 the transport is re-resolved per send. */
   effectiveTransport: 'console' | 'resend' | 'smtp'
   /** Live "would an email actually go out": real transport AND a from-address resolvable
    *  RIGHT NOW (settings win, env fallback) — unlike /api/capabilities' boot snapshot. */
@@ -55,11 +66,13 @@ export function resetRestartRequired(opts: {
 
 export interface EmailApiOptions {
   resolveActor: ResolveActor
-  /** Live status thunk — server.ts re-reads settings.json per call so a from-address
-   *  saved in the admin applies without an api restart. */
+  /** Live status thunk — server.ts re-reads settings.json per call so a from-address or
+   *  provider saved in the admin applies without an api restart. */
   status: () => EmailStatus
-  /** The boot-selected transport's send (structural EmailPort['send'], like @setu/auth's
-   *  email option — this factory never imports a concrete adapter). */
+  /** The live sender (structural EmailPort['send'], like @setu/auth's email option — this
+   *  factory never imports a concrete adapter). Since #890 it re-resolves the transport per
+   *  call from the same settings + env `status` reads, so the transport this route REPORTS and
+   *  the one it sends through are the same reading. */
   send: EmailPort['send']
   /** Injectable clock for the rate-limiter tests. */
   now?: () => number

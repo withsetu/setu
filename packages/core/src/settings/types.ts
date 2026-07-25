@@ -79,6 +79,14 @@ export interface EmailSettings {
    *  back to the SETU_FORMS_NOTIFY_FROM env var (settings win over env — the
    *  precedence is implemented where the two meet in apps/api/src/server.ts). */
   fromAddress: string
+  /** #890: which transport the admin chose in Settings → Email. Empty string = not
+   *  chosen here, so the server falls back to the SETU_EMAIL_ADAPTER env var — which
+   *  is why an existing deployment that never opens the screen is unchanged. Choosing
+   *  a transport is configuration, not a credential: Resend/SMTP secrets stay env-only
+   *  and never enter this Git-committed file. Whether the chosen transport is USABLE is
+   *  a server-side question (its secret may be absent), resolved and failed-safe by
+   *  apps/api/src/capabilities.ts's usableEmailTransport. */
+  provider: '' | 'console' | 'resend' | 'smtp'
 }
 
 /** Site settings, grouped so future sections (identity/content/media/forms) add

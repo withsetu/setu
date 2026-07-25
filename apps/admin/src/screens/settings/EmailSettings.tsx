@@ -14,14 +14,29 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem
+} from '@/components/ui/select'
 
 const SETTINGS_PATH = 'settings.json'
 const apiBase = import.meta.env.VITE_SETU_API ?? ''
 
+type TransportId = 'console' | 'resend' | 'smtp'
+
 /** Mirrors apps/api/src/email.ts's EmailStatus — presence booleans only, never key material. */
 interface EmailStatus {
+  /** The RESOLVED provider selection (settings win, SETU_EMAIL_ADAPTER is the fallback). */
   transport: string
-  effectiveTransport: 'console' | 'resend' | 'smtp'
+  /** Which of the two chose it — drives the "chosen here / from the environment" hint. */
+  providerSource: 'settings' | 'env' | 'default'
+  /** Per-transport usability for the picker; `problem` is the remediation to show on a
+   *  disabled option (#890). */
+  transports: { id: TransportId; usable: boolean; problem: string | null }[]
+  effectiveTransport: TransportId
   deliverable: boolean
   mode: string
   from: { effective: string | null; source: 'settings' | 'env' | null }
@@ -36,11 +51,20 @@ interface EmailStatus {
   resetRestartRequired: boolean
 }
 
-const TRANSPORT_LABELS: Record<EmailStatus['effectiveTransport'], string> = {
+const TRANSPORT_LABELS: Record<TransportId, string> = {
   console: 'Console (dev)',
   resend: 'Resend',
   smtp: 'SMTP'
 }
+
+const TRANSPORT_HINTS: Record<TransportId, string> = {
+  console: 'Logs emails to the API server console — nothing is delivered.',
+  resend: 'Delivers over Resend’s HTTP API. Works on every topology.',
+  smtp: 'Delivers over SMTP. Needs a Node server — not available on the edge.'
+}
+
+const isTransportId = (v: string): v is TransportId =>
+  v === 'console' || v === 'resend' || v === 'smtp'
 
 const FROM_ERROR = 'Enter a valid email address, e.g. hello@example.com.'
 // Empty is a valid stored value: "not set — fall back to SETU_FORMS_NOTIFY_FROM".
@@ -60,25 +84,36 @@ function StatusRow({ label, children }: { label: string; children: string }) {
   )
 }
 
-/** Provider status card — everything here is read-only server truth from
- *  GET /api/email/status. Secrets are presence-only ("set via env ✓"), never values. */
+/** Provider status card. The provider is a CONTROL (#890 — a status label where a control
+ *  belongs is the raw-text-box failure mode); everything else is read-only server truth from
+ *  GET /api/email/status. Secrets are presence-only ("set via env ✓"), never values — the
+ *  dropdown only ever exposes WHICH transports are configured, exactly what the secrets rows
+ *  already showed. */
 function ProviderStatus({
   status,
   loading,
   failed,
-  onRetry
+  onRetry,
+  provider,
+  onProviderChange,
+  providerDirty
 }: {
   status: EmailStatus | null
   loading: boolean
   failed: boolean
   onRetry: () => void
+  /** The transport shown in the picker — the pending settings value, falling back to whatever
+   *  the server currently resolves (which may come from SETU_EMAIL_ADAPTER). */
+  provider: string
+  onProviderChange: (next: TransportId) => void
+  providerDirty: boolean
 }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Email delivery</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent className="space-y-3">
         {loading ? (
           <p className="text-sm text-muted-foreground">
             Checking email delivery status…
@@ -95,12 +130,47 @@ function ProviderStatus({
           </div>
         ) : (
           <>
-            <p className="text-sm">
-              <span className="text-muted-foreground">Transport: </span>
-              <span className="font-medium">
-                {TRANSPORT_LABELS[status.effectiveTransport]}
-              </span>
-            </p>
+            <div className="space-y-1.5">
+              <Label htmlFor="email-provider">Provider</Label>
+              <Select
+                value={isTransportId(provider) ? provider : undefined}
+                onValueChange={(v) => {
+                  if (isTransportId(v)) onProviderChange(v)
+                }}
+              >
+                <SelectTrigger id="email-provider" className="w-full">
+                  <SelectValue placeholder="Not recognized — choose one" />
+                </SelectTrigger>
+                <SelectContent>
+                  {status.transports.map((t) => (
+                    <SelectItem
+                      key={t.id}
+                      value={t.id}
+                      disabled={!t.usable}
+                      // A disabled option must say WHY and what to add — a greyed-out row with
+                      // no reason is a dead control, and offering it as selectable would be
+                      // worse still (it would silently fall back to console).
+                      description={t.usable ? TRANSPORT_HINTS[t.id] : t.problem}
+                    >
+                      {TRANSPORT_LABELS[t.id]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {providerDirty ? (
+                <p className="text-sm text-muted-foreground">
+                  Not applied yet — use Save changes below to switch.
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {status.providerSource === 'settings'
+                    ? 'Chosen here, in Settings.'
+                    : status.providerSource === 'env'
+                      ? 'Currently set by the server’s SETU_EMAIL_ADAPTER variable — choosing one here overrides it.'
+                      : 'No provider configured anywhere yet — Setu defaults to the console.'}
+                </p>
+              )}
+            </div>
 
             {status.effectiveTransport === 'console' &&
               status.transport === 'smtp' &&
@@ -133,7 +203,7 @@ function ProviderStatus({
                 Emails are logged to the API server&rsquo;s console, not sent.
                 {status.mode === 'local'
                   ? ' The console transport is the default in local mode — fine for development.'
-                  : ' Set SETU_EMAIL_ADAPTER=resend or SETU_EMAIL_ADAPTER=smtp in the server environment to deliver real email.'}
+                  : ' Pick Resend or SMTP above to deliver real email; if either is disabled, add its credentials to the server environment first.'}
               </p>
             )}
 
@@ -271,7 +341,18 @@ export function EmailSettings() {
   // #885 review Finding 6: compare (and save) the TRIMMED value, so padding the published
   // address with whitespace never arms the Save button or commits a cosmetic diff.
   const trimmed = values.fromAddress.trim()
-  const dirty = published !== null && trimmed !== published.fromAddress
+  const providerDirty =
+    published !== null && values.provider !== published.provider
+  const dirty =
+    published !== null &&
+    (trimmed !== published.fromAddress ||
+      values.provider !== published.provider)
+
+  // #890: what the picker shows. The stored value wins when set; otherwise the server's
+  // resolved selection (which came from SETU_EMAIL_ADAPTER) — so an instance that has never
+  // used this screen still shows the transport it is actually using, rather than a blank
+  // control claiming nothing is configured.
+  const shownProvider = values.provider || (status?.transport ?? '')
 
   const save = async () => {
     if (saving || !dirty || raw === null) return
@@ -292,7 +373,10 @@ export function EmailSettings() {
       setValues((v) => ({ ...v, fromAddress: trimmed }))
       setPublished({ ...values, fromAddress: trimmed })
       notify.success('Settings saved')
-      setStatusKey((k) => k + 1) // the effective from-address / source may have changed
+      // The effective transport, from-address and their sources may all have changed — and
+      // the api applies them to the NEXT email with no restart (#890), so re-reading the
+      // status here is the screen telling the truth, not an optimistic guess.
+      setStatusKey((k) => k + 1)
     } catch {
       // #852: git.commitFile transport failure — curate rather than echo it.
       notify.error(connectionError('save your settings'))
@@ -350,23 +434,33 @@ export function EmailSettings() {
 
   return (
     <div className="max-w-xl space-y-6">
-      <ProviderStatus
-        status={status}
-        loading={statusLoading}
-        failed={statusFailed}
-        onRetry={() => {
-          setStatusFailed(false)
-          setStatusKey((k) => k + 1)
-        }}
-      />
-
+      {/* One form for the whole email group: the provider picker lives in the status card
+          (that is where the transport is reported, so that is where it must be changeable)
+          while Save sits with the rest of the group, so a switch and a from-address edit are
+          one commit and one "Saved" state instead of two competing ones. */}
       <form
-        className="space-y-5"
+        className="space-y-6"
         onSubmit={(e) => {
           e.preventDefault()
           void save()
         }}
       >
+        <ProviderStatus
+          status={status}
+          loading={statusLoading}
+          failed={statusFailed}
+          onRetry={() => {
+            setStatusFailed(false)
+            setStatusKey((k) => k + 1)
+          }}
+          provider={shownProvider}
+          onProviderChange={(next) =>
+            // Spread-patch, like the from-address below — never a whole-object replace.
+            setValues((v) => ({ ...v, provider: next }))
+          }
+          providerDirty={providerDirty}
+        />
+
         <div className="space-y-1.5">
           <Label htmlFor="email-from">From address</Label>
           <Input

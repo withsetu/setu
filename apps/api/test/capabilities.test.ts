@@ -9,6 +9,8 @@ import {
   buildCapabilities,
   createCapabilitiesApi,
   emailCapabilityFromEnv,
+  emailTransportOptions,
+  resolveEmailProvider,
   resolveFromAddress,
   smtpConfigFromEnv,
   usableEmailTransport
@@ -420,6 +422,29 @@ describe('capabilities', () => {
         )
       ).toEqual({ transport: 'resend', deliverable: false })
     })
+
+    // #890: the boot snapshot follows the same provider precedence as everything else — a
+    // settings-chosen transport must be what /api/capabilities reports, not the env var it
+    // overrode.
+    it('a settings-chosen provider is the reported transport and counts toward deliverable', () => {
+      expect(
+        emailCapabilityFromEnv(
+          {
+            SETU_EMAIL_ADAPTER: 'console',
+            SETU_SMTP_HOST: '127.0.0.1',
+            SETU_SMTP_PORT: '11025'
+          },
+          'owner@example.com',
+          'smtp'
+        )
+      ).toEqual({ transport: 'smtp', deliverable: true })
+    })
+
+    it('a settings-chosen provider whose secret is missing is reported but NOT deliverable', () => {
+      expect(emailCapabilityFromEnv({}, 'owner@example.com', 'resend')).toEqual(
+        { transport: 'resend', deliverable: false }
+      )
+    })
   })
 
   // #885 review Finding 2: the ONE transport-usability predicate server.ts's adapter selection,
@@ -429,6 +454,7 @@ describe('capabilities', () => {
     it('console (or unset) -> effective console, no problem', () => {
       expect(usableEmailTransport({})).toEqual({
         selected: 'console',
+        source: 'default',
         effective: 'console',
         problem: null
       })
@@ -440,12 +466,18 @@ describe('capabilities', () => {
           SETU_EMAIL_ADAPTER: 'resend',
           RESEND_API_KEY: 'test-fake-key'
         })
-      ).toEqual({ selected: 'resend', effective: 'resend', problem: null })
+      ).toEqual({
+        selected: 'resend',
+        source: 'env',
+        effective: 'resend',
+        problem: null
+      })
     })
 
     it('resend WITHOUT the API key -> falls back to console and names the missing variable (never its value)', () => {
       expect(usableEmailTransport({ SETU_EMAIL_ADAPTER: 'resend' })).toEqual({
         selected: 'resend',
+        source: 'env',
         effective: 'console',
         problem: 'RESEND_API_KEY is unset'
       })
@@ -458,12 +490,18 @@ describe('capabilities', () => {
           SETU_SMTP_HOST: '127.0.0.1',
           SETU_SMTP_PORT: '1025'
         })
-      ).toEqual({ selected: 'smtp', effective: 'smtp', problem: null })
+      ).toEqual({
+        selected: 'smtp',
+        source: 'env',
+        effective: 'smtp',
+        problem: null
+      })
     })
 
     it('smtp with an unusable config -> console + smtpConfigFromEnv problem string', () => {
       expect(usableEmailTransport({ SETU_EMAIL_ADAPTER: 'smtp' })).toEqual({
         selected: 'smtp',
+        source: 'env',
         effective: 'console',
         problem: 'SETU_SMTP_HOST is unset'
       })
@@ -472,9 +510,135 @@ describe('capabilities', () => {
     it('an unrecognized transport value -> console, selected reported verbatim', () => {
       expect(usableEmailTransport({ SETU_EMAIL_ADAPTER: 'sendgrid' })).toEqual({
         selected: 'sendgrid',
+        source: 'env',
         effective: 'console',
         problem: null
       })
+    })
+
+    // #890 fail-safe: a provider STORED in settings.json is exactly as untrustworthy as an env
+    // var — settings.json is Git-canonical, so it can arrive by `git push` without ever passing
+    // through the api's write gate. The usability check is therefore the real enforcement point:
+    // an unusable stored provider must degrade to console with a named reason, never throw and
+    // never silently pretend to send.
+    it('a settings provider whose secret is missing falls back to console with the reason (fail-safe)', () => {
+      expect(usableEmailTransport({}, 'resend')).toEqual({
+        selected: 'resend',
+        source: 'settings',
+        effective: 'console',
+        problem: 'RESEND_API_KEY is unset'
+      })
+      expect(usableEmailTransport({}, 'smtp')).toEqual({
+        selected: 'smtp',
+        source: 'settings',
+        effective: 'console',
+        problem: 'SETU_SMTP_HOST is unset'
+      })
+    })
+
+    it('a usable settings provider is honored even when the env var names a different one', () => {
+      expect(
+        usableEmailTransport(
+          { SETU_EMAIL_ADAPTER: 'console', SETU_SMTP_HOST: '127.0.0.1' },
+          'smtp'
+        )
+      ).toEqual({
+        selected: 'smtp',
+        source: 'settings',
+        effective: 'smtp',
+        problem: null
+      })
+    })
+  })
+
+  // #890: the provider CHOICE precedence — settings.json's `email.provider` wins, the
+  // SETU_EMAIL_ADAPTER env var is the fallback, console is the zero-config default. Same shape
+  // and same discipline as resolveFromAddress below: `source` makes the winner observable (it is
+  // served on GET /api/email/status), and the both-set case is the ORDER-SENSITIVE kill-shot —
+  // swap the two branches in resolveEmailProvider and it fails.
+  describe('resolveEmailProvider (settings win, env fallback, console default)', () => {
+    it('BOTH set -> the settings value wins, source is "settings"', () => {
+      expect(
+        resolveEmailProvider('smtp', { SETU_EMAIL_ADAPTER: 'resend' })
+      ).toEqual({ selected: 'smtp', source: 'settings' })
+    })
+
+    it('settings empty, env set -> env is the fallback, source is "env"', () => {
+      expect(
+        resolveEmailProvider('', { SETU_EMAIL_ADAPTER: 'resend' })
+      ).toEqual({ selected: 'resend', source: 'env' })
+    })
+
+    it('settings set, env unset -> settings alone', () => {
+      expect(resolveEmailProvider('resend', {})).toEqual({
+        selected: 'resend',
+        source: 'settings'
+      })
+    })
+
+    it('neither -> the console default', () => {
+      expect(resolveEmailProvider(undefined, {})).toEqual({
+        selected: 'console',
+        source: 'default'
+      })
+    })
+  })
+
+  // #890: what the admin's provider dropdown renders. Usability is per-transport and INDEPENDENT
+  // of which one is currently selected — the screen has to disable the options it cannot honor
+  // and say what to add, which it can't do from the selected transport alone. `problem` is
+  // remediation copy naming the env var; like every other string on this surface it never echoes
+  // a credential value (asserted below).
+  describe('emailTransportOptions (per-transport usability for the picker)', () => {
+    it('console is always usable', () => {
+      const console_ = emailTransportOptions({}).find((t) => t.id === 'console')
+      expect(console_).toEqual({ id: 'console', usable: true, problem: null })
+    })
+
+    it('resend: usable only with RESEND_API_KEY, otherwise remediation naming the variable', () => {
+      const without = emailTransportOptions({}).find((t) => t.id === 'resend')
+      expect(without?.usable).toBe(false)
+      expect(without?.problem).toBe(
+        'Add RESEND_API_KEY to the server environment to enable Resend.'
+      )
+      const withKey = emailTransportOptions({
+        RESEND_API_KEY: 'test-fake-key'
+      }).find((t) => t.id === 'resend')
+      expect(withKey).toEqual({ id: 'resend', usable: true, problem: null })
+    })
+
+    it('smtp: unset host gets the "add SETU_SMTP_HOST" remediation; a usable config is usable', () => {
+      const without = emailTransportOptions({}).find((t) => t.id === 'smtp')
+      expect(without?.usable).toBe(false)
+      expect(without?.problem).toBe(
+        'Add SETU_SMTP_HOST to the server environment to enable SMTP.'
+      )
+      const withConfig = emailTransportOptions({
+        SETU_SMTP_HOST: '127.0.0.1',
+        SETU_SMTP_PORT: '11025'
+      }).find((t) => t.id === 'smtp')
+      expect(withConfig).toEqual({ id: 'smtp', usable: true, problem: null })
+    })
+
+    it('smtp misconfigured beyond a missing host: the specific reason, never a credential value', () => {
+      const opt = emailTransportOptions({
+        SETU_SMTP_HOST: '127.0.0.1',
+        SETU_SMTP_USER: 'postmaster',
+        SETU_SMTP_PASS: ''
+      }).find((t) => t.id === 'smtp')
+      expect(opt?.usable).toBe(false)
+      expect(opt?.problem).toContain(
+        'SETU_SMTP_USER and SETU_SMTP_PASS must be set together'
+      )
+      expect(opt?.problem).not.toContain('postmaster')
+    })
+
+    it('offers exactly the three known transports, console first', () => {
+      expect(emailTransportOptions({}).map((t) => t.id)).toEqual([
+        'console',
+        'resend',
+        'smtp'
+      ])
     })
   })
 

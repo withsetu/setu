@@ -15,7 +15,9 @@ const TRUSTED_ORIGIN = 'http://localhost:5173'
  *  send itself is an injected thunk (server.ts passes better-auth's server-side
  *  `auth.api.requestPasswordReset`), so tests assert against a spy — which email it was asked to
  *  send to, and that authz failures never reach it. */
-function makeApp(opts: { withSend?: boolean } = { withSend: true }) {
+function makeApp(
+  opts: { withSend?: boolean; refusal?: string } = { withSend: true }
+) {
   const dir = mkdtempSync(join(tmpdir(), 'users-send-reset-'))
   const dbFile = join(dir, 'auth.db')
   const sqlite = new Database(dbFile)
@@ -33,7 +35,12 @@ function makeApp(opts: { withSend?: boolean } = { withSend: true }) {
   const app = createUsersApi({
     db,
     resolveActor: resolveSessionActor(auth),
-    ...(opts.withSend === false ? {} : { requestPasswordReset: sendSpy })
+    ...(opts.withSend === false
+      ? {}
+      : {
+          requestPasswordReset: sendSpy,
+          resetEmailRefusal: () => opts.refusal ?? null
+        })
   })
 
   return {
@@ -88,7 +95,7 @@ afterEach(() => {
   for (const fn of cleanups.splice(0)) fn()
 })
 
-function build(opts: { withSend?: boolean } = {}) {
+function build(opts: { withSend?: boolean; refusal?: string } = {}) {
   const built = makeApp(opts)
   cleanups.push(built.cleanup)
   return built
@@ -312,5 +319,83 @@ describe('POST /api/users/send-reset', () => {
 
     const res = await app.fetch(post({ userId: owner.id }, cookie))
     expect(res.status).toBe(409)
+  })
+
+  // #912: createResetEmailSender refuses INSIDE better-auth's send hook, so the thunk above
+  // resolves either way. The route used to return `{ status: true }` regardless, and the admin
+  // was told "Password reset email sent to …" over a message that was never handed to a
+  // transport — reachable in one session by picking Console in Settings → Email.
+  it('409s instead of claiming success when the live transport would refuse the send', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { app, auth, sendSpy } = build({
+      refusal: 'the effective email transport is the console adapter'
+    })
+    const owner = await makeUser(auth, {
+      email: 'owner@test.com',
+      name: 'Owner',
+      role: 'admin',
+      password: 'a-strong-password-12'
+    })
+    const cookie = await signInCookie(
+      auth,
+      'owner@test.com',
+      'a-strong-password-12'
+    )
+
+    const res = await app.fetch(post({ userId: owner.id }, cookie))
+    expect(res.status).toBe(409)
+    expect(await res.json()).toEqual({ error: 'email_not_deliverable' })
+    // Nothing was attempted, so nothing can have half-happened.
+    expect(sendSpy).not.toHaveBeenCalled()
+  })
+
+  it('keeps the deliverability answer BEHIND the authz ladder', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { app, auth, sendSpy } = build({
+      refusal: 'the effective email transport is the console adapter'
+    })
+    await makeUser(auth, {
+      email: 'editor@test.com',
+      name: 'Editor',
+      role: 'editor',
+      password: 'a-strong-password-12'
+    })
+    const target = await makeUser(auth, {
+      email: 'other@test.com',
+      name: 'Other',
+      role: 'author'
+    })
+    const cookie = await signInCookie(
+      auth,
+      'editor@test.com',
+      'a-strong-password-12'
+    )
+
+    // An editor has no users.view: they must still get 403, not a report of this
+    // deployment's email posture.
+    const res = await app.fetch(post({ userId: target.id }, cookie))
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({ error: 'forbidden' })
+    expect(sendSpy).not.toHaveBeenCalled()
+  })
+
+  it('sends normally when nothing refuses', async () => {
+    const { app, auth, sendSpy } = build()
+    const owner = await makeUser(auth, {
+      email: 'owner@test.com',
+      name: 'Owner',
+      role: 'admin',
+      password: 'a-strong-password-12'
+    })
+    const cookie = await signInCookie(
+      auth,
+      'owner@test.com',
+      'a-strong-password-12'
+    )
+
+    const res = await app.fetch(post({ userId: owner.id }, cookie))
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ status: true })
+    expect(sendSpy).toHaveBeenCalledWith('owner@test.com')
   })
 })

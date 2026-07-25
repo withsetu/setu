@@ -33,6 +33,12 @@ export type AuthEventType =
   // account-takeover primitive. Distinct from #454's user-initiated `changePassword` and from the
   // self-service reset flow. NEVER carries the password itself (see the module comment).
   | 'admin.password-set'
+  // #912: a password-reset email the server REFUSED to hand to the live transport (the console
+  // adapter would write the reset link into the server log; or no from-address/admin origin).
+  // Security-relevant because it is a recovery path silently not working: without it the only
+  // trace was a console.error, and the admin surface reported success. `meta.reason` is the
+  // operator-prose reason from apps/api/src/reset-email-gate.ts — never an address or a token.
+  | 'password-reset.refused'
 
 export interface AuthEvent {
   type: AuthEventType

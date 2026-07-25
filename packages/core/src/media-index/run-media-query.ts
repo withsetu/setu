@@ -35,8 +35,14 @@ export function runMediaQuery(
   // — what an incremental reindex does — moved the page boundary, showing one row
   // twice and hiding another. `mediaKey` is unique per row, and the tiebreak is
   // applied AFTER the direction negation so it stays ascending in both directions.
-  // Enforced by the tie cases in packages/db-testing/src/index.ts, run against
-  // db-sqlite, db-memory and db-idb.
+  // Enforced unconditionally by the 'runMediaQuery tie-breaking' block in
+  // packages/core/src/media-index/run-media-query.test.ts, which feeds every
+  // permutation of a tied run and demands one answer — no storage order can
+  // stand in for the tiebreak there. Adapter parity is packages/db-testing/src/
+  // index.ts; its mediaKey-ordered tie cases pass on db-idb whether or not the
+  // tiebreak exists (IndexedDB `getAll` is already ascending-key), so the case
+  // that does falsify all three picks keys where code-unit and collation order
+  // disagree (#911).
   const sorted = [...xs].sort((a, b) => {
     const c = compare(a, b, sort.key)
     if (c !== 0) return sort.dir === 'asc' ? c : -c

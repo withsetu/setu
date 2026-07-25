@@ -835,6 +835,42 @@ export function runMediaIndexPortContract(
             ).rows.map((x) => x.mediaKey)
           ).toEqual(['2026/06/dup', '2026/07/dup'])
     })
+
+    // #911: the two cases above are vacuous on db-idb. Their expected order is
+    // ascending mediaKey, and that is also the order IndexedDB `getAll` returns
+    // (the store key IS mediaKey, packages/db-idb/src/media-index-port.ts), so
+    // deleting the tiebreak entirely still passes there — a stable sort leaves
+    // the rows in the order the adapter supplied them. The two orders diverge in
+    // exactly one place: IndexedDB compares strings by UTF-16 code unit, where
+    // 'B' (0x42) sorts before 'a' (0x61), while the tiebreak's localeCompare puts
+    // 'alpha' before 'Beta'. Keys picked on that seam and inserted in code-unit
+    // order therefore disagree with the expected output on ALL THREE adapters —
+    // IDB key order, sqlite rowid order and Map insertion order alike — so this
+    // case fails everywhere when the tiebreak goes. The collation premise itself
+    // is pinned by packages/core/src/media-index/run-media-query.test.ts
+    // ('breaks ties by collation, not by UTF-16 code unit'); if that ever flips,
+    // that test fails and says so instead of this one going quietly vacuous.
+    it('breaks ties by collation, not by the adapter storage order', async () => {
+      await ix.upsertMany([
+        mrow({ mediaKey: '2026/06/Beta', filename: 'tie.jpg', bytes: 7 }),
+        mrow({ mediaKey: '2026/06/alpha', filename: 'tie.jpg', bytes: 7 })
+      ])
+      const expected = ['2026/06/alpha', '2026/06/Beta']
+      for (const key of ['uploadedAt', 'filename', 'bytes'] as const)
+        for (const dir of ['asc', 'desc'] as const)
+          expect(
+            (
+              await ix.query({ offset: 0, limit: 10, sort: { key, dir } })
+            ).rows.map((x) => x.mediaKey)
+          ).toEqual(expected)
+      // And the two pages still partition the tied run.
+      expect((await ix.query({ offset: 0, limit: 1 })).rows[0]!.mediaKey).toBe(
+        expected[0]
+      )
+      expect((await ix.query({ offset: 1, limit: 1 })).rows[0]!.mediaKey).toBe(
+        expected[1]
+      )
+    })
     it('filters by media kind (image vs document)', async () => {
       await ix.upsertMany([
         mrow({ mediaKey: 'img', contentType: 'image/png' }),

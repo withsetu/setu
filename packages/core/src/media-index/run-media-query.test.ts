@@ -79,3 +79,105 @@ describe('runMediaQuery', () => {
     ).toEqual(['b', 'a'])
   })
 })
+
+describe('runMediaQuery tie-breaking', () => {
+  // #911: the adapter contract's tie cases (packages/db-testing/src/index.ts)
+  // cannot fail on db-idb — IndexedDB `getAll` already hands rows back in
+  // ascending key order and the store key IS `mediaKey`, so "tiebreak applied"
+  // and "storage order" look identical there. This layer owns the tiebreak, and
+  // here it is asserted against input arrays that deliberately disagree with the
+  // expected output, so no storage order can stand in for it.
+  const permutations = <T>(xs: T[]): T[][] =>
+    xs.length <= 1
+      ? [xs]
+      : xs.flatMap((x, i) =>
+          permutations([...xs.slice(0, i), ...xs.slice(i + 1)]).map((rest) => [
+            x,
+            ...rest
+          ])
+        )
+
+  it('orders tied rows by ascending mediaKey from any input order', () => {
+    const tied = [
+      row({ mediaKey: 'zeta', uploadedAt: 5 }),
+      row({ mediaKey: 'alpha', uploadedAt: 5 }),
+      row({ mediaKey: 'mid', uploadedAt: 5 })
+    ]
+    for (const perm of permutations(tied))
+      expect(
+        runMediaQuery(perm, { offset: 0, limit: 10 }).rows.map(
+          (x) => x.mediaKey
+        )
+      ).toEqual(['alpha', 'mid', 'zeta'])
+  })
+
+  it('keeps the mediaKey tiebreak ascending under a descending sort', () => {
+    // The tiebreak is applied AFTER the direction negation, so reversing the
+    // sort must not reverse it — otherwise page 1 and page 2 stop partitioning
+    // the set on a remove+re-add (what an incremental reindex does).
+    const tied = [
+      row({ mediaKey: 'zeta', uploadedAt: 5 }),
+      row({ mediaKey: 'alpha', uploadedAt: 5 })
+    ]
+    for (const dir of ['asc', 'desc'] as const)
+      for (const perm of permutations(tied))
+        expect(
+          runMediaQuery(perm, {
+            offset: 0,
+            limit: 10,
+            sort: { key: 'uploadedAt', dir }
+          }).rows.map((x) => x.mediaKey)
+        ).toEqual(['alpha', 'zeta'])
+  })
+
+  it('breaks filename and bytes ties on mediaKey too, in both directions', () => {
+    const tied = [
+      row({ mediaKey: '2026/07/dup', filename: 'dup.jpg', bytes: 10 }),
+      row({ mediaKey: '2026/06/dup', filename: 'dup.jpg', bytes: 10 })
+    ]
+    for (const key of ['filename', 'bytes'] as const)
+      for (const dir of ['asc', 'desc'] as const)
+        for (const perm of permutations(tied))
+          expect(
+            runMediaQuery(perm, {
+              offset: 0,
+              limit: 10,
+              sort: { key, dir }
+            }).rows.map((x) => x.mediaKey)
+          ).toEqual(['2026/06/dup', '2026/07/dup'])
+  })
+
+  it('pages a tied run without repeating or dropping a row', () => {
+    const tied = [
+      row({ mediaKey: 'd', uploadedAt: 5 }),
+      row({ mediaKey: 'b', uploadedAt: 5 }),
+      row({ mediaKey: 'a', uploadedAt: 5 }),
+      row({ mediaKey: 'c', uploadedAt: 5 })
+    ]
+    const page = (rows: MediaIndexRow[], offset: number): string[] =>
+      runMediaQuery(rows, { offset, limit: 2 }).rows.map((x) => x.mediaKey)
+    // Page 2 is fetched after the store reordered underneath (a remove+upsert
+    // moves a row to the end of sqlite rowid / Map insertion order).
+    const reordered = [tied[1]!, tied[2]!, tied[3]!, tied[0]!]
+    expect([...page(tied, 0), ...page(reordered, 2)]).toEqual([
+      'a',
+      'b',
+      'c',
+      'd'
+    ])
+  })
+
+  it('breaks ties by collation, not by UTF-16 code unit', () => {
+    // The seam the adapter contract exploits to become falsifiable on db-idb:
+    // IndexedDB key order is code-unit ('B' < 'a'), localeCompare is not.
+    expect(
+      runMediaQuery(
+        [
+          row({ mediaKey: 'Beta', uploadedAt: 5 }),
+          row({ mediaKey: 'alpha', uploadedAt: 5 })
+        ],
+        { offset: 0, limit: 10 }
+      ).rows.map((x) => x.mediaKey)
+    ).toEqual(['alpha', 'Beta'])
+  })
+})

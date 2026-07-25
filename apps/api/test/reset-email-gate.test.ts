@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   createResetEmailSender,
-  resetEmailEnabled
+  resetEmailEnabled,
+  resetEmailRefusal
 } from '../src/reset-email-gate'
 
 const enabled = {
@@ -42,6 +43,50 @@ describe('resetEmailEnabled', () => {
   it('is false without an admin origin', () => {
     expect(resetEmailEnabled({ ...enabled, adminOrigin: undefined })).toBe(
       false
+    )
+  })
+})
+
+// #912: the reason an authenticated caller can be told, and the one the sender reports, must be
+// the same string produced by the same function — otherwise `POST /api/users/send-reset` and the
+// send it triggers can disagree about whether an email went out.
+describe('resetEmailRefusal', () => {
+  it('is null exactly when resetEmailEnabled is true', () => {
+    const cases = [
+      enabled,
+      { ...enabled, effectiveTransport: 'console' as const },
+      { ...enabled, from: undefined },
+      { ...enabled, adminOrigin: undefined },
+      {
+        from: undefined,
+        adminOrigin: undefined,
+        effectiveTransport: 'console' as const
+      }
+    ]
+    for (const p of cases)
+      expect(resetEmailRefusal(p) === null).toBe(resetEmailEnabled(p))
+  })
+
+  it('names the console adapter, and never echoes the from-address', () => {
+    const reason = resetEmailRefusal({
+      ...enabled,
+      effectiveTransport: 'console'
+    })
+    expect(reason).toContain('console adapter')
+    expect(reason).not.toContain(enabled.from)
+  })
+
+  it('gives the sender its exact reason string', async () => {
+    const onRefused = vi.fn()
+    await createResetEmailSender({
+      send: vi.fn(),
+      resolveTransport: () => 'console',
+      resolveFrom: () => enabled.from,
+      adminOrigin: enabled.adminOrigin,
+      onRefused
+    })(message)
+    expect(onRefused.mock.calls[0]![0]).toBe(
+      resetEmailRefusal({ ...enabled, effectiveTransport: 'console' })
     )
   })
 })

@@ -166,7 +166,7 @@ function stubCredentialStatus(
   // #500 review: the reset triggers now POST the server-gated /api/users/send-reset (the
   // captcha-exempt server-side path) instead of better-auth's public client endpoint. The stub
   // records each call's parsed body and answers with `sendReset.status`.
-  sendReset: { status: number } = { status: 200 }
+  sendReset: { status: number; error?: string } = { status: 200 }
 ) {
   const sendResetCalls: Array<{ userId?: string }> = []
   vi.stubGlobal(
@@ -180,7 +180,9 @@ function stubCredentialStatus(
         )
         return new Response(
           JSON.stringify(
-            sendReset.status === 200 ? { status: true } : { error: 'nope' }
+            sendReset.status === 200
+              ? { status: true }
+              : { error: sendReset.error ?? 'nope' }
           ),
           { status: sendReset.status }
         )
@@ -975,6 +977,45 @@ describe('UsersScreen', () => {
           /password reset email sent to editor@setu\.dev/i
         )
       ).toBeInTheDocument()
+    })
+
+    // #912: the server refuses the send when the LIVE transport can't deliver (an admin picking
+    // Console in Settings → Email reaches this in one session — the row's `deliverable` gate is
+    // read once on mount and is client-side anyway, §4 #13). The route answers 409
+    // `email_not_deliverable`; the screen used to show a green "Password reset email sent to …".
+    it('says nothing was sent when the server refuses the send as undeliverable', async () => {
+      mockListUsers.mockResolvedValue({
+        data: { users: [OWNER, EDITOR], total: 2 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({
+        data: [{ id: 'a1', providerId: 'credential' }],
+        error: null
+      })
+      stubCredentialStatus(
+        { 'owner-1': true, 'editor-1': true },
+        { transport: 'console', deliverable: true },
+        { status: 409, error: 'email_not_deliverable' }
+      )
+
+      renderAsActor('admin', 'owner-1')
+      await screen.findByText('Eve Editor')
+
+      fireEvent.keyDown(
+        screen.getByRole('button', { name: /more actions for eve editor/i }),
+        { key: 'Enter' }
+      )
+      fireEvent.click(
+        await screen.findByRole('menuitem', {
+          name: /send password reset email/i
+        })
+      )
+
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent(/no reset email was sent/i)
+      expect(alert).toHaveTextContent(/settings → email/i)
+      // The lie this replaces.
+      expect(screen.queryByText(/password reset email sent to/i)).toBeNull()
     })
 
     it('renders the reset item disabled with the honest capability tooltip when email is not deliverable', async () => {

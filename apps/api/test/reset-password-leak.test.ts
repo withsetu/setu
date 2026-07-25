@@ -7,8 +7,16 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { createAuth } from '@setu/auth'
 import { createConsoleEmailAdapter } from '@setu/email-console'
-import type { EmailMessage } from '@setu/core'
+import {
+  DEFAULT_SETTINGS,
+  EMAIL_TYPE_PASSWORD_RESET,
+  passwordResetValues,
+  type EmailMessage,
+  type EmailTemplateOverride,
+  type EmailTemplateOverrides
+} from '@setu/core'
 import type { UsableEmailTransport } from '../src/capabilities'
+import { createLiveEmailTemplates } from '../src/email-templates'
 import {
   createResetEmailSender,
   resetEmailEnabled
@@ -30,7 +38,14 @@ afterEach(() => {
   for (const fn of cleanups.splice(0)) fn()
 })
 
-function harness(effectiveTransport: UsableEmailTransport['effective']) {
+/** `storedTemplate` is what an admin saved in Settings → Email, resolved through the SAME live
+ *  resolver server.ts injects as `content` — so a case that passes here is exercising the real
+ *  template fill, not a hand-built body. Omitted → no `content` resolver at all, which is the
+ *  pre-#499 wiring and what the other cases here want. */
+function harness(
+  effectiveTransport: UsableEmailTransport['effective'],
+  storedTemplate?: EmailTemplateOverride
+) {
   const dir = mkdtempSync(join(tmpdir(), 'reset-leak-'))
   const sqlite = new Database(join(dir, 'auth.db'))
   cleanups.push(() => {
@@ -54,6 +69,17 @@ function harness(effectiveTransport: UsableEmailTransport['effective']) {
     effectiveTransport
   })
 
+  const stored: EmailTemplateOverrides =
+    storedTemplate === undefined
+      ? {}
+      : { [EMAIL_TYPE_PASSWORD_RESET]: storedTemplate }
+  const templates = createLiveEmailTemplates({
+    settings: () => ({
+      ...DEFAULT_SETTINGS,
+      email: { ...DEFAULT_SETTINGS.email, templates: stored }
+    })
+  })
+
   const auth = createAuth({
     db,
     secret: 'test-secret-32-chars-minimum!!!!',
@@ -73,6 +99,19 @@ function harness(effectiveTransport: UsableEmailTransport['effective']) {
               adminOrigin: ADMIN_ORIGIN,
               onRefused: (reason) => refusals.push(reason)
             }),
+            ...(storedTemplate === undefined
+              ? {}
+              : {
+                  content: (input: {
+                    url: string
+                    userName?: string
+                    userEmail?: string
+                  }) =>
+                    templates.render(
+                      EMAIL_TYPE_PASSWORD_RESET,
+                      passwordResetValues(input)
+                    )
+                }),
             from: FROM,
             resetRedirectTo: `${ADMIN_ORIGIN}/reset-password`
           }
@@ -166,6 +205,52 @@ describe('password reset never writes a token to the console transport (#894)', 
     // Still a useful dev log line: who it went to, and that it was a reset.
     expect(h.logged[0]).toContain(USER_EMAIL)
     expect(h.logged[0]).toContain('Reset your Setu password')
+  })
+
+  /**
+   * #910. Since #499 the body is ADMIN-authored: `{{reset_url}}` can be placed anywhere, and the
+   * redactor's idea of where a URL stops decides whether the token survives. This drives the real
+   * better-auth flow, the real live template resolver and the real console adapter, and learns
+   * the token from the un-redacted `tee` — so the assertion cannot be vacuous.
+   *
+   * The template mixes the two habits a markdown-fluent admin brings to a raw HTML body: a
+   * `[label](url)` link and `_url_` emphasis. Worth knowing which half bites HERE: the emphasis
+   * one. A shipped reset link always ends in `?callbackURL=<encoded admin origin>`
+   * (packages/auth/src/reset-password-email.ts's withDefaultResetCallback guarantees a non-empty
+   * one), so a trailing `)` lands on the callback VALUE — which is itself a URL and was already
+   * recursed — while the token sits safely bounded by `?`. The leading `_` instead defeated
+   * URL_RE's `\b` and left the entire link, token and all, unmatched. The bracket shape on a link
+   * that ENDS at its token — the reported #910 case, and what any future token-terminated link
+   * would look like — is pinned directly in packages/email-console/test/redact.test.ts.
+   */
+  it('redacts the REAL token out of an admin-CUSTOMIZED template body (#910)', async () => {
+    const h = harness('resend', {
+      html: [
+        '<p>Hi {{user_name}},</p>',
+        '<p>[Reset your password]({{reset_url}})</p>',
+        '<p>Or copy this link: _{{reset_url}}_</p>'
+      ].join('\n')
+    })
+    await makeUser(h.auth)
+
+    await h.auth.api.requestPasswordReset({
+      body: { email: USER_EMAIL, redirectTo: `${ADMIN_ORIGIN}/reset-password` },
+      asResponse: true
+    })
+
+    // The stored template really applied, and really produced the wrapped shapes — otherwise the
+    // "log has no token" assertion below would be measuring the shipped default instead.
+    const sent = h.tee[0]!
+    expect(sent.text).toContain('[Reset your password](http')
+    expect(sent.text).toContain('_http')
+
+    const token = tokenOf(sent)
+    expect(h.logged).toHaveLength(1)
+    expect(h.logged[0]).not.toContain(token)
+    expect(h.logged[0]).not.toContain(encodeURIComponent(token))
+    // Still a useful dev log line.
+    expect(h.logged[0]).toContain(USER_EMAIL)
+    expect(h.logged[0]).toContain('[redacted]')
   })
 
   it('refuses at SEND time when the live transport drifts to console after boot', async () => {

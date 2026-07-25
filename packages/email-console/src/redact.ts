@@ -3,10 +3,38 @@ const REDACTED = '[redacted]'
 
 /** A URL run inside a logged body. Stops at whitespace and at the delimiters that end a URL in
  *  HTML (`"` `'` `<` `>`) — so an `href="…"` link is matched without its quotes. Trailing
- *  sentence punctuation is trimmed off separately (see `redactSecretsInUrls`), because
- *  `…/reset-password/<token>.` would otherwise parse the token and the full stop as ONE path
- *  segment and slip past the token shape test. */
-const URL_RE = /\bhttps?:\/\/[^\s<>"'`]+/gi
+ *  wrapping punctuation is trimmed off separately (see `URL_TRAILING_JUNK_RE`).
+ *
+ *  No `\b` in front: `\b` requires a non-word character before the `h`, so `_https://…/<token>_`
+ *  (markdown emphasis around a link — an admin can write that in a template since #499) matched
+ *  NOTHING and the whole URL, token included, printed verbatim. Without it the scan starts at any
+ *  `http://`, which at worst matches one URL-ish run too many — the safe direction here.
+ *  packages/email-console/test/redact.test.ts, "a word character directly in front". */
+const URL_RE = /https?:\/\/[^\s<>"'`]+/gi
+
+/** The characters a URL may legitimately END with. Anything else trailing a matched run is prose
+ *  or markup wrapping — a full stop, a markdown link's `)`, a `]`, an emphasis `*`, a typographic
+ *  quote — and is cut off before the shape test, then re-appended verbatim.
+ *
+ *  An ALLOWLIST, deliberately: #910 was a denylist (`[.,;:!?]+$`) that listed sentence
+ *  punctuation and no brackets, so `[Reset](…/<token>)` parsed `<token>)` as one path segment,
+ *  failed the shape test and printed a credential. Every character nobody thinks of costs a leak,
+ *  while trimming one too many costs nothing at all — the trimmed characters are put back
+ *  unchanged, so the log line is byte-identical either way. That is also why balance-matching a
+ *  wrapper (keeping the `)` of `…/wiki/Foo_(bar)`) is NOT attempted: it would buy no fidelity and
+ *  would reopen the leak for any URL whose last segment happens to contain a bracket. Both
+ *  directions pinned by packages/email-console/test/redact.test.ts. */
+const URL_TRAILING_JUNK_RE = /[^A-Za-z0-9/_~%=+&#$@-]+$/
+
+/** A credential-shaped RUN anywhere inside a URL component — see `isTokenShaped` for the shape
+ *  and why it is blunt. Applied to path, fragment and query values rather than testing each whole
+ *  component, so a token glued to something the trim does not reach (`…/<token>.html`,
+ *  `?next=/reset/<token>`, `#https://…/<token>`) still goes. Pinned by the "#910" block of
+ *  packages/email-console/test/redact.test.ts. */
+const TOKEN_RUN_RE = /[A-Za-z0-9_-]{16,}/g
+
+const redactTokenRuns = (value: string): string =>
+  value.replace(TOKEN_RUN_RE, REDACTED)
 
 /** Query-param names whose value is treated as a credential whatever it looks like. Substring
  *  match on the lowercased name, so `resetToken`, `api_key` and `X-Sig` are all covered. */
@@ -55,10 +83,7 @@ function redactUrl(raw: string): string {
     return REDACTED
   }
 
-  const path = url.pathname
-    .split('/')
-    .map((segment) => (isTokenShaped(segment) ? REDACTED : segment))
-    .join('/')
+  const path = redactTokenRuns(url.pathname)
 
   let search = ''
   if (url.search) {
@@ -69,12 +94,9 @@ function redactUrl(raw: string): string {
     search = `?${parts.join('&')}`
   }
 
-  const fragment = url.hash.slice(1)
-  const hash = url.hash
-    ? isTokenShaped(fragment)
-      ? `#${REDACTED}`
-      : url.hash
-    : ''
+  // The fragment gets the run treatment rather than a whole-value shape test, because a template
+  // can park a whole other URL there (`…/x#https://…/<token>`) and that is not token-shaped.
+  const hash = url.hash ? `#${redactTokenRuns(url.hash.slice(1))}` : ''
 
   // `url.host` (not `url.href`) is what drops any `user:password@` userinfo — a credential in
   // its own right, and one no other branch here would catch.
@@ -86,8 +108,10 @@ function redactParamValue(name: string, value: string): string {
   // A nested link (better-auth's own `callbackURL`, and any "next"/"return" param) can carry a
   // token of its own; recurse rather than trust the outer name.
   if (/^https?:\/\//i.test(value)) return encodeURIComponent(redactUrl(value))
+  // Whole-value first, so the common case keeps a readable, unencoded `[redacted]`; the run pass
+  // then catches a token that is only PART of the value (`?next=/reset/<token>`).
   if (isTokenShaped(value)) return REDACTED
-  return encodeURIComponent(value)
+  return encodeURIComponent(redactTokenRuns(value))
 }
 
 /**
@@ -95,20 +119,27 @@ function redactParamValue(name: string, value: string): string {
  *
  * This is the console adapter's defence in depth for #894: a password-reset link carries its
  * token in the URL path, so an adapter that prints message bodies verbatim can print a working
- * credential to stdout. Redacting by SHAPE rather than by a sender-supplied "this is sensitive"
- * flag is the point — it holds no matter which code path routes a message here, including
- * future ones (the reset gate in apps/api/src/reset-email-gate.ts is the other half, and it can
- * only cover the paths it knows about).
+ * credential to stdout. Keying on the SHAPE of the value rather than on a sender-supplied "this
+ * is sensitive" flag is the point: no sender has to remember to mark anything, so a send path
+ * added later inherits the redaction (the reset gate in apps/api/src/reset-email-gate.ts is the
+ * other half, and it can only cover the paths it knows about).
  *
- * Scope, stated honestly: this redacts URL path segments, query values and fragments. A secret
- * pasted into prose as a bare word is NOT redacted — no Setu email does that today, and a
- * heuristic over free text would eat real content. Enforced by
- * packages/email-console/test/redact.test.ts and, against a REAL better-auth token,
- * apps/api/test/reset-password-leak.test.ts.
+ * What it does NOT do, because #910 is what over-claiming here cost: this is a heuristic over
+ * text, not a parser, and it is only as good as its idea of where a URL starts and stops. It
+ * redacts credential-shaped runs inside the path, query values and fragment of anything it
+ * recognises as a URL; a secret pasted into prose as a bare word is not redacted (no Setu email
+ * does that, and a free-text heuristic would eat real content), and neither is one inside a
+ * transport-encoded blob it cannot see into. The layer is a net, not a guarantee — routing a
+ * credential-bearing message to a logging transport is still the bug.
+ *
+ * Since #499 the bodies are ADMIN-authored, which is why the covered shapes now include markdown
+ * links, parentheses, brackets and emphasis around a link: packages/email-console/test/redact.test.ts
+ * ("wrapping punctuation and adjacency"), plus apps/api/test/reset-password-leak.test.ts against
+ * a REAL better-auth token rendered through a REAL customized template.
  */
 export function redactSecretsInUrls(text: string): string {
   return text.replace(URL_RE, (match) => {
-    const trailing = /[.,;:!?]+$/.exec(match)?.[0] ?? ''
+    const trailing = URL_TRAILING_JUNK_RE.exec(match)?.[0] ?? ''
     const url = trailing ? match.slice(0, -trailing.length) : match
     return redactUrl(url) + trailing
   })

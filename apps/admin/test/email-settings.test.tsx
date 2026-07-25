@@ -1,0 +1,297 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import type { ReactNode } from 'react'
+import { createMemoryDataPort } from '@setu/db-memory'
+import { createMemoryGitPort } from '@setu/git-memory'
+import { ActorProvider } from '../src/auth/actor'
+import { ServicesProvider, servicesFor } from '../src/data/store'
+import { NotificationProvider } from '../src/ui/notify'
+import { EmailSettings } from '../src/screens/settings/EmailSettings'
+
+// #498: Settings → Email — provider status card (honest per-transport copy), from-address
+// save flow (settings commit pattern), and the admin-only test send incl. the
+// console-transport "logged, not sent" honesty.
+
+afterEach(() => {
+  localStorage.clear()
+  vi.restoreAllMocks()
+})
+
+interface StatusOverrides {
+  transport?: string
+  effectiveTransport?: 'console' | 'resend' | 'smtp'
+  deliverable?: boolean
+  mode?: string
+  from?: { effective: string | null; source: 'settings' | 'env' | null }
+  secrets?: {
+    resendApiKey: boolean
+    smtpConfigured: boolean
+    smtpProblem: string | null
+  }
+}
+
+function consoleStatus(over: StatusOverrides = {}) {
+  return {
+    transport: 'console',
+    effectiveTransport: 'console' as const,
+    deliverable: false,
+    mode: 'local',
+    from: { effective: null, source: null },
+    secrets: { resendApiKey: false, smtpConfigured: false, smtpProblem: null },
+    ...over
+  }
+}
+
+function resendStatus(over: StatusOverrides = {}) {
+  return consoleStatus({
+    transport: 'resend',
+    effectiveTransport: 'resend',
+    deliverable: true,
+    mode: 'self-hosted',
+    from: { effective: 'noreply@example.com', source: 'env' },
+    secrets: { resendApiKey: true, smtpConfigured: false, smtpProblem: null },
+    ...over
+  })
+}
+
+function stubEmailApi(
+  status: ReturnType<typeof consoleStatus>,
+  testSend: { status: number; body: unknown } = {
+    status: 200,
+    body: { result: 'sent', transport: 'resend', to: 'admin@test.com' }
+  }
+) {
+  const calls: { url: string; method: string }[] = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const u =
+        typeof url === 'string'
+          ? url
+          : url instanceof Request
+            ? url.url
+            : url.toString()
+      calls.push({ url: u, method: init?.method ?? 'GET' })
+      if (u.includes('/api/email/status')) {
+        return new Response(JSON.stringify(status), { status: 200 })
+      }
+      if (u.includes('/api/email/test-send')) {
+        return new Response(JSON.stringify(testSend.body), {
+          status: testSend.status
+        })
+      }
+      return new Response('{}', { status: 200 })
+    })
+  )
+  return calls
+}
+
+function renderEmail(seed: Record<string, unknown> | null = null) {
+  const git = createMemoryGitPort(
+    seed === null
+      ? []
+      : [{ path: 'settings.json', content: JSON.stringify(seed) }]
+  )
+  const services = servicesFor(createMemoryDataPort([]), git)
+  const wrapper = (children: ReactNode) => (
+    <NotificationProvider>
+      <ActorProvider>
+        <ServicesProvider services={services}>{children}</ServicesProvider>
+      </ActorProvider>
+    </NotificationProvider>
+  )
+  render(wrapper(<EmailSettings />))
+  return { git }
+}
+
+describe('EmailSettings — provider status card', () => {
+  it('console transport: named honestly, with the "logged, not sent" copy', async () => {
+    stubEmailApi(consoleStatus())
+    renderEmail()
+    expect(await screen.findByText(/console \(dev\)/i)).toBeTruthy()
+    expect(
+      screen.getByText(/logged.*not.*sent|logged to the api server/i)
+    ).toBeTruthy()
+  })
+
+  it('resend with the API key present: presence-only ✓, never a value', async () => {
+    stubEmailApi(resendStatus())
+    renderEmail()
+    expect(await screen.findByText('Resend')).toBeTruthy()
+    expect(screen.getByText(/RESEND_API_KEY.*set via env/i)).toBeTruthy()
+    expect(screen.getByText(/ready to send/i)).toBeTruthy()
+  })
+
+  it('resend with the API key missing: honest ✗', async () => {
+    stubEmailApi(
+      resendStatus({
+        deliverable: false,
+        secrets: {
+          resendApiKey: false,
+          smtpConfigured: false,
+          smtpProblem: null
+        }
+      })
+    )
+    renderEmail()
+    expect(await screen.findByText(/RESEND_API_KEY.*missing/i)).toBeTruthy()
+  })
+
+  it('smtp selected but unusable: shows the reason and the console fallback', async () => {
+    stubEmailApi(
+      consoleStatus({
+        transport: 'smtp',
+        mode: 'self-hosted',
+        secrets: {
+          resendApiKey: false,
+          smtpConfigured: false,
+          smtpProblem: 'SETU_SMTP_HOST is unset'
+        }
+      })
+    )
+    renderEmail()
+    expect(await screen.findByText(/SETU_SMTP_HOST is unset/)).toBeTruthy()
+  })
+
+  it('a failed status fetch shows an error state with a retry, not an eternal skeleton', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('network down')
+      })
+    )
+    renderEmail()
+    expect(
+      await screen.findByText(/couldn.t load email delivery status/i)
+    ).toBeTruthy()
+    expect(screen.getByRole('button', { name: /retry/i })).toBeTruthy()
+  })
+})
+
+describe('EmailSettings — from-address save flow', () => {
+  it('saves the email group and preserves unknown settings groups', async () => {
+    stubEmailApi(consoleStatus())
+    const { git } = renderEmail({
+      general: { title: 'Kept' },
+      futureGroup: { some: 'value' }
+    })
+    const input = await screen.findByLabelText(/from address/i)
+    fireEvent.change(input, { target: { value: 'owner@example.com' } })
+    fireEvent.click(screen.getByRole('button', { name: /save/i }))
+    await waitFor(async () => {
+      const raw = await git.readFile('settings.json')
+      expect(raw).not.toBeNull()
+      const parsed = JSON.parse(raw as string) as Record<string, unknown>
+      expect((parsed.email as { fromAddress: string }).fromAddress).toBe(
+        'owner@example.com'
+      )
+      expect(parsed.futureGroup).toEqual({ some: 'value' })
+      expect((parsed.general as { title: string }).title).toBe('Kept')
+    })
+  })
+
+  it('rejects an invalid address with a per-field error and commits nothing', async () => {
+    stubEmailApi(consoleStatus())
+    const { git } = renderEmail()
+    const input = await screen.findByLabelText(/from address/i)
+    fireEvent.change(input, { target: { value: 'not-an-email' } })
+    fireEvent.click(screen.getByRole('button', { name: /save/i }))
+    expect(await screen.findByText(/valid email/i)).toBeTruthy()
+    expect(await git.readFile('settings.json')).toBeNull()
+  })
+
+  it('Enter in the field submits (form save), like every other settings screen', async () => {
+    stubEmailApi(consoleStatus())
+    const { git } = renderEmail()
+    const input = await screen.findByLabelText(/from address/i)
+    fireEvent.change(input, { target: { value: 'owner@example.com' } })
+    fireEvent.submit(input.closest('form') as HTMLFormElement)
+    await waitFor(async () => {
+      const raw = await git.readFile('settings.json')
+      expect(raw).not.toBeNull()
+      expect(
+        (JSON.parse(raw as string).email as { fromAddress: string }).fromAddress
+      ).toBe('owner@example.com')
+    })
+  })
+})
+
+describe('EmailSettings — test send', () => {
+  it('sent: POSTs the endpoint and reports the recipient', async () => {
+    const calls = stubEmailApi(resendStatus(), {
+      status: 200,
+      body: { result: 'sent', transport: 'resend', to: 'admin@test.com' }
+    })
+    renderEmail()
+    const btn = await screen.findByRole('button', { name: /send test email/i })
+    fireEvent.click(btn)
+    expect(await screen.findByText(/sent to admin@test\.com/i)).toBeTruthy()
+    expect(
+      calls.some(
+        (c) => c.url.includes('/api/email/test-send') && c.method === 'POST'
+      )
+    ).toBe(true)
+  })
+
+  it('console transport: reports "logged", never pretends it was delivered', async () => {
+    stubEmailApi(
+      consoleStatus({
+        from: { effective: 'owner@example.com', source: 'settings' }
+      }),
+      {
+        status: 200,
+        body: { result: 'logged', transport: 'console', to: 'admin@test.com' }
+      }
+    )
+    renderEmail()
+    fireEvent.click(
+      await screen.findByRole('button', { name: /send test email/i })
+    )
+    expect(
+      await screen.findByText(
+        /logged to the api server console.*nothing was delivered/i
+      )
+    ).toBeTruthy()
+  })
+
+  it('409 (no from-address) surfaces the server message as an error', async () => {
+    stubEmailApi(consoleStatus(), {
+      status: 409,
+      body: {
+        error: 'no_from_address',
+        message: 'No from-address is configured — set one below.'
+      }
+    })
+    renderEmail()
+    fireEvent.click(
+      await screen.findByRole('button', { name: /send test email/i })
+    )
+    expect(
+      await screen.findByText(/no from-address is configured/i)
+    ).toBeTruthy()
+  })
+
+  it('429 rate limit surfaces an honest "try again in a minute"', async () => {
+    stubEmailApi(resendStatus(), {
+      status: 429,
+      body: { error: 'rate_limited', retryAfterMs: 60000 }
+    })
+    renderEmail()
+    fireEvent.click(
+      await screen.findByRole('button', { name: /send test email/i })
+    )
+    expect(await screen.findByText(/wait a minute/i)).toBeTruthy()
+  })
+
+  it('502 failure surfaces the reason', async () => {
+    stubEmailApi(resendStatus(), {
+      status: 502,
+      body: { error: 'send_failed', reason: 'connect ECONNREFUSED' }
+    })
+    renderEmail()
+    fireEvent.click(
+      await screen.findByRole('button', { name: /send test email/i })
+    )
+    expect(await screen.findByText(/ECONNREFUSED/)).toBeTruthy()
+  })
+})

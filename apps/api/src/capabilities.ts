@@ -80,12 +80,33 @@ export type SmtpEnvResult =
         port: number
         secure: boolean
         auth?: { user: string; pass: string }
+        /** #928: ms overrides for the adapter's bounded socket timeouts. Absent means the
+         *  adapter's own seconds-scale default (SMTP_TIMEOUT_DEFAULTS in
+         *  packages/email-smtp/src/index.ts) — never nodemailer's minutes-scale one. */
+        connectionTimeout?: number
+        greetingTimeout?: number
+        socketTimeout?: number
+        dnsTimeout?: number
       }
     }
   | { problem: string }
 
 // TCP port: coerced because env vars are strings; integral and 1–65535 or fail closed.
 const smtpPortSchema = z.coerce.number().int().min(1).max(65535)
+
+/** #928: a timeout override in ms. Positive integer or fail closed — a typo'd value must be a
+ *  named boot problem, never a silent fall-back to nodemailer's multi-minute default, which is
+ *  the exact stall this bounds. Capped at an hour so a stray "60000000" cannot restore it either.
+ *  Pinned by apps/api/test/capabilities.test.ts ("smtp timeout overrides"). */
+const smtpTimeoutSchema = z.coerce.number().int().min(1).max(3_600_000)
+
+/** env var → the SmtpEmailAdapterOptions field it overrides. */
+const SMTP_TIMEOUT_VARS = [
+  ['SETU_SMTP_CONNECTION_TIMEOUT_MS', 'connectionTimeout'],
+  ['SETU_SMTP_GREETING_TIMEOUT_MS', 'greetingTimeout'],
+  ['SETU_SMTP_SOCKET_TIMEOUT_MS', 'socketTimeout'],
+  ['SETU_SMTP_DNS_TIMEOUT_MS', 'dnsTimeout']
+] as const
 
 export function smtpConfigFromEnv(
   env: NodeJS.ProcessEnv = process.env
@@ -111,12 +132,25 @@ export function smtpConfigFromEnv(
     return { problem: 'SETU_SMTP_USER and SETU_SMTP_PASS must be set together' }
   }
   const secure = env.SETU_SMTP_SECURE === 'true' || env.SETU_SMTP_SECURE === '1'
+  const timeouts: Record<string, number> = {}
+  for (const [varName, field] of SMTP_TIMEOUT_VARS) {
+    const raw = env[varName]
+    if (raw === undefined || raw === '') continue
+    const parsed = smtpTimeoutSchema.safeParse(raw)
+    if (!parsed.success) {
+      return {
+        problem: `${varName} is not a positive whole number of milliseconds (got ${JSON.stringify(raw)})`
+      }
+    }
+    timeouts[field] = parsed.data
+  }
   return {
     config: {
       host,
       port: port.data,
       secure,
-      ...(user && pass ? { auth: { user, pass } } : {})
+      ...(user && pass ? { auth: { user, pass } } : {}),
+      ...timeouts
     }
   }
 }

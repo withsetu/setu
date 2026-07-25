@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createTransport } from 'nodemailer'
-import { createSmtpEmailAdapter } from '../src/index'
+import { createSmtpEmailAdapter, SMTP_TIMEOUT_DEFAULTS } from '../src/index'
 
 /** The injected-transport seam used by contract.test.ts bypasses
  *  nodemailer.createTransport entirely, and the live Mailpit round-trip runs
@@ -65,6 +65,66 @@ describe('createSmtpEmailAdapter → nodemailer.createTransport wiring', () => {
       html: '<p>x</p>'
     })
     expect(sendMail).toHaveBeenCalledTimes(1)
+  })
+
+  // #928 — the notification send is awaited inside the PUBLIC /forms/submit request handler, so an
+  // unset timeout is nodemailer's minutes-scale default holding an api request and a socket. Each
+  // of the four is asserted by name: dropping ONE from src/index.ts must fail this file (the
+  // kill-shot), because a single missing option silently restores the multi-minute stall.
+  describe('bounded socket timeouts (#928)', () => {
+    const TIMEOUT_KEYS = [
+      'connectionTimeout',
+      'greetingTimeout',
+      'socketTimeout',
+      'dnsTimeout'
+    ] as const
+
+    it('passes all four bounded defaults to createTransport', () => {
+      createSmtpEmailAdapter({ host: 'h', port: 587 })
+      const opts = firstCallOptions()
+      for (const key of TIMEOUT_KEYS) {
+        expect(opts[key], key).toBe(SMTP_TIMEOUT_DEFAULTS[key])
+      }
+    })
+
+    it('keeps every default in the seconds range, not nodemailer’s minutes', () => {
+      // The regression this guards is a value drifting back toward the 2 min / 10 min defaults.
+      for (const key of TIMEOUT_KEYS) {
+        expect(SMTP_TIMEOUT_DEFAULTS[key], key).toBeGreaterThan(0)
+        expect(SMTP_TIMEOUT_DEFAULTS[key], key).toBeLessThanOrEqual(60_000)
+      }
+    })
+
+    it('lets an operator override each one independently, keeping the defaults for the rest', () => {
+      createSmtpEmailAdapter({
+        host: 'h',
+        port: 587,
+        socketTimeout: 90_000
+      })
+      const opts = firstCallOptions()
+      expect(opts.socketTimeout).toBe(90_000)
+      expect(opts.connectionTimeout).toBe(
+        SMTP_TIMEOUT_DEFAULTS.connectionTimeout
+      )
+      expect(opts.greetingTimeout).toBe(SMTP_TIMEOUT_DEFAULTS.greetingTimeout)
+      expect(opts.dnsTimeout).toBe(SMTP_TIMEOUT_DEFAULTS.dnsTimeout)
+    })
+
+    it('overrides all four when all four are given', () => {
+      createSmtpEmailAdapter({
+        host: 'h',
+        port: 587,
+        connectionTimeout: 1_000,
+        greetingTimeout: 2_000,
+        socketTimeout: 3_000,
+        dnsTimeout: 4_000
+      })
+      const opts = firstCallOptions()
+      expect(opts.connectionTimeout).toBe(1_000)
+      expect(opts.greetingTimeout).toBe(2_000)
+      expect(opts.socketTimeout).toBe(3_000)
+      expect(opts.dnsTimeout).toBe(4_000)
+    })
   })
 
   it('never constructs a real transport when one is injected', () => {

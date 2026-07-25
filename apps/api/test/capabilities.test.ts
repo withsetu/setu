@@ -828,6 +828,65 @@ describe('capabilities', () => {
         'secret-pass-value'
       )
     })
+
+    // #928 — the adapter now sets seconds-scale timeouts instead of inheriting nodemailer's
+    // minutes-scale defaults, because the send is awaited inside the PUBLIC /forms/submit
+    // request. These are the operator's escape hatch for a genuinely slow relay.
+    describe('smtp timeout overrides (#928)', () => {
+      it('omits all four when unset — the adapter applies its own bounded defaults', () => {
+        expect(smtpConfigFromEnv({ SETU_SMTP_HOST: 'h' })).toEqual({
+          config: { host: 'h', port: 587, secure: false }
+        })
+      })
+
+      it('passes each override through under the adapter option name', () => {
+        expect(
+          smtpConfigFromEnv({
+            SETU_SMTP_HOST: 'h',
+            SETU_SMTP_CONNECTION_TIMEOUT_MS: '11000',
+            SETU_SMTP_GREETING_TIMEOUT_MS: '12000',
+            SETU_SMTP_SOCKET_TIMEOUT_MS: '13000',
+            SETU_SMTP_DNS_TIMEOUT_MS: '14000'
+          })
+        ).toEqual({
+          config: {
+            host: 'h',
+            port: 587,
+            secure: false,
+            connectionTimeout: 11_000,
+            greetingTimeout: 12_000,
+            socketTimeout: 13_000,
+            dnsTimeout: 14_000
+          }
+        })
+      })
+
+      it('accepts a partial override without disturbing the others', () => {
+        expect(
+          smtpConfigFromEnv({
+            SETU_SMTP_HOST: 'h',
+            SETU_SMTP_SOCKET_TIMEOUT_MS: '45000'
+          })
+        ).toEqual({
+          config: { host: 'h', port: 587, secure: false, socketTimeout: 45_000 }
+        })
+      })
+
+      it('fails closed on a bad value rather than silently restoring the multi-minute default', () => {
+        for (const bad of ['abc', '0', '-1', '1.5', '3600001']) {
+          const r = smtpConfigFromEnv({
+            SETU_SMTP_HOST: 'h',
+            SETU_SMTP_SOCKET_TIMEOUT_MS: bad
+          })
+          expect(r, `socket timeout ${JSON.stringify(bad)}`).toHaveProperty(
+            'problem'
+          )
+          expect((r as { problem: string }).problem).toContain(
+            'SETU_SMTP_SOCKET_TIMEOUT_MS'
+          )
+        }
+      })
+    })
   })
 
   describe('countUsers / needsSetup (real sqlite, via the same drizzle handle createAuth uses)', () => {

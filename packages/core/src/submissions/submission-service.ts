@@ -55,6 +55,22 @@ export interface SubmissionServiceDeps {
    *  console.error. Only the "configured, then broke" case fires (see the call site);
    *  packages/core/test/submissions/submission-service.test.ts pins both directions. */
   onNotifySkipped?: (reason: string) => void
+  /** #918: the outbound-mail ceiling seam. Consulted ONCE per submission that would otherwise
+   *  notify, immediately before the send, and only after every other precondition holds — so a
+   *  submission that was never going to notify cannot burn quota. Return null to allow (the
+   *  implementation consumes a slot as it answers) or a named operator-facing reason to skip;
+   *  a reason is reported through `onNotifySkipped` exactly like the missing-from-address case.
+   *
+   *  Why it lives here rather than in the HTTP layer: this is the one place that knows the
+   *  submission is ALREADY PERSISTED, which is what makes "skip the email, keep the submission"
+   *  a safe answer to a burst — losing a genuine submission is worse than losing its email. A
+   *  rate limit at the route can only refuse the whole request.
+   *
+   *  apps/api supplies `createNotifyCeiling` from apps/api/src/rate-limit.ts, which keys on
+   *  nothing at all, so no header, address or session can mint fresh quota. Both halves — the
+   *  skip-with-reason and the still-persisted row — are pinned by
+   *  packages/core/test/submissions/submission-service.test.ts ("the notification ceiling"). */
+  allowNotification?: () => string | null
 }
 
 /** Linear-time email floor check, exactly equivalent to the old
@@ -135,8 +151,18 @@ export function createSubmissionService(
         const from =
           typeof notifyFrom === 'function' ? notifyFrom() : notifyFrom
         if (email && notifyTo && from) {
-          const content = await render(saved)
-          await email.send({ to: notifyTo, from, ...content })
+          // #918: last gate before the only line in this service that costs the operator money
+          // and sender reputation. Checked here — after the row is persisted and after every
+          // "would we even notify" precondition — so hitting the ceiling costs an email and
+          // never a submission, and so a submission that was never going to notify cannot
+          // consume ceiling quota on its way past.
+          const ceilingReason = deps.allowNotification?.() ?? null
+          if (ceilingReason !== null) {
+            deps.onNotifySkipped?.(ceilingReason)
+          } else {
+            const content = await render(saved)
+            await email.send({ to: notifyTo, from, ...content })
+          }
         } else if (email && notifyTo) {
           // #921: notifications ARE configured (a transport and a recipient), so a missing
           // from-address is a break, not a choice — and since #498 it is resolved live, so it

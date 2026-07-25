@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import type { Context } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import { bodyLimit } from 'hono/body-limit'
 import { createAuthz, DEFAULT_ROLES } from '@setu/core'
@@ -13,6 +14,12 @@ import type {
 import { authMiddleware } from './auth/middleware'
 import { apiOnError } from './errors'
 import type { ResolveActor } from './auth/resolve-actor'
+import { createWindowLimiter } from './rate-limit'
+import {
+  resolveClientIp,
+  UNRESOLVED_IP_KEY,
+  type ProxyTrust
+} from './client-ip'
 
 const authz = createAuthz(DEFAULT_ROLES)
 
@@ -26,6 +33,54 @@ const FORM_SUBMIT_MAX_BYTES = 1 * 1024 * 1024
  *  A submission write and an id-list mutation are both small; 1 MiB matches the public cap. */
 const FORM_ADMIN_MAX_BYTES = 1 * 1024 * 1024
 
+/** #918: the per-client bound on the unauthenticated submit route. 5 per minute is far above any
+ *  human filling in a contact form (including a couple of validation retries) and far below what
+ *  makes an open mail relay interesting. Overridable per deployment via
+ *  SETU_FORMS_SUBMIT_MAX_PER_WINDOW / SETU_FORMS_SUBMIT_WINDOW_MS (server.ts).
+ *
+ *  `maxKeys` matters as much as the numbers: the key is a client address, so without a cap the
+ *  limiter's own Map would be the DoS — see createWindowLimiter's note. 10k live buckets measures
+ *  at ~1.6 MiB retained when every one is full (10k IPv4-shaped keys × 5 timestamps, heap delta
+ *  under --expose-gc), and is orders of magnitude more distinct sources than a real site sees in
+ *  a minute. An earlier version of this comment guessed "a few hundred KiB" without measuring. */
+export const DEFAULT_SUBMIT_RATE = {
+  max: 5,
+  windowMs: 60_000,
+  maxKeys: 10_000
+} as const
+
+/** #918 review F2: the operator-facing line for the first refusal in a window.
+ *
+ *  Deliberately shaped around what this module can actually KNOW. It cannot tell a genuine
+ *  single-client flood from the zero-config proxy collapse (both look like one busy address), so
+ *  it reports the refusal and — only when no proxy is declared — names the collapse as the thing
+ *  to rule out. Never claims which one happened. The client address is included because an
+ *  operator debugging their own 429s needs it and it is already in every access log; it is an
+ *  address, not form PII. Pinned by apps/api/test/forms.test.ts ("reports the first refusal in a
+ *  window"). */
+function refusalMessage(
+  resolved: string | undefined,
+  trust: ProxyTrust,
+  rate: { max: number; windowMs: number }
+): string {
+  const who =
+    resolved === undefined
+      ? 'a caller whose address this topology does not expose (all such callers share ONE bucket)'
+      : `client ${resolved}`
+  const bound = `${rate.max} per ${Math.round(rate.windowMs / 1000)}s`
+  const hint =
+    trust.proxies.length === 0
+      ? ' If this server sits behind a reverse proxy or CDN, note that SETU_TRUSTED_PROXIES is ' +
+        'unset, so every visitor is being keyed on the proxy address — i.e. the whole internet ' +
+        'shares one bucket and legitimate visitors will be refused. Set SETU_TRUSTED_PROXIES to ' +
+        'the proxy address to key on real visitors.'
+      : ''
+  return (
+    `submit rate limit refused ${who} (bound: ${bound}). Further refusals in this window are ` +
+    `not logged.${hint}`
+  )
+}
+
 /** Cap an admin JSON body before `c.req.json()` parses it. */
 const adminBodyLimit = () =>
   bodyLimit({
@@ -37,9 +92,10 @@ const adminBodyLimit = () =>
 // calls with only truthiness checks (caught by @typescript-eslint/no-unsafe-* when
 // type-aware linting came online, #267). These narrow to `unknown`-based shapes and
 // fail closed (400) instead. NOTE: proper Zod schemas for this API are the standard
-// per docs/security-standards.md ("new input → Zod") — apps/api has no zod dependency
-// yet, so that upgrade is deliberately left to a follow-up rather than smuggling a new
-// dependency into the linter increment.
+// per docs/security-standards.md ("new input → Zod"). The reason originally recorded here
+// for deferring that — "apps/api has no zod dependency yet" — is no longer true: apps/api
+// depends on zod and capabilities.ts already uses it. The upgrade is #932; this comment used
+// to vouch for a deferral whose stated justification had expired (CLAUDE.md §4 #21).
 const asRecord = (v: unknown): Record<string, unknown> | null =>
   typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : null
 
@@ -74,12 +130,66 @@ export function createFormsApi(opts: {
   submissions: SubmissionPort
   resolveActor: ResolveActor
   captchaStatus?: { provider: string; secretConfigured: boolean }
+  /** #918: the raw TCP peer address of the request, injected because reading it is
+   *  topology-specific (server.ts passes `@hono/node-server`'s getConnInfo; a Workers entrypoint
+   *  would pass its own, or nothing). Omitted → every submission shares one bucket, which is
+   *  over-limiting rather than unlimited. */
+  socketIp?: (c: Context) => string | undefined
+  /** #918: what this deployment has declared about what sits in front of it —
+   *  `{ proxies }` from SETU_TRUSTED_PROXIES and the optional `header` from
+   *  SETU_TRUSTED_PROXY_HEADER. Empty — the default — means NO forwarded header is believed.
+   *  Read the three-level trust model in apps/api/src/client-ip.ts before changing anything
+   *  here; in particular, declaring a proxy address does not on its own make a single-valued
+   *  header believable, and that separation is load-bearing. */
+  proxyTrust?: ProxyTrust
+  /** #918: override the submit bound. Defaults to DEFAULT_SUBMIT_RATE; `now` is a test seam. */
+  submitRateLimit?: {
+    max: number
+    windowMs: number
+    maxKeys?: number
+    now?: () => number
+  }
+  /** #918 review F2: called with a ready-to-log line the FIRST time the submit bound refuses in
+   *  each window (server.ts points it at console.error).
+   *
+   *  Without it, the accepted zero-config trade in client-ip.ts — a proxied deployment that has
+   *  not declared its proxy collapses to one shared bucket — is invisible: 429s are returned to
+   *  the caller and nowhere else, so the operator's own visitors would simply start failing
+   *  silently. Deduped per window so a sustained flood costs one line, not one per request
+   *  (apps/api/test/forms.test.ts, "reports the first refusal in a window"). */
+  onSubmitLimited?: (message: string) => void
 }) {
   const { submit, submissions, resolveActor } = opts
   const captchaStatus = opts.captchaStatus ?? {
     provider: '',
     secretConfigured: false
   }
+  const proxyTrust: ProxyTrust = opts.proxyTrust ?? { proxies: [] }
+  const rate: {
+    max: number
+    windowMs: number
+    maxKeys?: number
+    now?: () => number
+  } = opts.submitRateLimit ?? DEFAULT_SUBMIT_RATE
+  // On by DEFAULT, not on request: a factory whose bound only exists when the caller remembers to
+  // ask for it is one forgotten argument away from the hole this closes
+  // (apps/api/test/forms.test.ts, "is on by DEFAULT").
+  const submitLimiter = createWindowLimiter({
+    max: rate.max,
+    windowMs: rate.windowMs,
+    maxKeys: rate.maxKeys ?? DEFAULT_SUBMIT_RATE.maxKeys,
+    ...(rate.now ? { now: rate.now } : {})
+  })
+  /** The one trusted reading of who is calling — the bucket key AND (since the #933 review) the
+   *  captcha's `remoteip`. `undefined` means the topology exposed no socket peer. Never a value
+   *  the request merely claims: see client-ip.ts. */
+  const clientIp = (c: Context): string | undefined =>
+    resolveClientIp(
+      { header: (n) => c.req.header(n), socketIp: opts.socketIp?.(c) },
+      proxyTrust
+    )
+  // Timestamp of the last "we refused someone" report, so a flood costs one line per window.
+  let limitReportedAt: number | null = null
   const app = new Hono<{ Variables: { actor: Actor } }>()
 
   // --- status (read-only, no secret, no PII) ---
@@ -88,6 +198,29 @@ export function createFormsApi(opts: {
   // --- public (captcha-gated embeddable widget; no session) ---
   app.post(
     '/forms/submit',
+    // Ahead of bodyLimit on purpose: a refused request must be the cheapest thing this route can
+    // do, so the burst is stopped before a body is buffered, parsed or captcha-verified
+    // (apps/api/test/forms.test.ts, "bounds a limited request BEFORE the body is read"). Every
+    // ATTEMPT counts, including ones that go on to fail validation or captcha — a limiter that
+    // only counted accepted submissions would bound nothing.
+    createMiddleware(async (c, next) => {
+      const resolved = clientIp(c)
+      const key = resolved ?? UNRESOLVED_IP_KEY
+      if (!submitLimiter.check(key)) {
+        const t = (rate.now ?? Date.now)()
+        if (limitReportedAt === null || t - limitReportedAt >= rate.windowMs) {
+          limitReportedAt = t
+          opts.onSubmitLimited?.(refusalMessage(resolved, proxyTrust, rate))
+        }
+        c.header('Retry-After', String(Math.ceil(rate.windowMs / 1000)))
+        return c.json(
+          { ok: false, error: 'rate_limited', retryAfterMs: rate.windowMs },
+          429
+        )
+      }
+      submitLimiter.record(key)
+      await next()
+    }),
     bodyLimit({
       maxSize: FORM_SUBMIT_MAX_BYTES,
       onError: (c) => c.json({ ok: false, error: 'too_large' }, 413)
@@ -116,10 +249,34 @@ export function createFormsApi(opts: {
           ? { userAgent: c.req.header('user-agent') }
           : {})
       }
-      const ip =
-        c.req.header('cf-connecting-ip') ??
-        c.req.header('x-forwarded-for') ??
-        undefined
+      // #918 — the captcha adapters' optional `remoteip`. It gets the SAME trusted reading the
+      // rate limiter keys on (client-ip.ts), never a raw header.
+      //
+      // The first draft of this sent the raw `cf-connecting-ip` / `x-forwarded-for`, justified by
+      // the claim that the verifiers validate remoteip against the address the token was issued
+      // to — so a forged value would only break the forger's own submission. That claim was not
+      // verified, and it is false. Checked against the current vendor documentation (fetched
+      // 2026-07-25):
+      //
+      //   - Cloudflare Turnstile siteverify documents `remoteip` as optional, described only as
+      //     "The visitor's IP address". No matching, no rejection semantics, and no remoteip
+      //     error code in its error-codes table.
+      //     developers.cloudflare.com/turnstile/get-started/server-side-validation/
+      //   - Google reCAPTCHA siteverify documents `remoteip` as "Optional. The user's IP address",
+      //     with no validation semantics and no related error code.
+      //     developers.google.com/recaptcha/docs/verify
+      //   - reCAPTCHA Enterprise's equivalent `Event.userIpAddress` is "Optional. The IP address
+      //     in the request from the user's device related to this event" — assessment input.
+      //     cloud.google.com/recaptcha/docs/reference/rest/v1/projects.assessments
+      //
+      // So forging it is not self-harm: at best it is ignored, at worst it feeds risk scoring,
+      // in which case an attacker could present a clean address to dodge IP reputation and
+      // attribute their solves to a victim's. Passing the trusted reading removes that entirely.
+      // The cost is that on a proxied deployment which has not declared its proxy the verifier
+      // sees the proxy address — poor risk signal, but no documented rejection, and the same one
+      // env var fixes it. Pinned by apps/api/test/forms.test.ts ("hands the captcha the trusted
+      // client address, never a forgeable header").
+      const captchaIp = clientIp(c)
       const result = await submit.submit({
         formId: body['formId'],
         formLabel:
@@ -134,7 +291,7 @@ export function createFormsApi(opts: {
         honeypot:
           typeof body['honeypot'] === 'string' ? body['honeypot'] : undefined,
         source: Object.keys(source).length ? source : undefined,
-        ip
+        ip: captchaIp
       })
       if (result.ok) return c.json(result, 200)
       const status =

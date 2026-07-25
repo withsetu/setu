@@ -1,6 +1,6 @@
 ---
 import { getCollection } from 'astro:content'
-import { entryUrlPath, DEFAULT_LOCALE } from '@setu/core'
+import { entryUrlPath, ensureTrailingSlashPath, DEFAULT_LOCALE } from '@setu/core'
 import { permalinkMap } from 'setu:permalinks'
 
 const { posts = '', heading = 'Related', showImage = true, collection = 'post', locale } = Astro.props
@@ -31,7 +31,10 @@ const cards: Card[] = String(posts)
     const fi = typeof d['featuredImage'] === 'string' ? (d['featuredImage'] as string) : undefined
     return {
       title: typeof d['title'] === 'string' ? (d['title'] as string) : e.id,
-      href: `/${map.get(e.id) ?? entryUrlPath({ collection: col, locale: l, slug: rest.join('/') })}`,
+      // Trailing-slash to match canonical/sitemap/feed (#889); entryUrlPath is slash-less.
+      href: ensureTrailingSlashPath(
+        `/${map.get(e.id) ?? entryUrlPath({ collection: col, locale: l, slug: rest.join('/') })}`
+      ),
       ...(fi ? { image: resolveImg(fi) } : {}),
     }
   })

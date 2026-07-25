@@ -1,4 +1,5 @@
 ---
+import { ensureTrailingSlashPath } from '@setu/core'
 interface RelatedItem {
   title: string
   href: string
@@ -10,14 +11,20 @@ interface Props {
   related?: RelatedItem[]
 }
 const { heading = 'Read Next', showImage = true, related = [] } = Astro.props
+// The related hrefs come precomputed from the relations cache in the slash-less form; normalize
+// to the site's trailing-slash policy so they match the canonical/sitemap/feed spelling (#889).
+const items = related.map((r) => ({
+  ...r,
+  href: ensureTrailingSlashPath(r.href)
+}))
 ---
 
 {
-  related.length > 0 && (
+  items.length > 0 && (
     <aside class="related-reading" aria-label="Related posts">
       <h2>{heading}</h2>
       <ul>
-        {related.map((r) => (
+        {items.map((r) => (
           <li class="related-card">
             {showImage && r.image && (
               <a href={r.href} class="related-card__media">

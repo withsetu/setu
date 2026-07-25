@@ -105,7 +105,7 @@ describe('permalink patterns: real astro build', () => {
   })
 
   it('archive card hrefs agree', () => {
-    expect(page('posts')).toContain('href="/blog/2026/hello-world"')
+    expect(page('posts')).toContain('href="/blog/2026/hello-world/"')
   })
 
   it('legacy default URLs are gone', () => {

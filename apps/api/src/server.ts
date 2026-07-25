@@ -44,7 +44,7 @@ import { createHistoryApi } from './history-api'
 import { createPreviewApi } from './preview'
 import { createUploadApi, listMediaRecords } from './media'
 import { createIndexApi, latchInFlight } from './index-api'
-import { createFormsApi } from './forms'
+import { createFormsApi, DEFAULT_SUBMIT_RATE } from './forms'
 import { createOembedApi } from './oembed'
 import { createSiteHealthApi } from './sitehealth'
 import { createDeployApi } from './deploy'
@@ -101,6 +101,10 @@ import { mountAuthWithFailureEvents } from './auth/login-failure-events'
 import { apiOnError } from './errors'
 import { securityHeaders } from './security-headers'
 import { turnstileTestKeyNotice } from './captcha-test-keys'
+import { noCaptchaProviderNotice } from './captcha-notice'
+import { createNotifyCeiling, boundFromEnv } from './rate-limit'
+import { parseTrustedProxies } from './client-ip'
+import { getConnInfo } from '@hono/node-server/conninfo'
 
 // #248 Task 9: default audit-event consumer — a single structured log line. The REAL consumer
 // (persistence/alerting) is future issue #290; this is deliberately the dumbest possible sink so
@@ -111,7 +115,17 @@ function logAuthEvent(event: AuthEvent): void {
 }
 
 function resolveCaptcha(provider: string, secret: string): CaptchaPort {
-  if (!provider) return createNoopCaptcha() // no provider configured → dev pass-through
+  if (!provider) {
+    // #918: the zero-config default is a PASS-THROUGH — every submission is accepted with no
+    // verification at all — and it used to be the ONLY captcha branch that said nothing at boot,
+    // because the two warnings below fire only once a provider is selected. Dev keeps the silence
+    // (that is what the branch is for); every other topology gets the line. The decision itself
+    // lives in captcha-notice.ts so it is testable — apps/api/test/captcha-notice.test.ts — since
+    // this module cannot be imported by a test (it calls serve() at the bottom).
+    const notice = noCaptchaProviderNotice(process.env)
+    if (notice !== null) console.error(`[captcha] ${notice}`)
+    return createNoopCaptcha()
+  }
   if (!secret) {
     // Provider selected but secret missing.
     if (process.env.NODE_ENV === 'production') {
@@ -475,6 +489,47 @@ const captchaStatus = {
   secretConfigured: captchaSecret !== ''
 }
 
+// #918 layer 1 — the HARD bound on the anonymous form→email path: a ceiling on notifications
+// SENT per window, for this process, keyed on nothing at all. Layer 2 (the per-IP submit limit
+// wired into createFormsApi below) is a refinement that can only ever be as good as the address
+// it keys on; this one cannot be bypassed by varying an address, a header or a session, because
+// none of them feed it. Defaults: 20 notifications per 10 minutes — comfortably above any real
+// contact form and far below "open relay". See rate-limit.ts for the reason string and
+// packages/core/src/submissions/submission-service.ts for why the check sits AFTER the persist.
+const notifyBound = boundFromEnv({
+  raw: {
+    max: process.env.SETU_FORMS_NOTIFY_MAX_PER_WINDOW,
+    windowMs: process.env.SETU_FORMS_NOTIFY_WINDOW_MS
+  },
+  defaults: { max: 20, windowMs: 10 * 60_000 },
+  names: {
+    max: 'SETU_FORMS_NOTIFY_MAX_PER_WINDOW',
+    windowMs: 'SETU_FORMS_NOTIFY_WINDOW_MS'
+  }
+})
+const submitBound = boundFromEnv({
+  raw: {
+    max: process.env.SETU_FORMS_SUBMIT_MAX_PER_WINDOW,
+    windowMs: process.env.SETU_FORMS_SUBMIT_WINDOW_MS
+  },
+  defaults: DEFAULT_SUBMIT_RATE,
+  names: {
+    max: 'SETU_FORMS_SUBMIT_MAX_PER_WINDOW',
+    windowMs: 'SETU_FORMS_SUBMIT_WINDOW_MS'
+  }
+})
+// An override that could not be parsed fell back to the default rather than to "unlimited"
+// (boundFromEnv). Say so, or the operator believes a number that is not in force.
+for (const problem of [...notifyBound.problems, ...submitBound.problems]) {
+  console.error(`[forms] ${problem}`)
+}
+const notifyCeiling = createNotifyCeiling(notifyBound)
+// The trusted-proxy declaration. UNSET — the default — means the forwarded headers are never
+// believed and the per-IP bound keys on the socket peer, so a deployment sitting behind a CDN
+// without this set collapses to ONE bucket (over-limiting, never unlimited). That trade, and why
+// it is acceptable given layer 1 above, is written out in client-ip.ts.
+const trustedProxies = parseTrustedProxies(process.env.SETU_TRUSTED_PROXIES)
+
 const submit = createSubmissionService({
   submissions,
   captcha,
@@ -502,7 +557,11 @@ const submit = createSubmissionService({
   // ("onNotifySkipped (#921)" describe), which also covers a throwing callback.
   onNotifySkipped: (reason) => {
     console.error(`[forms] form notification NOT sent: ${reason}`)
-  }
+  },
+  // #918: consulted immediately before the send and only once the row is persisted, so hitting
+  // the ceiling costs an email and never a submission. A skip is reported through the SAME
+  // onNotifySkipped seam above — one place an operator watches, not two.
+  allowNotification: notifyCeiling
 })
 
 const imageAdapter = createSharpImageAdapter()
@@ -708,7 +767,26 @@ app.route(
 )
 app.route(
   '/',
-  createFormsApi({ submit, submissions, captchaStatus, resolveActor })
+  createFormsApi({
+    submit,
+    submissions,
+    captchaStatus,
+    resolveActor,
+    // #918 layer 2. The socket peer is the ONLY unforgeable identity an unauthenticated caller
+    // has; reading it is topology-specific, hence the injection (@hono/node-server exposes the
+    // Node request through c.env — a Workers entrypoint would pass its own reader). Defensive
+    // try/catch: a runtime without `incoming` must degrade to the one-shared-bucket fallback,
+    // never throw on the public submit path.
+    socketIp: (c) => {
+      try {
+        return getConnInfo(c).remote.address
+      } catch {
+        return undefined
+      }
+    },
+    trustedProxies,
+    submitRateLimit: submitBound
+  })
 )
 app.route('/', createOembedApi({ resolveActor }))
 // Live getter for the site URL, mirroring mediaSettings above — a Settings change to the

@@ -233,6 +233,148 @@ describe('createSubmissionService.submit', () => {
     })
   })
 
+  // #918: the HARD bound on the anonymous form→email path. A per-IP rate limit at the route is a
+  // refinement — an unauthenticated caller controls everything that identifies them — so the
+  // guarantee that actually protects the operator's domain, quota and sender reputation is a
+  // ceiling on notifications SENT that keys on nothing. It is consulted here because this is the
+  // only place that knows the row is already persisted, which is what makes "skip the email, keep
+  // the submission" the right answer to a burst.
+  describe('the notification ceiling (#918)', () => {
+    const withCeiling = (
+      allowNotification: () => string | null,
+      send: EmailPort['send']
+    ) => {
+      const submissions = createMemorySubmissionPort()
+      const onNotifySkipped = vi.fn()
+      const svc = createSubmissionService({
+        submissions,
+        captcha: ok,
+        email: { send },
+        notifyTo: 'owner@x.com',
+        notifyFrom: 'site@x.com',
+        onNotifySkipped,
+        allowNotification
+      })
+      return { svc, submissions, onNotifySkipped }
+    }
+
+    it('PERSISTS the submission and skips only the email when the ceiling is hit', async () => {
+      const send = vi.fn(async () => {})
+      const { svc, submissions } = withCeiling(
+        () => 'the outbound notification ceiling is in force',
+        send
+      )
+
+      const r = await svc.submit({ ...base })
+
+      expect(r).toEqual({ ok: true, id: expect.any(String) })
+      expect((await submissions.listSubmissions()).total).toBe(1)
+      expect(send).not.toHaveBeenCalled()
+    })
+
+    it('reports the skip through onNotifySkipped with the ceiling reason verbatim', async () => {
+      const reason =
+        'the outbound notification ceiling is in force (max 2 per 10 minute(s))'
+      const { svc, onNotifySkipped } = withCeiling(
+        () => reason,
+        vi.fn(async () => {})
+      )
+
+      await svc.submit({ ...base })
+
+      expect(onNotifySkipped).toHaveBeenCalledTimes(1)
+      expect(onNotifySkipped).toHaveBeenCalledWith(reason)
+    })
+
+    it('sends normally while the ceiling allows, and starts skipping when it stops', async () => {
+      const send = vi.fn(async () => {})
+      let left = 2
+      const { svc, submissions, onNotifySkipped } = withCeiling(
+        () => (left-- > 0 ? null : 'ceiling reached'),
+        send
+      )
+
+      for (let i = 0; i < 5; i++) await svc.submit({ ...base })
+
+      expect(send).toHaveBeenCalledTimes(2)
+      expect(onNotifySkipped).toHaveBeenCalledTimes(3)
+      // The bound is on MAIL, never on submissions: all five rows are there.
+      expect((await submissions.listSubmissions()).total).toBe(5)
+    })
+
+    it('does not consume ceiling quota for a submission that was never going to notify', async () => {
+      // A missing from-address already skips the send. Burning a slot for it would let a
+      // misconfigured instance exhaust its own ceiling without sending anything.
+      const submissions = createMemorySubmissionPort()
+      const allowNotification = vi.fn(() => null)
+      const svc = createSubmissionService({
+        submissions,
+        captcha: ok,
+        email: { send: vi.fn(async () => {}) },
+        notifyTo: 'owner@x.com',
+        notifyFrom: () => undefined,
+        allowNotification
+      })
+
+      await svc.submit({ ...base })
+
+      expect(allowNotification).not.toHaveBeenCalled()
+    })
+
+    it('is consulted exactly once per notifying submission', async () => {
+      const allowNotification = vi.fn(() => null)
+      const submissions = createMemorySubmissionPort()
+      const svc = createSubmissionService({
+        submissions,
+        captcha: ok,
+        email: { send: vi.fn(async () => {}) },
+        notifyTo: 'owner@x.com',
+        notifyFrom: 'site@x.com',
+        allowNotification
+      })
+
+      await svc.submit({ ...base })
+      await svc.submit({ ...base })
+
+      expect(allowNotification).toHaveBeenCalledTimes(2)
+    })
+
+    it('a throwing ceiling cannot fail a persisted submission', async () => {
+      const submissions = createMemorySubmissionPort()
+      const svc = createSubmissionService({
+        submissions,
+        captcha: ok,
+        email: { send: vi.fn(async () => {}) },
+        notifyTo: 'owner@x.com',
+        notifyFrom: 'site@x.com',
+        allowNotification: () => {
+          throw new Error('ceiling exploded')
+        }
+      })
+
+      const r = await svc.submit({ ...base })
+
+      expect(r).toEqual({ ok: true, id: expect.any(String) })
+      expect((await submissions.listSubmissions()).total).toBe(1)
+    })
+
+    it('an instance that wires no ceiling behaves exactly as before', async () => {
+      const send = vi.fn(async () => {})
+      const submissions = createMemorySubmissionPort()
+      const svc = createSubmissionService({
+        submissions,
+        captcha: ok,
+        email: { send },
+        notifyTo: 'owner@x.com',
+        notifyFrom: 'site@x.com'
+      })
+
+      await svc.submit({ ...base })
+
+      expect(send).toHaveBeenCalledTimes(1)
+    })
+  })
+
   it('survives an async renderNotification that throws (best-effort)', async () => {
     const submissions = createMemorySubmissionPort()
     const email: EmailPort = { send: vi.fn(async () => {}) }

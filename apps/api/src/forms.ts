@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import type { Context } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import { bodyLimit } from 'hono/body-limit'
 import { createAuthz, DEFAULT_ROLES } from '@setu/core'
@@ -13,6 +14,8 @@ import type {
 import { authMiddleware } from './auth/middleware'
 import { apiOnError } from './errors'
 import type { ResolveActor } from './auth/resolve-actor'
+import { createWindowLimiter } from './rate-limit'
+import { resolveClientIp, UNRESOLVED_IP_KEY } from './client-ip'
 
 const authz = createAuthz(DEFAULT_ROLES)
 
@@ -25,6 +28,20 @@ const FORM_SUBMIT_MAX_BYTES = 1 * 1024 * 1024
  *  bound what they can send, so one session could still buffer an arbitrary body into memory.
  *  A submission write and an id-list mutation are both small; 1 MiB matches the public cap. */
 const FORM_ADMIN_MAX_BYTES = 1 * 1024 * 1024
+
+/** #918: the per-client bound on the unauthenticated submit route. 5 per minute is far above any
+ *  human filling in a contact form (including a couple of validation retries) and far below what
+ *  makes an open mail relay interesting. Overridable per deployment via
+ *  SETU_FORMS_SUBMIT_MAX_PER_WINDOW / SETU_FORMS_SUBMIT_WINDOW_MS (server.ts).
+ *
+ *  `maxKeys` matters as much as the numbers: the key is a client address, so without a cap the
+ *  limiter's own Map would be the DoS — see createWindowLimiter's note. 10k live buckets is a few
+ *  hundred KiB and orders of magnitude more distinct sources than a real site sees in a minute. */
+export const DEFAULT_SUBMIT_RATE = {
+  max: 5,
+  windowMs: 60_000,
+  maxKeys: 10_000
+} as const
 
 /** Cap an admin JSON body before `c.req.json()` parses it. */
 const adminBodyLimit = () =>
@@ -74,12 +91,51 @@ export function createFormsApi(opts: {
   submissions: SubmissionPort
   resolveActor: ResolveActor
   captchaStatus?: { provider: string; secretConfigured: boolean }
+  /** #918: the raw TCP peer address of the request, injected because reading it is
+   *  topology-specific (server.ts passes `@hono/node-server`'s getConnInfo; a Workers entrypoint
+   *  would pass its own, or nothing). Omitted → every submission shares one bucket, which is
+   *  over-limiting rather than unlimited. */
+  socketIp?: (c: Context) => string | undefined
+  /** #918: addresses this deployment's own front proxies connect FROM (SETU_TRUSTED_PROXIES).
+   *  Empty — the default — means the forwarded headers are never believed. Read the trust model
+   *  in apps/api/src/client-ip.ts before changing anything here. */
+  trustedProxies?: readonly string[]
+  /** #918: override the submit bound. Defaults to DEFAULT_SUBMIT_RATE; `now` is a test seam. */
+  submitRateLimit?: {
+    max: number
+    windowMs: number
+    maxKeys?: number
+    now?: () => number
+  }
 }) {
   const { submit, submissions, resolveActor } = opts
   const captchaStatus = opts.captchaStatus ?? {
     provider: '',
     secretConfigured: false
   }
+  const trustedProxies = opts.trustedProxies ?? []
+  const rate: {
+    max: number
+    windowMs: number
+    maxKeys?: number
+    now?: () => number
+  } = opts.submitRateLimit ?? DEFAULT_SUBMIT_RATE
+  // On by DEFAULT, not on request: a factory whose bound only exists when the caller remembers to
+  // ask for it is one forgotten argument away from the hole this closes
+  // (apps/api/test/forms.test.ts, "is on by DEFAULT").
+  const submitLimiter = createWindowLimiter({
+    max: rate.max,
+    windowMs: rate.windowMs,
+    maxKeys: rate.maxKeys ?? DEFAULT_SUBMIT_RATE.maxKeys,
+    ...(rate.now ? { now: rate.now } : {})
+  })
+  /** The bucket key: the trusted client address, or ONE shared bucket when the topology exposes
+   *  no peer. Never a value the request merely claims — see client-ip.ts. */
+  const limiterKey = (c: Context): string =>
+    resolveClientIp(
+      { header: (n) => c.req.header(n), socketIp: opts.socketIp?.(c) },
+      trustedProxies
+    ) ?? UNRESOLVED_IP_KEY
   const app = new Hono<{ Variables: { actor: Actor } }>()
 
   // --- status (read-only, no secret, no PII) ---
@@ -88,6 +144,23 @@ export function createFormsApi(opts: {
   // --- public (captcha-gated embeddable widget; no session) ---
   app.post(
     '/forms/submit',
+    // Ahead of bodyLimit on purpose: a refused request must be the cheapest thing this route can
+    // do, so the burst is stopped before a body is buffered, parsed or captcha-verified
+    // (apps/api/test/forms.test.ts, "bounds a limited request BEFORE the body is read"). Every
+    // ATTEMPT counts, including ones that go on to fail validation or captcha — a limiter that
+    // only counted accepted submissions would bound nothing.
+    createMiddleware(async (c, next) => {
+      const key = limiterKey(c)
+      if (!submitLimiter.check(key)) {
+        c.header('Retry-After', String(Math.ceil(rate.windowMs / 1000)))
+        return c.json(
+          { ok: false, error: 'rate_limited', retryAfterMs: rate.windowMs },
+          429
+        )
+      }
+      submitLimiter.record(key)
+      await next()
+    }),
     bodyLimit({
       maxSize: FORM_SUBMIT_MAX_BYTES,
       onError: (c) => c.json({ ok: false, error: 'too_large' }, 413)
@@ -116,10 +189,29 @@ export function createFormsApi(opts: {
           ? { userAgent: c.req.header('user-agent') }
           : {})
       }
-      const ip =
+      // #918 — TRUST MODEL, read this before reusing these headers for anything else.
+      //
+      // Both are client-settable: `curl -H 'x-forwarded-for: …'` puts any value here, so NOTHING
+      // that must bound an unauthenticated caller may key on them. The rate limiter above
+      // deliberately does not — it keys on the socket peer via client-ip.ts, and believes these
+      // headers only when the peer is a declared SETU_TRUSTED_PROXIES address.
+      //
+      // This value is a DIFFERENT thing: the captcha adapters' optional `remoteip`, advisory
+      // input to a third-party verifier that fails CLOSED on a mismatch (Turnstile/reCAPTCHA
+      // validate it against the address the token was issued to). Sending the forged value only
+      // makes the forger's own submission fail verification, so it is safe here and — unlike the
+      // socket peer — it is still the visitor's real address behind an as-yet-undeclared CDN,
+      // which is what keeps captcha working on a zero-config proxied deployment. Header first,
+      // socket peer as the fallback. `x-forwarded-for` is a list; remoteip takes one address, so
+      // the leftmost (conventionally the original client) is what goes over, not the whole chain.
+      const forwardedFor = c.req
+        .header('x-forwarded-for')
+        ?.split(',')[0]
+        ?.trim()
+      const captchaIp =
         c.req.header('cf-connecting-ip') ??
-        c.req.header('x-forwarded-for') ??
-        undefined
+        (forwardedFor !== '' ? forwardedFor : undefined) ??
+        opts.socketIp?.(c)
       const result = await submit.submit({
         formId: body['formId'],
         formLabel:
@@ -134,7 +226,7 @@ export function createFormsApi(opts: {
         honeypot:
           typeof body['honeypot'] === 'string' ? body['honeypot'] : undefined,
         source: Object.keys(source).length ? source : undefined,
-        ip
+        ip: captchaIp
       })
       if (result.ok) return c.json(result, 200)
       const status =

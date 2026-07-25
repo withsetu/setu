@@ -5,6 +5,7 @@ import { authMiddleware } from './auth/middleware'
 import type { ResolveActor, ResolvedActor } from './auth/resolve-actor'
 import type { EmailTransportOption, UsableEmailTransport } from './capabilities'
 import { apiOnError } from './errors'
+import { createWindowLimiter } from './rate-limit'
 
 const authz = createAuthz(DEFAULT_ROLES)
 
@@ -97,7 +98,12 @@ export interface EmailApiOptions {
 
 /** Test-send bound: 3 sends per actor per minute. Small and in-process on purpose — the
  *  route is admin-only and per-actor, so this is a belt against a runaway click-loop or a
- *  compromised admin session being used as a mail cannon, not a distributed-abuse defence. */
+ *  compromised admin session being used as a mail cannon, not a distributed-abuse defence.
+ *  #918 moved the Map-of-timestamps itself into rate-limit.ts (the anonymous /forms/submit path
+ *  needed two more bounds of the same shape); the numbers and the behaviour here are unchanged —
+ *  apps/api/test/email-api.test.ts is untouched and apps/api/test/rate-limit.test.ts re-drives
+ *  this exact 3-per-60s sequence against the extracted helper. No `maxKeys`: actor ids come from
+ *  the user table, a bounded server-side set, so there is nothing here for a caller to inflate. */
 const RATE_MAX = 3
 const RATE_WINDOW_MS = 60_000
 
@@ -118,7 +124,11 @@ export function createEmailApi(opts: EmailApiOptions) {
   const now = opts.now ?? Date.now
   const app = new Hono<{ Variables: { actor: ResolvedActor } }>()
   // actor id → send timestamps inside the current window (pruned on every check).
-  const recent = new Map<string, number[]>()
+  const limiter = createWindowLimiter({
+    max: RATE_MAX,
+    windowMs: RATE_WINDOW_MS,
+    ...(opts.now ? { now: opts.now } : {})
+  })
 
   app.get('/api/email/status', authMiddleware(opts.resolveActor), (c) => {
     if (!authz.can(c.get('actor'), 'settings.view'))
@@ -135,11 +145,7 @@ export function createEmailApi(opts: EmailApiOptions) {
         return c.json({ error: 'forbidden' }, 403)
 
       const t = now()
-      const stamps = (recent.get(actor.id) ?? []).filter(
-        (s) => t - s < RATE_WINDOW_MS
-      )
-      if (stamps.length >= RATE_MAX) {
-        recent.set(actor.id, stamps)
+      if (!limiter.check(actor.id)) {
         return c.json(
           { error: 'rate_limited', retryAfterMs: RATE_WINDOW_MS },
           429
@@ -172,8 +178,7 @@ export function createEmailApi(opts: EmailApiOptions) {
           409
         )
 
-      stamps.push(t)
-      recent.set(actor.id, stamps)
+      limiter.record(actor.id)
 
       const sentAt = new Date(t).toISOString()
       // #919: ONE reading, used for the body's `Transport:` stamp, the dispatch, and the

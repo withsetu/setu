@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { z } from 'zod'
 import { apiOnError } from './errors'
 
 export interface AuthCapabilities {
@@ -10,7 +11,8 @@ export interface AuthCapabilities {
 
 /** #364: which email transport this boot selected, and whether it's the kind of adapter that
  *  actually delivers mail anywhere. `transport` mirrors `SETU_EMAIL_ADAPTER` verbatim (whatever
- *  value server.ts read to pick the real adapter object — 'console' | 'resend' today); `deliverable`
+ *  value server.ts read to pick the real adapter object — 'console' | 'resend' | 'smtp' today);
+ *  `deliverable`
  *  is `false` for dev/no-op transports (console) and for a real transport with no configured
  *  from-address (`SETU_FORMS_NOTIFY_FROM`) — server.ts only wires the real send path when both are
  *  true — and `true` only when both hold, so the admin UI can tell "reset emails will actually go
@@ -60,9 +62,64 @@ export function buildCapabilities(opts: {
   }
 }
 
+/** Parsed, validated SMTP connection config from `SETU_SMTP_*` env vars — the single parser
+ *  intended to be shared by emailCapabilityFromEnv (below) and server.ts's adapter construction.
+ *  apps/api/test/capabilities.test.ts pins the parser and the deliverable derivation; server.ts's
+ *  construction side is not covered by that test — it holds because server.ts calls this same
+ *  function on the same env, so keep it that way (don't fork a second parse there). `problem` is
+ *  a human-readable, boot-log-safe reason: it may echo the (non-secret) port value, and the test
+ *  above proves it never echoes SETU_SMTP_USER/SETU_SMTP_PASS values. */
+export type SmtpEnvResult =
+  | {
+      config: {
+        host: string
+        port: number
+        secure: boolean
+        auth?: { user: string; pass: string }
+      }
+    }
+  | { problem: string }
+
+// TCP port: coerced because env vars are strings; integral and 1–65535 or fail closed.
+const smtpPortSchema = z.coerce.number().int().min(1).max(65535)
+
+export function smtpConfigFromEnv(
+  env: NodeJS.ProcessEnv = process.env
+): SmtpEnvResult {
+  const host = env.SETU_SMTP_HOST
+  if (!host) return { problem: 'SETU_SMTP_HOST is unset' }
+  // 587 = mail submission, the standard client-to-relay port; Mailpit and
+  // SMTPS deployments override it explicitly.
+  const rawPort = env.SETU_SMTP_PORT ?? '587'
+  const port = smtpPortSchema.safeParse(rawPort)
+  if (!port.success) {
+    return {
+      problem: `SETU_SMTP_PORT is not a valid TCP port (got ${JSON.stringify(rawPort)})`
+    }
+  }
+  const user = env.SETU_SMTP_USER
+  const pass = env.SETU_SMTP_PASS
+  if (Boolean(user) !== Boolean(pass)) {
+    // Half-configured auth is a misconfiguration, not "no auth" — sending
+    // unauthenticated to a server the operator meant to authenticate against
+    // would fail confusingly at send time (or worse, silently relay). The
+    // message deliberately names the variables, never their values.
+    return { problem: 'SETU_SMTP_USER and SETU_SMTP_PASS must be set together' }
+  }
+  const secure = env.SETU_SMTP_SECURE === 'true' || env.SETU_SMTP_SECURE === '1'
+  return {
+    config: {
+      host,
+      port: port.data,
+      secure,
+      ...(user && pass ? { auth: { user, pass } } : {})
+    }
+  }
+}
+
 /** Reads the SAME env vars + selection logic server.ts uses to pick the real email adapter object
- *  (`SETU_EMAIL_ADAPTER`, `=== 'resend' ? resend : console` — anything unrecognized falls back to
- *  console there too), so this can't silently claim a transport is live that server.ts didn't
+ *  (`SETU_EMAIL_ADAPTER`: 'resend' and 'smtp' are the real transports — anything unrecognized
+ *  falls back to console there too), so this can't silently claim a transport is live that server.ts didn't
  *  actually wire up (mirrors the shared-env-parsing rationale in auth/env.ts). Add a branch here
  *  the same day a new real adapter is wired into server.ts's ternary — never infer "any non-console
  *  string is real" or the two will drift the moment an unrecognized value falls back silently.
@@ -81,7 +138,14 @@ export function emailCapabilityFromEnv(
 ): EmailCapabilities {
   const transport = env.SETU_EMAIL_ADAPTER ?? 'console'
   const hasFromAddress = Boolean(env.SETU_FORMS_NOTIFY_FROM)
-  return { transport, deliverable: transport === 'resend' && hasFromAddress }
+  // #256: smtp only counts as real when its config parses — server.ts constructs the smtp
+  // adapter from the same smtpConfigFromEnv result, so a partial config (no host, bad port,
+  // half an auth pair) fails closed to console on BOTH sides instead of reporting a transport
+  // that would throw on first send.
+  const realTransport =
+    transport === 'resend' ||
+    (transport === 'smtp' && 'config' in smtpConfigFromEnv(env))
+  return { transport, deliverable: realTransport && hasFromAddress }
 }
 
 /** capabilities is mostly boot-time-static (image adapter, storage, mode), but the `auth` block's

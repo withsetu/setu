@@ -32,6 +32,7 @@ import {
 } from '@setu/captcha-recaptcha'
 import { createConsoleEmailAdapter } from '@setu/email-console'
 import { createResendEmailAdapter } from '@setu/email-resend'
+import { createSmtpEmailAdapter } from '@setu/email-smtp'
 import { renderSubmissionEmail } from '@setu/email-templates'
 import { createAuth, type AuthEvent } from '@setu/auth'
 import { createMiddleware } from 'hono/factory'
@@ -69,6 +70,7 @@ import {
   buildCapabilities,
   createCapabilitiesApi,
   emailCapabilityFromEnv,
+  smtpConfigFromEnv,
   type AuthCapabilities
 } from './capabilities'
 import { runReprocessJob } from './reprocess-runner'
@@ -173,15 +175,42 @@ if (notifyFrom && adminOrigin === undefined) {
   )
 }
 
-// Email transport (#248 forms notifications; #364 password-reset emails share it). Selected by
-// SETU_EMAIL_ADAPTER, defaulting to the zero-config console adapter (dev: logs instead of
-// sending). emailCapabilityFromEnv is the single source of truth for which env value maps to a
-// REAL transport (currently only 'resend') — reused here so this construction and the
+// Email transport (#248 forms notifications; #364 password-reset emails share it; #256 smtp).
+// Selected by SETU_EMAIL_ADAPTER, defaulting to the zero-config console adapter (dev: logs
+// instead of sending). emailCapabilityFromEnv is the single source of truth for which env value
+// maps to a REAL transport ('resend' | 'smtp') — reused here so this construction and the
 // /api/capabilities report below can never silently disagree about what's actually wired up.
+// smtp is a Node-topology capability (raw TCP sockets — no Workers), which is fine here: this
+// server entrypoint is Node-only; the edge topology has its own wiring.
 const emailCapability = emailCapabilityFromEnv(process.env)
-const email = emailCapability.deliverable
-  ? createResendEmailAdapter({ apiKey: process.env.RESEND_API_KEY ?? '' })
-  : createConsoleEmailAdapter()
+const smtpSelected = emailCapability.transport === 'smtp'
+const smtpEnv = smtpConfigFromEnv(process.env)
+// Honest degradation, once at boot (same pattern as the adminOrigin warning above): an operator
+// who asked for smtp but left it unusable would otherwise get a silent console fallback — a mail
+// black hole. Name the exact reason; never echo credential values (smtpConfigFromEnv's problem
+// strings are boot-log-safe — apps/api/test/capabilities.test.ts).
+if (smtpSelected && 'problem' in smtpEnv) {
+  console.error(
+    `[email] SMTP transport selected but not usable: ${smtpEnv.problem}. ` +
+      'Falling back to the console adapter — no mail will be sent.'
+  )
+}
+if (smtpSelected && 'config' in smtpEnv && !notifyFrom) {
+  console.error(
+    '[email] SMTP transport is configured but SETU_FORMS_NOTIFY_FROM is unset — there is no ' +
+      'from-address, so email stays disabled (console adapter). Set SETU_FORMS_NOTIFY_FROM.'
+  )
+}
+const email = !emailCapability.deliverable
+  ? createConsoleEmailAdapter()
+  : smtpSelected
+    ? 'config' in smtpEnv
+      ? createSmtpEmailAdapter(smtpEnv.config)
+      : // Unreachable when deliverable (deliverable-for-smtp requires the config to parse —
+        // apps/api/test/capabilities.test.ts), kept as a fail-closed default: a future drift
+        // between the two derivations must degrade to console, never to a half-built resend.
+        createConsoleEmailAdapter()
+    : createResendEmailAdapter({ apiKey: process.env.RESEND_API_KEY ?? '' })
 
 // Ensure .setu/ parent dir exists before better-sqlite3 opens the DB file
 mkdirSync(`${dir}/.setu`, { recursive: true })

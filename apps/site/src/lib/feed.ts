@@ -1,5 +1,6 @@
 import { DEFAULT_LOCALE, excerpt } from '@setu/core'
 import { resolvePostDate, type DatableEntry } from './post-date'
+import { ensureTrailingSlashPath } from './sitemap'
 
 // `excerpt` now lives in @setu/core (shared with the posts/query block render). Re-exported so
 // existing importers (and feed.test) keep their `from './feed'` path unchanged.
@@ -84,7 +85,9 @@ export function toFeedItem(
     excerpt(row.body ?? '')
   return {
     title,
-    link: `/${pathOf(row.id)}`,
+    // Trailing-slash to match canonical/hreflang/sitemap — the RSS <link> is the item's canonical
+    // URL and must not disagree (#887). Relative path; @astrojs/rss absolutizes it against `site`.
+    link: ensureTrailingSlashPath(`/${pathOf(row.id)}`),
     pubDate: row.date,
     description,
     categories: feedCategories(row.data),

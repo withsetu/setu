@@ -66,9 +66,17 @@ const xmlEscape = (s: string): string =>
  *  which otherwise splits the canonical/translation-cluster signal. Takes an absolute href; the
  *  root `/` is preserved. Enforced by apps/site/test/url-consistency.test.ts +
  *  apps/site/test/seo-head.test.ts (the built canonical). */
+/** The one place the trailing-slash policy lives, at the PATH level: append `/` unless already
+ *  present. Used by `withTrailingSlash` (URL-level, for canonical/hreflang/sitemap) and directly
+ *  by the RSS feed item link (a relative path, absolutized later by @astrojs/rss) so all four
+ *  URL surfaces share a single rule instead of re-implementing it (#887). The root `/` and any
+ *  already-slashed path are preserved. Enforced by apps/site/test/url-consistency.test.ts. */
+export const ensureTrailingSlashPath = (path: string): string =>
+  path.endsWith('/') ? path : `${path}/`
+
 export const withTrailingSlash = (href: string): string => {
   const u = new URL(href)
-  if (!u.pathname.endsWith('/')) u.pathname += '/'
+  u.pathname = ensureTrailingSlashPath(u.pathname)
   return u.href
 }
 

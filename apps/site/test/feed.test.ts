@@ -84,7 +84,8 @@ describe('toFeedItem', () => {
       row('post/en/my-post', '2024-01-01', {}, 'Body text here.'),
       pathOf
     )
-    expect(item.link).toBe('/post/my-post')
+    // Trailing slash to match canonical/hreflang/sitemap (#887); @astrojs/rss absolutizes it.
+    expect(item.link).toBe('/post/my-post/')
     expect(item.description).toBe('Body text here.')
   })
   it('prefers frontmatter description/summary', () => {

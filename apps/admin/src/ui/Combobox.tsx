@@ -34,7 +34,11 @@ export function Combobox({
   /** Inline status line under the input, announced politely and wired up as the
    *  input's `aria-describedby`. Intended for the "suggestions are unavailable"
    *  case (#905), where an empty list would otherwise read as "no matches" — the
-   *  list itself keeps its own empty rendering. */
+   *  list itself keeps its own empty rendering.
+   *
+   *  The region that carries it is rendered unconditionally (see below), so passing
+   *  a hint changes only its TEXT. Covered by the 'the hint live region' cases in
+   *  apps/admin/test/combobox.test.tsx. */
   hint?: ReactNode
 }) {
   const [open, setOpen] = useState(false)
@@ -59,68 +63,90 @@ export function Combobox({
 
   return (
     <div className={`combo ${className}`.trim()}>
-      <input
-        type="text"
-        id={id}
-        className="combo-input"
-        role="combobox"
-        aria-expanded={show}
-        aria-controls={listId}
-        aria-activedescendant={active >= 0 ? `${listId}-${active}` : undefined}
-        aria-label={ariaLabel}
-        aria-describedby={hint ? hintId : undefined}
-        placeholder={placeholder}
-        value={value}
-        disabled={disabled}
-        autoComplete="off"
-        onChange={(e) => {
-          onChange(e.target.value)
-          setOpen(true)
-          setActive(-1)
-        }}
-        onFocus={() => setOpen(true)}
-        onBlur={close}
-        onKeyDown={(e) => {
-          if (e.key === 'ArrowDown') {
-            e.preventDefault()
-            setOpen(true)
-            setActive((i) => Math.min(i + 1, items.length - 1))
-          } else if (e.key === 'ArrowUp') {
-            e.preventDefault()
-            setActive((i) => Math.max(i - 1, -1))
-          } else if (e.key === 'Enter') {
-            e.preventDefault()
-            onEnter()
-          } else if (e.key === 'Escape') {
-            close()
+      {/* The dropdown is positioned against THIS box, not `.combo`, so the hint line
+          below can never push it down (#914). Pinned by
+          apps/admin/test-browser/combobox-hint-layout.test.tsx, which measures the real
+          gap in chromium — jsdom has no layout and reports zeros. */}
+      <div className="combo-field">
+        <input
+          type="text"
+          id={id}
+          className="combo-input"
+          role="combobox"
+          aria-expanded={show}
+          aria-controls={listId}
+          aria-activedescendant={
+            active >= 0 ? `${listId}-${active}` : undefined
           }
-        }}
-      />
-      {show && (
-        <ul className="combo-list" role="listbox" id={listId}>
-          {items.map((item, i) => (
-            <li
-              key={item.value}
-              id={`${listId}-${i}`}
-              role="option"
-              aria-selected={i === active}
-              className={`combo-option${i === active ? ' active' : ''}`}
-              // mousedown fires before the input's blur, so the click registers
-              onMouseDown={(e) => {
-                e.preventDefault()
-                commit(item.value)
-              }}
-            >
-              {item.label ?? item.value}
-            </li>
-          ))}
-        </ul>
-      )}
-      {hint && (
-        <p className="combo-hint" id={hintId} role="status">
-          {hint}
-        </p>
-      )}
+          aria-label={ariaLabel}
+          aria-describedby={hint ? hintId : undefined}
+          placeholder={placeholder}
+          value={value}
+          disabled={disabled}
+          autoComplete="off"
+          onChange={(e) => {
+            onChange(e.target.value)
+            setOpen(true)
+            setActive(-1)
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={close}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowDown') {
+              e.preventDefault()
+              setOpen(true)
+              setActive((i) => Math.min(i + 1, items.length - 1))
+            } else if (e.key === 'ArrowUp') {
+              e.preventDefault()
+              setActive((i) => Math.max(i - 1, -1))
+            } else if (e.key === 'Enter') {
+              e.preventDefault()
+              onEnter()
+            } else if (e.key === 'Escape') {
+              close()
+            }
+          }}
+        />
+        {show && (
+          <ul className="combo-list" role="listbox" id={listId}>
+            {items.map((item, i) => (
+              <li
+                key={item.value}
+                id={`${listId}-${i}`}
+                role="option"
+                aria-selected={i === active}
+                className={`combo-option${i === active ? ' active' : ''}`}
+                // mousedown fires before the input's blur, so the click registers
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  commit(item.value)
+                }}
+              >
+                {item.label ?? item.value}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      {/* Rendered whether or not there is a hint: a live region announces CHANGES to
+          text inside it, so one that arrives already populated is announced
+          unreliably — which is the whole job of this element (#914). It costs no height
+          while empty; that is asserted in real chromium by
+          apps/admin/test-browser/combobox-hint-layout.test.tsx.
+          `aria-live`/`aria-atomic` rather than `role="status"`, which they are the
+          expansion of: a persistent status ROLE on every combobox puts an extra status
+          node in the accessibility tree of every screen with a picker — enough to break
+          #382's "exactly one status banner" assertions in
+          apps/admin/test/editor-screen.test.tsx, which is the a11y tree telling us the
+          role was a lie. The announcement behaviour is identical. */}
+      <p
+        className="combo-hint"
+        id={hintId}
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {hint}
+      </p>
     </div>
   )
 }

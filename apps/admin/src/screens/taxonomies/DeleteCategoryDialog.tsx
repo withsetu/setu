@@ -20,9 +20,14 @@ export function DeleteCategoryDialog({
   node: CategoryNode | null
   onClose: () => void
 }) {
-  const { counts, remove } = useTaxonomy()
+  const { counts, countsFailed, remove } = useTaxonomy()
   const notify = useNotify()
+  // #914 / §4 row 22: `counts[slug] ?? 0` cannot tell "no entries use this" from "the
+  // counts read failed", and this is a destructive confirmation — the one screen where
+  // collapsing unknown into zero actively misleads. Covered by
+  // apps/admin/test/DeleteCategoryDialog.test.tsx.
   const used = node ? (counts[node.slug] ?? 0) : 0
+  const usageUnknown = countsFailed && used === 0
   const hasChildren = node ? node.children.length > 0 : false
 
   const confirm = async () => {
@@ -61,7 +66,9 @@ export function DeleteCategoryDialog({
           <AlertDialogDescription>
             {used > 0
               ? `Used by ${used} ${used === 1 ? 'entry' : 'entries'} — deleting removes it from ${used === 1 ? 'that entry' : 'them'}.`
-              : "This category isn't used by any content."}
+              : usageUnknown
+                ? 'How many entries use this category couldn’t be checked, so deleting may remove it from entries that still reference it.'
+                : "This category isn't used by any content."}
             {hasChildren ? ' Child categories move up one level.' : ''}
           </AlertDialogDescription>
         </AlertDialogHeader>

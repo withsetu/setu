@@ -149,7 +149,14 @@ describe('createResetEmailSender', () => {
     expect(String(onRefused.mock.calls[0]![0])).toContain('console adapter')
   })
 
-  it('refuses when the from-address disappears after boot', async () => {
+  // Defence in depth, NOT a production scenario — which is why the message has to be
+  // doctored with `from: ''` to get here. As wired in apps/api/src/server.ts the sender is
+  // built inside a branch that narrows `notifyFrom` to a non-empty string and passes it as
+  // better-auth's `from`, so `opts.resolveFrom() ?? msg.from` cannot be falsy at runtime.
+  // The old name ('refuses when the from-address disappears after boot') claimed the
+  // unreachable case as a real one (#914); the transport-drift case above it is the one
+  // that genuinely can happen after boot.
+  it('refuses when neither the live resolver nor the message supplies a from-address', async () => {
     const send = vi.fn()
     const onRefused = vi.fn()
     const sender = createResetEmailSender({

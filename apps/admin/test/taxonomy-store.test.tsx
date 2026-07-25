@@ -215,4 +215,71 @@ describe('TaxonomyProvider', () => {
     // Loaded empty — categories really are empty, and loading no longer claims otherwise.
     expect(result.current.categories).toEqual([])
   })
+
+  // #914 / §4 row 22: `loading=false, categories=[]` was ALSO what a failed read looked
+  // like, because both reads swallowed into `.catch(() => {})`. #582 taught consumers to
+  // tell loading from empty; nothing let them tell empty from broken.
+  describe('a failed read is distinguishable from an empty one', () => {
+    const brokenGit = () => ({
+      ...createMemoryGitPort(),
+      readFile: () => Promise.reject(new Error('git down'))
+    })
+    const brokenCounts = (index = createMemoryIndexPort()) => ({
+      ...index,
+      categoryCounts: () => Promise.reject(new Error('index down'))
+    })
+
+    it('reports categoriesFailed when the registry read rejects', async () => {
+      const { Wrapper } = makeWrapper(createMemoryDataPort(), brokenGit())
+      const { result } = renderHook(() => useTaxonomy(), { wrapper: Wrapper })
+
+      await waitFor(() => expect(result.current.loading).toBe(false))
+      expect(result.current.categoriesFailed).toBe(true)
+      expect(result.current.categories).toEqual([])
+    })
+
+    it('reports countsFailed when the counts read rejects', async () => {
+      const { Wrapper } = makeWrapper(
+        createMemoryDataPort(),
+        createMemoryGitPort(),
+        brokenCounts()
+      )
+      const { result } = renderHook(() => useTaxonomy(), { wrapper: Wrapper })
+
+      await waitFor(() => expect(result.current.loading).toBe(false))
+      expect(result.current.countsFailed).toBe(true)
+      // The registry itself was fine — the two failures must not be conflated, or a
+      // picker would tell the user its list is broken when it is not.
+      expect(result.current.categoriesFailed).toBe(false)
+    })
+
+    it('reports neither flag on a healthy, genuinely empty load', async () => {
+      const { Wrapper } = makeWrapper()
+      const { result } = renderHook(() => useTaxonomy(), { wrapper: Wrapper })
+
+      await waitFor(() => expect(result.current.loading).toBe(false))
+      expect(result.current.categoriesFailed).toBe(false)
+      expect(result.current.countsFailed).toBe(false)
+    })
+
+    it('offers a retry that clears the flag once the read recovers', async () => {
+      let broken = true
+      const git = createMemoryGitPort()
+      const flaky = {
+        ...git,
+        readFile: (path: string) =>
+          broken ? Promise.reject(new Error('git down')) : git.readFile(path)
+      }
+      const { Wrapper } = makeWrapper(createMemoryDataPort(), flaky)
+      const { result } = renderHook(() => useTaxonomy(), { wrapper: Wrapper })
+
+      await waitFor(() => expect(result.current.categoriesFailed).toBe(true))
+      broken = false
+      await act(async () => {
+        await result.current.reload()
+      })
+      expect(result.current.categoriesFailed).toBe(false)
+      expect(result.current.loading).toBe(false)
+    })
+  })
 })

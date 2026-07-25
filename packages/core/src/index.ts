@@ -25,7 +25,8 @@ export type {
   GeneralSettings,
   ReadingSettings,
   MediaSettings,
-  IdentitySettings
+  IdentitySettings,
+  EmailSettings
 } from './settings/types'
 export {
   PERMALINK_TOKENS,

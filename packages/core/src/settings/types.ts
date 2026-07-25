@@ -71,6 +71,16 @@ export interface IdentitySettings {
   titleSeparator: string
 }
 
+/** Email settings (#498, epic #497). Provider credentials (Resend API key, SMTP
+ *  auth) are env-only and NEVER stored here — settings.json is Git-committed. */
+export interface EmailSettings {
+  /** Outbound sender address for every email this instance sends (password reset,
+   *  form notifications, test sends). Empty string = not set; the server then falls
+   *  back to the SETU_FORMS_NOTIFY_FROM env var (settings win over env — the
+   *  precedence is implemented where the two meet in apps/api/src/server.ts). */
+  fromAddress: string
+}
+
 /** Site settings, grouped so future sections (identity/content/media/forms) add
  *  cleanly. Persisted as a Git-backed settings.json. Never holds secrets. */
 export interface SiteSettings {
@@ -79,4 +89,5 @@ export interface SiteSettings {
   media: MediaSettings
   identity: IdentitySettings
   permalinks: PermalinksSettings
+  email: EmailSettings
 }

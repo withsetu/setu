@@ -169,7 +169,7 @@ const ENTITIES: Record<string, string> = {
  * the render came out" is not an acceptable answer for how much work one submission may cost.
  *
  * 100 KB is several times the largest body any shipped template can produce, and small enough
- * that the worst adversarial markup found for the whole chain costs ~160 ms rather than minutes
+ * that the worst adversarial input found for the whole chain costs ~56 ms rather than minutes
  * (measured; see packages/core/test/templating/fill-template.test.ts, "finishes pathological
  * markup inside a generous wall-clock bound", which asserts the bound this backs). The cut is a
  * plain slice, so it can land inside a tag — this is a best-effort text derivation, and a
@@ -181,14 +181,16 @@ export const HTML_TO_TEXT_MAX_INPUT = 100_000
  * Remove every `<!-- … -->` span in one forward pass.
  *
  * Exactly what `/<!--[\s\S]*?-->/g` matched, without its cost: that pattern re-scanned the whole
- * remaining input from EVERY unclosed `<!--`, which measured ~850 ms on 100 KB of them (~360 ms
- * inside the vitest run that asserts it). `indexOf`
- * resumes where the last span ended, and the first `<!--` with no `-->` after it ends the walk —
- * no later one can have one either. Pinned by
- * packages/core/test/templating/fill-template.test.ts ("finishes pathological markup inside a
- * generous wall-clock bound"); the equivalence to the pattern it replaced is pinned by
- * "drops script and style content entirely" and the frozen bytes in
- * packages/core/test/email/email-registry.test.ts.
+ * remaining input from EVERY unclosed `<!--`: on 100 KB of them the pattern measures ~470 ms and
+ * this walk ~1 ms. `indexOf` resumes where the last span ended, and the first `<!--` with no
+ * `-->` after it ends the walk — no later one can have one either.
+ *
+ * The BOUND is pinned by packages/core/test/templating/fill-template.test.ts ("drops unclosed
+ * comments in one pass, not one per comment"). The OUTPUT — that this still removes what the
+ * pattern removed, and still leaves what it left — is pinned by the same file's "removes comment
+ * spans exactly as the pattern it replaced did", which is the assertion that fails if the walk's
+ * arithmetic drifts. It needed writing: no existing input in the suite contained an HTML comment
+ * at all, so changing `close + 3` to `close + 2` passed all 1439 core tests.
  */
 function stripComments(html: string): string {
   let out = ''
@@ -200,6 +202,55 @@ function stripComments(html: string): string {
     if (close === -1) break
     out += html.slice(cursor, open)
     cursor = close + 3
+  }
+  return cursor === 0 ? html : out + html.slice(cursor)
+}
+
+/** Closers for {@link stripScriptStyle}, built per call — a module-level `/g` regex would carry
+ *  `lastIndex` between calls. */
+const scriptStyleClosers = (): Map<string, RegExp> =>
+  new Map([
+    ['script', /<\/script>/gi],
+    ['style', /<\/style>/gi]
+  ])
+
+/**
+ * Remove every `<script …>…</script>` / `<style …>…</style>` span in one forward pass.
+ *
+ * Same shape and same reason as {@link stripComments}, for the same defect:
+ * `/<(script|style)\b[^<>]*>[\s\S]*?<\/\1>/gi` re-scanned the remaining input from every UNCLOSED
+ * opener: on 100 KB of `<script>` the pattern measures ~100 ms and this walk ~2 ms. Each closer
+ * search resumes from its own opener and every consumed span moves the cursor forward, so
+ * successful searches cost O(input) in total; `exhausted` caps the failing ones at one scan per
+ * tag name, since a closer not found from position p can never be found from any q >= p.
+ *
+ * Output equivalence to the pattern it replaced is pinned by
+ * packages/core/test/templating/fill-template.test.ts ("removes script and style spans exactly as
+ * the pattern it replaced did"), which covers the cases the tag-name backreference decides:
+ * `<script>` may not be closed by `</style>`, an unclosed `<script>` must not swallow a later
+ * well-formed `<style>` span, and the match is case-insensitive on both ends.
+ */
+function stripScriptStyle(html: string): string {
+  const open = /<(script|style)\b[^<>]*>/gi
+  const closers = scriptStyleClosers()
+  const exhausted = new Set<string>()
+  let out = ''
+  let cursor = 0
+  let m: RegExpExecArray | null
+  while ((m = open.exec(html)) !== null) {
+    const tag = (m[1] as string).toLowerCase()
+    if (exhausted.has(tag)) continue
+    const closer = closers.get(tag) as RegExp
+    closer.lastIndex = m.index + m[0].length
+    const close = closer.exec(html)
+    if (close === null) {
+      exhausted.add(tag)
+      continue
+    }
+    out += html.slice(cursor, m.index)
+    cursor = close.index + close[0].length
+    // Resume scanning after the span we just consumed, which is what a /g replace would do.
+    open.lastIndex = cursor
   }
   return cursor === 0 ? html : out + html.slice(cursor)
 }
@@ -235,11 +286,16 @@ function stripComments(html: string): string {
  * an HTML parser. Enforced by packages/core/test/templating/fill-template.test.ts ("finishes
  * pathological markup inside a generous wall-clock bound").
  *
- * The anchor LABEL stays `[\s\S]*?` on purpose. It was the suspected cost and is not: bounding it
- * to `[^<]*` would buy nothing measurable and would drop the URL from
- * `<a href="…"><strong>Reset</strong></a>`, ordinary HTML-email shape whose URL is the only
- * actionable thing in a password-reset body (packages/core/test/templating/fill-template.test.ts,
- * "keeps the URL of a link whose label carries inline markup").
+ * The anchor LABEL is a BOUNDED lazy run, `{0,4000}?` rather than `*?`. Unbounded, it was the
+ * second-largest cost left: an unclosed `<a>` made it scan the whole remainder, i.e. the
+ * O(unclosed anchors x input) shape #941 named. Flattening it to `[^<]*` would have removed the
+ * cost but also the URL from `<a href="…"><strong>Reset</strong></a>` — ordinary HTML-email shape
+ * whose URL is the only actionable thing in a password-reset body. The bound keeps both: a label
+ * with inline markup still resolves, and a missing `</a>` costs 4000 steps instead of 100,000. A
+ * label longer than 4000 characters is not treated as a link (its text survives, its URL does
+ * not); no shipped template comes within two orders of magnitude of that. Both halves are pinned
+ * by packages/core/test/templating/fill-template.test.ts ("keeps the URL of a link whose label
+ * carries inline markup" and "finishes pathological markup inside a generous wall-clock bound").
  */
 export function htmlToPlainText(html: string): string {
   const bounded =
@@ -247,13 +303,11 @@ export function htmlToPlainText(html: string): string {
       ? html.slice(0, HTML_TO_TEXT_MAX_INPUT)
       : html
   // Step order is unchanged from before #941: script/style spans go first, then comments.
-  const text = stripComments(
-    bounded.replace(/<(script|style)\b[^<>]*>[\s\S]*?<\/\1>/gi, '')
-  )
+  const text = stripComments(stripScriptStyle(bounded))
     .replace(/<br\s*\/?>/gi, '\n')
     // A link keeps its destination — an email body whose URLs vanished is useless.
     .replace(
-      /<a\b[^<>]*\bhref\s*=\s*["']([^"']*)["'][^<>]*>([\s\S]*?)<\/a>/gi,
+      /<a\b[^<>]*\bhref\s*=\s*["']([^"']*)["'][^<>]*>([\s\S]{0,4000}?)<\/a>/gi,
       (_, href: string, label: string) => `${label.trim()} (${href})`
     )
     .replace(/<\/t[dh]>\s*(?=<t[dh]\b)/gi, ': ')

@@ -7,6 +7,7 @@ import {
   DEFAULT_SUBMIT_RATE,
   FORM_FIELD_MAX_COUNT,
   FORM_FIELD_VALUE_MAX,
+  FORM_SOURCE_URL_MAX,
   FORM_VALUE_MAX
 } from '../src/forms'
 import { createNotifyCeiling } from '../src/rate-limit'
@@ -114,12 +115,20 @@ describe('createFormsApi — per-value caps on the public submit route (#935)', 
         fields: {
           ...valid,
           ...Object.fromEntries(
-            Array.from({ length: FORM_FIELD_MAX_COUNT }, (_, i) => [
+            Array.from({ length: FORM_FIELD_MAX_COUNT - 1 }, (_, i) => [
               `f${i}`,
               'x'
             ])
           )
         }
+      }
+    ],
+    [
+      'a source url',
+      {
+        formId: 'contact',
+        fields: valid,
+        source: { url: `https://x.test/${'u'.repeat(FORM_SOURCE_URL_MAX)}` }
       }
     ]
   ])('refuses an oversized %s with 400', async (_what, body) => {
@@ -133,12 +142,23 @@ describe('createFormsApi — per-value caps on the public submit route (#935)', 
     expect((await submissions.listSubmissions()).total).toBe(0)
   })
 
+  // The caps are INCLUSIVE. Asserted at the exact boundary, including the field COUNT — which the
+  // refusal case above cannot reach, since it can only prove that count+1 is refused.
   it('accepts values sitting exactly at their caps', async () => {
     const { app } = makeApp()
+    const fields: Record<string, string> = {
+      ...valid,
+      note: 'v'.repeat(FORM_FIELD_VALUE_MAX)
+    }
+    fields['n'.repeat(FORM_VALUE_MAX)] = 'x'
+    while (Object.keys(fields).length < FORM_FIELD_MAX_COUNT)
+      fields[`f${Object.keys(fields).length}`] = 'x'
+    expect(Object.keys(fields)).toHaveLength(FORM_FIELD_MAX_COUNT)
     const res = await post(app, '/forms/submit', {
       formId: 'c'.repeat(FORM_VALUE_MAX),
       formLabel: 'L'.repeat(FORM_VALUE_MAX),
-      fields: { ...valid, note: 'v'.repeat(FORM_FIELD_VALUE_MAX) },
+      fields,
+      source: { url: `https://x.test/${'u'.repeat(FORM_SOURCE_URL_MAX - 15)}` },
       captchaToken: 'tok'
     })
     expect(res.status).toBe(200)

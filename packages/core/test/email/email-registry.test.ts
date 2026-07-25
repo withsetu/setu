@@ -540,6 +540,33 @@ describe('security', () => {
       expect(out.subject.startsWith('Re: yyy')).toBe(true)
     })
 
+    // KILL-SHOT TARGET for the surrogate guard. A plain `slice` cuts UTF-16 code units, so a cap
+    // landing between a surrogate pair leaves a LONE surrogate in a mail header. The emoji is two
+    // code units, so putting one at the boundary forces the split.
+    it('never cuts an astral character in half', () => {
+      const out = renderEmailTemplate(
+        FORM_NOTIFICATION_EMAIL,
+        {},
+        formNotificationValues({
+          id: 's1',
+          formId: 'contact',
+          // 'New submission: ' is 16 chars, so the pairs straddle the 299-char boundary.
+          formLabel: '😀'.repeat(1_000),
+          fields: {},
+          createdAt: 0
+        })
+      )
+      expect(out.subject.length).toBeLessThanOrEqual(EMAIL_TEMPLATE_MAX_SUBJECT)
+      expect(
+        [...out.subject].every((c) => c.codePointAt(0) !== undefined)
+      ).toBe(true)
+      // No unpaired surrogate survives: every code unit in D800-DFFF belongs to a full pair.
+      expect(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(out.subject)).toBe(false)
+      expect(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(out.subject)).toBe(
+        false
+      )
+    })
+
     it('leaves a subject at exactly the cap untouched', () => {
       const exact = 'z'.repeat(EMAIL_TEMPLATE_MAX_SUBJECT)
       const out = renderEmailTemplate(

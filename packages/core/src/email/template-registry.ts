@@ -122,15 +122,18 @@ export const EMAIL_TEMPLATE_MAX_SUBJECT = 300
  * The serialized ceiling on ONE stored override, unknown fields included (#935).
  *
  * Chosen so it can never reject an entry whose known fields are all legal, which is what lets it
- * be a flat number rather than a per-field sum: `JSON.stringify` doubles a body made entirely of
- * quotes or newlines, so a maximal legal entry can serialize to about
- * 2 x (2 x {@link EMAIL_TEMPLATE_MAX_BODY}) + 2 x {@link EMAIL_TEMPLATE_MAX_SUBJECT} plus key
- * overhead — ~81 KB. 100 KB clears that with room to spare while still bounding what an unknown
- * field can carry. Both directions are pinned by
+ * be a flat number rather than a per-field sum. The worst case is NOT the 2x that quotes,
+ * backslashes and newlines cost: `JSON.stringify` emits `\u00XX` for C0 control characters and
+ * for lone surrogates, i.e. 6x. A maximal legal entry — {@link EMAIL_TEMPLATE_MAX_SUBJECT} plus
+ * 2 x {@link EMAIL_TEMPLATE_MAX_BODY} characters, all U+0001 — serializes to exactly 241,834
+ * characters (measured), against 80,634 for the same entry made of quotes. 256 KB clears the real
+ * worst case; the 100 KB this started at would have rejected it, which is what made "can never
+ * reject" false when it was first written. Both directions are pinned by
  * packages/core/src/settings/email-settings.test.ts ("keeps an entry whose known fields all sit
- * at their own caps" / "drops an entry whose unknown fields blow the entry cap").
+ * at their own caps", which includes the control-character row, and "drops an entry whose unknown
+ * fields blow the entry cap").
  */
-export const EMAIL_TEMPLATE_MAX_ENTRY_BYTES = 100_000
+export const EMAIL_TEMPLATE_MAX_ENTRY_BYTES = 256_000
 
 /**
  * The ceiling on how many overrides `email.templates` may hold (#935).
@@ -261,13 +264,22 @@ export function renderTemplateField(
  * Applied here rather than at either call site because the admin's live preview and the server's
  * send are the same function (see the preview-parity note at the top of this file) — a cap on one
  * side only would make the preview a lie. The ellipsis is deliberate: an operator seeing a cut
- * subject should be able to tell it was cut. Pinned by
- * packages/core/test/email/email-registry.test.ts ("the rendered subject is capped (#935)").
+ * subject should be able to tell it was cut.
+ *
+ * The cut never splits an astral character. `slice` works in UTF-16 code units, so cutting between
+ * a surrogate pair would put a LONE surrogate into a mail header — an unencodable code unit on a
+ * value that is about to be MIME-encoded, which is a different failure from "the subject is
+ * long". {@link htmlToPlainText}'s ceiling can concede its mid-tag cut because a stray tag is
+ * inert; a header cannot. Pinned by packages/core/test/email/email-registry.test.ts ("the
+ * rendered subject is capped (#935)").
  */
-const capSubject = (s: string): string =>
-  s.length <= EMAIL_TEMPLATE_MAX_SUBJECT
-    ? s
-    : `${s.slice(0, EMAIL_TEMPLATE_MAX_SUBJECT - 1).trimEnd()}…`
+const capSubject = (s: string): string => {
+  if (s.length <= EMAIL_TEMPLATE_MAX_SUBJECT) return s
+  const cut = s.slice(0, EMAIL_TEMPLATE_MAX_SUBJECT - 1)
+  const last = cut.charCodeAt(cut.length - 1)
+  const whole = last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut
+  return `${whole.trimEnd()}…`
+}
 
 /**
  * Render one email: the admin's override where it is usable, the shipped default everywhere

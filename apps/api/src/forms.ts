@@ -40,7 +40,15 @@ const FORM_SUBMIT_MAX_BYTES = 1 * 1024 * 1024
  *   the floor under every consumer; this is the boundary check that keeps the oversized value out
  *   of the STORED submission in the first place.
  * - each `fields` entry becomes a row in that email, so with only a 1 MiB whole-body cap a single
- *   submission could carry ~500k rows.
+ *   submission could carry ~100k rows (the minimum viable JSON for one uniquely-keyed field is
+ *   about 9-10 bytes).
+ * - `source.url` is not rendered into the email, but it IS persisted verbatim, so the same
+ *   whole-body cap was also its only storage bound. 2,000 characters is the de-facto browser URL
+ *   limit.
+ *
+ * `honeypot` and `captchaToken` are deliberately NOT capped here: neither is stored and neither is
+ * rendered — the honeypot is only tested for emptiness and the token is handed to the captcha
+ * adapter — so the whole-body cap is the right and only bound for them.
  *
  * 200 characters is far past any real form id or label (the admin UI shows them in a column);
  * 10,000 is far past a contact-form message and still well inside the body cap; 100 fields is far
@@ -56,6 +64,7 @@ const FORM_SUBMIT_MAX_BYTES = 1 * 1024 * 1024
 export const FORM_VALUE_MAX = 200
 export const FORM_FIELD_VALUE_MAX = 10_000
 export const FORM_FIELD_MAX_COUNT = 100
+export const FORM_SOURCE_URL_MAX = 2_000
 
 /** Max bytes for an authenticated admin CRUD body (#629). These routes were the last unbounded
  *  `c.req.json()` calls in this factory: authentication narrows who can abuse them, it does not
@@ -132,15 +141,19 @@ const asRecord = (v: unknown): Record<string, unknown> | null =>
 const isStringArray = (v: unknown): v is string[] =>
   Array.isArray(v) && v.every((x) => typeof x === 'string')
 
-/** #935: true when every value in a public submission is within its cap. Non-string field values
- *  are not measured here — they are coerced to '' below, so they carry nothing. */
+/** #935: true when every STORED-or-RENDERED value in a public submission is within its cap.
+ *  Non-string values are not measured — they are coerced to '' / dropped below, so they carry
+ *  nothing. `honeypot` and `captchaToken` are out of scope by design; see the constants above. */
 const withinValueCaps = (
   formId: string,
   formLabel: unknown,
-  fields: Record<string, unknown>
+  fields: Record<string, unknown>,
+  sourceUrl: unknown
 ): boolean => {
   if (formId.length > FORM_VALUE_MAX) return false
   if (typeof formLabel === 'string' && formLabel.length > FORM_VALUE_MAX)
+    return false
+  if (typeof sourceUrl === 'string' && sourceUrl.length > FORM_SOURCE_URL_MAX)
     return false
   const entries = Object.entries(fields)
   if (entries.length > FORM_FIELD_MAX_COUNT) return false
@@ -286,11 +299,19 @@ export function createFormsApi(opts: {
         return c.json({ ok: false, error: 'invalid' }, 400)
       }
       const fields = asRecord(body['fields'])!
-      // #935: bound each VALUE, not just the whole body. Before the captcha call, so a refusal
-      // stays the cheapest thing this route can do (same reasoning as the rate limiter above).
-      if (!withinValueCaps(body['formId'], body['formLabel'], fields))
-        return c.json({ ok: false, error: 'invalid' }, 400)
       const bodySourceUrl = asRecord(body['source'])?.['url']
+      // #935: bound the values that get STORED or RENDERED, which the whole-body cap does not.
+      // Before the captcha call, so a refusal stays the cheapest thing this route can do (same
+      // reasoning as the rate limiter above).
+      if (
+        !withinValueCaps(
+          body['formId'],
+          body['formLabel'],
+          fields,
+          bodySourceUrl
+        )
+      )
+        return c.json({ ok: false, error: 'invalid' }, 400)
       const source = {
         ...(typeof bodySourceUrl === 'string' && bodySourceUrl
           ? { url: bodySourceUrl }

@@ -290,6 +290,67 @@ describe('htmlToPlainText', () => {
       htmlToPlainText('<p><a href="https://x/y"><strong>Click</strong></a></p>')
     ).toBe('Click (https://x/y)')
   })
+
+  // The other side of that decision: the label run is BOUNDED (`{0,4000}?`), so past the bound an
+  // anchor stops being recognised as one — its text survives, its URL does not. Asserted so the
+  // concession is pinned rather than discovered. No shipped template comes near 4000 characters
+  // of label.
+  it('drops the URL of a link whose label exceeds the label bound', () => {
+    const out = htmlToPlainText(
+      `<p><a href="https://x/y">${'L'.repeat(4001)}</a></p>`
+    )
+    expect(out).toBe('L'.repeat(4001))
+    expect(out).not.toContain('https://x/y')
+  })
+
+  // #941 replaced two lazy regex spans with hand-written forward walks. These two blocks are the
+  // OUTPUT half of that change — the timing tests below are the bound half, and neither implies
+  // the other. They were written because nothing in the suite exercised them: no input anywhere
+  // contained an HTML comment, so changing stripComments' `close + 3` to `close + 2` (turning
+  // `a<!--b-->c` into `a>c`) passed all 1439 core tests. Every expectation here was taken from the
+  // pre-#941 implementation, so they assert equivalence rather than intent.
+  describe('removes comment spans exactly as the pattern it replaced did', () => {
+    it.each([
+      ['a plain comment', '<p>keep<!-- secret -->this</p>', 'keepthis'],
+      // Lazy: the FIRST `-->` closes, so an inner `<!--` is just text inside the span.
+      ['a nested opener', '<p>a<!--b<!--c-->d</p>', 'ad'],
+      // Unterminated: left alone, exactly as the non-matching regex left it.
+      ['an unterminated comment', '<p>a<!--b</p>', 'a<!--b'],
+      ['an empty comment', '<!---->', ''],
+      // `<!-->` is NOT a comment (no closing `-->`); it falls through to the tag strip.
+      ['the <!--> shape', '<p>x<!-->y</p>', 'xy'],
+      [
+        'consecutive comments',
+        '<p>one<!--c1-->two<!--c2-->three</p>',
+        'onetwothree'
+      ]
+    ])('%s', (_name, input, expected) => {
+      expect(htmlToPlainText(input)).toBe(expected)
+    })
+  })
+
+  describe('removes script and style spans exactly as the pattern it replaced did', () => {
+    it.each([
+      ['a script span', '<script>a()</script>b', 'b'],
+      [
+        'a style span, case-insensitively',
+        '<STYLE>p{color:red}</STYLE>keep',
+        'keep'
+      ],
+      // The tag-name backreference: `<script>` is not closed by `</style>`, so neither is a span
+      // and both are stripped as bare tags.
+      ['a mismatched closer', '<p><script>a</style>b</p>', 'ab'],
+      // An unclosed <script> must not swallow the well-formed <style> span that follows it.
+      [
+        'an unclosed script before a closed style',
+        '<p><script>x<style>y</style>z</p>',
+        'xz'
+      ],
+      ['a closer in a different case', '<script>a</SCRIPT>b', 'b']
+    ])('%s', (_name, input, expected) => {
+      expect(htmlToPlainText(input)).toBe(expected)
+    })
+  })
 })
 
 /**
@@ -300,11 +361,17 @@ describe('htmlToPlainText', () => {
  * template cap does NOT bound its input: the input is the RENDERED body, which carries visitor
  * field content and grows again when that content is HTML-escaped.
  *
- * Two bounds, both needed. The ceiling caps the input; the tag patterns cap the work per byte.
- * The cost was never really in the anchor LABEL scan — measured on this machine at the 100 KB
- * ceiling, every `[^>]`-style attribute run was worth four orders of magnitude more than the
- * label: `'<a href="x'` repeated to 100 KB took ~22 MINUTES with the old patterns (it scales
- * cubically: 2.7 ms at 1 KB, 90 ms at 4 KB, 5.4 s at 16 KB) and takes ~1 ms now.
+ * Four bounds, all needed, each measured at the 100 KB ceiling on this machine:
+ *
+ * - the input CEILING itself;
+ * - every tag-internal run tightened from `[^>]` to `[^<>]`. This was by far the largest term:
+ *   `'<a href="x'` repeated to 100 KB took ~22 MINUTES with the old patterns, scaling cubically
+ *   (2.7 ms at 1 KB, 90 ms at 4 KB, 5.4 s at 16 KB), and takes ~1 ms now;
+ * - the two lazy SPAN scans (`<!-- … -->`, `<script|style> … </>`) replaced by forward `indexOf`
+ *   walks: ~470 ms -> ~1 ms and ~100 ms -> ~2 ms respectively on 100 KB of unclosed openers;
+ * - the anchor LABEL run bounded to `{0,4000}?`. It was not the dominant cost the issue took it
+ *   for, but it was the second-largest term left once the attribute runs were fixed, and it is
+ *   the O(unclosed anchors x input) shape #941 actually named.
  */
 describe('htmlToPlainText is bounded (#941)', () => {
   it('truncates input past the hard ceiling', () => {
@@ -320,12 +387,12 @@ describe('htmlToPlainText is bounded (#941)', () => {
   // first input alone blows past this bound — with the pre-#941 patterns it took ~3.9 s, and the
   // unterminated-quote input ~5.4 s at the 16 KB used here.
   //
-  // Deliberately a BOUND, not a curve: this whole corpus measures ~175 ms, so 3 s leaves ~17x of
-  // headroom and cannot flake on a loaded CI runner, while still failing loudly the moment a
-  // superlinear pattern comes back. (The ~175 ms is almost entirely the two unclosed-<script>
-  // inputs: that lazy span scan is still O(unclosed tags x input), bounded only by the ceiling.
-  // It was left alone because at the ceiling its worst case is ~160 ms, ~5x smaller than the
-  // comment scan that WAS restructured, for several times the code.)
+  // Deliberately a BOUND, not a curve: the whole corpus measures 56-71 ms in this suite, so 3 s
+  // leaves more than an order of magnitude of headroom and cannot flake on a loaded CI runner,
+  // while still failing loudly the moment a superlinear pattern comes back. The largest single
+  // contributor is now the stray-`</a>` input at ~56 ms — that is the bounded label run doing
+  // its 4000 steps per unclosed anchor, which is the cost the bound trades for keeping
+  // inline-markup labels resolvable. Every other input is under 10 ms.
   it('finishes pathological markup inside a generous wall-clock bound', () => {
     const pad = (s: string, n = HTML_TO_TEXT_MAX_INPUT): string =>
       s.length >= n ? s.slice(0, n) : s + 'y'.repeat(n - s.length)
@@ -349,14 +416,21 @@ describe('htmlToPlainText is bounded (#941)', () => {
     expect(Date.now() - started).toBeLessThan(3000)
   })
 
-  // KILL-SHOT TARGET for the comment scan specifically. Put `/<!--[\s\S]*?-->/g` back in place of
-  // stripComments and this input goes from ~1 ms to ~360 ms (~850 ms outside the suite). It needs
-  // its own assertion because the corpus bound above is wide enough to absorb that regression on
-  // its own — a bound generous enough not to flake is too generous to catch a several-fold
-  // regression in one of its steps.
+  // KILL-SHOT TARGET for the comment scan specifically: `/<!--[\s\S]*?-->/g` back in place of
+  // stripComments takes this input from ~1 ms to ~470 ms. It needs its own assertion because the
+  // corpus bound above is wide enough to absorb that regression on its own — a bound generous
+  // enough not to flake is too generous to catch a several-fold regression in one of its steps.
   it('drops unclosed comments in one pass, not one per comment', () => {
     const started = Date.now()
     htmlToPlainText('<!--'.repeat(HTML_TO_TEXT_MAX_INPUT / 4))
     expect(Date.now() - started).toBeLessThan(200)
+  })
+
+  // Same reasoning, same shape, for the other lazy span: the pattern takes this input to ~100 ms,
+  // the walk to ~2 ms.
+  it('drops unclosed script spans in one pass, not one per span', () => {
+    const started = Date.now()
+    htmlToPlainText('<script>'.repeat(HTML_TO_TEXT_MAX_INPUT / 8))
+    expect(Date.now() - started).toBeLessThan(50)
   })
 })

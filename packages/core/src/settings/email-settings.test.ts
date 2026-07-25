@@ -236,25 +236,37 @@ describe('settings — email.templates', () => {
     })
 
     // The entry cap must never reject an entry whose KNOWN fields are all legal — that is the
-    // whole reason it is not simply the sum of the field caps: JSON escaping can nearly double a
-    // body of quotes.
-    it('keeps an entry whose known fields all sit at their own caps', () => {
-      const { settings, warnings } = parseSettingsWithWarnings({
-        email: {
-          templates: {
-            'password-reset': {
-              subject: '"'.repeat(EMAIL_TEMPLATE_MAX_SUBJECT),
-              html: '"'.repeat(EMAIL_TEMPLATE_MAX_BODY),
-              text: '"'.repeat(EMAIL_TEMPLATE_MAX_BODY)
+    // whole reason it is not simply the sum of the field caps. The rows are the escaping regimes
+    // `JSON.stringify` applies: 2x for quotes/backslashes/newlines, and 6x (`\u00XX`) for C0
+    // control characters and lone surrogates, which is the case that makes a maximal legal entry
+    // serialize to 241,834 characters. The cap started at 100,000 and would have rejected the
+    // last two rows, so "can never reject a legal entry" was false as written.
+    it.each([
+      ['quotes', '"'],
+      ['backslashes', '\\'],
+      ['newlines', '\n'],
+      ['C0 control characters', '\u0001'],
+      ['lone surrogates', '\uD800']
+    ])(
+      'keeps an entry of %s whose known fields all sit at their own caps',
+      (_name, ch) => {
+        const { settings, warnings } = parseSettingsWithWarnings({
+          email: {
+            templates: {
+              'password-reset': {
+                subject: ch.repeat(EMAIL_TEMPLATE_MAX_SUBJECT),
+                html: ch.repeat(EMAIL_TEMPLATE_MAX_BODY),
+                text: ch.repeat(EMAIL_TEMPLATE_MAX_BODY)
+              }
             }
           }
-        }
-      })
-      expect(settings.email.templates['password-reset']?.html).toHaveLength(
-        EMAIL_TEMPLATE_MAX_BODY
-      )
-      expect(warnings).toEqual([])
-    })
+        })
+        expect(settings.email.templates['password-reset']?.html).toHaveLength(
+          EMAIL_TEMPLATE_MAX_BODY
+        )
+        expect(warnings).toEqual([])
+      }
+    )
 
     // KILL-SHOT TARGET. Drop the entry-count bound and all 300 survive.
     it('bounds the number of entries, with a warning', () => {

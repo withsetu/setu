@@ -315,7 +315,8 @@ export {
 export { runQuery } from './index-port/run-query'
 export {
   selectDistinctTags,
-  selectDistinctLocales
+  selectDistinctLocales,
+  tagMatchesPrefix
 } from './index-port/distinct-tags'
 export { selectCategoryCounts } from './index-port/category-counts'
 export { selectTagCounts } from './index-port/tag-counts'

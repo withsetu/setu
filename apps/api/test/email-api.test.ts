@@ -182,7 +182,8 @@ describe('resetRestartRequired', () => {
     resetWiredAtBoot: false,
     authConfigured: true,
     adminOriginPresent: true,
-    liveFrom: 'owner@example.com'
+    liveFrom: 'owner@example.com',
+    liveTransportReal: true
   }
 
   it('true when reset was not wired at boot but a from-address now exists (auth + admin origin present)', () => {
@@ -197,6 +198,14 @@ describe('resetRestartRequired', () => {
 
   it('false when there is still no live from-address (a restart would change nothing)', () => {
     expect(resetRestartRequired({ ...live, liveFrom: null })).toBe(false)
+  })
+
+  it('false while the effective transport is still the console adapter (#894)', () => {
+    // Reset is gated on a transport that can deliver, so a restart would NOT turn it on — the
+    // Settings → Email screen must not promise one.
+    expect(resetRestartRequired({ ...live, liveTransportReal: false })).toBe(
+      false
+    )
   })
 
   it('false when auth or the admin origin is missing (a restart alone would not enable reset)', () => {

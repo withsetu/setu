@@ -16,12 +16,22 @@ const migrationsFolder = join(
 type Row = typeof submissions.$inferSelect
 
 const rowToSubmission = (r: Row): Submission => {
+  // Absence is `null` (the column default), not falsiness (#897): testing these
+  // for truthiness dropped an empty-string `referrer`, which is the NORMAL value
+  // for a direct visit, so db-memory kept a field db-sqlite silently lost. The one
+  // case the columns genuinely cannot represent is a source object whose every
+  // field is absent — it reads back as no source at all.
+  // Enforced by the source round-trip case in packages/db-testing/src/index.ts.
   const source =
-    r.sourceUrl || r.sourceReferrer || r.sourceUserAgent
+    r.sourceUrl !== null ||
+    r.sourceReferrer !== null ||
+    r.sourceUserAgent !== null
       ? {
-          ...(r.sourceUrl ? { url: r.sourceUrl } : {}),
-          ...(r.sourceReferrer ? { referrer: r.sourceReferrer } : {}),
-          ...(r.sourceUserAgent ? { userAgent: r.sourceUserAgent } : {})
+          ...(r.sourceUrl !== null ? { url: r.sourceUrl } : {}),
+          ...(r.sourceReferrer !== null ? { referrer: r.sourceReferrer } : {}),
+          ...(r.sourceUserAgent !== null
+            ? { userAgent: r.sourceUserAgent }
+            : {})
         }
       : undefined
   return {
@@ -97,7 +107,18 @@ export function createSqliteSubmissionPort(file: string): SubmissionPort {
         .where(where)
         .orderBy(desc(submissions.createdAt), desc(submissions.id))
         .$dynamic()
+      // SubmissionFilter marks limit and offset independently optional, and
+      // db-memory honours offset alone by defaulting limit to the row count
+      // (submission-port.ts's `limit = all.length`). SQLite rejects a bare OFFSET,
+      // so an offset-only filter threw a syntax error here (#897). `total` is that
+      // same row count under the same `where`, so it caps nothing and reproduces
+      // db-memory's default exactly. SQLite's own "no limit" spelling, LIMIT -1,
+      // is NOT usable: drizzle drops a negative numeric limit from the generated
+      // query (putting the bare OFFSET straight back) and its `.limit()` signature
+      // rejects an `sql` fragment.
+      // Enforced by the offset-without-limit case in packages/db-testing/src/index.ts.
       if (filter?.limit !== undefined) qy = qy.limit(filter.limit)
+      else if (filter?.offset !== undefined) qy = qy.limit(total)
       if (filter?.offset !== undefined) qy = qy.offset(filter.offset)
       return { rows: qy.all().map(rowToSubmission), total }
     },

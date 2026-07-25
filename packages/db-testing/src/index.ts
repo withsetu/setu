@@ -747,6 +747,95 @@ export function runMediaIndexPortContract(
       expect(r.total).toBe(3)
       expect(r.rows.map((x) => x.mediaKey)).toEqual(['b', 'c'])
     })
+
+    // #897: the cases above use three distinct uploadedAt values, so the sort was
+    // never asked what to do with a tie and fell through to each adapter's storage
+    // order — sqlite rowid, Map insertion order, IDB ascending key — giving three
+    // different page 1s for the same data. Ties are routine here: seeded media
+    // stamps uploadedAt from one clock, and Name/Largest tie whenever two files
+    // share a filename or a size. runQuery already carries the same fix (#661).
+    it('breaks ties on mediaKey so paging is a total order', async () => {
+      await ix.upsertMany([
+        mrow({ mediaKey: 'zeta', uploadedAt: 5 }),
+        mrow({ mediaKey: 'alpha', uploadedAt: 5 }),
+        mrow({ mediaKey: 'mid', uploadedAt: 5 })
+      ])
+      const page1 = await ix.query({ offset: 0, limit: 2 })
+      const page2 = await ix.query({ offset: 2, limit: 2 })
+      expect(page1.rows.map((x) => x.mediaKey)).toEqual(['alpha', 'mid'])
+      expect(page2.rows.map((x) => x.mediaKey)).toEqual(['zeta'])
+
+      // The tiebreak stays ascending under a descending sort, so the two pages
+      // still partition the set — no row on both pages, none missing.
+      const asc = await ix.query({
+        offset: 0,
+        limit: 3,
+        sort: { key: 'uploadedAt', dir: 'asc' }
+      })
+      expect(asc.rows.map((x) => x.mediaKey)).toEqual(['alpha', 'mid', 'zeta'])
+
+      // A remove+upsert is what an incremental media reindex does; it moved the
+      // page boundary before the tiebreak existed.
+      await ix.remove('zeta')
+      await ix.upsert(mrow({ mediaKey: 'zeta', uploadedAt: 5 }))
+      const after = await ix.query({ offset: 0, limit: 2 })
+      expect(after.rows.map((x) => x.mediaKey)).toEqual(['alpha', 'mid'])
+    })
+
+    it('sorts by filename and by bytes, in both directions', async () => {
+      await ix.upsertMany([
+        mrow({ mediaKey: 'a', filename: 'Banana.jpg', bytes: 30 }),
+        mrow({ mediaKey: 'b', filename: 'apple.jpg', bytes: 10 }),
+        mrow({ mediaKey: 'c', filename: 'Cherry.jpg', bytes: 20 })
+      ])
+      const byName = await ix.query({
+        offset: 0,
+        limit: 10,
+        sort: { key: 'filename', dir: 'asc' }
+      })
+      // Case-insensitive: filenameLower is what orders, so 'apple' leads.
+      expect(byName.rows.map((x) => x.filename)).toEqual([
+        'apple.jpg',
+        'Banana.jpg',
+        'Cherry.jpg'
+      ])
+      const byNameDesc = await ix.query({
+        offset: 0,
+        limit: 10,
+        sort: { key: 'filename', dir: 'desc' }
+      })
+      expect(byNameDesc.rows.map((x) => x.filename)).toEqual([
+        'Cherry.jpg',
+        'Banana.jpg',
+        'apple.jpg'
+      ])
+      const biggest = await ix.query({
+        offset: 0,
+        limit: 10,
+        sort: { key: 'bytes', dir: 'desc' }
+      })
+      expect(biggest.rows.map((x) => x.bytes)).toEqual([30, 20, 10])
+      const smallest = await ix.query({
+        offset: 0,
+        limit: 10,
+        sort: { key: 'bytes', dir: 'asc' }
+      })
+      expect(smallest.rows.map((x) => x.bytes)).toEqual([10, 20, 30])
+    })
+
+    it('breaks ties on mediaKey for filename and bytes sorts too', async () => {
+      await ix.upsertMany([
+        mrow({ mediaKey: '2026/07/dup', filename: 'dup.jpg', bytes: 10 }),
+        mrow({ mediaKey: '2026/06/dup', filename: 'dup.jpg', bytes: 10 })
+      ])
+      for (const key of ['filename', 'bytes'] as const)
+        for (const dir of ['asc', 'desc'] as const)
+          expect(
+            (
+              await ix.query({ offset: 0, limit: 10, sort: { key, dir } })
+            ).rows.map((x) => x.mediaKey)
+          ).toEqual(['2026/06/dup', '2026/07/dup'])
+    })
     it('filters by media kind (image vs document)', async () => {
       await ix.upsertMany([
         mrow({ mediaKey: 'img', contentType: 'image/png' }),
@@ -875,6 +964,69 @@ export function runSubmissionPortContract(
       const page = await db.listSubmissions({ limit: 2, offset: 2 })
       expect(page.total).toBe(5)
       expect(page.rows).toHaveLength(2)
+    })
+
+    // #897: SubmissionFilter marks limit and offset independently optional, but
+    // every case above passes them together — so nothing caught db-sqlite emitting
+    // a bare OFFSET (a SQLite syntax error) where db-memory skipped and returned
+    // the rest.
+    it('accepts offset without limit, and limit without offset', async () => {
+      for (let i = 0; i < 3; i++)
+        await db.saveSubmission(
+          input({ fields: { email: `u${i}@x.com`, message: `m${i}` } })
+        )
+      const skipped = await db.listSubmissions({ offset: 1 })
+      expect(skipped.total).toBe(3)
+      expect(skipped.rows).toHaveLength(2)
+
+      const capped = await db.listSubmissions({ limit: 1 })
+      expect(capped.total).toBe(3)
+      expect(capped.rows).toHaveLength(1)
+
+      // Consistent with the paged view: offset-only is the same list minus the head.
+      const all = await db.listSubmissions()
+      expect(skipped.rows.map((r) => r.id)).toEqual(
+        all.rows.slice(1).map((r) => r.id)
+      )
+      expect(await db.listSubmissions({ offset: 99 })).toEqual({
+        rows: [],
+        total: 3
+      })
+    })
+
+    // #897: the suite never set `source` at all, so nothing caught db-sqlite
+    // testing it for truthiness — an empty `referrer`, which is the NORMAL value
+    // for a direct visit, was stored and then dropped on read while db-memory kept
+    // it. Adapters that cannot distinguish an absent source from a present-but-
+    // wholly-empty one are not exercised on that degenerate case (sqlite stores
+    // three nullable columns and no "source present" flag); every case here has at
+    // least one field with a value.
+    it('round-trips source fields, including empty strings', async () => {
+      const saved = await db.saveSubmission(
+        input({
+          source: { url: 'https://a/b', referrer: '', userAgent: 'UA' }
+        })
+      )
+      expect(saved.source).toEqual({
+        url: 'https://a/b',
+        referrer: '',
+        userAgent: 'UA'
+      })
+      expect((await db.getSubmission(saved.id))!.source).toEqual({
+        url: 'https://a/b',
+        referrer: '',
+        userAgent: 'UA'
+      })
+
+      // A partially-specified source keeps exactly the keys it was given.
+      const partial = await db.saveSubmission(
+        input({ source: { referrer: 'https://ref' } })
+      )
+      expect(partial.source).toEqual({ referrer: 'https://ref' })
+
+      // No source at all stays absent.
+      const none = await db.saveSubmission(input())
+      expect(none.source).toBeUndefined()
     })
 
     it('setRead is idempotent and ignores unknown ids', async () => {

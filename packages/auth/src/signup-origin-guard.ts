@@ -55,9 +55,12 @@ import type { GenericEndpointContext } from '@better-auth/core'
  *   - `/local/exchange` — the local-topology handshake (`local-token-plugin.ts:88`). Its handler
  *     calls `opts.localUserId()`, which is wired to `ensureLocalOwner` (`apps/api/src/local-
  *     token.ts:86`) → `internalAdapter.createUser` (`ensure-local-owner.ts:52`), so this path DOES
- *     run with a request context and is a genuine creator. The route is already gated on a
- *     single-use filesystem handshake token plus a loopback Host check — the desktop app proving
- *     it is the local user. This entry was missing from the first draft of the allowlist and
+ *     run with a request context and is a genuine creator. The route is gated on a single-use
+ *     filesystem handshake token — reading that token requires local filesystem access, which is
+ *     the thing that actually establishes the caller is the local user — plus a loopback `Host`
+ *     check as defence in depth. `Host` is client-supplied and proves nothing on its own (a remote
+ *     attacker sends `Host: localhost`); #898 corrected this comment for presenting the pair as
+ *     joint proof of locality. This entry was missing from the first draft of the allowlist and
  *     `local-token-exchange.test.ts` failed loudly (403 where 200 was expected), which is the
  *     allowlist behaving exactly as intended: fail closed, and make the omission impossible to
  *     miss.

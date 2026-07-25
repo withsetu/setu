@@ -55,7 +55,10 @@ export interface LocalTokenOptions {
  *   1. `getToken()` non-null, else 404 — the endpoint "doesn't exist" outside local topology.
  *   2. Request body `token` matches the CURRENT `getToken()` via constant-time comparison, else
  *      401 — and a replay of the last-consumed token is 401 too (see below).
- *   3. `Host` header is a loopback host, else 403.
+ *   3. `Host` header is a loopback host, else 403. Defence in depth ONLY: `Host` is
+ *      client-supplied, so a remote attacker sends `Host: localhost` and passes it. What actually
+ *      establishes locality is guard 2 — the 32-byte token, readable only with local filesystem
+ *      access. #898 corrected the comments that presented this check as proof of locality.
  *   4. `consume()` — single-use, called before session creation so a subsequent session-creation
  *      failure still burns the token.
  *

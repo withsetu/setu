@@ -1,0 +1,95 @@
+import type { EmailPort } from '@setu/core'
+import type { UsableEmailTransport } from './capabilities'
+
+export interface ResetEmailPreconditions {
+  /** The resolved from-address, or undefined when none is configured. */
+  from: string | undefined
+  /** The admin SPA origin the reset link points at, or undefined outside local mode with
+   *  SETU_ADMIN_ORIGIN unset. */
+  adminOrigin: string | undefined
+  /** The adapter that would ACTUALLY send — `usableEmailTransport(...).effective`, not the
+   *  selection. A selection whose secret is missing degrades to 'console' here, which is the
+   *  whole point: the selection can say "resend" while the sender is the console adapter. */
+  effectiveTransport: UsableEmailTransport['effective']
+}
+
+/**
+ * Whether password-reset emails may be wired at all (#894).
+ *
+ * Before this, the reset gate was `notifyFrom && adminOrigin` while transport selection keyed on
+ * the transport being USABLE — two predicates over different inputs. With a from-address and an
+ * admin origin set but no usable provider (the default, and any misconfigured resend/smtp), reset
+ * was ENABLED and its transport was the console adapter, which logs the message body — i.e. the
+ * reset URL, token in the path, into stdout.
+ *
+ * The third condition is `effectiveTransport !== 'console'`, deliberately NOT
+ * `emailCapability.deliverable`: `deliverable` folds the from-address back in, and this predicate
+ * already takes `from` explicitly from the caller's own live reading (server.ts's `liveFrom`),
+ * so reusing it would mean two different readings of the same fact inside one condition. The
+ * transport half is the only part `deliverable` adds, and it is exactly what is asked for here.
+ *
+ * This also puts the SERVER gate where the admin UI's already is: the forgot-password card keys
+ * on /api/capabilities' `email.deliverable`, so a console-effective instance was already telling
+ * users "password reset isn't configured for this site" while the API happily served the request
+ * (CLAUDE.md §4 #13, the UI-only gate).
+ *
+ * Local topology is NOT exempt. Console is the intended transport there, but stdout is still a
+ * file for anyone running the app as a background service, and the local topology has both the
+ * loopback handshake and `apps/api/src/scripts/reset-password.ts` as owner-recovery paths that
+ * need no email at all. Branches pinned by apps/api/test/reset-email-gate.test.ts.
+ */
+export function resetEmailEnabled(p: ResetEmailPreconditions): boolean {
+  return (
+    Boolean(p.from) &&
+    Boolean(p.adminOrigin) &&
+    p.effectiveTransport !== 'console'
+  )
+}
+
+/**
+ * The reset-email sender: re-checks `resetEmailEnabled` against the LIVE transport and
+ * from-address on every send, and refuses rather than hand a credential-bearing message to a
+ * transport that cannot deliver it.
+ *
+ * The boot gate alone is not enough. Since #890 the provider is re-resolved per send from
+ * settings.json, which is Git-canonical — so an instance that booted with a usable provider can
+ * be switched to console by a `git push` that never passes the settings-write gate, and the
+ * boot-time `email:` option would keep sending into it.
+ *
+ * Refusing means resolving without sending, not throwing: better-auth's request-password-reset
+ * answers a uniform `{ status: true }` whether or not the account exists (and swallows
+ * sendResetPassword errors anyway), so a throw would change nothing the caller can see while
+ * losing our named reason. `onRefused` is what makes the failure reported rather than silent
+ * (CLAUDE.md §3.2) — server.ts points it at console.error. Pinned by
+ * apps/api/test/reset-email-gate.test.ts.
+ */
+export function createResetEmailSender(opts: {
+  /** The live transport's send (server.ts's `email.send`). */
+  send: EmailPort['send']
+  resolveTransport: () => UsableEmailTransport['effective']
+  /** Live from-address; wins over the message's boot-time `from` when present (#498). */
+  resolveFrom: () => string | undefined
+  adminOrigin: string | undefined
+  onRefused: (reason: string) => void
+}): EmailPort['send'] {
+  return async (msg) => {
+    const effectiveTransport = opts.resolveTransport()
+    const from = opts.resolveFrom() ?? msg.from
+    if (
+      !resetEmailEnabled({
+        from,
+        adminOrigin: opts.adminOrigin,
+        effectiveTransport
+      })
+    ) {
+      opts.onRefused(
+        effectiveTransport === 'console'
+          ? 'the effective email transport is the console adapter, which writes messages to this ' +
+              'server log instead of delivering them — a reset link must never be logged'
+          : 'no from-address or admin origin is configured'
+      )
+      return
+    }
+    await opts.send({ ...msg, from })
+  }
+}

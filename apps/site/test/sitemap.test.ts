@@ -10,8 +10,11 @@ import {
   urlSitemapXml,
   newestLastmod,
   buildRobotsTxt,
+  encodeTaxonomySlug,
+  chunkSitemapUrls,
   type SitemapEntry,
-  type SitemapConfig
+  type SitemapConfig,
+  type SitemapUrl
 } from '../src/lib/sitemap'
 
 const e = (id: string, data: Record<string, unknown> = {}): SitemapEntry => ({
@@ -74,6 +77,47 @@ describe('taxonomyUrls', () => {
     expect(taxonomyUrls(['astro'], 'tag', SITE)[0].loc).toBe(
       'https://example.com/tag/astro/'
     )
+  })
+
+  it('encodes a special-char slug the SAME way as the /tag route + the theme chip (#860 BLOCK-4)', () => {
+    // Astro's static-route generator encodes `#`→%23 and `?`→%3F (generator.js `sanitizeParams`),
+    // and packages/theme-default/TaxonomyChips.astro uses the identical transform. A `#`-tag
+    // otherwise truncates at the fragment (`/tag/c#4` → `/tag/c`).
+    expect(encodeTaxonomySlug('c#4')).toBe('c%234')
+    expect(encodeTaxonomySlug('a?b')).toBe('a%3Fb')
+    expect(taxonomyUrls(['c#4'], 'tag', SITE)[0].loc).toBe(
+      'https://example.com/tag/c%234/'
+    )
+    // The loc segment is exactly the route param encoding + trailing slash, byte-for-byte.
+    expect(taxonomyUrls(['c#4'], 'tag', SITE)[0].loc).toBe(
+      `https://example.com/tag/${encodeTaxonomySlug('c#4')}/`
+    )
+  })
+})
+
+describe('chunkSitemapUrls (#859 SITE-03)', () => {
+  const u = (n: number): SitemapUrl[] =>
+    Array.from({ length: n }, (_, i) => ({
+      loc: `https://example.com/post/p${i}/`
+    }))
+
+  it('splits at the threshold, keeps every shard within the cap, loses no URL', () => {
+    const chunks = chunkSitemapUrls(u(5), 2)
+    expect(chunks.map((c) => c.length)).toEqual([2, 2, 1])
+    expect(chunks.every((c) => c.length <= 2)).toBe(true)
+    expect(chunks.flat()).toHaveLength(5)
+    // The sitemap index lists one <loc> per shard → N here.
+    expect(chunks).toHaveLength(3)
+  })
+
+  it('a list at or under the cap is a single shard; empty is no shards', () => {
+    expect(chunkSitemapUrls(u(2), 2)).toHaveLength(1)
+    expect(chunkSitemapUrls([], 2)).toEqual([])
+  })
+
+  it('defaults to the 50,000-URL protocol cap and rejects a non-positive size', () => {
+    expect(chunkSitemapUrls(u(3))).toHaveLength(1) // 3 ≤ 50,000
+    expect(() => chunkSitemapUrls(u(3), 0)).toThrow(RangeError)
   })
 })
 

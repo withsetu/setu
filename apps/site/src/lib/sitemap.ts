@@ -59,6 +59,47 @@ const xmlEscape = (s: string): string =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
 
+/** THE single trailing-slash normalizer (#860 SEO-1). Astro serves `build.format: 'directory'`
+ *  (the unset default), so every page is emitted as `<path>/index.html` and served at `<path>/`.
+ *  Canonical + hreflang (apps/site/src/lib/seo.ts) and the sitemap `<loc>` (this file) all route
+ *  through this so they advertise ONE spelling per entry instead of three (`/about` vs `/about/`),
+ *  which otherwise splits the canonical/translation-cluster signal. Takes an absolute href; the
+ *  root `/` is preserved. Enforced by apps/site/test/url-consistency.test.ts +
+ *  apps/site/test/seo-head.test.ts (the built canonical). */
+export const withTrailingSlash = (href: string): string => {
+  const u = new URL(href)
+  if (!u.pathname.endsWith('/')) u.pathname += '/'
+  return u.href
+}
+
+/** Encode a taxonomy slug into a single URL path segment EXACTLY as Astro's static-route generator
+ *  does — `astro/dist/core/routing/generator.js` `sanitizeParams`: Unicode-normalize, then `#`→`%23`
+ *  and `?`→`%3F` (nothing else). Deliberately NOT `encodeURIComponent`, which additionally escapes
+ *  `/`, space, etc. and would diverge from the served `/category|/tag` route path. Matching Astro's
+ *  own rule keeps the sitemap `<loc>`, the chip href (packages/theme-default/TaxonomyChips.astro),
+ *  and the route path byte-identical for a special-char tag (#860 BLOCK-4). Enforced by
+ *  apps/site/test/sitemap.test.ts + apps/site/test/url-consistency.test.ts. */
+export const encodeTaxonomySlug = (slug: string): string =>
+  slug.normalize().replace(/#/g, '%23').replace(/\?/g, '%3F')
+
+/** The sitemaps.org per-file URL cap (#859 SITE-03). A single `<urlset>` past this is rejected by
+ *  search engines, so the post sitemap shards at this bound. Size (50 MiB) headroom lives in the
+ *  gap between a typical URL entry and the count bound. */
+export const POST_SITEMAP_MAX = 50_000
+
+/** Shard a URL list into `≤max`-sized chunks for the 50,000-URL sitemap protocol cap (#859). An
+ *  empty list yields no shards (the index then lists no post section). Enforced by
+ *  apps/site/test/sitemap.test.ts. */
+export function chunkSitemapUrls(
+  urls: SitemapUrl[],
+  max: number = POST_SITEMAP_MAX
+): SitemapUrl[][] {
+  if (max < 1) throw new RangeError('sitemap chunk size must be >= 1')
+  const chunks: SitemapUrl[][] = []
+  for (let i = 0; i < urls.length; i += max) chunks.push(urls.slice(i, i + max))
+  return chunks
+}
+
 const locBlock = (tag: 'url' | 'sitemap', item: SitemapUrl): string => {
   const images = (item.images ?? [])
     .map(
@@ -184,7 +225,7 @@ export function entryUrls(
     const images = entryImages(e, mediaBase, siteUrl)
     const videos = entryVideos(e, mediaBase, siteUrl)
     urls.push({
-      loc: `${base}/${path}/`,
+      loc: withTrailingSlash(`${base}/${path}`),
       lastmod: e.lastmod,
       ...(images.length ? { images } : {}),
       ...(videos.length ? { videos } : {})
@@ -200,7 +241,12 @@ export function taxonomyUrls(
   siteUrl: string
 ): SitemapUrl[] {
   const base = siteUrl.replace(/\/+$/, '')
-  return slugs.map((slug) => ({ loc: `${base}/${kind}/${slug}/` }))
+  // Plain-string interpolation (not `new URL`, which would additionally %-encode the segment):
+  // `encodeTaxonomySlug` mirrors Astro's route generator exactly, so the `<loc>` is byte-identical
+  // to the served /category|/tag path and the theme's chip href for a special-char slug (#860).
+  return slugs.map((slug) => ({
+    loc: `${base}/${kind}/${encodeTaxonomySlug(slug)}/`
+  }))
 }
 
 /** Newest lastmod across a set of URLs (for a sub-sitemap's `<lastmod>` in the index). */

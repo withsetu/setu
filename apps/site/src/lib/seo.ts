@@ -7,6 +7,7 @@ import {
   type ResolvedSeo
 } from '@setu/core'
 import { manifestKeyFromSrc, loadManifest } from '@setu/image-astro'
+import { withTrailingSlash } from './sitemap'
 
 export interface PageSeoInput {
   /** Page title (post/page title); empty → homepage (site name only). */
@@ -45,27 +46,34 @@ const buildAlternates = (
   base: URL
 ): { hreflang: string; href: string }[] | undefined => {
   if (!variants || variants.length < 2) return undefined
+  // The page passes slash-less alternate paths (`/about`); the sitemap emits `/about/`. Route both
+  // through the SAME normalizer as the canonical so hreflang and the sitemap agree (#860 SEO-1).
   const links = variants.map((v) => ({
     hreflang: v.locale,
-    href: new URL(v.path, base).href
+    href: withTrailingSlash(new URL(v.path, base).href)
   }))
   const def = variants.find((v) => v.locale === DEFAULT_LOCALE) ?? variants[0]
-  links.push({ hreflang: 'x-default', href: new URL(def.path, base).href })
+  links.push({
+    hreflang: 'x-default',
+    href: withTrailingSlash(new URL(def.path, base).href)
+  })
   return links
 }
 
 /** Media-resolve a raw path (prepend the media base for root-relative `/media/…`) then absolutize
- *  it against the site origin. Returns undefined for an empty input. */
-const absMedia = (
+ *  it against the site origin. Returns undefined for an empty input. A protocol-relative `//host/…`
+ *  is already absolute (it resolves to the site's scheme) — it must NOT get the media-base prefix,
+ *  or a non-empty `mediaBase` corrupts the share image to the wrong origin (#861 SEO-4). Exported
+ *  for apps/site/test/seo-head-unit.test.ts. */
+export const absMedia = (
   raw: string,
   mediaBase: string,
   base: URL
 ): string | undefined => {
   if (!raw) return undefined
+  const isAbsolute = /^https?:\/\//i.test(raw) || raw.startsWith('//')
   const viaMedia =
-    !/^https?:\/\//i.test(raw) && raw.startsWith('/')
-      ? `${mediaBase}${raw}`
-      : raw
+    !isAbsolute && raw.startsWith('/') ? `${mediaBase}${raw}` : raw
   return new URL(viaMedia, base).href
 }
 
@@ -84,8 +92,12 @@ export function pageSeo(
 ): ResolvedSeo {
   // A prod build sets SETU_SITE_URL (→ Astro.site); the localhost fallback mirrors astro.config.
   const base = site ?? new URL('http://localhost:4321')
-  // A per-page canonical override (absolute or root-relative) wins; else derive from the path.
-  const canonical = new URL(page.canonical || pathname, base).href
+  // A per-page canonical override (absolute or root-relative) wins verbatim — an explicit author
+  // choice, kept exactly. The DERIVED canonical is normalized to the trailing-slash directory form
+  // Astro serves, so it agrees with the hreflang alternates and the sitemap `<loc>` (#860 SEO-1).
+  const canonical = page.canonical
+    ? new URL(page.canonical, base).href
+    : withTrailingSlash(new URL(pathname, base).href)
 
   const rawImage = page.imagePath || settings.identity.defaultImage || ''
   const image = absMedia(rawImage, mediaBase, base)

@@ -103,11 +103,44 @@ export interface RenderedEmail {
  * default at render time even if one somehow reaches it.
  *
  * The body cap is generous enough for a rich HTML email (roughly 20 KB, several times the
- * biggest template Setu ships) and small enough that no one can turn settings.json into a
- * payload store. The subject cap is well past the ~78-char line most clients truncate at.
+ * biggest template Setu ships). The subject cap is well past the ~78-char line most clients
+ * truncate at, and is re-applied to the RENDERED subject by {@link renderEmailTemplate} (#935),
+ * because a single token can expand a within-cap template without limit.
+ *
+ * "No one can turn settings.json into a payload store" needs all four caps, not just these two,
+ * and until #935 it was a claim with nothing behind it: a stored override is
+ * `.partial().passthrough()`, so a field this build does not know went through unmeasured, and
+ * nothing bounded the number of entries. `salvageEmailTemplates` in ../settings/schema.ts now
+ * measures the whole serialized entry against {@link EMAIL_TEMPLATE_MAX_ENTRY_BYTES} and caps the
+ * entry count at {@link EMAIL_TEMPLATE_MAX_ENTRIES}; both are pinned by
+ * packages/core/src/settings/email-settings.test.ts ("the whole entry is bounded (#935)").
  */
 export const EMAIL_TEMPLATE_MAX_BODY = 20_000
 export const EMAIL_TEMPLATE_MAX_SUBJECT = 300
+
+/**
+ * The serialized ceiling on ONE stored override, unknown fields included (#935).
+ *
+ * Chosen so it can never reject an entry whose known fields are all legal, which is what lets it
+ * be a flat number rather than a per-field sum: `JSON.stringify` doubles a body made entirely of
+ * quotes or newlines, so a maximal legal entry can serialize to about
+ * 2 x (2 x {@link EMAIL_TEMPLATE_MAX_BODY}) + 2 x {@link EMAIL_TEMPLATE_MAX_SUBJECT} plus key
+ * overhead — ~81 KB. 100 KB clears that with room to spare while still bounding what an unknown
+ * field can carry. Both directions are pinned by
+ * packages/core/src/settings/email-settings.test.ts ("keeps an entry whose known fields all sit
+ * at their own caps" / "drops an entry whose unknown fields blow the entry cap").
+ */
+export const EMAIL_TEMPLATE_MAX_ENTRY_BYTES = 100_000
+
+/**
+ * The ceiling on how many overrides `email.templates` may hold (#935).
+ *
+ * Core ships two types and a plugin adds a handful; 64 is far past any real installation and far
+ * below a useful payload store. Unknown ids are deliberately KEPT (a plugin may not be loaded
+ * yet), which is exactly why the COUNT needs its own bound — without one, "keep what you don't
+ * recognise" is an unbounded write primitive.
+ */
+export const EMAIL_TEMPLATE_MAX_ENTRIES = 64
 
 export const EMAIL_TYPE_PASSWORD_RESET = 'password-reset'
 export const EMAIL_TYPE_FORM_NOTIFICATION = 'form-notification'
@@ -217,11 +250,32 @@ export function renderTemplateField(
 }
 
 /**
+ * Truncate a RENDERED subject to the bound a stored template already obeys (#935).
+ *
+ * {@link EMAIL_TEMPLATE_MAX_SUBJECT} bounds the template STRING; a single token can still expand
+ * it without limit, and `New submission: {{form_label}}` fills that token straight from an
+ * unauthenticated request body. So the bound has to be re-applied to the bytes that go into the
+ * header: RFC 5322 caps a header LINE at 998 octets, and a relay that rejects the message takes
+ * the operator's notification with it.
+ *
+ * Applied here rather than at either call site because the admin's live preview and the server's
+ * send are the same function (see the preview-parity note at the top of this file) — a cap on one
+ * side only would make the preview a lie. The ellipsis is deliberate: an operator seeing a cut
+ * subject should be able to tell it was cut. Pinned by
+ * packages/core/test/email/email-registry.test.ts ("the rendered subject is capped (#935)").
+ */
+const capSubject = (s: string): string =>
+  s.length <= EMAIL_TEMPLATE_MAX_SUBJECT
+    ? s
+    : `${s.slice(0, EMAIL_TEMPLATE_MAX_SUBJECT - 1).trimEnd()}…`
+
+/**
  * Render one email: the admin's override where it is usable, the shipped default everywhere
  * else, with `{{token}}` substitution through the shared engine.
  *
- * - **subject** — text context, `singleLine`. A subject is a mail header, so CR/LF is stripped
- *   from both the template and every substituted value.
+ * - **subject** — text context, `singleLine`, then {@link capSubject}. A subject is a mail header,
+ *   so CR/LF is stripped from both the template and every substituted value, and the RESULT is
+ *   length-bounded — a token value can expand a within-cap template without limit (#935).
  * - **html** — html context: every value is escaped unless the type's vocabulary declares the
  *   token `rawHtml`.
  * - **text** — THREE arms, reported as {@link RenderedEmail.textSource}:
@@ -260,9 +314,10 @@ export function renderEmailTemplate(
   const shipped = (tpl: string, field: EmailTemplateField): string =>
     fillTemplate(tpl, values, fillOptionsFor(def, field))
 
-  const subject =
+  const subject = capSubject(
     rendered(o.subject, 'subject', EMAIL_TEMPLATE_MAX_SUBJECT) ??
-    shipped(def.defaultSubject, 'subject')
+      shipped(def.defaultSubject, 'subject')
+  )
   // The OVERRIDDEN html, once it has cleared both gates — null when there is no usable override,
   // which is also what decides the text part's arm below. An override that renders to nothing is
   // not a customization, so its text part must not be derived from those empty bytes either.

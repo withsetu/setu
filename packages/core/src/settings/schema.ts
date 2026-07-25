@@ -4,6 +4,8 @@ import type { SiteSettings } from './types'
 import { validatePermalinkPattern, SLUG_SEGMENT } from '../permalinks/pattern'
 import {
   EMAIL_TEMPLATE_MAX_BODY,
+  EMAIL_TEMPLATE_MAX_ENTRIES,
+  EMAIL_TEMPLATE_MAX_ENTRY_BYTES,
   EMAIL_TEMPLATE_MAX_SUBJECT,
   type EmailTemplateOverrides
 } from '../email/template-registry'
@@ -89,10 +91,13 @@ const emailSchema = groupObject({
   templates: z.unknown()
 })
 
-/** One stored override. Size-capped at the boundary because settings.json is Git-canonical —
- *  a template can arrive by `git push` without ever passing the api's settings-write gate. The
- *  same caps are re-checked at render time (renderEmailTemplate), so neither layer is the only
- *  defence; both halves are pinned by email-settings.test.ts + test/email/email-registry.test.ts. */
+/** One stored override's KNOWN fields. Size-capped at the boundary because settings.json is
+ *  Git-canonical — a template can arrive by `git push` without ever passing the api's
+ *  settings-write gate. The same caps are re-checked at render time (renderEmailTemplate), so
+ *  neither layer is the only defence; both halves are pinned by email-settings.test.ts +
+ *  test/email/email-registry.test.ts. Fields this build does NOT know pass through here (the
+ *  forward-compat convention) and are bounded by the whole-entry check in
+ *  {@link salvageEmailTemplates}, not by anything on this schema (#935). */
 const emailTemplateSchema = groupObject({
   subject: z.string().max(EMAIL_TEMPLATE_MAX_SUBJECT),
   html: z.string().max(EMAIL_TEMPLATE_MAX_BODY),
@@ -100,12 +105,11 @@ const emailTemplateSchema = groupObject({
 })
 
 /** Email type ids are slugs — core's own (`password-reset`) and any a plugin registers. This
- *  bounds the KEY's shape and length only; it is not a size bound on the entry, because
- *  `groupObject` is `.partial().passthrough()` (the repo-wide forward-compat convention), so
- *  fields inside an override that this build doesn't know are passed through unmeasured. What
- *  the key check buys is that every stored id is a plausible type id rather than arbitrary
- *  free-form text — pinned by src/settings/email-settings.test.ts ("drops an entry whose id is
- *  not a slug"). */
+ *  bounds the KEY's shape and length only: it says every stored id is a plausible type id rather
+ *  than arbitrary free-form text — pinned by src/settings/email-settings.test.ts ("drops an entry
+ *  whose id is not a slug"). The ENTRY's size is a separate bound, applied in
+ *  {@link salvageEmailTemplates}, because `groupObject` is `.partial().passthrough()` and the
+ *  field schemas below therefore measure only the three fields this build knows (#935). */
 const EMAIL_TYPE_ID = /^[a-z0-9][a-z0-9-]{0,63}$/
 
 type Rec = Record<string, unknown>
@@ -206,10 +210,34 @@ function salvagePatterns(
   return patterns
 }
 
-/** Validate `email.templates` entry-by-entry and field-by-field: a bad override drops only
- *  itself (or only its own bad field), leaving every other template — and the shipped default it
- *  falls back to — intact. Ids the running build doesn't know are KEPT: a plugin's type may not
- *  be loaded yet, and dropping its override would silently discard the admin's work. */
+/** Serialized length of one stored entry, or Infinity if it cannot be serialized at all (which
+ *  is then treated as over-cap, i.e. dropped — this parser never throws). */
+function serializedLength(value: unknown): number {
+  try {
+    return JSON.stringify(value)?.length ?? Infinity
+  } catch {
+    return Infinity
+  }
+}
+
+/**
+ * Validate `email.templates` entry-by-entry and field-by-field: a bad override drops only
+ * itself (or only its own bad field), leaving every other template — and the shipped default it
+ * falls back to — intact. Ids the running build doesn't know are KEPT: a plugin's type may not
+ * be loaded yet, and dropping its override would silently discard the admin's work.
+ *
+ * #935 adds the two bounds that the per-field caps structurally could not provide, because the
+ * arriving path is `git push` into a Git-canonical settings.json with no request-body cap in the
+ * way: the ENTRY COUNT, and the whole SERIALIZED entry.
+ *
+ * **Per-override passthrough is kept**, deliberately. The hole was never that unknown fields
+ * exist — it was that they were unmeasured, and measuring the serialized entry closes exactly
+ * that. Dropping passthrough instead would close it a second time while breaking the promise the
+ * convention exists for: an older admin round-tripping a file written by a newer build would
+ * silently delete that build's field. A size-capped leaf is precisely where forward-compat is
+ * cheap to keep, so it stays. Bounds pinned by
+ * packages/core/src/settings/email-settings.test.ts ("the whole entry is bounded (#935)").
+ */
 function salvageEmailTemplates(
   raw: unknown,
   warnings: string[]
@@ -220,7 +248,13 @@ function salvageEmailTemplates(
     warnings.push('email.templates: expected an object — ignored')
     return out
   }
-  for (const [id, value] of Object.entries(raw)) {
+  const entries = Object.entries(raw)
+  if (entries.length > EMAIL_TEMPLATE_MAX_ENTRIES)
+    warnings.push(
+      `email.templates: ${entries.length} entries exceeds the limit of ${EMAIL_TEMPLATE_MAX_ENTRIES} — ` +
+        'the rest were dropped, using the shipped defaults'
+    )
+  for (const [id, value] of entries.slice(0, EMAIL_TEMPLATE_MAX_ENTRIES)) {
     if (!EMAIL_TYPE_ID.test(id)) {
       warnings.push(
         `email.templates.${id}: not a valid email type id — dropped, using the shipped default`
@@ -230,6 +264,15 @@ function salvageEmailTemplates(
     if (!isPlainObject(value)) {
       warnings.push(
         `email.templates.${id}: expected an object — dropped, using the shipped default`
+      )
+      continue
+    }
+    // Measured BEFORE the per-field salvage, so the fields this build does not know are on the
+    // scale too — they are the half the field caps never saw.
+    if (serializedLength(value) > EMAIL_TEMPLATE_MAX_ENTRY_BYTES) {
+      warnings.push(
+        `email.templates.${id}: larger than ${EMAIL_TEMPLATE_MAX_ENTRY_BYTES} serialized characters — ` +
+          'dropped, using the shipped default'
       )
       continue
     }

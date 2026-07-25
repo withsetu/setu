@@ -27,6 +27,36 @@ const authz = createAuthz(DEFAULT_ROLES)
  *  unauthenticated, any-origin submit route (also bounds the ReDoS-prone email input, #340). */
 const FORM_SUBMIT_MAX_BYTES = 1 * 1024 * 1024
 
+/**
+ * #935 — per-VALUE caps on the unauthenticated submit route.
+ *
+ * `FORM_SUBMIT_MAX_BYTES` bounds the request; it bounds nothing inside it. Two values escape
+ * downstream in ways a whole-body cap cannot reach:
+ *
+ * - `formLabel` (and `formId`, its fallback) is what the shipped `New submission: {{form_label}}`
+ *   subject renders, i.e. an anonymous submitter chose the Subject line of a message the
+ *   operator's mail client shows as coming from the site's own from-address. Core now caps the
+ *   RENDERED subject too (`capSubject` in packages/core/src/email/template-registry.ts) — that is
+ *   the floor under every consumer; this is the boundary check that keeps the oversized value out
+ *   of the STORED submission in the first place.
+ * - each `fields` entry becomes a row in that email, so with only a 1 MiB whole-body cap a single
+ *   submission could carry ~500k rows.
+ *
+ * 200 characters is far past any real form id or label (the admin UI shows them in a column);
+ * 10,000 is far past a contact-form message and still well inside the body cap; 100 fields is far
+ * past any form a person fills in. Over-cap → 400 `invalid`, the same answer the route already
+ * gives every other malformed body, rather than a silent truncation that would store something
+ * the visitor did not send. Pinned by apps/api/test/forms.test.ts ("per-value caps on the public
+ * submit route (#935)").
+ *
+ * Deliberately NOT applied to the authenticated admin CRUD route below: the threat is the
+ * anonymous actor, and refusing a maintainer's re-import of a long legitimate submission would be
+ * a regression bought for nothing. That route keeps its own 1 MiB body cap.
+ */
+export const FORM_VALUE_MAX = 200
+export const FORM_FIELD_VALUE_MAX = 10_000
+export const FORM_FIELD_MAX_COUNT = 100
+
 /** Max bytes for an authenticated admin CRUD body (#629). These routes were the last unbounded
  *  `c.req.json()` calls in this factory: authentication narrows who can abuse them, it does not
  *  bound what they can send, so one session could still buffer an arbitrary body into memory.
@@ -101,6 +131,25 @@ const asRecord = (v: unknown): Record<string, unknown> | null =>
 
 const isStringArray = (v: unknown): v is string[] =>
   Array.isArray(v) && v.every((x) => typeof x === 'string')
+
+/** #935: true when every value in a public submission is within its cap. Non-string field values
+ *  are not measured here — they are coerced to '' below, so they carry nothing. */
+const withinValueCaps = (
+  formId: string,
+  formLabel: unknown,
+  fields: Record<string, unknown>
+): boolean => {
+  if (formId.length > FORM_VALUE_MAX) return false
+  if (typeof formLabel === 'string' && formLabel.length > FORM_VALUE_MAX)
+    return false
+  const entries = Object.entries(fields)
+  if (entries.length > FORM_FIELD_MAX_COUNT) return false
+  return entries.every(
+    ([k, v]) =>
+      k.length <= FORM_VALUE_MAX &&
+      (typeof v !== 'string' || v.length <= FORM_FIELD_VALUE_MAX)
+  )
+}
 
 /** Capability gate: 403 when the (already-authenticated) actor lacks `action`. Pairs with
  *  `authMiddleware` (which sets the actor / 401s), mirroring media.ts's inline `authz.can` check. */
@@ -237,6 +286,10 @@ export function createFormsApi(opts: {
         return c.json({ ok: false, error: 'invalid' }, 400)
       }
       const fields = asRecord(body['fields'])!
+      // #935: bound each VALUE, not just the whole body. Before the captcha call, so a refusal
+      // stays the cheapest thing this route can do (same reasoning as the rate limiter above).
+      if (!withinValueCaps(body['formId'], body['formLabel'], fields))
+        return c.json({ ok: false, error: 'invalid' }, 400)
       const bodySourceUrl = asRecord(body['source'])?.['url']
       const source = {
         ...(typeof bodySourceUrl === 'string' && bodySourceUrl

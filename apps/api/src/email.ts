@@ -48,19 +48,25 @@ export interface EmailStatus {
 
 /** True exactly when restarting the server would newly enable password-reset emails: reset was
  *  NOT wired at boot (no from-address existed then), and the live config now has everything the
- *  boot wiring needs (auth configured, an admin origin for the reset link, a from-address).
+ *  boot wiring needs (auth configured, an admin origin for the reset link, a from-address, and
+ *  — since #894 — an effective transport that is not the console adapter).
  *  Pinned by apps/api/test/email-api.test.ts ("resetRestartRequired" describe). */
 export function resetRestartRequired(opts: {
   resetWiredAtBoot: boolean
   authConfigured: boolean
   adminOriginPresent: boolean
   liveFrom: string | null
+  /** #894: `usableEmailTransport(...).effective !== 'console'` read LIVE. Reset is gated on a
+   *  transport that can actually deliver, so while the console adapter is effective a restart
+   *  would change nothing — promising one would be a lie on the Settings → Email screen. */
+  liveTransportReal: boolean
 }): boolean {
   return (
     !opts.resetWiredAtBoot &&
     opts.authConfigured &&
     opts.adminOriginPresent &&
-    opts.liveFrom !== null
+    opts.liveFrom !== null &&
+    opts.liveTransportReal
   )
 }
 

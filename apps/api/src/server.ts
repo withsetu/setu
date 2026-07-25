@@ -55,6 +55,7 @@ import {
 } from './deploy-wiring'
 import { createUsersApi } from './users'
 import { createEmailApi, resetRestartRequired } from './email'
+import { createResetEmailSender, resetEmailEnabled } from './reset-email-gate'
 import { createDemoApi } from './demo'
 import { resolveSessionActor } from './auth/resolve-session-actor'
 import type { ResolveActor } from './auth/resolve-actor'
@@ -221,8 +222,19 @@ const emailTransport = usableEmailTransport(
 // problem strings are boot-log-safe — apps/api/test/capabilities.test.ts).
 if (emailTransport.problem !== null) {
   console.error(
-    `[email] ${emailTransport.selected} transport selected but not usable: ${emailTransport.problem}. ` +
-      'Falling back to the console adapter — no mail will be sent.'
+    `[email] the ${emailTransport.selected} transport is selected but not usable: ${emailTransport.problem}.`
+  )
+}
+// #894: the console fallback is not a mail black hole — it WRITES every message to this process's
+// log. The old wording here ("no mail will be sent") was false in exactly the way that mattered,
+// and it fired only on the misconfigured branch, never on the plain default-console boot. Say what
+// actually happens, on every console-effective boot, and name the feature that is off as a result.
+if (emailTransport.effective === 'console') {
+  console.error(
+    '[email] no deliverable transport: messages are WRITTEN TO THIS LOG instead of being ' +
+      'delivered (the console adapter redacts credential-shaped URL parts — @setu/email-console). ' +
+      'Password reset is DISABLED. Pick a provider in Settings → Email, or set ' +
+      'SETU_EMAIL_ADAPTER=resend|smtp.'
   )
 }
 if (emailTransport.effective !== 'console' && !notifyFrom) {
@@ -231,6 +243,17 @@ if (emailTransport.effective !== 'console' && !notifyFrom) {
       'email stays disabled until one exists. Set it in Settings → Email or via SETU_FORMS_NOTIFY_FROM.'
   )
 }
+// #894: THE reset-enablement predicate, derived once and shared by createAuth's `email:` option,
+// the users-api injection and the /api/email/status thunk below — previously the same expression
+// was hand-mirrored in three places while transport selection used a different one entirely, so
+// "reset is on" and "the transport can deliver" could disagree. Branches (and the console case
+// that made a reset link land in stdout) are pinned by apps/api/test/reset-email-gate.test.ts;
+// the flow end-to-end by apps/api/test/reset-password-leak.test.ts.
+const resetWiredAtBoot = resetEmailEnabled({
+  from: notifyFrom,
+  adminOrigin,
+  effectiveTransport: emailTransport.effective
+})
 // #890: the ONE sender every email path below uses. It re-resolves the transport per send from
 // the live settings + env (createLiveEmailTransport in ./email-transport, unit-tested in
 // apps/api/test/email-transport.test.ts), which is what makes the Settings → Email provider
@@ -253,7 +276,8 @@ const email = createLiveEmailTransport({
   onProblem: (problem, selected) => {
     console.error(
       `[email] the ${selected} transport is selected but not usable: ${problem}. ` +
-        'Falling back to the console adapter — no mail is being sent.'
+        'Falling back to the console adapter — the message is written to this log, redacted, ' +
+        'instead of being delivered.'
     )
   }
 })
@@ -353,20 +377,36 @@ const auth = authConfigured
       // there is no honest value for a required field, so reset stays DISABLED (better-auth
       // answers RESET_PASSWORD_DISABLED) rather than sending a link that cannot work. The boot
       // log already names the missing variable; see the warning below.
+      // #894 adds the third condition (see resetWiredAtBoot above): a console-EFFECTIVE transport
+      // also means DISABLED, because the console adapter writes the message — reset URL, token in
+      // the path — to this server's log.
+      // `&& notifyFrom && adminOrigin` are TYPE NARROWINGS, not extra conditions (same idiom as
+      // the localToken ternary above): resetWiredAtBoot is false whenever either is missing —
+      // pinned by apps/api/test/reset-email-gate.test.ts — but TS cannot see that through a
+      // boolean, and both fields below are required `string`s.
       email:
-        notifyFrom && adminOrigin
+        resetWiredAtBoot && notifyFrom && adminOrigin
           ? {
-              // #498: re-resolve the from-address at SEND time (settings win, env fallback) so
-              // an admin editing Settings → Email applies to the next reset email without a
-              // restart; `from: notifyFrom` below stays as the boot-time fallback the option
-              // type requires. NOTE the ENABLE gate (`notifyFrom && adminOrigin`, this ternary)
-              // is still boot-time — resetRestartRequired in the status thunk below is how that
-              // is surfaced honestly; making it live is #886.
-              send: (msg) =>
-                email.send({
-                  ...msg,
-                  from: liveFrom().effective ?? msg.from
-                }),
+              // #498: re-resolve the from-address at SEND time (settings win, env fallback) so an
+              // admin editing Settings → Email applies to the next reset email without a restart;
+              // `from: notifyFrom` below stays as the boot-time fallback the option type requires.
+              // #894: createResetEmailSender re-checks the whole predicate against the LIVE
+              // transport too, so a provider switched to console after boot (settings.json is
+              // Git-canonical — it can change without passing the settings-write gate) refuses
+              // instead of logging a credential. The ENABLE gate here is still boot-time —
+              // resetRestartRequired in the status thunk below is how that is surfaced honestly;
+              // making it live is #886.
+              send: createResetEmailSender({
+                send: (msg) => email.send(msg),
+                resolveTransport: () => email.resolve().effective,
+                resolveFrom: () => liveFrom().effective ?? undefined,
+                adminOrigin,
+                onRefused: (reason) =>
+                  console.error(
+                    `[auth] password-reset email NOT sent: ${reason}. No link was delivered; ` +
+                      'the requester saw the usual "check your email" response.'
+                  )
+              }),
               from: notifyFrom,
               resetRedirectTo: `${adminOrigin}/reset-password`
             }
@@ -629,14 +669,12 @@ app.route(
     // #500 review: the admin-surface reset triggers call better-auth SERVER-SIDE so the captcha
     // plugin (which protects the public HTTP /request-password-reset by default) keeps guarding
     // the unauthenticated surface without asking authenticated staff to solve challenges.
-    // Injected under EXACTLY the same condition as createAuth's `email:` option above
-    // (auth exists + notifyFrom + adminOrigin) — intended to keep the route's 409 and
-    // better-auth's RESET_PASSWORD_DISABLED in agreement about whether reset is wired; the two
-    // expressions are hand-mirrored (here and the `email:` ternary above), so a change to one
-    // must change the other. redirectTo is
-    // omitted on purpose: packages/auth's withDefaultResetCallback fills in
+    // Injected under EXACTLY the same condition as createAuth's `email:` option above — since
+    // #894 that is the SAME `resetWiredAtBoot` const, not a hand-mirrored copy of the expression,
+    // so the route's 409 and better-auth's RESET_PASSWORD_DISABLED cannot drift apart. redirectTo
+    // is omitted on purpose: packages/auth's withDefaultResetCallback fills in
     // `${adminOrigin}/reset-password`, the same default the emailed-link flow already uses.
-    ...(auth && notifyFrom && adminOrigin
+    ...(auth && resetWiredAtBoot
       ? {
           requestPasswordReset: async (email: string) => {
             await auth.api.requestPasswordReset({ body: { email } })
@@ -681,14 +719,18 @@ app.route(
             transports.find((t) => t.id === 'smtp')?.usable ?? false,
           smtpProblem: live.selected === 'smtp' ? live.problem : null
         },
-        // Boot gate for reset = the exact createAuth `email:` condition above (auth exists +
-        // boot notifyFrom + adminOrigin); when it was off at boot but the live config would
-        // now satisfy it, only a restart turns reset on — say so (#885 review Finding 1).
+        // Boot gate for reset = the exact createAuth `email:` condition above — the same
+        // `resetWiredAtBoot` const, so this cannot report a gate the server does not have. When
+        // it was off at boot but the live config would now satisfy it, only a restart turns
+        // reset on — say so (#885 review Finding 1). `liveTransportReal` is the #894 half: a
+        // restart cannot enable reset while the effective transport is still the console
+        // adapter, so promising one would be a lie.
         resetRestartRequired: resetRestartRequired({
-          resetWiredAtBoot: Boolean(auth && notifyFrom && adminOrigin),
+          resetWiredAtBoot: Boolean(auth && resetWiredAtBoot),
           authConfigured,
           adminOriginPresent: adminOrigin !== undefined,
-          liveFrom: from.effective
+          liveFrom: from.effective,
+          liveTransportReal: live.effective !== 'console'
         })
       }
     }

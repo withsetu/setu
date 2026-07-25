@@ -1,7 +1,12 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
 import { Combobox } from '../src/ui/Combobox'
-import '../src/styles/components.css'
+// The WHOLE admin stylesheet, not just components.css: Tailwind's preflight resets `p`
+// margins, and the toolbar's own layout classes live here too. An earlier version of this
+// file imported components.css alone and mounted into a plain block `<div>` — which is
+// exactly why it passed while the combobox WAS 4px too tall in the real app (PR #925's
+// visual failure). The environment a layout test renders in is part of the assertion.
+import '../src/index.css'
 
 // ---------------------------------------------------------------------------------
 // The dropdown must hang off the INPUT, not off the whole combobox (#914).
@@ -19,9 +24,19 @@ import '../src/styles/components.css'
 
 afterEach(cleanup)
 
-function mount(hint?: string) {
+/** The real toolbar shape: `.combo` as a direct flex item.
+ *  Copied from apps/admin/src/screens/content-list/ListToolbar.tsx's wrapper — BulkBar
+ *  uses the same `flex flex-wrap items-center gap-2`. This matters for more than realism:
+ *  a flex item establishes an independent formatting context, so a child's margin cannot
+ *  collapse out of it the way it does in a block parent. */
+const TOOLBAR = 'flex flex-wrap items-center gap-2'
+
+function mount(hint?: string, layout: 'flex' | 'block' = 'flex') {
   const { container } = render(
-    <div style={{ width: 260, padding: 40 }}>
+    <div
+      className={layout === 'flex' ? TOOLBAR : undefined}
+      style={{ width: 260, padding: 40 }}
+    >
       <Combobox
         value="re"
         onChange={vi.fn()}
@@ -37,50 +52,62 @@ function mount(hint?: string) {
   return container
 }
 
-/** Vertical gap between the bottom of the input and the top of the dropdown. */
-function gap(container: Element): number {
+/** Height of the combobox wrapper minus the height of its input — i.e. everything the
+ *  always-mounted hint region costs the surrounding layout. */
+function overhead(container: Element): number {
+  const combo = container.querySelector('.combo')!.getBoundingClientRect()
   const input = container.querySelector('.combo-input')!.getBoundingClientRect()
-  const list = container.querySelector('.combo-list')
-  if (list === null) throw new Error('dropdown did not open')
+  return combo.height - input.height
+}
+
+/** Wait for the dropdown to exist AND for its `popIn` entry animation to finish.
+ *  `.combo-list` animates in over 0.12s (components.css); measuring mid-flight reads the
+ *  animated transform, not the resting position, which is a flake — and a misleading one,
+ *  since the numbers land near the value under test. */
+async function openedList(container: Element): Promise<Element> {
+  let list: Element | null = null
+  await vi.waitFor(() => {
+    list = container.querySelector('.combo-list')
+    expect(list).toBeTruthy()
+  })
+  await Promise.all(list!.getAnimations().map((a) => a.finished))
+  return list!
+}
+
+/** Vertical gap between the bottom of the input and the top of the settled dropdown. */
+function gap(container: Element, list: Element): number {
+  const input = container.querySelector('.combo-input')!.getBoundingClientRect()
   return list.getBoundingClientRect().top - input.bottom
 }
 
 describe('Combobox dropdown position', () => {
   it('sits just under the input with no hint', async () => {
     const container = mount()
-    await vi.waitFor(() =>
-      expect(container.querySelector('.combo-list')).toBeTruthy()
-    )
-    expect(gap(container)).toBeCloseTo(4, 0)
+    expect(gap(container, await openedList(container))).toBeCloseTo(4, 0)
   })
 
   it('sits in the SAME place when a hint is shown alongside the items', async () => {
     const container = mount('Couldn’t load tag suggestions.')
-    await vi.waitFor(() =>
-      expect(container.querySelector('.combo-list')).toBeTruthy()
-    )
-    expect(gap(container)).toBeCloseTo(4, 0)
+    expect(gap(container, await openedList(container))).toBeCloseTo(4, 0)
   })
 
-  it('adds no vertical space while the hint is empty', () => {
-    // The always-mounted live region must cost exactly nothing until it has something to
-    // say: the combobox is no taller than its input. Today that falls out of margin
-    // collapse through `.combo` — kill-shot verified by giving `.combo` a 1px
-    // padding-bottom, which stops the collapse and fails this assertion.
-    const container = mount()
-    const combo = container.querySelector('.combo')!.getBoundingClientRect()
-    const input = container
-      .querySelector('.combo-input')!
-      .getBoundingClientRect()
-    expect(combo.height).toBeCloseTo(input.height, 0)
+  // The always-mounted live region must cost the surrounding layout exactly nothing until
+  // it has something to say. This is what PR #925 got wrong: the empty `<p>` kept its 4px
+  // top margin, which collapses harmlessly out of a block parent but CANNOT escape a flex
+  // item — so every real toolbar grew 4px and the content-list visual baseline failed.
+  // `.combo-hint:empty { margin: 0 }` in components.css is what makes it zero; deleting
+  // that rule fails the flex case below (kill-shot verified: 4px overhead).
+  it('adds no vertical space while the hint is empty, even as a flex item', () => {
+    expect(overhead(mount(undefined, 'flex'))).toBeCloseTo(0, 0)
+  })
+
+  it('adds no vertical space while the hint is empty in a block parent either', () => {
+    // The weaker of the two cases, kept only to show the flex one is what has teeth:
+    // margin collapse hides the defect here, so this passed against the broken CSS.
+    expect(overhead(mount(undefined, 'block'))).toBeCloseTo(0, 0)
   })
 
   it('does grow once there is a hint to show', () => {
-    const container = mount('Couldn’t load tag suggestions.')
-    const combo = container.querySelector('.combo')!.getBoundingClientRect()
-    const input = container
-      .querySelector('.combo-input')!
-      .getBoundingClientRect()
-    expect(combo.height).toBeGreaterThan(input.height)
+    expect(overhead(mount('Couldn’t load tag suggestions.'))).toBeGreaterThan(0)
   })
 })

@@ -186,14 +186,21 @@
   line-height: 1.4;
   color: var(--red);
 }
-/* NOTE: the hint element stays mounted even when empty (Combobox.tsx), and costs no
-   height while it is — an empty block box has no content height and its margins collapse
-   away through `.combo`. A `.combo-hint:empty { margin: 0 }` rule was written for this and
-   removed again: killing it changed nothing, so it was documentation pretending to be
-   enforcement. The property itself is asserted, in real chromium, by 'adds no vertical
-   space while the hint is empty' in apps/admin/test-browser/combobox-hint-layout.test.tsx
-   — which is what will fail if `.combo` ever gains padding or a flex display and the
-   collapse stops. */
+/* The hint element stays MOUNTED even when empty (Combobox.tsx) so a live region already in
+   the accessibility tree can announce text that arrives later. Zeroing the margin is what
+   makes that cost nothing: an empty block box has no content height, but its 4px top margin
+   is real, and it only collapses away when `.combo` is an ordinary block child. Every actual
+   call site puts `.combo` in a `display:flex` row (ListToolbar, BulkBar), and a flex item
+   establishes an independent formatting context — so the margin cannot escape and the
+   combobox grows by 4px, shifting the whole toolbar and every row under it. Measured in
+   chromium: 28px in a block parent, 32px in a flex parent (#914 / PR #925 visual failure).
+   Do NOT replace this with `display: none` — an un-rendered live region is not announced
+   when it later gains text, which is the entire reason the element is always mounted.
+   Enforced by 'adds no vertical space while the hint is empty, even as a flex item' in
+   apps/admin/test-browser/combobox-hint-layout.test.tsx. */
+.combo-hint:empty {
+  margin: 0;
+}
 
 /* ---- NOTIFICATIONS ---- */
 /* A gentle downward slide/fade — drops in from the top-right */

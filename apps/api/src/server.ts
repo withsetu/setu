@@ -22,7 +22,11 @@ import {
   createNoopCaptcha,
   createIndexService,
   createMediaIndexService,
-  parseSettings
+  parseSettings,
+  formNotificationValues,
+  passwordResetValues,
+  EMAIL_TYPE_FORM_NOTIFICATION,
+  EMAIL_TYPE_PASSWORD_RESET
 } from '@setu/core'
 import type { CaptchaPort, DeployInfo } from '@setu/core'
 import { createTurnstileCaptcha } from '@setu/captcha-turnstile'
@@ -33,7 +37,6 @@ import {
 import { createConsoleEmailAdapter } from '@setu/email-console'
 import { createResendEmailAdapter } from '@setu/email-resend'
 import { createSmtpEmailAdapter } from '@setu/email-smtp'
-import { renderSubmissionEmail } from '@setu/email-templates'
 import { createAuth, type AuthEvent } from '@setu/auth'
 import { createMiddleware } from 'hono/factory'
 import { createGitApi } from './app'
@@ -79,6 +82,7 @@ import {
   type EmailCapabilities
 } from './capabilities'
 import { createLiveEmailTransport } from './email-transport'
+import { createLiveEmailTemplates } from './email-templates'
 import { runReprocessJob } from './reprocess-runner'
 import { resumeActiveJob } from './server-resume'
 import {
@@ -282,6 +286,21 @@ const email = createLiveEmailTransport({
   }
 })
 
+// #499: the template half of the same live-getter story — settings.json's
+// `email.templates.<type>` is re-read on EVERY send (createLiveEmailTemplates in
+// ./email-templates, unit-tested in apps/api/test/email-templates.test.ts), so an admin editing
+// a template in Settings → Email applies to the next email with no api restart, exactly like
+// the from-address (#498) and the provider (#890). Every send path below renders through this
+// one object, so "which override applies" has a single answer. `{{site_title}}` is folded in
+// from Settings → General, also live. An unreadable settings.json or a malformed override
+// degrades to the shipped default rather than sending garbage.
+// ONE getter, so one email costs one settings read — the same budget `liveFrom` (#498) and
+// `liveProvider` (#890) each pay. A getter per field made a single form submission parse
+// settings.json three times on a visitor-triggered path (#907 review F4).
+const emailTemplates = createLiveEmailTemplates({
+  settings: loadSiteSettings
+})
+
 // Ensure .setu/ parent dir exists before better-sqlite3 opens the DB file
 mkdirSync(`${dir}/.setu`, { recursive: true })
 
@@ -407,6 +426,18 @@ const auth = authConfigured
                       'the requester saw the usual "check your email" response.'
                   )
               }),
+              // #499: resolve the message BODY at send time too, through the same live template
+              // resolver every other send path uses, so an admin's stored override applies with
+              // no restart. @setu/auth hands over the reset link it already built and
+              // callback-defaulted — a template can PLACE `{{reset_url}}` but has no syntax with
+              // which to supply or alter one (kill-shot tested in
+              // apps/api/test/email-templates.test.ts, "a stored template cannot supply or
+              // override the reset url").
+              content: ({ url, userName, userEmail }) =>
+                emailTemplates.render(
+                  EMAIL_TYPE_PASSWORD_RESET,
+                  passwordResetValues({ url, userName, userEmail })
+                ),
               from: notifyFrom,
               resetRedirectTo: `${adminOrigin}/reset-password`
             }
@@ -437,7 +468,15 @@ const submit = createSubmissionService({
   // per submission, so both the notify gate and the sender follow a from-address saved in
   // Settings → Email without an api restart.
   notifyFrom: () => liveFrom().effective ?? undefined,
-  renderNotification: renderSubmissionEmail // React Email HTML/text
+  // #499: rendered from the `form-notification` registry type with the admin's stored override
+  // applied, re-read per submission. Replaces the React Email JSX in @setu/email-templates —
+  // see packages/core/src/email/templates/form-notification.ts for why the default markup is a
+  // hand-written table rather than that renderer's output.
+  renderNotification: (s) =>
+    emailTemplates.render(
+      EMAIL_TYPE_FORM_NOTIFICATION,
+      formNotificationValues(s)
+    )
 })
 
 const imageAdapter = createSharpImageAdapter()

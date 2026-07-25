@@ -99,6 +99,50 @@ export type {
 
 export type { EmailMessage, EmailPort } from './email/email-port'
 
+// #499 (epic #497): the shared {{token}} engine + the email TYPE registry. The admin's live
+// preview and every server send path render through renderEmailTemplate/renderRegisteredEmail,
+// so a preview can never disagree with the mail that goes out.
+export type {
+  TokenSpec,
+  TokenValue,
+  TokenValues,
+  FillOptions
+} from './templating/fill-template'
+export {
+  fillTemplate,
+  escapeHtml,
+  htmlToPlainText,
+  tokenNamesIn,
+  unknownTokensIn
+} from './templating/fill-template'
+export type {
+  EmailTypeDefinition,
+  EmailTypeRegistry,
+  EmailTemplateOverride,
+  EmailTemplateOverrides,
+  RenderedEmail
+} from './email/template-registry'
+export {
+  createEmailTypeRegistry,
+  isUsableTemplateField,
+  renderEmailTemplate,
+  renderRegisteredEmail,
+  EMAIL_TEMPLATE_MAX_BODY,
+  EMAIL_TEMPLATE_MAX_SUBJECT,
+  EMAIL_TYPE_PASSWORD_RESET,
+  EMAIL_TYPE_FORM_NOTIFICATION
+} from './email/template-registry'
+export { EMAIL_TYPES } from './email/templates'
+export {
+  PASSWORD_RESET_EMAIL,
+  passwordResetValues
+} from './email/templates/password-reset'
+export type { FormNotificationInput } from './email/templates/form-notification'
+export {
+  FORM_NOTIFICATION_EMAIL,
+  formNotificationValues
+} from './email/templates/form-notification'
+
 export type {
   ImageFormat,
   VariantSpec,

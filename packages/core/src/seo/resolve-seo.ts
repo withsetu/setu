@@ -1,5 +1,6 @@
 import type { SiteSettings } from '../settings/types'
 import { GENERATOR_URL } from '../version'
+import { fillTemplate } from '../templating/fill-template'
 
 /**
  * Per-page context the head emitters need, beyond site settings. URLs MUST be absolute — this
@@ -56,12 +57,14 @@ export interface ResolvedSeo {
   alternates?: { hreflang: string; href: string }[]
 }
 
-/** Replace {{title}} {{separator}} {{site}} tokens; collapse the whitespace a missing token leaves. */
-const fillTemplate = (tpl: string, map: Record<string, string>): string =>
-  tpl
-    .replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k: string) => map[k] ?? '')
-    .replace(/\s+/g, ' ')
-    .trim()
+/** The title template's token vocabulary — `{{title}} {{separator}} {{site}}`. Plain text, so
+ *  no token is rawHtml: the emitters that consume ResolvedSeo escape at render time (Astro
+ *  escapes `content={...}`), exactly as before #499. */
+const TITLE_TOKENS = [
+  { name: 'title', description: 'The page title' },
+  { name: 'separator', description: 'identity.titleSeparator' },
+  { name: 'site', description: 'The site title (general.title)' }
+]
 
 /**
  * Resolve the full SEO head for a page from site settings + page context — Rank-Math-shaped:
@@ -75,14 +78,16 @@ export function resolveSeo(settings: SiteSettings, page: SeoPage): ResolvedSeo {
   const siteName = general.title || 'Setu'
   const sep = identity.titleSeparator || '·'
   const pageTitle = (page.title ?? '').trim()
+  // #499: the shared {{token}} engine, called with the exact behavior this file used to
+  // implement inline — text context (no escaping) plus singleLine, which is the
+  // `.replace(/\s+/g,' ').trim()` that collapses the gap a missing token leaves. Unknown
+  // tokens strip, as they always did here. Pinned by packages/core/test/seo/resolve-seo.test.ts,
+  // which #499 did not have to touch.
   const title = pageTitle
     ? fillTemplate(
         identity.titleTemplate || '{{title}} {{separator}} {{site}}',
-        {
-          title: pageTitle,
-          separator: sep,
-          site: siteName
-        }
+        { title: pageTitle, separator: sep, site: siteName },
+        { context: 'text', vocabulary: TITLE_TOKENS, singleLine: true }
       )
     : siteName
 

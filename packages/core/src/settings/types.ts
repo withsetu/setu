@@ -1,4 +1,5 @@
 import type { PermalinksSettings } from '../permalinks/config'
+import type { EmailTemplateOverrides } from '../email/template-registry'
 export type { PermalinksSettings }
 
 /** The General settings group. title/tagline/description are consumed by the
@@ -87,6 +88,14 @@ export interface EmailSettings {
    *  a server-side question (its secret may be absent), resolved and failed-safe by
    *  apps/api/src/capabilities.ts's usableEmailTransport. */
   provider: '' | 'console' | 'resend' | 'smtp'
+  /** #499: per-email-type template overrides, keyed by the type id from the email registry
+   *  (`password-reset`, `form-notification`, or a plugin's own). An absent id — or an absent,
+   *  empty or oversized field within one — means "use the shipped default", which is what makes
+   *  a broken override degrade to a correct email instead of garbage (renderEmailTemplate in
+   *  ../email/template-registry.ts; packages/core/test/email/email-registry.test.ts). Template
+   *  TEXT is configuration, never a credential, so it belongs in this Git-committed file for the
+   *  same reason `provider` does. */
+  templates: EmailTemplateOverrides
 }
 
 /** Site settings, grouped so future sections (identity/content/media/forms) add

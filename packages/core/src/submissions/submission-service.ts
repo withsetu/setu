@@ -2,6 +2,11 @@ import type { SubmissionPort } from './submission-port'
 import type { Submission } from './types'
 import type { EmailPort } from '../email/email-port'
 import type { CaptchaPort } from '../captcha/captcha-port'
+import { renderEmailTemplate } from '../email/template-registry'
+import {
+  FORM_NOTIFICATION_EMAIL,
+  formNotificationValues
+} from '../email/templates/form-notification'
 
 export interface SubmitInput {
   formId: string
@@ -38,8 +43,10 @@ export interface SubmissionServiceDeps {
    *  (packages/core/test/submissions/submission-service.test.ts pins this). A plain string
    *  behaves as before. */
   notifyFrom?: string | (() => string | undefined)
-  /** Override the notification body. Defaults to a plain-text summary. May be
-   *  async (React Email's render() is async — see Phase 5). */
+  /** Override the notification body. Defaults to `defaultRender` below — the
+   *  `form-notification` registry type's shipped default (#499). apps/api injects a resolver
+   *  that applies the admin's stored override, re-read per submission. May be async: the
+   *  signature keeps the Promise arm so a topology whose renderer needs I/O still fits. */
   renderNotification?: (
     submission: Submission
   ) => NotificationContent | Promise<NotificationContent>
@@ -60,30 +67,17 @@ export function isEmailish(s: string): boolean {
   return dot !== -1 && dot < s.length - 1
 }
 
-const escapeHtml = (s: string): string =>
-  s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-
-const defaultRender = (s: Submission): NotificationContent => {
-  const lines = Object.entries(s.fields).map(([k, v]) => `${k}: ${v}`)
-  const text = `New submission on "${s.formLabel ?? s.formId}"\n\n${lines.join('\n')}`
-  return {
-    subject: `New submission: ${s.formLabel ?? s.formId}`,
-    html: `<h2>New submission: ${escapeHtml(s.formLabel ?? s.formId)}</h2><ul>${Object.entries(
-      s.fields
-    )
-      .map(
-        ([k, v]) =>
-          `<li><strong>${escapeHtml(k)}:</strong> ${escapeHtml(v)}</li>`
-      )
-      .join('')}</ul>`,
-    text
-  }
-}
+/** #499: the fallback body is now the `form-notification` type's SHIPPED DEFAULT, rendered by
+ *  the same function apps/api's override-aware renderer and the admin's live preview call. This
+ *  file used to carry its own third template (plus a private escapeHtml copy) — so an
+ *  installation without `renderNotification` wired got different mail from one with it. Now the
+ *  two differ only by whether an admin override is applied. */
+const defaultRender = (s: Submission): NotificationContent =>
+  renderEmailTemplate(
+    FORM_NOTIFICATION_EMAIL,
+    undefined,
+    formNotificationValues(s)
+  )
 
 /** The topology-agnostic submit pipeline: honeypot → captcha → validate →
  *  persist → best-effort notify. Runs unchanged behind apps/api today and a

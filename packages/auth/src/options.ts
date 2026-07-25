@@ -90,5 +90,22 @@ export interface CreateAuthOptions {
      *  allowlisted origin, or better-auth's own originCheck on the callback route rejects the
      *  redirect when the link is clicked. */
     resetRedirectTo: string
+    /**
+     * #499 (epic #497): resolve the message BODY at send time. Omitted → the shipped default
+     * (`resetPasswordEmailContent`, i.e. core's `password-reset` registry default), which is
+     * exactly the pre-#499 behavior; apps/api injects a resolver that applies the admin's
+     * `email.templates['password-reset']` override, re-read from settings.json on every send so
+     * a save in Settings → Email needs no restart.
+     *
+     * `url` is passed in, never out: the caller receives the link this package already built
+     * and callback-defaulted, so a stored template can place the reset link but can never
+     * change or supply one (packages/core/test/email/email-registry.test.ts and
+     * apps/api/test/email-templates.test.ts both kill-shot that).
+     */
+    content?: (input: {
+      url: string
+      userName?: string
+      userEmail?: string
+    }) => { subject: string; html: string; text?: string }
   }
 }

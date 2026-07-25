@@ -84,6 +84,7 @@ import { buildLocalTokenOptions } from './local-token'
 import { mountAuthWithFailureEvents } from './auth/login-failure-events'
 import { apiOnError } from './errors'
 import { securityHeaders } from './security-headers'
+import { turnstileTestKeyNotice } from './captcha-test-keys'
 
 // #248 Task 9: default audit-event consumer — a single structured log line. The REAL consumer
 // (persistence/alerting) is future issue #290; this is deliberately the dumbest possible sink so
@@ -674,9 +675,16 @@ serve({ fetch: app.fetch, port })
 console.log(
   `api listening on http://localhost:${port} (repo: ${dir}, media: ${mediaDir}, imageFormat: ${siteSettings.media.imageFormat}, lqip: ${siteSettings.media.imageLqip})`
 )
-console.log(
-  `[captcha] provider=${captchaProvider || '(none)'} secretConfigured=${captchaStatus.secretConfigured}`
-)
+{
+  // #868: Turnstile's public dummy keys auto-resolve every challenge — a production boot running
+  // them has a captcha in the UI and no protection behind it. Make that state loud at the one
+  // place every topology already reports captcha status. Detection + copy live in
+  // captcha-test-keys.ts (apps/api/test/captcha-test-keys.test.ts).
+  const testKeyNotice = turnstileTestKeyNotice(process.env)
+  const line = `[captcha] provider=${captchaProvider || '(none)'} secretConfigured=${captchaStatus.secretConfigured}${testKeyNotice ? ` ${testKeyNotice}` : ''}`
+  if (testKeyNotice) console.warn(line)
+  else console.log(line)
+}
 if (localToken && adminOrigin !== undefined) {
   // The ONE place the token is ever logged — this is the intended handoff channel to the admin.
   // Never log the token (or this URL) anywhere else. (adminOrigin is the shared const near the

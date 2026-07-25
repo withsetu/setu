@@ -11,6 +11,7 @@ import {
   parseDotenv,
   stagingOverlay,
   stagingPaths,
+  stagingMarkers,
   apiEnvFor,
   adminBuildEnvFor,
   siteBuildEnvFor,
@@ -139,6 +140,43 @@ test('stagingOverlay ships complete zero-secret defaults', () => {
   assert.equal(o.SETU_TURNSTILE_SECRET, '1x0000000000000000000000000000000AA')
   // Never a baked-in auth secret: it is generated per sandbox at start time.
   assert.equal(o.SETU_AUTH_SECRET, undefined)
+})
+
+// Finding 1 (#884 review, the #815 mechanism): an unvalidated front port from .env would sail
+// past preflight (Number('517e') → NaN → lsof error swallowed → "free") and land RAW in the
+// origins and the generated Caddyfile — surfacing only after two full production builds baked
+// the garbage in. The overlay must refuse loudly, naming the value, before anything runs.
+test('stagingOverlay refuses a NaN-typo front port, naming the value', () => {
+  assert.throws(
+    () => stagingOverlay({ SETU_STAGING_HTTPS_PORT: '517e' }),
+    /517e/
+  )
+})
+
+test('stagingOverlay refuses out-of-range front ports', () => {
+  assert.throws(() => stagingOverlay({ SETU_STAGING_HTTPS_PORT: '0' }), /"0"/)
+  assert.throws(
+    () => stagingOverlay({ SETU_STAGING_HTTP_PORT: '70000' }),
+    /70000/
+  )
+})
+
+test('stagingOverlay refuses injection-shaped front ports before they reach the Caddyfile', () => {
+  assert.throws(() =>
+    stagingOverlay({ SETU_STAGING_HTTPS_PORT: '8443 } malicious {' })
+  )
+  assert.throws(() =>
+    stagingOverlay({ SETU_STAGING_HTTP_PORT: '80\n} evil {' })
+  )
+})
+
+test('stagingOverlay accepts valid overridden front ports', () => {
+  const o = stagingOverlay({
+    SETU_STAGING_HTTPS_PORT: '8443',
+    SETU_STAGING_HTTP_PORT: '8480'
+  })
+  assert.equal(o.SETU_STAGING_HTTPS_PORT, '8443')
+  assert.equal(o.SETU_STAGING_HTTP_PORT, '8480')
 })
 
 test('stagingOverlay lets .env override any default', () => {
@@ -332,6 +370,31 @@ test('planStop refuses a reused pid whose command no longer matches', () => {
   assert.equal(plan.skip[0].reason, 'command-mismatch')
 })
 
+// Finding 3c (#884 review): 'caddy'/'mailpit' as markers match ANY caddy/mailpit on a reused
+// pid; the spawned command lines already carry sandbox-unique paths, so the markers must too.
+test('child markers for caddy and mailpit are sandbox-unique paths, not generic names', () => {
+  const p = stagingPaths(ROOT)
+  const m = stagingMarkers(p)
+  assert.equal(m.caddy, p.caddyfile)
+  assert.equal(m.mailpit, p.mailpitDb)
+  assert.ok(path.isAbsolute(m.caddy) && m.caddy.startsWith(p.sandbox))
+  assert.ok(path.isAbsolute(m.mailpit) && m.mailpit.startsWith(p.sandbox))
+})
+
+test("planStop with path-bearing markers refuses another checkout's caddy on a reused pid", () => {
+  const ours = stagingPaths(ROOT)
+  const theirs = stagingPaths('/Users/dev/other-checkout')
+  const plan = planStop(
+    [{ name: 'caddy', pid: 300, marker: stagingMarkers(ours).caddy }],
+    {
+      alive: () => true,
+      cmdOf: () => `caddy run --config ${theirs.caddyfile} --adapter caddyfile`
+    }
+  )
+  assert.deepEqual(plan.stop, [])
+  assert.equal(plan.skip[0].reason, 'command-mismatch')
+})
+
 test('planStop never signals pid 1, 0, or negatives, even if recorded', () => {
   const evil = [
     { name: 'a', pid: 1, marker: '' },
@@ -349,14 +412,17 @@ test('planStop never signals pid 1, 0, or negatives, even if recorded', () => {
 test('.env.example parses and matches the script defaults exactly', () => {
   const text = readFileSync(path.join(repoRoot, '.env.example'), 'utf8')
   const parsed = parseDotenv(text)
-  // Every uncommented key in the example must be a key the overlay defaults —
-  // an example var the script never reads would be a lie.
   const defaults = stagingOverlay({})
+  // Key-set equality in BOTH directions (#884 review Finding 2): an example var the script
+  // never reads would be a lie, and a new script default that never lands in the example
+  // would silently undocument itself. SETU_AUTH_SECRET is deliberately only a commented line
+  // in the example (never a tracked value), so it must appear in NEITHER set.
+  assert.deepEqual(
+    Object.keys(parsed).sort(),
+    Object.keys(defaults).sort(),
+    '.env.example keys and stagingDefaults keys drifted apart'
+  )
   for (const [key, value] of Object.entries(parsed)) {
-    assert.ok(
-      key in defaults,
-      `.env.example key ${key} is not a staging default`
-    )
     assert.equal(
       value,
       defaults[key],
@@ -365,4 +431,5 @@ test('.env.example parses and matches the script defaults exactly', () => {
   }
   // And the tracked example must never carry an auth secret value.
   assert.equal(parsed.SETU_AUTH_SECRET, undefined)
+  assert.equal(defaults.SETU_AUTH_SECRET, undefined)
 })

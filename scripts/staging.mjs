@@ -157,9 +157,29 @@ function stagingDefaults() {
   }
 }
 
-/** defaults < .env — the whole precedence story. */
+/** Strict TCP-port shape: decimal digits only, 1–65535. `Number()` is not validation — a typo
+ *  like '517e' becomes NaN, `listenersOf(NaN)`'s lsof failure is swallowed as "port free"
+ *  (the exact #815 mechanism), and the raw string would flow into the origins and the
+ *  generated Caddyfile, surfacing only after two full production builds baked it in. An
+ *  injection-shaped value (`8443 } malicious {`) would land verbatim in the Caddyfile.
+ *  Enforced by the front-port refusal tests in scripts/staging.test.mjs. */
+function assertValidPort(name, value) {
+  const n = Number(value)
+  if (!/^\d{1,5}$/.test(value) || !Number.isInteger(n) || n < 1 || n > 65535)
+    throw new Error(
+      `staging: ${name} is not a valid TCP port (got ${JSON.stringify(value)}) — ` +
+        'expected an integer in 1–65535.'
+    )
+}
+
+/** defaults < .env — the whole precedence story. Front ports are validated HERE, at overlay
+ *  resolution, so a bad .env value refuses loudly before the sandbox is seeded or any build
+ *  starts (see assertValidPort above). */
 export function stagingOverlay(dotenv) {
-  return { ...stagingDefaults(), ...dotenv }
+  const overlay = { ...stagingDefaults(), ...dotenv }
+  assertValidPort('SETU_STAGING_HTTPS_PORT', overlay.SETU_STAGING_HTTPS_PORT)
+  assertValidPort('SETU_STAGING_HTTP_PORT', overlay.SETU_STAGING_HTTP_PORT)
+  return overlay
 }
 
 /** The api process env: self-hosted posture (NO SETU_MODE=local — config.ts fails closed to
@@ -273,6 +293,21 @@ ${host(origins.mailpit)} {
 	reverse_proxy 127.0.0.1:${STAGING_PORTS.mailpitUi}
 }
 `
+}
+
+/** Per-child stop markers. caddy and mailpit get SANDBOX-UNIQUE paths their spawned command
+ *  lines carry (`--config <…>/Caddyfile`, `--database <…>/mailpit.db`) rather than the binary
+ *  names — a generic 'caddy' marker would match ANY caddy on a reused pid (#884 review
+ *  Finding 3c). The api's pnpm command line carries no unique path, so its workspace filter is
+ *  the tightest marker available there. Enforced by the marker tests in
+ *  scripts/staging.test.mjs. */
+export function stagingMarkers(paths) {
+  return {
+    mailpit: paths.mailpitDb,
+    api: '@setu/api',
+    caddy: paths.caddyfile,
+    staging: 'staging.mjs'
+  }
 }
 
 /** Decide which recorded pids `stop` may signal. A pid is stopped only when it is (a) a sane
@@ -449,7 +484,13 @@ async function start() {
     console.log(
       `[staging] loaded ${Object.keys(dotenv).length} override(s) from .env`
     )
-  const overlay = stagingOverlay(dotenv)
+  let overlay
+  try {
+    overlay = stagingOverlay(dotenv) // refuses invalid front ports BEFORE seeding or building
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err))
+    process.exit(1)
+  }
   const origins = stagingOriginsFor(overlay)
 
   // Already running? Refuse — never stack a second instance on the first.
@@ -516,6 +557,7 @@ async function start() {
   writeFileSync(paths.caddyfile, caddyfileFor(paths, overlay))
 
   // --- spawn the three long-lived processes ---
+  const markers = stagingMarkers(paths)
   let setupToken = null
   let shuttingDown = false
   const children = []
@@ -527,13 +569,29 @@ async function start() {
     console.log('\n[staging] stopping…')
     // Children only — the 'staging' record is THIS process (recorded for staging:stop's
     // benefit); group-signalling ourselves here would kill this handler before the pid-file
-    // cleanup below ever ran.
-    await stopRecorded(records.filter((r) => r.name !== 'staging'))
+    // cleanup below ever ran. Markers are re-verified immediately before signalling (#884
+    // review Finding 3b): even our own child pids can in principle have died and been reused
+    // by the time a guard-triggered shutdown runs.
+    const verified = planStop(
+      records.filter((r) => r.name !== 'staging'),
+      { alive: isAlive, cmdOf: commandOf }
+    ).stop
+    await stopRecorded(verified)
     rmSync(paths.pidsFile, { force: true })
     process.exit(code)
   }
 
   const guard = (name) => (child) => {
+    // A spawn failure (EACCES, vanished binary) emits 'error', often with NO 'exit' — without
+    // this handler the failure would orphan the children already spawned before it.
+    child.on('error', (err) => {
+      if (!shuttingDown) {
+        console.error(
+          `[staging] ${name} failed to start: ${err.message}. Stopping the rest.`
+        )
+        void shutdown(1)
+      }
+    })
     child.on('exit', (code) => {
       if (!shuttingDown) {
         console.error(
@@ -564,7 +622,7 @@ async function start() {
     })
   )
   children.push(mailpit)
-  records.push({ name: 'mailpit', pid: mailpit.pid, marker: 'mailpit' })
+  records.push({ name: 'mailpit', pid: mailpit.pid, marker: markers.mailpit })
 
   const api = guard('api')(
     launch({
@@ -584,7 +642,7 @@ async function start() {
     })
   )
   children.push(api)
-  records.push({ name: 'api', pid: api.pid, marker: '@setu/api' })
+  records.push({ name: 'api', pid: api.pid, marker: markers.api })
 
   const caddy = guard('caddy')(
     launch({
@@ -597,9 +655,9 @@ async function start() {
     })
   )
   children.push(caddy)
-  records.push({ name: 'caddy', pid: caddy.pid, marker: 'caddy' })
+  records.push({ name: 'caddy', pid: caddy.pid, marker: markers.caddy })
 
-  records.push({ name: 'staging', pid: process.pid, marker: 'staging.mjs' })
+  records.push({ name: 'staging', pid: process.pid, marker: markers.staging })
   writeFileSync(
     paths.pidsFile,
     JSON.stringify({ startedAt: new Date().toISOString(), records }, null, 2) +
@@ -612,12 +670,21 @@ async function start() {
 
   // Readiness: poll the two loopback HTTP surfaces. Caddy has no plain-HTTP health URL here
   // (its cert would need trust to poll over TLS), so its liveness is the exit-guard above.
-  const capabilitiesRes = await waitForHttp(
-    `http://127.0.0.1:${STAGING_PORTS.api}/api/capabilities`,
-    'api'
-  )
-  await waitForHttp(`http://127.0.0.1:${STAGING_PORTS.mailpitUi}/`, 'mailpit')
-  const capabilities = await capabilitiesRes.json().catch(() => null)
+  // A readiness timeout tears the whole stack down (shutdown), never throws past it — an
+  // uncaught throw here would exit this process and leave all three children running.
+  let capabilities = null
+  try {
+    const capabilitiesRes = await waitForHttp(
+      `http://127.0.0.1:${STAGING_PORTS.api}/api/capabilities`,
+      'api'
+    )
+    await waitForHttp(`http://127.0.0.1:${STAGING_PORTS.mailpitUi}/`, 'mailpit')
+    capabilities = await capabilitiesRes.json().catch(() => null)
+  } catch (err) {
+    console.error(`[staging] ${err instanceof Error ? err.message : err}`)
+    await shutdown(1)
+    return
+  }
 
   console.log(`
 [staging] up — self-hosted Node topology parity (prod builds + HTTPS + SMTP):
@@ -688,8 +755,13 @@ async function stopCommand() {
     }
   }
   if (stopParents.length > 0) await sleep(1500)
-  // Orphan net: whatever is still alive (parent already dead, or no parent recorded).
-  await stopRecorded(stopChildren.filter((r) => isAlive(r.pid)))
+  // Orphan net: whatever is still alive (parent already dead, or no parent recorded). The
+  // liveness AND marker check is re-run immediately before signalling (#884 review Finding 3a):
+  // during the 1.5s parent grace a child pid can die and be reused, and a plan from before that
+  // window is stale.
+  await stopRecorded(
+    planStop(stopChildren, { alive: isAlive, cmdOf: commandOf }).stop
+  )
   const deadline = Date.now() + 6000
   let survivors = plan.stop.filter((r) => isAlive(r.pid))
   while (survivors.length > 0 && Date.now() < deadline) {

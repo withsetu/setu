@@ -358,12 +358,16 @@ jobs:
           fi
 
       # PR lane: chromium (all specs) + webkit (editor specs) + visual (chromium snapshots).
-      # Push/weekly cron: E2E_FULL_MATRIX adds firefox-full + webkit-full over everything.
+      # Push/weekly cron: E2E_FULL_MATRIX adds firefox-full + webkit-full over everything, plus
+      # the captcha lane (#868) — kept off the PR path because it talks to real Cloudflare
+      # endpoints (Turnstile widget CDN + siteverify, with the public test keys), the one e2e
+      # surface that can flake on external network. Same optional-lane scope as the full matrix.
       - name: Run E2E
         run: |
           if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
           if [ "${{ steps.scope.outputs.full }}" = "1" ]; then
             E2E_FULL_MATRIX=1 pnpm e2e
+            pnpm e2e:captcha
           else
             pnpm e2e
           fi
@@ -378,4 +382,6 @@ jobs:
           path: |
             e2e/test-results/
             e2e/playwright-report/
+            e2e/test-results-captcha/
+            e2e/playwright-report-captcha/
           retention-days: 7

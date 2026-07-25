@@ -83,6 +83,78 @@ describe('redactSecretsInUrls', () => {
     expect(
       redactSecretsInUrls('https://site.test/blog/the-best-blog-post-ever')
     ).toContain('[redacted]')
+    // #910 widened this: a long run INSIDE a segment goes too, so a token glued to an extension
+    // cannot survive. A long filename is the price, and it is the right side to be wrong on.
+    expect(
+      redactSecretsInUrls('https://site.test/media/my-vacation-photo-2026.jpg')
+    ).toBe('https://site.test/media/[redacted].jpg')
+  })
+})
+
+/** #910. Every case here is a shape an ADMIN-authored email template can produce, now that #499
+ *  lets one place `{{reset_url}}` anywhere in the body. Two independent gaps were behind them:
+ *  a trailing-punctuation DENYLIST that knew about `.` `,` `;` `:` `!` `?` and no brackets, and a
+ *  `\b` on URL_RE that made the whole URL unmatchable when a word character sat directly in front
+ *  of it. */
+describe('redactSecretsInUrls — wrapping punctuation and adjacency (#910)', () => {
+  const BARE = `http://localhost:4444/api/auth/reset-password/${RESET_TOKEN}`
+
+  const wrapped: Array<[string, string]> = [
+    ['markdown link', `[Reset your password](${BARE})`],
+    ['parenthetical', `Reset here (${BARE}), then sign in.`],
+    ['square-bracketed', `Link [${BARE}]`],
+    ['curly-braced', `Link {${BARE}}`],
+    ['markdown bold', `**${BARE}**`],
+    ['markdown emphasis', `_${BARE}_`],
+    ['typographic quotes', `“${BARE}”`],
+    ['a word character directly in front', `see:link${BARE}`],
+    ['an extension glued to the token', `${BARE}.html`],
+    ['a pipe glued to the token', `${BARE}|next`]
+  ]
+
+  for (const [name, body] of wrapped) {
+    it(`keeps the token out when the link is ${name}`, () => {
+      const out = redactSecretsInUrls(body)
+      expect(out).not.toContain(RESET_TOKEN)
+      expect(out).toContain('[redacted]')
+    })
+  }
+
+  it('puts the wrapping punctuation back, so the prose around the link survives', () => {
+    // Redaction that ate the closing bracket would make a log line unreadable — and would also
+    // mean the trim was doing something other than "look past the wrapper".
+    expect(redactSecretsInUrls(`[Reset](${BARE})`)).toBe(
+      '[Reset](http://localhost:4444/api/auth/reset-password/[redacted])'
+    )
+    expect(redactSecretsInUrls(`Link [${BARE}]`)).toBe(
+      'Link [http://localhost:4444/api/auth/reset-password/[redacted]]'
+    )
+    expect(redactSecretsInUrls(`Link {${BARE}}`)).toBe(
+      'Link {http://localhost:4444/api/auth/reset-password/[redacted]}'
+    )
+  })
+
+  it('removes a token carried inside a fragment that is itself a URL', () => {
+    const out = redactSecretsInUrls(`https://admin.test/x#${BARE}`)
+    expect(out).not.toContain(RESET_TOKEN)
+  })
+
+  it('removes a token embedded in a non-credential query value', () => {
+    // `next` is not a credential-shaped NAME and the value is not wholly the token, so neither
+    // of the two whole-value tests fires; the token still has to go.
+    const out = redactSecretsInUrls(
+      `https://site.test/go?next=/reset/${RESET_TOKEN}`
+    )
+    expect(out).not.toContain(RESET_TOKEN)
+    expect(out).not.toContain(encodeURIComponent(RESET_TOKEN))
+  })
+
+  it('leaves a URL whose own path contains brackets untouched', () => {
+    // The trim looks PAST a trailing wrapper; it must not corrupt a URL that legitimately ends
+    // in one (the Wikipedia-parenthesis case).
+    const url = 'https://en.wikipedia.org/wiki/Foo_(bar)'
+    expect(redactSecretsInUrls(url)).toBe(url)
+    expect(redactSecretsInUrls(`[Foo](${url})`)).toBe(`[Foo](${url})`)
   })
 })
 

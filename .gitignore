@@ -33,6 +33,10 @@ apps/site/public/_redirects
 # Uploaded media (local dev storage)
 .setu/
 
+# Local env overrides (staging profile etc.) — secrets live in env only, never Git.
+# The tracked contract is .env.example (zero-secret values only).
+.env
+
 # Demo-data pack downloads (fetched at seed time — the repo ships no third-party
 # content; see packages/demo-data/README.md)
 .demo-data/

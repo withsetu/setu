@@ -5,7 +5,7 @@ import { getCollection, render } from 'astro:content'
 import { permalinkMap } from '../lib/permalinks'
 import { loadThemeOptions } from '../lib/site-config'
 import { loadSiteSettings } from '../lib/site-settings'
-import { feedLocales } from '../lib/feed'
+import { memoFeedLocales, memoEntryIndex } from '../lib/build-cache'
 import { pageSeo } from '../lib/seo'
 import { parsePageSeoOverride, localeAlternates } from '@setu/core'
 import { resolvePostDate, parseDate } from '../lib/post-date'
@@ -64,15 +64,17 @@ const postCategories = isPost
   : []
 const postTags = isPost ? strArr((entry.data as { tags?: unknown }).tags) : []
 const allEntries = await getCollection('entries')
-const localesForFeed = feedLocales(
-  allEntries.map((e) => ({ id: e.id, data: e.data as Record<string, unknown> })),
-)
+// feedLocales + the id index below are site-invariant; memoize per collection so the whole build
+// pays for each once, not per page render (#858). getCollection is build-cached, so 'entries' is
+// a stable key.
+const localesForFeed = memoFeedLocales('entries', allEntries)
 // hreflang alternates (#227): locale variants sharing this entry's collection+slug. Only
 // published, routable variants are advertised; fewer than 2 → pageSeo emits no hreflang.
 const permalinks = await permalinkMap()
+const entryById = memoEntryIndex('entries', allEntries)
 const alternates = localeAlternates(entry.id, allEntries.map((e) => e.id))
   .filter((a) => {
-    const e = allEntries.find((x) => x.id === a.id)
+    const e = entryById.get(a.id)
     return !!e && (e.data as { published?: unknown }).published !== false && permalinks.has(a.id)
   })
   .map((a) => ({ locale: a.locale, path: `/${permalinks.get(a.id)!}` }))

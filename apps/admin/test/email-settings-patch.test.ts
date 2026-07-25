@@ -1,0 +1,229 @@
+import { describe, expect, it } from 'vitest'
+import {
+  DEFAULT_SETTINGS,
+  EMAIL_TEMPLATE_MAX_BODY,
+  parseSettings
+} from '@setu/core'
+import type { EmailSettings as EmailValues } from '@setu/core'
+import { patchEmailGroup } from '../src/screens/settings/email-settings-patch'
+
+/**
+ * #937: Settings → Email loaded the SALVAGED email group and then wrote it back whole, so a
+ * stored value the salvage layer had rejected — an oversized template, a namespaced template id
+ * that fails EMAIL_TYPE_ID, a `git push`-ed `provider: "sendgrid"` — was erased by the next
+ * unrelated save, with "Settings saved" shown. This is the patch that replaced that write: only
+ * what the admin actually CHANGED is written, over the raw stored group.
+ */
+
+/** The screen's own load path: `parseSettings(raw).email` is what lands in state. */
+const loaded = (raw: Record<string, unknown>): EmailValues =>
+  parseSettings(raw).email
+
+const withField = (
+  v: EmailValues,
+  patch: Partial<EmailValues>
+): EmailValues => ({
+  ...v,
+  ...patch
+})
+
+describe('patchEmailGroup (#937)', () => {
+  it('writes the changed from-address', () => {
+    const raw = { email: { fromAddress: 'old@example.com' } }
+    const published = loaded(raw)
+    const out = patchEmailGroup(
+      raw.email,
+      published,
+      withField(published, { fromAddress: 'new@example.com' })
+    )
+    expect(out.fromAddress).toBe('new@example.com')
+  })
+
+  // THE #937 case: the provider is not what the admin touched, so it must not be rewritten from
+  // the salvaged reading (which is DEFAULT_SETTINGS.email.provider, i.e. '').
+  it('a from-address save does not erase a stored provider the salvage layer rejected', () => {
+    const raw = {
+      email: { fromAddress: 'old@example.com', provider: 'sendgrid' }
+    }
+    const published = loaded(raw)
+    expect(published.provider).toBe(DEFAULT_SETTINGS.email.provider) // salvage dropped it
+    const out = patchEmailGroup(
+      raw.email,
+      published,
+      withField(published, { fromAddress: 'new@example.com' })
+    )
+    expect(out.fromAddress).toBe('new@example.com')
+    expect(out.provider).toBe('sendgrid')
+  })
+
+  it('a from-address save does not erase a from-address the salvage layer rejected either', () => {
+    // Not a contradiction: the admin is saving a NEW address, so the field IS written. This
+    // pins the sibling case — a provider save must leave the rejected address alone.
+    const raw = {
+      email: { fromAddress: 'not-an-address', provider: 'console' }
+    }
+    const published = loaded(raw)
+    expect(published.fromAddress).toBe('')
+    const out = patchEmailGroup(
+      raw.email,
+      published,
+      withField(published, { provider: 'smtp' })
+    )
+    expect(out.provider).toBe('smtp')
+    expect(out.fromAddress).toBe('not-an-address')
+  })
+
+  it('a namespaced template id that fails EMAIL_TYPE_ID survives an unrelated save', () => {
+    const raw = {
+      email: {
+        fromAddress: 'old@example.com',
+        templates: { 'myplugin:welcome': { subject: 'Hi' } }
+      }
+    }
+    const published = loaded(raw)
+    expect(published.templates['myplugin:welcome']).toBeUndefined() // dropped at parse
+    const out = patchEmailGroup(
+      raw.email,
+      published,
+      withField(published, { fromAddress: 'new@example.com' })
+    )
+    expect(out.templates).toEqual({ 'myplugin:welcome': { subject: 'Hi' } })
+  })
+
+  // Editing ONE template must not take the rejected sibling with it — that is the case a naive
+  // "write the whole salvaged templates map" fix would still lose.
+  it('editing one template keeps a rejected sibling entry', () => {
+    const raw = {
+      email: {
+        templates: {
+          'myplugin:welcome': { subject: 'Hi' },
+          'password-reset': { subject: 'Old' }
+        }
+      }
+    }
+    const published = loaded(raw)
+    const out = patchEmailGroup(
+      raw.email,
+      published,
+      withField(published, {
+        templates: {
+          ...published.templates,
+          'password-reset': { subject: 'New' }
+        }
+      })
+    )
+    expect(out.templates).toEqual({
+      'myplugin:welcome': { subject: 'Hi' },
+      'password-reset': { subject: 'New' }
+    })
+  })
+
+  it('reset-to-default still deletes the entry the admin cleared', () => {
+    const raw = {
+      email: {
+        templates: {
+          'myplugin:welcome': { subject: 'Hi' },
+          'password-reset': { subject: 'Old' }
+        }
+      }
+    }
+    const published = loaded(raw)
+    const next = { ...published.templates }
+    delete next['password-reset']
+    const out = patchEmailGroup(
+      raw.email,
+      published,
+      withField(published, { templates: next })
+    )
+    expect(out.templates).toEqual({ 'myplugin:welcome': { subject: 'Hi' } })
+  })
+
+  // Two distinct salvage outcomes, both of which the old whole-group write erased:
+  // an over-cap FIELD hollows the entry out to `{}` (EMAIL_TEMPLATE_MAX_BODY), while an
+  // over-cap ENTRY is dropped whole (EMAIL_TEMPLATE_MAX_ENTRY_BYTES).
+  it('an over-cap template body survives a from-address-only save', () => {
+    const huge = 'x'.repeat(EMAIL_TEMPLATE_MAX_BODY + 1)
+    const raw = {
+      email: {
+        fromAddress: 'a@b.co',
+        templates: { 'password-reset': { html: huge } }
+      }
+    }
+    const published = loaded(raw)
+    expect(published.templates['password-reset']).toEqual({}) // the body was dropped
+    const out = patchEmailGroup(
+      raw.email,
+      published,
+      withField(published, { fromAddress: 'c@d.co' })
+    )
+    expect(out.templates).toEqual({ 'password-reset': { html: huge } })
+  })
+
+  it('an over-cap template ENTRY survives a from-address-only save', () => {
+    // Over EMAIL_TEMPLATE_MAX_ENTRY_BYTES via an unknown passthrough field — the #935 shape,
+    // and the only way to exceed the ENTRY cap given the per-field caps. The `toBeUndefined`
+    // below is what keeps this honest if that cap ever moves.
+    const entry = { html: 'ok', futureField: 'x'.repeat(300_000) }
+    const raw = {
+      email: { fromAddress: 'a@b.co', templates: { 'password-reset': entry } }
+    }
+    const published = loaded(raw)
+    expect(published.templates['password-reset']).toBeUndefined() // dropped whole
+    const out = patchEmailGroup(
+      raw.email,
+      published,
+      withField(published, { fromAddress: 'c@d.co' })
+    )
+    expect(out.templates).toEqual({ 'password-reset': entry })
+  })
+
+  it('unknown keys inside the email group survive (the #885 Finding 4 promise)', () => {
+    const raw = { email: { fromAddress: 'a@b.co', futureKey: { x: 1 } } }
+    const published = loaded(raw)
+    const out = patchEmailGroup(
+      raw.email,
+      published,
+      withField(published, { fromAddress: 'c@d.co' })
+    )
+    expect(out.futureKey).toEqual({ x: 1 })
+  })
+
+  it('a non-object stored email group is replaced by the patch alone, never spread', () => {
+    const published = loaded({ email: 42 })
+    const out = patchEmailGroup(
+      42,
+      published,
+      withField(published, { fromAddress: 'c@d.co' })
+    )
+    expect(out).toEqual({ fromAddress: 'c@d.co' })
+  })
+
+  it('a non-object stored templates value is replaced only when templates changed', () => {
+    const raw = { email: { fromAddress: 'a@b.co', templates: 7 } }
+    const published = loaded(raw)
+    // From-address only: the junk is left exactly as stored — this function never "tidies".
+    expect(
+      patchEmailGroup(
+        raw.email,
+        published,
+        withField(published, { fromAddress: 'c@d.co' })
+      ).templates
+    ).toBe(7)
+    // Templates changed: the junk is replaced by the real map.
+    expect(
+      patchEmailGroup(
+        raw.email,
+        published,
+        withField(published, {
+          templates: { 'password-reset': { subject: 'S' } }
+        })
+      ).templates
+    ).toEqual({ 'password-reset': { subject: 'S' } })
+  })
+
+  it('writes nothing at all when nothing changed', () => {
+    const raw = { email: { fromAddress: 'a@b.co', provider: 'sendgrid' } }
+    const published = loaded(raw)
+    expect(patchEmailGroup(raw.email, published, published)).toEqual(raw.email)
+  })
+})

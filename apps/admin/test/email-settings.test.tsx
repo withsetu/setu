@@ -376,6 +376,38 @@ describe('EmailSettings — from-address save flow', () => {
     })
   })
 
+  // #937: the screen loads the SALVAGED email group, so writing it back whole ERASED every
+  // stored value salvage had rejected — from Git, the canonical store — as a side effect of an
+  // unrelated from-address change, under "Settings saved". Both of these arrive by `git push`,
+  // which never passes the api's settings-write gate; the namespaced template id is the #302
+  // plugin case. Driven through the real save button, not the helper (which has its own
+  // per-branch coverage in apps/admin/test/email-settings-patch.test.ts).
+  it('a from-address save does not erase stored values the salvage layer rejected', async () => {
+    stubEmailApi(consoleStatus())
+    const { git } = renderEmail({
+      email: {
+        fromAddress: 'old@example.com',
+        provider: 'sendgrid',
+        templates: { 'myplugin:welcome': { subject: 'Hi' } }
+      }
+    })
+    const input = await screen.findByLabelText(/from address/i)
+    await waitFor(() =>
+      expect((input as HTMLInputElement).value).toBe('old@example.com')
+    )
+    fireEvent.change(input, { target: { value: 'new@example.com' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    await waitFor(async () => {
+      const raw = await git.readFile('settings.json')
+      expect(raw).not.toBeNull()
+      const email = (JSON.parse(raw as string) as Record<string, unknown>)
+        .email as Record<string, unknown>
+      expect(email.fromAddress).toBe('new@example.com')
+      expect(email.provider).toBe('sendgrid')
+      expect(email.templates).toEqual({ 'myplugin:welcome': { subject: 'Hi' } })
+    })
+  })
+
   // #885 review Finding 6: whitespace padding is not a change — trimmed before dirty-compare
   // and before saving.
   it('padding the published value with whitespace does not arm Save; a padded new value saves trimmed', async () => {

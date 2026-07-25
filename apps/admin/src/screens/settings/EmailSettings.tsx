@@ -15,6 +15,7 @@ import {
   validateEmailTemplates,
   templatesFingerprint
 } from './EmailTemplates'
+import { patchEmailGroup } from './email-settings-patch'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -368,14 +369,27 @@ export function EmailSettings() {
   const shownProvider = values.provider || (status?.transport ?? '')
 
   const save = async () => {
-    if (saving || !dirty || raw === null || hasTemplateErrors) return
+    if (saving || !dirty || raw === null || published === null) return
+    if (hasTemplateErrors) return
     if (!fromAddressSchema.safeParse(trimmed).success) {
       setFieldError(FROM_ERROR)
       return
     }
     setSaving(true)
     try {
-      const next = { ...raw, email: { ...values, fromAddress: trimmed } }
+      // #937: PATCH the stored group with what changed — never write the loaded group back
+      // whole. `values` is the SALVAGED reading, so writing it back erased every stored value
+      // the salvage layer had rejected (a `git push`-ed provider, an oversized template, a
+      // plugin's namespaced template id) as a side effect of an unrelated edit, under a
+      // "Settings saved" toast. See email-settings-patch.ts;
+      // apps/admin/test/email-settings-patch.test.ts pins each case.
+      const next = {
+        ...raw,
+        email: patchEmailGroup(raw.email, published, {
+          ...values,
+          fromAddress: trimmed
+        })
+      }
       await git.commitFile({
         path: SETTINGS_PATH,
         content: JSON.stringify(next, null, 2) + '\n',

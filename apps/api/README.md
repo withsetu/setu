@@ -42,6 +42,7 @@ prints a loud `TEST KEYS` warning whenever one is configured; if you see it on a
 deployment, rotate to real keys immediately. The e2e captcha lane (`pnpm e2e:captcha`,
 `e2e/captcha.config.ts`) uses the same pairs.
 
-The forgot-password card additionally needs `email.deliverable` (a real transport:
-`SETU_EMAIL_ADAPTER=resend` + `RESEND_API_KEY` + `SETU_FORMS_NOTIFY_FROM`) to show its form —
-without it the card honestly reports reset isn't configured, captcha or not.
+The forgot-password card additionally needs `email.deliverable` to show its form —
+`SETU_EMAIL_ADAPTER=resend` + `SETU_FORMS_NOTIFY_FROM` are what the capability checks
+(`RESEND_API_KEY` isn't part of it, but real sends need it too). Without those the card honestly
+reports reset isn't configured, captcha or not.

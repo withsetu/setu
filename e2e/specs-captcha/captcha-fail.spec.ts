@@ -44,7 +44,7 @@ test('sign-in with correct credentials is rejected when siteverify fails the tok
   await expect(dashboard.heading).not.toBeVisible()
 })
 
-test('forgot-password surfaces the server rejection and re-arms the widget', async ({
+test('forgot-password surfaces the server rejection, never the success copy, and the gate stays usable', async ({
   page
 }) => {
   const login = new LoginPage(page)
@@ -72,10 +72,11 @@ test('forgot-password surfaces the server rejection and re-arms the widget', asy
     page.getByText('If an account exists for that email')
   ).not.toBeVisible()
 
-  // #847 re-arm on a REAL widget: captcha tokens are single-use and the failed request consumed
-  // this one, so the card resets the widget; the always-pass sitekey then auto-resolves again
-  // and the gate re-opens for the retry the error copy invites. (The token-cleared/disabled
-  // interval is asserted deterministically in apps/admin/test/login-screen.test.tsx — here the
-  // widget's timing is Cloudflare's, so we assert only the re-armed end state.)
+  // End-state smoke only: the submit is usable after the failure (no dead-ended card). This does
+  // NOT prove the single-use re-arm — the always-pass widget re-solves on Cloudflare's timing, so
+  // an un-cleared stale token and a re-issued fresh one are indistinguishable here. The re-arm
+  // behavior itself (spent token cleared, gate closed until the widget re-issues, retry threads
+  // the NEW token) is asserted deterministically by "a failed forgot submit clears the consumed
+  // token" in apps/admin/test/login-screen.test.tsx, against a controllable widget stub.
   await expect(send).toBeEnabled({ timeout: WIDGET_TIMEOUT })
 })

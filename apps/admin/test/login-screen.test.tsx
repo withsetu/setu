@@ -417,6 +417,64 @@ describe('LoginScreen — forgot password (#500)', () => {
     turnstile.cleanup()
   })
 
+  // #868 review Finding 1: captcha tokens are single-use — a FAILED forgot submit consumed the
+  // token it carried, so the error branch (LoginScreen.tsx's ForgotPasswordCard, requestError +
+  // thrown paths) must reset the widget and clear the stale token, or the retry the error copy
+  // invites would re-send a spent token and dead-end. This is the deterministic half of the
+  // re-arm story: the stub never re-issues on its own, so "disabled again with the hint" can
+  // only mean the token was actually cleared. (The e2e fail lane —
+  // e2e/specs-captcha/captcha-fail.spec.ts — drives the same path against a REAL widget but can
+  // only observe the re-armed end state, since the always-pass widget re-solves on Cloudflare's
+  // schedule.)
+  it('a failed forgot submit clears the consumed token: submit gated again until the widget re-issues, retry threads the NEW token', async () => {
+    stubCapabilities(WITH_CAPTCHA, undefined, DELIVERABLE)
+    const turnstile = stubTurnstile() // no auto-issue: both pending windows must be observable
+    mockRequestPasswordReset.mockResolvedValue({
+      data: null,
+      error: { status: 403, message: 'Captcha verification failed' }
+    })
+
+    await openForgot()
+
+    const send = await screen.findByRole('button', {
+      name: /send reset link/i
+    })
+    turnstile.issue('spent-tok')
+    await waitFor(() => expect(send).not.toBeDisabled())
+
+    const emailInput = screen.getByLabelText(/email/i)
+    fireEvent.change(emailInput, { target: { value: 'ada@setu.dev' } })
+    fireEvent.submit(emailInput.closest('form')!)
+
+    // The failure is visible…
+    expect(
+      await screen.findByText(/couldn't send the reset email/i)
+    ).toBeInTheDocument()
+    // …and the gate is CLOSED again: the spent token was cleared, and the stub hasn't re-issued,
+    // so an enabled button here could only mean the stale token survived.
+    await waitFor(() => expect(send).toBeDisabled())
+    expect(screen.getByText(/complete the challenge/i)).toBeInTheDocument()
+
+    // The widget re-issues (real Turnstile re-solves after reset()) — the retry must thread the
+    // NEW token, not the spent one.
+    turnstile.issue('fresh-tok')
+    await waitFor(() => expect(send).not.toBeDisabled())
+    fireEvent.submit(emailInput.closest('form')!)
+
+    await waitFor(() =>
+      expect(mockRequestPasswordReset).toHaveBeenLastCalledWith(
+        expect.objectContaining({ email: 'ada@setu.dev' }),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'x-captcha-response': 'fresh-tok'
+          })
+        })
+      )
+    )
+
+    turnstile.cleanup()
+  })
+
   // #500 review Finding 2: leaving the forgot step must re-mount the sign-in captcha widget and
   // discard the stale token — the widget's DOM node was unmounted, so a token issued before the
   // switch belongs to a dead widget. Sign-in must stay gated until the remounted widget

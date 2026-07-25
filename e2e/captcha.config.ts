@@ -71,12 +71,17 @@ function apiEnv(opts: {
     SETU_TURNSTILE_SECRET: opts.turnstileSecret,
     // Email must report deliverable=true or the forgot-password card renders its honest
     // not-configured copy instead of the form this lane exists to exercise
-    // (emailCapabilityFromEnv requires transport 'resend' + a from-address). The dummy Resend
-    // key is intended never to be used: the pass-lane forgot spec submits an email with no
-    // account (better-auth's enumeration-safe branch responds without sending) and the fail
-    // lane is rejected by the captcha gate before the route runs. If a send ever DID fire, the
-    // resend adapter would throw on the bogus key and surface as a visible error that fails the
-    // spec — the guard is self-enforcing, not silent.
+    // (emailCapabilityFromEnv requires transport 'resend' + a from-address).
+    //
+    // No reset email is ever sent, and the guard is the ADDRESS THE SPECS SUBMIT, not this dummy
+    // key: captcha-nobody-e2e@setu.test has no account, and better-auth's unknown-email branch
+    // returns its uniform success BEFORE any send is attempted (1.6.24
+    // dist/api/routes/password.mjs's !user early return); the fail lane is additionally rejected
+    // by the captcha gate before the route runs. Do NOT lean on the bogus key to catch a stray
+    // send — a sendResetPassword failure is swallowed by better-auth's runInBackgroundOrAwait
+    // (dist/context/create-context.mjs: catches, logs, still returns { status: true }), so a
+    // spec that accidentally submitted a REAL account's email would still see the uniform
+    // success copy and pass. Keep the specs on account-less addresses.
     SETU_EMAIL_ADAPTER: 'resend',
     SETU_FORMS_NOTIFY_FROM: 'Setu E2E <e2e@setu.test>',
     RESEND_API_KEY: 're_e2e_dummy_never_called'

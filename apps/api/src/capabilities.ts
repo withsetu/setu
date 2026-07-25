@@ -182,6 +182,17 @@ export function resolveEmailProvider(
   return { selected: 'console', source: 'default' }
 }
 
+/** The transports Setu can actually construct. An id outside this set is a misconfiguration,
+ *  not a capability gap — see KNOWN_TRANSPORTS' use in usableEmailTransport below. */
+const KNOWN_TRANSPORTS = ['console', 'resend', 'smtp'] as const
+
+/** `['a','b','c']` → `'a, b or c'`, so the remediation copy lists whatever KNOWN_TRANSPORTS
+ *  actually holds instead of a hand-maintained sentence that can drift from it. */
+const orList = (items: readonly string[]): string =>
+  items.length < 2
+    ? (items[0] ?? '')
+    : `${items.slice(0, -1).join(', ')} or ${items[items.length - 1]}`
+
 /** Which transport this instance selects (resolveEmailProvider above — settings win, env
  *  fallback), and whether it is actually USABLE — the one predicate server.ts's adapter
  *  resolution, emailCapabilityFromEnv (below) and the /api/email/status thunk all share, so
@@ -190,8 +201,10 @@ export function resolveEmailProvider(
  *  - resend needs RESEND_API_KEY (#885 review Finding 2 — a keyless resend adapter throws on
  *    first send, so it must not count as a real transport);
  *  - smtp needs a parseable SETU_SMTP_* config (#256, via smtpConfigFromEnv);
- *  - anything else (console, unset, unrecognized) is the console fallback.
- *  `problem` is a boot-log-safe reason naming the missing/broken variable, never a value.
+ *  - an id outside KNOWN_TRANSPORTS falls back to console AND names the typo (#942);
+ *  - console / unset / '' is the silent zero-config default.
+ *  `problem` is a boot-log-safe reason naming the missing/broken variable, never a value —
+ *  except a transport id, which is a selection, never a credential.
  *
  *  #890: this is ALSO the fail-safe for a provider stored in settings.json. That file is
  *  Git-canonical, so an unusable value can arrive by `git push` without passing through the
@@ -204,8 +217,11 @@ export type UsableEmailTransport = {
   source: EmailProviderResolution['source']
   /** The adapter kind that should actually be constructed for this selection. */
   effective: 'console' | 'resend' | 'smtp'
-  /** Why a selected real transport fell back to console (null when nothing fell back —
-   *  including the unrecognized-value case, which the caller reports via `selected`). */
+  /** Why the selection fell back to console: a missing secret, a broken SMTP config, or (#942)
+   *  an id Setu does not know. Null when nothing fell back, and null for the plain console
+   *  default — unset/'' is "not configured", which is the normal zero-config state and must not
+   *  shout on every boot. Branches pinned by apps/api/test/capabilities.test.ts
+   *  ("usableEmailTransport" describe). */
   problem: string | null
 }
 
@@ -230,6 +246,23 @@ export function usableEmailTransport(
       return { selected, source, effective: 'smtp', problem: null }
     return { selected, source, effective: 'console', problem: smtp.problem }
   }
+  // #942: an id we cannot construct. Name it — the boot "selected but not usable" error keys on
+  // `problem !== null`, so `null` here meant a typo'd SETU_EMAIL_ADAPTER produced no diagnostic
+  // at all. The fallback is deliberately kept: refusing to boot would be a NEW fail-closed
+  // behaviour on upgrade for a deployment that is currently limping along on the console.
+  // Which source is named matters — the remediation is a different file in each case.
+  if (!(KNOWN_TRANSPORTS as readonly string[]).includes(selected))
+    return {
+      selected,
+      source,
+      effective: 'console',
+      problem:
+        (source === 'env'
+          ? `SETU_EMAIL_ADAPTER is set to "${selected}"`
+          : `settings.json's email.provider is "${selected}"`) +
+        `, which is not a transport Setu knows (expected ${orList(KNOWN_TRANSPORTS)})` +
+        ' — emails fall back to the console adapter until it is corrected'
+    }
   return { selected, source, effective: 'console', problem: null }
 }
 
@@ -284,17 +317,40 @@ export function emailTransportOptions(
 export interface FromAddressResolution {
   effective: string | null
   source: 'settings' | 'env' | null
+  /** #942: why a SET env fallback was ignored, for the boot log — null when nothing was
+   *  rejected, including the unset/'' case, which is "not configured" rather than
+   *  "misconfigured". Never echoes the offending address (an operator's from-address is not a
+   *  credential, but the boot log is not the place to reprint it either); server.ts prints it
+   *  once at boot. Pinned by apps/api/test/capabilities.test.ts ("resolveFromAddress" describe). */
+  problem: string | null
 }
+
+/** The same rule the settings field enforces (packages/core/src/settings/schema.ts's
+ *  `emailSchema.fromAddress`), applied to the env fallback that #885/#890 left unvalidated. */
+const emailAddress = z.string().email()
 
 export function resolveFromAddress(
   settingsFromAddress: string | undefined,
   env: NodeJS.ProcessEnv = process.env
 ): FromAddressResolution {
   if (settingsFromAddress)
-    return { effective: settingsFromAddress, source: 'settings' }
+    return { effective: settingsFromAddress, source: 'settings', problem: null }
   const fromEnv = env.SETU_FORMS_NOTIFY_FROM
-  if (fromEnv) return { effective: fromEnv, source: 'env' }
-  return { effective: null, source: null }
+  if (fromEnv) {
+    // #942: truthiness alone let a whitespace-only value through here, and from here it
+    // satisfied `deliverable`, the reset gate's `Boolean(p.from)` and the submission gate —
+    // an address no transport could ever send from. Degrade to "none configured" and say so.
+    if (emailAddress.safeParse(fromEnv).success)
+      return { effective: fromEnv, source: 'env', problem: null }
+    return {
+      effective: null,
+      source: null,
+      problem:
+        'SETU_FORMS_NOTIFY_FROM is not a valid email address — it is ignored, so no ' +
+        'from-address is configured. Fix it, or set one in Settings → Email.'
+    }
+  }
+  return { effective: null, source: null, problem: null }
 }
 
 /** The email capability block for /api/capabilities. Built on the same two helpers above that

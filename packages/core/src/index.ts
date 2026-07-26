@@ -58,6 +58,7 @@ export {
 } from './permalinks/frontmatter-date'
 export { DEFAULT_SETTINGS } from './settings/defaults'
 export { parseSettings, parseSettingsWithWarnings } from './settings/schema'
+export { sendableFromAddress } from './settings/from-address'
 
 export type {
   EntryRef,

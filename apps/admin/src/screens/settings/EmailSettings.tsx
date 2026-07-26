@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
-import { z } from 'zod'
-import { parseSettings, DEFAULT_SETTINGS } from '@setu/core'
+import {
+  parseSettings,
+  DEFAULT_SETTINGS,
+  sendableFromAddress
+} from '@setu/core'
 import type { EmailSettings as EmailValues } from '@setu/core'
 import { useServices, OWNER_AUTHOR } from '../../data/store'
 import { useNotify } from '../../ui/notify'
@@ -79,9 +82,22 @@ const TRANSPORT_HINTS: Record<TransportId, string> = {
 const isTransportId = (v: string): v is TransportId =>
   v === 'console' || v === 'resend' || v === 'smtp'
 
-const FROM_ERROR = 'Enter a valid email address, e.g. hello@example.com.'
-// Empty is a valid stored value: "not set — fall back to SETU_FORMS_NOTIFY_FROM".
-const fromAddressSchema = z.union([z.literal(''), z.string().email()])
+const FROM_ERROR =
+  'Enter a valid email address, e.g. hello@example.com — or Setu <hello@example.com> to include a display name.'
+/**
+ * #957: the same rule the settings schema and the api resolver use, not a third copy of it. The
+ * field used to be `z.union([z.literal(''), z.string().email()])` over the whole value, so it
+ * refused `Setu <hello@example.com>` — the display-name form both transports document, and the one
+ * an operator moving a working `SETU_FORMS_NOTIFY_FROM` into Settings already had.
+ *
+ * Empty is a valid stored value: "not set here — fall back to SETU_FORMS_NOTIFY_FROM". The
+ * comparison is `=== v` so the field accepts only what would actually be SENT, matching
+ * `emailSchema.fromAddress`; the caller passes the trimmed value, so padding is not a rejection the
+ * admin can hit. Pinned by apps/admin/test/email-settings.test.tsx ("accepts a from-address with a
+ * display name") and, for the rule itself, packages/core/src/settings/from-address.test.ts.
+ */
+const fromAddressOk = (v: string): boolean =>
+  v === '' || sendableFromAddress(v) === v
 
 interface SendResult {
   result: 'sent' | 'logged'
@@ -390,7 +406,7 @@ export function EmailSettings() {
   const save = async () => {
     if (saving || !dirty || raw === null || published === null) return
     if (hasTemplateErrors) return
-    if (!fromAddressSchema.safeParse(trimmed).success) {
+    if (!fromAddressOk(trimmed)) {
       setFieldError(FROM_ERROR)
       return
     }
@@ -540,7 +556,9 @@ export function EmailSettings() {
             )}
             <p id="email-from-help" className="text-xs text-muted-foreground">
               The sender for every email this site sends — password resets and
-              form notifications. Overrides the server&rsquo;s
+              form notifications. Write{' '}
+              <code className="font-mono">Setu &lt;hello@example.com&gt;</code>{' '}
+              to show a name beside the address. Overrides the server&rsquo;s
               SETU_FORMS_NOTIFY_FROM variable; leave empty to fall back to it.
             </p>
           </div>

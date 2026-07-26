@@ -1,6 +1,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
+import { parseSettingsWithWarnings } from '@setu/core'
 import { createMemoryDataPort } from '@setu/db-memory'
 import { createMemoryGitPort } from '@setu/git-memory'
 import { ActorProvider } from '../src/auth/actor'
@@ -477,6 +478,71 @@ describe('EmailSettings — from-address save flow', () => {
         (JSON.parse(raw as string).email as { fromAddress: string }).fromAddress
       ).toBe('owner@example.com')
     })
+  })
+
+  // #957: the field's own schema was `z.string().email()` over the WHOLE value, so it refused the
+  // display-name form that `SETU_FORMS_NOTIFY_FROM` accepts and both transports document — an
+  // operator moving a working env var into Settings was told their address was invalid.
+  it('accepts a from-address with a display name', async () => {
+    stubEmailApi(consoleStatus())
+    const { git } = renderEmail()
+    const input = await screen.findByLabelText(/from address/i)
+    fireEvent.change(input, { target: { value: 'Setu <hello@example.com>' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    await waitFor(async () => {
+      const raw = await git.readFile('settings.json')
+      expect(raw).not.toBeNull()
+      const stored = (
+        JSON.parse(raw as string).email as { fromAddress: string }
+      ).fromAddress
+      // The display name survives: storing the bare address would silently rewrite the config.
+      expect(stored).toBe('Setu <hello@example.com>')
+      // And it round-trips the salvage layer with no warning, so the site reads back what was typed.
+      expect(
+        parseSettingsWithWarnings(JSON.parse(raw as string)).warnings.filter(
+          (w) => w.startsWith('email.fromAddress')
+        )
+      ).toEqual([])
+    })
+  })
+
+  // The other half of the widened rule: a display name is not a free pass. A malformed addr-spec
+  // inside the brackets is still refused, so accepting `Setu <…>` did not become accepting anything
+  // with angle brackets in it.
+  it('still rejects a display-name form whose address is malformed', async () => {
+    stubEmailApi(consoleStatus())
+    const { git } = renderEmail()
+    const input = await screen.findByLabelText(/from address/i)
+    fireEvent.change(input, { target: { value: 'Setu <not-an-address>' } })
+    fireEvent.click(screen.getByRole('button', { name: /save/i }))
+    expect(await screen.findByText(/valid email/i)).toBeTruthy()
+    expect(await git.readFile('settings.json')).toBeNull()
+  })
+
+  /**
+   * Where the header-injection guard is NOT tested, and why — so the next reader does not add a
+   * CR/LF case here and take the green as coverage.
+   *
+   * A `<input type="text">` value cannot contain a CR or LF: the HTML value sanitization algorithm
+   * strips them, and jsdom implements that (asserted below rather than asserted about). So the field
+   * is structurally incapable of producing the injection value, and a test that "proves" the field
+   * rejects one is really testing the sanitizer.
+   *
+   * The guard's real surfaces are the two that take a string from outside a form control, and both
+   * are pinned: the STORED value, which arrives by `git push` into a Git-canonical settings.json —
+   * packages/core/src/settings/from-address.test.ts ("drops a stored from-address carrying a control
+   * character") — and the ENV var, apps/api/test/capabilities.test.ts.
+   */
+  it('cannot carry a CR/LF into the field at all — the browser strips them first', async () => {
+    stubEmailApi(consoleStatus())
+    renderEmail()
+    const input = await screen.findByLabelText(/from address/i)
+    fireEvent.change(input, {
+      target: { value: 'Setu\r\nBcc: evil@example.com <hello@example.com>' }
+    })
+    expect((input as HTMLInputElement).value).toBe(
+      'SetuBcc: evil@example.com <hello@example.com>'
+    )
   })
 
   it('rejects an invalid address with a per-field error and commits nothing', async () => {

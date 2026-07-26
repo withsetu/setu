@@ -253,6 +253,101 @@ export function renderTemplateField(
 }
 
 /**
+ * The ceiling on each RENDERED part of an email — the `html` and the `text` (#950).
+ *
+ * {@link EMAIL_TEMPLATE_MAX_BODY} bounds the stored template STRING and the forms boundary bounds
+ * each submitted value, and neither bounds the OUTPUT: `formNotificationValues` HTML-escapes every
+ * submitted name and value (correctly — that escaping is the only thing between an anonymous
+ * submitter and the operator's mail client), and escaping is expansive. One `&` in the request buys
+ * five characters (`&amp;`) in the render. So a submission can satisfy every input cap at once and
+ * still render megabytes: measured at exactly the #935 caps (100 fields, 200-character names,
+ * 10,000-character values, all `&`), a 1,020,865-byte request body rendered 5,035,997 characters of
+ * HTML and 1,020,568 of text — 4.93x.
+ *
+ * 64,000 is chosen against the largest render a LEGITIMATE at-cap submission produces: one field at
+ * the 10,000-character value cap renders 50,565 characters of HTML (measured; both numbers are
+ * pinned by packages/core/test/email/email-registry.test.ts, "the rendered body is capped (#950)").
+ * So the ceiling sits above any real notification while cutting the adversarial case by ~79x.
+ *
+ * Note what this is NOT: it is not a claim that a trimmed email is a good email. It is the
+ * difference between "the notification body is bounded at ~4.9 MiB" and "bounded at 64,000
+ * characters, and it says so when it cuts".
+ *
+ * Module-level export, deliberately NOT on the package barrel — the same posture as
+ * {@link isUsableTemplateField}. Unlike {@link EMAIL_TEMPLATE_MAX_BODY}, which the settings schema
+ * and the admin's template editor both validate against, this one has no consumer outside core:
+ * every caller reaches it through {@link renderEmailTemplate}, which is the point.
+ */
+export const EMAIL_RENDERED_MAX_BODY = 64_000
+
+/** The trim notice, in the words an operator can act on: their form is receiving submissions far
+ *  larger than a form is for. `rendered` is the real pre-trim length, so the scale is visible. */
+const trimNotice = (rendered: number): string =>
+  `… trimmed here: this email rendered ${rendered} characters, over the ${EMAIL_RENDERED_MAX_BODY}-character limit.`
+
+/**
+ * Cut a rendered part to `limit` characters without leaving a broken tail.
+ *
+ * ONE of two cut positions is chosen — they are alternatives, not a chain, so on the first branch
+ * neither markup backoff runs at all:
+ * - **A line boundary**, when one falls in the last quarter of the window. The `{{fields}}` block is
+ *   newline-joined rows, so this usually lands between whole rows. A tidiness PREFERENCE, not a
+ *   guarantee: deleting it fails no test. Nothing here asserts that this branch leaves well-formed
+ *   markup — the sweep named below exercises the other branch — so it is claimed only that no
+ *   broken markup was constructible through it, not that a test would catch it if one were.
+ * - **A half-written tag or character reference** (html only), otherwise. Submitter content is
+ *   escaped BEFORE the cut, so a cut can never manufacture a tag out of submitted text — the risk
+ *   is not injection, it is that an unterminated `<td style="…` would swallow the trim notice
+ *   appended after it into an attribute and tell the operator nothing. Both halves are separately
+ *   kill-shot tested by packages/core/test/email/email-registry.test.ts ("never leaves a
+ *   half-written tag or character reference").
+ *
+ * Then, on either branch, **a surrogate pair** is never split, for the same reason
+ * {@link capSubject} does not split one (same file, "never cuts an astral character in half").
+ */
+const cutTo = (s: string, limit: number, isHtml: boolean): string => {
+  let cut = s.slice(0, limit)
+  const nl = cut.lastIndexOf('\n')
+  if (nl >= limit * 0.75) {
+    cut = cut.slice(0, nl)
+  } else if (isHtml) {
+    const lt = cut.lastIndexOf('<')
+    if (lt > cut.lastIndexOf('>')) cut = cut.slice(0, lt)
+    const amp = cut.lastIndexOf('&')
+    // A character reference is short; anything further back is a literal `&amp;`-escaped ampersand
+    // that has already been closed.
+    if (amp > cut.lastIndexOf(';') && cut.length - amp <= 10)
+      cut = cut.slice(0, amp)
+  }
+  const last = cut.charCodeAt(cut.length - 1)
+  if (last >= 0xd800 && last <= 0xdbff) cut = cut.slice(0, -1)
+  return cut.trimEnd()
+}
+
+/**
+ * Apply {@link EMAIL_RENDERED_MAX_BODY} to one rendered part, with a visible marker (#950).
+ *
+ * Applied inside {@link renderEmailTemplate} rather than at either call site for exactly the reason
+ * {@link capSubject} is: the admin's live preview and the server's send are the same function (see
+ * the preview-parity note at the top of this file), so a cap on one side only would make the
+ * preview a lie — and epic #497 rests on that parity.
+ *
+ * The notice is generic rather than "…and N more fields": this function renders password-reset mail
+ * too and knows nothing about fields. What it can say honestly, it does — that the email was cut
+ * here, and how big it came out.
+ */
+const capBody = (s: string, isHtml: boolean): string => {
+  if (s.length <= EMAIL_RENDERED_MAX_BODY) return s
+  const notice = isHtml
+    ? `\n<p style="font-family:system-ui,sans-serif;font-size:12px;color:#71717a;margin:16px 0 0">${trimNotice(s.length)}</p>`
+    : `\n\n${trimNotice(s.length)}`
+  return (
+    cutTo(s, Math.max(0, EMAIL_RENDERED_MAX_BODY - notice.length), isHtml) +
+    notice
+  )
+}
+
+/**
  * Truncate a RENDERED subject to the bound a stored template already obeys (#935).
  *
  * {@link EMAIL_TEMPLATE_MAX_SUBJECT} bounds the template STRING; a single token can still expand
@@ -289,7 +384,8 @@ const capSubject = (s: string): string => {
  *   so CR/LF is stripped from both the template and every substituted value, and the RESULT is
  *   length-bounded — a token value can expand a within-cap template without limit (#935).
  * - **html** — html context: every value is escaped unless the type's vocabulary declares the
- *   token `rawHtml`.
+ *   token `rawHtml`. The result is bounded by {@link capBody}, because escaping AMPLIFIES: the same
+ *   reasoning as the subject, one layer out (#950).
  * - **text** — THREE arms, reported as {@link RenderedEmail.textSource}:
  *   1. `'stored'` — an explicit `override.text` that cleared both gates wins.
  *   2. `'derived'` — otherwise, when the HTML was overridden AND that HTML derives a non-empty
@@ -334,13 +430,24 @@ export function renderEmailTemplate(
   // which is also what decides the text part's arm below. An override that renders to nothing is
   // not a customization, so its text part must not be derived from those empty bytes either.
   const overriddenHtml = rendered(o.html, 'html', EMAIL_TEMPLATE_MAX_BODY)
-  const html = overriddenHtml ?? shipped(def.defaultHtml, 'html')
+  const html = capBody(overriddenHtml ?? shipped(def.defaultHtml, 'html'), true)
   // Markup with no words in it (an image-only body) is a usable, non-blank HTML override whose
   // DERIVATION is empty — the third arm in the docblock above.
+  //
+  // #950: derived from the CAPPED html, not from the override's full render. Two reasons, and the
+  // first is the load-bearing one: a text part carrying rows the html part trimmed away would make
+  // the two halves of one email disagree, which is the exact mismatch htmlToPlainText exists to
+  // prevent. It also means this derivation never sees more than EMAIL_RENDERED_MAX_BODY characters,
+  // well inside htmlToPlainText's own HTML_TO_TEXT_MAX_INPUT ceiling (#941).
   const derivedText =
-    overriddenHtml === null ? null : htmlToPlainText(overriddenHtml) || null
+    overriddenHtml === null ? null : htmlToPlainText(html) || null
   const storedText = rendered(o.text, 'text', EMAIL_TEMPLATE_MAX_BODY)
-  const text = storedText ?? derivedText ?? shipped(def.defaultText, 'text')
+  // Capped independently: the shipped `defaultText` carries `{{fields}}` too, so the text part can
+  // be over the ceiling on a submission whose html part is not (and vice versa).
+  const text = capBody(
+    storedText ?? derivedText ?? shipped(def.defaultText, 'text'),
+    false
+  )
   // Decided HERE, from the same three values the arm above selected between, so no caller has to
   // re-derive it (and get it wrong — #920 review F2).
   const textSource =

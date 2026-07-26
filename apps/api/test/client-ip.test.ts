@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
+  MAX_FORWARDED_HOPS,
+  parseForwardedHeader,
   resolveClientIp,
   parseTrustedProxies,
   parseTrustedProxyHeader,
@@ -140,6 +142,37 @@ describe('resolveClientIp — level 2, SETU_TRUSTED_PROXIES (#918)', () => {
     )
     expect(performance.now() - t0).toBeLessThan(200)
     expect(typeof ip).toBe('string')
+  })
+
+  // KILL-SHOT TARGET for the hop cap. The timing assertion above does NOT discriminate — walking
+  // 5,000 array entries is microseconds with or without the cap, so it stays green when the cap is
+  // deleted. This puts the only usable hop just BEYOND the cap: with the cap the walk gives up and
+  // keys on the proxy, without it the walk reaches the address.
+  it('gives up rather than walking past the hop cap (x-forwarded-for)', () => {
+    const beyond = [
+      '203.0.113.7',
+      ...Array.from({ length: MAX_FORWARDED_HOPS }, () => '198.51.100.1')
+    ]
+    expect(
+      resolveClientIp(
+        req({
+          socketIp: '198.51.100.1',
+          headers: { 'x-forwarded-for': beyond.join(', ') }
+        }),
+        trust
+      )
+    ).toBe('198.51.100.1')
+    // One proxy hop shorter — so the address now sits INSIDE the cap — and it IS found, which is
+    // what proves the test above is about the cut rather than about the address being unusable.
+    expect(
+      resolveClientIp(
+        req({
+          socketIp: '198.51.100.1',
+          headers: { 'x-forwarded-for': beyond.slice(0, -1).join(', ') }
+        }),
+        trust
+      )
+    ).toBe('203.0.113.7')
   })
 })
 
@@ -370,5 +403,439 @@ describe('UNRESOLVED_IP_KEY', () => {
   it('is a constant the limiter can key on so "no IP" means ONE shared bucket, not no bucket', () => {
     expect(typeof UNRESOLVED_IP_KEY).toBe('string')
     expect(UNRESOLVED_IP_KEY.length).toBeGreaterThan(0)
+  })
+})
+
+// #934 — the RFC 7239 standard header. A deployment whose front sets only `Forwarded` used to
+// resolve every request to the proxy's own socket address, collapsing all callers into one bucket.
+// That failed CLOSED (over-limiting, never bypassable), so this is a DX gap rather than an
+// exposure — but it silently degraded per-IP limiting on a standards-compliant setup.
+//
+// `Forwarded` is a hop list, so it rides the SAME level-2 declaration and the SAME right-to-left
+// walk and hop cap as `x-forwarded-for`. It deliberately does NOT ride the level-3 single-valued
+// opt-in, which exists precisely because a single value has no append structure to make a
+// right-walk safe.
+describe('parseForwardedHeader — the RFC 7239 grammar (#934)', () => {
+  it('reads a plain node identifier and ignores the other parameters', () => {
+    expect(
+      parseForwardedHeader('for=192.0.2.60;proto=http;by=203.0.113.43')
+    ).toEqual(['192.0.2.60'])
+  })
+
+  it('reads a comma-separated hop list in order', () => {
+    expect(parseForwardedHeader('for=192.0.2.43, for=198.51.100.17')).toEqual([
+      '192.0.2.43',
+      '198.51.100.17'
+    ])
+  })
+
+  it('parameter names are case-insensitive, per the RFC', () => {
+    expect(parseForwardedHeader('For=192.0.2.60')).toEqual(['192.0.2.60'])
+    expect(parseForwardedHeader('BY=1.1.1.1;FOR=192.0.2.60')).toEqual([
+      '192.0.2.60'
+    ])
+  })
+
+  it('unwraps a quoted value and strips a bracketed IPv6 wrapper, with or without a port', () => {
+    expect(parseForwardedHeader('for="[2001:db8:cafe::17]:4711"')).toEqual([
+      '2001:db8:cafe::17'
+    ])
+    expect(parseForwardedHeader('for="[2001:db8:cafe::17]"')).toEqual([
+      '2001:db8:cafe::17'
+    ])
+  })
+
+  it('strips an IPv4 port, numeric or obfuscated', () => {
+    expect(parseForwardedHeader('for="192.0.2.60:1234"')).toEqual([
+      '192.0.2.60'
+    ])
+    expect(parseForwardedHeader('for=192.0.2.60:1234')).toEqual(['192.0.2.60'])
+    expect(parseForwardedHeader('for="192.0.2.60:_obfport"')).toEqual([
+      '192.0.2.60'
+    ])
+  })
+
+  it('leaves an unbracketed IPv6 intact instead of mistaking its last group for a port', () => {
+    // Not RFC-conformant (the RFC requires brackets), but a proxy that emits it must not have its
+    // address silently truncated to `2001:db8:cafe:` — that would be a WRONG bucket key, which is
+    // worse than no key.
+    expect(parseForwardedHeader('for=2001:db8:cafe::17')).toEqual([
+      '2001:db8:cafe::17'
+    ])
+  })
+
+  // THE hop-skipping requirement. `unknown` and an obfuscated `_id` are legal RFC 7239 node
+  // identifiers that name no address at all, so they must yield "nothing here, try the next hop" —
+  // never a bucket keyed on the literal string, which would put every such caller in one bucket
+  // under a name that looks like an address.
+  it('yields nothing for unknown, obfuscated and absent identifiers', () => {
+    expect(
+      parseForwardedHeader(
+        'for=unknown, for=UNKNOWN, for=_hidden, for="_secret:_port", proto=https, for=, for="", for=192.0.2.60'
+      )
+    ).toEqual([
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      '192.0.2.60'
+    ])
+  })
+
+  it('does not split an element on a comma or semicolon inside a quoted value', () => {
+    // The realistic shape: a quoted parameter OTHER than `for` carrying a comma. A plain split
+    // would tear this into three elements and lose the real hop list.
+    expect(
+      parseForwardedHeader('for=192.0.2.43;host="a,b;c", for=192.0.2.60')
+    ).toEqual(['192.0.2.43', '192.0.2.60'])
+  })
+
+  it('unescapes a backslash-escaped quote inside a quoted value', () => {
+    // `\\"` is a legal quoted-pair, so the escaped quote must not be read as closing the string —
+    // otherwise this element and the next would merge. The value itself is then not address-shaped,
+    // so the hop is unusable; what is being pinned is that the SPLIT survived it.
+    expect(parseForwardedHeader('for="say \\"hi\\"", for=192.0.2.60')).toEqual([
+      undefined,
+      '192.0.2.60'
+    ])
+  })
+
+  it('refuses the WHOLE header when the quotes do not balance', () => {
+    // Not best-effort: an unbalanced quote is how a client merges the proxy's appended element into
+    // its own, so there is no safe way to guess the boundaries. See the dedicated forgery block
+    // below for why this matters.
+    expect(parseForwardedHeader('for="192.0.2.60')).toEqual([])
+    expect(parseForwardedHeader('for=192.0.2.60;host="x, for=1.1.1.1')).toEqual(
+      []
+    )
+  })
+
+  it('yields nothing for a value that is not address-shaped', () => {
+    expect(
+      parseForwardedHeader('for=hello, for="a b", for=192.0.2.999, for=1.2.3.4')
+    ).toEqual([undefined, undefined, undefined, '1.2.3.4'])
+  })
+
+  it('an empty or absent header is an empty hop list', () => {
+    expect(parseForwardedHeader('')).toEqual([])
+    expect(parseForwardedHeader(undefined)).toEqual([])
+    expect(parseForwardedHeader('   ')).toEqual([])
+  })
+})
+
+describe('resolveClientIp — Forwarded rides the SAME level-2 declaration (#934)', () => {
+  const trust = { proxies: ['198.51.100.1'] }
+
+  // KILL-SHOT TARGET. Move the Forwarded read outside the `trust.proxies.includes(socket)` gate
+  // and this fails: five forged headers mint five buckets under the zero-config default.
+  it('a forged Forwarded cannot change the key when no proxy is declared', () => {
+    const forged = ['1.1.1.1', '2.2.2.2', '3.3.3.3', '4.4.4.4', '5.5.5.5'].map(
+      (f) =>
+        resolveClientIp(
+          req({ socketIp: '203.0.113.9', headers: { forwarded: `for=${f}` } }),
+          NONE
+        )
+    )
+    expect(new Set(forged)).toEqual(new Set(['203.0.113.9']))
+  })
+
+  it('a forged Forwarded through an UNdeclared proxy address cannot change the key either', () => {
+    expect(
+      resolveClientIp(
+        req({ socketIp: '203.0.113.9', headers: { forwarded: 'for=1.2.3.4' } }),
+        trust
+      )
+    ).toBe('203.0.113.9')
+  })
+
+  it('reads Forwarded once the socket peer IS a declared proxy', () => {
+    expect(
+      resolveClientIp(
+        req({
+          socketIp: '198.51.100.1',
+          headers: { forwarded: 'for=192.0.2.60;proto=https' }
+        }),
+        trust
+      )
+    ).toBe('192.0.2.60')
+  })
+
+  it('separates genuinely distinct Forwarded-reported clients — the DX gap this closes', () => {
+    const keys = ['192.0.2.60', '192.0.2.61'].map((ip) =>
+      resolveClientIp(
+        req({ socketIp: '198.51.100.1', headers: { forwarded: `for=${ip}` } }),
+        trust
+      )
+    )
+    expect(keys).toEqual(['192.0.2.60', '192.0.2.61'])
+  })
+
+  it('takes the RIGHTMOST non-proxy hop here too — a client can prepend to Forwarded as well', () => {
+    expect(
+      resolveClientIp(
+        req({
+          socketIp: '198.51.100.1',
+          headers: {
+            forwarded: 'for=9.9.9.9, for=192.0.2.60, for=198.51.100.2'
+          }
+        }),
+        { proxies: ['198.51.100.1', '198.51.100.2'] }
+      )
+    ).toBe('192.0.2.60')
+  })
+
+  it('skips an unknown or obfuscated rightmost hop instead of keying a bucket on the literal', () => {
+    for (const tail of ['unknown', '_hidden']) {
+      expect(
+        resolveClientIp(
+          req({
+            socketIp: '198.51.100.1',
+            headers: { forwarded: `for=192.0.2.60, for=${tail}` }
+          }),
+          trust
+        ),
+        tail
+      ).toBe('192.0.2.60')
+    }
+  })
+
+  it('falls back to the proxy — never to the literal — when EVERY hop is unusable', () => {
+    const key = resolveClientIp(
+      req({
+        socketIp: '198.51.100.1',
+        headers: { forwarded: 'for=unknown, for=_hidden' }
+      }),
+      trust
+    )
+    expect(key).toBe('198.51.100.1')
+    expect(key).not.toBe('unknown')
+  })
+
+  it('normalizes an IPv4-mapped address inside Forwarded to the same bucket as its plain form', () => {
+    expect(
+      resolveClientIp(
+        req({
+          socketIp: '198.51.100.1',
+          headers: { forwarded: 'for="[::ffff:192.0.2.60]"' }
+        }),
+        trust
+      )
+    ).toBe('192.0.2.60')
+  })
+
+  it('bounds how much of a hostile Forwarded it walks', () => {
+    const hops = Array.from(
+      { length: 5_000 },
+      (_, i) => `for=10.0.0.${i % 255}`
+    )
+    const t0 = performance.now()
+    const ip = resolveClientIp(
+      req({
+        socketIp: '198.51.100.1',
+        headers: { forwarded: hops.join(', ') }
+      }),
+      trust
+    )
+    expect(performance.now() - t0).toBeLessThan(200)
+    expect(typeof ip).toBe('string')
+  })
+
+  // The same discriminating shape as the x-forwarded-for cap test — the walk is shared, so it has
+  // to be pinned for both entry points or one of them could lose the cap silently.
+  it('gives up rather than walking past the hop cap (Forwarded)', () => {
+    const beyond = [
+      'for=203.0.113.7',
+      ...Array.from({ length: MAX_FORWARDED_HOPS }, () => 'for=198.51.100.1')
+    ]
+    expect(
+      resolveClientIp(
+        req({
+          socketIp: '198.51.100.1',
+          headers: { forwarded: beyond.join(', ') }
+        }),
+        trust
+      )
+    ).toBe('198.51.100.1')
+    expect(
+      resolveClientIp(
+        req({
+          socketIp: '198.51.100.1',
+          headers: { forwarded: beyond.slice(0, -1).join(', ') }
+        }),
+        trust
+      )
+    ).toBe('203.0.113.7')
+  })
+})
+
+// PRECEDENCE, pinned deliberately. Both headers are hop lists gated on the same declaration, so
+// neither is more trustworthy than the other — this is a tie-break, not a security ranking.
+// `x-forwarded-for` wins for CONTINUITY: it is what every mainstream proxy and CDN sets by default,
+// it is what every deployment working today is already keyed on, and it is what an operator
+// debugging their own buckets has been reasoning about. Reversing it would silently re-key live
+// deployments that send both.
+describe('resolveClientIp — precedence when both hop-list headers are present (#934)', () => {
+  const trust = { proxies: ['198.51.100.1'] }
+
+  it('x-forwarded-for wins over Forwarded', () => {
+    expect(
+      resolveClientIp(
+        req({
+          socketIp: '198.51.100.1',
+          headers: {
+            'x-forwarded-for': '192.0.2.60',
+            forwarded: 'for=203.0.113.7'
+          }
+        }),
+        trust
+      )
+    ).toBe('192.0.2.60')
+  })
+
+  it('but Forwarded IS consulted when x-forwarded-for yields no usable hop', () => {
+    // An all-proxy or blank chain is not an answer, so falling through costs nothing and rescues
+    // the exact deployment #934 is about.
+    for (const xff of [' , ', '198.51.100.2']) {
+      expect(
+        resolveClientIp(
+          req({
+            socketIp: '198.51.100.1',
+            headers: { 'x-forwarded-for': xff, forwarded: 'for=203.0.113.7' }
+          }),
+          { proxies: ['198.51.100.1', '198.51.100.2'] }
+        ),
+        xff
+      ).toBe('203.0.113.7')
+    }
+  })
+
+  it('a declared single-valued header (level 3) still beats both', () => {
+    expect(
+      resolveClientIp(
+        req({
+          socketIp: '198.51.100.1',
+          headers: {
+            'cf-connecting-ip': '1.2.3.4',
+            'x-forwarded-for': '192.0.2.60',
+            forwarded: 'for=203.0.113.7'
+          }
+        }),
+        { proxies: ['198.51.100.1'], header: 'cf-connecting-ip' }
+      )
+    ).toBe('1.2.3.4')
+  })
+
+  it('declaring `forwarded` as the single-valued header is a no-op, not a second read', () => {
+    // Level 3 is documented as being for SINGLE-VALUED headers only. `Forwarded` is a hop list, so
+    // believing it wholesale would hand a client the whole value — the same hole #933 closed for
+    // `x-forwarded-for`. The right-walk below still resolves it.
+    expect(
+      resolveClientIp(
+        req({
+          socketIp: '198.51.100.1',
+          headers: {
+            forwarded: 'for=9.9.9.9, for=192.0.2.60, for=198.51.100.1'
+          }
+        }),
+        { proxies: ['198.51.100.1'], header: 'forwarded' }
+      )
+    ).toBe('192.0.2.60')
+  })
+})
+
+/**
+ * A hole found while implementing #934, in the implementation's own first draft — worth a named
+ * block because the shape is not obvious and nothing else in the suite would have caught it.
+ *
+ * `Forwarded` needs a quote-aware split (a legal quoted value may contain `,` and `;`), and every
+ * mainstream proxy APPENDS its element — which is the entire reason the right-walk is safe: the
+ * client's own text can only ever sit to the LEFT of the hop the proxy added. A quote-aware split
+ * hands the client a way to break that: send a value with an UNBALANCED quote and the proxy's
+ * appended element gets swallowed into the client's element, so the walk never sees it and the
+ * client dictates the key — a fresh rate-limit bucket per request through one `curl -H` flag,
+ * exactly the hole #933 closed for single-valued headers.
+ *
+ * THREE mechanisms stand between these cases and a client-chosen key, and the cases below do NOT
+ * each need all three — which is worth saying precisely, because "each needs both" was the first
+ * version of this comment and it was wrong (review F4):
+ *
+ *  1. **Unbalanced quotes refuse the WHOLE header** (a well-formed one is always balanced, and once
+ *     a client's malformed value has been appended to there is no way to know the boundaries).
+ *     This is what the FIRST case below depends on: removing it, and nothing else, makes that case
+ *     resolve to the client's own address (verified).
+ *  2. **`unquote` rejects an unterminated quoted string**, so a `for=` value that opens a quote and
+ *     never closes it is unusable on its own. This is what carries the SECOND case — it still
+ *     passes with mechanism 1 removed. Note the converse: removing mechanism 2 alone fails no test,
+ *     because mechanism 1 refuses those inputs first. It is defence in depth, not independently
+ *     pinned, and is described that way rather than credited with more than it can be shown to do.
+ *  3. **A node identifier must LOOK like an address**, so a merged or garbage value cannot become a
+ *     bucket key even if it reaches the walk. This is what the THIRD case depends on.
+ */
+describe('resolveClientIp — a client cannot merge away the proxy’s Forwarded hop (#934)', () => {
+  const trust = { proxies: ['198.51.100.1'] }
+  /** What the wire looks like after a proxy appends its own element to a client-supplied value. */
+  const throughProxy = (clientPart: string, realClient: string) =>
+    resolveClientIp(
+      req({
+        socketIp: '198.51.100.1',
+        headers: { forwarded: `${clientPart}, for=${realClient}` }
+      }),
+      trust
+    )
+
+  // KILL-SHOT TARGET for mechanism 1 (the unbalanced-quote refusal). The unbalanced quote is in a NON-`for` parameter, so the client's
+  // own `for=` is a perfectly valid address — only the swallowing is malicious.
+  it('an unbalanced quote in another parameter cannot hide the appended hop', () => {
+    const keys = ['1.1.1.1', '2.2.2.2', '3.3.3.3', '4.4.4.4'].map((forged) =>
+      throughProxy(`for=${forged};host="x`, '203.0.113.9')
+    )
+    // One bucket, and NOT one the client chose. The whole header is refused, so this falls back to
+    // the declared proxy's own address.
+    expect(new Set(keys)).toEqual(new Set(['198.51.100.1']))
+  })
+
+  it('an unbalanced quote in the for= value cannot hide it either', () => {
+    const keys = ['1.1.1.1', '2.2.2.2', '3.3.3.3'].map((forged) =>
+      throughProxy(`for="${forged}`, '203.0.113.9')
+    )
+    expect(new Set(keys)).toEqual(new Set(['198.51.100.1']))
+  })
+
+  // KILL-SHOT TARGET for mechanism 3 (the address-shape guard). Nothing that is not address-shaped may key a bucket, however it
+  // got there: a client varying opaque text would otherwise mint quota per request.
+  it('refuses a node identifier that is not address-shaped rather than keying a bucket on it', () => {
+    for (const junk of [
+      'for=hello',
+      'for="a,b"',
+      'for=192.0.2.60;for=hello',
+      'for=$(whoami)',
+      'for="192.0.2.60 "'
+    ]) {
+      expect(
+        resolveClientIp(
+          req({ socketIp: '198.51.100.1', headers: { forwarded: junk } }),
+          trust
+        ),
+        junk
+      ).toBe('198.51.100.1')
+    }
+  })
+
+  it('still accepts the well-formed header a real proxy sends, quoted parameters and all', () => {
+    expect(
+      resolveClientIp(
+        req({
+          socketIp: '198.51.100.1',
+          headers: {
+            forwarded:
+              'for=192.0.2.43;host="a,b";proto=https, for=203.0.113.9;proto=https'
+          }
+        }),
+        trust
+      )
+    ).toBe('203.0.113.9')
   })
 })

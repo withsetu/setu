@@ -82,8 +82,10 @@ describe('createFormsApi — public submit body cap (413)', () => {
 describe('createFormsApi — per-value caps on the public submit route (#935)', () => {
   const valid = { email: 'a@x.com', message: 'hi there' }
 
-  // KILL-SHOT TARGET. Remove the withinValueCaps guard in forms.ts and each of these stores a
-  // submission (200) instead of being refused.
+  // KILL-SHOT TARGET. Remove the cap `.refine()`s from `fieldsSchema` / `optionalCapped` /
+  // `submitBodySchema.source` in forms.ts and each of these stores a submission (200) instead of
+  // being refused. (Before #932 the same guard was a hand-rolled `withinValueCaps` helper; the
+  // caps and their inclusive boundaries are unchanged.)
   it.each([
     ['formId', { formId: 'c'.repeat(FORM_VALUE_MAX + 1), fields: valid }],
     [
@@ -531,6 +533,66 @@ describe('createFormsApi — per-IP submit rate limit (#918)', () => {
         ).status
       )
     }
+    expect(codes).toEqual([200, 200, 429, 429, 429])
+    expect((await submissions.listSubmissions()).total).toBe(2)
+  })
+
+  // #934 at the route level — the DX gap this closes. A front that sets only the RFC 7239 header
+  // used to put every visitor in the proxy's single bucket; now each gets its own, under the same
+  // declaration and with the same right-walk.
+  it('DOES separate clients a Forwarded-only proxy reports (#934)', async () => {
+    const { app } = limited({
+      max: 1,
+      socketIp: () => '198.51.100.1',
+      trustedProxies: ['198.51.100.1']
+    })
+    expect(
+      (await submitFrom(app, { forwarded: 'for=192.0.2.60;proto=https' }))
+        .status
+    ).toBe(200)
+    expect(
+      (await submitFrom(app, { forwarded: 'for=192.0.2.60;proto=https' }))
+        .status
+    ).toBe(429)
+    // A different visitor through the same proxy is a different bucket, not the same one.
+    expect(
+      (await submitFrom(app, { forwarded: 'for="[2001:db8::17]:4711"' })).status
+    ).toBe(200)
+  })
+
+  // The matching forgery case. Same header, no declared proxy: it must not be read at all.
+  // Kill-shot: move the Forwarded read outside the trusted-peer gate in client-ip.ts and the burst
+  // below stops being refused.
+  it('a forged Forwarded cannot mint fresh quota under the default (untrusted) config (#934)', async () => {
+    const { app, submissions } = limited({ max: 2 })
+    const codes: number[] = []
+    for (let i = 0; i < 5; i++)
+      codes.push(
+        (await submitFrom(app, { forwarded: `for=9.9.9.${i}` })).status
+      )
+    expect(codes).toEqual([200, 200, 429, 429, 429])
+    expect((await submissions.listSubmissions()).total).toBe(2)
+  })
+
+  // And the merge case (see the dedicated block in apps/api/test/client-ip.test.ts): through a
+  // DECLARED proxy, an unbalanced quote must not let the caller pick its own bucket by hiding the
+  // hop the proxy appended.
+  it('a Forwarded crafted to swallow the proxy’s appended hop cannot mint quota either (#934)', async () => {
+    const { app, submissions } = limited({
+      max: 2,
+      socketIp: () => '127.0.0.1',
+      trustedProxies: ['127.0.0.1']
+    })
+    const codes: number[] = []
+    for (let i = 0; i < 5; i++)
+      codes.push(
+        (
+          await submitFrom(app, {
+            // What the wire carries after the proxy appends its element to the client's value.
+            forwarded: `for=9.9.9.${i};host="x, for=203.0.113.7`
+          })
+        ).status
+      )
     expect(codes).toEqual([200, 200, 429, 429, 429])
     expect((await submissions.listSubmissions()).total).toBe(2)
   })
@@ -1043,6 +1105,306 @@ describe('createFormsApi — admin CRUD body caps (#629)', () => {
     const { app } = makeApp()
     const res = await post(app, '/forms/submissions', {
       formId: 'contact',
+      fields: { email: 'a@b.c' }
+    })
+    expect(res.status).toBe(201)
+  })
+})
+
+// #932 — the boundary is a Zod schema now, not `asRecord`/`isStringArray`. Most of what the
+// schemas must do is already pinned above (the caps block, the coercion tests, the 400 envelopes);
+// this block covers the three things the hand-rolled narrowing got WRONG, each of which the schema
+// fixes, plus the parity cases where a schema could easily have tightened something it shouldn't.
+describe('createFormsApi — Zod at the forms boundary (#932)', () => {
+  const raw = (
+    app: ReturnType<typeof createFormsApi>,
+    path: string,
+    body: string,
+    method = 'POST'
+  ) =>
+    app.fetch(
+      new Request(`http://x${path}`, {
+        method,
+        headers: { 'content-type': 'application/json' },
+        body
+      })
+    )
+
+  // KILL-SHOT TARGET 1. `asRecord(await c.req.json())` never guarded the PARSE: a body that is not
+  // JSON at all rejected inside the handler, so apiOnError turned an anonymous caller's malformed
+  // input into a 500 `internal_error` plus a correlation-id error log — the exact inversion of
+  // docs/security-standards.md's "client-input 4xxs stay specific; only faults get masked".
+  it('answers 400, not 500, when the public submit body is not JSON at all', async () => {
+    const { app } = makeApp()
+    for (const body of ['not json', '', '{"formId":', '[1,2']) {
+      const res = await raw(app, '/forms/submit', body)
+      expect(res.status, body).toBe(400)
+      expect(await res.json()).toEqual({ ok: false, error: 'invalid' })
+    }
+  })
+
+  it('answers 400, not 500, when an admin body is not JSON at all', async () => {
+    const { app } = makeApp()
+    const cases: [string, string][] = [
+      ['/forms/submissions', 'POST'],
+      ['/forms/submissions/read', 'PATCH'],
+      ['/forms/submissions', 'DELETE']
+    ]
+    for (const [path, method] of cases) {
+      const res = await raw(app, path, 'not json', method)
+      expect(res.status, `${method} ${path}`).toBe(400)
+      expect(await res.json()).toEqual({ error: 'invalid' })
+    }
+  })
+
+  // KILL-SHOT TARGET 2. `typeof [] === 'object'`, so the old `asRecord` accepted an ARRAY as
+  // `fields` and renamed its entries `{ '0': 'a', '1': 'b' }` — field names the visitor never
+  // sent — then went on to spend a captcha verification on it. A record schema refuses it AT THE
+  // BOUNDARY.
+  //
+  // The status alone proves nothing here: the submission service rejects `{0:'a',1:'b'}` for
+  // having no email field, so `400` was already the answer for the WRONG reason (the #638 vacuous-
+  // assertion class). What discriminates the boundary from the service is whether the captcha was
+  // consulted — the boundary check runs before it, the service after.
+  it('refuses an array as `fields` at the boundary, before the captcha is consulted', async () => {
+    const verify = vi.fn(async () => true)
+    const { app, submissions } = makeApp({ verify })
+    const res = await post(app, '/forms/submit', {
+      formId: 'contact',
+      fields: ['a', 'b'],
+      captchaToken: 'tok'
+    })
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ ok: false, error: 'invalid' })
+    expect(verify).not.toHaveBeenCalled()
+    expect((await submissions.listSubmissions()).total).toBe(0)
+  })
+
+  // KILL-SHOT TARGET 3. The admin route cast `body['source']` straight to
+  // `SubmissionInput['source']` with no validation at all, so it stored whatever shape arrived —
+  // unknown keys and non-string values included, i.e. the stored row could contradict its own
+  // type. The schema keeps the three declared string fields and drops the rest.
+  it('sanitizes `source` on the admin write instead of casting it unchecked', async () => {
+    const { app } = makeApp()
+    const res = await post(app, '/forms/submissions', {
+      formId: 'contact',
+      fields: { email: 'a@b.c' },
+      source: {
+        url: 'https://x.test/a',
+        referrer: 42,
+        userAgent: 'UA/1',
+        evil: { nested: true }
+      }
+    })
+    expect(res.status).toBe(201)
+    const saved = (await res.json()) as {
+      source?: Record<string, unknown>
+    }
+    expect(saved.source).toEqual({
+      url: 'https://x.test/a',
+      userAgent: 'UA/1'
+    })
+  })
+
+  // Parity guards — a schema is the easiest place to accidentally tighten something the route
+  // deliberately tolerates. Each of these was true before #932 and must stay true.
+  it('still keeps a non-string formLabel/honeypot/source out of the way rather than refusing', async () => {
+    const { app, submissions } = makeApp()
+    const res = await post(app, '/forms/submit', {
+      formId: 'contact',
+      formLabel: 42,
+      honeypot: { a: 1 },
+      source: 'not-an-object',
+      fields: { email: 'a@x.com', message: 'hi there' },
+      captchaToken: 'tok'
+    })
+    expect(res.status).toBe(200)
+    const stored = (await submissions.listSubmissions()).rows[0]!
+    expect(stored.formLabel).toBeUndefined()
+  })
+
+  it('still stores a body-supplied source.url and drops an empty one', async () => {
+    const { app, submissions } = makeApp()
+    await post(app, '/forms/submit', {
+      formId: 'contact',
+      fields: { email: 'a@x.com', message: 'hi there' },
+      source: { url: 'https://x.test/page' },
+      captchaToken: 'tok'
+    })
+    await post(app, '/forms/submit', {
+      formId: 'contact2',
+      fields: { email: 'a@x.com', message: 'hi there' },
+      source: { url: '' },
+      captchaToken: 'tok'
+    })
+    const rows = (await submissions.listSubmissions()).rows
+    const withUrl = rows.find((r) => r.formId === 'contact')!
+    const withoutUrl = rows.find((r) => r.formId === 'contact2')!
+    expect(withUrl.source?.url).toBe('https://x.test/page')
+    expect(withoutUrl.source?.url).toBeUndefined()
+  })
+
+  it('still rejects a non-string entry in `ids` and a non-boolean `read`', async () => {
+    const { app } = makeApp()
+    expect(
+      (
+        await post(
+          app,
+          '/forms/submissions/read',
+          { ids: ['a', 7], read: true },
+          'PATCH'
+        )
+      ).status
+    ).toBe(400)
+    expect(
+      (
+        await post(
+          app,
+          '/forms/submissions/read',
+          { ids: ['a'], read: 'yes' },
+          'PATCH'
+        )
+      ).status
+    ).toBe(400)
+    expect(
+      (await post(app, '/forms/submissions', { ids: ['a', null] }, 'DELETE'))
+        .status
+    ).toBe(400)
+  })
+})
+
+/**
+ * The #935 caps are PUBLIC-ONLY, and this block pins BOTH directions (#932 review F1).
+ *
+ * The caps exist because the threat is the ANONYMOUS actor. The authenticated admin CRUD route is
+ * deliberately exempt — refusing a maintainer's re-import of a long legitimate submission would be
+ * a regression bought for nothing — and it keeps its own 1 MiB body cap instead.
+ *
+ * #932's first pass broke exactly this by reusing one `fieldsSchema` for both routes, so the admin
+ * route silently started enforcing all three caps while two comments went on asserting it did not.
+ * Nothing caught it, because every existing cap test drove the PUBLIC route only. A one-sided test
+ * cannot see a divergence; these drive the same three bodies at both routes and assert opposite
+ * answers, so neither side can drift again.
+ */
+describe('createFormsApi — the #935 caps bind the public route ONLY (#932 review F1)', () => {
+  // Every body here is a submission that would OTHERWISE succeed — real email, real message — with
+  // exactly one element pushed over a cap. That matters: an earlier draft of this block used bodies
+  // with no `email`/`message`, so the public-side assertions passed because the submission SERVICE
+  // refused them, not the boundary. Under the kill-shot that removed the caps from the public route
+  // they stayed green — the #638 vacuous-assertion class, caught here by running that kill-shot.
+  const valid = { email: 'a@x.com', message: 'hi there' }
+  const overCap: [string, Record<string, unknown>][] = [
+    [
+      'a field COUNT over the cap',
+      {
+        ...valid,
+        ...Object.fromEntries(
+          Array.from({ length: FORM_FIELD_MAX_COUNT - 1 }, (_, i) => [
+            `f${i}`,
+            'x'
+          ])
+        )
+      }
+    ],
+    [
+      'a field VALUE over the cap',
+      { ...valid, note: 'v'.repeat(FORM_FIELD_VALUE_MAX + 1) }
+    ],
+    [
+      'a field NAME over the cap',
+      { ...valid, ['n'.repeat(FORM_VALUE_MAX + 1)]: 'x' }
+    ]
+  ]
+
+  // KILL-SHOT TARGET. Point `adminSubmissionSchema.fields` back at the capped schema and every one
+  // of these becomes a 400.
+  it.each(overCap)(
+    'the authenticated admin write ACCEPTS %s',
+    async (_what, fields) => {
+      const { app, submissions } = makeApp()
+      const res = await post(app, '/forms/submissions', {
+        formId: 'contact',
+        fields
+      })
+      expect(res.status).toBe(201)
+      expect((await submissions.listSubmissions()).total).toBe(1)
+    }
+  )
+
+  // KILL-SHOT TARGET the other way. The captcha assertion is what makes this about the BOUNDARY:
+  // the schema runs before the captcha, the service after, so "never consulted" is the only thing
+  // that distinguishes a boundary refusal from a service refusal.
+  it.each(overCap)(
+    'the anonymous public submit REFUSES the same body: %s',
+    async (_what, fields) => {
+      const verify = vi.fn(async () => true)
+      const { app, submissions } = makeApp({ verify })
+      const res = await post(app, '/forms/submit', {
+        formId: 'contact',
+        fields,
+        captchaToken: 'tok'
+      })
+      expect(res.status).toBe(400)
+      expect(await res.json()).toEqual({ ok: false, error: 'invalid' })
+      expect(verify).not.toHaveBeenCalled()
+      expect((await submissions.listSubmissions()).total).toBe(0)
+    }
+  )
+
+  // And the same bodies one element SMALLER are accepted by the public route too, so the tests
+  // above are about the caps rather than about the bodies being unacceptable for another reason.
+  it('the public route accepts each of those bodies once it is back inside the cap', async () => {
+    const { app } = makeApp()
+    const inCap: Record<string, unknown>[] = [
+      {
+        ...valid,
+        ...Object.fromEntries(
+          Array.from({ length: FORM_FIELD_MAX_COUNT - 2 }, (_, i) => [
+            `f${i}`,
+            'x'
+          ])
+        )
+      },
+      { ...valid, note: 'v'.repeat(FORM_FIELD_VALUE_MAX) },
+      { ...valid, ['n'.repeat(FORM_VALUE_MAX)]: 'x' }
+    ]
+    for (const [i, fields] of inCap.entries()) {
+      const res = await post(app, '/forms/submit', {
+        formId: `contact${i}`,
+        fields,
+        captchaToken: 'tok'
+      })
+      expect(res.status, JSON.stringify(Object.keys(fields).length)).toBe(200)
+    }
+  })
+
+  // The two routes still share the SHAPE rules — only the caps differ. Without this, "uncapped"
+  // could quietly become "unvalidated" on the admin side.
+  it('the admin write still refuses an array as `fields` and coerces non-strings', async () => {
+    const { app } = makeApp()
+    expect(
+      (await post(app, '/forms/submissions', { formId: 'c', fields: ['a'] }))
+        .status
+    ).toBe(400)
+    const ok = await post(app, '/forms/submissions', {
+      formId: 'c',
+      fields: { email: 'a@b.c', n: 7 }
+    })
+    expect(ok.status).toBe(201)
+    expect(
+      ((await ok.json()) as { fields: Record<string, string> }).fields
+    ).toEqual({
+      email: 'a@b.c',
+      n: ''
+    })
+  })
+
+  // `formId` was never capped on the admin route even in the broken pass, so the divergence was
+  // specifically the shared fields schema. Pinned so a later "tidy-up" cannot cap it either.
+  it('the admin write accepts a formId longer than the public cap', async () => {
+    const { app } = makeApp()
+    const res = await post(app, '/forms/submissions', {
+      formId: 'c'.repeat(FORM_VALUE_MAX + 1),
       fields: { email: 'a@b.c' }
     })
     expect(res.status).toBe(201)

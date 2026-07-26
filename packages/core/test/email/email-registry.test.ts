@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   EMAIL_TYPE_FORM_NOTIFICATION,
   EMAIL_TYPE_PASSWORD_RESET,
+  EMAIL_RENDERED_MAX_BODY,
   EMAIL_TEMPLATE_MAX_BODY,
   EMAIL_TEMPLATE_MAX_SUBJECT,
   createEmailTypeRegistry,
@@ -672,6 +673,223 @@ Submitted 2026-01-15 09:41 UTC · form contact`,
       expect(out.html).not.toMatch(/\{\{/)
       expect(out.subject).not.toMatch(/\{\{/)
       expect(out.text).not.toMatch(/\{\{/)
+    }
+  })
+})
+
+/**
+ * #950 — the RENDERED body is bounded, not just the inputs.
+ *
+ * `formNotificationValues` HTML-escapes every submitted field name and value, which is the only
+ * thing standing between an anonymous submitter and the operator's mail client — and escaping is
+ * EXPANSIVE: one `&` in the request buys five characters (`&amp;`) in the render. So a request can
+ * satisfy every cap at the forms boundary simultaneously and still render megabytes. Measured on
+ * the parent commit, at exactly the #935 caps (100 fields, 200-character names, 10,000-character
+ * values, all `&`): a 1,020,865-byte request body rendered 5,035,997 characters of HTML and
+ * 1,020,568 of text — 4.93x amplification.
+ *
+ * The bound lives in `renderEmailTemplate`, exactly like `capSubject`, and for the same reason: the
+ * admin's live preview and the server's send are the same function (the preview-parity note at the
+ * top of template-registry.ts), so a cap on one side only would make the preview a lie — and that
+ * parity is load-bearing for epic #497. Tightening the #935 input caps instead was the issue's
+ * option 2; it was NOT taken, because it only moves the ceiling (the render is still whatever the
+ * new caps multiply out to) and it would refuse a submission a visitor actually typed.
+ */
+describe('the rendered body is capped (#950)', () => {
+  /** A submission sitting at every #935 cap at once, using the maximally-expansive character. */
+  const atEveryCap = () => {
+    const fields: Record<string, string> = {}
+    for (let i = 0; i < 100; i++)
+      fields[`${'n'.repeat(197)}${String(i).padStart(3, '0')}`] = '&'.repeat(
+        10_000
+      )
+    return formNotificationValues({
+      id: 's1',
+      formId: 'contact',
+      formLabel: 'L'.repeat(200),
+      fields,
+      createdAt: 0
+    })
+  }
+
+  // KILL-SHOT TARGET. Remove capBody in template-registry.ts and this reports 5,035,997 / 1,020,568.
+  it('bounds both parts of a notification built at every input cap simultaneously', () => {
+    const out = renderEmailTemplate(FORM_NOTIFICATION_EMAIL, {}, atEveryCap())
+    expect(out.html.length).toBeLessThanOrEqual(EMAIL_RENDERED_MAX_BODY)
+    expect(out.text.length).toBeLessThanOrEqual(EMAIL_RENDERED_MAX_BODY)
+  })
+
+  // The honesty rule capSubject follows: an operator seeing a short email must be able to tell it
+  // was cut rather than that the visitor sent little. A silent trim would lose rows invisibly.
+  it('says so, visibly, in both parts, and names the size that overflowed', () => {
+    const out = renderEmailTemplate(FORM_NOTIFICATION_EMAIL, {}, atEveryCap())
+    for (const part of [out.html, out.text]) {
+      expect(part).toContain('trimmed')
+      expect(part).toContain(String(EMAIL_RENDERED_MAX_BODY))
+    }
+    // Each part names ITS OWN pre-trim size, so the operator sees the real scale of what arrived —
+    // and the two differ by ~5x, which is the escape amplification this issue is about.
+    expect(out.html).toContain('5035997')
+    expect(out.text).toContain('1020568')
+  })
+
+  // The bound must not cost a REAL notification. A single field at the 10,000-character value cap
+  // renders 50,565 characters of HTML — the largest a legitimate at-cap submission produces — so
+  // the ceiling sits above it deliberately.
+  it('leaves a single maximal field alone — no trim, no notice', () => {
+    const out = renderEmailTemplate(
+      FORM_NOTIFICATION_EMAIL,
+      {},
+      formNotificationValues({
+        id: 's1',
+        formId: 'contact',
+        fields: { message: '&'.repeat(10_000) },
+        createdAt: 0
+      })
+    )
+    expect(out.html.length).toBe(50_565)
+    expect(out.html.length).toBeLessThan(EMAIL_RENDERED_MAX_BODY)
+    expect(out.html).not.toContain('trimmed')
+    expect(out.text).not.toContain('trimmed')
+  })
+
+  // The cap is INCLUSIVE. Reaching it exactly needs a token VALUE, not a long template: the
+  // template-string cap (EMAIL_TEMPLATE_MAX_BODY, 20,000) is three times smaller than the rendered
+  // one, so a stored override can never get there by itself — which is precisely the gap #950
+  // closes. The row markup is fixed-width, so one measurement gives the exact value length needed.
+  it('leaves a body at exactly the cap untouched', () => {
+    const render = (n: number) =>
+      renderEmailTemplate(
+        FORM_NOTIFICATION_EMAIL,
+        { html: '{{fields}}' },
+        formNotificationValues({
+          id: 's1',
+          formId: 'c',
+          fields: { m: 'a'.repeat(n) },
+          createdAt: 0
+        })
+      )
+    const overhead = render(1).html.length - 1
+    const out = render(EMAIL_RENDERED_MAX_BODY - overhead)
+    expect(out.html.length).toBe(EMAIL_RENDERED_MAX_BODY)
+    expect(out.html).not.toContain('trimmed')
+    // One character more and it IS trimmed, which is what makes the assertion above about the
+    // boundary rather than about the body simply being small.
+    const over = render(EMAIL_RENDERED_MAX_BODY - overhead + 1)
+    expect(over.html.length).toBeLessThanOrEqual(EMAIL_RENDERED_MAX_BODY)
+    expect(over.html).toContain('trimmed')
+  })
+
+  // The arm the forms boundary structurally cannot reach: settings.json is Git-canonical, so an
+  // override can arrive by `git push` without passing the api's settings-write gate. One that
+  // repeats `{{fields}}` re-amplifies a within-cap submission.
+  it('bounds an override that repeats the {{fields}} block', () => {
+    const out = renderEmailTemplate(
+      FORM_NOTIFICATION_EMAIL,
+      { html: '{{fields}}'.repeat(1_000) },
+      formNotificationValues({
+        id: 's1',
+        formId: 'contact',
+        fields: { message: '&'.repeat(1_000) },
+        createdAt: 0
+      })
+    )
+    expect(out.html.length).toBeLessThanOrEqual(EMAIL_RENDERED_MAX_BODY)
+    // The text part is DERIVED from an overridden body, so it inherits the same ceiling rather
+    // than being re-derived from the untrimmed render.
+    expect(out.textSource).toBe('derived')
+    expect(out.text.length).toBeLessThanOrEqual(EMAIL_RENDERED_MAX_BODY)
+  })
+
+  // KILL-SHOT TARGET for the markup-boundary backoff. A hard slice can land inside one of OUR tags
+  // or inside a character reference (submitter content is escaped BEFORE the cut, so a cut can
+  // never manufacture a tag out of submitted text) — and an unterminated `<td style="…` would
+  // swallow the trim notice appended after it into an attribute, so the operator would be told
+  // nothing at all.
+  //
+  // Two things this test learned the hard way, both from kill-shots that failed to fail:
+  //  - it must be a SWEEP. With many rows the cut lands on a newline boundary and the backoff never
+  //    runs, so any single many-row case stays green with the backoff deleted. One enormous row has
+  //    no newline at all, and sliding the field-name length walks the cut position through the
+  //    row's own markup and through the `&amp;` references in its value.
+  //  - the invariant must be checked STRUCTURALLY, not at the end of the string. `endsWith('</p>')`
+  //    and `lastIndexOf('<') < lastIndexOf('>')` are both true of a dangling tag once the notice
+  //    has been appended after it, which is exactly how the first version of this test passed
+  //    against deliberately-broken code.
+  it('never leaves a half-written tag or character reference', () => {
+    // `<` … `<` with no `>` between them is an unterminated tag, wherever it sits.
+    const UNTERMINATED_TAG = /<[^<>]*</
+    // Every `&` in this output comes from escapeHtml, so it is always a complete reference unless
+    // the cut split one.
+    const TRUNCATED_ENTITY = /&(?![a-zA-Z#][a-zA-Z0-9]{0,8};)/
+    let trimmed = 0
+    for (let name = 63_500; name <= 63_850; name++) {
+      const out = renderEmailTemplate(
+        FORM_NOTIFICATION_EMAIL,
+        { html: '{{fields}}' },
+        formNotificationValues({
+          id: 's1',
+          formId: 'c',
+          fields: { ['n'.repeat(name)]: '&'.repeat(600) },
+          createdAt: 0
+        })
+      )
+      const at = `name=${name}`
+      expect(out.html.length, at).toBeLessThanOrEqual(EMAIL_RENDERED_MAX_BODY)
+      expect(UNTERMINATED_TAG.test(out.html), at).toBe(false)
+      expect(TRUNCATED_ENTITY.test(out.html), at).toBe(false)
+      expect(out.html, at).toContain('trimmed here')
+      trimmed++
+    }
+    // Every case in the sweep really was over the cap — otherwise the loop would be asserting
+    // invariants about untrimmed output and proving nothing.
+    expect(trimmed).toBe(351)
+  })
+
+  // KILL-SHOT TARGET for deriving the text part from the CAPPED html. Length alone cannot catch
+  // this — capBody clamps the text part afterwards either way — so what discriminates is WHICH
+  // bytes the two halves describe: derived from the capped html, the text part carries the html
+  // part's own notice and needs no second trim of its own. Derived from the untrimmed render it
+  // would be trimmed independently, naming a different size, and the two halves of one email would
+  // describe different content.
+  it('derives the text part from the capped html, so the two halves agree', () => {
+    const out = renderEmailTemplate(
+      FORM_NOTIFICATION_EMAIL,
+      { html: '{{fields}}'.repeat(1_000) },
+      formNotificationValues({
+        id: 's1',
+        formId: 'contact',
+        fields: { message: '&'.repeat(1_000) },
+        createdAt: 0
+      })
+    )
+    expect(out.textSource).toBe('derived')
+    const size = /rendered (\d+) characters/.exec(out.html)?.[1]
+    expect(size).toBeDefined()
+    expect(out.text).toContain(`rendered ${size!} characters`)
+    // Exactly one trim happened, and it is the html one the text inherited.
+    expect(out.text.match(/trimmed here/g)).toHaveLength(1)
+  })
+
+  // Same reasoning as capSubject's surrogate guard: `slice` works in UTF-16 code units, so a cut
+  // between a surrogate pair leaves a LONE surrogate, which is an unencodable code unit rather
+  // than "the email is long". The emoji is two units, so filling the body with them forces a
+  // boundary hit.
+  it('never cuts an astral character in half', () => {
+    const out = renderEmailTemplate(
+      FORM_NOTIFICATION_EMAIL,
+      {},
+      formNotificationValues({
+        id: 's1',
+        formId: 'contact',
+        fields: { message: '😀'.repeat(60_000) },
+        createdAt: 0
+      })
+    )
+    for (const part of [out.html, out.text]) {
+      expect(part.length).toBeLessThanOrEqual(EMAIL_RENDERED_MAX_BODY)
+      expect(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(part)).toBe(false)
+      expect(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(part)).toBe(false)
     }
   })
 })

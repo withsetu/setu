@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import { bodyLimit } from 'hono/body-limit'
+import { z } from 'zod'
 import { createAuthz, DEFAULT_ROLES } from '@setu/core'
 import type {
   Action,
@@ -67,7 +68,12 @@ const FORM_SUBMIT_MAX_BYTES = 1 * 1024 * 1024
  *
  * Deliberately NOT applied to the authenticated admin CRUD route below: the threat is the
  * anonymous actor, and refusing a maintainer's re-import of a long legitimate submission would be
- * a regression bought for nothing. That route keeps its own 1 MiB body cap.
+ * a regression bought for nothing. That route keeps its own 1 MiB body cap. That exemption is a
+ * fact about the code only because a test drives the SAME oversized bodies at BOTH routes and
+ * asserts opposite answers — apps/api/test/forms.test.ts, "the #935 caps bind the public route
+ * ONLY (#932 review F1)". It is named here because this sentence was briefly false: #932's first
+ * pass shared one capped `fields` schema between the routes, and with every cap test driving the
+ * public route only, nothing failed.
  */
 export const FORM_VALUE_MAX = 200
 export const FORM_FIELD_VALUE_MAX = 10_000
@@ -135,42 +141,189 @@ const adminBodyLimit = () =>
     onError: (c) => c.json({ error: 'too_large' }, 413)
   })
 
-// c.req.json() returns `any` — untrusted HTTP input flowed straight into typed service
-// calls with only truthiness checks (caught by @typescript-eslint/no-unsafe-* when
-// type-aware linting came online, #267). These narrow to `unknown`-based shapes and
-// fail closed (400) instead. NOTE: proper Zod schemas for this API are the standard
-// per docs/security-standards.md ("new input → Zod"). The reason originally recorded here
-// for deferring that — "apps/api has no zod dependency yet" — is no longer true: apps/api
-// depends on zod and capabilities.ts already uses it. The upgrade is #932; this comment used
-// to vouch for a deferral whose stated justification had expired (CLAUDE.md §4 #21).
-const asRecord = (v: unknown): Record<string, unknown> | null =>
-  typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : null
+/**
+ * #932 — the boundary schemas. Every body this factory reads is parsed by one of them; nothing
+ * downstream sees an unnarrowed `any`.
+ *
+ * These REPLACE a pair of hand-rolled narrowing helpers (`asRecord` / `isStringArray`) that had
+ * stood in for Zod since #267, deferred on the recorded grounds that "apps/api has no zod
+ * dependency yet" — which stopped being true when `apps/api/package.json` gained `zod` and
+ * `capabilities.ts` started using it, leaving a comment that told the next reader not to bother
+ * checking (CLAUDE.md §4 #21). docs/security-standards.md's "new input → Zod" applies here more
+ * than anywhere else in the app: `POST /forms/submit` is unauthenticated and any-origin.
+ *
+ * This is a refactor of the CHECK, not of the POLICY. The four things below are behaviour the
+ * previous code got right and the schemas reproduce deliberately, each pinned by
+ * apps/api/test/forms.test.ts:
+ *
+ * - **Non-string field values are coerced to `''`, not refused** ("coerces non-string field values
+ *   to empty strings"). A checkbox group that posts a number is a real browser form, not an attack.
+ * - **A non-string `formLabel` / `honeypot` / `source` is DROPPED, not refused** ("still keeps a
+ *   non-string formLabel/honeypot/source out of the way"). Only its absence is load-bearing.
+ * - **The #935 caps still refuse with 400** ("per-value caps on the public submit route"), and they
+ *   are still INCLUSIVE at the boundary value.
+ * - **The response envelopes are unchanged** — `{ ok: false, error: 'invalid' }` on the public
+ *   route, `{ error: 'invalid' }` on admin. Zod's field-level detail would be safe to return per
+ *   docs/security-standards.md, but the embed widget parses these bodies, so changing the shape is
+ *   its own decision and not part of #932.
+ *
+ * Three things the narrowing got WRONG, which the schemas fix (all three kill-shot marked in
+ * apps/api/test/forms.test.ts, "Zod at the forms boundary (#932)"):
+ *
+ * 1. `c.req.json()` was awaited OUTSIDE any guard, so a body that is not JSON threw into
+ *    `apiOnError` and an anonymous caller got a 500 `internal_error` (plus a correlation-id error
+ *    log per request) for their own malformed input. {@link parseBody} answers 400.
+ * 2. `typeof [] === 'object'`, so an ARRAY passed as `fields` was accepted and stored with invented
+ *    numeric field names. A record schema refuses it.
+ * 3. The admin write cast `body['source']` to `SubmissionInput['source']` unchecked, storing
+ *    unknown keys and non-string values — a row that contradicts its own type.
+ */
 
-const isStringArray = (v: unknown): v is string[] =>
-  Array.isArray(v) && v.every((x) => typeof x === 'string')
+/** A body value this route USES only when it is a string, and bounds when it is: a non-string is
+ *  dropped (see the docblock above), an over-cap string is a 400. `.catch()` cannot express this —
+ *  it would swallow the cap violation into `undefined` too, silently accepting what #935 refuses. */
+const optionalCapped = (max: number) =>
+  z
+    .unknown()
+    .transform((v): string | undefined =>
+      typeof v === 'string' ? v : undefined
+    )
+    .refine((v) => v === undefined || v.length <= max, {
+      message: 'too_long'
+    })
 
-/** #935: true when every BODY-supplied value that gets stored or rendered is within its cap.
- *  Non-string values are not measured — they are coerced to '' / dropped below, so they carry
- *  nothing. Header-derived `source` fields never reach this function, and `honeypot` /
- *  `captchaToken` are out of scope by design; the constants above say what bounds each instead. */
-const withinValueCaps = (
-  formId: string,
-  formLabel: unknown,
-  fields: Record<string, unknown>,
-  sourceUrl: unknown
-): boolean => {
-  if (formId.length > FORM_VALUE_MAX) return false
-  if (typeof formLabel === 'string' && formLabel.length > FORM_VALUE_MAX)
-    return false
-  if (typeof sourceUrl === 'string' && sourceUrl.length > FORM_SOURCE_URL_MAX)
-    return false
-  const entries = Object.entries(fields)
-  if (entries.length > FORM_FIELD_MAX_COUNT) return false
-  return entries.every(
-    ([k, v]) =>
-      k.length <= FORM_VALUE_MAX &&
-      (typeof v !== 'string' || v.length <= FORM_FIELD_VALUE_MAX)
+/** Same drop-rather-than-refuse rule, with no length bound — for values the whole-body cap is the
+ *  right and only bound for (`honeypot`; see the #935 docblock above). */
+const optionalString = z
+  .unknown()
+  .transform((v): string | undefined => (typeof v === 'string' ? v : undefined))
+
+/** The SHAPE both routes agree on: a real record, so an array is refused (#932). */
+const fieldsRecord = z.record(z.string(), z.unknown())
+
+/** The coercion both routes agree on: a non-string field value becomes `''` rather than an error
+ *  (a checkbox group that posts a number is a real browser form, not an attack). */
+const coerceFieldValues = (
+  f: Record<string, unknown>
+): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries(f).map(([k, v]) => [k, typeof v === 'string' ? v : ''])
   )
+
+/**
+ * `fields` for the ANONYMOUS submit route: the shared shape and coercion, PLUS the #935 caps.
+ *
+ * Kept separate from {@link adminFieldsSchema} on purpose — see the note at the end of the #935
+ * docblock above. #932's first pass had both routes share one capped schema, which silently
+ * imposed all three caps on the authenticated admin write while the comments here and above went
+ * on saying it did not (review F1). The divergence now has a test on BOTH sides:
+ * apps/api/test/forms.test.ts, "the #935 caps bind the public route ONLY (#932 review F1)" —
+ * which fails if either route starts answering the other's way.
+ */
+const submitFieldsSchema = fieldsRecord
+  .refine((f) => Object.keys(f).length <= FORM_FIELD_MAX_COUNT, {
+    message: 'too_many_fields'
+  })
+  .refine(
+    (f) =>
+      Object.entries(f).every(
+        ([k, v]) =>
+          k.length <= FORM_VALUE_MAX &&
+          (typeof v !== 'string' || v.length <= FORM_FIELD_VALUE_MAX)
+      ),
+    { message: 'field_too_long' }
+  )
+  .transform(coerceFieldValues)
+
+/** `fields` for the AUTHENTICATED admin write: shape and coercion, no caps. Same test as above
+ *  pins that this route accepts what the public one refuses. */
+const adminFieldsSchema = fieldsRecord.transform(coerceFieldValues)
+
+/** The three declared `source` members, each dropped unless it is a string. Used for the ADMIN
+ *  write, where the whole object arrives in the body; the public route derives `referrer` and
+ *  `userAgent` from request headers instead and only reads `url` from the body. */
+const sourceMembers = z.object({
+  url: optionalString,
+  referrer: optionalString,
+  userAgent: optionalString
+})
+
+/** Drop the `undefined` members so the stored object has no keys the submitter did not supply
+ *  (`exactOptionalPropertyTypes` also refuses to assign them). */
+const compactSource = (
+  v: z.infer<typeof sourceMembers>
+): SubmissionInput['source'] =>
+  Object.fromEntries(Object.entries(v).filter(([, x]) => x !== undefined))
+
+/** The public submit body. `formId` and `captchaToken` are the only REQUIRED strings — the same two
+ *  the previous narrowing insisted on. */
+const submitBodySchema = z.object({
+  formId: z.string().min(1).max(FORM_VALUE_MAX),
+  formLabel: optionalCapped(FORM_VALUE_MAX),
+  fields: submitFieldsSchema,
+  captchaToken: z.string(),
+  honeypot: optionalString,
+  /** Only `url` is read from the body, and only when it is a non-empty string within its cap; a
+   *  `source` that is not an object at all is dropped whole, as before. */
+  source: z
+    .unknown()
+    .transform((v): unknown =>
+      typeof v === 'object' && v !== null && !Array.isArray(v)
+        ? (v as Record<string, unknown>)['url']
+        : undefined
+    )
+    .transform((v): string | undefined =>
+      typeof v === 'string' ? v : undefined
+    )
+    .refine((v) => v === undefined || v.length <= FORM_SOURCE_URL_MAX, {
+      message: 'too_long'
+    })
+    .transform((v): string | undefined => (v === '' ? undefined : v))
+})
+
+/** The admin write body. Deliberately NOT carrying the #935 per-value caps — see the note at the
+ *  end of that docblock: the threat is the anonymous actor, and refusing a maintainer's re-import
+ *  of a long legitimate submission would be a regression bought for nothing. `formId` is uncapped
+ *  here for the same reason, and `fields` goes through {@link adminFieldsSchema} rather than the
+ *  submit route's capped one. Both directions of that divergence are pinned by
+ *  apps/api/test/forms.test.ts ("the #935 caps bind the public route ONLY (#932 review F1)"). */
+const adminSubmissionSchema = z.object({
+  formId: z.string().min(1),
+  formLabel: optionalString,
+  fields: adminFieldsSchema,
+  source: z.unknown().transform((v): SubmissionInput['source'] | undefined => {
+    const parsed = sourceMembers.safeParse(v)
+    return parsed.success ? compactSource(parsed.data) : undefined
+  })
+})
+
+/** The two id-list mutations. `z.array(z.string())` is `isStringArray` exactly. */
+const readPatchSchema = z.object({
+  ids: z.array(z.string()),
+  read: z.boolean()
+})
+const deleteSchema = z.object({ ids: z.array(z.string()) })
+
+/**
+ * Read and validate a JSON body, or report that it is unusable — the ONE place `c.req.json()` is
+ * awaited in this factory, so a malformed body can no longer reach `apiOnError` as a 500 (#932).
+ *
+ * The failure is deliberately opaque to the caller: the route decides its own envelope. Pinned by
+ * apps/api/test/forms.test.ts ("answers 400, not 500, when the public submit body is not JSON at
+ * all", and the admin equivalent).
+ */
+async function parseBody<T>(
+  c: Context,
+  schema: z.ZodType<T, z.ZodTypeDef, unknown>
+): Promise<{ ok: true; data: T } | { ok: false }> {
+  let raw: unknown
+  try {
+    raw = await c.req.json()
+  } catch {
+    return { ok: false }
+  }
+  const parsed = schema.safeParse(raw)
+  return parsed.success ? { ok: true, data: parsed.data } : { ok: false }
 }
 
 /** Capability gate: 403 when the (already-authenticated) actor lacks `action`. Pairs with
@@ -297,34 +450,14 @@ export function createFormsApi(opts: {
       onError: (c) => c.json({ ok: false, error: 'too_large' }, 413)
     }),
     async (c) => {
-      const body = asRecord(await c.req.json())
-      if (
-        !body ||
-        typeof body['formId'] !== 'string' ||
-        body['formId'] === '' ||
-        !asRecord(body['fields']) ||
-        typeof body['captchaToken'] !== 'string'
-      ) {
-        return c.json({ ok: false, error: 'invalid' }, 400)
-      }
-      const fields = asRecord(body['fields'])!
-      const bodySourceUrl = asRecord(body['source'])?.['url']
-      // #935: bound the values that get STORED or RENDERED, which the whole-body cap does not.
-      // Before the captcha call, so a refusal stays the cheapest thing this route can do (same
-      // reasoning as the rate limiter above).
-      if (
-        !withinValueCaps(
-          body['formId'],
-          body['formLabel'],
-          fields,
-          bodySourceUrl
-        )
-      )
-        return c.json({ ok: false, error: 'invalid' }, 400)
+      // #932/#935: shape AND per-value caps are both the schema's job, and both are settled before
+      // the captcha call, so a refusal stays the cheapest thing this route can do (same reasoning
+      // as the rate limiter above).
+      const parsed = await parseBody(c, submitBodySchema)
+      if (!parsed.ok) return c.json({ ok: false, error: 'invalid' }, 400)
+      const body = parsed.data
       const source = {
-        ...(typeof bodySourceUrl === 'string' && bodySourceUrl
-          ? { url: bodySourceUrl }
-          : {}),
+        ...(body.source === undefined ? {} : { url: body.source }),
         ...(c.req.header('referer')
           ? { referrer: c.req.header('referer') }
           : {}),
@@ -361,18 +494,11 @@ export function createFormsApi(opts: {
       // client address, never a forgeable header").
       const captchaIp = clientIp(c)
       const result = await submit.submit({
-        formId: body['formId'],
-        formLabel:
-          typeof body['formLabel'] === 'string' ? body['formLabel'] : undefined,
-        fields: Object.fromEntries(
-          Object.entries(fields).map(([k, v]) => [
-            k,
-            typeof v === 'string' ? v : ''
-          ])
-        ),
-        captchaToken: body['captchaToken'],
-        honeypot:
-          typeof body['honeypot'] === 'string' ? body['honeypot'] : undefined,
+        formId: body.formId,
+        formLabel: body.formLabel,
+        fields: body.fields,
+        captchaToken: body.captchaToken,
+        honeypot: body.honeypot,
         source: Object.keys(source).length ? source : undefined,
         ip: captchaIp
       })
@@ -394,30 +520,14 @@ export function createFormsApi(opts: {
     auth,
     canManage,
     async (c) => {
-      const body = asRecord(await c.req.json())
-      const fields = asRecord(body?.['fields'])
-      if (
-        !body ||
-        typeof body['formId'] !== 'string' ||
-        body['formId'] === '' ||
-        !fields
-      ) {
-        return c.json({ error: 'invalid' }, 400)
-      }
+      const parsed = await parseBody(c, adminSubmissionSchema)
+      if (!parsed.ok) return c.json({ error: 'invalid' }, 400)
+      const body = parsed.data
       const input: SubmissionInput = {
-        formId: body['formId'],
-        ...(typeof body['formLabel'] === 'string'
-          ? { formLabel: body['formLabel'] }
-          : {}),
-        fields: Object.fromEntries(
-          Object.entries(fields).map(([k, v]) => [
-            k,
-            typeof v === 'string' ? v : ''
-          ])
-        ),
-        ...(asRecord(body['source'])
-          ? { source: body['source'] as SubmissionInput['source'] }
-          : {})
+        formId: body.formId,
+        ...(body.formLabel === undefined ? {} : { formLabel: body.formLabel }),
+        fields: body.fields,
+        ...(body.source === undefined ? {} : { source: body.source })
       }
       return c.json(await submissions.saveSubmission(input), 201)
     }
@@ -450,13 +560,9 @@ export function createFormsApi(opts: {
     auth,
     canManage,
     async (c) => {
-      const body = asRecord(await c.req.json())
-      const ids = body?.['ids']
-      const read = body?.['read']
-      if (!isStringArray(ids) || typeof read !== 'boolean') {
-        return c.json({ error: 'invalid' }, 400)
-      }
-      await submissions.setRead(ids, read)
+      const parsed = await parseBody(c, readPatchSchema)
+      if (!parsed.ok) return c.json({ error: 'invalid' }, 400)
+      await submissions.setRead(parsed.data.ids, parsed.data.read)
       return c.json({ ok: true })
     }
   )
@@ -467,12 +573,9 @@ export function createFormsApi(opts: {
     auth,
     canManage,
     async (c) => {
-      const body = asRecord(await c.req.json())
-      const ids = body?.['ids']
-      if (!isStringArray(ids)) {
-        return c.json({ error: 'invalid' }, 400)
-      }
-      await submissions.deleteSubmissions(ids)
+      const parsed = await parseBody(c, deleteSchema)
+      if (!parsed.ok) return c.json({ error: 'invalid' }, 400)
+      await submissions.deleteSubmissions(parsed.data.ids)
       return c.json({ ok: true })
     }
   )

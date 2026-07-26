@@ -11,15 +11,20 @@
  *
  *  1. **Default (no `SETU_TRUSTED_PROXIES`): the socket peer wins and EVERY header is ignored.**
  *     Unforgeable, because it is the TCP peer, not a claim.
- *  2. **`SETU_TRUSTED_PROXIES=<ip>[,<ip>…]`: `x-forwarded-for` becomes readable — and ONLY it —
- *     when the socket peer is one of the declared addresses.** It is walked from the RIGHT: a
- *     client can prepend anything to that list, so only the hops a trusted proxy appended mean
- *     anything, and the first right-to-left hop that is not itself a declared proxy is the real
- *     client. Every mainstream reverse proxy and CDN (nginx, Caddy, Traefik, HAProxy, ALB,
- *     Cloudflare) APPENDS to this header, which is what makes the right-walk safe by construction.
+ *  2. **`SETU_TRUSTED_PROXIES=<ip>[,<ip>…]`: the two HOP-LIST headers become readable — and only
+ *     those — when the socket peer is one of the declared addresses.** Those are `x-forwarded-for`
+ *     and, since #934, the RFC 7239 `Forwarded` header. Both are walked from the RIGHT: a client
+ *     can prepend anything to either list, so only the hops a trusted proxy appended mean anything,
+ *     and the first right-to-left hop that is not itself a declared proxy is the real client. Every
+ *     mainstream reverse proxy and CDN (nginx, Caddy, Traefik, HAProxy, ALB, Cloudflare) APPENDS to
+ *     these, which is what makes the right-walk safe by construction — and is also why anything
+ *     that could move that append boundary (an unbalanced quote in `Forwarded`) refuses the whole
+ *     header rather than guessing. `x-forwarded-for` wins when both are present; the reasoning for
+ *     that tie-break is at the read site below.
  *  3. **`SETU_TRUSTED_PROXY_HEADER=<name>`: additionally believe one named single-valued header**
  *     (`cf-connecting-ip`, `x-real-ip`, …), which only the operator can know their proxy actually
- *     SETS rather than forwards.
+ *     SETS rather than forwards. Naming either hop-list header here is a no-op: a hop list has no
+ *     single value to believe, and trusting the whole string would hand a client the key.
  *
  *  **Why level 3 is a separate opt-in and not folded into level 2** (this was a real hole, caught
  *  in review of PR #933 and fixed here): a generic reverse proxy forwards unknown request headers
@@ -32,6 +37,13 @@
  *  leaving level 3 off: Cloudflare also appends the visitor address to `x-forwarded-for`, so the
  *  level-2 right-walk already resolves it. Pinned by apps/api/test/client-ip.test.ts
  *  ("SETU_TRUSTED_PROXIES alone does NOT make a single-valued header believable").
+ *
+ *  **#934 — why `Forwarded` had to be a THIRD structured source and not a level-3 opt-in.** Before
+ *  it, a deployment whose front sets only the standard header resolved every request to the proxy's
+ *  own socket address, collapsing all callers into one bucket. That failed CLOSED, so it was a DX
+ *  gap rather than an exposure, but it silently degraded per-IP limiting on a standards-compliant
+ *  setup. It could not ride level 3 because that level is deliberately restricted to
+ *  SINGLE-VALUED headers; being a hop list, it belongs at level 2 with the same walk and cap.
  *
  *  **The accepted zero-config consequence:** run behind a reverse proxy or CDN *without* setting
  *  `SETU_TRUSTED_PROXIES` and every request arrives from the proxy's own address, so the whole
@@ -61,10 +73,16 @@
  *  IP" must mean "one shared bound", never "no bound". */
 export const UNRESOLVED_IP_KEY = '@unresolved-client-ip'
 
-/** How many `x-forwarded-for` hops are walked before giving up. Node caps request headers at
- *  ~16 KiB, which is thousands of hops — a real chain is single digits, so this bounds the work a
- *  hostile header can cause on the unauthenticated submit path. */
-const MAX_FORWARDED_HOPS = 50
+/** How many hops are walked before giving up — for `x-forwarded-for` and `Forwarded` alike (#934).
+ *  Node caps request headers at ~16 KiB, which is thousands of hops — a real chain is single
+ *  digits, so this bounds the work a hostile header can cause on the unauthenticated submit path.
+ *
+ *  Exported so the tests can assert the CUT rather than only a wall-clock bound: a 5,000-hop timing
+ *  test passes with the cap removed (walking 5,000 array entries is microseconds either way), so it
+ *  reads as coverage without being any — the #638 class. What discriminates is a client that sits
+ *  BEYOND the cap being refused, which apps/api/test/client-ip.test.ts pins for both headers
+ *  ("gives up rather than walking past the hop cap"). */
+export const MAX_FORWARDED_HOPS = 50
 
 /** RFC 9110 token characters — what a legal HTTP field name may contain. A declared header name
  *  that is not one is dropped rather than looked up. */
@@ -118,6 +136,156 @@ export function parseTrustedProxyHeader(
   return name
 }
 
+/** Split on `sep` at the TOP level only — a separator inside a `"…"` value belongs to the value,
+ *  not to the grammar. RFC 7239 values may be quoted strings, and a quoted string may legally
+ *  contain both `,` and `;`, so a plain `split` would tear one element into two.
+ *
+ *  Returns null when the quotes do not BALANCE, which the caller must treat as "refuse the whole
+ *  header" — see {@link parseForwardedHeader}. Deliberately NOT a best-effort split: an unbalanced
+ *  quote is how a client merges the proxy's appended element into its own. */
+function splitOutsideQuotes(raw: string, sep: string): string[] | null {
+  const out: string[] = []
+  let start = 0
+  let quoted = false
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i]
+    if (quoted && ch === '\\') {
+      i++ // the escaped character cannot close the quote or separate anything
+      continue
+    }
+    if (ch === '"') quoted = !quoted
+    else if (ch === sep && !quoted) {
+      out.push(raw.slice(start, i))
+      start = i + 1
+    }
+  }
+  if (quoted) return null
+  out.push(raw.slice(start))
+  return out
+}
+
+/** Unwrap a quoted-string value: drop the surrounding quotes and undo `\x` escapes. */
+function unquote(value: string): string | undefined {
+  if (!value.startsWith('"')) return value
+  if (value.length < 2 || !value.endsWith('"')) return undefined
+  return value.slice(1, -1).replace(/\\(.)/g, '$1')
+}
+
+/** Address SHAPE, checked before anything becomes a bucket key.
+ *
+ *  `x-forwarded-for` never needed this: every mainstream proxy APPENDS, so the right-walk reaches
+ *  the proxy-supplied hop before any client-supplied text and returns it. `Forwarded` carries
+ *  arbitrary quoted values, so an unshaped `for=` — `for=hello`, or a value merged with the rest of
+ *  the header — could otherwise become the key, and a client varying it would mint a fresh
+ *  rate-limit bucket per request. Deliberately a shape test, not a full IP parser: what matters is
+ *  that a key can only ever be built from IP characters, so nothing opaque and client-varied gets
+ *  through. Pinned by apps/api/test/client-ip.test.ts ("refuses a node identifier that is not
+ *  address-shaped rather than keying a bucket on it").
+ *
+ *  This is ALSO what rejects RFC 7239's two deliberately address-less node identifiers — `unknown`
+ *  and an obfuscated `_id` — since neither contains a character the shapes below allow. An earlier
+ *  draft tested for those two explicitly as well; the kill-shot proved that branch could be deleted
+ *  with the whole suite still green, i.e. it was a guard that could never fire, which reads as
+ *  coverage without being any (CLAUDE.md §3.3 #4). The behaviour it described is unchanged and is
+ *  pinned by the enumerated cases in apps/api/test/client-ip.test.ts ("yields nothing for unknown,
+ *  obfuscated and absent identifiers") — which is the property that actually matters, rather than
+ *  which line refuses them. */
+const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/
+const IPV6ISH = /^[0-9a-f:]*:[0-9a-f:]*(\.\d{1,3}){0,3}$/i
+const looksLikeIp = (v: string): boolean =>
+  IPV4.test(v) ? v.split('.').every((o) => Number(o) <= 255) : IPV6ISH.test(v)
+
+/**
+ * Strip the optional `node-port` from an RFC 7239 node identifier, leaving the address.
+ *
+ * Three shapes, and the third is why this is not a `split(':')`:
+ * - `[2001:db8::1]:4711` / `[2001:db8::1]` — bracketed IPv6, the RFC's own form for a v6 address.
+ * - `192.0.2.60:1234` / `192.0.2.60:_obf` — one colon, so the tail is a port (numeric or the RFC's
+ *   obfuscated form).
+ * - `2001:db8::1` — an unbracketed IPv6, which is NOT RFC-conformant but is emitted in the wild.
+ *   It has several colons, and treating the last group as a port would key the bucket on a
+ *   TRUNCATED address: a wrong key, which is worse than no key. Left intact.
+ */
+function stripNodePort(node: string): string {
+  if (node.startsWith('[')) {
+    const close = node.indexOf(']')
+    return close === -1 ? node : node.slice(1, close)
+  }
+  const colon = node.indexOf(':')
+  if (colon === -1 || colon !== node.lastIndexOf(':')) return node
+  return node.slice(0, colon)
+}
+
+/**
+ * Parse the RFC 7239 `Forwarded` header into its hop list — one entry per forwarded-element, in
+ * the order the header carries them, `undefined` for any element that names no address (#934).
+ *
+ * `undefined` is the load-bearing part. `unknown` and an obfuscated `_id` are both LEGAL node
+ * identifiers that deliberately name nothing, so they have to mean "try the next hop" — a bucket
+ * keyed on the literal `unknown` would silently pool every such caller under a string that looks
+ * like an address. Same for an element with no `for=` pair at all (`Forwarded: proto=https`), for a
+ * malformed value, and for anything that is not address-shaped ({@link looksLikeIp}).
+ *
+ * An UNBALANCED quote anywhere in the header refuses the whole header (empty hop list), because
+ * once a proxy has appended its element to a client-supplied malformed value there is no way to
+ * know where the boundaries were — and guessing hands the client the key. Same fail-closed
+ * reasoning as the merged-single-valued-header rule in {@link resolveClientIp}.
+ *
+ * Exported for the grammar tests, which is the only way to cover the shapes exhaustively
+ * (apps/api/test/client-ip.test.ts, "parseForwardedHeader — the RFC 7239 grammar (#934)" and
+ * "a client cannot merge away the proxy's Forwarded hop (#934)").
+ */
+export function parseForwardedHeader(
+  raw: string | undefined
+): (string | undefined)[] {
+  if (raw === undefined || raw.trim() === '') return []
+  const elements = splitOutsideQuotes(raw, ',')
+  if (elements === null) return []
+  return elements.map((element) => {
+    const found: string[] = []
+    for (const pair of splitOutsideQuotes(element, ';') ?? []) {
+      const eq = pair.indexOf('=')
+      if (eq === -1) continue
+      // Parameter names are case-insensitive per RFC 7239 §4.
+      if (pair.slice(0, eq).trim().toLowerCase() !== 'for') continue
+      found.push(pair.slice(eq + 1).trim())
+    }
+    // RFC 7239 §4: a parameter MUST NOT occur more than once per element. A duplicate is malformed,
+    // and picking one of them would be an arbitrary choice between two client-supplied values —
+    // unusable is the honest answer.
+    if (found.length !== 1) return undefined
+    const value = unquote(found[0]!)
+    if (value === undefined || value === '') return undefined
+    // Address-SHAPED or nothing — which also covers `unknown` and the RFC's obfuscated `_id`, both
+    // of which name no address at all. See {@link looksLikeIp}.
+    const node = stripNodePort(value)
+    return looksLikeIp(node) ? node : undefined
+  })
+}
+
+/**
+ * Walk a hop list from the RIGHT and return the first entry that is a usable address and is not
+ * itself a declared proxy — the one rule both hop-list headers share (#934).
+ *
+ * Shared rather than duplicated because the safety argument is identical: a client can PREPEND
+ * anything to either header, so only the entries a trusted proxy appended mean anything, and the
+ * first right-to-left hop that is not itself declared is the real client. The hop cap bounds the
+ * work a hostile header can cause. Pinned for both headers by apps/api/test/client-ip.test.ts
+ * ("takes the RIGHTMOST non-proxy hop, not the client-controlled left" for `x-forwarded-for`, and
+ * "takes the RIGHTMOST non-proxy hop here too" for `Forwarded`).
+ */
+function rightmostClientHop(
+  hops: readonly (string | undefined)[],
+  trust: ProxyTrust
+): string | undefined {
+  const first = Math.max(0, hops.length - MAX_FORWARDED_HOPS)
+  for (let i = hops.length - 1; i >= first; i--) {
+    const hop = normalizeIp(hops[i])
+    if (hop !== undefined && !trust.proxies.includes(hop)) return hop
+  }
+  return undefined
+}
+
 /** Resolve the address a per-IP bound may key on, per the trust model documented at the top of
  *  this file. Returns undefined only when the topology exposes no socket peer at all — callers
  *  key on `UNRESOLVED_IP_KEY` in that case. */
@@ -127,7 +295,9 @@ export function resolveClientIp(
 ): string | undefined {
   const socket = normalizeIp(req.socketIp)
   if (socket === undefined) return undefined
-  // Level 1, the header-blind default: nothing this request CLAIMS is consulted.
+  // Level 1, the header-blind default: nothing this request CLAIMS is consulted. Both hop-list
+  // reads below sit behind this gate — see the forgery cases in
+  // apps/api/test/client-ip.test.ts, which cover `Forwarded` too.
   if (!trust.proxies.includes(socket)) return socket
 
   // Level 3: one explicitly declared single-valued header, believed ahead of the chain because
@@ -135,7 +305,15 @@ export function resolveClientIp(
   // than one instance of the header (Node joins duplicates with ", "), i.e. a client-supplied
   // copy survived alongside the proxy's — unknowable which is which, so fail closed to the chain
   // rather than guess. A genuine single-valued header never contains one.
-  if (trust.header !== undefined && trust.header !== 'x-forwarded-for') {
+  //
+  // `forwarded` is excluded alongside `x-forwarded-for` for the same reason (#934): it is a hop
+  // list, so believing the whole value would hand a client the key, which is exactly the hole #933
+  // closed. Declaring either name is a no-op; the right-walk below reads them properly.
+  if (
+    trust.header !== undefined &&
+    trust.header !== 'x-forwarded-for' &&
+    trust.header !== 'forwarded'
+  ) {
     const declared = req.header(trust.header)
     if (declared !== undefined && !declared.includes(',')) {
       const ip = normalizeIp(declared)
@@ -143,16 +321,32 @@ export function resolveClientIp(
     }
   }
 
-  // Level 2: the append-structured chain, walked from the right.
-  const forwarded = req.header('x-forwarded-for')
-  if (forwarded !== undefined && forwarded !== '') {
-    const hops = forwarded.split(',')
-    const first = Math.max(0, hops.length - MAX_FORWARDED_HOPS)
-    for (let i = hops.length - 1; i >= first; i--) {
-      const hop = normalizeIp(hops[i])
-      if (hop !== undefined && !trust.proxies.includes(hop)) return hop
-    }
-  }
+  // Level 2: the append-structured chains, walked from the right.
+  //
+  // PRECEDENCE (#934): `x-forwarded-for` first. Both headers are hop lists gated on the same
+  // declaration, so neither is more trustworthy — this is a tie-break, and it goes to continuity.
+  // `x-forwarded-for` is what nginx/Caddy/Traefik/HAProxy/ALB/Cloudflare set by default, so it is
+  // what every working deployment is already keyed on and what an operator debugging their own
+  // buckets has been reasoning about; reversing it would silently re-key live deployments that
+  // send both. `Forwarded` is still consulted when the chain yields no usable hop (blank, or only
+  // declared proxies), which costs nothing and is the whole point of #934. Pinned by
+  // apps/api/test/client-ip.test.ts ("precedence when both hop-list headers are present").
+  // A PLAIN comma split, unchanged from before #934 and deliberately not the quote-aware one:
+  // `x-forwarded-for` has no quoted-string grammar, so quote-awareness there would be meaningless
+  // AND harmful — a client-supplied `"` would merge the proxy's appended hop into the client's own
+  // text, which is the hole the Forwarded block above refuses the whole header over. The safety of
+  // this walk rests on the proxy appending LAST, so nothing may be allowed to move that boundary.
+  const chain = rightmostClientHop(
+    (req.header('x-forwarded-for') ?? '').split(','),
+    trust
+  )
+  if (chain !== undefined) return chain
+  const rfc7239 = rightmostClientHop(
+    parseForwardedHeader(req.header('forwarded')),
+    trust
+  )
+  if (rfc7239 !== undefined) return rfc7239
+
   // A declared proxy that forwarded nothing usable (or only other declared proxies): key on the
   // proxy itself rather than on a value we have no reason to believe.
   return socket

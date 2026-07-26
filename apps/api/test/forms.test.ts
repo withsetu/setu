@@ -537,6 +537,66 @@ describe('createFormsApi — per-IP submit rate limit (#918)', () => {
     expect((await submissions.listSubmissions()).total).toBe(2)
   })
 
+  // #934 at the route level — the DX gap this closes. A front that sets only the RFC 7239 header
+  // used to put every visitor in the proxy's single bucket; now each gets its own, under the same
+  // declaration and with the same right-walk.
+  it('DOES separate clients a Forwarded-only proxy reports (#934)', async () => {
+    const { app } = limited({
+      max: 1,
+      socketIp: () => '198.51.100.1',
+      trustedProxies: ['198.51.100.1']
+    })
+    expect(
+      (await submitFrom(app, { forwarded: 'for=192.0.2.60;proto=https' }))
+        .status
+    ).toBe(200)
+    expect(
+      (await submitFrom(app, { forwarded: 'for=192.0.2.60;proto=https' }))
+        .status
+    ).toBe(429)
+    // A different visitor through the same proxy is a different bucket, not the same one.
+    expect(
+      (await submitFrom(app, { forwarded: 'for="[2001:db8::17]:4711"' })).status
+    ).toBe(200)
+  })
+
+  // The matching forgery case. Same header, no declared proxy: it must not be read at all.
+  // Kill-shot: move the Forwarded read outside the trusted-peer gate in client-ip.ts and the burst
+  // below stops being refused.
+  it('a forged Forwarded cannot mint fresh quota under the default (untrusted) config (#934)', async () => {
+    const { app, submissions } = limited({ max: 2 })
+    const codes: number[] = []
+    for (let i = 0; i < 5; i++)
+      codes.push(
+        (await submitFrom(app, { forwarded: `for=9.9.9.${i}` })).status
+      )
+    expect(codes).toEqual([200, 200, 429, 429, 429])
+    expect((await submissions.listSubmissions()).total).toBe(2)
+  })
+
+  // And the merge case (see the dedicated block in apps/api/test/client-ip.test.ts): through a
+  // DECLARED proxy, an unbalanced quote must not let the caller pick its own bucket by hiding the
+  // hop the proxy appended.
+  it('a Forwarded crafted to swallow the proxy’s appended hop cannot mint quota either (#934)', async () => {
+    const { app, submissions } = limited({
+      max: 2,
+      socketIp: () => '127.0.0.1',
+      trustedProxies: ['127.0.0.1']
+    })
+    const codes: number[] = []
+    for (let i = 0; i < 5; i++)
+      codes.push(
+        (
+          await submitFrom(app, {
+            // What the wire carries after the proxy appends its element to the client's value.
+            forwarded: `for=9.9.9.${i};host="x, for=203.0.113.7`
+          })
+        ).status
+      )
+    expect(codes).toEqual([200, 200, 429, 429, 429])
+    expect((await submissions.listSubmissions()).total).toBe(2)
+  })
+
   it('believes the single-valued header only once SETU_TRUSTED_PROXY_HEADER declares it', async () => {
     const { app } = limited({
       max: 1,

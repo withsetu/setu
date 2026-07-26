@@ -82,7 +82,8 @@ export type {
   SubmissionServiceDeps,
   SubmitInput,
   SubmitResult,
-  NotificationContent
+  NotificationContent,
+  NotificationContext
 } from './submissions/submission-service'
 export {
   validateContactFields,

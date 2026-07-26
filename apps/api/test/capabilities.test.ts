@@ -9,6 +9,7 @@ import {
   buildCapabilities,
   createCapabilitiesApi,
   emailCapabilityFromEnv,
+  emailDeliverable,
   emailTransportOptions,
   resolveEmailProvider,
   resolveFromAddress,
@@ -754,6 +755,55 @@ describe('capabilities', () => {
         effective: null,
         source: null
       })
+    })
+  })
+
+  // #938: the ONE deliverable predicate. It had been retyped as an inline expression at three
+  // more surfaces, one of which — the live harness in apps/api/test/email-api.test.ts — had
+  // already dropped the from-address conjunct. These pin it directly; the same rule is asserted
+  // through the two surfaces that consume it by the emailCapabilityFromEnv describe above and by
+  // apps/api/test/email-status.test.ts.
+  describe('emailDeliverable (the one predicate every surface shares)', () => {
+    const from = (effective: string | null) => ({
+      effective,
+      source: effective === null ? null : ('settings' as const)
+    })
+    const transport = (effective: 'console' | 'resend' | 'smtp') => ({
+      selected: effective,
+      source: 'settings' as const,
+      effective,
+      problem: null
+    })
+
+    it('true only when BOTH a real transport and a from-address are present', () => {
+      expect(emailDeliverable(transport('resend'), from('a@x.test'))).toBe(true)
+      expect(emailDeliverable(transport('smtp'), from('a@x.test'))).toBe(true)
+    })
+
+    it('false with a real transport but NO from-address — the conjunct the drifted copy dropped', () => {
+      expect(emailDeliverable(transport('resend'), from(null))).toBe(false)
+      expect(emailDeliverable(transport('smtp'), from(null))).toBe(false)
+    })
+
+    it('false with a from-address but a console-EFFECTIVE transport', () => {
+      expect(emailDeliverable(transport('console'), from('a@x.test'))).toBe(
+        false
+      )
+    })
+
+    it('keys on `effective`, not on the selection — a resend selection that fell back is not deliverable', () => {
+      // The shape usableEmailTransport produces for `provider: resend` with no RESEND_API_KEY.
+      expect(
+        emailDeliverable(
+          {
+            selected: 'resend',
+            source: 'settings',
+            effective: 'console',
+            problem: 'RESEND_API_KEY is unset'
+          },
+          from('a@x.test')
+        )
+      ).toBe(false)
     })
   })
 

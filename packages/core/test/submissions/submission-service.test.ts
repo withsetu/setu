@@ -375,6 +375,146 @@ describe('createSubmissionService.submit', () => {
     })
   })
 
+  // #939: apps/api backs `notifyFrom`, `renderNotification` and `email.send` with settings.json,
+  // so reaching for the three independently made ONE visitor-triggered notification parse that
+  // file three times. `resolveNotification` lets the host resolve all three together, once. The
+  // seam must stay INSIDE submit (liveness) and must not fire for a submission that would never
+  // notify (cost).
+  describe('resolveNotification (#939)', () => {
+    /** The message shape `NotificationContext.send` receives — spelled out so the spies below
+     *  keep their argument types (a bare `vi.fn(async () => {})` infers a zero-arg call
+     *  signature, and `mock.calls[0]` then has no element to assert on). */
+    type NotifyMessage = {
+      to: string
+      from: string
+      subject: string
+      html: string
+      text?: string
+    }
+
+    it('is consulted exactly ONCE per notifying submission, and supplies from, body and sender', async () => {
+      const send = vi.fn(async (_msg: NotifyMessage) => {})
+      const render = vi.fn(() => ({
+        subject: 's',
+        html: '<p>h</p>',
+        text: 't'
+      }))
+      const resolveNotification = vi.fn(() => ({
+        from: 'ctx@x.com',
+        render,
+        send
+      }))
+      const submissions = createMemorySubmissionPort()
+
+      await createSubmissionService({
+        submissions,
+        captcha: ok,
+        email: { send: vi.fn(async () => {}) },
+        notifyTo: 'owner@x.com',
+        resolveNotification
+      }).submit({ ...base })
+
+      expect(resolveNotification).toHaveBeenCalledTimes(1)
+      expect(render).toHaveBeenCalledTimes(1)
+      expect(send).toHaveBeenCalledTimes(1)
+      expect(send.mock.calls[0]![0]).toEqual({
+        to: 'owner@x.com',
+        from: 'ctx@x.com',
+        subject: 's',
+        html: '<p>h</p>',
+        text: 't'
+      })
+    })
+
+    it('is resolved INSIDE submit, so a from-address appearing between two submissions applies to the second', async () => {
+      const send = vi.fn(async (_msg: NotifyMessage) => {})
+      const live: { from: string | undefined } = { from: undefined }
+      const onNotifySkipped = vi.fn()
+      const svc = createSubmissionService({
+        submissions: createMemorySubmissionPort(),
+        captcha: ok,
+        email: { send: vi.fn(async () => {}) },
+        notifyTo: 'owner@x.com',
+        onNotifySkipped,
+        resolveNotification: () => ({
+          from: live.from,
+          render: () => ({ subject: 's', html: '<p>h</p>' }),
+          send
+        })
+      })
+
+      await svc.submit({ ...base })
+      expect(send).not.toHaveBeenCalled()
+      expect(onNotifySkipped).toHaveBeenCalledTimes(1)
+
+      // The admin saves one. The service is NOT rebuilt.
+      live.from = 'now@x.com'
+      await svc.submit({ ...base })
+      expect(send).toHaveBeenCalledTimes(1)
+      expect(send.mock.calls[0]![0].from).toBe('now@x.com')
+    })
+
+    it('is NOT consulted for a submission that would never notify — a bot cannot make the host pay for a resolution', async () => {
+      const resolveNotification = vi.fn(() => ({
+        from: 'ctx@x.com',
+        render: () => ({ subject: 's', html: '<p>h</p>' }),
+        send: vi.fn(async () => {})
+      }))
+      const svc = createSubmissionService({
+        submissions: createMemorySubmissionPort(),
+        captcha: ok,
+        email: { send: vi.fn(async () => {}) },
+        notifyTo: 'owner@x.com',
+        resolveNotification
+      })
+
+      await svc.submit({ ...base, honeypot: 'i am a bot' })
+      await svc.submit({ ...base, fields: { email: 'nope', message: 'x' } })
+      expect(resolveNotification).not.toHaveBeenCalled()
+    })
+
+    it('a throwing resolveNotification cannot fail a persisted submission', async () => {
+      const submissions = createMemorySubmissionPort()
+      const r = await createSubmissionService({
+        submissions,
+        captcha: ok,
+        email: { send: vi.fn(async () => {}) },
+        notifyTo: 'owner@x.com',
+        resolveNotification: () => {
+          throw new Error('ENOENT settings.json')
+        }
+      }).submit({ ...base })
+
+      expect(r).toEqual({ ok: true, id: expect.any(String) })
+      expect((await submissions.listSubmissions()).total).toBe(1)
+    })
+
+    it('the ceiling still guards it, and a ceiling skip costs no render and no send', async () => {
+      const send = vi.fn(async () => {})
+      const render = vi.fn(() => ({ subject: 's', html: '<p>h</p>' }))
+      const onNotifySkipped = vi.fn()
+      const submissions = createMemorySubmissionPort()
+
+      await createSubmissionService({
+        submissions,
+        captcha: ok,
+        email: { send: vi.fn(async () => {}) },
+        notifyTo: 'owner@x.com',
+        onNotifySkipped,
+        allowNotification: () => 'notification ceiling reached',
+        resolveNotification: () => ({ from: 'ctx@x.com', render, send })
+      }).submit({ ...base })
+
+      expect(onNotifySkipped).toHaveBeenCalledWith(
+        'notification ceiling reached'
+      )
+      expect(render).not.toHaveBeenCalled()
+      expect(send).not.toHaveBeenCalled()
+      // The submission itself survives — losing an email is never losing a submission.
+      expect((await submissions.listSubmissions()).total).toBe(1)
+    })
+  })
+
   it('survives an async renderNotification that throws (best-effort)', async () => {
     const submissions = createMemorySubmissionPort()
     const email: EmailPort = { send: vi.fn(async () => {}) }

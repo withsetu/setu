@@ -3,7 +3,13 @@ import { createAuthz, DEFAULT_ROLES } from '@setu/core'
 import type { EmailPort } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
 import type { ResolveActor, ResolvedActor } from './auth/resolve-actor'
-import type { EmailTransportOption, UsableEmailTransport } from './capabilities'
+import {
+  emailDeliverable,
+  emailTransportOptions,
+  type EmailTransportOption,
+  type UsableEmailTransport
+} from './capabilities'
+import type { EmailConfig } from './email-config'
 import { apiOnError } from './errors'
 import { createWindowLimiter } from './rate-limit'
 
@@ -71,21 +77,94 @@ export function resetRestartRequired(opts: {
   )
 }
 
+/** The boot-time facts `buildEmailStatus` folds in alongside the live reading. All four are
+ *  fixed for the process's lifetime, which is exactly why they are separate from the config:
+ *  server.ts binds them once and the thunk below only ever resolves what can change. */
+export interface EmailStatusContext {
+  env: NodeJS.ProcessEnv
+  mode: string
+  /** The `resetWiredAtBoot` const server.ts also hands to createAuth's `email:` option, ANDed
+   *  with "auth exists at all" — so this cannot report a gate the server does not have. */
+  resetWiredAtBoot: boolean
+  authConfigured: boolean
+  adminOriginPresent: boolean
+}
+
+/**
+ * The `GET /api/email/status` payload, built from ONE live reading (#938).
+ *
+ * This was an inline literal in apps/api/src/server.ts — a side-effectful entrypoint no test
+ * imports, so the production copy was unexercised while three hand-written near-copies stood in
+ * for it (the live harness in apps/api/test/email-api.test.ts, which had already dropped the
+ * from-address half of `deliverable`, and a fourth shape hand-written in
+ * apps/admin/test/email-settings.test.tsx). Extracting it is what makes the mutation testable:
+ * dropping either half of `emailDeliverable` now fails apps/api/test/email-status.test.ts and
+ * apps/api/test/capabilities.test.ts instead of nothing at all.
+ *
+ * `deliverable` is `emailDeliverable` from ./capabilities — the SAME function
+ * `emailCapabilityFromEnv` calls for /api/capabilities, not a re-typing of the expression, so the
+ * unauthenticated capability block and this settings.view-gated one cannot drift apart. That
+ * drift had a user-visible shape: with a real transport and no from-address, the admin's
+ * Settings → Email screen would say "Ready to send" over the exact state
+ * `POST /api/email/test-send` answers 409 `no_from_address` on.
+ */
+export function buildEmailStatus(
+  config: Pick<EmailConfig, 'from' | 'transport'>,
+  ctx: EmailStatusContext
+): EmailStatus {
+  const { from, transport } = config
+  const transports = emailTransportOptions(ctx.env)
+  return {
+    transport: transport.selected,
+    providerSource: transport.source,
+    transports,
+    effectiveTransport: transport.effective,
+    deliverable: emailDeliverable(transport, from),
+    mode: ctx.mode,
+    from,
+    secrets: {
+      resendApiKey: Boolean(ctx.env.RESEND_API_KEY),
+      // Selection-INDEPENDENT since #890: the picker has to say whether SMTP could be
+      // chosen, which the currently-selected transport can't answer.
+      smtpConfigured: transports.find((t) => t.id === 'smtp')?.usable ?? false,
+      smtpProblem: transport.selected === 'smtp' ? transport.problem : null
+    },
+    // When reset was off at boot but the live config would now satisfy it, only a restart turns
+    // reset on — say so (#885 review Finding 1). `liveTransportReal` is the #894 half: a restart
+    // cannot enable reset while the effective transport is still the console adapter, so
+    // promising one would be a lie.
+    resetRestartRequired: resetRestartRequired({
+      resetWiredAtBoot: ctx.resetWiredAtBoot,
+      authConfigured: ctx.authConfigured,
+      adminOriginPresent: ctx.adminOriginPresent,
+      liveFrom: from.effective,
+      liveTransportReal: transport.effective !== 'console'
+    })
+  }
+}
+
 export interface EmailApiOptions {
   resolveActor: ResolveActor
-  /** Live status thunk — server.ts re-reads settings.json per call so a from-address or
-   *  provider saved in the admin applies without an api restart. */
-  status: () => EmailStatus
-  /** #919: the live transport reading the test-send will BOTH report and dispatch through,
-   *  called once per request. A `status` GET and a later test-send POST still read independently
-   *  — settings can legitimately change in between, and that is the feature — but WITHIN one
-   *  POST the reading that labels the outcome is now the reading that sent. Previously this
-   *  route reported `opts.status()`'s transport while `send` re-resolved separately, so a
-   *  settings.json rewrite between the two made the screen say "sent" over a message the console
-   *  adapter had logged. Enforced by apps/api/test/email-api.test.ts ("labels the outcome from
-   *  the reading it actually dispatched through, even when the provider flips mid-request"),
-   *  whose provider stub answers differently on a second read. */
-  resolveTransport: () => UsableEmailTransport
+  /**
+   * ONE live reading of settings.json + env per call (#939). server.ts points this at
+   * `createLiveEmailConfig`, so a from-address, provider or template saved in the admin applies
+   * without an api restart — the read still happens inside the request, it just happens once
+   * instead of three times.
+   *
+   * #919: it is also what makes the test-send self-consistent. A `status` GET and a later
+   * test-send POST still read independently — settings can legitimately change in between, and
+   * that is the feature — but WITHIN one POST the reading that labels the outcome IS the reading
+   * that sent, because there is only one. Previously the route resolved the transport for its
+   * report and again for its dispatch, so a settings.json rewrite between the two made the
+   * screen say "sent" over a message the console adapter had logged. Both properties are pinned
+   * by apps/api/test/email-api.test.ts ("labels the outcome from the reading it actually
+   * dispatched through, even when the provider flips mid-request", which asserts the read count
+   * as well as the agreement — a self-consistency assertion alone would be vacuous once the
+   * second read is gone).
+   */
+  resolveConfig: () => EmailConfig
+  /** The boot-fixed half of the status payload; see EmailStatusContext. */
+  statusContext: EmailStatusContext
   /** Dispatch through a reading already in hand (server.ts's `email.sendVia`). Structural, like
    *  the `send` it replaces — this factory never imports a concrete adapter. */
   sendVia: (
@@ -133,7 +212,7 @@ export function createEmailApi(opts: EmailApiOptions) {
   app.get('/api/email/status', authMiddleware(opts.resolveActor), (c) => {
     if (!authz.can(c.get('actor'), 'settings.view'))
       return c.json({ error: 'forbidden' }, 403)
-    return c.json(opts.status())
+    return c.json(buildEmailStatus(opts.resolveConfig(), opts.statusContext))
   })
 
   app.post(
@@ -152,8 +231,11 @@ export function createEmailApi(opts: EmailApiOptions) {
         )
       }
 
-      const status = opts.status()
-      const from = status.from.effective
+      // #939: ONE reading for the whole request — the 409 gate below, the `Transport:` stamp,
+      // the dispatch and the result label all come from it. Previously the route called
+      // `status()` (two settings parses) and then `resolveTransport()` (a third).
+      const config = opts.resolveConfig()
+      const from = config.from.effective
       if (!from)
         return c.json(
           {
@@ -181,10 +263,11 @@ export function createEmailApi(opts: EmailApiOptions) {
       limiter.record(actor.id)
 
       const sentAt = new Date(t).toISOString()
-      // #919: ONE reading, used for the body's `Transport:` stamp, the dispatch, and the
-      // result label below — so the three cannot disagree. `status.effectiveTransport` above
-      // is a separate, earlier reading and is deliberately NOT used from here down.
-      const live = opts.resolveTransport()
+      // #919: ONE reading, used for the 409 gate above, the body's `Transport:` stamp, the
+      // dispatch, and the result label below — so none of them can disagree. Since #939 that is
+      // structural rather than a discipline: there is no second read left in this handler to
+      // drift from.
+      const live = config.transport
       try {
         await opts.sendVia(live, {
           to,

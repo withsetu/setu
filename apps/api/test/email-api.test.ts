@@ -7,37 +7,47 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { createAuth } from '@setu/auth'
 import { resolveSessionActor } from '../src/auth/resolve-session-actor'
-import { emailTransportOptions } from '../src/capabilities'
 import { createLiveEmailTransport } from '../src/email-transport'
 import {
   createEmailApi,
   resetRestartRequired,
-  type EmailStatus
+  type EmailStatus,
+  type EmailStatusContext
 } from '../src/email'
+import type { EmailConfig } from '../src/email-config'
 
 const TRUSTED_ORIGIN = 'http://localhost:5173'
 
-/** A status snapshot the route treats as "resend, fully configured". Tests override
- *  fields to model the other states (console, no from-address, smtp problem). */
-function resendStatus(over: Partial<EmailStatus> = {}): EmailStatus {
+/** #938: the route no longer takes a hand-written `EmailStatus` — it takes the live reading and
+ *  builds the payload through `buildEmailStatus`, which is the production function. So these
+ *  tests inject a CONFIG and the derived fields (`deliverable`, `transports`, `secrets`,
+ *  `resetRestartRequired`) come out of the code under test rather than out of the fixture. The
+ *  fixture that used to live here had drifted from production in exactly that gap. */
+const STATUS_ENV: NodeJS.ProcessEnv = {
+  RESEND_API_KEY: 'test-fake-key'
+}
+
+const STATUS_CONTEXT: EmailStatusContext = {
+  env: STATUS_ENV,
+  mode: 'self-hosted',
+  resetWiredAtBoot: true,
+  authConfigured: true,
+  adminOriginPresent: true
+}
+
+/** A live reading the route treats as "resend, fully configured". Tests override members to
+ *  model the other states (console, no from-address). */
+function resendConfig(over: Partial<EmailConfig> = {}): EmailConfig {
   return {
-    transport: 'resend',
-    providerSource: 'env',
-    transports: [
-      { id: 'console', usable: true, problem: null },
-      { id: 'resend', usable: true, problem: null },
-      {
-        id: 'smtp',
-        usable: false,
-        problem: 'Add SETU_SMTP_HOST to the server environment to enable SMTP.'
-      }
-    ],
-    effectiveTransport: 'resend',
-    deliverable: true,
-    mode: 'self-hosted',
     from: { effective: 'noreply@example.com', source: 'env' },
-    secrets: { resendApiKey: true, smtpConfigured: false, smtpProblem: null },
-    resetRestartRequired: false,
+    transport: {
+      selected: 'resend',
+      source: 'env',
+      effective: 'resend',
+      problem: null
+    },
+    templates: {},
+    siteTitle: 'Setu',
     ...over
   }
 }
@@ -45,7 +55,7 @@ function resendStatus(over: Partial<EmailStatus> = {}): EmailStatus {
 /** Same real, temp-file-backed better-auth harness as users-send-reset.test.ts — sessions are
  *  real; the transport is an injected spy so tests assert exactly what the route asked it to
  *  send (and that authz/rate-limit failures never reach it). */
-function makeApp(opts: { status?: EmailStatus; sendError?: Error } = {}) {
+function makeApp(opts: { config?: EmailConfig; sendError?: Error } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'email-api-'))
   const dbFile = join(dir, 'auth.db')
   const sqlite = new Database(dbFile)
@@ -71,19 +81,15 @@ function makeApp(opts: { status?: EmailStatus; sendError?: Error } = {}) {
       if (opts.sendError) throw opts.sendError
     }
   )
-  let status = opts.status ?? resendStatus()
+  let config = opts.config ?? resendConfig()
+  let configReads = 0
   const app = createEmailApi({
     resolveActor: resolveSessionActor(auth),
-    status: () => status,
-    // These unit tests inject `status` directly, so the transport reading is derived from it —
-    // keeping every existing assertion about `transport`/`result` meaning exactly what it did.
-    // The flip case that needs the two to DIVERGE lives in the live-transport describe below.
-    resolveTransport: () => ({
-      selected: status.transport,
-      source: status.providerSource,
-      effective: status.effectiveTransport,
-      problem: null
-    }),
+    resolveConfig: () => {
+      configReads += 1
+      return config
+    },
+    statusContext: STATUS_CONTEXT,
     sendVia: (_transport, msg) => sendSpy(msg),
     now: () => nowMs
   })
@@ -92,8 +98,9 @@ function makeApp(opts: { status?: EmailStatus; sendError?: Error } = {}) {
     app,
     auth,
     sendSpy,
-    setStatus: (s: EmailStatus) => {
-      status = s
+    configReads: () => configReads,
+    setConfig: (c: EmailConfig) => {
+      config = c
     },
     advance: (ms: number) => {
       nowMs += ms
@@ -145,7 +152,7 @@ afterEach(() => {
   for (const fn of cleanups.splice(0)) fn()
 })
 
-function build(opts: { status?: EmailStatus; sendError?: Error } = {}) {
+function build(opts: { config?: EmailConfig; sendError?: Error } = {}) {
   const built = makeApp(opts)
   cleanups.push(built.cleanup)
   return built
@@ -277,10 +284,7 @@ describe('POST /api/email/test-send', () => {
 
   it('409s honestly when no from-address is resolvable (settings empty, env unset)', async () => {
     const built = build({
-      status: resendStatus({
-        deliverable: false,
-        from: { effective: null, source: null }
-      })
+      config: resendConfig({ from: { effective: null, source: null } })
     })
     const cookie = await signedIn(built, 'admin')
     const res = await built.app.fetch(sendReq(cookie))
@@ -322,15 +326,13 @@ describe('POST /api/email/test-send', () => {
 
   it('console transport: 200 {result:"logged"} — honest "logged, not sent"', async () => {
     const built = build({
-      status: resendStatus({
-        transport: 'console',
-        effectiveTransport: 'console',
-        deliverable: false,
+      config: resendConfig({
         from: { effective: 'owner@example.com', source: 'settings' },
-        secrets: {
-          resendApiKey: false,
-          smtpConfigured: false,
-          smtpProblem: null
+        transport: {
+          selected: 'console',
+          source: 'default',
+          effective: 'console',
+          problem: null
         }
       })
     })
@@ -420,30 +422,32 @@ describe('test-send goes through the SETTINGS-chosen transport (live, no restart
       }
     })
 
+    // #938: this used to hand-write an `EmailStatus` here, and its `deliverable` had dropped the
+    // `&& from.effective !== null` half that production carried — the third of three copies of
+    // one predicate. It now resolves a config exactly as server.ts does and lets the route build
+    // the payload through `buildEmailStatus`, so there is no copy left to drift.
+    // #939: `resolveConfig` is also the ONLY settings-shaped read the route makes. `configReads`
+    // is what keeps the flip test below non-vacuous now that self-consistency is structural.
+    let configReads = 0
     const app = createEmailApi({
       resolveActor: resolveSessionActor(auth),
-      resolveTransport: () => email.resolve(),
-      sendVia: (transport, msg) => email.sendVia(transport, msg),
-      status: () => {
-        const live = email.resolve()
+      resolveConfig: () => {
+        configReads += 1
         return {
-          transport: live.selected,
-          providerSource: live.source,
-          transports: emailTransportOptions(env),
-          effectiveTransport: live.effective,
-          deliverable: live.effective !== 'console',
-          mode: 'self-hosted',
           from: { effective: 'noreply@example.com', source: 'env' },
-          secrets: {
-            resendApiKey: Boolean(env.RESEND_API_KEY),
-            smtpConfigured: emailTransportOptions(env).some(
-              (t) => t.id === 'smtp' && t.usable
-            ),
-            smtpProblem: null
-          },
-          resetRestartRequired: false
-        } satisfies EmailStatus
-      }
+          transport: email.resolve(),
+          templates: {},
+          siteTitle: 'Setu'
+        }
+      },
+      statusContext: {
+        env,
+        mode: 'self-hosted',
+        resetWiredAtBoot: true,
+        authConfigured: true,
+        adminOriginPresent: true
+      },
+      sendVia: (transport, msg) => email.sendVia(transport, msg)
     })
 
     cleanups.push(() => {
@@ -454,6 +458,7 @@ describe('test-send goes through the SETTINGS-chosen transport (live, no restart
       app,
       auth,
       delivered,
+      configReads: () => configReads,
       setProvider: (p: string) => {
         provider = p
       },
@@ -558,6 +563,12 @@ describe('test-send goes through the SETTINGS-chosen transport (live, no restart
    *
    * The provider stub answers 'smtp' on the first read and 'console' on every read after, so a
    * route that reads twice cannot help but disagree with itself.
+   *
+   * #939 made "one reading" structural — the handler resolves a single `EmailConfig` and gates,
+   * stamps, dispatches and labels from it — which would leave the agreement assertions below
+   * VACUOUSLY true (there is no second reading left to disagree with). The read count is
+   * therefore asserted too: it is what fails if a second resolution is ever reintroduced, and it
+   * is the assertion that carries this test's claim now.
    */
   it('labels the outcome from the reading it actually dispatched through, even when the provider flips mid-request (#919)', async () => {
     const live = makeLiveApp(SMTP_ENV)
@@ -585,5 +596,11 @@ describe('test-send goes through the SETTINGS-chosen transport (live, no restart
     expect(body.result).toBe(dispatched === 'console' ? 'logged' : 'sent')
     // And the body's own `Transport:` stamp must not contradict it either.
     expect(live.delivered.at(-1)!.text).toContain(`Transport: ${dispatched}`)
+    // The load-bearing assertion since #939: ONE reading for the whole POST. Everything above
+    // follows from it, and this is what a reintroduced second resolution would break.
+    expect(live.configReads()).toBe(1)
+    // Corroboration that the flip stub was armed and would have been observable: the second
+    // reading, had one happened, would have answered 'console' rather than 'smtp'.
+    expect(dispatched).toBe('smtp')
   })
 })

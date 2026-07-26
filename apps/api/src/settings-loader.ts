@@ -14,7 +14,7 @@ import type { SiteSettings } from '@setu/core'
  * The api cannot just log them all like the site build does, because it re-reads settings.json
  * per email and per capabilities request (#939): one bad stored template would print once per
  * message, on a path a visitor can trigger. So this borrows the "log only when the problem
- * changes" idiom from createLiveEmailTransport (./email-transport.ts) and reports a warning set
+ * changes" idiom from createEmailDispatcher (./email-transport.ts) and reports a warning set
  * only when it DIFFERS from the last one reported — first read included, which is the boot log.
  *
  * `read` returns the file's text and may throw; an unreadable or unparseable file yields defaults

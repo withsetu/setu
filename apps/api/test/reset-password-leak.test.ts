@@ -17,17 +17,17 @@ import {
   type SiteSettings
 } from '@setu/core'
 import type { UsableEmailTransport } from '../src/capabilities'
-import { createLiveEmailConfig } from '../src/email-config'
+import { createLiveEmailConfig, type EmailConfig } from '../src/email-config'
 import { createLiveEmailTemplates } from '../src/email-templates'
-import { createLiveEmailTransport } from '../src/email-transport'
+import { createEmailDispatcher } from '../src/email-transport'
 import {
   createResetEmailGate,
   resetEmailEnabled
 } from '../src/reset-email-gate'
 
-/** A `UsableEmailTransport` reading of the given effective kind — what
- *  `createLiveEmailTransport().resolve()` hands the gate, and (since #919) what the gate hands
- *  back for dispatch. */
+/** A `UsableEmailTransport` reading of the given effective kind — what `resolveEmailConfig`
+ *  (../src/email-config.ts) hands the gate, and (since #919) what the gate hands back for
+ *  dispatch. */
 const reading = (
   effective: UsableEmailTransport['effective']
 ): UsableEmailTransport => ({
@@ -37,21 +37,38 @@ const reading = (
   problem: null
 })
 
+/** One `EmailConfig` reading, stubbed at the transport/from-address end and real at the template
+ *  end. #958 widened the gate's `resolveConfig` to the whole config, because the BODY renders off
+ *  the same reading now. */
+const configOf = (
+  effective: UsableEmailTransport['effective'],
+  from: string | undefined,
+  templates: EmailTemplateOverrides | undefined
+): EmailConfig => ({
+  from: {
+    effective: from ?? null,
+    source: from ? 'settings' : null,
+    problem: null
+  },
+  transport: reading(effective),
+  templates,
+  siteTitle: DEFAULT_SETTINGS.general.title || 'Setu'
+})
+
 /** #894 end-to-end: the REAL better-auth reset flow, the REAL console adapter, and a REAL
  *  generated token — so the assertions cannot be vacuous the way a hand-written fake token or a
  *  logger that never sees the payload would be. `tee` keeps an un-redacted copy of every message
  *  the transport was handed, which is how the test learns the actual token to search the log for.
  *
  *  Mirrors the shape of server.ts's wiring: `email:` is present only when `resetEmailEnabled`
- *  says so, and its `send` is the gate `createResetEmailGate` returns. NOT exactly, and the difference matters —
- *  server.ts ALWAYS supplies the `content:` arm (#499's live template resolver), while `harness`
- *  below supplies it only when a caller passes `storedTemplate`, and it stubs the transport and
- *  the from-address rather than resolving them from settings. The claim used to be "exactly",
- *  which is precisely the place a reviewer asking "is the composed path covered?" would look and
- *  stop (CLAUDE.md §4 #21) — it was not. The composition server.ts actually runs is covered by
- *  the "composed send path" describe at the bottom of this file, which drives all three concerns
- *  off one settings object — two of them (from-address, transport) threaded from a single
- *  `EmailConfig`, the body from a second reading, exactly as production does. */
+ *  says so, and its `sendReset` is the gate `createResetEmailGate` returns, with the same
+ *  `render` arm (#499's live template resolver) always supplied. NOT exactly, and the difference
+ *  matters — `harness` STUBS the transport and the from-address rather than resolving them from
+ *  settings. The claim used to be "exactly", which is precisely the place a reviewer asking "is
+ *  the composed path covered?" would look and stop (CLAUDE.md §4 #21) — it was not. The
+ *  composition server.ts actually runs is covered by the "composed send path" describe at the
+ *  bottom of this file, which drives all three concerns off one settings object and, since #958,
+ *  off ONE reading of it — exactly as production does. */
 const ADMIN_ORIGIN = 'http://localhost:5173'
 const FROM = 'site@example.test'
 const USER_EMAIL = 'target@example.test'
@@ -62,9 +79,9 @@ afterEach(() => {
 })
 
 /** `storedTemplate` is what an admin saved in Settings → Email, resolved through the SAME live
- *  resolver server.ts injects as `content` — so a case that passes here is exercising the real
- *  template fill, not a hand-built body. Omitted → no `content` resolver at all, which is the
- *  pre-#499 wiring and what the other cases here want. */
+ *  resolver server.ts injects as the gate's `render` — so a case that passes here is exercising
+ *  the real template fill, not a hand-built body. Omitted → no override, i.e. the shipped
+ *  default, which is what the other cases here want. */
 function harness(
   effectiveTransport: UsableEmailTransport['effective'],
   storedTemplate?: EmailTemplateOverride
@@ -112,33 +129,26 @@ function harness(
     ...(enabled
       ? {
           email: {
-            send: createResetEmailGate({
+            sendReset: createResetEmailGate({
               sendVia: async (_transport, msg) => {
                 tee.push(msg)
                 await consoleAdapter.send(msg)
               },
-              resolveConfig: () => ({
-                transport: reading(effectiveTransport),
-                from: FROM
-              }),
+              resolveConfig: () => configOf(effectiveTransport, FROM, stored),
+              render: (config, request) =>
+                templates.renderWith(
+                  config,
+                  EMAIL_TYPE_PASSWORD_RESET,
+                  passwordResetValues({
+                    url: request.url,
+                    userName: request.userName,
+                    userEmail: request.to
+                  })
+                ),
               bootFrom: FROM,
               adminOrigin: ADMIN_ORIGIN,
               onRefused: (refusal) => refusals.push(refusal.reason)
-            }).send,
-            ...(storedTemplate === undefined
-              ? {}
-              : {
-                  content: (input: {
-                    url: string
-                    userName?: string
-                    userEmail?: string
-                  }) =>
-                    templates.render(
-                      EMAIL_TYPE_PASSWORD_RESET,
-                      passwordResetValues(input)
-                    )
-                }),
-            from: FROM,
+            }).sendReset,
             resetRedirectTo: `${ADMIN_ORIGIN}/reset-password`
           }
         }
@@ -303,14 +313,13 @@ describe('password reset never writes a token to the console transport (#894)', 
       trustedOrigins: [ADMIN_ORIGIN],
       rateLimit: { enabled: false },
       email: {
-        send: createResetEmailGate({
+        sendReset: createResetEmailGate({
           sendVia: (_transport, msg) => consoleAdapter.send(msg),
-          resolveConfig: () => ({ transport: reading(live), from: FROM }),
+          resolveConfig: () => configOf(live, FROM, undefined),
           bootFrom: FROM,
           adminOrigin: ADMIN_ORIGIN,
           onRefused
-        }).send,
-        from: FROM,
+        }).sendReset,
         resetRedirectTo: `${ADMIN_ORIGIN}/reset-password`
       }
     })
@@ -333,8 +342,9 @@ describe('password reset never writes a token to the console transport (#894)', 
    * for its gate and then call a `send` that resolved a second time, so a `settings.json` rewrite
    * landing in that window — the file is Git-canonical, so a pull/checkout/deploy rewrites it with
    * no coordination with the running process — admitted the message on reading A and delivered it
-   * on reading B. The whole wiring here is REAL: `createLiveEmailTransport` over a flipping
-   * `provider()`, the real better-auth flow, a real minted token, and the real console adapter.
+   * on reading B. The whole wiring here is REAL: `createLiveEmailConfig` over a flipping SETTINGS
+   * getter (see the comment on it below — #959 left transport selection to that resolver alone),
+   * the real better-auth flow, a real minted token, and the real console adapter.
    *
    * The assertion is that the console adapter is never CALLED, not that the log lacks the token:
    * packages/email-console redacts, which is deliberate defence in depth (#910) and would mask a
@@ -354,13 +364,25 @@ describe('password reset never writes a token to the console transport (#894)', 
     const logged: string[] = []
     const consoleAdapter = createConsoleEmailAdapter((l) => logged.push(l))
     const smtpSent: EmailMessage[] = []
+    const env = { SETU_SMTP_HOST: '127.0.0.1', SETU_SMTP_PORT: '11025' }
     // 'smtp' on the FIRST read, 'console' on every read after: the settings flip, at the worst
     // possible instant. Pre-#919 the gate read first (smtp → admit) and the send read second
-    // (console → log the link).
-    let providerCalls = 0
-    const email = createLiveEmailTransport({
-      env: { SETU_SMTP_HOST: '127.0.0.1', SETU_SMTP_PORT: '11025' },
-      provider: () => (++providerCalls === 1 ? 'smtp' : 'console'),
+    // (console → log the link). The flip lives in the SETTINGS getter — where a `git pull` puts
+    // it — rather than in a provider thunk, which is also the shape server.ts wires (#959 left
+    // selection to `createLiveEmailConfig` alone).
+    let settingsReads = 0
+    const liveEmailConfig = createLiveEmailConfig({
+      settings: () => ({
+        ...DEFAULT_SETTINGS,
+        email: {
+          ...DEFAULT_SETTINGS.email,
+          provider: ++settingsReads === 1 ? 'smtp' : 'console'
+        }
+      }),
+      env
+    })
+    const email = createEmailDispatcher({
+      env,
       adapters: {
         console: () => consoleAdapter,
         resend: () => consoleAdapter,
@@ -380,14 +402,13 @@ describe('password reset never writes a token to the console transport (#894)', 
       trustedOrigins: [ADMIN_ORIGIN],
       rateLimit: { enabled: false },
       email: {
-        send: createResetEmailGate({
+        sendReset: createResetEmailGate({
           sendVia: (transport, msg) => email.sendVia(transport, msg),
-          resolveConfig: () => ({ transport: email.resolve(), from: FROM }),
+          resolveConfig: liveEmailConfig,
           bootFrom: FROM,
           adminOrigin: ADMIN_ORIGIN,
           onRefused
-        }).send,
-        from: FROM,
+        }).sendReset,
         resetRedirectTo: `${ADMIN_ORIGIN}/reset-password`
       }
     })
@@ -408,8 +429,10 @@ describe('password reset never writes a token to the console transport (#894)', 
     expect(smtpSent[0]!.text).toContain(
       `/reset-password/${tokenOf(smtpSent[0]!)}`
     )
-    // One reading per send — the second `provider()` call is the whole defect.
-    expect(providerCalls).toBe(1)
+    // One reading per send — a second settings read is the whole defect. Since #958 that also
+    // covers the BODY, which used to come from a separate @setu/auth callback with a reading of
+    // its own (apps/api/test/email-read-count.test.ts counts it directly).
+    expect(settingsReads).toBe(1)
   })
 })
 
@@ -419,26 +442,25 @@ describe('password reset never writes a token to the console transport (#894)', 
  * server.ts's `createAuth({ email: … })`, and no test at any layer ran that composition.
  * Coverage was per-increment and disjoint: the transport tests use fake templates, the
  * capabilities tests have no templates, the template tests have no transport. The harness above
- * looked like it closed the gap and did not — it stubs the transport and the from-address, and
- * omits the `content:` arm unless asked.
+ * looked like it closed the gap and did not — it stubs the transport and the from-address rather
+ * than resolving them from settings, which is still true now that it always supplies the `render`
+ * arm.
  *
- * This drives the real composition over ONE settings object: the real `createLiveEmailTransport`
- * picks the adapter, the real `createLiveEmailTemplates` renders the override, the real
- * better-auth flow mints a real token. Every assertion names a fact that can only have come from
- * settings, so the test fails if ANY one of the three stops being honored (kill-shot tested: each
- * of the three, disabled in turn, fails an assertion here).
+ * This drives the real composition over ONE settings object: the real `resolveEmailConfig` picks
+ * the adapter, the real `createLiveEmailTemplates` renders the override, the real better-auth flow
+ * mints a real token. Every assertion names a fact that can only have come from settings, so the
+ * test fails if ANY one of the three stops being honored (kill-shot tested: each of the three,
+ * disabled in turn, fails an assertion here).
  *
- * TWO of the three ride a single `EmailConfig` (#939) — the from-address and the transport, which
- * `createResetEmailGate`'s `resolveConfig` resolves once and binds together, so the reading the
- * gate judges is the object that dispatches (#919). The BODY does not: it comes from the separate
- * `content:` callback, over its own `createLiveEmailTemplates` reading. That asymmetry is
- * deliberate and faithful — server.ts is wired exactly this way, because `content` and `send` are
- * two independent @setu/auth callbacks, which is why the reset path costs two settings parses
- * rather than one (apps/api/test/email-read-count.test.ts asserts the 2; merging the callbacks is
- * #958). So this file proves the three concerns agree on one MESSAGE, not that one reading
- * produced all three. The config's `templates`/`siteTitle` members are resolved and unused on
- * this path; the path that does thread them is the form notification (`resolveNotification` in
- * server.ts), covered by apps/api/test/email-read-count.test.ts.
+ * All THREE ride a single `EmailConfig` since #958 — the from-address and the transport, which
+ * `createResetEmailGate`'s `resolveConfig` resolves once and binds together so the reading the
+ * gate judges is the object that dispatches (#919), plus the body, which its `render` arm builds
+ * from that same reading. It used to be two-plus-one: the body came from a separate `content:`
+ * callback with a reading of its own, because `content` and `send` were two independent
+ * @setu/auth callbacks, which is what made this path cost two settings parses (#939). So this file
+ * now proves the three concerns agree on one MESSAGE *and* come from one reading; the exact count
+ * is asserted by apps/api/test/email-read-count.test.ts, 'parses settings.json exactly ONCE, and a
+ * save applies to the next reset'.
  */
 describe('the composed send path: settings drive transport, from-address and body on ONE send (#938)', () => {
   const SETTINGS: SiteSettings = {
@@ -482,9 +504,8 @@ describe('the composed send path: settings drive transport, from-address and bod
     const consoleLog: string[] = []
     const consoleAdapter = createConsoleEmailAdapter((l) => consoleLog.push(l))
     const smtpSent: EmailMessage[] = []
-    const email = createLiveEmailTransport({
+    const email = createEmailDispatcher({
       env,
-      provider: () => SETTINGS.email.provider,
       adapters: {
         console: () => consoleAdapter,
         resend: () => consoleAdapter,
@@ -504,29 +525,27 @@ describe('the composed send path: settings drive transport, from-address and bod
       trustedOrigins: [ADMIN_ORIGIN],
       rateLimit: { enabled: false },
       email: {
-        send: createResetEmailGate({
-          resolveConfig: () => {
-            const config = liveEmailConfig()
-            return {
-              transport: config.transport,
-              from: config.from.effective ?? undefined
-            }
-          },
+        sendReset: createResetEmailGate({
+          resolveConfig: liveEmailConfig,
+          render: (config, request) =>
+            templates.renderWith(
+              config,
+              EMAIL_TYPE_PASSWORD_RESET,
+              passwordResetValues({
+                url: request.url,
+                userName: request.userName,
+                userEmail: request.to
+              })
+            ),
           sendVia: (transport, msg) => email.sendVia(transport, msg),
-          bootFrom: FROM,
+          // The boot-time fallback. It is the ENV address on purpose: if the live resolver ever
+          // stopped winning, `msg.from` below would say so.
+          bootFrom: 'env-from@example.test',
           adminOrigin: ADMIN_ORIGIN,
           onRefused: (refusal) => {
             throw new Error(`unexpected refusal: ${refusal.reason}`)
           }
-        }).send,
-        content: ({ url, userName, userEmail }) =>
-          templates.render(
-            EMAIL_TYPE_PASSWORD_RESET,
-            passwordResetValues({ url, userName, userEmail })
-          ),
-        // The boot-time fallback the option type requires. It is the ENV address on purpose:
-        // if the live resolver ever stopped winning, `msg.from` below would say so.
-        from: 'env-from@example.test',
+        }).sendReset,
         resetRedirectTo: `${ADMIN_ORIGIN}/reset-password`
       }
     })
@@ -543,7 +562,7 @@ describe('the composed send path: settings drive transport, from-address and bod
     expect(consoleLog).toEqual([])
     const msg = smtpSent[0]!
     // 2. FROM followed settings.json's `fromAddress`, not SETU_FORMS_NOTIFY_FROM and not the
-    //    boot-time `from` the option carries.
+    //    gate's boot-time fallback.
     expect(msg.from).toBe('settings-from@example.test')
     // 3. BODY followed the stored override — subject, html, AND the `{{site_title}}` ambient
     //    value, which comes from Settings → General on the same reading.

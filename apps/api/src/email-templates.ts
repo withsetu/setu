@@ -21,7 +21,7 @@ export interface LiveEmailTemplates {
    *  read per call. The live entry point, for a caller that has no reading in hand. */
   render(typeId: string, values: TokenValues): RenderedEmail
   /** #939: render against a reading ALREADY resolved — the template seam's exact counterpart to
-   *  `LiveEmailTransport.sendVia`, and for the same reason. Every send path in
+   *  `EmailDispatcher.sendVia`, and for the same reason. Every send path in
    *  apps/api/src/server.ts resolves an `EmailConfig` once and renders through this, so the
    *  from-address, the transport and the body all come from ONE parse of settings.json instead of
    *  three (apps/api/test/email-read-count.test.ts counts them per path). */
@@ -34,7 +34,7 @@ export interface LiveEmailTemplates {
 
 /**
  * #499 (epic #497): the live template resolver — the template half of what `liveFrom` (#498)
- * and `createLiveEmailTransport` (#890) already do for the from-address and the provider.
+ * and the live provider selection (#890) already do for the from-address and the transport.
  *
  * Deliberately the SAME mechanism, not a second one: a thunk that re-reads settings.json on
  * every send, so saving a template in Settings → Email applies to the next email with no api

@@ -2,7 +2,6 @@ import type { EmailPort } from '@setu/core'
 import {
   resendConfigFromEnv,
   smtpConfigFromEnv,
-  usableEmailTransport,
   type ResendEnvResult,
   type SmtpEnvResult,
   type UsableEmailTransport
@@ -30,26 +29,24 @@ export interface EmailAdapterFactories {
   smtp: (config: SmtpConfig) => EmailPort
 }
 
-export interface LiveEmailTransport {
-  /** What the NEXT send would use, resolved from the current settings + env. */
-  resolve: () => UsableEmailTransport
-  /** An `EmailPort['send']` that re-resolves the transport on every call. */
-  send: EmailPort['send']
+export interface EmailDispatcher {
   /**
-   * #919: dispatch through an ALREADY-resolved reading — `sendVia(t, msg)` where `t` came from
-   * `resolve()`. For a caller that must DECIDE on the transport before handing over a message
-   * (apps/api/src/reset-email-gate.ts refuses a reset link to the console adapter), `resolve()`
-   * followed by `send()` is two independent readings, and settings.json is Git-canonical: a
-   * pull/checkout/deploy can rewrite it between them, so the gate would admit on reading A and
-   * deliver on reading B. This is the seam that lets the decision bind the dispatch.
+   * Dispatch a message through an ALREADY-resolved transport reading — `sendVia(t, msg)` where
+   * `t` came from the caller's own `resolveEmailConfig` (./email-config.ts).
    *
-   * It is NOT a way to freeze a transport at boot: the caller still resolves per send, so the
-   * live-provider property (#890) survives — the reading is just used once instead of twice.
-   * Pinned at BOTH levels, because the seam and its caller can each break it independently:
-   * this module by apps/api/test/email-transport.test.ts ("sendVia binds a caller-resolved
-   * reading"), and the reset gate — the one caller that resolves for itself — by
-   * apps/api/test/reset-email-gate.test.ts ("re-resolves on every send"), which drives two sends
-   * through one long-lived sender with the provider changing in between. End-to-end:
+   * #919: a caller that must DECIDE on the transport before handing over a message
+   * (apps/api/src/reset-email-gate.ts refuses a reset link to the console adapter) cannot resolve
+   * twice — settings.json is Git-canonical, so a pull/checkout/deploy can rewrite it between the
+   * two, and the gate would admit on reading A and deliver on reading B. Taking the reading as an
+   * argument is what lets the decision bind the dispatch.
+   *
+   * It is NOT a way to freeze a transport at boot: the caller resolves per send, so the
+   * live-provider property (#890) survives. That half is the CALLER's to keep, and is pinned where
+   * the callers are: apps/api/test/email-read-count.test.ts drives a settings save between two
+   * sends on every path (its form-notification case flips the PROVIDER itself and asserts the
+   * second message lands on the other adapter), and apps/api/test/reset-email-gate.test.ts
+   * ('re-resolves on every send — one reading per send, not one for the sender') drives two sends
+   * through one long-lived gate with the transport changing in between. End-to-end:
    * apps/api/test/reset-password-leak.test.ts.
    */
   sendVia: (
@@ -59,50 +56,38 @@ export interface LiveEmailTransport {
 }
 
 /**
- * #890: the live email transport — the seam that makes the provider a CONTROL rather than a
- * boot-time env var.
+ * The email dispatcher: turns a resolved transport reading into an actual adapter and sends
+ * through it. One object per process, adapters built lazily and cached per effective kind — an
+ * instance that never selects SMTP never constructs a nodemailer transport, and switching back
+ * and forth doesn't leak connections.
  *
- * Increment A (#498) constructed one adapter at boot from `SETU_EMAIL_ADAPTER`, so switching
- * provider would have required an api restart. Here the transport is re-resolved per send from
- * `provider()` (server.ts re-reads settings.json) plus the environment, exactly like the
- * from-address already was — so a save in Settings → Email applies to the next email through
- * every consumer that uses this sender.
+ * #890 made the provider a CONTROL rather than a boot-time env var, and this module used to own
+ * BOTH halves of that: a `provider()` getter it re-read settings.json through, plus `resolve()` /
+ * `send()` entry points over it. #939 moved selection into `resolveEmailConfig`
+ * (./email-config.ts), so that every send path could resolve the provider, the from-address and
+ * the stored template from ONE settings parse — after which every caller in server.ts dispatched
+ * through `sendVia` and nothing reached `resolve()` or `send()` at all. #959 deletes them, and the
+ * `provider()` getter with them: selection now has exactly one home, and this module reads no
+ * settings.
  *
- * Fail-safe, and deliberately at the point of USE: `usableEmailTransport` decides the `effective`
- * adapter, so a selection whose secret is missing degrades to console with a named reason instead
- * of constructing an adapter that throws on first send. That matters most for the settings-stored
- * provider, because settings.json is Git-canonical — an unusable value can arrive by `git push`
- * without ever passing the api's settings-write gate, so a save-time check could never be the
- * only defence. Pinned (and kill-shot tested) by apps/api/test/email-transport.test.ts.
- *
- * Adapters are built lazily and cached per effective kind: an instance that never selects SMTP
- * never constructs a nodemailer transport, and switching back and forth doesn't leak connections.
+ * What survives the move is the fail-safe, deliberately at the point of USE: the reading's
+ * `effective` kind is what picks the adapter, so a selection whose secret is missing dispatches
+ * through console with a named reason instead of constructing an adapter that throws on first
+ * send. That matters most for the settings-stored provider, because settings.json is
+ * Git-canonical — an unusable value can arrive by `git push` without ever passing the api's
+ * settings-write gate, so a save-time check could never be the only defence. Pinned (and kill-shot
+ * tested) by apps/api/test/email-transport.test.ts.
  */
-export function createLiveEmailTransport(opts: {
+export function createEmailDispatcher(opts: {
   env?: NodeJS.ProcessEnv
-  /** Live getter for settings.json's `email.provider`. May throw (unreadable file) — treated as
-   *  "not set here", which falls back to the env selection rather than failing the send. */
-  provider: () => string | undefined
   adapters: EmailAdapterFactories
   /** Sink for "the selected transport isn't usable", called only when the problem CHANGES so a
    *  misconfigured instance doesn't log once per email. server.ts points it at console.error. */
   onProblem?: (problem: string, selected: string) => void
-}): LiveEmailTransport {
+}): EmailDispatcher {
   const env = opts.env ?? process.env
   const cache = new Map<UsableEmailTransport['effective'], EmailPort>()
   let lastProblem: string | null = null
-
-  const resolve = (): UsableEmailTransport => {
-    let stored: string | undefined
-    try {
-      stored = opts.provider()
-    } catch {
-      // An unreadable/corrupt settings.json must not take email down: fall back to the env
-      // selection, which is exactly the pre-#890 behavior.
-      stored = undefined
-    }
-    return usableEmailTransport(env, stored)
-  }
 
   const adapterFor = (kind: UsableEmailTransport['effective']): EmailPort => {
     const cached = cache.get(kind)
@@ -137,10 +122,11 @@ export function createLiveEmailTransport(opts: {
     return made
   }
 
-  /** The one dispatch path: report the reading's problem (once per change), then hand the
-   *  message to the adapter that reading names. `send` and `sendVia` differ ONLY in who resolved
-   *  — which is what keeps the fail-safe reporting on both (apps/api/test/email-transport.test.ts,
-   *  "still reports the problem carried by the resolution it was handed"). */
+  /** Report the reading's problem (once per change), then hand the message to the adapter that
+   *  reading names. The reporting rides the DISPATCH rather than the resolution, so a caller that
+   *  resolved for itself still gets the fail-safe warning
+   *  (apps/api/test/email-transport.test.ts, 'still reports the problem carried by the resolution
+   *  it was handed'). */
   const dispatch = async (
     transport: UsableEmailTransport,
     msg: Parameters<EmailPort['send']>[0]
@@ -154,11 +140,5 @@ export function createLiveEmailTransport(opts: {
     await adapterFor(transport.effective).send(msg)
   }
 
-  return {
-    resolve,
-    sendVia: dispatch,
-    send: async (msg) => {
-      await dispatch(resolve(), msg)
-    }
-  }
+  return { sendVia: dispatch }
 }

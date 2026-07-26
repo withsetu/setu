@@ -29,6 +29,13 @@ import {
   withDefaultResetCallback
 } from './reset-password-email'
 export { SETU_ROLES, type CreateAuthOptions } from './options'
+// #958: the shape `email.sendReset` is called with. Exported because apps/api's reset gate
+// (apps/api/src/reset-email-gate.ts) IS that callback and types itself against it, rather than
+// re-declaring a structural copy that a change here could not break.
+export type {
+  ResetEmailRequest,
+  ResetPasswordEmailContent
+} from './reset-password-email'
 export {
   localToken,
   isLoopbackHost,
@@ -172,24 +179,30 @@ export function createAuth(opts: CreateAuthOptions) {
       ...(emailOpt
         ? {
             sendResetPassword: async ({ user, url }) => {
-              // #499: the link is built HERE and handed to the body resolver — a customized
-              // template can place `{{reset_url}}` but never supply or alter one. `content`
-              // is apps/api's live resolver when injected (the admin's stored override,
-              // re-read per send), and the shipped default otherwise.
+              // #499: the link is built HERE and handed over — a customized template can place
+              // `{{reset_url}}` but never supply or alter one.
+              // #958: ONE callback receives it and owns both the body and the dispatch. It was
+              // two (render, then send), which forced a caller resolving both from one stored
+              // config to read that config twice; see the option's doc in ./options.ts.
               const link = withDefaultResetCallback(
                 url,
                 emailOpt.resetRedirectTo
               )
-              const render = emailOpt.content ?? resetPasswordEmailContent
-              const content = render({
+              await emailOpt.sendReset({
+                to: user.email,
                 url: link,
                 userName: user.name,
-                userEmail: user.email
-              })
-              await emailOpt.send({
-                to: user.email,
-                from: emailOpt.from,
-                ...content
+                // The shipped default, unrendered until asked for — intended for a caller with
+                // no templates of its own. apps/api injects a renderer instead; that a gate WITH a
+                // renderer never falls back to this, and one without it does, is pinned by
+                // apps/api/test/reset-email-gate.test.ts, 'renders the body from the gated
+                // reading, and falls back to the shipped default without a renderer'.
+                defaultContent: () =>
+                  resetPasswordEmailContent({
+                    url: link,
+                    userName: user.name,
+                    userEmail: user.email
+                  })
               })
             }
           }

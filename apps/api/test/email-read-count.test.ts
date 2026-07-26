@@ -21,7 +21,7 @@ import { resolveSessionActor } from '../src/auth/resolve-session-actor'
 import { createEmailApi } from '../src/email'
 import { createLiveEmailConfig } from '../src/email-config'
 import { createLiveEmailTemplates } from '../src/email-templates'
-import { createLiveEmailTransport } from '../src/email-transport'
+import { createEmailDispatcher } from '../src/email-transport'
 import { createResetEmailGate } from '../src/reset-email-gate'
 
 /**
@@ -87,9 +87,8 @@ function wiring(h: ReturnType<typeof harness>, env = RESEND_ENV) {
       delivered.push({ kind, msg })
     }
   })
-  const email = createLiveEmailTransport({
+  const email = createEmailDispatcher({
     env,
-    provider: () => h.loadSiteSettings().email.provider,
     adapters: {
       console: () => adapter('console'),
       resend: () => adapter('resend'),
@@ -228,7 +227,8 @@ describe('one email costs one settings read (#939)', () => {
       const service = createSubmissionService({
         submissions: createMemorySubmissionPort(),
         captcha: { verify: async () => true },
-        email: w.email,
+        // No `email:` port — server.ts stopped passing one in #959. `resolveNotification` below
+        // supplies the sender, so the port only ever satisfied a condition this already meets.
         notifyTo: 'owner@example.test',
         // The server.ts wiring, verbatim in shape.
         resolveNotification: () => {
@@ -326,25 +326,25 @@ describe('one email costs one settings read (#939)', () => {
         trustedOrigins: [TRUSTED_ORIGIN],
         rateLimit: { enabled: false },
         email: {
-          send: createResetEmailGate({
-            resolveConfig: () => {
-              const config = w.liveEmailConfig()
-              return {
-                transport: config.transport,
-                from: config.from.effective ?? undefined
-              }
-            },
+          // The server.ts wiring, verbatim in shape (#958): ONE callback, resolving one config
+          // and rendering the body off it.
+          sendReset: createResetEmailGate({
+            resolveConfig: w.liveEmailConfig,
+            render: (config, request) =>
+              w.emailTemplates.renderWith(
+                config,
+                EMAIL_TYPE_PASSWORD_RESET,
+                passwordResetValues({
+                  url: request.url,
+                  userName: request.userName,
+                  userEmail: request.to
+                })
+              ),
             sendVia: (transport, msg) => w.email.sendVia(transport, msg),
             bootFrom: 'boot@example.test',
             adminOrigin: ADMIN_ORIGIN,
             onRefused: (r) => refusals.push(r.reason)
-          }).send,
-          content: ({ url, userName, userEmail }) =>
-            w.emailTemplates.render(
-              EMAIL_TYPE_PASSWORD_RESET,
-              passwordResetValues({ url, userName, userEmail })
-            ),
-          from: 'first@example.test',
+          }).sendReset,
           resetRedirectTo: `${ADMIN_ORIGIN}/reset-password`
         }
       })
@@ -367,16 +367,17 @@ describe('one email costs one settings read (#939)', () => {
      * only on the ADMIN-triggered POST /api/users/send-reset, whose `resetEmailRefusal` added two
      * more — that is now one.)
      *
-     * TWO, not one — and deliberately so. `content` and `send` are two independent @setu/auth
-     * callbacks (packages/auth/src/index.ts's `sendResetPassword` invokes the body resolver and
-     * then the sender), so binding them to a single reading would mean asserting that nothing
-     * runs between them: a claim about another package's internals that no test in this package
-     * could hold. Three became two here; merging the two callbacks into one is spun off.
+     * #939 got it to two and stopped there, because `content` and `send` were two independent
+     * @setu/auth callbacks: binding them to a single reading would have meant asserting that
+     * nothing runs between them, a claim about another package's internals no test in this
+     * package could hold. #958 removed the split instead of assuming past it — one `sendReset`
+     * callback, so the single reading is an ordinary local variable in the gate — and the count
+     * is one, like every other send path.
      *
      * The number is asserted exactly, so ADDING a reader to this path fails — which is the whole
      * point of the test the old comment implied.
      */
-    it('parses settings.json exactly TWICE (body + gate), and a save applies to the next reset', async () => {
+    it('parses settings.json exactly ONCE, and a save applies to the next reset', async () => {
       const h = harness({
         ...CONFIGURED,
         email: {
@@ -403,7 +404,7 @@ describe('one email costs one settings read (#939)', () => {
       })
       expect(res.status).toBe(200)
       expect(refusals).toEqual([])
-      expect(h.reads()).toBe(2)
+      expect(h.reads()).toBe(1)
       expect(delivered.at(-1)!.msg.from).toBe('first@example.test')
       expect(delivered.at(-1)!.msg.subject).toBe('first-subject')
       expect(delivered.at(-1)!.kind).toBe('resend')
@@ -430,7 +431,7 @@ describe('one email costs one settings read (#939)', () => {
         },
         asResponse: true
       })
-      expect(h.reads()).toBe(2)
+      expect(h.reads()).toBe(1)
       expect(delivered.at(-1)!.msg.from).toBe('second@example.test')
       expect(delivered.at(-1)!.msg.subject).toBe('second-subject')
     })

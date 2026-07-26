@@ -260,11 +260,17 @@ export function ContentList({
         title={title}
         count={rows !== null ? total : undefined}
         subtitle={
+          // The two built-ins keep their hand-written blurbs; a collection declared
+          // in setu.config (#253) gets one derived from its own plural label, which
+          // beats falling through to the cross-collection line and claiming a
+          // Products list contains posts and pages.
           collection === 'post'
             ? 'Articles, field notes and announcements.'
             : collection === 'page'
               ? 'Standalone pages and landing pages.'
-              : 'Every post and page together, in one list.'
+              : collection !== undefined
+                ? `All ${title.toLowerCase()}, in one list.`
+                : 'Every entry, across every collection.'
         }
         actions={
           // No "New" affordance in the cross-collection view: there is no one

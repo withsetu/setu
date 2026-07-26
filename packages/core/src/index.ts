@@ -14,10 +14,26 @@ export type {
   BlockDefinition,
   BlockEditorMeta,
   ResolvedConfig,
-  ResolvedBlock
+  ResolvedBlock,
+  CollectionDefinition,
+  ResolvedCollection
 } from './config/types'
+// Re-exported so a `setu.config.ts` can declare collection field schemas with
+// `import { defineConfig, z } from '@setu/core'` and get THE SAME zod copy core validates
+// with. Importing 'zod' directly in a config also works (apps/site depends on it), but it
+// can resolve to a second copy, and zod's internal `instanceof` checks are not copy-safe —
+// resolveCollection in ./config/collections.ts works around the one that bit
+// (apps/api/test/setu-config.test.ts). Using this export avoids the class entirely.
+export { z } from 'zod'
 export { defineConfig } from './config/define-config'
 export { resolveConfig } from './config/resolve'
+export {
+  validateEntryMetadata,
+  BASE_ENTRY_FIELDS,
+  DEFAULT_COLLECTIONS,
+  RESERVED_COLLECTION_NAMES
+} from './config/collections'
+export type { FieldError, MetadataValidation } from './config/collections'
 export { defaultConfig, defaultKnownBlockTags } from './config/default-config'
 
 export type {

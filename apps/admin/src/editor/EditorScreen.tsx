@@ -39,6 +39,8 @@ import { useSettings } from '../data/settings-store'
 import { useIndex } from '../data/index-store'
 import { Canvas } from './Canvas'
 import type { RunQuery } from './QueryPreview'
+import { pathForCollection } from '@/data/collections'
+import { writeError } from '@/ui/error-message'
 import { MetaPanel } from './MetaPanel'
 import { BlockInspector } from './BlockInspector'
 import { useSelectedBlock } from './useSelectedBlock'
@@ -568,7 +570,9 @@ export function EditorScreen() {
       // No claim about what did or didn't persist: the throw can come from the
       // draft save (nothing written) or from the Git commit (the draft IS saved
       // locally), and guessing wrong here is the same lie in the other direction.
-      notify.error(`Couldn't ${label}. Check your connection and try again.`)
+      // #253: a server-answered refusal (a field the collection's schema requires) must
+      // not be reported as a connection problem — writeError splits the two.
+      notify.error(writeError(err, label))
     } finally {
       committing.current = false
     }
@@ -742,7 +746,10 @@ export function EditorScreen() {
   ])
 
   const title = attrString(metadata['title'])
-  const listPath = `/${collection}s`
+  // Not `/${collection}s`: naive pluralization only ever worked for post/page, and a
+  // collection declared in setu.config (#253) would send Back-to-list to a route that
+  // does not exist. pathForCollection owns the mapping — apps/admin/test/collections.test.ts.
+  const listPath = pathForCollection(collection)
   // Same date ?? pubDate rule as the content index's dateOf — URL use only, never
   // updatedAt/mtime (an edit must not move a URL).
   const frontmatterDate = useMemo(

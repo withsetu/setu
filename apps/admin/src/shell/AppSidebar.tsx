@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   FileText,
   Files,
+  FileStack,
   Tags,
   Image,
   ClipboardList,
@@ -27,6 +28,8 @@ import {
 } from '@/components/ui/sidebar'
 import type { Action } from '@setu/core'
 import { DeployControl } from '../deploy/DeployControl'
+import { useCollections } from '@/data/collections-store'
+import { pathForCollection } from '@/data/collections'
 import { useCan } from '../auth/actor'
 import { siteUrl } from './site-url'
 import { DevBadge } from './DevBadge'
@@ -48,13 +51,11 @@ type Group = { label?: string; items: Item[] }
 
 const BASE_NAV: Group[] = [
   { items: [{ to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard }] },
+  // The Content group's items are built per-render from the DECLARED collections
+  // (#253) — see `contentGroup` below. Only the non-collection entries are static.
   {
     label: 'Content',
-    items: [
-      { to: '/posts', label: 'Posts', icon: FileText },
-      { to: '/pages', label: 'Pages', icon: Files },
-      { to: '/taxonomies', label: 'Taxonomies', icon: Tags }
-    ]
+    items: [{ to: '/taxonomies', label: 'Taxonomies', icon: Tags }]
   },
   {
     label: 'Workspace',
@@ -103,16 +104,41 @@ const BASE_NAV: Group[] = [
     : [])
 ]
 
+/** Icons for the two built-in collections, preserved from the hand-written nav. Anything
+ *  declared in setu.config gets the generic one — a per-collection icon knob is #406. */
+const COLLECTION_ICONS: Record<
+  string,
+  React.ComponentType<{ className?: string }>
+> = { post: FileText, page: Files }
+
 export function AppSidebar() {
   const can = useCan()
+  const { collections } = useCollections()
   // #362: each item declares the capability required to see it; drop the ones this actor lacks, then
   // drop any group left empty. An actor never sees a nav item for a screen it can't enter (mirrors
   // how gated groups disappear rather than render-then-hide). Route-level guards in app.tsx
   // re-check the same capability for direct-URL visits; the server is the real enforcement boundary.
-  const nav: Group[] = BASE_NAV.map((g) => ({
-    ...g,
-    items: g.items.filter((it) => !it.can || can(it.can))
-  })).filter((g) => g.items.length > 0)
+  // One nav entry per declared collection, ahead of Taxonomies. `post`/`page` keep their
+  // original paths (pathForCollection) so existing links and bookmarks still resolve; a
+  // collection declared in setu.config gets `/content/<name>`. Ordering follows the config,
+  // which puts the built-ins first. Richer control — grouping, ordering, hiding a system
+  // collection — is #406; this is the zero-config default it builds on.
+  const collectionItems: Item[] = collections.map((c) => ({
+    to: pathForCollection(c.name),
+    label: c.labelPlural,
+    icon: COLLECTION_ICONS[c.name] ?? FileStack
+  }))
+
+  const nav: Group[] = BASE_NAV.map((g) =>
+    g.label === 'Content'
+      ? { ...g, items: [...collectionItems, ...g.items] }
+      : g
+  )
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((it) => !it.can || can(it.can))
+    }))
+    .filter((g) => g.items.length > 0)
 
   return (
     <Sidebar collapsible="icon">

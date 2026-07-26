@@ -10,6 +10,7 @@ import { DeployProvider } from './deploy/deploy'
 import { IndexProvider } from './data/index-store'
 import { AppMediaIndexProvider } from './data/media-index-store'
 import { TaxonomyProvider } from './data/taxonomy-store'
+import { CollectionsProvider } from './data/collections-store'
 import { TagsProvider } from './data/tags-store'
 import { NotificationProvider } from './ui/notify'
 import { UnhandledRejectionReporter } from './ui/UnhandledRejectionReporter'
@@ -53,17 +54,19 @@ createRoot(document.getElementById('root')!).render(
           <AuthBoundary>
             <DeployProvider>
               <IndexProvider>
-                <AppMediaIndexProvider>
-                  <TaxonomyProvider>
-                    <TagsProvider>
-                      <CommandRegistryProvider>
-                        <SettingsProvider>
-                          <App />
-                        </SettingsProvider>
-                      </CommandRegistryProvider>
-                    </TagsProvider>
-                  </TaxonomyProvider>
-                </AppMediaIndexProvider>
+                <CollectionsProvider>
+                  <AppMediaIndexProvider>
+                    <TaxonomyProvider>
+                      <TagsProvider>
+                        <CommandRegistryProvider>
+                          <SettingsProvider>
+                            <App />
+                          </SettingsProvider>
+                        </CommandRegistryProvider>
+                      </TagsProvider>
+                    </TaxonomyProvider>
+                  </AppMediaIndexProvider>
+                </CollectionsProvider>
               </IndexProvider>
             </DeployProvider>
           </AuthBoundary>

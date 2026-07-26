@@ -39,6 +39,8 @@ import { createSmtpEmailAdapter } from '@setu/email-smtp'
 import { createAuth, type AuthEvent } from '@setu/auth'
 import { createMiddleware } from 'hono/factory'
 import { createGitApi } from './app'
+import { loadSetuConfig, resolveSetuConfigPath } from './setu-config'
+import { createCollectionsApi } from './collections-api'
 import { createHistoryApi } from './history-api'
 import { createPreviewApi } from './preview'
 import { createUploadApi, listMediaRecords } from './media'
@@ -824,7 +826,16 @@ app.use('/git/commit', refreshIndexAfterCommit)
 app.use('/git/commit-files', refreshIndexAfterCommit)
 // #466: a restore is a content commit too — same freshness hook.
 app.use('/api/history/restore', refreshIndexAfterCommit)
-app.route('/', createGitApi(git, resolveActor))
+// #253: the site's declared collections + field schemas, for the write-path field gate.
+// Loaded once at boot; never throws (a missing/broken config degrades loudly to the
+// built-in post/page collections — see loadSetuConfig).
+const setuConfig = await loadSetuConfig(resolveSetuConfigPath(process.env, dir))
+app.route('/', createGitApi(git, resolveActor, { getConfig: () => setuConfig }))
+// #253 increment C: the admin reads the declared collections from here.
+app.route(
+  '/',
+  createCollectionsApi({ resolveActor, getConfig: () => setuConfig })
+)
 // Revision history from Git (#466) — list/read/restore; the git-local adapter
 // implements the optional capability, so this topology serves it.
 app.route('/', createHistoryApi(git, resolveActor))

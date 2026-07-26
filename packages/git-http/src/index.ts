@@ -1,2 +1,2 @@
-export { createHttpGitPort } from './adapter'
-export type { HttpGitOptions } from './adapter'
+export { createHttpGitPort, GitApiError } from './adapter'
+export type { HttpGitOptions, GitFieldIssue } from './adapter'

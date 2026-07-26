@@ -15,6 +15,7 @@ import {
   validateEmailTemplates,
   templatesFingerprint
 } from './EmailTemplates'
+import { patchEmailGroup } from './email-settings-patch'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -44,7 +45,14 @@ interface EmailStatus {
   effectiveTransport: TransportId
   deliverable: boolean
   mode: string
-  from: { effective: string | null; source: 'settings' | 'env' | null }
+  /** #953: `problem` says why a SET `SETU_FORMS_NOTIFY_FROM` was rejected. Without it this screen
+   *  rendered "not set — add one below…" over an env var that IS set, which #942 turned from a
+   *  half-truth into a flat falsehood by making the rejected value resolve to null. */
+  from: {
+    effective: string | null
+    source: 'settings' | 'env' | null
+    problem: string | null
+  }
   secrets: {
     resendApiKey: boolean
     smtpConfigured: boolean
@@ -237,8 +245,20 @@ function ProviderStatus({
                       ? 'Settings (this screen)'
                       : 'the server environment (SETU_FORMS_NOTIFY_FROM)'
                   }`
-                : 'not set — add one below, or set SETU_FORMS_NOTIFY_FROM on the server'}
+                : status.from.problem !== null
+                  ? // #953: "not set" would be affirmatively FALSE here — the server variable is
+                    // set, it was rejected. The reason goes in the destructive line below, in the
+                    // same register as the SMTP/Resend "selected but not usable" lines.
+                    'set on the server, but not usable'
+                  : 'not set — add one below, or set SETU_FORMS_NOTIFY_FROM on the server'}
             </StatusRow>
+            {status.from.problem !== null && (
+              <p className="text-sm text-destructive">
+                {status.from.problem}. Emails have no sender until it is
+                corrected on the server &mdash; or set one below, which
+                overrides it.
+              </p>
+            )}
 
             {status.deliverable && (
               <p className="text-sm font-medium">Ready to send ✓</p>
@@ -368,14 +388,27 @@ export function EmailSettings() {
   const shownProvider = values.provider || (status?.transport ?? '')
 
   const save = async () => {
-    if (saving || !dirty || raw === null || hasTemplateErrors) return
+    if (saving || !dirty || raw === null || published === null) return
+    if (hasTemplateErrors) return
     if (!fromAddressSchema.safeParse(trimmed).success) {
       setFieldError(FROM_ERROR)
       return
     }
     setSaving(true)
     try {
-      const next = { ...raw, email: { ...values, fromAddress: trimmed } }
+      // #937: PATCH the stored group with what changed — never write the loaded group back
+      // whole. `values` is the SALVAGED reading, so writing it back erased every stored value
+      // the salvage layer had rejected (a `git push`-ed provider, an oversized template, a
+      // plugin's namespaced template id) as a side effect of an unrelated edit, under a
+      // "Settings saved" toast. See email-settings-patch.ts;
+      // apps/admin/test/email-settings-patch.test.ts pins each case.
+      const next = {
+        ...raw,
+        email: patchEmailGroup(raw.email, published, {
+          ...values,
+          fromAddress: trimmed
+        })
+      }
       await git.commitFile({
         path: SETTINGS_PATH,
         content: JSON.stringify(next, null, 2) + '\n',

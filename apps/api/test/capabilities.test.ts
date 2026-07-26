@@ -10,6 +10,7 @@ import {
   createCapabilitiesApi,
   emailCapabilityFromEnv,
   emailTransportOptions,
+  publicFrom,
   resolveEmailProvider,
   resolveFromAddress,
   smtpConfigFromEnv,
@@ -588,13 +589,48 @@ describe('capabilities', () => {
       })
     })
 
-    it('an unrecognized transport value -> console, selected reported verbatim', () => {
-      expect(usableEmailTransport({ SETU_EMAIL_ADAPTER: 'sendgrid' })).toEqual({
-        selected: 'sendgrid',
-        source: 'env',
-        effective: 'console',
-        problem: null
-      })
+    // #942: the env branch had NO allowlist while the settings side is enum-constrained, so a
+    // typo fell out here as `problem: null` — and the boot "selected but not usable" error is
+    // gated on `problem !== null`, so the operator got no line naming the typo. The fallback is
+    // deliberately UNCHANGED (effective stays 'console'): hard-failing boot would break an
+    // upgrade for a deployment that currently "works" via the console fallback.
+    it('an unrecognized env transport -> console fallback KEPT, with a problem naming the variable and the value', () => {
+      const t = usableEmailTransport({ SETU_EMAIL_ADAPTER: 'sendgrid' })
+      expect(t.selected).toBe('sendgrid')
+      expect(t.source).toBe('env')
+      expect(t.effective).toBe('console')
+      expect(t.problem).toContain('SETU_EMAIL_ADAPTER')
+      expect(t.problem).toContain('sendgrid')
+      expect(t.problem).toContain('console, resend or smtp')
+    })
+
+    it('a capitalised env transport is unrecognized too (the case #942 opened on)', () => {
+      const t = usableEmailTransport({ SETU_EMAIL_ADAPTER: 'Resend' })
+      expect(t.effective).toBe('console')
+      expect(t.problem).toContain('Resend')
+    })
+
+    // Unset and '' are the SILENT default — naming a problem for them would shout at every
+    // zero-config boot, which is the normal state.
+    it('unset / empty SETU_EMAIL_ADAPTER stays the silent console default', () => {
+      expect(usableEmailTransport({}).problem).toBeNull()
+      expect(
+        usableEmailTransport({ SETU_EMAIL_ADAPTER: '' }).problem
+      ).toBeNull()
+      expect(
+        usableEmailTransport({ SETU_EMAIL_ADAPTER: 'console' }).problem
+      ).toBeNull()
+    })
+
+    // The settings side cannot normally deliver an unrecognized value (the zod enum resets it
+    // with a warning), but settings.json is Git-canonical and the check is at the point of USE,
+    // so it names the stored field rather than the env var when settings chose.
+    it('an unrecognized settings provider names settings.json, not the env var', () => {
+      const t = usableEmailTransport({}, 'sendgrid')
+      expect(t.source).toBe('settings')
+      expect(t.effective).toBe('console')
+      expect(t.problem).toContain('email.provider')
+      expect(t.problem).not.toContain('SETU_EMAIL_ADAPTER')
     })
 
     // #890 fail-safe: a provider STORED in settings.json is exactly as untrustworthy as an env
@@ -733,26 +769,190 @@ describe('capabilities', () => {
         resolveFromAddress('owner@settings.example', {
           SETU_FORMS_NOTIFY_FROM: 'ops@env.example'
         })
-      ).toEqual({ effective: 'owner@settings.example', source: 'settings' })
+      ).toEqual({
+        effective: 'owner@settings.example',
+        source: 'settings',
+        problem: null
+      })
     })
 
     it('settings empty, env set -> env is the fallback, source is "env"', () => {
       expect(
         resolveFromAddress('', { SETU_FORMS_NOTIFY_FROM: 'ops@env.example' })
-      ).toEqual({ effective: 'ops@env.example', source: 'env' })
+      ).toEqual({ effective: 'ops@env.example', source: 'env', problem: null })
     })
 
     it('settings set, env unset -> settings alone', () => {
       expect(resolveFromAddress('owner@settings.example', {})).toEqual({
         effective: 'owner@settings.example',
-        source: 'settings'
+        source: 'settings',
+        problem: null
       })
     })
 
     it('neither -> null/null', () => {
       expect(resolveFromAddress(undefined, {})).toEqual({
         effective: null,
-        source: null
+        source: null,
+        problem: null
+      })
+    })
+
+    // #942 review F1 — the regression this describe now guards against. A From header normally
+    // carries a display name, and #942's first cut ran the WHOLE value through
+    // z.string().email(), which rejects that shape: a previously-working deployment would have
+    // silently lost its from-address on upgrade, and the #953 copy would have told its operator
+    // that a value both transports accept is invalid. Verified against the current docs of both:
+    // Resend ("To include a friendly name, pass the sender as `Name <email@example.com>`") and
+    // nodemailer ("a plain address like 'sender@server.com' or include a display name like
+    // '"Sender Name" <sender@server.com>'").
+    it('accepts the display-name form, keeping the display name in `effective`', () => {
+      expect(
+        resolveFromAddress(undefined, {
+          SETU_FORMS_NOTIFY_FROM: 'Setu <noreply@example.com>'
+        })
+      ).toEqual({
+        effective: 'Setu <noreply@example.com>',
+        source: 'env',
+        problem: null
+      })
+    })
+
+    // The literal e2e/captcha.config.ts has always set. That lane needs `deliverable === true` or
+    // the forgot-password card renders the not-configured copy instead of the form it exists to
+    // exercise — and CI runs it only under E2E_FULL_MATRIX (push-to-main and weekly), i.e. never
+    // on the PR that would break it. This assertion is the PR-lane guard for that.
+    it("accepts e2e/captcha.config.ts's exact from-address, and it counts toward deliverable", () => {
+      const env = {
+        SETU_FORMS_NOTIFY_FROM: 'Setu E2E <e2e@setu.test>',
+        SETU_EMAIL_ADAPTER: 'resend',
+        RESEND_API_KEY: 're_e2e_dummy_never_called'
+      }
+      expect(resolveFromAddress(undefined, env)).toEqual({
+        effective: 'Setu E2E <e2e@setu.test>',
+        source: 'env',
+        problem: null
+      })
+      expect(emailCapabilityFromEnv(env).deliverable).toBe(true)
+    })
+
+    it('still accepts the bare addr-spec form', () => {
+      expect(
+        resolveFromAddress(undefined, {
+          SETU_FORMS_NOTIFY_FROM: 'ops@env.example'
+        }).effective
+      ).toBe('ops@env.example')
+    })
+
+    // Widening to the display-name form must not swallow the addr-spec check — the part inside
+    // the angle brackets is validated exactly as a bare value is.
+    it('rejects a display-name form whose address half is not an address', () => {
+      for (const v of [
+        'Setu <not-an-address>',
+        'Setu <>',
+        '<>',
+        'Setu <   >'
+      ]) {
+        const r = resolveFromAddress(undefined, { SETU_FORMS_NOTIFY_FROM: v })
+        expect(r.effective).toBeNull()
+        expect(r.problem).toContain('SETU_FORMS_NOTIFY_FROM')
+      }
+    })
+
+    // A From header is ONE line. The display name is the only half of the value that is not
+    // validated as an addr-spec, so it is the only place a newline could ride through — which
+    // would be header injection into the outgoing message.
+    it('rejects a control character anywhere in the value, including inside the display name', () => {
+      for (const v of [
+        'Evil\nBcc: someone@else.example <ops@env.example>',
+        'ops@env.example\r\nBcc: someone@else.example',
+        'Setu \u0000 <ops@env.example>'
+      ]) {
+        expect(
+          resolveFromAddress(undefined, { SETU_FORMS_NOTIFY_FROM: v }).effective
+        ).toBeNull()
+      }
+    })
+
+    it('trims padding rather than sending it', () => {
+      expect(
+        resolveFromAddress(undefined, {
+          SETU_FORMS_NOTIFY_FROM: '  Setu <ops@env.example>  '
+        }).effective
+      ).toBe('Setu <ops@env.example>')
+    })
+
+    // #942: the env branch was never format-checked, so a whitespace-only value satisfied this
+    // function's truthiness, then `deliverable`, then the reset gate's `Boolean(p.from)` and the
+    // submission gate. It now goes through the SAME z.string().email() the settings field uses.
+    it('a whitespace-only SETU_FORMS_NOTIFY_FROM does not resolve — null, with a named problem', () => {
+      const r = resolveFromAddress(undefined, {
+        SETU_FORMS_NOTIFY_FROM: '   '
+      })
+      expect(r.effective).toBeNull()
+      expect(r.source).toBeNull()
+      expect(r.problem).toContain('SETU_FORMS_NOTIFY_FROM')
+    })
+
+    it('a malformed SETU_FORMS_NOTIFY_FROM does not resolve, and the problem never echoes the value', () => {
+      const r = resolveFromAddress(undefined, {
+        SETU_FORMS_NOTIFY_FROM: 'ops-at-env.example'
+      })
+      expect(r.effective).toBeNull()
+      expect(r.problem).toContain('SETU_FORMS_NOTIFY_FROM')
+      expect(r.problem).not.toContain('ops-at-env.example')
+    })
+
+    // Unset / '' is "not configured", not "misconfigured" — no problem to name.
+    it('an unset or empty SETU_FORMS_NOTIFY_FROM is silent, not a problem', () => {
+      expect(resolveFromAddress(undefined, {}).problem).toBeNull()
+      expect(
+        resolveFromAddress(undefined, { SETU_FORMS_NOTIFY_FROM: '' }).problem
+      ).toBeNull()
+    })
+
+    // #942 review F1: server.ts used to build the status `from` as a named-field literal with a
+    // comment claiming that stopped a future spread from widening the response. It does not —
+    // excess-property checking does not apply to a variable in a property position, so `from,`
+    // typechecks clean and would ship every field of FromAddressResolution to the client. This
+    // is the enforcement the comment claimed: the ONE projection the route calls, with its key
+    // set pinned, mirroring the unauthenticated-capabilities key pin above.
+    it('publicFrom exposes exactly the from-address keys the client is meant to see', () => {
+      const r = resolveFromAddress(undefined, {
+        SETU_FORMS_NOTIFY_FROM: 'ops-at-env.example'
+      })
+      expect(Object.keys(publicFrom(r)).sort()).toEqual([
+        'effective',
+        'problem',
+        'source'
+      ])
+    })
+
+    it('publicFrom carries the three values through unchanged', () => {
+      expect(
+        publicFrom(
+          resolveFromAddress('owner@settings.example', {
+            SETU_FORMS_NOTIFY_FROM: 'ops@env.example'
+          })
+        )
+      ).toEqual({
+        effective: 'owner@settings.example',
+        source: 'settings',
+        problem: null
+      })
+    })
+
+    // The settings value still wins even when the env fallback is malformed — the fallback is
+    // only consulted when settings has nothing, so a broken env var can't shadow a good save.
+    it('a malformed env value does not disturb a good settings value', () => {
+      expect(
+        resolveFromAddress('owner@settings.example', {
+          SETU_FORMS_NOTIFY_FROM: 'nope'
+        })
+      ).toEqual({
+        effective: 'owner@settings.example',
+        source: 'settings',
+        problem: null
       })
     })
   })

@@ -22,7 +22,6 @@ import {
   createNoopCaptcha,
   createIndexService,
   createMediaIndexService,
-  parseSettings,
   formNotificationValues,
   passwordResetValues,
   EMAIL_TYPE_FORM_NOTIFICATION,
@@ -80,11 +79,13 @@ import {
   createCapabilitiesApi,
   emailCapabilityFromEnv,
   emailTransportOptions,
+  publicFrom,
   resolveFromAddress,
   usableEmailTransport,
   type AuthCapabilities,
   type EmailCapabilities
 } from './capabilities'
+import { createSettingsLoader } from './settings-loader'
 import { createLiveEmailTransport } from './email-transport'
 import { createLiveEmailTemplates } from './email-templates'
 import { runReprocessJob } from './reprocess-runner'
@@ -166,14 +167,17 @@ const mediaDir = process.env.SETU_MEDIA_DIR ?? `${dir}/.setu/uploads`
 const mediaPublicUrl =
   process.env.SETU_MEDIA_PUBLIC_URL ?? `http://localhost:${port}/media`
 
-function loadSiteSettings() {
-  try {
-    const raw = readFileSync(join(dir, 'settings.json'), 'utf-8')
-    return parseSettings(JSON.parse(raw) as unknown)
-  } catch {
-    return parseSettings(undefined)
+// #937: reads settings.json WITH the salvage warnings and prints them (the #656 decision, which
+// the api had opted out of by using the warnings-free `parseSettings`) — but only when the
+// warning set changes, because this is called per email and per capabilities request (#939) and
+// an unconditional log would print the same complaint once per message. Behaviour is pinned by
+// apps/api/test/settings-loader.test.ts.
+const loadSiteSettings = createSettingsLoader({
+  read: () => readFileSync(join(dir, 'settings.json'), 'utf-8'),
+  onWarnings: (warnings) => {
+    for (const w of warnings) console.warn(`[setu] settings.json: ${w}`)
   }
-}
+})
 const siteSettings = loadSiteSettings()
 
 const submissionsDb =
@@ -189,7 +193,19 @@ const notifyTo = process.env.SETU_FORMS_NOTIFY_TO
 // the one email path whose ENABLE gate cannot follow a later save; see resetRestartRequired).
 const liveFrom = () =>
   resolveFromAddress(loadSiteSettings().email.fromAddress, process.env)
-const notifyFrom = liveFrom().effective ?? undefined
+const bootFrom = liveFrom()
+const notifyFrom = bootFrom.effective ?? undefined
+// #942: SETU_FORMS_NOTIFY_FROM was never format-checked, so a whitespace-only value satisfied
+// resolveFromAddress's truthiness and then every gate downstream. It is now run through the same
+// z.string().email() the settings field uses and degrades to "none configured" — which, without
+// this line, would look exactly like never having set it. Boot only: the resolver is called per
+// send too, and this is a start-up misconfiguration, not a per-message event. The remediation
+// half is added here rather than carried in the problem string, because Settings → Email shows
+// the same string with a different next step (#953).
+if (bootFrom.problem !== null)
+  console.error(
+    `[email] ${bootFrom.problem}. Set a valid address there, or one in Settings → Email.`
+  )
 // #890: the provider's live reading, the exact sibling of `liveFrom` — settings.json's
 // `email.provider` WINS, SETU_EMAIL_ADAPTER is the fallback (capabilities.ts's
 // resolveEmailProvider, pinned order-sensitively by apps/api/test/capabilities.test.ts). Unlike
@@ -899,7 +915,13 @@ app.route(
         effectiveTransport: live.effective,
         deliverable: live.effective !== 'console' && from.effective !== null,
         mode,
-        from,
+        // capabilities.ts's projection, not a spread and not a hand-written literal: a literal
+        // here would be enforced by nothing (excess-property checking does not apply to a
+        // variable in a property position, so `from,` typechecks clean), whereas publicFrom's
+        // key set is pinned by apps/api/test/capabilities.test.ts. #953: `problem` is served
+        // deliberately, so the screen can name a REJECTED env from-address instead of calling it
+        // "not set".
+        from: publicFrom(from),
         secrets: {
           resendApiKey: Boolean(process.env.RESEND_API_KEY),
           // Selection-INDEPENDENT since #890: the picker has to say whether SMTP could be

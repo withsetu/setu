@@ -555,6 +555,72 @@ describe('EmailSettings — validation, reset and save', () => {
     ).toBeNull()
   })
 
+  /**
+   * #924. `{{reset-url}}` is not a token at all: the grammar is `\{\{\s*(\w+)\s*\}\}` and a hyphen
+   * is not `\w`, so the span never matches. It is therefore not substituted (the recipient sees the
+   * literal braces), not caught by the unknown-token warning (`unknownTokensIn` collects names
+   * through the same regex, so it finds nothing) and not caught by #920's renders-to-nothing check
+   * (the output is non-empty — it is the braces).
+   *
+   * The render behavior is deliberate and already recorded where it is decided, next to `TOKEN_RE`
+   * in packages/core/src/templating/fill-template.ts, pinned by
+   * packages/core/test/templating/fill-template.test.ts ("leaves non-token braces alone"): visible
+   * beats silent. What was missing was any warning at authoring time.
+   *
+   * Kill-shot: delete the `nearMiss` block in EmailTemplates.tsx and both of these fail.
+   */
+  it('warns about a hyphenated near-miss token, naming the offending text', async () => {
+    stubApi()
+    renderEmail(seedWith({}))
+    const subject = await waitFor(() => subjectFor('Password reset'))
+    fireEvent.change(subject, { target: { value: 'Reset {{reset-url}}' } })
+    const scope = within(card('Password reset'))
+    const alert = await scope.findByText(/not a token/i)
+    expect(alert.textContent).toContain('{{reset-url}}')
+    // Sent exactly as written — the honest consequence, and the one the admin needs to hear.
+    expect(alert.textContent).toMatch(/exactly as written/i)
+    // And that IS what happens: the preview, produced by the same core function the api sends
+    // with, shows the literal braces in the subject line rather than an empty one.
+    expect(scope.getByText('Reset {{reset-url}}')).toBeTruthy()
+  })
+
+  it('warns about empty braces and about a multi-word span', async () => {
+    stubApi()
+    renderEmail(seedWith({}))
+    const body = await waitFor(() => bodyFor('Password reset'))
+    fireEvent.change(body, {
+      target: { value: '<p>{{}} and {{reset url}} and {{reset_url}}</p>' }
+    })
+    const alert = await within(card('Password reset')).findByText(/not tokens/i)
+    expect(alert.textContent).toContain('{{}}')
+    expect(alert.textContent).toContain('{{reset url}}')
+    // A REAL token is not named — this warning is about spans the grammar never matched, and
+    // saying otherwise would send the admin looking for a bug in a line that works.
+    expect(alert.textContent).not.toContain('{{reset_url}}')
+  })
+
+  // The two warnings answer different questions and must not collapse into each other: a
+  // grammatically valid name the vocabulary does not define is an UNKNOWN token (it strips to
+  // nothing), while a span the grammar never matched is a NEAR MISS (it survives literally).
+  it('does not call a grammatically valid unknown token a near miss', async () => {
+    stubApi()
+    renderEmail(seedWith({}))
+    const subject = await waitFor(() => subjectFor('Password reset'))
+    fireEvent.change(subject, { target: { value: 'Reset {{Reset_Url}} now' } })
+    const scope = within(card('Password reset'))
+    expect(await scope.findByText(/unknown token/i)).toBeTruthy()
+    expect(scope.queryByText(/not a token|not tokens/i)).toBeNull()
+  })
+
+  it('is not a save blocker — a near miss is visibly wrong, not silently broken', async () => {
+    stubApi()
+    renderEmail(seedWith({}))
+    const subject = await waitFor(() => subjectFor('Password reset'))
+    fireEvent.change(subject, { target: { value: 'Reset {{reset-url}}' } })
+    await within(card('Password reset')).findByText(/not a token/i)
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeEnabled()
+  })
+
   it('reset-to-default clears the stored override', async () => {
     stubApi()
     const { git } = renderEmail(

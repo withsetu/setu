@@ -89,7 +89,13 @@ function redactUrl(raw: string): string {
   if (url.search) {
     const parts: string[] = []
     for (const [name, value] of url.searchParams) {
-      parts.push(`${name}=${redactParamValue(name, value)}`)
+      // The NAME is redacted too (#943). `?<url-with-token>` — a click-tracking wrapper an admin
+      // can write since #499 — makes `searchParams` read an entire inner URL, token included, as a
+      // single NAME with an empty value, so a value-only pass printed the credential verbatim.
+      // `redactParamValue` still receives the ORIGINAL name: `isSecretParamName` keys on the word
+      // inside it, which redaction can consume. Pinned by
+      // packages/email-console/test/redact.test.ts ("the query-NAME position").
+      parts.push(`${redactParamName(name)}=${redactParamValue(name, value)}`)
     }
     search = `?${parts.join('&')}`
   }
@@ -101,6 +107,16 @@ function redactUrl(raw: string): string {
   // `url.host` (not `url.href`) is what drops any `user:password@` userinfo — a credential in
   // its own right, and one no other branch here would catch.
   return `${url.protocol}//${url.host}${path}${search}${hash}`
+}
+
+/** A param NAME, redacted to the same depth as a value: a nested URL recurses (which is what drops
+ *  its `user:password@` userinfo — the run pass alone cannot see a short password), anything else
+ *  gets the run treatment. Not percent-encoded, unlike the value path: a name is printed verbatim
+ *  today and encoding it would cost log readability without covering any position.
+ *  Pinned by packages/email-console/test/redact.test.ts ("the query-NAME position"). */
+function redactParamName(name: string): string {
+  if (/^https?:\/\//i.test(name)) return redactUrl(name)
+  return redactTokenRuns(name)
 }
 
 function redactParamValue(name: string, value: string): string {
@@ -125,12 +141,21 @@ function redactParamValue(name: string, value: string): string {
  * other half, and it can only cover the paths it knows about).
  *
  * What it does NOT do, because #910 is what over-claiming here cost: this is a heuristic over
- * text, not a parser, and it is only as good as its idea of where a URL starts and stops. It
- * redacts credential-shaped runs inside the path, query values and fragment of anything it
- * recognises as a URL; a secret pasted into prose as a bare word is not redacted (no Setu email
- * does that, and a free-text heuristic would eat real content), and neither is one inside a
- * transport-encoded blob it cannot see into. The layer is a net, not a guarantee — routing a
- * credential-bearing message to a logging transport is still the bug.
+ * text, not a parser, and it is only as good as its idea of where a URL starts and stops. A secret
+ * pasted into prose as a bare word is not redacted (no Setu email does that, and a free-text
+ * heuristic would eat real content), and neither is one inside a transport-encoded blob it cannot
+ * see into. The layer is a net, not a guarantee — routing a credential-bearing message to a
+ * logging transport is still the bug.
+ *
+ * The POSITIONS of a recognised URL, exhaustively, so the next reader can see which are scanned
+ * rather than infer it (#943 was the query-NAME position, unscanned while its three siblings were
+ * covered — a value-only loop, one string interpolation wide):
+ *   - path, fragment, query NAMES and query VALUES → credential-shaped runs redacted, nested URLs
+ *     recursed into; each pinned by its own case in packages/email-console/test/redact.test.ts
+ *   - userinfo (`user:password@`) → dropped entirely, by rebuilding from `url.host`
+ *   - protocol, host and port → NOT scanned, deliberately: a credential does not live there, and
+ *     run-scanning a hostname would redact ordinary long subdomains for nothing (also pinned, so
+ *     changing that is a deliberate act)
  *
  * Since #499 the bodies are ADMIN-authored, which is why the covered shapes now include markdown
  * links, parentheses, brackets and emphasis around a link: packages/email-console/test/redact.test.ts

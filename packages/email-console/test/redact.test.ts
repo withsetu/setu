@@ -45,6 +45,36 @@ describe('redactSecretsInUrls', () => {
     expect(out).not.toContain(encodeURIComponent(RESET_TOKEN))
   })
 
+  it('removes a token carried in the query-NAME position (#943)', () => {
+    // A #499 admin template can write a click-tracking wrapper — `https://track.example/r?{{reset_url}}`
+    // — and `URLSearchParams` then reads the entire inner URL, token included, as one param NAME
+    // with an empty value. Redacting only values printed the credential verbatim.
+    const out = redactSecretsInUrls(`https://track.example/r?${RESET_URL}`)
+    expect(out).not.toContain(RESET_TOKEN)
+    expect(out).toContain('[redacted]')
+  })
+
+  it('drops userinfo from a URL nested in the query-NAME position (#943)', () => {
+    // The value position recurses into a nested URL, which is what drops its `user:password@`.
+    // The name position gets the same treatment, so the two are not credential-safe to different
+    // depths — a short password is exactly what the run pass alone cannot see.
+    const out = redactSecretsInUrls(
+      'https://track.example/r?https://admin:hunter2@inner.test/x'
+    )
+    expect(out).not.toContain('hunter2')
+    expect(out).toContain('inner.test')
+  })
+
+  it('leaves the HOST alone — the one position deliberately not scanned (#943)', () => {
+    // Credentials do not live in a hostname, and run-scanning it would redact ordinary long
+    // subdomains (a preview deployment, a tenant name) for nothing. The one credential the
+    // authority component CAN carry is userinfo, and `redactUrl` drops that by rebuilding from
+    // `url.host`. This test is the ratchet on that decision: extending redaction to the host has
+    // to be a deliberate act.
+    const url = 'https://my-preview-deployment-1234.pages.dev/x'
+    expect(redactSecretsInUrls(url)).toBe(url)
+  })
+
   it('removes a token carried in the fragment', () => {
     const out = redactSecretsInUrls(`https://site.test/x#${RESET_TOKEN}`)
     expect(out).not.toContain(RESET_TOKEN)

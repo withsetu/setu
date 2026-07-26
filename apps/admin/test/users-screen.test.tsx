@@ -982,7 +982,8 @@ describe('UsersScreen', () => {
     // #912: the server refuses the send when the LIVE transport can't deliver (an admin picking
     // Console in Settings → Email reaches this in one session — the row's `deliverable` gate is
     // read once on mount and is client-side anyway, §4 #13). The route answers 409
-    // `email_not_deliverable`; the screen used to show a green "Password reset email sent to …".
+    // `email_transport_not_deliverable`; the screen used to show a green "Password reset email
+    // sent to …".
     it('says nothing was sent when the server refuses the send as undeliverable', async () => {
       mockListUsers.mockResolvedValue({
         data: { users: [OWNER, EDITOR], total: 2 },
@@ -995,7 +996,7 @@ describe('UsersScreen', () => {
       stubCredentialStatus(
         { 'owner-1': true, 'editor-1': true },
         { transport: 'console', deliverable: true },
-        { status: 409, error: 'email_not_deliverable' }
+        { status: 409, error: 'email_transport_not_deliverable' }
       )
 
       renderAsActor('admin', 'owner-1')
@@ -1013,8 +1014,48 @@ describe('UsersScreen', () => {
 
       const alert = await screen.findByRole('alert')
       expect(alert).toHaveTextContent(/no reset email was sent/i)
-      expect(alert).toHaveTextContent(/settings → email/i)
+      // The transport is what is missing, so the repair is the provider dropdown.
+      expect(alert).toHaveTextContent(/pick a provider in settings → email/i)
       // The lie this replaces.
+      expect(screen.queryByText(/password reset email sent to/i)).toBeNull()
+    })
+
+    // #944: the server used to answer every refusal with one code and this screen sent every
+    // admin to the provider dropdown — which fixes nothing when a provider is configured and the
+    // FROM-ADDRESS is the empty setting. One message per code, so the remediation is the repair.
+    it('names the from-address, not the provider, when that is what the server refused on', async () => {
+      mockListUsers.mockResolvedValue({
+        data: { users: [OWNER, EDITOR], total: 2 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({
+        data: [{ id: 'a1', providerId: 'credential' }],
+        error: null
+      })
+      stubCredentialStatus(
+        { 'owner-1': true, 'editor-1': true },
+        { transport: 'resend', deliverable: true },
+        { status: 409, error: 'email_from_address_missing' }
+      )
+
+      renderAsActor('admin', 'owner-1')
+      await screen.findByText('Eve Editor')
+
+      fireEvent.keyDown(
+        screen.getByRole('button', { name: /more actions for eve editor/i }),
+        { key: 'Enter' }
+      )
+      fireEvent.click(
+        await screen.findByRole('menuitem', {
+          name: /send password reset email/i
+        })
+      )
+
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent(/no reset email was sent/i)
+      expect(alert).toHaveTextContent(/from-address/i)
+      // The wrong repair: this deployment HAS a provider.
+      expect(alert).not.toHaveTextContent(/pick a provider/i)
       expect(screen.queryByText(/password reset email sent to/i)).toBeNull()
     })
 

@@ -21,7 +21,7 @@ import { createLiveEmailConfig } from '../src/email-config'
 import { createLiveEmailTemplates } from '../src/email-templates'
 import { createLiveEmailTransport } from '../src/email-transport'
 import {
-  createResetEmailSender,
+  createResetEmailGate,
   resetEmailEnabled
 } from '../src/reset-email-gate'
 
@@ -43,7 +43,7 @@ const reading = (
  *  the transport was handed, which is how the test learns the actual token to search the log for.
  *
  *  Mirrors the shape of server.ts's wiring: `email:` is present only when `resetEmailEnabled`
- *  says so, and its `send` is `createResetEmailSender`. NOT exactly, and the difference matters —
+ *  says so, and its `send` is the gate `createResetEmailGate` returns. NOT exactly, and the difference matters —
  *  server.ts ALWAYS supplies the `content:` arm (#499's live template resolver), while `harness`
  *  below supplies it only when a caller passes `storedTemplate`, and it stubs the transport and
  *  the from-address rather than resolving them from settings. The claim used to be "exactly",
@@ -112,7 +112,7 @@ function harness(
     ...(enabled
       ? {
           email: {
-            send: createResetEmailSender({
+            send: createResetEmailGate({
               sendVia: async (_transport, msg) => {
                 tee.push(msg)
                 await consoleAdapter.send(msg)
@@ -121,9 +121,10 @@ function harness(
                 transport: reading(effectiveTransport),
                 from: FROM
               }),
+              bootFrom: FROM,
               adminOrigin: ADMIN_ORIGIN,
-              onRefused: (reason) => refusals.push(reason)
-            }),
+              onRefused: (refusal) => refusals.push(refusal.reason)
+            }).send,
             ...(storedTemplate === undefined
               ? {}
               : {
@@ -302,12 +303,13 @@ describe('password reset never writes a token to the console transport (#894)', 
       trustedOrigins: [ADMIN_ORIGIN],
       rateLimit: { enabled: false },
       email: {
-        send: createResetEmailSender({
+        send: createResetEmailGate({
           sendVia: (_transport, msg) => consoleAdapter.send(msg),
           resolveConfig: () => ({ transport: reading(live), from: FROM }),
+          bootFrom: FROM,
           adminOrigin: ADMIN_ORIGIN,
           onRefused
-        }),
+        }).send,
         from: FROM,
         resetRedirectTo: `${ADMIN_ORIGIN}/reset-password`
       }
@@ -378,12 +380,13 @@ describe('password reset never writes a token to the console transport (#894)', 
       trustedOrigins: [ADMIN_ORIGIN],
       rateLimit: { enabled: false },
       email: {
-        send: createResetEmailSender({
+        send: createResetEmailGate({
           sendVia: (transport, msg) => email.sendVia(transport, msg),
           resolveConfig: () => ({ transport: email.resolve(), from: FROM }),
+          bootFrom: FROM,
           adminOrigin: ADMIN_ORIGIN,
           onRefused
-        }),
+        }).send,
         from: FROM,
         resetRedirectTo: `${ADMIN_ORIGIN}/reset-password`
       }
@@ -426,7 +429,7 @@ describe('password reset never writes a token to the console transport (#894)', 
  * of the three, disabled in turn, fails an assertion here).
  *
  * TWO of the three ride a single `EmailConfig` (#939) — the from-address and the transport, which
- * `createResetEmailSender`'s `resolveConfig` resolves once and binds together, so the reading the
+ * `createResetEmailGate`'s `resolveConfig` resolves once and binds together, so the reading the
  * gate judges is the object that dispatches (#919). The BODY does not: it comes from the separate
  * `content:` callback, over its own `createLiveEmailTemplates` reading. That asymmetry is
  * deliberate and faithful — server.ts is wired exactly this way, because `content` and `send` are
@@ -501,7 +504,7 @@ describe('the composed send path: settings drive transport, from-address and bod
       trustedOrigins: [ADMIN_ORIGIN],
       rateLimit: { enabled: false },
       email: {
-        send: createResetEmailSender({
+        send: createResetEmailGate({
           resolveConfig: () => {
             const config = liveEmailConfig()
             return {
@@ -510,11 +513,12 @@ describe('the composed send path: settings drive transport, from-address and bod
             }
           },
           sendVia: (transport, msg) => email.sendVia(transport, msg),
+          bootFrom: FROM,
           adminOrigin: ADMIN_ORIGIN,
-          onRefused: (reason) => {
-            throw new Error(`unexpected refusal: ${reason}`)
+          onRefused: (refusal) => {
+            throw new Error(`unexpected refusal: ${refusal.reason}`)
           }
-        }),
+        }).send,
         content: ({ url, userName, userEmail }) =>
           templates.render(
             EMAIL_TYPE_PASSWORD_RESET,

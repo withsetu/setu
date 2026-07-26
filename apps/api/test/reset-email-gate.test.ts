@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  createResetEmailSender,
+  createResetEmailGate,
   resetEmailEnabled,
   resetEmailRefusal
 } from '../src/reset-email-gate'
@@ -81,41 +81,135 @@ describe('resetEmailRefusal', () => {
   })
 
   it('names the console adapter, and never echoes the from-address', () => {
-    const reason = resetEmailRefusal({
+    const refusal = resetEmailRefusal({
       ...enabled,
       effectiveTransport: 'console'
     })
-    expect(reason).toContain('console adapter')
-    expect(reason).not.toContain(enabled.from)
+    expect(refusal?.reason).toContain('console adapter')
+    expect(refusal?.reason).not.toContain(enabled.from)
   })
 
-  it('gives the sender its exact reason string', async () => {
+  // #944: one 409 used to carry two reasons — apps/api/src/users.ts collapsed every refusal into
+  // `email_not_deliverable` and the Users screen answered it with "Pick a provider in
+  // Settings → Email", which is the wrong thing to fix when the from-address is what is empty.
+  it('gives each reason its own code, so the admin is told which setting to fix', () => {
+    expect(
+      resetEmailRefusal({ ...enabled, effectiveTransport: 'console' })?.code
+    ).toBe('email_transport_not_deliverable')
+    expect(resetEmailRefusal({ ...enabled, from: undefined })?.code).toBe(
+      'email_from_address_missing'
+    )
+    expect(
+      resetEmailRefusal({ ...enabled, adminOrigin: undefined })?.code
+    ).toBe('reset_link_origin_missing')
+    // Distinct codes AND distinct prose: a shared string would put the caller back where it was,
+    // with one message for two different repairs.
+    const refusals = [
+      resetEmailRefusal({ ...enabled, effectiveTransport: 'console' })!,
+      resetEmailRefusal({ ...enabled, from: undefined })!,
+      resetEmailRefusal({ ...enabled, adminOrigin: undefined })!
+    ]
+    expect(new Set(refusals.map((r) => r.code)).size).toBe(3)
+    expect(new Set(refusals.map((r) => r.reason)).size).toBe(3)
+  })
+
+  it('gives the sender its exact refusal', async () => {
     const onRefused = vi.fn()
-    await createResetEmailSender({
+    await createResetEmailGate({
       sendVia: vi.fn(),
       resolveConfig: () => ({
         transport: reading('console'),
         from: enabled.from
       }),
+      bootFrom: undefined,
       adminOrigin: enabled.adminOrigin,
       onRefused
-    })(message)
-    expect(onRefused.mock.calls[0]![0]).toBe(
+    }).send(message)
+    expect(onRefused.mock.calls[0]![0]).toEqual(
       resetEmailRefusal({ ...enabled, effectiveTransport: 'console' })
     )
   })
 })
 
-describe('createResetEmailSender', () => {
+/** #944: `send` (better-auth's hook) and `refusal()` (POST /api/users/send-reset) were assembled
+ *  separately and fell back differently on the from-address — the sender to better-auth's
+ *  boot-time `msg.from`, the route to nothing. Clearing `email.fromAddress` in Settings → Email
+ *  after boot therefore made the admin route answer 409 "no email was sent" while the PUBLIC
+ *  forgot-password flow, through the very same sender, still sent one. Every case below asks both
+ *  halves of ONE gate the same question and requires the same answer. */
+describe('the route and the sender must agree on the from-address (#944)', () => {
+  const gate = (
+    live: string | undefined,
+    bootFrom: string | undefined,
+    effective: UsableEmailTransport['effective'] = 'resend'
+  ) => {
+    const sendVia = vi.fn()
+    const onRefused = vi.fn()
+    return {
+      sendVia,
+      onRefused,
+      gate: createResetEmailGate({
+        sendVia,
+        resolveConfig: () => ({ transport: reading(effective), from: live }),
+        bootFrom,
+        adminOrigin: enabled.adminOrigin,
+        onRefused
+      })
+    }
+  }
+
+  it('both send when the live from-address was cleared after boot', async () => {
+    // settings.json's `email.fromAddress` cleared, SETU_FORMS_NOTIFY_FROM unset — the boot address
+    // better-auth's `email.from` was wired with is what both halves fall back to.
+    const { gate: g, sendVia, onRefused } = gate(undefined, 'boot@example.test')
+
+    expect(g.refusal()).toBeNull()
+    await g.send(message)
+
+    expect(onRefused).not.toHaveBeenCalled()
+    expect(sendVia).toHaveBeenCalledTimes(1)
+    expect(sendVia.mock.calls[0]![1]!.from).toBe('boot@example.test')
+  })
+
+  it('both refuse, with the same refusal, when the transport drifts to console', async () => {
+    const {
+      gate: g,
+      sendVia,
+      onRefused
+    } = gate('live@example.test', 'boot@example.test', 'console')
+
+    const routeAnswer = g.refusal()
+    await g.send(message)
+
+    expect(sendVia).not.toHaveBeenCalled()
+    expect(routeAnswer).toEqual(onRefused.mock.calls[0]![0])
+    expect(routeAnswer?.code).toBe('email_transport_not_deliverable')
+  })
+
+  it('both refuse when neither the live reading nor boot has a from-address', async () => {
+    const { gate: g, sendVia, onRefused } = gate(undefined, undefined)
+
+    const routeAnswer = g.refusal()
+    await g.send(message)
+
+    expect(sendVia).not.toHaveBeenCalled()
+    expect(routeAnswer).toEqual(onRefused.mock.calls[0]![0])
+    expect(routeAnswer?.code).toBe('email_from_address_missing')
+  })
+})
+
+describe('createResetEmailGate', () => {
   it('sends through the live transport, with the live from-address', async () => {
     const sendVia = vi.fn()
     const onRefused = vi.fn()
-    const sender = createResetEmailSender({
+    const { send: sender } = createResetEmailGate({
       sendVia,
       resolveConfig: () => ({
         transport: reading('resend'),
         from: 'live@example.test'
       }),
+      // The live reading wins over the boot address, which is #498's whole point.
+      bootFrom: 'boot@example.test',
       adminOrigin: 'https://admin.example.test',
       onRefused
     })
@@ -140,7 +234,7 @@ describe('createResetEmailSender', () => {
     const sendVia = vi.fn()
     let configCalls = 0
     const readings = [reading('smtp'), reading('console')]
-    const sender = createResetEmailSender({
+    const { send: sender } = createResetEmailGate({
       sendVia,
       // The stub answers differently on a second call — the settings.json rewrite landing
       // mid-send. It MUST flip, in both members: a constant stub cannot tell one reading from
@@ -153,6 +247,7 @@ describe('createResetEmailSender', () => {
           from: i === 0 ? 'first@x.test' : 'second@x.test'
         }
       },
+      bootFrom: undefined,
       adminOrigin: 'https://admin.example.test',
       onRefused: vi.fn()
     })
@@ -169,17 +264,18 @@ describe('createResetEmailSender', () => {
   })
 
   // The other half of #919's claim: binding the gate to ONE reading must not freeze it. The
-  // sender is built once (server.ts builds it at boot), so if it cached its reading, a provider
+  // gate is built once (server.ts builds it at boot), so if it cached its reading, a provider
   // saved in Settings → Email would never reach it — which is the #890 property the whole live
-  // transport exists for. Two successive sends through ONE sender, transport and from-address
+  // transport exists for. Two successive sends through ONE gate, transport and from-address
   // changing in between.
   it('re-resolves on every send — one reading per send, not one for the sender', async () => {
     const sendVia = vi.fn()
     let transport = reading('resend')
     let from = 'first@x.test'
-    const sender = createResetEmailSender({
+    const { send: sender } = createResetEmailGate({
       sendVia,
       resolveConfig: () => ({ transport: transport, from: from }),
+      bootFrom: undefined,
       adminOrigin: 'https://admin.example.test',
       onRefused: vi.fn()
     })
@@ -199,16 +295,19 @@ describe('createResetEmailSender', () => {
     expect(sendVia.mock.calls[1]![1]!.from).toBe('second@x.test')
   })
 
-  it('falls back to the message from-address when nothing is live', async () => {
+  it('falls back to the BOOT from-address when nothing is live', async () => {
     const sendVia = vi.fn()
-    const sender = createResetEmailSender({
+    const { send: sender } = createResetEmailGate({
       sendVia,
       resolveConfig: () => ({ transport: reading('smtp'), from: undefined }),
+      bootFrom: 'boot@example.test',
       adminOrigin: 'https://admin.example.test',
       onRefused: vi.fn()
     })
 
-    await sender(message)
+    // #944: `bootFrom`, not the message's `from`. The message's was the sender's private fallback,
+    // which the admin route had no way to apply — the disagreement pinned by the describe above.
+    await sender({ ...message, from: 'ignored@example.test' })
 
     // The from-address is bound by VALUE into the message the adapter receives — there is no
     // second reading of it downstream, which is why it never had the transport's TOCTOU shape.
@@ -222,12 +321,13 @@ describe('createResetEmailSender', () => {
     const onRefused = vi.fn()
     // Boot could legitimately have wired reset (resend was usable then); settings.json now
     // names a provider that resolves to the console adapter.
-    const sender = createResetEmailSender({
+    const { send: sender } = createResetEmailGate({
       sendVia,
       resolveConfig: () => ({
         transport: reading('console'),
         from: 'live@example.test'
       }),
+      bootFrom: 'boot@example.test',
       adminOrigin: 'https://admin.example.test',
       onRefused
     })
@@ -236,27 +336,31 @@ describe('createResetEmailSender', () => {
 
     expect(sendVia).not.toHaveBeenCalled()
     expect(onRefused).toHaveBeenCalledTimes(1)
-    expect(String(onRefused.mock.calls[0]![0])).toContain('console adapter')
+    expect(String(onRefused.mock.calls[0]![0]!.reason)).toContain(
+      'console adapter'
+    )
   })
 
-  // Defence in depth, NOT a production scenario — which is why the message has to be
-  // doctored with `from: ''` to get here. As wired in apps/api/src/server.ts the sender is
-  // built inside a branch that narrows `notifyFrom` to a non-empty string and passes it as
-  // better-auth's `from`, so `opts.resolveFrom() ?? msg.from` cannot be falsy at runtime.
-  // The old name ('refuses when the from-address disappears after boot') claimed the
-  // unreachable case as a real one (#914); the transport-drift case above it is the one
-  // that genuinely can happen after boot.
-  it('refuses when neither the live resolver nor the message supplies a from-address', async () => {
+  // Defence in depth, NOT a production scenario — which is why `bootFrom` has to be left empty to
+  // get here. As wired in apps/api/src/server.ts the `email:` option is built inside a branch that
+  // narrows `notifyFrom` to a non-empty string, and that same value is the gate's `bootFrom`, so
+  // `live ?? bootFrom` cannot be falsy at runtime. The old name ('refuses when the from-address
+  // disappears after boot') claimed the unreachable case as a real one (#914); the transport-drift
+  // case above it is the one that genuinely can happen after boot.
+  // #944 made this branch unreachable through the ADMIN ROUTE too, rather than only through the
+  // sender: both now read `live ?? bootFrom`, where they used to fall back differently.
+  it('refuses when neither the live reading nor boot supplies a from-address', async () => {
     const sendVia = vi.fn()
     const onRefused = vi.fn()
-    const sender = createResetEmailSender({
+    const { send: sender } = createResetEmailGate({
       sendVia,
       resolveConfig: () => ({ transport: reading('resend'), from: undefined }),
+      bootFrom: undefined,
       adminOrigin: 'https://admin.example.test',
       onRefused
     })
 
-    await sender({ ...message, from: '' })
+    await sender(message)
 
     expect(sendVia).not.toHaveBeenCalled()
     expect(onRefused).toHaveBeenCalledTimes(1)

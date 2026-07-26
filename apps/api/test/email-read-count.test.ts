@@ -22,7 +22,7 @@ import { createEmailApi } from '../src/email'
 import { createLiveEmailConfig } from '../src/email-config'
 import { createLiveEmailTemplates } from '../src/email-templates'
 import { createLiveEmailTransport } from '../src/email-transport'
-import { createResetEmailSender } from '../src/reset-email-gate'
+import { createResetEmailGate } from '../src/reset-email-gate'
 
 /**
  * #939 — the regression test the old comment implied but never had.
@@ -326,7 +326,7 @@ describe('one email costs one settings read (#939)', () => {
         trustedOrigins: [TRUSTED_ORIGIN],
         rateLimit: { enabled: false },
         email: {
-          send: createResetEmailSender({
+          send: createResetEmailGate({
             resolveConfig: () => {
               const config = w.liveEmailConfig()
               return {
@@ -335,9 +335,10 @@ describe('one email costs one settings read (#939)', () => {
               }
             },
             sendVia: (transport, msg) => w.email.sendVia(transport, msg),
+            bootFrom: 'boot@example.test',
             adminOrigin: ADMIN_ORIGIN,
-            onRefused: (r) => refusals.push(r)
-          }),
+            onRefused: (r) => refusals.push(r.reason)
+          }).send,
           content: ({ url, userName, userEmail }) =>
             w.emailTemplates.render(
               EMAIL_TYPE_PASSWORD_RESET,

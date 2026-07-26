@@ -412,17 +412,37 @@ export function resolveFromAddress(
   return { effective: null, source: null, problem: null }
 }
 
+/** "Would an email actually go out?" — a USABLE real transport (usableEmailTransport: resend
+ *  with its API key, smtp with a parseable config; anything that fell back to console is not one)
+ *  AND a from-address from either source (resolveFromAddress — settings win, env fallback; #364
+ *  required the from because server.ts only wires createAuth's `email:` option when one exists).
+ *
+ *  #938: this is a FUNCTION rather than an expression repeated at each surface because the
+ *  expression had already drifted. `emailCapabilityFromEnv` (below), the GET /api/email/status
+ *  builder (`buildEmailStatus` in apps/api/src/email.ts) and apps/api/test/email-api.test.ts's
+ *  live harness each carried their own copy, and the harness's had dropped the from-address half
+ *  — so an instance with a real transport and no from-address would have reported "ready to send"
+ *  while POST /api/email/test-send 409s on exactly that state.
+ *
+ *  Both halves are pinned by apps/api/test/capabilities.test.ts ("emailDeliverable") and, at the
+ *  status surface that had no test at all, by apps/api/test/email-status.test.ts — dropping
+ *  either conjunct fails both files. */
+export function emailDeliverable(
+  transport: UsableEmailTransport,
+  from: FromAddressResolution
+): boolean {
+  return transport.effective !== 'console' && from.effective !== null
+}
+
 /** The email capability block for /api/capabilities. Built on the same two helpers above that
  *  server.ts's live sender and the /api/email/status thunk resolve from, so this can't claim a
  *  transport is live that the next send wouldn't actually use. server.ts calls it per request
  *  (re-reading settings.json) via createCapabilitiesApi's `resolveEmail` thunk.
  *
- *  `deliverable` = a USABLE real transport (usableEmailTransport) AND a from-address from either
- *  source (resolveFromAddress — settings win, env fallback; #364 required the from because
- *  server.ts only wires createAuth's `email:` option when one exists). Exposure stays exactly
- *  what it was: the transport name + one boolean — secret PRESENCE never appears here (this
- *  endpoint is unauthenticated; presence booleans live on the settings.view-gated
- *  GET /api/email/status instead). */
+ *  `deliverable` is `emailDeliverable` above — the one predicate, not a second copy of it.
+ *  Exposure stays exactly what it was: the transport name + one boolean — secret PRESENCE never
+ *  appears here (this endpoint is unauthenticated; presence booleans live on the
+ *  settings.view-gated GET /api/email/status instead). */
 export function emailCapabilityFromEnv(
   env: NodeJS.ProcessEnv = process.env,
   settingsFromAddress?: string,
@@ -432,7 +452,7 @@ export function emailCapabilityFromEnv(
   const from = resolveFromAddress(settingsFromAddress, env)
   return {
     transport: usable.selected,
-    deliverable: usable.effective !== 'console' && from.effective !== null
+    deliverable: emailDeliverable(usable, from)
   }
 }
 

@@ -93,8 +93,10 @@ describe('resetEmailRefusal', () => {
     const onRefused = vi.fn()
     await createResetEmailSender({
       sendVia: vi.fn(),
-      resolveTransport: () => reading('console'),
-      resolveFrom: () => enabled.from,
+      resolveConfig: () => ({
+        transport: reading('console'),
+        from: enabled.from
+      }),
       adminOrigin: enabled.adminOrigin,
       onRefused
     })(message)
@@ -110,8 +112,10 @@ describe('createResetEmailSender', () => {
     const onRefused = vi.fn()
     const sender = createResetEmailSender({
       sendVia,
-      resolveTransport: () => reading('resend'),
-      resolveFrom: () => 'live@example.test',
+      resolveConfig: () => ({
+        transport: reading('resend'),
+        from: 'live@example.test'
+      }),
       adminOrigin: 'https://admin.example.test',
       onRefused
     })
@@ -134,17 +138,21 @@ describe('createResetEmailSender', () => {
   // gate decided on is the object handed to `sendVia`.
   it('delivers through the EXACT reading it gated on — transport AND from-address — resolving each once', async () => {
     const sendVia = vi.fn()
-    let transportCalls = 0
-    let fromCalls = 0
+    let configCalls = 0
     const readings = [reading('smtp'), reading('console')]
     const sender = createResetEmailSender({
       sendVia,
-      // Both resolvers answer differently on a second call — the settings.json rewrite landing
-      // mid-send. BOTH stubs must flip: a constant stub cannot tell one reading from two, which
-      // is exactly how the from-address half of this claim went unenforced when this test only
-      // counted `resolveTransport` calls.
-      resolveTransport: () => readings[Math.min(transportCalls++, 1)]!,
-      resolveFrom: () => (fromCalls++ === 0 ? 'first@x.test' : 'second@x.test'),
+      // The stub answers differently on a second call — the settings.json rewrite landing
+      // mid-send. It MUST flip, in both members: a constant stub cannot tell one reading from
+      // two, which is exactly how the from-address half of this claim went unenforced back when
+      // the sender took two resolvers and this test counted only the transport one.
+      resolveConfig: () => {
+        const i = Math.min(configCalls++, 1)
+        return {
+          transport: readings[i]!,
+          from: i === 0 ? 'first@x.test' : 'second@x.test'
+        }
+      },
       adminOrigin: 'https://admin.example.test',
       onRefused: vi.fn()
     })
@@ -155,9 +163,9 @@ describe('createResetEmailSender', () => {
     expect(sendVia).toHaveBeenCalledTimes(1)
     expect(sendVia.mock.calls[0]![0]).toBe(readings[0])
     expect(sendVia.mock.calls[0]![1]!.from).toBe('first@x.test')
-    // Corroboration: one reading each, so there is no window for a rewrite to land in.
-    expect(transportCalls).toBe(1)
-    expect(fromCalls).toBe(1)
+    // Corroboration: ONE reading for both facts, so there is no window for a rewrite to land in
+    // — and, since #939, one settings.json parse rather than two.
+    expect(configCalls).toBe(1)
   })
 
   // The other half of #919's claim: binding the gate to ONE reading must not freeze it. The
@@ -171,8 +179,7 @@ describe('createResetEmailSender', () => {
     let from = 'first@x.test'
     const sender = createResetEmailSender({
       sendVia,
-      resolveTransport: () => transport,
-      resolveFrom: () => from,
+      resolveConfig: () => ({ transport: transport, from: from }),
       adminOrigin: 'https://admin.example.test',
       onRefused: vi.fn()
     })
@@ -196,8 +203,7 @@ describe('createResetEmailSender', () => {
     const sendVia = vi.fn()
     const sender = createResetEmailSender({
       sendVia,
-      resolveTransport: () => reading('smtp'),
-      resolveFrom: () => undefined,
+      resolveConfig: () => ({ transport: reading('smtp'), from: undefined }),
       adminOrigin: 'https://admin.example.test',
       onRefused: vi.fn()
     })
@@ -218,8 +224,10 @@ describe('createResetEmailSender', () => {
     // names a provider that resolves to the console adapter.
     const sender = createResetEmailSender({
       sendVia,
-      resolveTransport: () => reading('console'),
-      resolveFrom: () => 'live@example.test',
+      resolveConfig: () => ({
+        transport: reading('console'),
+        from: 'live@example.test'
+      }),
       adminOrigin: 'https://admin.example.test',
       onRefused
     })
@@ -243,8 +251,7 @@ describe('createResetEmailSender', () => {
     const onRefused = vi.fn()
     const sender = createResetEmailSender({
       sendVia,
-      resolveTransport: () => reading('resend'),
-      resolveFrom: () => undefined,
+      resolveConfig: () => ({ transport: reading('resend'), from: undefined }),
       adminOrigin: 'https://admin.example.test',
       onRefused
     })

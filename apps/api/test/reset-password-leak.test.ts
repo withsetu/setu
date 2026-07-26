@@ -13,9 +13,11 @@ import {
   passwordResetValues,
   type EmailMessage,
   type EmailTemplateOverride,
-  type EmailTemplateOverrides
+  type EmailTemplateOverrides,
+  type SiteSettings
 } from '@setu/core'
 import type { UsableEmailTransport } from '../src/capabilities'
+import { createLiveEmailConfig } from '../src/email-config'
 import { createLiveEmailTemplates } from '../src/email-templates'
 import { createLiveEmailTransport } from '../src/email-transport'
 import {
@@ -40,8 +42,16 @@ const reading = (
  *  logger that never sees the payload would be. `tee` keeps an un-redacted copy of every message
  *  the transport was handed, which is how the test learns the actual token to search the log for.
  *
- *  Mirrors server.ts's wiring exactly: `email:` is present only when `resetEmailEnabled` says so,
- *  and its `send` is `createResetEmailSender`. */
+ *  Mirrors the shape of server.ts's wiring: `email:` is present only when `resetEmailEnabled`
+ *  says so, and its `send` is `createResetEmailSender`. NOT exactly, and the difference matters —
+ *  server.ts ALWAYS supplies the `content:` arm (#499's live template resolver), while `harness`
+ *  below supplies it only when a caller passes `storedTemplate`, and it stubs the transport and
+ *  the from-address rather than resolving them from settings. The claim used to be "exactly",
+ *  which is precisely the place a reviewer asking "is the composed path covered?" would look and
+ *  stop (CLAUDE.md §4 #21) — it was not. The composition server.ts actually runs is covered by
+ *  the "composed send path" describe at the bottom of this file, which drives all three concerns
+ *  off one settings object — two of them (from-address, transport) threaded from a single
+ *  `EmailConfig`, the body from a second reading, exactly as production does. */
 const ADMIN_ORIGIN = 'http://localhost:5173'
 const FROM = 'site@example.test'
 const USER_EMAIL = 'target@example.test'
@@ -107,8 +117,10 @@ function harness(
                 tee.push(msg)
                 await consoleAdapter.send(msg)
               },
-              resolveTransport: () => reading(effectiveTransport),
-              resolveFrom: () => FROM,
+              resolveConfig: () => ({
+                transport: reading(effectiveTransport),
+                from: FROM
+              }),
               adminOrigin: ADMIN_ORIGIN,
               onRefused: (reason) => refusals.push(reason)
             }),
@@ -292,8 +304,7 @@ describe('password reset never writes a token to the console transport (#894)', 
       email: {
         send: createResetEmailSender({
           sendVia: (_transport, msg) => consoleAdapter.send(msg),
-          resolveTransport: () => reading(live),
-          resolveFrom: () => FROM,
+          resolveConfig: () => ({ transport: reading(live), from: FROM }),
           adminOrigin: ADMIN_ORIGIN,
           onRefused
         }),
@@ -369,8 +380,7 @@ describe('password reset never writes a token to the console transport (#894)', 
       email: {
         send: createResetEmailSender({
           sendVia: (transport, msg) => email.sendVia(transport, msg),
-          resolveTransport: () => email.resolve(),
-          resolveFrom: () => FROM,
+          resolveConfig: () => ({ transport: email.resolve(), from: FROM }),
           adminOrigin: ADMIN_ORIGIN,
           onRefused
         }),
@@ -397,5 +407,147 @@ describe('password reset never writes a token to the console transport (#894)', 
     )
     // One reading per send — the second `provider()` call is the whole defect.
     expect(providerCalls).toBe(1)
+  })
+})
+
+/**
+ * #938, finding 2: the three increments of the email wave — the from-address (#498), the
+ * transport (#890) and the stored template (#499) — meet in exactly ONE place in production,
+ * server.ts's `createAuth({ email: … })`, and no test at any layer ran that composition.
+ * Coverage was per-increment and disjoint: the transport tests use fake templates, the
+ * capabilities tests have no templates, the template tests have no transport. The harness above
+ * looked like it closed the gap and did not — it stubs the transport and the from-address, and
+ * omits the `content:` arm unless asked.
+ *
+ * This drives the real composition over ONE settings object: the real `createLiveEmailTransport`
+ * picks the adapter, the real `createLiveEmailTemplates` renders the override, the real
+ * better-auth flow mints a real token. Every assertion names a fact that can only have come from
+ * settings, so the test fails if ANY one of the three stops being honored (kill-shot tested: each
+ * of the three, disabled in turn, fails an assertion here).
+ *
+ * TWO of the three ride a single `EmailConfig` (#939) — the from-address and the transport, which
+ * `createResetEmailSender`'s `resolveConfig` resolves once and binds together, so the reading the
+ * gate judges is the object that dispatches (#919). The BODY does not: it comes from the separate
+ * `content:` callback, over its own `createLiveEmailTemplates` reading. That asymmetry is
+ * deliberate and faithful — server.ts is wired exactly this way, because `content` and `send` are
+ * two independent @setu/auth callbacks, which is why the reset path costs two settings parses
+ * rather than one (apps/api/test/email-read-count.test.ts asserts the 2; merging the callbacks is
+ * #958). So this file proves the three concerns agree on one MESSAGE, not that one reading
+ * produced all three. The config's `templates`/`siteTitle` members are resolved and unused on
+ * this path; the path that does thread them is the form notification (`resolveNotification` in
+ * server.ts), covered by apps/api/test/email-read-count.test.ts.
+ */
+describe('the composed send path: settings drive transport, from-address and body on ONE send (#938)', () => {
+  const SETTINGS: SiteSettings = {
+    ...DEFAULT_SETTINGS,
+    general: { ...DEFAULT_SETTINGS.general, title: 'Settings Site' },
+    email: {
+      ...DEFAULT_SETTINGS.email,
+      fromAddress: 'settings-from@example.test',
+      provider: 'smtp',
+      templates: {
+        [EMAIL_TYPE_PASSWORD_RESET]: {
+          subject: 'Reset for {{site_title}}',
+          html: '<p>settings-body {{reset_url}}</p>'
+        }
+      }
+    }
+  }
+
+  it('all three follow settings on the same message', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'reset-composed-'))
+    const sqlite = new Database(join(dir, 'auth.db'))
+    cleanups.push(() => {
+      sqlite.close()
+      rmSync(dir, { recursive: true, force: true })
+    })
+    const db = drizzle(sqlite)
+    migrate(db, { migrationsFolder: '../../packages/db-sqlite/drizzle' })
+
+    // Env deliberately says CONSOLE and carries a DIFFERENT from-address, so every assertion
+    // below distinguishes "settings won" from "the env happened to agree".
+    const env = {
+      SETU_EMAIL_ADAPTER: 'console',
+      SETU_FORMS_NOTIFY_FROM: 'env-from@example.test',
+      SETU_SMTP_HOST: '127.0.0.1',
+      SETU_SMTP_PORT: '11025'
+    }
+    const liveEmailConfig = createLiveEmailConfig({
+      settings: () => SETTINGS,
+      env
+    })
+    const consoleLog: string[] = []
+    const consoleAdapter = createConsoleEmailAdapter((l) => consoleLog.push(l))
+    const smtpSent: EmailMessage[] = []
+    const email = createLiveEmailTransport({
+      env,
+      provider: () => SETTINGS.email.provider,
+      adapters: {
+        console: () => consoleAdapter,
+        resend: () => consoleAdapter,
+        smtp: () => ({
+          send: async (msg: EmailMessage) => {
+            smtpSent.push(msg)
+          }
+        })
+      }
+    })
+    const templates = createLiveEmailTemplates({ settings: () => SETTINGS })
+
+    const auth = createAuth({
+      db,
+      secret: 'test-secret-32-chars-minimum!!!!',
+      baseURL: 'http://localhost:4444',
+      trustedOrigins: [ADMIN_ORIGIN],
+      rateLimit: { enabled: false },
+      email: {
+        send: createResetEmailSender({
+          resolveConfig: () => {
+            const config = liveEmailConfig()
+            return {
+              transport: config.transport,
+              from: config.from.effective ?? undefined
+            }
+          },
+          sendVia: (transport, msg) => email.sendVia(transport, msg),
+          adminOrigin: ADMIN_ORIGIN,
+          onRefused: (reason) => {
+            throw new Error(`unexpected refusal: ${reason}`)
+          }
+        }),
+        content: ({ url, userName, userEmail }) =>
+          templates.render(
+            EMAIL_TYPE_PASSWORD_RESET,
+            passwordResetValues({ url, userName, userEmail })
+          ),
+        // The boot-time fallback the option type requires. It is the ENV address on purpose:
+        // if the live resolver ever stopped winning, `msg.from` below would say so.
+        from: 'env-from@example.test',
+        resetRedirectTo: `${ADMIN_ORIGIN}/reset-password`
+      }
+    })
+    await makeUser(auth)
+
+    const res = await auth.api.requestPasswordReset({
+      body: { email: USER_EMAIL, redirectTo: `${ADMIN_ORIGIN}/reset-password` },
+      asResponse: true
+    })
+    expect(res.status).toBe(200)
+
+    // 1. TRANSPORT followed settings.json's `provider: 'smtp'`, not SETU_EMAIL_ADAPTER=console.
+    expect(smtpSent).toHaveLength(1)
+    expect(consoleLog).toEqual([])
+    const msg = smtpSent[0]!
+    // 2. FROM followed settings.json's `fromAddress`, not SETU_FORMS_NOTIFY_FROM and not the
+    //    boot-time `from` the option carries.
+    expect(msg.from).toBe('settings-from@example.test')
+    // 3. BODY followed the stored override — subject, html, AND the `{{site_title}}` ambient
+    //    value, which comes from Settings → General on the same reading.
+    expect(msg.subject).toBe('Reset for Settings Site')
+    expect(msg.html).toContain('settings-body')
+    // …and the link is still the real, callback-defaulted one better-auth minted: a template can
+    // PLACE {{reset_url}} but never supply one.
+    expect(msg.text).toContain(`/reset-password/${tokenOf(msg)}`)
+    expect(msg.text).toContain('callbackURL=')
   })
 })

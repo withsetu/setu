@@ -1,15 +1,35 @@
 import {
   EMAIL_TYPES,
   renderRegisteredEmail,
+  type EmailTemplateOverrides,
   type EmailTypeRegistry,
   type RenderedEmail,
   type SiteSettings,
   type TokenValues
 } from '@setu/core'
 
+/** The half of an `EmailConfig` (./email-config.ts) a render needs. Named structurally so this
+ *  module keeps depending on no other, which is what lets the pure renderer below be exercised
+ *  without a settings file. */
+export interface TemplateSource {
+  templates: EmailTemplateOverrides | undefined
+  siteTitle: string | undefined
+}
+
 export interface LiveEmailTemplates {
-  /** Render one registered email type with whatever override is stored RIGHT NOW. */
+  /** Render one registered email type with whatever override is stored RIGHT NOW — one settings
+   *  read per call. The live entry point, for a caller that has no reading in hand. */
   render(typeId: string, values: TokenValues): RenderedEmail
+  /** #939: render against a reading ALREADY resolved — the template seam's exact counterpart to
+   *  `LiveEmailTransport.sendVia`, and for the same reason. Every send path in
+   *  apps/api/src/server.ts resolves an `EmailConfig` once and renders through this, so the
+   *  from-address, the transport and the body all come from ONE parse of settings.json instead of
+   *  three (apps/api/test/email-read-count.test.ts counts them per path). */
+  renderWith(
+    source: TemplateSource,
+    typeId: string,
+    values: TokenValues
+  ): RenderedEmail
 }
 
 /**
@@ -42,7 +62,21 @@ export function createLiveEmailTemplates(opts: {
   registry?: EmailTypeRegistry
 }): LiveEmailTemplates {
   const registry = opts.registry ?? EMAIL_TYPES
+  const renderWith: LiveEmailTemplates['renderWith'] = (
+    source,
+    typeId,
+    values
+  ) =>
+    // Ambient values first so an explicit one from the caller wins — the send paths know
+    // more about their own context than this resolver does.
+    renderRegisteredEmail(registry, typeId, source.templates, {
+      ...(source.siteTitle === undefined
+        ? {}
+        : { site_title: source.siteTitle }),
+      ...values
+    })
   return {
+    renderWith,
     render(typeId, values) {
       let settings: SiteSettings | undefined
       try {
@@ -53,19 +87,20 @@ export function createLiveEmailTemplates(opts: {
       // `|| 'Setu'` is the SAME fallback resolve-seo.ts applies to `general.title`, so an empty
       // General title does not make `{{site_title}}` vanish from an email while the site's own
       // <title> still says "Setu" (apps/api/test/email-templates.test.ts, 'falls back to "Setu"
-      // for an empty site title').
-      const siteTitle =
-        settings === undefined ? undefined : settings.general.title || 'Setu'
-      // Ambient values first so an explicit one from the caller wins — the send paths know
-      // more about their own context than this resolver does.
-      return renderRegisteredEmail(
-        registry,
-        typeId,
-        settings?.email.templates,
+      // for an empty site title'). resolveEmailConfig in ./email-config.ts applies the same
+      // fallback for the callers that resolve a whole config; the two are kept identical by
+      // apps/api/test/email-config.test.ts ("matches createLiveEmailTemplates' own site-title
+      // fallback").
+      return renderWith(
         {
-          ...(siteTitle === undefined ? {} : { site_title: siteTitle }),
-          ...values
-        }
+          templates: settings?.email.templates,
+          siteTitle:
+            settings === undefined
+              ? undefined
+              : settings.general.title || 'Setu'
+        },
+        typeId,
+        values
       )
     }
   }

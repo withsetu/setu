@@ -257,9 +257,16 @@ describe('EmailSettings — token palette', () => {
     )
   })
 
-  // The other half of the same rule: once a field HAS held the caret, that caret is honored even
-  // after it loses focus — appending to the end would throw away where the admin was working.
-  it('still inserts at the caret of a field that was focused and then blurred', async () => {
+  // The other half of the same rule: once a field HAS held the caret, that caret is honored
+  // rather than the insertion being appended to the end, which would throw away where the admin
+  // was working.
+  //
+  // Named for what it proves HERE and no more (#940). `fireEvent.blur` dispatches a blur event
+  // without moving `document.activeElement` — jsdom has no real focus — so the field is still
+  // the active element when the click lands, and this exercises the SAME `targetField` arm as
+  // the focused tests above. The genuinely-blurred case (focus really moved to the chip) needs a
+  // real browser and lives in apps/admin/test-browser/email-token-palette.test.tsx.
+  it('honors the caret of a field that has held focus', async () => {
     stubApi()
     renderEmail()
     const body = await waitFor(() => bodyFor('Password reset'))

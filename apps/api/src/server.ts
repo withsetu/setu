@@ -56,7 +56,7 @@ import {
   makeBuildRunner
 } from './deploy-wiring'
 import { createUsersApi } from './users'
-import { createEmailApi, resetRestartRequired } from './email'
+import { createEmailApi } from './email'
 import {
   createResetEmailSender,
   resetEmailEnabled,
@@ -78,13 +78,11 @@ import {
   buildCapabilities,
   createCapabilitiesApi,
   emailCapabilityFromEnv,
-  emailTransportOptions,
-  publicFrom,
-  resolveFromAddress,
   usableEmailTransport,
   type AuthCapabilities,
   type EmailCapabilities
 } from './capabilities'
+import { createLiveEmailConfig } from './email-config'
 import { createSettingsLoader } from './settings-loader'
 import { createLiveEmailTransport } from './email-transport'
 import { createLiveEmailTemplates } from './email-templates'
@@ -185,15 +183,22 @@ const submissionsDb =
 const notifyTo = process.env.SETU_FORMS_NOTIFY_TO
 // #498: THE place the two from-address sources meet — capabilities.ts's resolveFromAddress
 // (settings.json's email.fromAddress WINS; SETU_FORMS_NOTIFY_FROM is the fallback, precedence
-// pinned order-sensitively by apps/api/test/capabilities.test.ts). `liveFrom` is the live
-// reading (re-reads settings.json, so a save applies to the next email without a restart —
-// consumed by the /api/email status thunk, the reset-email send wrapper and the submission
-// service's notifyFrom thunk below); `notifyFrom` is the boot snapshot that ONLY the boot-time
-// wiring conditions key off (createAuth's `email:` option and the users-api reset injection —
-// the one email path whose ENABLE gate cannot follow a later save; see resetRestartRequired).
-const liveFrom = () =>
-  resolveFromAddress(loadSiteSettings().email.fromAddress, process.env)
-const bootFrom = liveFrom()
+// pinned order-sensitively by apps/api/test/capabilities.test.ts).
+// #939: ONE live reading for every email path below — the from-address (#498), the transport
+// (#890) and the stored templates + site title (#499) resolved from a SINGLE settings.json parse
+// (createLiveEmailConfig in ./email-config). It replaced three sibling getters that each parsed
+// the file independently, which cost three parses per form notification (a visitor-triggered
+// path) and three per test send. It is not a cache: `liveEmailConfig()` is called INSIDE each
+// send, so a save in Settings → Email still applies to the next email with no api restart — the
+// count AND that liveness are both pinned, per path, by apps/api/test/email-read-count.test.ts.
+// `notifyFrom` is the boot snapshot that ONLY the boot-time wiring conditions key off
+// (createAuth's `email:` option and the users-api reset injection — the one email path whose
+// ENABLE gate cannot follow a later save; see resetRestartRequired).
+const liveEmailConfig = createLiveEmailConfig({
+  settings: loadSiteSettings,
+  env: process.env
+})
+const bootFrom = liveEmailConfig().from
 const notifyFrom = bootFrom.effective ?? undefined
 // #942: SETU_FORMS_NOTIFY_FROM was never format-checked, so a whitespace-only value satisfied
 // resolveFromAddress's truthiness and then every gate downstream. It is now run through the same
@@ -206,12 +211,6 @@ if (bootFrom.problem !== null)
   console.error(
     `[email] ${bootFrom.problem}. Set a valid address there, or one in Settings → Email.`
   )
-// #890: the provider's live reading, the exact sibling of `liveFrom` — settings.json's
-// `email.provider` WINS, SETU_EMAIL_ADAPTER is the fallback (capabilities.ts's
-// resolveEmailProvider, pinned order-sensitively by apps/api/test/capabilities.test.ts). Unlike
-// the from-address there is no boot snapshot to keep: every consumer below sends through the
-// live transport, so switching provider in the admin needs no restart.
-const liveProvider = () => loadSiteSettings().email.provider
 // Admin SPA origin, from allowed-origins.ts's mode-aware resolver — the SAME derivation that
 // builds the CORS/origin allowlist, not a second reading of SETU_ADMIN_ORIGIN (#642). It is
 // `undefined` on a self-hosted boot with SETU_ADMIN_ORIGIN unset: outside local mode there is no
@@ -303,9 +302,14 @@ const resetWiredAtBoot = resetEmailEnabled({
 // console with a named reason rather than throwing at send time; that is the fail-safe for a
 // provider stored in Git-canonical settings.json, which can arrive without passing the api's
 // settings-write gate at all.
+// #939: every send path below dispatches through `email.sendVia(config.transport, …)` with a
+// transport `liveEmailConfig()` already resolved, so this getter backs only the seam's UNBOUND
+// entry points (`email.resolve()` / `email.send()`) — kept live and wired so the object stays a
+// complete EmailPort, not because server.ts calls them. Collapsing the seam to a pure dispatcher
+// is spun off as its own issue rather than folded in here.
 const email = createLiveEmailTransport({
   env: process.env,
-  provider: liveProvider,
+  provider: () => loadSiteSettings().email.provider,
   adapters: {
     console: () => createConsoleEmailAdapter(),
     resend: (apiKey) => createResendEmailAdapter({ apiKey }),
@@ -328,9 +332,15 @@ const email = createLiveEmailTransport({
 // one object, so "which override applies" has a single answer. `{{site_title}}` is folded in
 // from Settings → General, also live. An unreadable settings.json or a malformed override
 // degrades to the shipped default rather than sending garbage.
-// ONE getter, so one email costs one settings read — the same budget `liveFrom` (#498) and
-// `liveProvider` (#890) each pay. A getter per field made a single form submission parse
-// settings.json three times on a visitor-triggered path (#907 review F4).
+// #939: every send path renders through `renderWith(config, …)` against the SAME `EmailConfig`
+// that supplied its from-address and transport, so one email now costs one settings parse. The
+// comment that used to sit here claimed that outcome already ("ONE getter, so one email costs
+// one settings read") while three sibling getters each parsed the file — a form notification
+// cost three parses and a password reset three more. What it named as proof was
+// apps/api/test/email-templates.test.ts's "reads settings exactly ONCE per render", which pins
+// one resolver in isolation and is strictly narrower than the claim. The per-PATH count is now
+// asserted by apps/api/test/email-read-count.test.ts, which is the test that fails if a fourth
+// reader is added to any send path.
 const emailTemplates = createLiveEmailTemplates({
   settings: loadSiteSettings
 })
@@ -416,8 +426,11 @@ const auth = authConfigured
       // option's doc in packages/auth/src/options.ts for why this reuses that env rather than
       // inventing an auth-specific one. Omitted (reset stays disabled, unchanged) when no
       // from-address is configured at all: there is nothing to put in the message's `from` field,
-      // matching how the submission service itself skips sending without one (see
-      // createSubmissionService's `if (email && notifyTo && notifyFrom)` guard below).
+      // matching how the submission service itself skips sending without one — its notify block
+      // resolves a context per submission and sends only `if (from)`, reporting the miss through
+      // `onNotifySkipped` (packages/core/src/submissions/submission-service.ts; both directions
+      // pinned by packages/core/test/submissions/submission-service.test.ts, "onNotifySkipped
+      // (#921)").
       // resetRedirectTo: where the emailed link lands when the /request-password-reset caller
       // omitted redirectTo — without it better-auth's callback route 302s the click to
       // /error?error=INVALID_TOKEN (see the option's doc). It is built from `adminOrigin`, which
@@ -452,10 +465,17 @@ const auth = authConfigured
               // #919: the gate resolves the transport ONCE and delivers through that very
               // reading via `sendVia` — `email.send` would have re-resolved, so a settings.json
               // rewrite in between could admit on one reading and dispatch on another.
+              // #939: the transport and the from-address now arrive from ONE `liveEmailConfig()`
+              // call instead of two, so this send costs one settings parse rather than two.
               send: createResetEmailSender({
-                resolveTransport: () => email.resolve(),
+                resolveConfig: () => {
+                  const config = liveEmailConfig()
+                  return {
+                    transport: config.transport,
+                    from: config.from.effective ?? undefined
+                  }
+                },
                 sendVia: (transport, msg) => email.sendVia(transport, msg),
-                resolveFrom: () => liveFrom().effective ?? undefined,
                 adminOrigin,
                 onRefused: (reason) => {
                   console.error(
@@ -479,6 +499,14 @@ const auth = authConfigured
               // which to supply or alter one (kill-shot tested in
               // apps/api/test/email-templates.test.ts, "a stored template cannot supply or
               // override the reset url").
+              // #939: this is the ONE settings read on the reset path that could not be folded
+              // into `send`'s. `content` and `send` are two independent @setu/auth callbacks
+              // (packages/auth/src/index.ts's sendResetPassword calls the first and then the
+              // second), so binding them to a single reading would mean asserting that nothing
+              // runs between them — a claim about another package's internals that no test here
+              // could hold. The reset path therefore costs TWO parses, down from three; merging
+              // the two callbacks into one is spun off rather than assumed. The exact count is
+              // asserted, with this reason, by apps/api/test/email-read-count.test.ts.
               content: ({ url, userName, userEmail }) =>
                 emailTemplates.render(
                   EMAIL_TYPE_PASSWORD_RESET,
@@ -577,24 +605,38 @@ const submit = createSubmissionService({
   captcha,
   email,
   notifyTo,
-  // #498 (#885 review Finding 1): a thunk, not the boot snapshot — the service re-resolves it
-  // per submission, so both the notify gate and the sender follow a from-address saved in
-  // Settings → Email without an api restart.
-  notifyFrom: () => liveFrom().effective ?? undefined,
-  // #499: rendered from the `form-notification` registry type with the admin's stored override
-  // applied, re-read per submission. Replaces the React Email JSX in @setu/email-templates —
-  // see packages/core/src/email/templates/form-notification.ts for why the default markup is a
-  // hand-written table rather than that renderer's output.
-  renderNotification: (s) =>
-    emailTemplates.render(
-      EMAIL_TYPE_FORM_NOTIFICATION,
-      formNotificationValues(s)
-    ),
+  // #498 (#885 review Finding 1) + #939: resolved PER SUBMISSION, so the notify gate, the sender
+  // and the body all follow a from-address, provider or template saved in Settings → Email
+  // without an api restart — but from ONE settings.json parse instead of three. This is the path
+  // the count mattered most on: /forms/submit is unauthenticated, so three synchronous parses
+  // here were three per anonymous visitor request. The service calls this only after the row is
+  // persisted and only when notifications are wired, so a honeypot, captcha or validation reject
+  // still parses nothing at all.
+  // #499: the body is the `form-notification` registry type with the admin's stored override
+  // applied — see packages/core/src/email/templates/form-notification.ts for why the default
+  // markup is a hand-written table rather than @setu/email-templates' renderer output.
+  resolveNotification: () => {
+    const config = liveEmailConfig()
+    return {
+      from: config.from.effective ?? undefined,
+      render: (s) =>
+        emailTemplates.renderWith(
+          config,
+          EMAIL_TYPE_FORM_NOTIFICATION,
+          formNotificationValues(s)
+        ),
+      // #919's binding, applied here too: dispatch through the very transport reading this
+      // notification was gated on, never a second resolution.
+      send: (msg) => email.sendVia(config.transport, msg)
+    }
+  },
   // #921 (CLAUDE.md §4 #22): the sibling of the reset sender's `onRefused` a few lines below.
-  // Because `notifyFrom` is live, clearing the from-address in Settings → Email (or a `git push`
-  // that clears it) stops every form notification at once — previously with no log line at all,
-  // while the visitor still saw `{ ok: true }`. The service only calls this when notifications
-  // are actually configured, so a deployment that never wanted them stays quiet — both
+  // Because `resolveNotification` above runs per submission (it was the `notifyFrom` thunk before
+  // #939 — same liveness, one settings parse instead of three), clearing the from-address in
+  // Settings → Email (or a `git push` that clears it) stops every form notification at once —
+  // previously with no log line at all, while the visitor still saw `{ ok: true }`. The service
+  // only calls this when notifications are actually configured, so a deployment that never
+  // wanted them stays quiet — both
   // directions pinned by packages/core/test/submissions/submission-service.test.ts
   // ("onNotifySkipped (#921)" describe), which also covers a throwing callback.
   onNotifySkipped: (reason) => {
@@ -871,79 +913,56 @@ app.route(
             await auth.api.requestPasswordReset({ body: { email } })
           },
           // #912: the same predicate over the same LIVE resolvers the sender above uses
-          // (`email.resolve().effective` / `liveFrom()`), so the route's honest 409 and the
-          // sender's refusal cannot disagree about what "deliverable" means. Without it the
-          // route answered `{ status: true }` over a refused send, because the refusal happens
-          // inside better-auth's send hook and never comes back out.
-          resetEmailRefusal: () =>
-            resetEmailRefusal({
-              from: liveFrom().effective ?? undefined,
+          // (one `liveEmailConfig()` reading), so the route's honest 409 and the sender's
+          // refusal cannot disagree about what "deliverable" means. Without it the route
+          // answered `{ status: true }` over a refused send, because the refusal happens inside
+          // better-auth's send hook and never comes back out.
+          // #939: one settings parse, not two — the from-address and the transport used to be
+          // resolved separately here, which also meant this check could straddle a save.
+          resetEmailRefusal: () => {
+            const config = liveEmailConfig()
+            return resetEmailRefusal({
+              from: config.from.effective ?? undefined,
               adminOrigin,
-              effectiveTransport: email.resolve().effective
+              effectiveTransport: config.transport.effective
             })
+          }
         }
       : {})
   })
 )
 
 // Settings → Email control plane (#498, #890): live provider status + admin-only test send.
-// `status` is a thunk (same pattern as the mediaSettings live getter above): BOTH the provider and
-// the from-address re-read settings.json per request, so a save in the admin is reflected
-// immediately. It reads the transport through `email.resolve()` — the same function, over the same
-// two sources, that the live sender resolves through — so the two are INTENDED to report the same
-// effective transport. That is a shared derivation, not an enforced invariant: this reading and the
-// sender's are separate calls, so a save landing between them changes the answer (which is exactly
-// what makes the provider a live control). The secrets block is presence booleans ONLY (never
-// values); the problem strings are smtpConfigFromEnv's boot-log-safe reasons
-// (apps/api/test/capabilities.test.ts proves they never echo credentials).
+// `resolveConfig` is a thunk (same pattern as the mediaSettings live getter above): the provider,
+// the from-address and the stored templates re-read settings.json per request, so a save in the
+// admin is reflected immediately.
+//
+// #938: the status PAYLOAD is no longer built here. It used to be an inline literal in this file
+// — which no test imports, this being a side-effectful entrypoint — while three hand-written
+// near-copies of it stood in for it in tests, one of which had already dropped the from-address
+// half of `deliverable`. It is now `buildEmailStatus` in ./email.ts, over `emailDeliverable` from
+// ./capabilities, which is the same function /api/capabilities' block calls. The secrets block is
+// presence booleans ONLY (never values); the problem strings are smtpConfigFromEnv's boot-log-safe
+// reasons (apps/api/test/capabilities.test.ts proves they never echo credentials).
+//
+// #939: ONE settings parse per request on both routes. The GET builds its payload from a single
+// reading; the POST gates, stamps, dispatches and labels from a single reading. That also makes
+// #919's property structural rather than a discipline — there is no second read left in the POST
+// for a mid-request settings.json rewrite to change.
 app.route(
   '/',
   createEmailApi({
     resolveActor,
-    // #919: the route resolves once and dispatches through that reading, so the transport it
-    // reports back to Settings → Email is the one that actually handled the message.
-    resolveTransport: () => email.resolve(),
+    resolveConfig: liveEmailConfig,
     sendVia: (transport, msg) => email.sendVia(transport, msg),
-    status: () => {
-      const from = liveFrom()
-      const live = email.resolve()
-      const transports = emailTransportOptions(process.env)
-      return {
-        transport: live.selected,
-        providerSource: live.source,
-        transports,
-        effectiveTransport: live.effective,
-        deliverable: live.effective !== 'console' && from.effective !== null,
-        mode,
-        // capabilities.ts's projection, not a spread and not a hand-written literal: a literal
-        // here would be enforced by nothing (excess-property checking does not apply to a
-        // variable in a property position, so `from,` typechecks clean), whereas publicFrom's
-        // key set is pinned by apps/api/test/capabilities.test.ts. #953: `problem` is served
-        // deliberately, so the screen can name a REJECTED env from-address instead of calling it
-        // "not set".
-        from: publicFrom(from),
-        secrets: {
-          resendApiKey: Boolean(process.env.RESEND_API_KEY),
-          // Selection-INDEPENDENT since #890: the picker has to say whether SMTP could be
-          // chosen, which the currently-selected transport can't answer.
-          smtpConfigured:
-            transports.find((t) => t.id === 'smtp')?.usable ?? false,
-          smtpProblem: live.selected === 'smtp' ? live.problem : null
-        },
-        // Boot gate for reset = the exact createAuth `email:` condition above — the same
-        // `resetWiredAtBoot` const, so this cannot report a gate the server does not have. When
-        // it was off at boot but the live config would now satisfy it, only a restart turns
-        // reset on — say so (#885 review Finding 1). `liveTransportReal` is the #894 half: a
-        // restart cannot enable reset while the effective transport is still the console
-        // adapter, so promising one would be a lie.
-        resetRestartRequired: resetRestartRequired({
-          resetWiredAtBoot: Boolean(auth && resetWiredAtBoot),
-          authConfigured,
-          adminOriginPresent: adminOrigin !== undefined,
-          liveFrom: from.effective,
-          liveTransportReal: live.effective !== 'console'
-        })
-      }
+    statusContext: {
+      env: process.env,
+      mode,
+      // Boot gate for reset = the exact createAuth `email:` condition above — the same
+      // `resetWiredAtBoot` const, so this cannot report a gate the server does not have.
+      resetWiredAtBoot: Boolean(auth && resetWiredAtBoot),
+      authConfigured,
+      adminOriginPresent: adminOrigin !== undefined
     }
   })
 )

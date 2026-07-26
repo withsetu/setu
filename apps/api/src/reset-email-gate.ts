@@ -87,16 +87,19 @@ export function resetEmailRefusal(p: ResetEmailPreconditions): string | null {
  * apps/api/test/reset-email-gate.test.ts and apps/api/test/users-send-reset.test.ts.
  */
 export function createResetEmailSender(opts: {
-  /** The live transport's whole reading (server.ts's `email.resolve`), called ONCE per send —
-   *  see `sendVia` below for why it is the reading and not just `effective`. */
-  resolveTransport: () => UsableEmailTransport
+  /** The live transport + from-address, resolved TOGETHER and called ONCE per send (#939 —
+   *  server.ts's `createLiveEmailConfig`, one settings.json parse). The transport is the whole
+   *  reading, not just `effective`, because it is handed straight to `sendVia` below. */
+  resolveConfig: () => {
+    transport: UsableEmailTransport
+    /** Live from-address; wins over the message's boot-time `from` when present (#498). */
+    from: string | undefined
+  }
   /** Dispatch through a reading already in hand (server.ts's `email.sendVia`). */
   sendVia: (
     transport: UsableEmailTransport,
     msg: Parameters<EmailPort['send']>[0]
   ) => Promise<void>
-  /** Live from-address; wins over the message's boot-time `from` when present (#498). */
-  resolveFrom: () => string | undefined
   adminOrigin: string | undefined
   onRefused: (reason: string) => void
 }): EmailPort['send'] {
@@ -107,13 +110,16 @@ export function createResetEmailSender(opts: {
     // `email.send` that resolved independently — two readings of a Git-canonical file, so a
     // `git pull`/checkout landing between them admitted the message on 'smtp' and delivered it on
     // 'console', i.e. wrote a live reset token into the server log.
+    // #939 made "one reading" structural rather than a discipline: the transport and the
+    // from-address arrive from a single `resolveConfig()` call, so there is no second read left
+    // here to drift from — and the send costs one settings parse instead of two.
     // Enforced by apps/api/test/reset-email-gate.test.ts ("delivers through the EXACT reading it
-    // gated on — transport AND from-address — resolving each once"), whose stubs answer
+    // gated on — transport AND from-address — resolving each once"), whose stub answers
     // DIFFERENTLY on a second call so one reading is distinguishable from two; a constant stub
     // could not tell them apart, which is how the from-address half of this claim sat unenforced
     // while the comment asserted it. End-to-end: apps/api/test/reset-password-leak.test.ts.
-    const transport = opts.resolveTransport()
-    const from = opts.resolveFrom() ?? msg.from
+    const { transport, from: liveFrom } = opts.resolveConfig()
+    const from = liveFrom ?? msg.from
     const refusal = resetEmailRefusal({
       from,
       adminOrigin: opts.adminOrigin,

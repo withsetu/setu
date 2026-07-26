@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import {
   isDetachedTesterFrame,
   retryOnDetachedTesterFrame
@@ -78,5 +80,51 @@ describe('detached-tester-frame retry shim (#954)', () => {
     const fn = vi.fn<() => Promise<number>>().mockResolvedValue(1)
     await expect(retryOnDetachedTesterFrame(fn)).resolves.toBe(1)
     expect(fn).toHaveBeenCalledTimes(1)
+  })
+})
+
+// The shim rests on two facts about a VENDORED file, and nothing else in this repo would notice
+// either of them changing. The retry never fired in ~30 measured suite runs, so "no warning in
+// the log" cannot distinguish "upstream fixed it" from "our error-string matcher stopped
+// matching" from "the race simply didn't recur" — and the string matcher can't self-detect
+// wording drift, because the tests above author the very strings they assert on.
+//
+// So pin the vendor instead. These two fail LOUDLY on a bump and force a human re-read of
+// ../test-browser/harness/detached-tester-frame.ts before the shim is trusted or deleted.
+// Note vitest-dev/vitest#10300 was closed UNMERGED, so a newer vitest is NOT evidence of a fix.
+describe('the vendor facts the shim rests on (#954)', () => {
+  const require = createRequire(import.meta.url)
+  const pkg = JSON.parse(
+    readFileSync(require.resolve('@vitest/browser/package.json'), 'utf8')
+  ) as { version: string }
+
+  it('is pinned to the @vitest/browser this shim was verified against', () => {
+    expect(
+      pkg.version,
+      'a @vitest/browser bump invalidates the source-verified claims in detached-tester-frame.ts — re-read them, re-check vitest-dev/vitest#10300, then move this pin'
+    ).toBe('3.2.7')
+  })
+
+  it('still dispatches keys only AFTER the focusIframe evaluate — the no-double-apply claim', () => {
+    // `@vitest/browser`'s main entry is the dist file carrying the `keyboard` command.
+    const dist = readFileSync(require.resolve('@vitest/browser'), 'utf8')
+    const start = dist.indexOf(
+      'const keyboard = async (context, text, state) =>'
+    )
+    expect(start, 'the keyboard command moved or was renamed').toBeGreaterThan(
+      -1
+    )
+    const body = dist.slice(start, start + 1200)
+
+    const focusIframeAt = body.indexOf('frame.evaluate(focusIframe)')
+    const dispatchAt = body.indexOf('keyboardImplementation(')
+    expect(focusIframeAt, 'focusIframe evaluate not found').toBeGreaterThan(-1)
+    expect(dispatchAt, 'keyboardImplementation call not found').toBeGreaterThan(
+      -1
+    )
+    expect(
+      focusIframeAt,
+      'key dispatch now precedes the frame handle: a retry could double-apply keys, so the shim must be re-thought'
+    ).toBeLessThan(dispatchAt)
   })
 })

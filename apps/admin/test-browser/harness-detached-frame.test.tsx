@@ -27,13 +27,22 @@ describe('browser-harness detached-frame shim (#954)', () => {
     expect(userEvent.keyboard.name).toBe('keyboardWithDetachedFrameRetry')
   })
 
-  // THE LOAD-BEARING ONE. A detached-frame rejection is raised by
-  // `await frame.evaluate(focusIframe)`, the first statement of @vitest/browser 3.2.7's
-  // `keyboard` command — strictly before any key is dispatched. So a retry must (a) still
-  // deliver the key, because the DOM focus the caller set lives in the live frame and not in
-  // the stale handle, and (b) deliver it exactly ONCE, because the first attempt dispatched
-  // nothing. Both are asserted here against a real Radix slider; a shim that re-ran a
-  // half-dispatched command would show up as two ArrowLefts (198, not 199).
+  // THE LOAD-BEARING ONE, and precisely scoped: it proves the RETRY PATH, in a real browser —
+  // the loop re-runs after a detached-frame rejection, and the re-run still lands its key on the
+  // element the caller focused, exactly once.
+  //
+  // What it does NOT prove is the vendor-ordering claim in ./harness/detached-tester-frame.ts
+  // (that `frame.evaluate(focusIframe)` precedes any key dispatch). It cannot: attempt 1 below
+  // throws before calling `userEvent.keyboard`, so zero vendor code runs on the failing attempt,
+  // and no reordering of vitest internals could change this test's outcome. That claim is
+  // source-verified and pinned instead by the version guard in
+  // apps/admin/test/detached-tester-frame.test.ts.
+  //
+  // The guard against a shim that re-ran a HALF-dispatched command is the call COUNT, not the
+  // value: `value={200}` is a fixed prop and `onChange` is a spy that never writes back, so
+  // every ArrowLeft emits 199 and a double dispatch records [[199],[199]] — verified by probe,
+  // never 198. Hence `toEqual([[199]])` on the whole calls array; do NOT relax this to
+  // `toHaveBeenLastCalledWith(199)`, which passes for both one press and two.
   it('a retried keypress lands exactly once on the focused element', async () => {
     const onChange = vi.fn()
     render(

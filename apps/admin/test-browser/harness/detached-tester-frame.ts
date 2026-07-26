@@ -4,7 +4,7 @@
 //
 // THE BUG. `userEvent.keyboard(...)` is the only interactivity API in this suite that
 // resolves the tester iframe by NAME on the node side. `getCommandsContext` (@vitest/browser
-// 3.2.7, dist/webdriver-BStCVush.js) returns:
+// 3.2.7, dist/webdriver-BStCVush.js:237-252) returns:
 //
 //     frame() {
 //       return new Promise((resolve, reject) => {
@@ -22,29 +22,40 @@
 // `keyboard` command's first statement is then `await frame.evaluate(focusIframe)`, which
 // throws `frame.evaluate: Frame was detached` — attributed to the test's `userEvent.keyboard`
 // line, so it reads as a product failure. Vitest's own message in the sibling branch already
-// calls this a bug in Vitest; upstream has since fixed a related orchestrator iframe leak
-// (vitest-dev/vitest#10300, merged 2026-05-08, i.e. after 3.2.7).
+// calls this a bug in Vitest.
+//
+// UPSTREAM IS NOT FIXED. vitest-dev/vitest#10300 ("fix iframe leak in the orchestrator") is
+// the nearest attempt and it was **closed UNMERGED** on 2026-05-08 by its own author, who
+// concluded: "this doesn't fully fix the issue — only a force-GC every 5s hack works, but any
+// fix on the JS side doesn't, so it seems like this might be a bug or a race condition on the
+// browser level" (GitHub API: `merged: false`, `merged_at: null`). So do NOT read a vitest bump
+// as automatically making this module removable — the retry is expected to be needed until
+// something upstream actually lands. The version guard below is what forces that re-check.
 //
 // Locator-based APIs (`expect.element`, `locator.click`) go through
-// `page.frameLocator('[data-vitest="true"]')`, which re-resolves and auto-waits on every use
-// — which is exactly why only the keyboard specs ever showed this, and why widening a
-// timeout would have done nothing: the frame handle is already wrong when the command starts.
+// `page.frameLocator('[data-vitest="true"]')` (same file, the `iframe` getter at line 254),
+// which re-resolves and auto-waits on every use — which is exactly why only the keyboard specs
+// ever showed this, and why widening a timeout would have done nothing: the frame handle is
+// already wrong when the command starts.
 //
-// WHY A RETRY IS SAFE HERE, i.e. cannot double-apply keys: in 3.2.7 the failing
-// `frame.evaluate(focusIframe)` is the FIRST statement of the `keyboard` command, strictly
-// before `keyboardImplementation` dispatches anything, and the command's only other
-// `frame.evaluate` sits in the `{selectall}` branch this repo never uses. So a detached-frame
-// rejection means zero keys reached the browser and the DOM focus set by the caller (which
-// lives in the live frame, not the stale handle) is untouched.
+// WHY A RETRY CANNOT DOUBLE-APPLY KEYS. In 3.2.7 the failing `frame.evaluate(focusIframe)` is
+// the FIRST statement of the `keyboard` command (dist/index.js:2042-2050), strictly before
+// `keyboardImplementation` dispatches anything, and `keyboardImplementation` itself never
+// touches a frame handle. `context.frame()` has exactly three call sites, none of them on a
+// path this suite takes twice: the `keyboard` command's focusIframe, its `{selectall}` branch,
+// and `dragAndDrop` — and this suite uses no `{selectall}`, no dragAndDrop and no clipboard
+// ops. So a detached-frame rejection means zero keys reached the browser, and the DOM focus the
+// caller set (which lives in the live frame, not the stale handle) is untouched.
 //
-// That last paragraph is a claim about vendor internals, so it is pinned by a test rather than
-// left to be re-read on trust: apps/admin/test-browser/harness-detached-frame.test.tsx forces a
-// detached-frame rejection ahead of a real ArrowLeft on a real Radix slider and asserts the
-// retried press lands EXACTLY ONCE (199, not 198) on the still-focused thumb. If a vitest bump
-// ever moves key dispatch ahead of the focusIframe call, that test is what fails.
+// That paragraph is SOURCE-VERIFIED, not behaviour-verified — no test can observe vendor
+// statement order — so it is pinned the only way it can be: the version guard in
+// apps/admin/test/detached-tester-frame.test.ts asserts the installed @vitest/browser is
+// exactly 3.2.7 AND greps its dist for that ordering, so a bump fails LOUDLY and forces a
+// re-read instead of silently invalidating the paragraph.
 //
-// Which errors this claims, and how many attempts it makes, are enforced by
-// apps/admin/test/detached-tester-frame.test.ts.
+// The retry BEHAVIOUR (loop runs, one keypress still lands, exactly once) is proven in a real
+// browser by apps/admin/test-browser/harness-detached-frame.test.tsx; which errors this claims
+// and how many attempts it makes are enforced by apps/admin/test/detached-tester-frame.test.ts.
 
 /** Matches ONLY the stale-`vitest-iframe` failure class described above — never a product error. */
 export function isDetachedTesterFrame(error: unknown): boolean {

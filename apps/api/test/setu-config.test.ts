@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { validateEntryMetadata } from '@setu/core'
 import {
   FALLBACK_CONFIG,
   loadSetuConfig,
@@ -49,6 +50,51 @@ describe('loadSetuConfig', () => {
       'post',
       'product'
     ])
+  })
+
+  // The regression that a same-process unit test cannot see: setu.config is jiti-loaded,
+  // so its `z.object(...)` may come from a DIFFERENT zod copy than core's. `.merge()` then
+  // carried a foreign ZodNever catchall whose `instanceof` check failed inside zod, so every
+  // undeclared frontmatter key was rejected with "Expected never, received string" — which
+  // in the live app meant `cid` (stamped by the publish path) made every entry unsaveable.
+  it('keeps passthrough for undeclared keys on a jiti-loaded config', async () => {
+    const dir = tmp()
+    const p = join(dir, 'setu.config.ts')
+    writeFileSync(
+      p,
+      `import { z } from 'zod'
+       export default {
+         collections: [{ name: 'product', fields: z.object({ sku: z.string() }) }]
+       }`
+    )
+    const config = await loadSetuConfig(p)
+    const result = validateEntryMetadata(config, 'product', {
+      title: 'Polygrout',
+      sku: 'PG-100',
+      cid: '01JABCDEF',
+      pubDate: '2026-01-01'
+    })
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.value['cid']).toBe('01JABCDEF')
+      expect(result.value['pubDate']).toBe('2026-01-01')
+    }
+  })
+
+  it('still enforces the declared fields on a jiti-loaded config', async () => {
+    const dir = tmp()
+    const p = join(dir, 'setu.config.ts')
+    writeFileSync(
+      p,
+      `import { z } from 'zod'
+       export default {
+         collections: [{ name: 'product', fields: z.object({ sku: z.string() }) }]
+       }`
+    )
+    const config = await loadSetuConfig(p)
+    const result = validateEntryMetadata(config, 'product', { title: 'X' })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.errors[0]?.path).toBe('sku')
   })
 
   it('degrades to the built-in collections when there is no config, and says so', async () => {

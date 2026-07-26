@@ -67,14 +67,23 @@ export function resolveCollection(
 ): ResolvedCollection {
   const label = def.label ?? humanizeCollectionName(def.name)
   const declared = def.fields
-  // .passthrough(): undeclared frontmatter keys (`pubDate`, theme-specific keys) survive
-  // validation untouched — asserted by 'preserves undeclared frontmatter keys' in
-  // packages/core/test/config/collections.test.ts.
-  const schema = (
-    declared
-      ? BASE_ENTRY_FIELDS.merge(declared as typeof BASE_ENTRY_FIELDS)
-      : BASE_ENTRY_FIELDS
-  ).passthrough()
+  // Shape-spread, NOT `BASE_ENTRY_FIELDS.merge(declared)`. `.merge()` copies the ARGUMENT's
+  // `catchall`, and zod decides whether a catchall is active with `catchall instanceof
+  // ZodNever` — an instanceof that FAILS when the two schemas come from different zod
+  // copies. setu.config is jiti-loaded from the site app, so its `z.object(...)` routinely
+  // is a different copy: the merged schema then applied a foreign ZodNever catchall and
+  // rejected every undeclared key with "Expected never, received string", killing
+  // passthrough exactly where it matters. Rebuilding the shape with core's own `z` keeps
+  // the catchall ours. (Same dual-instance hazard `schema.ts`'s isZodSchema documents.)
+  // Regression: the loadSetuConfig cases in apps/api/test/setu-config.test.ts, which go
+  // through jiti like the real thing.
+  const shape = declared
+    ? {
+        ...BASE_ENTRY_FIELDS.shape,
+        ...(declared as typeof BASE_ENTRY_FIELDS).shape
+      }
+    : BASE_ENTRY_FIELDS.shape
+  const schema = z.object(shape).passthrough()
   return {
     name: def.name,
     label,

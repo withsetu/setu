@@ -229,6 +229,10 @@ describe('EmailSettings — provider status card', () => {
     expect(
       screen.queryByText(/SETU_FORMS_NOTIFY_FROM is set on the server/i)
     ).toBeNull()
+    // "with no red line" is in the title, so it has to be in the assertions: the previous
+    // version passed with the guard mutated to `true`, which renders the destructive paragraph
+    // with an EMPTY reason over an install where nothing was ever configured.
+    expect(screen.queryByText(/Emails have no sender/i)).toBeNull()
   })
 
   // #885 review Finding 1: the reset ENABLE gate is boot-frozen — when the from-address

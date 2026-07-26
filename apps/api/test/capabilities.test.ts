@@ -798,6 +798,90 @@ describe('capabilities', () => {
       })
     })
 
+    // #942 review F1 — the regression this describe now guards against. A From header normally
+    // carries a display name, and #942's first cut ran the WHOLE value through
+    // z.string().email(), which rejects that shape: a previously-working deployment would have
+    // silently lost its from-address on upgrade, and the #953 copy would have told its operator
+    // that a value both transports accept is invalid. Verified against the current docs of both:
+    // Resend ("To include a friendly name, pass the sender as `Name <email@example.com>`") and
+    // nodemailer ("a plain address like 'sender@server.com' or include a display name like
+    // '"Sender Name" <sender@server.com>'").
+    it('accepts the display-name form, keeping the display name in `effective`', () => {
+      expect(
+        resolveFromAddress(undefined, {
+          SETU_FORMS_NOTIFY_FROM: 'Setu <noreply@example.com>'
+        })
+      ).toEqual({
+        effective: 'Setu <noreply@example.com>',
+        source: 'env',
+        problem: null
+      })
+    })
+
+    // The literal e2e/captcha.config.ts has always set. That lane needs `deliverable === true` or
+    // the forgot-password card renders the not-configured copy instead of the form it exists to
+    // exercise — and CI runs it only under E2E_FULL_MATRIX (push-to-main and weekly), i.e. never
+    // on the PR that would break it. This assertion is the PR-lane guard for that.
+    it("accepts e2e/captcha.config.ts's exact from-address, and it counts toward deliverable", () => {
+      const env = {
+        SETU_FORMS_NOTIFY_FROM: 'Setu E2E <e2e@setu.test>',
+        SETU_EMAIL_ADAPTER: 'resend',
+        RESEND_API_KEY: 're_e2e_dummy_never_called'
+      }
+      expect(resolveFromAddress(undefined, env)).toEqual({
+        effective: 'Setu E2E <e2e@setu.test>',
+        source: 'env',
+        problem: null
+      })
+      expect(emailCapabilityFromEnv(env).deliverable).toBe(true)
+    })
+
+    it('still accepts the bare addr-spec form', () => {
+      expect(
+        resolveFromAddress(undefined, {
+          SETU_FORMS_NOTIFY_FROM: 'ops@env.example'
+        }).effective
+      ).toBe('ops@env.example')
+    })
+
+    // Widening to the display-name form must not swallow the addr-spec check — the part inside
+    // the angle brackets is validated exactly as a bare value is.
+    it('rejects a display-name form whose address half is not an address', () => {
+      for (const v of [
+        'Setu <not-an-address>',
+        'Setu <>',
+        '<>',
+        'Setu <   >'
+      ]) {
+        const r = resolveFromAddress(undefined, { SETU_FORMS_NOTIFY_FROM: v })
+        expect(r.effective).toBeNull()
+        expect(r.problem).toContain('SETU_FORMS_NOTIFY_FROM')
+      }
+    })
+
+    // A From header is ONE line. The display name is the only half of the value that is not
+    // validated as an addr-spec, so it is the only place a newline could ride through — which
+    // would be header injection into the outgoing message.
+    it('rejects a control character anywhere in the value, including inside the display name', () => {
+      for (const v of [
+        'Evil\nBcc: someone@else.example <ops@env.example>',
+        'ops@env.example\r\nBcc: someone@else.example',
+        'Setu \u0000 <ops@env.example>'
+      ]) {
+        expect(
+          resolveFromAddress(undefined, { SETU_FORMS_NOTIFY_FROM: v }).effective
+        ).toBeNull()
+      }
+    })
+
+    it('trims padding rather than sending it', () => {
+      expect(
+        resolveFromAddress(undefined, {
+          SETU_FORMS_NOTIFY_FROM: '  Setu <ops@env.example>  '
+        }).effective
+      ).toBe('Setu <ops@env.example>')
+    })
+
     // #942: the env branch was never format-checked, so a whitespace-only value satisfied this
     // function's truthiness, then `deliverable`, then the reset gate's `Boolean(p.from)` and the
     // submission gate. It now goes through the SAME z.string().email() the settings field uses.

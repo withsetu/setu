@@ -347,9 +347,41 @@ export function publicFrom(r: FromAddressResolution): PublicFromAddress {
   return { effective: r.effective, source: r.source, problem: r.problem }
 }
 
-/** The same rule the settings field enforces (packages/core/src/settings/schema.ts's
- *  `emailSchema.fromAddress`), applied to the env fallback that #885/#890 left unvalidated. */
+/** The addr-spec rule — the same one the settings field enforces
+ *  (packages/core/src/settings/schema.ts's `emailSchema.fromAddress`). */
 const emailAddress = z.string().email()
+
+/** A From header may carry a display name — `Setu <hello@example.com>` — and that is the normal
+ *  way to configure one. Verified against both transports' current docs rather than from memory:
+ *  Resend's send-email reference ("To include a friendly name, pass the sender as
+ *  `Name <email@example.com>`") and nodemailer's message reference ("a plain address like
+ *  'sender@server.com' or include a display name like '"Sender Name" <sender@server.com>'").
+ *
+ *  So the format check has to validate the ADDR-SPEC inside the angle brackets, not the whole
+ *  header value: running the whole value through `z.string().email()` rejects every display-name
+ *  configuration — including the one e2e/captcha.config.ts has always used, which is how this was
+ *  caught. Rejecting a value both transports accept would be the same falsehood #953 removed,
+ *  pointed at the operator's own working config.
+ *
+ *  The display name is checked for exactly one thing: no control characters. A From header is a
+ *  single line, and this is the one branch where a newline could ride through on the half of the
+ *  value that is not an addr-spec. Every case is pinned by apps/api/test/capabilities.test.ts
+ *  ("sendableFromAddress" describe). */
+const DISPLAY_NAME_FORM = /^([^<>]*)<([^<>]*)>$/
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHAR = /[\u0000-\u001f\u007f]/
+
+/** The value to send FROM (trimmed, display name intact), or null when no transport could use
+ *  it. Returns the whole value rather than the extracted addr-spec — dropping the display name
+ *  would silently rewrite a working configuration. */
+export function sendableFromAddress(value: string): string | null {
+  const trimmed = value.trim()
+  if (CONTROL_CHAR.test(trimmed)) return null
+  const displayName = DISPLAY_NAME_FORM.exec(trimmed)
+  const addrSpec =
+    displayName === null ? trimmed : (displayName[2] ?? '').trim()
+  return emailAddress.safeParse(addrSpec).success ? trimmed : null
+}
 
 export function resolveFromAddress(
   settingsFromAddress: string | undefined,
@@ -362,14 +394,19 @@ export function resolveFromAddress(
     // #942: truthiness alone let a whitespace-only value through here, and from here it
     // satisfied `deliverable`, the reset gate's `Boolean(p.from)` and the submission gate —
     // an address no transport could ever send from. Degrade to "none configured" and say so.
-    if (emailAddress.safeParse(fromEnv).success)
-      return { effective: fromEnv, source: 'env', problem: null }
+    // The check goes through sendableFromAddress, NOT `emailAddress` directly: a bare
+    // z.string().email() over the whole value rejects `Setu <hello@example.com>`, which both
+    // transports accept and which is how a From header is normally configured.
+    const sendable = sendableFromAddress(fromEnv)
+    if (sendable !== null)
+      return { effective: sendable, source: 'env', problem: null }
     return {
       effective: null,
       source: null,
       problem:
-        'SETU_FORMS_NOTIFY_FROM is set on the server but is not a valid email address, ' +
-        'so it is ignored and no from-address is configured'
+        'SETU_FORMS_NOTIFY_FROM is set on the server but is not a usable from-address ' +
+        '(expected hello@example.com or Setu <hello@example.com>), so it is ignored and ' +
+        'no from-address is configured'
     }
   }
   return { effective: null, source: null, problem: null }

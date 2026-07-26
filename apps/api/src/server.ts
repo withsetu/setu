@@ -22,7 +22,6 @@ import {
   createNoopCaptcha,
   createIndexService,
   createMediaIndexService,
-  parseSettings,
   formNotificationValues,
   passwordResetValues,
   EMAIL_TYPE_FORM_NOTIFICATION,
@@ -84,6 +83,7 @@ import {
   type EmailCapabilities
 } from './capabilities'
 import { createLiveEmailConfig } from './email-config'
+import { createSettingsLoader } from './settings-loader'
 import { createLiveEmailTransport } from './email-transport'
 import { createLiveEmailTemplates } from './email-templates'
 import { runReprocessJob } from './reprocess-runner'
@@ -165,14 +165,17 @@ const mediaDir = process.env.SETU_MEDIA_DIR ?? `${dir}/.setu/uploads`
 const mediaPublicUrl =
   process.env.SETU_MEDIA_PUBLIC_URL ?? `http://localhost:${port}/media`
 
-function loadSiteSettings() {
-  try {
-    const raw = readFileSync(join(dir, 'settings.json'), 'utf-8')
-    return parseSettings(JSON.parse(raw) as unknown)
-  } catch {
-    return parseSettings(undefined)
+// #937: reads settings.json WITH the salvage warnings and prints them (the #656 decision, which
+// the api had opted out of by using the warnings-free `parseSettings`) — but only when the
+// warning set changes, because this is called per email and per capabilities request (#939) and
+// an unconditional log would print the same complaint once per message. Behaviour is pinned by
+// apps/api/test/settings-loader.test.ts.
+const loadSiteSettings = createSettingsLoader({
+  read: () => readFileSync(join(dir, 'settings.json'), 'utf-8'),
+  onWarnings: (warnings) => {
+    for (const w of warnings) console.warn(`[setu] settings.json: ${w}`)
   }
-}
+})
 const siteSettings = loadSiteSettings()
 
 const submissionsDb =
@@ -195,7 +198,19 @@ const liveEmailConfig = createLiveEmailConfig({
   settings: loadSiteSettings,
   env: process.env
 })
-const notifyFrom = liveEmailConfig().from.effective ?? undefined
+const bootFrom = liveEmailConfig().from
+const notifyFrom = bootFrom.effective ?? undefined
+// #942: SETU_FORMS_NOTIFY_FROM was never format-checked, so a whitespace-only value satisfied
+// resolveFromAddress's truthiness and then every gate downstream. It is now run through the same
+// z.string().email() the settings field uses and degrades to "none configured" — which, without
+// this line, would look exactly like never having set it. Boot only: the resolver is called per
+// send too, and this is a start-up misconfiguration, not a per-message event. The remediation
+// half is added here rather than carried in the problem string, because Settings → Email shows
+// the same string with a different next step (#953).
+if (bootFrom.problem !== null)
+  console.error(
+    `[email] ${bootFrom.problem}. Set a valid address there, or one in Settings → Email.`
+  )
 // Admin SPA origin, from allowed-origins.ts's mode-aware resolver — the SAME derivation that
 // builds the CORS/origin allowlist, not a second reading of SETU_ADMIN_ORIGIN (#642). It is
 // `undefined` on a self-hosted boot with SETU_ADMIN_ORIGIN unset: outside local mode there is no

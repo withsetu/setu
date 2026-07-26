@@ -6,7 +6,9 @@ import type { ResolveActor, ResolvedActor } from './auth/resolve-actor'
 import {
   emailDeliverable,
   emailTransportOptions,
+  publicFrom,
   type EmailTransportOption,
+  type PublicFromAddress,
   type UsableEmailTransport
 } from './capabilities'
 import type { EmailConfig } from './email-config'
@@ -38,8 +40,11 @@ export interface EmailStatus {
    *  RIGHT NOW (settings win, env fallback) — unlike /api/capabilities' boot snapshot. */
   deliverable: boolean
   mode: string
-  /** The from-address that would be used for the next send, and which source won. */
-  from: { effective: string | null; source: 'settings' | 'env' | null }
+  /** The from-address that would be used for the next send, which source won, and — since #953 —
+   *  why a SET `SETU_FORMS_NOTIFY_FROM` was rejected, so the screen can say "the server's value
+   *  isn't usable" instead of "not set". Built by capabilities.ts's `publicFrom`, whose key set
+   *  is pinned by apps/api/test/capabilities.test.ts; do not widen it with a spread here. */
+  from: PublicFromAddress
   secrets: {
     resendApiKey: boolean
     smtpConfigured: boolean
@@ -121,7 +126,12 @@ export function buildEmailStatus(
     effectiveTransport: transport.effective,
     deliverable: emailDeliverable(transport, from),
     mode: ctx.mode,
-    from,
+    // capabilities.ts's projection (#953), not a spread and not a hand-written literal: a
+    // literal here would be enforced by nothing (excess-property checking does not apply to a
+    // variable in a property position, so `from,` typechecks clean), whereas publicFrom's key
+    // set is pinned by apps/api/test/capabilities.test.ts. Extracting this builder out of
+    // server.ts (#938) is what put the projection somewhere a test can reach it at all.
+    from: publicFrom(from),
     secrets: {
       resendApiKey: Boolean(ctx.env.RESEND_API_KEY),
       // Selection-INDEPENDENT since #890: the picker has to say whether SMTP could be

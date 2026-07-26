@@ -32,6 +32,7 @@ const from = (
 ): FromAddressResolution => ({
   effective: 'site@example.test',
   source: 'settings',
+  problem: null,
   ...over
 })
 
@@ -72,7 +73,13 @@ describe('buildEmailStatus', () => {
       },
       ctx()
     )
-    expect(s.from).toEqual({ effective: 'env@example.test', source: 'env' })
+    // #953: `problem` is part of the public projection — the screen needs to distinguish a
+    // REJECTED server from-address from one that was never configured.
+    expect(s.from).toEqual({
+      effective: 'env@example.test',
+      source: 'env',
+      problem: null
+    })
   })
 
   it('secrets are presence booleans and a boot-log-safe problem — never key material', () => {
@@ -191,7 +198,8 @@ describe('buildEmailStatus', () => {
             {
               from: {
                 effective: fromAddress ?? null,
-                source: fromAddress === undefined ? null : 'settings'
+                source: fromAddress === undefined ? null : 'settings',
+                problem: null
               },
               transport: {
                 selected: 'resend',

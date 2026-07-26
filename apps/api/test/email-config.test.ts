@@ -34,7 +34,8 @@ describe('resolveEmailConfig', () => {
     )
     expect(config.from).toEqual({
       effective: 'site@example.test',
-      source: 'settings'
+      source: 'settings',
+      problem: null
     })
     expect(config.transport.effective).toBe('resend')
     expect(config.templates).toEqual({
@@ -48,11 +49,16 @@ describe('resolveEmailConfig', () => {
     expect(
       resolveEmailConfig(settings({ fromAddress: 'stored@example.test' }), env)
         .from
-    ).toEqual({ effective: 'stored@example.test', source: 'settings' })
+    ).toEqual({
+      effective: 'stored@example.test',
+      source: 'settings',
+      problem: null
+    })
     // …and falls back to it when nothing is stored.
     expect(resolveEmailConfig(settings({}), env).from).toEqual({
       effective: 'env@example.test',
-      source: 'env'
+      source: 'env',
+      problem: null
     })
   })
 
@@ -134,7 +140,8 @@ describe('createLiveEmailConfig', () => {
     expect(() => live()).not.toThrow()
     expect(live().from).toEqual({
       effective: 'env@example.test',
-      source: 'env'
+      source: 'env',
+      problem: null
     })
     expect(live().templates).toBeUndefined()
   })

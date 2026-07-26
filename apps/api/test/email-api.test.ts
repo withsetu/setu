@@ -39,7 +39,7 @@ const STATUS_CONTEXT: EmailStatusContext = {
  *  model the other states (console, no from-address). */
 function resendConfig(over: Partial<EmailConfig> = {}): EmailConfig {
   return {
-    from: { effective: 'noreply@example.com', source: 'env' },
+    from: { effective: 'noreply@example.com', source: 'env', problem: null },
     transport: {
       selected: 'resend',
       source: 'env',
@@ -284,7 +284,9 @@ describe('POST /api/email/test-send', () => {
 
   it('409s honestly when no from-address is resolvable (settings empty, env unset)', async () => {
     const built = build({
-      config: resendConfig({ from: { effective: null, source: null } })
+      config: resendConfig({
+        from: { effective: null, source: null, problem: null }
+      })
     })
     const cookie = await signedIn(built, 'admin')
     const res = await built.app.fetch(sendReq(cookie))
@@ -327,7 +329,11 @@ describe('POST /api/email/test-send', () => {
   it('console transport: 200 {result:"logged"} — honest "logged, not sent"', async () => {
     const built = build({
       config: resendConfig({
-        from: { effective: 'owner@example.com', source: 'settings' },
+        from: {
+          effective: 'owner@example.com',
+          source: 'settings',
+          problem: null
+        },
         transport: {
           selected: 'console',
           source: 'default',
@@ -434,7 +440,11 @@ describe('test-send goes through the SETTINGS-chosen transport (live, no restart
       resolveConfig: () => {
         configReads += 1
         return {
-          from: { effective: 'noreply@example.com', source: 'env' },
+          from: {
+            effective: 'noreply@example.com',
+            source: 'env',
+            problem: null
+          },
           transport: email.resolve(),
           templates: {},
           siteTitle: 'Setu'

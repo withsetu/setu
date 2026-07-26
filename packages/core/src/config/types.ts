@@ -84,10 +84,43 @@ export interface BlockDefinition {
   scope?: string[]
 }
 
+/** A content type as authored in setu.config.ts. */
+export interface CollectionDefinition {
+  /** Directory segment under `content/`, e.g. 'product'. Must be a canonical path
+   *  segment (it is interpolated into a Git write path by `contentPath`). */
+  name: string
+  /** Singular display label. Defaults to the humanized name ('case-study' → 'Case Study'). */
+  label?: string
+  /** Plural display label. Defaults to a naive pluralization of `label`. */
+  labelPlural?: string
+  /** Zod **object** schema for this collection's custom frontmatter fields. Merged over
+   *  the base entry fields; a declared field of the same name wins. */
+  fields?: ZodTypeAny
+  /** Taxonomies this collection participates in ('category' | 'tag'). Carried as data —
+   *  NOT enforced anywhere yet; the per-collection taxonomy gate is #580's follow-on.
+   *  Same "reserved, carried" shape as `BlockDefinition.scope`. */
+  taxonomies?: string[]
+}
+
+/** A collection after resolution: labels filled in and the validation schema precomputed. */
+export interface ResolvedCollection {
+  name: string
+  label: string
+  labelPlural: string
+  taxonomies: string[]
+  /** The author's declared fields, as given. Absent when none were declared. */
+  fields?: ZodTypeAny
+  /** Base entry fields merged with `fields`, passthrough — what validation runs. */
+  schema: ZodTypeAny
+}
+
 /** The config object an author exports from setu.config.ts. */
 export interface SetuConfig {
   /** Authored blocks. Optional — blocks are normally auto-discovered from folders. */
   blocks?: BlockDefinition[]
+  /** Authored content types. Merged over the defaults (`post`, `page`); declaring a
+   *  collection whose name matches a default replaces that default. */
+  collections?: CollectionDefinition[]
   /** The active theme's package name (e.g. '@setu/theme-default'). Optional. */
   theme?: string
   /** Chosen values for the active theme's declared options (key → value). Optional. */
@@ -101,6 +134,10 @@ export type ResolvedBlock = BlockDefinition
 
 /** The validated, indexed config the rest of the system consumes. */
 export interface ResolvedConfig {
+  /** All collections — defaults first, then any the author added. */
+  collections: ResolvedCollection[]
+  /** Collections indexed by name for O(1) lookup. */
+  collectionsByName: Map<string, ResolvedCollection>
   /** All blocks, in authored order. */
   blocks: ResolvedBlock[]
   /** Blocks indexed by tag for O(1) lookup. */

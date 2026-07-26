@@ -14,10 +14,19 @@ export type {
   BlockDefinition,
   BlockEditorMeta,
   ResolvedConfig,
-  ResolvedBlock
+  ResolvedBlock,
+  CollectionDefinition,
+  ResolvedCollection
 } from './config/types'
 export { defineConfig } from './config/define-config'
 export { resolveConfig } from './config/resolve'
+export {
+  validateEntryMetadata,
+  BASE_ENTRY_FIELDS,
+  DEFAULT_COLLECTIONS,
+  RESERVED_COLLECTION_NAMES
+} from './config/collections'
+export type { FieldError, MetadataValidation } from './config/collections'
 export { defaultConfig, defaultKnownBlockTags } from './config/default-config'
 
 export type {

@@ -192,8 +192,11 @@ export function createAuth(opts: CreateAuthOptions) {
                 to: user.email,
                 url: link,
                 userName: user.name,
-                // The shipped default, unrendered until asked for: apps/api applies the admin's
-                // stored override instead and never calls this.
+                // The shipped default, unrendered until asked for — intended for a caller with
+                // no templates of its own. apps/api injects a renderer instead; that a gate WITH a
+                // renderer never falls back to this, and one without it does, is pinned by
+                // apps/api/test/reset-email-gate.test.ts, 'renders the body from the gated
+                // reading, and falls back to the shipped default without a renderer'.
                 defaultContent: () =>
                   resetPasswordEmailContent({
                     url: link,

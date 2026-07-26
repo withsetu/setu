@@ -87,8 +87,9 @@ export interface ResetEmailRequest {
  * #364 wrote these strings inline here. #499 (epic #497) moved them into core's email TYPE
  * registry — `PASSWORD_RESET_EMAIL` — so an admin can customize them in Settings → Email, and
  * this function became the thin default: registry definition, no override, values built from
- * the link. It is what @setu/auth uses when the caller injects no `content` resolver of its own
- * (apps/api injects one that applies the admin's stored override live, per send).
+ * the link. Since #958 it is what `ResetEmailRequest.defaultContent` returns — the body a caller
+ * with no templates of its own sends (apps/api renders its own instead, applying the admin's
+ * stored override live, per send).
  *
  * The move is byte-neutral: packages/auth/test/reset-password-email.test.ts asserts this equals
  * the registry default, and packages/core/test/email/email-registry.test.ts holds the pre-#499

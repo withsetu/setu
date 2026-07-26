@@ -152,7 +152,7 @@ describe('resetEmailRefusal', () => {
   })
 })
 
-/** #944: `send` (better-auth's hook) and `refusal()` (POST /api/users/send-reset) were assembled
+/** #944: `sendReset` (@setu/auth's hook) and `refusal()` (POST /api/users/send-reset) were assembled
  *  separately and fell back differently on the from-address — the sender to better-auth's
  *  boot-time `msg.from`, the route to nothing. Clearing `email.fromAddress` in Settings → Email
  *  after boot therefore made the admin route answer 409 "no email was sent" while the PUBLIC
@@ -181,7 +181,7 @@ describe('the route and the sender must agree on the from-address (#944)', () =>
 
   it('both send when the live from-address was cleared after boot', async () => {
     // settings.json's `email.fromAddress` cleared, SETU_FORMS_NOTIFY_FROM unset — the boot address
-    // better-auth's `email.from` was wired with is what both halves fall back to.
+    // the gate was built with (`bootFrom`) is what both halves fall back to.
     const { gate: g, sendVia, onRefused } = gate(undefined, 'boot@example.test')
 
     expect(g.refusal()).toBeNull()
@@ -408,9 +408,12 @@ describe('createResetEmailGate', () => {
   })
 
   // Defence in depth, NOT a production scenario — which is why `bootFrom` has to be left empty to
-  // get here. As wired in apps/api/src/server.ts the `email:` option is built inside a branch that
-  // narrows `notifyFrom` to a non-empty string, and that same value is the gate's `bootFrom`, so
-  // `live ?? bootFrom` cannot be falsy at runtime. The old name ('refuses when the from-address
+  // get here. As wired in apps/api/src/server.ts the `email:` option is built only when
+  // `resetWiredAtBoot` holds, and that predicate is false whenever the boot from-address is
+  // missing ('is false without a from-address', above) — the same value it passes as the gate's
+  // `bootFrom` — so `live ?? bootFrom` cannot be falsy at runtime. (The branch used to say
+  // `&& notifyFrom` as a type narrowing too; #958 removed it with the option's `from` field, so
+  // `resetWiredAtBoot` is the whole mechanism now.) The old name ('refuses when the from-address
   // disappears after boot') claimed the unreachable case as a real one (#914); the transport-drift
   // case above it is the one that genuinely can happen after boot.
   // #944 made this branch unreachable through the ADMIN ROUTE too, rather than only through the

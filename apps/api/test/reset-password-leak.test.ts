@@ -342,8 +342,9 @@ describe('password reset never writes a token to the console transport (#894)', 
    * for its gate and then call a `send` that resolved a second time, so a `settings.json` rewrite
    * landing in that window — the file is Git-canonical, so a pull/checkout/deploy rewrites it with
    * no coordination with the running process — admitted the message on reading A and delivered it
-   * on reading B. The whole wiring here is REAL: `createLiveEmailTransport` over a flipping
-   * `provider()`, the real better-auth flow, a real minted token, and the real console adapter.
+   * on reading B. The whole wiring here is REAL: `createLiveEmailConfig` over a flipping SETTINGS
+   * getter (see the comment on it below — #959 left transport selection to that resolver alone),
+   * the real better-auth flow, a real minted token, and the real console adapter.
    *
    * The assertion is that the console adapter is never CALLED, not that the log lacks the token:
    * packages/email-console redacts, which is deliberate defence in depth (#910) and would mask a
@@ -441,8 +442,9 @@ describe('password reset never writes a token to the console transport (#894)', 
  * server.ts's `createAuth({ email: … })`, and no test at any layer ran that composition.
  * Coverage was per-increment and disjoint: the transport tests use fake templates, the
  * capabilities tests have no templates, the template tests have no transport. The harness above
- * looked like it closed the gap and did not — it stubs the transport and the from-address, and
- * omits the `content:` arm unless asked.
+ * looked like it closed the gap and did not — it stubs the transport and the from-address rather
+ * than resolving them from settings, which is still true now that it always supplies the `render`
+ * arm.
  *
  * This drives the real composition over ONE settings object: the real `resolveEmailConfig` picks
  * the adapter, the real `createLiveEmailTemplates` renders the override, the real better-auth flow

@@ -402,8 +402,8 @@ const setupToken =
     ? randomBytes(32).toString('base64url')
     : null
 
-// #944: ONE gate, TWO entry points — `resetEmailGate.send` is better-auth's send hook below and
-// `resetEmailGate.refusal` is what POST /api/users/send-reset reports (the users-api block further
+// #944: ONE gate, TWO entry points — `resetEmailGate.sendReset` is @setu/auth's send hook below
+// and `resetEmailGate.refusal` is what POST /api/users/send-reset reports (the users-api block further
 // down). They used to be assembled separately here and fell back differently on the from-address:
 // the sender to better-auth's boot-time `from`, the route to nothing, so clearing
 // `email.fromAddress` after boot made the admin route answer 409 "no email sent" while the public
@@ -927,7 +927,7 @@ app.route(
           },
           // #912: without this the route answered `{ status: true }` over a refused send, because
           // the refusal happens inside better-auth's send hook and never comes back out.
-          // #944: it is the SAME gate object whose `send` is wired into createAuth above — one
+          // #944: it is the SAME gate object whose `sendReset` is wired into createAuth above — one
           // `liveEmailConfig()` reading per call, one fallback chain, one refusal function — rather
           // than a second expression built here. The two used to be assembled separately and
           // disagreed about the from-address; see the gate's own comment for what that cost.

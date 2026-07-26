@@ -77,14 +77,30 @@ export function createResendEmailAdapter(
     async send(msg: EmailMessage) {
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), timeoutMs)
-      const timedOut = (): Error =>
-        new Error(`resend request timed out after ${timeoutMs}ms`)
       // Rejects the moment the deadline fires, whether or not the SDK honoured the signal. This is
-      // the arm that makes the bound real; the signal above is what additionally frees the socket.
+      // the arm that makes the bound real; the signal below is what additionally frees the socket.
+      //
+      // Registered BEFORE the send, and that order is the whole reason a timeout always reports
+      // itself as one. On abort, an SDK that honoured the signal does not reject — resend catches
+      // every fetch failure and RESOLVES with a generic "Unable to fetch data. The request could
+      // not be resolved." error object (6.18.0, `fetchRequest`), which would tell the operator
+      // nothing about why. Because this listener is attached first, `abort()` runs it first and the
+      // race is already settled by the time that resolution arrives, so the generic message can
+      // never win. Move this below the send and it can. Pinned by
+      // packages/email-resend/test/request-timeout.test.ts ("reports the timeout even when the SDK
+      // resolves with its own generic error on abort").
+      //
+      // An earlier version of this code ALSO checked `controller.signal.aborted` after the race and
+      // re-threw the timeout, described as the thing that guaranteed the precedence. It could not
+      // fire — for exactly the reason above — and deleting it failed no test, so it was the
+      // "guard that reads as coverage" class this branch removed from client-ip.ts (review F2).
       const deadline = new Promise<never>((_, reject) => {
-        controller.signal.addEventListener('abort', () => reject(timedOut()), {
-          once: true
-        })
+        controller.signal.addEventListener(
+          'abort',
+          () =>
+            reject(new Error(`resend request timed out after ${timeoutMs}ms`)),
+          { once: true }
+        )
       })
       try {
         // `Promise.race` attaches handlers to BOTH arms, so a send that rejects after the deadline
@@ -94,11 +110,6 @@ export function createResendEmailAdapter(
           client.emails.send(msg, { signal: controller.signal }),
           deadline
         ])
-        // The signal having fired takes precedence over whatever the SDK returned for it: on abort
-        // it resolves with its own generic "Unable to fetch data" error object rather than
-        // rejecting, and reporting that to the operator instead of the timeout would hide the one
-        // fact that identifies the fault.
-        if (controller.signal.aborted) throw timedOut()
         if (settled.error) throw new Error(settled.error.message)
       } finally {
         // Not a `catch`-less `try/finally` swallowing a failure (CLAUDE.md §3.2): every throw above

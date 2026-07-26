@@ -176,11 +176,17 @@ function unquote(value: string): string | undefined {
  *  `x-forwarded-for` never needed this: every mainstream proxy APPENDS, so the right-walk reaches
  *  the proxy-supplied hop before any client-supplied text and returns it. `Forwarded` carries
  *  arbitrary quoted values, so an unshaped `for=` — `for=hello`, or a value merged with the rest of
- *  the header — could otherwise become the key, and a client varying it would mint a fresh
- *  rate-limit bucket per request. Deliberately a shape test, not a full IP parser: what matters is
- *  that a key can only ever be built from IP characters, so nothing opaque and client-varied gets
- *  through. Pinned by apps/api/test/client-ip.test.ts ("refuses a node identifier that is not
- *  address-shaped rather than keying a bucket on it").
+ *  the header — could otherwise become the key.
+ *
+ *  What this does and does not do, stated narrowly because the difference matters: it NARROWS THE
+ *  ALPHABET a bucket key can be built from, to IP characters. It does not by itself stop a client
+ *  varying the key — `for=1:2:3` and `for=1:2:4` both pass it, exactly as two different addresses
+ *  in `x-forwarded-for` would. What actually prevents per-request minting is the append ordering
+ *  (the proxy's hop is always to the right of the client's text) together with the unbalanced-quote
+ *  refusal that stops a client moving that boundary. This is the third line, not the first.
+ *  Deliberately a shape test rather than a full IP parser. Pinned by
+ *  apps/api/test/client-ip.test.ts ("refuses a node identifier that is not address-shaped rather
+ *  than keying a bucket on it").
  *
  *  This is ALSO what rejects RFC 7239's two deliberately address-less node identifiers — `unknown`
  *  and an obfuscated `_id` — since neither contains a character the shapes below allow. An earlier

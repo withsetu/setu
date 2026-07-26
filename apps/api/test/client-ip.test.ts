@@ -758,11 +758,21 @@ describe('resolveClientIp — precedence when both hop-list headers are present 
  * client dictates the key — a fresh rate-limit bucket per request through one `curl -H` flag,
  * exactly the hole #933 closed for single-valued headers.
  *
- * Two independent guards, and each of these cases needs both to be present:
- *  1. unbalanced quotes ⇒ refuse the WHOLE header (a well-formed one is always balanced, and once
- *     a client's malformed value has been appended to there is no way to know the boundaries);
- *  2. a node identifier must LOOK like an address, so a merged or garbage value can never become a
- *     bucket key even if it somehow reaches the walk.
+ * THREE mechanisms stand between these cases and a client-chosen key, and the cases below do NOT
+ * each need all three — which is worth saying precisely, because "each needs both" was the first
+ * version of this comment and it was wrong (review F4):
+ *
+ *  1. **Unbalanced quotes refuse the WHOLE header** (a well-formed one is always balanced, and once
+ *     a client's malformed value has been appended to there is no way to know the boundaries).
+ *     This is what the FIRST case below depends on: removing it, and nothing else, makes that case
+ *     resolve to the client's own address (verified).
+ *  2. **`unquote` rejects an unterminated quoted string**, so a `for=` value that opens a quote and
+ *     never closes it is unusable on its own. This is what carries the SECOND case — it still
+ *     passes with mechanism 1 removed. Note the converse: removing mechanism 2 alone fails no test,
+ *     because mechanism 1 refuses those inputs first. It is defence in depth, not independently
+ *     pinned, and is described that way rather than credited with more than it can be shown to do.
+ *  3. **A node identifier must LOOK like an address**, so a merged or garbage value cannot become a
+ *     bucket key even if it reaches the walk. This is what the THIRD case depends on.
  */
 describe('resolveClientIp — a client cannot merge away the proxy’s Forwarded hop (#934)', () => {
   const trust = { proxies: ['198.51.100.1'] }

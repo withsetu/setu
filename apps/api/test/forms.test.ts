@@ -1272,3 +1272,141 @@ describe('createFormsApi — Zod at the forms boundary (#932)', () => {
     ).toBe(400)
   })
 })
+
+/**
+ * The #935 caps are PUBLIC-ONLY, and this block pins BOTH directions (#932 review F1).
+ *
+ * The caps exist because the threat is the ANONYMOUS actor. The authenticated admin CRUD route is
+ * deliberately exempt — refusing a maintainer's re-import of a long legitimate submission would be
+ * a regression bought for nothing — and it keeps its own 1 MiB body cap instead.
+ *
+ * #932's first pass broke exactly this by reusing one `fieldsSchema` for both routes, so the admin
+ * route silently started enforcing all three caps while two comments went on asserting it did not.
+ * Nothing caught it, because every existing cap test drove the PUBLIC route only. A one-sided test
+ * cannot see a divergence; these drive the same three bodies at both routes and assert opposite
+ * answers, so neither side can drift again.
+ */
+describe('createFormsApi — the #935 caps bind the public route ONLY (#932 review F1)', () => {
+  // Every body here is a submission that would OTHERWISE succeed — real email, real message — with
+  // exactly one element pushed over a cap. That matters: an earlier draft of this block used bodies
+  // with no `email`/`message`, so the public-side assertions passed because the submission SERVICE
+  // refused them, not the boundary. Under the kill-shot that removed the caps from the public route
+  // they stayed green — the #638 vacuous-assertion class, caught here by running that kill-shot.
+  const valid = { email: 'a@x.com', message: 'hi there' }
+  const overCap: [string, Record<string, unknown>][] = [
+    [
+      'a field COUNT over the cap',
+      {
+        ...valid,
+        ...Object.fromEntries(
+          Array.from({ length: FORM_FIELD_MAX_COUNT - 1 }, (_, i) => [
+            `f${i}`,
+            'x'
+          ])
+        )
+      }
+    ],
+    [
+      'a field VALUE over the cap',
+      { ...valid, note: 'v'.repeat(FORM_FIELD_VALUE_MAX + 1) }
+    ],
+    [
+      'a field NAME over the cap',
+      { ...valid, ['n'.repeat(FORM_VALUE_MAX + 1)]: 'x' }
+    ]
+  ]
+
+  // KILL-SHOT TARGET. Point `adminSubmissionSchema.fields` back at the capped schema and every one
+  // of these becomes a 400.
+  it.each(overCap)(
+    'the authenticated admin write ACCEPTS %s',
+    async (_what, fields) => {
+      const { app, submissions } = makeApp()
+      const res = await post(app, '/forms/submissions', {
+        formId: 'contact',
+        fields
+      })
+      expect(res.status).toBe(201)
+      expect((await submissions.listSubmissions()).total).toBe(1)
+    }
+  )
+
+  // KILL-SHOT TARGET the other way. The captcha assertion is what makes this about the BOUNDARY:
+  // the schema runs before the captcha, the service after, so "never consulted" is the only thing
+  // that distinguishes a boundary refusal from a service refusal.
+  it.each(overCap)(
+    'the anonymous public submit REFUSES the same body: %s',
+    async (_what, fields) => {
+      const verify = vi.fn(async () => true)
+      const { app, submissions } = makeApp({ verify })
+      const res = await post(app, '/forms/submit', {
+        formId: 'contact',
+        fields,
+        captchaToken: 'tok'
+      })
+      expect(res.status).toBe(400)
+      expect(await res.json()).toEqual({ ok: false, error: 'invalid' })
+      expect(verify).not.toHaveBeenCalled()
+      expect((await submissions.listSubmissions()).total).toBe(0)
+    }
+  )
+
+  // And the same bodies one element SMALLER are accepted by the public route too, so the tests
+  // above are about the caps rather than about the bodies being unacceptable for another reason.
+  it('the public route accepts each of those bodies once it is back inside the cap', async () => {
+    const { app } = makeApp()
+    const inCap: Record<string, unknown>[] = [
+      {
+        ...valid,
+        ...Object.fromEntries(
+          Array.from({ length: FORM_FIELD_MAX_COUNT - 2 }, (_, i) => [
+            `f${i}`,
+            'x'
+          ])
+        )
+      },
+      { ...valid, note: 'v'.repeat(FORM_FIELD_VALUE_MAX) },
+      { ...valid, ['n'.repeat(FORM_VALUE_MAX)]: 'x' }
+    ]
+    for (const [i, fields] of inCap.entries()) {
+      const res = await post(app, '/forms/submit', {
+        formId: `contact${i}`,
+        fields,
+        captchaToken: 'tok'
+      })
+      expect(res.status, JSON.stringify(Object.keys(fields).length)).toBe(200)
+    }
+  })
+
+  // The two routes still share the SHAPE rules — only the caps differ. Without this, "uncapped"
+  // could quietly become "unvalidated" on the admin side.
+  it('the admin write still refuses an array as `fields` and coerces non-strings', async () => {
+    const { app } = makeApp()
+    expect(
+      (await post(app, '/forms/submissions', { formId: 'c', fields: ['a'] }))
+        .status
+    ).toBe(400)
+    const ok = await post(app, '/forms/submissions', {
+      formId: 'c',
+      fields: { email: 'a@b.c', n: 7 }
+    })
+    expect(ok.status).toBe(201)
+    expect(
+      ((await ok.json()) as { fields: Record<string, string> }).fields
+    ).toEqual({
+      email: 'a@b.c',
+      n: ''
+    })
+  })
+
+  // `formId` was never capped on the admin route even in the broken pass, so the divergence was
+  // specifically the shared fields schema. Pinned so a later "tidy-up" cannot cap it either.
+  it('the admin write accepts a formId longer than the public cap', async () => {
+    const { app } = makeApp()
+    const res = await post(app, '/forms/submissions', {
+      formId: 'c'.repeat(FORM_VALUE_MAX + 1),
+      fields: { email: 'a@b.c' }
+    })
+    expect(res.status).toBe(201)
+  })
+})

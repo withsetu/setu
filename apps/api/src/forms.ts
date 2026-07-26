@@ -68,7 +68,12 @@ const FORM_SUBMIT_MAX_BYTES = 1 * 1024 * 1024
  *
  * Deliberately NOT applied to the authenticated admin CRUD route below: the threat is the
  * anonymous actor, and refusing a maintainer's re-import of a long legitimate submission would be
- * a regression bought for nothing. That route keeps its own 1 MiB body cap.
+ * a regression bought for nothing. That route keeps its own 1 MiB body cap. That exemption is a
+ * fact about the code only because a test drives the SAME oversized bodies at BOTH routes and
+ * asserts opposite answers — apps/api/test/forms.test.ts, "the #935 caps bind the public route
+ * ONLY (#932 review F1)". It is named here because this sentence was briefly false: #932's first
+ * pass shared one capped `fields` schema between the routes, and with every cap test driving the
+ * public route only, nothing failed.
  */
 export const FORM_VALUE_MAX = 200
 export const FORM_FIELD_VALUE_MAX = 10_000
@@ -193,10 +198,29 @@ const optionalString = z
   .unknown()
   .transform((v): string | undefined => (typeof v === 'string' ? v : undefined))
 
-/** `fields` as the service wants it: a real record (an array is refused, #932), within the #935
- *  count/name/value caps, with non-string values coerced to `''`. */
-const fieldsSchema = z
-  .record(z.string(), z.unknown())
+/** The SHAPE both routes agree on: a real record, so an array is refused (#932). */
+const fieldsRecord = z.record(z.string(), z.unknown())
+
+/** The coercion both routes agree on: a non-string field value becomes `''` rather than an error
+ *  (a checkbox group that posts a number is a real browser form, not an attack). */
+const coerceFieldValues = (
+  f: Record<string, unknown>
+): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries(f).map(([k, v]) => [k, typeof v === 'string' ? v : ''])
+  )
+
+/**
+ * `fields` for the ANONYMOUS submit route: the shared shape and coercion, PLUS the #935 caps.
+ *
+ * Kept separate from {@link adminFieldsSchema} on purpose — see the note at the end of the #935
+ * docblock above. #932's first pass had both routes share one capped schema, which silently
+ * imposed all three caps on the authenticated admin write while the comments here and above went
+ * on saying it did not (review F1). The divergence now has a test on BOTH sides:
+ * apps/api/test/forms.test.ts, "the #935 caps bind the public route ONLY (#932 review F1)" —
+ * which fails if either route starts answering the other's way.
+ */
+const submitFieldsSchema = fieldsRecord
   .refine((f) => Object.keys(f).length <= FORM_FIELD_MAX_COUNT, {
     message: 'too_many_fields'
   })
@@ -209,11 +233,11 @@ const fieldsSchema = z
       ),
     { message: 'field_too_long' }
   )
-  .transform((f) =>
-    Object.fromEntries(
-      Object.entries(f).map(([k, v]) => [k, typeof v === 'string' ? v : ''])
-    )
-  )
+  .transform(coerceFieldValues)
+
+/** `fields` for the AUTHENTICATED admin write: shape and coercion, no caps. Same test as above
+ *  pins that this route accepts what the public one refuses. */
+const adminFieldsSchema = fieldsRecord.transform(coerceFieldValues)
 
 /** The three declared `source` members, each dropped unless it is a string. Used for the ADMIN
  *  write, where the whole object arrives in the body; the public route derives `referrer` and
@@ -236,7 +260,7 @@ const compactSource = (
 const submitBodySchema = z.object({
   formId: z.string().min(1).max(FORM_VALUE_MAX),
   formLabel: optionalCapped(FORM_VALUE_MAX),
-  fields: fieldsSchema,
+  fields: submitFieldsSchema,
   captchaToken: z.string(),
   honeypot: optionalString,
   /** Only `url` is read from the body, and only when it is a non-empty string within its cap; a
@@ -259,11 +283,14 @@ const submitBodySchema = z.object({
 
 /** The admin write body. Deliberately NOT carrying the #935 per-value caps — see the note at the
  *  end of that docblock: the threat is the anonymous actor, and refusing a maintainer's re-import
- *  of a long legitimate submission would be a regression bought for nothing. */
+ *  of a long legitimate submission would be a regression bought for nothing. `formId` is uncapped
+ *  here for the same reason, and `fields` goes through {@link adminFieldsSchema} rather than the
+ *  submit route's capped one. Both directions of that divergence are pinned by
+ *  apps/api/test/forms.test.ts ("the #935 caps bind the public route ONLY (#932 review F1)"). */
 const adminSubmissionSchema = z.object({
   formId: z.string().min(1),
   formLabel: optionalString,
-  fields: fieldsSchema,
+  fields: adminFieldsSchema,
   source: z.unknown().transform((v): SubmissionInput['source'] | undefined => {
     const parsed = sourceMembers.safeParse(v)
     return parsed.success ? compactSource(parsed.data) : undefined

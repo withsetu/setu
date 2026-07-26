@@ -57,6 +57,43 @@ describe('the resend adapter bounds its own request (#930)', () => {
     await expect(adapter.send(MSG)).resolves.toBeUndefined()
   })
 
+  // The scenario the deleted `signal.aborted` re-check claimed to handle (review F2). It never
+  // could — this passes because the deadline listener is registered BEFORE the send, so `abort()`
+  // settles the race before the SDK's resolution arrives. That ordering is the real invariant, so
+  // it gets the real test: move the `deadline` promise below the `client.emails.send(...)` call in
+  // src/index.ts and this fails with the SDK's generic message instead.
+  it('reports the timeout even when the SDK resolves with its own generic error on abort', async () => {
+    const client = {
+      emails: {
+        send: (_m: EmailMessage, o?: { signal?: AbortSignal }) =>
+          new Promise<{
+            data: unknown
+            error: { message: string; name: string } | null
+          }>((resolve) => {
+            // Exactly what resend 6.18.0's `fetchRequest` does when its fetch is aborted: it
+            // catches and RESOLVES with an opaque error object rather than rejecting.
+            o?.signal?.addEventListener('abort', () =>
+              resolve({
+                data: null,
+                error: {
+                  message:
+                    'Unable to fetch data. The request could not be resolved.',
+                  name: 'application_error'
+                }
+              })
+            )
+          })
+      }
+    }
+    const adapter = createResendEmailAdapter({
+      apiKey: 'k',
+      client,
+      requestTimeoutMs: 50
+    })
+    await expect(adapter.send(MSG)).rejects.toThrow(/timed out after 50ms/)
+    await expect(adapter.send(MSG)).rejects.not.toThrow(/Unable to fetch data/)
+  })
+
   it('reports a genuine API error as itself, not as a timeout', async () => {
     const send = vi.fn(async () => ({
       data: null,

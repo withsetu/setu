@@ -288,20 +288,22 @@ const trimNotice = (rendered: number): string =>
 /**
  * Cut a rendered part to `limit` characters without leaving a broken tail.
  *
- * Three backoffs, in order — and only the last two are guarantees:
+ * ONE of two cut positions is chosen — they are alternatives, not a chain, so on the first branch
+ * neither markup backoff runs at all:
  * - **A line boundary**, when one falls in the last quarter of the window. The `{{fields}}` block is
- *   newline-joined rows, so this usually lands between whole rows. Stated as a PREFERENCE on
- *   purpose: it makes the common trim tidier, and deleting it breaks no test, because the two
- *   backoffs below already keep the output well-formed without it (checked — the kill-shot for this
- *   line passes, which is why it is not described as something the output depends on).
- * - **A half-written tag or character reference** (html only), when the hard cut lands mid-markup.
- *   Submitter content is escaped BEFORE the cut, so a cut can never manufacture a tag out of
- *   submitted text — the risk is not injection, it is that an unterminated `<td style="…` would
- *   swallow the trim notice appended after it into an attribute and tell the operator nothing. Both
- *   halves are separately kill-shot tested by packages/core/test/email/email-registry.test.ts
- *   ("never leaves a half-written tag or character reference").
- * - **A surrogate pair**, never split, for the same reason {@link capSubject} does not split one
- *   (same file, "never cuts an astral character in half").
+ *   newline-joined rows, so this usually lands between whole rows. A tidiness PREFERENCE, not a
+ *   guarantee: deleting it fails no test. Nothing here asserts that this branch leaves well-formed
+ *   markup — the sweep named below exercises the other branch — so it is claimed only that no
+ *   broken markup was constructible through it, not that a test would catch it if one were.
+ * - **A half-written tag or character reference** (html only), otherwise. Submitter content is
+ *   escaped BEFORE the cut, so a cut can never manufacture a tag out of submitted text — the risk
+ *   is not injection, it is that an unterminated `<td style="…` would swallow the trim notice
+ *   appended after it into an attribute and tell the operator nothing. Both halves are separately
+ *   kill-shot tested by packages/core/test/email/email-registry.test.ts ("never leaves a
+ *   half-written tag or character reference").
+ *
+ * Then, on either branch, **a surrogate pair** is never split, for the same reason
+ * {@link capSubject} does not split one (same file, "never cuts an astral character in half").
  */
 const cutTo = (s: string, limit: number, isHtml: boolean): string => {
   let cut = s.slice(0, limit)

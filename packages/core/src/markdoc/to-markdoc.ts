@@ -492,15 +492,58 @@ function selfClosingTagFor(
   ).replace(/\n+$/, '')
 }
 
-function openTagFor(tag: string, mdAttrs: Record<string, unknown>): string {
-  return selfClosingTagFor(tag, mdAttrs).replace(/ \/%\}$/, ' %}')
+function openTagFor(
+  tag: string,
+  mdAttrs: Record<string, unknown>,
+  opts?: { maxTagOpeningWidth?: number }
+): string {
+  return selfClosingTagFor(tag, mdAttrs, opts).replace(/ \/%\}$/, ' %}')
+}
+
+/** #967. The ONE-LINE spelling `{% tag %}body{% /tag %}`, or null when this node cannot
+ *  be written that way.
+ *
+ *  The shape is only reachable for a body that is a single unaligned paragraph, because
+ *  that is all one line can hold — anything else (a second block, a nested list, a body
+ *  whose own serialization breaks across lines) falls back to the `\n`-wrapped form,
+ *  which is lossless and stable. The tag opening is kept on one line for the same reason
+ *  `imageBlockToMarkdoc` does it: the author had it on one line, so wrapping it at 80
+ *  columns would rewrite a file nobody edited.
+ *
+ *  This exists because the two spellings RENDER differently — Markdoc transforms
+ *  `{% button %}x{% /button %}` to `<p><Button>x</Button></p>` and the wrapped form to
+ *  `<Button><p>x</p></Button>` — so "normalise everything to one shape" would trade a
+ *  silent deletion for a silent layout change on the published page.
+ *
+ *  Enforced by `packages/core/test/single-line-tag-roundtrip.test.ts`. */
+function inlineBodyForm(
+  tag: string,
+  mdAttrs: Record<string, unknown>,
+  children: TiptapNode[]
+): string | null {
+  if (children.length > 1) return null
+  const only = children[0]
+  if (only && (only.type !== 'paragraph' || only.attrs?.['textAlign'] != null))
+    return null
+  // 'after-inline-marker' is the position that already means "this text is emitted after
+  // something else on the same line", so no leading `#`/`-`/`>` is a block marker here.
+  const body = only ? serializeBlock(only, 'after-inline-marker') : ''
+  const line = `${openTagFor(tag, mdAttrs, {
+    maxTagOpeningWidth: Number.POSITIVE_INFINITY
+  })}${body}{% /${tag} %}`
+  return line.includes('\n') ? null : line
 }
 
 /** Serialize a body-bearing tag node at the string level (see TAG_NODE_TYPES). */
 function tagBlockToMarkdoc(tag: string, node: TiptapNode): string {
   const mdAttrs =
     (node.attrs?.['mdAttrs'] as Record<string, unknown> | undefined) ?? {}
-  const body = serializeSiblings(node.content ?? []).join('\n\n')
+  const children = node.content ?? []
+  if (node.attrs?.['inlineBody'] === true) {
+    const line = inlineBodyForm(tag, mdAttrs, children)
+    if (line !== null) return line
+  }
+  const body = serializeSiblings(children).join('\n\n')
   return `${openTagFor(tag, mdAttrs)}\n${body}\n{% /${tag} %}`
 }
 

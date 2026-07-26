@@ -5,6 +5,7 @@ import type { TiptapDoc } from '@setu/core'
 import { markdocToTiptap, tiptapToMarkdoc } from '@setu/core'
 import { Callout } from '../src/editor/extensions/Callout'
 import { Passthrough } from '../src/editor/extensions/Passthrough'
+import { createSetuBlock } from '../src/editor/extensions/SetuBlock'
 
 const SOURCE =
   '# Title\n\n' +
@@ -64,6 +65,53 @@ describe('editor schema round-trips through the Markdoc converter', () => {
       content: markdocToTiptap(SRC, { knownBlockTags: new Set(['callout']) })
     })
     expect(tiptapToMarkdoc(editor.getJSON() as TiptapDoc)).toBe(SRC)
+    editor.destroy()
+  })
+})
+
+/**
+ * #967 — the SCHEMA half of the single-line-tag fix. `markdocToTiptap` marks a tag whose
+ * body was written on one line with `inlineBody`, and the writer gives that spelling back
+ * verbatim; ProseMirror silently drops any attribute a node spec does not declare, so
+ * without the declarations in Callout.tsx / SetuBlock.tsx the flag would survive the
+ * converter and die on the first pass through the real editor — the file would be
+ * rewritten by an autosave nobody asked for. The converter-level round trip is covered by
+ * packages/core/test/single-line-tag-roundtrip.test.ts; this drives the actual Editor.
+ */
+describe('the single-line tag shape survives a real ProseMirror round trip (#967)', () => {
+  const extensions = [
+    StarterKit,
+    Callout,
+    Passthrough,
+    createSetuBlock([{ tag: 'button', props: {}, component: 'x' }] as never)
+  ]
+  const known = new Set(['callout', 'button'])
+
+  for (const SRC of [
+    '{% button href="/signup" variant="primary" %}Get started{% /button %}\n',
+    '{% callout type="warning" %}Heads up.{% /callout %}\n'
+  ]) {
+    it(`getJSON keeps the one-line spelling of ${SRC.split(' ')[0]}`, () => {
+      const editor = new Editor({
+        extensions,
+        content: markdocToTiptap(SRC, { knownBlockTags: known })
+      })
+      const json = editor.getJSON() as TiptapDoc
+      expect(json.content[0]?.attrs?.inlineBody).toBe(true)
+      expect(tiptapToMarkdoc(json)).toBe(SRC)
+      editor.destroy()
+    })
+  }
+
+  it('a block created in the editor still writes the multi-line form', () => {
+    const SRC = '{% callout type="warning" %}\nHeads up.\n{% /callout %}\n'
+    const editor = new Editor({
+      extensions,
+      content: markdocToTiptap(SRC, { knownBlockTags: known })
+    })
+    const json = editor.getJSON() as TiptapDoc
+    expect(json.content[0]?.attrs?.inlineBody).toBe(false)
+    expect(tiptapToMarkdoc(json)).toBe(SRC)
     editor.destroy()
   })
 })

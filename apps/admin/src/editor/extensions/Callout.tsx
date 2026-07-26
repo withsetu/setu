@@ -181,6 +181,15 @@ export const Callout = Node.create({
         default: {},
         renderHTML: () => ({}),
         parseHTML: () => ({})
+      },
+      // #967: `{% callout %}body{% /callout %}` on one line. Declared for the same reason
+      // as SetuBlock's copy — see the comment there. Round-trip covered by
+      // packages/core/test/single-line-tag-roundtrip.test.ts, the schema declaration by
+      // apps/admin/test/editor-schema.test.tsx.
+      inlineBody: {
+        default: false,
+        renderHTML: () => ({}),
+        parseHTML: () => false
       }
     }
   },

@@ -128,10 +128,16 @@ export default defineConfig({
     // blanket raise — the jsdom project next door deliberately keeps the 5s default.
     testTimeout: 30_000,
     hookTimeout: 60_000,
-    // No setupFiles here on purpose: apps/admin/test/setup.ts polyfills jsdom gaps
+    // ONE setup file, and not apps/admin/test/setup.ts: that file polyfills jsdom gaps
     // (document.elementFromPoint, Range.getClientRects, matchMedia) that a real browser
     // already implements correctly — porting it in would silently shadow real behavior
-    // instead of exercising it.
+    // instead of exercising it. The file below touches no browser API at all; it only wraps
+    // `userEvent.keyboard` in the #954 retry shim, because @vitest/browser 3.2.7 resolves the
+    // tester iframe by NAME on the node side and can hand the keyboard command a frame
+    // chromium has already detached (`frame.evaluate: Frame was detached`, blamed on whichever
+    // keyboard spec was running — the shared cause behind #718). Full mechanism, and why a
+    // retry cannot double-apply keys, in ./test-browser/harness/detached-tester-frame.ts.
+    setupFiles: ['./test-browser/harness/setup.ts'],
     browser: {
       enabled: true,
       provider: 'playwright',

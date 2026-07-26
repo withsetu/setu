@@ -6,9 +6,17 @@ import {
   DEFAULT_ROLES,
   parseContentPath,
   parseMdoc,
-  unicodeCaseFold
+  unicodeCaseFold,
+  validateEntryMetadata
 } from '@setu/core'
-import type { Action, GitPort, CommitInput, CommitFilesInput } from '@setu/core'
+import { FALLBACK_CONFIG } from './setu-config'
+import type {
+  Action,
+  GitPort,
+  CommitInput,
+  CommitFilesInput,
+  ResolvedConfig
+} from '@setu/core'
 import { authMiddleware } from './auth/middleware'
 import { apiOnError } from './errors'
 import type { ResolveActor, ResolvedActor } from './auth/resolve-actor'
@@ -424,6 +432,59 @@ function requireWrite(
   )
 }
 
+/**
+ * Field gate for the write routes (#253 increment B): rejects a commit that would write an
+ * entry whose frontmatter violates its collection's declared field schema.
+ *
+ * Runs AFTER `requireWrite`, deliberately — an actor who may not write at all must not be able
+ * to probe the field schema through a 422 ('403s the wrong actor before validating, not 422' in
+ * apps/api/test/git-collection-validation.test.ts).
+ *
+ * Scope is frontmatter FIELDS only. The Markdoc body is never inspected: rejecting malformed
+ * body markup at save is a settled non-goal.
+ *
+ * All-or-nothing: one invalid entry rejects the whole commit, matching `commitFiles`' own
+ * atomicity — a partial write would leave the repo in a state the client never asked for.
+ */
+function requireValidEntries(
+  getConfig: () => ResolvedConfig,
+  changesOf: (body: unknown) => WriteChange[]
+) {
+  return createMiddleware(async (c, next) => {
+    let changes: WriteChange[]
+    try {
+      changes = changesOf(await c.req.json())
+    } catch {
+      return c.json({ error: 'invalid request body' }, 400)
+    }
+    const config = getConfig()
+    const issues: { path: string; field: string; message: string }[] = []
+    for (const ch of changes) {
+      if (ch.content === undefined) continue // a deletion has no fields to check
+      const ref = parseContentPath(ch.path)
+      if (ref === null) continue // settings.json, media, anything not an entry
+      // An UNDECLARED collection passes through unvalidated, rather than failing closed.
+      // A repo may hold content under a name the config never mentions (`content/blog/…`);
+      // rejecting those writes would lock an existing site out of its own content on upgrade
+      // for no safety gain — permission for the path is already settled by `requireWrite`
+      // above, and this gate only claims "these fields match a schema you declared". No
+      // schema, no claim. (apps/api/test/git-collection-validation.test.ts asserts both the
+      // pass-through and that the authz gate still applies to it.)
+      if (!config.collectionsByName.has(ref.collection)) continue
+      // parseMdoc never throws; a body-only or malformed-YAML file yields `{}`, which is
+      // validated like any other metadata (see the body-only cases in the test above).
+      const frontmatter = parseMdoc(ch.content).frontmatter
+      const result = validateEntryMetadata(config, ref.collection, frontmatter)
+      if (!result.ok)
+        for (const e of result.errors)
+          issues.push({ path: ch.path, field: e.path, message: e.message })
+    }
+    if (issues.length > 0)
+      return c.json({ error: 'invalid entry fields', issues }, 422)
+    await next()
+  })
+}
+
 /** Capability gate for the git READ routes (#621): 403 when the already-authenticated actor lacks
  *  `action`. Same shape as index-api.ts / forms.ts — `authMiddleware` first (401 for no actor),
  *  this second (403 for the wrong actor). */
@@ -480,9 +541,20 @@ function requireCan(action: Action) {
  *  be clobbered onto the response after server.ts's allowlist runs, silently
  *  reopening every route to `*` origins. Tests exercise this app standalone
  *  (same-origin `.fetch()`), so no CORS headers are needed for those to pass. */
-export function createGitApi(git: GitPort, resolveActor: ResolveActor) {
+export function createGitApi(
+  git: GitPort,
+  resolveActor: ResolveActor,
+  opts: {
+    /** The site's resolved `setu.config`, for the #253 field gate. Read per request (not
+     *  captured) so a caller that reloads config on change needs no new app instance.
+     *  Omitted → the built-in `post`/`page` collections, whose fields are all optional, so
+     *  the gate is a no-op for a deployment that declares nothing. */
+    getConfig?: () => ResolvedConfig
+  } = {}
+) {
   const app = new Hono<{ Variables: { actor: ResolvedActor } }>()
   const auth = authMiddleware(resolveActor)
+  const getConfig = opts.getConfig ?? (() => FALLBACK_CONFIG)
   // #621: every read that returns repo CONTENT is gated on `content.view` (held by all four
   // roles, so no role loses access — this only closes the unauthenticated hole).
   const canRead = requireCan('content.view')
@@ -509,14 +581,17 @@ export function createGitApi(git: GitPort, resolveActor: ResolveActor) {
     onError: (c) => c.json({ error: 'payload too large' }, 413)
   })
 
+  const singleChange = (b: unknown): WriteChange[] => {
+    const { path, content } = b as CommitInput
+    return typeof path === 'string' ? [{ path, content }] : []
+  }
+
   app.post(
     '/git/commit',
     writeBodyLimit,
     auth,
-    requireWrite(git, (b) => {
-      const { path, content } = b as CommitInput
-      return typeof path === 'string' ? [{ path, content }] : []
-    }),
+    requireWrite(git, singleChange),
+    requireValidEntries(getConfig, singleChange),
     async (c) => {
       const body = await c.req.json<CommitInput>()
       // Server-authoritative identity: the session's git author (when known) is stamped over
@@ -528,23 +603,26 @@ export function createGitApi(git: GitPort, resolveActor: ResolveActor) {
     }
   )
 
+  const multiChanges = (b: unknown): WriteChange[] => {
+    const changes = (b as CommitFilesInput).changes
+    if (!Array.isArray(changes)) return []
+    return changes
+      .filter(
+        (ch): ch is CommitFilesInput['changes'][number] =>
+          typeof ch?.path === 'string'
+      )
+      .map((ch) => ({
+        path: ch.path,
+        content: 'content' in ch ? ch.content : undefined
+      }))
+  }
+
   app.post(
     '/git/commit-files',
     writeBodyLimit,
     auth,
-    requireWrite(git, (b) => {
-      const changes = (b as CommitFilesInput).changes
-      if (!Array.isArray(changes)) return []
-      return changes
-        .filter(
-          (ch): ch is CommitFilesInput['changes'][number] =>
-            typeof ch?.path === 'string'
-        )
-        .map((ch) => ({
-          path: ch.path,
-          content: 'content' in ch ? ch.content : undefined
-        }))
-    }),
+    requireWrite(git, multiChanges),
+    requireValidEntries(getConfig, multiChanges),
     async (c) => {
       const body = await c.req.json<CommitFilesInput>()
       // Server-authoritative identity — see the /git/commit route above (#382).

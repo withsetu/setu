@@ -279,15 +279,23 @@ describe('patchSettingsGroup (#956)', () => {
         `{"title":"Old","futureField":${'{"k":'.repeat(levels)}1${'}'.repeat(levels)}}`
       ) as Record<string, unknown>
 
-    // The depth is chosen deliberately (#978 delta review F1). 5,000 is inside the band the bound
-    // actually rescues: above the ~3,000–5,000 where the unbounded walk died, and below the
-    // ~6,000–6,500 where `JSON.stringify` — which every screen calls on the RESULT, two lines
-    // after the patch — starts throwing on its own. An earlier version pinned 50,000, which is
-    // past that ceiling, so it could only ever have shown that this function returns; the save it
-    // was cited as protecting would still have failed. Hence the serialization assertion below:
-    // without it this test cannot enforce the end-to-end claim its docblock makes.
-    it('a passthrough field deeper than the budget survives the patch AND the serialization the caller does next', () => {
-      const raw = { general: deepRaw(5_000) }
+    // This test asserts ONLY what `MAX_PATCH_DEPTH` actually guarantees, which is the part that is
+    // machine-independent: this function recurses to at most 64 frames no matter how deep the
+    // input is, so it cannot overflow, and it returns the right answer.
+    //
+    // An earlier version also asserted that the caller's `JSON.stringify` succeeds at the tested
+    // depth. That was wrong to pin and it went red on CI: available stack depth is a property of
+    // the machine and of what is already on the stack, not of this code. Locally the serialization
+    // ceiling measured ~6,000 on Node 22.18.0; on the GitHub runner it is lower. There is no depth
+    // that is portably "inside the band", because the band itself moves — so the serialization
+    // ceiling is documented on MAX_PATCH_DEPTH and deliberately asserted nowhere.
+    //
+    // 50,000 is chosen because the CI run that failed on the serialization line proved, on the
+    // actual runner, that `parseSettings` and `patchSettingsGroup` both handle that depth — it got
+    // past them and died only on `JSON.stringify`. It is also far above any stack on which the
+    // UNBOUNDED walk could survive, which is what makes the kill-shot reliable everywhere.
+    it('does not overflow on an arbitrarily deep passthrough value, and preserves it by identity', () => {
+      const raw = { general: deepRaw(50_000) }
       // The salvage layer passes the unknown key through by reference — the premise of the case.
       const published = loaded(raw, 'general')
       expect(
@@ -298,14 +306,10 @@ describe('patchSettingsGroup (#956)', () => {
         title: 'New'
       })
       expect(out.title).toBe('New')
-      // Survives because `sameValue` short-circuits on `a === b` (the screens spread shallowly, so
+      // Preserved because `sameValue` short-circuits on `a === b` (the screens spread shallowly, so
       // this subtree is one shared reference) and the key is therefore never written — the value
       // reaches `out` through the `{ ...raw }` spread, NOT through a write from `next`.
       expect(out.futureField).toBe(raw.general.futureField)
-      // What every screen does next. This is the half that makes the save actually work.
-      expect(() =>
-        JSON.stringify({ ...raw, general: out }, null, 2)
-      ).not.toThrow()
     })
 
     it('still diffs per field within the budget', () => {

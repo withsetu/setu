@@ -77,36 +77,37 @@ const isPlainObject = (v: unknown): v is Rec =>
  * schema.ts) without recursing into it, so `published.<group>.futureField` is the arriving file's
  * own object at the file's own depth, and every screen carries it into `next`. This patcher is the
  * first thing in the load→save path that actually walks that depth. `JSON.parse` is iterative and
- * happily accepts 100,000 levels; unbounded, these two functions overflow the stack somewhere
- * around 3,000-5,000 (it varies with what else is on the stack).
+ * happily accepts 100,000 levels; unbounded, these two functions overflowed the stack.
  *
- * 64 is ~21x the deepest nesting any settings group defines (`email.templates.<id>.<field>` is 3)
- * and far below the overflow.
+ * 64 is ~21x the deepest nesting any settings group defines (`email.templates.<id>.<field>` is 3).
  *
- * **What the bound buys, precisely** — it was overstated here before (#978 delta review F1). It
- * stops THIS function overflowing. It does not make an arbitrarily deep file saveable, because
- * every screen calls `JSON.stringify(next, null, 2)` two lines after the patch and that is
- * recursive too: measured on Node 22.18.0 with the real save shape, depth 6,000 serializes (into a
- * 72 MB commit) while 6,500 and above throw `RangeError`. The unbounded walk died at ~3,000–5,000,
- * so the band this actually rescues is roughly 3,000–6,000 — call it 1.5x, not the orders of
- * magnitude the raw overflow figures suggest. Past ~6,000 the save still fails; it fails in the
- * caller's `JSON.stringify`, inside the same `try`, and surfaces as the existing connection-error
- * toast exactly as it did before. Those ceilings are a stack-size property of the runtime, so they
- * are recorded here as a dated measurement, NOT as an invariant this suite pins.
+ * **What the bound guarantees** — that these two functions recurse at most 64 frames whatever the
+ * input depth, so they cannot overflow and always return. That is a property of this code, it holds
+ * on any machine, and it is pinned by apps/admin/test/settings-group-patch.test.ts
+ * ("does not overflow on an arbitrarily deep passthrough value, and preserves it by identity").
  *
- * **What happens past the budget, precisely** — also previously misstated. The write-whole path
+ * **What it does NOT guarantee** — that an arbitrarily deep file can be SAVED. Every screen calls
+ * `JSON.stringify(next, null, 2)` two lines after the patch, and that is recursive too, so past
+ * some depth the save still fails — in the caller's serializer, inside the same `try`, surfacing
+ * through the existing catch as the connection-error toast, exactly as it did before this bound
+ * existed.
+ *
+ * **Where that ceiling sits is a property of the machine, not of this code**, which is the useful
+ * thing to know: available stack depth varies with the runtime, the platform and whatever is
+ * already on the stack when the save runs. Measured once at ~6,000 on Node 22.18.0 locally, and
+ * observed materially LOWER on GitHub's CI runner — a test that pinned a "safe" depth of 5,000
+ * passed locally and went red there. So no number here is load-bearing and none is asserted
+ * anywhere; do not add a test for it, and do not tune one until it passes.
+ *
+ * **What happens past the budget, precisely** — previously misstated here. The write-whole path
  * (`sameValue` answers `false`, the key is written from `next`) is not what runs for the case that
  * motivated the bound: the screens spread shallowly (`{ ...published, title: 'New' }`), so an
  * untouched passthrough subtree in `next` is the SAME REFERENCE as in `published`, and `sameValue`
  * returns `true` on its leading `a === b` before the depth check is ever consulted. Nothing is
- * written and the stored value survives through the `{ ...raw }` spread. The write-whole branch is
- * reachable only from a caller that supplies a structurally-equal-but-distinct deep object; it is
- * still the right answer there (write what the admin has), it is simply not the screens' path.
- *
- * The end-to-end claim — patch AND serialize, at a depth inside the rescued band — is pinned by
- * apps/admin/test/settings-group-patch.test.ts
- * ("a passthrough field deeper than the budget survives the patch AND the serialization the caller
- * does next").
+ * written and the stored value survives through the `{ ...raw }` spread — which is what the test
+ * named above asserts by identity. The write-whole branch is reachable only from a caller that
+ * supplies a structurally-equal-but-distinct deep object; it is still the right answer there
+ * (write what the admin has), it is simply not the screens' path.
  */
 const MAX_PATCH_DEPTH = 64
 

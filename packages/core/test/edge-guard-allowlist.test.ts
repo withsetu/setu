@@ -53,18 +53,25 @@ function readEdgeTsconfig(): { include: string[]; exclude: string[] } {
   return { include: raw.include ?? [], exclude: raw.exclude ?? [] }
 }
 
-/** Every directory AND every top-level `.ts` file directly under `src/`.
+/** Every directory AND every top-level `.ts`/`.tsx` file directly under `src/`.
  *
  *  Files matter as much as directories: `src/version.ts` is imported by
  *  `src/seo/resolve-seo.ts`, so it is edge-reachable, yet a directory-only scan could never
  *  fire on it — which is how #892's ratchet left all three top-level modules unguarded by
- *  BOTH halves (tsc and the eslint Node-builtin ban) until #913. */
+ *  BOTH halves (tsc and the eslint Node-builtin ban) until #913.
+ *
+ *  The extension test is `/\.tsx?$/` because that is what `eslint.config.mjs` uses to tell an
+ *  `include` FILE entry from a DIR entry — the two halves have to agree on what a source file is.
+ *  While this said `.endsWith('.ts')`, a top-level `src/*.tsx` escaped BOTH halves at once: absent
+ *  from `include`, so eslint never applied the Node-builtin ban, and invisible to this scan, so
+ *  nothing failed (measured with a probe file, #945). A `.tsx` nested inside a listed dir was
+ *  always covered — eslint globs those as `**\/*.{ts,tsx}` — so only the top level was open. */
 function srcEntries(): string[] {
   return readdirSync(srcDir, { withFileTypes: true })
     .filter(
       (e) =>
         e.isDirectory() ||
-        (e.isFile() && e.name.endsWith('.ts') && !e.name.endsWith('.d.ts'))
+        (e.isFile() && /\.tsx?$/.test(e.name) && !e.name.endsWith('.d.ts'))
     )
     .map((e) => `src/${e.name}`)
     .sort()

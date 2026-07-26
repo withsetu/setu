@@ -53,7 +53,11 @@ describe('PermalinksSettings', () => {
       const raw = await git.readFile('settings.json')
       expect(raw).not.toBeNull()
       const permalinks = JSON.parse(raw as string).permalinks
-      expect(permalinks.patterns).toEqual({})
+      // #956: `patterns` is no longer written when the admin did not touch it, so "absent from the
+      // saved patterns map" is now literally absent rather than an empty object. Either spelling
+      // means the same thing to `resolvePermalinkConfig` — no stored entry, inherit the default —
+      // which is why the assertion accepts both rather than pinning the incidental one.
+      expect(permalinks.patterns ?? {}).toEqual({})
       expect(permalinks.uncategorized).toBe('misc')
     })
   })
@@ -118,6 +122,74 @@ describe('PermalinksSettings', () => {
       const raw = await git.readFile('settings.json')
       const permalinks = JSON.parse(raw as string).permalinks
       expect(permalinks.patterns.post).toBe('articles/:slug')
+    })
+  })
+
+  // #956, the worst case in the set: `salvagePatterns` DROPS a per-collection pattern that fails
+  // validation, and the screen used to write that salvaged reading back as the whole group — so an
+  // unrelated edit erased the stored pattern from Git under a "Settings saved" toast, and a
+  // permalink pattern owns every published URL for its collection.
+  it('leaves a stored pattern that failed validation byte-identical through an unrelated save', async () => {
+    const stored = {
+      permalinks: {
+        // `post` fails validation (absolute) and is dropped at parse; `page` is a valid
+        // non-default pattern, so it is the one the screen renders a Custom… input for.
+        patterns: { post: '/absolute/:slug', page: 'pages/:slug' },
+        uncategorized: 'category'
+      }
+    }
+    const { git } = renderPermalinks([
+      { path: 'settings.json', content: JSON.stringify(stored, null, 2) + '\n' }
+    ])
+    await screen.findByText(/category base/i)
+    // (a) a different field entirely
+    fireEvent.change(screen.getByLabelText('Category base'), {
+      target: { value: 'misc' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: /save/i }))
+    await waitFor(async () => {
+      const permalinks = JSON.parse(
+        (await git.readFile('settings.json')) as string
+      ).permalinks
+      expect(permalinks.uncategorized).toBe('misc')
+      expect(permalinks.patterns.post).toBe('/absolute/:slug')
+    })
+    // (b) a DIFFERENT COLLECTION's pattern — the per-entry half of the rule
+    const custom = await screen.findByLabelText('Custom pattern')
+    fireEvent.change(custom, { target: { value: 'docs/:slug' } })
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /save/i })).toBeEnabled()
+    )
+    fireEvent.click(screen.getByRole('button', { name: /save/i }))
+    await waitFor(async () => {
+      const permalinks = JSON.parse(
+        (await git.readFile('settings.json')) as string
+      ).permalinks
+      expect(permalinks.patterns.page).toBe('docs/:slug')
+      expect(permalinks.patterns.post).toBe('/absolute/:slug')
+    })
+  })
+
+  // The same whole-group write listed the two known fields explicitly, so an unknown field a newer
+  // build had stored inside the permalinks group was dropped too — and under the #956 patch a key
+  // missing from the screen's own object reads as a deliberate DELETE, which is why the save now
+  // spreads `values` instead of listing the fields.
+  it('an unknown field inside the permalinks group survives a pattern edit', async () => {
+    const stored = {
+      permalinks: { patterns: { post: 'blog/:slug' }, futureField: { x: 1 } }
+    }
+    const { git } = renderPermalinks([
+      { path: 'settings.json', content: JSON.stringify(stored, null, 2) + '\n' }
+    ])
+    const patternInput = await screen.findByLabelText('Custom pattern')
+    fireEvent.change(patternInput, { target: { value: 'articles/:slug' } })
+    fireEvent.click(screen.getByRole('button', { name: /save/i }))
+    await waitFor(async () => {
+      const permalinks = JSON.parse(
+        (await git.readFile('settings.json')) as string
+      ).permalinks
+      expect(permalinks.patterns.post).toBe('articles/:slug')
+      expect(permalinks.futureField).toEqual({ x: 1 })
     })
   })
 

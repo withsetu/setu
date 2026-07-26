@@ -16,6 +16,7 @@ import {
   SettingsLoadError,
   SETTINGS_LOAD_FAILED_MESSAGE
 } from './SettingsLoadError'
+import { patchSettingsGroup } from './settings-group-patch'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -249,7 +250,8 @@ export function PermalinksSettings() {
   const dirty = published !== null && !sameValues(values, published)
 
   const save = async () => {
-    if (saving || !dirty || hasInvalid || raw === null) return
+    if (saving || !dirty || hasInvalid || raw === null || published === null)
+      return
     setSaving(true)
     try {
       // Drop any entry equal to the default scheme (untouched "Plain") — absence means
@@ -259,11 +261,29 @@ export function PermalinksSettings() {
         if (pattern !== DEFAULT_PERMALINK_PATTERN)
           patterns[collection] = pattern
       }
+      // Spread `values` rather than listing the two known fields: parseSettings passes an unknown
+      // future field inside the permalinks group through, `values` carries it at runtime, and the
+      // patch below reads a key MISSING from `cleaned` as a deliberate delete — so listing the
+      // fields would delete that field from Git. Pinned by
+      // apps/admin/test/permalinks-settings.test.tsx ("an unknown field inside the permalinks
+      // group survives a pattern edit").
       const cleaned: PermalinksValues = {
+        ...values,
         patterns,
         uncategorized: values.uncategorized.trim()
       }
-      const next = { ...raw, permalinks: cleaned } // preserve unknown groups
+      // #956: PATCH the stored group with what changed — never write the loaded group back whole.
+      // `cleaned` derives from the SALVAGED reading, in which `salvagePatterns` has already DROPPED
+      // every per-collection pattern that failed validation, so writing it back erased those
+      // patterns from Git — and a permalink pattern owns every published URL for its collection.
+      // The patch is per-ENTRY over the map, so editing one collection leaves a rejected sibling
+      // byte-identical while a reset-to-Plain still deletes. See settings-group-patch.ts;
+      // apps/admin/test/settings-group-patch.test.ts pins the shape and
+      // apps/admin/test/permalinks-settings.test.tsx pins this screen's case.
+      const next = {
+        ...raw, // preserve unknown groups
+        permalinks: patchSettingsGroup(raw.permalinks, published, cleaned)
+      }
       await git.commitFile({
         path: SETTINGS_PATH,
         content: JSON.stringify(next, null, 2) + '\n',

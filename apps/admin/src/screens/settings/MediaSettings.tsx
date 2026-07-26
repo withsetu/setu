@@ -10,6 +10,7 @@ import {
   SettingsLoadError,
   SETTINGS_LOAD_FAILED_MESSAGE
 } from './SettingsLoadError'
+import { patchSettingsGroup } from './settings-group-patch'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -186,10 +187,18 @@ export function MediaSettings() {
     setValues((v) => ({ ...v, ...patch }))
 
   const save = async () => {
-    if (saving || !dirty || raw === null) return
+    if (saving || !dirty || raw === null || published === null) return
     setSaving(true)
     try {
-      const next = { ...raw, media: values }
+      // #956: PATCH the stored group with what changed — never write the loaded group back whole.
+      // `values` is the SALVAGED reading, so writing it back erased a stored `imageFormat` the
+      // salvage layer had rejected the next time an admin toggled LQIP. See
+      // settings-group-patch.ts; apps/admin/test/settings-group-patch.test.ts pins the shape and
+      // apps/admin/test/settings-media.test.tsx pins this screen's case.
+      const next = {
+        ...raw, // preserve unknown groups
+        media: patchSettingsGroup(raw.media, published, values)
+      }
       await git.commitFile({
         path: SETTINGS_PATH,
         content: JSON.stringify(next, null, 2) + '\n',

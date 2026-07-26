@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { createMemoryDataPort } from '@setu/db-memory'
-import { createMemoryGitPort } from '@setu/git-memory'
+import { createMemoryGitPort, type GitSeedFile } from '@setu/git-memory'
 import { ActorProvider } from '../src/auth/actor'
 import { ServicesProvider, servicesFor } from '../src/data/store'
 import { NotificationProvider } from '../src/ui/notify'
@@ -42,8 +42,8 @@ const CAPABLE = {
   backgroundJobs: true
 }
 
-function renderMedia() {
-  const git = createMemoryGitPort([])
+function renderMedia(seed: GitSeedFile[] = []) {
+  const git = createMemoryGitPort(seed)
   const services = servicesFor(createMemoryDataPort([]), git)
   const wrapper = (children: ReactNode) => (
     <NotificationProvider>
@@ -85,6 +85,28 @@ describe('MediaSettings', () => {
       const raw = await git.readFile('settings.json')
       expect(raw).not.toBeNull()
       expect(JSON.parse(raw as string).media.imageLqip).toBe(true)
+    })
+  })
+
+  // #956: `imageFormat: "nope"` is reset to the default at parse, and the screen used to write
+  // that salvaged reading back as the whole group — so toggling LQIP erased the stored value from
+  // Git, under a "Settings saved" toast. settings.json is Git-canonical: this arrives by
+  // `git push`.
+  it('an LQIP toggle leaves a stored imageFormat the salvage layer rejected byte-identical', async () => {
+    const stored = { media: { imageFormat: 'nope', imageLqip: false } }
+    const { git } = renderMedia([
+      { path: 'settings.json', content: JSON.stringify(stored, null, 2) + '\n' }
+    ])
+    const toggle = await screen.findByRole('switch', {
+      name: /blur.up placeholders/i
+    })
+    fireEvent.click(toggle)
+    fireEvent.click(screen.getByRole('button', { name: /save/i }))
+    await waitFor(async () => {
+      const raw = await git.readFile('settings.json')
+      const media = JSON.parse(raw as string).media
+      expect(media.imageLqip).toBe(true)
+      expect(media.imageFormat).toBe('nope')
     })
   })
 

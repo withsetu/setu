@@ -15,8 +15,8 @@
  * what was published. That is what makes "unrelated" mean unrelated — a naive merge of the salvaged
  * group over `raw.<group>` is NOT enough, because each screen owns all the known fields of its
  * group, so the salvaged values win every spread (measured on #937: 11 test failures; re-measured
- * for #956, where the naive merge fails the same 22 tests at the same 22 line numbers as no fix at
- * all — an identical failure SET, not merely an identical count).
+ * for #956, where the naive merge fails the same 36 tests as no fix at all — an identical failure
+ * SET, not merely an identical count, across the nine settings test files).
  *
  * ## Shape coverage — all six groups, including `email`
  *
@@ -77,16 +77,36 @@ const isPlainObject = (v: unknown): v is Rec =>
  * schema.ts) without recursing into it, so `published.<group>.futureField` is the arriving file's
  * own object at the file's own depth, and every screen carries it into `next`. This patcher is the
  * first thing in the load→save path that actually walks that depth. `JSON.parse` is iterative and
- * happily accepts 100,000 levels; unbounded, these two functions overflow the stack at ~4,000.
+ * happily accepts 100,000 levels; unbounded, these two functions overflow the stack somewhere
+ * around 3,000-5,000 (it varies with what else is on the stack).
  *
- * 64 is ~30x the deepest nesting any settings group defines (`reading.feed.enabled` is 2) and two
- * orders of magnitude below the overflow. Past the budget the pair is treated as an opaque value:
- * `sameValue` answers `false` and the key is written WHOLE from `next`. That is lossless in the
- * realistic case — an untouched passthrough subtree in `next` is the same object `raw` holds, so
- * writing it back is byte-identical — and it degrades to "write what the admin has" rather than to
- * a thrown `RangeError` in the middle of a save. Pinned by
- * apps/admin/test/settings-group-patch.test.ts ("survives a passthrough field nested far deeper
- * than any group defines").
+ * 64 is ~21x the deepest nesting any settings group defines (`email.templates.<id>.<field>` is 3)
+ * and far below the overflow.
+ *
+ * **What the bound buys, precisely** — it was overstated here before (#978 delta review F1). It
+ * stops THIS function overflowing. It does not make an arbitrarily deep file saveable, because
+ * every screen calls `JSON.stringify(next, null, 2)` two lines after the patch and that is
+ * recursive too: measured on Node 22.18.0 with the real save shape, depth 6,000 serializes (into a
+ * 72 MB commit) while 6,500 and above throw `RangeError`. The unbounded walk died at ~3,000–5,000,
+ * so the band this actually rescues is roughly 3,000–6,000 — call it 1.5x, not the orders of
+ * magnitude the raw overflow figures suggest. Past ~6,000 the save still fails; it fails in the
+ * caller's `JSON.stringify`, inside the same `try`, and surfaces as the existing connection-error
+ * toast exactly as it did before. Those ceilings are a stack-size property of the runtime, so they
+ * are recorded here as a dated measurement, NOT as an invariant this suite pins.
+ *
+ * **What happens past the budget, precisely** — also previously misstated. The write-whole path
+ * (`sameValue` answers `false`, the key is written from `next`) is not what runs for the case that
+ * motivated the bound: the screens spread shallowly (`{ ...published, title: 'New' }`), so an
+ * untouched passthrough subtree in `next` is the SAME REFERENCE as in `published`, and `sameValue`
+ * returns `true` on its leading `a === b` before the depth check is ever consulted. Nothing is
+ * written and the stored value survives through the `{ ...raw }` spread. The write-whole branch is
+ * reachable only from a caller that supplies a structurally-equal-but-distinct deep object; it is
+ * still the right answer there (write what the admin has), it is simply not the screens' path.
+ *
+ * The end-to-end claim — patch AND serialize, at a depth inside the rescued band — is pinned by
+ * apps/admin/test/settings-group-patch.test.ts
+ * ("a passthrough field deeper than the budget survives the patch AND the serialization the caller
+ * does next").
  */
 const MAX_PATCH_DEPTH = 64
 

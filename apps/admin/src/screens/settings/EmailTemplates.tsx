@@ -123,10 +123,17 @@ export function validateEmailTemplates(
  * matches, and the inner one is a valid token. Reporting the stray outer braces would mean
  * tracking brace nesting, which the renderer itself does not do; the rendered output shows the
  * leftovers, which is the same signal #924 relies on elsewhere. Stated because it is the boundary
- * a reader would otherwise assume away. Pinned by apps/admin/test/email-templates.test.tsx
- * ("warns about a hyphenated near-miss token…", "warns about empty braces and about a multi-word
- * span", "does not call a grammatically valid unknown token a near miss", "reports nothing for a
- * span that contains another span").
+ * a reader would otherwise assume away.
+ *
+ * Pinned by apps/admin/test/email-templates.test.tsx — and the load-bearing one for THIS gap is
+ * "brackets the nesting gap exactly (helper level)", which asserts the exact reported strings.
+ * Widening the candidate pattern to `[^}]*` fails that test and ONLY that test (1 of 35): the
+ * sibling "reports nothing for a span that contains another span" stays green, because the wider
+ * span still contains a valid token and so is still not a near miss. A UI-level "no alert
+ * appeared" assertion cannot police this boundary; naming it here is what keeps the citation
+ * honest. The rest of the behavior is pinned by "warns about a hyphenated near-miss token…",
+ * "warns about empty braces and about a multi-word span" and "does not call a grammatically valid
+ * unknown token a near miss".
  *
  * The RENDER behavior — near-miss braces are left literal, because visible beats silent — is
  * decided and recorded where the grammar is defined, beside `TOKEN_RE` in

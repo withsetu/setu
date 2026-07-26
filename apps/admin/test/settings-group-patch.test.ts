@@ -269,8 +269,8 @@ describe('patchSettingsGroup (#956)', () => {
   // `patchRecord` used to deny: `salvageGroup` passes an unknown key through UNTOUCHED without
   // recursing into it, so `published.<group>.futureField` is the arriving file's own object at the
   // file's own depth, and every screen carries it into `next`. This patcher is the first thing in
-  // the load→save path that walks it. Unbounded it overflowed the stack at ~4,000 levels while
-  // `JSON.parse` — which is iterative — accepts 100,000 without complaint.
+  // the load→save path that walks it. Unbounded it overflowed the stack at ~3,000–5,000 levels
+  // while `JSON.parse` — which is iterative — accepts 100,000 without complaint.
   describe('recursion depth (#978 F1)', () => {
     /** `{futureField: {k:{k:…{leaf:1}}}}`, built as a STRING and parsed, because building it with a
      *  recursive serializer would hit the very limit under test. */
@@ -279,8 +279,15 @@ describe('patchSettingsGroup (#956)', () => {
         `{"title":"Old","futureField":${'{"k":'.repeat(levels)}1${'}'.repeat(levels)}}`
       ) as Record<string, unknown>
 
-    it('survives a passthrough field nested far deeper than any group defines', () => {
-      const raw = { general: deepRaw(50_000) }
+    // The depth is chosen deliberately (#978 delta review F1). 5,000 is inside the band the bound
+    // actually rescues: above the ~3,000–5,000 where the unbounded walk died, and below the
+    // ~6,000–6,500 where `JSON.stringify` — which every screen calls on the RESULT, two lines
+    // after the patch — starts throwing on its own. An earlier version pinned 50,000, which is
+    // past that ceiling, so it could only ever have shown that this function returns; the save it
+    // was cited as protecting would still have failed. Hence the serialization assertion below:
+    // without it this test cannot enforce the end-to-end claim its docblock makes.
+    it('a passthrough field deeper than the budget survives the patch AND the serialization the caller does next', () => {
+      const raw = { general: deepRaw(5_000) }
       // The salvage layer passes the unknown key through by reference — the premise of the case.
       const published = loaded(raw, 'general')
       expect(
@@ -291,9 +298,14 @@ describe('patchSettingsGroup (#956)', () => {
         title: 'New'
       })
       expect(out.title).toBe('New')
-      // Past the budget the subtree is written WHOLE from `next` — which is the same object the
-      // raw group holds, so nothing is lost either way.
+      // Survives because `sameValue` short-circuits on `a === b` (the screens spread shallowly, so
+      // this subtree is one shared reference) and the key is therefore never written — the value
+      // reaches `out` through the `{ ...raw }` spread, NOT through a write from `next`.
       expect(out.futureField).toBe(raw.general.futureField)
+      // What every screen does next. This is the half that makes the save actually work.
+      expect(() =>
+        JSON.stringify({ ...raw, general: out }, null, 2)
+      ).not.toThrow()
     })
 
     it('still diffs per field within the budget', () => {

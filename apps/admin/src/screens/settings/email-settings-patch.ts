@@ -32,7 +32,7 @@ import { patchSettingsGroup } from './settings-group-patch'
  * apps/admin/test/email-settings-patch.test.ts ("an over-cap template body survives an edit to a
  * DIFFERENT field of the same entry").
  *
- * The named function stays because the 14 email-shaped cases in that test file are real salvage
+ * The named function stays because the 15 email-shaped cases in that test file are real salvage
  * outcomes worth exercising against the shared helper, and because this is where someone reading
  * the email screen looks for the rule. Read
  * {@link ./settings-group-patch.patchSettingsGroup}'s docblock before changing a call site — in

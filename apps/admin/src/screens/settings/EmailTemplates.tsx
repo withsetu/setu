@@ -145,10 +145,18 @@ function TokenPalette({
           <li key={t.name}>
             <button
               type="button"
-              // Keep the caret: mousedown-prevent stops the field from blurring, so the
-              // insertion point is exactly where the admin left it. Keyboard activation still
-              // works — a browser preserves selectionStart across blur, so tabbing to the chip
-              // and pressing Enter inserts at the same place.
+              // Keep the field focused: a trusted mousedown's default action moves focus to the
+              // button, and preventing it means the admin's caret and focus ring never leave the
+              // field they were editing. Pinned by
+              // apps/admin/test-browser/email-token-palette.test.tsx ("keeps focus on the edited
+              // field through a real mouse click on a chip"), which counts blur events — 0 with
+              // this guard, 1 without.
+              //
+              // The INSERTED TEXT does not depend on it, measured rather than assumed (#940):
+              // chromium caches selectionStart across blur, and `targetField`'s second signal
+              // resolves the chip to the right field once focus has moved, so deleting this line
+              // leaves the value byte-identical. It is the focus churn — not the insertion — that
+              // this buys.
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => onInsert(t.name)}
               aria-label={`Insert {{${t.name}}} — ${t.description}`}
@@ -408,12 +416,21 @@ export function EmailTemplates({
    *
    * 1. `document.activeElement` — ground truth at click time, and the normal case: the palette
    *    button prevents mousedown, so the field never loses focus.
-   * 2. the last field that fired `onFocus` in this card — the KEYBOARD case, where activating
-   *    the chip means focus has moved to the chip itself.
+   * 2. the last field that fired `onFocus` in this card — for when activating the chip has moved
+   *    focus to the chip itself, so signal 1 has nothing to match: a screen reader jumping
+   *    straight to the button, or a mouse press whose focus shift was not suppressed.
    *
    * Body when neither applies, which is where an admin who hasn't touched either field would
-   * want it. All three paths are covered by apps/admin/test/email-templates.test.tsx's
-   * "token palette" describe.
+   * want it.
+   *
+   * Coverage, per path (#940 — the previous version of this comment claimed all three were
+   * covered by the jsdom describe, and signal 2 was unreachable there):
+   * - signal 1 and the default arm: apps/admin/test/email-templates.test.tsx, "token palette".
+   *   jsdom never moves `document.activeElement`, so every test in that describe — including the
+   *   one that fires a blur event — resolves through signal 1.
+   * - signal 2: apps/admin/test-browser/email-token-palette.test.tsx ("inserts into the field the
+   *   admin was editing when Enter activates a chip that now holds focus"), which asserts focus
+   *   really is on the chip before activating it. Deleting the line below fails it.
    */
   const targetField = (defId: string): FieldName => {
     const active = document.activeElement
@@ -436,7 +453,9 @@ export function EmailTemplates({
     // `touched` set: never focused ⇒ append at the end; focused even once ⇒ honor the caret,
     // including after a blur. Both halves are pinned by
     // apps/admin/test/email-templates.test.tsx ("appends at the end of a body that has never
-    // been focused" / "still inserts at the caret of a field that was focused and then blurred").
+    // been focused" / "honors the caret of a field that has held focus"); the after-a-REAL-blur
+    // half needs a browser and is pinned by
+    // apps/admin/test-browser/email-token-palette.test.tsx.
     // `caretAt === null` means "there is no caret to honor", from either of two causes: the
     // admin has never focused this field, or the element does not support selection at all
     // (`selectionStart` is `number | null` in the DOM lib — unreachable for our text/textarea,

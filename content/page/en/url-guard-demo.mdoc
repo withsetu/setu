@@ -1,0 +1,56 @@
+---
+title: URL Guard Demo
+---
+
+A fixture page for the render-sink URL guards (#857, #968). Every block below is authored
+with a URL shape that must not reach the published page as a live link, a frame, or a media
+load. The assertions run against this page's BUILT html in
+apps/site/test/url-guard-sinks.test.ts — a helper-only test cannot see these sinks.
+
+The `\t` / `\n` spellings are Markdoc string escapes, so each attribute below holds a real
+ASCII tab or newline. The WHATWG URL parser strips those before parsing, which is how they
+smuggle an off-origin authority past a shape check that only looks at offsets 0–1
+(`/\t/evil.example` resolves to `https://evil.example/`). `evil.example` is a reserved
+RFC 2606 name that never resolves, so nothing here can reach a real host.
+
+## Button — anchor href allowlist
+
+{% button href="/page/about" %}Safe root-relative{% /button %}
+
+{% button href="/\t/evil.example" %}Tab-smuggled authority{% /button %}
+
+{% button href="/\n/evil.example" %}Newline-smuggled authority{% /button %}
+
+{% button href="/\t\\evil.example" %}Tab-smuggled backslash authority{% /button %}
+
+{% button href="javascript:alert(1)" %}Dangerous scheme{% /button %}
+
+## Hero — CTA href allowlist
+
+{% hero headline="Guarded hero" subhead="Its CTA smuggles an authority through a tab." ctaLabel="Tab-smuggled CTA" ctaHref="/\t/evil.example" /%}
+
+## Video — media src and poster allowlist
+
+{% video src="/\t/evil.example/clip.mp4" caption="Smuggled src — the whole figure is skipped." /%}
+
+{% video src="/media/2026/07/clip.mp4" poster="/\t/evil.example/poster.jpg" caption="Smuggled poster — the clip plays, the poster attribute is dropped." /%}
+
+## Embed — url, embedUrl and thumbnailUrl allowlists
+
+A legitimate provider frame and a legitimate click-to-load facade come first, so the
+assertions on the rejected shapes below can never pass vacuously — the guards have to let
+real embeds through.
+
+{% embed url="https://ok.example/player" embedUrl="https://player.example/embed/xyz" title="Legitimate provider frame" ratio="16:9" /%}
+
+{% embed url="https://ok.example/facade" provider="example" providerLabel="Example" mediaType="video" title="Legitimate facade" embedUrl="https://player.example/embed/abc" thumbnailUrl="https://cdn.example.test/thumb.jpg" /%}
+
+{% embed url="javascript:alert(1)" title="Fallback with a dangerous scheme" /%}
+
+{% embed url="/\t/evil.example" title="Fallback with a smuggled authority" /%}
+
+{% embed url="https://ok.example/watch" embedUrl="javascript:alert(1)" title="Frame with a dangerous scheme" /%}
+
+{% embed url="https://ok.example/watch" embedUrl="/\t/evil.example/embed" thumbnailUrl="https://cdn.example.test/thumb.jpg" title="Frame with a smuggled authority" /%}
+
+{% embed url="https://ok.example/photo" mediaType="photo" thumbnailUrl="javascript:alert(1)" title="Photo with a dangerous thumbnail" /%}

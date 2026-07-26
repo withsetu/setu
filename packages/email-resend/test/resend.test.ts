@@ -15,13 +15,17 @@ describe('resend email adapter', () => {
       html: '<p>x</p>',
       text: 'x'
     })
-    expect(send).toHaveBeenCalledWith({
+    // #930 added a second argument carrying the request's AbortSignal, so this asserts the message
+    // positionally rather than pinning the whole call. That the signal is really there — and really
+    // cancels the socket — is packages/email-resend/test/request-timeout.test.ts's job.
+    expect(send.mock.calls[0]?.[0]).toEqual({
       to: 'a@x.com',
       from: 'site@x.com',
       subject: 'Hi',
       html: '<p>x</p>',
       text: 'x'
     })
+    expect(send.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal)
   })
 
   it('throws when resend returns an error shape', async () => {

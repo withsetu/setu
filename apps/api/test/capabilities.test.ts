@@ -13,6 +13,7 @@ import {
   emailTransportOptions,
   publicFrom,
   resolveEmailProvider,
+  resendConfigFromEnv,
   resolveFromAddress,
   smtpConfigFromEnv,
   usableEmailTransport,
@@ -566,6 +567,39 @@ describe('capabilities', () => {
       })
     })
 
+    // #930: the resend timeout override is parsed with the same fail-closed rule as the SMTP ones
+    // (#928) — a typo must be a named boot problem, not a silently ignored variable that leaves the
+    // operator believing they raised the bound.
+    it('resend with a BROKEN timeout override -> falls back to console and names the variable', () => {
+      expect(
+        usableEmailTransport({
+          SETU_EMAIL_ADAPTER: 'resend',
+          RESEND_API_KEY: 'test-fake-key',
+          SETU_RESEND_TIMEOUT_MS: 'soon'
+        })
+      ).toEqual({
+        selected: 'resend',
+        source: 'env',
+        effective: 'console',
+        problem: expect.stringContaining('SETU_RESEND_TIMEOUT_MS')
+      })
+    })
+
+    it('resend with a VALID timeout override stays effective resend', () => {
+      expect(
+        usableEmailTransport({
+          SETU_EMAIL_ADAPTER: 'resend',
+          RESEND_API_KEY: 'test-fake-key',
+          SETU_RESEND_TIMEOUT_MS: '4000'
+        })
+      ).toEqual({
+        selected: 'resend',
+        source: 'env',
+        effective: 'resend',
+        problem: null
+      })
+    })
+
     it('smtp with a usable config -> effective smtp', () => {
       expect(
         usableEmailTransport({
@@ -723,6 +757,18 @@ describe('capabilities', () => {
         RESEND_API_KEY: 'test-fake-key'
       }).find((t) => t.id === 'resend')
       expect(withKey).toEqual({ id: 'resend', usable: true, problem: null })
+    })
+
+    // #930: the dropdown and the sender must agree — the comment on usableEmailTransport is
+    // explicit that "which adapter sends the next email" and "what the admin screen reports"
+    // cannot drift, so a broken SETU_RESEND_TIMEOUT_MS has to disable the option here too.
+    it('resend: a broken timeout override makes the option unusable, with the same reason', () => {
+      const broken = emailTransportOptions({
+        RESEND_API_KEY: 'test-fake-key',
+        SETU_RESEND_TIMEOUT_MS: '-5'
+      }).find((t) => t.id === 'resend')
+      expect(broken?.usable).toBe(false)
+      expect(broken?.problem).toContain('SETU_RESEND_TIMEOUT_MS')
     })
 
     it('smtp: unset host gets the "add SETU_SMTP_HOST" remediation; a usable config is usable', () => {
@@ -1138,6 +1184,42 @@ describe('capabilities', () => {
             'SETU_SMTP_SOCKET_TIMEOUT_MS'
           )
         }
+      })
+    })
+
+    // #930 — the resend twin of the block above. The SDK exposes no timeout of its own (resend
+    // 6.18.0, also npm latest: `ResendOptions` is `{ baseUrl, userAgent }` and `PostOptions` is
+    // `{ query, headers }`), so this is the only way an operator can move the bound.
+    describe('resendConfigFromEnv (#930)', () => {
+      it('omits the override when unset — the adapter applies its own bounded default', () => {
+        expect(resendConfigFromEnv({})).toEqual({ config: {} })
+        expect(resendConfigFromEnv({ SETU_RESEND_TIMEOUT_MS: '' })).toEqual({
+          config: {}
+        })
+      })
+
+      it('passes a valid override through under the adapter option name', () => {
+        expect(resendConfigFromEnv({ SETU_RESEND_TIMEOUT_MS: '3000' })).toEqual(
+          { config: { requestTimeoutMs: 3_000 } }
+        )
+      })
+
+      it('fails closed on a bad value rather than silently ignoring it', () => {
+        for (const bad of ['abc', '0', '-1', '1.5', '3600001']) {
+          const r = resendConfigFromEnv({ SETU_RESEND_TIMEOUT_MS: bad })
+          expect(r, `timeout ${JSON.stringify(bad)}`).toHaveProperty('problem')
+          expect((r as { problem: string }).problem).toContain(
+            'SETU_RESEND_TIMEOUT_MS'
+          )
+        }
+      })
+
+      it('never echoes RESEND_API_KEY in the problem string', () => {
+        const r = resendConfigFromEnv({
+          RESEND_API_KEY: 'super-secret-key',
+          SETU_RESEND_TIMEOUT_MS: 'abc'
+        })
+        expect(JSON.stringify(r)).not.toContain('super-secret-key')
       })
     })
   })

@@ -308,7 +308,9 @@ const email = createLiveEmailTransport({
   provider: () => loadSiteSettings().email.provider,
   adapters: {
     console: () => createConsoleEmailAdapter(),
-    resend: (apiKey) => createResendEmailAdapter({ apiKey }),
+    // #930: the config carries the api key AND the env-derived request bound, so a stalled Resend
+    // endpoint cannot hold the anonymous /forms/submit request open indefinitely.
+    resend: (config) => createResendEmailAdapter(config),
     smtp: (config) => createSmtpEmailAdapter(config)
   },
   onProblem: (problem, selected) => {

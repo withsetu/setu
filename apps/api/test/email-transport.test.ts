@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { EmailMessage } from '@setu/core'
-import { createLiveEmailTransport } from '../src/email-transport'
+import {
+  createLiveEmailTransport,
+  type ResendConfig
+} from '../src/email-transport'
 
 // #890: the live adapter seam. Increment A (#498) constructed ONE adapter at boot from
 // SETU_EMAIL_ADAPTER, so the provider could not be a control — switching it in the admin would
@@ -29,6 +32,9 @@ function spyAdapters() {
     smtp: []
   }
   const built: { [K in Kind]: number } = { console: 0, resend: 0, smtp: 0 }
+  /** #930: what the resend factory was actually handed — the adapter's own bound is only real if
+   *  the parsed config reaches its constructor. */
+  const resendConfigs: ResendConfig[] = []
   const make = (kind: Kind) => () => {
     built[kind] += 1
     return {
@@ -40,9 +46,13 @@ function spyAdapters() {
   return {
     sent,
     built,
+    resendConfigs,
     adapters: {
       console: make('console'),
-      resend: (_apiKey: string) => make('resend')(),
+      resend: (config: ResendConfig) => {
+        resendConfigs.push(config)
+        return make('resend')()
+      },
       smtp: (_config: unknown) => make('smtp')()
     }
   }
@@ -288,5 +298,62 @@ describe('createLiveEmailTransport — the warning is named, and not per-send sp
     provider = 'resend'
     await t.send(MSG) // problem again -> reported again
     expect(onProblem).toHaveBeenCalledTimes(2)
+  })
+})
+
+// #930 — the resend adapter's request bound is env-overridable, and this seam is where the parse
+// happens (the same shape smtp has used since #256: one parser, called at the point of use, on the
+// same env). A bound the operator can set but that never reaches the constructor is not a bound.
+describe('createLiveEmailTransport — the resend request bound reaches the adapter (#930)', () => {
+  const RESEND_ENV = { RESEND_API_KEY: 'test-fake-key' }
+
+  it('hands the resend factory the api key and the parsed timeout override', async () => {
+    const { resendConfigs, adapters } = spyAdapters()
+    const t = createLiveEmailTransport({
+      env: {
+        SETU_EMAIL_ADAPTER: 'resend',
+        ...RESEND_ENV,
+        SETU_RESEND_TIMEOUT_MS: '2500'
+      },
+      provider: () => '',
+      adapters
+    })
+    await t.send(MSG)
+    expect(resendConfigs).toEqual([
+      { apiKey: 'test-fake-key', requestTimeoutMs: 2_500 }
+    ])
+  })
+
+  it('omits the override when unset, leaving the adapter its own bounded default', async () => {
+    const { resendConfigs, adapters } = spyAdapters()
+    const t = createLiveEmailTransport({
+      env: { SETU_EMAIL_ADAPTER: 'resend', ...RESEND_ENV },
+      provider: () => '',
+      adapters
+    })
+    await t.send(MSG)
+    expect(resendConfigs).toEqual([{ apiKey: 'test-fake-key' }])
+  })
+
+  it('never builds a resend adapter when the override is broken — it degrades to console', async () => {
+    const { sent, built, adapters } = spyAdapters()
+    const onProblem = vi.fn()
+    const t = createLiveEmailTransport({
+      env: {
+        SETU_EMAIL_ADAPTER: 'resend',
+        ...RESEND_ENV,
+        SETU_RESEND_TIMEOUT_MS: 'whenever'
+      },
+      provider: () => '',
+      adapters,
+      onProblem
+    })
+    await t.send(MSG)
+    expect(built.resend).toBe(0)
+    expect(sent.console).toHaveLength(1)
+    expect(onProblem).toHaveBeenCalledWith(
+      expect.stringContaining('SETU_RESEND_TIMEOUT_MS'),
+      'resend'
+    )
   })
 })

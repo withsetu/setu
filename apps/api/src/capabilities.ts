@@ -94,11 +94,12 @@ export type SmtpEnvResult =
 // TCP port: coerced because env vars are strings; integral and 1–65535 or fail closed.
 const smtpPortSchema = z.coerce.number().int().min(1).max(65535)
 
-/** #928: a timeout override in ms. Positive integer or fail closed — a typo'd value must be a
- *  named boot problem, never a silent fall-back to nodemailer's multi-minute default, which is
- *  the exact stall this bounds. Capped at an hour so a stray "60000000" cannot restore it either.
- *  Pinned by apps/api/test/capabilities.test.ts ("smtp timeout overrides"). */
-const smtpTimeoutSchema = z.coerce.number().int().min(1).max(3_600_000)
+/** #928, shared with #930: a timeout override in ms. Positive integer or fail closed — a typo'd
+ *  value must be a named boot problem, never a silent fall-back (nodemailer's multi-minute default
+ *  for smtp, or an override the operator believes they set for resend), which is the exact stall
+ *  these bound. Capped at an hour so a stray "60000000" cannot restore it either. Pinned by
+ *  apps/api/test/capabilities.test.ts ("smtp timeout overrides" and "resendConfigFromEnv (#930)"). */
+const timeoutMsSchema = z.coerce.number().int().min(1).max(3_600_000)
 
 /** env var → the SmtpEmailAdapterOptions field it overrides. */
 const SMTP_TIMEOUT_VARS = [
@@ -136,7 +137,7 @@ export function smtpConfigFromEnv(
   for (const [varName, field] of SMTP_TIMEOUT_VARS) {
     const raw = env[varName]
     if (raw === undefined || raw === '') continue
-    const parsed = smtpTimeoutSchema.safeParse(raw)
+    const parsed = timeoutMsSchema.safeParse(raw)
     if (!parsed.success) {
       return {
         problem: `${varName} is not a positive whole number of milliseconds (got ${JSON.stringify(raw)})`
@@ -153,6 +154,39 @@ export function smtpConfigFromEnv(
       ...timeouts
     }
   }
+}
+
+/** #930: the resend adapter's env-derived options — the exact counterpart of
+ *  {@link smtpConfigFromEnv}, and shared the same way (usableEmailTransport below and
+ *  email-transport.ts's adapter construction both call THIS, never a second parse).
+ *
+ *  There is no `host`-equivalent here because the credential is checked separately
+ *  (`RESEND_API_KEY`, by usableEmailTransport), so `{ config: {} }` — no override, the adapter's own
+ *  bounded default — is the normal result. `problem` names the variable, never a value: the only
+ *  value it could echo is a timeout, and the test above proves it never echoes RESEND_API_KEY. */
+export type ResendEnvResult =
+  | {
+      config: {
+        /** ms budget for one `emails.send`. Absent means the adapter's own
+         *  RESEND_REQUEST_TIMEOUT_DEFAULT (packages/email-resend/src/index.ts) — never "as long as
+         *  fetch waits", which is what the SDK gives you when nobody bounds it. */
+        requestTimeoutMs?: number
+      }
+    }
+  | { problem: string }
+
+export function resendConfigFromEnv(
+  env: NodeJS.ProcessEnv = process.env
+): ResendEnvResult {
+  const raw = env.SETU_RESEND_TIMEOUT_MS
+  if (raw === undefined || raw === '') return { config: {} }
+  const parsed = timeoutMsSchema.safeParse(raw)
+  if (!parsed.success) {
+    return {
+      problem: `SETU_RESEND_TIMEOUT_MS is not a positive whole number of milliseconds (got ${JSON.stringify(raw)})`
+    }
+  }
+  return { config: { requestTimeoutMs: parsed.data } }
 }
 
 /** #890: which transport the instance is asked to use, and where that instruction came from.
@@ -231,14 +265,20 @@ export function usableEmailTransport(
 ): UsableEmailTransport {
   const { selected, source } = resolveEmailProvider(settingsProvider, env)
   if (selected === 'resend') {
-    if (env.RESEND_API_KEY)
+    if (!env.RESEND_API_KEY)
+      return {
+        selected,
+        source,
+        effective: 'console',
+        problem: 'RESEND_API_KEY is unset'
+      }
+    // #930: a broken SETU_RESEND_TIMEOUT_MS makes resend unusable, exactly as a broken
+    // SETU_SMTP_*_TIMEOUT_MS makes smtp unusable below. Silently ignoring it would leave the
+    // operator believing they had moved the bound.
+    const resend = resendConfigFromEnv(env)
+    if ('config' in resend)
       return { selected, source, effective: 'resend', problem: null }
-    return {
-      selected,
-      source,
-      effective: 'console',
-      problem: 'RESEND_API_KEY is unset'
-    }
+    return { selected, source, effective: 'console', problem: resend.problem }
   }
   if (selected === 'smtp') {
     const smtp = smtpConfigFromEnv(env)
@@ -284,14 +324,21 @@ export function emailTransportOptions(
 ): EmailTransportOption[] {
   const smtp = smtpConfigFromEnv(env)
   const smtpUsable = 'config' in smtp
+  // #930: the same two conditions usableEmailTransport applies, in the same order, so the picker
+  // cannot offer a transport the sender would refuse (pinned by apps/api/test/capabilities.test.ts,
+  // "a broken timeout override makes the option unusable, with the same reason").
+  const resend = resendConfigFromEnv(env)
+  const resendUsable = Boolean(env.RESEND_API_KEY) && 'config' in resend
   return [
     { id: 'console', usable: true, problem: null },
     {
       id: 'resend',
-      usable: Boolean(env.RESEND_API_KEY),
-      problem: env.RESEND_API_KEY
+      usable: resendUsable,
+      problem: resendUsable
         ? null
-        : 'Add RESEND_API_KEY to the server environment to enable Resend.'
+        : !env.RESEND_API_KEY
+          ? 'Add RESEND_API_KEY to the server environment to enable Resend.'
+          : `Resend is misconfigured: ${'problem' in resend ? resend.problem : ''}. Fix it in the server environment.`
     },
     {
       id: 'smtp',

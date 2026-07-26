@@ -1,7 +1,9 @@
 import type { EmailPort } from '@setu/core'
 import {
+  resendConfigFromEnv,
   smtpConfigFromEnv,
   usableEmailTransport,
+  type ResendEnvResult,
   type SmtpEnvResult,
   type UsableEmailTransport
 } from './capabilities'
@@ -10,12 +12,21 @@ import {
  *  factory below can be typed without this module importing a concrete adapter. */
 export type SmtpConfig = Extract<SmtpEnvResult, { config: unknown }>['config']
 
+/** #930: everything the resend adapter is constructed from — the api key plus the env-derived
+ *  request bound. Previously the factory took the bare api key, which left the adapter no way to
+ *  hear about `SETU_RESEND_TIMEOUT_MS`; this mirrors {@link SmtpConfig} so both adapters are
+ *  constructed from one parsed config rather than one being special. */
+export type ResendConfig = { apiKey: string } & Extract<
+  ResendEnvResult,
+  { config: unknown }
+>['config']
+
 /** Adapter constructors, injected by server.ts. Keeping them out of this module is what makes
  *  the seam unit-testable (apps/api/test/email-transport.test.ts swaps in spies) and keeps the
  *  Node-only smtp adapter out of the import graph until it is actually chosen. */
 export interface EmailAdapterFactories {
   console: () => EmailPort
-  resend: (apiKey: string) => EmailPort
+  resend: (config: ResendConfig) => EmailPort
   smtp: (config: SmtpConfig) => EmailPort
 }
 
@@ -98,7 +109,18 @@ export function createLiveEmailTransport(opts: {
     if (cached) return cached
     let made: EmailPort
     if (kind === 'resend') {
-      made = opts.adapters.resend(env.RESEND_API_KEY ?? '')
+      const resend = resendConfigFromEnv(env)
+      // Unreachable: `effective` is only 'resend' when resendConfigFromEnv parsed (same call, same
+      // env) — see usableEmailTransport. Defensive for the same reason the smtp arm below is: a
+      // future change on either side degrades to console rather than constructing an adapter whose
+      // request bound silently went missing.
+      made =
+        'config' in resend
+          ? opts.adapters.resend({
+              apiKey: env.RESEND_API_KEY ?? '',
+              ...resend.config
+            })
+          : opts.adapters.console()
     } else if (kind === 'smtp') {
       const smtp = smtpConfigFromEnv(env)
       // Unreachable: `effective` is only 'smtp' when smtpConfigFromEnv parsed (same call, same

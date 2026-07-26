@@ -82,10 +82,16 @@ export function resetRestartRequired(opts: {
   )
 }
 
-/** The boot-time facts `buildEmailStatus` folds in alongside the live reading. All four are
+/** What `buildEmailStatus` folds in alongside the live reading. The four facts BESIDES `env` are
  *  fixed for the process's lifetime, which is exactly why they are separate from the config:
- *  server.ts binds them once and the thunk below only ever resolves what can change. */
+ *  server.ts binds them once and `resolveConfig` only ever resolves what settings.json can
+ *  change. */
 export interface EmailStatusContext {
+  /** The environment `buildEmailStatus` reads `RESEND_API_KEY` and the SMTP vars out of, on every
+   *  call. Not a boot-fixed VALUE like the four below: server.ts passes the `process.env`
+   *  reference, so what is read is whatever that object holds at request time. Being a parameter
+   *  at all is what lets apps/api/test/email-status.test.ts drive the transport-usability and
+   *  secret-presence branches without touching the real environment. */
   env: NodeJS.ProcessEnv
   mode: string
   /** The `resetWiredAtBoot` const server.ts also hands to createAuth's `email:` option, ANDed

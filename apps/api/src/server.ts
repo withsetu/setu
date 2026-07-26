@@ -426,8 +426,11 @@ const auth = authConfigured
       // option's doc in packages/auth/src/options.ts for why this reuses that env rather than
       // inventing an auth-specific one. Omitted (reset stays disabled, unchanged) when no
       // from-address is configured at all: there is nothing to put in the message's `from` field,
-      // matching how the submission service itself skips sending without one (see
-      // createSubmissionService's `if (email && notifyTo && notifyFrom)` guard below).
+      // matching how the submission service itself skips sending without one — its notify block
+      // resolves a context per submission and sends only `if (from)`, reporting the miss through
+      // `onNotifySkipped` (packages/core/src/submissions/submission-service.ts; both directions
+      // pinned by packages/core/test/submissions/submission-service.test.ts, "onNotifySkipped
+      // (#921)").
       // resetRedirectTo: where the emailed link lands when the /request-password-reset caller
       // omitted redirectTo — without it better-auth's callback route 302s the click to
       // /error?error=INVALID_TOKEN (see the option's doc). It is built from `adminOrigin`, which
@@ -628,10 +631,12 @@ const submit = createSubmissionService({
     }
   },
   // #921 (CLAUDE.md §4 #22): the sibling of the reset sender's `onRefused` a few lines below.
-  // Because `notifyFrom` is live, clearing the from-address in Settings → Email (or a `git push`
-  // that clears it) stops every form notification at once — previously with no log line at all,
-  // while the visitor still saw `{ ok: true }`. The service only calls this when notifications
-  // are actually configured, so a deployment that never wanted them stays quiet — both
+  // Because `resolveNotification` above runs per submission (it was the `notifyFrom` thunk before
+  // #939 — same liveness, one settings parse instead of three), clearing the from-address in
+  // Settings → Email (or a `git push` that clears it) stops every form notification at once —
+  // previously with no log line at all, while the visitor still saw `{ ok: true }`. The service
+  // only calls this when notifications are actually configured, so a deployment that never
+  // wanted them stays quiet — both
   // directions pinned by packages/core/test/submissions/submission-service.test.ts
   // ("onNotifySkipped (#921)" describe), which also covers a throwing callback.
   onNotifySkipped: (reason) => {

@@ -40,13 +40,10 @@ export interface NotificationContext {
   render: (
     submission: Submission
   ) => NotificationContent | Promise<NotificationContent>
-  send: (msg: {
-    to: string
-    from: string
-    subject: string
-    html: string
-    text?: string
-  }) => Promise<void>
+  /** `EmailPort['send']`, not a copy of its parameter shape: this file already imports the port,
+   *  and a hand-written `{ to, from, subject, html, text? }` here would be a second declaration
+   *  of `EmailMessage` that a change to the real one could not break. */
+  send: EmailPort['send']
 }
 
 export interface SubmissionServiceDeps {

@@ -49,8 +49,9 @@ const reading = (
  *  the from-address rather than resolving them from settings. The claim used to be "exactly",
  *  which is precisely the place a reviewer asking "is the composed path covered?" would look and
  *  stop (CLAUDE.md §4 #21) — it was not. The composition server.ts actually runs is covered by
- *  the "composed send path" describe at the bottom of this file, which resolves ONE `EmailConfig`
- *  from a settings object and threads it through all three concerns. */
+ *  the "composed send path" describe at the bottom of this file, which drives all three concerns
+ *  off one settings object — two of them (from-address, transport) threaded from a single
+ *  `EmailConfig`, the body from a second reading, exactly as production does. */
 const ADMIN_ORIGIN = 'http://localhost:5173'
 const FROM = 'site@example.test'
 const USER_EMAIL = 'target@example.test'
@@ -418,11 +419,23 @@ describe('password reset never writes a token to the console transport (#894)', 
  * looked like it closed the gap and did not — it stubs the transport and the from-address, and
  * omits the `content:` arm unless asked.
  *
- * This drives the real composition over ONE settings object: `createLiveEmailConfig` resolves
- * the from-address, the transport and the template source together (#939), the real
- * `createLiveEmailTransport` picks the adapter, the real `createLiveEmailTemplates` renders the
- * override, the real better-auth flow mints a real token. Every assertion names a fact that can
- * only have come from settings, so the test fails if ANY one of the three stops being honored.
+ * This drives the real composition over ONE settings object: the real `createLiveEmailTransport`
+ * picks the adapter, the real `createLiveEmailTemplates` renders the override, the real
+ * better-auth flow mints a real token. Every assertion names a fact that can only have come from
+ * settings, so the test fails if ANY one of the three stops being honored (kill-shot tested: each
+ * of the three, disabled in turn, fails an assertion here).
+ *
+ * TWO of the three ride a single `EmailConfig` (#939) — the from-address and the transport, which
+ * `createResetEmailSender`'s `resolveConfig` resolves once and binds together, so the reading the
+ * gate judges is the object that dispatches (#919). The BODY does not: it comes from the separate
+ * `content:` callback, over its own `createLiveEmailTemplates` reading. That asymmetry is
+ * deliberate and faithful — server.ts is wired exactly this way, because `content` and `send` are
+ * two independent @setu/auth callbacks, which is why the reset path costs two settings parses
+ * rather than one (apps/api/test/email-read-count.test.ts asserts the 2; merging the callbacks is
+ * #958). So this file proves the three concerns agree on one MESSAGE, not that one reading
+ * produced all three. The config's `templates`/`siteTitle` members are resolved and unused on
+ * this path; the path that does thread them is the form notification (`resolveNotification` in
+ * server.ts), covered by apps/api/test/email-read-count.test.ts.
  */
 describe('the composed send path: settings drive transport, from-address and body on ONE send (#938)', () => {
   const SETTINGS: SiteSettings = {

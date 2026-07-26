@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createSubmissionService } from '../../src/submissions/submission-service'
 import { createMemorySubmissionPort } from '@setu/db-memory'
-import type { EmailPort } from '../../src/email/email-port'
+import type { EmailMessage, EmailPort } from '../../src/email/email-port'
 
 const ok = { verify: async () => true }
 const base = {
@@ -381,19 +381,8 @@ describe('createSubmissionService.submit', () => {
   // seam must stay INSIDE submit (liveness) and must not fire for a submission that would never
   // notify (cost).
   describe('resolveNotification (#939)', () => {
-    /** The message shape `NotificationContext.send` receives — spelled out so the spies below
-     *  keep their argument types (a bare `vi.fn(async () => {})` infers a zero-arg call
-     *  signature, and `mock.calls[0]` then has no element to assert on). */
-    type NotifyMessage = {
-      to: string
-      from: string
-      subject: string
-      html: string
-      text?: string
-    }
-
     it('is consulted exactly ONCE per notifying submission, and supplies from, body and sender', async () => {
-      const send = vi.fn(async (_msg: NotifyMessage) => {})
+      const send = vi.fn(async (_msg: EmailMessage) => {})
       const render = vi.fn(() => ({
         subject: 's',
         html: '<p>h</p>',
@@ -427,7 +416,7 @@ describe('createSubmissionService.submit', () => {
     })
 
     it('is resolved INSIDE submit, so a from-address appearing between two submissions applies to the second', async () => {
-      const send = vi.fn(async (_msg: NotifyMessage) => {})
+      const send = vi.fn(async (_msg: EmailMessage) => {})
       const live: { from: string | undefined } = { from: undefined }
       const onNotifySkipped = vi.fn()
       const svc = createSubmissionService({

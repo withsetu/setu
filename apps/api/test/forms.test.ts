@@ -82,8 +82,10 @@ describe('createFormsApi — public submit body cap (413)', () => {
 describe('createFormsApi — per-value caps on the public submit route (#935)', () => {
   const valid = { email: 'a@x.com', message: 'hi there' }
 
-  // KILL-SHOT TARGET. Remove the withinValueCaps guard in forms.ts and each of these stores a
-  // submission (200) instead of being refused.
+  // KILL-SHOT TARGET. Remove the cap `.refine()`s from `fieldsSchema` / `optionalCapped` /
+  // `submitBodySchema.source` in forms.ts and each of these stores a submission (200) instead of
+  // being refused. (Before #932 the same guard was a hand-rolled `withinValueCaps` helper; the
+  // caps and their inclusive boundaries are unchanged.)
   it.each([
     ['formId', { formId: 'c'.repeat(FORM_VALUE_MAX + 1), fields: valid }],
     [
@@ -1046,5 +1048,167 @@ describe('createFormsApi — admin CRUD body caps (#629)', () => {
       fields: { email: 'a@b.c' }
     })
     expect(res.status).toBe(201)
+  })
+})
+
+// #932 — the boundary is a Zod schema now, not `asRecord`/`isStringArray`. Most of what the
+// schemas must do is already pinned above (the caps block, the coercion tests, the 400 envelopes);
+// this block covers the three things the hand-rolled narrowing got WRONG, each of which the schema
+// fixes, plus the parity cases where a schema could easily have tightened something it shouldn't.
+describe('createFormsApi — Zod at the forms boundary (#932)', () => {
+  const raw = (
+    app: ReturnType<typeof createFormsApi>,
+    path: string,
+    body: string,
+    method = 'POST'
+  ) =>
+    app.fetch(
+      new Request(`http://x${path}`, {
+        method,
+        headers: { 'content-type': 'application/json' },
+        body
+      })
+    )
+
+  // KILL-SHOT TARGET 1. `asRecord(await c.req.json())` never guarded the PARSE: a body that is not
+  // JSON at all rejected inside the handler, so apiOnError turned an anonymous caller's malformed
+  // input into a 500 `internal_error` plus a correlation-id error log — the exact inversion of
+  // docs/security-standards.md's "client-input 4xxs stay specific; only faults get masked".
+  it('answers 400, not 500, when the public submit body is not JSON at all', async () => {
+    const { app } = makeApp()
+    for (const body of ['not json', '', '{"formId":', '[1,2']) {
+      const res = await raw(app, '/forms/submit', body)
+      expect(res.status, body).toBe(400)
+      expect(await res.json()).toEqual({ ok: false, error: 'invalid' })
+    }
+  })
+
+  it('answers 400, not 500, when an admin body is not JSON at all', async () => {
+    const { app } = makeApp()
+    const cases: [string, string][] = [
+      ['/forms/submissions', 'POST'],
+      ['/forms/submissions/read', 'PATCH'],
+      ['/forms/submissions', 'DELETE']
+    ]
+    for (const [path, method] of cases) {
+      const res = await raw(app, path, 'not json', method)
+      expect(res.status, `${method} ${path}`).toBe(400)
+      expect(await res.json()).toEqual({ error: 'invalid' })
+    }
+  })
+
+  // KILL-SHOT TARGET 2. `typeof [] === 'object'`, so the old `asRecord` accepted an ARRAY as
+  // `fields` and renamed its entries `{ '0': 'a', '1': 'b' }` — field names the visitor never
+  // sent — then went on to spend a captcha verification on it. A record schema refuses it AT THE
+  // BOUNDARY.
+  //
+  // The status alone proves nothing here: the submission service rejects `{0:'a',1:'b'}` for
+  // having no email field, so `400` was already the answer for the WRONG reason (the #638 vacuous-
+  // assertion class). What discriminates the boundary from the service is whether the captcha was
+  // consulted — the boundary check runs before it, the service after.
+  it('refuses an array as `fields` at the boundary, before the captcha is consulted', async () => {
+    const verify = vi.fn(async () => true)
+    const { app, submissions } = makeApp({ verify })
+    const res = await post(app, '/forms/submit', {
+      formId: 'contact',
+      fields: ['a', 'b'],
+      captchaToken: 'tok'
+    })
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ ok: false, error: 'invalid' })
+    expect(verify).not.toHaveBeenCalled()
+    expect((await submissions.listSubmissions()).total).toBe(0)
+  })
+
+  // KILL-SHOT TARGET 3. The admin route cast `body['source']` straight to
+  // `SubmissionInput['source']` with no validation at all, so it stored whatever shape arrived —
+  // unknown keys and non-string values included, i.e. the stored row could contradict its own
+  // type. The schema keeps the three declared string fields and drops the rest.
+  it('sanitizes `source` on the admin write instead of casting it unchecked', async () => {
+    const { app } = makeApp()
+    const res = await post(app, '/forms/submissions', {
+      formId: 'contact',
+      fields: { email: 'a@b.c' },
+      source: {
+        url: 'https://x.test/a',
+        referrer: 42,
+        userAgent: 'UA/1',
+        evil: { nested: true }
+      }
+    })
+    expect(res.status).toBe(201)
+    const saved = (await res.json()) as {
+      source?: Record<string, unknown>
+    }
+    expect(saved.source).toEqual({
+      url: 'https://x.test/a',
+      userAgent: 'UA/1'
+    })
+  })
+
+  // Parity guards — a schema is the easiest place to accidentally tighten something the route
+  // deliberately tolerates. Each of these was true before #932 and must stay true.
+  it('still keeps a non-string formLabel/honeypot/source out of the way rather than refusing', async () => {
+    const { app, submissions } = makeApp()
+    const res = await post(app, '/forms/submit', {
+      formId: 'contact',
+      formLabel: 42,
+      honeypot: { a: 1 },
+      source: 'not-an-object',
+      fields: { email: 'a@x.com', message: 'hi there' },
+      captchaToken: 'tok'
+    })
+    expect(res.status).toBe(200)
+    const stored = (await submissions.listSubmissions()).rows[0]!
+    expect(stored.formLabel).toBeUndefined()
+  })
+
+  it('still stores a body-supplied source.url and drops an empty one', async () => {
+    const { app, submissions } = makeApp()
+    await post(app, '/forms/submit', {
+      formId: 'contact',
+      fields: { email: 'a@x.com', message: 'hi there' },
+      source: { url: 'https://x.test/page' },
+      captchaToken: 'tok'
+    })
+    await post(app, '/forms/submit', {
+      formId: 'contact2',
+      fields: { email: 'a@x.com', message: 'hi there' },
+      source: { url: '' },
+      captchaToken: 'tok'
+    })
+    const rows = (await submissions.listSubmissions()).rows
+    const withUrl = rows.find((r) => r.formId === 'contact')!
+    const withoutUrl = rows.find((r) => r.formId === 'contact2')!
+    expect(withUrl.source?.url).toBe('https://x.test/page')
+    expect(withoutUrl.source?.url).toBeUndefined()
+  })
+
+  it('still rejects a non-string entry in `ids` and a non-boolean `read`', async () => {
+    const { app } = makeApp()
+    expect(
+      (
+        await post(
+          app,
+          '/forms/submissions/read',
+          { ids: ['a', 7], read: true },
+          'PATCH'
+        )
+      ).status
+    ).toBe(400)
+    expect(
+      (
+        await post(
+          app,
+          '/forms/submissions/read',
+          { ids: ['a'], read: 'yes' },
+          'PATCH'
+        )
+      ).status
+    ).toBe(400)
+    expect(
+      (await post(app, '/forms/submissions', { ids: ['a', null] }, 'DELETE'))
+        .status
+    ).toBe(400)
   })
 })

@@ -786,7 +786,7 @@ describe('resolveClientIp — a client cannot merge away the proxy’s Forwarded
       trust
     )
 
-  // KILL-SHOT TARGET for guard 1. The unbalanced quote is in a NON-`for` parameter, so the client's
+  // KILL-SHOT TARGET for mechanism 1 (the unbalanced-quote refusal). The unbalanced quote is in a NON-`for` parameter, so the client's
   // own `for=` is a perfectly valid address — only the swallowing is malicious.
   it('an unbalanced quote in another parameter cannot hide the appended hop', () => {
     const keys = ['1.1.1.1', '2.2.2.2', '3.3.3.3', '4.4.4.4'].map((forged) =>
@@ -804,7 +804,7 @@ describe('resolveClientIp — a client cannot merge away the proxy’s Forwarded
     expect(new Set(keys)).toEqual(new Set(['198.51.100.1']))
   })
 
-  // KILL-SHOT TARGET for guard 2. Nothing that is not address-shaped may key a bucket, however it
+  // KILL-SHOT TARGET for mechanism 3 (the address-shape guard). Nothing that is not address-shaped may key a bucket, however it
   // got there: a client varying opaque text would otherwise mint quota per request.
   it('refuses a node identifier that is not address-shaped rather than keying a bucket on it', () => {
     for (const junk of [

@@ -203,10 +203,15 @@ jobs:
       # The site's generated artifacts (markdoc.blocks.generated.mjs + .astro types) are
       # regenerated here (~1.4s) because @setu/site#lint and #typecheck both need them and
       # this step runs first, regardless of whether the PR touched the site.
-      # Warnings are TOLERATED (no --max-warnings 0): the 60-warning baseline is the
-      # react-hooks/React-Compiler set tracked in #338, 2 in apps/admin/test-browser/ (#293),
-      # and 2 jsx-a11y/media-has-caption on the Video block's two renderers (#819/#826, no
-      # captions field in the block contract yet) — flip to zero-warnings when both land.
+      # Warnings are TOLERATED (no --max-warnings 0). Baseline as of #961: 89 across the
+      # whole repo (`pnpm exec eslint .`), from three sources, each with its own blocker —
+      #   62  react-hooks / React-Compiler diagnostics, tracked in #338
+      #   25  setu/invariant-comment-names-test, tracked in #987
+      #    2  jsx-a11y/media-has-caption on the Video block's two renderers (#819/#826, no
+      #       captions field in the block contract yet)
+      # so zero-warnings needs all THREE to land, not two. Note this number counts the whole
+      # repo; this step runs `lint:root` only and the turbo `lint` task covers the rest, so
+      # neither one alone will print 89.
       - name: Lint (root surfaces) + format check
         # Raise the V8 old-space above the ~2GB runner default: `eslint .` runs
         # typescript-eslint's type-aware rules, which build a full TS program per tsconfig

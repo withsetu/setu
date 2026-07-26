@@ -428,12 +428,27 @@ export default tseslint.config(
   // worded as intent. The rule and its whole tuning rationale live in
   // eslint-rules/invariant-comment-names-test.mjs; its tests are in
   // scripts/invariant-comment-rule.test.mjs (`pnpm test:scripts`).
-  // SHIPPED AS A WARNING, at a measured baseline of 31 sites across the repo (see the #961
-  // PR for the categorised corpus). Promotion to `error` is a follow-up once the baseline
-  // is burned down, matching how react-hooks' React Compiler diagnostics are handled above.
-  // Test files are excluded on purpose, not for noise: a comment sitting next to its own
-  // assertions is not vouching for verification that happens somewhere else, and "caught by
-  // this suite itself" self-references measured as the largest false-positive cluster.
+  //
+  // WHAT IT DOES NOT DO, stated here because this block is what the next reader reads:
+  // it does not check that the named test actually BITES (not statically decidable — that
+  // stays a reviewer's job), and it is silent on invariant claims phrased in unbackticked
+  // English. Run over the pre-fix text of all 17 known instances of this defect class it
+  // caught zero of them. It is a write-time speed bump on NEW claims, not a detector for
+  // existing ones; a clean run is not evidence that the class is absent (#986 review, F2).
+  //
+  // SHIPPED AS A WARNING, at a measured baseline of 25 sites (see the #961 PR for the
+  // categorised corpus). Promotion to `error` is blocked on #987 — not merely on burning
+  // the baseline down, since appending a plausible path to 25 comments is exactly the
+  // false confidence this rule exists to reduce. Same handling as react-hooks' React
+  // Compiler diagnostics above.
+  //
+  // Test files are excluded as a measured NOISE TRADE, not a principle: "caught by this
+  // suite itself" self-references were the largest false-positive cluster in the corpus.
+  // The principle it looks like — that a comment beside its own assertions cannot vouch
+  // falsely — is not true here, and the repo has falsified it twice (#922, a false claim
+  // in a `describe`'s own header; and #618's e2e spec calling a client-side React guard
+  // "the real security boundary"). Those live in the excluded set and the rule will not
+  // see them.
   // `.astro` is out of scope — different parser, no measured hits.
   {
     files: ['**/*.{ts,tsx,mjs,js}'],

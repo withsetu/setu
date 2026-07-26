@@ -46,7 +46,7 @@ export const parity = true`
       },
       // Browser-mode specs are referred to by directory + name, and that is greppable.
       {
-        code: `/** \`autosave\` never remounts mid-write — regression test in
+        code: `/** \`autosave\` can never remount mid-write — regression test in
  *  apps/admin/test-browser/lazy-route-autosave. */
 export const autosave = true`
       },
@@ -100,6 +100,27 @@ export const scope = []`
 
 // Just a note.
 export const x = 1`
+      },
+
+      // ---- The two DROPPED families, pinned so re-adding either turns this suite red ----
+      // Both are verbatim repo comments. They read as invariant claims and are not: they
+      // are bug-narratives, where the verb phrase describes what happened WITHOUT the fix.
+      // Re-adding "`x` never <verb>s" or "`x` always <verb>s" to TRIGGERS re-imports 4 of
+      // the 5 accidental hits the #961 corpus measured, so these cases are the guard rail.
+      {
+        code: `{/* Without the max-width an auto-layout cell grows to fit its content and
+    the inner \`truncate\` never engages, so a long title stretched the table. */}
+export const cell = null`
+      },
+      {
+        code: `/** React reconciles the DOM value back to that stale prop, so the next
+ *  synchronous change is a value-equal no-op and its \`onChange\` never fires. */
+export const mirrored = null`
+      },
+      {
+        code: `/** Bodies are compared with trailing whitespace stripped: \`tiptapToMarkdoc\`
+ *  always emits a trailing newline while hand-authored files may lack one. */
+export const diff = null`
       }
     ],
 
@@ -117,11 +138,24 @@ export function seed() {}`,
         errors: noTest
       },
       // ---- KILL-SHOT PAIR 3, path removed: the claim still spans the \`//\` run ----
+      // The line/endLine assertion pins the reported range to the WHOLE run rather than
+      // its first line, and `data` pins the quoted match — without both, the author is
+      // pointed at a line that contains nothing that tripped the rule (#986 review, F4).
       {
         code: `// \`dirty\` is always cleared once the
 // queue drains.
 export const dirty = false`,
-        errors: noTest
+        errors: [
+          {
+            messageId: 'noTest',
+            data: {
+              phrase: '"`x` is always …"',
+              match: '`dirty` is always'
+            },
+            line: 1,
+            endLine: 2
+          }
+        ]
       },
 
       // An issue number is not a test — the exact substitution CLAUDE.md §3.2 records as
@@ -133,7 +167,7 @@ export const fallback = 'local'`,
       },
       // The other absolute shapes.
       {
-        code: `/** \`taskList\` never matches here, which is why a checklist keeps its bytes. */
+        code: `/** \`taskList\` is never matched here, which is why a checklist keeps its bytes. */
 export const taskList = null`,
         errors: noTest
       },
@@ -173,7 +207,7 @@ export const a = 1`,
 
       // A hedge in a NEIGHBOURING sentence must not launder the fact-worded one.
       {
-        code: `/** This is intended to be cheap. \`cache\` never misses on a warm boot. */
+        code: `/** This is intended to be cheap. \`cache\` is never empty on a warm boot. */
 export const cache = new Map()`,
         errors: noTest
       }

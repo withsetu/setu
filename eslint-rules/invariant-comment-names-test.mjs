@@ -9,10 +9,18 @@
 //
 // This rule buys the CHEAP half only: it makes such a claim awkward to WRITE without
 // either naming a test or softening the wording. It does NOT check that the named test
-// actually bites — that is a reviewer's job and is not statically decidable. It also does
-// not catch every shape: a bare unbackticked English invariant ("Cleared only when the
-// queue fully drains") is indistinguishable from ordinary prose at any tolerable noise
-// level, and is measured below as such. Reviewer vigilance still owns that half.
+// actually bites — that is a reviewer's job and is not statically decidable.
+//
+// MEASURED REACH, so nobody reads this file as coverage it does not provide. Review of
+// #986 ran the rule over the PRE-FIX text of all 17 known instances of this defect class
+// (the seven from the #618 wave, `useAutosave`'s `dirty`, `splitCellBreaks`, and the four
+// in #618's comment): it caught ZERO. Two mechanisms — 8 of them phrase the subject as
+// unbackticked English ("Cleared only when the queue fully drains"), which no trigger here
+// reaches at a tolerable noise level; and 2 ALREADY CARRY a test path, so TEST_REFERENCE
+// exempts them. That second mechanism means the rule is structurally silent on the worst
+// shape in the class — a comment citing a test that cannot fail (#922). It is a
+// write-time speed bump on new claims, not a detector for existing ones, and reviewer
+// vigilance still owns every case above.
 //
 // TUNING NOTE, because the noise budget is the whole design constraint (§3.2 records why
 // a blanket `void <async>()` ban was rejected: 4:1 false positives train suppression).
@@ -44,7 +52,10 @@ const TRIGGERS = [
   // a paragraph mentioning "enforced" and, three sentences later, "suite" matches.
   // The lookbehinds drop negated statements ("not covered by the `test/**` glob above"),
   // which are descriptions of a gap rather than claims of enforcement.
-  // Cases for every clause here: scripts/invariant-comment-rule.test.mjs.
+  // scripts/invariant-comment-rule.test.mjs covers the `not ` lookbehind and the
+  // verb-meets-noun pairing. It does NOT cover the other two lookbehinds, the 90-char
+  // bound, or most alternatives in the two lists below — removing any of those leaves the
+  // suite green, so treat them as intended behaviour rather than pinned behaviour.
   [
     'an enforcement claim ("… by … test/suite/spec")',
     new RegExp(
@@ -60,9 +71,17 @@ const TRIGGERS = [
   ['"`x` is always …"', /`[^`]+`\s+(?:is|are)\s+always\b/i],
   ['"`x` is/can never …"', /`[^`]+`\s+(?:is|are|can)\s+never\b/i],
   ['"`x` cannot …"', /`[^`]+`\s+can\s?not\b/i],
-  ['"`x` always <verb>s …"', /`[^`]+`\s+always\s+[a-z]+s\b/i],
-  ['"`x` never <verb>s …"', /`[^`]+`\s+never\s+[a-z]+s\b/i],
   ['"`x` guarantees …"', /`[^`]+`\s+guarantees\b/i],
+  // DROPPED, measured: "`x` always <verb>s" and "`x` never <verb>s" contributed 6 of 31
+  // baseline hits and 4 of the 5 accidental ones. The cause is house style — this repo's
+  // comments are largely bug-narratives, and a narrative's verb phrase is a
+  // counterfactual, not a claim: "without the max-width … the inner `truncate` never
+  // engages", "its `onChange` never fires". INTENT catches `would`/`could`/`used to` but
+  // not the "without X, …" shape, and no cheap grammar separates the two. Dropping both
+  // took the baseline 31 -> 25 and the accidental rate 16% -> 4%, at the price of two
+  // genuine sites (table-gfm.ts, to-markdoc.ts). scripts/invariant-comment-rule.test.mjs
+  // pins the drop with valid cases carrying both shapes, so re-adding either turns the
+  // suite red rather than silently re-importing the noise.
   // "…-safe by construction", "a bijection by construction". Kept despite being only ~9
   // sites because one of them is this defect class caught in the act: db-sqlite's
   // index-port claimed parity "by construction" and needed two later fixes (#897, #898).
@@ -89,6 +108,10 @@ const TEST_REFERENCE =
  * Group runs of adjacent `//` comments into one logical comment, so a claim split across
  * three lines is matched as one sentence and a path on the last line exempts the run.
  * Block comments stay one logical comment each.
+ *
+ * `loc` is widened to span the WHOLE run, not just its first line: the reported range is
+ * the text the rule actually read, and a run reported at its first line points the author
+ * at a line that need not contain anything that tripped the rule.
  */
 function toLogicalComments(comments) {
   const logical = []
@@ -98,18 +121,17 @@ function toLogicalComments(comments) {
       previous !== undefined &&
       comment.type === 'Line' &&
       previous.type === 'Line' &&
-      comment.loc.start.line === previous.endLine + 1
+      comment.loc.start.line === previous.loc.end.line + 1
     if (contiguous) {
       previous.text += ` ${comment.value}`
-      previous.endLine = comment.loc.end.line
+      previous.loc = { start: previous.loc.start, end: comment.loc.end }
       continue
     }
     logical.push({
       type: comment.type,
       // Strip the leading ` * ` of a docblock so the text reads back as prose.
       text: comment.value.replace(/^[ \t]*\*[ \t]?/gm, ' '),
-      loc: comment.loc,
-      endLine: comment.loc.end.line
+      loc: { start: comment.loc.start, end: comment.loc.end }
     })
   }
   return logical
@@ -131,7 +153,7 @@ export default {
     schema: [],
     messages: {
       noTest:
-        'This comment states an invariant as fact ({{phrase}}) but names no test that would fail if it stopped being true — so it reads as verification while verifying nothing (CLAUDE.md §3.2, §4 #21). Either name the enforcing test path (e.g. `packages/core/test/foo.test.ts`) — an issue number does not count — or word it as intent ("intended to …").'
+        'This comment states an invariant as fact — {{phrase}}, at "{{match}}" — but names no test that would fail if it stopped being true, so it reads as verification while verifying nothing (CLAUDE.md §3.2, §4 #21). Either name the enforcing test path (e.g. `packages/core/test/foo.test.ts`) — an issue number does not count — or word it as intent ("intended to …").'
     }
   },
   create(context) {
@@ -143,14 +165,22 @@ export default {
           if (TEST_REFERENCE.test(comment.text)) continue
           for (const sentence of sentences(comment.text)) {
             if (INTENT.test(sentence)) continue
-            const trigger = TRIGGERS.find(([, matcher]) =>
-              matcher.test(sentence)
-            )
-            if (trigger === undefined) continue
+            let phrase
+            let match
+            for (const [name, matcher] of TRIGGERS) {
+              const hit = matcher.exec(sentence)
+              if (hit === null) continue
+              phrase = name
+              match = hit[0]
+              break
+            }
+            if (match === undefined) continue
             context.report({
+              // The whole comment is the range; the quoted `match` is what to look for
+              // inside it, because the category name alone leaves the author hunting.
               loc: comment.loc,
               messageId: 'noTest',
-              data: { phrase: trigger[0] }
+              data: { phrase, match: match.trim().slice(0, 80) }
             })
             // One report per comment: a docblock that trips twice is still one edit.
             break

@@ -50,6 +50,38 @@ export type ResetPasswordEmailContent = {
 }
 
 /**
+ * What `CreateAuthOptions['email'].sendReset` is handed: everything one reset email needs, for a
+ * caller that owns BOTH the body and the dispatch (#958).
+ *
+ * `to` is the account's address and appears ONCE. The two callbacks this replaced carried it
+ * twice — `send`'s `to` and `content`'s `userEmail` — as two independently-supplied values that
+ * nothing made equal; here the recipient and the `{{user_email}}` token are the same field by
+ * construction.
+ *
+ * `url` is always the link this package built from better-auth's and callback-defaulted
+ * (`withDefaultResetCallback` above). It is passed IN, never out: a caller's template can place
+ * the link but has no way to supply or alter one — kill-shot tested by
+ * apps/api/test/email-templates.test.ts, 'a stored template cannot supply or override the reset
+ * url'.
+ */
+export interface ResetEmailRequest {
+  /** The recipient — also the value to fill `{{user_email}}` with. */
+  to: string
+  url: string
+  userName?: string
+  /**
+   * The shipped default body for THIS request (`resetPasswordEmailContent`, i.e. core's
+   * `password-reset` registry default), computed on demand.
+   *
+   * It is handed over rather than applied here because `sendReset` owns the whole message: a
+   * caller with no template system of its own spreads this and is done, and a caller that has one
+   * (apps/api, which applies the admin's stored override) never calls it. A thunk so the caller
+   * that ignores it does not pay to render it.
+   */
+  defaultContent: () => ResetPasswordEmailContent
+}
+
+/**
  * The password-reset email body.
  *
  * #364 wrote these strings inline here. #499 (epic #497) moved them into core's email TYPE

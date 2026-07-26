@@ -7,7 +7,8 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { createAuth } from '@setu/auth'
 import { resolveSessionActor } from '../src/auth/resolve-session-actor'
-import { createLiveEmailTransport } from '../src/email-transport'
+import { usableEmailTransport } from '../src/capabilities'
+import { createEmailDispatcher } from '../src/email-transport'
 import {
   createEmailApi,
   resetRestartRequired,
@@ -418,9 +419,8 @@ describe('test-send goes through the SETTINGS-chosen transport (live, no restart
         delivered.push({ kind, to: msg.to, text: msg.text ?? '' })
       }
     })
-    const email = createLiveEmailTransport({
+    const email = createEmailDispatcher({
       env,
-      provider: readProvider,
       adapters: {
         console: () => adapter('console'),
         resend: () => adapter('resend'),
@@ -445,7 +445,9 @@ describe('test-send goes through the SETTINGS-chosen transport (live, no restart
             source: 'env',
             problem: null
           },
-          transport: email.resolve(),
+          // #959: the route's config is where selection happens now — the same
+          // `usableEmailTransport` call `resolveEmailConfig` makes, over the flipping provider.
+          transport: usableEmailTransport(env, readProvider()),
           templates: {},
           siteTitle: 'Setu'
         }

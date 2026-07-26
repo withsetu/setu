@@ -1,5 +1,7 @@
 import type { EmailPort } from '@setu/core'
+import type { ResetEmailRequest } from '@setu/auth'
 import type { UsableEmailTransport } from './capabilities'
+import type { EmailConfig } from './email-config'
 
 export interface ResetEmailPreconditions {
   /** The resolved from-address, or undefined when none is configured. */
@@ -100,11 +102,12 @@ export function resetEmailRefusal(
 
 /** The two live reset-email entry points, built together so they answer from one reading rule. */
 export interface ResetEmailGate {
-  /** better-auth's `email.send` hook (server.ts's `email:` option). */
-  send: EmailPort['send']
+  /** @setu/auth's `email.sendReset` hook (server.ts's `email:` option). Since #958 it owns the
+   *  BODY as well as the dispatch, which is what lets one reset cost one settings read. */
+  sendReset: (request: ResetEmailRequest) => Promise<void>
   /** Why the NEXT send would be refused, or `null` when it would go out — what
    *  `POST /api/users/send-reset` reports instead of claiming a send it cannot see the result of
-   *  (#912). It re-reads live state per call, exactly as `send` does. */
+   *  (#912). It re-reads live state per call, exactly as `sendReset` does. */
   refusal: () => ResetEmailRefusal | null
 }
 
@@ -131,26 +134,35 @@ export interface ResetEmailGate {
  * that route asks instead — see its own comment in users.ts for what that does and does not
  * guarantee.
  *
- * #944: `send` and `refusal` are returned TOGETHER because they used to be assembled separately
- * and fell back differently — the sender to better-auth's boot-time `msg.from`, the route to
- * nothing — so clearing `email.fromAddress` after boot made the admin route answer 409 "no email
- * sent" while the public flow, through this very sender, still sent. Both now read through the one
- * `decide()` below, so the fallback cannot be applied on one path and not the other, and `send`
- * can only obtain a from-address out of a null refusal. Pinned by
+ * #944: `sendReset` and `refusal` are returned TOGETHER because they used to be assembled
+ * separately and fell back differently — the sender to better-auth's boot-time `msg.from`, the
+ * route to nothing — so clearing `email.fromAddress` after boot made the admin route answer 409
+ * "no email sent" while the public flow, through this very sender, still sent. Both now read
+ * through the one `decide()` below, so the fallback cannot be applied on one path and not the
+ * other, and `sendReset` can only obtain a from-address out of a null refusal. Pinned by
  * apps/api/test/reset-email-gate.test.ts ("the route and the sender must agree on the
  * from-address") and apps/api/test/users-send-reset.test.ts.
  */
 export function createResetEmailGate(opts: {
-  /** The live transport + from-address, resolved TOGETHER and called ONCE per send (#939 —
-   *  server.ts's `createLiveEmailConfig`, one settings.json parse). The transport is the whole
-   *  reading, not just `effective`, because it is handed straight to `sendVia` below. */
-  resolveConfig: () => {
-    transport: UsableEmailTransport
-    /** Live from-address; wins over `bootFrom` when present (#498). */
-    from: string | undefined
-  }
-  /** The from-address resolved at BOOT — server.ts's `notifyFrom`, which is also the value it
-   *  passes as better-auth's `email.from`. Used when the live reading has none, so an admin who
+  /** The whole live reading, resolved TOGETHER and called ONCE per send (#939 — server.ts's
+   *  `createLiveEmailConfig`, one settings.json parse). The transport is the whole reading, not
+   *  just `effective`, because it is handed straight to `sendVia` below.
+   *  #958: it is the WHOLE `EmailConfig` — not the `{ transport, from }` pair it used to be —
+   *  because the body is rendered from this same reading now, which is what makes one reset cost
+   *  one parse (apps/api/test/email-read-count.test.ts, 'parses settings.json exactly ONCE, and a
+   *  save applies to the next reset'). */
+  resolveConfig: () => EmailConfig
+  /** The body, rendered from the reading the gate just judged — server.ts passes
+   *  `emailTemplates.renderWith(config, …)`, the admin's stored override applied with no second
+   *  read. Omitted → @setu/auth's shipped default (`request.defaultContent()`), which is what the
+   *  harnesses that care only about the gate use. */
+  render?: (
+    config: EmailConfig,
+    request: ResetEmailRequest
+  ) => { subject: string; html: string; text?: string }
+  /** The from-address resolved at BOOT — server.ts's `notifyFrom`. Since #958 it is the ONLY
+   *  boot-time from-address on this path (@setu/auth's `email` option no longer carries one, for
+   *  the reason its doc gives). Used when the live reading has none, so an admin who
    *  clears `email.fromAddress` in Settings → Email does not silently take account recovery down:
    *  the from-address has no bearing on the credential-leak risk (that is the transport check
    *  above it), so refusing over it would cost a recovery path and buy no safety. As wired it is
@@ -168,8 +180,8 @@ export function createResetEmailGate(opts: {
 }): ResetEmailGate {
   // #919: ONE reading per call of BOTH inputs, and what satisfied the gate is what dispatches —
   // the transport as the very object handed to `sendVia`, the from-address bound by value into the
-  // message. Previously the sender resolved the transport for the gate and then called an
-  // `email.send` that resolved independently — two readings of a Git-canonical file, so a
+  // message. Previously the sender resolved the transport for the gate and then dispatched
+  // through a sender that resolved independently — two readings of a Git-canonical file, so a
   // `git pull`/checkout landing between them admitted the message on 'smtp' and delivered it on
   // 'console', i.e. wrote a live reset token into the server log.
   // #939 made "one reading" structural rather than a discipline: the transport and the from-address
@@ -180,14 +192,18 @@ export function createResetEmailGate(opts: {
   // on a second call so one reading is distinguishable from two; a constant stub could not tell
   // them apart, which is how the from-address half of this claim sat unenforced while the comment
   // asserted it. End-to-end: apps/api/test/reset-password-leak.test.ts.
-  // #944: it is also the ONE place the fallback chain lives, so `refusal()` and `send` below judge
-  // the same address. `''` rather than `undefined` when nothing is configured keeps the from-address
-  // a plain `string` for the message, and `resetEmailRefusal` refuses on it either way.
+  // #944: it is also the ONE place the fallback chain lives, so `refusal()` and `sendReset` below
+  // judge the same address. `''` rather than `undefined` when nothing is configured keeps the
+  // from-address a plain `string` for the message, and `resetEmailRefusal` refuses on it either way.
+  // #958 extends the same reading to the BODY: `sendReset` renders from this `config` too, so the
+  // reset path now costs ONE settings parse rather than two. Pinned by
+  // apps/api/test/email-read-count.test.ts, 'parses settings.json exactly ONCE, and a save applies
+  // to the next reset', whose liveness half also proves the reading did not become a cache.
   const decide = () => {
     const live = opts.resolveConfig()
-    const from = live.from ?? opts.bootFrom ?? ''
+    const from = live.from.effective ?? opts.bootFrom ?? ''
     return {
-      transport: live.transport,
+      config: live,
       from,
       refusal: resetEmailRefusal({
         from,
@@ -199,13 +215,18 @@ export function createResetEmailGate(opts: {
 
   return {
     refusal: () => decide().refusal,
-    send: async (msg) => {
-      const { transport, from, refusal } = decide()
+    sendReset: async (request) => {
+      const { config, from, refusal } = decide()
       if (refusal !== null) {
         opts.onRefused(refusal)
         return
       }
-      await opts.sendVia(transport, { ...msg, from })
+      // #958: the body comes off the SAME `config` the refusal was judged against — one reading
+      // decides whether to send, what to send it as, and where to send it through.
+      const body = opts.render
+        ? opts.render(config, request)
+        : request.defaultContent()
+      await opts.sendVia(config.transport, { to: request.to, from, ...body })
     }
   }
 }

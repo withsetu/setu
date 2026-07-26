@@ -1,14 +1,26 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { EmailMessage } from '@setu/core'
+import { usableEmailTransport } from '../src/capabilities'
 import {
-  createLiveEmailTransport,
+  createEmailDispatcher,
   type ResendConfig
 } from '../src/email-transport'
 
-// #890: the live adapter seam. Increment A (#498) constructed ONE adapter at boot from
-// SETU_EMAIL_ADAPTER, so the provider could not be a control — switching it in the admin would
-// have needed an api restart. This module re-resolves the transport per send (the same
-// live-getter pattern the from-address already uses), which is what makes the dropdown real.
+// #890 made the email provider a CONTROL rather than a boot-time env var: the transport is
+// re-resolved from settings.json + env per send, so a save in Settings → Email applies to the next
+// email with no api restart. This module owns the second half of that — turning a resolution into
+// an actual adapter and sending through it.
+//
+// #959: it no longer owns the FIRST half. `resolve()`, `send()` and the `provider()` getter they
+// read settings.json through were unreachable from every production path after #939 gave each send
+// path one `EmailConfig` to dispatch from; selection now lives once, in `resolveEmailConfig`. So
+// every case below hands `sendVia` a reading made by the REAL `usableEmailTransport` — the same
+// function `resolveEmailConfig` calls — rather than asking this module to resolve one. The
+// properties that moved with the resolver are pinned where the resolver is
+// (apps/api/test/email-config.test.ts: 'keeps the #890 precedence: a stored provider beats
+// SETU_EMAIL_ADAPTER', 'keeps the #890 fail-safe: an unusable stored provider degrades to console,
+// it does not throw', 'a throwing settings getter degrades to env-only rather than failing the
+// send', 're-reads on EVERY call, so a save applies to the next email with no restart').
 
 const MSG: EmailMessage = {
   to: 'admin@example.com',
@@ -58,49 +70,40 @@ function spyAdapters() {
   }
 }
 
-describe('createLiveEmailTransport — the settings-chosen provider selects the adapter', () => {
+describe('createEmailDispatcher — the resolution names the adapter', () => {
   it('a settings provider beats SETU_EMAIL_ADAPTER for the actual send', async () => {
     const { sent, adapters } = spyAdapters()
-    const t = createLiveEmailTransport({
-      env: { SETU_EMAIL_ADAPTER: 'console', ...SMTP_ENV },
-      provider: () => 'smtp',
-      adapters
-    })
-    await t.send(MSG)
+    const env = { SETU_EMAIL_ADAPTER: 'console', ...SMTP_ENV }
+    const t = createEmailDispatcher({ env, adapters })
+
+    await t.sendVia(usableEmailTransport(env, 'smtp'), MSG)
+
     expect(sent.smtp).toHaveLength(1)
     expect(sent.console).toHaveLength(0)
-    expect(t.resolve()).toMatchObject({
-      selected: 'smtp',
-      source: 'settings',
-      effective: 'smtp'
-    })
   })
 
   it('no settings provider -> the env var still decides (existing deployments unchanged)', async () => {
     const { sent, adapters } = spyAdapters()
-    const t = createLiveEmailTransport({
-      env: { SETU_EMAIL_ADAPTER: 'smtp', ...SMTP_ENV },
-      provider: () => '',
-      adapters
-    })
-    await t.send(MSG)
+    const env = { SETU_EMAIL_ADAPTER: 'smtp', ...SMTP_ENV }
+    const t = createEmailDispatcher({ env, adapters })
+
+    await t.sendVia(usableEmailTransport(env, ''), MSG)
+
     expect(sent.smtp).toHaveLength(1)
-    expect(t.resolve().source).toBe('env')
   })
 
-  // The whole point of the seam: no restart. The provider getter re-reads settings.json, so a
-  // save between two sends changes where the SECOND one goes.
-  it('a provider change between sends applies immediately — no restart, no re-construction', async () => {
+  // The whole point of the seam: no restart. The CALLER re-reads settings per send
+  // (createLiveEmailConfig), so two sends through ONE long-lived dispatcher can land on two
+  // different adapters — which is only true because no reading is remembered between calls.
+  it('two sends through one dispatcher follow two different readings — nothing is frozen', async () => {
     const { sent, built, adapters } = spyAdapters()
-    let provider = 'console'
-    const t = createLiveEmailTransport({
-      env: SMTP_ENV,
-      provider: () => provider,
-      adapters
+    const t = createEmailDispatcher({ env: SMTP_ENV, adapters })
+
+    await t.sendVia(usableEmailTransport(SMTP_ENV, 'console'), MSG)
+    await t.sendVia(usableEmailTransport(SMTP_ENV, 'smtp'), {
+      ...MSG,
+      subject: 'after the switch'
     })
-    await t.send(MSG)
-    provider = 'smtp'
-    await t.send({ ...MSG, subject: 'after the switch' })
 
     expect(sent.console.map((m) => m.subject)).toEqual(['hi'])
     expect(sent.smtp.map((m) => m.subject)).toEqual(['after the switch'])
@@ -109,55 +112,55 @@ describe('createLiveEmailTransport — the settings-chosen provider selects the 
 
   it('adapters are constructed lazily and cached — an unused transport is never built', async () => {
     const { built, adapters } = spyAdapters()
-    const t = createLiveEmailTransport({
-      env: { RESEND_API_KEY: 'test-fake-key' },
-      provider: () => 'resend',
-      adapters
-    })
+    const env = { RESEND_API_KEY: 'test-fake-key' }
+    const t = createEmailDispatcher({ env, adapters })
     expect(built).toEqual({ console: 0, resend: 0, smtp: 0 })
-    await t.send(MSG)
-    await t.send(MSG)
+
+    await t.sendVia(usableEmailTransport(env, 'resend'), MSG)
+    await t.sendVia(usableEmailTransport(env, 'resend'), MSG)
+
     expect(built).toEqual({ console: 0, resend: 1, smtp: 0 })
   })
 })
 
-describe('createLiveEmailTransport — fail-safe on an unusable stored provider (#890)', () => {
+describe('createEmailDispatcher — fail-safe on an unusable stored provider (#890)', () => {
   // KILL-SHOT target. settings.json is Git-canonical: an unusable provider can arrive by
   // `git push`, bypassing the api's settings-write gate entirely, so the point of USE has to
   // degrade rather than trust the stored value. Delete the usability check in
-  // usableEmailTransport (or make createLiveEmailTransport key on `selected` instead of
-  // `effective`) and this fails: the resend factory is asked for an adapter it cannot build.
+  // usableEmailTransport (or make this module key on `selected` instead of `effective`) and this
+  // fails: the resend factory is asked for an adapter it cannot build.
   it('resend chosen in settings with no RESEND_API_KEY: falls back to console, never throws', async () => {
     const { sent, built, adapters } = spyAdapters()
     const problems: string[] = []
-    const t = createLiveEmailTransport({
+    const t = createEmailDispatcher({
       env: {},
-      provider: () => 'resend',
       adapters,
       onProblem: (problem) => problems.push(problem)
     })
 
-    await expect(t.send(MSG)).resolves.toBeUndefined()
-    expect(sent.console).toHaveLength(1)
-    expect(built.resend).toBe(0)
-    expect(t.resolve()).toMatchObject({
+    const reading = usableEmailTransport({}, 'resend')
+    expect(reading).toMatchObject({
       selected: 'resend',
       effective: 'console',
       problem: 'RESEND_API_KEY is unset'
     })
+    await expect(t.sendVia(reading, MSG)).resolves.toBeUndefined()
+    expect(sent.console).toHaveLength(1)
+    expect(built.resend).toBe(0)
     expect(problems[0]).toContain('RESEND_API_KEY is unset')
   })
 
   it('smtp chosen in settings with no SETU_SMTP_HOST: falls back to console with the reason', async () => {
     const { sent, built, adapters } = spyAdapters()
     const problems: string[] = []
-    const t = createLiveEmailTransport({
+    const t = createEmailDispatcher({
       env: {},
-      provider: () => 'smtp',
       adapters,
       onProblem: (problem) => problems.push(problem)
     })
-    await t.send(MSG)
+
+    await t.sendVia(usableEmailTransport({}, 'smtp'), MSG)
+
     expect(sent.console).toHaveLength(1)
     expect(built.smtp).toBe(0)
     expect(problems[0]).toContain('SETU_SMTP_HOST is unset')
@@ -165,47 +168,29 @@ describe('createLiveEmailTransport — fail-safe on an unusable stored provider 
 
   it('an unrecognized stored provider falls back to console', async () => {
     const { sent, adapters } = spyAdapters()
-    const t = createLiveEmailTransport({
-      env: {},
-      provider: () => 'sendgrid',
-      adapters
-    })
-    await t.send(MSG)
-    expect(sent.console).toHaveLength(1)
-  })
+    const t = createEmailDispatcher({ env: {}, adapters })
 
-  it('a provider getter that throws (unreadable settings.json) degrades to the env selection', async () => {
-    const { sent, adapters } = spyAdapters()
-    const t = createLiveEmailTransport({
-      env: { SETU_EMAIL_ADAPTER: 'smtp', ...SMTP_ENV },
-      provider: () => {
-        throw new Error('settings.json is unreadable')
-      },
-      adapters
-    })
-    await t.send(MSG)
-    expect(sent.smtp).toHaveLength(1)
+    await t.sendVia(usableEmailTransport({}, 'sendgrid'), MSG)
+
+    expect(sent.console).toHaveLength(1)
   })
 })
 
-describe('createLiveEmailTransport — sendVia binds a caller-resolved reading (#919)', () => {
-  // The seam `send` alone could not offer: a caller that has to DECIDE on a resolution (the
-  // reset-email gate) needs the decision and the dispatch to be the same reading. `send`
-  // re-resolves internally, so gating on `resolve()` and then calling `send` is a TOCTOU —
-  // settings.json is Git-canonical and a checkout/pull can rewrite it between the two.
-  it('dispatches through the resolution it was handed, without re-resolving', async () => {
+describe('createEmailDispatcher — sendVia binds a caller-resolved reading (#919)', () => {
+  // The seam an unbound `send` could not offer: a caller that has to DECIDE on a resolution (the
+  // reset-email gate) needs the decision and the dispatch to be the same reading. A dispatcher
+  // that resolved for itself would make gating and sending two independent readings — a TOCTOU,
+  // settings.json being Git-canonical, since a checkout/pull can rewrite it between the two.
+  it('dispatches through the resolution it was handed, never a fresh one', async () => {
     const { sent, adapters } = spyAdapters()
-    let provider = 'smtp'
-    const t = createLiveEmailTransport({
-      env: SMTP_ENV,
-      provider: () => provider,
+    // The env alone would select console; the caller's reading says smtp. Only the reading it was
+    // handed can produce an smtp send here.
+    const t = createEmailDispatcher({
+      env: { SETU_EMAIL_ADAPTER: 'console', ...SMTP_ENV },
       adapters
     })
 
-    const resolved = t.resolve()
-    // The flip the gate must not be exposed to: it lands AFTER the caller resolved.
-    provider = 'console'
-    await t.sendVia(resolved, MSG)
+    await t.sendVia(usableEmailTransport(SMTP_ENV, 'smtp'), MSG)
 
     expect(sent.smtp).toHaveLength(1)
     expect(sent.console).toEqual([])
@@ -214,57 +199,29 @@ describe('createLiveEmailTransport — sendVia binds a caller-resolved reading (
   it('still reports the problem carried by the resolution it was handed', async () => {
     const { sent, adapters } = spyAdapters()
     const onProblem = vi.fn()
-    const t = createLiveEmailTransport({
-      env: {},
-      provider: () => 'resend',
-      adapters,
-      onProblem
-    })
+    const t = createEmailDispatcher({ env: {}, adapters, onProblem })
 
-    await t.sendVia(t.resolve(), MSG)
+    await t.sendVia(usableEmailTransport({}, 'resend'), MSG)
 
-    // resend with no key degrades to console — sendVia must not lose the fail-safe reporting
-    // that `send` does.
+    // resend with no key degrades to console — dispatching through a caller's reading must not
+    // lose the fail-safe reporting.
     expect(sent.console).toHaveLength(1)
     expect(onProblem).toHaveBeenCalledTimes(1)
     expect(onProblem.mock.calls[0]?.[0]).toContain('RESEND_API_KEY is unset')
   })
-
-  it('send is sendVia over a fresh resolution — still live per call', async () => {
-    const { sent, adapters } = spyAdapters()
-    let provider = 'console'
-    const t = createLiveEmailTransport({
-      env: SMTP_ENV,
-      provider: () => provider,
-      adapters
-    })
-
-    await t.send(MSG)
-    provider = 'smtp'
-    await t.send(MSG)
-
-    expect(sent.console).toHaveLength(1)
-    expect(sent.smtp).toHaveLength(1)
-  })
 })
 
-describe('createLiveEmailTransport — the warning is named, and not per-send spam', () => {
+describe('createEmailDispatcher — the warning is named, and not per-send spam', () => {
   it('reports each distinct problem once, not on every send', async () => {
     const { adapters } = spyAdapters()
     const onProblem = vi.fn()
-    let provider = 'resend'
-    const t = createLiveEmailTransport({
-      env: {},
-      provider: () => provider,
-      adapters,
-      onProblem
-    })
-    await t.send(MSG)
-    await t.send(MSG)
+    const t = createEmailDispatcher({ env: {}, adapters, onProblem })
+
+    await t.sendVia(usableEmailTransport({}, 'resend'), MSG)
+    await t.sendVia(usableEmailTransport({}, 'resend'), MSG)
     expect(onProblem).toHaveBeenCalledTimes(1)
 
-    provider = 'smtp'
-    await t.send(MSG)
+    await t.sendVia(usableEmailTransport({}, 'smtp'), MSG)
     expect(onProblem).toHaveBeenCalledTimes(2)
     expect(onProblem.mock.calls[1]?.[0]).toContain('SETU_SMTP_HOST is unset')
   })
@@ -272,31 +229,22 @@ describe('createLiveEmailTransport — the warning is named, and not per-send sp
   it('says nothing when the selected transport is usable', async () => {
     const { adapters } = spyAdapters()
     const onProblem = vi.fn()
-    const t = createLiveEmailTransport({
-      env: SMTP_ENV,
-      provider: () => 'smtp',
-      adapters,
-      onProblem
-    })
-    await t.send(MSG)
+    const t = createEmailDispatcher({ env: SMTP_ENV, adapters, onProblem })
+
+    await t.sendVia(usableEmailTransport(SMTP_ENV, 'smtp'), MSG)
+
     expect(onProblem).not.toHaveBeenCalled()
   })
 
   it('re-reports a problem that recurs after the config was fixed in between', async () => {
     const { adapters } = spyAdapters()
     const onProblem = vi.fn()
-    let provider = 'resend'
-    const t = createLiveEmailTransport({
-      env: SMTP_ENV,
-      provider: () => provider,
-      adapters,
-      onProblem
-    })
-    await t.send(MSG) // resend, no key -> problem
-    provider = 'smtp'
-    await t.send(MSG) // usable -> clears
-    provider = 'resend'
-    await t.send(MSG) // problem again -> reported again
+    const t = createEmailDispatcher({ env: SMTP_ENV, adapters, onProblem })
+
+    await t.sendVia(usableEmailTransport(SMTP_ENV, 'resend'), MSG) // no key -> problem
+    await t.sendVia(usableEmailTransport(SMTP_ENV, 'smtp'), MSG) // usable -> clears
+    await t.sendVia(usableEmailTransport(SMTP_ENV, 'resend'), MSG) // problem again
+
     expect(onProblem).toHaveBeenCalledTimes(2)
   })
 })
@@ -304,21 +252,20 @@ describe('createLiveEmailTransport — the warning is named, and not per-send sp
 // #930 — the resend adapter's request bound is env-overridable, and this seam is where the parse
 // happens (the same shape smtp has used since #256: one parser, called at the point of use, on the
 // same env). A bound the operator can set but that never reaches the constructor is not a bound.
-describe('createLiveEmailTransport — the resend request bound reaches the adapter (#930)', () => {
+describe('createEmailDispatcher — the resend request bound reaches the adapter (#930)', () => {
   const RESEND_ENV = { RESEND_API_KEY: 'test-fake-key' }
 
   it('hands the resend factory the api key and the parsed timeout override', async () => {
     const { resendConfigs, adapters } = spyAdapters()
-    const t = createLiveEmailTransport({
-      env: {
-        SETU_EMAIL_ADAPTER: 'resend',
-        ...RESEND_ENV,
-        SETU_RESEND_TIMEOUT_MS: '2500'
-      },
-      provider: () => '',
-      adapters
-    })
-    await t.send(MSG)
+    const env = {
+      SETU_EMAIL_ADAPTER: 'resend',
+      ...RESEND_ENV,
+      SETU_RESEND_TIMEOUT_MS: '2500'
+    }
+    const t = createEmailDispatcher({ env, adapters })
+
+    await t.sendVia(usableEmailTransport(env, ''), MSG)
+
     expect(resendConfigs).toEqual([
       { apiKey: 'test-fake-key', requestTimeoutMs: 2_500 }
     ])
@@ -326,29 +273,26 @@ describe('createLiveEmailTransport — the resend request bound reaches the adap
 
   it('omits the override when unset, leaving the adapter its own bounded default', async () => {
     const { resendConfigs, adapters } = spyAdapters()
-    const t = createLiveEmailTransport({
-      env: { SETU_EMAIL_ADAPTER: 'resend', ...RESEND_ENV },
-      provider: () => '',
-      adapters
-    })
-    await t.send(MSG)
+    const env = { SETU_EMAIL_ADAPTER: 'resend', ...RESEND_ENV }
+    const t = createEmailDispatcher({ env, adapters })
+
+    await t.sendVia(usableEmailTransport(env, ''), MSG)
+
     expect(resendConfigs).toEqual([{ apiKey: 'test-fake-key' }])
   })
 
   it('never builds a resend adapter when the override is broken — it degrades to console', async () => {
     const { sent, built, adapters } = spyAdapters()
     const onProblem = vi.fn()
-    const t = createLiveEmailTransport({
-      env: {
-        SETU_EMAIL_ADAPTER: 'resend',
-        ...RESEND_ENV,
-        SETU_RESEND_TIMEOUT_MS: 'whenever'
-      },
-      provider: () => '',
-      adapters,
-      onProblem
-    })
-    await t.send(MSG)
+    const env = {
+      SETU_EMAIL_ADAPTER: 'resend',
+      ...RESEND_ENV,
+      SETU_RESEND_TIMEOUT_MS: 'whenever'
+    }
+    const t = createEmailDispatcher({ env, adapters, onProblem })
+
+    await t.sendVia(usableEmailTransport(env, ''), MSG)
+
     expect(built.resend).toBe(0)
     expect(sent.console).toHaveLength(1)
     expect(onProblem).toHaveBeenCalledWith(

@@ -443,6 +443,34 @@ describe('createSubmissionService.submit', () => {
       expect(send.mock.calls[0]![0].from).toBe('now@x.com')
     })
 
+    // #959: the wiring apps/api actually uses now. It used to pass an `email` port AS WELL, which
+    // contributed nothing but the `email !== undefined` half of the notify-wired condition —
+    // `resolveNotification` supplies the sender, so the port's own `send` was never reached. Every
+    // other case in this describe still passes both, so this is the one that fails if the
+    // condition ever goes back to REQUIRING a port.
+    it('notifies with no `email` port at all when resolveNotification supplies the sender', async () => {
+      const send = vi.fn(async (_msg: EmailMessage) => {})
+      const svc = createSubmissionService({
+        submissions: createMemorySubmissionPort(),
+        captcha: ok,
+        notifyTo: 'owner@x.com',
+        resolveNotification: () => ({
+          from: 'ctx@x.com',
+          render: () => ({ subject: 's', html: '<p>h</p>' }),
+          send
+        })
+      })
+
+      await svc.submit({ ...base })
+
+      expect(send).toHaveBeenCalledTimes(1)
+      expect(send.mock.calls[0]![0]).toMatchObject({
+        to: 'owner@x.com',
+        from: 'ctx@x.com',
+        subject: 's'
+      })
+    })
+
     it('is NOT consulted for a submission that would never notify — a bot cannot make the host pay for a resolution', async () => {
       const resolveNotification = vi.fn(() => ({
         from: 'ctx@x.com',

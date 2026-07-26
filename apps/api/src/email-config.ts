@@ -29,7 +29,7 @@ export interface EmailConfig {
   from: FromAddressResolution
   /** #890: the transport the NEXT send would use, already fail-safed to console when the
    *  selection is unusable. This is the whole reading, not just `effective`, because callers hand
-   *  it straight to `LiveEmailTransport.sendVia` so the decision binds the dispatch (#919). */
+   *  it straight to `EmailDispatcher.sendVia` so the decision binds the dispatch (#919). */
   transport: UsableEmailTransport
   /** #499: the admin's stored template overrides, or undefined when settings could not be read
    *  at all (which renders the shipped defaults). */
@@ -41,7 +41,7 @@ export interface EmailConfig {
 
 /** Pure projection of one settings reading. `undefined` settings means "could not be read",
  *  which every field degrades on rather than failing the send — the same fail-safe-at-the-point-
- *  of-use layering `createLiveEmailTransport` and `createLiveEmailTemplates` each had on their
+ *  of-use layering the transport selection and `createLiveEmailTemplates` each had on their
  *  own. Pinned by apps/api/test/email-config.test.ts. */
 export function resolveEmailConfig(
   settings: SiteSettings | undefined,

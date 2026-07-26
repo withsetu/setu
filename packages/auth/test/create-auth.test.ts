@@ -5,7 +5,11 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { eq } from 'drizzle-orm'
 import type { EmailMessage } from '@setu/core'
 import { user as userTable } from '@setu/db-sqlite/schema'
-import { createAuth, type CreateAuthOptions } from '../src'
+import {
+  createAuth,
+  type CreateAuthOptions,
+  type ResetEmailRequest
+} from '../src'
 
 function makeAuth(email?: CreateAuthOptions['email']) {
   const db = drizzle(new Database(':memory:'))
@@ -23,20 +27,25 @@ function makeAuth(email?: CreateAuthOptions['email']) {
   }
 }
 
-/** A minimal fake matching `CreateAuthOptions['email']`'s structural `send` shape — never a real
- *  transport (mirrors packages/email-testing's contract-harness style: record what was sent, don't
- *  actually deliver anything). resetRedirectTo mirrors what server.ts supplies —
- *  `<adminOrigin>/reset-password`, on the trusted admin origin. */
+/** A minimal fake `CreateAuthOptions['email']` — never a real transport (mirrors
+ *  packages/email-testing's contract-harness style: record what was sent, don't actually deliver
+ *  anything). resetRedirectTo mirrors what server.ts supplies — `<adminOrigin>/reset-password`, on
+ *  the trusted admin origin.
+ *
+ *  #958: this is the caller that supplies no renderer of its own, so it spreads
+ *  `defaultContent()` — which is what keeps `resetPasswordEmailContent` the shipped default now
+ *  that the `content` option is gone. The subject/html assertions below are exactly the ones that
+ *  fail if that default stops being handed over. It also owns the from-address, because the
+ *  option no longer carries one. */
 const ADMIN_RESET_ROUTE = 'http://localhost:5173/reset-password'
 function makeFakeEmail() {
   const sent: EmailMessage[] = []
   return {
     sent,
     email: {
-      send: async (msg: EmailMessage) => {
-        sent.push(msg)
+      sendReset: async ({ to, defaultContent }: ResetEmailRequest) => {
+        sent.push({ to, from: 'noreply@setu.test', ...defaultContent() })
       },
-      from: 'noreply@setu.test',
       resetRedirectTo: ADMIN_RESET_ROUTE
     }
   }

@@ -5,21 +5,24 @@ import { FeaturedImageField } from './FeaturedImageField'
 import { DateField } from './DateField'
 import { SeoSection } from './SeoSection'
 import { SlugField } from './SlugField'
+import { useCollections } from '@/data/collections-store'
+import { collectionHasTaxonomy } from '@/data/collections'
 
-/** Whether the editor offers Categories/Tags for entries in `collection`.
+/** Whether the editor offers Categories/Tags for entries in a collection — see
+ *  `hasCategories`/`hasTags` in MetaPanel below.
  *
- *  v1 is post-only (WordPress parity: categories and tags are post taxonomies;
- *  pages carry none unless a type opts in). When custom collections land, this
- *  becomes a lookup on the collection's config — each collection declaring its
- *  supported taxonomies, read here AND by list filters/archive routes (#580).
- *  Generalize HERE, not by scattering `collection === '…'` checks.
+ *  #253: this is now the lookup the note here asked for — each collection
+ *  declares its own `taxonomies` in setu.config, read from the collections store
+ *  rather than compared against a literal. The built-in defaults keep the
+ *  WordPress-parity behaviour (post has category+tag, page has neither), so
+ *  nothing changes for a site that declares nothing.
+ *
+ *  Fail-closed on an unknown collection: no declaration, no taxonomy fields
+ *  (apps/admin/test/collections.test.ts).
  *
  *  Data honesty: hand-authored `tags`/`categories` frontmatter on other
  *  collections is left untouched — the fields just aren't offered, and every
  *  panel edit spreads the full metadata map, so unmanaged keys round-trip. */
-function collectionSupportsTaxonomies(collection: string): boolean {
-  return collection === 'post'
-}
 
 /** The frontmatter value that feeds the permalink date tokens: `date` ?? `pubDate`. */
 function dateValue(metadata: Record<string, unknown>): string | undefined {
@@ -81,6 +84,15 @@ export function MetaPanel({
   onChange: (next: Record<string, unknown>) => void
   apiBase: string
 }) {
+  // Per-taxonomy, not one boolean: a collection declares `category` and `tag`
+  // independently in setu.config (#253).
+  const { collections } = useCollections()
+  const hasCategories = collectionHasTaxonomy(
+    collections,
+    collection,
+    'category'
+  )
+  const hasTags = collectionHasTaxonomy(collections, collection, 'tag')
   return (
     <aside className="w-[300px] shrink-0 overflow-y-auto border-l border-border/60">
       <Section title="Permalink">
@@ -132,7 +144,7 @@ export function MetaPanel({
           apiBase={apiBase}
         />
       </Section>
-      {collectionSupportsTaxonomies(collection) && (
+      {hasCategories && (
         <>
           <Section title="Categories">
             <CategoryField
@@ -145,6 +157,10 @@ export function MetaPanel({
               editable={editable}
             />
           </Section>
+        </>
+      )}
+      {hasTags && (
+        <>
           <Section title="Tags">
             <TagField
               selected={

@@ -4,6 +4,7 @@ import { AppShell } from './shell/AppShell'
 import { RouteBoundary } from './shell/RouteBoundary'
 import { Placeholder } from './screens/Placeholder'
 import { ContentList } from './screens/ContentList'
+import { CollectionList } from './screens/CollectionList'
 import { Dashboard } from './screens/Dashboard'
 import { useCan } from './auth/actor'
 import type { Action } from '@setu/core'
@@ -100,6 +101,9 @@ export function App() {
             path="/content"
             element={<ContentList title="All content" />}
           />
+          {/* Every collection declared in setu.config (#253). post/page keep the
+              two routes above so existing links keep resolving. */}
+          <Route path="/content/:collection" element={<CollectionList />} />
           <Route path="/taxonomies" element={<Taxonomies />} />
           <Route
             path="/categories"

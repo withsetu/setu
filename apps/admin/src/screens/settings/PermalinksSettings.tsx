@@ -12,6 +12,7 @@ import { useServices, OWNER_AUTHOR } from '../../data/store'
 import { useNotify } from '../../ui/notify'
 import { connectionError } from '../../ui/error-message'
 import { useRefreshSettings } from '../../data/settings-store'
+import { useCollections } from '../../data/collections-store'
 import {
   SettingsLoadError,
   SETTINGS_LOAD_FAILED_MESSAGE
@@ -31,11 +32,9 @@ import {
 const SETTINGS_PATH = 'settings.json'
 const CUSTOM = '__custom__'
 
-// The free-tier collection set from #251.
-const COLLECTIONS: { id: string; label: string }[] = [
-  { id: 'post', label: 'Posts' },
-  { id: 'page', label: 'Pages' }
-]
+// #253: the collection set is whatever setu.config declares, not a literal pair. The
+// built-in post/page are declared collections too, so a site that adds nothing sees
+// exactly the previous two rows.
 
 // WordPress-style presets. Order matches the brief.
 const PRESETS: { id: string; label: string; pattern: string }[] = [
@@ -172,6 +171,7 @@ function CollectionRow({
 }
 
 export function PermalinksSettings() {
+  const { collections } = useCollections()
   const { git } = useServices()
   const notify = useNotify()
   const refreshSettings = useRefreshSettings()
@@ -234,10 +234,11 @@ export function PermalinksSettings() {
         ? 'category base must be lowercase letters, digits, or hyphens'
         : null
 
-  const patternErrors = COLLECTIONS.reduce<Record<string, string[]>>(
+  const patternErrors = collections.reduce<Record<string, string[]>>(
     (acc, c) => {
-      const pattern = values.patterns[c.id]
-      acc[c.id] = pattern !== undefined ? validatePermalinkPattern(pattern) : []
+      const pattern = values.patterns[c.name]
+      acc[c.name] =
+        pattern !== undefined ? validatePermalinkPattern(pattern) : []
       return acc
     },
     {}
@@ -304,14 +305,14 @@ export function PermalinksSettings() {
       </p>
 
       <div className="space-y-4">
-        {COLLECTIONS.map((c) => (
+        {collections.map((c) => (
           <CollectionRow
-            key={c.id}
-            id={c.id}
-            label={c.label}
-            pattern={values.patterns[c.id]}
+            key={c.name}
+            id={c.name}
+            label={c.labelPlural}
+            pattern={values.patterns[c.name]}
             uncategorized={values.uncategorized}
-            onChange={(next) => setPattern(c.id, next)}
+            onChange={(next) => setPattern(c.name, next)}
           />
         ))}
       </div>

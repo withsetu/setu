@@ -40,6 +40,7 @@ import { createAuth, type AuthEvent } from '@setu/auth'
 import { createMiddleware } from 'hono/factory'
 import { createGitApi } from './app'
 import { loadSetuConfig, resolveSetuConfigPath } from './setu-config'
+import { createCollectionsApi } from './collections-api'
 import { createHistoryApi } from './history-api'
 import { createPreviewApi } from './preview'
 import { createUploadApi, listMediaRecords } from './media'
@@ -817,6 +818,11 @@ app.use('/api/history/restore', refreshIndexAfterCommit)
 // built-in post/page collections — see loadSetuConfig).
 const setuConfig = await loadSetuConfig(resolveSetuConfigPath(process.env, dir))
 app.route('/', createGitApi(git, resolveActor, { getConfig: () => setuConfig }))
+// #253 increment C: the admin reads the declared collections from here.
+app.route(
+  '/',
+  createCollectionsApi({ resolveActor, getConfig: () => setuConfig })
+)
 // Revision history from Git (#466) — list/read/restore; the git-local adapter
 // implements the optional capability, so this topology serves it.
 app.route('/', createHistoryApi(git, resolveActor))

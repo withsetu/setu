@@ -24,7 +24,12 @@ export interface DashboardCounts {
   drafts: number
 }
 
-/** Collections the At-a-glance tiles summarize (Posts / Pages). */
+/** Collections the At-a-glance tiles summarize (Posts / Pages).
+ *
+ *  Deliberately still the two built-ins after #253 made collections declarable: widening
+ *  this would break the tiles-sum-to-Posts+Pages invariant below, which is the #611
+ *  regression. Entries in a declared collection are therefore NOT counted in any tile
+ *  today — tracked, with the options, as #977. */
 const DASHBOARD_COLLECTIONS = ['post', 'page'] as const
 
 const ZERO: CollectionStats = {

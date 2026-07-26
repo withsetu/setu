@@ -1,8 +1,5 @@
-import type {
-  EmailSettings as EmailValues,
-  EmailTemplateOverride,
-  EmailTemplateOverrides
-} from '@setu/core'
+import type { EmailSettings as EmailValues } from '@setu/core'
+import { patchSettingsGroup } from './settings-group-patch'
 
 /**
  * #937: build the `email` group to COMMIT, by patching the raw stored group with what the admin
@@ -17,80 +14,34 @@ import type {
  * hypothetical: they arrive by `git push` and by a plugin whose email type this build has not
  * loaded (#302).
  *
- * The rule here is per-field and, for templates, per-ENTRY: a key is written only when its value
- * differs from what was published. That is what makes "unrelated" mean unrelated — a naive merge
- * over `raw.email` would not have been enough, because the screen owns all three known fields, so
- * the salvaged values would still have won every spread.
+ * ## Why this is a wrapper and not its own rule (#978 review F2)
  *
- * It deliberately does NOT tidy: a rejected value the admin did not touch is left byte-identical,
- * because the honest response to it is the warning the api and the site build now print (#937's
- * other half), not a silent rewrite. Every branch is pinned by
- * apps/admin/test/email-settings-patch.test.ts.
+ * It used to carry a bespoke per-ENTRY rule: a `templates` entry was an ATOM, identified by its
+ * three known fields (`subject`/`html`/`text`) and replaced WHOLE when any of them changed. The
+ * argument for it was the entry salvage rejects WHOLE — over EMAIL_TEMPLATE_MAX_ENTRY_BYTES, or a
+ * non-slug id. That argument does not hold: a rejected-whole entry is absent from `published`, so
+ * there is no object pair for the generic per-field rule to recurse into and it replaces the entry
+ * whole too. Measured — byte-identical output on that case, and the whole 80-test email suite
+ * passes unchanged against the generic rule.
+ *
+ * Where the two DID differ is the HOLLOWED entry: a known field dropped field-wise (a 20,001-char
+ * `html`) while the entry itself stays under the size cap. Editing that entry's SUBJECT then
+ * dropped the stored `html` under the atom rule and keeps it under the generic one — and keeping
+ * it is #956's whole point, since the admin never touched that field. So the atom rule was not a
+ * different-but-valid trade; it was the #956 defect one level deeper. Pinned by
+ * apps/admin/test/email-settings-patch.test.ts ("an over-cap template body survives an edit to a
+ * DIFFERENT field of the same entry").
+ *
+ * The named function stays because the 15 email-shaped cases in that test file are real salvage
+ * outcomes worth exercising against the shared helper, and because this is where someone reading
+ * the email screen looks for the rule. Read
+ * {@link ./settings-group-patch.patchSettingsGroup}'s docblock before changing a call site — in
+ * particular, a key missing from `next` is written as a DELETE.
  */
 export function patchEmailGroup(
   rawEmail: unknown,
   published: EmailValues,
   next: EmailValues
 ): Record<string, unknown> {
-  const out: Record<string, unknown> = isPlainObject(rawEmail)
-    ? { ...rawEmail }
-    : {}
-  if (next.fromAddress !== published.fromAddress)
-    out.fromAddress = next.fromAddress
-  if (next.provider !== published.provider) out.provider = next.provider
-  const templates = patchTemplates(
-    out.templates,
-    published.templates,
-    next.templates
-  )
-  if (templates !== null) out.templates = templates
-  return out
-}
-
-const isPlainObject = (v: unknown): v is Record<string, unknown> =>
-  typeof v === 'object' && v !== null && !Array.isArray(v)
-
-/**
- * The three fields the template editor can write. Comparing on them rather than on the whole
- * object keeps an entry's unknown passthrough fields out of the dirty DECISION — but be precise
- * about what that does and does not preserve, because the two cases differ:
- *
- * - an entry salvage LET THROUGH keeps its unknown fields in `next` (salvageGroup passes them),
- *   so they round-trip whether or not the admin edits the entry;
- * - an entry salvage REJECTED whole — over EMAIL_TEMPLATE_MAX_ENTRY_BYTES, or a dropped over-cap
- *   known field — is absent from (or hollowed out in) `next`, so customizing that id writes the
- *   editor's entry over the stored one and the unknown fields go with it.
- *
- * The second is the per-ENTRY rule working as designed: the admin edited that entry. It is called
- * out here because the arithmetic is not obvious from the comparison alone, and pinned by
- * apps/admin/test/email-settings-patch.test.ts ("customizing an id whose stored entry salvage
- * rejected replaces the stored entry, unknown fields included").
- */
-const entryKey = (o: EmailTemplateOverride | undefined): string =>
-  JSON.stringify([o?.subject ?? null, o?.html ?? null, o?.text ?? null])
-
-/** The patched `templates` value, or null when the admin changed no template — in which case the
- *  caller leaves whatever is stored (including a non-object, or an entry salvage rejected)
- *  exactly as it is. */
-function patchTemplates(
-  rawTemplates: unknown,
-  published: EmailTemplateOverrides,
-  next: EmailTemplateOverrides
-): Record<string, unknown> | null {
-  const out: Record<string, unknown> = isPlainObject(rawTemplates)
-    ? { ...rawTemplates }
-    : {}
-  let changed = false
-  // Reset-to-default: an id that was published and is now gone is a deliberate delete.
-  for (const id of Object.keys(published))
-    if (!(id in next)) {
-      delete out[id]
-      changed = true
-    }
-  for (const [id, entry] of Object.entries(next))
-    if (entryKey(published[id]) !== entryKey(entry)) {
-      out[id] = entry
-      changed = true
-    }
-  return changed ? out : null
+  return patchSettingsGroup(rawEmail, published, next)
 }

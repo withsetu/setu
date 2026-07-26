@@ -159,6 +159,49 @@ describe('patchEmailGroup (#937)', () => {
     expect(out.templates).toEqual({ 'password-reset': { html: huge } })
   })
 
+  /**
+   * #978 review F2 — THE case that decides whether `email` needs its own patcher, and the one the
+   * old design argument never tested.
+   *
+   * The argument for a per-ENTRY atom rule rested on the entry salvage rejects WHOLE. That case
+   * cannot distinguish the two rules: a rejected-whole entry is absent from `published`, so there
+   * is no object pair to recurse into and both rules replace the entry whole ("customizing an id
+   * whose stored entry salvage rejected replaces the stored entry", above, passes under either).
+   *
+   * The HOLLOWED entry is where they diverged: a known field dropped field-wise while the entry
+   * stays under EMAIL_TEMPLATE_MAX_ENTRY_BYTES. Editing a DIFFERENT field of that entry dropped the
+   * stored `html` under the atom rule — the #956 defect one level deeper, on a field the admin
+   * never touched. The per-field rule keeps it, which is why `patchEmailGroup` is now a wrapper.
+   *
+   * Kill-shot: restore the atom rule (`out[id] = entry` keyed on subject/html/text) and this fails
+   * while every other test in this file still passes — which is exactly how it went unnoticed.
+   */
+  it('an over-cap template body survives an edit to a DIFFERENT field of the same entry', () => {
+    const huge = 'x'.repeat(EMAIL_TEMPLATE_MAX_BODY + 1)
+    const raw = {
+      email: { templates: { 'password-reset': { html: huge } } }
+    }
+    const published = loaded(raw)
+    // Hollowed, NOT dropped: the entry survives salvage, its over-cap field does not.
+    expect(published.templates['password-reset']).toEqual({})
+    const out = patchEmailGroup(
+      raw.email,
+      published,
+      withField(published, {
+        templates: {
+          ...published.templates,
+          'password-reset': {
+            ...published.templates['password-reset'],
+            subject: 'New'
+          }
+        }
+      })
+    )
+    expect(out.templates).toEqual({
+      'password-reset': { html: huge, subject: 'New' }
+    })
+  })
+
   it('an over-cap template ENTRY survives a from-address-only save', () => {
     // Over EMAIL_TEMPLATE_MAX_ENTRY_BYTES via an unknown passthrough field — the #935 shape,
     // and the only way to exceed the ENTRY cap given the per-field caps. The `toBeUndefined`

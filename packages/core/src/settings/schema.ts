@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { DEFAULT_SETTINGS } from './defaults'
 import type { SiteSettings } from './types'
 import { validatePermalinkPattern, SLUG_SEGMENT } from '../permalinks/pattern'
+import { sendableFromAddress } from './from-address'
 import {
   EMAIL_TEMPLATE_MAX_BODY,
   EMAIL_TEMPLATE_MAX_ENTRIES,
@@ -85,8 +86,25 @@ const permalinksSchema = groupObject({
 // #499: `templates` stays `z.unknown()` here and is salvaged entry-by-entry below (the
 // permalinks.patterns precedent) — one malformed template must never cost you the others, and
 // certainly not the sibling from-address. Template TEXT is configuration, not a credential.
+//
+// #957: `fromAddress` shares `sendableFromAddress` with the env branch and the admin field instead
+// of re-stating the rule as `z.string().email()`. Two consequences, both deliberate:
+//   - the display-name form (`Setu <hello@example.com>`) is now accepted here, as it already was in
+//     `SETU_FORMS_NOTIFY_FROM` — both transports document it as the way to configure a friendly
+//     sender, and the settings side used to call the operator's working value invalid;
+//   - a control character anywhere in the value is rejected, which is the header-injection guard.
+//     `z.string().email()` refused those values incidentally; now it is the same explicit check the
+//     env branch makes.
+// The comparison is `=== v` rather than `!== null` because `resolveFromAddress` hands a settings
+// value straight on as the effective from without re-checking it, so what is STORED must already be
+// what would be SENT (i.e. trimmed). Pinned by packages/core/src/settings/from-address.test.ts.
 const emailSchema = groupObject({
-  fromAddress: z.union([z.literal(''), z.string().email()]),
+  fromAddress: z
+    .string()
+    .refine((v) => v === '' || sendableFromAddress(v) === v, {
+      message:
+        'expected an email address like hello@example.com, or Setu <hello@example.com>'
+    }),
   provider: z.enum(['', 'console', 'resend', 'smtp']),
   templates: z.unknown()
 })

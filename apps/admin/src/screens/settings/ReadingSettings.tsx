@@ -13,6 +13,7 @@ import {
   SettingsLoadError,
   SETTINGS_LOAD_FAILED_MESSAGE
 } from './SettingsLoadError'
+import { patchSettingsGroup } from './settings-group-patch'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -133,10 +134,19 @@ export function ReadingSettings() {
     setValues((v) => ({ ...v, ...patch }))
 
   const save = async () => {
-    if (saving || !dirty || raw === null) return
+    if (saving || !dirty || raw === null || published === null) return
     setSaving(true)
     try {
-      const next = { ...raw, reading: values }
+      // #956: PATCH the stored group with what changed — never write the loaded group back whole.
+      // `values` is the SALVAGED reading, so writing it back erased a rejected nested value such
+      // as `reading.feed.items: "many"` — and wrote defaults over `markdown`/`relatedPosts`, which
+      // this screen has no control for at all. The patch is per-field INSIDE a sub-group too. See
+      // settings-group-patch.ts; apps/admin/test/settings-group-patch.test.ts pins the shape and
+      // apps/admin/test/reading-settings.test.tsx pins this screen's case.
+      const next = {
+        ...raw, // preserve unknown groups
+        reading: patchSettingsGroup(raw.reading, published, values)
+      }
       await git.commitFile({
         path: SETTINGS_PATH,
         content: JSON.stringify(next, null, 2) + '\n',

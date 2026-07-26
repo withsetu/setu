@@ -10,6 +10,7 @@ import {
   SettingsLoadError,
   SETTINGS_LOAD_FAILED_MESSAGE
 } from './SettingsLoadError'
+import { patchSettingsGroup } from './settings-group-patch'
 import { MediaPickerModal } from '../../editor/MediaPickerModal'
 import { resolveMediaSrc } from '../../editor/media-src'
 import { Button } from '@/components/ui/button'
@@ -175,7 +176,7 @@ export function IdentitySettings() {
     }))
 
   const save = async () => {
-    if (saving || !dirty || raw === null) return
+    if (saving || !dirty || raw === null || published === null) return
     setSaving(true)
     try {
       // Drop blank social rows on save so the stored sameAs stays clean.
@@ -186,7 +187,17 @@ export function IdentitySettings() {
           .filter(Boolean),
         twitterHandle: values.twitterHandle.replace(/^@+/, '').trim()
       }
-      const next = { ...raw, identity: cleaned } // preserve unknown groups
+      // #956: PATCH the stored group with what changed — never write the loaded group back whole.
+      // `cleaned` derives from the SALVAGED reading, so writing it back erased a stored
+      // `entityType: "robot"`, a non-array `socialProfiles` and a list whose non-string members
+      // salvage had filtered out. `socialProfiles` is compared as a value and written whole, so an
+      // untouched list is not written back filtered. See settings-group-patch.ts;
+      // apps/admin/test/settings-group-patch.test.ts pins the shapes and
+      // apps/admin/test/identity-settings.test.tsx pins this screen's case.
+      const next = {
+        ...raw, // preserve unknown groups
+        identity: patchSettingsGroup(raw.identity, published, cleaned)
+      }
       await git.commitFile({
         path: SETTINGS_PATH,
         content: JSON.stringify(next, null, 2) + '\n',

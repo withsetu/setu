@@ -9,6 +9,7 @@ import {
   SettingsLoadError,
   SETTINGS_LOAD_FAILED_MESSAGE
 } from './SettingsLoadError'
+import { patchSettingsGroup } from './settings-group-patch'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -98,10 +99,18 @@ export function GeneralSettings() {
     setValues((v) => ({ ...v, ...patch }))
 
   const save = async () => {
-    if (saving || !dirty || raw === null) return
+    if (saving || !dirty || raw === null || published === null) return
     setSaving(true)
     try {
-      const next = { ...raw, general: values } // preserve unknown groups
+      // #956: PATCH the stored group with what changed — never write the loaded group back
+      // whole. `values` is the SALVAGED reading, so writing it back erased every stored value the
+      // salvage layer had rejected as a side effect of an unrelated edit. See
+      // settings-group-patch.ts; apps/admin/test/settings-group-patch.test.ts pins each shape and
+      // apps/admin/test/general-settings.test.tsx pins this screen's case.
+      const next = {
+        ...raw, // preserve unknown groups
+        general: patchSettingsGroup(raw.general, published, values)
+      }
       await git.commitFile({
         path: SETTINGS_PATH,
         content: JSON.stringify(next, null, 2) + '\n',

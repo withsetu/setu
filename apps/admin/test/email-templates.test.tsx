@@ -19,6 +19,7 @@ import { ActorProvider } from '../src/auth/actor'
 import { ServicesProvider, servicesFor } from '../src/data/store'
 import { NotificationProvider } from '../src/ui/notify'
 import { EmailSettings } from '../src/screens/settings/EmailSettings'
+import { nearMissBracesIn } from '../src/screens/settings/EmailTemplates'
 
 // #499 (epic #497): the template editor inside Settings → Email. The load-bearing property is
 // PREVIEW PARITY — the preview is rendered by @setu/core's renderEmailTemplate, the same
@@ -553,6 +554,105 @@ describe('EmailSettings — validation, reset and save', () => {
     expect(
       within(card('Password reset')).queryByText(/renders to nothing/i)
     ).toBeNull()
+  })
+
+  /**
+   * #924. `{{reset-url}}` is not a token at all: the grammar is `\{\{\s*(\w+)\s*\}\}` and a hyphen
+   * is not `\w`, so the span never matches. It is therefore not substituted (the recipient sees the
+   * literal braces), not caught by the unknown-token warning (`unknownTokensIn` collects names
+   * through the same regex, so it finds nothing) and not caught by #920's renders-to-nothing check
+   * (the output is non-empty — it is the braces).
+   *
+   * The render behavior is deliberate and already recorded where it is decided, next to `TOKEN_RE`
+   * in packages/core/src/templating/fill-template.ts, pinned by
+   * packages/core/test/templating/fill-template.test.ts ("leaves non-token braces alone"): visible
+   * beats silent. What was missing was any warning at authoring time.
+   *
+   * Kill-shot: delete the `nearMiss` block in EmailTemplates.tsx and both of these fail.
+   */
+  it('warns about a hyphenated near-miss token, naming the offending text', async () => {
+    stubApi()
+    renderEmail(seedWith({}))
+    const subject = await waitFor(() => subjectFor('Password reset'))
+    fireEvent.change(subject, { target: { value: 'Reset {{reset-url}}' } })
+    const scope = within(card('Password reset'))
+    const alert = await scope.findByText(/not a token/i)
+    expect(alert.textContent).toContain('{{reset-url}}')
+    // Sent exactly as written — the honest consequence, and the one the admin needs to hear.
+    expect(alert.textContent).toMatch(/exactly as written/i)
+    // And that IS what happens: the preview, produced by the same core function the api sends
+    // with, shows the literal braces in the subject line rather than an empty one.
+    expect(scope.getByText('Reset {{reset-url}}')).toBeTruthy()
+  })
+
+  it('warns about empty braces and about a multi-word span', async () => {
+    stubApi()
+    renderEmail(seedWith({}))
+    const body = await waitFor(() => bodyFor('Password reset'))
+    fireEvent.change(body, {
+      target: { value: '<p>{{}} and {{reset url}} and {{reset_url}}</p>' }
+    })
+    const alert = await within(card('Password reset')).findByText(/not tokens/i)
+    expect(alert.textContent).toContain('{{}}')
+    expect(alert.textContent).toContain('{{reset url}}')
+    // A REAL token is not named — this warning is about spans the grammar never matched, and
+    // saying otherwise would send the admin looking for a bug in a line that works.
+    expect(alert.textContent).not.toContain('{{reset_url}}')
+  })
+
+  // The two warnings answer different questions and must not collapse into each other: a
+  // grammatically valid name the vocabulary does not define is an UNKNOWN token (it strips to
+  // nothing), while a span the grammar never matched is a NEAR MISS (it survives literally).
+  it('does not call a grammatically valid unknown token a near miss', async () => {
+    stubApi()
+    renderEmail(seedWith({}))
+    const subject = await waitFor(() => subjectFor('Password reset'))
+    fireEvent.change(subject, { target: { value: 'Reset {{Reset_Url}} now' } })
+    const scope = within(card('Password reset'))
+    expect(await scope.findByText(/unknown token/i)).toBeTruthy()
+    expect(scope.queryByText(/not a token|not tokens/i)).toBeNull()
+  })
+
+  // #978 review F8. The stated boundary of the detector, pinned rather than assumed: the candidate
+  // pattern excludes nested braces, so a span containing another span is not a candidate — the
+  // OUTER braces go unreported (the docblock used to claim the inner span was reported instead).
+  //
+  // Asserted on the helper with EXACT strings, not only through the UI. The UI-level "no alert"
+  // assertion below is true but weak: widening the candidate pattern to `[^}]*` leaves it green,
+  // because the wider span still contains a valid token and so is still not a near miss. The
+  // second case here is the one that bites — under `[^}]*` the reported string becomes
+  // `{{ {{a-b}}` instead of `{{a-b}}`.
+  it('brackets the nesting gap exactly (helper level)', () => {
+    // Documented gap: outer span is not a candidate, inner span is a valid token → nothing.
+    expect(nearMissBracesIn('Reset {{ {{reset_url}} }}')).toEqual([])
+    // Inner span is itself a near miss → reported, and reported as the INNER span.
+    expect(nearMissBracesIn('Reset {{ {{a-b}} }}')).toEqual(['{{a-b}}'])
+  })
+
+  it('reports nothing for a span that contains another span', async () => {
+    stubApi()
+    renderEmail(seedWith({}))
+    const subject = await waitFor(() => subjectFor('Password reset'))
+    fireEvent.change(subject, {
+      target: { value: 'Reset {{ {{reset_url}} }}' }
+    })
+    const scope = within(card('Password reset'))
+    await waitFor(() =>
+      expect(subjectFor('Password reset').value).toBe(
+        'Reset {{ {{reset_url}} }}'
+      )
+    )
+    expect(scope.queryByText(/not a token|not tokens/i)).toBeNull()
+    expect(scope.queryByText(/unknown token/i)).toBeNull()
+  })
+
+  it('is not a save blocker — a near miss is visibly wrong, not silently broken', async () => {
+    stubApi()
+    renderEmail(seedWith({}))
+    const subject = await waitFor(() => subjectFor('Password reset'))
+    fireEvent.change(subject, { target: { value: 'Reset {{reset-url}}' } })
+    await within(card('Password reset')).findByText(/not a token/i)
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeEnabled()
   })
 
   it('reset-to-default clears the stored override', async () => {

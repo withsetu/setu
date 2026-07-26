@@ -885,7 +885,10 @@ describe('capabilities', () => {
 
     // #942: the env branch was never format-checked, so a whitespace-only value satisfied this
     // function's truthiness, then `deliverable`, then the reset gate's `Boolean(p.from)` and the
-    // submission gate. It now goes through the SAME z.string().email() the settings field uses.
+    // submission gate. It now goes through `sendableFromAddress` — since #957 the SAME rule the
+    // settings field uses. That rule is deliberately NOT a bare z.string().email() over the whole
+    // value: neither side has ever applied one to the env var, and doing so would reject the
+    // display-name form, which was #957's entire premise.
     it('a whitespace-only SETU_FORMS_NOTIFY_FROM does not resolve — null, with a named problem', () => {
       const r = resolveFromAddress(undefined, {
         SETU_FORMS_NOTIFY_FROM: '   '

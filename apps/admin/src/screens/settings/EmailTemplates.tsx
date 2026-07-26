@@ -3,6 +3,7 @@ import {
   EMAIL_TYPES,
   renderEmailTemplate,
   renderTemplateField,
+  tokenNamesIn,
   unknownTokensIn,
   EMAIL_TEMPLATE_MAX_BODY,
   EMAIL_TEMPLATE_MAX_SUBJECT,
@@ -99,6 +100,52 @@ export function validateEmailTemplates(
     if (errs.subject !== undefined || errs.html !== undefined) out[id] = errs
   }
   return out
+}
+
+/**
+ * Every `{{…}}` span in `tpl` that the token grammar never matched, de-duplicated, in
+ * first-appearance order — `{{reset-url}}`, `{{}}`, `{{reset url}}` (#924).
+ *
+ * These are the authoring mistake with NO warning anywhere before this: a hyphen is not `\w`, so
+ * the span does not match `TOKEN_RE` at all, which means it is not substituted (it survives
+ * verbatim into the recipient's subject line), not reported by `unknownTokensIn` — which collects
+ * names through the same regex, so it finds nothing to report — and not caught by #920's
+ * renders-to-nothing check, whose output is non-empty because it is the literal braces.
+ *
+ * The grammar is NOT restated here. Each candidate span is handed to core's own `tokenNamesIn`, and
+ * a span it finds no name in is by definition one the renderer will leave alone — so this cannot
+ * drift from `TOKEN_RE` the way a mirrored regex would, and a token the grammar DOES accept is
+ * never reported here even if the vocabulary rejects it (that is the separate unknown-token
+ * warning).
+ *
+ * **Known gap:** the candidate pattern excludes nested braces, so a span containing another span
+ * is not a candidate at all. `{{ {{a}} }}` therefore reports NOTHING — the outer span never
+ * matches, and the inner one is a valid token. Reporting the stray outer braces would mean
+ * tracking brace nesting, which the renderer itself does not do; the rendered output shows the
+ * leftovers, which is the same signal #924 relies on elsewhere. Stated because it is the boundary
+ * a reader would otherwise assume away.
+ *
+ * Pinned by apps/admin/test/email-templates.test.tsx — and the load-bearing one for THIS gap is
+ * "brackets the nesting gap exactly (helper level)", which asserts the exact reported strings.
+ * Widening the candidate pattern to `[^}]*` fails that test and ONLY that test (1 of 35): the
+ * sibling "reports nothing for a span that contains another span" stays green, because the wider
+ * span still contains a valid token and so is still not a near miss. A UI-level "no alert
+ * appeared" assertion cannot police this boundary; naming it here is what keeps the citation
+ * honest. The rest of the behavior is pinned by "warns about a hyphenated near-miss token…",
+ * "warns about empty braces and about a multi-word span" and "does not call a grammatically valid
+ * unknown token a near miss".
+ *
+ * The RENDER behavior — near-miss braces are left literal, because visible beats silent — is
+ * decided and recorded where the grammar is defined, beside `TOKEN_RE` in
+ * packages/core/src/templating/fill-template.ts, and pinned by
+ * packages/core/test/templating/fill-template.test.ts ("leaves non-token braces alone"), whose
+ * `{{a-b}}` and `{{ }}` cases fail the moment a near miss starts being stripped.
+ */
+export function nearMissBracesIn(tpl: string): string[] {
+  const out = new Set<string>()
+  for (const m of tpl.matchAll(/\{\{[^{}]*\}\}/g))
+    if (tokenNamesIn(m[0]).length === 0) out.add(m[0])
+  return [...out]
 }
 
 /** Says what is wrong, why it is wrong, and what Setu would do instead — the token grammar is
@@ -210,6 +257,11 @@ function TemplateCard({
       ...unknownTokensIn(html, def.tokens)
     ])
   ]
+  // #924: a span that is not a token AT ALL, which is a different fault from an unknown token and
+  // has the opposite consequence — an unknown token strips to nothing, a near miss is sent verbatim.
+  const nearMiss = [
+    ...new Set([...nearMissBracesIn(subject), ...nearMissBracesIn(html)])
+  ]
 
   const subjectId = `tpl-${def.id}-subject`
   const bodyId = `tpl-${def.id}-body`
@@ -312,6 +364,19 @@ function TemplateCard({
                 .join(
                   ', '
                 )} — ${unknown.length === 1 ? 'it' : 'they'} will render as nothing.`}
+            </p>
+          )}
+
+          {/* #924: beside the unknown-token alert, in the same register, because the admin's
+              intent was almost certainly a token — but the consequence is the opposite one, so
+              the copy has to say "sent exactly as written" rather than "renders as nothing". */}
+          {nearMiss.length > 0 && (
+            <p role="alert" className="text-sm text-destructive">
+              {`${nearMiss.join(', ')} ${
+                nearMiss.length === 1
+                  ? 'is not a token, so it'
+                  : 'are not tokens, so they'
+              } will be sent exactly as written, braces included. Token names use letters, digits and underscores — check them against the list below.`}
             </p>
           )}
 

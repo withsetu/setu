@@ -80,11 +80,17 @@ test.describe('author saves drafts, cannot touch live posts', () => {
       // opens 3 IDB databases — drafts, content index, media index — sequentially before
       // services are ready), plus a cold content-index `rebuild()`: a full
       // `git.list('content/')` walk with one `git/file` HTTP round trip per entry
-      // (index-service.ts). The generous timeout covers that genuine rebuild latency —
-      // this codebase's own multi-worktree dev-server load made it visibly variable, up
-      // to several seconds — and an explicit timeout (not a fixed sleep) is the right
-      // tool for this one genuinely-cold path; every other list-visibility check in this
-      // file runs against an already-warmed default context and needs no such margin.
+      // (index-service.ts). An explicit timeout (not a fixed sleep) is the right tool for
+      // this one genuinely-cold path; every other list-visibility check in this file runs
+      // against an already-warmed default context and needs no such margin.
+      //
+      // #948 MEASURED this wait rather than reasoning about it, because the issue's premise
+      // was that the cold walk was outgrowing the budget. It is not: 66 samples across seven
+      // `--repeat-each=8 --workers=8` runs (~32 browser contexts on one api process), three of
+      // them with two full `pnpm --filter @setu/admin test` suites saturating the machine
+      // alongside, came in at 218–924 ms — a >20x margin that never narrowed under load. So
+      // treat "row not found after 20s" as a STUCK state, not a slow one, and do NOT respond to
+      // it by raising this number or by making the cold walk cheaper; neither touches the cause.
       // NOTE: the permanently-empty variant of this failure WAS a real logic bug — a
       // races-on-rebuild in createIndexService (a concurrent rebuild's clear() landing
       // between another build's upsertMany() and the first query), fixed in core for
@@ -106,7 +112,8 @@ test.describe('author saves drafts, cannot touch live posts', () => {
     // Same cold content-index rebuild cost as the cross-context wait above (every fresh
     // test context starts with empty IndexedDB) — wait for the row explicitly before
     // clicking rather than relying on `openPost`'s bare `.click()`'s default 5s action
-    // timeout, which this repo's multi-worktree dev-server load has shown to be tight.
+    // timeout. Same #948 measurement applies: 218–924 ms observed under saturation, so the
+    // 20s here is margin, not a tuned bound.
     await expect(list.rowLink('Featured Demo')).toBeVisible({ timeout: 20_000 })
     const editor = await list.openPost('Featured Demo')
 

@@ -365,9 +365,19 @@ describe('htmlToPlainText', () => {
     // Atoms chosen so openers, closers, mismatched closers, case variants and the surrounding
     // markup collide densely at short lengths — the region where the walks' cursor arithmetic and
     // the patterns' backtracking can disagree.
+    //
+    // `-` and `<!` are here for one specific reason (#952): without them the corpus can only ever
+    // build a comment open out of the whole `<!--` atom, so `<!--->` — the ONE string that
+    // distinguishes stripComments' `indexOf('-->', open + 4)` from `open + 3` — was unreachable,
+    // and that mutation survived all 47 tests in this file. With them the seed below hits it.
+    //   "<!--->"   oracle "<!--->"   shipped "<!--->"   mutant(+3) ""   ← deviates
+    // Enforced by 'agrees with the pattern it replaced on 2,000 random inputs' below: flip the
+    // shipped offset to `open + 3` and that test fails on this seed.
     const ATOMS = [
       '<!--',
       '-->',
+      '<!',
+      '-',
       '<script>',
       '</script>',
       '<style>',

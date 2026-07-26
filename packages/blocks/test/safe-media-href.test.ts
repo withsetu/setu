@@ -36,6 +36,26 @@ describe('safeMediaHref (#177 audit — anchor scheme allowlist)', () => {
     expect(safeMediaHref('a.jpg', 'http://x')).toBeNull()
     expect(safeMediaHref('', 'http://x')).toBeNull()
   })
+
+  it('#968: returns null when tab/LF/CR smuggle the authority past the offset check', () => {
+    // The WHATWG parser strips these before parsing, so each resolves off-origin; the
+    // offset-1 check alone saw a tab, not a second slash.
+    expect(safeMediaHref('/\t/evil.example/a.jpg', '')).toBeNull()
+    expect(safeMediaHref('/\n/evil.example/a.jpg', '')).toBeNull()
+    expect(safeMediaHref('/\r/evil.example/a.jpg', '')).toBeNull()
+    expect(safeMediaHref('/\t\\evil.example/a.jpg', '')).toBeNull()
+    expect(safeMediaHref('/\t/evil.example/a.jpg', 'http://x')).toBeNull()
+  })
+
+  it('#968: an accepted src comes back normalized — validated string === parsed string', () => {
+    expect(safeMediaHref('/media\t/a.jpg', '')).toBe('/media/a.jpg')
+    expect(safeMediaHref('  /media/a.jpg  ', 'http://x')).toBe(
+      'http://x/media/a.jpg'
+    )
+    expect(safeMediaHref('https://cdn.example.test/a\t.jpg', '')).toBe(
+      'https://cdn.example.test/a.jpg'
+    )
+  })
 })
 
 describe('resolveMediaSrc (#857 — shared media-src resolver, protocol-relative guard)', () => {
@@ -61,5 +81,14 @@ describe('resolveMediaSrc (#857 — shared media-src resolver, protocol-relative
     expect(resolveMediaSrc('javascript:alert(1)', 'http://x')).toBeNull()
     expect(resolveMediaSrc('', 'http://x')).toBeNull()
     expect(resolveMediaSrc('a.jpg', 'http://x')).toBeNull()
+  })
+
+  it('#968: returns null for tab/LF/CR-smuggled authorities (display sink)', () => {
+    expect(resolveMediaSrc('/\t/evil.example/clip.mp4', '')).toBeNull()
+    expect(resolveMediaSrc('/\n/evil.example/clip.mp4', '')).toBeNull()
+    expect(resolveMediaSrc('/\r/evil.example/clip.mp4', '')).toBeNull()
+    expect(
+      resolveMediaSrc('/\t\\evil.example/clip.mp4', 'https://cdn.test')
+    ).toBeNull()
   })
 })

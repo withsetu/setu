@@ -18,7 +18,9 @@ const style = [
   safeTextColor ? `--blk-hero-text-color: ${safeTextColor}` : null,
 ].filter(Boolean).join('; ') || undefined
 // #857: the CTA href goes through the scheme allowlist — a `javascript:`/`data:` value
-// renders the label as non-link text (a <span>), never a live link.
+// renders the label as non-link text (a <span>), never a live link. Helper cases in
+// packages/blocks/test/sanitize.test.ts; that this component is WIRED to the helper is
+// enforced against the built HTML by apps/site/test/url-guard-sinks.test.ts (#972).
 const safeCtaHref = safeLinkHref(ctaHref)
 // #862: the image is content (not decoration) in split layouts, so it must carry a real
 // alt there; only the background layout, where the image is purely decorative behind the

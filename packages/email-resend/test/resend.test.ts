@@ -1,9 +1,17 @@
 import { describe, it, expect, vi } from 'vitest'
+import type { EmailMessage } from '@setu/core'
 import { createResendEmailAdapter } from '../src/index'
 
 describe('resend email adapter', () => {
   it('maps EmailMessage to resend.emails.send', async () => {
-    const send = vi.fn(async () => ({ data: { id: 'r1' }, error: null }))
+    // Parameters are declared so `mock.calls` is typed as the two-argument call the adapter makes
+    // (#930) rather than as an empty tuple.
+    const send = vi.fn(
+      async (_msg: EmailMessage, _opts?: { signal?: AbortSignal }) => ({
+        data: { id: 'r1' },
+        error: null
+      })
+    )
     const adapter = createResendEmailAdapter({
       apiKey: 'k',
       client: { emails: { send } }

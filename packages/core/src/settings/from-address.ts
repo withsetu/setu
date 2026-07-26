@@ -36,7 +36,8 @@ const CONTROL_CHAR = /[\u0000-\u001f\u007f]/
  * for an unrelated reason.
  *
  * Every branch is pinned by packages/core/src/settings/from-address.test.ts and, at the env
- * surface, by apps/api/test/capabilities.test.ts ("sendableFromAddress" describe).
+ * surface, by apps/api/test/capabilities.test.ts ("rejects a control character anywhere in the
+ * value, including inside the display name").
  */
 export function sendableFromAddress(value: string): string | null {
   const trimmed = value.trim()

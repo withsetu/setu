@@ -352,7 +352,8 @@ export function publicFrom(r: FromAddressResolution): PublicFromAddress {
  *  usable — this env branch, `emailSchema.fromAddress` and the admin field. Re-exported rather than
  *  re-implemented: a second copy of the control-character check would be a security divergence, not
  *  just duplication. Behavior is pinned by packages/core/src/settings/from-address.test.ts and, at
- *  this surface, by apps/api/test/capabilities.test.ts ("sendableFromAddress" describe). */
+ *  this surface, by apps/api/test/capabilities.test.ts ("rejects a control character anywhere in
+ *  the value, including inside the display name"). */
 export { sendableFromAddress } from '@setu/core'
 
 export function resolveFromAddress(

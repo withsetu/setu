@@ -197,8 +197,10 @@ const liveEmailConfig = createLiveEmailConfig({
 const bootFrom = liveEmailConfig().from
 const notifyFrom = bootFrom.effective ?? undefined
 // #942: SETU_FORMS_NOTIFY_FROM was never format-checked, so a whitespace-only value satisfied
-// resolveFromAddress's truthiness and then every gate downstream. It is now run through the same
-// z.string().email() the settings field uses and degrades to "none configured" — which, without
+// resolveFromAddress's truthiness and then every gate downstream. It is now run through
+// `sendableFromAddress` — since #957 the SAME rule the settings field and `emailSchema` use, which
+// is deliberately NOT a bare z.string().email() over the whole value: that would reject the
+// display-name form both transports accept. It degrades to "none configured" — which, without
 // this line, would look exactly like never having set it. Boot only: the resolver is called per
 // send too, and this is a start-up misconfiguration, not a per-message event. The remediation
 // half is added here rather than carried in the problem string, because Settings → Email shows

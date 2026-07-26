@@ -116,16 +116,23 @@ export function validateEmailTemplates(
  * a span it finds no name in is by definition one the renderer will leave alone — so this cannot
  * drift from `TOKEN_RE` the way a mirrored regex would, and a token the grammar DOES accept is
  * never reported here even if the vocabulary rejects it (that is the separate unknown-token
- * warning). The candidate pattern deliberately excludes nested braces, so `{{ {{a}} }}` reports the
- * inner span only; the outer stray braces are not reported. Pinned by
- * apps/admin/test/email-templates.test.tsx ("warns about a hyphenated near-miss token…",
- * "warns about empty braces and about a multi-word span", "does not call a grammatically valid
- * unknown token a near miss").
+ * warning).
+ *
+ * **Known gap:** the candidate pattern excludes nested braces, so a span containing another span
+ * is not a candidate at all. `{{ {{a}} }}` therefore reports NOTHING — the outer span never
+ * matches, and the inner one is a valid token. Reporting the stray outer braces would mean
+ * tracking brace nesting, which the renderer itself does not do; the rendered output shows the
+ * leftovers, which is the same signal #924 relies on elsewhere. Stated because it is the boundary
+ * a reader would otherwise assume away. Pinned by apps/admin/test/email-templates.test.tsx
+ * ("warns about a hyphenated near-miss token…", "warns about empty braces and about a multi-word
+ * span", "does not call a grammatically valid unknown token a near miss", "reports nothing for a
+ * span that contains another span").
  *
  * The RENDER behavior — near-miss braces are left literal, because visible beats silent — is
- * decided and recorded where the grammar lives, beside `TOKEN_RE` in
+ * decided and recorded where the grammar is defined, beside `TOKEN_RE` in
  * packages/core/src/templating/fill-template.ts, and pinned by
- * packages/core/test/templating/fill-template.test.ts ("leaves non-token braces alone").
+ * packages/core/test/templating/fill-template.test.ts ("leaves non-token braces alone"), whose
+ * `{{a-b}}` and `{{ }}` cases fail the moment a near miss starts being stripped.
  */
 export function nearMissBracesIn(tpl: string): string[] {
   const out = new Set<string>()

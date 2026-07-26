@@ -69,7 +69,19 @@ export type TokenValues = Record<string, TokenValue>
 /** The token grammar: `{{name}}`, optionally padded. Deliberately `\w+` and nothing else —
  *  there is no syntax for an argument, a value, a filter or a nested expression, which is the
  *  structural reason a template can never supply its own value for a server-generated token
- *  like `{{reset_url}}`. Pinned by fill-template.test.ts ("leaves non-token braces alone"). */
+ *  like `{{reset_url}}`. Pinned by fill-template.test.ts ("leaves non-token braces alone").
+ *
+ *  **A `{{…}}` span this grammar does NOT match is left LITERAL, not stripped** (#924) — so
+ *  `{{reset-url}}` (a hyphen is not `\w`) reaches the recipient with its braces intact, while the
+ *  unknown-token rule below would have rendered it as nothing had it parsed. That asymmetry is a
+ *  decision, not an accident: an unknown token is a name this vocabulary does not define, and
+ *  emitting `{{nope}}` into an inbox is worse than emitting nothing; a near miss is not a token at
+ *  all, and silently deleting arbitrary text an author typed is worse than showing it. Visible
+ *  beats silent, and the visible form is what makes the mistake findable. The authoring-time
+ *  counterpart — naming those spans before they are ever sent — is `nearMissBracesIn` in
+ *  apps/admin/src/screens/settings/EmailTemplates.tsx. Pinned by the same
+ *  fill-template.test.ts ("leaves non-token braces alone"), whose `{{a-b}}` and `{{ }}` cases fail
+ *  the moment a near miss starts being stripped. */
 const TOKEN_RE = /\{\{\s*(\w+)\s*\}\}/g
 
 /** Escape the five HTML-significant characters. The single implementation for the whole

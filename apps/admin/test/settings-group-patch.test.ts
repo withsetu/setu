@@ -265,6 +265,76 @@ describe('patchSettingsGroup (#956)', () => {
     })
   })
 
+  // #978 review F1. The depth of this walk IS attacker-controlled, which the comment on
+  // `patchRecord` used to deny: `salvageGroup` passes an unknown key through UNTOUCHED without
+  // recursing into it, so `published.<group>.futureField` is the arriving file's own object at the
+  // file's own depth, and every screen carries it into `next`. This patcher is the first thing in
+  // the load→save path that walks it. Unbounded it overflowed the stack at ~4,000 levels while
+  // `JSON.parse` — which is iterative — accepts 100,000 without complaint.
+  describe('recursion depth (#978 F1)', () => {
+    /** `{futureField: {k:{k:…{leaf:1}}}}`, built as a STRING and parsed, because building it with a
+     *  recursive serializer would hit the very limit under test. */
+    const deepRaw = (levels: number): Record<string, unknown> =>
+      JSON.parse(
+        `{"title":"Old","futureField":${'{"k":'.repeat(levels)}1${'}'.repeat(levels)}}`
+      ) as Record<string, unknown>
+
+    it('survives a passthrough field nested far deeper than any group defines', () => {
+      const raw = { general: deepRaw(50_000) }
+      // The salvage layer passes the unknown key through by reference — the premise of the case.
+      const published = loaded(raw, 'general')
+      expect(
+        (published as unknown as Record<string, unknown>).futureField
+      ).toBe(raw.general.futureField)
+      const out = patchSettingsGroup(raw.general, published, {
+        ...published,
+        title: 'New'
+      })
+      expect(out.title).toBe('New')
+      // Past the budget the subtree is written WHOLE from `next` — which is the same object the
+      // raw group holds, so nothing is lost either way.
+      expect(out.futureField).toBe(raw.general.futureField)
+    })
+
+    it('still diffs per field within the budget', () => {
+      const raw = {
+        reading: { feed: { enabled: false, items: 'many' } }
+      }
+      const published = loaded(raw, 'reading')
+      const out = patchSettingsGroup(raw.reading, published, {
+        ...published,
+        feed: { ...published.feed, enabled: true }
+      })
+      expect(out.feed).toEqual({ enabled: true, items: 'many' })
+    })
+  })
+
+  // #978 review F9. The module says it "does not tidy"; these are the two reachable exceptions,
+  // pinned so the claim stays honest. Both follow from writing a whole VALUE rather than merging
+  // into it — they are the boundary of the per-field rule, not bugs.
+  describe('the documented exceptions to not tidying', () => {
+    it('replaces a non-object sub-group once something inside it changes', () => {
+      const raw = { reading: { feed: 'yes' } }
+      const published = loaded(raw, 'reading')
+      const out = patchSettingsGroup(raw.reading, published, {
+        ...published,
+        feed: { ...published.feed, enabled: !published.feed.enabled }
+      })
+      // The stored junk goes: there was no object to merge the change into.
+      expect(out.feed).toEqual({ enabled: !published.feed.enabled })
+    })
+
+    it('loses a filtered non-string socialProfile once the admin edits any row', () => {
+      const raw = { identity: { socialProfiles: ['https://a.example', 42] } }
+      const published = loaded(raw, 'identity')
+      const out = patchSettingsGroup(raw.identity, published, {
+        ...published,
+        socialProfiles: ['https://b.example']
+      })
+      expect(out.socialProfiles).toEqual(['https://b.example'])
+    })
+  })
+
   describe('shared edges', () => {
     it('a non-object stored group is replaced by the patch alone, never spread', () => {
       const published = loaded({ general: 42 }, 'general')

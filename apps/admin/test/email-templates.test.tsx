@@ -19,6 +19,7 @@ import { ActorProvider } from '../src/auth/actor'
 import { ServicesProvider, servicesFor } from '../src/data/store'
 import { NotificationProvider } from '../src/ui/notify'
 import { EmailSettings } from '../src/screens/settings/EmailSettings'
+import { nearMissBracesIn } from '../src/screens/settings/EmailTemplates'
 
 // #499 (epic #497): the template editor inside Settings → Email. The load-bearing property is
 // PREVIEW PARITY — the preview is rendered by @setu/core's renderEmailTemplate, the same
@@ -610,6 +611,39 @@ describe('EmailSettings — validation, reset and save', () => {
     const scope = within(card('Password reset'))
     expect(await scope.findByText(/unknown token/i)).toBeTruthy()
     expect(scope.queryByText(/not a token|not tokens/i)).toBeNull()
+  })
+
+  // #978 review F8. The stated boundary of the detector, pinned rather than assumed: the candidate
+  // pattern excludes nested braces, so a span containing another span is not a candidate — the
+  // OUTER braces go unreported (the docblock used to claim the inner span was reported instead).
+  //
+  // Asserted on the helper with EXACT strings, not only through the UI. The UI-level "no alert"
+  // assertion below is true but weak: widening the candidate pattern to `[^}]*` leaves it green,
+  // because the wider span still contains a valid token and so is still not a near miss. The
+  // second case here is the one that bites — under `[^}]*` the reported string becomes
+  // `{{ {{a-b}}` instead of `{{a-b}}`.
+  it('brackets the nesting gap exactly (helper level)', () => {
+    // Documented gap: outer span is not a candidate, inner span is a valid token → nothing.
+    expect(nearMissBracesIn('Reset {{ {{reset_url}} }}')).toEqual([])
+    // Inner span is itself a near miss → reported, and reported as the INNER span.
+    expect(nearMissBracesIn('Reset {{ {{a-b}} }}')).toEqual(['{{a-b}}'])
+  })
+
+  it('reports nothing for a span that contains another span', async () => {
+    stubApi()
+    renderEmail(seedWith({}))
+    const subject = await waitFor(() => subjectFor('Password reset'))
+    fireEvent.change(subject, {
+      target: { value: 'Reset {{ {{reset_url}} }}' }
+    })
+    const scope = within(card('Password reset'))
+    await waitFor(() =>
+      expect(subjectFor('Password reset').value).toBe(
+        'Reset {{ {{reset_url}} }}'
+      )
+    )
+    expect(scope.queryByText(/not a token|not tokens/i)).toBeNull()
+    expect(scope.queryByText(/unknown token/i)).toBeNull()
   })
 
   it('is not a save blocker — a near miss is visibly wrong, not silently broken', async () => {

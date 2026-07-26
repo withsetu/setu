@@ -36,6 +36,7 @@ import jsxA11y from 'eslint-plugin-jsx-a11y'
 import astro from 'eslint-plugin-astro'
 import eslintConfigPrettier from 'eslint-config-prettier'
 import globals from 'globals'
+import invariantCommentNamesTest from './eslint-rules/invariant-comment-names-test.mjs'
 
 const IGNORES = [
   // Build outputs / dependency trees
@@ -421,10 +422,60 @@ export default tseslint.config(
     }
   },
 
+  // ---- Invariant comments must name a test (#961) ----
+  // CLAUDE.md §3.2 / §4 #21, the rule reviewers have been carrying by hand: a fact-worded
+  // invariant comment names the test path that fails when it stops being true, or is
+  // worded as intent. The rule and its whole tuning rationale live in
+  // eslint-rules/invariant-comment-names-test.mjs; its tests are in
+  // scripts/invariant-comment-rule.test.mjs (`pnpm test:scripts`).
+  //
+  // WHAT IT DOES NOT DO, stated here because this block is what the next reader reads:
+  // it does not check that the named test actually BITES (not statically decidable — that
+  // stays a reviewer's job), and it is silent on invariant claims phrased in unbackticked
+  // English. Run over the pre-fix text of all 17 known instances of this defect class it
+  // caught zero of them. It is a write-time speed bump on NEW claims, not a detector for
+  // existing ones; a clean run is not evidence that the class is absent (#986 review, F2).
+  //
+  // SHIPPED AS A WARNING, at a measured baseline of 25 sites (see the #961 PR for the
+  // categorised corpus). Promotion to `error` is blocked on #987 — not merely on burning
+  // the baseline down, since appending a plausible path to 25 comments is exactly the
+  // false confidence this rule exists to reduce. Same handling as react-hooks' React
+  // Compiler diagnostics above.
+  //
+  // Test files are excluded as a measured NOISE TRADE, not a principle: "caught by this
+  // suite itself" self-references were the largest false-positive cluster in the corpus.
+  // The principle it looks like — that a comment beside its own assertions cannot vouch
+  // falsely — is not true here, and the repo has falsified it twice (#922, a false claim
+  // in a `describe`'s own header; and #618's e2e spec calling a client-side React guard
+  // "the real security boundary"). Those live in the excluded set and the rule will not
+  // see them.
+  // `.astro` is out of scope — different parser, no measured hits.
+  {
+    files: ['**/*.{ts,tsx,mjs,js}'],
+    ignores: [
+      '**/*.test.{ts,tsx,mjs,js}',
+      '**/*.spec.{ts,tsx,mjs,js}',
+      '**/test/**',
+      '**/tests/**',
+      '**/test-browser/**',
+      'e2e/**',
+      'packages/*-testing/**'
+    ],
+    plugins: {
+      setu: {
+        rules: { 'invariant-comment-names-test': invariantCommentNamesTest }
+      }
+    },
+    rules: { 'setu/invariant-comment-names-test': 'warn' }
+  },
+
   // ---- Non-type-aware base for loose root/config scripts (no tsconfig covers these) ----
   {
     files: [
       'scripts/*.mjs',
+      // The custom ESLint rules (#961) are plain ESM outside every tsconfig, same as
+      // scripts/ — they get the base rule set for the same reason.
+      'eslint-rules/*.mjs',
       '*.mjs',
       'apps/*/*.config.mjs',
       'apps/*/integrations/**/*.mjs'

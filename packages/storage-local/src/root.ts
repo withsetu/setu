@@ -24,9 +24,16 @@ function stripTrailingSeparators(s: string, separator: string): string {
  *
  *  `normalize()` keeps a trailing separator, which made `root + sep` end in `//` so every
  *  key failed containment and was reported as a path traversal — total media failure from
- *  `SETU_MEDIA_DIR=/var/media/` (#896). The first fix stripped only `/` and fell back to the
- *  un-stripped `normalize(dir)` when the strip emptied the string, so `dir: '/'` walked
- *  straight back into the same `//`, and no win32 separator was stripped at all (#914).
+ *  `SETU_MEDIA_DIR=/var/media/` (#896). What this function adds over that first fix is the
+ *  WIN32 separator: stripping `/` alone left a trailing `C:\media\` in place (#914).
+ *
+ *  The `stripped === ''` arm is INTENDED as a floor — an empty root would make every path
+ *  "inside" it — and not as the fix for the `//`, which is `rootPrefix` below. Measured, #945:
+ *  reverting this arm to the un-stripped `normalize(dir)` leaves all 28 tests in
+ *  packages/storage-local/test/root.test.ts green, because the only inputs that empty the strip
+ *  are runs of separators and `normalize` has already collapsed those to a single one
+ *  (posix `normalize('/') === '/'`). Reverting `rootPrefix` fails three of those tests,
+ *  including the end-to-end `dir = '/'` case — that is where the `//` is actually prevented.
  *
  *  `separator` is a parameter only so the win32 shape is testable off Windows — see
  *  packages/storage-local/test/root.test.ts, which covers `/`, `///`, a trailing run, and

@@ -59,11 +59,7 @@ import {
 } from './deploy-wiring'
 import { createUsersApi } from './users'
 import { createEmailApi } from './email'
-import {
-  createResetEmailSender,
-  resetEmailEnabled,
-  resetEmailRefusal
-} from './reset-email-gate'
+import { createResetEmailGate, resetEmailEnabled } from './reset-email-gate'
 import { createDemoApi } from './demo'
 import { resolveSessionActor } from './auth/resolve-session-actor'
 import type { ResolveActor } from './auth/resolve-actor'
@@ -405,6 +401,43 @@ const setupToken =
     ? randomBytes(32).toString('base64url')
     : null
 
+// #944: ONE gate, TWO entry points — `resetEmailGate.send` is better-auth's send hook below and
+// `resetEmailGate.refusal` is what POST /api/users/send-reset reports (the users-api block further
+// down). They used to be assembled separately here and fell back differently on the from-address:
+// the sender to better-auth's boot-time `from`, the route to nothing, so clearing
+// `email.fromAddress` after boot made the admin route answer 409 "no email sent" while the public
+// forgot-password flow still sent. The fallback now lives once, inside the gate
+// (apps/api/src/reset-email-gate.ts), with the behaviour pinned by
+// apps/api/test/reset-email-gate.test.ts ("the route and the sender must agree on the
+// from-address"). It is built unconditionally — a pure closure, no reading at boot — while the
+// ENABLE decision stays `resetWiredAtBoot` at each of the two use sites.
+const resetEmailGate = createResetEmailGate({
+  resolveConfig: () => {
+    const config = liveEmailConfig()
+    return {
+      transport: config.transport,
+      from: config.from.effective ?? undefined
+    }
+  },
+  bootFrom: notifyFrom,
+  sendVia: (transport, msg) => email.sendVia(transport, msg),
+  adminOrigin,
+  onRefused: (refusal) => {
+    console.error(
+      `[auth] password-reset email NOT sent: ${refusal.reason}. No link was delivered; ` +
+        'the requester saw the usual "check your email" response.'
+    )
+    // #912: also through the audit seam — a recovery path silently not working is a
+    // security-relevant event (CLAUDE.md §5, API-route checklist), and the console.error above is
+    // operator prose, not a structured record. `reason` is reset-email-gate.ts's own string: no
+    // address, no token (events.ts).
+    logAuthEvent({
+      type: 'password-reset.refused',
+      meta: { reason: refusal.reason }
+    })
+  }
+})
+
 const auth = authConfigured
   ? createAuth({
       db: authDb,
@@ -455,45 +488,21 @@ const auth = authConfigured
       email:
         resetWiredAtBoot && notifyFrom && adminOrigin
           ? {
-              // #498: re-resolve the from-address at SEND time (settings win, env fallback) so an
-              // admin editing Settings → Email applies to the next reset email without a restart;
-              // `from: notifyFrom` below stays as the boot-time fallback the option type requires.
-              // #894: createResetEmailSender re-checks the whole predicate against the LIVE
-              // transport too, so a provider switched to console after boot (settings.json is
-              // Git-canonical — it can change without passing the settings-write gate) refuses
-              // instead of logging a credential. The ENABLE gate here is still boot-time —
-              // resetRestartRequired in the status thunk below is how that is surfaced honestly;
-              // making it live is #886.
-              // #919: the gate resolves the transport ONCE and delivers through that very
-              // reading via `sendVia` — `email.send` would have re-resolved, so a settings.json
-              // rewrite in between could admit on one reading and dispatch on another.
-              // #939: the transport and the from-address now arrive from ONE `liveEmailConfig()`
-              // call instead of two, so this send costs one settings parse rather than two.
-              send: createResetEmailSender({
-                resolveConfig: () => {
-                  const config = liveEmailConfig()
-                  return {
-                    transport: config.transport,
-                    from: config.from.effective ?? undefined
-                  }
-                },
-                sendVia: (transport, msg) => email.sendVia(transport, msg),
-                adminOrigin,
-                onRefused: (reason) => {
-                  console.error(
-                    `[auth] password-reset email NOT sent: ${reason}. No link was delivered; ` +
-                      'the requester saw the usual "check your email" response.'
-                  )
-                  // #912: also through the audit seam — a recovery path silently not working is
-                  // a security-relevant event (CLAUDE.md §5, API-route checklist), and the
-                  // console.error above is operator prose, not a structured record. `reason` is
-                  // reset-email-gate.ts's own string: no address, no token (events.ts).
-                  logAuthEvent({
-                    type: 'password-reset.refused',
-                    meta: { reason }
-                  })
-                }
-              }),
+              // #498: the gate re-resolves the from-address at SEND time (settings win, env
+              // fallback) so an admin editing Settings → Email applies to the next reset email
+              // without a restart; `from: notifyFrom` below is the address the option type requires
+              // and the one the gate falls back to when the live reading has none (#944).
+              // #894: the gate re-checks the whole predicate against the LIVE transport too, so a
+              // provider switched to console after boot (settings.json is Git-canonical — it can
+              // change without passing the settings-write gate) refuses instead of logging a
+              // credential. The ENABLE gate here is still boot-time — resetRestartRequired in the
+              // status thunk below is how that is surfaced honestly; making it live is #886.
+              // #919: it resolves the transport ONCE and delivers through that very reading via
+              // `sendVia` — `email.send` would have re-resolved, so a settings.json rewrite in
+              // between could admit on one reading and dispatch on another.
+              // #939: the transport and the from-address arrive from ONE `liveEmailConfig()` call
+              // instead of two, so this send costs one settings parse rather than two.
+              send: resetEmailGate.send,
               // #499: resolve the message BODY at send time too, through the same live template
               // resolver every other send path uses, so an admin's stored override applies with
               // no restart. @setu/auth hands over the reset link it already built and
@@ -923,21 +932,13 @@ app.route(
           requestPasswordReset: async (email: string) => {
             await auth.api.requestPasswordReset({ body: { email } })
           },
-          // #912: the same predicate over the same LIVE resolvers the sender above uses
-          // (one `liveEmailConfig()` reading), so the route's honest 409 and the sender's
-          // refusal cannot disagree about what "deliverable" means. Without it the route
-          // answered `{ status: true }` over a refused send, because the refusal happens inside
-          // better-auth's send hook and never comes back out.
-          // #939: one settings parse, not two — the from-address and the transport used to be
-          // resolved separately here, which also meant this check could straddle a save.
-          resetEmailRefusal: () => {
-            const config = liveEmailConfig()
-            return resetEmailRefusal({
-              from: config.from.effective ?? undefined,
-              adminOrigin,
-              effectiveTransport: config.transport.effective
-            })
-          }
+          // #912: without this the route answered `{ status: true }` over a refused send, because
+          // the refusal happens inside better-auth's send hook and never comes back out.
+          // #944: it is the SAME gate object whose `send` is wired into createAuth above — one
+          // `liveEmailConfig()` reading per call, one fallback chain, one refusal function — rather
+          // than a second expression built here. The two used to be assembled separately and
+          // disagreed about the from-address; see the gate's own comment for what that cost.
+          resetEmailRefusal: resetEmailGate.refusal
         }
       : {})
   })

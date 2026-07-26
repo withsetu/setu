@@ -8,6 +8,7 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { createAuth } from '@setu/auth'
 import { resolveSessionActor } from '../src/auth/resolve-session-actor'
 import { createUsersApi } from '../src/users'
+import type { ResetEmailRefusal } from '../src/reset-email-gate'
 
 const TRUSTED_ORIGIN = 'http://localhost:5173'
 
@@ -16,7 +17,7 @@ const TRUSTED_ORIGIN = 'http://localhost:5173'
  *  `auth.api.requestPasswordReset`), so tests assert against a spy — which email it was asked to
  *  send to, and that authz failures never reach it. */
 function makeApp(
-  opts: { withSend?: boolean; refusal?: string } = { withSend: true }
+  opts: { withSend?: boolean; refusal?: ResetEmailRefusal } = { withSend: true }
 ) {
   const dir = mkdtempSync(join(tmpdir(), 'users-send-reset-'))
   const dbFile = join(dir, 'auth.db')
@@ -95,7 +96,7 @@ afterEach(() => {
   for (const fn of cleanups.splice(0)) fn()
 })
 
-function build(opts: { withSend?: boolean; refusal?: string } = {}) {
+function build(opts: { withSend?: boolean; refusal?: ResetEmailRefusal } = {}) {
   const built = makeApp(opts)
   cleanups.push(built.cleanup)
   return built
@@ -321,14 +322,17 @@ describe('POST /api/users/send-reset', () => {
     expect(res.status).toBe(409)
   })
 
-  // #912: createResetEmailSender refuses INSIDE better-auth's send hook, so the thunk above
-  // resolves either way. The route used to return `{ status: true }` regardless, and the admin
-  // was told "Password reset email sent to …" over a message that was never handed to a
-  // transport — reachable in one session by picking Console in Settings → Email.
+  // #912: the reset gate refuses INSIDE better-auth's send hook, so the thunk above resolves
+  // either way. The route used to return `{ status: true }` regardless, and the admin was told
+  // "Password reset email sent to …" over a message that was never handed to a transport —
+  // reachable in one session by picking Console in Settings → Email.
   it('409s instead of claiming success when the live transport would refuse the send', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     const { app, auth, sendSpy } = build({
-      refusal: 'the effective email transport is the console adapter'
+      refusal: {
+        code: 'email_transport_not_deliverable',
+        reason: 'the effective email transport is the console adapter'
+      }
     })
     const owner = await makeUser(auth, {
       email: 'owner@test.com',
@@ -344,15 +348,50 @@ describe('POST /api/users/send-reset', () => {
 
     const res = await app.fetch(post({ userId: owner.id }, cookie))
     expect(res.status).toBe(409)
-    expect(await res.json()).toEqual({ error: 'email_not_deliverable' })
+    expect(await res.json()).toEqual({
+      error: 'email_transport_not_deliverable'
+    })
     // Nothing was attempted, so nothing can have half-happened.
+    expect(sendSpy).not.toHaveBeenCalled()
+  })
+
+  // #944: the 409 used to collapse every refusal into one `email_not_deliverable` code, which the
+  // Users screen answers with "Pick a provider in Settings → Email" — the wrong repair when the
+  // provider is fine and the from-address is what is empty. The route now returns the refusal's
+  // own code, so the screen can name the setting (apps/admin/test/users-screen.test.tsx).
+  it('reports WHICH setting is missing, not one code for every refusal', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { app, auth, sendSpy } = build({
+      refusal: {
+        code: 'email_from_address_missing',
+        reason: 'no from-address is configured to send the reset email from'
+      }
+    })
+    const owner = await makeUser(auth, {
+      email: 'owner@test.com',
+      name: 'Owner',
+      role: 'admin',
+      password: 'a-strong-password-12'
+    })
+    const cookie = await signInCookie(
+      auth,
+      'owner@test.com',
+      'a-strong-password-12'
+    )
+
+    const res = await app.fetch(post({ userId: owner.id }, cookie))
+    expect(res.status).toBe(409)
+    expect(await res.json()).toEqual({ error: 'email_from_address_missing' })
     expect(sendSpy).not.toHaveBeenCalled()
   })
 
   it('keeps the deliverability answer BEHIND the authz ladder', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     const { app, auth, sendSpy } = build({
-      refusal: 'the effective email transport is the console adapter'
+      refusal: {
+        code: 'email_transport_not_deliverable',
+        reason: 'the effective email transport is the console adapter'
+      }
     })
     await makeUser(auth, {
       email: 'editor@test.com',

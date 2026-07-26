@@ -13,6 +13,7 @@ import type { Actor } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
 import { apiOnError } from './errors'
 import type { ResolveActor } from './auth/resolve-actor'
+import type { ResetEmailRefusal } from './reset-email-gate'
 
 const authz = createAuthz(DEFAULT_ROLES)
 
@@ -32,12 +33,13 @@ export interface UsersApiOptions {
    *  and the route answers 409 honestly. */
   requestPasswordReset?: (email: string) => Promise<void>
   /** #912: why a reset email would be refused RIGHT NOW, or null when it would be sent —
-   *  server.ts passes `resetEmailRefusal` over the same live transport/from-address resolvers the
-   *  sender itself uses. Needed because `requestPasswordReset` above resolves either way: the
-   *  refusal happens inside better-auth's send hook and cannot travel back out, so without this
-   *  the route answered `{ status: true }` over a message that was never sent. Omitted only where
+   *  server.ts passes the `refusal` half of the SAME `createResetEmailGate` object whose `send` it
+   *  wires into better-auth, so the two read one live transport/from-address rule (#944). Needed
+   *  because `requestPasswordReset` above resolves either way: the refusal happens inside
+   *  better-auth's send hook and cannot travel back out, so without this the route answered
+   *  `{ status: true }` over a message that was never sent. Omitted only where
    *  `requestPasswordReset` is too (reset unwired at boot → the route's 409 fires first). */
-  resetEmailRefusal?: () => string | null
+  resetEmailRefusal?: () => ResetEmailRefusal | null
 }
 
 const sendResetBody = z.object({ userId: z.string().min(1).max(256) })
@@ -158,20 +160,22 @@ export function createUsersApi(opts: UsersApiOptions) {
       }
 
       // #912: last, AFTER the authz ladder, so an unauthorized actor learns nothing about this
-      // deployment's email posture. `createResetEmailSender` refuses inside better-auth's send
-      // hook and its reason cannot come back out, so this asks the same question (the same
-      // function, over the same live resolvers server.ts hands the sender) a moment earlier and
-      // reports the answer instead of claiming a send. It is a read of live state, not a
-      // handshake with the sender: a settings.json change landing between this line and the send
-      // would still slip through — the sender's own `onRefused` is what records THAT, now via the
-      // onAuthEvent audit seam. The reason string stays server-side; the client gets a stable
-      // code, because this is the one branch a non-admin (a self-target) can also reach.
+      // deployment's email posture. The reset gate refuses inside better-auth's send hook and its
+      // reason cannot come back out, so this asks the same question — the `refusal` half of the
+      // same gate object whose `send` better-auth calls (#944) — a moment earlier and reports the
+      // answer instead of claiming a send. It is a read of live state, not a handshake with the
+      // sender: a settings.json change landing between this line and the send would still slip
+      // through — the gate's own `onRefused` is what records THAT, via the onAuthEvent audit seam.
+      // The reason PROSE stays server-side; the client gets the refusal's stable `code`, because
+      // this is the one branch a non-admin (a self-target) can also reach. #944: that code is what
+      // lets the screen name the setting to fix — one collapsed `email_not_deliverable` sent every
+      // admin to the provider dropdown, including when the from-address was the missing piece.
       const refusal = opts.resetEmailRefusal?.() ?? null
       if (refusal !== null) {
         console.error(
-          `[api:users] send-reset refused for user ${userId}: ${refusal}`
+          `[api:users] send-reset refused for user ${userId}: ${refusal.reason}`
         )
-        return c.json({ error: 'email_not_deliverable' }, 409)
+        return c.json({ error: refusal.code }, 409)
       }
 
       await opts.requestPasswordReset(target.email)

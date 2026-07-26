@@ -463,6 +463,20 @@ function InviteUserDialog({ onCreated }: { onCreated: () => void }) {
 const EMAIL_NOT_DELIVERABLE_REASON =
   'Password reset emails need an email provider — this workspace logs emails to the console.'
 
+/** What `POST /api/users/send-reset`'s 409 refusal codes mean to an admin, keyed by the code
+ *  apps/api/src/reset-email-gate.ts emits. One message per REASON: the server used to collapse
+ *  every refusal into a single code and this screen answered all of them with "Pick a provider",
+ *  which fixes nothing when the from-address is what is empty (#944). A code with no entry here
+ *  falls through to the generic 409 copy in `sendReset`, which is the honest answer for
+ *  `reset_link_origin_missing` (a server env var, not a screen an admin can open). Pinned by
+ *  apps/admin/test/users-screen.test.tsx. */
+const RESET_REFUSAL_MESSAGES: Record<string, string> = {
+  email_transport_not_deliverable:
+    'No reset email was sent — this site has no email transport that can deliver one. Pick a provider in Settings → Email.',
+  email_from_address_missing:
+    'No reset email was sent — this site has no from-address to send it from. Set one in Settings → Email.'
+}
+
 /** One row's role-change control + disable/enable/reset-password menu. Kept together since all
  *  three need the same guard computation (self / last-admin / rank) against the full `users` list. */
 function UserRowActions({
@@ -593,20 +607,22 @@ function UserRowActions({
       })
       if (!res.ok) {
         // #912: the server now distinguishes "refused — nothing was sent" from the other
-        // failures, so say which. `email_not_deliverable` is the case that used to arrive as a
-        // green "Password reset email sent to …" over a message the server declined to hand to
-        // the console adapter. The row's `resetGuard` normally disables the button on
-        // `email.deliverable`, but that is read once on mount and is client-side (§4 #13) —
-        // this is the server telling us at action time.
+        // failures, so say which. These are the cases that used to arrive as a green "Password
+        // reset email sent to …" over a message the server declined to hand to the console
+        // adapter. The row's `resetGuard` normally disables the button on `email.deliverable`, but
+        // that is read once on mount and is client-side (§4 #13) — this is the server telling us
+        // at action time.
+        // #944: one code per REASON, so the remediation names the setting that is actually
+        // missing. A single `email_not_deliverable` sent every admin to the provider dropdown,
+        // which fixes nothing when the from-address is the empty one.
         const body = (await res.json().catch(() => ({}))) as { error?: string }
         notify.error(
-          body.error === 'email_not_deliverable'
-            ? 'No reset email was sent — this site has no email transport that can deliver one. Pick a provider in Settings → Email.'
-            : res.status === 409
+          RESET_REFUSAL_MESSAGES[body.error ?? ''] ??
+            (res.status === 409
               ? "No reset email was sent — password reset isn't configured on this server."
               : res.status === 403
                 ? 'No reset email was sent — you do not have permission to reset this account.'
-                : 'Could not send the reset email'
+                : 'Could not send the reset email')
         )
         return
       }

@@ -36,6 +36,7 @@ import jsxA11y from 'eslint-plugin-jsx-a11y'
 import astro from 'eslint-plugin-astro'
 import eslintConfigPrettier from 'eslint-config-prettier'
 import globals from 'globals'
+import invariantCommentNamesTest from './eslint-rules/invariant-comment-names-test.mjs'
 
 const IGNORES = [
   // Build outputs / dependency trees
@@ -421,10 +422,45 @@ export default tseslint.config(
     }
   },
 
+  // ---- Invariant comments must name a test (#961) ----
+  // CLAUDE.md §3.2 / §4 #21, the rule reviewers have been carrying by hand: a fact-worded
+  // invariant comment names the test path that fails when it stops being true, or is
+  // worded as intent. The rule and its whole tuning rationale live in
+  // eslint-rules/invariant-comment-names-test.mjs; its tests are in
+  // scripts/invariant-comment-rule.test.mjs (`pnpm test:scripts`).
+  // SHIPPED AS A WARNING, at a measured baseline of 31 sites across the repo (see the #961
+  // PR for the categorised corpus). Promotion to `error` is a follow-up once the baseline
+  // is burned down, matching how react-hooks' React Compiler diagnostics are handled above.
+  // Test files are excluded on purpose, not for noise: a comment sitting next to its own
+  // assertions is not vouching for verification that happens somewhere else, and "caught by
+  // this suite itself" self-references measured as the largest false-positive cluster.
+  // `.astro` is out of scope — different parser, no measured hits.
+  {
+    files: ['**/*.{ts,tsx,mjs,js}'],
+    ignores: [
+      '**/*.test.{ts,tsx,mjs,js}',
+      '**/*.spec.{ts,tsx,mjs,js}',
+      '**/test/**',
+      '**/tests/**',
+      '**/test-browser/**',
+      'e2e/**',
+      'packages/*-testing/**'
+    ],
+    plugins: {
+      setu: {
+        rules: { 'invariant-comment-names-test': invariantCommentNamesTest }
+      }
+    },
+    rules: { 'setu/invariant-comment-names-test': 'warn' }
+  },
+
   // ---- Non-type-aware base for loose root/config scripts (no tsconfig covers these) ----
   {
     files: [
       'scripts/*.mjs',
+      // The custom ESLint rules (#961) are plain ESM outside every tsconfig, same as
+      // scripts/ — they get the base rule set for the same reason.
+      'eslint-rules/*.mjs',
       '*.mjs',
       'apps/*/*.config.mjs',
       'apps/*/integrations/**/*.mjs'

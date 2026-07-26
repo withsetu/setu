@@ -71,6 +71,10 @@
     "types/**",
     "vitest.shared.ts",
     "eslint.config.mjs",
+    // #961: eslint.config.mjs imports the custom rules from here, so a rule edit changes
+    // lint outcomes in every package exactly as a config edit does — and turbo would
+    // otherwise replay every cached `lint` against the old rule.
+    "eslint-rules/**",
     ".prettierrc.json",
     ".prettierignore",
     "packages/core/tsconfig.edge.json",

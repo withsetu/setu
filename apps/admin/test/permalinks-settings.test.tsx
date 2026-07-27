@@ -80,6 +80,66 @@ describe('PermalinksSettings', () => {
     expect(optionTexts).toContain('Custom…')
   })
 
+  // #989. Every other custom-pattern test in this file enters custom mode by SEEDING a stored
+  // non-preset pattern, which is the one door that worked — so the whole set passed while
+  // selecting "Custom…" was inert for every collection. Custom mode used to be re-derived from
+  // the pattern value on each render, and choosing Custom… wrote the current preset's pattern
+  // back, which `presetForPattern` then matched to that preset again.
+  it.each([
+    ['from Plain (no stored pattern)', undefined],
+    ['from a non-default preset', ':year/:month/:slug']
+  ])(
+    'reveals the Custom pattern input when Custom… is chosen %s',
+    async (_label, stored) => {
+      renderPermalinks(
+        stored === undefined
+          ? []
+          : [
+              {
+                path: 'settings.json',
+                content: JSON.stringify({
+                  permalinks: { patterns: { post: stored } }
+                })
+              }
+            ]
+      )
+      await screen.findByText(/category base/i)
+      expect(screen.queryByLabelText('Custom pattern')).toBeNull()
+
+      const postPreset = screen.getAllByLabelText('Structure')[0]!
+      postPreset.focus()
+      fireEvent.keyDown(postPreset, { key: ' ', code: 'Space' })
+      const listbox = await screen.findByRole('listbox')
+      fireEvent.click(within(listbox).getByRole('option', { name: 'Custom…' }))
+
+      // Pre-filled with whatever was in effect, so the pattern does not jump under the user.
+      const input = await screen.findByLabelText('Custom pattern')
+      expect(input).toHaveValue(stored ?? ':collection/:slug')
+    }
+  )
+
+  it('leaves custom mode when a preset is chosen again', async () => {
+    renderPermalinks([
+      {
+        path: 'settings.json',
+        content: JSON.stringify({
+          permalinks: { patterns: { post: 'articles/:slug' } }
+        })
+      }
+    ])
+    expect(await screen.findByLabelText('Custom pattern')).toBeInTheDocument()
+
+    const postPreset = screen.getAllByLabelText('Structure')[0]!
+    postPreset.focus()
+    fireEvent.keyDown(postPreset, { key: ' ', code: 'Space' })
+    const listbox = await screen.findByRole('listbox')
+    fireEvent.click(within(listbox).getByRole('option', { name: /Post name/ }))
+
+    await waitFor(() =>
+      expect(screen.queryByLabelText('Custom pattern')).toBeNull()
+    )
+  })
+
   it('loads a stored custom pattern into the Custom… input with a live preview', async () => {
     renderPermalinks([
       {

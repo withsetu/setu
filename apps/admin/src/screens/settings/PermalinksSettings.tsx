@@ -83,8 +83,21 @@ function CollectionRow({
   onChange: (next: string | undefined) => void
 }) {
   const effectivePattern = pattern ?? DEFAULT_PERMALINK_PATTERN
-  const presetId = pattern === undefined ? 'plain' : presetForPattern(pattern)
-  const isCustom = presetId === CUSTOM
+  const derivedPreset =
+    pattern === undefined ? 'plain' : presetForPattern(pattern)
+
+  // #989: custom mode is REMEMBERED, not re-derived from the value alone. Choosing "Custom…"
+  // seeds the input with the pattern already in effect — which is by definition one of the
+  // presets, so a purely derived `isCustom` matched that preset again and the input never
+  // rendered. Two things must both keep it open: an explicit choice here, and a stored pattern
+  // that matches no preset (`settings.json` is read asynchronously, so the row first mounts
+  // with `pattern` undefined and only then receives the stored value — an initial-state-only
+  // seed would miss it). Typing a pattern that happens to equal a preset also stays put rather
+  // than yanking the box away mid-edit. All three cases are covered in
+  // apps/admin/test/permalinks-settings.test.tsx.
+  const [choseCustom, setChoseCustom] = useState(false)
+  const isCustom = choseCustom || derivedPreset === CUSTOM
+  const presetId = isCustom ? CUSTOM : derivedPreset
 
   const errors = isCustom ? validatePermalinkPattern(effectivePattern) : []
   const preview = useMemo(() => {
@@ -98,10 +111,12 @@ function CollectionRow({
 
   const setPreset = (next: string) => {
     if (next === CUSTOM) {
+      setChoseCustom(true)
       // Free the input with the current effective pattern so nothing jumps.
       onChange(effectivePattern)
       return
     }
+    setChoseCustom(false)
     const preset = PRESETS.find((p) => p.id === next)
     if (!preset) return
     // "Plain" == the default scheme; writing it explicitly is unnecessary — absence inherits it.

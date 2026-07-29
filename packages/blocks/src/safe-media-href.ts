@@ -1,3 +1,5 @@
+import { normalizeUrlInput } from './url-normalize'
+
 /** Resolve a media `src` to a safe anchor `href`, or `null` when it must not become
  *  a link. Allowlist (not blocklist): absolute http(s) URLs pass through unchanged;
  *  root-relative `/...` paths get the media base prefixed. Everything else returns
@@ -13,12 +15,21 @@
  *  link on the published site (middle-click / open-in-new-tab / no-JS all bypass any
  *  client-side preventDefault). Shared here so every media block that links out to
  *  its asset (gallery lightbox today; video/section-style blocks tomorrow) goes
- *  through the same seam. */
+ *  through the same seam.
+ *
+ *  #968: the src is NORMALIZED (`normalizeUrlInput`) before the shape checks and the
+ *  normalized form is what gets returned/prefixed — the checks below are positional, and
+ *  the URL parser strips ASCII tab/LF/CR before it parses, so `"/\t/evil.example/a.jpg"`
+ *  looked root-relative here while resolving to an off-origin authority in the browser.
+ *  Enforced by the two '#968' cases in packages/blocks/test/safe-media-href.test.ts and,
+ *  at the real render sink, by apps/site/test/url-guard-sinks.test.ts. */
 export function safeMediaHref(src: string, base: string): string | null {
-  if (/^https?:\/\//i.test(src)) return src
+  if (typeof src !== 'string') return null
+  const raw = normalizeUrlInput(src)
+  if (/^https?:\/\//i.test(raw)) return raw
   // Root-relative only: a second `/` OR `\` would form a protocol-relative
   // authority (`//host`, `/\host`) instead of a same-origin path.
-  if (src.startsWith('/') && !/^\/[/\\]/.test(src)) return `${base}${src}`
+  if (raw.startsWith('/') && !/^\/[/\\]/.test(raw)) return `${base}${raw}`
   return null
 }
 

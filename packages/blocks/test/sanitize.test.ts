@@ -47,6 +47,34 @@ describe('safeLinkHref (#857 — anchor scheme allowlist)', () => {
     expect(safeLinkHref('\\\\evil.example/x')).toBeNull()
   })
 
+  it('#968: returns null when tab/LF/CR smuggle the authority past the offset check', () => {
+    // The WHATWG parser strips these before parsing, so every one of these resolves to
+    // https://evil.example/ — the offset-1 check alone saw a tab, not a second slash.
+    // Authorable verbatim through Markdoc string escapes: href="/\t/evil.example".
+    expect(safeLinkHref('/\t/evil.example')).toBeNull()
+    expect(safeLinkHref('/\n/evil.example')).toBeNull()
+    expect(safeLinkHref('/\r/evil.example')).toBeNull()
+    expect(safeLinkHref('/\t\\evil.example')).toBeNull()
+    expect(safeLinkHref('/\t\n\r/evil.example')).toBeNull()
+    expect(safeLinkHref('/\t\t/evil.example')).toBeNull()
+    // The scheme branch was already tab-aware (java\tscript: below); an ALLOWLIST stays
+    // closed under normalization — `javascript:` matches no accepted shape either way.
+    expect(safeLinkHref('java\nscript:alert(1)')).toBeNull()
+    expect(safeLinkHref('java\rscript:alert(1)')).toBeNull()
+  })
+
+  it('#968: an accepted href comes back normalized — validated string === parsed string', () => {
+    // Callers put the RETURN value on the element, so it must be the string the guard
+    // actually inspected; returning the raw input would re-open the gap at the sink.
+    expect(safeLinkHref('/page\t/about')).toBe('/page/about')
+    expect(safeLinkHref('  /page/about  ')).toBe('/page/about')
+    expect(safeLinkHref('https://ok.example/a\tb')).toBe(
+      'https://ok.example/ab'
+    )
+    // %09 is not a tab to the parser — it must survive as path content.
+    expect(safeLinkHref('/%09/not-an-authority')).toBe('/%09/not-an-authority')
+  })
+
   it('returns null for bare-relative paths and empties', () => {
     expect(safeLinkHref('page/about')).toBeNull()
     expect(safeLinkHref('')).toBeNull()

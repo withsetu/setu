@@ -6,6 +6,7 @@
  *  Every export here is an ALLOWLIST (accept the known-good shapes, reject everything
  *  else → null/false), not a blocklist. Kill-shotted in
  *  packages/blocks/test/sanitize.test.ts — disable a guard and its RED case fires. */
+import { normalizeUrlInput } from './url-normalize'
 
 /** Resolve an author-controlled link `href` to a value safe to put on an `<a href>`, or
  *  `null` when it must NOT become a live link. Allowlist: absolute `http(s):`, root-relative
@@ -18,19 +19,28 @@
  *  site origin — and middle-click / open-in-new-tab / no-JS all bypass any client-side
  *  guard, so callers must render the label as non-link text (a `<span>`, keeping classes)
  *  when this returns null. Sibling of `safeMediaHref` (media assets) — same allowlist
- *  philosophy, different accepted set (media never linked via mailto/tel/#). */
+ *  philosophy, different accepted set (media never linked via mailto/tel/#).
+ *
+ *  #968: the accepted value comes back NORMALIZED (`normalizeUrlInput`), never the raw
+ *  input — callers put the return value on the element, so the string that was validated
+ *  has to be the one the browser parses. Enforced by the '#968: an accepted href comes
+ *  back normalized' case in packages/blocks/test/sanitize.test.ts. */
 export function safeLinkHref(href: string | undefined): string | null {
   if (typeof href !== 'string') return null
-  const raw = href.trim()
+  // #968: strip the ASCII tab/LF/CR the URL parser drops before parsing, FIRST — every
+  // shape check below is positional, and a stripped character sitting inside the window
+  // it inspects made the string mean something different to the parser than to the check
+  // (`"/\t/evil.example"` → `https://evil.example/`). Normalized, it collapses to
+  // `"//evil.example"` and the protocol-relative branch rejects it.
+  const raw = normalizeUrlInput(href)
   if (raw === '') return null
-  if (/^https?:\/\//i.test(raw)) return href
+  if (/^https?:\/\//i.test(raw)) return raw
   // Root-relative only: a second `/` OR `\` forms a protocol-relative authority
   // (`//host`, `/\host` — the WHATWG URL parser normalizes `\` to `/`) instead of a
-  // same-origin path. Compare against the ORIGINAL (untrimmed) href so leading
-  // whitespace can't be used to smuggle a non-`/` first char past the check.
-  if (href.startsWith('/') && !/^\/[/\\]/.test(href)) return href
-  if (/^(mailto:|tel:)/i.test(raw)) return href
-  if (raw.startsWith('#')) return href
+  // same-origin path.
+  if (raw.startsWith('/') && !/^\/[/\\]/.test(raw)) return raw
+  if (/^(mailto:|tel:)/i.test(raw)) return raw
+  if (raw.startsWith('#')) return raw
   return null
 }
 

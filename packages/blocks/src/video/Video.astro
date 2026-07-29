@@ -16,7 +16,8 @@ const base = resolveMediaBase(import.meta.env.PUBLIC_SETU_MEDIA, import.meta.env
 // returned non-http/non-root strings unchanged — a protocol-relative `//host` (or its
 // `/\host` twin) would otherwise load media from an attacker-chosen origin. http(s) and
 // root-relative behavior is identical; anything else resolves to null (no element/attr).
-// Tested in packages/blocks/test/safe-media-href.test.ts.
+// Helper cases in packages/blocks/test/safe-media-href.test.ts; the no-element/no-attr
+// outcome is asserted against the built HTML in apps/site/test/url-guard-sinks.test.ts.
 const resolvedSrc = resolveMediaSrc(src, base)
 const resolvedPoster = poster ? resolveMediaSrc(poster, base) : null
 

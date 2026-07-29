@@ -28,7 +28,12 @@ export type {
   GalleryGap,
   GalleryLayout
 } from './gallery/gallery-classes'
-export { safeMediaHref } from './safe-media-href'
+export { safeMediaHref, resolveMediaSrc } from './safe-media-href'
+// #968: repo-root blocks/<tag>/*.astro can only reach this package by name, so the two
+// render-sink URL guards they need are exported here (packages/blocks/src/*.astro use
+// the relative paths). blocks/embed/embed.astro is the first consumer.
+export { safeLinkHref, isSafeColor, safeTextAlign } from './sanitize'
+export { normalizeUrlInput } from './url-normalize'
 import { Video } from './video/Video'
 export { Video }
 export type { VideoProps } from './video/Video'

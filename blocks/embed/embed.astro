@@ -1,5 +1,7 @@
 ---
 import './embed.css'
+import { safeLinkHref, resolveMediaSrc } from '@setu/blocks'
+import { resolveMediaBase } from '@setu/image-astro'
 
 interface Props {
   url: string
@@ -50,16 +52,55 @@ const aspect =
 
 const label = providerLabel ?? provider ?? 'embed'
 const alignClass = align === 'wide' ? 'align-wide' : align === 'full' ? 'align-full' : ''
+
+// #968 — every URL prop here reaches a sink in the PUBLISHED static site, and none of them
+// was validated. The oEmbed resolver normally sets them, but Markdoc validation is
+// non-blocking and `.mdoc` content can be written/POSTed directly (the #362/#13 "UI-only
+// gate" class), so `{% embed url="javascript:alert(1)" /%}` alone reached the fallback
+// branch below as a live `<a href="javascript:…">`. Zod cannot close this: the generated
+// Markdoc schema carries only type/matches/default (see markdoc.blocks.generated.mjs), and
+// `z.string().url()` accepts `javascript:alert(1)` anyway — the guard has to be here, at
+// the sink, exactly like every sibling block got in #857.
+const mediaBase = resolveMediaBase(import.meta.env.PUBLIC_SETU_MEDIA, import.meta.env.DEV)
+// The fallback anchor takes the full link allowlist (http(s) / root-relative / mailto /
+// tel / #fragment) — it is an ordinary outbound link.
+const safeUrl = safeLinkHref(url)
+// The thumbnail is an <img src>: the media allowlist (http(s) or root-relative + base).
+const safeThumbnailUrl = thumbnailUrl
+  ? resolveMediaSrc(thumbnailUrl, mediaBase)
+  : null
+
+/** `embedUrl` becomes an `<iframe src>` sandboxed `allow-scripts allow-same-origin`, and
+ *  that pair is only safe while the framed document is CROSS-ORIGIN — a same-origin
+ *  document can delete its own sandbox attribute (MDN, `<iframe>`: the two values together
+ *  "let the embedded document remove the sandbox attribute"). Dropping `allow-same-origin`
+ *  is not an option: providers need it (a sandboxed YouTube player fails with "Failed to
+ *  read the 'cookie' property from 'Document': The document is sandboxed and lacks the
+ *  'allow-same-origin' flag"). So the cross-origin precondition is ENFORCED here instead of
+ *  assumed: an absolute `http(s)` URL only — which is what every oEmbed provider returns —
+ *  rejecting root-relative, scheme-relative and non-http schemes. Residual, stated rather
+ *  than papered over: an absolute URL on the site's OWN https origin still passes, which
+ *  buys an attacker nothing (the frame would run the site's own scripts, not theirs).
+ *  Enforced by apps/site/test/url-guard-sinks.test.ts ('every iframe src in the built
+ *  output is an absolute http(s) URL'). */
+const frameSrc = (candidate: string | undefined): string | null => {
+  const safe = safeLinkHref(candidate)
+  return safe !== null && /^https?:\/\//i.test(safe) ? safe : null
+}
+const safeEmbedUrl = frameSrc(embedUrl)
+
 const isPhoto = mediaType === 'photo'
-const hasFacade = Boolean(thumbnailUrl) && Boolean(embedUrl || html)
+// Branch on the GUARDED values, never the raw props: a rejected thumbnail must not leave
+// an <img> with no src, and a rejected embedUrl must fall through to the next branch.
+const hasFacade = Boolean(safeThumbnailUrl) && Boolean(safeEmbedUrl || html)
 ---
 
 <figure class:list={['blk-embed', alignClass]}>
   {
-    isPhoto && thumbnailUrl ? (
+    isPhoto && safeThumbnailUrl ? (
       <img
         class="blk-embed-photo"
-        src={thumbnailUrl}
+        src={safeThumbnailUrl}
         alt={title ?? ''}
         loading="lazy"
         decoding="async"
@@ -69,13 +110,13 @@ const hasFacade = Boolean(thumbnailUrl) && Boolean(embedUrl || html)
         type="button"
         class="blk-embed-facade"
         style={`aspect-ratio:${aspect}`}
-        data-embed-url={embedUrl ?? ''}
-        data-embed-html={embedUrl ? '' : (html ?? '')}
+        data-embed-url={safeEmbedUrl ?? ''}
+        data-embed-html={safeEmbedUrl ? '' : (html ?? '')}
         aria-label={`Play ${title ?? label}`}
       >
         <img
           class="blk-embed-thumb"
-          src={thumbnailUrl}
+          src={safeThumbnailUrl}
           alt={title ?? ''}
           loading="lazy"
           decoding="async"
@@ -87,11 +128,11 @@ const hasFacade = Boolean(thumbnailUrl) && Boolean(embedUrl || html)
         </span>
         <span class="blk-embed-badge">{label}</span>
       </button>
-    ) : embedUrl ? (
+    ) : safeEmbedUrl ? (
       <div class="blk-embed-frame" style={`aspect-ratio:${aspect}`}>
         <iframe
           class="blk-embed-iframe"
-          src={embedUrl}
+          src={safeEmbedUrl}
           title={title ?? label}
           loading="lazy"
           sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
@@ -108,10 +149,15 @@ const hasFacade = Boolean(thumbnailUrl) && Boolean(embedUrl || html)
           sandbox="allow-scripts allow-popups allow-presentation"
         />
       </div>
-    ) : (
-      <a class="blk-embed-fallback" href={url} rel="noopener noreferrer">
+    ) : safeUrl ? (
+      <a class="blk-embed-fallback" href={safeUrl} rel="noopener noreferrer">
         {title ?? url}
       </a>
+    ) : (
+      /* Rejected href → non-link text, keeping the class (the Button.astro shape). The
+         label stays visible so the author still sees what they wrote; it is a text node,
+         which Astro escapes. */
+      <span class="blk-embed-fallback">{title ?? url}</span>
     )
   }
   {caption && <figcaption class="blk-embed-caption">{caption}</figcaption>}
@@ -120,9 +166,12 @@ const hasFacade = Boolean(thumbnailUrl) && Boolean(embedUrl || html)
 <script>
   // Facade → click-to-load: swap the poster for the player only on interaction, so no provider
   // cookies/JS load until the visitor chooses to play (privacy + performance).
-  // Security: a cross-origin `src` iframe runs in the provider's own origin (allow-same-origin is
-  // safe — it can't reach THIS page); a `srcdoc` iframe is same-origin by default, so its sandbox
-  // OMITS allow-same-origin → an opaque origin that cannot touch this page's DOM.
+  // Security: `data-embed-url` is the value `frameSrc` accepted above (absolute http(s) only),
+  // so the `src` iframe frames a foreign origin and allow-same-origin cannot be turned against
+  // this page; a `srcdoc` iframe would be same-origin by default, so its sandbox OMITS
+  // allow-same-origin → an opaque origin that cannot touch this page's DOM. Both halves are
+  // enforced by apps/site/test/url-guard-sinks.test.ts and apps/site/test/embed-block.test.ts
+  // ('sandboxes both load paths'), NOT by this comment.
   document.querySelectorAll<HTMLButtonElement>('.blk-embed-facade').forEach((btn) => {
     btn.addEventListener(
       'click',

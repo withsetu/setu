@@ -96,7 +96,20 @@ export function createSetuBlock(
           renderHTML: () => ({}),
           parseHTML: (el: HTMLElement) => el.getAttribute('data-tag') ?? ''
         },
-        mdAttrs: { default: {}, renderHTML: () => ({}), parseHTML: () => ({}) }
+        mdAttrs: { default: {}, renderHTML: () => ({}), parseHTML: () => ({}) },
+        // #967: the author wrote this tag's body on ONE line
+        // (`{% button %}Get started{% /button %}`, the shape kitchen-sink.mdoc ships).
+        // Declared here so ProseMirror carries it instead of stripping it as an unknown
+        // attribute — without it the writer normalises the tag to the `\n`-wrapped form
+        // on the first autosave, which renders differently (`<Button><p>x</p></Button>`
+        // rather than `<p><Button>x</Button></p>`). JSON-only, like mdAttrs.
+        // Round-trip covered by packages/core/test/single-line-tag-roundtrip.test.ts;
+        // the schema declaration itself by apps/admin/test/editor-schema.test.tsx.
+        inlineBody: {
+          default: false,
+          renderHTML: () => ({}),
+          parseHTML: () => false
+        }
       }
     },
     parseHTML() {

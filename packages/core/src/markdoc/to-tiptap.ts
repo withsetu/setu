@@ -22,6 +22,18 @@ const hasError = (node: MdNode): boolean =>
   node.type === 'error' ||
   (Array.isArray(node.errors) && node.errors.length > 0)
 
+/** Markdoc tags that are editor MARKS rather than blocks, and the mark each carries.
+ *  The single source for both halves of the inline-tag question: `inlineToTiptap` reads
+ *  it to build the mark, and the block-tag detection below reads its KEYS to decide
+ *  which inline tags are really block-level tags written on one line. Two separate lists
+ *  would drift, and a tag missing from the mark half would then be promoted to a block.
+ *  Enforced by `packages/core/test/single-line-tag-roundtrip.test.ts`
+ *  ("leaves the sub/sup inline MARK tags alone"). */
+const INLINE_TAG_MARKS: Record<string, string> = {
+  sub: 'subscript',
+  sup: 'superscript'
+}
+
 /** Add `mark` to an inline run's mark list, unless a mark of that type is already
  *  carried. A ProseMirror mark set is a SET: the same type cannot appear twice, and
  *  Tiptap collapses a duplicate on load. Markdown nesting does not respect that —
@@ -119,14 +131,15 @@ function inlineToTiptap(node: MdNode, marks: TiptapMark[] = []): TiptapNode[] {
           }
         }
       ]
+    /** The ONLY tags that legitimately live in an inline run: they are editor MARKS,
+     *  not blocks. Every other tag reaching an inline position is a block-level tag the
+     *  author wrote on one line, and is handled a level up (see `soleInlineBlockTag` /
+     *  `hasInlineBlockTag`) — falling through to `[]` here is what deleted it in #967. */
     case 'tag': {
-      if (node.tag === 'sub')
+      const mark = INLINE_TAG_MARKS[node.tag ?? '']
+      if (mark)
         return kids.flatMap((c) =>
-          inlineToTiptap(c, withMark(marks, { type: 'subscript' }))
-        )
-      if (node.tag === 'sup')
-        return kids.flatMap((c) =>
-          inlineToTiptap(c, withMark(marks, { type: 'superscript' }))
+          inlineToTiptap(c, withMark(marks, { type: mark }))
         )
       return []
     }
@@ -137,6 +150,86 @@ function inlineToTiptap(node: MdNode, marks: TiptapMark[] = []): TiptapNode[] {
 
 const collectInline = (node: MdNode): TiptapNode[] =>
   (node.children ?? []).flatMap((c) => inlineToTiptap(c))
+
+/** Widen our structural `MdNode` view (./types) back to Markdoc's own node type, so
+ *  parsed children can be handed to `Markdoc.Ast.Node`'s constructor. `MdNode` is a
+ *  deliberate SUBSET of the real thing and every value reaching here came out of
+ *  `Markdoc.parse`, so this only restores type information the subset dropped — it never
+ *  claims anything about a node that is not already true. */
+const mdocNodes = (
+  nodes: MdNode[] | undefined
+): InstanceType<typeof Markdoc.Ast.Node>[] =>
+  (nodes ?? []) as InstanceType<typeof Markdoc.Ast.Node>[]
+
+/** A Markdoc tag sitting in an INLINE position that is not one of the mark tags — i.e. a
+ *  body-bearing block tag the author wrote on one line. Markdoc parses
+ *  `{% button %}x{% /button %}` as `paragraph > inline > tag`, a shape the Tiptap schema
+ *  has no node for, so it needs lifting back out to block level (#967). */
+const isInlineBlockTag = (node: MdNode): boolean =>
+  node.type === 'tag' && INLINE_TAG_MARKS[node.tag ?? ''] === undefined
+
+/** The `inline` child holding a paragraph's inline run. */
+const inlineRunOf = (para: MdNode): MdNode | undefined =>
+  (para.children ?? []).find((c) => c.type === 'inline')
+
+/** Does this inline run carry a block-level tag ANYWHERE — including inside a mark, as in
+ *  `**{% button %}Go{% /button %}**`? A shallow check would miss that one and it would be
+ *  deleted exactly as the bare form was. */
+function runHasBlockTag(nodes: MdNode[]): boolean {
+  return nodes.some(
+    (n) => isInlineBlockTag(n) || runHasBlockTag(n.children ?? [])
+  )
+}
+
+const hasInlineBlockTag = (para: MdNode): boolean =>
+  runHasBlockTag(inlineRunOf(para)?.children ?? [])
+
+/** The one block-level tag this paragraph consists ENTIRELY of, or null. Whitespace-only
+ *  text siblings do not count against it (Markdown has already trimmed the line's own
+ *  padding, so nothing visible is dropped by ignoring them). */
+function soleInlineBlockTag(para: MdNode): MdNode | null {
+  // An annotation such as `{% align="center" %}` belongs to the PARAGRAPH, and promoting
+  // the tag out of it would drop the annotation. Leave those to the passthrough branch,
+  // which keeps the whole line verbatim instead.
+  if (Object.keys(para.attributes ?? {}).length > 0) return null
+  const kids = (inlineRunOf(para)?.children ?? []).filter(
+    (c) =>
+      !(c.type === 'text' && attrString(c.attributes['content']).trim() === '')
+  )
+  const only = kids.length === 1 ? kids[0]! : null
+  return only !== null && isInlineBlockTag(only) ? only : null
+}
+
+/** Re-shape a single-line tag into the AST the BLOCK converter already understands: the
+ *  same tag, with its inline run wrapped in one paragraph. Callout, columns, the atoms
+ *  and the generic setuBlock fallback are then all reached through the ONE tag arm of
+ *  `blockToTiptap` — a parallel inline implementation is exactly the hand-mirroring that
+ *  ./atom-blocks exists to prevent.
+ *
+ *  Built from `Markdoc.Ast.Node` rather than an object literal so the result is a REAL
+ *  Markdoc node: the paragraph it wraps can be handed back to `Markdoc.format` by
+ *  `formatParagraph` when the recursion lands on the mixed-content branch. */
+function asBlockTag(tag: MdNode): MdNode {
+  const N = Markdoc.Ast.Node
+  const para = new N('paragraph', {}, [
+    new N('inline', {}, mdocNodes(tag.children))
+  ])
+  return new N('tag', tag.attributes, [para], tag.tag)
+}
+
+/** A paragraph's own Markdoc source, via Markdoc's formatter.
+ *
+ *  Used for the passthrough fallback everywhere BELOW the top level — a tag body, a
+ *  blockquote, a list item — where the top-level loop's source slice is unavailable: the
+ *  source lines there carry container prefixes (`> `) and indentation that the writer
+ *  re-adds, so slicing them would double up. Formatting is faithful but not necessarily
+ *  byte-identical (Markdoc normalises emphasis markers and escapes), so a nested mixed
+ *  paragraph may be re-spelled ONCE and is stable after that; the top level keeps the
+ *  author's exact bytes. Both are covered by
+ *  `packages/core/test/single-line-tag-roundtrip.test.ts`
+ *  ("a tag mixed with other inline content in one paragraph"). */
+const formatParagraph = (para: MdNode): string =>
+  Markdoc.format(para as never).replace(/\n+$/, '')
 
 /** A literal `<br>` (any spelling) inside a table cell. Markdoc parses a GFM cell as
  *  INLINE content and never recognises `<br>` as a break — it lands as literal text — so
@@ -242,6 +335,44 @@ function stripMarker(inline: TiptapNode[]): TiptapNode[] {
   return inline
 }
 
+/** #967: the children of a list item whose leading text carries a block-level tag.
+ *
+ *  The item's inline run is re-wrapped as a paragraph and sent through `blockToTiptap`,
+ *  which is where single-line tags are lifted back to block level. A task item's `[x] `
+ *  marker is removed from the SOURCE first — left in place it makes every task item look
+ *  like "a tag mixed with prose" and the whole line would degrade to a passthrough that
+ *  re-emits the marker as literal text.
+ *
+ *  Enforced by `packages/core/test/single-line-tag-roundtrip.test.ts`
+ *  ("single-line tags nested inside other blocks"). */
+function itemLeadWithBlockTag(
+  inlineNode: MdNode,
+  task: boolean,
+  rest: TiptapNode[]
+): TiptapNode[] {
+  const N = Markdoc.Ast.Node
+  let kids = inlineNode.children ?? []
+  const first = kids[0]
+  if (task && first?.type === 'text') {
+    const stripped = attrString(first.attributes['content']).replace(
+      TASK_RE,
+      ''
+    )
+    kids =
+      stripped === ''
+        ? kids.slice(1)
+        : [new N('text', { content: stripped }), ...kids.slice(1)]
+  }
+  const para = new N('paragraph', {}, [
+    new N('inline', {}, mdocNodes(kids))
+  ]) as unknown as MdNode
+  const lead = blockToTiptap(para)
+  if (lead?.type === 'paragraph') return [lead, ...rest]
+  // The Tiptap item schema requires a leading paragraph; an empty one is re-inserted on
+  // the next read, so nothing is added to the file by it (see listItemToMarkdoc's drop).
+  return [{ type: 'paragraph', content: [] }, ...(lead ? [lead] : []), ...rest]
+}
+
 /** Markdoc list → Tiptap list, recursively. Checklist detection is per level. Each
  *  item becomes [paragraph, ...every other block child].
  *
@@ -277,7 +408,17 @@ function listToTiptap(node: MdNode): TiptapNode {
         type: 'paragraph',
         content: task ? stripMarker(inline) : inline
       }
-      const content = [paragraph, ...rest]
+      // #967. `- {% button %}Go{% /button %}` reaches the inline converter through THIS
+      // path, not through blockToTiptap's paragraph arm, so the tag was deleted here too.
+      // The diversion is taken only when a block tag is actually present, leaving the
+      // (heavily load-bearing: #711, #725, #744) ordinary item path byte-for-byte as it
+      // was. `listItem`/`taskItem` are `paragraph block*`, so a promoted block cannot be
+      // the first child — it follows an empty paragraph, which `listItemToMarkdoc` drops
+      // again when the item has further children, giving back the author's own line.
+      const content =
+        inlineNode && runHasBlockTag(inlineNode.children ?? [])
+          ? itemLeadWithBlockTag(inlineNode, task, rest)
+          : [paragraph, ...rest]
       if (task)
         return {
           type: 'taskItem',
@@ -340,12 +481,44 @@ function blockToTiptap(node: MdNode): TiptapNode | null {
         attrs: { level: node.attributes.level, ...alignAttr(node) },
         content: collectInline(node)
       }
-    case 'paragraph':
+    case 'paragraph': {
+      // #967. A paragraph is the wrapper Markdoc puts a SINGLE-LINE tag in, so it is
+      // checked for one before it is treated as prose. `{% button %}Get started{% /button %}`
+      // — the shape content/post/en/kitchen-sink.mdoc ships — used to reach `collectInline`,
+      // where the inline `tag` arm returned [] and destroyed the tag AND its text.
+      const sole = soleInlineBlockTag(node)
+      if (sole) {
+        const promoted = blockToTiptap(asBlockTag(sole))
+        // `inlineBody` records the shape the author wrote so the writer can give it back
+        // byte-for-byte (see tagBlockToMarkdoc). It is a hint, never a requirement: a node
+        // that loses it — an editor whose schema does not declare the attribute, a block
+        // pasted from elsewhere — serializes as the `\n`-wrapped form, which is stable and
+        // lossless. Honouring it matters because the two shapes RENDER differently:
+        // Markdoc transforms the one-line form to `<p><Button>text</Button></p>` and the
+        // wrapped form to `<Button><p>text</p></Button>`, and `.setu-button` is
+        // `display: inline-flex`, so normalising would put a block `<p>` inside it and
+        // change the published page.
+        if (promoted)
+          return {
+            ...promoted,
+            attrs: { ...(promoted.attrs ?? {}), inlineBody: true }
+          }
+      }
+      // Mixed with prose, or buried inside a mark. The Tiptap schema has no inline node a
+      // block-level tag can live in (`paragraph` is `inline*`; `callout`/`setuBlock` are
+      // `group: 'block'`), so the whole line degrades to a VISIBLE passthrough — the #664
+      // escape hatch — rather than losing the tag silently.
+      if (hasInlineBlockTag(node))
+        return {
+          type: 'passthrough',
+          attrs: { raw: formatParagraph(node), flagged: false }
+        }
       return {
         type: 'paragraph',
         ...(isAligned(node) ? { attrs: alignAttr(node) } : {}),
         content: collectInline(node)
       }
+    }
     case 'list':
       return listToTiptap(node)
     case 'blockquote':
@@ -386,13 +559,20 @@ function blockToTiptap(node: MdNode): TiptapNode | null {
           content: kids
         }
       }
-      if (tag === 'image') {
+      // #967, second half. An atom node carries props and NO children, so routing a tag
+      // that has a body through one deletes that body — `{% hero %}text{% /hero %}` was
+      // written back as `{% hero /%}`, in BOTH written shapes, for all nine atom tags plus
+      // `image`. Hand-authored `.mdoc` is a first-class workflow (§1), so the body is kept
+      // by falling through to the generic setuBlock arm, which round-trips any tag
+      // verbatim. A well-formed self-closing atom has no children and is untouched.
+      const hasBody = (node.children ?? []).length > 0
+      if (tag === 'image' && !hasBody) {
         return { type: 'imageBlock', attrs: { mdAttrs: node.attributes } }
       }
       // Childless atom blocks ({% hero %} → heroBlock, …) are driven by the shared
       // ATOM_TAG_TO_NODE map (see ./atom-blocks) so this direction and to-markdoc can't drift.
       const atomNode = ATOM_TAG_TO_NODE[tag]
-      if (atomNode) {
+      if (atomNode && !hasBody) {
         return { type: atomNode, attrs: { mdAttrs: node.attributes } }
       }
       return {
@@ -456,8 +636,20 @@ export function markdocToTiptap(
   // defaultKnownBlockTags is now empty by default (blocks moved to auto-discovered folders).
   // Real callers (e.g., read-service) inject knownBlockTags from the block registry; without injection, tags pass through.
   const known = opts.knownBlockTags ?? defaultKnownBlockTags
-  const isPreserve = (node: MdNode): boolean =>
-    hasError(node) || (node.type === 'tag' && !known.has(node.tag ?? ''))
+  const isPreserve = (node: MdNode): boolean => {
+    if (hasError(node)) return true
+    if (node.type === 'tag') return !known.has(node.tag ?? '')
+    // #967: at the top level a paragraph may be nothing but the wrapper Markdoc put a
+    // single-line tag in, so it is routed by the SAME rule as the `\n`-wrapped form —
+    // an unknown tag gets the byte-exact source slice its block twin already got. A tag
+    // mixed with prose is preserved whole for the same reason (`blockToTiptap` has the
+    // nested fallback for the depths this loop cannot slice).
+    if (node.type === 'paragraph') {
+      const sole = soleInlineBlockTag(node)
+      return sole ? !known.has(sole.tag ?? '') : hasInlineBlockTag(node)
+    }
+    return false
+  }
 
   // Markdoc (via markdown-it) normalizes CR and CRLF to LF BEFORE tokenizing, so its
   // `location.line` numbers are indices into the normalized text. A bare `\r` is a line

@@ -37,13 +37,13 @@ patchedDependencies:
 # the entry's expiry.
 auditConfig:
   ignoreGhsas:
-    # brace-expansion DoS (high). The advisory range <=5.0.7 spans every major, but
-    # upstream patched only v5 (5.0.8, published 2026-07-23). Our 5.x instance is
-    # updated to 5.0.8 (#880); this entry covers the residual 1.1.16 (the
-    # eslint > minimatch@3 family, lint-time tooling only), which is the
-    # maintenance-v1 dist-tag tip — no patched 1.x exists as of 2026-07-25.
-    # Expiry/re-check: #881.
-    - GHSA-mh99-v99m-4gvg
+    # GHSA-mh99-v99m-4gvg (brace-expansion DoS) was allowlisted here because no patched
+    # 1.x existed. One does now — 1.1.17 — so the entry's own expiry condition (#881) is
+    # met and it is gone rather than renewed. The `brace-expansion@1` override in the root
+    # package.json moved to 1.1.18, which clears BOTH that advisory and the newer
+    # GHSA-rgw5-rvv9-x895 (first patched 1.x: 1.1.18). Do not re-add either GHSA: an
+    # allowlist entry is for an advisory with no patched release inside the affected
+    # major, and both now have one.
     # react-router RSC-mode CSRF (high). Patched only in 8.3.0; no 7.x backport
     # exists, and react-router-dom (what apps/admin depends on) has no v8 at all as
     # of 2026-07-25, so moving off the range is a major migration, not a bump. Per

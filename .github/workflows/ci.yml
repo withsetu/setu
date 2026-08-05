@@ -89,7 +89,7 @@ jobs:
       # if we outgrow GitHub's cache: this same action supports `provider: s3` (R2).
       # Pinned by commit SHA (third-party action, supply-chain hygiene — #281 posture).
       - name: Turbo remote cache (GitHub Actions cache)
-        uses: rharkor/caching-for-turbo@75f8ebf4a43d2c60b23bc2a27082cfea94ffdad9 # v2.5.0
+        uses: rharkor/caching-for-turbo@2238fae6eb9a9936f92356f54cb3660200d105e7 # v2.5.1
 
       # PR: derive a since-SHA (merge-base with the base branch) and a scope mode.
       #   - docs-only (all changed files are *.md/*.mdx) -> skip typecheck/test.

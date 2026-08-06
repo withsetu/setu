@@ -2,31 +2,6 @@ packages:
   - 'packages/*'
   - 'apps/*'
 
-# vitest 3.2.7 — disable the worker's birpc heartbeat timeout (#495).
-#
-# WHAT IT PATCHES: one line of vitest/dist/chunks/rpc.-pEldfrD.js — `timeout: -1` on the
-# worker's `createBirpc` options, which is byte-for-byte what vitest 4 does upstream
-# (vitest-dev/vitest#8297, shipped in 4.0.0-beta.4; the 3.x line never got it).
-#
-# WHY: birpc's DEFAULT_TIMEOUT is 60s and the deadline is measured IN THE WORKER, starting
-# when the worker calls the main thread. `onTaskUpdate` is progress reporting — the main
-# thread answers it in milliseconds — but if the worker's event loop cannot PROCESS that
-# reply within 60s (blocked by synchronous test code, or simply starved of CPU), the timers
-# phase fires the deadline before the poll phase delivers the reply that already arrived.
-# The rejection surfaces through vitest's unhandled-error channel, so a suite with 0 failing
-# tests exits 1 with "Errors 1 error" and nothing actionable in the output. Observed on
-# @setu/core in run 30169048156 (1414 passed, 0 failed, job red), where CI contention had
-# stretched a 5.7s local run to 132s wall.
-# Reproduced deterministically by blocking a worker for 75s: without this patch the run is
-# green-but-red with exactly that error; with it, green. See the #495 PR for both runs.
-#
-# EXPIRY: delete this entry and patches/vitest@3.2.7.patch when the repo moves to vitest 4,
-# which carries the same change upstream — tracked by #949. A
-# vitest version bump makes `pnpm install` fail loudly on the unapplied patch rather than
-# silently reintroducing the flake.
-patchedDependencies:
-  vitest@3.2.7: patches/vitest@3.2.7.patch
-
 # Audit allowlist for the CI gate (ci.yml "pnpm audit (gate: high)"). The gate runs
 # pnpm 11, which reads auditConfig from pnpm-workspace.yaml — not from package.json's
 # `pnpm` key — so ci.yml copies this file into its probe dir alongside the lockfile.

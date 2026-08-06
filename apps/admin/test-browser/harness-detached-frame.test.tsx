@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import { SliderControl } from '../src/editor/controls/slider'
 import type { ControlMeta } from '../src/editor/controls/types'
 import { retryOnDetachedTesterFrame } from './harness/detached-tester-frame'

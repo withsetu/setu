@@ -223,6 +223,9 @@ importers:
       '@testing-library/react':
         specifier: ^16.1.0
         version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.1
       '@types/react':
         specifier: ^19.0.0
         version: 19.2.17
@@ -455,6 +458,9 @@ importers:
       '@testing-library/react':
         specifier: ^16.1.0
         version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.1
       '@types/react':
         specifier: ^19.0.0
         version: 19.2.17
@@ -706,6 +712,9 @@ importers:
       '@setu/email-testing':
         specifier: workspace:*
         version: link:../email-testing
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.1
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
@@ -763,6 +772,9 @@ importers:
       '@setu/git-testing':
         specifier: workspace:*
         version: link:../git-testing
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.1
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
@@ -947,6 +959,9 @@ importers:
       '@setu/db-testing':
         specifier: workspace:*
         version: link:../db-testing
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.1
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
@@ -9367,7 +9382,7 @@ snapshots:
 
   '@types/better-sqlite3@7.6.13':
     dependencies:
-      '@types/node': 22.19.21
+      '@types/node': 22.20.1
 
   '@types/chai@5.2.3':
     dependencies:
@@ -9390,7 +9405,7 @@ snapshots:
 
   '@types/jsdom@21.1.7':
     dependencies:
-      '@types/node': 22.19.21
+      '@types/node': 22.20.1
       '@types/tough-cookie': 4.0.5
       parse5: 7.3.0
 

@@ -17,6 +17,7 @@
     "@setu/core": "workspace:*"
   },
   "devDependencies": {
+    "@types/node": "^22.10.2",
     "@setu/api": "workspace:*",
     "@setu/core": "workspace:*",
     "@setu/db-memory": "workspace:*",

@@ -39,7 +39,12 @@ export function createHttpSubmissionAdapter(opts: {
 }): SubmissionPort {
   const base = opts.baseUrl.replace(/\/$/, '')
   const f = opts.fetchImpl
-  const json = async (res: Response) => {
+  // `Promise<unknown>`, not the inferred `Promise<any>` from `res.json()`. Until #949 gave this
+  // package a real `lib`, `Response` did not resolve at all, so the whole body was untyped and
+  // `no-unsafe-return` had nothing to say; with types present it correctly objects to handing an
+  // `any` straight out of a network call. `unknown` keeps every caller's `as Submission` an
+  // explicit, visible assertion instead of an implicit one.
+  const json = async (res: Response): Promise<unknown> => {
     if (!res.ok) {
       // Narrowed rather than cast (#914). The old `as { error?: string }` trusted the
       // remote body twice over: a JSON `null` body made `detail.error` throw a TypeError

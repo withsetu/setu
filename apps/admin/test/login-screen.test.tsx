@@ -96,7 +96,12 @@ beforeEach(() => {
   mockSignInEmail.mockResolvedValue({ data: {}, error: null })
 })
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  // vitest 4: restoreAllMocks() only restores `vi.spyOn` spies, so the `vi.mock` factory
+  // mocks in this file kept their call history between tests and leaked calls into the next
+  // test's `.not.toHaveBeenCalled()`. resetAllMocks() is the v4 verb for factory mocks. (#949)
+  vi.resetAllMocks()
+})
 
 async function fillForm(email = 'ada@setu.dev', password = 'hunter2') {
   fireEvent.change(await screen.findByLabelText(/email/i), {

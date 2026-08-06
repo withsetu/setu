@@ -220,7 +220,10 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  // vitest 4 split these: restoreAllMocks() covers the `vi.spyOn` spies in this file,
+  // resetAllMocks() the `vi.mock` factory mocks whose call history it no longer touches. (#949)
   vi.restoreAllMocks()
+  vi.resetAllMocks()
   vi.unstubAllGlobals()
   // useHasPassword caches across instances by design — reset so each test's mocked
   // listAccounts answer is actually consulted.

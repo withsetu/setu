@@ -12,7 +12,7 @@
     "genredirects": "node ../../scripts/gen-redirects.mjs",
     "test": "vitest run",
     "typecheck": "node ../../scripts/gen-blocks.mjs && node ../../scripts/gen-relations.mjs && astro sync && tsc --noEmit",
-    "lint": "eslint ."
+    "lint": "node ../../scripts/gen-blocks.mjs && node ../../scripts/gen-relations.mjs && astro sync && eslint ."
   },
   "dependencies": {
     "@astrojs/markdoc": "2.0.4",

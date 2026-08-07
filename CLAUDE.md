@@ -445,7 +445,8 @@ to **TS source** (no build step): editing `packages/core/src` hits dependents im
 |---|---|
 | Dev stack (api + admin + site) | `pnpm dev` — seeds `.content-sandbox/dev`, sets all env; api `:4444`, admin `:5173`, site `:4321`. `pnpm dev:stop` frees ports |
 | Tests (all / one pkg / watch) | `pnpm test` · `pnpm --filter @setu/admin test` · `test:watch` |
-| Typecheck / lint / format | `pnpm typecheck` · `pnpm lint` · `pnpm format:check` (lint is type-aware; big runs may need `NODE_OPTIONS=--max-old-space-size=4096`) |
+| Typecheck / lint / format | `pnpm typecheck` · **`pnpm lint:turbo`** · `pnpm format:check` (lint is type-aware; big runs may need `NODE_OPTIONS=--max-old-space-size=4096`) |
+| Lint — which command | **`pnpm lint:turbo` is the gate** (per-package `lint` + `lint:root`) — it is what CI runs, so it is what a PR is judged on. `pnpm lint` is a repo-wide `eslint .` convenience sweep. The two report the same *errors*; the sweep reports more *warnings* because it covers files no workspace package owns (#1016) |
 | Turbo-cached variants | `pnpm typecheck:turbo` / `pnpm test:turbo` (cache is shared across worktrees at the main checkout's `.turbo`) |
 | E2E | `pnpm e2e` (chromium + webkit-editor + visual; api `:4446`, admin `:5175`, own sandbox) · `pnpm e2e:ui` · one spec: `pnpm exec playwright test -c e2e specs/<file>` · types: `pnpm exec tsc -p e2e --noEmit` |
 | Content sandbox | `pnpm content:seed` / `pnpm content:reset` (throwaway git repo under `.content-sandbox/`; canonical `content/` is never written by dev/UAT) |

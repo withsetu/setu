@@ -1,7 +1,16 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { Hono } from 'hono'
 import { originGuard } from '../src/auth/origin-guard'
 import { allowedOrigins, resolveAdminOrigin } from '../src/auth/allowed-origins'
+
+// This file installs `vi.spyOn(console, 'error')` in five separate tests and never restored
+// them. On vitest 3 that was survivable; on vitest 4 a second `spyOn` of an already-spied method
+// hands back the EXISTING spy, so its call count carried over and the "logs ONCE" assertion below
+// saw the previous test's log too. Restoring after each test keeps every spy's count its own.
+// restoreAllMocks (not resetAllMocks) is the right verb here: these are `spyOn` spies. (#949)
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 function makeApp(allowed: () => string[]) {
   const app = new Hono()

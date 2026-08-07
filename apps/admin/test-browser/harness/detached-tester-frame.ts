@@ -1,10 +1,17 @@
-// Retry shim for ONE upstream bug in @vitest/browser 3.2.7's playwright provider (#954,
-// the shared cause behind #718's "a different browser-mode keyboard test failed on each
-// run"). Nothing here is about the app; it is harness plumbing only.
+// Retry shim for ONE upstream bug in the vitest playwright provider (#954, the shared cause
+// behind #718's "a different browser-mode keyboard test failed on each run"). Nothing here is
+// about the app; it is harness plumbing only.
+//
+// STILL PRESENT ON VITEST 4 (#949). The provider moved package — vitest 4 split it out of
+// `@vitest/browser` into `@vitest/browser-playwright` — and the resolver below came across
+// byte-for-byte: same name lookup, same missing `isDetached()`, same `frameattached`
+// fallback. That is asserted, not assumed: apps/admin/test/detached-tester-frame.test.ts
+// pins the provider version AND greps its dist for both halves of the defect, so the day
+// upstream fixes it this shim fails loudly instead of lingering.
 //
 // THE BUG. `userEvent.keyboard(...)` is the only interactivity API in this suite that
-// resolves the tester iframe by NAME on the node side. `getCommandsContext` (@vitest/browser
-// 3.2.7, dist/webdriver-BStCVush.js:237-252) returns:
+// resolves the tester iframe by NAME on the node side. The commands context
+// (@vitest/browser-playwright 4.1.10, dist/index.js:1114-1136) returns:
 //
 //     frame() {
 //       return new Promise((resolve, reject) => {
@@ -33,13 +40,13 @@
 // something upstream actually lands. The version guard below is what forces that re-check.
 //
 // Locator-based APIs (`expect.element`, `locator.click`) go through
-// `page.frameLocator('[data-vitest="true"]')` (same file, the `iframe` getter at line 254),
+// `page.frameLocator('[data-vitest="true"]')` (same file, the `iframe` getter at line 1134),
 // which re-resolves and auto-waits on every use — which is exactly why only the keyboard specs
 // ever showed this, and why widening a timeout would have done nothing: the frame handle is
 // already wrong when the command starts.
 //
-// WHY A RETRY CANNOT DOUBLE-APPLY KEYS. In 3.2.7 the failing `frame.evaluate(focusIframe)` is
-// the FIRST statement of the `keyboard` command (dist/index.js:2042-2050), strictly before
+// WHY A RETRY CANNOT DOUBLE-APPLY KEYS. In 4.1.10 the failing `frame.evaluate(focusIframe)` is
+// the FIRST statement of the `keyboard` command (dist/index.js:213-220), strictly before
 // `keyboardImplementation` dispatches anything, and `keyboardImplementation` itself never
 // touches a frame handle. `context.frame()` has exactly three call sites, none of them on a
 // path this suite takes twice: the `keyboard` command's focusIframe, its `{selectall}` branch,
@@ -49,9 +56,9 @@
 //
 // That paragraph is SOURCE-VERIFIED, not behaviour-verified — no test can observe vendor
 // statement order — so it is pinned the only way it can be: the version guard in
-// apps/admin/test/detached-tester-frame.test.ts asserts the installed @vitest/browser is
-// exactly 3.2.7 AND greps its dist for that ordering, so a bump fails LOUDLY and forces a
-// re-read instead of silently invalidating the paragraph.
+// apps/admin/test/detached-tester-frame.test.ts asserts the installed
+// @vitest/browser-playwright is exactly 4.1.10 AND greps its dist for that ordering, so a bump
+// fails LOUDLY and forces a re-read instead of silently invalidating the paragraph.
 //
 // The retry BEHAVIOUR (loop runs, one keypress still lands, exactly once) is proven in a real
 // browser by apps/admin/test-browser/harness-detached-frame.test.tsx; which errors this claims

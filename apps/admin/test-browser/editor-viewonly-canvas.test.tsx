@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { Actor, TiptapDoc } from '@setu/core'
 import { contentPath, serializeMdoc } from '@setu/core'

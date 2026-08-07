@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitest/config'
+import { playwright } from '@vitest/browser-playwright'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { createRequire } from 'node:module'
@@ -132,15 +133,19 @@ export default defineConfig({
     // (document.elementFromPoint, Range.getClientRects, matchMedia) that a real browser
     // already implements correctly — porting it in would silently shadow real behavior
     // instead of exercising it. The file below touches no browser API at all; it only wraps
-    // `userEvent.keyboard` in the #954 retry shim, because @vitest/browser 3.2.7 resolves the
+    // `userEvent.keyboard` in the #954 retry shim, because the playwright provider resolves the
     // tester iframe by NAME on the node side and can hand the keyboard command a frame
     // chromium has already detached (`frame.evaluate: Frame was detached`, blamed on whichever
-    // keyboard spec was running — the shared cause behind #718). Full mechanism, and why a
+    // keyboard spec was running — the shared cause behind #718). Still true on vitest 4: the
+    // resolver moved package but not behaviour, re-verified against 4.1.10 by
+    // ../test/detached-tester-frame.test.ts. Full mechanism, and why a
     // retry cannot double-apply keys, in ./test-browser/harness/detached-tester-frame.ts.
     setupFiles: ['./test-browser/harness/setup.ts'],
     browser: {
       enabled: true,
-      provider: 'playwright',
+      // vitest 4 moved the playwright provider into its own package and replaced the
+      // `'playwright'` string with this factory (`BrowserProviderOption`).
+      provider: playwright(),
       headless: true,
       // vitest 3 replaced the single-instance `name: 'chromium'` with an `instances[]`
       // array (one Vite server serves all instances — better caching than the old

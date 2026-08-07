@@ -37,7 +37,12 @@ const ok = (body: unknown) => ({
 })
 
 beforeEach(() => fetchMock.mockReset())
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  // vitest 4: restoreAllMocks() only restores `vi.spyOn` spies, so the `vi.mock` factory
+  // mocks in this file kept their call history between tests and leaked calls into the next
+  // test's `.not.toHaveBeenCalled()`. resetAllMocks() is the v4 verb for factory mocks. (#949)
+  vi.resetAllMocks()
+})
 
 describe('CollectionsProvider', () => {
   it('publishes the declared collections once the read settles', async () => {

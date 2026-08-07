@@ -1,6 +1,7 @@
 {
   "name": "@setu/site",
   "private": true,
+  "license": "AGPL-3.0-only",
   "type": "module",
   "version": "0.0.0",
   "scripts": {
@@ -34,6 +35,6 @@
     "axe-core": "^4.12.1",
     "jsdom": "^25.0.1",
     "purgecss": "^8.0.0",
-    "vitest": "^3.2.6"
+    "vitest": "^4.1.10"
   }
 }

@@ -1,4 +1,4 @@
-import { userEvent } from '@vitest/browser/context'
+import { userEvent } from 'vitest/browser'
 import { retryOnDetachedTesterFrame } from './detached-tester-frame'
 
 // The ONLY setup file the browser project has, and it exists for one reason: to wrap

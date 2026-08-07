@@ -28,7 +28,12 @@ function Probe({ enabled, id = '' }: { enabled?: boolean; id?: string }) {
 }
 
 afterEach(() => {
-  vi.restoreAllMocks()
+  // vitest 4: restoreAllMocks() only restores `vi.spyOn` spies. The mocks here come from a
+  // `vi.mock` factory, so their call history and implementations survive it — which silently
+  // leaked calls into the next test's `.not.toHaveBeenCalled()`. resetAllMocks() is the v4
+  // verb for factory mocks; every test below sets its own implementation, so clearing them
+  // is safe. (#949)
+  vi.resetAllMocks()
   // The store is module-scoped (that's the point of the fix) — reset it or each test would see
   // the previous test's cached answer.
   resetHasPasswordStoreForTests()

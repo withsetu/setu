@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { useState } from 'react'
 import { render, cleanup } from '@testing-library/react'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 
 // TagFilter needs the Index/Services providers; the toolbar's status control is
 // what's under test, so stub it exactly as the jsdom test does.

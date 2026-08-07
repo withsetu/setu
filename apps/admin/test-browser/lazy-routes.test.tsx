@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
-import { page } from '@vitest/browser/context'
+import { page } from 'vitest/browser'
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom'
 import { lazy, type ReactElement } from 'react'
 import type { Actor } from '@setu/core'

@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { useState } from 'react'
 import { render, cleanup } from '@testing-library/react'
-import { page } from '@vitest/browser/context'
+import { page } from 'vitest/browser'
 import { DateField } from '../src/editor/DateField'
 
 // ---------------------------------------------------------------------------------

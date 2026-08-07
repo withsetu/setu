@@ -89,25 +89,53 @@ describe('detached-tester-frame retry shim (#954)', () => {
 // matching" from "the race simply didn't recur" — and the string matcher can't self-detect
 // wording drift, because the tests above author the very strings they assert on.
 //
-// So pin the vendor instead. These two fail LOUDLY on a bump and force a human re-read of
+// So pin the vendor instead. These fail LOUDLY on a bump and force a human re-read of
 // ../test-browser/harness/detached-tester-frame.ts before the shim is trusted or deleted.
 // Note vitest-dev/vitest#10300 was closed UNMERGED, so a newer vitest is NOT evidence of a fix.
+//
+// #949 (vitest 3 → 4): the vendored code MOVED — vitest 4 split the playwright provider out of
+// `@vitest/browser` into `@vitest/browser-playwright` — but it did not CHANGE. Both claims were
+// re-derived against 4.1.10's dist before this pin moved, and the third `it` below now guards
+// the defect itself rather than only its blast radius, because a version bump that silently
+// fixed `frame()` is exactly the case that should retire this shim.
 describe('the vendor facts the shim rests on (#954)', () => {
   const require = createRequire(import.meta.url)
+  // vitest 4 carries the provider (and therefore the `frame()` resolver and the `keyboard`
+  // command) here; on vitest 3 both lived in `@vitest/browser`.
+  const PROVIDER_PKG = '@vitest/browser-playwright'
   const pkg = JSON.parse(
-    readFileSync(require.resolve('@vitest/browser/package.json'), 'utf8')
+    readFileSync(require.resolve(`${PROVIDER_PKG}/package.json`), 'utf8')
   ) as { version: string }
 
-  it('is pinned to the @vitest/browser this shim was verified against', () => {
+  it('is pinned to the provider build this shim was verified against', () => {
     expect(
       pkg.version,
-      'a @vitest/browser bump invalidates the source-verified claims in detached-tester-frame.ts — re-read them, re-check vitest-dev/vitest#10300, then move this pin'
-    ).toBe('3.2.7')
+      `a ${PROVIDER_PKG} bump invalidates the source-verified claims in detached-tester-frame.ts — re-read them, re-check vitest-dev/vitest#10300, then move this pin`
+    ).toBe('4.1.10')
+  })
+
+  it('still resolves the tester frame by NAME with no isDetached check — the bug is still there', () => {
+    // THE defect the shim exists for. If upstream ever adds a detached check (or awaits a
+    // named frame rather than resolving whatever attaches next), this fails and the shim,
+    // its setup wrapper and this whole describe should be deleted rather than re-pinned.
+    const dist = readFileSync(require.resolve(PROVIDER_PKG), 'utf8')
+    const start = dist.indexOf('page.frame("vitest-iframe")')
+    expect(start, 'the frame resolver moved or was renamed').toBeGreaterThan(-1)
+    const body = dist.slice(start, start + 600)
+
+    expect(
+      body.includes('isDetached'),
+      'upstream now checks isDetached() — the #954 race may be fixed; re-read vitest-dev/vitest#10300 and delete the shim instead of moving the pin'
+    ).toBe(false)
+    expect(
+      body,
+      'the frameattached fallback (resolve whatever attaches next, regardless of name) is the second half of the bug'
+    ).toContain('frameattached')
   })
 
   it('still dispatches keys only AFTER the focusIframe evaluate — the no-double-apply claim', () => {
-    // `@vitest/browser`'s main entry is the dist file carrying the `keyboard` command.
-    const dist = readFileSync(require.resolve('@vitest/browser'), 'utf8')
+    // The provider's main entry is the dist file carrying the `keyboard` command.
+    const dist = readFileSync(require.resolve(PROVIDER_PKG), 'utf8')
     const start = dist.indexOf(
       'const keyboard = async (context, text, state) =>'
     )

@@ -5,10 +5,11 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
     "types": [
+      "node",
       "vite/client",
       "vitest/globals",
       "@testing-library/jest-dom",
-      "@vitest/browser/providers/playwright",
+      "@vitest/browser-playwright/context",
       "@vitest/browser/matchers"
     ],
     "baseUrl": ".",

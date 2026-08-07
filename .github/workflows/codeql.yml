@@ -54,9 +54,12 @@ jobs:
 
       # `upload: never` — code-scanning upload (the Security tab) requires GHAS on
       # PRIVATE repos (verified live: the analysis itself ran fine, only the upload was
-      # rejected — run 28626097162). Until the repo goes public (MIT/OSS plan) or GHAS
-      # is bought, we gate on the SARIF directly below instead. When that changes:
-      # remove `upload: never` and the two steps below.
+      # rejected — run 28626097162). That constraint no longer applies: the repo has been
+      # public since 2026-07-14, so the upload path is available and this workaround is
+      # retirable — #829 owns doing that deliberately, without losing the gate. Until then
+      # we gate on the SARIF directly below. When it lands: remove `upload: never` and the
+      # two steps below. (This comment previously said "until the repo goes public
+      # (MIT/OSS plan)" — both halves were stale; the licence is AGPL-3.0-only, #1020.)
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v4
         with:

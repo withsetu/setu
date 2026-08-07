@@ -161,8 +161,13 @@
     // CAVEAT, stated because it is not obvious: this task graph does NOT cover the root-level
     // surfaces (scripts/*.mjs, e2e/**, blocks/*/block.ts, root *.mjs, vitest.shared.ts) — no
     // workspace package owns them. `pnpm lint:root` is what lints those, and `pnpm lint:turbo`
-    // runs both. Plain `pnpm lint` remains a single repo-wide `eslint .` and is still the
-    // authoritative full sweep.
+    // runs both — that pair is the gate CI enforces.
+    // Plain `pnpm lint` is a repo-wide `eslint .`; it is a convenience sweep, NOT the gate, and
+    // the two can legitimately disagree because each package's `lint` script sets up its own
+    // preconditions (apps/site regenerates blocks/relations and runs `astro sync` first — see
+    // apps/site/package.json). #1016: this comment used to call the plain sweep "the
+    // authoritative full sweep", which sent a reader chasing 62 phantom `no-unsafe-*` errors in
+    // apps/site that the gate correctly did not report.
     "lint": {
       "dependsOn": ["^lint"],
       "outputs": []

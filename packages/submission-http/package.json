@@ -10,7 +10,7 @@
   },
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.src.json --noEmit",
     "lint": "eslint ."
   },
   "dependencies": {

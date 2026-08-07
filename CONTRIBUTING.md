@@ -1,6 +1,7 @@
 # Contributing to Setu
 
-Thanks for your interest in contributing! Setu is open source under the [MIT License](LICENSE),
+Thanks for your interest in contributing! Setu is free software under the
+[GNU Affero General Public License v3](LICENSE),
 and contributions are welcome.
 
 ## How to contribute
@@ -14,7 +15,8 @@ and contributions are welcome.
 
 Setu accepts contributions under the **Developer Certificate of Origin** — a lightweight,
 sign-off-based alternative to a CLA. By signing off on a commit, you certify that you wrote the
-code (or otherwise have the right to submit it) under the project's MIT License. The full text is
+code (or otherwise have the right to submit it) under the project's AGPL-3.0-only license. The
+full text is
 at <https://developercertificate.org/>.
 
 **Every commit must be signed off.** Add a `Signed-off-by` trailer with your real name and email:
@@ -41,5 +43,5 @@ commit with `git commit --amend -s` (or rebase to sign off a series) and force-p
 
 ## License
 
-By contributing, you agree that your contributions are licensed under the MIT License, the same
+By contributing, you agree that your contributions are licensed under the GNU AGPL v3, the same
 terms that cover the rest of the repository.

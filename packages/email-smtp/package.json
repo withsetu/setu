@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@setu/core": "workspace:*",
-    "nodemailer": "^9.0.3"
+    "nodemailer": "^9.0.5"
   },
   "devDependencies": {
     "@setu/email-testing": "workspace:*",

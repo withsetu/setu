@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "description": "Open-source, Git-backed, multi-topology CMS engine.",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "scripts": {
     "content:seed": "node scripts/content-sandbox.mjs seed",
     "content:reset": "node scripts/content-sandbox.mjs reset",
@@ -52,7 +52,7 @@
     "turbo": "^2.10.6",
     "typescript": "^5.6.3",
     "typescript-eslint": "^8.65.0",
-    "vitest": "^3.2.7"
+    "vitest": "^4.1.10"
   },
   "packageManager": "pnpm@10.33.0",
   "pnpm": {
@@ -68,6 +68,7 @@
     },
     "overrides": {
       "brace-expansion@1": "1.1.18",
+      "js-yaml@4": ">=4.3.1",
       "shell-quote": ">=1.9.0",
       "svgo": ">=4.0.2",
       "sharp": ">=0.35.0",

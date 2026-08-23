@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { useState } from 'react'
 import { render, cleanup } from '@testing-library/react'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import { Position9 } from '../src/editor/controls/position9'
 import { SegmentedSelect } from '../src/editor/controls/segmented-select'
 import { MediaControl } from '../src/editor/controls/media'

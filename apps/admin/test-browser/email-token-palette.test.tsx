@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { useState } from 'react'
 import { render, cleanup } from '@testing-library/react'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import { PASSWORD_RESET_EMAIL, type EmailTemplateOverrides } from '@setu/core'
 import { EmailTemplates } from '../src/screens/settings/EmailTemplates'
 

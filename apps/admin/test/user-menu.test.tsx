@@ -50,7 +50,10 @@ const renderMenu = () =>
   )
 
 afterEach(() => {
-  vi.restoreAllMocks()
+  // vitest 4: restoreAllMocks() only restores `vi.spyOn` spies, so the `vi.mock` factory
+  // mocks below kept their call history between tests and leaked calls into the next test's
+  // `.not.toHaveBeenCalled()`. resetAllMocks() is the v4 verb for factory mocks. (#949)
+  vi.resetAllMocks()
   // useHasPassword caches across instances by design — reset so each test's mocked
   // listAccounts answer is actually consulted.
   resetHasPasswordStoreForTests()

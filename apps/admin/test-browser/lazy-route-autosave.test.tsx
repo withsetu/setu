@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
-import { page, userEvent } from '@vitest/browser/context'
+import { page, userEvent } from 'vitest/browser'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import type { Actor } from '@setu/core'
 import { createMemoryDataPort } from '@setu/db-memory'

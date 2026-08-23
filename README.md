@@ -82,6 +82,14 @@ stop-safety rules live in [`scripts/staging.mjs`](scripts/staging.mjs).
 
 ## License
 
-Setu is licensed under the [MIT License](LICENSE). Contributions are accepted under the
+Copyright (C) 2026 Mayank Gupta.
+
+Setu is free software: you can redistribute it and/or modify it under the terms of the
+**GNU Affero General Public License, version 3** as published by the Free Software Foundation.
+It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+[full license text](LICENSE) for details.
+
+Contributions are accepted under the
 [Developer Certificate of Origin](CONTRIBUTING.md#developer-certificate-of-origin-dco) — sign off
 your commits with `git commit -s`. See [CONTRIBUTING.md](CONTRIBUTING.md).

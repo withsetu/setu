@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@setu/core": "workspace:*",
-    "better-sqlite3": "^13.0.2",
+    "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
@@ -26,6 +26,6 @@
     "@types/node": "^22.10.2",
     "drizzle-kit": "^0.31.10",
     "typescript": "^5.6.3",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   }
 }

@@ -24,9 +24,9 @@
     "astro": "^7.0.0"
   },
   "devDependencies": {
-    "astro": "7.2.0",
+    "astro": "7.2.4",
     "typescript": "^5.6.3",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   },
   "dependencies": {
     "@setu/blocks": "workspace:*",

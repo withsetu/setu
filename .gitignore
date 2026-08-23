@@ -10,11 +10,16 @@ dist/
 # Superpowers git worktrees (temporary, per-feature copies of the repo)
 .superpowers/
 
-# Claude Code local session/config state (never shared across machines) —
-# except .claude/skills/, which is versioned team knowledge (see CLAUDE.md)
+# Claude Code local session/config state (never shared across machines) — except
+# .claude/skills/ (versioned team knowledge, see CLAUDE.md) and the SessionStart
+# hook + the settings that register it, which have to be committed to reach a
+# cloud container at all (#1037).
 .claude/*
 !.claude/skills/
 !.claude/skills/**
+!.claude/hooks/
+!.claude/hooks/**
+!.claude/settings.json
 
 # Design-skill session artifacts (local working files, regenerated per session)
 .impeccable/

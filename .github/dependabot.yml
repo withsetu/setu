@@ -25,6 +25,16 @@ updates:
       npm-minor-patch:
         patterns:
           - "*"
+        # better-auth ships breaking changes in minor releases, so the group's
+        # minor+patch rule quietly swallows them: 1.7.0 made `issuer` required on the
+        # account model, and #1035 carried that in with 43 unrelated bumps (#1039).
+        # Excluded dependencies still get their own individual PRs — which is the
+        # point, since an auth change needs the wrong-actor e2e (card #5) and that
+        # review cannot happen inside a 44-package dependency PR. Both packages/auth
+        # and apps/admin already pin better-auth exactly, for the same reason.
+        exclude-patterns:
+          - "better-auth"
+          - "@better-auth/*"
         update-types:
           - "minor"
           - "patch"

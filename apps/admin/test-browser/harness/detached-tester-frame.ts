@@ -11,7 +11,7 @@
 //
 // THE BUG. `userEvent.keyboard(...)` is the only interactivity API in this suite that
 // resolves the tester iframe by NAME on the node side. The commands context
-// (@vitest/browser-playwright 4.1.10, dist/index.js:1114-1136) returns:
+// (@vitest/browser-playwright 4.1.11, dist/index.js:1118-1134) returns:
 //
 //     frame() {
 //       return new Promise((resolve, reject) => {
@@ -45,8 +45,8 @@
 // ever showed this, and why widening a timeout would have done nothing: the frame handle is
 // already wrong when the command starts.
 //
-// WHY A RETRY CANNOT DOUBLE-APPLY KEYS. In 4.1.10 the failing `frame.evaluate(focusIframe)` is
-// the FIRST statement of the `keyboard` command (dist/index.js:213-220), strictly before
+// WHY A RETRY CANNOT DOUBLE-APPLY KEYS. In 4.1.11 the failing `frame.evaluate(focusIframe)` is
+// the FIRST statement of the `keyboard` command (dist/index.js:213-223), strictly before
 // `keyboardImplementation` dispatches anything, and `keyboardImplementation` itself never
 // touches a frame handle. `context.frame()` has exactly three call sites, none of them on a
 // path this suite takes twice: the `keyboard` command's focusIframe, its `{selectall}` branch,
@@ -57,7 +57,7 @@
 // That paragraph is SOURCE-VERIFIED, not behaviour-verified — no test can observe vendor
 // statement order — so it is pinned the only way it can be: the version guard in
 // apps/admin/test/detached-tester-frame.test.ts asserts the installed
-// @vitest/browser-playwright is exactly 4.1.10 AND greps its dist for that ordering, so a bump
+// @vitest/browser-playwright is exactly 4.1.11 AND greps its dist for that ordering, so a bump
 // fails LOUDLY and forces a re-read instead of silently invalidating the paragraph.
 //
 // The retry BEHAVIOUR (loop runs, one keypress still lands, exactly once) is proven in a real

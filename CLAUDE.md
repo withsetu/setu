@@ -412,6 +412,16 @@ want to review technical plans line-by-line.
   means you drifted too technical: re-frame, don't re-explain.
 - Batch questions; never trickle one per message. Keep working on what isn't blocked.
 
+**⊕ Answer concisely (owner, 2026-08-23).** Default to the shortest reply that carries the
+result, the evidence for it, and anything the owner must decide. Lead with the answer; put
+verification behind it, not in front of it. Cut recaps of work the owner just watched, restatements
+of the request, and status essays. Length is earned by content — a real trade-off, a diagnosis with
+its evidence, or a numbered question deserves the words; "here is what I did and why it was hard"
+does not. Concision never licenses dropping a caveat, a failed check, or dropped scope: say it in a
+clause instead of a paragraph. This is about the CHAT reply only — issue bodies, PR bodies and
+commit messages keep their required sections (§3.3 #5), because they are read later by someone
+without this context.
+
 **Fact uncertainty is not owner-escalation — resolve it yourself, in this order:**
 1. Code wins over any doc/memory/issue claim. Read it.
 2. Dependency/ecosystem facts: context7 (API/usage) + npm registry (license/version/paid) + web.

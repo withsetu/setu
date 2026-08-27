@@ -9,6 +9,7 @@ import { loadConfig } from '@setu/core/node'
 import { perPageCssPurge } from './integrations/per-page-css-purge.mjs'
 import { securityHeaders } from './integrations/security-headers.mjs'
 import { settingsWatcher } from './integrations/settings-watcher.mjs'
+import { parseAllowedHosts } from '../../scripts/dev-allowed-hosts.mjs'
 
 // Read the active theme from setu.config (single source of truth) and alias '@theme'
 // to it, so pages render through whichever theme is configured.
@@ -179,6 +180,11 @@ export default defineConfig({
       ]
     },
     // Allow Vite to serve/process files from the repo root (blocks/ live outside apps/site).
-    server: { fs: { allow: ['../..'] } }
+    server: {
+      fs: { allow: ['../..'] },
+      // Loopback-only unless an operator names extra hosts (#1049) — see
+      // scripts/dev-allowed-hosts.mjs for why widening stays enumerable.
+      allowedHosts: parseAllowedHosts(process.env.SETU_DEV_ALLOWED_HOSTS)
+    }
   }
 })

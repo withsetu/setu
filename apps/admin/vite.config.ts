@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
+import { parseAllowedHosts } from '../../scripts/dev-allowed-hosts.mjs'
 
 // block.ts files at the repo-root blocks/ folder are glob-imported into the
 // admin bundle. Vite resolves their imports from *their* on-disk location
@@ -40,7 +41,14 @@ export default defineConfig(({ command }) => ({
       zod: require.resolve('zod')
     }
   },
-  server: { fs: { allow: ['../..'] } },
+  server: {
+    fs: { allow: ['../..'] },
+    // Loopback-only unless an operator names extra hosts (#1049). Needed whenever the
+    // browser is not on the same machine as this dev server — a tunnel, reverse proxy,
+    // Codespaces port forward, or container. Refuses values that would switch the host
+    // check off; the rule and its rationale are in scripts/dev-allowed-hosts.mjs.
+    allowedHosts: parseAllowedHosts(process.env.SETU_DEV_ALLOWED_HOSTS)
+  },
   build: {
     rollupOptions: {
       output: {

@@ -61,6 +61,40 @@ export function parsePorts(argv) {
   return { ports, invalid, force }
 }
 
+/** Which of `ports` currently have listeners, and who owns them (#1051).
+ *
+ *  The dev servers run with `strictPort`, so a busy port is fatal rather than a silent move to
+ *  the next one. Vite says so clearly; Astro does not — it reports "Dev server process exited
+ *  before becoming ready" with no mention of a port at all. This is the preflight that turns
+ *  that into an actionable line, and because worktree ownership is already resolvable it can say
+ *  WHICH branch is holding the port — the common case when several worktrees are in play.
+ *
+ *  Pure: `listenersFor` and `ownerOf` are injected, so it is tested without real processes.
+ *  Enforced by the describeBusyPorts tests in free-ports.test.mjs.
+ *
+ * @returns {{port: number, owners: {pid: number, root: string|null, branch: string, mine: boolean}[]}[]}
+ */
+export function describeBusyPorts(ports, listenersFor, ownerOf, selfRoot) {
+  const busy = []
+  for (const port of ports) {
+    const listeners = listenersFor(port)
+    if (listeners.length === 0) continue
+    busy.push({
+      port,
+      owners: listeners.map((pid) => {
+        const owner = ownerOf(pid)
+        return {
+          pid,
+          root: owner?.root ?? null,
+          branch: owner?.branch ?? 'unknown',
+          mine: Boolean(owner && selfRoot && owner.root === selfRoot)
+        }
+      })
+    })
+  }
+  return busy
+}
+
 /** Decide, for one port, WHICH of its listeners this invocation may signal.
  *  `ownerOf(pid)` returns `{ root, branch }` for a Setu worktree or null; `selfRoot` is the
  *  invoking worktree. Returns `{ port, pids, skipped }` where `skipped` carries the branch so the
@@ -201,7 +235,46 @@ async function main() {
     return
   }
   const selfRoot = worktreeOf(process.cwd())?.root ?? null
-  const code = await run({ argv: process.argv.slice(2), selfRoot })
+  const argv = process.argv.slice(2)
+
+  // `--check` is the read-only preflight `pnpm dev` runs before starting anything: it never
+  // signals a process, it just refuses to start with a message naming the port and its owner.
+  if (argv.includes('--check')) {
+    const { ports, invalid } = parsePorts(argv.filter((a) => a !== '--check'))
+    if (invalid.length > 0) {
+      console.error(`free-ports: invalid port(s): ${invalid.join(', ')}`)
+      process.exit(1)
+    }
+    const busy = describeBusyPorts(
+      ports,
+      (port) => listenersOf(port),
+      ownerOfPid,
+      selfRoot
+    )
+    if (busy.length === 0) return
+    for (const { port, owners } of busy) {
+      for (const o of owners) {
+        const who = o.mine
+          ? 'this worktree'
+          : o.root
+            ? `worktree ${o.branch}`
+            : 'an unknown process'
+        console.error(
+          `free-ports: port ${port} is in use by pid ${o.pid} (${who})`
+        )
+      }
+    }
+    console.error(
+      '\nThe dev servers run with strictPort, so a busy port stops the stack rather than\n' +
+        'silently moving to another one (a moved admin would still call the api baked into\n' +
+        "its bundle — another worktree's). Either:\n" +
+        '  pnpm dev:stop                 free the ports this worktree owns\n' +
+        '  SETU_ADMIN_PORT=… pnpm dev    run this stack on different ports (see .env.example)'
+    )
+    process.exit(1)
+  }
+
+  const code = await run({ argv, selfRoot })
   if (code !== 0) process.exit(code)
 }
 

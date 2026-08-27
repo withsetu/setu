@@ -148,11 +148,24 @@ test('the Caddyfile routes each lane hostname to its own port', () => {
     8080
   )
   assert.match(text, /dev-admin\.example\.com/)
-  assert.match(text, /reverse_proxy 127\.0\.0\.1:5173/)
+  assert.match(text, /reverse_proxy localhost:5173/)
   assert.match(text, /b-admin\.example\.com/)
-  assert.match(text, /reverse_proxy 127\.0\.0\.1:5273/)
+  assert.match(text, /reverse_proxy localhost:5273/)
   assert.match(text, /b-api\.example\.com/)
-  assert.match(text, /reverse_proxy 127\.0\.0\.1:4544/)
+  assert.match(text, /reverse_proxy localhost:4544/)
+})
+
+test('upstreams are named, not literal IPv4 — vite and astro bind [::1] only', () => {
+  // #1057: `reverse_proxy 127.0.0.1:<port>` 502'd every lane on a real host, because Vite listens
+  // on [::1] and a literal address gives Caddy no second family to try. A name lets the dial try
+  // every address the resolver returns, and `localhost` is still loopback-only.
+  const text = renderCaddyfile([{ lane: 'dev', slot: 0 }], 'example.com', 8080)
+  assert.doesNotMatch(
+    text,
+    /reverse_proxy\s+\d+\.\d+\.\d+\.\d+:/,
+    'no literal IPv4 upstream — it cannot reach an IPv6-only dev server'
+  )
+  assert.match(text, /reverse_proxy localhost:\d+/)
 })
 
 test('Caddy listens on loopback only — it is reached through the tunnel, never directly', () => {

@@ -10,6 +10,7 @@
 //
 // Usage:  node scripts/content-sandbox.mjs seed  [name=dev]   # create+seed if missing (no-op if exists)
 //         node scripts/content-sandbox.mjs reset [name=dev]   # wipe + re-seed
+//         node scripts/content-sandbox.mjs clone <from> <to>   # copy a sandbox to a new name
 
 import { execFileSync } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, renameSync, rmSync } from 'node:fs'
@@ -124,6 +125,55 @@ export function seedSandbox(root, name = DEFAULT_NAME) {
   return true
 }
 
+/** Copy `.content-sandbox/<from>/` to `.content-sandbox/<to>/` (#1051).
+ *
+ *  Why this exists rather than just seeding: a sandbox carries the auth DB under `.setu/`, so a
+ *  freshly seeded one has an empty `user` table and needs the whole first-account bootstrap again
+ *  (#1053). Cloning starts a per-worktree sandbox from one that is already bootstrapped, so the
+ *  account — and any UAT state — travels with it, while each branch keeps its own DB and cannot
+ *  leave another branch's schema ahead of it.
+ *
+ *  Refuses to clobber: a target that already exists is an error, never an overwrite, because the
+ *  thing being overwritten is somebody's working sandbox. Built into a sibling temp directory and
+ *  renamed into place, so a failed copy leaves nothing at the target name. Enforced by the clone
+ *  cases in scripts/content-sandbox.test.mjs.
+ */
+export function cloneSandbox(root, from, to) {
+  assertValidName(from)
+  assertValidName(to)
+  if (from === to)
+    throw new Error(`content-sandbox: cannot clone ${from} onto itself`)
+
+  const src = sandboxPath(root, from)
+  const dst = sandboxPath(root, to)
+  assertContained(root, src)
+  assertContained(root, dst)
+
+  if (!isSeeded(src))
+    throw new Error(
+      `content-sandbox: no seeded sandbox at ${SANDBOX_ROOT}/${from} — ` +
+        `run \`pnpm content:seed ${from}\` first.`
+    )
+  // Checked BEFORE any temp is built, so a refusal cannot leave scratch behind.
+  if (existsSync(dst))
+    throw new Error(
+      `content-sandbox: ${SANDBOX_ROOT}/${to} already exists — refusing to overwrite it. ` +
+        `Remove it deliberately (\`pnpm content:reset ${to}\`) if that is what you meant.`
+    )
+
+  const tmp = `${dst}.tmp-${process.pid}`
+  assertContained(root, tmp)
+  rmSync(tmp, { recursive: true, force: true })
+  try {
+    cpSync(src, tmp, { recursive: true })
+    renameSync(tmp, dst)
+  } catch (err) {
+    rmSync(tmp, { recursive: true, force: true })
+    throw err
+  }
+  return true
+}
+
 /** Wipe `.content-sandbox/<name>/` and re-seed it fresh from canonical content/. */
 export function resetSandbox(root, name = DEFAULT_NAME) {
   const dir = sandboxPath(root, name)
@@ -142,13 +192,26 @@ function main(argv) {
         ? `seeded ${SANDBOX_ROOT}/${name} from content/`
         : `${SANDBOX_ROOT}/${name} already exists — left as is`
     )
+  } else if (cmd === 'clone') {
+    const [, fromName, toName] = argv
+    if (!fromName || !toName) {
+      console.error('usage: content-sandbox.mjs clone <from> <to>')
+      process.exit(1)
+    }
+    cloneSandbox(root, fromName, toName)
+    console.log(
+      `cloned ${SANDBOX_ROOT}/${fromName} -> ${SANDBOX_ROOT}/${toName}`
+    )
   } else if (cmd === 'reset') {
     resetSandbox(root, name)
     console.log(
       `reset ${SANDBOX_ROOT}/${name} (wiped + re-seeded from content/)`
     )
   } else {
-    console.error('usage: content-sandbox.mjs <seed|reset> [name=dev]')
+    console.error(
+      'usage: content-sandbox.mjs <seed|reset> [name=dev]\n' +
+        '       content-sandbox.mjs clone <from> <to>'
+    )
     process.exit(1)
   }
 }

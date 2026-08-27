@@ -16,6 +16,7 @@ import { test } from 'node:test'
 
 import {
   assertContained,
+  cloneSandbox,
   resetSandbox,
   SANDBOX_ROOT,
   sandboxPath,
@@ -222,6 +223,127 @@ test('a failed seed leaves no directory behind (atomic build + rename)', () => {
       [],
       'no temp build directory was left behind'
     )
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+// ---------------------------------------------------------------------------
+// clone (#1051) — start a named sandbox from an existing one instead of from
+// canonical content/, so a bootstrapped account and any UAT state travel with it.
+// ---------------------------------------------------------------------------
+
+test('clone copies an existing sandbox to a new name, git repo and all', () => {
+  const root = makeRoot()
+  try {
+    seedSandbox(root, 'dev')
+    writeFileSync(
+      path.join(sandboxPath(root, 'dev'), 'marker.txt'),
+      'carried\n'
+    )
+
+    const made = cloneSandbox(root, 'dev', 'feature-x')
+    assert.equal(made, true)
+
+    const dst = sandboxPath(root, 'feature-x')
+    assert.ok(existsSync(path.join(dst, '.git')), 'clone is still a git repo')
+    assert.equal(
+      readFileSync(path.join(dst, 'marker.txt'), 'utf8'),
+      'carried\n',
+      'state present in the source travels to the clone'
+    )
+    assert.ok(
+      existsSync(path.join(dst, 'content', 'post', 'en', 'hello.mdoc')),
+      'seeded content is present too'
+    )
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('clone refuses when the source does not exist', () => {
+  const root = makeRoot()
+  try {
+    assert.throws(() => cloneSandbox(root, 'nope', 'target'), /nope/)
+    assert.ok(!existsSync(sandboxPath(root, 'target')), 'no target created')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('clone refuses to clobber an existing target', () => {
+  const root = makeRoot()
+  try {
+    seedSandbox(root, 'dev')
+    seedSandbox(root, 'keep')
+    writeFileSync(
+      path.join(sandboxPath(root, 'keep'), 'precious.txt'),
+      'keep\n'
+    )
+
+    assert.throws(() => cloneSandbox(root, 'dev', 'keep'), /already exists/)
+    assert.equal(
+      readFileSync(
+        path.join(sandboxPath(root, 'keep'), 'precious.txt'),
+        'utf8'
+      ),
+      'keep\n',
+      'the existing sandbox is untouched'
+    )
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('clone refuses invalid names at both ends, leaving anything outside the root alone', () => {
+  for (const [from, to] of [
+    ['..', 'ok'],
+    ['dev', '..'],
+    ['dev', 'a/b'],
+    ['/etc', 'ok'],
+    ['dev', '-rf'],
+    ['dev', ''],
+    ['dev', '.']
+  ]) {
+    const root = makeRootWithSentinel()
+    try {
+      seedSandbox(root, 'dev')
+      assert.throws(
+        () => cloneSandbox(root, from, to),
+        `expected clone(${JSON.stringify(from)} -> ${JSON.stringify(to)}) to be refused`
+      )
+      assert.ok(
+        existsSync(path.join(root, 'SENTINEL')),
+        'sentinel outside the sandbox root survives'
+      )
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  }
+})
+
+test('clone leaves no temp directory behind, on success or refusal', () => {
+  const root = makeRoot()
+  const tmpLeftovers = () =>
+    readdirSync(path.join(root, SANDBOX_ROOT)).filter((e) =>
+      e.includes('.tmp-')
+    )
+  try {
+    seedSandbox(root, 'dev')
+
+    cloneSandbox(root, 'dev', 'feature-y')
+    assert.deepEqual(
+      tmpLeftovers(),
+      [],
+      'no temp left after a successful clone'
+    )
+
+    // Refused because the target exists — the guard must fire BEFORE any temp is built.
+    assert.throws(
+      () => cloneSandbox(root, 'dev', 'feature-y'),
+      /already exists/
+    )
+    assert.deepEqual(tmpLeftovers(), [], 'no temp left after a refused clone')
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

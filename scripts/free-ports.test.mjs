@@ -1,6 +1,13 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { listenersOf, parsePorts, planPort, run, stop } from './free-ports.mjs'
+import {
+  describeBusyPorts,
+  listenersOf,
+  parsePorts,
+  planPort,
+  run,
+  stop
+} from './free-ports.mjs'
 
 const SELF = '/Users/dev/setu'
 const OTHER = '/Users/dev/setu/.claude/worktrees/other'
@@ -139,4 +146,34 @@ test('stop refuses pid 1 even if a caller hands it one', async () => {
     async () => {}
   )
   assert.ok(!signals.some(([pid]) => pid === 1), 'pid 1 was never signalled')
+})
+
+// ---------------------------------------------------------------------------
+// describeBusyPorts (#1051) — the preflight behind `free-ports.mjs --check`.
+// strictPort makes a busy port fatal, and Astro's own message for that is
+// "Dev server process exited before becoming ready" with no mention of a port.
+// This turns it into something an operator can act on.
+// ---------------------------------------------------------------------------
+
+test('describeBusyPorts reports nothing when every port is free', () => {
+  const busy = describeBusyPorts([4444, 5173], () => [], ownerOf, SELF)
+  assert.deepEqual(busy, [])
+})
+
+test('describeBusyPorts names the owning worktree and whether it is ours', () => {
+  const listenersFor = (port) => (port === 5173 ? [10, 20] : [])
+  const busy = describeBusyPorts([4444, 5173], listenersFor, ownerOf, SELF)
+  assert.equal(busy.length, 1)
+  assert.equal(busy[0].port, 5173)
+  assert.deepEqual(busy[0].owners, [
+    { pid: 10, root: SELF, branch: 'scripts-guard-814', mine: true },
+    { pid: 20, root: OTHER, branch: 'autosave-782', mine: false }
+  ])
+})
+
+test('describeBusyPorts still reports a listener it cannot attribute', () => {
+  const busy = describeBusyPorts([4444], () => [999], ownerOf, SELF)
+  assert.deepEqual(busy[0].owners, [
+    { pid: 999, root: null, branch: 'unknown', mine: false }
+  ])
 })

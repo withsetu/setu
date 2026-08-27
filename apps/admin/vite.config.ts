@@ -5,6 +5,7 @@ import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { parseAllowedHosts } from '../../scripts/dev-allowed-hosts.mjs'
+import { parsePort } from '../../scripts/dev-port.mjs'
 
 // block.ts files at the repo-root blocks/ folder are glob-imported into the
 // admin bundle. Vite resolves their imports from *their* on-disk location
@@ -43,6 +44,13 @@ export default defineConfig(({ command }) => ({
   },
   server: {
     fs: { allow: ['../..'] },
+    port: parsePort(process.env.SETU_ADMIN_PORT, 5173, 'SETU_ADMIN_PORT'),
+    // Fail on a busy port instead of quietly moving to 5174 (#1051). A moved admin still has
+    // VITE_SETU_API baked in, so it would talk to ANOTHER worktree's api while the dev badge
+    // claims otherwise; behind a proxy pinned to one port it is a silent misroute. The e2e
+    // harness already launches vite with --strictPort for the same reason
+    // (e2e/playwright.config.ts). Recover with `pnpm dev:stop`.
+    strictPort: true,
     // Loopback-only unless an operator names extra hosts (#1049). Needed whenever the
     // browser is not on the same machine as this dev server — a tunnel, reverse proxy,
     // Codespaces port forward, or container. Refuses values that would switch the host

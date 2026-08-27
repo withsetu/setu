@@ -8,9 +8,10 @@
   "scripts": {
     "content:seed": "node scripts/content-sandbox.mjs seed",
     "content:reset": "node scripts/content-sandbox.mjs reset",
+    "content:clone": "node scripts/content-sandbox.mjs clone",
     "auth:login-link": "node scripts/auth-login-link.mjs",
     "auth:reset-password": "pnpm --filter @setu/api run auth:reset-password",
-    "dev": "node scripts/content-sandbox.mjs seed dev && concurrently -n api,admin,site -c blue,magenta,green \"SETU_API_PORT=4444 SETU_REPO_DIR=$PWD/.content-sandbox/dev SETU_CONFIG_PATH=$PWD/apps/site/setu.config.ts SETU_MEDIA_DIR=$PWD/.setu/uploads pnpm --filter @setu/api dev\" \"VITE_SETU_API=${VITE_SETU_API:-http://localhost:4444} VITE_SETU_SITE=${VITE_SETU_SITE:-http://localhost:4321} pnpm --filter @setu/admin dev\" \"SETU_CONTENT_DIR=$PWD/.content-sandbox/dev/content SETU_API_URL=${SETU_API_URL:-http://localhost:4444} PUBLIC_SETU_MEDIA=${PUBLIC_SETU_MEDIA:-http://localhost:4444} SETU_MEDIA_DIR=$PWD/.setu/uploads pnpm --filter @setu/site dev\"",
+    "dev": "node scripts/free-ports.mjs --check ${SETU_API_PORT:-4444} ${SETU_ADMIN_PORT:-5173} ${SETU_SITE_PORT:-4321} && node scripts/content-sandbox.mjs seed dev && concurrently -n api,admin,site -c blue,magenta,green \"SETU_API_PORT=${SETU_API_PORT:-4444} SETU_REPO_DIR=${SETU_REPO_DIR:-$PWD/.content-sandbox/dev} SETU_CONFIG_PATH=$PWD/apps/site/setu.config.ts SETU_MEDIA_DIR=$PWD/.setu/uploads pnpm --filter @setu/api dev\" \"VITE_SETU_API=${VITE_SETU_API:-http://localhost:4444} VITE_SETU_SITE=${VITE_SETU_SITE:-http://localhost:4321} SETU_ADMIN_PORT=${SETU_ADMIN_PORT:-5173} pnpm --filter @setu/admin dev\" \"SETU_CONTENT_DIR=${SETU_CONTENT_DIR:-${SETU_REPO_DIR:-$PWD/.content-sandbox/dev}/content} SETU_API_URL=${SETU_API_URL:-http://localhost:4444} PUBLIC_SETU_MEDIA=${PUBLIC_SETU_MEDIA:-http://localhost:4444} SETU_MEDIA_DIR=$PWD/.setu/uploads SETU_SITE_PORT=${SETU_SITE_PORT:-4321} pnpm --filter @setu/site dev\"",
     "dev:status": "node scripts/dev-status.mjs",
     "staging": "node scripts/staging.mjs start",
     "staging:stop": "node scripts/staging.mjs stop",

@@ -47,6 +47,10 @@ import { useSelectedBlock } from './useSelectedBlock'
 import { PublishMenu } from './PublishMenu'
 import { HistoryPanel } from './HistoryPanel'
 import { ShortcutsDialog } from './ShortcutsDialog'
+import {
+  PublishConflictDialog,
+  type PublishConflict
+} from './PublishConflictDialog'
 import { Button } from '../components/ui/button'
 import {
   Tooltip,
@@ -138,6 +142,10 @@ export function EditorScreen() {
   // diff baseline stay byte-identical to what publish actually writes.
   const baseContentRef = useRef<string | null>(null)
   const committing = useRef(false)
+  // #1019: a publish conflict opens a dialog offering a NON-destructive way out, rather than a
+  // toast telling the author to reload (which discarded their unsaved work).
+  const [conflict, setConflict] = useState<PublishConflict | null>(null)
+  const [resolvingConflict, setResolvingConflict] = useState(false)
   // Slug just minted from a compose save OR just renamed → the in-memory doc is
   // canonical; don't reload over it.
   const mintedRef = useRef<string | null>(null)
@@ -503,6 +511,36 @@ export function EditorScreen() {
    *  from success (#798), because "the button did nothing" reads as "it worked".
    *  `label` names the action in those messages — Publish, Save draft and
    *  Unpublish all land here. Enforced by test/editor-commit-failures.test.tsx. */
+  /** "Keep my changes": re-fork the draft onto the published version and stop. Publishing stays
+   *  a separate, deliberate act — see PublishConflictDialog for why auto-publishing here would be
+   *  the same data-loss defect pointed at the other author. */
+  const keepMine = async () => {
+    if (resolvingConflict) return
+    setResolvingConflict(true)
+    try {
+      const r = await publish.rebaseDraft({ ref })
+      if (r.status === 'nothing') {
+        // The draft vanished under us — say so rather than closing on a success-shaped no-op.
+        notify.error(
+          'Your draft could not be found, so there was nothing to keep. Reload before editing further.'
+        )
+        return
+      }
+      baseShaRef.current = r.baseSha
+      setConflict(null)
+      notify.success(
+        'Your version is ready — review it against the published copy, then publish when you are happy.'
+      )
+    } catch (err) {
+      // #22 / §3.2: a failed recovery must never look like a successful one. The dialog stays
+      // open so the author still has both options.
+      console.error('[editor] keeping the conflicted draft failed', err)
+      notify.error(writeError(err, 'keep your changes'))
+    } finally {
+      setResolvingConflict(false)
+    }
+  }
+
   const commit = async (opts?: {
     message?: string
     toast?: (sha: string) => string
@@ -557,7 +595,9 @@ export function EditorScreen() {
         await index.reindexEntries([ref], r.sha).catch(() => {})
         await refreshLifecycle()
       } else if (r.status === 'conflict') {
-        notify.error('The published version moved — reload to continue.')
+        // Deliberately NOT a toast (#1019). The author has unsaved work and needs a choice,
+        // not an instruction to reload — which was the one action that destroyed it.
+        setConflict({ baseSha: r.baseSha, headSha: r.headSha })
       } else {
         // 'nothing': publish found no draft to commit. We just saved one, so this
         // means storage lost it under us — say so instead of looking inert.
@@ -1076,6 +1116,13 @@ export function EditorScreen() {
           }
         />
       )}
+      <PublishConflictDialog
+        conflict={conflict}
+        busy={resolvingConflict}
+        onKeepMine={() => void keepMine()}
+        onDiscard={() => window.location.reload()}
+        onDismiss={() => setConflict(null)}
+      />
       <ShortcutsDialog
         open={shortcutsOpen}
         onClose={() => setShortcutsOpen(false)}

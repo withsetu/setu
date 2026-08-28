@@ -27,6 +27,18 @@ export type PublishResult =
   /** No draft exists for `ref` — nothing to publish. */
   | { status: 'nothing' }
 
+export interface RebaseInput {
+  ref: EntryRef
+}
+
+/** Outcome of re-forking a draft onto the current committed state. */
+export type RebaseResult =
+  /** The draft now forks from `baseSha`, with the author's content untouched. */
+  | { status: 'rebased'; baseSha: string | null; baseContent: string | null }
+  /** No draft exists for `ref` — nothing to rebase. */
+  | { status: 'nothing' }
+
 export interface PublishService {
   publish(input: PublishInput): Promise<PublishResult>
+  rebaseDraft(input: RebaseInput): Promise<RebaseResult>
 }

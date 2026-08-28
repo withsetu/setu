@@ -75,7 +75,8 @@ function fakeServices(over: Partial<Services> = {}): Services {
       status: vi.fn()
     } as unknown as Services['authoring'],
     publish: {
-      publish: vi.fn(async () => ({ status: 'nothing' as const }))
+      publish: vi.fn(async () => ({ status: 'nothing' as const })),
+      rebaseDraft: vi.fn(async () => ({ status: 'nothing' as const }))
     },
     index: createMemoryIndexPort(),
     bulk: createBulkService({

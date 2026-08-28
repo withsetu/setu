@@ -1,6 +1,11 @@
-import { spawn, execSync, type ChildProcess } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
+import { execSync } from 'node:child_process'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import {
+  siteAppDir,
+  startDevServer,
+  waitForResponse,
+  type DevServer
+} from './lib/dev-server'
 
 /**
  * Guards the DEV-server path for repo-root `blocks/` (#613).
@@ -15,7 +20,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
  * `/page/section-demo` renders `{% callout %}` — a repo-root block whose .astro imports
  * `@setu/blocks` — so a 200 here proves the bare specifier resolved through Vite in dev.
  *
- * The dev server runs in a DEDICATED child Node process (`dev-root-block.server.mjs`), spawned
+ * The dev server runs in a DEDICATED child Node process (`dev-server.mjs`, via ./lib/dev-server), spawned
  * with the vitest/vite-injected env vars stripped, NOT via an in-suite
  * `import { dev } from 'astro'` (#699). Astro 7.1's dev content-layer branches on
  * `process.env.VITEST`: when it is set, the in-memory content store is not populated for the
@@ -27,119 +32,40 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
  * resolves the store correctly, and tears down as a single process group (astro 7.1's CLI
  * wrapper daemonizes; the programmatic `dev()` this helper uses does not).
  */
-const appDir = fileURLToPath(new URL('..', import.meta.url))
-const serverEntry = fileURLToPath(
-  new URL('./dev-root-block.server.mjs', import.meta.url)
-)
-
-// Env keys vitest/vite inject into this process that must NOT leak into the child dev server:
-// `VITEST` flips astro 7.1's dev content-layer into the mode that leaves the SSR store empty
-// (see the suite docstring); the vite `import.meta.env` mirror (DEV/PROD/SSR/MODE/BASE_URL),
-// the other VITEST_*/TINYPOOL markers, and vitest's NODE_PATH override are stripped too so the
-// child sees exactly the environment a developer's `astro dev` would.
-const VITEST_ENV_KEYS = [
-  'VITEST',
-  'VITEST_MODE',
-  'VITEST_POOL_ID',
-  'VITEST_WORKER_ID',
-  'TINYPOOL_WORKER_ID',
-  'TEST',
-  'DEV',
-  'PROD',
-  'SSR',
-  'MODE',
-  'BASE_URL',
-  'NODE_PATH'
-]
-
-function devServerEnv(): NodeJS.ProcessEnv {
-  const env = { ...process.env }
-  for (const k of VITEST_ENV_KEYS) delete env[k]
-  return env
-}
-
-let origin = ''
-let child: ChildProcess | undefined
-let childLog = ''
+let server: DevServer | undefined
 
 beforeAll(async () => {
   // Mirror the `predev` script: the markdoc block map (which points at ../../blocks/*) and the
   // relations cache are generated artifacts the dev server reads at startup.
   execSync(
     'node ../../scripts/gen-blocks.mjs && node ../../scripts/gen-relations.mjs',
-    { cwd: appDir, stdio: 'pipe' }
+    { cwd: siteAppDir, stdio: 'pipe' }
   )
 
-  // `detached` puts the child in its own process group so teardown can reap the whole tree
-  // (Vite's esbuild service, etc.) with a single group-signal.
-  child = spawn(process.execPath, [serverEntry], {
-    cwd: appDir,
-    detached: true,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env: devServerEnv()
-  })
-
-  const port = await new Promise<number>((resolve, reject) => {
-    const deadline = setTimeout(
-      () => reject(new Error(`dev server never reported a port:\n${childLog}`)),
-      90_000
-    )
-    child!.stdout?.on('data', (d) => {
-      childLog += d.toString()
-      const m = childLog.match(/PORT=(\d+)/)
-      if (m) {
-        clearTimeout(deadline)
-        resolve(Number(m[1]))
-      }
-    })
-    child!.stderr?.on('data', (d) => (childLog += d.toString()))
-    child!.on('exit', (code) => {
-      clearTimeout(deadline)
-      reject(new Error(`dev server exited early (${code}):\n${childLog}`))
-    })
-  })
-  origin = `http://localhost:${port}`
+  server = await startDevServer()
 
   // `dev()` resolves when the server is listening, but the content-layer sync + first-request
   // compile can lag the first HTTP accept, so wait (bounded) for the route to actually resolve
   // instead of racing startup. A genuinely broken dev server (bare-specifier 500, empty store
   // 404) never reaches 200 and the timeout surfaces it with the captured child log.
-  const deadline = Date.now() + 60_000
-  for (;;) {
-    try {
-      const res = await fetch(`${origin}/page/section-demo`)
-      if (res.status === 200) break
-    } catch {
-      /* not listening yet */
+  await waitForResponse(
+    `${server.origin}/page/section-demo`,
+    (res) => res.status === 200,
+    {
+      describe: 'the root-block page to render',
+      timeoutMs: 60_000,
+      log: server.log
     }
-    if (Date.now() > deadline) {
-      throw new Error(
-        `dev server never served /page/section-demo:\n${childLog}`
-      )
-    }
-    await new Promise((r) => setTimeout(r, 300))
-  }
+  )
 }, 120_000)
 
 afterAll(async () => {
-  if (child?.pid && child.exitCode === null) {
-    try {
-      process.kill(-child.pid, 'SIGTERM')
-    } catch {
-      /* already gone */
-    }
-    await new Promise((r) => setTimeout(r, 300))
-    try {
-      process.kill(-child.pid, 'SIGKILL')
-    } catch {
-      /* reaped */
-    }
-  }
+  await server?.stop()
 })
 
 describe('astro dev: repo-root blocks/', () => {
   it('renders a page whose root block imports @setu/blocks (#613)', async () => {
-    const res = await fetch(`${origin}/page/section-demo`)
+    const res = await fetch(`${server!.origin}/page/section-demo`)
 
     // Before the ssr.noExternal fix this was a 500: the bare `@setu/blocks` import inside
     // blocks/callout/callout.astro was externalized and handed to Node's resolver.

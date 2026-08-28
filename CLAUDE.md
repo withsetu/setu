@@ -78,7 +78,10 @@ The full standard with the worked "good vs. skeleton" case study: [docs/quality-
   bounded, debounced, no per-visitor fan-out.
 - **Saved ≠ live.** SSG output changes only on rebuild/redeploy. Admin actions that mutate
   published output must surface the pending state honestly and offer only the deploy mechanism the
-  topology can perform. `astro dev` re-reads live, so dev UAT hides this gap. (Epic #207.)
+  topology can perform. `astro dev` re-reads live — edits, new entries and deletions all reach
+  the running dev server without a restart — so dev UAT hides this gap. That claim is no longer
+  merely asserted: `apps/site/test/content-watch-dev.test.ts` drives a real dev server against a
+  throwaway content repo and fails if any of the three stops propagating (#1018). (Epic #207.)
 - **Content model:** entry identity = `(collection, locale, slug)`; files are
   `content/<collection>/<locale>/<slug>.mdoc` (YAML frontmatter + Markdoc body).
   **"Published" means committed + `published !== false`. There is NO `status: draft` frontmatter

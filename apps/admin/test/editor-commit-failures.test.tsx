@@ -72,7 +72,8 @@ describe('#798 a failed commit is never silent', () => {
         publish: (...args: Parameters<typeof s.publish.publish>) => {
           publish(...args)
           return Promise.reject(new Error('should never be reached'))
-        }
+        },
+        rebaseDraft: s.publish.rebaseDraft
       }
     })
     await screen.findByDisplayValue('Release notes')
@@ -87,7 +88,10 @@ describe('#798 a failed commit is never silent', () => {
 
   it('surfaces an error when publish reports there was nothing to commit', async () => {
     renderEditor((s) => {
-      s.publish = { publish: () => Promise.resolve({ status: 'nothing' }) }
+      s.publish = {
+        publish: () => Promise.resolve({ status: 'nothing' }),
+        rebaseDraft: s.publish.rebaseDraft
+      }
     })
     await screen.findByDisplayValue('Release notes')
 
@@ -122,7 +126,8 @@ describe('#798 a failed commit is never silent', () => {
         publish: (...args: Parameters<typeof s.publish.publish>) => {
           publish(...args)
           return Promise.reject(new Error('should never be reached'))
-        }
+        },
+        rebaseDraft: s.publish.rebaseDraft
       }
     })
     await screen.findByDisplayValue('Release notes')

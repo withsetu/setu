@@ -5,7 +5,9 @@ import type {
   PublishDeps,
   PublishInput,
   PublishResult,
-  PublishService
+  PublishService,
+  RebaseInput,
+  RebaseResult
 } from './types'
 
 /** Compile a draft to Markdoc and commit it to Git (PRD §2). */
@@ -70,6 +72,38 @@ export function createPublishService(deps: PublishDeps): PublishService {
       })
 
       return { status: 'published', sha, path }
+    },
+
+    async rebaseDraft({ ref }: RebaseInput): Promise<RebaseResult> {
+      // The non-destructive way out of a publish conflict (#1019). Before this, a conflict
+      // offered only "reload to continue", and reloading discards the author's unsaved work —
+      // so the one path out of the conflict was the one that destroyed the thing being
+      // protected. Re-forking moves only the draft's FORK POINT: content and metadata are
+      // carried over byte-for-byte.
+      //
+      // It deliberately does NOT publish. Committing here would resolve the author's loss by
+      // silently overwriting whoever moved the file, which is the same defect wearing the other
+      // hat. The draft becomes publishable and the author decides.
+      //
+      // Enforced by packages/core/test/publish/rebase-draft.test.ts, which asserts the draft
+      // survives with the author's content, that HEAD is untouched, and that the next publish
+      // then succeeds.
+      const draft = await data.getDraft(ref)
+      if (draft === null) return { status: 'nothing' }
+
+      const headSha = await git.headSha()
+      const committed =
+        headSha === null ? null : await git.readFile(contentPath(ref))
+
+      await data.saveDraft({
+        ...ref,
+        content: draft.content,
+        metadata: draft.metadata,
+        baseSha: headSha,
+        baseContent: committed
+      })
+
+      return { status: 'rebased', baseSha: headSha, baseContent: committed }
     }
   }
 }

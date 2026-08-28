@@ -31,7 +31,8 @@
     "e2e": "playwright test -c e2e",
     "e2e:ui": "playwright test -c e2e --ui",
     "e2e:captcha": "playwright test -c e2e/captcha.config.ts",
-    "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true"
+    "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true",
+    "auth:create-owner": "pnpm --filter @setu/api run auth:create-owner"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

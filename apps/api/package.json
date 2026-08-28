@@ -15,7 +15,8 @@
     "auth:reset-password": "tsx src/scripts/reset-password.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "auth:create-owner": "tsx src/scripts/create-owner.ts"
   },
   "dependencies": {
     "@hono/node-server": "2.1.1",

@@ -24,6 +24,11 @@ export type AuthEventType =
   // #386: emitted by the out-of-band owner recovery script when it resets an owner password —
   // typed here (rather than in the script) so the audit vocabulary stays in one place.
   | 'owner.password-reset'
+  // #1053: emitted by the out-of-band owner BOOTSTRAP script. Distinct from 'user.created',
+  // which covers in-app creation by a signed-in admin: this one has no actor and no session
+  // behind it, so conflating the two would hide "an account appeared with no admin present"
+  // — the exact line an auditor cares about. Asserted in apps/api/test/create-owner.test.ts.
+  | 'owner.created'
   // #632: admin impersonation. An admin assuming another user's identity is an account-takeover-
   // shaped capability and must leave a trace at both ends. `actorId` is the impersonating admin,
   // `targetId` the user whose identity was assumed.

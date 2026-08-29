@@ -3,7 +3,7 @@ const REDACTED = '[redacted]'
 
 /** A URL run inside a logged body. Stops at whitespace and at the delimiters that end a URL in
  *  HTML (`"` `'` `<` `>`) — so an `href="…"` link is matched without its quotes. Trailing
- *  wrapping punctuation is trimmed off separately (see `URL_TRAILING_JUNK_RE`).
+ *  wrapping punctuation is trimmed off separately (see `trailingJunk`).
  *
  *  No `\b` in front: `\b` requires a non-word character before the `h`, so `_https://…/<token>_`
  *  (markdown emphasis around a link — an admin can write that in a template since #499) matched
@@ -24,7 +24,26 @@ const URL_RE = /https?:\/\/[^\s<>"'`]+/gi
  *  wrapper (keeping the `)` of `…/wiki/Foo_(bar)`) is NOT attempted: it would buy no fidelity and
  *  would reopen the leak for any URL whose last segment happens to contain a bracket. Both
  *  directions pinned by packages/email-console/test/redact.test.ts. */
-const URL_TRAILING_JUNK_RE = /[^A-Za-z0-9/_~%=+&#$@-]+$/
+const URL_TAIL_CHAR_RE = /[A-Za-z0-9/_~%=+&#$@-]/
+
+/** The wrapping punctuation at the end of `match` — the same string the allowlist above
+ *  describes, found by walking backwards from the end.
+ *
+ *  A backwards scan rather than the `/[^A-Za-z0-9/_~%=+&#$@-]+$/` this used to be (#1071). That
+ *  regex is an unanchored greedy class followed by `$`, which is POLYNOMIAL: on a match holding a
+ *  long junk run that stops short of the end, the engine restarts the class at every position
+ *  inside the run and backtracks it against `$`, so `http://` + 60k dots + `a` takes seconds.
+ *  CodeQL reports it as js/polynomial-redos, and the input is not reliably trusted — a body can
+ *  carry text that reached the server from outside.
+ *
+ *  The scan is O(length of the trailing run) and returns the identical value; equivalence against
+ *  the original regex, and the bound on that adversarial input, are both asserted in
+ *  packages/email-console/test/redact-redos.test.ts. */
+export function trailingJunk(match: string): string {
+  let i = match.length
+  while (i > 0 && !URL_TAIL_CHAR_RE.test(match[i - 1] as string)) i--
+  return match.slice(i)
+}
 
 /** A credential-shaped RUN anywhere inside a URL component — see `isTokenShaped` for the shape
  *  and why it is blunt. Applied to path, fragment and query values rather than testing each whole
@@ -164,7 +183,7 @@ function redactParamValue(name: string, value: string): string {
  */
 export function redactSecretsInUrls(text: string): string {
   return text.replace(URL_RE, (match) => {
-    const trailing = URL_TRAILING_JUNK_RE.exec(match)?.[0] ?? ''
+    const trailing = trailingJunk(match)
     const url = trailing ? match.slice(0, -trailing.length) : match
     return redactUrl(url) + trailing
   })

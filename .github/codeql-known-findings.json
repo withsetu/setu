@@ -1,5 +1,5 @@
 {
-  "_policy": "Known CodeQL findings, allowlisted per the repo's fail-on-NEW gate policy (same shape as the axe allowlists, #220). Each entry matches ruleId + file uri (line numbers drift, deliberately not matched). Every entry MUST carry a tracking issue; removing the entry once fixed is that issue's DoD — the gate then guards the fix forever. Adding an entry requires triage, never convenience. KNOWN BLIND SPOT: the ruleId+uri fingerprint means a genuinely NEW instance of an allowlisted rule IN THE SAME FILE is also swallowed until that file's entry is removed — bounded to the 6 tracked files, self-healing as #323/#324 land; deliberate trade vs line-drift false-reds. NOTE the two #698 entries are FALSE POSITIVES rather than deferred fixes, so they do not self-heal — they persist until the escaping contract changes. That makes their blind spot permanent for js/incomplete-sanitization in those two files: a genuinely new incomplete sanitizer added there would be swallowed. Both are small, single-purpose serializer files, which is what makes that acceptable; if either grows, re-evaluate.",
+  "_policy": "Known CodeQL findings, allowlisted per the repo's fail-on-NEW gate policy (same shape as the axe allowlists, #220). Each entry matches ruleId + file uri (line numbers drift, deliberately not matched). Every entry MUST carry a tracking issue; removing the entry once fixed is that issue's DoD — the gate then guards the fix forever. Adding an entry requires triage, never convenience. KNOWN BLIND SPOT: the ruleId+uri fingerprint means a genuinely NEW instance of an allowlisted rule IN THE SAME FILE is also swallowed until that file's entry is removed — bounded to the 6 tracked files, self-healing as #323/#324 land; deliberate trade vs line-drift false-reds. NOTE the two #698 entries and the two #1071 fill-template entries are FALSE POSITIVES rather than deferred fixes, so they do not self-heal — they persist until the property that makes them false changes (the escaping contract for #698; the trailing tag-strip and text/plain destination for #1071). That makes their blind spot permanent for those rules in those files: a genuinely new incomplete sanitizer added there would be swallowed. All four are small, single-purpose files, which is what makes that acceptable; if any grows, re-evaluate.",
   "known": [
     {
       "ruleId": "js/bad-tag-filter",
@@ -42,6 +42,18 @@
       "uri": "packages/core/src/markdoc/table-gfm.ts",
       "issue": "#698",
       "note": "FALSE POSITIVE, same cause as the escape-inline.ts entry: the cell escape adds `\\|` without escaping `\\`, because `escapeText` already did. This file previously DOUBLED backslashes to compensate for Markdoc never escaping them; #695 removed that doubling precisely because it would corrupt every escape in a cell once the contract emitted `\\\\` correctly. Re-adding backslash escaping here would reintroduce that corruption. Verified byte-stable: `| x\\\\y |`, `| x\\|y |`, `| x\\\\\\|y |`. Remove this entry if `escapeText` stops running before cell serialization."
+    },
+    {
+      "ruleId": "js/incomplete-multi-character-sanitization",
+      "uri": "packages/core/src/templating/fill-template.ts",
+      "issue": "#1071",
+      "note": "FALSE POSITIVE by DESTINATION, not by sanitization — the distinction matters, so state it exactly. CodeQL is right about the parts: in isolation stripComments('<!-<!-- -->- -->') returns '<!-- -->' and stripScriptStyle('<scr<script>x</script>ipt>') returns '<script>', because each removes a span and can splice a delimiter back together. htmlToPlainText then runs `.replace(/<[^<>]+>/g, '')`, which clears those single-level splices — but that pass is single-shot, so deeper nesting CAN leave inert literal residue: '<scr<scr<script>a</script>ipt>b</script>ipt>tail' yields '<scrbipt>tail'. So this function is NOT a sanitizer and the entry does not claim it is. It is a false positive because the output is the email's text/plain part (template-registry.ts's `derivedText`), never the html part — a stray '<…>' there is characters, not markup — and because stripComments/stripScriptStyle are absent from the core barrel with no caller outside this file, so the standalone-sanitizer misuse CodeQL models does not exist. All three properties (spliced delimiters cleared, no surviving '<script', the residue limit) are pinned by packages/core/test/templating/fill-template-residue.test.ts. Remove this entry if either helper gains an external caller, or if this output ever reaches an html part."
+    },
+    {
+      "ruleId": "js/incomplete-multi-character-sanitization",
+      "uri": "packages/core/test/templating/fill-template.test.ts",
+      "issue": "#1071",
+      "note": "Test-only mirror of the entry above — the assertions feed the same nesting fixtures through the same functions. Same rationale, no separate exposure."
     }
   ]
 }

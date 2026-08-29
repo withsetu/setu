@@ -3,18 +3,23 @@ name: CodeQL
 # GitHub-native SAST (OWASP A05 Injection / A08 Integrity — docs/security-standards.md).
 # Single-language repo: JavaScript/TypeScript via the combined `javascript-typescript`
 # analyzer, default query suite (no custom query packs yet).
-# Triggers: push to main (so main always has a fresh alert baseline) + a weekly cron.
-# NOT per-PR (#462 — running CodeQL on every PR was a large share of private-repo Actions
-# minutes; the accepted tradeoff is that a newly-introduced finding is caught when the PR
-# merges to main and on the weekly scan, not at PR time — main is always scanned, so nothing
-# ships unscanned). Re-add `pull_request:` below to restore PR-time SAST if the repo goes
-# public (Actions free) or the cost budget changes.
+# Triggers: pull_request + push to main (so main always has a fresh alert baseline) + a weekly
+# cron.
+# PR-time SAST was removed in #462 because CodeQL was a large share of PRIVATE-repo Actions
+# minutes, with a note here to restore it "if the repo goes public (Actions free)". The repo went
+# public on 2026-07-14, so that precondition is met and #1071 restored it.
+# The tradeoff #462 accepted turned out to bite: a finding caught only AFTER merge lands on main
+# as somebody else's problem, and the gate then sat red for 12 consecutive runs (2026-08-24 →
+# 2026-08-28) with nobody acting on it. A red check on your OWN PR cannot be inherited that way,
+# which is the property being bought back here — not merely earlier detection.
 # github/codeql-action is GitHub-owned — tag-pinned (@v4, current major per
 # https://github.com/github/codeql-action/releases), matching ci.yml's convention for
 # github/* and actions/* actions (see .github/workflows/ci.yml).
 # Security CI foundation: #218 · CI epic: #216 · security standards: docs/security-standards.md.
 
 on:
+  pull_request:
+    branches: [main]
   push:
     branches: [main]
   schedule:
@@ -22,13 +27,16 @@ on:
     # 03:17 UTC Monday weekly job so the two never contend for runner minutes).
     - cron: '44 5 * * 3'
 
-# Both triggers (push to main, weekly cron) evaluate `github.ref` to `refs/heads/main`, so a
+# push-to-main and the weekly cron both evaluate `github.ref` to `refs/heads/main`, so a
 # ref-keyed group made them cancel each other and a cancelled run reports as *cancelled*,
 # not failed — the scan would go missing silently. Neither event has anything to supersede,
-# so key on the event + commit and never cancel (#817).
+# so they key on the event + commit and never cancel (#817).
+# A pull_request run DOES have something to supersede — its own earlier commits — so it keys on
+# the PR number and cancels, which is the opposite case and must not inherit the #817 rule. Only
+# the superseded run is discarded; the newest commit is always scanned before merge.
 concurrency:
-  group: codeql-${{ github.event_name }}-${{ github.sha }}
-  cancel-in-progress: false
+  group: codeql-${{ github.event_name }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   analyze:

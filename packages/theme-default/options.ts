@@ -1,22 +1,13 @@
-export type ThemeOptionType = 'color' | 'select'
+// #1076: the model and its resolvers moved to @setu/core so they apply to ANY theme's
+// declaration. A theme now ships only the DECLARATION below — data, not code — because the admin
+// is a browser bundle and cannot import an installed theme's module at runtime.
+import type { ThemeOption } from '@setu/core'
 
-export interface ThemeOptionChoice {
-  value: string
-  label: string
-  /** What the driven token(s) become when this choice is selected. */
-  tokenValue: string
-}
-
-export interface ThemeOption {
-  key: string
-  label: string
-  type: ThemeOptionType
-  /** The CSS custom property/properties this knob drives. */
-  token: string | string[]
-  /** Default *value*: a color for `color`; a choice `value` for `select`. */
-  default: string
-  choices?: ThemeOptionChoice[]
-}
+export type {
+  ThemeOption,
+  ThemeOptionChoice,
+  ThemeOptionType
+} from '@setu/core'
 
 const sans = (name: string) =>
   `'${name} Variable', '${name}', ui-sans-serif, system-ui, sans-serif`
@@ -98,60 +89,3 @@ export const themeOptions: ThemeOption[] = [
     ]
   }
 ]
-
-/** Accept a hex color (#rgb/#rgba/#rrggbb/#rrggbbaa). Anything else is invalid. */
-function isValidColor(value: string | undefined): value is string {
-  return (
-    typeof value === 'string' &&
-    /^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(value)
-  )
-}
-
-function tokensOf(opt: ThemeOption): string[] {
-  return Array.isArray(opt.token) ? opt.token : [opt.token]
-}
-
-/**
- * Pure: resolve chosen option values to the CSS custom properties they drive,
- * e.g. `{ '--accent': '#…', '--font-body': '…', '--font-heading': '…', … }`.
- * Missing/invalid values fall back to the option's default — a malformed config
- * can never emit garbage. Shared by `optionsToCss` (the published `:root:root`
- * override) and the admin Customizer's live preview (applied as inline custom
- * properties on the preview element), so the two can never disagree.
- */
-export function resolveThemeTokens(
-  values: Record<string, string>
-): Record<string, string> {
-  const tokens: Record<string, string> = {}
-  for (const opt of themeOptions) {
-    const raw = values[opt.key]
-    if (opt.type === 'color') {
-      const value = isValidColor(raw) ? raw : opt.default
-      for (const token of tokensOf(opt)) tokens[token] = value
-    } else {
-      const choices = opt.choices ?? []
-      const choice =
-        choices.find((c) => c.value === raw) ??
-        choices.find((c) => c.value === opt.default)
-      if (!choice) continue
-      for (const token of tokensOf(opt)) tokens[token] = choice.tokenValue
-    }
-  }
-  return tokens
-}
-
-/**
- * Pure: map chosen option values to a `:root:root { … }` override string.
- *
- * The selector is intentionally doubled (`:root:root`, specificity 0,0,2,0)
- * so this override beats the theme's plain `:root` defaults (0,0,1,0) no
- * matter where Astro places the bundled theme CSS in the document — source
- * order alone is not enough (the bundled stylesheet loads after this inline
- * style). Not a typo.
- */
-export function optionsToCss(values: Record<string, string>): string {
-  const decls = Object.entries(resolveThemeTokens(values)).map(
-    ([token, value]) => `${token}: ${value};`
-  )
-  return `:root:root { ${decls.join(' ')} }`
-}

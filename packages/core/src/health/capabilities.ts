@@ -25,5 +25,10 @@ export const SITE_CAPABILITIES: SiteCapabilities = {
   hreflang: true,
   customError: false,
   skipLink: false,
-  focusStyles: false
+  focusStyles: false,
+  // #375: both already shipped by packages/image-astro/src/Image.astro, but nothing evaluated
+  // them, so the scorecard under-reported. Asserted against the REAL build output in
+  // apps/site/test/capabilities.test.ts — a flag that drifts from what the site emits fails there.
+  imageOptimization: true,
+  lazyLoading: true
 }

@@ -35,7 +35,7 @@ const hasHeadline = typeof headline === 'string' && headline.trim() !== ''
 <section class={cls} style={style} data-parallax={parallaxOn ? '' : undefined}>
   {image && (
     <div class="blk-hero-media">
-      <Image src={image} alt={altText} sizes={sizes} />
+      <Image src={image} alt={altText} sizes={sizes} priority />
     </div>
   )}
   <div class="blk-hero-text">

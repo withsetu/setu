@@ -9,7 +9,16 @@ import { imageMarkup } from './lib/image-markup'
 import { resolveMediaBase } from './lib/media-base'
 import './lib/blur-up.css'
 
-const { src = '', alt = '', title, sizes = '100vw' } = Astro.props
+// `priority` marks the LCP element. The rubric's own guidance for performance.lazy-loading says
+// to use native lazy loading "but never on the LCP element" — blanket lazy on the above-the-fold
+// image DELAYS the largest paint rather than helping it, so the one image that must not be lazy
+// was exactly the one this component forced to be (#375). Callers that render above the fold (a
+// post's featured image, the Hero block) pass `priority`; everything else keeps the lazy default.
+// Asserted both ways in apps/site/test/capabilities.test.ts.
+const { src = '', alt = '', title, sizes = '100vw', priority = false } = Astro.props
+const loading = priority ? 'eager' : 'lazy'
+// Only meaningful on the LCP image; omitted otherwise so ordinary images carry no extra hint.
+const fetchpriority = priority ? 'high' : undefined
 const base = resolveMediaBase(import.meta.env.PUBLIC_SETU_MEDIA, import.meta.env.DEV)
 const resolveUrl = (s: string) => (!s || /^https?:\/\//i.test(s) ? s : s.startsWith('/') ? `${base}${s}` : s)
 
@@ -26,8 +35,9 @@ const blur = a.lqip
     src={a.src}
     alt={a.alt}
     title={a.title}
-    loading="lazy"
+    loading={loading}
     decoding="async"
+    fetchpriority={fetchpriority}
   />
 ) : blur ? (
   /* Case 4: lqip present (single OR multi-format) — blur-up wrapper */
@@ -37,12 +47,12 @@ const blur = a.lqip
         {a.sources.map((s) => <source type={s.type} srcset={s.srcset} sizes={a.sizes} />)}
         <img src={a.src} srcset={a.srcset} sizes={a.sizes}
              width={a.width} height={a.height} alt={a.alt} title={a.title}
-             loading="lazy" decoding="async" onload="this.parentElement.parentElement.classList.add('is-loaded')" />
+             loading={loading} decoding="async" fetchpriority={fetchpriority} onload="this.parentElement.parentElement.classList.add('is-loaded')" />
       </picture>
     ) : (
       <img src={a.src} srcset={a.srcset} sizes={a.sizes}
            width={a.width} height={a.height} alt={a.alt} title={a.title}
-           loading="lazy" decoding="async" onload="this.parentElement.classList.add('is-loaded')" />
+           loading={loading} decoding="async" fetchpriority={fetchpriority} onload="this.parentElement.classList.add('is-loaded')" />
     )}
   </span>
 ) : a.sources ? (
@@ -51,13 +61,13 @@ const blur = a.lqip
     {a.sources.map((s) => <source type={s.type} srcset={s.srcset} sizes={a.sizes} />)}
     <img src={a.src} srcset={a.srcset} sizes={a.sizes}
          width={a.width} height={a.height} alt={a.alt} title={a.title}
-         loading="lazy" decoding="async" />
+         loading={loading} decoding="async" fetchpriority={fetchpriority} />
   </picture>
 ) : (
   /* Case 2: single-format, no lqip — bare <img> with srcset */
   <img src={a.src} srcset={a.srcset} sizes={a.sizes}
        width={a.width} height={a.height} alt={a.alt} title={a.title}
-       loading="lazy" decoding="async" />
+       loading={loading} decoding="async" fetchpriority={fetchpriority} />
 )}
 
 {/* Reveal blur-up images already `complete` (served from cache) where `load` won't re-fire.

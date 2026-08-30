@@ -122,6 +122,61 @@ describe('SITE_CAPABILITIES matches real output', () => {
     expect(SITE_CAPABILITIES.favicon).toBe(has(/rel="icon"/i))
     expect(SITE_CAPABILITIES.themeColor).toBe(has(/name="theme-color"/i))
   })
+  // #375: both capabilities were already SHIPPED by packages/image-astro/src/Image.astro and both
+  // reported as unverified, so the scorecard under-credited the site. These assert the flags
+  // against the REAL build output — a flag that drifts from what the site emits fails here, which
+  // is the whole point of the #318 pattern (capability flag -> cap() evaluator -> build assertion).
+  it('performance capabilities are accurate', () => {
+    // featured-demo is the one seeded entry with a featuredImage, so it is the page that
+    // exercises the manifest-backed responsive path.
+    const featured = 'post/featured-demo/index.html'
+
+    // What the rubric asks of image optimisation: a modern format, sized for the viewport, with
+    // explicit dimensions. Asserted as those three properties rather than as `<picture>`/`<source>`
+    // — this fixture's manifest is single-format, so `<picture>` legitimately does not render and
+    // requiring it would fail for a reason that has nothing to do with the capability.
+    expect(SITE_CAPABILITIES.imageOptimization).toBe(
+      distReadHas(featured, /<img[^>]+srcset="[^"]*\.(webp|avif)\s+\d+w/i) &&
+        distReadHas(featured, /<img[^>]+sizes="/i) &&
+        distReadHas(featured, /<img[^>]+width="\d+"[^>]*height="\d+"/i)
+    )
+
+    // Lazy loading is asserted on a page with BELOW-the-fold images, not on featured-demo: the
+    // only image there is the LCP one, which is now deliberately eager. Asserting it there would
+    // fail for the right behaviour, and asserting it build-wide would pass for the wrong reason.
+    //
+    // The match requires `srcset` and `loading="lazy"` in the SAME tag, which is Image.astro's
+    // own output. A looser "any lazy image on the page" check would be satisfied by the embed
+    // block's hand-written <img> and would therefore still pass if Image.astro stopped lazy-
+    // loading entirely — a capability assertion that cannot see the component it describes.
+    const belowFold = 'page/latest-posts-demo/index.html'
+    expect(SITE_CAPABILITIES.lazyLoading).toBe(
+      distReadHas(
+        belowFold,
+        /<img[^>]+srcset=[^>]*loading="lazy"[^>]*decoding="async"/i
+      )
+    )
+  })
+
+  // The half of #375 that is a real defect rather than missing wiring. The rubric's own guidance
+  // for performance.lazy-loading says to use it "but never on the LCP element", and Image.astro
+  // forced loading="lazy" on EVERY image including the above-the-fold one — delaying the largest
+  // paint instead of helping it.
+  it('the LCP image is eager and high-priority, not lazy', () => {
+    const html = readFileSync(
+      join(appDir, 'dist', 'post/featured-demo/index.html'),
+      'utf8'
+    )
+    // The featured image is the first <img> on the page — the LCP candidate.
+    const firstImg = /<img\b[^>]*>/i.exec(html)?.[0] ?? ''
+    expect(firstImg).not.toBe('')
+    expect(firstImg).toMatch(/loading="eager"/)
+    expect(firstImg).toMatch(/fetchpriority="high"/)
+    expect(firstImg).not.toMatch(/loading="lazy"/)
+    // And the opt-in stays opt-in: an ordinary image carries neither hint.
+    expect(firstImg).toMatch(/decoding="async"/)
+  })
+
   it('file-based capabilities are accurate', () => {
     expect(SITE_CAPABILITIES.sitemap).toBe(
       distHas('sitemap.xml') || distHas('sitemap-index.xml')

@@ -192,8 +192,8 @@ importers:
         specifier: ^19.2.8
         version: 19.2.8(react@19.2.8)
       react-dropzone:
-        specifier: ^15.0.0
-        version: 15.0.0(react@19.2.8)
+        specifier: ^20.1.1
+        version: 20.1.1(@types/react@19.2.18)(react@19.2.8)
       react-router-dom:
         specifier: ^7.18.2
         version: 7.18.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -2152,8 +2152,8 @@ packages:
     resolution: {integrity: sha512-3eTuUO1vH2cZm2ZKHeQxnOqlTi9EfZDGgIe3BL3I4u+rJHocr9Fz86M4fjYABPvFnQG/gGK551HqDiIcETwU6Q==}
     engines: {node: '>=23.5.0 || ^22.13.0 || ^20.17.0'}
 
-  '@inquirer/confirm@6.2.0':
-    resolution: {integrity: sha512-SKXarWrYhtpqOEctf9XGCGy29QjsvJAM0Aq9ZR9z4Ns94OmpqudOly+aSEfNqUf9SwsQaUgY9+Z8hyzG0xX8fw==}
+  '@inquirer/confirm@6.3.0':
+    resolution: {integrity: sha512-pZHXJImFtERmSNMBHcjwuz8Ck5vEFEYNUZnwbb8aJpjHv/TwGuFErNxF2Hp8+V+pNJs2EYPMlyWscvFEqO9jOQ==}
     engines: {node: '>=23.5.0 || ^22.13.0 || ^20.17.0'}
     peerDependencies:
       '@types/node': '>=18'
@@ -2161,8 +2161,8 @@ packages:
       '@types/node':
         optional: true
 
-  '@inquirer/core@12.0.0':
-    resolution: {integrity: sha512-+nnvFEXIB08CZNVXpvW3B+zHW96QXvGUjNKJ8NJIPqAZi5Kd4WhYt2S3C234ReepG1qw2HOlEUbjYVHBowXObA==}
+  '@inquirer/core@12.0.1':
+    resolution: {integrity: sha512-JMD5Jy/ScL5TZE18m83Nw25HjqGFLoWXwnEkW7IdwwAhZpB9Bus55/WU7zn3UqR1MOCjjTQOIYpiD4vjWA3LPw==}
     engines: {node: '>=23.5.0 || ^22.13.0 || ^20.17.0'}
     peerDependencies:
       '@types/node': '>=18'
@@ -2174,8 +2174,8 @@ packages:
     resolution: {integrity: sha512-tApbon79GM9ry56ja/Ud3SY2CL4TQsao9fIwDQbgTeNY55025GdMzQ2+UdegV/lx51VNGUB59M0v0nMpybYY4Q==}
     engines: {node: '>=23.5.0 || ^22.13.0 || ^20.17.0'}
 
-  '@inquirer/type@4.0.7':
-    resolution: {integrity: sha512-t28inv14nMQ1PhKpsJPY+kEs/c00qzeCOS2gTNRyTjG5d6qsVA2fItxW4hkvGZ5lvanGLdtCzVIx5dwdRpN1+g==}
+  '@inquirer/type@4.1.0':
+    resolution: {integrity: sha512-FMiJpuHUG3Dk0ex+UIXkre7i+i4OcwHWk9YdcVtZHFwb/r2rnrU2ipTCNAB7A+QOP0ryzIcqOfy76fRyyvOEAw==}
     engines: {node: '>=23.5.0 || ^22.13.0 || ^20.17.0'}
     peerDependencies:
       '@types/node': '>=18'
@@ -3974,9 +3974,9 @@ packages:
   async-lock@1.4.1:
     resolution: {integrity: sha512-Az2ZTpuytrtqENulXwO3GGv1Bztugx6TT37NIo7imr/Qo0gsYiGtSdBa2B6fsXhTpVZDNfu1Qn3pk531e3q+nQ==}
 
-  attr-accept@2.2.5:
-    resolution: {integrity: sha512-0bDNnY/u6pPwHDMoF0FieU354oBi0a8rD9FcsLwzcGWbc8KS8KPIi7y+s13OlVY+gMWc/9xEMUgNE6Qm8ZllYQ==}
-    engines: {node: '>=4'}
+  attr-accept@4.0.0:
+    resolution: {integrity: sha512-hmCnJClmeKNKlsBHgbM8yLZRiQZ4/20UXbLJb6OUT16eWcM5/xNZerr80a/zCYob768KIGq++aLrQNTuwPsIOQ==}
+    engines: {node: '>= 22'}
 
   available-typed-arrays@1.0.7:
     resolution: {integrity: sha512-wvUjBtSGN7+7SjNpq/9M2Tg350UZD3q62IFZLbRAR1bSMlCo1ZaeW+BJ+D090e4hIIZLBcTDWe4Mh4jvUDajzQ==}
@@ -4769,9 +4769,9 @@ packages:
     resolution: {integrity: sha512-XXTUwCvisa5oacNGRP9SfNtYBNAMi+RPwBFmblZEF7N7swHYQS6/Zfk7SRwx4D5j3CH211YNRco1DEMNVfZCnQ==}
     engines: {node: '>=16.0.0'}
 
-  file-selector@2.1.2:
-    resolution: {integrity: sha512-QgXo+mXTe8ljeqUFaX3QVHc5osSItJ/Km+xpocx0aSqWGMSCf6qYs/VnzZgS864Pjn5iceMRFigeAV7AfTlaig==}
-    engines: {node: '>= 12'}
+  file-selector@5.0.1:
+    resolution: {integrity: sha512-v0g/PTeuQgvKCBrVRsfVudvwXlRHSWHEQkVgKawgCGHkEpKA1clp3Om5jvEVhz8G9W/mOYjJH9FhkH4C888PgQ==}
+    engines: {node: '>= 22'}
 
   file-uri-to-path@1.0.0:
     resolution: {integrity: sha512-0Zt+s3L7Vf1biwWZ29aARiVYLx7iMGnEUl9x33fbB/j3jR81u/O2LbqK+Bm1CDSNDKVtJ/YjwY7TUd5SkeLQLw==}
@@ -5408,10 +5408,6 @@ packages:
     resolution: {integrity: sha512-HgMmCqIJSAKqo68l0rS2AanEWfkxaZ5wNiEFb5ggm08lDs9Xl2KxBlX3PTcaD2chBM1gXAYf491/M2Rv8Jwayg==}
     engines: {node: '>= 0.6.0'}
 
-  loose-envify@1.4.0:
-    resolution: {integrity: sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==}
-    hasBin: true
-
   lru-cache@11.5.2:
     resolution: {integrity: sha512-4pfM1Ff0x50o0tQwb5ucw/RzNyD0/YJME6IVcStalZuMWxdt3sR3huStTtxz4PUmvZfRguvDejasvQ2kifR11g==}
     engines: {node: 20 || >=22}
@@ -5591,10 +5587,6 @@ packages:
 
   nth-check@2.1.1:
     resolution: {integrity: sha512-lqjrjmaOoAnWfMmBPL+XNnynZh2+swxiX3WUE0s4yEHI6m+AwrK2UZOimIRl3X/4QctVqS8AiZjFqyOGrMXb/w==}
-
-  object-assign@4.1.1:
-    resolution: {integrity: sha512-rJgTQnkUnH1sFw8yT6VSU3zD3sWmu6sZhIseY8VX+GRu3P6F7Fu+JNDoXfklElbLJSnc3FUQHVe4cU5hj+BcUg==}
-    engines: {node: '>=0.10.0'}
 
   object-inspect@1.13.4:
     resolution: {integrity: sha512-W67iLl4J2EXEGTbfeHCffrjDfitvLANg0UlX3wFUUSTx92KXRFegMHUVgSqE+wvhAbi4WqjGg9czysTV2Epbew==}
@@ -5792,9 +5784,6 @@ packages:
     resolution: {integrity: sha512-cdGef/drWFoydD1JsMzuFf8100nZl+GT+yacc2bEced5f9Rjk4z+WtFUTBu9PhOi9j/jfmBPu0mMEY4wIdAF8A==}
     engines: {node: '>= 0.6.0'}
 
-  prop-types@15.8.1:
-    resolution: {integrity: sha512-oj87CgZICdulUohogVAR7AjlC0327U4el4L6eAvOqCeudMDVU0NThNaV+b9Df4dXgSP1gXMTnPdhfe/2qDH5cg==}
-
   property-information@7.2.0:
     resolution: {integrity: sha512-IAtzIB6sUiWaJYrX9smp3V46pBGbBeLFRGdh25kg1334VcBlD8HzhPeNIWQH9zhGmo2itIe25EHt9dQP7G5hmg==}
 
@@ -5889,14 +5878,15 @@ packages:
     peerDependencies:
       react: ^19.2.8
 
-  react-dropzone@15.0.0:
-    resolution: {integrity: sha512-lGjYV/EoqEjEWPnmiSvH4v5IoIAwQM2W4Z1C0Q/Pw2xD0eVzKPS359BQTUMum+1fa0kH2nrKjuavmTPOGhpLPg==}
-    engines: {node: '>= 10.13'}
+  react-dropzone@20.1.1:
+    resolution: {integrity: sha512-2cilRFP8bsjDOHpV0sJ6XY8pzJhmz4/cQ6s9yeckOACWYDR+n4MGGtnJh3Rycq/9SLhDWugqDx1z5mtfmOOZhw==}
+    engines: {node: '>= 22'}
     peerDependencies:
-      react: '>= 16.8 || 18.0.0'
-
-  react-is@16.13.1:
-    resolution: {integrity: sha512-24e6ynE2H+OKt4kqsOvNd8kBpV65zoxbA4BVsEOB3ARVWQki/DHzaUoC5KuON/BiccDaCCTZBuOcfZs70kR8bQ==}
+      '@types/react': '*'
+      react: '>= 18'
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
 
   react-is@17.0.2:
     resolution: {integrity: sha512-w2GsyukL62IJnlaff/nRegPQR94C/XXamvMWmSHRJ4y7Ts/4ocGRmTHvOs8PSE6pB3dWOrD/nueuU5sduBsQ4w==}
@@ -7695,27 +7685,27 @@ snapshots:
   '@inquirer/ansi@2.0.7':
     optional: true
 
-  '@inquirer/confirm@6.2.0(@types/node@22.19.21)':
+  '@inquirer/confirm@6.3.0(@types/node@22.19.21)':
     dependencies:
-      '@inquirer/core': 12.0.0(@types/node@22.19.21)
-      '@inquirer/type': 4.0.7(@types/node@22.19.21)
+      '@inquirer/core': 12.0.1(@types/node@22.19.21)
+      '@inquirer/type': 4.1.0(@types/node@22.19.21)
     optionalDependencies:
       '@types/node': 22.19.21
     optional: true
 
-  '@inquirer/confirm@6.2.0(@types/node@22.20.1)':
+  '@inquirer/confirm@6.3.0(@types/node@22.20.1)':
     dependencies:
-      '@inquirer/core': 12.0.0(@types/node@22.20.1)
-      '@inquirer/type': 4.0.7(@types/node@22.20.1)
+      '@inquirer/core': 12.0.1(@types/node@22.20.1)
+      '@inquirer/type': 4.1.0(@types/node@22.20.1)
     optionalDependencies:
       '@types/node': 22.20.1
     optional: true
 
-  '@inquirer/core@12.0.0(@types/node@22.19.21)':
+  '@inquirer/core@12.0.1(@types/node@22.19.21)':
     dependencies:
       '@inquirer/ansi': 2.0.7
       '@inquirer/figures': 2.0.8
-      '@inquirer/type': 4.0.7(@types/node@22.19.21)
+      '@inquirer/type': 4.1.0(@types/node@22.19.21)
       cli-width: 4.1.0
       fast-wrap-ansi: 0.2.2
       mute-stream: 3.0.0
@@ -7724,11 +7714,11 @@ snapshots:
       '@types/node': 22.19.21
     optional: true
 
-  '@inquirer/core@12.0.0(@types/node@22.20.1)':
+  '@inquirer/core@12.0.1(@types/node@22.20.1)':
     dependencies:
       '@inquirer/ansi': 2.0.7
       '@inquirer/figures': 2.0.8
-      '@inquirer/type': 4.0.7(@types/node@22.20.1)
+      '@inquirer/type': 4.1.0(@types/node@22.20.1)
       cli-width: 4.1.0
       fast-wrap-ansi: 0.2.2
       mute-stream: 3.0.0
@@ -7740,12 +7730,12 @@ snapshots:
   '@inquirer/figures@2.0.8':
     optional: true
 
-  '@inquirer/type@4.0.7(@types/node@22.19.21)':
+  '@inquirer/type@4.1.0(@types/node@22.19.21)':
     optionalDependencies:
       '@types/node': 22.19.21
     optional: true
 
-  '@inquirer/type@4.0.7(@types/node@22.20.1)':
+  '@inquirer/type@4.1.0(@types/node@22.20.1)':
     optionalDependencies:
       '@types/node': 22.20.1
     optional: true
@@ -9723,7 +9713,7 @@ snapshots:
 
   async-lock@1.4.1: {}
 
-  attr-accept@2.2.5: {}
+  attr-accept@4.0.0: {}
 
   available-typed-arrays@1.0.7:
     dependencies:
@@ -10585,9 +10575,7 @@ snapshots:
     dependencies:
       flat-cache: 4.0.1
 
-  file-selector@2.1.2:
-    dependencies:
-      tslib: 2.8.1
+  file-selector@5.0.1: {}
 
   file-uri-to-path@1.0.0:
     optional: true
@@ -11197,10 +11185,6 @@ snapshots:
 
   loglevel@1.9.2: {}
 
-  loose-envify@1.4.0:
-    dependencies:
-      js-tokens: 4.0.0
-
   lru-cache@11.5.2: {}
 
   lru-cache@5.1.1:
@@ -11310,7 +11294,7 @@ snapshots:
 
   msw@2.14.6(@types/node@22.19.21)(typescript@5.9.3):
     dependencies:
-      '@inquirer/confirm': 6.2.0(@types/node@22.19.21)
+      '@inquirer/confirm': 6.3.0(@types/node@22.19.21)
       '@mswjs/interceptors': 0.41.9
       '@open-draft/deferred-promise': 3.0.0
       '@types/statuses': 2.0.6
@@ -11336,7 +11320,7 @@ snapshots:
 
   msw@2.14.6(@types/node@22.20.1)(typescript@5.9.3):
     dependencies:
-      '@inquirer/confirm': 6.2.0(@types/node@22.20.1)
+      '@inquirer/confirm': 6.3.0(@types/node@22.20.1)
       '@mswjs/interceptors': 0.41.9
       '@open-draft/deferred-promise': 3.0.0
       '@types/statuses': 2.0.6
@@ -11403,8 +11387,6 @@ snapshots:
   nth-check@2.1.1:
     dependencies:
       boolbase: 1.0.0
-
-  object-assign@4.1.1: {}
 
   object-inspect@1.13.4: {}
 
@@ -11601,12 +11583,6 @@ snapshots:
 
   process@0.11.10: {}
 
-  prop-types@15.8.1:
-    dependencies:
-      loose-envify: 1.4.0
-      object-assign: 4.1.1
-      react-is: 16.13.1
-
   property-information@7.2.0: {}
 
   prosemirror-changeset@2.4.2:
@@ -11788,14 +11764,13 @@ snapshots:
       react: 19.2.8
       scheduler: 0.27.0
 
-  react-dropzone@15.0.0(react@19.2.8):
+  react-dropzone@20.1.1(@types/react@19.2.18)(react@19.2.8):
     dependencies:
-      attr-accept: 2.2.5
-      file-selector: 2.1.2
-      prop-types: 15.8.1
+      attr-accept: 4.0.0
+      file-selector: 5.0.1
       react: 19.2.8
-
-  react-is@16.13.1: {}
+    optionalDependencies:
+      '@types/react': 19.2.18
 
   react-is@17.0.2: {}
 

@@ -14,7 +14,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@better-auth/core": "1.6.24",
+    "@better-auth/core": "1.7.2",
     "@setu/core": "workspace:*",
     "@setu/db-sqlite": "workspace:*",
     "better-auth": "1.6.24",

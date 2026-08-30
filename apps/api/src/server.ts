@@ -1,3 +1,5 @@
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { createRequire } from 'node:module'
 import { mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { randomBytes } from 'node:crypto'
@@ -41,6 +43,7 @@ import { createMiddleware } from 'hono/factory'
 import { createGitApi } from './app'
 import { loadSetuConfig, resolveSetuConfigPath } from './setu-config'
 import { createCollectionsApi } from './collections-api'
+import { createThemeApi } from './theme-api'
 import { createHistoryApi } from './history-api'
 import { createPreviewApi } from './preview'
 import { createUploadApi, listMediaRecords } from './media'
@@ -829,12 +832,37 @@ app.use('/api/history/restore', refreshIndexAfterCommit)
 // #253: the site's declared collections + field schemas, for the write-path field gate.
 // Loaded once at boot; never throws (a missing/broken config degrades loudly to the
 // built-in post/page collections — see loadSetuConfig).
-const setuConfig = await loadSetuConfig(resolveSetuConfigPath(process.env, dir))
+const setuConfigPath = resolveSetuConfigPath(process.env, dir)
+const setuConfig = await loadSetuConfig(setuConfigPath)
 app.route('/', createGitApi(git, resolveActor, { getConfig: () => setuConfig }))
 // #253 increment C: the admin reads the declared collections from here.
 app.route(
   '/',
   createCollectionsApi({ resolveActor, getConfig: () => setuConfig })
+)
+// #1076: the ACTIVE theme's option declaration, read server-side. The admin is a browser bundle
+// and cannot import an installed theme's module, so this is what makes the Customizer work for a
+// theme Setu did not ship. The dynamic import is the one place that resolves a theme package.
+app.route(
+  '/',
+  createThemeApi({
+    resolveActor,
+    getConfig: () => setuConfig,
+    // Resolve the theme from the SETU.CONFIG's own project, not from apps/api. The config is what
+    // names the theme, and a theme is installed alongside the site that uses it — in a real
+    // self-hosted install that is the user's project; in this monorepo it is apps/site. Resolving
+    // from apps/api instead would require the API to depend on a theme package, which is the exact
+    // coupling #1076 removes. Falls back to this module's own context when there is no config
+    // file, where the built-in theme is a workspace sibling.
+    loadDeclaration: async (theme) => {
+      const from = setuConfigPath ?? fileURLToPath(import.meta.url)
+      const resolved = createRequire(from).resolve(`${theme}/options`)
+      const mod = (await import(
+        /* @vite-ignore */ pathToFileURL(resolved).href
+      )) as { themeOptions?: unknown }
+      return mod.themeOptions
+    }
+  })
 )
 // Revision history from Git (#466) — list/read/restore; the git-local adapter
 // implements the optional capability, so this topology serves it.

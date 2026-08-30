@@ -8,7 +8,8 @@ import './site.css'
 // system fonts), so the import is always safe.
 import 'virtual:setu-fonts'
 
-import { optionsToCss } from './options'
+import { optionsToCss } from '@setu/core'
+import { themeOptions as themeOptionDeclaration } from './options'
 import type { SiteSettings, ResolvedSeo } from '@setu/core'
 
 // Mirrors @setu/core's DEFAULT_LOCALE — inlined because theme-default has no runtime dep on
@@ -26,7 +27,7 @@ interface Props {
   seo?: ResolvedSeo
 }
 const { title, lang = 'en', themeOptions = {}, siteSettings, feedLocales = [], seo } = Astro.props
-const overrideCss = optionsToCss(themeOptions)
+const overrideCss = optionsToCss(themeOptionDeclaration, themeOptions)
 const siteTitle = siteSettings?.general.title ?? 'Setu'
 const tagline = siteSettings?.general.tagline ?? ''
 const description = siteSettings?.general.description ?? ''

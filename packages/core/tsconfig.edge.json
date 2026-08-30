@@ -43,6 +43,7 @@
     "src/tags",
     "src/taxonomy",
     "src/templating",
+    "src/theme",
     "src/url",
     "src/version.ts"
   ],

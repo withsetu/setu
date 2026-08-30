@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   render,
   screen,
@@ -10,6 +10,9 @@ import type { ReactNode } from 'react'
 import { createMemoryDataPort } from '@setu/db-memory'
 import { createMemoryGitPort } from '@setu/git-memory'
 import type { GitPort } from '@setu/core'
+// #1076: the Customizer no longer imports a theme's options — it FETCHES the active theme's
+// declaration, which is what lets any installed theme be customised. The shipped theme's
+// declaration is still the fixture here, but it now arrives the way a third-party theme's would.
 import { themeOptions } from '@setu/theme-default/options'
 import { ActorProvider } from '../src/auth/actor'
 import {
@@ -20,10 +23,34 @@ import {
 import { NotificationProvider } from '../src/ui/notify'
 import { Appearance } from '../src/screens/Appearance'
 
-beforeEach(() => localStorage.clear())
-afterEach(() => localStorage.clear())
+beforeEach(() => {
+  localStorage.clear()
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input instanceof Request ? input.url : input)
+      if (url.includes('/api/theme/options'))
+        return new Response(
+          JSON.stringify({
+            theme: '@setu/theme-default',
+            options: themeOptions,
+            declared: true
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      return new Response('{}', { status: 200 })
+    })
+  )
+})
+afterEach(() => {
+  localStorage.clear()
+  vi.unstubAllGlobals()
+})
 
-function renderAppearance(services = createServices()) {
+/** Renders and WAITS for the theme declaration to arrive. The screen fetches it now (#1076), so
+ *  asserting synchronously would race the load — and would also mask the real regression this
+ *  guards: an empty Customizer rendered because the fetch never resolved. */
+async function renderAppearance(services = createServices()) {
   const wrapper = (children: ReactNode) => (
     <NotificationProvider>
       <ActorProvider>
@@ -31,28 +58,30 @@ function renderAppearance(services = createServices()) {
       </ActorProvider>
     </NotificationProvider>
   )
-  return render(wrapper(<Appearance />))
+  const result = render(wrapper(<Appearance />))
+  await screen.findByText(themeOptions[0]!.label)
+  return result
 }
 
 describe('Appearance (Customizer)', () => {
-  it('renders one control per manifest knob, plus a live preview', () => {
-    renderAppearance()
+  it('renders one control per manifest knob, plus a live preview', async () => {
+    await renderAppearance()
     for (const opt of themeOptions) {
       expect(screen.getByText(opt.label)).toBeInTheDocument()
     }
     expect(screen.getByTestId('cz-preview')).toBeInTheDocument()
   })
 
-  it('selecting a different width updates the preview token (--measure-page)', () => {
-    renderAppearance()
+  it('selecting a different width updates the preview token (--measure-page)', async () => {
+    await renderAppearance()
     const preview = screen.getByTestId('cz-preview')
     expect(preview.style.getPropertyValue('--measure-page')).toBe('64rem')
     fireEvent.click(screen.getByRole('button', { name: 'Wide' }))
     expect(preview.style.getPropertyValue('--measure-page')).toBe('78rem')
   })
 
-  it('a valid accent hex flows into the preview; an invalid one is ignored', () => {
-    renderAppearance()
+  it('a valid accent hex flows into the preview; an invalid one is ignored', async () => {
+    await renderAppearance()
     const preview = screen.getByTestId('cz-preview')
     const hex = screen.getByLabelText('Hex value')
     fireEvent.change(hex, { target: { value: '#0ea5e9' } })
@@ -61,8 +90,8 @@ describe('Appearance (Customizer)', () => {
     expect(preview.style.getPropertyValue('--accent')).toBe('#0ea5e9')
   })
 
-  it('per-knob reset restores the default and hides the reset affordance', () => {
-    renderAppearance()
+  it('per-knob reset restores the default and hides the reset affordance', async () => {
+    await renderAppearance()
     fireEvent.click(screen.getByRole('button', { name: 'Wide' }))
     const widthField = screen
       .getByText('Content width')
@@ -76,8 +105,8 @@ describe('Appearance (Customizer)', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('"Reset all" returns every knob to its default', () => {
-    renderAppearance()
+  it('"Reset all" returns every knob to its default', async () => {
+    await renderAppearance()
     fireEvent.click(screen.getByRole('button', { name: 'Wide' }))
     fireEvent.click(screen.getByRole('button', { name: 'Sharp' }))
     fireEvent.click(screen.getByRole('button', { name: /reset all/i }))
@@ -86,11 +115,11 @@ describe('Appearance (Customizer)', () => {
     expect(preview.style.getPropertyValue('--radius-base')).toBe('10px')
   })
 
-  it('remembers choices across remount (localStorage)', () => {
-    const { unmount } = renderAppearance()
+  it('remembers choices across remount (localStorage)', async () => {
+    const { unmount } = await renderAppearance()
     fireEvent.click(screen.getByRole('button', { name: 'Wide' }))
     unmount()
-    renderAppearance()
+    await renderAppearance()
     expect(
       screen.getByTestId('cz-preview').style.getPropertyValue('--measure-page')
     ).toBe('78rem')
@@ -105,7 +134,7 @@ describe('Appearance — Publish to site', () => {
 
   it('starts "Published" (no pending) with no committed file, then enables on a change', async () => {
     const { services } = withGit()
-    renderAppearance(services)
+    await renderAppearance(services)
     // baseline loads (no file → defaults) → nothing to publish
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Published' })).toBeDisabled()
@@ -118,7 +147,7 @@ describe('Appearance — Publish to site', () => {
 
   it('commits the chosen values to theme-options.json and settles to "Published"', async () => {
     const { git, services } = withGit()
-    renderAppearance(services)
+    await renderAppearance(services)
     await waitFor(() =>
       expect(
         screen.getByRole('button', { name: 'Published' })
@@ -152,7 +181,7 @@ describe('Appearance — Publish to site', () => {
       'setu-theme-options',
       JSON.stringify({ width: 'wide' })
     )
-    renderAppearance(services)
+    await renderAppearance(services)
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Published' })).toBeDisabled()
     )

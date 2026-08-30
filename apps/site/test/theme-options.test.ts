@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { optionsToCss } from '@setu/theme-default/options'
+import { optionsToCss } from '@setu/core'
+import { themeOptions as themeOptionDeclaration } from '@setu/theme-default/options'
 import { loadThemeOptions } from '../src/lib/site-config'
 
 // No theme-options.json at this repo's root → loadThemeOptions() is {} (the defaults),
@@ -31,7 +32,7 @@ beforeAll(() => {
 
 describe('theme options — build wiring', () => {
   it('injects the optionsToCss override into the page head', () => {
-    expect(html).toContain(optionsToCss(themeOptions))
+    expect(html).toContain(optionsToCss(themeOptionDeclaration, themeOptions))
   })
   it('the override carries the theme default tokens (default config)', () => {
     expect(html).toContain('--measure-page: 64rem;')
@@ -41,13 +42,17 @@ describe('theme options — build wiring', () => {
     // The bundled theme CSS ships in a <link rel="stylesheet"> that loads AFTER
     // our inline <style> override in the built <head>. Verify that ordering so
     // the cascade question is real (source order would let the link win):
-    const overrideIdx = html.indexOf(optionsToCss(themeOptions))
+    const overrideIdx = html.indexOf(
+      optionsToCss(themeOptionDeclaration, themeOptions)
+    )
     const linkIdx = html.search(/<link[^>]+rel="stylesheet"/)
     expect(overrideIdx).toBeGreaterThan(-1)
     expect(linkIdx).toBeGreaterThan(overrideIdx) // theme CSS comes AFTER → order can't save us
 
     // So we win on SPECIFICITY: our override is :root:root (0,0,2,0)…
-    expect(optionsToCss(themeOptions)).toContain(':root:root {')
+    expect(optionsToCss(themeOptionDeclaration, themeOptions)).toContain(
+      ':root:root {'
+    )
     expect(html).toContain(':root:root {')
     // …while the theme CSS we must beat declares the same token under a plain
     // :root (0,0,1,0). Higher specificity wins regardless of position.

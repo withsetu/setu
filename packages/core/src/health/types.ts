@@ -53,6 +53,10 @@ export interface SiteCapabilities {
   customError: boolean
   skipLink: boolean
   focusStyles: boolean
+  /** Image.astro emits <picture> AVIF/WebP + srcset/sizes + intrinsic width/height (#375). */
+  imageOptimization: boolean
+  /** Image.astro emits loading="lazy" + decoding="async" on non-LCP images (#375). */
+  lazyLoading: boolean
 }
 
 export interface AuditEntry {

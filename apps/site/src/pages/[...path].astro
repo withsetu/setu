@@ -113,7 +113,7 @@ const seo = pageSeo(Astro.site, Astro.url.pathname, mediaBase, siteSettings, {
 <TemplateLayout title={title} lang={locale} themeOptions={themeOptions} siteSettings={siteSettings} related={related} feedLocales={localesForFeed} heading={rp.heading} showImage={rp.showImage} seo={seo}>
   {featuredImage && collection === 'post' && (
     <figure class="post-hero measure-post" slot="hero">
-      <Image src={featuredImage} alt={title} sizes="(min-width: 40rem) 38rem, 100vw" />
+      <Image src={featuredImage} alt={title} sizes="(min-width: 40rem) 38rem, 100vw" priority />
     </figure>
   )}
   <h1>{title}</h1>

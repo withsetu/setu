@@ -118,6 +118,10 @@ export const EVALUATORS: Record<string, Evaluator> = {
   'foundations.theme-color': cap('themeColor'),
   'seo.sitemap': cap('sitemap'),
   'seo.sitemap-index': cap('sitemapIndex'),
+  // #375: Setu ships both — responsive <picture> output and native lazy loading — so the
+  // scorecard should credit them rather than leaving them unverified.
+  'performance.image-optimization': cap('imageOptimization'),
+  'performance.lazy-loading': cap('lazyLoading'),
   // The rubric row covers image AND video extensions — Setu emits both: <image:image> for page
   // media and <video:video> for video embeds (#367).
   'seo.image-sitemaps': (ctx) =>

@@ -9,6 +9,7 @@ import { loadConfig } from '@setu/core/node'
 import { perPageCssPurge } from './integrations/per-page-css-purge.mjs'
 import { securityHeaders } from './integrations/security-headers.mjs'
 import { settingsWatcher } from './integrations/settings-watcher.mjs'
+import { themeFontImports } from './integrations/theme-fonts.mjs'
 import { parseAllowedHosts } from '../../scripts/dev-allowed-hosts.mjs'
 import { parsePort } from '../../scripts/dev-port.mjs'
 
@@ -35,19 +36,21 @@ function selectedFontChoice() {
   return fromFile ?? config.themeOptions?.font
 }
 
-let fontImports = ''
-if (activeTheme === '@setu/theme-default') {
-  const { fontPackagesFor } = await import('@setu/theme-default/fonts')
-  // The fontsource packages are the THEME's deps, and a \0-virtual module has no location to
-  // resolve bare specifiers from — so resolve each to an absolute path from the theme's context.
-  const themeDir = dirname(
-    createRequire(import.meta.url).resolve('@setu/theme-default/theme.css')
-  )
-  const themeRequire = createRequire(join(themeDir, 'package.json'))
-  fontImports = fontPackagesFor(selectedFontChoice())
-    .map((pkg) => `import ${JSON.stringify(themeRequire.resolve(pkg))};`)
-    .join('\n')
-}
+// Fonts come from whichever theme is active — never from a hardcoded package name (#1075).
+// The fontsource packages are the THEME's deps, and a \0-virtual module has no location to
+// resolve bare specifiers from, so each is resolved to an absolute path from the theme's own
+// context. `themeFontImports` keeps "ships no fonts" (announced, fine) apart from "fonts are
+// broken" (throws) — see apps/site/test/theme-fonts.test.ts.
+const fontImports = await themeFontImports(activeTheme, selectedFontChoice(), {
+  importModule: (specifier) => import(/* @vite-ignore */ specifier),
+  resolvePackageFile: (pkg, fromTheme) => {
+    const themeDir = dirname(
+      createRequire(import.meta.url).resolve(`${fromTheme}/theme.css`)
+    )
+    return createRequire(join(themeDir, 'package.json')).resolve(pkg)
+  },
+  logger: console
+})
 
 // Serve `virtual:setu-fonts` with only the resolved font imports. Empty for a theme that ships
 // its own fonts — the no-op import in such a theme's Layout is then harmless.

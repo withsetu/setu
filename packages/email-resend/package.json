@@ -18,7 +18,7 @@
     "resend": "^6.22.1"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2",
+    "@types/node": "^26.4.0",
     "@setu/email-testing": "workspace:*",
     "typescript": "^5.6.3",
     "vitest": "^4.1.11"

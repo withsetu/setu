@@ -18,7 +18,7 @@
     "@setu/core": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2",
+    "@types/node": "^26.4.0",
     "@setu/api": "workspace:*",
     "@setu/git-memory": "workspace:*",
     "@setu/git-testing": "workspace:*",

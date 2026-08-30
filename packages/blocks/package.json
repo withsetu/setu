@@ -45,7 +45,7 @@
     "@setu/image-astro": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2",
+    "@types/node": "^26.4.0",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.1.0",
     "@types/react": "^19.2.18",

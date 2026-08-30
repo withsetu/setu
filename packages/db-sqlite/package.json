@@ -23,7 +23,7 @@
   "devDependencies": {
     "@setu/db-testing": "workspace:*",
     "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^22.10.2",
+    "@types/node": "^26.4.0",
     "drizzle-kit": "^0.31.10",
     "typescript": "^5.6.3",
     "vitest": "^4.1.11"

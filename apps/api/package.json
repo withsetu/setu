@@ -41,7 +41,7 @@
     "@setu/git-memory": "workspace:*",
     "@setu/image-testing": "workspace:*",
     "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^22.10.2",
+    "@types/node": "^26.4.0",
     "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.45.2",
     "isomorphic-git": "^1.41.9",

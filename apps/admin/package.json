@@ -25,7 +25,7 @@
     "@setu/git-memory": "workspace:*",
     "@setu/submission-http": "workspace:*",
     "@setu/theme-default": "workspace:*",
-    "@tiptap/core": "^3.30.3",
+    "@tiptap/core": "^3.30.4",
     "@tiptap/extension-list": "^3.30.3",
     "@tiptap/extension-placeholder": "^3.30.3",
     "@tiptap/extension-subscript": "^3.30.3",

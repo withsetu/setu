@@ -23,7 +23,7 @@
     "@setu/core": "workspace:*",
     "@setu/image-astro": "workspace:*",
     "@setu/theme-default": "workspace:*",
-    "astro": "7.2.7",
+    "astro": "7.2.9",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "zod": "^3.23.8"

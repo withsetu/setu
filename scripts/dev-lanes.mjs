@@ -10,6 +10,10 @@
 // hand-written origins. Forgetting to `set -a` before sourcing it failed SILENTLY — the
 // `${VAR:-default}` fallbacks in the dev script won and the admin came up pointing at loopback
 // with no error anywhere (#1049, #1051). Deriving removes the file, and with it that failure.
+//
+// `node:path` is the one import: joining paths is still pure, and nothing here touches the disk.
+
+import path from 'node:path'
 
 /** The main checkout's lane. Named `dev` rather than `main` deliberately: it matches the existing
  *  `.content-sandbox/dev` and the `dev-*` hostnames already in use, so adopting the launcher does
@@ -91,8 +95,26 @@ export function laneHostnames(lane, domain) {
 }
 
 /** The complete environment for one lane. With a domain every origin is an https lane hostname;
- *  without one every origin stays on loopback and nothing is added to the host allowlist. */
-export function laneEnv({ lane, domain, slot, repoDir }) {
+ *  without one every origin stays on loopback and nothing is added to the host allowlist.
+ *
+ *  `repoDir` is the content sandbox (shared across lanes by default, #1053); `checkoutDir` is the
+ *  worktree this lane runs, which is where its `setu.config.ts` lives. They are separate inputs
+ *  because the two paths below genuinely come from different roots.
+ *
+ *  #1086 — SETU_CONTENT_DIR and SETU_CONFIG_PATH are derived here rather than left to their
+ *  consumers' fallbacks, because both fallbacks are silent and plausible-looking:
+ *  `apps/site/src/content.config.ts` falls back to the tracked `content/` fixtures (so the dev
+ *  site renders those instead of anything the admin published into the sandbox), and
+ *  `resolveSetuConfigPath` falls back to `<repoDir>/setu.config.ts`, which the sandbox does not
+ *  have, so the api boots the write-path field gate on FALLBACK_CONFIG. The inline `dev` script
+ *  this launcher replaced set both; 90cfae81 dropped them.
+ *
+ *  SETU_MEDIA_DIR was dropped by the same commit and is deliberately NOT restored: its old value
+ *  was one uploads dir shared by every lane, while the current `apps/api/src/server.ts` default
+ *  (`<repoDir>/.setu/uploads`) is correctly per-sandbox.
+ *
+ *  Every claim here is asserted in scripts/dev-lanes.test.mjs. */
+export function laneEnv({ lane, domain, slot, repoDir, checkoutDir }) {
   const ports = portsForSlot(slot)
   const hosts = laneHostnames(lane, domain)
 
@@ -100,7 +122,9 @@ export function laneEnv({ lane, domain, slot, repoDir }) {
     SETU_API_PORT: String(ports.api),
     SETU_ADMIN_PORT: String(ports.admin),
     SETU_SITE_PORT: String(ports.site),
-    SETU_REPO_DIR: repoDir
+    SETU_REPO_DIR: repoDir,
+    SETU_CONTENT_DIR: path.join(repoDir, 'content'),
+    SETU_CONFIG_PATH: path.join(checkoutDir, 'apps', 'site', 'setu.config.ts')
   }
 
   if (!hosts) {

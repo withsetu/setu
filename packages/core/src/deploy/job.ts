@@ -66,7 +66,12 @@ export interface DeployStatus {
   /** Paths changed since the deployed sha (empty when never deployed — everything is new). */
   changedPaths: ChangedPath[]
   job: DeployJob | null
-  /** Whether this topology can run a rebuild (Node + site dir). The indicator above
-   *  stays honest even where this is false. */
+  /** Whether this topology can run a rebuild (Node + site dir) AND nothing is currently
+   *  blocking one. The indicator above stays honest even where this is false. */
   canRebuild: boolean
+  /** Why `canRebuild` is false when the topology itself could build — today, a dev server
+   *  holding the site project (#1087). Null when rebuild is available, and also when the
+   *  topology simply has no site dir: that case is not a transient block, and the UI already
+   *  words it as such. Operator prose, safe to render. */
+  rebuildBlockedReason: string | null
 }

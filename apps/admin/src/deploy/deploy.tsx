@@ -52,7 +52,14 @@ function parseStatus(raw: unknown): DeployStatus | null {
     return null
   if (!Array.isArray(s.changedPaths) || typeof s.canRebuild !== 'boolean')
     return null
-  return raw as DeployStatus
+  // Normalized rather than required (#1087): an api that predates the field is not a malformed
+  // status, but the type promises `string | null`, so anything that is not a string becomes null
+  // here instead of reaching consumers as undefined.
+  return {
+    ...(raw as DeployStatus),
+    rebuildBlockedReason:
+      typeof s.rebuildBlockedReason === 'string' ? s.rebuildBlockedReason : null
+  }
 }
 
 const POLL_MS = 1500

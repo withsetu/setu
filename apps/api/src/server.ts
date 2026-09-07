@@ -55,7 +55,8 @@ import {
   writeDeployState,
   gitHeadSha,
   gitChangedPaths,
-  makeBuildRunner
+  makeBuildRunner,
+  devServerHolding
 } from './deploy-wiring'
 import { createUsersApi } from './users'
 import { createEmailApi } from './email'
@@ -1034,6 +1035,8 @@ app.route(
     writeState: (s) => writeDeployState(dir, s),
     headSha: () => gitHeadSha(dir),
     changedPaths: (since) => gitChangedPaths(dir, since),
+    // Per request, never cached: it reports whether another process is alive right now (#1087).
+    buildBlocked: () => devServerHolding(siteDir),
     // Unreachable when siteDir is null (the route 409s first) — a defensive reject.
     runBuild:
       siteDir !== null

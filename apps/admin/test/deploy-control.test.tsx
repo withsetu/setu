@@ -52,7 +52,8 @@ const baseStatus: DeployStatus = {
     { path: 'settings.json', added: false }
   ],
   job: null,
-  canRebuild: true
+  canRebuild: true,
+  rebuildBlockedReason: null
 }
 
 function wrap(actor?: Actor) {
@@ -99,6 +100,33 @@ describe('DeployControl — gating (#571)', () => {
     state.status = { ...baseStatus, canRebuild: false }
     wrap()
     expect(screen.getByRole('button', { name: /publish site/i })).toBeDisabled()
+  })
+
+  it("shows the server's reason when a rebuild is blocked, not the topology message (#1087)", () => {
+    // A Radix tooltip on a DISABLED button never opens, so the reason is also a `title` —
+    // otherwise the user is left with a dead control and nothing saying why.
+    state.status = {
+      ...baseStatus,
+      canRebuild: false,
+      rebuildBlockedReason:
+        'An Astro dev server (pid 42) is running in this site project.'
+    }
+    wrap()
+    const button = screen.getByRole('button', { name: /publish site/i })
+    expect(button).toBeDisabled()
+    expect(button).toHaveAttribute('title', expect.stringContaining('pid 42'))
+  })
+
+  it('falls back to the topology message when nothing transient is blocking', () => {
+    state.status = {
+      ...baseStatus,
+      canRebuild: false,
+      rebuildBlockedReason: null
+    }
+    wrap()
+    expect(
+      screen.getByRole('button', { name: /publish site/i })
+    ).toHaveAttribute('title', 'Rebuild is not available in this deployment')
   })
 })
 

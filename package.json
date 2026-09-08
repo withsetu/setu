@@ -76,7 +76,7 @@
       "svgo": ">=4.0.2",
       "sharp": ">=0.35.0",
       "fast-xml-parser": ">=5.10.1",
-      "browserslist": ">=4.28.7 <4.28.8"
+      "browserslist": ">=4.28.7"
     }
   }
 }

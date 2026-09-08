@@ -246,7 +246,9 @@ async function main(argv) {
   // owns that directory, and silently seeding into it would be a surprise write.
   if (ownSandbox) seedSandbox(root, MAIN_LANE)
 
-  const derived = laneEnv({ lane, domain, slot, repoDir })
+  // `dir` (the lane's own worktree), not `root`: setu.config.ts belongs to the checkout being
+  // run, while the sandbox above is shared (#1086).
+  const derived = laneEnv({ lane, domain, slot, repoDir, checkoutDir: dir })
   // Anything the operator set in .env that this does not derive (secrets, email transport,
   // SETU_AUTH_SECRET) still applies; derived values win so a stale hand-written origin cannot
   // silently override the lane's own.

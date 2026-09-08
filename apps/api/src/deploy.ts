@@ -49,6 +49,11 @@ export function createDeployApi(opts: {
   changedPaths: (sinceSha: string) => Promise<ChangedPath[]>
   /** Runs the actual build; resolves on success, rejects on failure. */
   runBuild: () => Promise<void>
+  /** Why a build must not run right now, or null when it may (#1087). Consulted PER REQUEST,
+   *  not once at boot: what it reports is another process's lifetime, so a boot-time snapshot
+   *  would keep refusing after that process exited. Omitted → never blocked, which is the
+   *  behaviour every topology had before. */
+  buildBlocked?: () => string | null
   now?: () => number
 }) {
   const {
@@ -60,6 +65,7 @@ export function createDeployApi(opts: {
     headSha,
     changedPaths,
     runBuild,
+    buildBlocked = () => null,
     now = () => Date.now()
   } = opts
 
@@ -69,6 +75,7 @@ export function createDeployApi(opts: {
 
   app.get('/api/deploy/status', auth, canDeploy, async (c) => {
     const state = readState()
+    const blocked = siteDir === null ? null : buildBlocked()
     const head = await headSha()
     const changed =
       state !== null && state.sha !== head ? await changedPaths(state.sha) : []
@@ -79,7 +86,12 @@ export function createDeployApi(opts: {
       pending: state === null || state.sha !== head,
       changedPaths: changed,
       job: jobs.active() ?? jobs.latest(),
-      canRebuild: siteDir !== null
+      // Both halves, so the control disables instead of offering a button that 409s
+      // (CLAUDE.md §4 #13, read the other way round: the UI must not offer what the server
+      // will refuse). `rebuildBlockedReason` carries the transient half only — a missing site
+      // dir is a topology fact the UI already words for itself.
+      canRebuild: siteDir !== null && blocked === null,
+      rebuildBlockedReason: blocked
     }
     return c.json(status)
   })
@@ -93,6 +105,10 @@ export function createDeployApi(opts: {
         },
         409
       )
+    // Checked before the single-flight gate and before any job row is created: a blocked
+    // build must leave no trace, least of all a job the UI would poll.
+    const blocked = buildBlocked()
+    if (blocked !== null) return c.json({ error: blocked }, 409)
     if (jobs.active() !== null)
       return c.json({ error: 'A build is already running.' }, 409)
 

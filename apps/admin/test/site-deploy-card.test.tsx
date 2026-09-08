@@ -11,6 +11,7 @@ const statusOf = (over: Partial<DeployStatus> = {}): DeployStatus => ({
   changedPaths: [],
   job: null,
   canRebuild: true,
+  rebuildBlockedReason: null,
   ...over
 })
 

@@ -174,7 +174,9 @@
    editing. ProseMirror's own `.ProseMirror-selectednode` is unstyled here, and the node
    views that DID set an `is-selected` class had nothing painting it; this is that one
    rule. `--ring` is theme-scoped in tokens.css, so it reads in light and dark alike.
-   The spacer keeps its own dashed-border treatment (below) — it has no card to ring. */
+   The spacer is not in this selector list because it has no card to ring; it carries the
+   same ring on its own inner element instead — see the #1093 rule beside its dashed
+   treatment below, and why the dashed border alone was not enough. */
 .setu-block.is-selected,
 .setu-canvas-card.is-selected,
 .setu-image.is-selected {
@@ -688,6 +690,25 @@
 .blk-spacer-editor.is-selected,
 .blk-spacer-editor.is-dragging {
   border-color: color-mix(in oklch, var(--primary) 45%, transparent);
+}
+/* #1093 — selection has to be distinguishable from hover. Every rule that reveals the
+   spacer's chrome (the border-color above, the label opacity and the handle pill below)
+   fires on `:hover` and `.is-selected` alike, so a hovered spacer painted the ENTIRE
+   selection affordance and nothing told the user which block the inspector rail was
+   editing. The hover treatment is unchanged — this adds the one thing hover does not
+   give, and it is the same `--ring` outline `.setu-block.is-selected` gives every other
+   atom (#778), so the spacer stops being the exception.
+
+   `outline-offset` is 4px rather than the 2px used up there: the resize handle hangs
+   below the border box (`bottom: -5px`, visible pill inset 2px, so 3px of overhang), and
+   a 2px ring would be drawn straight through it.
+
+   Enforced by apps/admin/test-browser/atom-selection-state.test.tsx, '#1093 selection is
+   distinguishable from hover' — which hovers the block first, so removing this rule fails
+   it. */
+.blk-spacer-editor.is-selected {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
 }
 .blk-spacer-editor-label {
   font-family: var(--font-ui);

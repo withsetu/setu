@@ -441,3 +441,82 @@ describe('#778 the selection ring reads in dark mode too', () => {
     }
   })
 })
+
+// ---------------------------------------------------------------------------------
+// #1093 — the affordance must survive the pointer.
+//
+// The spacer's `:hover` rules were a duplicate of its `.is-selected` rules, so a hovered
+// spacer already painted the whole selection affordance and a user could not tell which
+// state they were in. #1090 hid that from the property test above by parking the pointer;
+// this asserts the thing itself, WITH the pointer deliberately on the block.
+//
+// Deliberately spacer-only rather than a sweep over the registry: it is the only view whose
+// hover styling ever duplicated its selected styling, and a whole-registry version would
+// have to hover fifteen blocks to re-prove a property their shared `outline` ring already
+// gives them for free.
+// ---------------------------------------------------------------------------------
+
+describe('#1093 selection is distinguishable from hover', () => {
+  it('rings a HOVERED spacer when it becomes node-selected', async () => {
+    render(<RegistryHarness />)
+    await expect
+      .element(page.getByLabelText('Content editor'))
+      .toBeInTheDocument()
+    const editor = testEditor()
+    editor.chain().focus().insertContent(insertPayloadForTag('spacer')).run()
+    deselect(editor)
+    await new Promise((r) => setTimeout(r, 250))
+
+    const canvas = document.querySelector('.ProseMirror') as HTMLElement
+    const spacer = canvas.querySelector('.blk-spacer-editor') as HTMLElement
+    expect(spacer).toBeTruthy()
+
+    // Put the pointer ON it and let the hover paint land — a snapshot taken in the same
+    // tick as the move reads the pre-hover styles and would make this vacuous (#1090).
+    await userEvent.hover(spacer)
+    await new Promise((r) => setTimeout(r, 250))
+    expect(
+      spacer.matches(':hover'),
+      'the probe must actually hover the spacer, or this proves nothing'
+    ).toBe(true)
+    const hovered = affordanceSnapshot(canvas)
+
+    selectFirstOfType(editor, ATOM_TAG_TO_NODE.spacer!)
+    await new Promise((r) => setTimeout(r, 250))
+    expect(spacer.matches(':hover'), 'still hovered while selected').toBe(true)
+    const hoveredAndSelected = affordanceSnapshot(canvas)
+
+    expect(
+      hoveredAndSelected.length === hovered.length &&
+        hoveredAndSelected.some((s, i) => s !== hovered[i]),
+      'a hovered spacer looks the same selected as unselected, so nothing tells the ' +
+        'user which block the inspector rail is editing'
+    ).toBe(true)
+
+    // Name the mechanism as well as the property: the difference must be the shared ring,
+    // not some incidental repaint, and `--ring` has to resolve in BOTH palettes — the same
+    // thing the hero dark-mode case above guards for `.setu-block`.
+    const ringOf = () => {
+      const st = getComputedStyle(spacer)
+      return {
+        style: st.outlineStyle,
+        width: parseFloat(st.outlineWidth),
+        color: st.outlineColor
+      }
+    }
+    const light = ringOf()
+    expect(light.style).not.toBe('none')
+    expect(light.width).toBeGreaterThan(0)
+    expect(light.color).not.toBe('rgba(0, 0, 0, 0)')
+
+    document.documentElement.setAttribute('data-theme', 'dark')
+    try {
+      const dark = ringOf()
+      expect(dark.style).not.toBe('none')
+      expect(dark.width).toBeGreaterThan(0)
+      expect(dark.color).not.toBe('rgba(0, 0, 0, 0)')
+    } finally {
+      document.documentElement.removeAttribute('data-theme')
+    }
+  })
+})

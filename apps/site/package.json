@@ -16,14 +16,14 @@
     "lint": "node ../../scripts/gen-blocks.mjs && node ../../scripts/gen-relations.mjs && astro sync && eslint ."
   },
   "dependencies": {
-    "@astrojs/markdoc": "2.0.8",
-    "@astrojs/react": "6.0.4",
+    "@astrojs/markdoc": "2.0.9",
+    "@astrojs/react": "6.0.5",
     "@astrojs/rss": "^4.0.19",
     "@setu/blocks": "workspace:*",
     "@setu/core": "workspace:*",
     "@setu/image-astro": "workspace:*",
     "@setu/theme-default": "workspace:*",
-    "astro": "7.2.7",
+    "astro": "7.3.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "zod": "^3.23.8"
@@ -31,7 +31,7 @@
   "devDependencies": {
     "@types/jsdom": "^30.0.0",
     "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.5",
+    "@types/react-dom": "^19.2.7",
     "axe-core": "^4.13.0",
     "jsdom": "^30.0.1",
     "purgecss": "^8.0.0",

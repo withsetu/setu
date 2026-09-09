@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
-import { page } from 'vitest/browser'
+import { page, userEvent } from 'vitest/browser'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { Node } from '@tiptap/core'
@@ -217,7 +217,70 @@ function RegistryHarness() {
   ;(
     window as unknown as { __setuTestEditor?: Editor | null }
   ).__setuTestEditor = editor
-  return <EditorContent editor={editor} />
+  return (
+    <>
+      <PointerPark />
+      <EditorContent editor={editor} />
+    </>
+  )
+}
+
+/** A fixed 8px square in the viewport corner, painted above everything, that exists only
+ *  to give the mouse somewhere to be. `data-testid` rather than a role/label because it is
+ *  deliberately not part of any accessibility tree — it is furniture for the pointer. */
+function PointerPark() {
+  return (
+    <div
+      data-testid="pointer-park"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: 8,
+        height: 8,
+        zIndex: 2147483647
+      }}
+    />
+  )
+}
+
+/**
+ * Move the mouse off the canvas, and prove it left.
+ *
+ * #1090. What was measured on a real failing run: the spacer was genuinely selected
+ * (`.is-selected`, a NodeSelection on `spacerBlock`), the pointer was resting on it
+ * (`el.matches(':hover')`), and the "unselected" snapshot ALREADY carried the selected paint —
+ * `border-color: oklch(0.510554 0.230044 276.97 / 0.45)` and label `opacity: 1` — so selecting
+ * changed nothing and the comparison below was of a picture against itself.
+ *
+ * It hits exactly one block because the spacer is the only view in editor.css whose `:hover`
+ * rules are a duplicate of its `.is-selected` rules — same border-color, same label opacity,
+ * same handle. Every other atom takes the shared `outline` ring, which no `:hover` rule sets.
+ * That duplication is a product question in its own right (a user cannot tell a hovered spacer
+ * from a selected one); it is #1093, and this test does not depend on how it is answered.
+ *
+ * Why the pointer is over the canvas at all is not established here — the observable is that it
+ * is, in roughly a third of full browser-project runs and never when this file runs alone, which
+ * is consistent with the pointer outliving an earlier file's `userEvent`. Parking it makes the
+ * question moot either way.
+ *
+ * `userEvent.unhover` is not enough: it issues a hover on `html > body`
+ * (@vitest/browser dist/context.js), whose centre is over the canvas. Hovering a fixed corner
+ * element puts the pointer somewhere known regardless of the editor's layout.
+ *
+ * The assertion below is the load-bearing half. Parking that silently stopped working would put
+ * this test straight back to comparing a hovered spacer with a hovered spacer — green, and
+ * testing nothing. Killed both ways before landing: with the pointer deliberately rested on the
+ * block, removing `parkPointerAwayFrom` reproduces the original failure, and neutering just the
+ * `hover` call inside it trips this assertion by name.
+ */
+async function parkPointerAwayFrom(canvas: HTMLElement): Promise<void> {
+  await userEvent.hover(page.getByTestId('pointer-park'))
+  expect(
+    canvas.matches(':hover') || canvas.querySelector(':hover') !== null,
+    'the pointer is still over the canvas, so a hover affordance would be ' +
+      'indistinguishable from a selection one — parking it failed'
+  ).toBe(false)
 }
 
 const selectFirstOfType = (editor: Editor, nodeType: string): void => {
@@ -257,6 +320,7 @@ describe.each(Object.keys(ATOM_TAG_TO_NODE))(
       await new Promise((r) => setTimeout(r, 250)) // node view mount + transitions
 
       const canvas = document.querySelector('.ProseMirror') as HTMLElement
+      await parkPointerAwayFrom(canvas)
       const before = affordanceSnapshot(canvas)
 
       selectFirstOfType(editor, node)

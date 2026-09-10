@@ -4,6 +4,7 @@ import { setSessionCookie } from 'better-auth/cookies'
 import * as z from 'zod'
 import { constantTimeTokenEquals } from './local-token-plugin'
 import type { AuthEvent } from './events'
+import { PROVISIONING } from './provisioning'
 
 const setupBodySchema = z.object({
   email: z.string().email(),
@@ -83,12 +84,15 @@ export function serverSetup(opts: ServerSetupOptions): BetterAuthPlugin {
           // class comment. From here on, any concurrent request sees `claimed === true`.
           claimed = true
 
-          const user = await ctx.context.internalAdapter.createUser({
-            email: ctx.body.email,
-            name: ctx.body.name,
-            emailVerified: false,
-            role: 'admin'
-          })
+          const user = await ctx.context.internalAdapter.createUser(
+            {
+              email: ctx.body.email,
+              name: ctx.body.name,
+              emailVerified: false,
+              role: 'admin'
+            },
+            PROVISIONING.serverSetup
+          )
           const hashedPassword = await ctx.context.password.hash(
             ctx.body.password
           )

@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
-import { createAuth } from '@setu/auth'
+import { createAuth, PROVISIONING } from '@setu/auth'
 import { resolveSessionActor } from '../src/auth/resolve-session-actor'
 import { createUsersApi } from '../src/users'
 import type { ResetEmailRefusal } from '../src/reset-email-gate'
@@ -61,12 +61,15 @@ async function makeUser(
   opts: { email: string; name: string; role: string; password?: string }
 ) {
   const ctx = await auth.$context
-  const user = await ctx.internalAdapter.createUser({
-    email: opts.email,
-    name: opts.name,
-    role: opts.role,
-    emailVerified: true
-  })
+  const user = await ctx.internalAdapter.createUser(
+    {
+      email: opts.email,
+      name: opts.name,
+      role: opts.role,
+      emailVerified: true
+    },
+    PROVISIONING.adminInvite
+  )
   if (opts.password) {
     const hashed = await ctx.password.hash(opts.password)
     await ctx.internalAdapter.linkAccount({

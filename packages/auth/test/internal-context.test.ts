@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
-import { openInternalAuthContext } from '../src'
+import { openInternalAuthContext, PROVISIONING } from '../src'
 
 function makeDb() {
   const db = drizzle(new Database(':memory:'))
@@ -18,12 +18,15 @@ describe('openInternalAuthContext', () => {
   it('resolves a context whose internalAdapter + password.hash cover the seeding/recovery surface', async () => {
     const ctx = await openInternalAuthContext(makeDb())
 
-    const user = await ctx.internalAdapter.createUser({
-      email: 'host@setu.test',
-      name: 'Host Actor',
-      role: 'admin',
-      emailVerified: true
-    })
+    const user = await ctx.internalAdapter.createUser(
+      {
+        email: 'host@setu.test',
+        name: 'Host Actor',
+        role: 'admin',
+        emailVerified: true
+      },
+      PROVISIONING.cli
+    )
     const hashed = await ctx.password.hash('a-long-enough-password')
     await ctx.internalAdapter.linkAccount({
       userId: user.id,

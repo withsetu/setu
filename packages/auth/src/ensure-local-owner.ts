@@ -1,4 +1,5 @@
 import type { AuthInstance } from './index'
+import { PROVISIONING } from './provisioning'
 
 export interface LocalOwnerIdentity {
   email: string
@@ -49,11 +50,14 @@ export async function ensureLocalOwner(
   const existing = await context.internalAdapter.findUserByEmail(identity.email)
   if (existing) return existing.user.id
 
-  const user = await context.internalAdapter.createUser({
-    email: identity.email,
-    name: identity.name,
-    emailVerified: false,
-    role: 'admin'
-  })
+  const user = await context.internalAdapter.createUser(
+    {
+      email: identity.email,
+      name: identity.name,
+      emailVerified: false,
+      role: 'admin'
+    },
+    PROVISIONING.localOwner
+  )
   return user.id
 }

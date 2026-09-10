@@ -3,6 +3,7 @@ import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { countUsers } from '@setu/db-sqlite'
+import type { GoogleProfile } from '@better-auth/core/social-providers'
 import { createAuth } from '../src'
 
 // #645 — residual of #624. `authSocialProvidersFromEnv` sets BOTH `disableSignUp: true` and
@@ -35,13 +36,34 @@ import { createAuth } from '../src'
 //
 // So these tests assert OBSERVABLE BEHAVIOUR — did a user row appear — through a real HTTP
 // request to the real better-auth handler, never the shape of the options object.
+//
+// WHICH guard these tests actually hold, measured on better-auth 1.7.3 (#1080) rather than
+// assumed, because two of them cover this path:
+//   - neuter `signupOriginGuardCreateHook` in ../src/index.ts, leave `disableSignUp` alone
+//       -> 2 of these 4 tests FAIL. The origin guard is the load-bearing one.
+//   - remove `disableSignUp: true` below, leave the origin guard alone
+//       -> all 4 still pass. On this path `disableSignUp` is now defence in depth, not the line.
+// Both are kept. But do not read a green run here as evidence that `disableSignUp` is wired
+// correctly — it is not what fails when it is wrong.
 
 const GOOGLE_CLIENT_ID = 'setu-test-client-id.apps.googleusercontent.com'
-const ATTACKER = {
+/** The raw Google ID-token claims the attacker legitimately holds. better-auth 1.7 types this
+ *  `data` as a complete `GoogleProfile`, so the fixture now spells the whole claim set out — which
+ *  suits this test, because `aud` is the finding's precondition (a token minted for THIS
+ *  deployment's public client id) and it can now be stated instead of implied. */
+const ATTACKER: GoogleProfile = {
   sub: 'google-uid-attacker',
   email: 'attacker@evil.example',
   name: 'Mallory',
-  email_verified: true
+  email_verified: true,
+  aud: GOOGLE_CLIENT_ID,
+  azp: GOOGLE_CLIENT_ID,
+  iss: 'https://accounts.google.com',
+  given_name: 'Mallory',
+  family_name: 'Example',
+  picture: 'https://lh3.googleusercontent.com/a/attacker',
+  iat: 1_700_000_000,
+  exp: 1_700_003_600
 }
 
 /** Stands in for a Google-issued ID token the attacker legitimately holds for the deployment's
@@ -69,9 +91,14 @@ function makeAuth() {
         // JWKS fetch, so the test never leaves the process while still driving the REAL
         // /sign-in/social handler and the REAL sign-up decision at sign-in.mjs:115.
         verifyIdToken: async () => true,
+        // better-auth 1.7 made `id` a `never` on the mapped user (`OAuth2UserInfo`, core's
+        // src/oauth2/oauth-provider.ts: "Provider identity belongs in raw profile data and
+        // `accountSubject`"), so profile mapping can no longer redefine who the provider said
+        // this is. The attacker's subject therefore reaches better-auth ONLY through the raw
+        // profile below — which is what a real provider response looks like, and leaves the
+        // attack this file drives unchanged: it was never about the mapped id.
         getUserInfo: async () => ({
           user: {
-            id: ATTACKER.sub,
             name: ATTACKER.name,
             email: ATTACKER.email,
             emailVerified: true

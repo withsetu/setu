@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
-import { createAuth } from '../src'
+import { createAuth, PROVISIONING } from '../src'
 import type { AuthEvent } from '../src/events'
 
 /** Real in-memory-sqlite auth instance wired with a capturing `onAuthEvent` — mirrors the
@@ -30,12 +30,15 @@ async function makeOwner(
   password: string
 ) {
   const ctx = await auth.$context
-  const user = await ctx.internalAdapter.createUser({
-    email,
-    name: 'Owner',
-    role: 'admin',
-    emailVerified: true
-  })
+  const user = await ctx.internalAdapter.createUser(
+    {
+      email,
+      name: 'Owner',
+      role: 'admin',
+      emailVerified: true
+    },
+    PROVISIONING.adminInvite
+  )
   const hashed = await ctx.password.hash(password)
   await ctx.internalAdapter.linkAccount({
     userId: user.id,
@@ -53,12 +56,15 @@ async function makeUser(
   role: string
 ) {
   const ctx = await auth.$context
-  return await ctx.internalAdapter.createUser({
-    email,
-    name: email,
-    role,
-    emailVerified: true
-  })
+  return await ctx.internalAdapter.createUser(
+    {
+      email,
+      name: email,
+      role,
+      emailVerified: true
+    },
+    PROVISIONING.adminInvite
+  )
 }
 
 async function signInCookie(
@@ -645,12 +651,15 @@ describe('auth event emission — direct plugin emission points', () => {
     // user the same way (internalAdapter.createUser, no linkAccount) and sign in via the loopback
     // exchange, the only session-creation path such a user has.
     const ctx = await auth.$context
-    const user = await ctx.internalAdapter.createUser({
-      email: 'passwordless@local.test',
-      name: 'Passwordless Owner',
-      role: 'admin',
-      emailVerified: true
-    })
+    const user = await ctx.internalAdapter.createUser(
+      {
+        email: 'passwordless@local.test',
+        name: 'Passwordless Owner',
+        role: 'admin',
+        emailVerified: true
+      },
+      PROVISIONING.localOwner
+    )
     localUserId = user.id
 
     const exchange = await auth.handler(

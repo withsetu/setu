@@ -8,6 +8,7 @@ import {
   extractEmbedVideos
 } from '@setu/core'
 import { toPostRow } from './post-row'
+import { absoluteMediaUrl } from './url'
 
 /** URL-path resolver: content id → path (no leading/trailing slash), or undefined if the id
  *  has no page. Callers that see the whole site (the sitemap endpoints) pass the collision-aware
@@ -165,12 +166,10 @@ export function entryImages(
   siteUrl: string
 ): string[] {
   const base = siteUrl.replace(/\/+$/, '')
-  const resolve = (raw: string): string => {
-    const viaMedia = raw.startsWith('/media/') ? `${mediaBase}${raw}` : raw
-    return /^https?:\/\//i.test(viaMedia)
-      ? viaMedia
-      : `${base}${viaMedia.startsWith('/') ? '' : '/'}${viaMedia}`
-  }
+  // The site's one media resolver (#1113). This used to be a third private copy that treated a
+  // protocol-relative `//host/…` as root-relative and prefixed our own origin onto it.
+  const resolve = (raw: string): string =>
+    absoluteMediaUrl(raw, mediaBase, `${base}/`) ?? raw
   const out: string[] = []
   const seen = new Set<string>()
   const add = (raw: string | undefined) => {

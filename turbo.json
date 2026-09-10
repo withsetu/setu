@@ -133,7 +133,9 @@
         "../../scripts/gen-relations.mjs",
         "../../url-map.json",
         "../../redirects.json",
-        "../../settings.json"
+        "../../settings.json",
+        "../../taxonomy/**",
+        "../../theme-options.json"
       ],
       "outputs": []
     },
@@ -232,7 +234,9 @@
         "../../scripts/gen-relations.mjs",
         "../../url-map.json",
         "../../redirects.json",
-        "../../settings.json"
+        "../../settings.json",
+        "../../taxonomy/**",
+        "../../theme-options.json"
       ],
       "outputs": []
     },
@@ -404,7 +408,9 @@
         "../../scripts/gen-redirects.mjs",
         "../../url-map.json",
         "../../redirects.json",
-        "../../settings.json"
+        "../../settings.json",
+        "../../taxonomy/**",
+        "../../theme-options.json"
       ],
       "outputs": []
     },
@@ -440,7 +446,9 @@
         "../../scripts/gen-redirects.mjs",
         "../../url-map.json",
         "../../redirects.json",
-        "../../settings.json"
+        "../../settings.json",
+        "../../taxonomy/**",
+        "../../theme-options.json"
       ],
       "outputs": ["dist/**"]
     }

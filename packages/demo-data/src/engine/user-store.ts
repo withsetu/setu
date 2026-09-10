@@ -16,7 +16,7 @@
 import { mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { openSqliteDb } from '@setu/db-sqlite'
-import { openInternalAuthContext } from '@setu/auth'
+import { openInternalAuthContext, PROVISIONING } from '@setu/auth'
 import type { UserStore } from './types'
 
 /** The sqlite file the api for `sandboxDir` opens (server.ts:
@@ -40,12 +40,15 @@ export function createSqliteUserStore(dbFile: string): UserStore {
     },
     async create(user) {
       const ctx = await ctxPromise
-      const created = await ctx.internalAdapter.createUser({
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        emailVerified: true
-      })
+      const created = await ctx.internalAdapter.createUser(
+        {
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          emailVerified: true
+        },
+        PROVISIONING.demoData
+      )
       await ctx.internalAdapter.linkAccount({
         userId: created.id,
         providerId: 'credential',

@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { openSqliteDb } from '@setu/db-sqlite'
-import { createAuth, type AuthEvent } from '@setu/auth'
+import { createAuth, PROVISIONING, type AuthEvent } from '@setu/auth'
 import {
   isDirectInvocation,
   resetPassword,
@@ -49,12 +49,15 @@ async function makeUser(
   opts: { email: string; password?: string }
 ) {
   const ctx = await auth.$context
-  const user = await ctx.internalAdapter.createUser({
-    email: opts.email,
-    name: 'Someone',
-    role: 'admin',
-    emailVerified: true
-  })
+  const user = await ctx.internalAdapter.createUser(
+    {
+      email: opts.email,
+      name: 'Someone',
+      role: 'admin',
+      emailVerified: true
+    },
+    PROVISIONING.adminInvite
+  )
   if (opts.password) {
     const hashed = await ctx.password.hash(opts.password)
     await ctx.internalAdapter.linkAccount({

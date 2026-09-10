@@ -7,6 +7,7 @@ import type { EmailMessage } from '@setu/core'
 import { user as userTable } from '@setu/db-sqlite/schema'
 import {
   createAuth,
+  PROVISIONING,
   type CreateAuthOptions,
   type ResetEmailRequest
 } from '../src'
@@ -62,12 +63,15 @@ async function createUser(
   role: 'author' | 'admin' = 'author'
 ) {
   const ctx = await auth.$context
-  const user = await ctx.internalAdapter.createUser({
-    email,
-    name: 'A',
-    role,
-    emailVerified: true
-  })
+  const user = await ctx.internalAdapter.createUser(
+    {
+      email,
+      name: 'A',
+      role,
+      emailVerified: true
+    },
+    PROVISIONING.adminInvite
+  )
   const hashed = await ctx.password.hash(password)
   await ctx.internalAdapter.linkAccount({
     userId: user.id,

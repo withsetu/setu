@@ -23,7 +23,11 @@
 import { existsSync } from 'node:fs'
 import process from 'node:process'
 import { openSqliteDb } from '@setu/db-sqlite'
-import { openInternalAuthContext, type AuthEvent } from '@setu/auth'
+import {
+  openInternalAuthContext,
+  PROVISIONING,
+  type AuthEvent
+} from '@setu/auth'
 import { isDirectInvocation, readPassword, resolveDbFile } from './cli-support'
 
 export interface CreateOwnerOptions {
@@ -87,12 +91,15 @@ export async function createOwner(
   const hashed = await ctx.password.hash(password)
   // `emailVerified: false` matches ensureLocalOwner: nothing has verified this address, and
   // saying otherwise in the audit trail would be a lie told by the bootstrap itself.
-  const user = await ctx.internalAdapter.createUser({
-    email,
-    name: opts.name ?? 'Owner',
-    emailVerified: false,
-    role: 'admin'
-  })
+  const user = await ctx.internalAdapter.createUser(
+    {
+      email,
+      name: opts.name ?? 'Owner',
+      emailVerified: false,
+      role: 'admin'
+    },
+    PROVISIONING.cli
+  )
   await ctx.internalAdapter.linkAccount({
     userId: user.id,
     providerId: 'credential',

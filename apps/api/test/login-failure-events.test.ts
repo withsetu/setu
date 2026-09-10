@@ -6,7 +6,7 @@ import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { Hono } from 'hono'
-import { createAuth, type AuthEvent } from '@setu/auth'
+import { createAuth, PROVISIONING, type AuthEvent } from '@setu/auth'
 import { mountAuthWithFailureEvents } from '../src/auth/login-failure-events'
 
 /** #248 Task 9: `login.failure` cannot be observed through any better-auth databaseHooks
@@ -73,12 +73,15 @@ async function createUser(
   password: string
 ) {
   const ctx = await auth.$context
-  const user = await ctx.internalAdapter.createUser({
-    email,
-    name: 'A',
-    role: 'author',
-    emailVerified: true
-  })
+  const user = await ctx.internalAdapter.createUser(
+    {
+      email,
+      name: 'A',
+      role: 'author',
+      emailVerified: true
+    },
+    PROVISIONING.adminInvite
+  )
   const hashed = await ctx.password.hash(password)
   await ctx.internalAdapter.linkAccount({
     userId: user.id,

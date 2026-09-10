@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
-import { createAuth } from '../src'
+import { createAuth, PROVISIONING } from '../src'
 import { constantTimeTokenEquals } from '../src/local-token-plugin'
 
 /** Builds a real (in-memory sqlite) auth instance with the localToken plugin wired in.
@@ -53,12 +53,15 @@ function makeAuth(opts?: { token?: string | null }) {
 // linkAccount, not the public sign-up route. Mirrors auth-events.test.ts's makeOwner helper.
 async function createLocalUser(auth: ReturnType<typeof createAuth>) {
   const ctx = await auth.$context
-  const user = await ctx.internalAdapter.createUser({
-    email: 'owner@local.test',
-    name: 'Owner',
-    role: 'admin',
-    emailVerified: true
-  })
+  const user = await ctx.internalAdapter.createUser(
+    {
+      email: 'owner@local.test',
+      name: 'Owner',
+      role: 'admin',
+      emailVerified: true
+    },
+    PROVISIONING.adminInvite
+  )
   const hashed = await ctx.password.hash('hunter2hunter2')
   await ctx.internalAdapter.linkAccount({
     userId: user.id,

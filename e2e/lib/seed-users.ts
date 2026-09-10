@@ -1,5 +1,5 @@
 import { openSqliteDb } from '@setu/db-sqlite'
-import { openInternalAuthContext } from '@setu/auth'
+import { openInternalAuthContext, PROVISIONING } from '@setu/auth'
 
 /** The password test users the e2e auth harness signs in as.
  *
@@ -57,12 +57,15 @@ export async function seedUsers(dbFile: string): Promise<void> {
   const ctx = await openInternalAuthContext(openSqliteDb(dbFile))
   for (const u of Object.values(E2E_USERS)) {
     if (await ctx.internalAdapter.findUserByEmail(u.email)) continue
-    const user = await ctx.internalAdapter.createUser({
-      email: u.email,
-      name: u.name,
-      role: u.role,
-      emailVerified: true
-    })
+    const user = await ctx.internalAdapter.createUser(
+      {
+        email: u.email,
+        name: u.name,
+        role: u.role,
+        emailVerified: true
+      },
+      PROVISIONING.e2eSeed
+    )
     const password = await ctx.password.hash(u.password)
     await ctx.internalAdapter.linkAccount({
       userId: user.id,

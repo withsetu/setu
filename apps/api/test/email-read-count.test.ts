@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
-import { createAuth } from '@setu/auth'
+import { createAuth, PROVISIONING } from '@setu/auth'
 import { createMemorySubmissionPort } from '@setu/db-memory'
 import {
   createSubmissionService,
@@ -103,12 +103,15 @@ function wiring(h: ReturnType<typeof harness>, env = RESEND_ENV) {
 
 async function adminSession(auth: ReturnType<typeof createAuth>) {
   const ctx = await auth.$context
-  const user = await ctx.internalAdapter.createUser({
-    email: 'admin@test.com',
-    name: 'admin',
-    role: 'admin',
-    emailVerified: true
-  })
+  const user = await ctx.internalAdapter.createUser(
+    {
+      email: 'admin@test.com',
+      name: 'admin',
+      role: 'admin',
+      emailVerified: true
+    },
+    PROVISIONING.adminInvite
+  )
   await ctx.internalAdapter.linkAccount({
     userId: user.id,
     providerId: 'credential',
@@ -353,12 +356,15 @@ describe('one email costs one settings read (#939)', () => {
 
     async function makeUser(auth: ReturnType<typeof createAuth>) {
       const ctx = await auth.$context
-      await ctx.internalAdapter.createUser({
-        email: 'target@example.test',
-        name: 'Target',
-        role: 'admin',
-        emailVerified: true
-      })
+      await ctx.internalAdapter.createUser(
+        {
+          email: 'target@example.test',
+          name: 'Target',
+          role: 'admin',
+          emailVerified: true
+        },
+        PROVISIONING.adminInvite
+      )
     }
 
     /**

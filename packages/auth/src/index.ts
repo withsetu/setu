@@ -44,6 +44,7 @@ export {
 } from './local-token-plugin'
 export { serverSetup, type ServerSetupOptions } from './server-setup-plugin'
 export { ensureLocalOwner, type LocalOwnerIdentity } from './ensure-local-owner'
+export { PROVISIONING } from './provisioning'
 export type { AuthEvent, AuthEventType } from './events'
 export {
   ACTION_ENFORCEMENT,

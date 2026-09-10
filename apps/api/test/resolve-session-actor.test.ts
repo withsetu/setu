@@ -4,7 +4,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { eq } from 'drizzle-orm'
 import { user as userTable } from '@setu/db-sqlite/schema'
-import { createAuth } from '@setu/auth'
+import { createAuth, PROVISIONING } from '@setu/auth'
 import { resolveSessionActor } from '../src/auth/resolve-session-actor'
 
 function makeAuth() {
@@ -33,12 +33,15 @@ async function createUser(
   name = 'A'
 ) {
   const ctx = await auth.$context
-  const user = await ctx.internalAdapter.createUser({
-    email,
-    name,
-    role,
-    emailVerified: true
-  })
+  const user = await ctx.internalAdapter.createUser(
+    {
+      email,
+      name,
+      role,
+      emailVerified: true
+    },
+    PROVISIONING.adminInvite
+  )
   const hashed = await ctx.password.hash(password)
   await ctx.internalAdapter.linkAccount({
     userId: user.id,

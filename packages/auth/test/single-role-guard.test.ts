@@ -4,7 +4,7 @@ import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { eq } from 'drizzle-orm'
 import { user as userTable } from '@setu/db-sqlite/schema'
-import { createAuth } from '../src'
+import { createAuth, PROVISIONING } from '../src'
 
 /** #630 — "one role per user" enforced where better-auth's set-role actually lands.
  *
@@ -41,12 +41,15 @@ async function makeUser(
   opts: { email: string; name: string; role: string; password?: string }
 ) {
   const ctx = await auth.$context
-  const user = await ctx.internalAdapter.createUser({
-    email: opts.email,
-    name: opts.name,
-    role: opts.role,
-    emailVerified: true
-  })
+  const user = await ctx.internalAdapter.createUser(
+    {
+      email: opts.email,
+      name: opts.name,
+      role: opts.role,
+      emailVerified: true
+    },
+    PROVISIONING.adminInvite
+  )
   if (opts.password) {
     const hashed = await ctx.password.hash(opts.password)
     await ctx.internalAdapter.linkAccount({

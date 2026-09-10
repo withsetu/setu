@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
-import { createAuth } from '@setu/auth'
+import { createAuth, PROVISIONING } from '@setu/auth'
 import { createConsoleEmailAdapter } from '@setu/email-console'
 import {
   DEFAULT_SETTINGS,
@@ -160,12 +160,15 @@ function harness(
 
 async function makeUser(auth: ReturnType<typeof createAuth>) {
   const ctx = await auth.$context
-  await ctx.internalAdapter.createUser({
-    email: USER_EMAIL,
-    name: 'Target',
-    role: 'admin',
-    emailVerified: true
-  })
+  await ctx.internalAdapter.createUser(
+    {
+      email: USER_EMAIL,
+      name: 'Target',
+      role: 'admin',
+      emailVerified: true
+    },
+    PROVISIONING.adminInvite
+  )
 }
 
 /** The token better-auth put in the link, read out of the un-redacted copy. */

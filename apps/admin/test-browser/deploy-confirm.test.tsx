@@ -57,7 +57,8 @@ const baseStatus: DeployStatus = {
   pending: true,
   changedPaths: [{ path: 'content/post/en/a.mdoc', added: false }],
   job: null,
-  canRebuild: true
+  canRebuild: true,
+  rebuildBlockedReason: null
 }
 
 function mount() {

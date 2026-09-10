@@ -76,8 +76,11 @@ export function DeployControl() {
       : status.deployedSha === null
         ? 'Publish site'
         : `Publish · ${pendingCount} pending`
+  // #1087: the server distinguishes "this topology cannot build" from "something is blocking a
+  // build right now" and words the second itself; render its reason rather than the generic line.
   const tooltip = !status.canRebuild
-    ? 'Rebuild is not available in this deployment'
+    ? (status.rebuildBlockedReason ??
+      'Rebuild is not available in this deployment')
     : running
       ? 'Building the site…'
       : status.pending
@@ -107,6 +110,9 @@ export function DeployControl() {
         disabled={running || !status.canRebuild}
         aria-busy={running}
         aria-label="Publish site"
+        // Also a native title: a Radix tooltip never opens on a disabled button, which is
+        // exactly when the reason matters most (apps/admin/test/deploy-control.test.tsx).
+        title={tooltip}
         tooltip={tooltip}
         className="relative overflow-hidden"
       >

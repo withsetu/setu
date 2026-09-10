@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import path from 'node:path'
 import {
   MAIN_LANE,
   allocateSlot,
@@ -101,7 +102,8 @@ test('laneEnv derives every origin from the lane, so nothing is hand-configured'
     lane: 'a',
     domain: 'example.com',
     slot: 1,
-    repoDir: '/s/dev'
+    repoDir: '/s/dev',
+    checkoutDir: '/s/.claude/worktrees/a'
   })
   assert.equal(env.SETU_ADMIN_PORT, '5273')
   assert.equal(env.SETU_API_PORT, '4544')
@@ -114,9 +116,40 @@ test('laneEnv derives every origin from the lane, so nothing is hand-configured'
   assert.equal(env.SETU_MEDIA_PUBLIC_URL, 'https://a-api.example.com/media')
   assert.equal(env.SETU_REPO_DIR, '/s/dev')
   assert.equal(
+    env.SETU_CONTENT_DIR,
+    path.join('/s/dev', 'content'),
+    'the site must read the lane sandbox; unset, content.config.ts falls back to the tracked fixtures (#1086)'
+  )
+  assert.equal(
+    env.SETU_CONFIG_PATH,
+    path.join('/s/.claude/worktrees/a', 'apps', 'site', 'setu.config.ts'),
+    'unset, resolveSetuConfigPath finds no config in the sandbox and the api boots on FALLBACK_CONFIG (#1086)'
+  )
+  assert.equal(
     env.SETU_DEV_ALLOWED_HOSTS,
     'a-admin.example.com,a-site.example.com',
     'only this lane widens the host check, and only by naming its own hosts'
+  )
+})
+
+test('laneEnv takes setu.config.ts from the lane checkout, and content from the sandbox', () => {
+  // The two paths have DIFFERENT roots on purpose: the sandbox is shared across lanes (#1053)
+  // while the config file belongs to the worktree being run, so a worktree that edits it gets
+  // its own rather than the main checkout's.
+  const env = laneEnv({
+    lane: 'b',
+    domain: undefined,
+    slot: 2,
+    repoDir: '/s/.content-sandbox/dev',
+    checkoutDir: '/s/.claude/worktrees/b'
+  })
+  assert.equal(
+    env.SETU_CONTENT_DIR,
+    path.join('/s/.content-sandbox/dev', 'content')
+  )
+  assert.equal(
+    env.SETU_CONFIG_PATH,
+    path.join('/s/.claude/worktrees/b', 'apps', 'site', 'setu.config.ts')
   )
 })
 
@@ -125,7 +158,8 @@ test('laneEnv without a domain keeps every origin on loopback', () => {
     lane: 'dev',
     domain: undefined,
     slot: 0,
-    repoDir: '/s/dev'
+    repoDir: '/s/dev',
+    checkoutDir: '/s'
   })
   assert.equal(env.VITE_SETU_API, 'http://localhost:4444')
   assert.equal(env.SETU_ADMIN_ORIGIN, 'http://localhost:5173')

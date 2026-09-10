@@ -86,7 +86,8 @@ describe('deploy status', () => {
       pending: false,
       changedPaths: [],
       job: null,
-      canRebuild: true
+      canRebuild: true,
+      rebuildBlockedReason: null
     }
     // … and once the provider refreshes, the pill flips to Live.
     fireEvent.click(screen.getByText('refresh-deploy'))

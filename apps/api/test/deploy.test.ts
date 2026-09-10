@@ -18,12 +18,14 @@ function harness(opts?: {
   changed?: ChangedPath[]
   state?: DeployState | null
   build?: () => Promise<void>
+  buildBlocked?: () => string | null
 }) {
   let state: DeployState | null = opts?.state ?? null
   const build = vi.fn(opts?.build ?? (async () => {}))
   const app = createDeployApi({
     resolveActor: opts?.resolveActor ?? asRole('admin'),
     siteDir: opts?.siteDir === undefined ? '/site' : opts.siteDir,
+    buildBlocked: opts?.buildBlocked,
     jobs: createSqliteDeployJobStore(':memory:'),
     readState: () => state,
     writeState: (s) => {
@@ -177,5 +179,54 @@ describe('deploy api — rebuild (#209)', () => {
     expect(String(body.error)).toMatch(/not available/i)
     // status still works — the indicator is honest even where rebuild is impossible
     expect((await h.status()).code).toBe(200)
+  })
+})
+
+describe('deploy api — a blocked build (#1087)', () => {
+  const REASON =
+    'a dev server is running in the site project (pid 123); stop it before rebuilding'
+
+  it('refuses the rebuild with the reason, and never starts the build', async () => {
+    const h = harness({ buildBlocked: () => REASON })
+    const { code, body } = await h.rebuild()
+    expect(code).toBe(409)
+    expect(body.error).toBe(REASON)
+    // The whole point: the build must not have been spawned into the dir it would corrupt.
+    expect(h.build).not.toHaveBeenCalled()
+  })
+
+  it('reports the block in status, so the UI disables rather than offering a 409', async () => {
+    const { body } = await harness({ buildBlocked: () => REASON }).status()
+    expect(body.canRebuild).toBe(false)
+    expect(body.rebuildBlockedReason).toBe(REASON)
+  })
+
+  it('is re-read per request, so stopping the dev server re-enables rebuild', async () => {
+    // A boot-time snapshot would leave the api refusing until it restarted — the block is a
+    // property of another process's lifetime, not of this deployment.
+    let blocked = true
+    const h = harness({ buildBlocked: () => (blocked ? REASON : null) })
+    expect((await h.status()).body.canRebuild).toBe(false)
+    blocked = false
+    expect((await h.status()).body.canRebuild).toBe(true)
+    expect((await h.rebuild()).code).toBe(202)
+    expect(h.build).toHaveBeenCalled()
+  })
+
+  it('unblocked (the default wiring) leaves rebuild exactly as it was', async () => {
+    const h = harness()
+    const { body } = await h.status()
+    expect(body.canRebuild).toBe(true)
+    expect(body.rebuildBlockedReason).toBe(null)
+    expect((await h.rebuild()).code).toBe(202)
+  })
+
+  it('still 409s on a missing site dir first — that message names the topology, not a dev server', async () => {
+    const { code, body } = await harness({
+      siteDir: null,
+      buildBlocked: () => REASON
+    }).rebuild()
+    expect(code).toBe(409)
+    expect(String(body.error)).toContain('no site directory is configured')
   })
 })

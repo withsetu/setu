@@ -19,7 +19,8 @@ const state: { status: DeployStatus | null } = {
       { path: 'settings.json', added: false }
     ],
     job: null,
-    canRebuild: true
+    canRebuild: true,
+    rebuildBlockedReason: null
   }
 }
 const mockRebuild = vi.fn(() => Promise.resolve())

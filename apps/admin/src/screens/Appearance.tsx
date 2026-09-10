@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { themeOptions, resolveThemeTokens } from '@setu/theme-default/options'
-import type { ThemeOption } from '@setu/theme-default/options'
+import { resolveThemeTokens } from '@setu/core'
+import type { ThemeOption } from '@setu/core'
 import { Callout } from '@setu/blocks'
 import { PageHeader } from '../shell/PageHeader'
 import { PageBody } from '../shell/PageBody'
+import { apiFetch } from '@/lib/api-fetch'
 import { useServices } from '../data/store'
 import { useCan } from '../auth/actor'
 import { useNotify } from '../ui/notify'
@@ -13,13 +14,20 @@ import {
   SETTINGS_LOAD_FAILED_MESSAGE
 } from './settings/SettingsLoadError'
 
+// apiFetch only adds credentials — it does NOT prepend the API origin, so the base is composed
+// here as every other admin->API call does (SessionGate.tsx, SetupScreen.tsx). Without it the
+// request hits the admin's own dev server and comes back as index.html.
+const apiBase = import.meta.env.VITE_SETU_API ?? ''
+
 const STORAGE_KEY = 'setu-theme-options'
 // The committed file the site reads (content-repo root); see apps/site/src/lib/site-config.ts.
 const THEME_OPTIONS_PATH = 'theme-options.json'
 const AUTHOR = { name: 'Local', email: 'local@setu.dev' }
 
-function defaults(): Record<string, string> {
-  return Object.fromEntries(themeOptions.map((o) => [o.key, o.default]))
+// #1076: the option declaration is FETCHED from the active theme rather than imported from one
+// named theme at build time, so everything derived from it takes it as an argument.
+function defaults(options: ThemeOption[]): Record<string, string> {
+  return Object.fromEntries(options.map((o) => [o.key, o.default]))
 }
 
 /** Shallow record equality over the manifest's full value set. */
@@ -32,15 +40,18 @@ function sameValues(
   return true
 }
 
-function loadValues(): Record<string, string> {
+function loadValues(options: ThemeOption[]): Record<string, string> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw)
-      return { ...defaults(), ...(JSON.parse(raw) as Record<string, string>) }
+      return {
+        ...defaults(options),
+        ...(JSON.parse(raw) as Record<string, string>)
+      }
   } catch {
     // ignore (private mode / corrupt) — fall back to defaults
   }
-  return defaults()
+  return defaults(options)
 }
 
 /** A hex color is valid if it matches #rgb/#rgba/#rrggbb/#rrggbbaa. */
@@ -51,7 +62,12 @@ export function Appearance() {
   const { git } = useServices()
   const can = useCan()
   const notify = useNotify()
-  const [values, setValues] = useState<Record<string, string>>(loadValues)
+  // The ACTIVE theme's declaration. null while loading; `optionsError` when it could not be read
+  // — kept apart from an empty array, because a theme that declares no options is a legitimate
+  // state and must not look like a failure (nor the reverse, #837/§4 #22).
+  const [options, setOptions] = useState<ThemeOption[] | null>(null)
+  const [optionsError, setOptionsError] = useState(false)
+  const [values, setValues] = useState<Record<string, string>>({})
   // The currently-published values (what the live site renders). null until the baseline loads;
   // absent file → the live state is the theme defaults.
   const [published, setPublished] = useState<Record<string, string> | null>(
@@ -61,7 +77,35 @@ export function Appearance() {
   const [loadFailed, setLoadFailed] = useState(false)
   const [retryKey, setRetryKey] = useState(0)
 
+  // Fetch the active theme's declaration. The admin is a browser bundle and cannot import an
+  // installed theme's module, so the server reads it and serves it (apps/api/src/theme-api.ts).
   useEffect(() => {
+    let live = true
+    void (async () => {
+      try {
+        const res = await apiFetch(`${apiBase}/api/theme/options`)
+        if (!res.ok) throw new Error(`theme options responded ${res.status}`)
+        const body = (await res.json()) as { options: ThemeOption[] }
+        if (!live) return
+        setOptions(body.options)
+        setValues(loadValues(body.options))
+        setOptionsError(false)
+      } catch (err) {
+        if (!live) return
+        // A failed fetch must never render as an empty Customizer — that is indistinguishable
+        // from a theme with nothing to customise.
+        console.error('[appearance] reading the theme declaration failed', err)
+        setOptionsError(true)
+        notify.error(SETTINGS_LOAD_FAILED_MESSAGE)
+      }
+    })()
+    return () => {
+      live = false
+    }
+  }, [notify, retryKey])
+
+  useEffect(() => {
+    if (options === null) return
     let live = true
     void (async () => {
       try {
@@ -69,11 +113,11 @@ export function Appearance() {
         // is NOT a load failure. A failed read must NOT fall through to a "Published" button over
         // theme options that were never read from the repo (#837).
         const raw = await git.readFile(THEME_OPTIONS_PATH)
-        let committed = defaults()
+        let committed = defaults(options)
         if (raw) {
           try {
             committed = {
-              ...defaults(),
+              ...defaults(options),
               ...(JSON.parse(raw) as Record<string, string>)
             }
           } catch {
@@ -93,20 +137,26 @@ export function Appearance() {
     return () => {
       live = false
     }
-  }, [git, notify, retryKey])
+  }, [git, notify, options, retryKey])
 
   useEffect(() => {
+    // Do NOT persist before the declaration has loaded. `values` starts empty and is filled from
+    // storage once the options arrive, so writing on the first render would overwrite the user's
+    // remembered choices with `{}` on every visit — they would silently lose their customisation
+    // just by opening the screen. Caught by "remembers choices across remount" in
+    // apps/admin/test/appearance.test.tsx.
+    if (options === null) return
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(values))
     } catch {
       // ignore
     }
-  }, [values])
+  }, [options, values])
 
   const set = (key: string, value: string) =>
     setValues((v) => ({ ...v, [key]: value }))
   const resetKey = (key: string, def: string) => set(key, def)
-  const resetAll = () => setValues(defaults())
+  const resetAll = () => setValues(defaults(options ?? []))
 
   const dirty = published !== null && !sameValues(values, published)
   const canPublish = can('theme.manage')
@@ -137,7 +187,10 @@ export function Appearance() {
 
   // resolveThemeTokens returns { '--accent': '…', … } — apply as inline custom properties so the
   // preview subtree restyles exactly as the published site would (same resolver).
-  const previewStyle = resolveThemeTokens(values) as CSSProperties
+  const previewStyle = resolveThemeTokens(
+    options ?? [],
+    values
+  ) as CSSProperties
 
   return (
     <>
@@ -146,7 +199,7 @@ export function Appearance() {
         subtitle="Customize how your site looks. Changes preview live and are remembered."
         actions={
           <>
-            {canPublish && !loadFailed && (
+            {canPublish && !loadFailed && !optionsError && (
               <button
                 type="button"
                 className="btn btn-primary btn-md"
@@ -171,10 +224,11 @@ export function Appearance() {
         }
       />
       <PageBody>
-        {loadFailed && published === null ? (
+        {optionsError || (loadFailed && published === null) ? (
           <SettingsLoadError
             onRetry={() => {
               setLoadFailed(false)
+              setOptionsError(false)
               setRetryKey((k) => k + 1)
             }}
           />
@@ -185,7 +239,7 @@ export function Appearance() {
               role="group"
               aria-label="Theme options"
             >
-              {themeOptions.map((opt) => (
+              {(options ?? []).map((opt) => (
                 <Control
                   key={opt.key}
                   opt={opt}

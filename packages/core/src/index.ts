@@ -505,3 +505,17 @@ export {
   defaultSecurityHeaders,
   toCloudflareHeadersFile
 } from './security-headers/security-headers'
+
+// Theme options model (#1076) — applied to whichever theme is installed, so the Customizer is
+// no longer bound to one theme at admin build time.
+export {
+  optionsToCss,
+  parseThemeOptions,
+  resolveThemeTokens
+} from './theme/options'
+export type {
+  ThemeOption,
+  ThemeOptionChoice,
+  ThemeOptionType
+} from './theme/options'
+export { DEFAULT_THEME } from './config/default-config'

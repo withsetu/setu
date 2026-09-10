@@ -34,7 +34,7 @@ export function TagControl({ value, onChange, meta }: ControlProps) {
       }}
       placeholder="Search tags…"
       ariaLabel={meta.name}
-      id={`bi-${meta.name}`}
+      id={`${meta.idPrefix ?? 'bi'}-${meta.name}`}
     />
   )
 }

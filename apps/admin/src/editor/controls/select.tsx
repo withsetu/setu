@@ -13,7 +13,10 @@ export function SelectControl({ value, onChange, meta }: ControlProps) {
       value={toDisplayString(value, '')}
       onValueChange={(v) => onChange(v)}
     >
-      <SelectTrigger id={`bi-${meta.name}`} aria-label={meta.name}>
+      <SelectTrigger
+        id={`${meta.idPrefix ?? 'bi'}-${meta.name}`}
+        aria-label={meta.name}
+      >
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

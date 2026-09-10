@@ -8,6 +8,13 @@ export interface ControlMeta {
   max?: number
   step?: number
   apiBase: string
+  /** DOM id prefix for the control element, so two panels rendering a control for the SAME
+   *  field name cannot collide. The block inspector and the meta panel are on screen together,
+   *  so a collection field named `href` beside a selected button block would otherwise emit two
+   *  elements with id="bi-href" and break `<label for>` association for both.
+   *  Defaults to 'bi' (block inspector). Enforced by
+   *  apps/admin/test/collection-fields.test.tsx. */
+  idPrefix?: string
   /** Open the media library for this control's prop name. */
   onPickMedia: (name: string) => void
   /** Render the control greyed-out/read-only — set when a `forcedWhen` rule holds

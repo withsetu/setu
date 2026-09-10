@@ -11,8 +11,8 @@ describe('resolveControls — taxonomy picker hints', () => {
     expect(
       resolveControls(props, { category: 'category', tag: 'tag' })
     ).toEqual([
-      { name: 'category', control: 'category' },
-      { name: 'tag', control: 'tag' }
+      { name: 'category', control: 'category', required: false },
+      { name: 'tag', control: 'tag', required: false }
     ])
   })
 

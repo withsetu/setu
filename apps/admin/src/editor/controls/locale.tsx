@@ -49,7 +49,10 @@ export function LocaleControl({ value, onChange, meta }: ControlProps) {
       value={val || ANY}
       onValueChange={(v) => onChange(v === ANY ? '' : v)}
     >
-      <SelectTrigger id={`bi-${meta.name}`} aria-label={meta.name}>
+      <SelectTrigger
+        id={`${meta.idPrefix ?? 'bi'}-${meta.name}`}
+        aria-label={meta.name}
+      >
         <SelectValue placeholder="Any locale" />
       </SelectTrigger>
       <SelectContent>

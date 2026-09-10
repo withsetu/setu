@@ -4,7 +4,6 @@
 // stayed stale until the next content edit. Watch the file explicitly and restart the dev server
 // on change: heavy but correct, and settings saves are rare. `astro build` is unaffected
 // (everything is computed fresh per build).
-import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 /** The settings.json to watch, derived from SETU_CONTENT_DIR (content dir → sibling file).
@@ -23,14 +22,36 @@ export function settingsWatcher() {
     hooks: {
       'astro:server:setup': ({ server, logger }) => {
         const file = settingsWatchPath()
-        if (!file || !existsSync(file)) return
-        server.watcher.add(file)
-        const onChange = (path) => {
+        if (!file) return
+        // Watch the DIRECTORY, not the file, and handle `add` as well as `change`. The seeded dev
+        // sandbox contains content/ + url-map.json + redirects.json and NO settings.json (see
+        // scripts/content-sandbox.mjs), so the file does not exist when this hook runs and the
+        // API creates it on the owner's FIRST save. Watching the file meant the first save — the
+        // common case on a fresh sandbox — never restarted anything, leaving #361 live behind a
+        // green "Saved" toast. Enforced by apps/site/test/settings-watcher-dev.test.ts, which
+        // starts from a sandbox with no settings.json and creates one.
+        server.watcher.add(dirname(file))
+        const onWrite = (path) => {
           if (path !== file) return
-          logger.info('settings.json changed — restarting so routes pick it up')
-          void server.restart()
+          server
+            .restart()
+            .then(() =>
+              // Logged AFTER the restart resolves: announcing it beforehand printed a success
+              // line over a restart that could still reject (strictPort is set, so a momentarily
+              // held port rejects out of server.restart()), which is the failure this watcher
+              // exists to prevent, wearing a message saying it was fixed (CLAUDE.md §4 #22).
+              logger.info(
+                'settings.json changed — restarted so routes pick it up'
+              )
+            )
+            .catch((err) =>
+              logger.error(
+                `settings.json changed but the dev server could not restart — routes are STALE, restart it by hand: ${err instanceof Error ? err.message : String(err)}`
+              )
+            )
         }
-        server.watcher.on('change', onChange)
+        server.watcher.on('change', onWrite)
+        server.watcher.on('add', onWrite)
       }
     }
   }

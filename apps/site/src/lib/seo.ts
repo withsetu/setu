@@ -8,6 +8,7 @@ import {
 } from '@setu/core'
 import { manifestKeyFromSrc, loadManifest } from '@setu/image-astro'
 import { withTrailingSlash } from './sitemap'
+import { absoluteMediaUrl } from './url'
 
 export interface PageSeoInput {
   /** Page title (post/page title); empty → homepage (site name only). */
@@ -60,22 +61,12 @@ const buildAlternates = (
   return links
 }
 
-/** Media-resolve a raw path (prepend the media base for root-relative `/media/…`) then absolutize
- *  it against the site origin. Returns undefined for an empty input. A protocol-relative `//host/…`
- *  is already absolute (it resolves to the site's scheme) — it must NOT get the media-base prefix,
- *  or a non-empty `mediaBase` corrupts the share image to the wrong origin (#861 SEO-4). Exported
- *  for apps/site/test/seo-head-unit.test.ts. */
-export const absMedia = (
-  raw: string,
-  mediaBase: string,
-  base: URL
-): string | undefined => {
-  if (!raw) return undefined
-  const isAbsolute = /^https?:\/\//i.test(raw) || raw.startsWith('//')
-  const viaMedia =
-    !isAbsolute && raw.startsWith('/') ? `${mediaBase}${raw}` : raw
-  return new URL(viaMedia, base).href
-}
+/** Media-resolve a raw path then absolutize it against the site origin — the site's ONE media
+ *  resolver, shared with the sitemap and the feed (#1113). Kept as a named re-export because
+ *  #861 SEO-4's rule (a protocol-relative `//host/…` is already absolute and must NOT get the
+ *  media-base prefix) was discovered here. Covered by apps/site/test/seo-abs-media.test.ts and
+ *  apps/site/test/media-url.test.ts. */
+export const absMedia = absoluteMediaUrl
 
 /**
  * Build the page's resolved SEO head: assemble an absolute canonical from `Astro.site` + path,

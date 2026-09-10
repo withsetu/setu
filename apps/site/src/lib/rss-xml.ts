@@ -2,6 +2,7 @@ import type { RSSFeedItem, RSSOptions } from '@astrojs/rss'
 import { GENERATOR_URL } from '@setu/core'
 import { resolveMediaBase } from '@setu/image-astro'
 import type { FeedItem } from './feed'
+import { absoluteMediaUrl } from './url'
 
 /** Namespaces added to the <rss> root so the extra channel/item elements validate. */
 export const FEED_XMLNS = {
@@ -43,19 +44,11 @@ export function channelExtras(opts: {
     .join('')
 }
 
-/** Resolve a raw featured-image value to an absolute URL for `<media:content>`:
- *  pass through external http(s) URLs as-is; resolve `/media/...` paths against the media base
- *  and the site origin. Returns undefined when there's no image. */
-export function mediaItemUrl(
-  image: string | undefined,
-  mediaBase: string,
-  site: string
-): string | undefined {
-  if (!image) return undefined
-  if (/^https?:\/\//i.test(image)) return image
-  const rel = image.startsWith('/') ? `${mediaBase}${image}` : image
-  return new URL(rel, site).href
-}
+/** Resolve a raw featured-image value to an absolute URL for `<media:content>` — the site's ONE
+ *  media resolver (#1113). This used to be a private copy that treated a protocol-relative
+ *  `//host/…` as root-relative and prefixed the media base onto it, sending the enclosure to the
+ *  wrong origin. Covered by apps/site/test/rss-xml.test.ts and apps/site/test/media-url.test.ts. */
+export const mediaItemUrl = absoluteMediaUrl
 
 const MIME_BY_EXT: Record<string, string> = {
   jpg: 'image/jpeg',

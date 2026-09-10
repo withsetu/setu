@@ -4,7 +4,7 @@ import { toDisplayString, type ControlProps } from './types'
 export function TextControl({ value, onChange, meta }: ControlProps) {
   return (
     <Input
-      id={`bi-${meta.name}`}
+      id={`${meta.idPrefix ?? 'bi'}-${meta.name}`}
       aria-label={meta.name}
       value={toDisplayString(value, '')}
       onChange={(e) => onChange(e.target.value)}
@@ -14,7 +14,7 @@ export function TextControl({ value, onChange, meta }: ControlProps) {
 export function UrlControl({ value, onChange, meta }: ControlProps) {
   return (
     <Input
-      id={`bi-${meta.name}`}
+      id={`${meta.idPrefix ?? 'bi'}-${meta.name}`}
       aria-label={meta.name}
       type="url"
       value={toDisplayString(value, '')}
@@ -38,7 +38,7 @@ export function NumberControl({ value, onChange, meta }: ControlProps) {
   }
   return (
     <Input
-      id={`bi-${meta.name}`}
+      id={`${meta.idPrefix ?? 'bi'}-${meta.name}`}
       aria-label={meta.name}
       type="number"
       min={meta.min}

@@ -14,7 +14,11 @@ describe('gallery contract', () => {
 
   it('maps images to an Array markdoc attribute with an empty default', () => {
     const attrs = markdocAttributesFor(galleryBlock.contract.props)
-    expect(attrs.images).toEqual({ type: 'Array', default: [], required: false })
+    expect(attrs.images).toEqual({
+      type: 'Array',
+      default: [],
+      required: false
+    })
     expect(attrs.columns).toEqual({
       type: 'Number',
       default: 3,
@@ -36,7 +40,11 @@ describe('gallery contract', () => {
       required: false
     })
     // #553: lightbox (WP "Expand on click") — default ON
-    expect(attrs.lightbox).toEqual({ type: 'Boolean', default: true, required: false })
+    expect(attrs.lightbox).toEqual({
+      type: 'Boolean',
+      default: true,
+      required: false
+    })
   })
 
   it('resolves typed controls: media-list, slider, select, switch, align', () => {

@@ -1,5 +1,6 @@
 import { useState, Fragment } from 'react'
 import { resolveControls } from '@setu/core'
+import { humanizeLabel } from './humanize-label'
 import type { ResolvedControl } from '@setu/core'
 import { registry } from '../blocks/registry'
 import { Label } from '@/components/ui/label'
@@ -8,13 +9,6 @@ import { controlRegistry } from './controls/registry'
 
 /** Fallback field label: split camelCase and Title-Case (textPosition → "Text Position").
  *  A block can override per-prop via editor.labels. */
-function humanizeLabel(name: string): string {
-  return name
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/[-_]/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-}
-
 export function BlockInspector({
   tag,
   mdAttrs,

@@ -11,6 +11,13 @@ export interface ResolvedControl {
   min?: number
   max?: number
   step?: number
+  /** True when the author must supply a value (neither `.optional()` nor `.default(…)`).
+   *  Added for #1125's collection-field form, which needs to mark required fields rather than
+   *  letting the editor discover them from a 422. Block contracts have required props too
+   *  (`hero.headline` is a bare `z.string()`), so this is NOT a collections-only flag — the
+   *  block inspector simply does not render it yet.
+   *  Enforced by packages/core/test/blocks/resolve-controls-required.test.ts. */
+  required: boolean
 }
 
 /** The zod-derived prop type each control may back. This single `Record<BlockControl, …>`
@@ -89,6 +96,7 @@ export function resolveControls(
           ? 'switch'
           : 'text'
     const shared = {
+      required: a.required,
       ...(a.default !== undefined ? { default: a.default } : {}),
       ...(a.matches ? { options: a.matches } : {}),
       ...(a.min !== undefined ? { min: a.min } : {}),

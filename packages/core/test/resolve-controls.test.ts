@@ -13,16 +13,18 @@ describe('resolveControls', () => {
 
   it('derives controls from zod when no hints given', () => {
     const out = resolveControls(props)
+    // #1125: `required` mirrors the zod wrapper — only the bare `headline` is required here.
     expect(out).toEqual([
-      { name: 'headline', control: 'text' },
-      { name: 'subhead', control: 'text' },
-      { name: 'count', control: 'number', default: 3 },
-      { name: 'featured', control: 'switch', default: false },
+      { name: 'headline', control: 'text', required: true },
+      { name: 'subhead', control: 'text', required: false },
+      { name: 'count', control: 'number', default: 3, required: false },
+      { name: 'featured', control: 'switch', default: false, required: false },
       {
         name: 'variant',
         control: 'select',
         default: 'center',
-        options: ['left', 'center']
+        options: ['left', 'center'],
+        required: false
       }
     ])
   })
@@ -50,14 +52,14 @@ describe('resolveControls', () => {
   it('accepts a color hint on a string prop', () => {
     const p = z.object({ scrim: z.string().optional() })
     expect(resolveControls(p, { scrim: 'color' })).toEqual([
-      { name: 'scrim', control: 'color' }
+      { name: 'scrim', control: 'color', required: false }
     ])
   })
 
   it('accepts a locale hint on a string prop (index-backed picker, not a raw box) — #421', () => {
     const p = z.object({ locale: z.string().optional() })
     expect(resolveControls(p, { locale: 'locale' })).toEqual([
-      { name: 'locale', control: 'locale' }
+      { name: 'locale', control: 'locale', required: false }
     ])
   })
 

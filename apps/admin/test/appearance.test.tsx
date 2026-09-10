@@ -9,11 +9,7 @@ import {
 import type { ReactNode } from 'react'
 import { createMemoryDataPort } from '@setu/db-memory'
 import { createMemoryGitPort } from '@setu/git-memory'
-import type { GitPort } from '@setu/core'
-// #1076: the Customizer no longer imports a theme's options — it FETCHES the active theme's
-// declaration, which is what lets any installed theme be customised. The shipped theme's
-// declaration is still the fixture here, but it now arrives the way a third-party theme's would.
-import { themeOptions } from '@setu/theme-default/options'
+import type { GitPort, ThemeOption } from '@setu/core'
 import { ActorProvider } from '../src/auth/actor'
 import {
   ServicesProvider,
@@ -22,6 +18,45 @@ import {
 } from '../src/data/store'
 import { NotificationProvider } from '../src/ui/notify'
 import { Appearance } from '../src/screens/Appearance'
+
+// #1076: the Customizer no longer imports a theme's options — it FETCHES the active theme's
+// declaration, so ANY installed theme can be customised. The fixture below is therefore a
+// third-party theme's declaration, not the shipped one: nothing in `apps/admin` may import a
+// theme package, and importing @setu/theme-default here would quietly reinstate exactly the
+// build-time binding this issue removed. The shipped theme's own declaration is covered by
+// packages/theme-default/options.test.ts and apps/site/test/theme-options.test.ts.
+const themeOptions: ThemeOption[] = [
+  {
+    key: 'accent',
+    label: 'Accent color',
+    type: 'color',
+    token: '--accent',
+    default: '#4f46e5'
+  },
+  {
+    key: 'width',
+    label: 'Content width',
+    type: 'select',
+    token: '--measure-page',
+    default: 'normal',
+    choices: [
+      { value: 'narrow', label: 'Narrow', tokenValue: '52rem' },
+      { value: 'normal', label: 'Normal', tokenValue: '64rem' },
+      { value: 'wide', label: 'Wide', tokenValue: '78rem' }
+    ]
+  },
+  {
+    key: 'corners',
+    label: 'Corner style',
+    type: 'select',
+    token: '--radius-base',
+    default: 'rounded',
+    choices: [
+      { value: 'sharp', label: 'Sharp', tokenValue: '2px' },
+      { value: 'rounded', label: 'Rounded', tokenValue: '10px' }
+    ]
+  }
+]
 
 beforeEach(() => {
   localStorage.clear()
@@ -32,7 +67,7 @@ beforeEach(() => {
       if (url.includes('/api/theme/options'))
         return new Response(
           JSON.stringify({
-            theme: '@setu/theme-default',
+            theme: '@acme/theme-brochure',
             options: themeOptions,
             declared: true
           }),

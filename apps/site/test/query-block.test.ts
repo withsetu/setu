@@ -63,6 +63,34 @@ describe('query block', () => {
     expect(html).toContain('setu-posts__empty')
     expect(html).toContain('No posts found.')
   })
+  // #1126: the query block lists any declared collection. `page` is the non-post collection the
+  // fixture site always has — no date, no taxonomy — so its cards exercise the "renders
+  // sensibly in the post-card markup" path through the real markdoc + theme pipeline.
+  describe('a non-post collection (#1126)', () => {
+    const section = (): string => {
+      const start = html.indexOf('Pages</h2>')
+      expect(start).toBeGreaterThan(-1)
+      return html.slice(start)
+    }
+    it('lists that collection, sorted, linking each card to its permalink', () => {
+      const s = section()
+      expect(s).toContain('setu-posts--list')
+      expect(s).toMatch(
+        /href="\/page\/about\/" class="setu-post-card__title"[^>]*>About</
+      )
+      expect(s).toContain('>Columns Demo<')
+      expect(s).not.toContain('/post/')
+    })
+    it('shows an excerpt, omits the date the entries do not have, and never prints undefined', () => {
+      const s = section().slice(0, section().indexOf('</ul>'))
+      expect(s).toContain(
+        'This is a standalone page, rendered with the wider Page template.'
+      )
+      expect(s).not.toContain('setu-post-card__date')
+      expect(s).not.toMatch(/undefined|NaN|\[object Object\]/)
+    })
+  })
+
   it('ships zero JS', () => {
     expect(html).not.toContain('astro-island')
     expect(html).not.toMatch(

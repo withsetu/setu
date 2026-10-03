@@ -11,6 +11,9 @@ import { createJiti } from 'jiti'
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const BLOCKS_DIR = path.join(ROOT, 'blocks')
 const OUT = path.join(ROOT, 'apps', 'site', 'markdoc.blocks.generated.mjs')
+// The same config file apps/site/astro.config.mjs loads — the site that renders the blocks is
+// the site whose declared collections a `collectionRef()` prop may name (#1126).
+const SITE_CONFIG = path.join(ROOT, 'apps', 'site', 'setu.config.ts')
 
 // @setu/core, @setu/core/node and zod are NOT hoisted to the repo root (pnpm strict
 // hoisting). Resolve them from packages/core where they ARE installed as dependencies.
@@ -66,12 +69,17 @@ export async function loadEntries(blocksDir = BLOCKS_DIR) {
 export async function main() {
   const { buildRegistry, mergeBlockSources, STANDARD_BLOCKS } =
     await jiti.import('@setu/core')
-  const { generateMarkdocTagsInclude } = await jiti.import('@setu/core/node')
+  const { generateMarkdocTagsInclude, loadConfig } =
+    await jiti.import('@setu/core/node')
 
   const local = await loadEntries()
   const entries = mergeBlockSources({ standard: STANDARD_BLOCKS, local })
   const registry = buildRegistry(entries)
-  writeFileSync(OUT, generateMarkdocTagsInclude(registry))
+  // Unguarded on purpose: a config that cannot load also fails astro.config.mjs, and falling
+  // back to post/page here would make every declared collection a build error instead.
+  const config = await loadConfig(SITE_CONFIG)
+  const collections = config.collections.map((c) => c.name)
+  writeFileSync(OUT, generateMarkdocTagsInclude(registry, { collections }))
   console.log(
     `gen-blocks: ${registry.blocks.length} block(s): ${registry.blocks.map((b) => b.tag).join(', ') || '(none)'}`
   )

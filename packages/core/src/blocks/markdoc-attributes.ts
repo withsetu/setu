@@ -1,4 +1,5 @@
 import type { ZodTypeAny } from 'zod'
+import { isCollectionRef } from './collection-ref'
 
 export interface MarkdocAttr {
   type: 'String' | 'Number' | 'Boolean' | 'Array'
@@ -15,6 +16,11 @@ export interface MarkdocAttr {
    *  from a 422 on save. The Markdoc include generator ignores it.
    *  Enforced by packages/core/test/blocks/resolve-controls-required.test.ts. */
   required: boolean
+  /** Set when the value must name something resolved from config rather than a fixed set —
+   *  today only `'collection'` (a `collectionRef()` prop, #1126). The Markdoc include
+   *  generator resolves it to the declared collection names; resolveControls maps it to the
+   *  collection picker. */
+  ref?: 'collection'
 }
 
 const BASE: Record<string, MarkdocAttr['type']> = {
@@ -83,6 +89,8 @@ export function markdocAttributesFor(
         required,
         matches: [...(inner as { _def: { values: string[] } })._def.values]
       }
+    } else if (tn === 'ZodString' && isCollectionRef(inner)) {
+      attr = { type: 'String', ref: 'collection', required }
     } else if (BASE[tn]) {
       attr = { type: BASE[tn], required }
       if (tn === 'ZodNumber') {

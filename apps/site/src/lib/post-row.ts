@@ -10,7 +10,7 @@ const str = (v: unknown): string => (typeof v === 'string' ? v : '')
 
 /** Map a raw Astro content entry (id = "collection/locale/slug") to a PostRow. Single projection
  *  shared by every archive-style getStaticPaths (posts, category, tag, …) so they agree on fields
- *  and ordering. Pass `body` to derive a card excerpt (frontmatter description/summary wins). */
+ *  and ordering. Pass `body` to derive a card excerpt (frontmatter description/summary/excerpt wins). */
 export function toPostRow(
   entry: {
     id: string
@@ -21,8 +21,13 @@ export function toPostRow(
 ): PostRow {
   const [col = '', loc = '', ...rest] = entry.id.split('/')
   const d = entry.data
+  // `excerpt` is a base entry field every collection may carry (BASE_ENTRY_FIELDS in
+  // @setu/core), so a declared collection's own summary reaches its cards (#1126).
   const cardExcerpt =
-    str(d['description']) || str(d['summary']) || excerpt(entry.body ?? '', 160)
+    str(d['description']) ||
+    str(d['summary']) ||
+    str(d['excerpt']) ||
+    excerpt(entry.body ?? '', 160)
   return {
     id: entry.id,
     collection: col,

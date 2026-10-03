@@ -89,7 +89,7 @@ import { createSettingsLoader } from './settings-loader'
 import { createEmailDispatcher } from './email-transport'
 import { createLiveEmailTemplates } from './email-templates'
 import { runReprocessJob } from './reprocess-runner'
-import { resumeActiveJob } from './server-resume'
+import { failInterruptedDeployJobs, resumeActiveJob } from './server-resume'
 import {
   resolveSetuMode,
   resolveAuthSecret,
@@ -1053,12 +1053,16 @@ app.route(
 // rebuild capability: present on the monorepo dev stack and scaffolded sites, absent on
 // a bare content-repo deployment → the API 409s honestly and only the indicator runs.
 const siteDir = resolveSiteDir(process.env, process.cwd())
+const deployJobs = createSqliteDeployJobStore(`${dir}/.setu/deploy-jobs.db`)
+// Before the routes mount: a `running` row at boot is a build this process never started, so
+// nothing would ever finish it and every rebuild would 409 (#1157).
+failInterruptedDeployJobs(deployJobs)
 app.route(
   '/',
   createDeployApi({
     resolveActor,
     siteDir,
-    jobs: createSqliteDeployJobStore(`${dir}/.setu/deploy-jobs.db`),
+    jobs: deployJobs,
     readState: () => readDeployState(dir),
     writeState: (s) => writeDeployState(dir, s),
     headSha: () => gitHeadSha(dir),

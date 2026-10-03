@@ -141,6 +141,43 @@ export function devServerHolding(siteDir: string | null): string | null {
   )
 }
 
+/** How long a site build may run before it is killed and its job failed (#1157). Without a bound
+ *  a hung build holds the single-flight slot forever and every later rebuild 409s.
+ *
+ *  15 minutes. Measured on this repo's own site (apps/site, 28 pages, cold-ish cache): a full
+ *  `pnpm build` took 7.7s wall-clock. Large sites (thousands of pages, heavy image optimisation)
+ *  run into minutes, so the default leaves two orders of magnitude of headroom over the measured
+ *  build — it exists to catch a build that will never finish, not to police a slow one.
+ *  Override with SETU_BUILD_TIMEOUT_MS. */
+export const DEFAULT_BUILD_TIMEOUT_MS = 15 * 60 * 1000
+
+/** SETU_BUILD_TIMEOUT_MS when it is a positive integer, else the default — a typo must not
+ *  disable the bound. Pinned by apps/api/test/deploy-wiring.test.ts. */
+export function buildTimeoutMs(env: NodeJS.ProcessEnv): number {
+  const raw = env.SETU_BUILD_TIMEOUT_MS
+  if (raw === undefined || !/^\d+$/.test(raw.trim()))
+    return DEFAULT_BUILD_TIMEOUT_MS
+  const n = Number(raw.trim())
+  return Number.isSafeInteger(n) && n > 0 ? n : DEFAULT_BUILD_TIMEOUT_MS
+}
+
+/** Signal a build's whole process tree. The configured command is a launcher (`pnpm build` →
+ *  sh → node astro), so signalling only the direct child would leave the real build running.
+ *  POSIX: the child leads its own process group (spawned `detached`), so a negative pid reaches
+ *  every descendant. Windows has no groups: `taskkill /T` walks the tree. Never throws — the
+ *  group may already be gone. */
+function killTree(pid: number, signal: 'SIGTERM' | 'SIGKILL'): void {
+  try {
+    if (process.platform === 'win32') {
+      spawn('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore' })
+    } else {
+      process.kill(-pid, signal)
+    }
+  } catch {
+    // already exited
+  }
+}
+
 /** Runs the site build (`npm run build` semantics via the configured command) in the
  *  site dir, with the content sandbox exported the same way `pnpm dev` wires the site
  *  process. Rejects with the log tail attached on failure. Long-running by design —
@@ -149,10 +186,16 @@ export function makeBuildRunner(opts: {
   siteDir: string
   repoDir: string
   env: NodeJS.ProcessEnv
+  /** Deadline for one build; defaults to `buildTimeoutMs(env)`. */
+  timeoutMs?: number
+  /** How long SIGTERM gets before SIGKILL once the deadline passes. */
+  killGraceMs?: number
 }): () => Promise<void> {
   const { siteDir, repoDir, env } = opts
   const command = env.SETU_BUILD_COMMAND ?? 'pnpm build'
   const [file, ...args] = command.split(' ') as [string, ...string[]]
+  const timeoutMs = opts.timeoutMs ?? buildTimeoutMs(env)
+  const killGraceMs = opts.killGraceMs ?? 5_000
   return () =>
     new Promise<void>((resolvePromise, reject) => {
       const child = spawn(file, args, {
@@ -161,7 +204,10 @@ export function makeBuildRunner(opts: {
           ...env,
           SETU_CONTENT_DIR: env.SETU_CONTENT_DIR ?? join(repoDir, 'content')
         },
-        stdio: ['ignore', 'pipe', 'pipe']
+        stdio: ['ignore', 'pipe', 'pipe'],
+        // Its own process group, so the deadline can kill the whole tree (killTree). Windows
+        // would open a console window for a detached child, and taskkill /T needs no group.
+        detached: process.platform !== 'win32'
       })
       let tail = ''
       const keep = (chunk: Buffer) => {
@@ -169,18 +215,61 @@ export function makeBuildRunner(opts: {
       }
       child.stdout.on('data', keep)
       child.stderr.on('data', keep)
-      child.on('error', (e) => reject(Object.assign(e, { logTail: tail })))
-      child.on('exit', (code) => {
-        if (code === 0) resolvePromise()
+
+      let settled = false
+      let timedOut = false
+      let graceTimer: NodeJS.Timeout | undefined
+      // A detached group no longer dies with the api's terminal, so take it down when the api
+      // exits normally. (A signal-killed api runs no exit hooks; the next boot fails the job —
+      // failInterruptedDeployJobs — but cannot reach an orphaned build.)
+      const onApiExit = () => {
+        if (child.pid !== undefined) killTree(child.pid, 'SIGKILL')
+      }
+      process.once('exit', onApiExit)
+      const deadline = setTimeout(() => {
+        timedOut = true
+        if (child.pid === undefined) return
+        killTree(child.pid, 'SIGTERM')
+        graceTimer = setTimeout(() => {
+          if (child.pid !== undefined) killTree(child.pid, 'SIGKILL')
+        }, killGraceMs)
+        graceTimer.unref()
+      }, timeoutMs)
+      deadline.unref()
+
+      const settle = (err: Error | null) => {
+        if (settled) return
+        settled = true
+        clearTimeout(deadline)
+        process.removeListener('exit', onApiExit)
+        if (err === null) resolvePromise()
+        else reject(Object.assign(err, { logTail: tail }))
+      }
+      child.on('error', (e) => settle(e))
+      child.on('exit', (code, signal) => {
+        if (timedOut) {
+          // Reap stragglers that ignored SIGTERM before the grace timer even fires.
+          if (child.pid !== undefined) killTree(child.pid, 'SIGKILL')
+          clearTimeout(graceTimer)
+          settle(
+            new Error(
+              `build timed out after ${formatTimeout(timeoutMs)} and was stopped, so this deploy was not recorded. ` +
+                'Raise SETU_BUILD_TIMEOUT_MS if this site legitimately needs longer.'
+            )
+          )
+        } else if (code === 0) settle(null)
         else
-          reject(
-            Object.assign(
-              new Error(`build exited with code ${code ?? 'null'}`),
-              {
-                logTail: tail
-              }
+          settle(
+            new Error(
+              `build exited with code ${code ?? 'null'}${signal ? ` (${signal})` : ''}`
             )
           )
       })
     })
+}
+
+function formatTimeout(ms: number): string {
+  if (ms % 60_000 === 0) return `${ms / 60_000} min`
+  if (ms % 1000 === 0) return `${ms / 1000}s`
+  return `${ms}ms`
 }

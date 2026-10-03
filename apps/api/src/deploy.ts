@@ -14,6 +14,10 @@ import type { ResolveActor } from './auth/resolve-actor'
 
 const authz = createAuthz(DEFAULT_ROLES)
 
+/** Why a rebuild can't run in a repo with no commits (#1158). Operator prose for the admin. */
+const NO_COMMITS =
+  'The content repository has no commits yet, so there is nothing saved to publish. Save something first, then publish.'
+
 function requireCan(action: Action) {
   return createMiddleware<{ Variables: { actor: Actor } }>(async (c, next) => {
     if (!authz.can(c.get('actor'), action))
@@ -73,19 +77,57 @@ export function createDeployApi(opts: {
   const auth = authMiddleware(resolveActor)
   const canDeploy = requireCan('site.deploy')
 
+  /** HEAD, or null when the repo has no commits (`git rev-parse HEAD` exits 128) — there is
+   *  nothing saved to build. Any lookup failure lands here: the status route must answer, not
+   *  500, or the admin loses the very control that would recover (#1158).
+   *  Pinned by apps/api/test/deploy.test.ts. */
+  async function resolveHead(): Promise<string | null> {
+    try {
+      return await headSha()
+    } catch (err) {
+      console.warn(
+        `[deploy] HEAD unresolvable — ${err instanceof Error ? err.message : String(err)}`
+      )
+      return null
+    }
+  }
+
   app.get('/api/deploy/status', auth, canDeploy, async (c) => {
+    // Job and deploy record read together, before any await: a build finishing while this
+    // request waits on git would otherwise pair a `done` job with the PREVIOUS deploy record,
+    // and the admin's final poll would keep showing the stale baseline after a success.
+    // rebuild's success path finishes the job and writes the record in one synchronous step,
+    // so two synchronous reads here always see both or neither.
+    // Pinned by apps/api/test/deploy.test.ts ("a build finishing mid-request").
+    const job = jobs.active() ?? jobs.latest()
     const state = readState()
-    const blocked = siteDir === null ? null : buildBlocked()
-    const head = await headSha()
-    const changed =
-      state !== null && state.sha !== head ? await changedPaths(state.sha) : []
+    const head = await resolveHead()
+    const blocked =
+      siteDir === null ? null : head === null ? NO_COMMITS : buildBlocked()
+    let changed: ChangedPath[] = []
+    // A recorded deploy we cannot diff against: its sha is not in the repo (history
+    // rewritten, repo re-cloned) or there is no HEAD at all. Nothing is then KNOWN to be live,
+    // so this reports pending with an explicit flag rather than an empty "nothing pending"
+    // list, and keeps rebuild offered — a successful build re-baselines (#1158).
+    let baselineUnresolvable = state !== null && head === null
+    if (state !== null && head !== null && state.sha !== head) {
+      try {
+        changed = await changedPaths(state.sha)
+      } catch (err) {
+        console.warn(
+          `[deploy] deployed sha ${state.sha} is not diffable against HEAD — ${err instanceof Error ? err.message : String(err)}`
+        )
+        baselineUnresolvable = true
+      }
+    }
     const status: DeployStatus = {
       deployedSha: state?.sha ?? null,
       deployedAt: state?.at ?? null,
       headSha: head,
       pending: state === null || state.sha !== head,
       changedPaths: changed,
-      job: jobs.active() ?? jobs.latest(),
+      baselineUnresolvable,
+      job,
       // Both halves, so the control disables instead of offering a button that 409s
       // (CLAUDE.md §4 #13, read the other way round: the UI must not offer what the server
       // will refuse). `rebuildBlockedReason` carries the transient half only — a missing site
@@ -112,7 +154,8 @@ export function createDeployApi(opts: {
     if (jobs.active() !== null)
       return c.json({ error: 'A build is already running.' }, 409)
 
-    const sha = await headSha()
+    const sha = await resolveHead()
+    if (sha === null) return c.json({ error: NO_COMMITS }, 409)
     const job = jobs.create(sha, 'static', now())
     // Fire-and-forget: the build outlives this request; status is polled via GET.
     void runBuild()

@@ -40,7 +40,8 @@ function renderDash(data: DataPort, git: GitPort) {
     <MemoryRouter>
       <ServicesProvider services={servicesFor(data, git)}>
         <ActorProvider>
-          <DeployProvider>
+          {/* No api in this harness — the no-api topology, so no deploy status to load. */}
+          <DeployProvider enabled={false}>
             <IndexProvider>
               <Dashboard />
             </IndexProvider>
@@ -193,7 +194,8 @@ describe('Dashboard', () => {
           {/* author: no site-health / deploy cards, so the only git access left
               on screen is the counts path — which must touch none. */}
           <ActorProvider actor={{ id: 'a', role: 'author' }}>
-            <DeployProvider>
+            {/* No api in this harness — the no-api topology, so no deploy status to load. */}
+            <DeployProvider enabled={false}>
               <IndexProvider service={stub}>
                 <Dashboard />
               </IndexProvider>
@@ -265,7 +267,8 @@ describe('admin landing route', () => {
         >
           <ActorProvider>
             <NotificationProvider>
-              <DeployProvider>
+              {/* No api in this harness — the no-api topology, so no deploy status to load. */}
+              <DeployProvider enabled={false}>
                 <IndexProvider>
                   <CommandRegistryProvider>
                     <App />

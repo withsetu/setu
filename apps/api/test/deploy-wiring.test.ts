@@ -1,8 +1,20 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import {
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  rmSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { devServerHolding } from '../src/deploy-wiring'
+import {
+  DEFAULT_BUILD_TIMEOUT_MS,
+  buildTimeoutMs,
+  devServerHolding,
+  makeBuildRunner
+} from '../src/deploy-wiring'
 
 let siteDir: string
 
@@ -74,5 +86,116 @@ describe('devServerHolding (#1087)', () => {
 
   it('is null for a null site dir — nothing can hold a dir that is not configured', () => {
     expect(devServerHolding(null)).toBeNull()
+  })
+})
+
+const alive = (pid: number) => {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+describe('makeBuildRunner — the build deadline (#1157)', () => {
+  /** A "build" that never exits, and starts a grandchild that never exits either — the shape of
+   *  `pnpm build` → sh → astro. The grandchild records its pid so the test can prove the whole
+   *  tree died, not just the direct child. */
+  function hangingBuild(): {
+    env: NodeJS.ProcessEnv
+    grandchildPid: () => number
+  } {
+    const pidFile = join(siteDir, 'grandchild.pid')
+    const script = join(siteDir, 'hang.mjs')
+    writeFileSync(
+      script,
+      [
+        "import { spawn } from 'node:child_process'",
+        "import { writeFileSync } from 'node:fs'",
+        "const g = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' })",
+        `writeFileSync(${JSON.stringify(pidFile)}, String(g.pid))`,
+        "console.log('building forever')",
+        'setInterval(() => {}, 1000)'
+      ].join('\n')
+    )
+    return {
+      env: {
+        ...process.env,
+        SETU_BUILD_COMMAND: `${process.execPath} ${script}`
+      },
+      grandchildPid: () => Number(readFileSync(pidFile, 'utf-8'))
+    }
+  }
+
+  it('fails a build that never exits at the deadline, and kills its whole process tree', async () => {
+    const { env, grandchildPid } = hangingBuild()
+    const run = makeBuildRunner({
+      siteDir,
+      repoDir: siteDir,
+      env,
+      timeoutMs: 1_500
+    })
+    const started = Date.now()
+    const err = (await run().then(
+      () => null,
+      (e: unknown) => e
+    )) as (Error & { logTail?: string }) | null
+    expect(err).toBeInstanceOf(Error)
+    expect(err?.message).toMatch(/timed out after/i)
+    expect(err?.logTail).toContain('building forever')
+    expect(Date.now() - started).toBeLessThan(10_000)
+    expect(existsSync(join(siteDir, 'grandchild.pid'))).toBe(true)
+    const g = grandchildPid()
+    await vi.waitFor(() => expect(alive(g)).toBe(false), { timeout: 8_000 })
+  }, 20_000)
+
+  it('a build that finishes inside the deadline still succeeds', async () => {
+    const run = makeBuildRunner({
+      siteDir,
+      repoDir: siteDir,
+      env: {
+        ...process.env,
+        SETU_BUILD_COMMAND: `${process.execPath} --version`
+      },
+      timeoutMs: 10_000
+    })
+    await expect(run()).resolves.toBeUndefined()
+  })
+
+  it('a failing build still reports its exit code, not a timeout', async () => {
+    const script = join(siteDir, 'fail.mjs')
+    writeFileSync(script, "console.error('kaboom'); process.exit(3)")
+    const run = makeBuildRunner({
+      siteDir,
+      repoDir: siteDir,
+      env: {
+        ...process.env,
+        SETU_BUILD_COMMAND: `${process.execPath} ${script}`
+      },
+      timeoutMs: 10_000
+    })
+    await expect(run()).rejects.toThrow('build exited with code 3')
+  })
+})
+
+describe('buildTimeoutMs (#1157)', () => {
+  it('defaults when unset or not a positive integer', () => {
+    expect(buildTimeoutMs({})).toBe(DEFAULT_BUILD_TIMEOUT_MS)
+    expect(buildTimeoutMs({ SETU_BUILD_TIMEOUT_MS: '' })).toBe(
+      DEFAULT_BUILD_TIMEOUT_MS
+    )
+    expect(buildTimeoutMs({ SETU_BUILD_TIMEOUT_MS: 'soon' })).toBe(
+      DEFAULT_BUILD_TIMEOUT_MS
+    )
+    expect(buildTimeoutMs({ SETU_BUILD_TIMEOUT_MS: '0' })).toBe(
+      DEFAULT_BUILD_TIMEOUT_MS
+    )
+    expect(buildTimeoutMs({ SETU_BUILD_TIMEOUT_MS: '-5' })).toBe(
+      DEFAULT_BUILD_TIMEOUT_MS
+    )
+  })
+  it('honours a positive override', () => {
+    expect(buildTimeoutMs({ SETU_BUILD_TIMEOUT_MS: '60000' })).toBe(60_000)
   })
 })

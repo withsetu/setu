@@ -34,3 +34,13 @@ declare module 'setu:post-row' {
     urlPath?: string
   ): import('@setu/core').PostRow
 }
+
+// Virtual module (see astro.config.mjs): the resolved setu.config's declared collections, for
+// block renderers that need a collection's human label.
+declare module 'setu:collections' {
+  export const collections: ReadonlyArray<{
+    name: string
+    label: string
+    labelPlural: string
+  }>
+}

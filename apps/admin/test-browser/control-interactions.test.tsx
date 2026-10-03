@@ -5,6 +5,9 @@ import { page, userEvent } from 'vitest/browser'
 import { Position9 } from '../src/editor/controls/position9'
 import { SegmentedSelect } from '../src/editor/controls/segmented-select'
 import { MediaControl } from '../src/editor/controls/media'
+import { CollectionControl } from '../src/editor/controls/collection'
+import { CollectionsContext } from '../src/data/collections-store'
+import { BUILT_IN_COLLECTIONS } from '../src/data/collections'
 import type { ControlMeta, ControlProps } from '../src/editor/controls/types'
 
 // ---------------------------------------------------------------------------------
@@ -99,6 +102,54 @@ describe('SegmentedSelect (real browser)', () => {
     await expect
       .element(page.getByRole('radio', { name: 'b' }))
       .toBeInTheDocument()
+  })
+})
+
+describe('CollectionControl (real browser, #1126)', () => {
+  it('lists every declared collection by label in the real Radix portal and stores the name', async () => {
+    const onChange = vi.fn()
+    const collections = [
+      ...BUILT_IN_COLLECTIONS,
+      {
+        name: 'product',
+        label: 'Product',
+        labelPlural: 'Products',
+        taxonomies: []
+      }
+    ]
+    function Controlled() {
+      const [value, setValue] = useState('post')
+      return (
+        <CollectionsContext.Provider
+          value={{
+            collections,
+            loading: false,
+            failed: false,
+            reload: () => Promise.resolve()
+          }}
+        >
+          <CollectionControl
+            value={value}
+            onChange={(v) => {
+              onChange(v)
+              setValue(v as string)
+            }}
+            meta={{ ...baseMeta, name: 'collection', default: 'post' }}
+          />
+        </CollectionsContext.Provider>
+      )
+    }
+    render(<Controlled />)
+    const trigger = page.getByRole('combobox', { name: 'collection' })
+    await expect.element(trigger).toHaveTextContent('Posts')
+    await trigger.click()
+    for (const label of ['Posts', 'Pages', 'Products'])
+      await expect
+        .element(page.getByRole('option', { name: label }))
+        .toBeInTheDocument()
+    await page.getByRole('option', { name: 'Products' }).click()
+    expect(onChange).toHaveBeenCalledWith('product')
+    await expect.element(trigger).toHaveTextContent('Products')
   })
 })
 

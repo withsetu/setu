@@ -61,6 +61,25 @@ const virtualFonts = {
   load: (id) => (id === '\0virtual:setu-fonts' ? fontImports : null)
 }
 
+// Serve `setu:collections` — the declared collections' names + labels from the resolved
+// setu.config — so dynamic block renderers (the query block's empty state, #1126) speak the
+// site's own nouns ("No products found.") instead of guessing from the raw name.
+const collectionLabels = JSON.stringify(
+  config.collections.map(({ name, label, labelPlural }) => ({
+    name,
+    label,
+    labelPlural
+  }))
+)
+const virtualCollections = {
+  name: 'setu:virtual-collections',
+  resolveId: (id) => (id === 'setu:collections' ? '\0setu:collections' : null),
+  load: (id) =>
+    id === '\0setu:collections'
+      ? `export const collections = ${collectionLabels}\n`
+      : null
+}
+
 // Content lives at repo-root content/ (the publish-engine convention), which is OUTSIDE
 // this app's node_modules scope. The markdoc integration injects bare imports
 // (`@astrojs/markdoc/components`, `@astrojs/markdoc/runtime`, ...) into each compiled
@@ -175,7 +194,7 @@ export default defineConfig({
         )
       }
     },
-    plugins: [resolveMarkdocFromApp, virtualFonts],
+    plugins: [resolveMarkdocFromApp, virtualFonts, virtualCollections],
     // The theme Layout self-hosts fonts via `import '@fontsource-variable/...'`, which
     // resolve to .css. In `astro build` Vite bundles these, but in `astro dev` SSR Node's
     // loader tries to load the raw .css as a module and throws "Unknown file extension .css".

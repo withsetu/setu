@@ -519,3 +519,5 @@ export type {
   ThemeOptionType
 } from './theme/options'
 export { DEFAULT_THEME } from './config/default-config'
+
+export { collectionRef, isCollectionRef } from './blocks/collection-ref'

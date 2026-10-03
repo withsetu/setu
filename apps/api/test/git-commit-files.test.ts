@@ -43,7 +43,7 @@ describe('POST /git/commit-files', () => {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          path: 'old.mdoc',
+          path: 'site-health.json',
           content: 'OLD',
           message: 'm',
           author
@@ -56,8 +56,8 @@ describe('POST /git/commit-files', () => {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           changes: [
-            { path: 'old.mdoc', delete: true },
-            { path: 'new.mdoc', content: 'NEW' }
+            { path: 'site-health.json', delete: true },
+            { path: 'taxonomy/categories.yaml', content: 'NEW' }
           ],
           message: 'batch',
           author
@@ -72,11 +72,13 @@ describe('POST /git/commit-files', () => {
     ).json()) as { sha: string }
     expect(head.sha).toBe(sha)
     const gone = (await (
-      await app.fetch(new Request('http://x/git/file?path=old.mdoc'))
+      await app.fetch(new Request('http://x/git/file?path=site-health.json'))
     ).json()) as { content: string | null }
     expect(gone.content).toBeNull()
     const added = (await (
-      await app.fetch(new Request('http://x/git/file?path=new.mdoc'))
+      await app.fetch(
+        new Request('http://x/git/file?path=taxonomy/categories.yaml')
+      )
     ).json()) as { content: string | null }
     expect(added.content).toBe('NEW')
   })
@@ -101,7 +103,7 @@ describe('POST /git/commit and /git/commit-files — server-stamped author (#382
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          path: 'p.mdoc',
+          path: 'taxonomy/categories.yaml',
           content: 'X',
           message: 'm',
           author: spoofedAuthor
@@ -124,7 +126,7 @@ describe('POST /git/commit and /git/commit-files — server-stamped author (#382
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          changes: [{ path: 'p.mdoc', content: 'X' }],
+          changes: [{ path: 'taxonomy/categories.yaml', content: 'X' }],
           message: 'm',
           author: spoofedAuthor
         })
@@ -142,7 +144,7 @@ describe('POST /git/commit and /git/commit-files — server-stamped author (#382
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          path: 'p.mdoc',
+          path: 'taxonomy/categories.yaml',
           content: 'X',
           message: 'm',
           author: spoofedAuthor

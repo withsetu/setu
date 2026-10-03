@@ -6,7 +6,11 @@ import { createAuthz, DEFAULT_ROLES } from '@setu/core'
 import type { Action, GitPort } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
 import { apiOnError } from './errors'
-import { writeActionForChanges, isCanonicalRepoPath } from './app'
+import {
+  writeActionForChanges,
+  isCanonicalRepoPath,
+  writablePathAction
+} from './app'
 import type { ResolveActor, ResolvedActor } from './auth/resolve-actor'
 
 const authz = createAuthz(DEFAULT_ROLES)
@@ -59,7 +63,10 @@ const listQuerySchema = z.object({
 const fileQuerySchema = z.object({ sha: shaSchema, path: contentPathSchema })
 
 const restoreSchema = z.object({
-  path: contentPathSchema,
+  // #1154: a restore is a git WRITE, so its path must also be on the writable allowlist — the
+  // read routes above may inspect any canonical content-tree path, but only an entry is
+  // restorable (apps/api/test/history-api.test.ts).
+  path: contentPathSchema.refine((p) => writablePathAction(p) !== null),
   sha: shaSchema,
   /** Fallback identity for the local/no-session topology only — a session's
    *  `gitAuthor` is always stamped over it (#382). */

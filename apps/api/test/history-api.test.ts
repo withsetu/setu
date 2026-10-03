@@ -286,6 +286,23 @@ describe('POST /api/history/restore — same write derivation as /git/commit', (
     ).toBe(400)
   })
 
+  // #1154: a restore is a git write, so a content-tree path that is NOT an entry (and therefore
+  // off the writable allowlist) is refused even for an admin, even when the revision exists.
+  it('400s an ADMIN restoring a non-entry content-tree path that exists in history', async () => {
+    const git = await seededGit()
+    const { sha } = await git.commitFile({
+      path: 'content/notes.txt',
+      content: 'x',
+      message: 'stray',
+      author: alice
+    })
+    const a = app(git, asRole('admin'))
+    expect(
+      (await post(a, { path: 'content/notes.txt', sha, author: bodyAuthor }))
+        .status
+    ).toBe(400)
+  })
+
   it('404s an unknown (well-formed) sha', async () => {
     const a = app(await seededGit(), asRole('editor'))
     expect(

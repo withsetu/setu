@@ -19,6 +19,9 @@ export function runGitPortContract(
   makeAdapter: () => Promise<GitPort> | GitPort,
   options: GitPortContractOptions = {}
 ): void {
+  // Every write path is a CMS-writable shape (`content/<collection>/<locale>/<slug>.mdoc`,
+  // `settings.json`): git-http runs this suite through the real API routes, which refuse any path
+  // off the writable allowlist (#1154, apps/api/test/git-write-allowlist.test.ts).
   describe('GitPort contract', () => {
     let port: GitPort
     beforeEach(async () => {
@@ -27,12 +30,12 @@ export function runGitPortContract(
 
     it('reports null head and null reads on an empty repo', async () => {
       expect(await port.headSha()).toBeNull()
-      expect(await port.readFile('x.mdoc')).toBeNull()
+      expect(await port.readFile('content/contract/en/x.mdoc')).toBeNull()
     })
 
     it('commits a file and returns a string sha that becomes HEAD', async () => {
       const { sha } = await port.commitFile({
-        path: 'a.mdoc',
+        path: 'content/contract/en/a.mdoc',
         content: 'A',
         message: 'm',
         author
@@ -45,58 +48,60 @@ export function runGitPortContract(
 
     it('reads back committed content; null for an uncommitted path', async () => {
       await port.commitFile({
-        path: 'a.mdoc',
+        path: 'content/contract/en/a.mdoc',
         content: 'hello',
         message: 'm',
         author
       })
-      expect(await port.readFile('a.mdoc')).toBe('hello')
+      expect(await port.readFile('content/contract/en/a.mdoc')).toBe('hello')
       expect(await port.readFile('missing.mdoc')).toBeNull()
     })
 
     it('a second commit advances HEAD and reflects the latest content', async () => {
       const first = await port.commitFile({
-        path: 'a.mdoc',
+        path: 'content/contract/en/a.mdoc',
         content: 'v1',
         message: 'm1',
         author
       })
       const second = await port.commitFile({
-        path: 'a.mdoc',
+        path: 'content/contract/en/a.mdoc',
         content: 'v2',
         message: 'm2',
         author
       })
       expect(second.sha).not.toBe(first.sha)
       expect(await port.headSha()).toBe(second.sha)
-      expect(await port.readFile('a.mdoc')).toBe('v2')
+      expect(await port.readFile('content/contract/en/a.mdoc')).toBe('v2')
     })
 
     it('committing a second path does not overwrite the first', async () => {
       await port.commitFile({
-        path: 'a.mdoc',
+        path: 'content/contract/en/a.mdoc',
         content: 'A',
         message: 'm1',
         author
       })
       await port.commitFile({
-        path: 'b.mdoc',
+        path: 'content/contract/en/b.mdoc',
         content: 'B',
         message: 'm2',
         author
       })
-      expect(await port.readFile('a.mdoc')).toBe('A')
-      expect(await port.readFile('b.mdoc')).toBe('B')
+      expect(await port.readFile('content/contract/en/a.mdoc')).toBe('A')
+      expect(await port.readFile('content/contract/en/b.mdoc')).toBe('B')
     })
 
     it('commits and reads nested paths (parent dirs created)', async () => {
       await port.commitFile({
-        path: 'blog/sub/hello.mdoc',
+        path: 'content/contract/fr/hello.mdoc',
         content: 'nested',
         message: 'm',
         author
       })
-      expect(await port.readFile('blog/sub/hello.mdoc')).toBe('nested')
+      expect(await port.readFile('content/contract/fr/hello.mdoc')).toBe(
+        'nested'
+      )
     })
 
     it('lists nothing on an empty repo', async () => {
@@ -117,7 +122,7 @@ export function runGitPortContract(
         author
       })
       await port.commitFile({
-        path: 'setu.config.ts',
+        path: 'settings.json',
         content: 'C',
         message: 'm',
         author
@@ -126,7 +131,7 @@ export function runGitPortContract(
       expect([...(await port.list())].sort()).toEqual([
         'content/page/en/b.mdoc',
         'content/post/en/a.mdoc',
-        'setu.config.ts'
+        'settings.json'
       ])
       expect([...(await port.list('content/post/'))].sort()).toEqual([
         'content/post/en/a.mdoc'
@@ -137,56 +142,56 @@ export function runGitPortContract(
     it('commitFiles writes multiple files in ONE commit', async () => {
       const { sha } = await port.commitFiles({
         changes: [
-          { path: 'a.mdoc', content: 'A' },
-          { path: 'b.mdoc', content: 'B' }
+          { path: 'content/contract/en/a.mdoc', content: 'A' },
+          { path: 'content/contract/en/b.mdoc', content: 'B' }
         ],
         message: 'm',
         author
       })
       expect(await port.headSha()).toBe(sha)
-      expect(await port.readFile('a.mdoc')).toBe('A')
-      expect(await port.readFile('b.mdoc')).toBe('B')
+      expect(await port.readFile('content/contract/en/a.mdoc')).toBe('A')
+      expect(await port.readFile('content/contract/en/b.mdoc')).toBe('B')
     })
 
     it('commitFiles deletes a file', async () => {
       await port.commitFile({
-        path: 'a.mdoc',
+        path: 'content/contract/en/a.mdoc',
         content: 'A',
         message: 'm',
         author
       })
       await port.commitFiles({
-        changes: [{ path: 'a.mdoc', delete: true }],
+        changes: [{ path: 'content/contract/en/a.mdoc', delete: true }],
         message: 'rm',
         author
       })
-      expect(await port.readFile('a.mdoc')).toBeNull()
+      expect(await port.readFile('content/contract/en/a.mdoc')).toBeNull()
       expect(await port.list()).toEqual([])
     })
 
     it('commitFiles mixes a write and a delete in ONE commit', async () => {
       await port.commitFile({
-        path: 'a.mdoc',
+        path: 'content/contract/en/a.mdoc',
         content: 'A',
         message: 'm',
         author
       })
       const { sha } = await port.commitFiles({
         changes: [
-          { path: 'a.mdoc', delete: true },
-          { path: 'b.mdoc', content: 'B' }
+          { path: 'content/contract/en/a.mdoc', delete: true },
+          { path: 'content/contract/en/b.mdoc', content: 'B' }
         ],
         message: 'm2',
         author
       })
       expect(await port.headSha()).toBe(sha)
-      expect(await port.readFile('a.mdoc')).toBeNull()
-      expect(await port.readFile('b.mdoc')).toBe('B')
+      expect(await port.readFile('content/contract/en/a.mdoc')).toBeNull()
+      expect(await port.readFile('content/contract/en/b.mdoc')).toBe('B')
     })
 
     it('commitFiles with empty changes makes no commit', async () => {
       const { sha: first } = await port.commitFile({
-        path: 'a.mdoc',
+        path: 'content/contract/en/a.mdoc',
         content: 'A',
         message: 'm',
         author
@@ -202,23 +207,23 @@ export function runGitPortContract(
 
     it('commitFiles tolerates deleting an absent path (no commit)', async () => {
       const { sha: first } = await port.commitFile({
-        path: 'a.mdoc',
+        path: 'content/contract/en/a.mdoc',
         content: 'A',
         message: 'm',
         author
       })
       const { sha } = await port.commitFiles({
-        changes: [{ path: 'ghost.mdoc', delete: true }],
+        changes: [{ path: 'content/contract/en/ghost.mdoc', delete: true }],
         message: 'noop',
         author
       })
       expect(sha).toBe(first)
-      expect(await port.readFile('a.mdoc')).toBe('A')
+      expect(await port.readFile('content/contract/en/a.mdoc')).toBe('A')
     })
 
     it('commitFiles applies same-path changes in order (last wins)', async () => {
       await port.commitFile({
-        path: 'x.mdoc',
+        path: 'content/contract/en/x.mdoc',
         content: 'OLD',
         message: 'm',
         author
@@ -226,24 +231,24 @@ export function runGitPortContract(
       // delete then re-write the same path in one batch → write wins
       const a = await port.commitFiles({
         changes: [
-          { path: 'x.mdoc', delete: true },
-          { path: 'x.mdoc', content: 'OLD' }
+          { path: 'content/contract/en/x.mdoc', delete: true },
+          { path: 'content/contract/en/x.mdoc', content: 'OLD' }
         ],
         message: 'b1',
         author
       })
       expect(await port.headSha()).toBe(a.sha)
-      expect(await port.readFile('x.mdoc')).toBe('OLD')
+      expect(await port.readFile('content/contract/en/x.mdoc')).toBe('OLD')
       // write then delete the same path in one batch → delete wins
       await port.commitFiles({
         changes: [
-          { path: 'x.mdoc', content: 'NEW' },
-          { path: 'x.mdoc', delete: true }
+          { path: 'content/contract/en/x.mdoc', content: 'NEW' },
+          { path: 'content/contract/en/x.mdoc', delete: true }
         ],
         message: 'b2',
         author
       })
-      expect(await port.readFile('x.mdoc')).toBeNull()
+      expect(await port.readFile('content/contract/en/x.mdoc')).toBeNull()
     })
 
     const byPath = (a: { path: string }, b: { path: string }) =>
@@ -251,7 +256,7 @@ export function runGitPortContract(
 
     it('diffPaths reports an added file (and deleted in the reverse direction)', async () => {
       const { sha: from } = await port.commitFile({
-        path: 'a.mdoc',
+        path: 'content/contract/en/a.mdoc',
         content: 'A',
         message: 'm1',
         author
@@ -338,7 +343,7 @@ export function runGitPortContract(
 
     it('diffPaths of identical shas is empty', async () => {
       const { sha } = await port.commitFile({
-        path: 'a.mdoc',
+        path: 'content/contract/en/a.mdoc',
         content: 'A',
         message: 'm',
         author
@@ -348,7 +353,7 @@ export function runGitPortContract(
 
     it('diffPaths rejects on a sha the repo does not know', async () => {
       const { sha } = await port.commitFile({
-        path: 'a.mdoc',
+        path: 'content/contract/en/a.mdoc',
         content: 'A',
         message: 'm',
         author

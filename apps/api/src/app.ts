@@ -7,6 +7,9 @@ import {
   parseContentPath,
   parseMdoc,
   unicodeCaseFold,
+  hasGitDirSegment,
+  TAXONOMY_PATH,
+  HEALTH_STATE_PATH,
   validateEntryMetadata
 } from '@setu/core'
 import { FALLBACK_CONFIG } from './setu-config'
@@ -25,19 +28,69 @@ export { createFormsApi } from './forms'
 
 const authz = createAuthz(DEFAULT_ROLES)
 
-/** Repo-root files that persist through this shared git primitive but demand a stronger write
- *  permission than ordinary content — there is NO dedicated settings/theme route, so the write gate
- *  must distinguish them BY PATH. Otherwise any `content.edit` holder (author/editor) could rewrite
- *  them, bypassing the action the admin UI gates them behind (failure mode #13):
- *    - `settings.json`      → `settings.manage` (admin only; UAT 2026-07-05)
- *    - `theme-options.json` → `theme.manage`    (maintainer+/admin; the Appearance screen's gate — #419)
- *  Keys MUST be lowercase AND ASCII — the lookup case-folds the path (see `foldRepoPath`) so
- *  `Settings.json` on a case-insensitive filesystem (macOS/Windows), which is the SAME inode,
- *  cannot slip the gate. `isCanonicalRepoPath` guarantees every repo-ROOT path reaching that
- *  lookup is ASCII, which is what makes the fold faithful (see #644 there). */
-const PATH_WRITE_ACTION: Record<string, Action> = {
-  'settings.json': 'settings.manage',
-  'theme-options.json': 'theme.manage'
+/** THE writable-path allowlist for the git write routes (#1154) — every repo path the CMS itself
+ *  writes, each mapped to the BASE action it requires. Anything not listed is refused with 400 for
+ *  every role, admin included: the git write routes are the CMS's persistence primitive, not a
+ *  general repo editor, so VCS internals and files the server or build executes are simply not
+ *  writable through them.
+ *
+ *  Enumerated from the writers that reach these routes (admin via HttpGitPort, the restore route
+ *  via `writeActionForChanges`):
+ *    - content entries — publish/bulk/rename/taxonomy-delete services (`contentPath`)
+ *    - `taxonomy/categories.yaml` — taxonomy services (`TAXONOMY_PATH`)
+ *    - `site-health.json` — the Site Health attestation writer (`HEALTH_STATE_PATH`)
+ *    - `settings.json` — the Settings screens (admin only; UAT 2026-07-05)
+ *    - `theme-options.json` — the Appearance screen (maintainer+/admin — #419)
+ *  `url-map.json` / `redirects.json` are build outputs written by the site build's own scripts, not
+ *  through these routes, so they are deliberately NOT listed.
+ *
+ *  Exact-file shapes match the LITERAL path only. A case or fold variant (`Settings.json`,
+ *  `taxonomy/categorieſ.yaml`) is therefore not on the list and is refused outright, rather than
+ *  being folded onto the entry — on a case-insensitive filesystem it would be the same inode, and
+ *  refusing it is strictly stronger than classifying it. Content entries are matched by
+ *  `parseContentPath`, whose case-variants `isCanonicalRepoPath` already rejects (#647/#654).
+ *
+ *  The content entry's `content.edit` is a FLOOR: `writeActionForChanges` raises it to
+ *  `content.publish` for live content and for edits to committed-live posts (#382).
+ *  Enforced by apps/api/test/git-write-allowlist.test.ts. */
+export const WRITABLE_REPO_PATHS: readonly {
+  shape: string
+  matches: (p: string) => boolean
+  action: Action
+}[] = [
+  {
+    shape: 'content/<collection>/<locale>/<slug>.mdoc',
+    matches: (p) => parseContentPath(p) !== null,
+    action: 'content.edit'
+  },
+  {
+    shape: TAXONOMY_PATH,
+    matches: (p) => p === TAXONOMY_PATH,
+    action: 'content.edit'
+  },
+  {
+    shape: HEALTH_STATE_PATH,
+    matches: (p) => p === HEALTH_STATE_PATH,
+    action: 'content.edit'
+  },
+  {
+    shape: 'settings.json',
+    matches: (p) => p === 'settings.json',
+    action: 'settings.manage'
+  },
+  {
+    shape: 'theme-options.json',
+    matches: (p) => p === 'theme-options.json',
+    action: 'theme.manage'
+  }
+]
+
+/** The base action an allowlisted path requires, or `null` when the path is NOT writable through
+ *  the CMS (#1154). Callers must treat `null` as a refusal. A non-canonical path (including one
+ *  with a VCS-directory segment) is never writable, so this is safe to call on raw input. */
+export function writablePathAction(p: string): Action | null {
+  if (!isCanonicalRepoPath(p)) return null
+  return WRITABLE_REPO_PATHS.find((r) => r.matches(p))?.action ?? null
 }
 
 /** Case-fold a repo path for gate matching, so a case-only variant can't slip the classification
@@ -153,11 +206,17 @@ export function isCanonicalRepoPath(p: unknown): p is string {
   if (p.startsWith('/') || p.endsWith('/')) return false
   if (p.includes('//')) return false
   if (p.split('/').some((seg) => seg === '.' || seg === '..')) return false
+  // #1154: no segment may name the VCS directory in ANY spelling a case-folding or
+  // name-normalizing filesystem resolves onto it (`.GIT`, `.git.`, `git~1`, …). The allowlist
+  // below already excludes the root `.git/`, but `content/.git/en/x.mdoc` is entry-shaped, so the
+  // rule lives here too. Same predicate git-local's `safePath` enforces (defence in depth).
+  // Enforced by apps/api/test/git-write-allowlist.test.ts.
+  if (hasGitDirSegment(p)) return false
   // #644: a repo-ROOT path must additionally be ASCII. `foldRepoPath` folds with
   // `String.prototype.toLowerCase()` — Unicode SIMPLE CASE MAPPING — while a case-insensitive
   // filesystem (APFS/NTFS) resolves names by Unicode CASE FOLDING, a strictly LARGER relation.
   // Characters in the gap fold into ASCII without `toLowerCase` touching them, and each one is a
-  // `PATH_WRITE_ACTION` bypass. Confirmed on macOS/APFS: `'ſ'.toLowerCase() !== 's'` (U+017F), yet
+  // root-file gate bypass. Confirmed on macOS/APFS: `'ſ'.toLowerCase() !== 's'` (U+017F), yet
   // writing `ſettings.json` and reading `settings.json` hits ONE file — the same inode. So an
   // author (content.edit, NOT settings.manage) could send `ſettings.json`, miss the lookup, be
   // gated as ordinary content, and drive the adapter into the real settings file.
@@ -169,7 +228,7 @@ export function isCanonicalRepoPath(p: unknown): p is string {
   // gives the gate its property: no two distinct ACCEPTED root paths can resolve to the same file
   // without the gate classifying them identically.
   //
-  // Scoped to the ROOT on purpose. Every `PATH_WRITE_ACTION` key is a root file, so this is
+  // Scoped to the ROOT on purpose. The privileged allowlist entries are root files, so this is
   // exactly enough to close that lookup — while content paths legitimately carry non-ASCII slugs
   // (`entrySlugify` keeps `\p{L}`, so "Café" yields `content/blog/en/café.mdoc`), and a repo-wide
   // ASCII rule would reject real posts. That narrowness is the reason the sibling case-variant
@@ -279,23 +338,23 @@ const WRITE_ACTION_RANK: Record<string, number> = {
  *  and `authz.can` denies it for every role (no role's permission set contains an action that is
  *  not on the matrix), so the request 403s rather than being admitted on `content.edit`.
  *
- *  Unreachable today: every action `actionForChange` can return is a `PATH_WRITE_ACTION` value or
- *  one of the two literals, and all four are in the table. This is a REGRESSION GUARD for the next
- *  entry added to `PATH_WRITE_ACTION` (or a new derived action) without a matching rank. */
+ *  Unreachable today: every action `actionForChange` can return is a `WRITABLE_REPO_PATHS` action
+ *  or `content.publish`, and all four are in the table. This is a REGRESSION GUARD for the next
+ *  entry added to `WRITABLE_REPO_PATHS` (or a new derived action) without a matching rank. */
 export const writeActionRank = (a: Action): number =>
   WRITE_ACTION_RANK[a] ?? Infinity
 
 /** The write permission a single change requires, from its path and (for writes) NEW content only.
  *  (The committed-state half of the rule lives in `writeActionForChanges`, which can read git.)
- *   - a `PATH_WRITE_ACTION` file (settings.json / theme-options.json) → its mapped action
- *   - a content post going live → `content.publish` (publishing is gated server-side, not just in
- *     the UI's PublishMenu — an author must not publish via the raw API); a `published:false` draft
- *     only needs `content.edit`
- *   - everything else (drafts, taxonomy, deletes) → `content.edit` */
+ *   - its `WRITABLE_REPO_PATHS` base action (settings.json → settings.manage, …)
+ *   - raised to `content.publish` for a content post going live (publishing is gated server-side,
+ *     not just in the UI's PublishMenu — an author must not publish via the raw API); a
+ *     `published:false` draft keeps the `content.edit` floor
+ *  `path` is guaranteed canonical AND allowlisted here — `writeActionForChanges` fails closed
+ *  before this runs, so the `null` arm is unreachable and only keeps the type honest. */
 function actionForChange({ path, content }: WriteChange): Action {
-  // `path` is guaranteed canonical here — `writeActionForChanges` fails closed before this runs.
-  const overrideAction = PATH_WRITE_ACTION[foldRepoPath(path)]
-  if (overrideAction) return overrideAction
+  const base = writablePathAction(path) ?? 'settings.manage'
+  if (base !== 'content.edit') return base
   if (
     content !== undefined &&
     parseContentPath(path) &&
@@ -327,7 +386,15 @@ export async function writeActionForChanges(
   // disagree about which file is being written, so demand the STRONGEST action on the ladder
   // rather than guess. `requireWrite` rejects these with a 400 before they ever get here, so this
   // branch is reachable only from a direct call — which is exactly what it exists to protect.
-  if (!changes.every((c) => isCanonicalRepoPath(c.path)))
+  //
+  // #1154: the same backstop covers a path OFF the writable allowlist. `requireWrite` 400s those
+  // for every role before this runs; a direct caller must constrain its own paths too (the
+  // restore route refines its schema with `writablePathAction`).
+  if (
+    !changes.every(
+      (c) => isCanonicalRepoPath(c.path) && writablePathAction(c.path) !== null
+    )
+  )
     return 'settings.manage'
 
   const publishRank = writeActionRank('content.publish')
@@ -425,6 +492,11 @@ function requireWrite(
           { error: 'path must be canonical and repo-relative' },
           400
         )
+      // #1154: only the paths the CMS itself writes are writable at all — VCS internals,
+      // executed config and anything else unlisted are a malformed request for EVERY role
+      // (apps/api/test/git-write-allowlist.test.ts).
+      if (!changes.every((ch) => writablePathAction(ch.path) !== null))
+        return c.json({ error: 'path is not writable through the CMS' }, 400)
       if (!authz.can(c.get('actor'), await writeActionForChanges(changes, git)))
         return c.json({ error: 'forbidden' }, 403)
       await next()
@@ -516,7 +588,9 @@ function requireCan(action: Action) {
  *                                  post, or any other edit to it is a publish-adjacent action — an
  *                                  author must not be able to silently unpublish or delete a live
  *                                  post just because `content.edit` lets them write drafts).
- *    - everything else            → `content.edit` (Author/Editor/Maintainer/Admin).
+ *    - `theme-options.json`      → `theme.manage`; taxonomy + site-health → `content.edit`.
+ *    - a content draft            → `content.edit` (Author/Editor/Maintainer/Admin).
+ *    - ANY OTHER PATH             → 400 for every role (#1154, `WRITABLE_REPO_PATHS`).
  *  Fail-closed: a mixed commit requires the strongest permission any change needs. Path scoping is
  *  otherwise still coarse (taxonomy also rides `content.edit`; a later/Pro increment refines it). The
  *  security-critical properties: an unauthenticated actor cannot write at all, content staff cannot

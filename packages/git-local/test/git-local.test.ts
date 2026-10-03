@@ -70,6 +70,59 @@ describe('git-local adapter (on-disk)', () => {
     ).rejects.toThrow(/escape/i)
   })
 
+  // #1154: defence in depth beneath the API's path allowlist — the adapter itself refuses any
+  // segment that resolves onto the VCS directory, in every case-folded spelling.
+  it.each(['.git/config', '.GIT/x', 'content/.Git/hooks/pre-commit'])(
+    'refuses a VCS-internal path %j',
+    async (path) => {
+      dir = mkdtempSync(join(tmpdir(), 'setu-git-'))
+      await git.init({ fs: nodeFs, dir, defaultBranch: 'main' })
+      const before = nodeFs.readFileSync(join(dir, '.git', 'config'), 'utf8')
+      const a = createLocalGitAdapter({ dir })
+      await expect(
+        a.commitFile({
+          path,
+          content: 'X',
+          message: 'm',
+          author: { name: 'E', email: 'e@x.com' }
+        })
+      ).rejects.toThrow(/VCS/i)
+      expect(nodeFs.readFileSync(join(dir, '.git', 'config'), 'utf8')).toBe(
+        before
+      )
+      expect(cli(dir, 'status', '--porcelain', '--untracked-files=all')).toBe(
+        ''
+      )
+    }
+  )
+
+  // #1154: every path in a batch is validated BEFORE any filesystem write, so a refused path
+  // later in the batch cannot leave an earlier change written to the working tree.
+  it('writes NOTHING to disk when any path in a batch is refused', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'setu-git-'))
+    await git.init({ fs: nodeFs, dir, defaultBranch: 'main' })
+    const a = createLocalGitAdapter({ dir })
+    for (const bad of ['.git/hooks/post-commit', '../escape.mdoc']) {
+      await expect(
+        a.commitFiles({
+          changes: [
+            { path: 'content/post/en/ok.mdoc', content: 'fine' },
+            { path: bad, content: 'X' }
+          ],
+          message: 'm',
+          author: { name: 'E', email: 'e@x.com' }
+        })
+      ).rejects.toThrow()
+      expect(nodeFs.existsSync(join(dir, 'content'))).toBe(false)
+      expect(nodeFs.existsSync(join(dir, '.git', 'hooks', 'post-commit'))).toBe(
+        false
+      )
+      expect(cli(dir, 'status', '--porcelain', '--untracked-files=all')).toBe(
+        ''
+      )
+    }
+  })
+
   it('serializes concurrent commits to different paths without cross-contamination', async () => {
     dir = mkdtempSync(join(tmpdir(), 'setu-git-'))
     await git.init({ fs: nodeFs, dir, defaultBranch: 'main' })

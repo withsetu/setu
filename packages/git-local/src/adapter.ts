@@ -1,7 +1,8 @@
 import nodeFs from 'node:fs'
-import { dirname, resolve, sep } from 'node:path'
+import { dirname, relative, resolve, sep } from 'node:path'
 import * as git from 'isomorphic-git'
 import type { PromiseFsClient } from 'isomorphic-git'
+import { hasGitDirSegment } from '@setu/core'
 import type {
   GitPort,
   CommitFilesInput,
@@ -192,6 +193,13 @@ export function createLocalGitAdapter(options: LocalGitOptions): GitPort {
     if (full !== repoRoot && !full.startsWith(repoRoot + sep)) {
       throw new Error(`commitFiles: path escapes the repository root: ${p}`)
     }
+    // #1154: never write into the VCS directory, in any spelling a case-folding or
+    // name-normalizing filesystem resolves onto it. Checked on the caller's path AND on the
+    // resolved remainder, so normalization cannot launder a segment past the check. Defence in
+    // depth beneath the API's path allowlist (packages/git-local/test/git-local.test.ts).
+    if (hasGitDirSegment(p) || hasGitDirSegment(relative(repoRoot, full))) {
+      throw new Error(`commitFiles: path targets the VCS directory: ${p}`)
+    }
     return full
   }
 
@@ -202,14 +210,17 @@ export function createLocalGitAdapter(options: LocalGitOptions): GitPort {
   }: CommitFilesInput): Promise<CommitResult> =>
     serialize(async () => {
       const staged: string[] = []
+      // #1154: validate EVERY path before touching the filesystem, so a refused path anywhere in
+      // the batch leaves the working tree untouched (packages/git-local/test/git-local.test.ts).
+      const fullPaths = changes.map((ch) => safePath(ch.path))
       try {
         const pending = new Map<string, string | null>()
         const effective = async (p: string): Promise<string | null> => {
           const v = pending.get(p)
           return v === undefined ? await readFileAtHead(p) : v
         }
-        for (const ch of changes) {
-          const full = safePath(ch.path)
+        for (const [i, ch] of changes.entries()) {
+          const full = fullPaths[i]!
           if ('delete' in ch) {
             if ((await effective(ch.path)) !== null) {
               await fsp.unlink(full).catch(() => {})

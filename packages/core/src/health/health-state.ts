@@ -1,5 +1,9 @@
 import type { AttestationRecord, HealthState } from './types'
 
+/** Repo-root file the Git-backed health attestations persist to. Shared by the admin writer
+ *  (apps/admin/src/health/health-state.ts) and the API's writable-path allowlist (#1154). */
+export const HEALTH_STATE_PATH = 'site-health.json'
+
 const isRecord = (v: unknown): v is AttestationRecord =>
   typeof v === 'object' &&
   v !== null &&

@@ -240,6 +240,7 @@ export type {
   GitLogEntry
 } from './git/types'
 export type { GitPort } from './git/git-port'
+export { isGitDirSegment, hasGitDirSegment } from './git/repo-path'
 
 export type {
   PublishInput,
@@ -490,7 +491,11 @@ export {
 } from './health/run-audit'
 export { auditScanFromEntries, SCAN_ITEM_IDS } from './health/scan-data'
 export { evaluateProbe, mergeProbe, PROBE_ITEM_IDS } from './health/probe'
-export { parseHealthState, setHealthRecord } from './health/health-state'
+export {
+  parseHealthState,
+  setHealthRecord,
+  HEALTH_STATE_PATH
+} from './health/health-state'
 
 export type {
   ReprocessStatus,

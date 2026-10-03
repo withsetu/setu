@@ -29,13 +29,13 @@ const unauthenticated: ResolveActor = () => null
 const author = { name: 'T', email: 't@x.com' }
 
 const commitBody = JSON.stringify({
-  path: 'p.mdoc',
+  path: 'taxonomy/categories.yaml',
   content: 'X',
   message: 'm',
   author
 })
 const commitFilesBody = JSON.stringify({
-  changes: [{ path: 'p.mdoc', content: 'X' }],
+  changes: [{ path: 'taxonomy/categories.yaml', content: 'X' }],
   message: 'm',
   author
 })
@@ -46,7 +46,7 @@ const WRITE_ROUTES: Array<[string, string]> = [
 ]
 // #621 — the reads that return repo CONTENT. Gated: authMiddleware + content.view.
 const GATED_READ_ROUTES = [
-  '/git/file?path=p.mdoc',
+  '/git/file?path=taxonomy/categories.yaml',
   '/git/list',
   `/git/diff?from=${'a'.repeat(40)}&to=${'b'.repeat(40)}`
 ]
@@ -94,14 +94,14 @@ describe('createGitApi — authz enforcement (#362, the Git-write hole)', () => 
     for (const role of ['admin', 'maintainer', 'editor', 'author'] as Role[]) {
       const git = createMemoryGitPort()
       const { sha } = await git.commitFile({
-        path: 'p.mdoc',
+        path: 'taxonomy/categories.yaml',
         content: 'X',
         message: 'seed',
         author
       })
       const a = createGitApi(git, asRole(role))
       for (const path of [
-        '/git/file?path=p.mdoc',
+        '/git/file?path=taxonomy/categories.yaml',
         '/git/list',
         `/git/diff?from=${sha}&to=${sha}`
       ])
@@ -151,7 +151,7 @@ describe('createGitApi — settings-path write gate (settings.json → settings.
   })
   const mixedFiles = JSON.stringify({
     changes: [
-      { path: 'p.mdoc', content: 'X' },
+      { path: 'taxonomy/categories.yaml', content: 'X' },
       { path: 'settings.json', content: '{}' }
     ],
     message: 'm',
@@ -296,7 +296,7 @@ describe('createGitApi — content publish gate (live → content.publish, draft
 
   it('leaves non-content paths (taxonomy) at content.edit — an author can still write them', async () => {
     const taxBody = JSON.stringify({
-      path: 'categories.yaml',
+      path: 'taxonomy/categories.yaml',
       content: 'cats: []',
       message: 'm',
       author
@@ -455,21 +455,23 @@ describe('createGitApi — theme-options write gate (theme-options.json → them
 
 // #419 — the settings/theme path gate matched case-sensitively; on a case-insensitive filesystem
 // (macOS/Windows) `Settings.json` is the SAME inode as settings.json, so a content.edit holder could
-// smuggle a settings write past the exact-match gate. The gate now case-folds the path.
+// smuggle a settings write past the exact-match gate. #419 case-folded the lookup (→ 403); #1154's
+// writable allowlist matches the LITERAL path, so a case variant is not writable at all → 400 for
+// every role, which is strictly stronger (apps/api/test/git-write-allowlist.test.ts).
 describe('createGitApi — path gate is case-insensitive (no case-fold bypass)', () => {
   const cased = (p: string) =>
     JSON.stringify({ path: p, content: '{}', message: 'm', author })
 
-  it('rejects MAINTAINER writing Settings.json / SETTINGS.JSON with 403 (settings.manage)', async () => {
-    for (const p of ['Settings.json', 'SETTINGS.JSON'])
-      expect(
-        (await write(app(asRole('maintainer')), '/git/commit', cased(p)))
-          .status,
-        p
-      ).toBe(403)
+  it('refuses MAINTAINER (and ADMIN) writing Settings.json / SETTINGS.JSON', async () => {
+    for (const role of ['maintainer', 'admin'] as Role[])
+      for (const p of ['Settings.json', 'SETTINGS.JSON'])
+        expect(
+          (await write(app(asRole(role)), '/git/commit', cased(p))).status,
+          `${role} ${p}`
+        ).toBe(400)
   })
 
-  it('rejects EDITOR writing Theme-Options.json with 403 (theme.manage)', async () => {
+  it('refuses EDITOR writing Theme-Options.json', async () => {
     expect(
       (
         await write(
@@ -478,7 +480,7 @@ describe('createGitApi — path gate is case-insensitive (no case-fold bypass)',
           cased('Theme-Options.json')
         )
       ).status
-    ).toBe(403)
+    ).toBe(400)
   })
 })
 
@@ -486,7 +488,7 @@ describe('createGitApi — path gate is case-insensitive (no case-fold bypass)',
 // the unauthenticated ReDoS on /forms/submit, #340). Writes are now capped; oversize → 413.
 describe('createGitApi — request body size cap (413)', () => {
   const oversized =
-    '{"path":"p.mdoc","content":"' +
+    '{"path":"taxonomy/categories.yaml","content":"' +
     'a'.repeat(10 * 1024 * 1024 + 1024) +
     '","message":"m"}'
 
@@ -677,7 +679,7 @@ describe('#622 writeActionRank fails closed on an unknown action', () => {
   it('leaves the ordinary derivation untouched (ordinary content still ranks content.edit)', async () => {
     expect(
       await writeActionForChanges(
-        [{ path: 'p.mdoc', content: 'X' }],
+        [{ path: 'taxonomy/categories.yaml', content: 'X' }],
         createMemoryGitPort()
       )
     ).toBe('content.edit')

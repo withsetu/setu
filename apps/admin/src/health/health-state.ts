@@ -1,4 +1,5 @@
 import {
+  HEALTH_STATE_PATH,
   parseHealthState,
   setHealthRecord,
   type HealthState,
@@ -7,7 +8,7 @@ import {
 } from '@setu/core'
 import { OWNER_AUTHOR } from '../data/store'
 
-const HEALTH_PATH = 'site-health.json'
+const HEALTH_PATH = HEALTH_STATE_PATH
 
 export async function loadHealthState(git: GitPort): Promise<HealthState> {
   const raw = await git.readFile(HEALTH_PATH)

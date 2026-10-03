@@ -10,12 +10,14 @@ import {
   urlSitemapXml,
   newestLastmod,
   buildRobotsTxt,
-  encodeTaxonomySlug,
   chunkSitemapUrls,
+  sitemapIndexEntries,
+  POST_SITEMAP_MAX,
   type SitemapEntry,
   type SitemapConfig,
   type SitemapUrl
 } from '../src/lib/sitemap'
+import { taxonomyArchivePath } from '@setu/core'
 
 const e = (id: string, data: Record<string, unknown> = {}): SitemapEntry => ({
   id,
@@ -64,6 +66,87 @@ describe('entryUrls', () => {
       'https://example.com/page/about/'
     ])
   })
+
+  // The collision-aware permalink map with `reading.homepage: page/en/landing`: the configured
+  // homepage owns '' and page/en/home is an ordinary page (permalinks.ts root overrides, #660).
+  const landingMap: Record<string, string> = {
+    'page/en/landing': '',
+    'page/en/home': 'page/home',
+    'page/en/about': 'page/about'
+  }
+  const viaLandingMap = (id: string) => landingMap[id]
+
+  it('non-default homepage: page/en/home is listed at its own path, not hard-skipped (#1120)', () => {
+    const urls = entryUrls(
+      [e('page/en/home'), e('page/en/landing'), e('page/en/about')],
+      'page',
+      SITE,
+      'page/en/landing',
+      '',
+      viaLandingMap
+    )
+    expect(urls.map((u) => u.loc)).toEqual([
+      'https://example.com/',
+      'https://example.com/page/home/',
+      'https://example.com/page/about/'
+    ])
+  })
+
+  it('non-default homepage that is a draft: page/en/home takes the root, as index.astro serves it (#165)', () => {
+    const urls = entryUrls(
+      [
+        e('page/en/home'),
+        e('page/en/landing', { published: false }),
+        e('page/en/about')
+      ],
+      'page',
+      SITE,
+      'page/en/landing',
+      '',
+      viaLandingMap
+    )
+    expect(urls.map((u) => u.loc)).toEqual([
+      'https://example.com/',
+      'https://example.com/page/about/'
+    ])
+  })
+
+  it('a seo.noindex homepage is not advertised at the site root (#1120)', () => {
+    const noindexHome = entryUrls(
+      [e('page/en/home', { seo: { noindex: true } }), e('page/en/about')],
+      'page',
+      SITE,
+      HOME
+    )
+    expect(noindexHome.map((u) => u.loc)).toEqual([
+      'https://example.com/page/about/'
+    ])
+    // …and a non-default noindex homepage is neither at / nor at its own path.
+    const noindexLanding = entryUrls(
+      [
+        e('page/en/home'),
+        e('page/en/landing', { seo: { noindex: true } }),
+        e('page/en/about')
+      ],
+      'page',
+      SITE,
+      'page/en/landing',
+      '',
+      viaLandingMap
+    )
+    expect(noindexLanding.map((u) => u.loc)).toEqual([
+      'https://example.com/page/home/',
+      'https://example.com/page/about/'
+    ])
+  })
+
+  it('no home entry at all: the root (index.astro’s empty shell) is still listed', () => {
+    const urls = entryUrls([e('page/en/about')], 'page', SITE, HOME)
+    expect(urls.map((u) => u.loc)).toEqual([
+      'https://example.com/',
+      'https://example.com/page/about/'
+    ])
+  })
 })
 
 describe('taxonomyUrls', () => {
@@ -79,18 +162,27 @@ describe('taxonomyUrls', () => {
     )
   })
 
-  it('encodes a special-char slug the SAME way as the /tag route + the theme chip (#860 BLOCK-4)', () => {
-    // Astro's static-route generator encodes `#`→%23 and `?`→%3F (generator.js `sanitizeParams`),
-    // and packages/theme-default/TaxonomyChips.astro uses the identical transform. A `#`-tag
-    // otherwise truncates at the fragment (`/tag/c#4` → `/tag/c`).
-    expect(encodeTaxonomySlug('c#4')).toBe('c%234')
-    expect(encodeTaxonomySlug('a?b')).toBe('a%3Fb')
+  it('encodes a special-char slug exactly as taxonomyArchivePath (the chip href + canonical) (#860, #1120)', () => {
+    // `#`/`?` keep Astro's route-generator encoding (a `#`-tag otherwise truncates at the fragment).
     expect(taxonomyUrls(['c#4'], 'tag', SITE)[0].loc).toBe(
       'https://example.com/tag/c%234/'
     )
-    // The loc segment is exactly the route param encoding + trailing slash, byte-for-byte.
-    expect(taxonomyUrls(['c#4'], 'tag', SITE)[0].loc).toBe(
-      `https://example.com/tag/${encodeTaxonomySlug('c#4')}/`
+    expect(taxonomyUrls(['a?b'], 'tag', SITE)[0].loc).toBe(
+      'https://example.com/tag/a%3Fb/'
+    )
+  })
+
+  it('a spaced or non-ASCII tag is a valid URL, byte-identical to the shared path helper (#1120)', () => {
+    const [spaced, accented] = taxonomyUrls(['web dev', 'café'], 'tag', SITE)
+    expect(spaced.loc).toBe('https://example.com/tag/web%20dev/')
+    expect(accented.loc).toBe('https://example.com/tag/caf%C3%A9/')
+    for (const { loc } of [spaced, accented]) {
+      expect(loc).not.toMatch(/\s/)
+      // A valid absolute URL that re-serializes to itself — the canonical's spelling.
+      expect(new URL(loc).href).toBe(loc)
+    }
+    expect(spaced.loc).toBe(
+      `https://example.com${taxonomyArchivePath('tag', 'web dev')}`
     )
   })
 })
@@ -115,8 +207,14 @@ describe('chunkSitemapUrls (#859 SITE-03)', () => {
     expect(chunkSitemapUrls([], 2)).toEqual([])
   })
 
-  it('defaults to the 50,000-URL protocol cap and rejects a non-positive size', () => {
-    expect(chunkSitemapUrls(u(3))).toHaveLength(1) // 3 ≤ 50,000
+  it('the cap is the sitemaps.org 50,000-URL limit and is the default chunk size (#1120)', () => {
+    // Pin the number itself: raising it past the protocol limit must fail here, not in Search
+    // Console.
+    expect(POST_SITEMAP_MAX).toBe(50_000)
+    // cap + 1 URLs → two shards with no explicit size: proves the DEFAULT is the cap.
+    const chunks = chunkSitemapUrls(u(POST_SITEMAP_MAX + 1))
+    expect(chunks.map((c) => c.length)).toEqual([POST_SITEMAP_MAX, 1])
+    expect(chunkSitemapUrls(u(POST_SITEMAP_MAX))).toHaveLength(1)
     expect(() => chunkSitemapUrls(u(3), 0)).toThrow(RangeError)
   })
 })
@@ -301,13 +399,37 @@ describe('xml builders', () => {
   })
 })
 
+describe('sitemapIndexEntries', () => {
+  const none = { post: [], page: [], category: [], tag: [] }
+  it('lists only non-empty sections, the post section one entry per shard', () => {
+    const idx = sitemapIndexEntries(
+      {
+        ...none,
+        post: [{ loc: 'https://example.com/post/a/', lastmod: '2026-06-20' }],
+        tag: [{ loc: 'https://example.com/tag/x/' }]
+      },
+      SITE
+    )
+    expect(idx).toEqual([
+      { loc: 'https://example.com/post-sitemap-1.xml', lastmod: '2026-06-20' },
+      { loc: 'https://example.com/tag-sitemap.xml', lastmod: undefined }
+    ])
+  })
+  it('every section empty → no entries (the route 404s instead of an invalid empty index) (#1120)', () => {
+    expect(sitemapIndexEntries(none, SITE)).toEqual([])
+  })
+})
+
 describe('buildRobotsTxt', () => {
   it('allows + advertises the sitemap when visible; disallows when hidden', () => {
-    expect(buildRobotsTxt(true, SITE)).toContain(
+    expect(buildRobotsTxt(true, SITE, true)).toContain(
       'Sitemap: https://example.com/sitemap.xml'
     )
-    const hidden = buildRobotsTxt(false, SITE)
+    const hidden = buildRobotsTxt(false, SITE, true)
     expect(hidden).toContain('Disallow: /')
     expect(hidden).not.toContain('Sitemap:')
+  })
+  it('visible but no sitemap index exists → allow all, no Sitemap line pointing at a 404 (#1120)', () => {
+    expect(buildRobotsTxt(true, SITE, false)).toBe('User-agent: *\nAllow: /\n')
   })
 })

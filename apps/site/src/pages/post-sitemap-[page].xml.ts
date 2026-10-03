@@ -15,7 +15,7 @@ const SITE_FALLBACK = 'http://localhost:4321'
 // One prerendered shard per ≤50,000-URL chunk of the post sitemap (#859 SITE-03) — a single
 // unbounded `<urlset>` is rejected past the sitemaps.org cap. getStaticPaths computes the chunks
 // once and hands each shard's serialized XML to GET via props (a single-pass emit), and it uses the
-// SAME deterministic chunker as the sitemap index in sitemap.xml.ts, so the shard files this route
+// SAME deterministic chunker as the sitemap index (`sitemapIndexEntries` in lib/sitemap.ts), so the shard files this route
 // generates (`post-sitemap-1.xml`, `-2.xml`, …) are exactly the ones the index references.
 export const getStaticPaths = (async () => {
   const settings = loadSiteSettings()

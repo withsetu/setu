@@ -3,7 +3,7 @@ import type { GetStaticPaths, Page } from 'astro'
 import PageLayout from '@theme/PageLayout.astro'
 import ArchiveList from '@theme/ArchiveList.astro'
 import { getCollection } from 'astro:content'
-import { selectPosts, DEFAULT_LOCALE, type PostRow } from '@setu/core'
+import { taxonomyArchivePath, selectPosts, DEFAULT_LOCALE, type PostRow } from '@setu/core'
 import { loadThemeOptions } from '../../../lib/site-config'
 import { loadSiteSettings } from '../../../lib/site-settings'
 import { bucketPostsByTerm } from '../../../lib/build-cache'
@@ -35,7 +35,8 @@ const themeOptions = loadThemeOptions()
 const siteSettings = loadSiteSettings()
 const mediaBase = resolveMediaBase(import.meta.env.PUBLIC_SETU_MEDIA, import.meta.env.DEV)
 const heading = `Tag: ${slug}`
-const basePath = `/tag/${slug}`
+// Slash-less (ArchiveList appends `/<n>`); same encoded spelling as the chips + sitemap (#1120).
+const basePath = taxonomyArchivePath('tag', slug).slice(0, -1)
 const seo = pageSeo(Astro.site, Astro.url.pathname, mediaBase, siteSettings, {
   title: heading,
   type: 'website',

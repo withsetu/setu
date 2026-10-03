@@ -291,6 +291,7 @@ export {
   ensureTrailingSlashPath,
   DEFAULT_LOCALE
 } from './url/entry-url'
+export { taxonomyArchivePath } from './url/taxonomy-path'
 export { localeAlternates } from './url/locale-alternates'
 export type { LocaleAlternate } from './url/locale-alternates'
 export { diffRedirects } from './redirects/diff'

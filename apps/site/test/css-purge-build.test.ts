@@ -2,6 +2,7 @@ import { execSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { JSDOM } from 'jsdom'
 import { beforeAll, describe, expect, it } from 'vitest'
 
 // #1119 — render-smoke for the per-page CSS purge (apps/site/integrations/per-page-css-purge.mjs)
@@ -29,11 +30,16 @@ const htmlFiles = (dir: string): string[] =>
     return name.endsWith('.html') ? [p] : []
   })
 
-const stripStyles = (html: string) =>
-  html.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
+// Parsed, not regex-stripped: a `<style>` regex is an incomplete HTML sanitizer (CodeQL
+// js/incomplete-multi-character-sanitization), and the DOM is what the browser sees anyway.
+const stripStyles = (html: string) => {
+  const { document } = new JSDOM(html).window
+  for (const el of document.querySelectorAll('style')) el.remove()
+  return document.documentElement.outerHTML
+}
 const inlineCss = (html: string) =>
-  [...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)]
-    .map((m) => m[1] ?? '')
+  [...new JSDOM(html).window.document.querySelectorAll('style')]
+    .map((el) => el.textContent ?? '')
     .join('\n')
 const linkedSheets = (html: string) =>
   [

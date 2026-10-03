@@ -1,8 +1,8 @@
-import { readFile, writeFile, readdir, rm } from 'node:fs/promises'
+import { readFile, writeFile, readdir, rm, stat } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
-import { PurgeCSS } from 'purgecss'
+import { PurgeCSS, defaultOptions } from 'purgecss'
 
 /** Parse one safelist entry: "/pattern/flags" → RegExp, anything else → exact string. */
 function toMatcher(entry) {
@@ -78,22 +78,181 @@ export async function purgeCss({ css, html, js = [], safelist = [] }) {
   return res.css
 }
 
+/** Collapse the build's island JS to its distinct selector tokens, joined into one string.
+ *  PurgeCSS scans JS content with its default extractor (`/[A-Za-z0-9_-]+/g`), so running
+ *  that extractor ONCE here and handing PurgeCSS the de-duplicated tokens yields exactly the
+ *  same selector set as the raw sources — while each per-page purge call then scans a string
+ *  bounded by the distinct tokens instead of every byte of emitted JS (#1119: the pass was
+ *  O(pages × total JS bytes)). Lossless + bounded: apps/site/test/css-purge.test.ts
+ *  ('jsSelectorContent — island JS scanned once, not per page'). Exported for unit tests.
+ *  @param {string[]} jsSources */
+export function jsSelectorContent(jsSources) {
+  const tokens = new Set()
+  for (const src of jsSources)
+    for (const t of defaultOptions.defaultExtractor(src)) tokens.add(t)
+  return [...tokens].join('\n')
+}
+
 /**
- * Astro integration: per-page CSS purge + inline.
+ * @typedef {{
+ *   pages: number,
+ *   inline: { blocks: number, before: number, after: number },
+ *   inlinedSheets: { files: number, before: number, after: number },
+ *   sharedSheets: { files: number, bytes: number }
+ * }} PurgeStats
+ */
+
+/**
+ * Per-page CSS purge over a built dist tree. What it does — and, deliberately, what it does
+ * NOT do (#1119):
  *
- * Every Markdoc page's CSS bundle carries EVERY block's styles (the shared Markdoc config
- * statically imports all block components), so a callout-only page ships hero + button CSS
- * too. That's harmless today but grows linearly with the block count.
+ *   - PURGED per page: every inline `<style>` block (Astro inlines small stylesheets, which is
+ *     where most per-block CSS lands) and every stylesheet `<link>`ed by exactly ONE page. Each
+ *     is purged against THAT page's HTML + the build's island JS; a single-page stylesheet is
+ *     then inlined and its file deleted (no render-blocking request for it).
+ *   - NOT PURGED: any stylesheet linked by 2+ pages. It stays external, byte-for-byte, so the
+ *     browser caches it once for the whole site. That includes Astro's combined theme + block
+ *     bundle, which therefore still carries EVERY block's rules on every page that links it —
+ *     a page with no hero still downloads `.blk-hero` from it. This is a chosen trade (one
+ *     cached request beats re-shipping the theme base inline on every page), not an oversight;
+ *     splitting theme base CSS (external, cached) from per-block CSS (emitted per page) is
+ *     tracked as #1133.
  *
- * After the build, for each page we:
- *   - purge its block CSS against THAT page's own HTML + all island JS, then inline the result
- *     and drop the now-dead external link (best first paint, no render-blocking request);
- *   - leave any stylesheet shared across pages (the cached fonts/theme file) untouched.
+ * The returned stats keep the three kinds apart so the build log can claim a saving only for
+ * CSS that was actually purged. Pinned by apps/site/test/css-purge.test.ts ('purgeDist +
+ * formatPurgeReport — measures only what it purges') and, against the real build, by
+ * apps/site/test/css-purge-build.test.ts.
  *
  * Safety: PurgeCSS keeps a rule when its class is present in the page HTML, so Astro's scoped
  * `[data-astro-cid-…]` rules for USED blocks survive and only UNUSED blocks are stripped. Classes
  * a block adds at runtime (built from a variable in island JS) won't appear in HTML — declare
  * those via `safelist` (block-local, aggregated by the build).
+ *
+ * @param {string} distRoot absolute path of the built output
+ * @param {{ safelist?: (string|RegExp)[] }} [opts]
+ * @returns {Promise<PurgeStats>}
+ */
+export async function purgeDist(distRoot, { safelist = [] } = {}) {
+  const all = await walk(distRoot)
+  const htmlFiles = all.filter((f) => f.endsWith('.html'))
+  // Any class a runtime island references must survive — scan ALL emitted JS as content,
+  // collapsed once for the whole build rather than re-scanned per page × stylesheet.
+  const js = [
+    jsSelectorContent(
+      await Promise.all(
+        all.filter((f) => f.endsWith('.js')).map((f) => readFile(f, 'utf8'))
+      )
+    )
+  ]
+
+  // Map each linked stylesheet → how many pages reference it. 2+ referrers = shared: left
+  // external, cached and unpurged. Single-referrer files are purged + inlined.
+  const refCount = new Map()
+  const pages = []
+  for (const file of htmlFiles) {
+    const html = await readFile(file, 'utf8')
+    const links = [
+      ...html.matchAll(
+        /<link\b[^>]*\brel="stylesheet"[^>]*\bhref="([^"]+\.css)"[^>]*>/g
+      )
+    ]
+    for (const m of links) refCount.set(m[1], (refCount.get(m[1]) ?? 0) + 1)
+    pages.push({ file, html, links })
+  }
+
+  /** @type {PurgeStats} */
+  const stats = {
+    pages: pages.length,
+    inline: { blocks: 0, before: 0, after: 0 },
+    inlinedSheets: { files: 0, before: 0, after: 0 },
+    sharedSheets: { files: 0, bytes: 0 }
+  }
+  const inlinedFiles = new Set()
+
+  for (const { file, html, links } of pages) {
+    // 1) Purge the original inline <style> blocks first (scan against `html`, not the
+    //    mutated output, so the per-page links we inline below aren't re-processed).
+    let out = await replaceAsync(
+      html,
+      /<style\b[^>]*>([\s\S]*?)<\/style>/g,
+      async (whole, body) => {
+        if (!body.trim()) return whole
+        const purged = await purgeCss({ css: body, html, js, safelist })
+        stats.inline.blocks += 1
+        stats.inline.before += bytes(body)
+        stats.inline.after += bytes(purged)
+        return inlineStyleTag(purged)
+      }
+    )
+
+    // 2) Purge each single-referrer external stylesheet → inline the result.
+    for (const m of links) {
+      const href = m[1]
+      if ((refCount.get(href) ?? 0) >= 2) continue // shared — counted below, never purged
+      const cssPath = join(distRoot, href.replace(/^\//, ''))
+      const css = await readFile(cssPath, 'utf8').catch(() => null)
+      if (css == null) continue
+      const purged = await purgeCss({ css, html, js, safelist })
+      stats.inlinedSheets.files += 1
+      stats.inlinedSheets.before += bytes(css)
+      stats.inlinedSheets.after += bytes(purged)
+      out = out.replace(m[0], inlineStyleTag(purged))
+      inlinedFiles.add(cssPath)
+    }
+
+    if (out !== html) await writeFile(file, out)
+  }
+
+  // The skipped shared stylesheets, measured once per FILE (each ships to every page that
+  // links it, unpurged) — reported, never folded into the purged totals.
+  for (const [href, count] of refCount) {
+    if (count < 2) continue
+    const size = await stat(join(distRoot, href.replace(/^\//, ''))).then(
+      (s) => s.size,
+      () => null
+    )
+    if (size == null) continue
+    stats.sharedSheets.files += 1
+    stats.sharedSheets.bytes += size
+  }
+
+  // Drop now-unreferenced per-page CSS files (their content is inlined into the one page).
+  for (const f of inlinedFiles) await rm(f, { force: true })
+
+  return stats
+}
+
+/** The build log line for a `purgeDist` run. The percentage is computed ONLY over CSS that
+ *  was purged (inline blocks + single-page stylesheets); shared stylesheets are named with
+ *  their size and an explicit "NOT purged", and when nothing was purged no percentage is
+ *  printed at all (#1119 — the old line announced a saving for a bundle it had skipped).
+ *  Pinned by apps/site/test/css-purge.test.ts. Exported for unit tests.
+ *  @param {PurgeStats} s */
+export function formatPurgeReport(s) {
+  const before = s.inline.before + s.inlinedSheets.before
+  const after = s.inline.after + s.inlinedSheets.after
+  const parts = []
+  if (before > 0) {
+    const pct = Math.round((1 - after / before) * 100)
+    parts.push(
+      `purged ${kb(before)} → ${kb(after)} (-${pct}%) ` +
+        `[${plural(s.inline.blocks, 'inline <style> block')}, ` +
+        `${plural(s.inlinedSheets.files, 'single-page stylesheet')} inlined]`
+    )
+  } else {
+    parts.push('nothing purged')
+  }
+  if (s.sharedSheets.files > 0)
+    parts.push(
+      `${plural(s.sharedSheets.files, 'shared stylesheet')} (${kb(s.sharedSheets.bytes)}) ` +
+        'left external + cached, NOT purged — shipped whole to every page that links it'
+    )
+  return `per-page CSS purge across ${plural(s.pages, 'page')}: ${parts.join('; ')}`
+}
+
+/**
+ * Astro integration: per-page CSS purge + inline at `astro:build:done` (dev is untouched).
+ * What is and is not purged is documented on `purgeDist` above.
  *
  * @param {{ safelist?: (string|RegExp)[] }} [opts]
  */
@@ -102,7 +261,6 @@ export function perPageCssPurge(opts = {}) {
     name: 'setu:per-page-css-purge',
     hooks: {
       'astro:build:done': async ({ dir, logger }) => {
-        const distRoot = fileURLToPath(dir)
         const blocksDir = fileURLToPath(
           new URL('../../../blocks', import.meta.url)
         )
@@ -110,74 +268,8 @@ export function perPageCssPurge(opts = {}) {
           ...(opts.safelist ?? []),
           ...(await loadBlockSafelist(blocksDir))
         ]
-
-        const all = await walk(distRoot)
-        const htmlFiles = all.filter((f) => f.endsWith('.html'))
-        // Any class a runtime island references must survive — scan ALL emitted JS as content.
-        const js = await Promise.all(
-          all.filter((f) => f.endsWith('.js')).map((f) => readFile(f, 'utf8'))
-        )
-
-        // Map each linked stylesheet → how many pages reference it. Files referenced by 2+ pages
-        // are shared (fonts/theme); leave them external + cached. Single-referrer files are the
-        // per-page block CSS we purge + inline.
-        const refCount = new Map()
-        const pages = []
-        for (const file of htmlFiles) {
-          const html = await readFile(file, 'utf8')
-          const links = [
-            ...html.matchAll(
-              /<link\b[^>]*\brel="stylesheet"[^>]*\bhref="([^"]+\.css)"[^>]*>/g
-            )
-          ]
-          for (const m of links)
-            refCount.set(m[1], (refCount.get(m[1]) ?? 0) + 1)
-          pages.push({ file, html, links })
-        }
-
-        let before = 0
-        let after = 0
-        const inlinedFiles = new Set()
-
-        for (const { file, html, links } of pages) {
-          // 1) Purge the original inline <style> blocks first (scan against `html`, not the
-          //    mutated output, so the per-page links we inline below aren't re-processed).
-          let out = await replaceAsync(
-            html,
-            /<style\b[^>]*>([\s\S]*?)<\/style>/g,
-            async (whole, body) => {
-              if (!body.trim()) return whole
-              before += body.length
-              const purged = await purgeCss({ css: body, html, js, safelist })
-              after += purged.length
-              return inlineStyleTag(purged)
-            }
-          )
-
-          // 2) Purge each per-page (single-referrer) external stylesheet → inline the result.
-          for (const m of links) {
-            const href = m[1]
-            if ((refCount.get(href) ?? 0) >= 2) continue // shared — keep external + cached
-            const cssPath = join(distRoot, href.replace(/^\//, ''))
-            const css = await readFile(cssPath, 'utf8').catch(() => null)
-            if (css == null) continue
-            before += css.length
-            const purged = await purgeCss({ css, html, js, safelist })
-            after += purged.length
-            out = out.replace(m[0], inlineStyleTag(purged))
-            inlinedFiles.add(cssPath)
-          }
-
-          if (out !== html) await writeFile(file, out)
-        }
-
-        // Drop now-unreferenced per-page CSS files (their content is inlined into the one page).
-        for (const f of inlinedFiles) await rm(f, { force: true })
-
-        const pct = before > 0 ? Math.round((1 - after / before) * 100) : 0
-        logger.info(
-          `per-page CSS purge: ${kb(before)} → ${kb(after)} (-${pct}%) inlined across ${pages.length} pages`
-        )
+        const stats = await purgeDist(fileURLToPath(dir), { safelist })
+        logger.info(formatPurgeReport(stats))
       }
     }
   }
@@ -205,3 +297,5 @@ async function replaceAsync(str, regex, fn) {
 }
 
 const kb = (n) => `${(n / 1024).toFixed(1)} kB`
+const bytes = (str) => Buffer.byteLength(str, 'utf8')
+const plural = (n, noun) => `${n} ${noun}${n === 1 ? '' : 's'}`

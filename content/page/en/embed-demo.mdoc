@@ -6,3 +6,12 @@ A demo page for the oEmbed block (#187) — an interactive block, so it ships a 
 click-to-load island (unlike static content, which stays zero-JS).
 
 {% embed url="https://youtu.be/dQw4w9WgXcQ" provider="youtube" providerLabel="YouTube" mediaType="video" title="Never Gonna Give You Up" embedUrl="https://www.youtube.com/embed/dQw4w9WgXcQ" thumbnailUrl="https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg" width=480 height=270 caption="A classic, embedded via oEmbed." /%}
+
+Script-based embeds (an oEmbed `html` payload, no frameable `embedUrl`) render into a
+sandboxed `srcdoc` frame — statically when there is no poster, behind the click-to-load
+facade when there is one. Both are fixtures for the sandbox assertions in
+`apps/site/test/embed-block.test.ts` (#1115).
+
+{% embed url="https://ok.example/script-embed" provider="example" providerLabel="Example" mediaType="rich" title="Script embed, static srcdoc" html="<blockquote>A script-based embed</blockquote>" /%}
+
+{% embed url="https://ok.example/script-facade" provider="example" providerLabel="Example" mediaType="rich" title="Script embed behind a facade" html="<blockquote>A script-based embed behind a poster</blockquote>" thumbnailUrl="https://cdn.example.test/script-thumb.jpg" /%}

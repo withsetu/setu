@@ -164,8 +164,9 @@ export default defineConfig({
   // were authored under the v6 (`true`) model, so pin it to preserve exact prior output.
   // Revisit per-template if/when we want JSX-style compression.
   compressHTML: true,
-  // perPageCssPurge runs only at `astro build` (astro:build:done) — dev is untouched. It strips
-  // each page's unused block CSS and inlines the rest, so a page only ships the blocks it uses.
+  // perPageCssPurge runs only at `astro build` (astro:build:done) — dev is untouched. It purges
+  // each page's inline <style> blocks and single-page stylesheets against that page; the
+  // shared theme + block bundle stays external, cached and unpurged (see `purgeDist`, #1119).
   integrations: [
     markdoc(),
     react(),

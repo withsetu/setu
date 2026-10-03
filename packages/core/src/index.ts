@@ -72,6 +72,11 @@ export {
   parseFrontmatterDate,
   formatFrontmatterDate
 } from './permalinks/frontmatter-date'
+export {
+  entryIdFromContentPath,
+  isSiteEntryPath,
+  CONTENT_ENTRY_EXTENSION
+} from './permalinks/entry-id'
 export { DEFAULT_SETTINGS } from './settings/defaults'
 export { parseSettings, parseSettingsWithWarnings } from './settings/schema'
 export { sendableFromAddress } from './settings/from-address'

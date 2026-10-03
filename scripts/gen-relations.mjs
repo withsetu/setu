@@ -44,6 +44,8 @@ const {
   parseFrontmatterDate,
   parseSettings,
   incumbentFromUrlMap,
+  entryIdFromContentPath,
+  isSiteEntryPath,
   DEFAULT_LOCALE
 } = await jiti.import('@setu/core')
 
@@ -80,14 +82,16 @@ async function loadSiteConfig() {
   return mod?.default ?? mod
 }
 
-/** Recursively collect every .mdoc file under dir (absolute paths). */
-function walk(dir) {
+/** Collect every entry file under the content dir (absolute paths): the same file set the
+ *  site's glob loader picks up (`isSiteEntryPath` — `.mdoc`, no dot-prefixed segment). */
+function walk(dir, root = dir) {
   const out = []
   if (!existsSync(dir)) return out
   for (const name of readdirSync(dir)) {
+    if (name.startsWith('.')) continue
     const full = path.join(dir, name)
-    if (statSync(full).isDirectory()) out.push(...walk(full))
-    else if (name.endsWith('.mdoc')) out.push(full)
+    if (statSync(full).isDirectory()) out.push(...walk(full, root))
+    else if (isSiteEntryPath(path.relative(root, full))) out.push(full)
   }
   return out
 }
@@ -97,10 +101,8 @@ const asStringArray = (v) =>
 
 /** Turn one .mdoc file into a RelatedRow keyed by its Astro entry id. */
 function toRow(file, contentDir) {
-  const id = path
-    .relative(contentDir, file)
-    .replace(/\\/g, '/')
-    .replace(/\.mdoc$/, '')
+  // The id rule the site's content loader uses too (entryIdFromContentPath, #1117).
+  const id = entryIdFromContentPath(path.relative(contentDir, file))
   const [collection = '', locale = '', ...rest] = id.split('/')
   const slug = rest.join('/')
   const { frontmatter } = parseMdoc(readFileSync(file, 'utf8'))
@@ -165,8 +167,9 @@ async function buildPermalinkMap(rows, contentDir) {
   const entries = rows.map(toPermalinkEntry)
   // Incumbency (#657): an id already holding a URL in the committed snapshot keeps it, so
   // adding a back-dated entry cannot evict a live page (date order still breaks ties among
-  // entries that hold nothing yet). Must match apps/site/src/lib/permalinks.ts exactly —
-  // the routing scan and this one have to agree byte for byte.
+  // entries that hold nothing yet). Intended to mirror apps/site/src/lib/permalinks.ts step
+  // for step; the URL parity of the two scans is pinned by
+  // apps/site/test/entry-id-parity.test.ts.
   const incumbent = incumbentFromUrlMap(
     loadUrlMap(contentDir),
     rows.map((r) => ({ id: r.key, cid: r.cid }))
@@ -178,7 +181,7 @@ async function buildPermalinkMap(rows, contentDir) {
     { uncategorized: settings.permalinks.uncategorized, incumbent }
   )
   for (const w of warnings) console.warn(`[gen-relations] permalinks: ${w}`)
-  // Root overrides (#660) — must match apps/site/src/lib/permalinks.ts exactly: the
+  // Root overrides (#660) — intended to mirror apps/site/src/lib/permalinks.ts: the
   // configured `reading.homepage` owns the root of its locale, `page/<locale>/home` owns
   // every other locale's root (so `page/fr/home` is `fr`, not the 404 `fr/page/home`).
   const homepageId = settings.reading.homepage || undefined
@@ -203,14 +206,24 @@ async function buildPermalinkMap(rows, contentDir) {
   return paths
 }
 
+/** The site-wide **entry-id -> URL-path** map (no leading slash; the root is `''`), exactly as
+ *  the redirect and relations maps see it. Exported so the routing/codegen id parity can be
+ *  asserted against a real build (apps/site/test/entry-id-parity.test.ts). */
+export async function buildEntryPathMap(contentDir) {
+  const rows = walk(contentDir).map((f) => toRow(f, contentDir))
+  return buildPermalinkMap(rows, contentDir)
+}
+
 /** The site-wide **cid -> URL-path** map, leading-slash-normalized (home → '/'), for redirect
  *  diffing (#252). Keyed by the stable content id (#389), not the slug-derived Astro id, so a
  *  slug rename keeps the key and the diff sees a path change (→ a 301) instead of a delete+add.
  *  Entries without a cid (not yet backfilled) are skipped — untracked until stamped. Same scan +
- *  resolver the routing and related graph use, so a URL here is byte-identical to what ships. */
+ *  resolver the routing and related graph use; that every URL here is a page the build emits
+ *  is pinned by apps/site/test/entry-id-parity.test.ts. */
 export async function buildUrlMap(contentDir) {
   const rows = walk(contentDir).map((f) => toRow(f, contentDir))
   const idMap = await buildPermalinkMap(rows, contentDir)
+  /** @type {Record<string, string>} */
   const out = {}
   for (const row of rows) {
     if (!row.cid) continue

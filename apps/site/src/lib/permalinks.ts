@@ -53,8 +53,12 @@ async function build(): Promise<Map<string, string>> {
   const entries = await getCollection('entries')
   const settings = loadSiteSettings()
   // Incumbency (#657): an id already holding a URL in the committed snapshot keeps it, so
-  // adding a back-dated entry cannot evict a live page. Must match scripts/gen-relations.mjs
-  // exactly — the routing scan and the redirect scan have to agree byte for byte.
+  // adding a back-dated entry cannot evict a live page. Intended to mirror
+  // scripts/gen-relations.mjs's buildPermalinkMap step for step — the routing scan and the
+  // redirect scan have to produce the same id → URL map. Both derive ids with the shared
+  // `entryIdFromContentPath`; that every URL the codegen scan computes is the page this
+  // build emits (frontmatter `slug:`, `index.mdoc`, mixed-case/dotted filenames included) is
+  // pinned by apps/site/test/entry-id-parity.test.ts.
   const incumbent = incumbentFromUrlMap(
     loadUrlMap(),
     entries.map((e) => ({

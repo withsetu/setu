@@ -21,6 +21,8 @@ export const SITE_RESERVED_ROUTES: readonly string[] = [
   'tag/[slug]/[...page]',
   'rss.xml',
   '[locale]/rss.xml',
+  '[locale]/category/[slug]/[...page]',
+  '[locale]/tag/[slug]/[...page]',
   'robots.txt',
   'sitemap.xml',
   'post-sitemap-[page].xml',

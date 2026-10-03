@@ -116,5 +116,5 @@ const seo = pageSeo(Astro.site, Astro.url.pathname, mediaBase, siteSettings, {
   )}
   <h1>{title}</h1>
   <Content />
-  {collection === 'post' && <TaxonomyChips categories={postCategories} tags={postTags} />}
+  {collection === 'post' && <TaxonomyChips categories={postCategories} tags={postTags} locale={locale} />}
 </TemplateLayout>

@@ -1,15 +1,18 @@
 ---
-import { taxonomyArchivePath } from '@setu/core'
-
+import { taxonomyArchivePath, DEFAULT_LOCALE } from '@setu/core'
 interface Props {
   categories: { slug: string; name: string }[]
   tags: string[]
+  /** The post's own locale: chips link to THAT locale's archive (`/fr/tag/<slug>/` for a French
+   *  post, unprefixed for the default locale), which the site emits for every term carrying ≥1
+   *  post in the locale — so a fr-only tag is a real page, never a 404 (#1114). */
+  locale?: string
 }
-const { categories, tags } = Astro.props
+const { categories, tags, locale = DEFAULT_LOCALE } = Astro.props
 const has = categories.length > 0 || tags.length > 0
 // The archive path is the ONE shared spelling (@setu/core `taxonomyArchivePath`): Astro's route
 // encoding for #/? plus URL serialization (a space is %20), with the directory-format trailing
-// slash — byte-identical to the sitemap <loc> and the archive's canonical. Enforced by
+// slash and the post's locale prefix (#1114) — byte-identical to the sitemap <loc> and the archive's canonical. Enforced by
 // apps/site/test/sitemap-fixture-build.test.ts (chip href == sitemap loc == canonical for a
 // spaced tag) and apps/site/test/taxonomy-archive.test.ts.
 ---
@@ -18,10 +21,10 @@ const has = categories.length > 0 || tags.length > 0
   /* `measure-post` is PostLayout's reading-column width class — keeps the chips aligned to the article column. */
   <nav class="setu-taxonomy measure-post" aria-label="Categories and tags">
     {categories.map((c) => (
-      <a class="setu-chip setu-chip--cat" href={taxonomyArchivePath('category', c.slug)}>{c.name}</a>
+      <a class="setu-chip setu-chip--cat" href={taxonomyArchivePath('category', c.slug, locale)}>{c.name}</a>
     ))}
     {tags.map((t) => (
-      <a class="setu-chip setu-chip--tag" href={taxonomyArchivePath('tag', t)}>#{t}</a>
+      <a class="setu-chip setu-chip--tag" href={taxonomyArchivePath('tag', t, locale)}>#{t}</a>
     ))}
   </nav>
 )}

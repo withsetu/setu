@@ -187,6 +187,17 @@ describe('taxonomyUrls', () => {
   })
 })
 
+describe('taxonomyUrls locale (#1114)', () => {
+  it('prefixes a non-default locale and leaves the default unprefixed', () => {
+    expect(taxonomyUrls(['voyage'], 'tag', SITE, 'fr')[0].loc).toBe(
+      'https://example.com/fr/tag/voyage/'
+    )
+    expect(taxonomyUrls(['astro'], 'tag', SITE, 'en')[0].loc).toBe(
+      'https://example.com/tag/astro/'
+    )
+  })
+})
+
 describe('chunkSitemapUrls (#859 SITE-03)', () => {
   const u = (n: number): SitemapUrl[] =>
     Array.from({ length: n }, (_, i) => ({
@@ -243,6 +254,34 @@ describe('collectSitemapSections', () => {
     )
     expect(s.category.some((u) => u.loc.includes('/secret/'))).toBe(false) // from an unpublished post
     expect(s.tag.map((u) => u.loc)).toEqual(['https://example.com/tag/x/'])
+  })
+  it('lists per-locale archives for terms that have a post in that locale (#1114)', () => {
+    const s = collectSitemapSections(
+      [
+        ...entries,
+        e('post/fr/a', { categories: ['news'], tags: ['x', 'voyage'] }),
+        e('post/fr/hidden', { published: false, tags: ['cache'] })
+      ],
+      ALL,
+      SITE,
+      HOME
+    )
+    // Default locale block first and unchanged, then the fr archives.
+    expect(s.tag.map((u) => u.loc)).toEqual([
+      'https://example.com/tag/x/',
+      'https://example.com/fr/tag/voyage/',
+      'https://example.com/fr/tag/x/'
+    ])
+    expect(s.category.map((u) => u.loc)).toEqual([
+      'https://example.com/category/guides/',
+      'https://example.com/category/news/',
+      'https://example.com/fr/category/news/'
+    ])
+    // A fr-only tag never invents an unprefixed archive; an unpublished fr post emits nothing.
+    expect(s.tag.some((u) => u.loc === 'https://example.com/tag/voyage/')).toBe(
+      false
+    )
+    expect(s.tag.some((u) => u.loc.includes('/cache/'))).toBe(false)
   })
   it('disabled sections come back empty', () => {
     const s = collectSitemapSections(

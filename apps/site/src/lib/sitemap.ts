@@ -1,12 +1,12 @@
 import {
   parsePageSeoOverride,
-  distinctCategorySlugs,
-  distinctTagSlugs,
   DEFAULT_LOCALE,
   entryUrlPath,
   ensureTrailingSlashPath,
   extractEmbedVideos,
-  taxonomyArchivePath
+  taxonomyArchivePath,
+  taxonomyTermLocales,
+  type PostRow
 } from '@setu/core'
 import { resolveHomepageEntry } from './homepage'
 import { toPostRow } from './post-row'
@@ -241,18 +241,47 @@ export function entryUrls(
   return urls
 }
 
-/** Absolute taxonomy-archive URLs (category or tag) from a list of slugs. */
+/** Absolute taxonomy-archive URLs (category or tag) from a list of slugs, in `locale` — the
+ *  default locale is unprefixed, any other gets `/<locale>/` (#1114). */
 export function taxonomyUrls(
   slugs: string[],
   kind: 'category' | 'tag',
-  siteUrl: string
+  siteUrl: string,
+  locale: string = DEFAULT_LOCALE
 ): SitemapUrl[] {
   const base = siteUrl.replace(/\/+$/, '')
   // `taxonomyArchivePath` is the one spelling shared with the theme chip href and the archive's
-  // canonical — a spaced tag is `%20`, never a literal space (#1120).
+  // canonical — a spaced tag is `%20`, never a literal space (#1120); a non-default locale is prefixed (#1114).
   return slugs.map((slug) => ({
-    loc: `${base}${taxonomyArchivePath(kind, slug)}`
+    loc: `${base}${taxonomyArchivePath(kind, slug, locale)}`
   }))
+}
+
+/** Every per-locale archive URL for one taxonomy kind: for each term, one URL per locale that has
+ *  a post carrying it — the exact set the archive routes emit. Default-locale URLs come first
+ *  (slug-sorted), then each other locale's, so a single-locale site's output is unchanged. */
+function localizedTaxonomyUrls(
+  rows: PostRow[],
+  kind: 'category' | 'tag',
+  siteUrl: string
+): SitemapUrl[] {
+  const termLocales = taxonomyTermLocales(rows, (r) =>
+    kind === 'category' ? r.categories : r.tags
+  )
+  const byLocale = new Map<string, string[]>()
+  for (const [term, locales] of termLocales)
+    for (const l of locales) byLocale.set(l, [...(byLocale.get(l) ?? []), term])
+  const locales = [...byLocale.keys()].sort((a, b) =>
+    a === DEFAULT_LOCALE ? -1 : b === DEFAULT_LOCALE ? 1 : a.localeCompare(b)
+  )
+  return locales.flatMap((l) =>
+    taxonomyUrls(
+      byLocale.get(l)!.sort((a, b) => a.localeCompare(b)),
+      kind,
+      siteUrl,
+      l
+    )
+  )
 }
 
 /** Newest lastmod across a set of URLs (for a sub-sitemap's `<lastmod>` in the index). */
@@ -273,8 +302,8 @@ export interface SitemapConfig {
 export type SitemapSectionKey = 'post' | 'page' | 'category' | 'tag'
 
 /** Collect the URL list for every sitemap section, honoring the include/exclude config. Disabled
- *  sections come back empty. Taxonomy slugs are derived from the published, indexable posts (so the
- *  sitemap lists exactly the archive pages that exist). */
+ *  sections come back empty. Taxonomy slugs are derived from the published, indexable posts, per
+ *  locale (so the sitemap lists the per-locale archive pages that exist, #1114). */
 export function collectSitemapSections(
   entries: SitemapEntry[],
   cfg: SitemapConfig,
@@ -294,15 +323,9 @@ export function collectSitemapSections(
       ? entryUrls(entries, 'page', siteUrl, homepageId, mediaBase, urlPath)
       : [],
     category: cfg.categories
-      ? taxonomyUrls(
-          distinctCategorySlugs(postRows, DEFAULT_LOCALE),
-          'category',
-          siteUrl
-        )
+      ? localizedTaxonomyUrls(postRows, 'category', siteUrl)
       : [],
-    tag: cfg.tags
-      ? taxonomyUrls(distinctTagSlugs(postRows, DEFAULT_LOCALE), 'tag', siteUrl)
-      : []
+    tag: cfg.tags ? localizedTaxonomyUrls(postRows, 'tag', siteUrl) : []
   }
 }
 

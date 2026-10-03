@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { taxonomyArchivePath } from '../../src/index'
+import {
+  taxonomyArchivePath,
+  taxonomyTermLocales,
+  type PostRow
+} from '../../src/index'
 
 describe('taxonomyArchivePath (#1120)', () => {
   it('builds the trailing-slash archive path for a plain slug', () => {
@@ -38,5 +42,69 @@ describe('taxonomyArchivePath (#1120)', () => {
         new URL(taxonomyArchivePath('tag', slug), 'https://example.com')
           .pathname
       ).toBe(taxonomyArchivePath('tag', slug))
+  })
+})
+
+describe('taxonomyArchivePath locale (#1114)', () => {
+  it('keeps the default locale unprefixed, explicitly or by default', () => {
+    expect(taxonomyArchivePath('tag', 'astro', 'en')).toBe('/tag/astro/')
+    expect(taxonomyArchivePath('tag', 'astro')).toBe('/tag/astro/')
+  })
+  it('prefixes every other locale', () => {
+    expect(taxonomyArchivePath('tag', 'voyage', 'fr')).toBe('/fr/tag/voyage/')
+    expect(taxonomyArchivePath('category', 'recipes', 'fr')).toBe(
+      '/fr/category/recipes/'
+    )
+  })
+  it('applies the same slug encoding under a locale prefix', () => {
+    expect(taxonomyArchivePath('tag', 'c#4', 'fr')).toBe('/fr/tag/c%234/')
+    expect(taxonomyArchivePath('tag', 'web dev', 'fr')).toBe(
+      '/fr/tag/web%20dev/'
+    )
+  })
+})
+
+const row = (
+  locale: string,
+  tags: string[],
+  over: Partial<PostRow> = {}
+): PostRow => ({
+  id: `post/${locale}/${tags.join('-')}`,
+  collection: 'post',
+  locale,
+  slug: tags.join('-'),
+  title: '',
+  date: null,
+  tags,
+  categories: [],
+  ...over
+})
+
+describe('taxonomyTermLocales (#1114)', () => {
+  it('maps each term to the locales with a post carrying it (default first)', () => {
+    const m = taxonomyTermLocales(
+      [
+        row('fr', ['astro', 'voyage']),
+        row('en', ['astro']),
+        row('de', ['astro'])
+      ],
+      (r) => r.tags
+    )
+    expect(m.get('astro')).toEqual(['en', 'de', 'fr'])
+    expect(m.get('voyage')).toEqual(['fr'])
+  })
+  it('ignores unpublished posts (published:false is the only hidden signal)', () => {
+    const m = taxonomyTermLocales(
+      [row('fr', ['secret'], { published: false })],
+      (r) => r.tags
+    )
+    expect(m.has('secret')).toBe(false)
+  })
+  it('ignores non-post rows and empty terms', () => {
+    const m = taxonomyTermLocales(
+      [row('en', ['x'], { collection: 'page' }), row('en', [''])],
+      (r) => r.tags
+    )
+    expect(m.size).toBe(0)
   })
 })

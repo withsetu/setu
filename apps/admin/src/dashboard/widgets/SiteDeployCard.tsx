@@ -18,10 +18,14 @@ function hostOf(url: string): string {
 export function SiteDeployCard({
   url,
   status,
+  loadError = null,
   loading = false
 }: {
   url: string
   status: DeployStatus | null
+  /** The deploy status failed to load (#1158). Without it a null status reads as "Not
+   *  deployed yet", which is a claim the card cannot make when it simply has no answer. */
+  loadError?: string | null
   loading?: boolean
 }) {
   const pendingCount = status?.changedPaths.length ?? 0
@@ -64,7 +68,9 @@ export function SiteDeployCard({
           {hostOf(url)}
         </a>
         <p className="text-xs text-muted-foreground">
-          {status === null || status.deployedSha === null ? (
+          {status === null && loadError !== null ? (
+            <span className="text-destructive">{loadError}</span>
+          ) : status === null || status.deployedSha === null ? (
             'Not deployed yet'
           ) : (
             <>
@@ -82,7 +88,10 @@ export function SiteDeployCard({
           <p className="text-xs text-amber-700 dark:text-amber-500">
             {status.deployedSha === null
               ? 'Saved changes are not live yet.'
-              : `${pendingCount} change${pendingCount === 1 ? '' : 's'} pending — not yet live.`}
+              : status.baselineUnresolvable
+                ? // #1158: the diff could not be computed — the empty list means unknown, not zero.
+                  "Can't tell which saved changes are live — publish to rebuild the whole site."
+                : `${pendingCount} change${pendingCount === 1 ? '' : 's'} pending — not yet live.`}
           </p>
         )}
         <Button asChild variant="outline" size="sm" className="w-full">

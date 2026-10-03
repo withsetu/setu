@@ -5,16 +5,19 @@ import { ActorProvider } from '../src/auth/actor'
 import { NotificationProvider } from '../src/ui/notify'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { DeployControl } from '../src/deploy/DeployControl'
+import { DeployOutcomeUnknownError } from '../src/deploy/deploy-errors'
 
 // Provider stub (#571): DeployControl is a pure consumer of useDeploy() — the provider's own
 // polling/state is covered in deploy.test.tsx. Everything here is mutable per test.
 const state: {
   status: DeployStatus | null
+  loadError: string | null
   running: boolean
   startedAt: number | null
   confirmOpen: boolean
 } = {
   status: null,
+  loadError: null,
   running: false,
   startedAt: null,
   confirmOpen: false
@@ -31,6 +34,7 @@ const mockCloseConfirm = vi.fn(() => {
 vi.mock('../src/deploy/deploy', () => ({
   useDeploy: () => ({
     status: state.status,
+    loadError: state.loadError,
     deployInfo: () => ({ deployedSha: null, changed: [] }),
     refresh: mockRefresh,
     rebuild: mockRebuild,
@@ -53,7 +57,8 @@ const baseStatus: DeployStatus = {
   ],
   job: null,
   canRebuild: true,
-  rebuildBlockedReason: null
+  rebuildBlockedReason: null,
+  baselineUnresolvable: false
 }
 
 function wrap(actor?: Actor) {
@@ -71,6 +76,7 @@ function wrap(actor?: Actor) {
 beforeEach(() => {
   vi.clearAllMocks()
   state.status = { ...baseStatus }
+  state.loadError = null
   state.running = false
   state.startedAt = null
   state.confirmOpen = false
@@ -265,6 +271,25 @@ describe('DeployControl — honest outcome feedback (#571)', () => {
   })
 })
 
+describe('DeployControl — a build it lost sight of (#1157)', () => {
+  it('never calls an unknown outcome a failure', async () => {
+    mockRebuild.mockRejectedValueOnce(
+      new DeployOutcomeUnknownError(
+        'lost contact with the server while the build was running'
+      )
+    )
+    state.confirmOpen = true
+    wrap()
+    fireEvent.click(screen.getByRole('button', { name: /^publish now$/i }))
+    await waitFor(() =>
+      expect(screen.getByText(/lost track of the rebuild/i)).toBeInTheDocument()
+    )
+    expect(screen.queryByText(/rebuild failed/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/changes are live/i)).not.toBeInTheDocument()
+    await waitFor(() => expect(mockRefresh).toHaveBeenCalled())
+  })
+})
+
 describe('DeployControl — last-built timestamp (#571)', () => {
   it('shows when the site was last built', () => {
     const at = new Date(Date.now() - 5 * 60_000).toISOString()
@@ -277,5 +302,105 @@ describe('DeployControl — last-built timestamp (#571)', () => {
     state.status = { ...baseStatus, deployedSha: null, deployedAt: null }
     wrap()
     expect(screen.getByText(/never built/i)).toBeInTheDocument()
+  })
+})
+
+describe('DeployControl — a status it could not load (#1158)', () => {
+  it('shows the failure with a Retry instead of vanishing', () => {
+    state.status = null
+    state.loadError =
+      "Couldn't load the deploy status — the server had a problem (500)."
+    wrap()
+    expect(screen.getByRole('alert')).toHaveTextContent(/server had a problem/i)
+    fireEvent.click(
+      screen.getByRole('button', { name: /retry loading the deploy status/i })
+    )
+    expect(mockRefresh).toHaveBeenCalledOnce()
+    // It must not offer a publish it cannot describe honestly.
+    expect(
+      screen.queryByRole('button', { name: /publish site/i })
+    ).not.toBeInTheDocument()
+  })
+
+  it('still renders nothing for an actor without site.deploy, even on an error', () => {
+    state.status = null
+    state.loadError = 'boom'
+    wrap({ id: 'a', role: 'author' })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+})
+
+describe('DeployControl — an unresolvable baseline (#1158)', () => {
+  const lost: DeployStatus = {
+    ...baseStatus,
+    deployedSha: 'gone1234567',
+    pending: true,
+    changedPaths: [],
+    baselineUnresolvable: true
+  }
+
+  it('stays offered, and never claims a pending count it could not compute', () => {
+    state.status = lost
+    wrap()
+    const btn = screen.getByRole('button', { name: /publish site/i })
+    expect(btn).toBeEnabled()
+    expect(btn).not.toHaveTextContent(/0 pending/)
+    expect(btn).not.toHaveTextContent(/up to date/i)
+    expect(screen.getByRole('status')).toHaveTextContent(
+      /can.t tell what.s live/i
+    )
+  })
+
+  it('the confirmation says the whole site is republished — not "no changes pending"', () => {
+    state.status = lost
+    state.confirmOpen = true
+    wrap()
+    const dialog = screen.getByRole('alertdialog')
+    expect(dialog).not.toHaveTextContent(/no saved changes are pending/i)
+    expect(dialog).toHaveTextContent(/gone123/)
+    expect(dialog).toHaveTextContent(/whole site/i)
+    expect(dialog).toHaveTextContent(/until this build finishes/i)
+  })
+})
+
+describe('DeployControl — a build that failed or was interrupted (#1157)', () => {
+  it("shows the job's reason, not an eternal Building…", () => {
+    state.status = {
+      ...baseStatus,
+      job: {
+        id: 'j',
+        status: 'failed',
+        mode: 'static',
+        sha: 'abc',
+        error:
+          'Interrupted by a server restart before the build finished, so this deploy was not recorded. Publish again to make sure your saved changes are live.',
+        startedAt: 1,
+        updatedAt: 2
+      }
+    }
+    wrap()
+    const btn = screen.getByRole('button', { name: /publish site/i })
+    expect(btn).not.toHaveTextContent(/building/i)
+    expect(btn).toBeEnabled()
+    expect(screen.getByText(/last build failed/i)).toHaveTextContent(
+      /interrupted by a server restart/i
+    )
+  })
+
+  it('a successful last job shows no failure line', () => {
+    state.status = {
+      ...baseStatus,
+      job: {
+        id: 'j',
+        status: 'done',
+        mode: 'static',
+        sha: 'abc',
+        startedAt: 1,
+        updatedAt: 2
+      }
+    }
+    wrap()
+    expect(screen.queryByText(/last build failed/i)).not.toBeInTheDocument()
   })
 })

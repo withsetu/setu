@@ -60,11 +60,19 @@ export interface ChangedPath {
 export interface DeployStatus {
   deployedSha: string | null
   deployedAt: string | null
-  headSha: string
-  /** True when HEAD differs from the deployed sha (or nothing was ever deployed). */
+  /** Git HEAD, or null when the content repo has no commits yet — there is nothing saved to
+   *  build, so `canRebuild` is false with a reason (#1158). */
+  headSha: string | null
+  /** True when HEAD differs from the deployed sha (or nothing was ever deployed, or the
+   *  recorded baseline can't be resolved — then nothing is known to be live). */
   pending: boolean
-  /** Paths changed since the deployed sha (empty when never deployed — everything is new). */
+  /** Paths changed since the deployed sha (empty when never deployed — everything is new —
+   *  and empty when `baselineUnresolvable`, where the diff could not be computed at all). */
   changedPaths: ChangedPath[]
+  /** The recorded deployed sha could not be compared with HEAD — it is not in the repo
+   *  (history rewritten, repo re-cloned) or the repo has no commits (#1158). The empty
+   *  `changedPaths` then means "unknown", never "nothing pending"; a rebuild re-baselines. */
+  baselineUnresolvable: boolean
   job: DeployJob | null
   /** Whether this topology can run a rebuild (Node + site dir) AND nothing is currently
    *  blocking one. The indicator above stays honest even where this is false. */

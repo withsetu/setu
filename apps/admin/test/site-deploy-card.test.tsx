@@ -12,6 +12,7 @@ const statusOf = (over: Partial<DeployStatus> = {}): DeployStatus => ({
   job: null,
   canRebuild: true,
   rebuildBlockedReason: null,
+  baselineUnresolvable: false,
   ...over
 })
 
@@ -50,6 +51,38 @@ describe('SiteDeployCard (#208)', () => {
     )
     expect(
       screen.getByText(/3 changes pending — not yet live/i)
+    ).toBeInTheDocument()
+  })
+
+  it('never says "0 changes pending" when the baseline cannot be resolved (#1158)', () => {
+    render(
+      <SiteDeployCard
+        url="https://maya.setu.site"
+        status={statusOf({
+          deployedSha: 'gone1234567',
+          pending: true,
+          changedPaths: [],
+          baselineUnresolvable: true
+        })}
+      />
+    )
+    expect(screen.queryByText(/0 changes pending/i)).not.toBeInTheDocument()
+    expect(
+      screen.getByText(/can.t tell which saved changes are live/i)
+    ).toBeInTheDocument()
+  })
+
+  it('says the status could not be loaded rather than "Not deployed yet" (#1158)', () => {
+    render(
+      <SiteDeployCard
+        url="https://maya.setu.site"
+        status={null}
+        loadError="Couldn't load the deploy status — the server had a problem (500)."
+      />
+    )
+    expect(screen.queryByText(/not deployed/i)).not.toBeInTheDocument()
+    expect(
+      screen.getByText(/couldn.t load the deploy status/i)
     ).toBeInTheDocument()
   })
 

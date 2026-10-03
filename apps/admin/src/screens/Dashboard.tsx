@@ -57,7 +57,7 @@ export function Dashboard() {
   const { data } = useServices()
   const index = useIndex()
   const can = useCan()
-  const { status: deployStatus } = useDeploy()
+  const { status: deployStatus, loadError: deployLoadError } = useDeploy()
   const [counts, setCounts] = useState<DashboardCounts | null>(null)
   const [recent, setRecent] = useState<ContentRow[]>([])
   const [locks, setLocks] = useState<Lock[]>([])
@@ -137,6 +137,7 @@ export function Dashboard() {
               <SiteDeployCard
                 url={url}
                 status={deployStatus}
+                loadError={deployLoadError ?? null}
                 loading={loading}
               />
             )}

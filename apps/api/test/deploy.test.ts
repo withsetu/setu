@@ -15,7 +15,11 @@ function harness(opts?: {
   resolveActor?: ResolveActor
   siteDir?: string | null
   head?: string
+  /** Make the HEAD lookup throw (a zero-commit repo: `git rev-parse HEAD` exits 128). */
+  headFails?: boolean
   changed?: ChangedPath[]
+  /** Make the diff throw (the deployed sha is not in the repo: `git diff` exits 128). */
+  diffFails?: boolean
   state?: DeployState | null
   build?: () => Promise<void>
   buildBlocked?: () => string | null
@@ -31,11 +35,20 @@ function harness(opts?: {
     writeState: (s) => {
       state = s
     },
-    headSha: async () => opts?.head ?? 'head-sha',
-    changedPaths: async (since) =>
-      opts?.changed ?? [
-        { path: `content/post/en/changed-since-${since}.mdoc`, added: false }
-      ],
+    headSha: async () => {
+      if (opts?.headFails)
+        throw new Error("fatal: ambiguous argument 'HEAD': unknown revision")
+      return opts?.head ?? 'head-sha'
+    },
+    changedPaths: async (since) => {
+      if (opts?.diffFails)
+        throw new Error(`fatal: bad revision '${since}..HEAD'`)
+      return (
+        opts?.changed ?? [
+          { path: `content/post/en/changed-since-${since}.mdoc`, added: false }
+        ]
+      )
+    },
     runBuild: build,
     now: () => 1_000_000
   })
@@ -124,6 +137,63 @@ describe('deploy api — status (the honest indicator, #208)', () => {
   })
 })
 
+describe('deploy api — an unresolvable baseline (#1158)', () => {
+  it('a deployed sha that is not in the repo: 200, pending, flagged — never a 500', async () => {
+    const h = harness({
+      state: { sha: 'gone-sha', at: '2026-07-09T00:00:00Z', mode: 'static' },
+      head: 'new-sha',
+      diffFails: true
+    })
+    const { code, body } = await h.status()
+    expect(code).toBe(200)
+    expect(body.pending).toBe(true)
+    expect(body.baselineUnresolvable).toBe(true)
+    expect(body.changedPaths).toEqual([])
+    expect(body.deployedSha).toBe('gone-sha')
+    // The one action that re-baselines must stay offered — and work.
+    expect(body.canRebuild).toBe(true)
+    expect((await h.rebuild()).code).toBe(202)
+  })
+
+  it('a resolvable baseline is not flagged', async () => {
+    const { body } = await harness({
+      state: { sha: 'old-sha', at: '2026-07-09T00:00:00Z', mode: 'static' },
+      head: 'new-sha'
+    }).status()
+    expect(body.baselineUnresolvable).toBe(false)
+  })
+
+  it('a zero-commit repo: 200 with a null HEAD and a stated reason, and rebuild 409s without a job', async () => {
+    const h = harness({
+      state: { sha: 'old-sha', at: '2026-07-09T00:00:00Z', mode: 'static' },
+      headFails: true
+    })
+    const { code, body } = await h.status()
+    expect(code).toBe(200)
+    expect(body.headSha).toBeNull()
+    expect(body.pending).toBe(true)
+    expect(body.baselineUnresolvable).toBe(true)
+    expect(body.canRebuild).toBe(false)
+    expect(String(body.rebuildBlockedReason)).toMatch(/no commits/i)
+
+    const r = await h.rebuild()
+    expect(r.code).toBe(409)
+    expect(String(r.body.error)).toMatch(/no commits/i)
+    expect(h.build).not.toHaveBeenCalled()
+    expect((await h.status()).body.job).toBeNull()
+  })
+
+  it('a zero-commit repo that was never deployed is not flagged — there is no baseline to resolve', async () => {
+    const { code, body } = await harness({
+      state: null,
+      headFails: true
+    }).status()
+    expect(code).toBe(200)
+    expect(body.baselineUnresolvable).toBe(false)
+    expect(body.canRebuild).toBe(false)
+  })
+})
+
 describe('deploy api — rebuild (#209)', () => {
   it('starts an async job, then records the deployed sha+mode on success', async () => {
     let resolveBuild!: () => void
@@ -147,6 +217,62 @@ describe('deploy api — rebuild (#209)', () => {
       at: new Date(1_000_000).toISOString(),
       mode: 'static'
     })
+  })
+
+  it('a build finishing mid-request never pairs a done job with the old deploy record', async () => {
+    // Status awaits git between its reads; a build that completes in that window must not
+    // produce { job: done, deployedSha: <previous> } — the admin's last poll would keep the
+    // stale baseline on screen after a successful publish.
+    let resolveBuild!: () => void
+    const gate = new Promise<void>((r) => (resolveBuild = r))
+    let state: DeployState | null = {
+      sha: 'old-sha',
+      at: '2026-07-09T00:00:00Z',
+      mode: 'static'
+    }
+    let releaseHead: (() => void) | null = null
+    const jobs = createSqliteDeployJobStore(':memory:')
+    const app = createDeployApi({
+      resolveActor: asRole('admin'),
+      siteDir: '/site',
+      jobs,
+      readState: () => state,
+      writeState: (s) => {
+        state = s
+      },
+      headSha: () =>
+        releaseHead === null
+          ? Promise.resolve('new-sha')
+          : new Promise<string>((r) => {
+              const go = releaseHead!
+              releaseHead = () => {
+                go()
+                r('new-sha')
+              }
+            }),
+      changedPaths: async () => [],
+      runBuild: () => gate,
+      now: () => 1
+    })
+    const call = (path: string, method = 'GET') =>
+      Promise.resolve(app.fetch(new Request(`http://x${path}`, { method })))
+    expect((await call('/api/deploy/rebuild', 'POST')).status).toBe(202)
+
+    // A status request that stalls on git…
+    releaseHead = () => {}
+    const pending = call('/api/deploy/status')
+    await Promise.resolve()
+    // …while the build finishes.
+    resolveBuild()
+    await vi.waitFor(() => expect(state?.sha).toBe('new-sha'))
+    releaseHead()
+    const body = (await (await pending).json()) as {
+      job: { status: string }
+      deployedSha: string
+    }
+    // Either snapshot is honest; the mixed one is not.
+    if (body.job.status === 'done') expect(body.deployedSha).toBe('new-sha')
+    else expect(body.deployedSha).toBe('old-sha')
   })
 
   it('a failing build marks the job failed and does NOT record a deploy', async () => {

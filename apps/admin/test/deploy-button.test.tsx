@@ -20,7 +20,8 @@ const state: { status: DeployStatus | null } = {
     ],
     job: null,
     canRebuild: true,
-    rebuildBlockedReason: null
+    rebuildBlockedReason: null,
+    baselineUnresolvable: false
   }
 }
 const mockRebuild = vi.fn(() => Promise.resolve())

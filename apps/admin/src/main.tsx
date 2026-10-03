@@ -52,7 +52,7 @@ createRoot(document.getElementById('root')!).render(
               rejection nothing else reports. */}
           <UnhandledRejectionReporter />
           <AuthBoundary>
-            <DeployProvider>
+            <DeployProvider enabled={hasApi}>
               <IndexProvider>
                 <CollectionsProvider>
                   <AppMediaIndexProvider>

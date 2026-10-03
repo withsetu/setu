@@ -37,9 +37,9 @@ export interface SmtpEmailAdapterOptions {
  *  for as long as the transport lets it, and the submission row is already persisted by then, so
  *  the wait buys nothing at all.
  *
- *  Verified against the INSTALLED source rather than from memory — nodemailer 9.0.3,
- *  `lib/smtp-connection/index.js:14-17`: CONNECTION_TIMEOUT 2 min, SOCKET_TIMEOUT 10 min,
- *  GREETING_TIMEOUT 30 s, DNS_TIMEOUT 30 s. Worst case there is over 13 minutes of held request;
+ *  Verified against the INSTALLED source rather than from memory — nodemailer 10.0.13,
+ *  `dist/esm/smtp-connection/index.js:11-14` (unchanged since 9.0.3): CONNECTION_TIMEOUT 2 min,
+ *  SOCKET_TIMEOUT 10 min, GREETING_TIMEOUT 30 s, DNS_TIMEOUT 30 s. Worst case there is over 13 minutes of held request;
  *  the values below bound it to well under one, while staying generous for a slow relay
  *  (a TLS handshake plus greeting on a congested link is single-digit seconds, and `socketTimeout`
  *  is an INACTIVITY timer, not a total-send budget, so a large attachment does not race it).

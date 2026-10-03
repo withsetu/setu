@@ -103,7 +103,7 @@ describe('per-locale taxonomy archives (#1114)', () => {
     expect(p).toContain('href="/fr/post/bonjour/"')
     expect(p).toMatch(/<html[^>]*lang="fr"/)
     expect(p).toContain(
-      '<link rel="canonical" href="http://localhost:4321/fr/tag/voyage/"'
+      '<link rel="canonical" href="https://example.com/fr/tag/voyage/"'
     )
     // Single-locale term → no hreflang cluster.
     expect(p).not.toContain('hreflang=')
@@ -124,14 +124,12 @@ describe('per-locale taxonomy archives (#1114)', () => {
   it('hreflang pairs the locale variants of the same term where both exist', () => {
     for (const route of ['tag/astro', 'fr/tag/astro']) {
       const p = page(route)
+      expect(p).toContain('hreflang="en" href="https://example.com/tag/astro/"')
       expect(p).toContain(
-        'hreflang="en" href="http://localhost:4321/tag/astro/"'
+        'hreflang="fr" href="https://example.com/fr/tag/astro/"'
       )
       expect(p).toContain(
-        'hreflang="fr" href="http://localhost:4321/fr/tag/astro/"'
-      )
-      expect(p).toContain(
-        'hreflang="x-default" href="http://localhost:4321/tag/astro/"'
+        'hreflang="x-default" href="https://example.com/tag/astro/"'
       )
     }
     // page 2 of a paginated archive is not a translation of anything
@@ -149,16 +147,16 @@ describe('per-locale taxonomy archives (#1114)', () => {
 
   it('the tag/category sitemaps list the per-locale archive URLs', () => {
     const tags = readFileSync(join(appDir, 'dist', 'tag-sitemap.xml'), 'utf8')
-    expect(tags).toContain('<loc>http://localhost:4321/fr/tag/voyage/</loc>')
-    expect(tags).toContain('<loc>http://localhost:4321/fr/tag/astro/</loc>')
-    expect(tags).toContain('<loc>http://localhost:4321/tag/astro/</loc>')
-    expect(tags).not.toContain('<loc>http://localhost:4321/tag/voyage/</loc>')
+    expect(tags).toContain('<loc>https://example.com/fr/tag/voyage/</loc>')
+    expect(tags).toContain('<loc>https://example.com/fr/tag/astro/</loc>')
+    expect(tags).toContain('<loc>https://example.com/tag/astro/</loc>')
+    expect(tags).not.toContain('<loc>https://example.com/tag/voyage/</loc>')
     const cats = readFileSync(
       join(appDir, 'dist', 'category-sitemap.xml'),
       'utf8'
     )
     expect(cats).toContain(
-      '<loc>http://localhost:4321/fr/category/recipes/</loc>'
+      '<loc>https://example.com/fr/category/recipes/</loc>'
     )
   })
 

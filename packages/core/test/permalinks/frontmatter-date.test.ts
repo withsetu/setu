@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   parseFrontmatterDate,
+  parseFrontmatterModifiedDate,
   formatFrontmatterDate
 } from '../../src/permalinks/frontmatter-date'
 
@@ -45,6 +46,41 @@ describe('parseFrontmatterDate', () => {
 
   it('returns null for an unparseable value', () => {
     expect(parseFrontmatterDate({ date: 'not-a-date' })).toBeNull()
+  })
+})
+
+describe('parseFrontmatterModifiedDate', () => {
+  it('reads updatedAt, then modified', () => {
+    expect(parseFrontmatterModifiedDate({ updatedAt: '2026-02-01' })).toBe(
+      Date.parse('2026-02-01')
+    )
+    expect(parseFrontmatterModifiedDate({ modified: '2026-03-01' })).toBe(
+      Date.parse('2026-03-01')
+    )
+    expect(
+      parseFrontmatterModifiedDate({
+        updatedAt: '2026-02-01',
+        modified: '2026-03-01'
+      })
+    ).toBe(Date.parse('2026-02-01'))
+  })
+
+  it('never reads a published date (date/pubDate)', () => {
+    expect(
+      parseFrontmatterModifiedDate({
+        date: '2026-01-01',
+        pubDate: '2020-01-01'
+      })
+    ).toBeNull()
+  })
+
+  it('accepts a YAML Date and rejects garbage', () => {
+    expect(
+      parseFrontmatterModifiedDate({
+        updatedAt: new Date('2026-06-20T00:00:00.000Z')
+      })
+    ).toBe(Date.parse('2026-06-20T00:00:00.000Z'))
+    expect(parseFrontmatterModifiedDate({ updatedAt: 'nope' })).toBeNull()
   })
 })
 

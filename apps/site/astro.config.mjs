@@ -133,6 +133,25 @@ const devPreviewRoute = {
   }
 }
 
+// Exposes which Astro command is running as `import.meta.env.SETU_ASTRO_COMMAND`. `import.meta
+// .env.PROD` is not that signal: it follows NODE_ENV, so a build run with NODE_ENV=test (e.g.
+// spawned from vitest) reports PROD=false. Gates that must fail every build but only warn in
+// `astro dev` key on this instead (the reserved-route check in src/lib/permalinks.ts, #1122).
+const astroCommandEnv = {
+  name: 'setu:astro-command-env',
+  hooks: {
+    'astro:config:setup': ({ command, updateConfig }) => {
+      updateConfig({
+        vite: {
+          define: {
+            'import.meta.env.SETU_ASTRO_COMMAND': JSON.stringify(command)
+          }
+        }
+      })
+    }
+  }
+}
+
 export default defineConfig({
   // Astro owns `port` and `allowedHosts` natively — setting them under `vite.server` is not
   // the supported seam (#1051). Loopback-only unless an operator names extra hosts; see
@@ -159,6 +178,7 @@ export default defineConfig({
     markdoc(),
     react(),
     devPreviewRoute,
+    astroCommandEnv,
     perPageCssPurge(),
     // Emits dist/_headers (default security headers, report-only CSP) at build; a user-supplied
     // public/_headers wins. Build-only, like perPageCssPurge — dev is untouched. (#289)

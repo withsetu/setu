@@ -1,6 +1,6 @@
 ---
 import { getCollection } from 'astro:content'
-import { selectPosts, entryUrlPath, ensureTrailingSlashPath, excerpt, DEFAULT_LOCALE, type PostRow } from '@setu/core'
+import { selectPosts, entryUrlPath, ensureTrailingSlashPath, excerpt, parseFrontmatterDate, DEFAULT_LOCALE, type PostRow } from '@setu/core'
 import { permalinkMap } from 'setu:permalinks'
 
 const {
@@ -26,14 +26,6 @@ const resolveImg = (s: string): string =>
 function toPostRow(entry: { id: string; data: Record<string, unknown>; body?: string }): PostRow {
   const [col = '', loc = '', ...rest] = entry.id.split('/')
   const d = entry.data
-  const dateRaw = d['date'] ?? d['pubDate'] ?? d['updatedAt']
-  // YAML parses an unquoted `date: 2026-06-20` into a Date; strings/numbers go through Date.parse.
-  const parsed =
-    dateRaw instanceof Date
-      ? dateRaw.getTime()
-      : typeof dateRaw === 'string' || typeof dateRaw === 'number'
-        ? Date.parse(String(dateRaw))
-        : NaN
   const strArr = (v: unknown): string[] =>
     Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
   const str = (v: unknown): string => (typeof v === 'string' ? v : '')
@@ -45,7 +37,8 @@ function toPostRow(entry: { id: string; data: Record<string, unknown>; body?: st
     locale: loc,
     slug: rest.join('/'),
     title: typeof d['title'] === 'string' ? (d['title'] as string) : entry.id,
-    date: Number.isNaN(parsed) ? null : parsed,
+    // The one published-date rule (`date ?? pubDate`, #1121); never updatedAt.
+    date: parseFrontmatterDate(d),
     tags: strArr(d['tags']),
     categories: strArr(d['categories']),
     featuredImage: typeof d['featuredImage'] === 'string' ? (d['featuredImage'] as string) : undefined,

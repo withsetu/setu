@@ -102,7 +102,7 @@ const asStringArray = (v) =>
   Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []
 
 /** Turn one .mdoc file into a RelatedRow keyed by its Astro entry id. */
-function toRow(file, contentDir) {
+export function toRow(file, contentDir) {
   // The id rule the site's content loader uses too (entryIdFromContentPath, #1117).
   const id = entryIdFromContentPath(path.relative(contentDir, file))
   const [collection = '', locale = '', ...rest] = id.split('/')
@@ -111,10 +111,11 @@ function toRow(file, contentDir) {
   const title = typeof frontmatter.title === 'string' ? frontmatter.title : slug
   const tags = normalizeTags(asStringArray(frontmatter.tags))
   const categories = asStringArray(frontmatter.categories)
-  const dateRaw =
-    frontmatter.date ?? frontmatter.updatedAt ?? frontmatter.pubDate
-  const parsed = dateRaw != null ? Date.parse(String(dateRaw)) : Number.NaN
-  const updatedAt = Number.isNaN(parsed) ? statSync(file).mtimeMs : parsed
+  // The one published-date rule (`date ?? pubDate`, core's parseFrontmatterDate, #1121),
+  // then the file's mtime — never updatedAt. Agreement with the site's consumers is pinned by
+  // apps/site/test/post-date-agreement.test.ts.
+  const publishedDate = parseFrontmatterDate(frontmatter)
+  const updatedAt = publishedDate ?? statSync(file).mtime.getTime()
   const featuredImage =
     typeof frontmatter.featuredImage === 'string'
       ? frontmatter.featuredImage
@@ -143,9 +144,9 @@ function toRow(file, contentDir) {
     published: frontmatter.published !== false,
     // Stable content id (#389): survives a slug rename, so the redirect map keys on it.
     cid: typeof frontmatter.cid === 'string' ? frontmatter.cid : undefined,
-    // Frontmatter date ?? pubDate ONLY — never updatedAt/mtime — matching
-    // apps/site/src/lib/permalinks.ts's toPermalinkEntry exactly (an edit must not move a URL).
-    permalinkDate: parseFrontmatterDate(frontmatter)
+    // Frontmatter published date ONLY — never updatedAt/mtime (an edit must not move a URL);
+    // the same value toPermalinkEntry computes (apps/site/test/post-date-agreement.test.ts).
+    permalinkDate: publishedDate
   }
 }
 

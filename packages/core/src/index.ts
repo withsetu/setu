@@ -70,6 +70,7 @@ export {
 } from './permalinks/config'
 export {
   parseFrontmatterDate,
+  parseFrontmatterModifiedDate,
   formatFrontmatterDate
 } from './permalinks/frontmatter-date'
 export {

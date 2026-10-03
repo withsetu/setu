@@ -25,8 +25,15 @@ describe('generateMarkdocTagsInclude', () => {
     expect(out).toContain(
       "render: component('../../blocks/callout/callout.astro'),"
     )
-    expect(out).toContain('type: { type: String }')
-    expect(out).toContain('title: { type: String }')
+    // Each attribute goes through the site's named validator (#1126), not Markdoc's bare
+    // `type: String`, whose messages never say which block failed.
+    expect(out).toContain(
+      `type: blockAttr('callout', 'type', { type: "String" })`
+    )
+    expect(out).toContain(
+      `title: blockAttr('callout', 'title', { type: "String" })`
+    )
+    expect(out).toContain(`validate: blockTagValidate('callout')`)
   })
 
   it('prefixes a repo-root block path with ../../', () => {

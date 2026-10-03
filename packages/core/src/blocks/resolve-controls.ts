@@ -33,8 +33,13 @@ export interface ResolvedControl {
  *  `Number`  — a Number prop.
  *  `Boolean` — a Boolean prop (the zod-derived `switch`).
  *  `Array`   — an Array prop; there is no generic array editor, so an array prop MUST pick
- *              one of these explicitly (see the throw below). */
-type ControlBacking = 'String' | 'enum' | 'Number' | 'Boolean' | 'Array'
+ *              one of these explicitly (see the throw below).
+ *  `collectionRef` — a `collectionRef()` prop (#1126): its value must name a declared
+ *              collection, so it is paired 1:1 with the `collection` picker. A plain String
+ *              prop cannot take that hint — the build would never check membership, so the
+ *              picker would promise a constraint nothing enforces. */
+type ControlBacking =
+  'String' | 'enum' | 'Number' | 'Boolean' | 'Array' | 'collectionRef'
 
 const CONTROL_BACKING: Record<BlockControl, ControlBacking> = {
   text: 'String',
@@ -46,6 +51,7 @@ const CONTROL_BACKING: Record<BlockControl, ControlBacking> = {
   category: 'String',
   tag: 'String',
   locale: 'String',
+  collection: 'collectionRef',
   select: 'enum',
   position9: 'enum',
   align: 'enum',
@@ -72,6 +78,8 @@ const NUMBER_HINTS = controlsBackedBy('Number')
 const BOOLEAN_HINTS = controlsBackedBy('Boolean')
 /** Controls valid for an Array prop. */
 const ARRAY_HINTS = controlsBackedBy('Array')
+/** Controls valid for a collection-reference prop. */
+const COLLECTION_REF_HINTS = controlsBackedBy('collectionRef')
 
 /** Map a block's zod props (+ optional per-prop control hints) to an ordered list of
  *  controls for the inspector. Hints override the zod-derived control but must be
@@ -88,13 +96,16 @@ export function resolveControls(
   }
   return Object.entries(attrs).map(([name, a]) => {
     // zod-derived default control
-    const derived: BlockControl = a.matches
-      ? 'select'
-      : a.type === 'Number'
-        ? 'number'
-        : a.type === 'Boolean'
-          ? 'switch'
-          : 'text'
+    const derived: BlockControl =
+      a.ref === 'collection'
+        ? 'collection'
+        : a.matches
+          ? 'select'
+          : a.type === 'Number'
+            ? 'number'
+            : a.type === 'Boolean'
+              ? 'switch'
+              : 'text'
     const shared = {
       required: a.required,
       ...(a.default !== undefined ? { default: a.default } : {}),
@@ -118,11 +129,15 @@ export function resolveControls(
       (a.matches && ENUM_HINTS.has(hint)) ||
       (a.type === 'Number' && NUMBER_HINTS.has(hint)) ||
       (a.type === 'Boolean' && BOOLEAN_HINTS.has(hint)) ||
-      (a.type === 'String' && !a.matches && STRING_CONTROLS.has(hint)) ||
+      (a.ref === 'collection' && COLLECTION_REF_HINTS.has(hint)) ||
+      (a.type === 'String' &&
+        !a.matches &&
+        !a.ref &&
+        STRING_CONTROLS.has(hint)) ||
       (a.type === 'Array' && ARRAY_HINTS.has(hint))
     if (!ok)
       throw new Error(
-        `resolveControls: hint "${hint}" incompatible with prop "${name}" (zod ${a.type}${a.matches ? ' enum' : ''})`
+        `resolveControls: hint "${hint}" incompatible with prop "${name}" (zod ${a.type}${a.matches ? ' enum' : ''}${a.ref ? ` ${a.ref} ref` : ''})`
       )
     return { name, control: hint, ...shared }
   })

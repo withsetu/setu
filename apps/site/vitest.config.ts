@@ -12,7 +12,12 @@ export default mergeConfig(
       environment: 'node',
       testTimeout: 60_000,
       hookTimeout: 120_000,
-      fileParallelism: false
+      fileParallelism: false,
+      // `astro build` refuses to run without SETU_SITE_URL (#1118). Every suite that builds the
+      // site inherits this explicit test origin through process.env; a suite that asserts on a
+      // different origin passes its own. apps/site/test/require-site-url.test.ts strips it to
+      // prove the unset build fails.
+      env: { SETU_SITE_URL: 'https://example.com' }
     }
   })
 )

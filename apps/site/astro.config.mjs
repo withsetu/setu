@@ -9,6 +9,10 @@ import { loadConfig } from '@setu/core/node'
 import { perPageCssPurge } from './integrations/per-page-css-purge.mjs'
 import { securityHeaders } from './integrations/security-headers.mjs'
 import { settingsWatcher } from './integrations/settings-watcher.mjs'
+import {
+  DEV_SITE_URL,
+  requireSiteUrl
+} from './integrations/require-site-url.mjs'
 import { themeFontImports } from './integrations/theme-fonts.mjs'
 import { parseAllowedHosts } from '../../scripts/dev-allowed-hosts.mjs'
 import { parsePort } from '../../scripts/dev-port.mjs'
@@ -59,6 +63,25 @@ const virtualFonts = {
   resolveId: (id) =>
     id === 'virtual:setu-fonts' ? '\0virtual:setu-fonts' : null,
   load: (id) => (id === '\0virtual:setu-fonts' ? fontImports : null)
+}
+
+// Serve `setu:collections` — the declared collections' names + labels from the resolved
+// setu.config — so dynamic block renderers (the query block's empty state, #1126) speak the
+// site's own nouns ("No products found.") instead of guessing from the raw name.
+const collectionLabels = JSON.stringify(
+  config.collections.map(({ name, label, labelPlural }) => ({
+    name,
+    label,
+    labelPlural
+  }))
+)
+const virtualCollections = {
+  name: 'setu:virtual-collections',
+  resolveId: (id) => (id === 'setu:collections' ? '\0setu:collections' : null),
+  load: (id) =>
+    id === '\0setu:collections'
+      ? `export const collections = ${collectionLabels}\n`
+      : null
 }
 
 // Content lives at repo-root content/ (the publish-engine convention), which is OUTSIDE
@@ -129,6 +152,25 @@ const devPreviewRoute = {
   }
 }
 
+// Exposes which Astro command is running as `import.meta.env.SETU_ASTRO_COMMAND`. `import.meta
+// .env.PROD` is not that signal: it follows NODE_ENV, so a build run with NODE_ENV=test (e.g.
+// spawned from vitest) reports PROD=false. Gates that must fail every build but only warn in
+// `astro dev` key on this instead (the reserved-route check in src/lib/permalinks.ts, #1122).
+const astroCommandEnv = {
+  name: 'setu:astro-command-env',
+  hooks: {
+    'astro:config:setup': ({ command, updateConfig }) => {
+      updateConfig({
+        vite: {
+          define: {
+            'import.meta.env.SETU_ASTRO_COMMAND': JSON.stringify(command)
+          }
+        }
+      })
+    }
+  }
+}
+
 export default defineConfig({
   // Astro owns `port` and `allowedHosts` natively — setting them under `vite.server` is not
   // the supported seam (#1051). Loopback-only unless an operator names extra hosts; see
@@ -138,19 +180,25 @@ export default defineConfig({
     allowedHosts: parseAllowedHosts(process.env.SETU_DEV_ALLOWED_HOSTS) ?? []
   },
   // Absolute base URL for builds (used by RSS/sitemap/canonical links). Deployment-specific →
-  // env at build; dev falls back to the local origin. A prod build MUST set SETU_SITE_URL.
-  site: process.env.SETU_SITE_URL ?? 'http://localhost:4321',
+  // env at build; dev/sync/preview fall back to the local origin. `astro build` refuses to run
+  // without SETU_SITE_URL — see requireSiteUrl() below (#1118).
+  site: process.env.SETU_SITE_URL || DEV_SITE_URL,
   // Astro 7 changed the compressHTML default from `true` to `'jsx'`, which collapses
   // whitespace between inline elements using JSX rules. Our blocks + content templates
   // were authored under the v6 (`true`) model, so pin it to preserve exact prior output.
   // Revisit per-template if/when we want JSX-style compression.
   compressHTML: true,
-  // perPageCssPurge runs only at `astro build` (astro:build:done) — dev is untouched. It strips
-  // each page's unused block CSS and inlines the rest, so a page only ships the blocks it uses.
+  // perPageCssPurge runs only at `astro build` (astro:build:done) — dev is untouched. It purges
+  // each page's inline <style> blocks and single-page stylesheets against that page; the
+  // shared theme + block bundle stays external, cached and unpurged (see `purgeDist`, #1119).
   integrations: [
+    // First, so a build missing SETU_SITE_URL stops before any other integration does work.
+    // Enforced by apps/site/test/require-site-url.test.ts.
+    requireSiteUrl(),
     markdoc(),
     react(),
     devPreviewRoute,
+    astroCommandEnv,
     perPageCssPurge(),
     // Emits dist/_headers (default security headers, report-only CSP) at build; a user-supplied
     // public/_headers wins. Build-only, like perPageCssPurge — dev is untouched. (#289)
@@ -175,7 +223,7 @@ export default defineConfig({
         )
       }
     },
-    plugins: [resolveMarkdocFromApp, virtualFonts],
+    plugins: [resolveMarkdocFromApp, virtualFonts, virtualCollections],
     // The theme Layout self-hosts fonts via `import '@fontsource-variable/...'`, which
     // resolve to .css. In `astro build` Vite bundles these, but in `astro dev` SSR Node's
     // loader tries to load the raw .css as a module and throws "Unknown file extension .css".

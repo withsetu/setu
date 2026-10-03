@@ -1,4 +1,4 @@
-import { excerpt, type PostRow } from '@setu/core'
+import { excerpt, parseFrontmatterDate, type PostRow } from '@setu/core'
 
 export function strArr(v: unknown): string[] {
   return Array.isArray(v)
@@ -10,7 +10,7 @@ const str = (v: unknown): string => (typeof v === 'string' ? v : '')
 
 /** Map a raw Astro content entry (id = "collection/locale/slug") to a PostRow. Single projection
  *  shared by every archive-style getStaticPaths (posts, category, tag, …) so they agree on fields
- *  and ordering. Pass `body` to derive a card excerpt (frontmatter description/summary wins). */
+ *  and ordering. Pass `body` to derive a card excerpt (frontmatter description/summary/excerpt wins). */
 export function toPostRow(
   entry: {
     id: string
@@ -21,22 +21,21 @@ export function toPostRow(
 ): PostRow {
   const [col = '', loc = '', ...rest] = entry.id.split('/')
   const d = entry.data
-  const dateRaw = d['date'] ?? d['pubDate'] ?? d['updatedAt']
-  const parsed =
-    dateRaw instanceof Date
-      ? dateRaw.getTime()
-      : typeof dateRaw === 'string' || typeof dateRaw === 'number'
-        ? Date.parse(String(dateRaw))
-        : NaN
+  // `excerpt` is a base entry field every collection may carry (BASE_ENTRY_FIELDS in
+  // @setu/core), so a declared collection's own summary reaches its cards (#1126).
   const cardExcerpt =
-    str(d['description']) || str(d['summary']) || excerpt(entry.body ?? '', 160)
+    str(d['description']) ||
+    str(d['summary']) ||
+    str(d['excerpt']) ||
+    excerpt(entry.body ?? '', 160)
   return {
     id: entry.id,
     collection: col,
     locale: loc,
     slug: rest.join('/'),
     title: typeof d['title'] === 'string' ? d['title'] : entry.id,
-    date: Number.isNaN(parsed) ? null : parsed,
+    // The one published-date rule (`date ?? pubDate`, #1121); never updatedAt.
+    date: parseFrontmatterDate(d),
     // `published:false` is Setu's only "hidden" signal; absent/true is live. Projecting it lets
     // selectPosts hide drafts from the archives too (mirrors the posts archive + feed + audit).
     published: d['published'] === false ? false : undefined,

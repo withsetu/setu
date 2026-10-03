@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { realpathSync, statSync } from 'node:fs'
 import { dirname, relative, resolve, sep } from 'node:path'
+import { parseFrontmatterDate } from '@setu/core'
 
 /** Parse a frontmatter date (string|number|Date) to a valid Date, or null. */
 export function parseDate(value: unknown): Date | null {
@@ -10,7 +11,7 @@ export function parseDate(value: unknown): Date | null {
 }
 
 // ─── Build-scoped git date sweep (#506) ─────────────────────────────────────────
-// Every entry without a frontmatter `date` falls back to its last git commit date.
+// Every entry without a frontmatter published date falls back to its last git commit date.
 // One `git log -1 -- <file>` subprocess per entry — repeated by each sitemap route
 // and once more per post page — put ~60k serialized spawns in a 10k-entry build
 // (~28 of its 32 minutes). Instead, ONE `git log --name-status` pass over the repo
@@ -168,10 +169,12 @@ export interface DatableEntry {
   filePath?: string
 }
 
-/** A post's publish date: frontmatter `date` → git commit date → file mtime → now. */
+/** A post's publish date: the frontmatter published date (`date ?? pubDate`, core's
+ *  `parseFrontmatterDate` — the one rule, #1121) → git commit date → file mtime → now.
+ *  `updatedAt` never dates publication. */
 export function resolvePostDate(entry: DatableEntry): Date {
-  const fm = parseDate(entry.data?.date)
-  if (fm) return fm
+  const fm = entry.data ? parseFrontmatterDate(entry.data) : null
+  if (fm !== null) return new Date(fm)
   if (entry.filePath) {
     const abs = resolve(entry.filePath)
     const git = gitCommitDate(abs)

@@ -12,6 +12,10 @@ interface ImportMetaEnv {
   /** The @setu/api origin the live-preview bridge polls. Falls back to
    *  http://localhost:4444 when unset (see preview/preview.astro). */
   readonly SETU_API_URL?: string
+  /** The running Astro command (`dev` | `build` | `preview` | `sync`), defined by the
+   *  `setu:astro-command-env` integration in astro.config.mjs. Unlike PROD it does not follow
+   *  NODE_ENV. Undefined outside Astro's pipeline (plain vitest). */
+  readonly SETU_ASTRO_COMMAND?: string
 }
 
 interface ImportMeta {
@@ -33,4 +37,14 @@ declare module 'setu:post-row' {
     entry: { id: string; data: Record<string, unknown>; body?: string },
     urlPath?: string
   ): import('@setu/core').PostRow
+}
+
+// Virtual module (see astro.config.mjs): the resolved setu.config's declared collections, for
+// block renderers that need a collection's human label.
+declare module 'setu:collections' {
+  export const collections: ReadonlyArray<{
+    name: string
+    label: string
+    labelPlural: string
+  }>
 }

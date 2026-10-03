@@ -20,7 +20,8 @@ import type { PostRow } from '../posts/select-posts'
  *  Lives in core so the theme (which cannot import from apps/site) and the site share it.
  *  Enforced by packages/core/test/url/taxonomy-path.test.ts (the encoding + locale prefix) and
  *  apps/site/test/taxonomy-archive.test.ts (every built chip href resolves to an emitted archive;
- *  chip href == sitemap loc). */
+ *  chip href == sitemap loc) and apps/site/test/sitemap-fixture-build.test.ts (built chip href ==
+ *  sitemap loc == canonical for a spaced tag). */
 export function taxonomyArchivePath(
   kind: 'category' | 'tag',
   slug: string,

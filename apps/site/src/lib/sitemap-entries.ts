@@ -1,5 +1,15 @@
+import { parseFrontmatterModifiedDate } from '@setu/core'
 import { resolvePostDate } from './post-date'
 import type { SitemapEntry } from './sitemap'
+
+/** `<lastmod>` is a modified date: frontmatter `updatedAt ?? modified`, else the published
+ *  date (`date ?? pubDate` → git → mtime). Both rules are @setu/core's (#1121). */
+function lastmodOf(data: Record<string, unknown>, filePath?: string): string {
+  const modified = parseFrontmatterModifiedDate(data)
+  return (
+    modified !== null ? new Date(modified) : resolvePostDate({ data, filePath })
+  ).toISOString()
+}
 
 /** Load all content entries as sitemap rows (with a resolved lastmod). Kept separate from
  *  sitemap.ts so the pure builders stay unit-testable without the `astro:content` virtual
@@ -15,7 +25,7 @@ async function load(): Promise<SitemapEntry[]> {
     return {
       id: e.id,
       data,
-      lastmod: resolvePostDate({ data, filePath: e.filePath }).toISOString(),
+      lastmod: lastmodOf(data, e.filePath),
       body: e.body
     }
   })

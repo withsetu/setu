@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { ImageIcon } from 'lucide-react'
 import type { ContentRow, IndexQuery, SortKey } from '@setu/core'
 import { resolveMediaSrc } from './media-src'
+import { useCollections } from '../data/collections-store'
+import { findCollection } from '../data/collections'
 
 /** The block's attribute bag, as stored on the node (all optional — defaults applied here). */
 export interface QueryAttrs {
@@ -83,6 +85,12 @@ export function QueryPreview({
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
 
   const collection = attrs.collection || 'post'
+  // Count/empty-state nouns come from the declared collection's labels ("3 products"), not
+  // the raw name + "s". An undeclared name (the inspector flags it) falls back to the name.
+  const { collections } = useCollections()
+  const declared = findCollection(collections, collection)
+  const one = (declared?.label ?? collection).toLowerCase()
+  const many = (declared?.labelPlural ?? collection).toLowerCase()
   const layout = attrs.layout ?? 'grid'
   const columns = Math.min(6, Math.max(1, Number(attrs.columns) || 3))
   const showImage = attrs.showImage ?? true
@@ -123,7 +131,7 @@ export function QueryPreview({
       ? 'Loading…'
       : state === 'error'
         ? 'Preview unavailable'
-        : `${total} ${collection}${total === 1 ? '' : 's'}${total > rows.length ? ` · showing ${rows.length}` : ''}`
+        : `${total} ${total === 1 ? one : many}${total > rows.length ? ` · showing ${rows.length}` : ''}`
 
   return (
     <div
@@ -145,7 +153,7 @@ export function QueryPreview({
       <div className="p-3">
         {state === 'ready' && rows.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">
-            No {collection}s match these filters.
+            No {many} match these filters.
           </p>
         ) : (
           <ul

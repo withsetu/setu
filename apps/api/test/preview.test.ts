@@ -20,6 +20,21 @@ describe('preview api', () => {
     expect(res.status).toBe(404)
   })
 
+  // #1123 — the site's preview route must tell "no draft yet" apart from "this api has no
+  // preview route" (gate off → Hono's bare 404). The genuine-empty 404 carries `empty: true`;
+  // the site's half of the contract is apps/site/test/preview-load-draft.test.ts.
+  it('the no-draft 404 carries the empty marker', async () => {
+    const res = await req(createPreviewApi(), '/preview')
+    expect(res.status).toBe(404)
+    expect(await res.json()).toMatchObject({ empty: true })
+  })
+
+  it('the gate-off 404 does NOT carry the empty marker', async () => {
+    const res = await req(createPreviewApi({ enabled: false }), '/preview')
+    expect(res.status).toBe(404)
+    expect(await res.text()).not.toContain('"empty"')
+  })
+
   it('stores a posted draft and returns it', async () => {
     const app = createPreviewApi()
     const post = await req(app, '/preview', {

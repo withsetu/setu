@@ -89,7 +89,7 @@ describe('post page taxonomy chips (#860 BLOCK-4)', () => {
     expect(page('post/kitchen-sink')).toContain(`href="${chipHref}"`)
     expect(exists('tag/astro')).toBe(true) // dist/tag/astro/index.html — the served route
     const tagmap = readFileSync(join(appDir, 'dist', 'tag-sitemap.xml'), 'utf8')
-    expect(tagmap).toContain(`<loc>http://localhost:4321${chipHref}</loc>`)
+    expect(tagmap).toContain(`<loc>https://example.com${chipHref}</loc>`)
   })
 })
 

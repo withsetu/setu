@@ -10,10 +10,11 @@ interface Props {
 }
 const { categories, tags, locale = DEFAULT_LOCALE } = Astro.props
 const has = categories.length > 0 || tags.length > 0
-// `taxonomyArchivePath` is core's single primitive for an archive URL: Astro's own route-param
-// encoding (#→%23, ?→%3F, NOT encodeURIComponent) + the site's trailing-slash spelling, shared with
-// the archive routes and the sitemap <loc> so the three are byte-identical (#860 BLOCK-4, #1114).
-// 
+// The archive path is the ONE shared spelling (@setu/core `taxonomyArchivePath`): Astro's route
+// encoding for #/? plus URL serialization (a space is %20), with the directory-format trailing
+// slash and the post's locale prefix (#1114) — byte-identical to the sitemap <loc> and the archive's canonical. Enforced by
+// apps/site/test/sitemap-fixture-build.test.ts (chip href == sitemap loc == canonical for a
+// spaced tag) and apps/site/test/taxonomy-archive.test.ts.
 ---
 
 {has && (

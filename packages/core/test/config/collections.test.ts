@@ -73,7 +73,7 @@ describe('resolveConfig — collections', () => {
     )
   })
 
-  it.each(['category', 'tag'])(
+  it.each(['category', 'tag', 'posts'])(
     'throws on the reserved collection name %s',
     (name) => {
       expect(() => resolveConfig({ collections: [{ name }] })).toThrow(

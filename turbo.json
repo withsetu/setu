@@ -433,10 +433,13 @@
     // site#build's inputs mirror site#test's (same prebuild, same three generators, same
     // repo-root JSON siblings — see the #809 gap-5 note above site#test, caveat included).
     // `env`: same SETU_CONTENT_DIR reasoning as @setu/site#typecheck above — the prebuild
-    // generators pick the content tree this build reads.
+    // generators pick the content tree this build reads. SETU_SITE_URL (#1118) is the origin
+    // every absolute URL in dist/ is built from, and `astro build` refuses to run without it:
+    // strict env mode would otherwise strip it (failing every `turbo run build`) and leave it out
+    // of the hash (a cache hit across a site-URL change would restore another origin's dist/).
     "@setu/site#build": {
       "dependsOn": ["^typecheck"],
-      "env": ["SETU_CONTENT_DIR"],
+      "env": ["SETU_CONTENT_DIR", "SETU_SITE_URL"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "../../blocks/**",

@@ -17,6 +17,7 @@ export type BlockControl =
   | 'category'
   | 'tag'
   | 'locale'
+  | 'collection'
   | 'media-list'
 
 /** Style axes a block may be re-themed on (color/surface/etc). Carried as data for MCP

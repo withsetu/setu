@@ -637,6 +637,18 @@ export function EditorScreen() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ content, collection, locale, slug })
       })
+      // A 404 means the api has no preview route at all (its gate is off — local mode
+      // and non-production only, apps/api/src/config.ts). That is not a connection
+      // problem, so say what it is (#1123).
+      if (res.status === 404) {
+        console.error(
+          '[editor] preview failed: the api has no preview route (404)'
+        )
+        notify.error(
+          'Preview is turned off on this server — it runs only when the API is in local mode, outside production.'
+        )
+        return
+      }
       // Non-ok means the api never stored this draft. Opening the tab anyway would
       // show the PREVIOUS preview — the most convincing possible false success.
       if (!res.ok) throw new Error(`preview push failed (${res.status})`)

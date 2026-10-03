@@ -99,3 +99,41 @@ describe('reservedRouteNamespaces', () => {
       expect(() => matchReservedRoute('x', [r])).not.toThrow()
   })
 })
+
+describe('matchReservedRoute — pattern edge cases', () => {
+  it('matches params embedded in a segment, with literals on both sides', () => {
+    const r = ['post-sitemap-[page].xml']
+    expect(matchReservedRoute('post-sitemap-1.xml', r)).toBe(r[0])
+    expect(matchReservedRoute('POST-SITEMAP-12.XML', r)).toBe(r[0])
+    expect(matchReservedRoute('post-sitemap-.xml', r)).toBeNull() // a param needs ≥1 char
+    expect(matchReservedRoute('post-sitemap-1.xmlx', r)).toBeNull()
+    expect(matchReservedRoute('xpost-sitemap-1.xml', r)).toBeNull()
+  })
+
+  it('adjacent params need one char each', () => {
+    const r = ['[a][b]']
+    expect(matchReservedRoute('xy', r)).toBe(r[0])
+    expect(matchReservedRoute('x', r)).toBeNull()
+  })
+
+  it('a rest param matches zero or more trailing segments, never empty ones', () => {
+    const r = ['posts/[...page]']
+    expect(matchReservedRoute('posts', r)).toBe(r[0])
+    expect(matchReservedRoute('posts/2', r)).toBe(r[0])
+    expect(matchReservedRoute('posts/a/b', r)).toBe(r[0])
+    expect(matchReservedRoute('posts/', r)).toBeNull()
+    expect(matchReservedRoute('postsx', r)).toBeNull()
+  })
+
+  it('rejects malformed patterns', () => {
+    for (const bad of ['a]b', 'a[b', '[]', '[...x]/y', 'a[...x]'])
+      expect(() => matchReservedRoute('q', [bad])).toThrow()
+  })
+
+  it('stays linear on a long adversarial path (no regex backtracking)', () => {
+    const r = ['[a][b][c][d]x.xml']
+    const t0 = performance.now()
+    expect(matchReservedRoute('a'.repeat(50_000), r)).toBeNull()
+    expect(performance.now() - t0).toBeLessThan(200)
+  })
+})

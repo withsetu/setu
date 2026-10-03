@@ -47,42 +47,104 @@ export interface ReservedRouteCollision {
   route: string
 }
 
-const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+type SegPart = { lit: string } | { param: true }
+type RouteSeg = { rest: true } | { parts: SegPart[] }
 
-/** One route pattern → an anchored, case-insensitive regex over a slash-free path. */
-function routeRegex(route: string): RegExp {
+/** One route pattern → its segments, validated. Matching is done by hand rather than by a
+ *  regex built from the pattern: a segment with two adjacent params (`[a][b]`) compiles to an
+ *  ambiguous `[^/]+[^/]+`, which backtracks polynomially on a long content-derived path. */
+function parseRoute(route: string): RouteSeg[] {
   const segs = route.split('/')
-  let re = ''
-  segs.forEach((seg, i) => {
-    const rest = /^\[\.\.\.[^\]]+\]$/.exec(seg)
-    if (rest) {
+  return segs.map((seg, i) => {
+    if (
+      seg.startsWith('[...') &&
+      seg.endsWith(']') &&
+      !seg.slice(4, -1).includes(']')
+    ) {
       if (i !== segs.length - 1)
         throw new Error(`reserved route "${route}": a rest param must be last`)
-      // Zero or more trailing segments: `posts` itself, `posts/2`, `posts/a/b`.
-      re += i === 0 ? '(?:[^/]+(?:/[^/]+)*)?' : '(?:/[^/]+)*'
-      return
+      return { rest: true }
     }
     if (seg.includes('[...'))
       throw new Error(`reserved route "${route}": malformed rest param`)
-    const body = seg
-      .split(/(\[[^\]]+\])/)
-      .map((part) => {
-        if (/^\[[^\]]+\]$/.test(part)) return '[^/]+'
-        if (/[[\]]/.test(part))
+    const parts: SegPart[] = []
+    let i0 = 0
+    while (i0 < seg.length) {
+      const open = seg.indexOf('[', i0)
+      const close = seg.indexOf(']', i0)
+      if (open === -1) {
+        if (close !== -1)
           throw new Error(`reserved route "${route}": unbalanced brackets`)
-        return escapeRe(part)
-      })
-      .join('')
-    re += (i === 0 ? '' : '/') + body
+        parts.push({ lit: seg.slice(i0).toLowerCase() })
+        break
+      }
+      if (close !== -1 && close < open)
+        throw new Error(`reserved route "${route}": unbalanced brackets`)
+      const end = seg.indexOf(']', open)
+      if (
+        end === -1 ||
+        end === open + 1 ||
+        seg.slice(open + 1, end).includes('[')
+      )
+        throw new Error(`reserved route "${route}": unbalanced brackets`)
+      if (open > i0) parts.push({ lit: seg.slice(i0, open).toLowerCase() })
+      parts.push({ param: true })
+      i0 = end + 1
+    }
+    return { parts }
   })
-  return new RegExp(`^${re}$`, 'i')
 }
 
-const compiled = new Map<string, RegExp>()
-const regexFor = (route: string): RegExp => {
-  let re = compiled.get(route)
-  if (!re) compiled.set(route, (re = routeRegex(route)))
-  return re
+/** Does one path segment (already lower-cased) match one pattern segment? A param matches one
+ *  or more characters; adjacent params collapse to one (they jointly need ≥2 chars). Literals
+ *  are found left to right with indexOf, so this is linear in the segment. */
+function matchSegment(parts: SegPart[], seg: string): boolean {
+  let pos = 0
+  let pendingMin = 0 // chars the params since the last literal must consume, at least
+  for (let k = 0; k < parts.length; k++) {
+    const part = parts[k]!
+    if ('param' in part) {
+      pendingMin++
+      continue
+    }
+    const isLast = k === parts.length - 1
+    if (pendingMin === 0) {
+      if (!seg.startsWith(part.lit, pos)) return false
+      pos += part.lit.length
+      if (isLast && pos !== seg.length) return false
+    } else if (isLast) {
+      if (
+        !seg.endsWith(part.lit) ||
+        seg.length - part.lit.length - pos < pendingMin
+      )
+        return false
+      pos = seg.length
+    } else {
+      const at = seg.indexOf(part.lit, pos + pendingMin)
+      if (at === -1) return false
+      pos = at + part.lit.length
+    }
+    pendingMin = 0
+  }
+  return pendingMin === 0 ? pos === seg.length : seg.length - pos >= pendingMin
+}
+
+function matchRoute(route: RouteSeg[], path: string): boolean {
+  const segs = path.toLowerCase().split('/')
+  for (let i = 0; i < route.length; i++) {
+    const r = route[i]!
+    if ('rest' in r) return segs.slice(i).every((s) => s !== '') // zero or more segments
+    if (i >= segs.length || segs[i] === '' || !matchSegment(r.parts, segs[i]!))
+      return false
+  }
+  return segs.length === route.length
+}
+
+const compiled = new Map<string, RouteSeg[]>()
+const parsedFor = (route: string): RouteSeg[] => {
+  let r = compiled.get(route)
+  if (!r) compiled.set(route, (r = parseRoute(route)))
+  return r
 }
 
 /** The reserved route a permalink (no leading slash) collides with, or null. Case-insensitive,
@@ -94,7 +156,8 @@ export function matchReservedRoute(
   routes: readonly string[] = SITE_RESERVED_ROUTES
 ): string | null {
   if (path === '') return null
-  for (const route of routes) if (regexFor(route).test(path)) return route
+  for (const route of routes)
+    if (matchRoute(parsedFor(route), path)) return route
   return null
 }
 

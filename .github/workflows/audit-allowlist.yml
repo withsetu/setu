@@ -1,0 +1,53 @@
+name: Audit allowlist expiry
+
+# Enforces the expiry of `auditConfig.ignoreGhsas` in pnpm-workspace.yaml (#1152). `pnpm audit`
+# ignores an allowlisted advisory forever; scripts/audit-allowlist-expiry.mjs asks the GitHub
+# Advisory Database whether each entry still has no patched release for the versions in
+# pnpm-lock.yaml, and fails when one has expired (exit 1) or cannot be verified (exit 2 — fail
+# closed, never a silent pass). Tests: scripts/audit-allowlist-expiry.test.mjs.
+#
+# Separate from ci.yml on purpose: this needs no `pnpm install`, must not be skipped on draft or
+# docs-only PRs the way ci.yml's `check` job is, and its verdict depends on the outside world
+# (a fix shipping upstream), so it belongs on the weekly cron rather than every merge.
+#   * PRs touching the allowlist, the lockfile (which decides what is installed) or the script.
+#   * Weekly (Mon 03:17 UTC, same slot as ci.yml) — where a newly shipped fix is caught.
+#   * Manual dispatch.
+
+on:
+  pull_request:
+    paths:
+      - pnpm-workspace.yaml
+      - pnpm-lock.yaml
+      - scripts/audit-allowlist-expiry.mjs
+      - scripts/audit-allowlist-expiry.test.mjs
+      - .github/workflows/audit-allowlist.yml
+  workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * 1'
+
+# Least-privilege GITHUB_TOKEN (#813). The global advisories endpoint is public; the token is
+# passed only to lift the unauthenticated rate limit. Nothing writes back.
+permissions:
+  contents: read
+
+concurrency:
+  group: audit-allowlist-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  expiry:
+    name: allowlisted advisories still unpatched
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      - name: Check ignoreGhsas entries against the GitHub Advisory Database
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/audit-allowlist-expiry.mjs

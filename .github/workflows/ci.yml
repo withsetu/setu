@@ -158,7 +158,8 @@ jobs:
       # the allowlist the gate DOES honor is `auditConfig.ignoreGhsas` in pnpm-workspace.yaml,
       # copied into the probe below (#880). Entries there are restricted to advisories with no
       # patched release inside the affected major, and each carries a dated tracking issue —
-      # see that file's comments before adding one.
+      # see that file's comments before adding one. That expiry is enforced by
+      # audit-allowlist.yml (#1152), not by this step.
       - name: 'pnpm audit (gate: high)'
         run: |
           if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi

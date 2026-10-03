@@ -7,9 +7,13 @@ packages:
 # `pnpm` key — so ci.yml copies this file into its probe dir alongside the lockfile.
 # The pre-existing package.json allowlist (GHSA-67mh-4wv8-2f99, moderate esbuild SSRF
 # via drizzle-kit — never gates at high+) stays where it is for local pnpm 10 runs.
-# ignoreGhsas has no expiry mechanism, so every entry must (a) cover an advisory with
-# NO patched release inside the affected major and (b) carry a tracking issue that is
-# the entry's expiry.
+# Every ignoreGhsas entry must (a) cover an advisory with NO patched release for the
+# version range we install and (b) carry an `Expiry: #N` tracking issue in the comment
+# directly above it. That expiry is ENFORCED (#1152): .github/workflows/audit-allowlist.yml
+# runs scripts/audit-allowlist-expiry.mjs (weekly, and on PRs touching this file or the
+# lockfile), which fails when an entry's advisory gains a patched release for an installed
+# version, no longer matches any installed version, or is withdrawn — and fails closed when
+# it cannot verify. Tests: scripts/audit-allowlist-expiry.test.mjs.
 auditConfig:
   ignoreGhsas:
     # GHSA-mh99-v99m-4gvg (brace-expansion DoS) was allowlisted here because no patched

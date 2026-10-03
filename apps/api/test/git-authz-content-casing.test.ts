@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { createGitApi, writeActionForChanges } from '../src/app'
+import {
+  createGitApi,
+  isCanonicalRepoPath,
+  writeActionForChanges
+} from '../src/app'
 import { createMemoryGitPort } from '@setu/git-memory'
 import type { Role } from '@setu/core'
 import type { ResolveActor } from '../src/auth/resolve-actor'
@@ -158,17 +162,12 @@ describe('git write gate — content-path casing bypass of the publish gate (#64
 
   // The rejection must stay NARROW. It keys on "the folded form parses as a content path", so it
   // must not touch ordinary repo files that legitimately carry uppercase.
-  it('still admits legitimately-uppercase NON-content paths', async () => {
-    const git = createMemoryGitPort()
-    const app = createGitApi(git, asRole('maintainer'))
-    for (const path of ['README.md', 'docs/GUIDE.md', 'LICENSE']) {
-      const res = await write(
-        app,
-        '/git/commit',
-        JSON.stringify({ path, content: 'hi', message: 'm', author })
-      )
-      expect(res.status, `POST /git/commit ${JSON.stringify(path)}`).toBe(200)
-    }
+  // #1154: these paths are no longer WRITABLE at all (they are off the writable allowlist —
+  // apps/api/test/git-write-allowlist.test.ts), but the #647 canonical rule itself must still not
+  // be what refuses them: it is scoped to paths whose fold parses as content.
+  it('the canonical rule still admits legitimately-uppercase NON-content paths', () => {
+    for (const path of ['README.md', 'docs/GUIDE.md', 'LICENSE'])
+      expect(isCanonicalRepoPath(path), JSON.stringify(path)).toBe(true)
   })
 
   it('still admits an AUTHOR writing a canonical draft, including a non-ASCII slug', async () => {

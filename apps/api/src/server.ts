@@ -683,7 +683,10 @@ const runReprocess = (jobId: string) => {
       image: imageAdapter,
       storage: localStorage,
       media,
-      widths: [400, 800, 1200, 1600]
+      widths: [400, 800, 1200, 1600],
+      // #1160: Reprocess rewrites each record's thumbnail — keep the index in step. Declared
+      // below; this closure only runs on a request or the boot resume, both after it exists.
+      mediaIndex: mediaIndexService
     },
     jobId
   )

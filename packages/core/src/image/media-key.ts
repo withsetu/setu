@@ -26,13 +26,24 @@ export function originalKey(mediaKey: string, ext: string): string {
   return `${mediaKey}.${ext}`
 }
 
-/** Storage key of a width variant: `${mediaKey}-${width}w.${ext}`. */
+/** Storage key of a width variant: `${mediaKey}.${width}w.${ext}` (#1159).
+ *
+ *  Every key an id writes is `${mediaKey}.<suffix>`, and a mediaKey's last segment is a
+ *  `mediaSlug` — `[a-z0-9-]` only, never a dot — so the id is everything before the first dot of
+ *  the last segment, and keys of two different ids can never be equal. Within an id the suffixes
+ *  are distinct: `<ext>` (one dot-free word), `manifest.json`, `media.json`, `<w>w.<ext>`.
+ *  Enforced by packages/core/test/media-key.test.ts ("key namespaces are disjoint across ids").
+ *
+ *  Media stored before #1159 used `${mediaKey}-${width}w.${ext}`, which CAN equal another id's
+ *  original. Those keys stay valid — every reader resolves variants through the manifest's
+ *  stored `key`, never by re-deriving the name — and the upload id probe checks the original
+ *  key, so a new upload never takes a legacy variant's key as its own original. */
 export function variantKey(
   mediaKey: string,
   width: number,
   ext: string
 ): string {
-  return `${mediaKey}-${width}w.${ext}`
+  return `${mediaKey}.${width}w.${ext}`
 }
 
 /** Storage key of the sidecar manifest: `${mediaKey}.manifest.json`. */

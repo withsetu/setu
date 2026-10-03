@@ -149,8 +149,8 @@ describe('seedDemoData', () => {
     // and the .media.json record the media library lists.
     const mediaFiles = await readdir(path.join(rig.media, '1910', '01'))
     expect(mediaFiles).toContain('artwork-1.jpg')
-    expect(mediaFiles).toContain('artwork-1-400w.webp')
-    expect(mediaFiles).toContain('artwork-1-800w.webp')
+    expect(mediaFiles).toContain('artwork-1.400w.webp')
+    expect(mediaFiles).toContain('artwork-1.800w.webp')
     expect(mediaFiles).toContain('artwork-1.manifest.json')
     expect(mediaFiles).toContain('artwork-1.media.json')
     const record = JSON.parse(
@@ -160,7 +160,7 @@ describe('seedDemoData', () => {
       )
     ) as Record<string, unknown>
     expect(record['mediaKey']).toBe('1910/01/artwork-1')
-    expect(record['thumbKey']).toBe('1910/01/artwork-1-400w.webp')
+    expect(record['thumbKey']).toBe('1910/01/artwork-1.400w.webp')
     expect(record['isImage']).toBe(true)
 
     // Manifest (the #513 removal primitive) + checkpoint.

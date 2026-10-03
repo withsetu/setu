@@ -1,8 +1,11 @@
-import { ingestImage } from '@setu/core'
+import { ingestImage, mediaRecordKey } from '@setu/core'
+import { mayDeleteVariant } from './media-ownership'
 import type {
   ImageFormat,
   ImagePort,
+  MediaIndexService,
   MediaManifest,
+  MediaRecord,
   MediaSettings,
   ReprocessJobStore,
   StoragePort
@@ -16,6 +19,9 @@ export interface ReprocessDeps {
   storage: StoragePort
   media: MediaSettings
   widths: number[]
+  /** Server media index, kept fresh when Reprocess rewrites a record's thumbnail/dimensions.
+   *  Best-effort, like upload's: the `.media.json` sidecar is canonical. */
+  mediaIndex?: Pick<MediaIndexService, 'upsertOne'>
 }
 
 export async function reprocessOne(
@@ -32,7 +38,7 @@ export async function reprocessOne(
   }
   const origRaw = await deps.storage.get(old.original.key)
   if (!origRaw) return 'skipped'
-  await ingestImage(
+  const next = await ingestImage(
     { image: deps.image, storage: deps.storage },
     {
       mediaKey: old.id,
@@ -43,7 +49,61 @@ export async function reprocessOne(
       lqip: deps.media.imageLqip
     }
   )
+  // #1160: the new manifest is written, so the previous variants it no longer lists are now
+  // unreferenced — and DELETE only removes what the CURRENT manifest lists, so leaving them
+  // would keep them publicly served after the item is deleted. Delete after the manifest write:
+  // a crash in between leaves orphans, never a manifest pointing at missing files.
+  const keep = new Set(next.variants.map((v) => v.key))
+  keep.add(next.original.key)
+  for (const v of old.variants)
+    if (
+      !keep.has(v.key) &&
+      (await mayDeleteVariant(deps.storage, old.id, v.key))
+    )
+      await deps.storage.delete(v.key)
+  await rewriteRecord(deps, next)
   return 'done'
+}
+
+/** Point the library record at the new variants (thumbnail + dimensions); everything else in
+ *  it (filename, uploadedAt, …) is preserved. Media with no record (pre-record uploads) stay
+ *  record-less — Reprocess re-encodes, it does not register media. */
+async function rewriteRecord(
+  deps: ReprocessDeps,
+  manifest: MediaManifest
+): Promise<void> {
+  const recKey = mediaRecordKey(manifest.id)
+  const raw = await deps.storage.get(recKey)
+  if (!raw) return
+  let rec: MediaRecord
+  try {
+    rec = JSON.parse(new TextDecoder().decode(raw.body)) as MediaRecord
+  } catch {
+    return
+  }
+  const smallest = manifest.variants
+    .slice()
+    .sort((a, b) => a.width - b.width)[0]
+  const next: MediaRecord = {
+    ...rec,
+    thumbKey: smallest ? smallest.key : null,
+    width: manifest.original.width,
+    height: manifest.original.height
+  }
+  await deps.storage.put(
+    recKey,
+    new TextEncoder().encode(JSON.stringify(next)),
+    { contentType: 'application/json' }
+  )
+  if (deps.mediaIndex) {
+    try {
+      await deps.mediaIndex.upsertOne(next)
+    } catch (err) {
+      console.warn(
+        `media index upsert failed for ${manifest.id}: ${err instanceof Error ? err.message : String(err)}`
+      )
+    }
+  }
 }
 
 export async function runReprocessJob(

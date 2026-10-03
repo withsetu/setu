@@ -54,8 +54,8 @@ describe('media ingest e2e (real sharp + storage-local)', () => {
     expect(json.manifest!.variants.map((v) => v.width)).toEqual([
       400, 800, 1000
     ])
-    // variant key: <id>-<width>w.webp  (e.g. 2026/06/pic-400w.webp)
-    expect(existsSync(join(dir, `${json.id}-400w.webp`))).toBe(true)
+    // variant key: <id>.<width>w.webp  (e.g. 2026/06/pic.400w.webp) — #1159 namespace
+    expect(existsSync(join(dir, `${json.id}.400w.webp`))).toBe(true)
     // manifest key: <id>.manifest.json  (e.g. 2026/06/pic.manifest.json)
     expect(existsSync(join(dir, `${json.id}.manifest.json`))).toBe(true)
   })

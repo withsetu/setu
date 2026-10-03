@@ -87,9 +87,9 @@ describe('ingestImage', () => {
     // 1200 & 1600 exceed the 1000px source → dropped; source width 1000 added ⇒ [400, 800, 1000]
     expect(manifest.variants.map((v) => v.width)).toEqual([400, 800, 1000])
     expect(manifest.variants.map((v) => v.key)).toEqual([
-      '2026/06/cat-400w.webp',
-      '2026/06/cat-800w.webp',
-      '2026/06/cat-1000w.webp'
+      '2026/06/cat.400w.webp',
+      '2026/06/cat.800w.webp',
+      '2026/06/cat.1000w.webp'
     ])
     expect(manifest.original).toEqual({
       key: '2026/06/cat.png',
@@ -98,7 +98,7 @@ describe('ingestImage', () => {
       format: 'png'
     })
     expect(manifest.format).toBe('webp')
-    expect(map.get('2026/06/cat-400w.webp')?.contentType).toBe('image/webp')
+    expect(map.get('2026/06/cat.400w.webp')?.contentType).toBe('image/webp')
     // manifest persisted at the sidecar key
     expect(map.has('2026/06/cat.manifest.json')).toBe(true)
     const mf = map.get('2026/06/cat.manifest.json')
@@ -122,8 +122,8 @@ describe('ingestImage', () => {
     )
     // 800 > 500 source → dropped; 400 kept + source 500 ⇒ [400, 500]
     expect(manifest.variants.map((v) => v.key)).toEqual([
-      '2026/06/photo-400w.jpg',
-      '2026/06/photo-500w.jpg'
+      '2026/06/photo.400w.jpg',
+      '2026/06/photo.500w.jpg'
     ])
   })
 

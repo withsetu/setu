@@ -22,6 +22,7 @@ import type {
   StoragePort
 } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
+import { mayDeleteVariant } from './media-ownership'
 import { apiOnError } from './errors'
 import type { ResolveActor } from './auth/resolve-actor'
 
@@ -137,6 +138,44 @@ export function createUploadApi(opts: UploadApiOptions) {
   // on createGitApi for why a factory-local cors() here would be a security hole once mounted.
   const app = new Hono<{ Variables: { actor: Actor } }>()
 
+  // #1159: id allocation. An id owns exactly `originalKey(id, ext)`, `manifestKey(id)` and
+  // `mediaRecordKey(id)` plus its variants; variants live in a namespace no other id can reach
+  // (see variantKey; packages/core/test/media-key.test.ts), so probing the three owned keys is
+  // sufficient. The original is probed for the incoming ext because a pre-#1159 `-<w>w` variant
+  // key can equal it; manifest + record are probed because they are ext-independent (a pdf and a
+  // docx of one basename would otherwise share a record).
+  //
+  // Probe-then-put is racy, so allocation runs one-at-a-time and the chosen id stays reserved
+  // in-process until its keys are written. This closes the race within ONE api process; two
+  // processes sharing one store still race — that needs a put-if-absent StoragePort primitive.
+  // Enforced by apps/api/test/media-key-collisions.test.ts.
+  const reserved = new Set<string>()
+  let allocQueue: Promise<unknown> = Promise.resolve()
+  const isTaken = async (mediaKey: string, ext: string): Promise<boolean> =>
+    reserved.has(mediaKey) ||
+    (await storage.exists(originalKey(mediaKey, ext))) ||
+    (await storage.exists(manifestKey(mediaKey))) ||
+    (await storage.exists(mediaRecordKey(mediaKey)))
+  const allocateMediaKey = (
+    yyyy: number,
+    mm: number,
+    slug: string,
+    ext: string
+  ): Promise<string> => {
+    const run = allocQueue.then(async () => {
+      let mediaKey = mediaKeyOf(yyyy, mm, slug)
+      for (let n = 2; await isTaken(mediaKey, ext); n += 1) {
+        if (n > 1000)
+          throw new Error(`media key collision overflow for ${slug}`)
+        mediaKey = mediaKeyOf(yyyy, mm, `${slug}-${n}`)
+      }
+      reserved.add(mediaKey)
+      return mediaKey
+    })
+    allocQueue = run.catch(() => undefined)
+    return run
+  }
+
   // #629: cap the request BEFORE anything parses it. `c.req.formData()` below fully buffers the
   // multipart body, and the per-file `file.size` check can only run AFTER that — so without this
   // a multi-GB upload OOMs the process before any limit is consulted. Every sibling route caps
@@ -172,90 +211,85 @@ export function createUploadApi(opts: UploadApiOptions) {
       const yyyy = now.getUTCFullYear()
       const mm = now.getUTCMonth() + 1
       const slug = mediaSlug(file.name)
-      let mediaKey = mediaKeyOf(yyyy, mm, slug)
-      for (
-        let n = 2;
-        (await storage.exists(originalKey(mediaKey, ext))) ||
-        (await storage.exists(manifestKey(mediaKey)));
-        n += 1
-      ) {
-        if (n > 1000)
-          throw new Error(`media key collision overflow for ${slug}`)
-        mediaKey = mediaKeyOf(yyyy, mm, `${slug}-${n}`)
-      }
-      const key = originalKey(mediaKey, ext)
-      const bytes = new Uint8Array(await file.arrayBuffer())
-      await storage.put(key, bytes, { contentType: file.type })
+      const mediaKey = await allocateMediaKey(yyyy, mm, slug, ext)
+      try {
+        const key = originalKey(mediaKey, ext)
+        const bytes = new Uint8Array(await file.arrayBuffer())
+        await storage.put(key, bytes, { contentType: file.type })
 
-      let manifest: MediaManifest | undefined
-      if (opts.image && GENERATABLE.has(file.type)) {
-        const media = resolveMedia()
-        try {
-          manifest = await ingestImage(
-            { image: opts.image, storage },
-            {
-              mediaKey,
-              bytes,
-              originalKey: key,
-              formats: formatsFor(media.imageFormat),
-              widths,
-              lqip: media.imageLqip
-            }
-          )
-        } catch (err) {
-          console.warn(
-            `media ingest failed for ${mediaKey}: ${err instanceof Error ? err.message : String(err)}`
-          )
+        let manifest: MediaManifest | undefined
+        if (opts.image && GENERATABLE.has(file.type)) {
+          const media = resolveMedia()
+          try {
+            manifest = await ingestImage(
+              { image: opts.image, storage },
+              {
+                mediaKey,
+                bytes,
+                originalKey: key,
+                formats: formatsFor(media.imageFormat),
+                widths,
+                lqip: media.imageLqip
+              }
+            )
+          } catch (err) {
+            console.warn(
+              `media ingest failed for ${mediaKey}: ${err instanceof Error ? err.message : String(err)}`
+            )
+          }
         }
-      }
 
-      const isImage = file.type.startsWith('image/')
-      const smallest = manifest?.variants
-        .slice()
-        .sort((a, b) => a.width - b.width)[0]
-      const record: MediaRecord = {
-        mediaKey,
-        key,
-        thumbKey: smallest ? smallest.key : null,
-        filename: file.name,
-        contentType: file.type,
-        isImage,
-        width: manifest ? manifest.original.width : null,
-        height: manifest ? manifest.original.height : null,
-        bytes: file.size,
-        uploadedAt: Date.now()
-      }
-      await storage.put(
-        mediaRecordKey(mediaKey),
-        new TextEncoder().encode(JSON.stringify(record)),
-        {
-          contentType: 'application/json'
-        }
-      )
-      // Keep the server media index fresh (see UploadApiOptions.mediaIndex).
-      if (opts.mediaIndex) {
-        try {
-          await opts.mediaIndex.upsertOne(record)
-        } catch (err) {
-          console.warn(
-            `media index upsert failed for ${mediaKey}: ${err instanceof Error ? err.message : String(err)}`
-          )
-        }
-      }
-
-      return c.json(
-        {
-          id: mediaKey,
+        const isImage = file.type.startsWith('image/')
+        const smallest = manifest?.variants
+          .slice()
+          .sort((a, b) => a.width - b.width)[0]
+        const record: MediaRecord = {
+          mediaKey,
           key,
-          url: storage.url(key),
-          contentType: file.type,
-          size: file.size,
+          thumbKey: smallest ? smallest.key : null,
           filename: file.name,
-          record,
-          ...(manifest ? { manifest } : {})
-        },
-        201
-      )
+          contentType: file.type,
+          isImage,
+          width: manifest ? manifest.original.width : null,
+          height: manifest ? manifest.original.height : null,
+          bytes: file.size,
+          uploadedAt: Date.now()
+        }
+        await storage.put(
+          mediaRecordKey(mediaKey),
+          new TextEncoder().encode(JSON.stringify(record)),
+          {
+            contentType: 'application/json'
+          }
+        )
+        // Keep the server media index fresh (see UploadApiOptions.mediaIndex).
+        if (opts.mediaIndex) {
+          try {
+            await opts.mediaIndex.upsertOne(record)
+          } catch (err) {
+            console.warn(
+              `media index upsert failed for ${mediaKey}: ${err instanceof Error ? err.message : String(err)}`
+            )
+          }
+        }
+        return c.json(
+          {
+            id: mediaKey,
+            key,
+            url: storage.url(key),
+            contentType: file.type,
+            size: file.size,
+            filename: file.name,
+            record,
+            ...(manifest ? { manifest } : {})
+          },
+          201
+        )
+      } finally {
+        // Every key this upload writes now exists in storage (or the upload failed), so the
+        // storage probe alone guards the id from here on.
+        reserved.delete(mediaKey)
+      }
     }
   )
 
@@ -331,7 +365,9 @@ export function createUploadApi(opts: UploadApiOptions) {
         new TextDecoder().decode(manRaw.body)
       ) as MediaManifest
       await storage.delete(man.original.key)
-      for (const v of man.variants) await storage.delete(v.key)
+      for (const v of man.variants)
+        if (await mayDeleteVariant(storage, mediaKey, v.key))
+          await storage.delete(v.key)
       await storage.delete(manifestKey(mediaKey))
     }
     const recRaw = await storage.get(mediaRecordKey(mediaKey))

@@ -9,6 +9,10 @@ import { loadConfig } from '@setu/core/node'
 import { perPageCssPurge } from './integrations/per-page-css-purge.mjs'
 import { securityHeaders } from './integrations/security-headers.mjs'
 import { settingsWatcher } from './integrations/settings-watcher.mjs'
+import {
+  DEV_SITE_URL,
+  requireSiteUrl
+} from './integrations/require-site-url.mjs'
 import { themeFontImports } from './integrations/theme-fonts.mjs'
 import { parseAllowedHosts } from '../../scripts/dev-allowed-hosts.mjs'
 import { parsePort } from '../../scripts/dev-port.mjs'
@@ -157,8 +161,9 @@ export default defineConfig({
     allowedHosts: parseAllowedHosts(process.env.SETU_DEV_ALLOWED_HOSTS) ?? []
   },
   // Absolute base URL for builds (used by RSS/sitemap/canonical links). Deployment-specific →
-  // env at build; dev falls back to the local origin. A prod build MUST set SETU_SITE_URL.
-  site: process.env.SETU_SITE_URL ?? 'http://localhost:4321',
+  // env at build; dev/sync/preview fall back to the local origin. `astro build` refuses to run
+  // without SETU_SITE_URL — see requireSiteUrl() below (#1118).
+  site: process.env.SETU_SITE_URL || DEV_SITE_URL,
   // Astro 7 changed the compressHTML default from `true` to `'jsx'`, which collapses
   // whitespace between inline elements using JSX rules. Our blocks + content templates
   // were authored under the v6 (`true`) model, so pin it to preserve exact prior output.
@@ -168,6 +173,9 @@ export default defineConfig({
   // each page's inline <style> blocks and single-page stylesheets against that page; the
   // shared theme + block bundle stays external, cached and unpurged (see `purgeDist`, #1119).
   integrations: [
+    // First, so a build missing SETU_SITE_URL stops before any other integration does work.
+    // Enforced by apps/site/test/require-site-url.test.ts.
+    requireSiteUrl(),
     markdoc(),
     react(),
     devPreviewRoute,

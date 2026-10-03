@@ -5,8 +5,10 @@ import {
   DEFAULT_LOCALE,
   entryUrlPath,
   ensureTrailingSlashPath,
-  extractEmbedVideos
+  extractEmbedVideos,
+  taxonomyArchivePath
 } from '@setu/core'
+import { resolveHomepageEntry } from './homepage'
 import { toPostRow } from './post-row'
 import { absoluteMediaUrl } from './url'
 
@@ -79,16 +81,6 @@ export const withTrailingSlash = (href: string): string => {
   u.pathname = ensureTrailingSlashPath(u.pathname)
   return u.href
 }
-
-/** Encode a taxonomy slug into a single URL path segment EXACTLY as Astro's static-route generator
- *  does — `astro/dist/core/routing/generator.js` `sanitizeParams`: Unicode-normalize, then `#`→`%23`
- *  and `?`→`%3F` (nothing else). Deliberately NOT `encodeURIComponent`, which additionally escapes
- *  `/`, space, etc. and would diverge from the served `/category|/tag` route path. Matching Astro's
- *  own rule keeps the sitemap `<loc>`, the chip href (packages/theme-default/TaxonomyChips.astro),
- *  and the route path byte-identical for a special-char tag (#860 BLOCK-4). Enforced by
- *  apps/site/test/sitemap.test.ts + apps/site/test/url-consistency.test.ts. */
-export const encodeTaxonomySlug = (slug: string): string =>
-  slug.normalize().replace(/#/g, '%23').replace(/\?/g, '%3F')
 
 /** The sitemaps.org per-file URL cap (#859 SITE-03). A single `<urlset>` past this is rejected by
  *  search engines, so the post sitemap shards at this bound. Size (50 MiB) headroom lives in the
@@ -209,8 +201,12 @@ export function entryVideos(
   }))
 }
 
-/** Absolute URLs for the indexable entries of one collection ('post' | 'page'). The homepage is
- *  attributed to the 'page' section (listed once at the site root; the home entry is skipped). */
+/** Absolute URLs for the indexable entries of one collection ('post' | 'page'). The site root is
+ *  attributed to the 'page' section. Which entry renders at `/` is decided by the same rule
+ *  `src/pages/index.astro` uses (`resolveHomepageEntry`): the root is listed unless that entry is
+ *  `seo.noindex`, and only that entry is skipped from its ordinary listing — so with
+ *  `reading.homepage: page/en/landing`, `page/en/home` is listed at its own path (#1120).
+ *  Enforced by apps/site/test/sitemap.test.ts and apps/site/test/sitemap-fixture-build.test.ts. */
 export function entryUrls(
   entries: SitemapEntry[],
   collection: 'post' | 'page',
@@ -221,9 +217,14 @@ export function entryUrls(
 ): SitemapUrl[] {
   const base = siteUrl.replace(/\/+$/, '')
   const urls: SitemapUrl[] = []
-  if (collection === 'page') urls.push({ loc: `${base}/` })
+  const home = resolveHomepageEntry(homepageId, (id) =>
+    entries.find((e) => e.id === id)
+  )
+  // No home entry at all → `/` still serves the empty shell (index.astro), which is indexable.
+  if (collection === 'page' && (!home || isIndexable(home.data)))
+    urls.push({ loc: `${base}/` })
   for (const e of entries) {
-    if (e.id === homepageId || e.id === 'page/en/home') continue // already at '/'
+    if (e === home) continue // served (and, if indexable, listed) at '/'
     if (e.id.split('/')[0] !== collection) continue
     if (!isIndexable(e.data)) continue
     const path = urlPath(e.id)
@@ -247,11 +248,10 @@ export function taxonomyUrls(
   siteUrl: string
 ): SitemapUrl[] {
   const base = siteUrl.replace(/\/+$/, '')
-  // Plain-string interpolation (not `new URL`, which would additionally %-encode the segment):
-  // `encodeTaxonomySlug` mirrors Astro's route generator exactly, so the `<loc>` is byte-identical
-  // to the served /category|/tag path and the theme's chip href for a special-char slug (#860).
+  // `taxonomyArchivePath` is the one spelling shared with the theme chip href and the archive's
+  // canonical — a spaced tag is `%20`, never a literal space (#1120).
   return slugs.map((slug) => ({
-    loc: `${base}/${kind}/${encodeTaxonomySlug(slug)}/`
+    loc: `${base}${taxonomyArchivePath(kind, slug)}`
   }))
 }
 
@@ -306,13 +306,55 @@ export function collectSitemapSections(
   }
 }
 
+// The post section is sharded (post-sitemap-[page].xml); the single-file sections keep fixed names.
+const SECTION_FILE: Record<Exclude<SitemapSectionKey, 'post'>, string> = {
+  page: 'page-sitemap.xml',
+  category: 'category-sitemap.xml',
+  tag: 'tag-sitemap.xml'
+}
+
+/** The `<sitemap>` children of the index: only sections that are enabled AND have URLs, with the
+ *  post section expanded to one entry per ≤`POST_SITEMAP_MAX` shard the post-sitemap-[page] route
+ *  generates (#859). An empty result means there is no valid index to serve: a `<sitemapindex>`
+ *  needs at least one `<sitemap>`, so `/sitemap.xml` 404s (like the leaf routes do when their
+ *  section is empty) and robots.txt drops its `Sitemap:` line (#1120). Enforced by
+ *  apps/site/test/sitemap.test.ts and apps/site/test/sitemap-fixture-build.test.ts. */
+export function sitemapIndexEntries(
+  sections: Record<SitemapSectionKey, SitemapUrl[]>,
+  siteUrl: string
+): SitemapSection[] {
+  const base = siteUrl.replace(/\/+$/, '')
+  const index: SitemapSection[] = []
+  for (const k of Object.keys(sections) as SitemapSectionKey[]) {
+    const urls = sections[k]
+    if (urls.length === 0) continue
+    if (k === 'post') {
+      chunkSitemapUrls(urls).forEach((chunk, i) =>
+        index.push({
+          loc: `${base}/post-sitemap-${i + 1}.xml`,
+          lastmod: newestLastmod(chunk)
+        })
+      )
+    } else {
+      index.push({
+        loc: `${base}/${SECTION_FILE[k]}`,
+        lastmod: newestLastmod(urls)
+      })
+    }
+  }
+  return index
+}
+
 /** Build the /robots.txt body. Search-hidden sites disallow all; visible sites allow all and
- *  advertise the sitemap index. `siteUrl` is the absolute site base. */
+ *  advertise the sitemap index — only when one exists (`hasSitemap`; see `sitemapIndexEntries`),
+ *  never a URL that 404s. `siteUrl` is the absolute site base. */
 export function buildRobotsTxt(
   searchEngineVisible: boolean,
-  siteUrl: string
+  siteUrl: string,
+  hasSitemap: boolean
 ): string {
   if (!searchEngineVisible) return 'User-agent: *\nDisallow: /\n'
+  if (!hasSitemap) return 'User-agent: *\nAllow: /\n'
   const base = siteUrl.replace(/\/+$/, '')
   return `User-agent: *\nAllow: /\n\nSitemap: ${base}/sitemap.xml\n`
 }

@@ -1,30 +1,27 @@
 ---
+import { taxonomyArchivePath } from '@setu/core'
+
 interface Props {
   categories: { slug: string; name: string }[]
   tags: string[]
 }
 const { categories, tags } = Astro.props
 const has = categories.length > 0 || tags.length > 0
-// Encode a taxonomy slug into a single URL path segment EXACTLY as Astro's static-route generator
-// does (astro/dist/core/routing/generator.js `sanitizeParams`: Unicode-normalize, then #→%23,
-// ?→%3F). NOT encodeURIComponent — it additionally escapes '/' and space and would diverge from the
-// served /category|/tag route path, breaking the link for a tag like `c#4` (which otherwise
-// truncates at the fragment). The trailing slash matches the directory-format served URL, so the
-// chip href is byte-identical to the route path and the sitemap <loc>. (#860 BLOCK-4; the sitemap
-// twin is `encodeTaxonomySlug` in apps/site/src/lib/sitemap.ts.) Enforced by
-// apps/site/test/taxonomy-archive.test.ts (built chip href == route dir == sitemap loc) +
-// apps/site/test/sitemap.test.ts (the encoder).
-const seg = (s: string) => s.normalize().replace(/#/g, '%23').replace(/\?/g, '%3F')
+// The archive path is the ONE shared spelling (@setu/core `taxonomyArchivePath`): Astro's route
+// encoding for #/? plus URL serialization (a space is %20), with the directory-format trailing
+// slash — byte-identical to the sitemap <loc> and the archive's canonical. Enforced by
+// apps/site/test/sitemap-fixture-build.test.ts (chip href == sitemap loc == canonical for a
+// spaced tag) and apps/site/test/taxonomy-archive.test.ts.
 ---
 
 {has && (
   /* `measure-post` is PostLayout's reading-column width class — keeps the chips aligned to the article column. */
   <nav class="setu-taxonomy measure-post" aria-label="Categories and tags">
     {categories.map((c) => (
-      <a class="setu-chip setu-chip--cat" href={`/category/${seg(c.slug)}/`}>{c.name}</a>
+      <a class="setu-chip setu-chip--cat" href={taxonomyArchivePath('category', c.slug)}>{c.name}</a>
     ))}
     {tags.map((t) => (
-      <a class="setu-chip setu-chip--tag" href={`/tag/${seg(t)}/`}>#{t}</a>
+      <a class="setu-chip setu-chip--tag" href={taxonomyArchivePath('tag', t)}>#{t}</a>
     ))}
   </nav>
 )}

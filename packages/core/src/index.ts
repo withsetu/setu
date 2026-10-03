@@ -70,8 +70,22 @@ export {
 } from './permalinks/config'
 export {
   parseFrontmatterDate,
+  parseFrontmatterModifiedDate,
   formatFrontmatterDate
 } from './permalinks/frontmatter-date'
+export {
+  SITE_RESERVED_ROUTES,
+  matchReservedRoute,
+  findReservedRouteCollisions,
+  formatReservedRouteCollisions,
+  reservedRouteNamespaces,
+  type ReservedRouteCollision
+} from './permalinks/reserved-routes'
+export {
+  entryIdFromContentPath,
+  isSiteEntryPath,
+  CONTENT_ENTRY_EXTENSION
+} from './permalinks/entry-id'
 export { DEFAULT_SETTINGS } from './settings/defaults'
 export { parseSettings, parseSettingsWithWarnings } from './settings/schema'
 export { sendableFromAddress } from './settings/from-address'

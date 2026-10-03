@@ -50,8 +50,13 @@ export function createPreviewApi(opts: PreviewApiOptions = {}): Hono {
     }
   )
 
+  // The no-draft 404 carries `empty: true` so the site's preview route can tell "nothing pushed
+  // yet" apart from "this api has no preview route" (gate off → Hono's bare 404) — #1123.
+  // Pinned by apps/api/test/preview.test.ts; the site reads it in apps/site/src/preview/load-draft.ts.
   app.get('/preview', (c) =>
-    slot ? c.json(slot) : c.json({ error: 'no preview draft' }, 404)
+    slot
+      ? c.json(slot)
+      : c.json({ error: 'no preview draft', empty: true }, 404)
   )
 
   return app

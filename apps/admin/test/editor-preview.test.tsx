@@ -167,6 +167,24 @@ describe('#804 a failed preview is never silent', () => {
     expect(openMock).not.toHaveBeenCalled()
   })
 
+  it('says preview is turned off (not a connection problem) when the api has no preview route', async () => {
+    // #1123: the api's preview gate is off → the route is absent → the POST 404s. "Check your
+    // connection" would send the user after the wrong problem.
+    stubFetch(() =>
+      Promise.resolve({ ok: false, status: 404, json: async () => ({}) })
+    )
+    const openMock = vi.fn()
+    vi.stubGlobal('open', openMock)
+
+    await readyEditor()
+    clickPreview()
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/preview is turned off/i)
+    expect(alert).not.toHaveTextContent(/connection/i)
+    expect(openMock).not.toHaveBeenCalled()
+  })
+
   it('reports an error when the browser blocks the preview pop-up', async () => {
     stubFetch(() => Promise.resolve({ ok: true, json: async () => ({}) }))
     vi.stubGlobal(

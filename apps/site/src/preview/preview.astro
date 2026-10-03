@@ -36,16 +36,22 @@ import Paragraph from '../components/Paragraph.astro'
 import Th from '../components/Th.astro'
 import Td from '../components/Td.astro'
 import { loadThemeOptions } from '../lib/site-config'
+import { loadPreviewDraft } from './load-draft'
 
 const apiUrl = import.meta.env.SETU_API_URL ?? 'http://localhost:4444'
 
-let draft: { content: string; collection: string; locale: string; slug: string } | null = null
-try {
-  const res = await fetch(`${apiUrl}/preview`)
-  if (res.ok) draft = await res.json()
-} catch {
-  // api unreachable → show the empty state below
-}
+// #1123: only a genuine no-draft renders the empty state; an unreachable api, a non-2xx answer,
+// an absent preview route (the api's gate is off) and an unreadable body each render the error
+// state below, with a Retry. Classification: ./load-draft.ts; per-outcome cases in
+// apps/site/test/preview-load-draft.test.ts and, through a real dev server,
+// apps/site/test/preview-states-dev.test.ts.
+const load = await loadPreviewDraft(apiUrl)
+const draft = load.kind === 'draft' ? load.draft : null
+const failure = load.kind === 'error' ? load : null
+// The upstream failed, so this page is a gateway error, not a 200 that merely looks empty.
+if (failure) Astro.response.status = 502
+// Retry = reload this exact URL (the editor's `?n=` nonce included) and re-fetch the draft.
+const retryHref = `${Astro.url.pathname}${Astro.url.search}`
 
 // Build the Content component for the draft body, reusing the build's own markdoc runtime.
 markdocConfig.nodes = { ...assetsConfig.nodes, ...markdocConfig.nodes }
@@ -109,6 +115,15 @@ const TemplateLayout = isPost ? PostLayout : PageLayout
       <h1>{title}</h1>
       <Content />
     </TemplateLayout>
+  ) : failure ? (
+    <PageLayout title="Preview unavailable" lang="en" themeOptions={themeOptions}>
+      <h1>Preview unavailable</h1>
+      <div class="preview-error" role="alert">
+        <p class="preview-error-title">{failure.title}</p>
+        <p class="preview-error-message">{failure.message}</p>
+        <a class="preview-retry" href={retryHref}>Try again</a>
+      </div>
+    </PageLayout>
   ) : (
     <PageLayout title="Preview" lang="en" themeOptions={themeOptions}>
       <h1>Nothing to preview yet</h1>
@@ -116,3 +131,43 @@ const TemplateLayout = isPost ? PostLayout : PageLayout
     </PageLayout>
   )
 }
+
+<style>
+  /* Theme tokens only (docs/block-styling-contract.md), so a theme's palette carries through. */
+  .preview-error {
+    margin-top: 1.5rem;
+    padding: 1.25rem 1.4rem;
+    border: 1px solid color-mix(in oklch, var(--red) 35%, var(--border));
+    border-left: 4px solid var(--red);
+    border-radius: var(--r-md);
+    background: var(--red-soft);
+    font-family: var(--font-ui);
+  }
+  .preview-error p {
+    margin: 0 0 0.5rem;
+  }
+  .preview-error-title {
+    font-weight: 700;
+    color: var(--text);
+  }
+  .preview-error-message {
+    color: var(--text-2);
+  }
+  .preview-retry {
+    display: inline-block;
+    margin-top: 0.75rem;
+    padding: 0.5rem 1.1rem;
+    border-radius: var(--r-sm);
+    background: var(--accent);
+    color: var(--on-accent);
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .preview-retry:hover {
+    background: var(--accent-strong);
+  }
+  .preview-retry:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+</style>

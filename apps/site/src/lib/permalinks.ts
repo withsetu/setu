@@ -6,6 +6,8 @@ import {
   incumbentFromUrlMap,
   DEFAULT_LOCALE,
   parseFrontmatterDate,
+  findReservedRouteCollisions,
+  formatReservedRouteCollisions,
   type PermalinkEntry
 } from '@setu/core'
 import config from '../../setu.config'
@@ -53,8 +55,12 @@ async function build(): Promise<Map<string, string>> {
   const entries = await getCollection('entries')
   const settings = loadSiteSettings()
   // Incumbency (#657): an id already holding a URL in the committed snapshot keeps it, so
-  // adding a back-dated entry cannot evict a live page. Must match scripts/gen-relations.mjs
-  // exactly — the routing scan and the redirect scan have to agree byte for byte.
+  // adding a back-dated entry cannot evict a live page. Intended to mirror
+  // scripts/gen-relations.mjs's buildPermalinkMap step for step — the routing scan and the
+  // redirect scan have to produce the same id → URL map. Both derive ids with the shared
+  // `entryIdFromContentPath`; that every URL the codegen scan computes is the page this
+  // build emits (frontmatter `slug:`, `index.mdoc`, mixed-case/dotted filenames included) is
+  // pinned by apps/site/test/entry-id-parity.test.ts.
   const incumbent = incumbentFromUrlMap(
     loadUrlMap(),
     entries.map((e) => ({
@@ -101,6 +107,28 @@ async function build(): Promise<Map<string, string>> {
             `but "${otherId}" already resolves to "/${rootPath}" — that entry is now unreachable.`
         )
     paths.set(id, rootPath)
+  }
+
+  // Site-route collisions (#1122): an entry whose permalink is one of the site's own routes
+  // (`/posts`, `/posts/2`, `/category/…`, `/rss.xml`, …) would write the same dist file as that
+  // route, and Astro silently keeps whichever writes last. Only entries that get a route count
+  // (`published !== false`, the same predicate [...path].astro filters on). Anything but
+  // `astro dev` fails (fail closed — keyed on the command, not PROD, which follows NODE_ENV);
+  // dev warns instead so one bad entry doesn't take the whole dev site down — there the static
+  // route always wins anyway. The build failure is pinned by
+  // apps/site/test/reserved-route-collision-build.test.ts.
+  const published = new Set(
+    entries
+      .filter((e) => (e.data as { published?: unknown }).published !== false)
+      .map((e) => e.id)
+  )
+  const collisions = findReservedRouteCollisions(paths, (id) =>
+    published.has(id)
+  )
+  if (collisions.length > 0) {
+    const message = `[setu] permalinks: ${formatReservedRouteCollisions(collisions)}`
+    if (import.meta.env.SETU_ASTRO_COMMAND !== 'dev') throw new Error(message)
+    console.warn(message)
   }
   return paths
 }

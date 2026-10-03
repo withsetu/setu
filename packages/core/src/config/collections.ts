@@ -1,5 +1,6 @@
 import { z, type ZodTypeAny } from 'zod'
 import type { CollectionDefinition, ResolvedCollection } from './types'
+import { reservedRouteNamespaces } from '../permalinks/reserved-routes'
 
 /** Duck-typed ZodObject check. `instanceof` is avoided here for the same reason
  *  `schema.ts`'s `isZodSchema` avoids it: a dual zod instance (two copies in the tree)
@@ -9,12 +10,11 @@ export const isZodObject = (val: unknown): val is ZodTypeAny =>
   typeof (val as { shape?: unknown })?.shape === 'object' &&
   (val as { shape?: unknown }).shape !== null
 
-/** Collection names that would collide with a site route namespace
- *  (`/category/<slug>`, `/tag/<slug>` in `apps/site/src/pages/`). */
-export const RESERVED_COLLECTION_NAMES: ReadonlySet<string> = new Set([
-  'category',
-  'tag'
-])
+/** Collection names that would collide with a site route namespace (`/posts/…`,
+ *  `/category/<slug>`, `/tag/<slug>`, …). Derived from the one list of the site's own routes,
+ *  `SITE_RESERVED_ROUTES`, so a new route namespace reserves its collection name too. */
+export const RESERVED_COLLECTION_NAMES: ReadonlySet<string> =
+  reservedRouteNamespaces()
 
 /**
  * Fields every entry may carry regardless of collection, mirroring what the system

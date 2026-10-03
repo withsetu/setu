@@ -74,6 +74,14 @@ beforeAll(() => {
     '---\ntitle: About (page)\n---\n\nPage about body.\n'
   )
 
+  // post/en/migrated: pubDate only (the alias migrated content carries), no `date:` (#1121).
+  // URL, archive order, feed date and JSON-LD datePublished must all say 2020 — not the
+  // commit/mtime date — and updatedAt must surface only as dateModified.
+  write(
+    'post/en/migrated.mdoc',
+    '---\ntitle: Migrated\npubDate: 2020-05-01\nupdatedAt: 2026-02-03\n---\n\nAn imported post.\n'
+  )
+
   // gen-relations runs in prebuild and reads the same content dir — must see the same env.
   const env = { ...process.env, SETU_CONTENT_DIR: join(root, 'content') }
   execSync('pnpm build', { cwd: appDir, stdio: 'inherit', env })
@@ -106,6 +114,16 @@ describe('permalink patterns: real astro build', () => {
 
   it('archive card hrefs agree', () => {
     expect(page('posts')).toContain('href="/blog/2026/hello-world/"')
+  })
+
+  it('a pubDate-only post is dated by pubDate everywhere (#1121)', () => {
+    expect(exists('blog/2020/migrated')).toBe(true)
+    const html = page('blog/2020/migrated')
+    expect(html).toContain('"datePublished":"2020-05-01T00:00:00.000Z"')
+    expect(html).toContain('"dateModified":"2026-02-03T00:00:00.000Z"')
+    const xml = readFileSync(join(appDir, 'dist', 'rss.xml'), 'utf8')
+    const item = xml.slice(xml.indexOf('/blog/2020/migrated'))
+    expect(item).toMatch(/<pubDate>Fri, 01 May 2020/)
   })
 
   it('legacy default URLs are gone', () => {

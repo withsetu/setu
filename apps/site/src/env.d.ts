@@ -12,6 +12,10 @@ interface ImportMetaEnv {
   /** The @setu/api origin the live-preview bridge polls. Falls back to
    *  http://localhost:4444 when unset (see preview/preview.astro). */
   readonly SETU_API_URL?: string
+  /** The running Astro command (`dev` | `build` | `preview` | `sync`), defined by the
+   *  `setu:astro-command-env` integration in astro.config.mjs. Unlike PROD it does not follow
+   *  NODE_ENV. Undefined outside Astro's pipeline (plain vitest). */
+  readonly SETU_ASTRO_COMMAND?: string
 }
 
 interface ImportMeta {

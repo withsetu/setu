@@ -7,6 +7,8 @@ import { DeployProvider } from '../src/deploy/deploy'
 import { IndexProvider } from '../src/data/index-store'
 import { TaxonomyProvider } from '../src/data/taxonomy-store'
 import { NotificationProvider } from '../src/ui/notify'
+import { CollectionsContext } from '../src/data/collections-store'
+import type { CollectionDescriptor } from '../src/data/collections'
 import { MetaPanel } from '../src/editor/MetaPanel'
 
 function setup(props?: Partial<React.ComponentProps<typeof MetaPanel>>) {
@@ -152,5 +154,99 @@ describe('MetaPanel', () => {
     expect(
       screen.getByText('No publish date — using /my-post')
     ).toBeInTheDocument()
+  })
+})
+
+/**
+ * #963: MetaPanel surfaces a declared collection's fields. The provider is real (not stubbed) so
+ * the assertions cover the lookup too — the panel finds its collection in the store's list, and a
+ * collection it cannot find renders no Fields section rather than an empty one.
+ */
+describe('MetaPanel — declared collection fields (#963)', () => {
+  function withCollections(
+    collections: CollectionDescriptor[],
+    props?: Partial<React.ComponentProps<typeof MetaPanel>>
+  ) {
+    const onChange = vi.fn()
+    const services = servicesFor(createMemoryDataPort(), createMemoryGitPort())
+    render(
+      <NotificationProvider>
+        <ServicesProvider services={services}>
+          <DeployProvider>
+            <IndexProvider>
+              <TaxonomyProvider>
+                <CollectionsContext.Provider
+                  value={{
+                    collections,
+                    loading: false,
+                    failed: false,
+                    reload: () => Promise.resolve()
+                  }}
+                >
+                  <MetaPanel
+                    metadata={{ title: 'Steel Packer', sku: 'HD-1001' }}
+                    collection="product"
+                    locale="en"
+                    slug="steel-packer"
+                    editable
+                    committed={false}
+                    permalinkConfig={{
+                      pattern: ':collection/:slug',
+                      uncategorized: 'uncategorized'
+                    }}
+                    date={Date.UTC(2026, 6, 4)}
+                    categories={[]}
+                    onRename={vi.fn(async () => ({
+                      renamed: true,
+                      committedSha: null
+                    }))}
+                    onChange={onChange}
+                    apiBase="http://localhost:4444"
+                    {...props}
+                  />
+                </CollectionsContext.Provider>
+              </TaxonomyProvider>
+            </IndexProvider>
+          </DeployProvider>
+        </ServicesProvider>
+      </NotificationProvider>
+    )
+    return { onChange }
+  }
+
+  const product: CollectionDescriptor = {
+    name: 'product',
+    label: 'Product',
+    labelPlural: 'Products',
+    taxonomies: ['category'],
+    fields: [
+      { name: 'sku', control: 'text', required: true },
+      { name: 'priceUsd', control: 'number', required: true }
+    ]
+  }
+
+  it('renders a Fields section with the declared controls', () => {
+    withCollections([product])
+    expect(screen.getByText('Fields')).toBeInTheDocument()
+    expect(screen.getByLabelText('sku')).toHaveValue('HD-1001')
+    expect(screen.getByLabelText('priceUsd')).toBeInTheDocument()
+  })
+
+  it('omits the section entirely for a collection that declares no fields', () => {
+    withCollections([{ ...product, fields: undefined }])
+    expect(screen.queryByText('Fields')).not.toBeInTheDocument()
+  })
+
+  it('omits it for a collection the admin has never heard of (fail closed)', () => {
+    withCollections([{ ...product, name: 'something-else' }])
+    expect(screen.queryByText('Fields')).not.toBeInTheDocument()
+  })
+
+  it('surfaces a schema the server could not describe, rather than an empty form', () => {
+    withCollections([
+      { ...product, fields: undefined, fieldsError: 'array prop "specs"' }
+    ])
+    expect(screen.getByText('Fields')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent(/specs/)
   })
 })

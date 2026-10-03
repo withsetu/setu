@@ -15,7 +15,7 @@ export function SliderControl({ value, onChange, meta }: ControlProps) {
   return (
     <div className="flex items-center gap-3">
       <Slider
-        id={`bi-${meta.name}`}
+        id={`${meta.idPrefix ?? 'bi'}-${meta.name}`}
         aria-label={meta.name}
         min={min}
         max={max}

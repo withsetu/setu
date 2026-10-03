@@ -49,9 +49,14 @@ describe('columns contract (#181)', () => {
     expect(attrs.layout).toEqual({
       type: 'String',
       matches: ['50-50', '33-67', '67-33', '33-33-33', '25-25-25-25'],
-      default: '50-50'
+      default: '50-50',
+      required: false
     })
-    expect(attrs.stackOnMobile).toEqual({ type: 'Boolean', default: true })
+    expect(attrs.stackOnMobile).toEqual({
+      type: 'Boolean',
+      default: true,
+      required: false
+    })
     // column has no props — empty descriptor set, not a throw.
     expect(markdocAttributesFor(columnBlock.contract.props)).toEqual({})
   })

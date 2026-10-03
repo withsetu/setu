@@ -1,3 +1,4 @@
+import type { ResolvedControl } from '@setu/core'
 /** Pure helpers over the declared collection set (#253 increment C). Kept out of the
  *  provider so they can be unit-tested without React — see
  *  apps/admin/test/collections.test.ts. */
@@ -7,6 +8,13 @@ export interface CollectionDescriptor {
   label: string
   labelPlural: string
   taxonomies: string[]
+  /** The collection's declared frontmatter fields, projected into renderable controls by the
+   *  API (#1125). Absent when the collection declares none. */
+  fields?: ResolvedControl[]
+  /** Present instead of `fields` when the collection DOES declare a schema the server could
+   *  not project (e.g. an array field with no control hint). Kept apart from "no fields" so
+   *  the editor is told the difference rather than shown an empty form (§4 #22). */
+  fieldsError?: string
 }
 
 /** What the admin assumes before `/api/collections` answers, and what it falls back to if

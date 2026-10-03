@@ -1,7 +1,13 @@
 import { Hono } from 'hono'
 import { createMiddleware } from 'hono/factory'
-import { createAuthz, DEFAULT_ROLES } from '@setu/core'
-import type { Action, Actor, ResolvedConfig } from '@setu/core'
+import { createAuthz, DEFAULT_ROLES, resolveControls } from '@setu/core'
+import type {
+  Action,
+  Actor,
+  ResolvedCollection,
+  ResolvedConfig,
+  ResolvedControl
+} from '@setu/core'
 import { authMiddleware } from './auth/middleware'
 import { apiOnError } from './errors'
 import type { ResolveActor } from './auth/resolve-actor'
@@ -43,6 +49,37 @@ export interface CollectionsApiDeps {
  *
  *  CORS/origin policy is owned centrally by server.ts (see app.ts's comment on
  *  createGitApi) — this factory sets none of its own. */
+/**
+ * Project a collection's declared field schema into the controls the admin renders (#1125).
+ *
+ * `resolveControls` is the same projection the block inspector already consumes
+ * (apps/admin/src/editor/BlockInspector.tsx), so this adds no new wire format and no zod internals
+ * cross the boundary — a zod schema is not serialisable, and coupling the admin to `_def` would
+ * couple it to a layout that has moved between zod majors.
+ *
+ * It THROWS by design on a schema it cannot render — an array prop with no control hint, or an
+ * unsupported zod type — and a collection is free to declare one. Left uncaught that would 500 the
+ * whole endpoint, taking every healthy collection's fields down with it. So the failure is scoped
+ * to the collection that caused it and reported rather than swallowed: `fields` present means
+ * renderable, `fieldsError` present means broken, and NEITHER means the collection declared no
+ * custom fields. The admin needs all three apart — "no fields" rendered over "could not read the
+ * fields" is the #837 shape (§4 #22).
+ *
+ * Behaviour is covered by apps/api/test/collections-api.test.ts.
+ */
+function describeFields(
+  col: ResolvedCollection
+): { fields?: ResolvedControl[] } | { fieldsError?: string } {
+  if (!col.fields) return {}
+  try {
+    return { fields: resolveControls(col.fields) }
+  } catch (err) {
+    return {
+      fieldsError: err instanceof Error ? err.message : String(err)
+    }
+  }
+}
+
 export function createCollectionsApi(deps: CollectionsApiDeps) {
   const app = new Hono<{ Variables: { actor: Actor } }>()
   const auth = authMiddleware(deps.resolveActor)
@@ -55,7 +92,8 @@ export function createCollectionsApi(deps: CollectionsApiDeps) {
         name: col.name,
         label: col.label,
         labelPlural: col.labelPlural,
-        taxonomies: col.taxonomies
+        taxonomies: col.taxonomies,
+        ...describeFields(col)
       }))
     return c.json({ collections })
   })

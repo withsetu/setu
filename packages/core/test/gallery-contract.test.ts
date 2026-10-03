@@ -14,26 +14,37 @@ describe('gallery contract', () => {
 
   it('maps images to an Array markdoc attribute with an empty default', () => {
     const attrs = markdocAttributesFor(galleryBlock.contract.props)
-    expect(attrs.images).toEqual({ type: 'Array', default: [] })
+    expect(attrs.images).toEqual({
+      type: 'Array',
+      default: [],
+      required: false
+    })
     expect(attrs.columns).toEqual({
       type: 'Number',
       default: 3,
       min: 1,
-      max: 6
+      max: 6,
+      required: false
     })
     expect(attrs.gap).toEqual({
       type: 'String',
       matches: ['none', 'small', 'medium', 'large'],
-      default: 'medium'
+      default: 'medium',
+      required: false
     })
     // #533: masonry layout for vertical/mixed-aspect images
     expect(attrs.layout).toEqual({
       type: 'String',
       matches: ['grid', 'masonry'],
-      default: 'grid'
+      default: 'grid',
+      required: false
     })
     // #553: lightbox (WP "Expand on click") — default ON
-    expect(attrs.lightbox).toEqual({ type: 'Boolean', default: true })
+    expect(attrs.lightbox).toEqual({
+      type: 'Boolean',
+      default: true,
+      required: false
+    })
   })
 
   it('resolves typed controls: media-list, slider, select, switch, align', () => {

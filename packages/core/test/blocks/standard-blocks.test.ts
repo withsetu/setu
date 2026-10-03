@@ -18,12 +18,16 @@ describe('STANDARD_BLOCKS', () => {
   })
 
   it('derives markdoc attributes from the props', () => {
+    // #1125: `required` reflects the zod wrapper — button's `href` is a bare z.string() and
+    // therefore required, `variant` has a .default() and is not. A real block contract with a
+    // required prop, which is why the flag is not a collections-only concern.
     expect(markdocAttributesFor(button!.contract.props)).toEqual({
-      href: { type: 'String' },
+      href: { type: 'String', required: true },
       variant: {
         type: 'String',
         matches: ['primary', 'secondary'],
-        default: 'primary'
+        default: 'primary',
+        required: false
       }
     })
   })

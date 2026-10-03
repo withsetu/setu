@@ -31,7 +31,12 @@ export interface CollectionsContextValue {
   reload: () => Promise<void>
 }
 
-const CollectionsContext = createContext<CollectionsContextValue | null>(null)
+/** Exported so a test can render a consumer against a chosen collection set without stubbing
+ *  the network. The provider above is still the only production writer.
+ */
+export const CollectionsContext = createContext<CollectionsContextValue | null>(
+  null
+)
 
 export function CollectionsProvider({ children }: { children: ReactNode }) {
   const [collections, setCollections] =

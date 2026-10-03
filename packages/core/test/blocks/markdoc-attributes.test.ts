@@ -12,11 +12,13 @@ describe('markdocAttributesFor', () => {
         e: z.enum(['a', 'b'])
       })
     )
+    // `required` (#1125) is the zod wrapper made explicit: `s` is .optional() and `b` has a
+    // .default(), so neither is required of the author; `n` and `e` are bare.
     expect(attrs).toEqual({
-      s: { type: 'String' },
-      n: { type: 'Number' },
-      b: { type: 'Boolean', default: true },
-      e: { type: 'String', matches: ['a', 'b'] }
+      s: { type: 'String', required: false },
+      n: { type: 'Number', required: true },
+      b: { type: 'Boolean', default: true, required: false },
+      e: { type: 'String', matches: ['a', 'b'], required: true }
     })
   })
   it('maps arrays (element validation stays with the zod contract)', () => {
@@ -25,7 +27,9 @@ describe('markdocAttributesFor', () => {
         items: z.array(z.object({ src: z.string() })).default([])
       })
     )
-    expect(attrs).toEqual({ items: { type: 'Array', default: [] } })
+    expect(attrs).toEqual({
+      items: { type: 'Array', default: [], required: false }
+    })
   })
   it('throws on an unsupported zod type', () => {
     expect(() =>

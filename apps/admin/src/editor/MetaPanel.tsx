@@ -4,6 +4,7 @@ import { TagField } from './TagField'
 import { FeaturedImageField } from './FeaturedImageField'
 import { DateField } from './DateField'
 import { SeoSection } from './SeoSection'
+import { CollectionFields } from './CollectionFields'
 import { SlugField } from './SlugField'
 import { useCollections } from '@/data/collections-store'
 import { collectionHasTaxonomy } from '@/data/collections'
@@ -93,6 +94,14 @@ export function MetaPanel({
     'category'
   )
   const hasTags = collectionHasTaxonomy(collections, collection, 'tag')
+  // #963: the declared-field form. `descriptor` is undefined for a collection the admin has not
+  // heard of (an unknown name, or a failed /api/collections read falling back to the built-ins) —
+  // in which case no Fields section renders at all, which is the same fail-closed shape the
+  // taxonomy lookups above use.
+  const descriptor = collections.find((c) => c.name === collection)
+  const showFields = Boolean(
+    descriptor?.fieldsError ?? descriptor?.fields?.length
+  )
   return (
     <aside className="w-[300px] shrink-0 overflow-y-auto border-l border-border/60">
       <Section title="Permalink">
@@ -127,6 +136,18 @@ export function MetaPanel({
           editable={editable}
         />
       </Section>
+      {showFields && (
+        <Section title="Fields">
+          <CollectionFields
+            fields={descriptor?.fields}
+            fieldsError={descriptor?.fieldsError}
+            metadata={metadata}
+            editable={editable}
+            apiBase={apiBase}
+            onChange={onChange}
+          />
+        </Section>
+      )}
       <Section title="Featured image">
         <FeaturedImageField
           value={

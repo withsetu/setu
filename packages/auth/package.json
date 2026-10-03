@@ -17,7 +17,7 @@
     "@better-auth/core": "1.7.3",
     "@setu/core": "workspace:*",
     "@setu/db-sqlite": "workspace:*",
-    "better-auth": "1.7.3",
+    "better-auth": "1.7.6",
     "drizzle-orm": "^0.45.2",
     "zod": "^4.4.3"
   },

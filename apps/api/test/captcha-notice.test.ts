@@ -33,6 +33,12 @@ describe('noCaptchaProviderNotice (#918)', () => {
     }
   })
 
+  it('advertises only providers the boot accepts (#1163: never recaptcha-v3)', () => {
+    const notice = String(noCaptchaProviderNotice({ SETU_MODE: 'self-hosted' }))
+    expect(notice).toContain('SETU_CAPTCHA_PROVIDER=turnstile|recaptcha ')
+    expect(notice).not.toContain('recaptcha-v3')
+  })
+
   it('treats a blank provider as unset', () => {
     expect(
       noCaptchaProviderNotice({ SETU_CAPTCHA_PROVIDER: '' })

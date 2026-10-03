@@ -1,28 +1,31 @@
+import { resolveCaptchaConfig, type CaptchaProviderId } from '../captcha-config'
+
 /** Shared env-parsing helpers for Better Auth wiring. Extracted so both server.ts (boot-time
  *  auth construction) and capabilities.ts (per-request truthful reporting of what's configured)
  *  read the exact same env vars the exact same way — duplicating this logic would risk the two
  *  silently drifting (e.g. capabilities claiming a provider is enabled that createAuth actually
  *  omitted, or vice versa). */
 
-/** better-auth's captcha plugin option, derived from the same env vars forms captcha reads.
- *  Omitted entirely when no provider is configured or its secret is unset (fail closed — no
- *  captcha plugin means better-auth doesn't gate on a check we can't perform). */
+/** better-auth's captcha plugin option, read through the shared provider→secret mapping
+ *  (`resolveCaptchaConfig`, ../captcha-config.ts — the same one the forms resolver uses, #1163).
+ *  Omitted when no provider is configured or its secret is unset: better-auth then runs sign-in
+ *  and password reset WITHOUT a captcha (the password and the rate limit still gate them). That
+ *  is deliberately not "reject all" like the forms path — refusing every sign-in would lock the
+ *  operator out — and the forms resolver's boot line says so out loud. Behaviour pinned by
+ *  apps/api/test/captcha-config.test.ts ("auth + capabilities read the same mapping"). */
 export function authCaptchaFromEnv(
   env: NodeJS.ProcessEnv = process.env
 ):
   | { provider: 'cloudflare-turnstile' | 'google-recaptcha'; secretKey: string }
   | undefined {
-  const provider = env.SETU_CAPTCHA_PROVIDER ?? ''
-  if (provider !== 'turnstile' && provider !== 'recaptcha') return undefined
-  const secretKey =
-    provider === 'recaptcha'
-      ? (env.SETU_RECAPTCHA_SECRET ?? '')
-      : (env.SETU_TURNSTILE_SECRET ?? '')
-  if (!secretKey) return undefined
+  const config = resolveCaptchaConfig(env)
+  if (config.provider === null || !config.secret) return undefined
   return {
     provider:
-      provider === 'turnstile' ? 'cloudflare-turnstile' : 'google-recaptcha',
-    secretKey
+      config.provider === 'turnstile'
+        ? 'cloudflare-turnstile'
+        : 'google-recaptcha',
+    secretKey: config.secret
   }
 }
 
@@ -117,7 +120,7 @@ export function socialProvidersEnabled(
 }
 
 /** Public captcha info for capabilities: provider + PUBLIC site key, present only when the
- *  provider is fully configured server-side (matches authCaptchaFromEnv's fail-closed gate) AND
+ *  provider is fully configured server-side (the same condition authCaptchaFromEnv emits on) AND
  *  its public site-key env is set. The SECRET is never read here — only the site-key envs, which
  *  are safe to expose to any authenticated capabilities caller.
  *
@@ -130,15 +133,8 @@ export function socialProvidersEnabled(
  */
 export function captchaCapabilityFromEnv(
   env: NodeJS.ProcessEnv = process.env
-): { provider: 'turnstile' | 'recaptcha'; siteKey: string } | null {
-  const serverConfigured = authCaptchaFromEnv(env)
-  if (!serverConfigured) return null
-  const provider =
-    serverConfigured.provider === 'google-recaptcha' ? 'recaptcha' : 'turnstile'
-  const siteKey =
-    provider === 'recaptcha'
-      ? (env.SETU_RECAPTCHA_SITE_KEY ?? '')
-      : (env.SETU_TURNSTILE_SITE_KEY ?? '')
-  if (!siteKey) return null
-  return { provider, siteKey }
+): { provider: CaptchaProviderId; siteKey: string } | null {
+  const config = resolveCaptchaConfig(env)
+  if (config.provider === null || !config.secret || !config.siteKey) return null
+  return { provider: config.provider, siteKey: config.siteKey }
 }

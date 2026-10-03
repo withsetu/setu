@@ -1,3 +1,4 @@
+import { SUPPORTED_CAPTCHA_PROVIDERS } from './captcha-providers'
 import { resolveSetuMode } from './config'
 
 /** #918: the zero-config captcha default is a PASS-THROUGH, and until now it was silent.
@@ -28,7 +29,7 @@ export function noCaptchaProviderNotice(env: {
   return (
     'NO PROVIDER: SETU_CAPTCHA_PROVIDER is unset, so the public POST /forms/submit route ' +
     'accepts every submission with NO spam verification. Set ' +
-    'SETU_CAPTCHA_PROVIDER=turnstile|recaptcha|recaptcha-v3 with its secret. The rate limit and ' +
+    `SETU_CAPTCHA_PROVIDER=${SUPPORTED_CAPTCHA_PROVIDERS.join('|')} with its secret. The rate limit and ` +
     'the outbound-notification ceiling still bound the damage (#918), but they are a ceiling, ' +
     'not spam protection.'
   )

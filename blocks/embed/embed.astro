@@ -169,9 +169,12 @@ const hasFacade = Boolean(safeThumbnailUrl) && Boolean(safeEmbedUrl || html)
   // Security: `data-embed-url` is the value `frameSrc` accepted above (absolute http(s) only),
   // so the `src` iframe frames a foreign origin and allow-same-origin cannot be turned against
   // this page; a `srcdoc` iframe would be same-origin by default, so its sandbox OMITS
-  // allow-same-origin → an opaque origin that cannot touch this page's DOM. Both halves are
-  // enforced by apps/site/test/url-guard-sinks.test.ts and apps/site/test/embed-block.test.ts
-  // ('sandboxes both load paths'), NOT by this comment.
+  // allow-same-origin → an opaque origin that cannot touch this page's DOM. Enforced, NOT by
+  // this comment, by apps/site/test/embed-block.test.ts ('embed iframe sandbox — every load
+  // path'): it runs this script in jsdom, clicks every facade in the build, and compares each
+  // resulting iframe's FULL sandbox token set exactly — as it does for the two static
+  // <iframe>s above. The absolute-http(s) precondition for the src half is enforced by
+  // apps/site/test/url-guard-sinks.test.ts ('every iframe src is an absolute http(s) URL').
   document.querySelectorAll<HTMLButtonElement>('.blk-embed-facade').forEach((btn) => {
     btn.addEventListener(
       'click',

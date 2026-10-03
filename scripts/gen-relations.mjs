@@ -46,6 +46,8 @@ const {
   incumbentFromUrlMap,
   entryIdFromContentPath,
   isSiteEntryPath,
+  findReservedRouteCollisions,
+  formatReservedRouteCollisions,
   DEFAULT_LOCALE
 } = await jiti.import('@setu/core')
 
@@ -203,6 +205,16 @@ async function buildPermalinkMap(rows, contentDir) {
         )
     paths.set(id, rootPath)
   }
+  // Site-route collisions (#1122). Warn only: this scan also runs before `astro dev`, and the
+  // build itself (apps/site/src/lib/permalinks.ts) is what fails on them.
+  const published = new Set(rows.filter((r) => r.published).map((r) => r.key))
+  const collisions = findReservedRouteCollisions(paths, (id) =>
+    published.has(id)
+  )
+  if (collisions.length > 0)
+    console.warn(
+      `[gen-relations] permalinks: ${formatReservedRouteCollisions(collisions)}`
+    )
   return paths
 }
 

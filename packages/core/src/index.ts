@@ -73,6 +73,14 @@ export {
   formatFrontmatterDate
 } from './permalinks/frontmatter-date'
 export {
+  SITE_RESERVED_ROUTES,
+  matchReservedRoute,
+  findReservedRouteCollisions,
+  formatReservedRouteCollisions,
+  reservedRouteNamespaces,
+  type ReservedRouteCollision
+} from './permalinks/reserved-routes'
+export {
   entryIdFromContentPath,
   isSiteEntryPath,
   CONTENT_ENTRY_EXTENSION

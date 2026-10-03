@@ -2,22 +2,23 @@
 import type { GetStaticPaths, Page } from 'astro'
 import { getCollection } from 'astro:content'
 import type { PostRow } from '@setu/core'
-import TaxonomyArchivePage from '../../../components/TaxonomyArchivePage.astro'
-import { loadSiteSettings } from '../../../lib/site-settings'
-import { toPostRow } from '../../../lib/post-row'
-import { taxonomyArchiveGroups, type TaxonomyArchiveGroup } from '../../../lib/taxonomy-archive'
+import TaxonomyArchivePage from '../../../../components/TaxonomyArchivePage.astro'
+import { loadSiteSettings } from '../../../../lib/site-settings'
+import { toPostRow } from '../../../../lib/post-row'
+import { taxonomyArchiveGroups, type TaxonomyArchiveGroup } from '../../../../lib/taxonomy-archive'
 import { permalinkMap } from 'setu:permalinks'
 
-// Default-locale category archives at /category/<slug>/. Other locales live at /<locale>/category/<slug>/
-// (src/pages/[locale]/category/[slug]/[...page].astro); both enumerate via taxonomyArchiveGroups (#1114).
+// Per-locale category archives at /<locale>/category/<slug>/ for every non-default locale with posts — the
+// twin of src/pages/category/[slug]/[...page].astro, enumerated by the same taxonomyArchiveGroups, so a
+// chip on a translated post lands on an archive of that locale's posts (#1114).
 export const getStaticPaths = (async ({ paginate }) => {
   const perPage = Number(process.env.SETU_ARCHIVE_PER_PAGE) || loadSiteSettings().reading.postsPerPage
   const map = await permalinkMap()
   const rows = (await getCollection('entries')).map((e) =>
     toPostRow({ id: e.id, data: e.data as Record<string, unknown>, body: (e as { body?: string }).body }, map.get(e.id)),
   )
-  return taxonomyArchiveGroups(rows, 'category', 'default').flatMap((g) =>
-    paginate(g.posts, { params: { slug: g.slug }, props: { group: g }, pageSize: perPage }),
+  return taxonomyArchiveGroups(rows, 'category', 'localized').flatMap((g) =>
+    paginate(g.posts, { params: { locale: g.locale, slug: g.slug }, props: { group: g }, pageSize: perPage }),
   )
 }) satisfies GetStaticPaths
 

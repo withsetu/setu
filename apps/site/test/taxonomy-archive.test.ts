@@ -1,5 +1,5 @@
 import { execSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
@@ -90,5 +90,102 @@ describe('post page taxonomy chips (#860 BLOCK-4)', () => {
     expect(exists('tag/astro')).toBe(true) // dist/tag/astro/index.html — the served route
     const tagmap = readFileSync(join(appDir, 'dist', 'tag-sitemap.xml'), 'utf8')
     expect(tagmap).toContain(`<loc>http://localhost:4321${chipHref}</loc>`)
+  })
+})
+
+// #1114: per-locale taxonomy archives. Fixture: content/post/fr/bonjour.mdoc carries the fr-only tag
+// `voyage`; content/post/fr/kitchen-sink.mdoc is the fr translation carrying recipes/astro/cms.
+describe('per-locale taxonomy archives (#1114)', () => {
+  it('a fr-only tag emits /fr/tag/<slug>/ listing the fr post — and no unprefixed archive', () => {
+    const p = page('fr/tag/voyage')
+    expect(p).toContain('Tag: voyage')
+    expect(p).toContain('>Bonjour<')
+    expect(p).toContain('href="/fr/post/bonjour/"')
+    expect(p).toMatch(/<html[^>]*lang="fr"/)
+    expect(p).toContain(
+      '<link rel="canonical" href="http://localhost:4321/fr/tag/voyage/"'
+    )
+    // Single-locale term → no hreflang cluster.
+    expect(p).not.toContain('hreflang=')
+    expect(exists('tag/voyage')).toBe(false)
+  })
+
+  it('a localized archive lists only that locale’s posts', () => {
+    const fr = page('fr/category/recipes')
+    expect(fr).toContain('Category: Recipes')
+    expect(fr).toContain('>Évier de Cuisine<')
+    expect(fr).not.toContain('>Astro on the Edge<')
+    expect(fr).not.toContain('>Featured Demo<')
+    // and the default-locale archive still lists no fr post (unchanged behaviour)
+    expect(page('category/recipes')).not.toContain('Évier de Cuisine')
+    expect(page('category/recipes/2')).not.toContain('Évier de Cuisine')
+  })
+
+  it('hreflang pairs the locale variants of the same term where both exist', () => {
+    for (const route of ['tag/astro', 'fr/tag/astro']) {
+      const p = page(route)
+      expect(p).toContain(
+        'hreflang="en" href="http://localhost:4321/tag/astro/"'
+      )
+      expect(p).toContain(
+        'hreflang="fr" href="http://localhost:4321/fr/tag/astro/"'
+      )
+      expect(p).toContain(
+        'hreflang="x-default" href="http://localhost:4321/tag/astro/"'
+      )
+    }
+    // page 2 of a paginated archive is not a translation of anything
+    expect(page('category/recipes/2')).not.toContain('hreflang=')
+  })
+
+  it('chips on a fr post link to the fr archives', () => {
+    const p = page('fr/post/kitchen-sink')
+    expect(p).toMatch(/href="\/fr\/category\/recipes\/"[^>]*>\s*Recipes\s*</)
+    expect(p).toContain('href="/fr/tag/astro/"')
+    expect(p).toContain('href="/fr/tag/cms/"')
+    expect(p).not.toContain('href="/tag/astro/"')
+    expect(page('fr/post/bonjour')).toContain('href="/fr/tag/voyage/"')
+  })
+
+  it('the tag/category sitemaps list the per-locale archive URLs', () => {
+    const tags = readFileSync(join(appDir, 'dist', 'tag-sitemap.xml'), 'utf8')
+    expect(tags).toContain('<loc>http://localhost:4321/fr/tag/voyage/</loc>')
+    expect(tags).toContain('<loc>http://localhost:4321/fr/tag/astro/</loc>')
+    expect(tags).toContain('<loc>http://localhost:4321/tag/astro/</loc>')
+    expect(tags).not.toContain('<loc>http://localhost:4321/tag/voyage/</loc>')
+    const cats = readFileSync(
+      join(appDir, 'dist', 'category-sitemap.xml'),
+      'utf8'
+    )
+    expect(cats).toContain(
+      '<loc>http://localhost:4321/fr/category/recipes/</loc>'
+    )
+  })
+
+  it('every taxonomy chip href in the built site resolves to an emitted archive (durable guard)', () => {
+    // Walk every built HTML page, collect each chip href, and require dist/<href>/index.html. This
+    // is the guard that would have caught #1114 for ANY locale, term or future chip placement.
+    const walk = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((d) =>
+        d.isDirectory()
+          ? walk(join(dir, d.name))
+          : d.name.endsWith('.html')
+            ? [join(dir, d.name)]
+            : []
+      )
+    const hrefs = new Set<string>()
+    for (const file of walk(join(appDir, 'dist'))) {
+      const html = readFileSync(file, 'utf8')
+      for (const m of html.matchAll(
+        /<a[^>]*class="setu-chip[^"]*"[^>]*href="([^"]+)"|<a[^>]*href="([^"]+)"[^>]*class="setu-chip/g
+      ))
+        hrefs.add(m[1] ?? m[2])
+    }
+    expect(hrefs.size).toBeGreaterThan(0)
+    expect(hrefs).toContain('/fr/tag/voyage/')
+    const missing = [...hrefs].filter(
+      (h) => !exists(decodeURI(h).replace(/^\/|\/$/g, ''))
+    )
+    expect(missing).toEqual([])
   })
 })

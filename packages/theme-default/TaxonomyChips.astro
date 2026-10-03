@@ -1,30 +1,29 @@
 ---
+import { taxonomyArchivePath, DEFAULT_LOCALE } from '@setu/core'
 interface Props {
   categories: { slug: string; name: string }[]
   tags: string[]
+  /** The post's own locale: chips link to THAT locale's archive (`/fr/tag/<slug>/` for a French
+   *  post, unprefixed for the default locale), which the site emits for every term carrying ≥1
+   *  post in the locale — so a fr-only tag is a real page, never a 404 (#1114). */
+  locale?: string
 }
-const { categories, tags } = Astro.props
+const { categories, tags, locale = DEFAULT_LOCALE } = Astro.props
 const has = categories.length > 0 || tags.length > 0
-// Encode a taxonomy slug into a single URL path segment EXACTLY as Astro's static-route generator
-// does (astro/dist/core/routing/generator.js `sanitizeParams`: Unicode-normalize, then #→%23,
-// ?→%3F). NOT encodeURIComponent — it additionally escapes '/' and space and would diverge from the
-// served /category|/tag route path, breaking the link for a tag like `c#4` (which otherwise
-// truncates at the fragment). The trailing slash matches the directory-format served URL, so the
-// chip href is byte-identical to the route path and the sitemap <loc>. (#860 BLOCK-4; the sitemap
-// twin is `encodeTaxonomySlug` in apps/site/src/lib/sitemap.ts.) Enforced by
-// apps/site/test/taxonomy-archive.test.ts (built chip href == route dir == sitemap loc) +
-// apps/site/test/sitemap.test.ts (the encoder).
-const seg = (s: string) => s.normalize().replace(/#/g, '%23').replace(/\?/g, '%3F')
+// `taxonomyArchivePath` is core's single primitive for an archive URL: Astro's own route-param
+// encoding (#→%23, ?→%3F, NOT encodeURIComponent) + the site's trailing-slash spelling, shared with
+// the archive routes and the sitemap <loc> so the three are byte-identical (#860 BLOCK-4, #1114).
+// 
 ---
 
 {has && (
   /* `measure-post` is PostLayout's reading-column width class — keeps the chips aligned to the article column. */
   <nav class="setu-taxonomy measure-post" aria-label="Categories and tags">
     {categories.map((c) => (
-      <a class="setu-chip setu-chip--cat" href={`/category/${seg(c.slug)}/`}>{c.name}</a>
+      <a class="setu-chip setu-chip--cat" href={taxonomyArchivePath('category', c.slug, locale)}>{c.name}</a>
     ))}
     {tags.map((t) => (
-      <a class="setu-chip setu-chip--tag" href={`/tag/${seg(t)}/`}>#{t}</a>
+      <a class="setu-chip setu-chip--tag" href={taxonomyArchivePath('tag', t, locale)}>#{t}</a>
     ))}
   </nav>
 )}

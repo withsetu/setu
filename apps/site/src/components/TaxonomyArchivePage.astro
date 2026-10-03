@@ -1,0 +1,46 @@
+---
+// The one body behind every taxonomy archive route — unprefixed `/tag|category/<slug>/` and
+// per-locale `/<locale>/tag|category/<slug>/` (#1114) — so heading, canonical, hreflang, `<html
+// lang>` and pagination cannot drift between the four route files.
+import type { Page } from 'astro'
+import PageLayout from '@theme/PageLayout.astro'
+import ArchiveList from '@theme/ArchiveList.astro'
+import { categoryNameMap, type PostRow } from '@setu/core'
+import { taxonomyArchiveBasePath, type TaxonomyKind } from '../lib/taxonomy-archive'
+import { loadThemeOptions } from '../lib/site-config'
+import { loadSiteSettings } from '../lib/site-settings'
+import { loadCategories } from '../lib/categories'
+import { pageSeo } from '../lib/seo'
+import { resolveMediaBase } from '@setu/image-astro'
+
+interface Props {
+  page: Page<PostRow>
+  kind: TaxonomyKind
+  slug: string
+  locale: string
+  alternates: { locale: string; path: string }[]
+}
+const { page, kind, slug, locale, alternates } = Astro.props
+const themeOptions = loadThemeOptions()
+const siteSettings = loadSiteSettings()
+const mediaBase = resolveMediaBase(import.meta.env.PUBLIC_SETU_MEDIA, import.meta.env.DEV)
+const heading =
+  kind === 'category'
+    ? `Category: ${categoryNameMap(loadCategories()).get(slug) ?? slug}`
+    : `Tag: ${slug}`
+const basePath = taxonomyArchiveBasePath(kind, slug, locale)
+const seo = pageSeo(Astro.site, Astro.url.pathname, mediaBase, siteSettings, {
+  title: heading,
+  type: 'website',
+  locale,
+  prevPath: page.url.prev ?? undefined,
+  nextPath: page.url.next ?? undefined,
+  // hreflang pairs page 1 of each locale's archive for this term. Deeper pages hold different
+  // posts per locale, so they are not translations of each other and advertise no cluster.
+  alternates: page.currentPage === 1 ? alternates : undefined,
+})
+---
+
+<PageLayout title={heading} lang={locale} themeOptions={themeOptions} siteSettings={siteSettings} seo={seo}>
+  <ArchiveList page={page} heading={heading} basePath={basePath} mediaBase={mediaBase} />
+</PageLayout>

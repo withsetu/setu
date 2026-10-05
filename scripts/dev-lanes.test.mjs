@@ -6,6 +6,7 @@ import {
   allocateSlot,
   assertValidLaneName,
   laneEnv,
+  preferOperatorSiteUrl,
   laneHostnames,
   portsForSlot,
   renderCaddyfile
@@ -167,6 +168,65 @@ test('laneEnv without a domain keeps every origin on loopback', () => {
     env.SETU_DEV_ALLOWED_HOSTS,
     undefined,
     'no domain means nothing to allow beyond loopback'
+  )
+})
+
+test('laneEnv gives the build its own lane site origin as SETU_SITE_URL (#1183)', () => {
+  // Since #1118 `astro build` refuses to run without SETU_SITE_URL, and the api's Rebuild child
+  // inherits the lane env — unset, Publish from a dev admin always failed.
+  const loopback = laneEnv({
+    lane: 'dev',
+    domain: undefined,
+    slot: 0,
+    repoDir: '/s/dev',
+    checkoutDir: '/s'
+  })
+  assert.equal(loopback.SETU_SITE_URL, 'http://localhost:4321')
+  assert.equal(loopback.SETU_SITE_URL, loopback.VITE_SETU_SITE)
+
+  const tunnelled = laneEnv({
+    lane: 'a',
+    domain: 'example.com',
+    slot: 1,
+    repoDir: '/s/dev',
+    checkoutDir: '/s/.claude/worktrees/a'
+  })
+  assert.equal(tunnelled.SETU_SITE_URL, 'https://a-site.example.com')
+  assert.equal(tunnelled.SETU_SITE_URL, tunnelled.VITE_SETU_SITE)
+})
+
+test('an operator-set SETU_SITE_URL is never overridden by the derived one (#1183)', () => {
+  const derived = { SETU_SITE_URL: 'http://localhost:4321', OTHER: 'x' }
+  // Shell env first, then .env — the first non-blank value wins.
+  assert.deepEqual(
+    preferOperatorSiteUrl(
+      derived,
+      { SETU_SITE_URL: 'https://shell.example' },
+      { SETU_SITE_URL: 'https://dotenv.example' }
+    ),
+    { SETU_SITE_URL: 'https://shell.example', OTHER: 'x' }
+  )
+  assert.equal(
+    preferOperatorSiteUrl(
+      derived,
+      {},
+      { SETU_SITE_URL: 'https://dotenv.example' }
+    ).SETU_SITE_URL,
+    'https://dotenv.example'
+  )
+  // Blank counts as unset: an empty value would only make the build refuse again.
+  assert.equal(
+    preferOperatorSiteUrl(derived, { SETU_SITE_URL: '  ' }, {}).SETU_SITE_URL,
+    'http://localhost:4321'
+  )
+  assert.equal(
+    preferOperatorSiteUrl(derived, {}, {}).SETU_SITE_URL,
+    'http://localhost:4321'
+  )
+  assert.equal(
+    derived.SETU_SITE_URL,
+    'http://localhost:4321',
+    'input not mutated'
   )
 })
 

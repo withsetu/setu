@@ -152,6 +152,8 @@ export function laneEnv({
       SETU_ADMIN_ORIGIN: `http://localhost:${ports.admin}`,
       VITE_SETU_API: api,
       VITE_SETU_SITE: `http://localhost:${ports.site}`,
+      // The Rebuild child's canonical origin (#1183) — see preferOperatorSiteUrl.
+      SETU_SITE_URL: `http://localhost:${ports.site}`,
       SETU_API_URL: api,
       PUBLIC_SETU_MEDIA: api
     }
@@ -163,6 +165,7 @@ export function laneEnv({
     SETU_ADMIN_ORIGIN: `https://${hosts.admin}`,
     VITE_SETU_API: api,
     VITE_SETU_SITE: `https://${hosts.site}`,
+    SETU_SITE_URL: `https://${hosts.site}`,
     SETU_API_URL: api,
     PUBLIC_SETU_MEDIA: api,
     SETU_MEDIA_PUBLIC_URL: `${api}/media`,
@@ -170,6 +173,26 @@ export function laneEnv({
     // (#1049), so nothing on this path can switch the DNS-rebinding guard off.
     SETU_DEV_ALLOWED_HOSTS: `${hosts.admin},${hosts.site}`
   }
+}
+
+/** `derived` with SETU_SITE_URL taken from the first operator source that sets it non-blank,
+ *  else left as laneEnv derived it (#1183).
+ *
+ *  laneEnv sets SETU_SITE_URL to the lane's own site origin because, since #1118, `astro build`
+ *  refuses to run without it, and the api's Rebuild child (`makeBuildRunner`) inherits the lane
+ *  env — without it Publish from a `pnpm dev` admin always failed. Unlike the other derived
+ *  values, though, this one is a statement about where the site is served publicly, which an
+ *  operator may legitimately know better (previewing canonical links against a real domain), so
+ *  an explicit value wins. `sources` is checked in order — dev.mjs passes the shell env, then
+ *  `.env`. Blank counts as unset: it would only make the build refuse again.
+ *  Asserted in scripts/dev-lanes.test.mjs. */
+export function preferOperatorSiteUrl(derived, ...sources) {
+  for (const source of sources) {
+    const value = source?.SETU_SITE_URL
+    if (typeof value === 'string' && value.trim() !== '')
+      return { ...derived, SETU_SITE_URL: value }
+  }
+  return { ...derived }
 }
 
 /** Caddy config fronting every running lane, keyed by hostname.

@@ -28,6 +28,7 @@ import {
   allocateSlot,
   assertValidLaneName,
   laneEnv,
+  preferOperatorSiteUrl,
   laneHostnames,
   portsForSlot,
   renderCaddyfile
@@ -259,7 +260,11 @@ async function main(argv) {
   // Anything the operator set in .env that this does not derive (secrets, email transport,
   // SETU_AUTH_SECRET) still applies; derived values win so a stale hand-written origin cannot
   // silently override the lane's own.
-  const env = { ...fileEnv, ...derived }
+  const env = preferOperatorSiteUrl(
+    { ...fileEnv, ...derived },
+    process.env,
+    fileEnv
+  )
 
   const ports = portsForSlot(slot)
   try {

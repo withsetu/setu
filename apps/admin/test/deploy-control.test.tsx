@@ -388,6 +388,35 @@ describe('DeployControl — a build that failed or was interrupted (#1157)', () 
     )
   })
 
+  it('a missing SETU_SITE_URL is named in the toast and the failure line (#1183)', async () => {
+    const reason =
+      "SETU_SITE_URL is not set, and the site build needs it. Set it in the API server's environment to the public origin the site is served from (for example https://www.example.com), restart the API, and publish again. (build exited with code 1)"
+    mockRebuild.mockRejectedValueOnce(new Error(reason))
+    state.confirmOpen = true
+    state.status = {
+      ...baseStatus,
+      job: {
+        id: 'j',
+        status: 'failed',
+        mode: 'static',
+        sha: 'abc',
+        error: reason,
+        startedAt: 1,
+        updatedAt: 2
+      }
+    }
+    wrap()
+    expect(screen.getByText(/last build failed/i)).toHaveTextContent(
+      /SETU_SITE_URL is not set/
+    )
+    fireEvent.click(screen.getByRole('button', { name: /^publish now$/i }))
+    await waitFor(() =>
+      expect(
+        screen.getByText(/rebuild failed after \d+s: SETU_SITE_URL is not set/i)
+      ).toBeInTheDocument()
+    )
+  })
+
   it('a successful last job shows no failure line', () => {
     state.status = {
       ...baseStatus,

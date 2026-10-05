@@ -11,6 +11,7 @@ import type {
 } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
 import type { ResolveActor } from './auth/resolve-actor'
+import { explainBuildFailure } from './build-failure'
 
 const authz = createAuthz(DEFAULT_ROLES)
 
@@ -170,7 +171,11 @@ export function createDeployApi(opts: {
             ? (e as { logTail?: unknown }).logTail
             : undefined
         const logTail = typeof rawTail === 'string' ? rawTail : undefined
-        jobs.finish(job.id, 'failed', now(), { error: message, logTail })
+        // A known, fixable cause in the tail is named up front (#1183); the raw tail is kept.
+        jobs.finish(job.id, 'failed', now(), {
+          error: explainBuildFailure(message, logTail),
+          logTail
+        })
       })
     return c.json({ job }, 202)
   })

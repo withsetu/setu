@@ -197,6 +197,37 @@ describe('DeployProvider (server-backed, #208/#209)', () => {
     await expect(result.current.rebuild()).rejects.toThrow(/already running/i)
   })
 
+  it("rebuild() rejects with the failed job's named reason, not a generic failure (#1183)", async () => {
+    vi.useFakeTimers()
+    const reason =
+      "SETU_SITE_URL is not set, and the site build needs it. Set it in the API server's environment … (build exited with code 1)"
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL) =>
+        String(input).endsWith('/api/deploy/rebuild')
+          ? json({ job: { id: 'j1', status: 'running' } }, 202)
+          : json(
+              statusOf({
+                job: { id: 'j1', status: 'failed', error: reason } as never
+              })
+            )
+      )
+    )
+    const { result } = renderHook(() => useDeploy(), { wrapper })
+    let err: unknown
+    await act(async () => {
+      const p = result.current.rebuild().catch((e: unknown) => {
+        err = e
+      })
+      await vi.advanceTimersByTimeAsync(1600)
+      await p
+    })
+    expect(err).toBeInstanceOf(Error)
+    expect(err).not.toBeInstanceOf(DeployOutcomeUnknownError)
+    expect((err as Error).message).toBe(reason)
+    expect(result.current.running).toBe(false)
+  })
+
   it('rebuild() rejects with DeployOutcomeUnknownError when it loses the status mid-build', async () => {
     vi.useFakeTimers()
     let down = false

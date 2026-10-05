@@ -1,15 +1,16 @@
-/** CLI default-directory resolution (#512), mirroring how `pnpm dev` actually
- *  wires the stack (root package.json, verified):
+/** CLI default-directory resolution (#512), mirroring how `pnpm dev` wires the
+ *  stack (scripts/dev-lanes.mjs `laneEnv`):
  *
- *    SETU_REPO_DIR=$PWD/.content-sandbox/dev   SETU_MEDIA_DIR=$PWD/.setu/uploads
+ *    SETU_REPO_DIR=<root>/.content-sandbox/dev   SETU_MEDIA_DIR=<SETU_REPO_DIR>/.setu/uploads
  *
- *  Env vars win (an explicitly pointed-at instance), then the repo-root
- *  defaults — the same precedence scripts/auth-login-link.mjs uses. The repo
- *  root is found by walking up to `pnpm-workspace.yaml` (the CLI runs with
- *  cwd = packages/demo-data under `pnpm --filter`). */
+ *  Env vars win (an explicitly pointed-at instance), then the defaults — the
+ *  same precedence scripts/auth-login-link.mjs uses. The repo root is found by
+ *  walking up to `pnpm-workspace.yaml` (the CLI runs with cwd =
+ *  packages/demo-data under `pnpm --filter`). */
 import { existsSync } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import path from 'node:path'
+import { resolveMediaDir } from '@setu/storage-local'
 
 export function resolveRepoRoot(start = process.cwd()): string {
   let dir = path.resolve(start)
@@ -28,11 +29,15 @@ export function defaultSandboxDir(
   return env['SETU_REPO_DIR'] ?? path.join(root, '.content-sandbox', 'dev')
 }
 
+/** The api's media dir for `sandboxDir` — the shared rule (`resolveMediaDir`, #1161), so seeded
+ *  images land where the api serves and the site reads them. Before #1161 this defaulted to the
+ *  REPO ROOT's `.setu/uploads`, a directory nothing else reads. Pinned by
+ *  packages/demo-data/test/engine/resolve-dirs.test.ts. */
 export function defaultMediaDir(
-  root: string,
+  sandboxDir: string,
   env: NodeJS.ProcessEnv = process.env
 ): string {
-  return env['SETU_MEDIA_DIR'] ?? path.join(root, '.setu', 'uploads')
+  return resolveMediaDir(env, sandboxDir)
 }
 
 /** Locate an already-fetched AIC source under `root`: prefer the extracted

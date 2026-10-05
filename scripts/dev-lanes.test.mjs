@@ -215,3 +215,34 @@ test('rendering with no lanes still produces a valid, empty config', () => {
 test('MAIN_LANE is the historical sandbox name, so existing setups do not move', () => {
   assert.equal(MAIN_LANE, 'dev')
 })
+
+// --- media dir (#1161) -----------------------------------------------------
+
+test('laneEnv exports the sandbox media dir, so the site reads the manifests the api writes', () => {
+  // Without SETU_MEDIA_DIR the site's manifest reader returns null and every image renders with
+  // no srcset/<picture>/dimensions, silently. The api's default is per-sandbox; this is the same
+  // value (parity with resolveMediaDir is held by apps/api/test/media-dir-parity.test.ts).
+  const env = laneEnv({
+    lane: 'b',
+    domain: undefined,
+    slot: 2,
+    repoDir: '/s/.content-sandbox/dev',
+    checkoutDir: '/s/.claude/worktrees/b'
+  })
+  assert.equal(
+    env.SETU_MEDIA_DIR,
+    path.join('/s/.content-sandbox/dev', '.setu', 'uploads')
+  )
+})
+
+test('laneEnv keeps an operator-chosen media dir from .env', () => {
+  const env = laneEnv({
+    lane: 'dev',
+    domain: 'example.com',
+    slot: 0,
+    repoDir: '/s/dev',
+    checkoutDir: '/s',
+    mediaDir: '/var/media'
+  })
+  assert.equal(env.SETU_MEDIA_DIR, '/var/media')
+})

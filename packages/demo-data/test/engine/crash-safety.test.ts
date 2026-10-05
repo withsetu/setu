@@ -268,4 +268,18 @@ describe('strict CLI flags', () => {
       parseSeedFlags(['--sandbox', '/tmp/x'], ['sandbox', 'media'])
     ).not.toThrow()
   })
+
+  it("the media default follows the sandbox — the api stores a sandbox's media inside it (#1161)", () => {
+    const prev = process.env['SETU_MEDIA_DIR']
+    delete process.env['SETU_MEDIA_DIR']
+    try {
+      const flags = parseSeedFlags(
+        ['--sandbox', '/tmp/x'],
+        ['sandbox', 'media']
+      )
+      expect(flags.media).toBe(path.join('/tmp/x', '.setu', 'uploads'))
+    } finally {
+      if (prev !== undefined) process.env['SETU_MEDIA_DIR'] = prev
+    }
+  })
 })

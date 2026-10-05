@@ -61,13 +61,19 @@ const EXT_BY_TYPE: Record<string, string> = {
 
 export const DEFAULT_ALLOWED: Set<string> = new Set(Object.keys(EXT_BY_TYPE))
 
-/** Raster image types we generate variants for (gif excluded — animated). */
-const GENERATABLE: Set<string> = new Set([
+/** Raster image types we generate variants for (gif excluded — animated). Shared with
+ *  Reprocess (reprocess-runner.ts) so upload and recovery agree on what is generatable. */
+export const GENERATABLE: ReadonlySet<string> = new Set([
   'image/jpeg',
   'image/png',
   'image/webp',
   'image/avif'
 ])
+
+/** What the upload response says when variant generation failed (#1161). Fixed text: the real
+ *  error (an image-library message) is logged server-side only, never returned to the client. */
+export const INGEST_FAILED_REASON =
+  'The image could not be processed — it may be corrupt or use an unsupported encoding.'
 
 const DEFAULT_WIDTHS: number[] = [400, 800, 1200, 1600]
 const DEFAULT_MEDIA_SETTINGS: MediaSettings = {
@@ -121,6 +127,30 @@ export async function listMediaRecords(
     }
   }
   return records
+}
+
+/** The work list for a Reprocess job: every manifest, plus the record of every generatable image
+ *  that has NO manifest — an upload whose ingest failed (#1161). Without the second half such an
+ *  item could never be recovered. An image with both is listed once, by its manifest. Pinned by
+ *  apps/api/test/media-ingest-failure.test.ts. */
+export async function reprocessKeys(storage: StoragePort): Promise<string[]> {
+  const all = await storage.list()
+  const present = new Set(all)
+  const keys = all.filter((k) => k.endsWith('.manifest.json'))
+  for (const k of all) {
+    if (!k.endsWith('.media.json')) continue
+    const mediaKey = k.slice(0, -'.media.json'.length)
+    if (present.has(manifestKey(mediaKey))) continue
+    const obj = await storage.get(k)
+    if (!obj) continue
+    try {
+      const rec = JSON.parse(new TextDecoder().decode(obj.body)) as MediaRecord
+      if (GENERATABLE.has(rec.contentType)) keys.push(k)
+    } catch {
+      /* corrupt record — nothing to recover from */
+    }
+  }
+  return keys
 }
 
 export function createUploadApi(opts: UploadApiOptions) {
@@ -218,6 +248,11 @@ export function createUploadApi(opts: UploadApiOptions) {
         await storage.put(key, bytes, { contentType: file.type })
 
         let manifest: MediaManifest | undefined
+        // #1161: reported to the client, which tells the user (and Reprocess picks the item up
+        // later — it enumerates manifest-less image records, not only manifests). Without this
+        // the upload looked like a normal success. Pinned by
+        // apps/api/test/media-ingest-failure.test.ts.
+        let ingestFailed = false
         if (opts.image && GENERATABLE.has(file.type)) {
           const media = resolveMedia()
           try {
@@ -233,6 +268,7 @@ export function createUploadApi(opts: UploadApiOptions) {
               }
             )
           } catch (err) {
+            ingestFailed = true
             console.warn(
               `media ingest failed for ${mediaKey}: ${err instanceof Error ? err.message : String(err)}`
             )
@@ -281,7 +317,9 @@ export function createUploadApi(opts: UploadApiOptions) {
             size: file.size,
             filename: file.name,
             record,
-            ...(manifest ? { manifest } : {})
+            ...(manifest ? { manifest } : {}),
+            ingestFailed,
+            ...(ingestFailed ? { ingestError: INGEST_FAILED_REASON } : {})
           },
           201
         )
@@ -312,8 +350,7 @@ export function createUploadApi(opts: UploadApiOptions) {
           },
           202
         )
-      const all = await storage.list()
-      const keys = all.filter((k) => k.endsWith('.manifest.json'))
+      const keys = await reprocessKeys(storage)
       const job = opts.reprocess.store.create(keys, Date.now())
       opts.reprocess.run(job.id)
       return c.json(

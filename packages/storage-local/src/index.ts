@@ -132,3 +132,5 @@ export function createLocalStorage({
     }
   }
 }
+
+export { resolveMediaDir } from './media-dir'

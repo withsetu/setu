@@ -2,7 +2,8 @@ import { describe, expect, it, afterEach } from 'vitest'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { detectAicSource } from '../../src/engine/resolve-dirs'
+import { resolveMediaDir } from '@setu/storage-local'
+import { defaultMediaDir, detectAicSource } from '../../src/engine/resolve-dirs'
 
 const dirs: string[] = []
 afterEach(() => {
@@ -48,5 +49,20 @@ describe('detectAicSource', () => {
     mkdirSync(path.dirname(sample), { recursive: true })
     writeFileSync(sample, '{}\n')
     expect(await detectAicSource(root)).toBe(sample)
+  })
+})
+
+describe('defaultMediaDir (#1161)', () => {
+  it("is the sandbox's own uploads dir — where the api stores that sandbox's media", () => {
+    const sandbox = '/r/.content-sandbox/dev'
+    expect(defaultMediaDir(sandbox, {})).toBe(
+      path.join(sandbox, '.setu', 'uploads')
+    )
+    expect(defaultMediaDir(sandbox, {})).toBe(resolveMediaDir({}, sandbox))
+  })
+  it('SETU_MEDIA_DIR wins, as it does for the api', () => {
+    expect(
+      defaultMediaDir('/r/sandbox', { SETU_MEDIA_DIR: '/var/media' })
+    ).toBe('/var/media')
   })
 })

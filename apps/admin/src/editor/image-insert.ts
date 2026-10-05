@@ -1,5 +1,9 @@
 import type { Editor } from '@tiptap/core'
-import { uploadFile, type UploadResult } from '../media/upload-client'
+import {
+  ingestFailureNotice,
+  uploadFile,
+  type UploadResult
+} from '../media/upload-client'
 
 export function srcFromUploadUrl(url: string): string {
   return new URL(url).pathname
@@ -42,7 +46,11 @@ export function pickAndUploadImage(
     if (!file) return
     handlers.onUploading?.(true)
     try {
-      onResult(await upload(apiBase, file))
+      const result = await upload(apiBase, file)
+      onResult(result)
+      // #1161: stored, but no resized versions — usable, and the user must hear about it.
+      const notice = ingestFailureNotice(result)
+      if (notice) handlers.onError?.(notice)
     } catch (err) {
       handlers.onError?.(err instanceof Error ? err.message : String(err))
     } finally {

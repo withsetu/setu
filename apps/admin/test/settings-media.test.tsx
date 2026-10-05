@@ -160,6 +160,52 @@ describe('MediaSettings', () => {
   })
 
   describe('topology gating', () => {
+    // #1165: a failed capabilities read must not claim the site is on the edge.
+    it('a failed capabilities read shows an honest error with a re-check, not the edge message', async () => {
+      let healthy = false
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string) => {
+          if (String(url).includes('/api/capabilities')) {
+            return healthy
+              ? new Response(JSON.stringify({ capabilities: CAPABLE }), {
+                  status: 200
+                })
+              : new Response('down', { status: 503 })
+          }
+          return new Response('{}', { status: 200 })
+        })
+      )
+
+      renderMedia()
+
+      expect(
+        await screen.findByText(
+          /couldn.t check whether this server can reprocess/i
+        )
+      ).toBeInTheDocument()
+      expect(screen.getByText(/HTTP 503/)).toBeInTheDocument()
+      expect(
+        screen.queryByText(
+          /image reprocessing runs in local or self-hosted mode/i
+        )
+      ).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: /reprocess all images/i })
+      ).toBeDisabled()
+
+      healthy = true
+      fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+      await waitFor(() =>
+        expect(
+          screen.getByRole('button', { name: /reprocess all images/i })
+        ).toBeEnabled()
+      )
+      expect(
+        screen.queryByText(/couldn.t check whether this server can reprocess/i)
+      ).not.toBeInTheDocument()
+    })
+
     it('disables Reprocess button and shows edge message when imageProcessing=false', async () => {
       stubCapabilities({
         imageProcessing: false,

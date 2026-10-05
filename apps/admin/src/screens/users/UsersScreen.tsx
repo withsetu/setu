@@ -463,6 +463,11 @@ function InviteUserDialog({ onCreated }: { onCreated: () => void }) {
 const EMAIL_NOT_DELIVERABLE_REASON =
   'Password reset emails need an email provider — this workspace logs emails to the console.'
 
+/** #1165: shown instead when the capabilities read FAILED — deliverability is unknown, so the
+ *  action stays disabled (fail closed) without claiming the workspace has no email provider. */
+const EMAIL_CAPS_UNKNOWN_REASON =
+  'Couldn’t check whether reset emails can be sent — reload the page to try again.'
+
 /** What `POST /api/users/send-reset`'s error codes mean to an admin: the 409 refusal codes
  *  apps/api/src/reset-email-gate.ts emits, plus #1164's 502 `email_send_failed` (the transport
  *  was handed the message and threw — SMTP down, provider rejected it). One message per REASON: the server used to collapse
@@ -488,6 +493,7 @@ function UserRowActions({
   actorRole,
   users,
   emailDeliverable,
+  emailCapsUnknown,
   hasCredential,
   onChanged
 }: {
@@ -496,6 +502,7 @@ function UserRowActions({
   actorRole: Role
   users: AdminUser[]
   emailDeliverable: boolean
+  emailCapsUnknown: boolean
   hasCredential: boolean
   onChanged: () => void
 }) {
@@ -527,7 +534,12 @@ function UserRowActions({
     isKnownRole(user.role) && outranks(actorRole, user.role) && hasCredential
   const resetGuard: RowGuard = emailDeliverable
     ? { disabled: false }
-    : { disabled: true, reason: EMAIL_NOT_DELIVERABLE_REASON }
+    : {
+        disabled: true,
+        reason: emailCapsUnknown
+          ? EMAIL_CAPS_UNKNOWN_REASON
+          : EMAIL_NOT_DELIVERABLE_REASON
+      }
 
   async function changeRole(next: Role) {
     if (changingRole || next === user.role) return
@@ -761,7 +773,7 @@ function UserRowActions({
 function UserList({ refreshSignal }: { refreshSignal: number }) {
   const actor = useActor()
   const can = useCan()
-  const { email: emailCaps } = useCapabilities()
+  const { email: emailCaps, error: capsError } = useCapabilities()
   const notify = useNotify()
   const [users, setUsers] = useState<AdminUser[] | null>(null)
   const [loading, setLoading] = useState(true)
@@ -922,6 +934,7 @@ function UserList({ refreshSignal }: { refreshSignal: number }) {
                         actorRole={actor.role}
                         users={users}
                         emailDeliverable={!!emailCaps?.deliverable}
+                        emailCapsUnknown={capsError !== null}
                         hasCredential={credentialStatus[user.id] === true}
                         onChanged={() => void load()}
                       />
@@ -978,7 +991,7 @@ function OwnerPasswordCard({ onChanged }: { onChanged: () => void }) {
   const actor = useActor()
   const notify = useNotify()
   const { hasPassword, refresh: refreshHasPassword } = useHasPassword()
-  const { email: emailCaps } = useCapabilities()
+  const { email: emailCaps, error: capsError } = useCapabilities()
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -1094,7 +1107,9 @@ function OwnerPasswordCard({ onChanged }: { onChanged: () => void }) {
           <CardDescription>
             {emailCaps?.deliverable
               ? 'You signed in without a password. Email yourself a reset link to set one.'
-              : 'You signed in without a password. Password reset emails aren’t configured for this site — contact your site administrator to set one up.'}
+              : capsError
+                ? 'You signed in without a password. Couldn’t check whether reset emails can be sent — reload the page to try again.'
+                : 'You signed in without a password. Password reset emails aren’t configured for this site — contact your site administrator to set one up.'}
           </CardDescription>
         </CardHeader>
         {emailCaps?.deliverable && (

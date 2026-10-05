@@ -625,6 +625,44 @@ describe('LoginScreen — forgot password (#500)', () => {
     ).toBeInTheDocument()
   })
 
+  // #1165: a failed capabilities read is "unknown", not "not configured".
+  it('failed capabilities read: forgot step says it could not check (not "isn\'t configured") and Try again recovers', async () => {
+    let healthy = false
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        healthy
+          ? new Response(
+              JSON.stringify({
+                auth: NO_PROVIDERS_NO_CAPTCHA,
+                email: DELIVERABLE
+              }),
+              { status: 200 }
+            )
+          : new Response('down', { status: 503 })
+      )
+    )
+    await openForgot()
+
+    expect(
+      await screen.findByText(
+        /couldn[’']t check whether password reset is available/i
+      )
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(/password reset isn[’']t configured/i)
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /send reset link/i })
+    ).not.toBeInTheDocument()
+
+    healthy = true
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    expect(
+      await screen.findByRole('button', { name: /send reset link/i })
+    ).toBeInTheDocument()
+  })
+
   it('back to sign in returns to the sign-in form', async () => {
     stubCapabilities(NO_PROVIDERS_NO_CAPTCHA, undefined, DELIVERABLE)
     await openForgot()

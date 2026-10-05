@@ -154,19 +154,23 @@ export function createAuth(opts: CreateAuthOptions) {
   // disabled" behavior byte-for-byte whenever the option is absent (tests, and any topology
   // without a real email transport wired up).
   //
-  // Verified against the installed better-auth 1.6.23 source
+  // Re-verified against the installed better-auth 1.7.3 source (#1164)
   // (node_modules/better-auth/dist/api/routes/password.mjs):
-  //  - line 42: `if (!ctx.context.options.emailAndPassword?.sendResetPassword) { ... throw
+  //  - line 51: `if (!ctx.context.options.emailAndPassword?.sendResetPassword) { ... throw
   //    APIError.from('BAD_REQUEST', { ..., code: 'RESET_PASSWORD_DISABLED' }) }` — confirms the
   //    callback's mere presence/absence is the entire gate, exactly as relied on here.
-  //  - lines 73-77: the callback is invoked as
+  //  - lines 82-86: the callback is invoked as
   //    `sendResetPassword({ user: user.user, url, token: verificationToken }, ctx.request)` —
-  //    the `{ user, url, token }` signature this file destructures below.
-  //  - line 72: `url` is built as `` `${ctx.context.baseURL}/reset-password/${token}?callbackURL=${callbackURL}` ``
+  //    the `{ user, url, token }` signature this file destructures below — wrapped in
+  //    `ctx.context.runInBackgroundOrAwait(...)`, which catches and only LOGS a rejection
+  //    (dist/context/create-context.mjs lines 215-225). So whatever `sendReset` throws never
+  //    reaches the caller of `requestPasswordReset`; apps/api learns the outcome through its reset
+  //    gate's `observe` instead (apps/api/src/reset-email-gate.ts).
+  //  - line 81: `url` is built as `` `${ctx.context.baseURL}/reset-password/${token}?callbackURL=${callbackURL}` ``
   //    where `ctx.context.baseURL` is `opts.baseURL` + this file's own `basePath` ('/api/auth')
   //    and `callbackURL` is the caller-supplied `redirectTo` from the request body — EMPTY when
   //    the requester omitted it, which the `/reset-password/:token` callback route then rejects
-  //    as INVALID_TOKEN (line 115: `if (!token || !callbackURL) throw ctx.redirect(...)`) — a
+  //    as INVALID_TOKEN (line 124: `if (!token || !callbackURL) throw ctx.redirect(...)`) — a
   //    guaranteed dead link. withDefaultResetCallback below closes that hole: it fills in
   //    `opts.email.resetRedirectTo` (the admin origin's /reset-password route, supplied by
   //    server.ts) whenever the built link's callbackURL is empty/absent, and preserves better-

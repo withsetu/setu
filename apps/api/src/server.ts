@@ -422,6 +422,21 @@ const resetEmailGate = createResetEmailGate({
       type: 'password-reset.refused',
       meta: { reason: refusal.reason }
     })
+  },
+  // #1164: the transport THREW. The error goes to the operator log only; the audit event carries
+  // a fixed reason, because a provider's error text can name the recipient and events.ts intends
+  // `meta` to carry no address or token. The public requester's response is unchanged (pinned by
+  // apps/api/test/reset-send-outcome.test.ts).
+  onSendFailed: (error) => {
+    console.error(
+      '[auth] password-reset email FAILED to send — the transport rejected it or was ' +
+        'unreachable. No link was delivered.',
+      error
+    )
+    logAuthEvent({
+      type: 'password-reset.failed',
+      meta: { reason: 'the email transport failed to deliver the message' }
+    })
   }
 })
 
@@ -931,9 +946,12 @@ app.route(
     // `${adminOrigin}/reset-password`, the same default the emailed-link flow already uses.
     ...(auth && resetWiredAtBoot
       ? {
-          requestPasswordReset: async (email: string) => {
-            await auth.api.requestPasswordReset({ body: { email } })
-          },
+          // #1164: `observe` is how the route learns whether the send went out — better-auth
+          // swallows a throwing send hook and answers `{ status: true }` regardless.
+          requestPasswordReset: (email: string) =>
+            resetEmailGate.observe(() =>
+              auth.api.requestPasswordReset({ body: { email } })
+            ),
           // #912: without this the route answered `{ status: true }` over a refused send, because
           // the refusal happens inside better-auth's send hook and never comes back out.
           // #944: it is the SAME gate object whose `sendReset` is wired into createAuth above — one

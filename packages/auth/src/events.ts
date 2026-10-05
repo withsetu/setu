@@ -44,6 +44,11 @@ export type AuthEventType =
   // trace was a console.error, and the admin surface reported success. `meta.reason` is the
   // operator-prose reason from apps/api/src/reset-email-gate.ts — never an address or a token.
   | 'password-reset.refused'
+  // #1164: a password-reset email the server DID hand to the transport, which then threw (SMTP
+  // down, provider rejected it). Same audit weight as a refusal; emitted by
+  // apps/api/src/server.ts's `onSendFailed`. `meta.reason` is fixed prose — never the transport's
+  // error text, which can carry the recipient address.
+  | 'password-reset.failed'
 
 export interface AuthEvent {
   type: AuthEventType

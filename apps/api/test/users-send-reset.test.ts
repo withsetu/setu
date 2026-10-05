@@ -8,7 +8,10 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { createAuth, PROVISIONING } from '@setu/auth'
 import { resolveSessionActor } from '../src/auth/resolve-session-actor'
 import { createUsersApi } from '../src/users'
-import type { ResetEmailRefusal } from '../src/reset-email-gate'
+import type {
+  ResetEmailRefusal,
+  ResetSendOutcome
+} from '../src/reset-email-gate'
 
 const TRUSTED_ORIGIN = 'http://localhost:5173'
 
@@ -16,9 +19,14 @@ const TRUSTED_ORIGIN = 'http://localhost:5173'
  *  send itself is an injected thunk (server.ts passes better-auth's server-side
  *  `auth.api.requestPasswordReset`), so tests assert against a spy — which email it was asked to
  *  send to, and that authz failures never reach it. */
-function makeApp(
-  opts: { withSend?: boolean; refusal?: ResetEmailRefusal } = { withSend: true }
-) {
+type BuildOpts = {
+  withSend?: boolean
+  refusal?: ResetEmailRefusal
+  /** What the observed send reports (#1164); default `{ kind: 'sent' }`. */
+  outcome?: ResetSendOutcome | null
+}
+
+function makeApp(opts: BuildOpts = { withSend: true }) {
   const dir = mkdtempSync(join(tmpdir(), 'users-send-reset-'))
   const dbFile = join(dir, 'auth.db')
   const sqlite = new Database(dbFile)
@@ -32,7 +40,10 @@ function makeApp(
     trustedOrigins: [TRUSTED_ORIGIN]
   })
 
-  const sendSpy = vi.fn(async (_email: string) => {})
+  const sendSpy = vi.fn(
+    async (_email: string): Promise<ResetSendOutcome | null> =>
+      opts.outcome === undefined ? { kind: 'sent' } : opts.outcome
+  )
   const app = createUsersApi({
     db,
     resolveActor: resolveSessionActor(auth),
@@ -99,7 +110,7 @@ afterEach(() => {
   for (const fn of cleanups.splice(0)) fn()
 })
 
-function build(opts: { withSend?: boolean; refusal?: ResetEmailRefusal } = {}) {
+function build(opts: BuildOpts = {}) {
   const built = makeApp(opts)
   cleanups.push(built.cleanup)
   return built
@@ -439,5 +450,54 @@ describe('POST /api/users/send-reset', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ status: true })
     expect(sendSpy).toHaveBeenCalledWith('owner@test.com')
+  })
+
+  // #1164: the end-to-end case (real better-auth, real gate, a throwing transport) lives in
+  // apps/api/test/reset-send-outcome.test.ts; these pin the route's mapping of each outcome.
+  describe('maps the observed send outcome', () => {
+    async function asOwner(opts: BuildOpts) {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      const built = build(opts)
+      const owner = await makeUser(built.auth, {
+        email: 'owner@test.com',
+        name: 'Owner',
+        role: 'admin',
+        password: 'a-strong-password-12'
+      })
+      const cookie = await signInCookie(
+        built.auth,
+        'owner@test.com',
+        'a-strong-password-12'
+      )
+      return built.app.fetch(post({ userId: owner.id }, cookie))
+    }
+
+    it('502s email_send_failed when the transport failed', async () => {
+      const res = await asOwner({ outcome: { kind: 'failed' } })
+      expect(res.status).toBe(502)
+      expect(await res.json()).toEqual({ error: 'email_send_failed' })
+    })
+
+    it('502s rather than claiming a send when no send ran at all', async () => {
+      const res = await asOwner({ outcome: null })
+      expect(res.status).toBe(502)
+      expect(await res.json()).toEqual({ error: 'email_send_failed' })
+    })
+
+    it('409s with the refusal code when the send was refused at send time', async () => {
+      const res = await asOwner({
+        outcome: {
+          kind: 'refused',
+          refusal: {
+            code: 'email_transport_not_deliverable',
+            reason: 'flipped to console between the pre-check and the send'
+          }
+        }
+      })
+      expect(res.status).toBe(409)
+      expect(await res.json()).toEqual({
+        error: 'email_transport_not_deliverable'
+      })
+    })
   })
 })

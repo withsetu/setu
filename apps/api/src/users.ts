@@ -13,7 +13,7 @@ import type { Actor } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
 import { apiOnError } from './errors'
 import type { ResolveActor } from './auth/resolve-actor'
-import type { ResetEmailRefusal } from './reset-email-gate'
+import type { ResetEmailRefusal, ResetSendOutcome } from './reset-email-gate'
 
 const authz = createAuthz(DEFAULT_ROLES)
 
@@ -30,8 +30,12 @@ export interface UsersApiOptions {
    *  call is exempt while the unauthenticated endpoint stays protected; an already-authenticated,
    *  authz-gated admin action should not solve bot challenges. Omitted when reset isn't wired
    *  (no from-address / no admin origin — the same `email:` ternary server.ts feeds createAuth),
-   *  and the route answers 409 honestly. */
-  requestPasswordReset?: (email: string) => Promise<void>
+   *  and the route answers 409 honestly.
+   *
+   *  #1164: it resolves to what the send ACTUALLY did — server.ts wraps the better-auth call in
+   *  the reset gate's `observe` — because better-auth swallows a throwing send hook and answers
+   *  `{ status: true }` either way. `null` means no send ran inside the call at all. */
+  requestPasswordReset?: (email: string) => Promise<ResetSendOutcome | null>
   /** #912: why a reset email would be refused RIGHT NOW, or null when it would be sent —
    *  server.ts passes the `refusal` half of the SAME `createResetEmailGate` object whose `send` it
    *  wires into better-auth, so the two read one live transport/from-address rule (#944). Needed
@@ -120,7 +124,8 @@ export function createUsersApi(opts: UsersApiOptions) {
    *  admin cannot trigger one for a peer admin, and an unknown/legacy target role fails closed
    *  for everyone). Fail-closed ladder: 401 unauth → 400 bad body → 403 unauthorized → 409 reset
    *  not wired → 404 unknown target → 409 email not deliverable (#912, last so it reveals nothing
-   *  to an actor who failed a gate above). Covered (incl. wrong-actor + kill-shot) by
+   *  to an actor who failed a gate above) → 502 `email_send_failed` when the transport itself
+   *  failed (#1164). Covered (incl. wrong-actor + kill-shot) by
    *  apps/api/test/users-send-reset.test.ts. */
   app.post(
     '/api/users/send-reset',
@@ -164,8 +169,8 @@ export function createUsersApi(opts: UsersApiOptions) {
       // reason cannot come back out, so this asks the same question — the `refusal` half of the
       // same gate object whose `send` better-auth calls (#944) — a moment earlier and reports the
       // answer instead of claiming a send. It is a read of live state, not a handshake with the
-      // sender: a settings.json change landing between this line and the send would still slip
-      // through — the gate's own `onRefused` is what records THAT, via the onAuthEvent audit seam.
+      // sender: a settings.json change landing between this line and the send is caught by the
+      // send-time outcome below (#1164), and the gate's own `onRefused` audits it either way.
       // The reason PROSE stays server-side; the client gets the refusal's stable `code`, because
       // this is the one branch a non-admin (a self-target) can also reach. #944: that code is what
       // lets the screen name the setting to fix — one collapsed `email_not_deliverable` sent every
@@ -178,8 +183,25 @@ export function createUsersApi(opts: UsersApiOptions) {
         return c.json({ error: refusal.code }, 409)
       }
 
-      await opts.requestPasswordReset(target.email)
-      return c.json({ status: true })
+      // #1164: report what the send DID, not that it was asked for. The pre-check above stays —
+      // it refuses before better-auth mints a token — but it is only a prediction; this is the
+      // answer, and it also catches a refusal that landed between the two.
+      const outcome = await opts.requestPasswordReset(target.email)
+      if (outcome?.kind === 'sent') return c.json({ status: true })
+      if (outcome?.kind === 'refused') {
+        console.error(
+          `[api:users] send-reset refused at send time for user ${userId}: ${outcome.refusal.reason}`
+        )
+        return c.json({ error: outcome.refusal.code }, 409)
+      }
+      // 'failed' (the gate already logged the transport error and emitted the audit event), or
+      // null — no send ran at all, so nothing can be claimed as sent. The code, never the
+      // transport's error text: a self-target non-admin reaches this branch too.
+      if (outcome === null)
+        console.error(
+          `[api:users] send-reset for user ${userId}: better-auth ran no send — reporting failure`
+        )
+      return c.json({ error: 'email_send_failed' }, 502)
     }
   )
 

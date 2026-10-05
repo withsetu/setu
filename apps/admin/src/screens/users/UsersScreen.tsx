@@ -468,8 +468,9 @@ const EMAIL_NOT_DELIVERABLE_REASON =
 const EMAIL_CAPS_UNKNOWN_REASON =
   'Couldn’t check whether reset emails can be sent — reload the page to try again.'
 
-/** What `POST /api/users/send-reset`'s 409 refusal codes mean to an admin, keyed by the code
- *  apps/api/src/reset-email-gate.ts emits. One message per REASON: the server used to collapse
+/** What `POST /api/users/send-reset`'s error codes mean to an admin: the 409 refusal codes
+ *  apps/api/src/reset-email-gate.ts emits, plus #1164's 502 `email_send_failed` (the transport
+ *  was handed the message and threw — SMTP down, provider rejected it). One message per REASON: the server used to collapse
  *  every refusal into a single code and this screen answered all of them with "Pick a provider",
  *  which fixes nothing when the from-address is what is empty (#944). A code with no entry here
  *  falls through to the generic 409 copy in `sendReset`, which is the honest answer for
@@ -479,7 +480,9 @@ const RESET_REFUSAL_MESSAGES: Record<string, string> = {
   email_transport_not_deliverable:
     'No reset email was sent — this site has no email transport that can deliver one. Pick a provider in Settings → Email.',
   email_from_address_missing:
-    'No reset email was sent — this site has no from-address to send it from. Set one in Settings → Email.'
+    'No reset email was sent — this site has no from-address to send it from. Set one in Settings → Email.',
+  email_send_failed:
+    "No reset email was sent — the email provider couldn't deliver it. Check Settings → Email (Send test email shows the provider's error), then try again."
 }
 
 /** One row's role-change control + disable/enable/reset-password menu. Kept together since all
@@ -1011,7 +1014,13 @@ function OwnerPasswordCard({ onChanged }: { onChanged: () => void }) {
         body: JSON.stringify({ userId: actor.id })
       })
       if (!res.ok) {
-        notify.error('Could not send the reset email')
+        // #1164: the same per-code copy as the row action — a 502 here is a delivery failure, so
+        // "check your inbox" would be the lie and a bare "could not send" hides the repair.
+        const body = (await res.json().catch(() => ({}))) as { error?: string }
+        notify.error(
+          RESET_REFUSAL_MESSAGES[body.error ?? ''] ??
+            'Could not send the reset email'
+        )
         return
       }
       notify.success('Password reset email sent — check your inbox.')

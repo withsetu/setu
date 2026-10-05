@@ -6,6 +6,7 @@ import {
   allocateSlot,
   assertValidLaneName,
   laneEnv,
+  preferOperatorSiteUrl,
   laneHostnames,
   portsForSlot,
   renderCaddyfile
@@ -170,6 +171,65 @@ test('laneEnv without a domain keeps every origin on loopback', () => {
   )
 })
 
+test('laneEnv gives the build its own lane site origin as SETU_SITE_URL (#1183)', () => {
+  // Since #1118 `astro build` refuses to run without SETU_SITE_URL, and the api's Rebuild child
+  // inherits the lane env — unset, Publish from a dev admin always failed.
+  const loopback = laneEnv({
+    lane: 'dev',
+    domain: undefined,
+    slot: 0,
+    repoDir: '/s/dev',
+    checkoutDir: '/s'
+  })
+  assert.equal(loopback.SETU_SITE_URL, 'http://localhost:4321')
+  assert.equal(loopback.SETU_SITE_URL, loopback.VITE_SETU_SITE)
+
+  const tunnelled = laneEnv({
+    lane: 'a',
+    domain: 'example.com',
+    slot: 1,
+    repoDir: '/s/dev',
+    checkoutDir: '/s/.claude/worktrees/a'
+  })
+  assert.equal(tunnelled.SETU_SITE_URL, 'https://a-site.example.com')
+  assert.equal(tunnelled.SETU_SITE_URL, tunnelled.VITE_SETU_SITE)
+})
+
+test('an operator-set SETU_SITE_URL is never overridden by the derived one (#1183)', () => {
+  const derived = { SETU_SITE_URL: 'http://localhost:4321', OTHER: 'x' }
+  // Shell env first, then .env — the first non-blank value wins.
+  assert.deepEqual(
+    preferOperatorSiteUrl(
+      derived,
+      { SETU_SITE_URL: 'https://shell.example' },
+      { SETU_SITE_URL: 'https://dotenv.example' }
+    ),
+    { SETU_SITE_URL: 'https://shell.example', OTHER: 'x' }
+  )
+  assert.equal(
+    preferOperatorSiteUrl(
+      derived,
+      {},
+      { SETU_SITE_URL: 'https://dotenv.example' }
+    ).SETU_SITE_URL,
+    'https://dotenv.example'
+  )
+  // Blank counts as unset: an empty value would only make the build refuse again.
+  assert.equal(
+    preferOperatorSiteUrl(derived, { SETU_SITE_URL: '  ' }, {}).SETU_SITE_URL,
+    'http://localhost:4321'
+  )
+  assert.equal(
+    preferOperatorSiteUrl(derived, {}, {}).SETU_SITE_URL,
+    'http://localhost:4321'
+  )
+  assert.equal(
+    derived.SETU_SITE_URL,
+    'http://localhost:4321',
+    'input not mutated'
+  )
+})
+
 // --- caddy -----------------------------------------------------------------
 
 test('the Caddyfile routes each lane hostname to its own port', () => {
@@ -214,4 +274,35 @@ test('rendering with no lanes still produces a valid, empty config', () => {
 
 test('MAIN_LANE is the historical sandbox name, so existing setups do not move', () => {
   assert.equal(MAIN_LANE, 'dev')
+})
+
+// --- media dir (#1161) -----------------------------------------------------
+
+test('laneEnv exports the sandbox media dir, so the site reads the manifests the api writes', () => {
+  // Without SETU_MEDIA_DIR the site's manifest reader returns null and every image renders with
+  // no srcset/<picture>/dimensions, silently. The api's default is per-sandbox; this is the same
+  // value (parity with resolveMediaDir is held by apps/api/test/media-dir-parity.test.ts).
+  const env = laneEnv({
+    lane: 'b',
+    domain: undefined,
+    slot: 2,
+    repoDir: '/s/.content-sandbox/dev',
+    checkoutDir: '/s/.claude/worktrees/b'
+  })
+  assert.equal(
+    env.SETU_MEDIA_DIR,
+    path.join('/s/.content-sandbox/dev', '.setu', 'uploads')
+  )
+})
+
+test('laneEnv keeps an operator-chosen media dir from .env', () => {
+  const env = laneEnv({
+    lane: 'dev',
+    domain: 'example.com',
+    slot: 0,
+    repoDir: '/s/dev',
+    checkoutDir: '/s',
+    mediaDir: '/var/media'
+  })
+  assert.equal(env.SETU_MEDIA_DIR, '/var/media')
 })

@@ -1095,6 +1095,44 @@ describe('UsersScreen', () => {
       expect(screen.queryByText(/password reset email sent to/i)).toBeNull()
     })
 
+    // #1164: the server now learns whether the transport actually delivered, and answers 502
+    // `email_send_failed` when it threw (SMTP down, provider rejected). This used to arrive as a
+    // 200 and a green "Password reset email sent to …".
+    it('shows an error naming the delivery failure — not "sent" — when the transport failed', async () => {
+      mockListUsers.mockResolvedValue({
+        data: { users: [OWNER, EDITOR], total: 2 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({
+        data: [{ id: 'a1', providerId: 'credential' }],
+        error: null
+      })
+      stubCredentialStatus(
+        { 'owner-1': true, 'editor-1': true },
+        { transport: 'smtp', deliverable: true },
+        { status: 502, error: 'email_send_failed' }
+      )
+
+      renderAsActor('admin', 'owner-1')
+      await screen.findByText('Eve Editor')
+
+      fireEvent.keyDown(
+        screen.getByRole('button', { name: /more actions for eve editor/i }),
+        { key: 'Enter' }
+      )
+      fireEvent.click(
+        await screen.findByRole('menuitem', {
+          name: /send password reset email/i
+        })
+      )
+
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent(/no reset email was sent/i)
+      expect(alert).toHaveTextContent(/email provider/i)
+      expect(alert).toHaveTextContent(/try again/i)
+      expect(screen.queryByText(/password reset email sent to/i)).toBeNull()
+    })
+
     it('renders the reset item disabled with the honest capability tooltip when email is not deliverable', async () => {
       mockListUsers.mockResolvedValue({
         data: { users: [OWNER, EDITOR], total: 2 },

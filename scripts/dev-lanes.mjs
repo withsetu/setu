@@ -109,12 +109,26 @@ export function laneHostnames(lane, domain) {
  *  have, so the api boots the write-path field gate on FALLBACK_CONFIG. The inline `dev` script
  *  this launcher replaced set both; 90cfae81 dropped them.
  *
- *  SETU_MEDIA_DIR was dropped by the same commit and is deliberately NOT restored: its old value
- *  was one uploads dir shared by every lane, while the current `apps/api/src/server.ts` default
- *  (`<repoDir>/.setu/uploads`) is correctly per-sandbox.
+ *  SETU_MEDIA_DIR was dropped by the same commit. Its OLD value was one uploads dir shared by
+ *  every lane regardless of sandbox, which is why it was not restored as-is. It is derived here
+ *  again (#1161) as the per-sandbox `<repoDir>/.setu/uploads` — the api's own default, so the api
+ *  is unchanged — because the site has no fallback at all: without it the manifest reader
+ *  (`packages/image-astro/src/lib/media-manifest.ts`) returns null and every uploaded image
+ *  renders with no srcset/<picture>/dimensions. Lanes sharing a sandbox share its media, exactly
+ *  as they share its content. `mediaDir` is the operator's `.env` SETU_MEDIA_DIR, which wins, the
+ *  same way an `.env` SETU_REPO_DIR does. The rule restates `resolveMediaDir`
+ *  (packages/storage-local/src/media-dir.ts), which this plain-JS file cannot import; the two are
+ *  held equal by apps/api/test/media-dir-parity.test.ts.
  *
  *  Every claim here is asserted in scripts/dev-lanes.test.mjs. */
-export function laneEnv({ lane, domain, slot, repoDir, checkoutDir }) {
+export function laneEnv({
+  lane,
+  domain,
+  slot,
+  repoDir,
+  checkoutDir,
+  mediaDir
+}) {
   const ports = portsForSlot(slot)
   const hosts = laneHostnames(lane, domain)
 
@@ -124,7 +138,11 @@ export function laneEnv({ lane, domain, slot, repoDir, checkoutDir }) {
     SETU_SITE_PORT: String(ports.site),
     SETU_REPO_DIR: repoDir,
     SETU_CONTENT_DIR: path.join(repoDir, 'content'),
-    SETU_CONFIG_PATH: path.join(checkoutDir, 'apps', 'site', 'setu.config.ts')
+    SETU_CONFIG_PATH: path.join(checkoutDir, 'apps', 'site', 'setu.config.ts'),
+    SETU_MEDIA_DIR:
+      mediaDir !== undefined && mediaDir.trim() !== ''
+        ? mediaDir
+        : path.join(repoDir, '.setu', 'uploads')
   }
 
   if (!hosts) {
@@ -134,6 +152,8 @@ export function laneEnv({ lane, domain, slot, repoDir, checkoutDir }) {
       SETU_ADMIN_ORIGIN: `http://localhost:${ports.admin}`,
       VITE_SETU_API: api,
       VITE_SETU_SITE: `http://localhost:${ports.site}`,
+      // The Rebuild child's canonical origin (#1183) — see preferOperatorSiteUrl.
+      SETU_SITE_URL: `http://localhost:${ports.site}`,
       SETU_API_URL: api,
       PUBLIC_SETU_MEDIA: api
     }
@@ -145,6 +165,7 @@ export function laneEnv({ lane, domain, slot, repoDir, checkoutDir }) {
     SETU_ADMIN_ORIGIN: `https://${hosts.admin}`,
     VITE_SETU_API: api,
     VITE_SETU_SITE: `https://${hosts.site}`,
+    SETU_SITE_URL: `https://${hosts.site}`,
     SETU_API_URL: api,
     PUBLIC_SETU_MEDIA: api,
     SETU_MEDIA_PUBLIC_URL: `${api}/media`,
@@ -152,6 +173,26 @@ export function laneEnv({ lane, domain, slot, repoDir, checkoutDir }) {
     // (#1049), so nothing on this path can switch the DNS-rebinding guard off.
     SETU_DEV_ALLOWED_HOSTS: `${hosts.admin},${hosts.site}`
   }
+}
+
+/** `derived` with SETU_SITE_URL taken from the first operator source that sets it non-blank,
+ *  else left as laneEnv derived it (#1183).
+ *
+ *  laneEnv sets SETU_SITE_URL to the lane's own site origin because, since #1118, `astro build`
+ *  refuses to run without it, and the api's Rebuild child (`makeBuildRunner`) inherits the lane
+ *  env — without it Publish from a `pnpm dev` admin always failed. Unlike the other derived
+ *  values, though, this one is a statement about where the site is served publicly, which an
+ *  operator may legitimately know better (previewing canonical links against a real domain), so
+ *  an explicit value wins. `sources` is checked in order — dev.mjs passes the shell env, then
+ *  `.env`. Blank counts as unset: it would only make the build refuse again.
+ *  Asserted in scripts/dev-lanes.test.mjs. */
+export function preferOperatorSiteUrl(derived, ...sources) {
+  for (const source of sources) {
+    const value = source?.SETU_SITE_URL
+    if (typeof value === 'string' && value.trim() !== '')
+      return { ...derived, SETU_SITE_URL: value }
+  }
+  return { ...derived }
 }
 
 /** Caddy config fronting every running lane, keyed by hostname.

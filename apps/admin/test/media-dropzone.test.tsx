@@ -71,4 +71,50 @@ describe('MediaDropzone', () => {
     await waitFor(() => expect(onUploaded).toHaveBeenCalledWith(result))
     expect(upload).toHaveBeenCalledWith('http://x', file)
   })
+
+  it('reports a failed ingest through onError AFTER handing over the (still usable) upload (#1161)', async () => {
+    const failed: UploadResult = { ...result, ingestFailed: true }
+    const upload = vi.fn(async () => failed)
+    const onUploaded = vi.fn()
+    const onError = vi.fn()
+    render(
+      <MediaDropzone
+        apiBase="http://x"
+        onUploaded={onUploaded}
+        onError={onError}
+        upload={upload}
+      />
+    )
+    const input = screen.getByTestId('media-dropzone-input')
+    const file = new File([new Uint8Array([1])], 'cat.png', {
+      type: 'image/png'
+    })
+    fireEvent.change(input, { target: { files: [file] } })
+    await waitFor(() => expect(onError).toHaveBeenCalled())
+    expect(onUploaded).toHaveBeenCalledWith(failed)
+    expect(String(onError.mock.calls[0]![0])).toMatch(/cat\.png.*Reprocess/)
+  })
+
+  it('a clean ingest reports nothing through onError', async () => {
+    const upload = vi.fn(async () => ({ ...result, ingestFailed: false }))
+    const onUploaded = vi.fn()
+    const onError = vi.fn()
+    render(
+      <MediaDropzone
+        apiBase="http://x"
+        onUploaded={onUploaded}
+        onError={onError}
+        upload={upload}
+      />
+    )
+    fireEvent.change(screen.getByTestId('media-dropzone-input'), {
+      target: {
+        files: [
+          new File([new Uint8Array([1])], 'cat.png', { type: 'image/png' })
+        ]
+      }
+    })
+    await waitFor(() => expect(onUploaded).toHaveBeenCalled())
+    expect(onError).not.toHaveBeenCalled()
+  })
 })

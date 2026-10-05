@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import type { EmailPort } from '@setu/core'
 import type { ResetEmailRequest } from '@setu/auth'
 import type { UsableEmailTransport } from './capabilities'
@@ -100,6 +101,18 @@ export function resetEmailRefusal(
   return null
 }
 
+/**
+ * What became of the one reset email a caller asked for (#1164).
+ *
+ * `failed` carries no error text on purpose: the route that reads it answers a self-target
+ * non-admin too, and a transport's error message is operator detail (provider responses, hosts,
+ * sometimes the recipient). The detail goes to `onSendFailed` — the server log and the audit seam.
+ */
+export type ResetSendOutcome =
+  | { kind: 'sent' }
+  | { kind: 'refused'; refusal: ResetEmailRefusal }
+  | { kind: 'failed' }
+
 /** The two live reset-email entry points, built together so they answer from one reading rule. */
 export interface ResetEmailGate {
   /** @setu/auth's `email.sendReset` hook (server.ts's `email:` option). Since #958 it owns the
@@ -109,6 +122,23 @@ export interface ResetEmailGate {
    *  `POST /api/users/send-reset` reports instead of claiming a send it cannot see the result of
    *  (#912). It re-reads live state per call, exactly as `sendReset` does. */
   refusal: () => ResetEmailRefusal | null
+  /**
+   * #1164: run `trigger` (server.ts: `auth.api.requestPasswordReset`) and report what the send it
+   * causes ACTUALLY did — `null` when no send ran inside it at all.
+   *
+   * Needed because better-auth 1.7.3 invokes `sendResetPassword` through
+   * `ctx.context.runInBackgroundOrAwait` (dist/api/routes/password.mjs line 82), which catches
+   * and only logs whatever the hook throws (dist/context/create-context.mjs lines 215-225) — so a
+   * transport failure came back out of `requestPasswordReset` as the same `{ status: true }` as a
+   * delivered message, and the admin screen said "sent". The outcome is carried by an
+   * AsyncLocalStorage scope rather than keyed by recipient, so a concurrent public forgot-password
+   * for the same address can never be attributed to the admin's request. better-auth itself
+   * already requires AsyncLocalStorage on every topology it runs on (@better-auth/core
+   * dist/async_hooks), so this adds no runtime requirement. A send OUTSIDE any `observe` — the
+   * public HTTP flow — records nothing and its response is unchanged. Pinned by
+   * apps/api/test/reset-send-outcome.test.ts.
+   */
+  observe: (trigger: () => Promise<unknown>) => Promise<ResetSendOutcome | null>
 }
 
 /**
@@ -177,7 +207,23 @@ export function createResetEmailGate(opts: {
   ) => Promise<void>
   adminOrigin: string | undefined
   onRefused: (refusal: ResetEmailRefusal) => void
+  /** #1164: the transport threw. server.ts points it at a console.error (with the error) AND the
+   *  onAuthEvent audit seam (without it — see `ResetSendOutcome`). Omitted → console.error, so a
+   *  harness that leaves it out still reports the failure rather than dropping it (§3.2). It fires
+   *  for EVERY send, public flow included: a recovery path silently not working is the same audit
+   *  fact whoever asked. */
+  onSendFailed?: (error: unknown) => void
 }): ResetEmailGate {
+  const outcomes = new AsyncLocalStorage<{ outcome: ResetSendOutcome | null }>()
+  const record = (outcome: ResetSendOutcome) => {
+    const slot = outcomes.getStore()
+    if (slot) slot.outcome = outcome
+  }
+  const onSendFailed =
+    opts.onSendFailed ??
+    ((error: unknown) =>
+      console.error('[auth] password-reset email failed to send', error))
+
   // #919: ONE reading per call of BOTH inputs, and what satisfied the gate is what dispatches —
   // the transport as the very object handed to `sendVia`, the from-address bound by value into the
   // message. Previously the sender resolved the transport for the gate and then dispatched
@@ -215,10 +261,16 @@ export function createResetEmailGate(opts: {
 
   return {
     refusal: () => decide().refusal,
+    observe: async (trigger) => {
+      const slot: { outcome: ResetSendOutcome | null } = { outcome: null }
+      await outcomes.run(slot, trigger)
+      return slot.outcome
+    },
     sendReset: async (request) => {
       const { config, from, refusal } = decide()
       if (refusal !== null) {
         opts.onRefused(refusal)
+        record({ kind: 'refused', refusal })
         return
       }
       // #958: the body comes off the SAME `config` the refusal was judged against — one reading
@@ -226,7 +278,17 @@ export function createResetEmailGate(opts: {
       const body = opts.render
         ? opts.render(config, request)
         : request.defaultContent()
-      await opts.sendVia(config.transport, { to: request.to, from, ...body })
+      // #1164: caught and REPORTED here rather than rethrown. Rethrowing changes nothing a caller
+      // can see — better-auth catches it (see `observe`) — and would only add a second, less
+      // useful log line; `onSendFailed` and `record` are what make the failure visible.
+      try {
+        await opts.sendVia(config.transport, { to: request.to, from, ...body })
+      } catch (error) {
+        onSendFailed(error)
+        record({ kind: 'failed' })
+        return
+      }
+      record({ kind: 'sent' })
     }
   }
 }

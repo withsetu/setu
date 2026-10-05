@@ -7,7 +7,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serve } from '@hono/node-server'
 import { createLocalGitAdapter } from '@setu/git-local'
-import { createLocalStorage } from '@setu/storage-local'
+import { createLocalStorage, resolveMediaDir } from '@setu/storage-local'
 import { createSharpImageAdapter } from '@setu/image-sharp'
 import {
   createSqliteAdapter,
@@ -131,7 +131,8 @@ try {
 
 const dir = process.env.SETU_REPO_DIR ?? process.cwd()
 const port = Number(process.env.SETU_API_PORT ?? 4444)
-const mediaDir = process.env.SETU_MEDIA_DIR ?? `${dir}/.setu/uploads`
+// #1161: the one media-dir rule, shared with the Rebuild child env and the demo-data CLI.
+const mediaDir = resolveMediaDir(process.env, dir)
 const mediaPublicUrl =
   process.env.SETU_MEDIA_PUBLIC_URL ?? `http://localhost:${port}/media`
 
@@ -421,6 +422,21 @@ const resetEmailGate = createResetEmailGate({
     logAuthEvent({
       type: 'password-reset.refused',
       meta: { reason: refusal.reason }
+    })
+  },
+  // #1164: the transport THREW. The error goes to the operator log only; the audit event carries
+  // a fixed reason, because a provider's error text can name the recipient and events.ts intends
+  // `meta` to carry no address or token. The public requester's response is unchanged (pinned by
+  // apps/api/test/reset-send-outcome.test.ts).
+  onSendFailed: (error) => {
+    console.error(
+      '[auth] password-reset email FAILED to send — the transport rejected it or was ' +
+        'unreachable. No link was delivered.',
+      error
+    )
+    logAuthEvent({
+      type: 'password-reset.failed',
+      meta: { reason: 'the email transport failed to deliver the message' }
     })
   }
 })
@@ -931,9 +947,12 @@ app.route(
     // `${adminOrigin}/reset-password`, the same default the emailed-link flow already uses.
     ...(auth && resetWiredAtBoot
       ? {
-          requestPasswordReset: async (email: string) => {
-            await auth.api.requestPasswordReset({ body: { email } })
-          },
+          // #1164: `observe` is how the route learns whether the send went out — better-auth
+          // swallows a throwing send hook and answers `{ status: true }` regardless.
+          requestPasswordReset: (email: string) =>
+            resetEmailGate.observe(() =>
+              auth.api.requestPasswordReset({ body: { email } })
+            ),
           // #912: without this the route answered `{ status: true }` over a refused send, because
           // the refusal happens inside better-auth's send hook and never comes back out.
           // #944: it is the SAME gate object whose `sendReset` is wired into createAuth above — one
@@ -1041,7 +1060,12 @@ app.route(
     // Unreachable when siteDir is null (the route 409s first) — a defensive reject.
     runBuild:
       siteDir !== null
-        ? makeBuildRunner({ siteDir, repoDir: dir, env: process.env })
+        ? makeBuildRunner({
+            siteDir,
+            repoDir: dir,
+            mediaDir,
+            env: process.env
+          })
         : () => Promise.reject(new Error('no site dir'))
   })
 )

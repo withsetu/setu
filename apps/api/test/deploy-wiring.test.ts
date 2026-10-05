@@ -133,6 +133,7 @@ describe('makeBuildRunner — the build deadline (#1157)', () => {
     const run = makeBuildRunner({
       siteDir,
       repoDir: siteDir,
+      mediaDir: join(siteDir, 'media'),
       env,
       timeoutMs: 1_500
     })
@@ -154,6 +155,7 @@ describe('makeBuildRunner — the build deadline (#1157)', () => {
     const run = makeBuildRunner({
       siteDir,
       repoDir: siteDir,
+      mediaDir: join(siteDir, 'media'),
       env: {
         ...process.env,
         SETU_BUILD_COMMAND: `${process.execPath} --version`
@@ -169,6 +171,7 @@ describe('makeBuildRunner — the build deadline (#1157)', () => {
     const run = makeBuildRunner({
       siteDir,
       repoDir: siteDir,
+      mediaDir: join(siteDir, 'media'),
       env: {
         ...process.env,
         SETU_BUILD_COMMAND: `${process.execPath} ${script}`
@@ -197,5 +200,45 @@ describe('buildTimeoutMs (#1157)', () => {
   })
   it('honours a positive override', () => {
     expect(buildTimeoutMs({ SETU_BUILD_TIMEOUT_MS: '60000' })).toBe(60_000)
+  })
+})
+
+describe('makeBuildRunner — the build child reads manifests from the api media dir (#1161)', () => {
+  /** A "build" that records the SETU_MEDIA_DIR it was given. */
+  function recordingBuild(): { env: NodeJS.ProcessEnv; seen: () => string } {
+    const out = join(siteDir, 'seen-media-dir.txt')
+    const script = join(siteDir, 'record.mjs')
+    writeFileSync(
+      script,
+      [
+        "import { writeFileSync } from 'node:fs'",
+        `writeFileSync(${JSON.stringify(out)}, process.env.SETU_MEDIA_DIR ?? '<unset>')`
+      ].join('\n')
+    )
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      SETU_BUILD_COMMAND: `${process.execPath} ${script}`
+    }
+    delete env['SETU_MEDIA_DIR']
+    return { env, seen: () => readFileSync(out, 'utf-8') }
+  }
+
+  it('exports the media dir to the build even when the api process env has none', async () => {
+    const { env, seen } = recordingBuild()
+    const mediaDir = join(siteDir, 'repo', '.setu', 'uploads')
+    await makeBuildRunner({ siteDir, repoDir: siteDir, mediaDir, env })()
+    expect(seen()).toBe(mediaDir)
+  })
+
+  it('the resolved dir wins over a stale SETU_MEDIA_DIR in the inherited env', async () => {
+    const { env, seen } = recordingBuild()
+    const mediaDir = join(siteDir, 'resolved')
+    await makeBuildRunner({
+      siteDir,
+      repoDir: siteDir,
+      mediaDir,
+      env: { ...env, SETU_MEDIA_DIR: '/somewhere/else' }
+    })()
+    expect(seen()).toBe(mediaDir)
   })
 })

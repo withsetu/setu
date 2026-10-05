@@ -289,6 +289,27 @@ describe('deploy api — rebuild (#209)', () => {
     expect(h.getState()).toBeNull()
   })
 
+  it("a failed build's job names a known, fixable reason from its log tail (#1183)", async () => {
+    const h = harness({
+      build: async () => {
+        throw Object.assign(new Error('build exited with code 1'), {
+          logTail:
+            'SETU_SITE_URL is not set. `astro build` needs the public origin the site will be served from'
+        })
+      }
+    })
+    await h.rebuild()
+    await vi.waitFor(async () => {
+      const { body: s } = await h.status()
+      const job = s.job as { status: string; error?: string; logTail?: string }
+      expect(job.status).toBe('failed')
+      expect(job.error).toMatch(/SETU_SITE_URL is not set/)
+      expect(job.error).toMatch(/build exited with code 1/)
+      expect(job.logTail).toMatch(/astro build/)
+    })
+    expect(h.getState()).toBeNull()
+  })
+
   it('409 when a build is already running (single-flight)', async () => {
     let resolveBuild!: () => void
     const gate = new Promise<void>((r) => (resolveBuild = r))

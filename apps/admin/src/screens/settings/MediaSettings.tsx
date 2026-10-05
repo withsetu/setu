@@ -4,7 +4,10 @@ import type { MediaSettings as MediaValues } from '@setu/core'
 import { useServices, OWNER_AUTHOR } from '../../data/store'
 import { useNotify } from '../../ui/notify'
 import { connectionError } from '../../ui/error-message'
-import { useCapabilities } from '../../lib/useCapabilities'
+import {
+  describeCapabilitiesError,
+  useCapabilities
+} from '../../lib/useCapabilities'
 import { apiFetch } from '../../lib/api-fetch'
 import {
   SettingsLoadError,
@@ -56,7 +59,12 @@ interface ReprocessStatus {
 export function MediaSettings() {
   const { git } = useServices()
   const notify = useNotify()
-  const { caps, loading: capsLoading } = useCapabilities()
+  const {
+    caps,
+    error: capsError,
+    loading: capsLoading,
+    refetch: refetchCaps
+  } = useCapabilities()
 
   const [raw, setRaw] = useState<Record<string, unknown> | null>(null)
   const [values, setValues] = useState<MediaValues>(DEFAULT_SETTINGS.media)
@@ -323,7 +331,28 @@ export function MediaSettings() {
           and LQIP settings.
         </p>
 
-        {!capsLoading && !canReprocess ? (
+        {!capsLoading && capsError ? (
+          // #1165: a failed capabilities read is not "this site is on the edge" — say what
+          // actually happened and offer a re-check (apps/admin/test/settings-media.test.tsx).
+          <>
+            <Button variant="outline" disabled>
+              Reprocess all images
+            </Button>
+            <div role="alert" className="flex flex-wrap items-center gap-2">
+              <p className="text-xs text-muted-foreground">
+                Couldn&apos;t check whether this server can reprocess images.{' '}
+                {describeCapabilitiesError(capsError)}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void refetchCaps()}
+              >
+                Try again
+              </Button>
+            </div>
+          </>
+        ) : !capsLoading && !canReprocess ? (
           <>
             <Button variant="outline" disabled>
               Reprocess all images

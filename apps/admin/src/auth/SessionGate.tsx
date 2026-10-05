@@ -10,6 +10,7 @@ import { LoginScreen } from './LoginScreen'
 import { SetupScreen } from './SetupScreen'
 import { ResetPasswordScreen } from './ResetPasswordScreen'
 import { AuthNotConfigured } from './AuthNotConfigured'
+import { ApiUnreachable } from './ApiUnreachable'
 import { Skeleton } from '@/components/ui/skeleton'
 
 const apiBase = import.meta.env.VITE_SETU_API ?? ''
@@ -34,6 +35,7 @@ export function SessionGate({ children }: { children: ReactNode }) {
   const {
     auth,
     mode,
+    error: capsError,
     loading: capsLoading,
     refetch: refetchCaps
   } = useCapabilities()
@@ -135,7 +137,19 @@ export function SessionGate({ children }: { children: ReactNode }) {
     )
   }
 
-  if (!auth?.enabled) return <AuthNotConfigured />
+  // #1165: a capabilities read that FAILED is not "auth disabled". Only an answer from the API that
+  // says `enabled: false` may show AuthNotConfigured's "set SETU_AUTH_SECRET" advice; a network
+  // error, a 5xx, an unreadable body — or a body with no auth block, which the API always sends —
+  // gets the can't-reach screen with Retry instead (apps/admin/test/session-gate.test.tsx).
+  if (capsError || !auth) {
+    return (
+      <ApiUnreachable
+        error={capsError ?? { kind: 'malformed' }}
+        onRetry={refetchCaps}
+      />
+    )
+  }
+  if (!auth.enabled) return <AuthNotConfigured />
   // SetupScreen POSTs to /api/auth/setup, which is ONLY mounted in non-local topologies (local mode
   // has no setup token — packages/auth server-setup-plugin). So never route to it in local mode: a
   // signed-out local admin belongs on the LoginScreen (or the loopback handshake), not a setup form

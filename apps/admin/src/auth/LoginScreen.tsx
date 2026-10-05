@@ -106,11 +106,17 @@ function Wordmark() {
  *  submit stays disabled…"). */
 function ForgotPasswordCard({
   deliverable,
+  capabilitiesUnknown,
+  onRecheck,
   initialEmail,
   captcha,
   onBack
 }: {
   deliverable: boolean
+  /** #1165: the capabilities read FAILED, so whether reset emails can go out is unknown — the
+   *  form stays hidden (fail closed) but the copy must not claim reset "isn't configured". */
+  capabilitiesUnknown: boolean
+  onRecheck: () => void
   initialEmail: string
   captcha: { provider: 'turnstile' | 'recaptcha'; siteKey: string } | null
   onBack: () => void
@@ -198,11 +204,13 @@ function ForgotPasswordCard({
         <Wordmark />
         <CardTitle className="text-xl">Reset your password</CardTitle>
         <CardDescription>
-          {!deliverable
-            ? 'Password reset isn’t configured for this site — contact your site administrator.'
-            : sent
-              ? 'If an account exists for that email, we’ve sent a password reset link. Check your inbox.'
-              : 'Enter your email and we’ll send you a reset link.'}
+          {capabilitiesUnknown
+            ? 'Couldn’t check whether password reset is available — the Setu API didn’t answer. Try again in a moment.'
+            : !deliverable
+              ? 'Password reset isn’t configured for this site — contact your site administrator.'
+              : sent
+                ? 'If an account exists for that email, we’ve sent a password reset link. Check your inbox.'
+                : 'Enter your email and we’ll send you a reset link.'}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -276,6 +284,11 @@ function ForgotPasswordCard({
                 Reset link requested.
               </p>
             )}
+            {capabilitiesUnknown && (
+              <Button type="button" className="w-full" onClick={onRecheck}>
+                Try again
+              </Button>
+            )}
             <Button
               type="button"
               variant="outline"
@@ -295,7 +308,12 @@ function ForgotPasswordCard({
  *  email + password Inputs with Labels, a full-width primary submit. Built against real
  *  capabilities (social providers, captcha) rather than a static mock. */
 export function LoginScreen() {
-  const { auth, email: emailCaps } = useCapabilities()
+  const {
+    auth,
+    email: emailCaps,
+    error: capsError,
+    refetch: refetchCaps
+  } = useCapabilities()
   const [view, setView] = useState<'signin' | 'forgot'>('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -373,6 +391,8 @@ export function LoginScreen() {
       <div className="flex min-h-svh flex-col items-center justify-center gap-4 p-6">
         <ForgotPasswordCard
           deliverable={emailCaps?.deliverable === true}
+          capabilitiesUnknown={capsError !== null}
+          onRecheck={() => void refetchCaps()}
           initialEmail={email}
           captcha={captcha}
           onBack={() => setView('signin')}

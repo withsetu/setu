@@ -752,6 +752,39 @@ describe('UsersScreen', () => {
       ).not.toBeInTheDocument()
     })
 
+    // #1165: a failed capabilities read is "unknown", never "reset emails aren't configured".
+    it('passwordless maintainer + failed capabilities read: says it could not check, not "not configured"', async () => {
+      mockListUsers.mockResolvedValue({
+        data: { users: [MAINTAINER_USER], total: 1 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({ data: [], error: null })
+      stubCredentialStatus({})
+      const delegate = globalThis.fetch
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string, init?: RequestInit) =>
+          String(url).includes('/api/capabilities')
+            ? new Response('down', { status: 503 })
+            : delegate(url, init)
+        )
+      )
+
+      renderAsActor('maintainer', 'maint-2')
+
+      expect(
+        await screen.findByText(
+          /couldn[’']t check whether reset emails can be sent/i
+        )
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByText(/password reset emails aren[’']t configured/i)
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /email me a reset link/i })
+      ).not.toBeInTheDocument()
+    })
+
     it('a failed self reset-email request surfaces an error toast, not silence', async () => {
       mockListUsers.mockResolvedValue({
         data: { users: [MAINTAINER_USER], total: 1 },

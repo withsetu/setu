@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { StrictMode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { NotificationProvider } from '../src/ui/notify'
 import { SessionGate } from '../src/auth/SessionGate'
@@ -477,5 +478,163 @@ describe('SessionGate', () => {
       screen.queryByRole('button', { name: /create admin account/i })
     ).not.toBeInTheDocument()
     expect(calls).toBeGreaterThanOrEqual(2)
+  })
+
+  // #1165: a capabilities read that failed must never be shown as "auth is not configured".
+  describe('API unreachable (#1165)', () => {
+    const SIGNED_OUT = {
+      data: null,
+      isPending: false,
+      isRefetching: false,
+      error: null,
+      refetch: vi.fn()
+    }
+
+    const okCapabilities = () =>
+      new Response(
+        JSON.stringify({
+          capabilities: {
+            imageProcessing: false,
+            writableMediaStore: true,
+            backgroundJobs: true
+          },
+          auth: ENABLED_NO_SETUP
+        }),
+        { status: 200 }
+      )
+
+    /** Capabilities answer with `failure` until `recover()` is called, then succeed. */
+    function stubFailingCapabilities(failure: () => Promise<Response>) {
+      let healthy = false
+      let capsCalls = 0
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string) => {
+          if (String(url).includes('/api/capabilities')) {
+            capsCalls += 1
+            return healthy ? okCapabilities() : failure()
+          }
+          return new Response('{}', { status: 200 })
+        })
+      )
+      return {
+        recover: () => {
+          healthy = true
+        },
+        calls: () => capsCalls
+      }
+    }
+
+    function renderGate() {
+      mockUseSession.mockReturnValue(SIGNED_OUT)
+      // StrictMode like main.tsx: its double effect run must not skip a backoff step.
+      render(
+        <StrictMode>
+          <MemoryRouter>
+            <NotificationProvider>
+              <SessionGate>
+                <div>App</div>
+              </SessionGate>
+            </NotificationProvider>
+          </MemoryRouter>
+        </StrictMode>
+      )
+    }
+
+    async function expectUnreachable(detail: RegExp) {
+      expect(
+        await screen.findByText(/can.t reach the setu api/i)
+      ).toBeInTheDocument()
+      expect(screen.getByText(detail)).toBeInTheDocument()
+      expect(screen.queryByText(/not configured/i)).not.toBeInTheDocument()
+      expect(screen.queryByText(/SETU_AUTH_SECRET/)).not.toBeInTheDocument()
+      expect(screen.queryByText('App')).not.toBeInTheDocument()
+    }
+
+    it("a 5xx shows the can't-reach screen with the status, not AuthNotConfigured", async () => {
+      stubFailingCapabilities(async () => new Response('boom', { status: 502 }))
+      renderGate()
+      await expectUnreachable(/HTTP 502/)
+    })
+
+    it("a network error shows the can't-reach screen", async () => {
+      stubFailingCapabilities(async () => {
+        throw new TypeError('Failed to fetch')
+      })
+      renderGate()
+      await expectUnreachable(/didn.t respond/i)
+    })
+
+    it("a malformed body shows the can't-reach screen", async () => {
+      stubFailingCapabilities(
+        async () => new Response('<html>gateway</html>', { status: 200 })
+      )
+      renderGate()
+      await expectUnreachable(/couldn.t read/i)
+    })
+
+    it("a 2xx body with no auth block shows the can't-reach screen, not AuthNotConfigured", async () => {
+      stubFailingCapabilities(
+        async () =>
+          new Response(JSON.stringify({ mode: 'remote' }), { status: 200 })
+      )
+      renderGate()
+      await expectUnreachable(/couldn.t read/i)
+    })
+
+    it('Retry re-reads capabilities and recovers to the sign-in screen', async () => {
+      const api = stubFailingCapabilities(
+        async () => new Response('down', { status: 503 })
+      )
+      renderGate()
+      await expectUnreachable(/HTTP 503/)
+      api.recover()
+      fireEvent.click(screen.getByRole('button', { name: /retry/i }))
+      expect(
+        await screen.findByRole('button', { name: /^sign in$/i })
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByText(/can.t reach the setu api/i)
+      ).not.toBeInTheDocument()
+    })
+
+    it('retries automatically with backoff while the screen is up', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      try {
+        const api = stubFailingCapabilities(async () => {
+          throw new TypeError('Failed to fetch')
+        })
+        renderGate()
+        await expectUnreachable(/didn.t respond/i)
+        expect(
+          screen.getByText(/trying again automatically in 2 s/i)
+        ).toBeInTheDocument()
+        const before = api.calls()
+        // First automatic attempt after 2 s — still failing, so the next is scheduled 4 s out.
+        await act(() => vi.advanceTimersByTimeAsync(2000))
+        await waitFor(() => expect(api.calls()).toBe(before + 1))
+        expect(
+          await screen.findByText(/trying again automatically in 4 s/i)
+        ).toBeInTheDocument()
+        api.recover()
+        await act(() => vi.advanceTimersByTimeAsync(4000))
+        expect(
+          await screen.findByRole('button', { name: /^sign in$/i })
+        ).toBeInTheDocument()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("auth genuinely disabled still shows AuthNotConfigured (no can't-reach screen)", async () => {
+      stubCapabilities({ ...ENABLED_NO_SETUP, enabled: false })
+      renderGate()
+      expect(
+        await screen.findByText(/auth is not configured/i)
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByText(/can.t reach the setu api/i)
+      ).not.toBeInTheDocument()
+    })
   })
 })

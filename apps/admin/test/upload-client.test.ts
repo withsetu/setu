@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { uploadFile } from '../src/media/upload-client'
+import { ingestFailureNotice, uploadFile } from '../src/media/upload-client'
 
 afterEach(() => vi.restoreAllMocks())
 const file = new File([new Uint8Array([1, 2])], 'a.png', { type: 'image/png' })
@@ -39,5 +39,20 @@ describe('uploadFile', () => {
     await expect(uploadFile('http://api', file)).rejects.toThrow(
       'unsupported type: image/svg+xml'
     )
+  })
+})
+
+describe('ingestFailureNotice (#1161)', () => {
+  it('names the file and the recovery action when the api reports a failed ingest', () => {
+    const msg = ingestFailureNotice({ filename: 'cat.png', ingestFailed: true })
+    expect(msg).toMatch(/cat\.png/)
+    expect(msg).toMatch(/resized versions couldn.t be generated/)
+    expect(msg).toMatch(/Reprocess/)
+  })
+  it('is null for a clean ingest, and for an api that predates the flag', () => {
+    expect(
+      ingestFailureNotice({ filename: 'a', ingestFailed: false })
+    ).toBeNull()
+    expect(ingestFailureNotice({ filename: 'a' })).toBeNull()
   })
 })

@@ -109,12 +109,26 @@ export function laneHostnames(lane, domain) {
  *  have, so the api boots the write-path field gate on FALLBACK_CONFIG. The inline `dev` script
  *  this launcher replaced set both; 90cfae81 dropped them.
  *
- *  SETU_MEDIA_DIR was dropped by the same commit and is deliberately NOT restored: its old value
- *  was one uploads dir shared by every lane, while the current `apps/api/src/server.ts` default
- *  (`<repoDir>/.setu/uploads`) is correctly per-sandbox.
+ *  SETU_MEDIA_DIR was dropped by the same commit. Its OLD value was one uploads dir shared by
+ *  every lane regardless of sandbox, which is why it was not restored as-is. It is derived here
+ *  again (#1161) as the per-sandbox `<repoDir>/.setu/uploads` — the api's own default, so the api
+ *  is unchanged — because the site has no fallback at all: without it the manifest reader
+ *  (`packages/image-astro/src/lib/media-manifest.ts`) returns null and every uploaded image
+ *  renders with no srcset/<picture>/dimensions. Lanes sharing a sandbox share its media, exactly
+ *  as they share its content. `mediaDir` is the operator's `.env` SETU_MEDIA_DIR, which wins, the
+ *  same way an `.env` SETU_REPO_DIR does. The rule restates `resolveMediaDir`
+ *  (packages/storage-local/src/media-dir.ts), which this plain-JS file cannot import; the two are
+ *  held equal by apps/api/test/media-dir-parity.test.ts.
  *
  *  Every claim here is asserted in scripts/dev-lanes.test.mjs. */
-export function laneEnv({ lane, domain, slot, repoDir, checkoutDir }) {
+export function laneEnv({
+  lane,
+  domain,
+  slot,
+  repoDir,
+  checkoutDir,
+  mediaDir
+}) {
   const ports = portsForSlot(slot)
   const hosts = laneHostnames(lane, domain)
 
@@ -124,7 +138,11 @@ export function laneEnv({ lane, domain, slot, repoDir, checkoutDir }) {
     SETU_SITE_PORT: String(ports.site),
     SETU_REPO_DIR: repoDir,
     SETU_CONTENT_DIR: path.join(repoDir, 'content'),
-    SETU_CONFIG_PATH: path.join(checkoutDir, 'apps', 'site', 'setu.config.ts')
+    SETU_CONFIG_PATH: path.join(checkoutDir, 'apps', 'site', 'setu.config.ts'),
+    SETU_MEDIA_DIR:
+      mediaDir !== undefined && mediaDir.trim() !== ''
+        ? mediaDir
+        : path.join(repoDir, '.setu', 'uploads')
   }
 
   if (!hosts) {

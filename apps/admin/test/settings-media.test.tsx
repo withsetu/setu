@@ -347,5 +347,59 @@ describe('MediaSettings', () => {
         { timeout: 10000 }
       )
     }, 15000)
+    it('a job that finished with some images unprocessable toasts the count AND names the failures (#1161)', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ capabilities: CAPABLE }), {
+            status: 200
+          })
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ status: 'idle' }), { status: 200 })
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              jobId: 'j3',
+              status: 'running',
+              total: 3,
+              processed: 0
+            }),
+            { status: 202 }
+          )
+        )
+        .mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              status: 'done',
+              processed: 2,
+              total: 3,
+              error:
+                "1 image couldn't be processed (broken.png) — it may be corrupt."
+            }),
+            { status: 200 }
+          )
+        )
+      vi.stubGlobal('fetch', fetchMock)
+      renderMedia()
+      const reprocessBtn = await screen.findByRole('button', {
+        name: /reprocess all images/i
+      })
+      await waitFor(() => expect(reprocessBtn).not.toBeDisabled())
+      fireEvent.click(reprocessBtn)
+      fireEvent.click(
+        await screen.findByRole('button', { name: /^reprocess$/i })
+      )
+      await waitFor(
+        () => expect(screen.getByText(/broken\.png/)).toBeInTheDocument(),
+        { timeout: 10000 }
+      )
+      expect(screen.getByText(/Reprocessed 2 images/i)).toBeInTheDocument()
+      expect(screen.getByText(/broken\.png/).closest('[role]')).toHaveAttribute(
+        'role',
+        'alert'
+      )
+    }, 15000)
   })
 })

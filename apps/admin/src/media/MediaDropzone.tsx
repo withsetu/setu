@@ -7,7 +7,11 @@ import {
   type DropzoneInputProps
 } from 'react-dropzone'
 import { cn } from '@/lib/utils'
-import { uploadFile, type UploadResult } from './upload-client'
+import {
+  ingestFailureNotice,
+  uploadFile,
+  type UploadResult
+} from './upload-client'
 
 /** Read a flat File[] straight from the drop/input event. This REPLACES
  *  react-dropzone's default `file-selector` aggregator, which calls
@@ -58,7 +62,13 @@ export function MediaDropzone({
     async (files: File[]) => {
       onBusy?.(true)
       try {
-        for (const file of files) onUploaded(await upload(apiBase, file))
+        for (const file of files) {
+          const result = await upload(apiBase, file)
+          onUploaded(result)
+          // #1161: stored, but no resized versions — usable, and the user must hear about it.
+          const notice = ingestFailureNotice(result)
+          if (notice) onError?.(notice)
+        }
       } catch (err) {
         onError?.(err instanceof Error ? err.message : String(err))
       } finally {

@@ -6,6 +6,7 @@ import {
   srcFromUploadUrl,
   imageNodeFromUpload,
   pickImageAndInsert,
+  pickAndUploadImage,
   replaceImage
 } from '../src/editor/image-insert'
 import type { UploadResult } from '../src/media/upload-client'
@@ -107,6 +108,26 @@ describe('pickImageAndInsert', () => {
       editor.getJSON().content?.find((n) => n.type === 'imageBlock')
     ).toBeUndefined()
     editor.destroy()
+  })
+})
+
+describe('pickAndUploadImage — failed ingest (#1161)', () => {
+  it('still hands over the upload, and reports the failed ingest through onError', async () => {
+    const upload = vi
+      .fn()
+      .mockResolvedValue({ ...result(), ingestFailed: true })
+    const onResult = vi.fn()
+    const onError = vi.fn()
+    const input = document.createElement('input')
+    vi.spyOn(document, 'createElement').mockReturnValueOnce(input)
+    vi.spyOn(input, 'click').mockImplementation(() => {})
+    pickAndUploadImage('http://localhost:4444', { onError }, onResult, upload)
+    Object.defineProperty(input, 'files', {
+      value: [new File([new Uint8Array([1])], 'cat.png', { type: 'image/png' })]
+    })
+    await input.onchange?.(new Event('change'))
+    expect(onResult).toHaveBeenCalled()
+    expect(String(onError.mock.calls[0]?.[0])).toMatch(/Reprocess/)
   })
 })
 

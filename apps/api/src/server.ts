@@ -7,7 +7,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serve } from '@hono/node-server'
 import { createLocalGitAdapter } from '@setu/git-local'
-import { createLocalStorage } from '@setu/storage-local'
+import { createLocalStorage, resolveMediaDir } from '@setu/storage-local'
 import { createSharpImageAdapter } from '@setu/image-sharp'
 import {
   createSqliteAdapter,
@@ -131,7 +131,8 @@ try {
 
 const dir = process.env.SETU_REPO_DIR ?? process.cwd()
 const port = Number(process.env.SETU_API_PORT ?? 4444)
-const mediaDir = process.env.SETU_MEDIA_DIR ?? `${dir}/.setu/uploads`
+// #1161: the one media-dir rule, shared with the Rebuild child env and the demo-data CLI.
+const mediaDir = resolveMediaDir(process.env, dir)
 const mediaPublicUrl =
   process.env.SETU_MEDIA_PUBLIC_URL ?? `http://localhost:${port}/media`
 
@@ -1059,7 +1060,12 @@ app.route(
     // Unreachable when siteDir is null (the route 409s first) — a defensive reject.
     runBuild:
       siteDir !== null
-        ? makeBuildRunner({ siteDir, repoDir: dir, env: process.env })
+        ? makeBuildRunner({
+            siteDir,
+            repoDir: dir,
+            mediaDir,
+            env: process.env
+          })
         : () => Promise.reject(new Error('no site dir'))
   })
 )

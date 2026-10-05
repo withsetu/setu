@@ -101,6 +101,8 @@ export function MediaSettings() {
       notify.success(
         `Reprocessed ${data.processed} image${data.processed === 1 ? '' : 's'}`
       )
+      // #1161: the job ran to the end but named images it could not process (corrupt files).
+      if (data.error) notify.error(data.error)
     } else if (data.status === 'failed') {
       stopPolling()
       setReprocessing(false)
@@ -320,7 +322,8 @@ export function MediaSettings() {
         <p className="text-sm font-medium">Reprocess all images</p>
         <p className="text-xs text-muted-foreground">
           Re-encodes every image in the media library using the current format
-          and LQIP settings.
+          and LQIP settings, and generates resized versions for images whose
+          upload processing failed.
         </p>
 
         {!capsLoading && !canReprocess ? (

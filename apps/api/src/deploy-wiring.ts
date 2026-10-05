@@ -181,17 +181,24 @@ function killTree(pid: number, signal: 'SIGTERM' | 'SIGKILL'): void {
 /** Runs the site build (`npm run build` semantics via the configured command) in the
  *  site dir, with the content sandbox exported the same way `pnpm dev` wires the site
  *  process. Rejects with the log tail attached on failure. Long-running by design —
- *  createDeployApi runs it as a fire-and-forget job. */
+ *  createDeployApi runs it as a fire-and-forget job.
+ *
+ *  `mediaDir` is the api's own resolved media dir (`resolveMediaDir`), exported to the child as
+ *  SETU_MEDIA_DIR because the site reads variant manifests ONLY from that variable — inheriting
+ *  the api's env is not enough when the api took the `<repoDir>/.setu/uploads` default (#1161).
+ *  Pinned by apps/api/test/deploy-wiring.test.ts. */
 export function makeBuildRunner(opts: {
   siteDir: string
   repoDir: string
+  /** Where the api stores media + manifests; the build reads manifests from here. */
+  mediaDir: string
   env: NodeJS.ProcessEnv
   /** Deadline for one build; defaults to `buildTimeoutMs(env)`. */
   timeoutMs?: number
   /** How long SIGTERM gets before SIGKILL once the deadline passes. */
   killGraceMs?: number
 }): () => Promise<void> {
-  const { siteDir, repoDir, env } = opts
+  const { siteDir, repoDir, mediaDir, env } = opts
   const command = env.SETU_BUILD_COMMAND ?? 'pnpm build'
   const [file, ...args] = command.split(' ') as [string, ...string[]]
   const timeoutMs = opts.timeoutMs ?? buildTimeoutMs(env)
@@ -202,7 +209,8 @@ export function makeBuildRunner(opts: {
         cwd: siteDir,
         env: {
           ...env,
-          SETU_CONTENT_DIR: env.SETU_CONTENT_DIR ?? join(repoDir, 'content')
+          SETU_CONTENT_DIR: env.SETU_CONTENT_DIR ?? join(repoDir, 'content'),
+          SETU_MEDIA_DIR: mediaDir
         },
         stdio: ['ignore', 'pipe', 'pipe'],
         // Its own process group, so the deadline can kill the whole tree (killTree). Windows

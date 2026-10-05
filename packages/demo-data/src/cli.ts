@@ -37,7 +37,7 @@ const USAGE = `Usage:
     --concurrency <n>            parallel image downloads (default 4)
     --source <path>              AIC dump dir or .jsonl (default: .demo-data auto-detect)
     --sandbox <dir>              content sandbox (default: $SETU_REPO_DIR or .content-sandbox/dev)
-    --media <dir>                media dir (default: $SETU_MEDIA_DIR or .setu/uploads)
+    --media <dir>                media dir (default: $SETU_MEDIA_DIR or <sandbox>/.setu/uploads)
   unseed [--sandbox <dir>] [--media <dir>]   remove ONLY what seeding generated`
 
 async function printStats(source: string, limit?: number): Promise<void> {
@@ -147,6 +147,7 @@ export function parseSeedFlags(
     return typeof v === 'string' ? v : undefined
   }
   const root = resolveRepoRoot()
+  const sandbox = path.resolve(str('sandbox') ?? defaultSandboxDir(root))
   const draftFraction = Number(str('draft-fraction') ?? '0.1')
   if (!Number.isFinite(draftFraction) || draftFraction < 0 || draftFraction > 1)
     throw new Error(`Invalid --draft-fraction: ${str('draft-fraction') ?? ''}`)
@@ -164,8 +165,8 @@ export function parseSeedFlags(
       : {}),
     concurrency: Math.max(1, intFlag(str('concurrency'), '--concurrency', 4)),
     ...(str('source') !== undefined ? { source: str('source')! } : {}),
-    sandbox: path.resolve(str('sandbox') ?? defaultSandboxDir(root)),
-    media: path.resolve(str('media') ?? defaultMediaDir(root))
+    sandbox,
+    media: path.resolve(str('media') ?? defaultMediaDir(sandbox))
   }
 }
 

@@ -12,7 +12,7 @@ import type {
   GitLogOptions
 } from '@setu/core'
 
-/** The three direct fs.promises calls this adapter makes. isomorphic-git's
+/** The direct fs.promises calls this adapter makes. isomorphic-git's
  *  PromiseFsClient types its `promises` members as bare `Function` (its API surface is
  *  fs-implementation-agnostic), which makes every call an unsafe `Function` invocation
  *  under type-aware lint. This structural view narrows just what we use — node:fs,
@@ -20,7 +20,12 @@ import type {
 interface FsPromisesUsed {
   unlink(path: string): Promise<unknown>
   mkdir(path: string, opts: { recursive: boolean }): Promise<unknown>
-  writeFile(path: string, data: string, encoding: string): Promise<unknown>
+  writeFile(
+    path: string,
+    data: string | Uint8Array,
+    encoding?: string
+  ): Promise<unknown>
+  rmdir(path: string): Promise<unknown>
 }
 
 export interface LocalGitOptions {
@@ -157,10 +162,11 @@ export function createLocalGitAdapter(options: LocalGitOptions): GitPort {
     return leaf.oid
   }
 
-  const readFileAtCommit = async (
+  /** The raw blob bytes of `path` at `commitOid`; `null` = absent. */
+  const readBlobAtCommit = async (
     commitOid: string,
     path: string
-  ): Promise<string | null> => {
+  ): Promise<Uint8Array | null> => {
     try {
       const resolved = await resolveBlobOid(commitOid, path)
       if (resolved === null) return null
@@ -174,11 +180,19 @@ export function createLocalGitAdapter(options: LocalGitOptions): GitPort {
               filepath: path
             })
           : await git.readBlob({ fs, dir, cache, oid: resolved })
-      return new TextDecoder().decode(blob)
+      return blob
     } catch (e) {
       if (isNotFound(e)) return null
       throw e
     }
+  }
+
+  const readFileAtCommit = async (
+    commitOid: string,
+    path: string
+  ): Promise<string | null> => {
+    const blob = await readBlobAtCommit(commitOid, path)
+    return blob === null ? null : new TextDecoder().decode(blob)
   }
 
   const readFileAtHead = async (path: string): Promise<string | null> => {
@@ -203,6 +217,63 @@ export function createLocalGitAdapter(options: LocalGitOptions): GitPort {
     return full
   }
 
+  const isAbsent = (e: unknown): boolean =>
+    e instanceof Error && (e as { code?: string }).code === 'ENOENT'
+
+  /** #1155: put every path a failed batch touched back to its HEAD state — rewrite the HEAD
+   *  blob, or remove the file (and any directories that removal leaves empty) when HEAD lacks
+   *  it — then reset its index entry. Returns the failures; never throws. The working tree is
+   *  what the site build reads, so a half-applied batch must not survive here
+   *  (packages/git-local/test/failed-batch-restore.test.ts). */
+  const restoreToHead = async (
+    touched: ReadonlyMap<string, string>
+  ): Promise<{ path: string; error: unknown }[]> => {
+    const failures: { path: string; error: unknown }[] = []
+    const repoRoot = resolve(dir)
+    let head: string | null = null
+    try {
+      head = await headSha()
+    } catch (error) {
+      // Cannot know what HEAD holds, so nothing can be restored safely.
+      return [...touched.keys()].map((path) => ({ path, error }))
+    }
+    for (const [path, full] of touched) {
+      try {
+        const blob = head === null ? null : await readBlobAtCommit(head, path)
+        if (blob === null) {
+          await fsp.unlink(full).catch((e: unknown) => {
+            if (!isAbsent(e)) throw e
+          })
+          // Prune directories the batch created; rmdir refuses a non-empty one, which ends the
+          // walk — so nothing that holds other files is ever removed.
+          for (
+            let d = dirname(full);
+            d !== repoRoot && d.startsWith(repoRoot + sep);
+            d = dirname(d)
+          ) {
+            const removed = await fsp.rmdir(d).then(
+              () => true,
+              () => false
+            )
+            if (!removed) break
+          }
+        } else {
+          await fsp.mkdir(dirname(full), { recursive: true })
+          await fsp.writeFile(full, blob)
+        }
+      } catch (error) {
+        failures.push({ path, error })
+      }
+      // After the file: resetIndex re-stats the working file to decide whether its entry is clean.
+      try {
+        await git.resetIndex({ fs, dir, cache, filepath: path })
+      } catch (error) {
+        failures.push({ path, error })
+      }
+    }
+    return failures
+  }
+
   const commitFiles = ({
     changes,
     message,
@@ -213,6 +284,9 @@ export function createLocalGitAdapter(options: LocalGitOptions): GitPort {
       // #1154: validate EVERY path before touching the filesystem, so a refused path anywhere in
       // the batch leaves the working tree untouched (packages/git-local/test/git-local.test.ts).
       const fullPaths = changes.map((ch) => safePath(ch.path))
+      // #1155: every path the batch has started to change on disk or in the index, recorded
+      // BEFORE the operation — a write that fails part-way still counts as touched.
+      const touched = new Map<string, string>()
       try {
         const pending = new Map<string, string | null>()
         const effective = async (p: string): Promise<string | null> => {
@@ -223,6 +297,7 @@ export function createLocalGitAdapter(options: LocalGitOptions): GitPort {
           const full = fullPaths[i]!
           if ('delete' in ch) {
             if ((await effective(ch.path)) !== null) {
+              touched.set(ch.path, full)
               await fsp.unlink(full).catch(() => {})
               await git.remove({ fs, dir, cache, filepath: ch.path })
               staged.push(ch.path)
@@ -230,6 +305,7 @@ export function createLocalGitAdapter(options: LocalGitOptions): GitPort {
             pending.set(ch.path, null)
           } else {
             if ((await effective(ch.path)) !== ch.content) {
+              touched.set(ch.path, full)
               await fsp.mkdir(dirname(full), { recursive: true })
               await fsp.writeFile(full, ch.content, 'utf8')
               await git.add({ fs, dir, cache, filepath: ch.path })
@@ -248,11 +324,21 @@ export function createLocalGitAdapter(options: LocalGitOptions): GitPort {
         })
         return { sha }
       } catch (e) {
-        // Note: working tree may be partially written/unlinked on failure — only
-        // the index is reset here, which is what matters for the next commit.
-        for (const p of staged)
-          await git.resetIndex({ fs, dir, cache, filepath: p }).catch(() => {})
-        throw e
+        // #1155: a failure after disk writes began restores every touched path — working tree
+        // AND index — to HEAD, then rethrows the original error. If the restore itself fails,
+        // both are surfaced: the caller must know the working tree may still hold uncommitted
+        // changes (packages/git-local/test/failed-batch-restore.test.ts).
+        const failures = await restoreToHead(touched)
+        if (failures.length === 0) throw e
+        const paths = [...new Set(failures.map((f) => f.path))].join(', ')
+        throw new AggregateError(
+          [e, ...failures.map((f) => f.error)],
+          `commitFiles failed, and restoring the working tree to HEAD also failed for: ${paths} — ` +
+            `the working tree may hold uncommitted changes. Original error: ${
+              e instanceof Error ? e.message : String(e)
+            }`,
+          { cause: e }
+        )
       }
     })
 

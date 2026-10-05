@@ -599,6 +599,10 @@ describe('SessionGate', () => {
     })
 
     it('retries automatically with backoff while the screen is up', async () => {
+      // shouldAdvanceTime keeps Testing Library's polling alive, but it also lets real time leak
+      // into the fake clock — so under CI load the countdown can already have ticked one second.
+      // The countdown copy is asserted with a one-second tolerance; the backoff itself is pinned
+      // by call counts (a retry fires after the first step, and not again before the second).
       vi.useFakeTimers({ shouldAdvanceTime: true })
       try {
         const api = stubFailingCapabilities(async () => {
@@ -606,18 +610,22 @@ describe('SessionGate', () => {
         })
         renderGate()
         await expectUnreachable(/didn.t respond/i)
+        // The countdown is set by an effect AFTER the error screen first renders, so wait for it.
         expect(
-          screen.getByText(/trying again automatically in 2 s/i)
+          await screen.findByText(/trying again automatically in [12] s/i)
         ).toBeInTheDocument()
         const before = api.calls()
-        // First automatic attempt after 2 s — still failing, so the next is scheduled 4 s out.
+        // First automatic attempt after the 2 s step — still failing, so the next is 4 s out.
         await act(() => vi.advanceTimersByTimeAsync(2000))
         await waitFor(() => expect(api.calls()).toBe(before + 1))
         expect(
-          await screen.findByText(/trying again automatically in 4 s/i)
+          await screen.findByText(/trying again automatically in [34] s/i)
         ).toBeInTheDocument()
+        // Halfway into the 4 s step: no further attempt yet (the delay grew, it did not repeat 2 s).
+        await act(() => vi.advanceTimersByTimeAsync(2000))
+        expect(api.calls()).toBe(before + 1)
         api.recover()
-        await act(() => vi.advanceTimersByTimeAsync(4000))
+        await act(() => vi.advanceTimersByTimeAsync(2000))
         expect(
           await screen.findByRole('button', { name: /^sign in$/i })
         ).toBeInTheDocument()

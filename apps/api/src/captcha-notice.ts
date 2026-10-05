@@ -1,8 +1,9 @@
+import { SUPPORTED_CAPTCHA_PROVIDERS } from './captcha-providers'
 import { resolveSetuMode } from './config'
 
 /** #918: the zero-config captcha default is a PASS-THROUGH, and until now it was silent.
  *
- *  `resolveCaptcha` in server.ts returns `createNoopCaptcha()` when `SETU_CAPTCHA_PROVIDER` is
+ *  `createFormsCaptcha` (captcha-config.ts) returns `createNoopCaptcha()` when `SETU_CAPTCHA_PROVIDER` is
  *  unset, and the two warnings beside it only fire when a provider IS selected — so the one
  *  configuration in which `POST /forms/submit` accepts every submission from anyone, forever,
  *  was also the one configuration that said nothing at boot. Dev wants exactly that pass-through
@@ -28,7 +29,7 @@ export function noCaptchaProviderNotice(env: {
   return (
     'NO PROVIDER: SETU_CAPTCHA_PROVIDER is unset, so the public POST /forms/submit route ' +
     'accepts every submission with NO spam verification. Set ' +
-    'SETU_CAPTCHA_PROVIDER=turnstile|recaptcha|recaptcha-v3 with its secret. The rate limit and ' +
+    `SETU_CAPTCHA_PROVIDER=${SUPPORTED_CAPTCHA_PROVIDERS.join('|')} with its secret. The rate limit and ` +
     'the outbound-notification ceiling still bound the damage (#918), but they are a ceiling, ' +
     'not spam protection.'
   )

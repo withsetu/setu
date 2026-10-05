@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import type { CaptchaPort } from '@setu/core'
 
 /** One record per request an adapter made through the injected transport. */
@@ -97,6 +97,26 @@ export interface CaptchaContractHarness {
   endpoint: string
 }
 
+/** The longest an adapter may hold an unauthenticated request open waiting on siteverify. The
+ *  contract restates it rather than importing `SITEVERIFY_TIMEOUT_MS` from @setu/core, for the
+ *  same reason `endpoint` is restated: a bound read out of the code under test can never fail. */
+export const CAPTCHA_CONTRACT_DEADLINE_MS = 10_000
+
+/** A transport that never settles and ignores its abort signal — the worst-case provider: a
+ *  socket that accepted the connection and then went silent. Records the signal it was handed so
+ *  the contract can assert the adapter also released the request, not merely stopped waiting. */
+export function createHangingFetch(): {
+  fetchImpl: typeof fetch
+  signals: (AbortSignal | undefined)[]
+} {
+  const signals: (AbortSignal | undefined)[] = []
+  const fetchImpl: typeof fetch = (_input, init) => {
+    signals.push(init?.signal ?? undefined)
+    return new Promise<Response>(() => {})
+  }
+  return { fetchImpl, signals }
+}
+
 const ok = (body: unknown, status = 200): (() => Response) => {
   return () => new Response(JSON.stringify(body), { status })
 }
@@ -155,6 +175,37 @@ export function runCaptchaPortContract(harness: CaptchaContractHarness): void {
         const throwing = (() =>
           Promise.reject(new Error('net'))) as unknown as typeof fetch
         expect(await makeAdapter(throwing).verify('tok')).toBe(false)
+      })
+    })
+
+    describe('siteverify deadline', () => {
+      afterEach(() => {
+        vi.useRealTimers()
+      })
+
+      it('returns false once the deadline passes when the provider never answers (fail-closed)', async () => {
+        // The submit route is unauthenticated: without a bound, a silent provider holds every
+        // request open indefinitely. The transport here ignores its signal on purpose, so an
+        // adapter that merely passes a signal to fetch and trusts it to reject does not pass.
+        vi.useFakeTimers()
+        const { fetchImpl } = createHangingFetch()
+        let settled: boolean | undefined
+        void makeAdapter(fetchImpl)
+          .verify('tok')
+          .then((v) => {
+            settled = v
+          })
+        await vi.advanceTimersByTimeAsync(CAPTCHA_CONTRACT_DEADLINE_MS)
+        expect(settled).toBe(false)
+      })
+
+      it('aborts the in-flight request at the deadline, so the socket is released', async () => {
+        vi.useFakeTimers()
+        const { fetchImpl, signals } = createHangingFetch()
+        void makeAdapter(fetchImpl).verify('tok')
+        await vi.advanceTimersByTimeAsync(CAPTCHA_CONTRACT_DEADLINE_MS)
+        expect(signals).toHaveLength(1)
+        expect(signals[0]?.aborted).toBe(true)
       })
     })
 

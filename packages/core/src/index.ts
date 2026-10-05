@@ -458,6 +458,7 @@ export { mergeBlockSources } from './blocks/merge-sources'
 
 export type { CaptchaPort } from './captcha/captcha-port'
 export { createNoopCaptcha } from './captcha/captcha-port'
+export { postSiteverify, SITEVERIFY_TIMEOUT_MS } from './captcha/siteverify'
 
 export type {
   Severity,

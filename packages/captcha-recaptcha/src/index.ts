@@ -1,8 +1,19 @@
-import type { CaptchaPort } from '@setu/core'
+import { postSiteverify, type CaptchaPort } from '@setu/core'
 
 const SITEVERIFY = 'https://www.google.com/recaptcha/api/siteverify'
 
-/** Google reCAPTCHA v2 CaptchaPort. Fail-closed. `fetchImpl` injectable for tests. */
+function siteverifyBody(
+  secret: string,
+  token: string,
+  remoteip: string | undefined
+): URLSearchParams {
+  const body = new URLSearchParams({ secret, response: token })
+  if (remoteip) body.set('remoteip', remoteip)
+  return body
+}
+
+/** Google reCAPTCHA v2 CaptchaPort. Fail-closed, including when siteverify does not answer within
+ *  `SITEVERIFY_TIMEOUT_MS` (@setu/core `postSiteverify`). `fetchImpl` injectable for tests. */
 export function createRecaptchaCaptcha(opts: {
   secret: string
   fetchImpl?: typeof fetch
@@ -10,19 +21,12 @@ export function createRecaptchaCaptcha(opts: {
   const f = opts.fetchImpl ?? fetch
   return {
     async verify(token, remoteip) {
-      try {
-        const body = new URLSearchParams({
-          secret: opts.secret,
-          response: token
-        })
-        if (remoteip) body.set('remoteip', remoteip)
-        const res = await f(SITEVERIFY, { method: 'POST', body })
-        if (!res.ok) return false
-        const data = (await res.json()) as { success?: boolean }
-        return data.success === true
-      } catch {
-        return false
-      }
+      const data = (await postSiteverify({
+        fetchImpl: f,
+        url: SITEVERIFY,
+        body: siteverifyBody(opts.secret, token, remoteip)
+      })) as { success?: boolean } | null
+      return data?.success === true
     }
   }
 }
@@ -49,28 +53,15 @@ export function createRecaptchaV3Captcha(opts: {
   const minScore = opts.minScore ?? 0.5
   return {
     async verify(token, remoteip) {
-      try {
-        const body = new URLSearchParams({
-          secret: opts.secret,
-          response: token
-        })
-        if (remoteip) body.set('remoteip', remoteip)
-        const res = await f(SITEVERIFY, { method: 'POST', body })
-        if (!res.ok) return false
-        const data = (await res.json()) as {
-          success?: boolean
-          score?: number
-          action?: string
-        }
-        if (data.success !== true) return false
-        if (typeof data.score === 'number' && data.score < minScore)
-          return false
-        if (opts.action !== undefined && data.action !== opts.action)
-          return false
-        return true
-      } catch {
-        return false
-      }
+      const data = (await postSiteverify({
+        fetchImpl: f,
+        url: SITEVERIFY,
+        body: siteverifyBody(opts.secret, token, remoteip)
+      })) as { success?: boolean; score?: number; action?: string } | null
+      if (data?.success !== true) return false
+      if (typeof data.score === 'number' && data.score < minScore) return false
+      if (opts.action !== undefined && data.action !== opts.action) return false
+      return true
     }
   }
 }

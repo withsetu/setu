@@ -21,7 +21,6 @@ import {
 } from '@setu/db-sqlite'
 import {
   createSubmissionService,
-  createNoopCaptcha,
   createIndexService,
   createMediaIndexService,
   formNotificationValues,
@@ -29,12 +28,7 @@ import {
   EMAIL_TYPE_FORM_NOTIFICATION,
   EMAIL_TYPE_PASSWORD_RESET
 } from '@setu/core'
-import type { CaptchaPort, DeployInfo } from '@setu/core'
-import { createTurnstileCaptcha } from '@setu/captcha-turnstile'
-import {
-  createRecaptchaCaptcha,
-  createRecaptchaV3Captcha
-} from '@setu/captcha-recaptcha'
+import type { DeployInfo } from '@setu/core'
 import { createConsoleEmailAdapter } from '@setu/email-console'
 import { createResendEmailAdapter } from '@setu/email-resend'
 import { createSmtpEmailAdapter } from '@setu/email-smtp'
@@ -102,7 +96,12 @@ import { mountAuthWithFailureEvents } from './auth/login-failure-events'
 import { apiOnError } from './errors'
 import { securityHeaders } from './security-headers'
 import { turnstileTestKeyNotice } from './captcha-test-keys'
-import { noCaptchaProviderNotice } from './captcha-notice'
+import {
+  CaptchaConfigError,
+  createFormsCaptcha,
+  resolveCaptchaConfig,
+  type CaptchaConfig
+} from './captcha-config'
 import { createNotifyCeiling, boundFromEnv } from './rate-limit'
 import { parseTrustedProxies, parseTrustedProxyHeader } from './client-ip'
 import { getConnInfo } from '@hono/node-server/conninfo'
@@ -115,50 +114,19 @@ function logAuthEvent(event: AuthEvent): void {
   console.info('[auth-event]', JSON.stringify(event))
 }
 
-function resolveCaptcha(provider: string, secret: string): CaptchaPort {
-  if (!provider) {
-    // #918: the zero-config default is a PASS-THROUGH — every submission is accepted with no
-    // verification at all — and it used to be the ONLY captcha branch that said nothing at boot,
-    // because the two warnings below fire only once a provider is selected. Dev keeps the silence
-    // (that is what the branch is for); every other topology gets the line. The decision itself
-    // lives in captcha-notice.ts so it is testable — apps/api/test/captcha-notice.test.ts — since
-    // this module cannot be imported by a test (it calls serve() at the bottom).
-    const notice = noCaptchaProviderNotice(process.env)
-    if (notice !== null) console.error(`[captcha] ${notice}`)
-    return createNoopCaptcha()
-  }
-  if (!secret) {
-    // Provider selected but secret missing.
-    if (process.env.NODE_ENV === 'production') {
-      console.error(
-        `[captcha] provider "${provider}" selected but its secret is unset — rejecting submissions`
-      )
-      return {
-        async verify() {
-          return false
-        }
-      } // fail-closed in prod
-    }
-    console.warn(
-      `[captcha] provider "${provider}" selected but secret unset — dev pass-through`
-    )
-    return createNoopCaptcha()
-  }
-  // 'recaptcha-v3' reads its score threshold from SETU_RECAPTCHA_MIN_SCORE (default 0.5) and an
-  // optional expected action from SETU_RECAPTCHA_ACTION.
-  if (provider === 'recaptcha-v3') {
-    const raw = Number(process.env.SETU_RECAPTCHA_MIN_SCORE)
-    return createRecaptchaV3Captcha({
-      secret,
-      ...(Number.isFinite(raw) ? { minScore: raw } : {}),
-      ...(process.env.SETU_RECAPTCHA_ACTION
-        ? { action: process.env.SETU_RECAPTCHA_ACTION }
-        : {})
-    })
-  }
-  return provider === 'recaptcha'
-    ? createRecaptchaCaptcha({ secret })
-    : createTurnstileCaptcha({ secret })
+// #1163: captcha config is validated FIRST, before anything opens a database or binds a port. An
+// unsupported provider (including recaptcha-v3, not wired end to end yet) or an invalid
+// SETU_RECAPTCHA_MIN_SCORE refuses the boot with one actionable line instead of running with a
+// captcha that silently checks against the wrong provider or a threshold of 0. Every consumer
+// below — forms, better-auth, capabilities, captcha-status — reads this ONE mapping
+// (captcha-config.ts; apps/api/test/captcha-config.test.ts).
+let captchaConfig: CaptchaConfig
+try {
+  captchaConfig = resolveCaptchaConfig(process.env)
+} catch (err) {
+  if (!(err instanceof CaptchaConfigError)) throw err
+  console.error(`[captcha] refusing to start: ${err.message}`)
+  process.exit(1)
 }
 
 const dir = process.env.SETU_REPO_DIR ?? process.cwd()
@@ -533,16 +501,14 @@ const auth = authConfigured
 authRef = auth
 const resolveActor: ResolveActor = auth ? resolveSessionActor(auth) : () => null
 
-// Spam protection: select a captcha adapter by env. Secret is env-only.
-const captchaProvider = process.env.SETU_CAPTCHA_PROVIDER ?? '' // 'turnstile' | 'recaptcha' | ''
-const captchaSecret =
-  captchaProvider === 'recaptcha'
-    ? (process.env.SETU_RECAPTCHA_SECRET ?? '')
-    : (process.env.SETU_TURNSTILE_SECRET ?? '')
-const captcha = resolveCaptcha(captchaProvider, captchaSecret)
+// Spam protection: the adapter for the boot-validated config (#1163). Secret is env-only. A
+// selected provider with no secret rejects every submission outside local mode.
+const captcha = createFormsCaptcha(captchaConfig, process.env, console)
+const captchaProvider = captchaConfig.provider ?? ''
 const captchaStatus = {
   provider: captchaProvider,
-  secretConfigured: captchaSecret !== ''
+  secretConfigured:
+    captchaConfig.provider !== null && captchaConfig.secret !== ''
 }
 
 // #918 layer 1 — the HARD bound on the anonymous form→email path: a ceiling on notifications

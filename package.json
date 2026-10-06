@@ -79,6 +79,8 @@
       "fast-xml-parser": ">=5.10.1 <6",
       "browserslist": ">=4.28.7 <5",
       "undici@8": ">=8.10.2 <9",
+      "source-map-js@1": ">=1.2.2 <2",
+      "postcss-selector-parser@7": ">=7.1.6 <8",
       "devalue@5": ">=5.9.3 <6"
     }
   }

@@ -1,63 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { PageHeader } from '../../shell/PageHeader'
 import { PageBody } from '../../shell/PageBody'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { GeneralSettings } from './GeneralSettings'
 import { ReadingSettings } from './ReadingSettings'
 import { MediaSettings } from './MediaSettings'
 import { IdentitySettings } from './IdentitySettings'
 import { PermalinksSettings } from './PermalinksSettings'
 import { EmailSettings } from './EmailSettings'
-import { apiFetch } from '../../lib/api-fetch'
+import { FormsSettings } from './FormsSettings'
 import { useCan } from '../../auth/actor'
 
 const apiBase = import.meta.env.VITE_SETU_API
-
-// Moved verbatim from the previous flat Settings.tsx (captcha PR).
-function SpamProtectionStatus({ apiBase }: { apiBase: string }) {
-  const [status, setStatus] = useState<{
-    provider: string
-    secretConfigured: boolean
-  } | null>(null)
-  useEffect(() => {
-    void apiFetch(`${apiBase}/forms/captcha-status`)
-      .then(
-        (r) =>
-          r.json() as Promise<{ provider: string; secretConfigured: boolean }>
-      )
-      .then(setStatus)
-      .catch(() => setStatus({ provider: '', secretConfigured: false }))
-  }, [apiBase])
-  if (!status) return null
-  const label = !status.provider
-    ? 'Spam protection: not configured'
-    : status.secretConfigured
-      ? `Spam protection: ${status.provider} — secret detected ✓`
-      : `Spam protection: ${status.provider} — secret missing ⚠ (set SETU_${status.provider.toUpperCase()}_SECRET)`
-  return <p className="text-sm text-muted-foreground">{label}</p>
-}
-
-function FormsGroup() {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Spam protection</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        {apiBase ? (
-          <SpamProtectionStatus apiBase={apiBase} />
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Spam protection: not configured
-          </p>
-        )}
-        <p className="text-xs text-muted-foreground">
-          More form settings coming soon.
-        </p>
-      </CardContent>
-    </Card>
-  )
-}
 
 type GroupId =
   | 'general'
@@ -143,7 +96,7 @@ export function Settings() {
               ) : active === 'email' ? (
                 <EmailSettings />
               ) : (
-                <FormsGroup />
+                <FormsSettings apiBase={apiBase} />
               )}
             </fieldset>
           </div>

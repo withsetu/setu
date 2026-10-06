@@ -4,8 +4,7 @@ import * as z from 'zod'
  *  check (better-auth's `password.config.minPasswordLength`), so the error surfaces before a round
  *  trip rather than after. Shared by every screen that collects a new/changed password (the invite
  *  dialog, the owner password card, the password-reset landing screen, #364, and first-run setup,
- *  #1186) so the literal
- *  can't drift out of sync across them. */
+ *  #1186) so the literal can't drift out of sync across them. */
 export const MIN_PASSWORD_LENGTH = 12
 
 /** The UX-layer mirror of better-auth's `password.config.maxPasswordLength` (its default, 128 —

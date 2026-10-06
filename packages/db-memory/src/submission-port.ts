@@ -1,5 +1,9 @@
 import type { SubmissionPort, Submission, SubmissionInput } from '@setu/core'
-import { selectDistinctForms } from '@setu/core'
+import {
+  foldForSearch,
+  normalizeSubmissionPage,
+  selectDistinctForms
+} from '@setu/core'
 
 /** In-memory SubmissionPort (Map-backed, browser-safe). Value semantics via
  *  structuredClone so callers cannot mutate stored rows. Mirrors db-memory's
@@ -25,10 +29,14 @@ export function createMemorySubmissionPort(
 
   for (const s of seed) put(s)
 
-  const matchesQ = (s: Submission, q: string) =>
-    Object.values(s.fields).some((v) =>
-      v.toLowerCase().includes(q.toLowerCase())
+  // Literal substring under core's shared fold (#1166) — db-sqlite applies the
+  // same fold, so both adapters agree on non-ASCII case.
+  const matchesQ = (s: Submission, q: string) => {
+    const needle = foldForSearch(q)
+    return Object.values(s.fields).some((v) =>
+      foldForSearch(String(v)).includes(needle)
     )
+  }
 
   return {
     async saveSubmission(input) {
@@ -47,8 +55,9 @@ export function createMemorySubmissionPort(
       if (filter?.q) all = all.filter((r) => matchesQ(r, filter.q!))
       all.sort((a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id))
       const total = all.length
-      const offset = filter?.offset ?? 0
-      const limit = filter?.limit ?? all.length
+      const page = normalizeSubmissionPage(filter)
+      const offset = page.offset
+      const limit = page.limit ?? all.length
       return {
         rows: all.slice(offset, offset + limit).map((r) => structuredClone(r)),
         total

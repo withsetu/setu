@@ -5,7 +5,11 @@ import { and, desc, eq, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import type { SubmissionPort, Submission, SubmissionInput } from '@setu/core'
-import { selectDistinctForms } from '@setu/core'
+import {
+  foldForSearch,
+  normalizeSubmissionPage,
+  selectDistinctForms
+} from '@setu/core'
 import { submissions } from './schema'
 
 const migrationsFolder = join(
@@ -14,6 +18,13 @@ const migrationsFolder = join(
 )
 
 type Row = typeof submissions.$inferSelect
+
+/** SQL function name for core's `foldForSearch`, registered per connection. */
+const FOLD_FN = 'setu_fold'
+
+/** Escape LIKE's metacharacters so `q` matches literally under `ESCAPE '\\'`.
+ *  The backslash is escaped too, or a literal one in q would escape the next char. */
+const escapeLike = (s: string): string => s.replace(/[\\%_]/g, (c) => `\\${c}`)
 
 const rowToSubmission = (r: Row): Submission => {
   // Absence is `null` (the column default), not falsiness (#897): testing these
@@ -48,6 +59,23 @@ const rowToSubmission = (r: Row): Submission => {
 /** Create a better-sqlite3-backed SubmissionPort. `file` is a path or ':memory:'. */
 export function createSqliteSubmissionPort(file: string): SubmissionPort {
   const sqlite = new Database(file)
+  // #1166: SQLite's built-in lower() folds ASCII only, so 'Émile' never matched
+  // 'émile' here while db-memory matched it. Registering core's fold as a
+  // connection-local function keeps the two adapters on ONE definition and needs
+  // no schema change or backfill — existing rows are folded at query time, exactly
+  // as db-memory does. (A stored folded column would need a migration plus a
+  // backfill, and would drift if the fold ever changed.) The cost is a JS call per
+  // field value scanned, on an admin-only, paged inbox query.
+  sqlite.function(FOLD_FN, { deterministic: true }, (v: unknown) =>
+    // json_each yields TEXT for strings (and for nested JSON), numbers for numeric
+    // values; fold both as text so a numeric value still matches its digits.
+    typeof v === 'string'
+      ? foldForSearch(v)
+      : typeof v === 'number' || typeof v === 'bigint'
+        ? String(v)
+        : null
+  )
+
   const db = drizzle(sqlite)
   migrate(db, { migrationsFolder })
 
@@ -87,11 +115,16 @@ export function createSqliteSubmissionPort(file: string): SubmissionPort {
         conds.push(eq(submissions.formId, filter.formId))
       if (filter?.read !== undefined)
         conds.push(eq(submissions.read, filter.read ? 1 : 0))
-      // q: case-insensitive substring over field VALUES only (not keys) via json_each.
-      if (filter?.q)
+      // q: literal, case-folded substring over field VALUES only (not keys) via
+      // json_each. Both sides go through core's foldForSearch; `%`, `_` and `\` in
+      // q are escaped so they match themselves (#1166). Enforced by the q cases in
+      // packages/db-testing/src/index.ts (runSubmissionPortContract).
+      if (filter?.q) {
+        const pattern = `%${escapeLike(foldForSearch(filter.q))}%`
         conds.push(
-          sql`EXISTS (SELECT 1 FROM json_each(${submissions.fields}) WHERE lower(json_each.value) LIKE ${'%' + filter.q.toLowerCase() + '%'})`
+          sql`EXISTS (SELECT 1 FROM json_each(${submissions.fields}) WHERE ${sql.raw(FOLD_FN)}(json_each.value) LIKE ${pattern} ESCAPE '\\')`
         )
+      }
       const where = conds.length ? and(...conds) : undefined
 
       const totalRow = db
@@ -117,9 +150,13 @@ export function createSqliteSubmissionPort(file: string): SubmissionPort {
       // query (putting the bare OFFSET straight back) and its `.limit()` signature
       // rejects an `sql` fragment.
       // Enforced by the offset-without-limit case in packages/db-testing/src/index.ts.
-      if (filter?.limit !== undefined) qy = qy.limit(filter.limit)
-      else if (filter?.offset !== undefined) qy = qy.limit(total)
-      if (filter?.offset !== undefined) qy = qy.offset(filter.offset)
+      // #1166: clamp through core's shared helper first — a raw negative limit
+      // reached SQLite as `LIMIT -1`, i.e. every row. Enforced by
+      // runSubmissionPortPagingClampContract in packages/db-testing/src/index.ts.
+      const page = normalizeSubmissionPage(filter)
+      if (page.limit !== undefined) qy = qy.limit(page.limit)
+      else if (page.offset > 0) qy = qy.limit(total)
+      if (page.offset > 0) qy = qy.offset(page.offset)
       return { rows: qy.all().map(rowToSubmission), total }
     },
     async setRead(ids, readFlag) {

@@ -1,6 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createMemorySubmissionPort } from '@setu/db-memory'
-import { createSubmissionService } from '@setu/core'
+import {
+  createSubmissionService,
+  SUBMISSIONS_PAGE_DEFAULT,
+  SUBMISSIONS_PAGE_MAX
+} from '@setu/core'
 import type { Actor, Role } from '@setu/core'
 import {
   createFormsApi,
@@ -8,7 +12,8 @@ import {
   FORM_FIELD_MAX_COUNT,
   FORM_FIELD_VALUE_MAX,
   FORM_SOURCE_URL_MAX,
-  FORM_VALUE_MAX
+  FORM_VALUE_MAX,
+  SUBMISSIONS_Q_MAX
 } from '../src/forms'
 import { createNotifyCeiling } from '../src/rate-limit'
 import type { ResolveActor } from '../src/auth/resolve-actor'
@@ -322,6 +327,96 @@ describe('createFormsApi', () => {
       { formId: 'apply', formLabel: 'Apply', count: 1 },
       { formId: 'contact', formLabel: 'Contact', count: 1 }
     ])
+  })
+
+  // #1166: the list query used to reach the port as raw Number(...) — on sqlite
+  // `limit=-1` returned every row. It is now Zod-parsed at the boundary.
+  describe('GET /forms/submissions query validation (#1166)', () => {
+    const seed = async (n: number) => {
+      const made = makeApp()
+      for (let i = 0; i < n; i++)
+        await made.submissions.saveSubmission({
+          formId: 'contact',
+          fields: { message: `m${i}` }
+        })
+      return made
+    }
+    const get = (app: ReturnType<typeof createFormsApi>, qs: string) =>
+      app.fetch(new Request(`http://x/forms/submissions${qs}`))
+
+    it.each([
+      ['limit=-1', 'limit'],
+      ['limit=0', 'limit'],
+      [`limit=${SUBMISSIONS_PAGE_MAX + 1}`, 'limit'],
+      ['limit=2.5', 'limit'],
+      ['limit=abc', 'limit'],
+      ['offset=-1', 'offset'],
+      ['offset=1.5', 'offset'],
+      ['offset=NaN', 'offset'],
+      ['read=maybe', 'read'],
+      [`q=${'x'.repeat(SUBMISSIONS_Q_MAX + 1)}`, 'q']
+    ])('rejects %s with a 400 naming the field', async (qs, field) => {
+      const { app } = await seed(1)
+      const res = await get(app, `?${qs}`)
+      expect(res.status).toBe(400)
+      const body = (await res.json()) as {
+        error: string
+        issues: { field: string; message: string }[]
+      }
+      expect(body.error).toBe('invalid')
+      expect(body.issues.map((i) => i.field)).toContain(field)
+      expect(body.issues.every((i) => typeof i.message === 'string')).toBe(true)
+    })
+
+    it('applies the default page size when limit is absent', async () => {
+      const { app } = await seed(SUBMISSIONS_PAGE_DEFAULT + 3)
+      const body = (await (await get(app, '')).json()) as {
+        rows: unknown[]
+        total: number
+      }
+      expect(body.total).toBe(SUBMISSIONS_PAGE_DEFAULT + 3)
+      expect(body.rows).toHaveLength(SUBMISSIONS_PAGE_DEFAULT)
+    })
+
+    it('accepts the max page size and pages with offset', async () => {
+      const { app } = await seed(5)
+      const max = await get(app, `?limit=${SUBMISSIONS_PAGE_MAX}&offset=0`)
+      expect(max.status).toBe(200)
+      expect(((await max.json()) as { rows: unknown[] }).rows).toHaveLength(5)
+      const tail = (await (await get(app, '?limit=2&offset=4')).json()) as {
+        rows: unknown[]
+        total: number
+      }
+      expect(tail).toMatchObject({ total: 5 })
+      expect(tail.rows).toHaveLength(1)
+    })
+
+    it('trims q, and a blank q filters nothing', async () => {
+      const { app } = await seed(3)
+      const hit = (await (await get(app, '?q=%20%20m1%20')).json()) as {
+        total: number
+      }
+      expect(hit.total).toBe(1)
+      const blank = (await (await get(app, '?q=%20%20')).json()) as {
+        total: number
+      }
+      expect(blank.total).toBe(3)
+      const atCap = await get(app, `?q=${'x'.repeat(SUBMISSIONS_Q_MAX)}`)
+      expect(atCap.status).toBe(200)
+    })
+
+    it('passes read=true/false through', async () => {
+      const { app, submissions } = await seed(2)
+      const [first] = (await submissions.listSubmissions()).rows
+      await submissions.setRead([first!.id], true)
+      const read = (await (await get(app, '?read=true')).json()) as {
+        total: number
+      }
+      const unread = (await (await get(app, '?read=false')).json()) as {
+        total: number
+      }
+      expect([read.total, unread.total]).toEqual([1, 1])
+    })
   })
 
   it('GET /forms/captcha-status returns provider + secretConfigured booleans', async () => {

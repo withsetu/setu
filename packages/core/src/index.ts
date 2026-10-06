@@ -107,6 +107,13 @@ export type {
 } from './submissions/types'
 export type { SubmissionPort } from './submissions/submission-port'
 export { selectDistinctForms } from './submissions/distinct-forms'
+export { foldForSearch } from './submissions/search'
+export {
+  listAllSubmissions,
+  normalizeSubmissionPage,
+  SUBMISSIONS_PAGE_DEFAULT,
+  SUBMISSIONS_PAGE_MAX
+} from './submissions/paging'
 export { createSubmissionService } from './submissions/submission-service'
 export type {
   SubmissionService,

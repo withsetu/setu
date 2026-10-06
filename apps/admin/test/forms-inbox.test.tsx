@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import type { SubmissionPort } from '@setu/core'
+import { SUBMISSIONS_PAGE_DEFAULT, SUBMISSIONS_PAGE_MAX } from '@setu/core'
 import {
   createMemoryDataPort,
   createMemorySubmissionPort
@@ -173,5 +174,37 @@ describe('FormsInbox: a refused action', () => {
     await renderWithFailingMutations(new TypeError('Failed to fetch'))
     fireEvent.click(screen.getByRole('button', { name: /^read$/i }))
     await lastAlert(/check your connection/i)
+  })
+})
+
+// #1166: the API now caps a page at SUBMISSIONS_PAGE_MAX and 400s anything larger,
+// so the old single `limit: 100000` export request would fail outright.
+describe('FormsInbox: CSV export through a page-capped API', () => {
+  it('exports every matching submission by walking pages', async () => {
+    const inner = createMemorySubmissionPort(
+      Array.from({ length: SUBMISSIONS_PAGE_MAX + 30 }, (_, i) => ({
+        formId: 'contact',
+        fields: { email: `v${i}@example.test` }
+      }))
+    )
+    const port: SubmissionPort = {
+      ...inner,
+      listSubmissions: (filter) =>
+        (filter?.limit ?? SUBMISSIONS_PAGE_DEFAULT) > SUBMISSIONS_PAGE_MAX
+          ? Promise.reject(new SubmissionApiError(400, 'invalid'))
+          : inner.listSubmissions(filter)
+    }
+    const createObjectURL = vi.fn(() => 'blob:x')
+    Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() })
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    renderInbox(port)
+    await screen.findAllByText(/@example\.test/)
+    fireEvent.click(screen.getByRole('button', { name: /export csv/i }))
+    expect(
+      await screen.findByText(
+        `Exported ${SUBMISSIONS_PAGE_MAX + 30} submissions`
+      )
+    ).toBeInTheDocument()
+    expect(createObjectURL).toHaveBeenCalledTimes(1)
   })
 })

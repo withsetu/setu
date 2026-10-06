@@ -1029,6 +1029,75 @@ export function runSubmissionPortContract(
       })
     })
 
+    // #1166: db-sqlite used ASCII-only lower() and an unescaped LIKE, so a non-ASCII
+    // value did not case-fold and `%`/`_` in q acted as wildcards, while db-memory did
+    // a literal, Unicode-aware substring match. These hold every adapter to the
+    // literal semantics.
+    it('q folds case for non-ASCII values (including decomposed input)', async () => {
+      await db.saveSubmission(input({ fields: { name: 'Émile' } }))
+      // 'E' + U+0301 COMBINING ACUTE: the same name, decomposed.
+      await db.saveSubmission(input({ fields: { name: 'E\u0301MILE Zola' } }))
+      await db.saveSubmission(input({ fields: { name: 'Emile' } }))
+      expect((await db.listSubmissions({ q: 'émile' })).total).toBe(2)
+      expect((await db.listSubmissions({ q: 'ÉMILE' })).total).toBe(2)
+      expect((await db.listSubmissions({ q: 'emile' })).total).toBe(1)
+    })
+
+    it('q treats % literally', async () => {
+      await db.saveSubmission(input({ fields: { message: '100% sure' } }))
+      await db.saveSubmission(input({ fields: { message: '100 percent' } }))
+      const r = await db.listSubmissions({ q: '100%' })
+      expect(r.total).toBe(1)
+      expect(r.rows[0]!.fields.message).toBe('100% sure')
+      expect((await db.listSubmissions({ q: '%' })).total).toBe(1)
+    })
+
+    it('q treats _ literally', async () => {
+      await db.saveSubmission(input({ fields: { message: 'snake_case' } }))
+      await db.saveSubmission(input({ fields: { message: 'snakeXcase' } }))
+      const r = await db.listSubmissions({ q: 'e_c' })
+      expect(r.total).toBe(1)
+      expect(r.rows[0]!.fields.message).toBe('snake_case')
+    })
+
+    it('q treats a backslash literally', async () => {
+      await db.saveSubmission(input({ fields: { message: 'C:\\temp\\%x' } }))
+      await db.saveSubmission(input({ fields: { message: 'C:tempx' } }))
+      expect((await db.listSubmissions({ q: '\\' })).total).toBe(1)
+      expect((await db.listSubmissions({ q: 'temp\\%' })).total).toBe(1)
+    })
+
+    it('paging edges: last partial page, exact end, past the end, oversized limit', async () => {
+      for (let i = 0; i < 5; i++)
+        await db.saveSubmission(
+          input({ fields: { email: `u${i}@x.com`, message: `m${i}` } })
+        )
+      const all = (await db.listSubmissions()).rows.map((r) => r.id)
+      expect(all).toHaveLength(5)
+      const last = await db.listSubmissions({ limit: 2, offset: 4 })
+      expect(last.rows.map((r) => r.id)).toEqual(all.slice(4))
+      expect(last.total).toBe(5)
+      expect(await db.listSubmissions({ limit: 2, offset: 5 })).toEqual({
+        rows: [],
+        total: 5
+      })
+      expect(await db.listSubmissions({ limit: 2, offset: 50 })).toEqual({
+        rows: [],
+        total: 5
+      })
+      const big = await db.listSubmissions({ limit: 100, offset: 0 })
+      expect(big.rows.map((r) => r.id)).toEqual(all)
+      // Pages tile the list with no gap or overlap.
+      const tiled: string[] = []
+      for (let off = 0; off < 5; off += 2)
+        tiled.push(
+          ...(await db.listSubmissions({ limit: 2, offset: off })).rows.map(
+            (r) => r.id
+          )
+        )
+      expect(tiled).toEqual(all)
+    })
+
     // #897: the suite never set `source` at all, so nothing caught db-sqlite
     // testing it for truthiness — an empty `referrer`, which is the NORMAL value
     // for a direct visit, was stored and then dropped on read while db-memory kept
@@ -1095,6 +1164,60 @@ export function runSubmissionPortContract(
         { formId: 'apply', formLabel: 'Apply', count: 1 },
         { formId: 'contact', formLabel: 'Contact Us', count: 2 }
       ])
+    })
+  })
+}
+
+/** Defensive paging for STORAGE adapters (db-memory, db-sqlite) — #1166. The HTTP
+ *  adapter is deliberately not held to this: the API boundary rejects these values
+ *  with a 400 before any adapter sees them (apps/api/test/forms.test.ts). A storage
+ *  adapter must still never let a malformed limit/offset widen the result — on
+ *  sqlite `LIMIT -1` used to mean "every row". All storage adapters clamp through
+ *  core's `normalizeSubmissionPage`, so they agree. */
+export function runSubmissionPortPagingClampContract(
+  makeAdapter: () => Promise<SubmissionPort> | SubmissionPort
+): void {
+  describe('SubmissionPort defensive paging', () => {
+    let db: SubmissionPort
+    beforeEach(async () => {
+      db = await makeAdapter()
+      for (let i = 0; i < 4; i++)
+        await db.saveSubmission({
+          formId: 'contact',
+          fields: { email: `u${i}@x.com`, message: `m${i}` }
+        })
+    })
+    afterEach(async () => {
+      await db.close()
+    })
+
+    it('a negative or zero limit returns no rows, never every row', async () => {
+      for (const limit of [-1, -100, 0]) {
+        const r = await db.listSubmissions({ limit })
+        expect(r).toEqual({ rows: [], total: 4 })
+      }
+    })
+
+    it('a NaN limit returns no rows', async () => {
+      expect(await db.listSubmissions({ limit: Number.NaN })).toEqual({
+        rows: [],
+        total: 4
+      })
+    })
+
+    it('a negative or NaN offset is treated as 0', async () => {
+      const all = (await db.listSubmissions()).rows.map((r) => r.id)
+      for (const offset of [-1, -50, Number.NaN]) {
+        const r = await db.listSubmissions({ offset, limit: 2 })
+        expect(r.rows.map((x) => x.id)).toEqual(all.slice(0, 2))
+        expect(r.total).toBe(4)
+      }
+    })
+
+    it('fractional limit/offset are floored', async () => {
+      const all = (await db.listSubmissions()).rows.map((r) => r.id)
+      const r = await db.listSubmissions({ offset: 1.9, limit: 2.7 })
+      expect(r.rows.map((x) => x.id)).toEqual(all.slice(1, 3))
     })
   })
 }

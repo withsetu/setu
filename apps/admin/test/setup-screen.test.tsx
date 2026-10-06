@@ -110,6 +110,27 @@ describe('SetupScreen', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
+  // #1186: since better-auth 1.7.6 sign-in refuses a password over 128 characters, and /setup
+  // now does too — so the form says so before the round trip, from the shared password policy.
+  it('client-side validates password length (max 128) before submitting', async () => {
+    const fetchSpy = vi.fn(async () => new Response('{}', { status: 200 }))
+    stubFetch(fetchSpy)
+    render(<SetupScreen />)
+
+    const long = 'x'.repeat(129)
+    await fillForm({ password: long, confirm: long })
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: /create admin account|complete setup/i
+      })
+    )
+
+    expect(
+      await screen.findByText(/at most 128 characters/i)
+    ).toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
   it('client-side validates that password and confirm match before submitting', async () => {
     const fetchSpy = vi.fn(async () => new Response('{}', { status: 200 }))
     stubFetch(fetchSpy)

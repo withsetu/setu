@@ -7,6 +7,11 @@ describe('SaveIndicator', () => {
     render(<SaveIndicator status="saving" readonly={false} />)
     expect(screen.getByText('Saving…')).toBeInTheDocument()
   })
+  it('shows Saving…, not "Backed up", while a newer edit is pending (#1195)', () => {
+    render(<SaveIndicator status="pending" readonly={false} />)
+    expect(screen.getByText('Saving…')).toBeInTheDocument()
+    expect(screen.queryByText('Backed up on this device')).toBeNull()
+  })
   it('shows "Backed up on this device" when saved', () => {
     render(<SaveIndicator status="saved" readonly={false} />)
     expect(screen.getByText('Backed up on this device')).toBeInTheDocument()

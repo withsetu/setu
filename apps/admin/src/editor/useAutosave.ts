@@ -1,10 +1,13 @@
 import { useEffect, useRef } from 'react'
 import type { DraftInput } from '@setu/core'
 
-/** `error` = the last save attempt did NOT persist — it rejected (offline, 5xx, a
+/** `pending` = a change is waiting for its save (debounce scheduled, or queued behind
+ *  an in-flight save of an OLDER buffer) — the newest edit is not backed up yet, so the
+ *  indicator must not keep claiming the previous save (#1195).
+ *  `error` = the last save attempt did NOT persist — it rejected (offline, 5xx, a
  *  throwing DataPort) or was refused (`{ saved: false }`). The buffer stays dirty and
  *  the tab-close warning stays armed; the next edit schedules another attempt (#782). */
-export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
+export type SaveStatus = 'idle' | 'pending' | 'saving' | 'saved' | 'error'
 
 /** Imperative handle for quiescing autosave around a lifecycle operation that
  *  mutates the same storage autosave writes to (slug rename #755, history restore
@@ -60,10 +63,19 @@ export function useAutosave(opts: {
   // the in-flight save's finally won't spawn a follow-up.
   const paused = useRef(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // True once a change is scheduled but not yet persisted. Cleared only when the
-  // queue fully drains AND the last save actually persisted (#782) — a rejected or
-  // refused save leaves it set. Drives the unmount + beforeunload flush.
+  // Intended invariant: true while any change is not yet persisted. A save clears it
+  // only if it persisted (#782) AND no change arrived since it started (#1195) — an
+  // edit whose debounce is still scheduled when an older save resolves keeps it set.
+  // Drives the unmount + beforeunload flush. Enforced by
+  // apps/admin/test/autosave.test.ts ("an edit made during an in-flight save
+  // survives", "a failed save is reported as failed").
   const dirty = useRef(false)
+  // Bumped on every change. A save records it at start; if it moved by the time the
+  // save settles, that save wrote an older buffer and must not clear `dirty`.
+  const changeSeq = useRef(0)
+  // Last status reported, so a change can flip a stale 'saved' to 'pending' without
+  // hiding an 'error' (the work is still not backed up either way).
+  const lastStatus = useRef<SaveStatus>('idle')
   // Resolvers for settled() — drained when the in-flight save's queue goes idle.
   const settleWaiters = useRef<Array<() => void>>([])
 
@@ -94,7 +106,18 @@ export function useAutosave(opts: {
   useEffect(() => {
     if (!enabled || rev === 0) return
     if (timer.current) clearTimeout(timer.current)
+    const report = (s: SaveStatus): void => {
+      lastStatus.current = s
+      onStatusRef.current(s)
+    }
     dirty.current = true
+    changeSeq.current++
+    if (
+      !paused.current &&
+      (lastStatus.current === 'saved' || lastStatus.current === 'idle')
+    ) {
+      report('pending')
+    }
 
     const run = async (): Promise<void> => {
       // Paused for a lifecycle op: neither start a save nor queue one — the op
@@ -105,7 +128,8 @@ export function useAutosave(opts: {
         return
       }
       inFlight.current = true
-      onStatusRef.current('saving')
+      const startSeq = changeSeq.current
+      report('saving')
       // Did this attempt actually persist? Only a resolved call that did NOT
       // report `{ saved: false }` counts (#782). A rejection and a refusal are
       // the same thing to the author: their work is still only in the buffer.
@@ -137,12 +161,20 @@ export function useAutosave(opts: {
           // save, and neither is a rejection or a refusal (#782). On failure the
           // buffer stays dirty, so the unmount/tab-close flush and the browser's
           // unsaved-work prompt (#770) both stay armed.
+          //
+          // A change that arrived during this save but whose debounce has not fired
+          // yet is not queued in `pending` — it is still scheduled. This save wrote
+          // the OLDER buffer, so it must not clear `dirty` or claim 'saved' (#1195):
+          // the scheduled timer, the unmount flush and the tab-close warning stay
+          // armed for the newer edit.
           if (!paused.current) {
-            if (persisted) {
+            if (!persisted) {
+              report('error')
+            } else if (changeSeq.current === startSeq) {
               dirty.current = false
-              onStatusRef.current('saved')
+              report('saved')
             } else {
-              onStatusRef.current('error')
+              report('pending')
             }
           }
           // Wake anyone awaiting quiescence (settled()).

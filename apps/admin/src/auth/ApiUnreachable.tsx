@@ -16,19 +16,27 @@ import {
  *  usually over in seconds), then settling at 30 s so a long outage doesn't hammer the API. */
 export const AUTO_RETRY_DELAYS_MS = [2000, 4000, 8000, 15000, 30000] as const
 
-/** Full-screen state for when `/api/capabilities` could not be read (#1165). Distinct from
+/** Full-screen state for when the admin could not reach the API: SessionGate shows it for a failed
+ *  `/api/capabilities` read (#1165), and Bootstrap for a failed startup read (#1181), so one outage
+ *  looks the same — and recovers on its own — whichever request hit it first. Distinct from
  *  AuthNotConfigured on purpose: a failed read says nothing about how the server is configured, so
  *  telling the visitor to set SETU_AUTH_SECRET would send them to fix the wrong thing. Same card
  *  layout as AuthNotConfigured; offers Retry and also retries itself with backoff. Exercised by
- *  apps/admin/test/session-gate.test.tsx ("API unreachable" cases). */
+ *  apps/admin/test/session-gate.test.tsx ("API unreachable" cases) and
+ *  apps/admin/test/bootstrap-api-unreachable.test.tsx. */
 export function ApiUnreachable({
   error,
-  onRetry
+  onRetry,
+  description = 'The admin needs the API to sign you in.'
 }: {
   error: CapabilitiesError
-  /** Re-reads capabilities. Must not reject — useCapabilities' refetch records every failure in
-   *  its `error` (apps/admin/test/use-capabilities.test.tsx), which re-renders this screen. */
+  /** Re-runs the failed read. Must not reject, and must hand this screen a FRESH `error` object
+   *  when it fails again — that is what schedules the next automatic attempt. useCapabilities'
+   *  refetch (apps/admin/test/use-capabilities.test.tsx) and Bootstrap's retry
+   *  (apps/admin/test/bootstrap-api-unreachable.test.tsx) both do. */
   onRetry: () => Promise<void>
+  /** What the admin needed the API for — the line under the title. */
+  description?: string
 }) {
   const [retrying, setRetrying] = useState(false)
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null)
@@ -70,9 +78,7 @@ export function ApiUnreachable({
       <Card className="w-full max-w-md" role="alert">
         <CardHeader className="text-center">
           <CardTitle>Can&apos;t reach the Setu API</CardTitle>
-          <CardDescription>
-            The admin needs the API to sign you in.
-          </CardDescription>
+          <CardDescription>{description}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 text-center text-sm text-muted-foreground">
           <p>{describeCapabilitiesError(error)}</p>

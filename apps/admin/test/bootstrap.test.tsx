@@ -64,7 +64,8 @@ vi.mock('@setu/db-idb', () => ({
 // `setServices` never runs (app stuck on "Loading…", no toast). That network round-trip is NOT the
 // behavior these tests exercise (IDB resilience + toast ordering), so we stub the HTTP GitPort the
 // same way the IDB ports above are stubbed — headSha resolves empty so seeding proceeds in-memory.
-vi.mock('@setu/git-http', () => ({
+vi.mock('@setu/git-http', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@setu/git-http')>()),
   createHttpGitPort: vi.fn(() => ({
     headSha: vi.fn().mockResolvedValue(null),
     readFile: vi.fn().mockResolvedValue(null),
@@ -182,8 +183,10 @@ describe('Bootstrap — IndexedDB resilience (server-backed / apiBase branch)', 
       </Bootstrap>
     )
 
-    const retry = await screen.findByRole('button', { name: /try again/i })
-    expect(retry).toBeInTheDocument()
+    // #1181: an unreadable API is reported as exactly that (the shared can't-reach card), not as
+    // a generic startup failure. apps/admin/test/bootstrap-api-unreachable.test.tsx covers it.
+    const retry = await screen.findByRole('button', { name: /^retry$/i })
+    expect(screen.getByText(/can.t reach the setu api/i)).toBeInTheDocument()
     // The app never rendered — this is a hard failure, not a degraded success.
     expect(screen.queryByText('App rendered')).not.toBeInTheDocument()
 

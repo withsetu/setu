@@ -39,8 +39,8 @@ export const PROVISIONING = {
   serverSetup: { method: 'email-password' },
 
   /** The admin plugin's own `POST /admin/create-user` (Setu's admin-invite flow). better-auth
-   *  passes `{ method: 'admin' }` there itself — verified in the installed 1.7.3,
-   *  `dist/plugins/admin/routes.mjs`. It is named here so the test fixtures that stand in for an
+   *  passes `{ method: 'admin' }` there itself — verified in the installed 1.7.7,
+   *  `dist/plugins/admin/routes.mjs:201`. It is named here so the test fixtures that stand in for an
    *  invited user declare the SAME thing the real route declares, instead of a literal that could
    *  drift away from it unnoticed. Production code never passes this one: the plugin does. */
   adminInvite: { method: 'admin' },

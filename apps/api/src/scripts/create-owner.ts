@@ -81,6 +81,14 @@ export async function createOwner(
   if (password.length < min) {
     throw new Error(`password too short — must be at least ${min} characters`)
   }
+  // #1186: and the same MAXIMUM. Since better-auth 1.7.6 `/sign-in/email` rejects a password
+  // longer than `maxPasswordLength` (default 128) before verifying it, so writing one here would
+  // leave an account that can never sign in (apps/api/test/create-owner.test.ts and
+  // apps/api/test/reset-password.test.ts, "…over maxPasswordLength…").
+  const max = ctx.password.config.maxPasswordLength
+  if (password.length > max) {
+    throw new Error(`password too long — must be at most ${max} characters`)
+  }
   if (await ctx.internalAdapter.findUserByEmail(email)) {
     throw new Error(
       `a user with email ${email} already exists in ${dbFile} — this command only ` +

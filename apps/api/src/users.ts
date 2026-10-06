@@ -25,8 +25,9 @@ export interface UsersApiOptions {
   resolveActor: ResolveActor
   /** #500 review: sends a password-reset email to the given address, via better-auth's
    *  SERVER-SIDE call (server.ts passes `auth.api.requestPasswordReset`). Server-side because the
-   *  captcha plugin protects the public HTTP `/request-password-reset` by default (1.6.24
-   *  dist/plugins/captcha/constants.mjs) via an `onRequest` hook — HTTP-only, so this internal
+   *  captcha plugin protects the public HTTP `/request-password-reset` by default (1.7.7
+   *  dist/plugins/captcha/constants.mjs:9-13 `defaultEndpoints`) via an `onRequest` hook
+   *  (captcha/index.mjs:23) — HTTP-only, so this internal
    *  call is exempt while the unauthenticated endpoint stays protected; an already-authenticated,
    *  authz-gated admin action should not solve bot challenges. Omitted when reset isn't wired
    *  (no from-address / no admin origin — the same `email:` ternary server.ts feeds createAuth),

@@ -114,6 +114,14 @@ describe('createAuth', () => {
     expect(signin.headers.get('set-cookie')).toMatch(/better-auth/)
   })
 
+  // #1186: apps/admin/src/lib/password-policy.ts's MAX_PASSWORD_LENGTH mirrors this value as a
+  // client-side check. If createAuth ever sets `maxPasswordLength`, or better-auth changes its
+  // default, this fails, and the mirror (and its test) has to move with it.
+  it("uses better-auth's default maxPasswordLength of 128 (mirrored by the admin password field)", async () => {
+    const ctx = await makeAuth().createAuth().$context
+    expect(ctx.password.config.maxPasswordLength).toBe(128)
+  })
+
   it('rejects a wrong password', async () => {
     const { createAuth: makeAuthInstance } = makeAuth()
     const auth = makeAuthInstance()

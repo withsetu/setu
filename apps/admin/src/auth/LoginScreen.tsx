@@ -24,8 +24,8 @@ const SOCIAL_LABEL: Record<'github' | 'google', string> = {
 /** Maps a Better Auth / better-fetch sign-in error to user-facing copy.
  *
  *  #248 Task 7 correction: this used to special-case a `CREDENTIAL_ACCOUNT_NOT_FOUND` code as the
- *  "passwordless owner" signal. Verified against better-auth 1.6.23 source
- *  (node_modules/better-auth/dist/api/routes/sign-in.mjs) that `/sign-in/email` does NOT
+ *  "passwordless owner" signal. Verified against better-auth 1.7.7 source
+ *  (node_modules/better-auth/dist/api/routes/sign-in.mjs, lines 320-337) that `/sign-in/email` does NOT
  *  distinguish "no credential account exists" from "wrong password" — both throw the identical
  *  `UNAUTHORIZED` / `INVALID_EMAIL_OR_PASSWORD`, deliberately (each branch calls
  *  `ctx.context.password.hash(password)` before throwing, purely to equalize timing across the
@@ -41,7 +41,15 @@ const SOCIAL_LABEL: Record<'github' | 'google', string> = {
 function mapSignInError(error: AuthClientError): string {
   if (error.status === 429)
     return 'Too many attempts — wait a moment and try again.'
-  if (error.status === 401 || error.code === 'INVALID_EMAIL_OR_PASSWORD') {
+  // #1186: since better-auth 1.7.6 an over-long password is refused with 400 PASSWORD_TOO_LONG
+  // (sign-in.mjs line 317) BEFORE the user lookup, so it reveals nothing about the account — and
+  // no account can hold such a password, so it is reported as the wrong password it is
+  // (apps/admin/test/login-screen.test.tsx "maps PASSWORD_TOO_LONG…").
+  if (
+    error.status === 401 ||
+    error.code === 'INVALID_EMAIL_OR_PASSWORD' ||
+    error.code === 'PASSWORD_TOO_LONG'
+  ) {
     return 'Email or password is incorrect.'
   }
   return 'Something went wrong signing in — please try again.'
@@ -52,9 +60,9 @@ const forgotSchema = z.object({
 })
 
 /** Maps a `requestPasswordReset` failure to visible copy (#500). Enumeration safety lives on the
- *  SERVER: better-auth 1.6.24's `/request-password-reset` answers the identical `{ status: true }`
- *  whether or not the account exists (verified in the installed package's
- *  dist/api/routes/password.mjs — the unknown-email branch even simulates the token work to
+ *  SERVER: better-auth's `/request-password-reset` answers the identical `{ status: true }`
+ *  whether or not the account exists (verified in the installed 1.7.7's
+ *  dist/api/routes/password.mjs lines 59-71 — the unknown-email branch even simulates the token work to
  *  equalize timing). So any `error` reaching this mapper is a REAL failure — transport, rate
  *  limit, or server misconfiguration — and must be reported as one, never disguised as the
  *  uniform "we've sent a link" success copy (CLAUDE.md §3.2 silent-async rule; exercised by
@@ -98,9 +106,9 @@ function Wordmark() {
  *  the one thing that MUST break that uniformity: see mapResetRequestError's comment.
  *
  *  Captcha (#500 review Finding 1): better-auth's captcha plugin protects
- *  `/request-password-reset` BY DEFAULT (verified in installed 1.6.24:
- *  dist/plugins/captcha/constants.mjs `defaultEndpoints`; a missing `x-captcha-response` header
- *  400s before the route runs), so on a captcha-configured deployment this form mounts its own
+ *  `/request-password-reset` BY DEFAULT (verified in installed 1.7.7:
+ *  dist/plugins/captcha/constants.mjs:9-13 `defaultEndpoints`; a missing `x-captcha-response`
+ *  header 400s before the route runs, captcha/index.mjs:37-41), so on a captcha-configured deployment this form mounts its own
  *  widget and threads the token exactly like the sign-in form — otherwise every submit would
  *  dead-end. Exercised by apps/admin/test/login-screen.test.tsx ("captcha configured: forgot
  *  submit stays disabled…"). */

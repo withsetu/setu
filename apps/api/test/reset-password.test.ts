@@ -138,6 +138,25 @@ describe('resetPassword', () => {
     expect(accounts.some((a) => a.providerId === 'credential')).toBe(false)
   })
 
+  // #1186: better-auth 1.7.6+ rejects an over-long password at sign-in before verifying it, so
+  // a reset to one would lock the account out. Refuse it before any write.
+  it('password over maxPasswordLength → rejected before any write', async () => {
+    const { dbFile, auth } = makeDb()
+    const user = await makeUser(auth, { email: 'owner@test.com' })
+
+    await expect(
+      resetPassword({
+        dbFile,
+        email: 'owner@test.com',
+        password: 'x'.repeat(129)
+      })
+    ).rejects.toThrow(/at most 128/)
+
+    const ctx = await auth.$context
+    const accounts = await ctx.internalAdapter.findAccounts(user.id)
+    expect(accounts.some((a) => a.providerId === 'credential')).toBe(false)
+  })
+
   it('missing DB file → clear error, and the file is NOT created as a side effect', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'reset-password-nodb-'))
     cleanups.push(() => rmSync(dir, { recursive: true, force: true }))

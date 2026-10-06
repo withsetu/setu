@@ -42,16 +42,20 @@ export function authCaptchaFromEnv(
  *  BOTH flags are set, but — #645 — they do NOT both hold everywhere, and the original version of
  *  this comment was wrong to claim `disableSignUp` "holds unconditionally". The two better-auth
  *  routes that consume these flags read DIFFERENT PROPERTIES (verified in the installed
- *  better-auth 1.6.23, read not assumed):
- *    - `dist/context/create-context.mjs:102-103` hoists ONLY `disableImplicitSignUp` onto the
- *      constructed provider; `disableSignUp` survives solely under `provider.options`.
- *    - `dist/api/routes/callback.mjs:150`
+ *  better-auth 1.6.23, read not assumed; unchanged through 1.7.6):
+ *    - `dist/context/create-context.mjs` (1.7.7: lines 103-104) hoists ONLY
+ *      `disableImplicitSignUp` onto the constructed provider; `disableSignUp` survives solely
+ *      under `provider.options`.
+ *    - `dist/api/routes/callback.mjs` (1.7.7: line 181)
  *        provider.disableImplicitSignUp && !requestSignUp || provider.options?.disableSignUp
  *      → reads our value. CLOSED.
- *    - `dist/api/routes/sign-in.mjs:115`
+ *    - `dist/api/routes/sign-in.mjs`, ID-token branch, through 1.7.6
  *        provider.disableImplicitSignUp && !c.body.requestSignUp || provider.disableSignUp
- *      → reads the TOP-LEVEL property, which is `undefined`. `requestSignUp` is caller-supplied
- *      (`sign-in.mjs:35`), so `requestSignUp: true` made this falsy and PERMITTED sign-up.
+ *      → read the TOP-LEVEL property, which is `undefined`. `requestSignUp` is caller-supplied
+ *      (1.7.7 `sign-in.mjs:102`), so `requestSignUp: true` made this falsy and PERMITTED sign-up.
+ *      better-auth 1.7.7 (better-auth/better-auth#11491) added
+ *      `|| provider.options?.disableSignUp` (`sign-in.mjs:197`), so both routes now read our
+ *      value.
  *
  *  These flags are therefore defence in depth, NOT the wall. The wall is
  *  `packages/auth/src/signup-origin-guard.ts`: a `user.create.before` databaseHook that allowlists

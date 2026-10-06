@@ -11,30 +11,41 @@ import type { GenericEndpointContext } from '@better-auth/core'
  *  routes which consume those flags read DIFFERENT PROPERTIES, and only one of them ever sees
  *  `disableSignUp`.
  *
- *  Verified in the INSTALLED better-auth 1.6.23 (read, not assumed):
- *   - `dist/context/create-context.mjs:102-103` builds each provider as
+ *  Verified in the INSTALLED better-auth 1.6.23 (read, not assumed) — and unchanged through 1.7.6:
+ *   - `dist/context/create-context.mjs` (1.7.7: lines 103-104) builds each provider as
  *     `socialProviders[key](config)` and then hoists exactly ONE field:
  *     `provider.disableImplicitSignUp = config.disableImplicitSignUp`. `disableSignUp` is never
  *     hoisted, and no provider factory sets it — `@better-auth/core/dist/social-providers/
  *     google.mjs` returns `{ id, name, …, options }` with no spread of `options`, so the
  *     configured value survives only under `provider.options`.
- *   - `dist/api/routes/callback.mjs:150` reads `provider.options?.disableSignUp` → `true`. Closed.
- *   - `dist/api/routes/sign-in.mjs:115` reads `provider.disableSignUp` — TOP LEVEL, `undefined`:
+ *   - `dist/api/routes/callback.mjs` (1.7.7: line 181) reads `provider.options?.disableSignUp`
+ *     → `true`. Closed.
+ *   - `dist/api/routes/sign-in.mjs`, the ID-token branch of `/sign-in/social`, read
+ *     `provider.disableSignUp` — TOP LEVEL, `undefined`:
  *       `provider.disableImplicitSignUp && !c.body.requestSignUp || provider.disableSignUp`
  *     `requestSignUp` is a caller-supplied field of the `/sign-in/social` body schema
- *     (`sign-in.mjs:35`), so an attacker sending `requestSignUp: true` reduces this to
+ *     (1.7.7: `sign-in.mjs:102`), so an attacker sending `requestSignUp: true` reduced this to
  *     `true && false || undefined` → falsy → **sign-up permitted**, creating a user at the schema
  *     default role `author` (`packages/db-sqlite/src/schema.ts`). Reachable whenever Google is
- *     configured (`sign-in.mjs:76-79` requires `verifyIdToken`, which only Google supplies), with
- *     a Google ID token whose `aud` is the deployment's PUBLIC client id.
+ *     configured (the ID-token branch 404s for a provider without ID-token support, 1.7.7
+ *     `sign-in.mjs:155-159`), with a Google ID token whose `aud` is the deployment's PUBLIC
+ *     client id.
  *
- *  ## Why the fix is not "also set the flag at the provider top level"
+ *  better-auth 1.7.7 fixed that expression upstream (better-auth/better-auth#11491):
+ *  `sign-in.mjs:197` now also reads `provider.options?.disableSignUp`. That closes the bypass
+ *  inside better-auth, and it does not retire this guard — the reasoning below is about not
+ *  depending on that plumbing at all. Since 1.7.7 better-auth's flag stops this attack first, so
+ *  the tests that drive it with the flags set no longer exercise this guard;
+ *  `packages/auth/test/oauth-signup-guard.test.ts`'s "origin guard alone" block drops the flags
+ *  so that it does (it fails with this guard neutered).
+ *
+ *  ## Why the fix was not "also set the flag at the provider top level"
  *
  *  Because the `socialProviders` config surface cannot reach that property. better-auth constructs
  *  the provider object itself and copies across exactly one field (above), so no key we can put in
  *  `authSocialProvidersFromEnv`'s output lands on `provider.disableSignUp`. Setting it in the
- *  config is already done and already closes the callback route; there is no configuration-only
- *  fix for the sign-in route in 1.6.23.
+ *  config was already done and already closed the callback route; there was no configuration-only
+ *  fix for the sign-in route before 1.7.7.
  *
  *  ## What this guard does instead — an ALLOWLIST at the chokepoint, not a patch on the bypass
  *

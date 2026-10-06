@@ -6,7 +6,7 @@ import {
 
 /** #364 review fix: better-auth's `/reset-password/:token` callback route treats an EMPTY
  *  `callbackURL` query param as invalid — `if (!token || !callbackURL) throw ctx.redirect(
- *  redirectError(ctx.context, callbackURL, { error: "INVALID_TOKEN" }))` (1.7.3
+ *  redirectError(ctx.context, callbackURL, { error: "INVALID_TOKEN" }))` (1.7.7
  *  dist/api/routes/password.mjs line 124) — and its request route builds the emailed link with
  *  `callbackURL=${redirectTo ? encodeURIComponent(redirectTo) : ''}` (lines 80-81), i.e.
  *  literally empty when the `/request-password-reset` caller omitted `redirectTo`. So an emailed
@@ -25,7 +25,7 @@ export function withDefaultResetCallback(
     parsed = new URL(url)
   } catch {
     // Not parseable as an absolute URL — leave whatever better-auth built untouched rather than
-    // guess (unreachable with 1.7.3's construction, which always starts from ctx.context.baseURL).
+    // guess (unreachable with 1.7.7's construction, which always starts from ctx.context.baseURL).
     return url
   }
   if (parsed.searchParams.get('callbackURL')) return url

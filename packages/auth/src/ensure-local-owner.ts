@@ -13,7 +13,7 @@ export interface LocalOwnerIdentity {
  *
  *  Uses `auth.$context` — Better Auth's own awaitable internal context object (the same one every
  *  endpoint receives as `ctx.context`; returned directly on the `auth` instance as a public
- *  property, see node_modules/better-auth/dist/auth/base.mjs's `createBetterAuth`) — to reach
+ *  property, see node_modules/better-auth/dist/auth/base.mjs's `createBetterAuth`, 1.7.7 line 58) — to reach
  *  `internalAdapter.createUser` / `internalAdapter.findUserByEmail` directly, rather than going
  *  through `auth.api.createUser` (the admin plugin's HTTP endpoint). Two reasons:
  *
@@ -25,7 +25,7 @@ export interface LocalOwnerIdentity {
  *      the same gap Task 4 sidestepped for `localToken`'s endpoint by calling `auth.handler` with
  *      a raw Request instead of `auth.api.localExchange`.
  *   2. Directness: `internalAdapter.createUser` IS the exact primitive the admin plugin's
- *      `createUser` route itself calls (node_modules/better-auth/dist/plugins/admin/routes.mjs:
+ *      `createUser` route itself calls (node_modules/better-auth/dist/plugins/admin/routes.mjs, 1.7.7 lines 196-211:
  *      `ctx.context.internalAdapter.createUser({ ...userData, email, name, role })`, and — only
  *      `if (ctx.body.password)` — a separate `internalAdapter.linkAccount({ providerId:
  *      'credential', ... })` call). Calling `internalAdapter.createUser` with no follow-up

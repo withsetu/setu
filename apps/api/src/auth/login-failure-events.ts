@@ -3,7 +3,8 @@ import type { AuthEvent } from '@setu/auth'
 
 /** #248 Task 9: `login.failure` audit event — the ONE event type that cannot be observed through
  *  any better-auth `databaseHooks` chokepoint. Verified against installed better-auth 1.6.23
- *  source (dist/api/routes/sign-in.mjs): every failure path (user not found, no credential
+ *  source and re-verified on 1.7.7 (dist/api/routes/sign-in.mjs lines 316-356): every failure
+ *  path (password over `maxPasswordLength` — new in 1.7.6 —, user not found, no credential
  *  account, wrong password, unverified email, session-creation failure) `throw`s an `APIError`
  *  directly from the route handler BEFORE `internalAdapter.createSession` is ever called — so
  *  `databaseHooks.session.create.after` (the hook `login.success` uses, see

@@ -65,7 +65,7 @@ export interface CreateAuthOptions {
    *  (who never holds the `set-password` statement — see `setuAdminRoles` in index.ts) can trigger
    *  this reset EMAIL for a below-rank user but can never set a password directly. Omitted
    *  entirely -> behavior is unchanged from before this task (reset stays disabled). See index.ts's
-   *  `createAuth` for the full better-auth 1.7.3 source citation for the callback signature and
+   *  `createAuth` for the full better-auth 1.7.7 source citation for the callback signature and
    *  the disabled-gate behavior.
    *
    *  @setu/auth stays runtime-agnostic and never imports a Node-only email package itself: the
@@ -75,7 +75,7 @@ export interface CreateAuthOptions {
     /** Default landing page for the emailed reset link when the `/request-password-reset` caller
      *  omitted `redirectTo`. Required, not optional: better-auth's `/reset-password/:token`
      *  handler treats an EMPTY `callbackURL` query param as invalid and 302s to
-     *  `${apiBase}/error?error=INVALID_TOKEN` (1.7.3 dist/api/routes/password.mjs line 124:
+     *  `${apiBase}/error?error=INVALID_TOKEN` (1.7.7 dist/api/routes/password.mjs line 124:
      *  `if (!token || !callbackURL) throw ctx.redirect(redirectError(...))`), so an emailed link
      *  without a callback is a guaranteed dead end — the send path must be incapable of emitting
      *  one. `createAuth` can't derive this itself (`trustedOrigins` is an unordered allowlist with

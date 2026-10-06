@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { apiFetch } from '../lib/api-fetch'
+import { passwordField } from '../lib/password-policy'
 import { authClient } from './auth-client'
 
 const apiBase = import.meta.env.VITE_SETU_API ?? ''
@@ -21,7 +22,7 @@ const setupSchema = z
   .object({
     name: z.string().min(1, 'Name is required'),
     email: z.string().email('Enter a valid email'),
-    password: z.string().min(12, 'Password must be at least 12 characters'),
+    password: passwordField,
     confirm: z.string(),
     token: z.string().min(1, 'Setup token is required')
   })

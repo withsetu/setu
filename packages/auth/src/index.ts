@@ -63,7 +63,7 @@ export {
 // user/session statements.
 //
 // #364: `maintainer` is now widened beyond an empty placeholder. Verified against installed
-// better-auth 1.6.23 source (`dist/plugins/admin/has-permission.mjs` + `dist/plugins/admin/
+// better-auth 1.6.23 source and re-verified on 1.7.7 (`dist/plugins/admin/has-permission.mjs` + `dist/plugins/admin/
 // routes.mjs`, see rank-guard.ts's file doc for the full citation): a role's `roles` statements —
 // NOT the `adminRoles` list — are what better-auth's own `hasPermission` checks to authorize
 // `/admin/create-user`, `/admin/set-role`, `/admin/ban-user`, and `/admin/unban-user`. Granting
@@ -154,7 +154,7 @@ export function createAuth(opts: CreateAuthOptions) {
   // disabled" behavior byte-for-byte whenever the option is absent (tests, and any topology
   // without a real email transport wired up).
   //
-  // Re-verified against the installed better-auth 1.7.3 source (#1164)
+  // Re-verified against the installed better-auth 1.7.3 source (#1164), and again on 1.7.7 (#1186)
   // (node_modules/better-auth/dist/api/routes/password.mjs):
   //  - line 51: `if (!ctx.context.options.emailAndPassword?.sendResetPassword) { ... throw
   //    APIError.from('BAD_REQUEST', { ..., code: 'RESET_PASSWORD_DISABLED' }) }` — confirms the

@@ -99,6 +99,23 @@ describe('createOwner', () => {
     )
   })
 
+  // #1186: better-auth 1.7.6+ rejects an over-long password at sign-in before verifying it, so
+  // an owner created with one could never sign in. Refuse it here, before anything is written.
+  it('rejects a password over maxPasswordLength before creating anything', async () => {
+    const { dbFile, auth } = makeDb()
+    await expect(
+      createOwner({
+        dbFile,
+        email: 'owner@test.com',
+        password: 'x'.repeat(129)
+      })
+    ).rejects.toThrow(/at most 128/)
+    const ctx = await auth.$context
+    expect(await ctx.internalAdapter.findUserByEmail('owner@test.com')).toBe(
+      null
+    )
+  })
+
   // openSqliteDb would happily create-and-migrate an empty DB at a mistyped path, and reporting
   // "owner created" against a fresh file nobody serves is the worst failure mode.
   it('refuses a missing DB file instead of creating one', async () => {

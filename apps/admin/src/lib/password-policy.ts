@@ -7,7 +7,14 @@ import * as z from 'zod'
  *  can't drift out of sync across them. */
 export const MIN_PASSWORD_LENGTH = 12
 
-/** A single Zod field for "a new password" — `.min(MIN_PASSWORD_LENGTH, ...)`. Compose into a
+/** The UX-layer mirror of better-auth's `password.config.maxPasswordLength` (its default, 128 —
+ *  Setu does not override it). Since better-auth 1.7.6 every route that takes a password,
+ *  sign-in included, rejects a longer one with PASSWORD_TOO_LONG, so the form says so first
+ *  (#1186; apps/admin/test/lib/password-policy.test.ts). The server stays authoritative. */
+export const MAX_PASSWORD_LENGTH = 128
+
+/** A single Zod field for "a new password" — `.min(MIN_PASSWORD_LENGTH, ...)` and
+ *  `.max(MAX_PASSWORD_LENGTH, ...)`. Compose into a
  *  larger schema (invite/owner-password/reset-password each add their own confirm/role/etc.
  *  fields around it). */
 export const passwordField = z
@@ -15,4 +22,8 @@ export const passwordField = z
   .min(
     MIN_PASSWORD_LENGTH,
     `Password must be at least ${MIN_PASSWORD_LENGTH} characters`
+  )
+  .max(
+    MAX_PASSWORD_LENGTH,
+    `Password must be at most ${MAX_PASSWORD_LENGTH} characters`
   )

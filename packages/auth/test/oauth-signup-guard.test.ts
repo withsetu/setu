@@ -12,39 +12,45 @@ import { createAuth } from '../src'
 // why this stayed open for a year — the flags were set, and one of the two routes that reads them
 // never saw `disableSignUp` at all.
 //
-// Verified in the INSTALLED better-auth 1.6.23 (file:line, read — not assumed):
-//   - dist/context/create-context.mjs:102-103
+// What the INSTALLED better-auth did, file:line, read — not assumed. In 1.6.23 through 1.7.6:
+//   - dist/context/create-context.mjs (1.7.7: lines 103-104)
 //         const provider = socialProviders[key](config);
 //         provider.disableImplicitSignUp = config.disableImplicitSignUp;
 //     ONLY `disableImplicitSignUp` is hoisted to the provider's top level. `disableSignUp` is
 //     never hoisted, and no provider factory sets it — @better-auth/core/dist/social-providers/
 //     google.mjs returns `{ id, name, ..., options }` with NO spread of `options`, so the config
 //     survives only under `provider.options`.
-//   - dist/api/routes/callback.mjs:150
+//   - dist/api/routes/callback.mjs (1.7.7: line 181)
 //         disableSignUp: provider.disableImplicitSignUp && !requestSignUp || provider.options?.disableSignUp
 //     reads `provider.options?.disableSignUp` -> true. CLOSED.
-//   - dist/api/routes/sign-in.mjs:115
+//   - dist/api/routes/sign-in.mjs (the ID-token branch of /sign-in/social)
 //         disableSignUp: provider.disableImplicitSignUp && !c.body.requestSignUp || provider.disableSignUp
-//     reads `provider.disableSignUp` at the TOP LEVEL -> undefined. With an attacker-supplied
-//     `requestSignUp: true` (a field of the /sign-in/social body schema, sign-in.mjs:35) this is
-//     `true && !true || undefined` -> falsy -> SIGN-UP PERMITTED, creating a user at the schema
-//     default role `author` (packages/db-sqlite/src/schema.ts).
+//     read `provider.disableSignUp` at the TOP LEVEL -> undefined. With an attacker-supplied
+//     `requestSignUp: true` (a field of the /sign-in/social body schema; 1.7.7 sign-in.mjs:102)
+//     this was `true && !true || undefined` -> falsy -> SIGN-UP PERMITTED, creating a user at the
+//     schema default role `author` (packages/db-sqlite/src/schema.ts).
 //
-// Reachable whenever Google is configured: sign-in.mjs:76-79 requires `provider.verifyIdToken`,
-// which only the Google provider supplies, so a GitHub-only deployment is unaffected. The
-// attacker needs a Google ID token whose `aud` is the deployment's PUBLIC client id.
+// better-auth 1.7.7 (better-auth/better-auth#11491, "ID-token sign-in ignoring the social
+// provider's disableSignUp") fixed that expression: sign-in.mjs:197 now also reads
+// `provider.options?.disableSignUp`. The upstream hole is closed; the origin guard stays, because
+// it does not depend on that plumbing.
+//
+// Reachable only where the provider supports ID-token sign-in (sign-in.mjs:155-159 404s
+// otherwise), which of Setu's providers is only Google, so a GitHub-only deployment was never
+// affected. The attacker needs a Google ID token whose `aud` is the deployment's PUBLIC client id.
 //
 // So these tests assert OBSERVABLE BEHAVIOUR — did a user row appear — through a real HTTP
 // request to the real better-auth handler, never the shape of the options object.
 //
-// WHICH guard these tests actually hold, measured on better-auth 1.7.3 (#1080) rather than
-// assumed, because two of them cover this path:
+// WHICH guard these tests actually hold, measured on better-auth 1.7.7 (#1186) rather than
+// assumed, because two walls cover this path:
 //   - neuter `signupOriginGuardCreateHook` in ../src/index.ts, leave `disableSignUp` alone
-//       -> 2 of these 4 tests FAIL. The origin guard is the load-bearing one.
-//   - remove `disableSignUp: true` below, leave the origin guard alone
-//       -> all 4 still pass. On this path `disableSignUp` is now defence in depth, not the line.
-// Both are kept. But do not read a green run here as evidence that `disableSignUp` is wired
-// correctly — it is not what fails when it is wrong.
+//       -> the first describe's 3 tests all still PASS (since 1.7.7 better-auth's own flag stops
+//          the sign-up first) and the "origin guard alone" describe's 2 tests FAIL. That second
+//          block is what holds the origin guard; it was added for exactly this reason.
+// Do not read a green run of the first block as evidence for the origin guard, or of either
+// block as evidence that `disableSignUp` is wired in production — `apps/api/test/
+// auth-social-signup.test.ts` pins that the env builder sets it.
 
 const GOOGLE_CLIENT_ID = 'setu-test-client-id.apps.googleusercontent.com'
 /** The raw Google ID-token claims the attacker legitimately holds. better-auth 1.7 types this
@@ -72,7 +78,10 @@ const ATTACKER: GoogleProfile = {
  *  test is what better-auth does AFTER a token verifies, not the verification itself. */
 const ATTACKER_ID_TOKEN = 'attacker-google-id-token'
 
-function makeAuth() {
+/** `signUpFlags: false` drops BOTH of better-auth's own sign-up flags, so the origin guard is the
+ *  only thing left between the attacker and a user row — the configuration a future better-auth
+ *  regression in that flag plumbing (or a new route that ignores it) would leave us with. */
+function makeAuth({ signUpFlags = true }: { signUpFlags?: boolean } = {}) {
   const db = drizzle(new Database(':memory:'))
   migrate(db, { migrationsFolder: '../db-sqlite/drizzle' })
   const auth = createAuth({
@@ -84,12 +93,12 @@ function makeAuth() {
       google: {
         clientId: GOOGLE_CLIENT_ID,
         clientSecret: 'setu-test-client-secret',
-        disableSignUp: true,
-        disableImplicitSignUp: true,
+        disableSignUp: signUpFlags,
+        disableImplicitSignUp: signUpFlags,
         // Stubs the network: @better-auth/core/dist/social-providers/google.mjs honours
-        // `options.verifyIdToken` (line 95) and `options.getUserInfo` (line 106) ahead of its own
-        // JWKS fetch, so the test never leaves the process while still driving the REAL
-        // /sign-in/social handler and the REAL sign-up decision at sign-in.mjs:115.
+        // `options.verifyIdToken` (line 95) and `options.getUserInfo` ahead of its own JWKS fetch,
+        // so the test never leaves the process while still driving the REAL /sign-in/social
+        // handler and the REAL sign-up decision (1.7.7 sign-in.mjs:197).
         verifyIdToken: async () => true,
         // better-auth 1.7 made `id` a `never` on the mapped user (`OAuth2UserInfo`, core's
         // src/oauth2/oauth-provider.ts: "Provider identity belongs in raw profile data and
@@ -174,7 +183,37 @@ describe('OAuth cannot self-register via /sign-in/social (#645)', () => {
       ).toBe(0)
     }
   })
+})
 
+// The block that actually holds signup-origin-guard.ts (see the kill-shot note in the header):
+// with better-auth's own flags off, better-auth WOULD create the user, so only the
+// `user.create.before` allowlist can stop it.
+describe('origin guard alone refuses OAuth self-registration (#645, re-measured on 1.7.7)', () => {
+  it('refuses requestSignUp: true with no better-auth sign-up flags set', async () => {
+    const { db, auth } = makeAuth({ signUpFlags: false })
+    const res = await signInSocial(auth, {
+      provider: 'google',
+      idToken: { token: ATTACKER_ID_TOKEN },
+      requestSignUp: true,
+      callbackURL: 'http://localhost:5173/'
+    })
+    expect(countUsers(db), 'user rows after the attack').toBe(0)
+    expect(res.ok, `status ${res.status}`).toBe(false)
+  })
+
+  it('refuses implicit sign-up with no better-auth sign-up flags set', async () => {
+    const { db, auth } = makeAuth({ signUpFlags: false })
+    const res = await signInSocial(auth, {
+      provider: 'google',
+      idToken: { token: ATTACKER_ID_TOKEN },
+      callbackURL: 'http://localhost:5173/'
+    })
+    expect(countUsers(db), 'user rows after implicit sign-up').toBe(0)
+    expect(res.ok, `status ${res.status}`).toBe(false)
+  })
+})
+
+describe('legitimate creation paths stay open under the origin guard (#645)', () => {
   // The guard must close OAuth SIGN-UP without closing the legitimate creation paths. Setu is
   // invite-only: every real user is created by first-run setup, `ensureLocalOwner`, or an
   // admin/maintainer through the admin plugin — never by an OAuth route.

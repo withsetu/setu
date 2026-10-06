@@ -30,9 +30,10 @@ export interface UserWithAdminFields {
  *  documented) means EVERY consumer — our own routes, a future public API, or a raw curl by any
  *  admin session — is covered, not just this client.
  *
- *  ## Mechanism, derived from installed better-auth 1.6.23 source (not assumed):
+ *  ## Mechanism, derived from installed better-auth 1.6.23 source (not assumed), re-verified
+ *  against 1.7.7 (#1186):
  *
- *  `updateWithHooks(data, where, model)` (with-hooks.mjs) invokes the hook as
+ *  `updateWithHooks(data, where, model)` (1.7.7 with-hooks.mjs:44-54) invokes the hook as
  *  `toRun(data, context)` — TWO arguments only. `where` (which carries the target user id as
  *  `[{field:'id', value:userId}]`) is a separate closure variable and is NEVER forwarded to the
  *  hook. This means the hook's `data` argument alone (`{role: ...}` for setRole, `{banned: ...}`
@@ -42,10 +43,11 @@ export interface UserWithAdminFields {
  *  However, `context` (the hook's 2nd argument) is typed as `GenericEndpointContext` —
  *  `EndpointContext & { context: AuthContext }` (`@better-auth/core`'s
  *  `dist/types/context.d.mts`/`dist/context/endpoint-context.d.mts`) — NOT merely the bare
- *  `AuthContext`. Better-call's `dispatchAuthEndpoint` (`better-auth/dist/api/dispatch.mjs`) builds
+ *  `AuthContext`. `dispatchAuthEndpoint` (1.7.7 `better-auth/dist/api/dispatch.mjs:186-231`) builds
  *  its `internalContext` as `{...input, context: {...}}` before calling
  *  `runWithEndpointContext(internalContext, ...)`, and `updateWithHooks` reads that SAME
- *  AsyncLocalStorage-scoped value via `getCurrentAuthContext()`. So `context` here is the full
+ *  AsyncLocalStorage-scoped value via `tryGetCurrentAuthEndpointContext()` (1.7.7
+ *  with-hooks.mjs:45; it was `getCurrentAuthContext()` in 1.6.23). So `context` here is the full
  *  request-scoped endpoint context — including `context.body` (the endpoint's parsed+validated
  *  request body) and `context.path` (the route being dispatched) — NOT just adapter/db access.
  *
@@ -58,11 +60,12 @@ export interface UserWithAdminFields {
  *  ## `/admin/update-user` coverage (gap fix)
  *
  *  better-auth's admin plugin ALSO exposes `POST /admin/update-user` (`adminUpdateUser`,
- *  `dist/plugins/admin/routes.mjs`), a general user-field editor that accepts `role`/`banned`
+ *  1.7.7 `dist/plugins/admin/routes.mjs:233`), a general user-field editor that accepts `role`/`banned`
  *  directly in its payload — an admin-session curl to it bypassed the guard entirely, since only
  *  `/admin/set-role` and `/admin/ban-user` were path-gated. Verified from the installed route
- *  source: its body schema is `{ userId: string, data: Record<string, any> }`, and the handler
- *  calls `ctx.context.internalAdapter.updateUser(ctx.body.userId, ctx.body.data)` — i.e. it funnels
+ *  source: its body schema is `{ userId: string, data: Record<string, any> }` (1.7.7 routes.mjs:214),
+ *  and the handler calls `ctx.context.internalAdapter.updateUser(ctx.body.userId, ctx.body.data)`
+ *  (routes.mjs:304) — i.e. it funnels
  *  through the exact same `internalAdapter.updateUser` -> `updateWithHooks` chokepoint as
  *  setRole/banUser. That means BOTH shapes this hook already relies on carry over unchanged:
  *  the hook's `data` argument is `ctx.body.data` (the diff, so `data.role`/`data.banned` are read
@@ -73,8 +76,10 @@ export interface UserWithAdminFields {
  *
  *  `context.path` disambiguates the three guarded routes from any other `user.update` (e.g. a
  *  profile-update flow, or Task 7's `ensureLocalOwner`/`serverSetup` — neither of which is reached
- *  through the admin plugin's HTTP dispatch, so `context` is `null` there per `with-hooks.mjs`'s
- *  own `.catch(() => null)` — this hook is a no-op for those non-HTTP internalAdapter call sites,
+ *  through the admin plugin's HTTP dispatch, so `context` is falsy there — `undefined` from
+ *  `tryGetCurrentAuthEndpointContext()` outside `runWithEndpointContext` in 1.7.7 (`null` via a
+ *  `.catch(() => null)` in 1.6.23; the `!context` check covers both) — this hook is a no-op for
+ *  those non-HTTP internalAdapter call sites,
  *  which is correct: they are direct, trusted, bootstrap-time primitives, not admin-mutation
  *  surface).
  *
@@ -149,9 +154,10 @@ export function lastAdminGuardHook() {
 }
 
 /** `role` on setRole's body may be a single string or an array of strings (better-auth supports
- *  multi-role assignment, `parseRoles` in admin/routes.mjs joins arrays with a comma before
- *  persisting) — but the persisted `data.role` this hook actually receives is ALWAYS the
- *  already-joined string form (see admin/routes.mjs: `updateUser(userId, { role: parseRoles(...) })`).
+ *  multi-role assignment, `parseRoles` in admin/routes.mjs (1.7.7: line 22) joins arrays with a
+ *  comma before persisting) — but the persisted `data.role` this hook actually receives is ALWAYS
+ *  the already-joined string form (1.7.7 routes.mjs:77:
+ *  `updateUser(ctx.body.userId, { role: parseRoles(ctx.body.role) })`).
  *  Still defensive here in case a future/direct caller passes an array through some other path.
  *
  *  #630: the splitting itself is now core's shared `parseRoleSet`, so this guard,
@@ -229,18 +235,20 @@ async function isLastActiveAdmin(
 
 /** ## Deletion coverage (`/admin/remove-user`)
  *
- *  `POST /admin/remove-user` (`removeUser`, `dist/plugins/admin/routes.mjs`) deletes a user via
- *  `internalAdapter.deleteUser(ctx.body.userId)`, which calls `deleteWithHooks(..., 'user', ...)`
- *  (`dist/db/internal-adapter.mjs`) — a SEPARATE chokepoint from `updateWithHooks`, so the
+ *  `POST /admin/remove-user` (`removeUser`, 1.7.7 `dist/plugins/admin/routes.mjs:755-782`) deletes
+ *  a user via `internalAdapter.deleteUser(ctx.body.userId)`, which calls
+ *  `deleteWithHooks(..., 'user', ...)` (1.7.7 `dist/db/internal-adapter.mjs:242`) — a SEPARATE
+ *  chokepoint from `updateWithHooks`, so the
  *  update-guard above never sees a delete. Deleting the last active admin bricks admin access with
  *  no `user.update.before` firing at all, which is exactly the gap this covers.
  *
  *  Confirmed from `@better-auth/core`'s `dist/types/init-options.d.mts` (`databaseHooks.user`):
- *  a `delete` hook family DOES exist in 1.6.23 — `before?: (user, context) => Promise<boolean |
+ *  a `delete` hook family DOES exist (1.6.23, and 1.7.7 at init-options.d.mts:1296-1301) —
+ *  `before?: (user, context) => Promise<boolean |
  *  void>` / `after?: (user, context) => Promise<void>` — sibling to `create`/`update`. So this is a
  *  real, typed hook, not a workaround.
  *
- *  `deleteWithHooks(where, model)` (`dist/db/with-hooks.mjs`) reads the row FIRST —
+ *  `deleteWithHooks(where, model)` (1.7.7 `dist/db/with-hooks.mjs:116-133`) reads the row FIRST —
  *  `entityToDelete = adapter.findMany({model, where, limit:1})[0]` — then calls
  *  `toRun(entityToDelete, context)`, i.e. the hook's 1st argument is the FULL target user row
  *  (already carrying `role`/`banned`), not a diff and not just a where-clause. That means, unlike

@@ -14,8 +14,9 @@
 // script and e2e/lib/seed-users.ts both use) → `internalAdapter` + `ctx.password.hash` (scrypt,
 // secret-independent), the exact seeding path the server's own admin-invite uses, so the running
 // api verifies the new password unchanged. The upsert shape (existing credential row →
-// updatePassword, none → linkAccount) mirrors better-auth 1.6.23's own reset-password callback
-// route (dist/api/routes/password.mjs lines 150-158).
+// updatePassword, none → linkAccount) mirrors better-auth's own reset-password route (1.7.7
+// dist/api/routes/password.mjs lines 160-167, which calls `createAccount` for the none branch —
+// the identical `createWithHooks('account')` insert as `linkAccount`, internal-adapter.mjs:170,594).
 
 import { existsSync } from 'node:fs'
 import process from 'node:process'
@@ -65,12 +66,20 @@ export async function resetPassword(
   // secret/baseURL rationale lives on openInternalAuthContext itself.
   const ctx = await openInternalAuthContext(db)
   // Enforce the SAME minimum better-auth's own password routes enforce — read from the built
-  // context (`emailAndPassword.minPasswordLength || 8`, better-auth 1.6.23
-  // dist/context/create-context.mjs line 185) rather than hardcoded, and checked BEFORE any
+  // context (`emailAndPassword.minPasswordLength || 8`, better-auth 1.7.7
+  // dist/context/create-context.mjs line 186) rather than hardcoded, and checked BEFORE any
   // lookup/hash/write so a too-short password can never half-apply.
   const min = ctx.password.config.minPasswordLength
   if (password.length < min) {
     throw new Error(`password too short — must be at least ${min} characters`)
+  }
+  // #1186: and the same MAXIMUM. Since better-auth 1.7.6 `/sign-in/email` rejects a password
+  // longer than `maxPasswordLength` (default 128) before verifying it, so writing one here would
+  // leave an account that can never sign in (apps/api/test/create-owner.test.ts and
+  // apps/api/test/reset-password.test.ts, "…over maxPasswordLength…").
+  const max = ctx.password.config.maxPasswordLength
+  if (password.length > max) {
+    throw new Error(`password too long — must be at most ${max} characters`)
   }
   const found = await ctx.internalAdapter.findUserByEmail(email)
   if (!found) {

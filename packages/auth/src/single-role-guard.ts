@@ -9,7 +9,7 @@ import { isSingleKnownRole, parseRoleSet } from '@setu/core'
  *  Three consumers disagreed about whether `role` is a scalar or a set:
  *   - `apps/api/src/auth/resolve-session-actor.ts` exact-matched the column against the four
  *     roles, so `'admin,maintainer'` resolved to a null actor -> **401 on every `/api/*` route**.
- *   - better-auth's own `hasPermission` (`dist/plugins/admin/has-permission.mjs`, 1.6.23) splits
+ *   - better-auth's own `hasPermission` (`dist/plugins/admin/has-permission.mjs`, 1.6.23 and unchanged in 1.7.7, line 6) splits
  *     the role on `,` and authorizes if ANY component authorizes — so that same user kept full
  *     access to `/api/auth/admin/*`.
  *   - `rank-guard.ts` compared `actorRole === 'admin'` and then `rankOf('admin,maintainer')` -> 0,

@@ -126,6 +126,40 @@ describe('serverSetup plugin — POST /api/auth/setup', () => {
     expect(countUsers(db)).toBe(0)
   })
 
+  // #1186: since better-auth 1.7.6 `/sign-in/email` rejects a password longer than
+  // `maxPasswordLength` (default 128) with PASSWORD_TOO_LONG BEFORE verifying it. Setup hashes the
+  // password itself, so without this check it would mint an owner whose password can never sign
+  // in again — and, because setup is one-time, there would be no way back in through the UI.
+  it('rejects a password over maxPasswordLength before creating anything, and keeps setup open', async () => {
+    const { db, auth } = makeAuth()
+    const tooLong = 'x'.repeat(129)
+    const res = await auth.handler(
+      setupRequest({ ...VALID_BODY, password: tooLong })
+    )
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as { code?: string }
+    expect(body.code).toBe('PASSWORD_TOO_LONG')
+    expect(countUsers(db)).toBe(0)
+
+    // The latch was not claimed: a corrected attempt still completes setup.
+    const retry = await auth.handler(setupRequest(VALID_BODY))
+    expect(retry.status).toBe(200)
+  })
+
+  it('accepts a password of exactly maxPasswordLength, and that password then signs in', async () => {
+    const { auth } = makeAuth()
+    const atLimit = 'y'.repeat(128)
+    const res = await auth.handler(
+      setupRequest({ ...VALID_BODY, password: atLimit })
+    )
+    expect(res.status).toBe(200)
+    const signin = await auth.api.signInEmail({
+      body: { email: VALID_BODY.email, password: atLimit },
+      asResponse: true
+    })
+    expect(signin.status).toBe(200)
+  })
+
   it('concurrent setup posts -> exactly one admin is created (in-process race guard)', async () => {
     const { db, auth } = makeAuth()
 

@@ -11,15 +11,16 @@ import type { UserWithAdminFields } from './last-owner-guard'
  *  guard, which still runs alongside this one (see `index.ts`'s composed `update.before`).
  *
  *  ## Why the admin-plugin's OWN permission model isn't enough (verified against installed
- *  better-auth 1.6.23 source, not assumed)
+ *  better-auth 1.6.23 source, not assumed; re-verified against 1.7.7, #1186)
  *
- *  `hasPermission` (`dist/plugins/admin/has-permission.mjs`) is purely statement-based: it looks up
- *  `input.options.roles[input.role]` in the `roles` access-control map passed to the `admin()`
- *  plugin and calls `.authorize(input.permissions)` — nothing in that function (or in any of the
+ *  `hasPermission` (`dist/plugins/admin/has-permission.mjs`, 1.7.7 lines 3-10) is purely
+ *  statement-based: it comma-splits the role, looks each up in the `roles` access-control map
+ *  passed to the `admin()` plugin and calls `.authorize(input.permissions)` — nothing in that function (or in any of the
  *  route handlers in `dist/plugins/admin/routes.mjs`) consults `adminRoles` to gate `/admin/set-
  *  role`, `/admin/ban-user`, `/admin/unban-user`, `/admin/create-user`, or `/admin/update-user`.
- *  `adminRoles` is used in exactly ONE place in the whole plugin (`routes.mjs` around the
- *  impersonate-user route): to decide whether the IMPERSONATION TARGET counts as "an admin" for the
+ *  At request time `adminRoles` is read in exactly ONE place in the whole plugin (1.7.7
+ *  `routes.mjs:587-588`, the impersonate-user route; `admin.mjs:15-19` only defaults and validates
+ *  it at init): to decide whether the IMPERSONATION TARGET counts as "an admin" for the
  *  separate `allowImpersonatingAdmins` check — an unrelated feature. So once `setuAdminRoles.
  *  maintainer` is widened to carry `user: ['create', 'set-role', 'ban']` statements (needed so a
  *  maintainer can manage authors/editors at all), better-auth's own gate authorizes a maintainer on
@@ -37,21 +38,22 @@ import type { UserWithAdminFields } from './last-owner-guard'
  *
  *  Mirrors `last-owner-guard.ts`'s derivation: `context` here is the same live, AsyncLocalStorage-
  *  scoped `GenericEndpointContext` (`context.context` = the real `AuthContext`) that
- *  `updateWithHooks`/`createWithHooks` read via `getCurrentAuthContext()`. For the routes gated
+ *  `updateWithHooks`/`createWithHooks` read via `tryGetCurrentAuthEndpointContext()` (1.7.7
+ *  with-hooks.mjs:8,45; `getCurrentAuthContext()` in 1.6.23). For the routes gated
  *  below, `context.context.session` is populated by the time our hook fires:
  *   - `/admin/set-role`, `/admin/ban-user`, `/admin/unban-user`, `/admin/update-user` all declare
- *     `use: [adminMiddleware]` (`routes.mjs`), and `adminMiddleware` resolves the session and
- *     RETURNS it (`return { session }`). better-call's `createInternalContext`
- *     (`better-call/dist/context.mjs`) merges each `use` middleware's returned object onto the
+ *     `use: [adminMiddleware]` (1.7.7 `routes.mjs`), and `adminMiddleware` (routes.mjs:17-21)
+ *     resolves the session and RETURNS it (`return { session }`). better-call's
+ *     `createInternalContext` (`better-call/dist/context.mjs:89`, better-call 1.4.0) merges each `use` middleware's returned object onto the
  *     endpoint's shared `context` object via `Object.assign(internalContext.context, response.
  *     response)` — the SAME object instance `dispatchAuthEndpoint` later hands to
- *     `runWithEndpointContext`, which is what `getCurrentAuthContext()` reads inside the
+ *     `runWithEndpointContext`, which is what `tryGetCurrentAuthEndpointContext()` reads inside the
  *     `databaseHooks` call. So `context.context.session` is present and correct by the time
  *     `updateWithHooks` invokes this hook.
  *   - `/admin/create-user` does NOT use `adminMiddleware` — it calls
- *     `getAuthoritativeSessionFromCtx(ctx)` directly in its own handler body. That function bottoms
- *     out in `getSessionFromCtx` (`dist/api/routes/session.mjs`), which — as a caching side effect —
- *     assigns `ctx.context.session = session.response` directly onto the same shared context
+ *     `getAuthoritativeSessionFromCtx(ctx)` directly in its own handler body (1.7.7 routes.mjs:153).
+ *     That function bottoms out in `getSessionFromCtx` (`dist/api/routes/session.mjs:284-288` →
+ *     246-274), which — as a caching side effect — assigns `ctx.context.session = session.response` directly onto the same shared context
  *     object, BEFORE the handler goes on to call `internalAdapter.createUser(...)`. So
  *     `context.context.session` is populated there too by the time `createWithHooks` invokes this
  *     hook.

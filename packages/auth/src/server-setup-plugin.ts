@@ -80,6 +80,23 @@ export function serverSetup(opts: ServerSetupOptions): BetterAuthPlugin {
             throw ctx.error('UNAUTHORIZED', { message: 'invalid setup token' })
           }
 
+          // #1186: this route hashes the password itself, so it must apply better-auth's own
+          // upper bound — since 1.7.6 `/sign-in/email` rejects anything longer than
+          // `maxPasswordLength` with PASSWORD_TOO_LONG before verifying it, so an owner created
+          // with a longer password could never sign in again. Checked BEFORE the latch is claimed
+          // so a rejected attempt leaves setup open (packages/auth/test/server-setup-plugin.test.ts
+          // "rejects a password over maxPasswordLength…"). Synchronous, so the no-await window
+          // below is unchanged.
+          if (
+            ctx.body.password.length >
+            ctx.context.password.config.maxPasswordLength
+          ) {
+            throw ctx.error('BAD_REQUEST', {
+              code: 'PASSWORD_TOO_LONG',
+              message: 'Password too long'
+            })
+          }
+
           // INVARIANT: no `await` between this check/claim pair and the read above — see the
           // class comment. From here on, any concurrent request sees `claimed === true`.
           claimed = true

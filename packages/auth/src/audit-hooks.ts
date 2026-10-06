@@ -1,7 +1,8 @@
 import type { GenericEndpointContext } from '@better-auth/core'
 import type { AuthEvent } from './events'
 
-/** Mechanism notes (#248 Task 9), verified against installed better-auth 1.6.23 source (the same
+/** Mechanism notes (#248 Task 9), verified against installed better-auth 1.6.23 source and
+ *  re-verified against 1.7.7 (#1186; line numbers below are 1.7.7's) (the same
  *  `databaseHooks` surface last-owner-guard.ts documents in depth — see that file for the deep
  *  derivation of `context`/`context.path`/`context.body` availability, which applies identically
  *  here). Each hook below is a thin `onAuthEvent` emitter, not a guard — it never blocks or
@@ -38,7 +39,7 @@ import type { AuthEvent } from './events'
  *    `/admin/ban-user`, `/admin/unban-user`, and — mirroring last-owner-guard.ts's
  *    `/admin/update-user` coverage — `/admin/update-user` too). Unlike the `before` hook, `after`'s
  *    1st argument (`updated`) is the FULL POST-UPDATE user row (not just the diff) —
- *    `updateWithHooks` in with-hooks.mjs calls `toRun(updated, context)` — so
+ *    `updateWithHooks` in with-hooks.mjs calls `toRun(updated, context)` (line 75) — so
  *    `updated.role`/`updated.banned` can be read directly rather than reconstructed from
  *    `context.body`. `context.body` is still used for `role.changed`'s meta (the requested role
  *    string) and to read `context.context.session` for the acting admin's id (the same
@@ -46,7 +47,7 @@ import type { AuthEvent } from './events'
  *    authorize the call in the first place).
  *
  *    `/admin/update-user`'s body is `{ userId, data }` (`adminUpdateUser`,
- *    `dist/plugins/admin/routes.mjs`, same source last-owner-guard.ts derived its coverage from) —
+ *    `dist/plugins/admin/routes.mjs:214-233`, same source last-owner-guard.ts derived its coverage from) —
  *    so unlike setRole/banUser, the touched fields live under `context.body.data`, not at the body's
  *    top level. Only a transition that actually TOUCHES `role` or `banned` emits anything (a
  *    name/email-only update-user call is a no-op here, same discipline as the guard).
@@ -54,7 +55,7 @@ import type { AuthEvent } from './events'
  *  - `user.deleted` -> `databaseHooks.user.delete.after`, GATED on
  *    `context.path === '/admin/remove-user'` — the same route last-owner-guard.ts's
  *    `lastAdminDeleteGuardHook` already guards via `delete.before`. `deleteWithHooks` in
- *    with-hooks.mjs calls `toRun(entityToDelete, context)` where `entityToDelete` is the FULL
+ *    with-hooks.mjs calls `toRun(entityToDelete, context)` (line 148) where `entityToDelete` is the FULL
  *    target row read BEFORE the delete (see last-owner-guard.ts's delete-guard doc), so `targetId`
  *    comes directly off that row's `id` — no `context.body` round-trip needed for the id, though
  *    the actor id still comes from `context.context.session` the same way as the other admin
@@ -64,12 +65,12 @@ import type { AuthEvent } from './events'
  *  whose identity that was.
  *
  *  `context.context.session` is better-auth's `{ session, user }` pair — the same shape the admin
- *  plugin's own `adminMiddleware` puts there (`dist/plugins/admin/routes.mjs:16-20`,
+ *  plugin's own `adminMiddleware` puts there (`dist/plugins/admin/routes.mjs:17-21`,
  *  `return { session }` from `getAuthoritativeSessionFromCtx`). During an impersonated session the
  *  `user` half is the IMPERSONATED user, so the pre-#632 `session.user.id` recorded a role change
  *  or ban against the VICTIM rather than the admin who actually did it. The session ROW carries
  *  `impersonatedBy` (set to `ctx.context.session.user.id`, the impersonating admin, at
- *  `routes.mjs:586`; persisted as `session.impersonated_by` in packages/db-sqlite's schema), so
+ *  `routes.mjs:597`; persisted as `session.impersonated_by` in packages/db-sqlite's schema), so
  *  it's the authoritative "who really acted".
  *
  *  Both facts are kept: `actorId` becomes the real admin, and `meta.impersonating` names the
@@ -132,7 +133,7 @@ export function sessionCreateAfterHook(emit: (e: AuthEvent) => void) {
   ): Promise<void> => {
     // #632: `/admin/impersonate-user` creates a REAL session row through the same
     // `internalAdapter.createSession` -> `createWithHooks('session')` path as a login
-    // (`dist/db/internal-adapter.mjs:162,201`; the route at `dist/plugins/admin/routes.mjs:585-588`
+    // (1.7.7 `dist/db/internal-adapter.mjs:247,308`; the route at `dist/plugins/admin/routes.mjs:596-599`
     // passes `impersonatedBy: ctx.context.session.user.id` as an override) — so this hook DOES
     // fire, it was simply being dropped by the sign-in path gate. The new row's `userId` is the
     // impersonated user and `impersonatedBy` the admin, which is exactly the actor/target pair.
@@ -156,10 +157,11 @@ export function sessionDeleteAfterHook(emit: (e: AuthEvent) => void) {
   ): Promise<void> => {
     // #632: `/admin/stop-impersonating` ends the impersonated session via
     // `internalAdapter.deleteSession` -> `deleteWithHooks('session')`
-    // (`dist/db/internal-adapter.mjs:354,377`; the route at `dist/plugins/admin/routes.mjs:624-637`),
+    // (1.7.7 `dist/db/internal-adapter.mjs:451,481` — Setu has no secondaryStorage, so the
+    // preserved-session branch at :474 never runs; the route at `dist/plugins/admin/routes.mjs:630-648`),
     // so this hook fires with the FULL pre-delete row — including `impersonatedBy`. That row, not
     // `context.context.session`, is the reliable source here: stop-impersonating uses
-    // `getSessionFromCtx` rather than `adminMiddleware` (routes.mjs:623), so it does not populate
+    // `getSessionFromCtx` rather than `adminMiddleware` (routes.mjs:634), so it does not populate
     // `context.context.session` the way the other admin routes do.
     if (context?.path === '/admin/stop-impersonating') {
       emit({
@@ -275,7 +277,7 @@ export function userUpdateAfterHook(emit: (e: AuthEvent) => void) {
  *  It never touches the `user` table, so `databaseHooks.user.update` cannot see it (the same
  *  reason rank-guard.ts documents for why it can't gate this route). It writes the `account`
  *  table instead, on one of two mutually exclusive branches
- *  (`dist/plugins/admin/routes.mjs:793-830`, `dist/db/internal-adapter.mjs:86,528`):
+ *  (1.7.7 `dist/plugins/admin/routes.mjs:804-841`, `dist/db/internal-adapter.mjs:170,627`):
  *   - target already has a `providerId === 'credential'` account -> `internalAdapter.updatePassword`
  *     -> `updateManyWithHooks('account')` -> `databaseHooks.account.update.after`
  *   - target has none                                            -> `internalAdapter.createAccount`

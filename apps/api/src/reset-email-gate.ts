@@ -126,7 +126,7 @@ export interface ResetEmailGate {
    * #1164: run `trigger` (server.ts: `auth.api.requestPasswordReset`) and report what the send it
    * causes ACTUALLY did — `null` when no send ran inside it at all.
    *
-   * Needed because better-auth 1.7.3 invokes `sendResetPassword` through
+   * Needed because better-auth 1.7.7 invokes `sendResetPassword` through
    * `ctx.context.runInBackgroundOrAwait` (dist/api/routes/password.mjs line 82), which catches
    * and only logs whatever the hook throws (dist/context/create-context.mjs lines 215-225) — so a
    * transport failure came back out of `requestPasswordReset` as the same `{ status: true }` as a

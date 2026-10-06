@@ -12,15 +12,16 @@ import {
 // schema default role `author` (packages/db-sqlite/src/schema.ts), and could also permanently
 // pre-empt first-run owner setup.
 //
-// Verified against the INSTALLED better-auth 1.6.23 (not from memory):
+// Verified against the INSTALLED better-auth 1.7.7 (not from memory):
 //   - @better-auth/core/dist/oauth2/oauth-provider.d.mts declares BOTH `disableImplicitSignUp`
 //     and `disableSignUp` on the social-provider config.
-//   - better-auth/dist/api/routes/callback.mjs:150 computes
-//       disableSignUp: provider.disableImplicitSignUp && !requestSignUp || provider.options?.disableSignUp
-//     i.e. `disableImplicitSignUp` is defeated by a caller-supplied `requestSignUp: true`
-//     (`requestSignUp` is in the /sign-in/social body schema, sign-in.mjs:35), while
-//     `disableSignUp` holds unconditionally. Setu has NO legitimate OAuth sign-up path, so BOTH
-//     are set — `disableSignUp` is the one that actually closes the hole.
+//   - `disableImplicitSignUp` is defeated by a caller-supplied `requestSignUp: true` (a field of
+//     the /sign-in/social body schema, sign-in.mjs:102), so `disableSignUp` is the flag that
+//     matters. Both of the routes that decide sign-up — callback.mjs:181 and, since 1.7.7,
+//     sign-in.mjs:197 — read it from `provider.options`. Before 1.7.7 the sign-in route did
+//     NOT (#645), which is why the actual wall is packages/auth/src/signup-origin-guard.ts and
+//     these flags are defence in depth. This file pins only that the env builder sets them;
+//     packages/auth/test/oauth-signup-guard.test.ts is where the behaviour is tested.
 const githubEnv = {
   SETU_GITHUB_CLIENT_ID: 'gh-id',
   SETU_GITHUB_CLIENT_SECRET: 'gh-secret'

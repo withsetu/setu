@@ -171,6 +171,28 @@ describe('LoginScreen', () => {
     ).toBeInTheDocument()
   })
 
+  // #1186: better-auth 1.7.6+ answers an over-long password on /sign-in/email with 400
+  // PASSWORD_TOO_LONG before looking anything up. No account can hold such a password, so it is
+  // a wrong password — not "something went wrong".
+  it('maps PASSWORD_TOO_LONG to the same invalid-credentials message', async () => {
+    mockSignInEmail.mockResolvedValue({
+      data: null,
+      error: {
+        status: 400,
+        code: 'PASSWORD_TOO_LONG',
+        message: 'Password too long'
+      }
+    })
+
+    render(<LoginScreen />)
+    await fillForm()
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
+
+    expect(
+      await screen.findByText(/email or password is incorrect/i)
+    ).toBeInTheDocument()
+  })
+
   it('maps a 429 rate-limit error to a wait-a-moment message', async () => {
     mockSignInEmail.mockResolvedValue({
       data: null,

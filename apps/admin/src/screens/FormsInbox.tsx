@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { Submission, FormSummary } from '@setu/core'
-import { submissionsToCsv } from '@setu/core'
+import { listAllSubmissions, submissionsToCsv } from '@setu/core'
 import { useServices } from '../data/store'
 import { useNotify } from '../ui/notify'
 import { submissionError } from '../ui/error-message'
@@ -222,17 +222,16 @@ export function FormsInbox() {
   }
 
   const exportCsv = async () => {
-    // Export the full filtered set, not just the current page.
-    const filter: Parameters<typeof submissions.listSubmissions>[0] = {
-      limit: 100000
-    }
+    // Export the full filtered set, not just the current page. The API caps a page at
+    // SUBMISSIONS_PAGE_MAX (#1166), so walk the pages rather than ask for one huge one.
+    const filter: Parameters<typeof listAllSubmissions>[1] = {}
     if (form) filter.formId = form
     if (readParam === 'true') filter.read = true
     if (readParam === 'false') filter.read = false
     if (q) filter.q = q
     try {
-      const all = await submissions.listSubmissions(filter)
-      const blob = new Blob([submissionsToCsv(all.rows)], { type: 'text/csv' })
+      const rows = await listAllSubmissions(submissions, filter)
+      const blob = new Blob([submissionsToCsv(rows)], { type: 'text/csv' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -240,7 +239,7 @@ export function FormsInbox() {
       a.click()
       URL.revokeObjectURL(url)
       notify.success(
-        `Exported ${all.rows.length} submission${all.rows.length === 1 ? '' : 's'}`
+        `Exported ${rows.length} submission${rows.length === 1 ? '' : 's'}`
       )
     } catch (err) {
       console.error('[forms] exporting the submissions failed', err)

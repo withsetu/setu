@@ -3,7 +3,12 @@ import type { Context } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import { bodyLimit } from 'hono/body-limit'
 import { z } from 'zod'
-import { createAuthz, DEFAULT_ROLES } from '@setu/core'
+import {
+  createAuthz,
+  DEFAULT_ROLES,
+  SUBMISSIONS_PAGE_DEFAULT,
+  SUBMISSIONS_PAGE_MAX
+} from '@setu/core'
 import type {
   Action,
   Actor,
@@ -304,6 +309,42 @@ const readPatchSchema = z.object({
 })
 const deleteSchema = z.object({ ids: z.array(z.string()) })
 
+/** Max length of the inbox search term, after trimming (#1166). */
+export const SUBMISSIONS_Q_MAX = 200
+
+/**
+ * #1166 — the `GET /forms/submissions` query. Out-of-range paging is REJECTED (400 with per-field
+ * issues), not clamped — the index-api convention: a caller sending `limit=1000` has a bug worth
+ * surfacing. Storage adapters clamp again on their own (core's `normalizeSubmissionPage`), so a
+ * direct port caller cannot widen a result either. Pinned by apps/api/test/forms.test.ts
+ * ("GET /forms/submissions query validation").
+ */
+const listQuerySchema = z.object({
+  formId: z
+    .string()
+    .max(FORM_VALUE_MAX)
+    .optional()
+    .transform((v) => (v ? v : undefined)),
+  // Query-string booleans are the literal strings; z.coerce.boolean() would read "false" as true.
+  read: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === 'true')),
+  q: z
+    .string()
+    .trim()
+    .max(SUBMISSIONS_Q_MAX)
+    .optional()
+    .transform((v) => (v ? v : undefined)),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(SUBMISSIONS_PAGE_MAX)
+    .default(SUBMISSIONS_PAGE_DEFAULT),
+  offset: z.coerce.number().int().min(0).default(0)
+})
+
 /**
  * Read and validate a JSON body, or report that it is unusable — the ONE place `c.req.json()` is
  * awaited in this factory, so a malformed body can no longer reach `apiOnError` as a 500 (#932).
@@ -534,14 +575,23 @@ export function createFormsApi(opts: {
   )
 
   app.get('/forms/submissions', auth, canView, async (c) => {
-    const q = c.req.query()
-    const filter: SubmissionFilter = {}
-    if (q['formId']) filter.formId = q['formId']
-    if (q['read'] === 'true') filter.read = true
-    if (q['read'] === 'false') filter.read = false
-    if (q['q']) filter.q = q['q']
-    if (q['limit']) filter.limit = Number(q['limit'])
-    if (q['offset']) filter.offset = Number(q['offset'])
+    const parsed = listQuerySchema.safeParse(c.req.query())
+    if (!parsed.success)
+      return c.json(
+        {
+          error: 'invalid',
+          issues: parsed.error.issues.map((i) => ({
+            field: i.path.join('.'),
+            message: i.message
+          }))
+        },
+        400
+      )
+    const p = parsed.data
+    const filter: SubmissionFilter = { limit: p.limit, offset: p.offset }
+    if (p.formId !== undefined) filter.formId = p.formId
+    if (p.read !== undefined) filter.read = p.read
+    if (p.q !== undefined) filter.q = p.q
     return c.json(await submissions.listSubmissions(filter))
   })
 

@@ -23,7 +23,8 @@ export interface SubmissionInput {
   source?: { url?: string; referrer?: string; userAgent?: string }
 }
 
-/** Listing filter. `q` is a basic case-insensitive substring match over field values. */
+/** Listing filter. `q` is a literal (no wildcards), case-folded substring match over
+ *  field values, folded by `foldForSearch` in every adapter (#1166). */
 export interface SubmissionFilter {
   formId?: string
   read?: boolean

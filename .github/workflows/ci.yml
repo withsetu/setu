@@ -1,6 +1,7 @@
 name: CI
 
-# Baseline quality gate — typecheck + tests + Playwright E2E.
+# Baseline quality gate — typecheck + tests + Playwright E2E, plus the `pnpm audit` supply-chain
+# gate in its own `audit` job (#1196) so an advisory can't skip the test signal.
 #   * On a PR: skip entirely for docs-only (markdown) changes AND while the PR is a draft
 #     (#462 — the per-job `if` below; `ready_for_review` in the trigger fires the run the
 #     draft skipped). Otherwise the `check` job runs only the packages changed since the
@@ -139,60 +140,6 @@ jobs:
             echo "Push build — running the full suite."
           fi
 
-      # pnpm audit (#218 security CI): now GATING at --audit-level=high. Flipped from the
-      # non-blocking warn phase in #403, once the baseline was triaged — vitest bumped 2→3
-      # (cleared the CVE-2026-47429 chain) and the dead prototype spike lockfiles removed. A
-      # new high/critical advisory now reds the build; moderate/low are printed above for
-      # visibility but do not gate. Gated on the same docs-only skip as the steps below (a
-      # docs PR doesn't touch the lockfile); NOT affected-scope filtered — audit runs against
-      # the single root lockfile, not turbo's per-package graph.
-      #
-      # Endpoint breakage (#477): npm retired the legacy audit endpoints (410 Gone;
-      # pnpm/pnpm#11265) and the replacement /advisories/bulk client ships only in pnpm 11
-      # (pnpm/pnpm#11268), not our pinned v10. So the audit command runs from pnpm 11, from a
-      # probe dir holding only the lockfile + workspace settings: with the root package.json
-      # in scope, the nested v11 would read `packageManager: pnpm@10.x` and delegate straight
-      # back to the broken v10 client (manage-package-manager-versions). Same lockfile, same
-      # high+ gate — the gate is NOT weakened. v11 doesn't read `pnpm.auditConfig` from
-      # package.json (root allowlist GHSA-67mh-4wv8-2f99 — moderate, never gates at high+);
-      # the allowlist the gate DOES honor is `auditConfig.ignoreGhsas` in pnpm-workspace.yaml,
-      # copied into the probe below (#880). Entries there are restricted to advisories with no
-      # patched release inside the affected major, and each carries a dated tracking issue —
-      # see that file's comments before adding one. That expiry is enforced by
-      # audit-allowlist.yml (#1152), not by this step.
-      - name: 'pnpm audit (gate: high)'
-        run: |
-          if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
-          probe="$RUNNER_TEMP/audit-probe"
-          mkdir -p "$probe"
-          cp pnpm-lock.yaml pnpm-workspace.yaml "$probe/"
-          echo '{"name":"audit-probe","private":true}' > "$probe/package.json"
-          cd "$probe"
-          echo "::group::pnpm audit (full — informational, all severities)"
-          pnpm dlx pnpm@11.13.0 audit || true
-          echo "::endgroup::"
-
-          # Non-vacuity canary (#817). Every hop above is a workaround (synthetic probe dir,
-          # a different pnpm major, an endpoint that has already broken twice — see the note
-          # on this step). If any hop degrades, `pnpm audit` prints zero advisories and exits
-          # 0, so a DEAD gate and a clean tree look identical and stay green forever. Assert
-          # the scan actually examined packages before believing its verdict.
-          # `|| true` here is safe and necessary: this invocation is diagnostic, not the gate
-          # (audit exits non-zero whenever ANY advisory exists, including moderate/low), and
-          # the real gate below still runs unguarded.
-          audit_json="$(pnpm dlx pnpm@11.13.0 audit --json || true)"
-          examined="$(printf '%s' "$audit_json" | jq -r '.metadata.totalDependencies // empty' 2>/dev/null || true)"
-          case "$examined" in '' | *[!0-9]*) examined=-1 ;; esac
-          if [ "$examined" -le 0 ]; then
-            echo "::error::pnpm audit examined 0 packages (or emitted no scan metadata) — the audit gate is VACUOUS, not clean. Fix the audit path before trusting a green build."
-            printf '%s\n' "$audit_json" | head -c 4000
-            exit 1
-          fi
-          echo "Canary OK: audit examined $examined packages."
-
-          echo "Gating on high+ severity (moderate/low above are informational):"
-          pnpm dlx pnpm@11.13.0 audit --audit-level=high
-
       # Lint (root surfaces) + format gate (#267, split in #819).
       # The PACKAGE half of lint now rides the turbo step below as a `lint` task — cached,
       # parallel and affected-filtered like typecheck/test, instead of one uncached repo-wide
@@ -285,6 +232,115 @@ jobs:
         run: |
           if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
           pnpm test:scripts
+
+  # Supply-chain gate, split out of `check` (#1196). As a step of `check` it ran before lint,
+  # typecheck and every test, so a newly published upstream advisory failed the step and
+  # SKIPPED all of them — every open PR lost its lint/type/test signal until an override
+  # landed. As its own job it reds the run exactly as before (same command, same pnpm 11, same
+  # probe dir, same canary, same --audit-level=high), while `check` runs to completion and
+  # reports independently. The job name is the stable identifier — keep it if branch rules
+  # ever require it. Gating policy (whole lockfile, not only PR-introduced advisories) is
+  # unchanged here; see #1196.
+  audit:
+    name: audit (high)
+    runs-on: ubuntu-latest
+    # Intended headroom over three `pnpm dlx pnpm@11` registry calls; bounded so a hung
+    # registry call can't hold a runner for the 6-hour default (#817).
+    timeout-minutes: 10
+    # Same draft-skip as `check` (#462). Permissions and the sha-keyed concurrency group are
+    # inherited from the workflow level (#813, #817), like the other jobs.
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Full history for the docs-only check (merge-base diff, same as `check`).
+          fetch-depth: 0
+
+      # SHA-pinned for the same reason as the `check` job (#813). No `pnpm install` and no
+      # setup-node pnpm cache: the gate reads only pnpm-lock.yaml + pnpm-workspace.yaml from a
+      # probe dir and fetches pnpm 11 via `pnpm dlx`, so installed node_modules play no part.
+      - name: Install pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      # Docs-only PRs skip the audit, mirroring `check`'s rule. This is the "third consumer"
+      # the `e2e` job's note anticipates; still kept inline, because consuming `check`'s
+      # scope output would need `needs: check` — serializing the audit behind the full suite
+      # and re-coupling the two verdicts, which is exactly what this split undoes.
+      - name: Determine scope
+        id: scope
+        # base_ref bound as data, not interpolated into the script (#813) — see the
+        # matching note on the `check` job's scope step.
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="$BASE_REF"
+            git fetch --no-tags --quiet origin "+refs/heads/$base:refs/remotes/origin/$base"
+            changed="$(git diff --name-only "$(git merge-base "origin/$base" HEAD)" HEAD)"
+            if [ -n "$changed" ] && ! printf '%s\n' "$changed" | grep -qvE '\.mdx?$'; then
+              echo "→ docs-only: skipping audit."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      # pnpm audit (#218 security CI): now GATING at --audit-level=high. Flipped from the
+      # non-blocking warn phase in #403, once the baseline was triaged — vitest bumped 2→3
+      # (cleared the CVE-2026-47429 chain) and the dead prototype spike lockfiles removed. A
+      # new high/critical advisory now reds the build; moderate/low are printed above for
+      # visibility but do not gate. Gated on the same docs-only skip as `check` (a docs PR doesn't
+      # touch the lockfile); NOT affected-scope filtered — audit runs against the single root
+      # lockfile, not turbo's per-package graph.
+      #
+      # Endpoint breakage (#477): npm retired the legacy audit endpoints (410 Gone;
+      # pnpm/pnpm#11265) and the replacement /advisories/bulk client ships only in pnpm 11
+      # (pnpm/pnpm#11268), not our pinned v10. So the audit command runs from pnpm 11, from a
+      # probe dir holding only the lockfile + workspace settings: with the root package.json
+      # in scope, the nested v11 would read `packageManager: pnpm@10.x` and delegate straight
+      # back to the broken v10 client (manage-package-manager-versions). Same lockfile, same
+      # high+ gate — the gate is NOT weakened. v11 doesn't read `pnpm.auditConfig` from
+      # package.json (root allowlist GHSA-67mh-4wv8-2f99 — moderate, never gates at high+);
+      # the allowlist the gate DOES honor is `auditConfig.ignoreGhsas` in pnpm-workspace.yaml,
+      # copied into the probe below (#880). Entries there are restricted to advisories with no
+      # patched release inside the affected major, and each carries a dated tracking issue —
+      # see that file's comments before adding one. That expiry is enforced by
+      # audit-allowlist.yml (#1152), not by this step.
+      - name: 'pnpm audit (gate: high)'
+        run: |
+          if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
+          probe="$RUNNER_TEMP/audit-probe"
+          mkdir -p "$probe"
+          cp pnpm-lock.yaml pnpm-workspace.yaml "$probe/"
+          echo '{"name":"audit-probe","private":true}' > "$probe/package.json"
+          cd "$probe"
+          echo "::group::pnpm audit (full — informational, all severities)"
+          pnpm dlx pnpm@11.13.0 audit || true
+          echo "::endgroup::"
+
+          # Non-vacuity canary (#817). Every hop above is a workaround (synthetic probe dir,
+          # a different pnpm major, an endpoint that has already broken twice — see the note
+          # on this job). If any hop degrades, `pnpm audit` prints zero advisories and exits
+          # 0, so a DEAD gate and a clean tree look identical and stay green forever. Assert
+          # the scan actually examined packages before believing its verdict.
+          # `|| true` here is safe and necessary: this invocation is diagnostic, not the gate
+          # (audit exits non-zero whenever ANY advisory exists, including moderate/low), and
+          # the real gate below still runs unguarded.
+          audit_json="$(pnpm dlx pnpm@11.13.0 audit --json || true)"
+          examined="$(printf '%s' "$audit_json" | jq -r '.metadata.totalDependencies // empty' 2>/dev/null || true)"
+          case "$examined" in '' | *[!0-9]*) examined=-1 ;; esac
+          if [ "$examined" -le 0 ]; then
+            echo "::error::pnpm audit examined 0 packages (or emitted no scan metadata) — the audit gate is VACUOUS, not clean. Fix the audit path before trusting a green build."
+            printf '%s\n' "$audit_json" | head -c 4000
+            exit 1
+          fi
+          echo "Canary OK: audit examined $examined packages."
+
+          echo "Gating on high+ severity (moderate/low above are informational):"
+          pnpm dlx pnpm@11.13.0 audit --audit-level=high
 
   e2e:
     name: e2e (playwright)

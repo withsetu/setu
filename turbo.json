@@ -122,6 +122,11 @@
     // the root package.json, could operate on different content trees with nothing recording it.
     // Declaring it folds its VALUE into the hash and passes it through, so the two agree.
     // Expect a one-time full cache miss for anyone who has it set — correct, not a regression.
+    // dev-allowed-hosts.mjs / dev-port.mjs (#1197 gap 3): astro.config.mjs imports both, and it
+    // is loaded by `astro sync`/`astro build` and sits in tsc's program (allowJs, `**/*`), so
+    // all four @setu/site tasks list them. Per-task, NOT globalDependencies: only the tasks that
+    // load a config importing them should miss, not every cache in the repo. The same applies
+    // to dev-lanes.mjs on @setu/api#test. Enforced by scripts/turbo-inputs.test.mjs.
     "@setu/site#typecheck": {
       "dependsOn": ["^typecheck"],
       "env": ["SETU_CONTENT_DIR"],
@@ -131,6 +136,8 @@
         "../../content/**",
         "../../scripts/gen-blocks.mjs",
         "../../scripts/gen-relations.mjs",
+        "../../scripts/dev-allowed-hosts.mjs",
+        "../../scripts/dev-port.mjs",
         "../../url-map.json",
         "../../redirects.json",
         "../../settings.json",
@@ -143,10 +150,18 @@
     // @setu/core has NO real (non-cyclic) workspace package deps — its only dependencies
     // are external npm packages (markdoc, jiti, js-yaml, zod). db-memory/git-memory are
     // devDependencies used purely as core's own test fixtures, and they depend BACK on
-    // core, so a topological ^typecheck edge here would be cyclic (see header). tsc
-    // reads only core's own source + tsconfig.json + tsconfig.edge.json, all git-tracked
-    // inside packages/core/ and covered by default inputs — no extra globs needed.
+    // core, so a topological ^typecheck edge here would be cyclic (see header).
+    // #1197 gap 2: packages/core/tsconfig.json has `"include": ["src", "test"]`, so tsc
+    // compiles core's tests — which import db-memory/git-memory SOURCE — and type-checks it.
+    // Same RULE as @setu/git-http#typecheck below: a package whose tsconfig covers `test`
+    // takes its #test cross-package source globs on #typecheck (and #lint) too. Enforced by
+    // scripts/turbo-inputs.test.mjs.
     "@setu/core#typecheck": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../db-memory/src/**",
+        "../git-memory/src/**"
+      ],
       "outputs": []
     },
 
@@ -174,8 +189,14 @@
       "dependsOn": ["^lint"],
       "outputs": []
     },
-    // No `^lint` edge — cyclic, exactly as for @setu/core#typecheck above.
+    // No `^lint` edge — cyclic, exactly as for @setu/core#typecheck above. Same input globs
+    // too (#1197 gap 2): type-aware lint builds the same `src` + `test` program tsc does.
     "@setu/core#lint": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../db-memory/src/**",
+        "../git-memory/src/**"
+      ],
       "outputs": []
     },
     // Explicit acyclic edge to @setu/core, mirroring @setu/git-http#typecheck. Same input
@@ -214,17 +235,28 @@
       ],
       "outputs": []
     },
-    // admin's lint reads the repo-root blocks/** it glob-imports, same as #test/#build.
+    // admin's lint reads the repo-root blocks/** it glob-imports, same as #test/#build, and
+    // (#1197 gap 3) the two dev scripts vite.config.ts imports — that file is type-aware-linted
+    // via allowDefaultProject (eslint.config.mjs), so their shapes reach its lint result.
     "@setu/admin#lint": {
       "dependsOn": ["^lint"],
-      "inputs": ["$TURBO_DEFAULT$", "../../blocks/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../../blocks/**",
+        "../../scripts/dev-allowed-hosts.mjs",
+        "../../scripts/dev-port.mjs"
+      ],
       "outputs": []
     },
     // site's type-aware lint resolves the same generated surface its typecheck does (astro
     // sync types, gen-blocks output), so it takes the same external inputs and the same
     // SETU_CONTENT_DIR declaration.
+    // `@setu/site#typecheck` edge (#1197 gap 6): this task's script runs gen-blocks +
+    // gen-relations + `astro sync` — the same generators #typecheck runs, REWRITING the same
+    // files. With only `^lint`, `turbo run typecheck test lint` (the CI invocation) started both
+    // at once, each truncating files the other was reading. Ordering them removes that race.
     "@setu/site#lint": {
-      "dependsOn": ["^lint"],
+      "dependsOn": ["^lint", "@setu/site#typecheck"],
       "env": ["SETU_CONTENT_DIR"],
       "inputs": [
         "$TURBO_DEFAULT$",
@@ -232,6 +264,8 @@
         "../../content/**",
         "../../scripts/gen-blocks.mjs",
         "../../scripts/gen-relations.mjs",
+        "../../scripts/dev-allowed-hosts.mjs",
+        "../../scripts/dev-port.mjs",
         "../../url-map.json",
         "../../redirects.json",
         "../../settings.json",
@@ -261,7 +295,27 @@
     // registry.ts glob-imports `../../../../blocks/*/block.ts`, so repo-root blocks/** is a
     // real source input to admin's tests, exactly as it already is for every @setu/site task.
     // Without it, editing a block contract cache-hits admin's suite.
+    // #1197 gap 3: the jsdom project IS vite.config.ts, which imports two repo scripts
+    // (dev-allowed-hosts.mjs, dev-port.mjs) at config-load time. #1197 gap 4:
+    // test/block-registry.test.ts reads apps/site/src/preview/preview.astro to assert every
+    // block has a preview renderer — a sibling app's file no $TURBO_DEFAULT$ here reaches.
+    // Both enforced by scripts/turbo-inputs.test.mjs, which scans for such reads.
     "@setu/admin#test": {
+      "dependsOn": ["^test"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../../blocks/**",
+        "../../scripts/dev-allowed-hosts.mjs",
+        "../../scripts/dev-port.mjs",
+        "../site/src/preview/preview.astro"
+      ],
+      "outputs": []
+    },
+
+    // #1197 gap 1: test/token-contract.test.ts (the 19-token guard) walks repo-root blocks/**
+    // for the folder blocks' inline <style> CSS. Without this, a token violation in a block
+    // folder cache-hits the very test that exists to fail on it.
+    "@setu/blocks#test": {
       "dependsOn": ["^test"],
       "inputs": ["$TURBO_DEFAULT$", "../../blocks/**"],
       "outputs": []
@@ -273,9 +327,12 @@
     // packages/core/{src,test}/**/*.test.ts — e.g. bulk-service.test.ts, taxonomy/
     // service.test.ts). So their source is added as explicit `inputs` globs — hash-honest
     // without recreating the dependsOn cycle.
+    // `../../blocks/**` (#1197 gap 1): test/single-line-tag-roundtrip.test.ts derives its tag
+    // table from the repo-root blocks/ folders, so adding a block must re-run it.
     "@setu/core#test": {
       "inputs": [
         "$TURBO_DEFAULT$",
+        "../../blocks/**",
         "../db-memory/src/**",
         "../git-memory/src/**"
       ],
@@ -375,6 +432,16 @@
         "@setu/image-testing#test",
         "@setu/storage-local#test"
       ],
+      // #1197 gap 3: test/media-dir-parity.test.ts (#1161) dynamic-imports
+      // scripts/dev-lanes.mjs — the half of the parity it guards that lives outside apps/api.
+      // test/build-failure.test.ts likewise imports apps/site's require-site-url.mjs (found by
+      // the #1197 scan, not in the original list). apps/api does not depend on @setu/site, so
+      // no dependsOn edge folds that file in. Enforced by scripts/turbo-inputs.test.mjs.
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../../scripts/dev-lanes.mjs",
+        "../site/integrations/require-site-url.mjs"
+      ],
       "outputs": []
     },
 
@@ -406,6 +473,8 @@
         "../../scripts/gen-blocks.mjs",
         "../../scripts/gen-relations.mjs",
         "../../scripts/gen-redirects.mjs",
+        "../../scripts/dev-allowed-hosts.mjs",
+        "../../scripts/dev-port.mjs",
         "../../url-map.json",
         "../../redirects.json",
         "../../settings.json",
@@ -425,9 +494,15 @@
     // admin's bundle compiles the repo-root blocks/** it glob-imports (#809 gap 3), so that
     // directory is an input here too — otherwise turbo can restore a dist/** built against the
     // PREVIOUS block contracts and hand it straight to a deploy.
+    // Plus (#1197 gap 3) the two repo scripts vite.config.ts imports while loading the build.
     "@setu/admin#build": {
       "dependsOn": ["^typecheck"],
-      "inputs": ["$TURBO_DEFAULT$", "../../blocks/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../../blocks/**",
+        "../../scripts/dev-allowed-hosts.mjs",
+        "../../scripts/dev-port.mjs"
+      ],
       "outputs": ["dist/**"]
     },
     // site#build's inputs mirror site#test's (same prebuild, same three generators, same
@@ -437,9 +512,17 @@
     // every absolute URL in dist/ is built from, and `astro build` refuses to run without it:
     // strict env mode would otherwise strip it (failing every `turbo run build`) and leave it out
     // of the hash (a cache hit across a site-URL change would restore another origin's dist/).
+    // SETU_MEDIA_DIR / SETU_ARCHIVE_PER_PAGE (#1197 gap 5): the media-manifest integration and
+    // @setu/image-astro read the former to find srcset manifests; the archive routes read the
+    // latter for page size. Both change dist/, so strict env mode must neither strip nor ignore them.
     "@setu/site#build": {
       "dependsOn": ["^typecheck"],
-      "env": ["SETU_CONTENT_DIR", "SETU_SITE_URL"],
+      "env": [
+        "SETU_CONTENT_DIR",
+        "SETU_SITE_URL",
+        "SETU_MEDIA_DIR",
+        "SETU_ARCHIVE_PER_PAGE"
+      ],
       "inputs": [
         "$TURBO_DEFAULT$",
         "../../blocks/**",
@@ -447,6 +530,8 @@
         "../../scripts/gen-blocks.mjs",
         "../../scripts/gen-relations.mjs",
         "../../scripts/gen-redirects.mjs",
+        "../../scripts/dev-allowed-hosts.mjs",
+        "../../scripts/dev-port.mjs",
         "../../url-map.json",
         "../../redirects.json",
         "../../settings.json",

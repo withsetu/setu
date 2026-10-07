@@ -622,11 +622,9 @@ test('reload always targets the lane admin endpoint with --address', async () =>
       )
       await syncCaddy(root, { dev: 0 }, 'example.test', 18191)
       const args = readFileSync(path.join(bin, 'reload.args'), 'utf8').trim()
-      assert.match(
+      assert.equal(
         args,
-        new RegExp(
-          `^reload --config ${file} --adapter caddyfile --address ${DEV_CADDY_ADMIN.replace(/\./g, '\\.')}$`
-        )
+        `reload --config ${file} --adapter caddyfile --address ${DEV_CADDY_ADMIN}`
       )
     } finally {
       process.kill(-running.pid, 'SIGKILL')

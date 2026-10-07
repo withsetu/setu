@@ -477,7 +477,7 @@ to **TS source** (no build step): editing `packages/core/src` hits dependents im
 - `preview_start` reads the MAIN checkout's `.claude/launch.json`; for a worktree, the config must
   `cd` into the worktree or it runs main's code.
 - CI (`.github/workflows/ci.yml`): PR = affected-only via turbo `...[merge-base]` (docs-only PRs
-  skip; **draft PRs skip the `check`+`e2e` jobs** until marked ready, #462; root/config changes run
+  skip; **draft PRs skip the `check`+`audit`+`e2e` jobs** until marked ready, #462; root/config changes run
   full); push to main + **weekly** (Mon 03:17 UTC) + **`workflow_dispatch`** = full + e2e full
   matrix (`E2E_FULL_MATRIX=1`). **CodeQL runs per-PR + push-to-main + weekly** — PR-time SAST was
   dropped in #462 for private-repo minutes and restored in #1071 once the repo went public, after
@@ -485,7 +485,8 @@ to **TS source** (no build step): editing `packages/core/src` hits dependents im
   on NEW findings vs `.github/codeql-known-findings.json` (every entry has a tracking issue **and
   a rationale**; the two #698 and two #1071 entries are verified FALSE POSITIVES, not deferred
   work, and say what would make them true again). `pnpm audit --audit-level=high` gates supply
-  chain (via pnpm 11's bulk-endpoint client, #477). The repo is public (2026-07-14), so Actions
+  chain (via pnpm 11's bulk-endpoint client, #477) in its own `audit (high)` job, so a new
+  upstream advisory reds the run without skipping `check`'s lint/type/test signal (#1196). The repo is public (2026-07-14), so Actions
   minutes are free — the `ci.yml` per-PR lane still stays affected-only, for the merge-latency and
   signal-noise win rather than the bill; CodeQL is the exception, because its whole value is
   blocking the PR that introduces a finding.

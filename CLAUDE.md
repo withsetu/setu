@@ -317,7 +317,7 @@ Each has happened in this repo. When your plan pattern-matches a row, apply the 
 | 14 | **The Unregistered Preview Block** | New block renders on site but the editor preview crashes with a cryptic `@astrojs/react` toString error | Register the renderer everywhere the block set is enumerated (preview `tagComponentMap` + gen-blocks); the real stack is in the **preview iframe's browser console**, not the daemon log |
 | 15 | **The Raw Text Box** | Making the user type a collection/category/locale the system already knows | DoD #4: dropdown/searchable picker fed by the index (`distinctTags` etc.) |
 | 16 | **The False "0 Affected"** | pnpm/turbo git change-detection silently returns zero packages inside a linked worktree → "filter is broken" or false-skip | Verify affected-filtering from a **real clone** (`git clone file://…`), which is what CI sees |
-| 17 | **The Bare Vite Launch** | Starting admin without `pnpm dev`'s env → `VITE_SETU_API` undefined → preview/media/auth silently missing → "the feature is broken" | Always launch via root `pnpm dev` (or `.claude/launch.json` for worktrees); if a feature "isn't showing", first check it isn't API-gated and the env is set |
+| 17 | **The Bare Vite Launch** | Starting admin without `pnpm dev`'s env → `VITE_SETU_API` undefined → preview/media/auth silently missing → "the feature is broken" | Always launch via `pnpm dev` (in a worktree it starts that worktree's own lane); if a feature "isn't showing", first check it isn't API-gated and the env is set |
 | 18 | **The `-r test` Blind Spot** | Believing `pnpm -r test` / `pnpm typecheck` covered e2e (it never does — e2e is outside the workspace on purpose) | UI/auth journeys changed → run `pnpm e2e` and `pnpm exec tsc -p e2e --noEmit` explicitly |
 | 19 | **Status-Draft Hallucination** | Filtering on `status: draft` frontmatter (shipped an RSS bug that dropped a live post) | `published !== false` is the ONLY published-ness signal (§1) |
 | 20 | **The Yanked-Checkout Phantom** | Mid-UAT the shared main checkout gets switched by another session → HMR serves half-main → phantom bugs | Bizarre UAT failure → check `git branch --show-current` + `git reflog` FIRST, before chasing code |
@@ -474,8 +474,8 @@ to **TS source** (no build step): editing `packages/core/src` hits dependents im
   dev; invisible in prod builds. Not a bug; don't chase it.
 - Radix `Select` can't be driven by synthetic events in the preview tools — use `preview_fill` on
   inputs / seeded `settings.json`; real preset clicks are human-UAT or Playwright territory.
-- `preview_start` reads the MAIN checkout's `.claude/launch.json`; for a worktree, the config must
-  `cd` into the worktree or it runs main's code.
+- `pnpm dev` in a worktree under `.claude/worktrees/<name>` runs that worktree's code on its own
+  lane ports (printed at startup); a worktree elsewhere is refused.
 - CI (`.github/workflows/ci.yml`): PR = affected-only via turbo `...[merge-base]` (docs-only PRs
   skip; **draft PRs skip the `check`+`audit`+`e2e` jobs** until marked ready, #462; root/config changes run
   full); push to main + **weekly** (Mon 03:17 UTC) + **`workflow_dispatch`** = full + e2e full

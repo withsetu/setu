@@ -264,13 +264,7 @@ async function main() {
         )
       }
     }
-    console.error(
-      '\nThe dev servers run with strictPort, so a busy port stops the stack rather than\n' +
-        'silently moving to another one (a moved admin would still call the api baked into\n' +
-        "its bundle — another worktree's). Either:\n" +
-        '  pnpm dev:stop                 free the ports this worktree owns\n' +
-        '  SETU_ADMIN_PORT=… pnpm dev    run this stack on different ports (see .env.example)'
-    )
+    // What to DO about it is lane-specific, so the caller (scripts/dev.mjs busyPortAdvice) says it.
     process.exit(1)
   }
 

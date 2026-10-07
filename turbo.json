@@ -436,10 +436,12 @@
       // scripts/dev-lanes.mjs — the half of the parity it guards that lives outside apps/api.
       // test/build-failure.test.ts likewise imports apps/site's require-site-url.mjs (found by
       // the #1197 scan, not in the original list). apps/api does not depend on @setu/site, so
-      // no dependsOn edge folds that file in. Enforced by scripts/turbo-inputs.test.mjs.
+      // no dependsOn edge folds that file in. test/astro-dev-lock-parity.test.ts (#1200) likewise
+      // dynamic-imports scripts/astro-dev-lock.mjs. Enforced by scripts/turbo-inputs.test.mjs.
       "inputs": [
         "$TURBO_DEFAULT$",
         "../../scripts/dev-lanes.mjs",
+        "../../scripts/astro-dev-lock.mjs",
         "../site/integrations/require-site-url.mjs"
       ],
       "outputs": []

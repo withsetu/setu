@@ -42,7 +42,10 @@ import { fileURLToPath } from 'node:url'
 
 import { isDirectInvocation } from './auth-login-link.mjs'
 import { seedSandbox } from './content-sandbox.mjs'
+import { parseDotenv } from './dotenv.mjs'
+import { astroDevPid } from './astro-dev-lock.mjs'
 import { listenersOf } from './free-ports.mjs'
+import { stopGroups } from './proc-group.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 /** Repo root resolved from this file's location — never process.cwd(), so the command behaves
@@ -110,29 +113,9 @@ export function stagingPaths(root) {
   }
 }
 
-/** Minimal KEY=VALUE dotenv parser (node builtins only, like every script here): comments and
- *  blank lines skipped, optional single/double quotes stripped, later keys win, NO expansion —
- *  values are literal. Enforced by the parseDotenv tests in scripts/staging.test.mjs. */
-export function parseDotenv(text) {
-  const out = {}
-  for (const raw of text.split(/\r?\n/)) {
-    const line = raw.trim()
-    if (line === '' || line.startsWith('#')) continue
-    const eq = line.indexOf('=')
-    if (eq <= 0) continue
-    const key = line.slice(0, eq).trim()
-    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue
-    let value = line.slice(eq + 1).trim()
-    if (
-      value.length >= 2 &&
-      ((value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'")))
-    )
-      value = value.slice(1, -1)
-    out[key] = value
-  }
-  return out
-}
+// parseDotenv lives in scripts/dotenv.mjs so the dev launcher and the sandbox tools can read
+// `.env` without importing this whole module (#1200); re-exported here for existing callers.
+export { parseDotenv }
 
 /** The zero-secret staging defaults, mirrored by the tracked `.env.example` (kept in lockstep
  *  by the ".env.example stays honest" test in scripts/staging.test.mjs):
@@ -295,6 +278,24 @@ ${host(origins.mailpit)} {
 `
 }
 
+/** Why `pnpm staging` must not build `siteDir` right now, or null (#1200). Building the site
+ *  under a live `astro dev` corrupts the caches that dev server is serving from — the api's
+ *  Rebuild path already refuses for the same reason (#1087) — so staging runs the same
+ *  dev-lockfile probe (scripts/astro-dev-lock.mjs) before seeding or building anything. The
+ *  message is pinned by the "staging refuses to build under a live astro dev" test, and the
+ *  call's position in start() — before the first seed, build or launch — by the "start() runs
+ *  the astro-dev preflight before it seeds or builds anything" test, both in
+ *  scripts/staging.test.mjs. */
+export function devServerRefusal(siteDir, pidOf = astroDevPid) {
+  const pid = pidOf(siteDir)
+  if (pid === null) return null
+  return (
+    `staging: an Astro dev server (pid ${pid}) is serving ${siteDir}, and the staging build ` +
+    'would overwrite the caches it reads (#1087). Stop that lane first (`pnpm dev:stop`), ' +
+    'then re-run `pnpm staging`.'
+  )
+}
+
 /** Per-child stop markers. caddy and mailpit get SANDBOX-UNIQUE paths their spawned command
  *  lines carry (`--config <…>/Caddyfile`, `--database <…>/mailpit.db`) rather than the binary
  *  names — a generic 'caddy' marker would match ANY caddy on a reused pid (#884 review
@@ -364,24 +365,10 @@ function commandOf(pid) {
 }
 
 /** SIGTERM the child's process GROUP (children are spawned detached as group leaders, so this
- *  reaches pnpm's node grandchildren too), escalate to SIGKILL for survivors. */
+ *  reaches pnpm's node grandchildren too), escalate to SIGKILL for survivors. Shared with
+ *  `pnpm dev` via scripts/proc-group.mjs (#1198). */
 async function stopRecorded(records) {
-  const signalGroup = (pid, sig) => {
-    try {
-      process.kill(-pid, sig)
-    } catch {
-      try {
-        process.kill(pid, sig)
-      } catch {
-        /* already gone */
-      }
-    }
-  }
-  for (const r of records) signalGroup(r.pid, 'SIGTERM')
-  await sleep(1200)
-  for (const r of records) {
-    if (isAlive(r.pid)) signalGroup(r.pid, 'SIGKILL')
-  }
+  await stopGroups(records.map((r) => r.pid))
 }
 
 function requireBinary(bin, installHint) {
@@ -508,6 +495,13 @@ async function start() {
       process.exit(1)
     }
     rmSync(paths.pidsFile, { force: true }) // stale file from a hard kill — safe to clear
+  }
+
+  // Never build apps/site underneath a live `astro dev` (#1200).
+  const devRefusal = devServerRefusal(path.join(REPO_ROOT, 'apps', 'site'))
+  if (devRefusal) {
+    console.error(devRefusal)
+    process.exit(1)
   }
 
   // Port preflight — report, never kill (that is staging:stop's job, and only for OUR pids).

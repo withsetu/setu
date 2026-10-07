@@ -16,7 +16,7 @@
     "staging": "node scripts/staging.mjs start",
     "staging:stop": "node scripts/staging.mjs stop",
     "dev:stop": "node scripts/dev.mjs --stop",
-    "dev:fresh": "node scripts/free-ports.mjs 4321 4444 5173 && pnpm dev",
+    "dev:fresh": "node scripts/dev.mjs --fresh",
     "test": "pnpm -r test",
     "test:turbo": "turbo run test",
     "test:scripts": "node --test 'scripts/*.test.mjs'",

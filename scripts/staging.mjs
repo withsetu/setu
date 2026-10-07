@@ -45,6 +45,7 @@ import { seedSandbox } from './content-sandbox.mjs'
 import { parseDotenv } from './dotenv.mjs'
 import { astroDevPid } from './astro-dev-lock.mjs'
 import { listenersOf } from './free-ports.mjs'
+import { stopGroups } from './proc-group.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 /** Repo root resolved from this file's location — never process.cwd(), so the command behaves
@@ -362,24 +363,10 @@ function commandOf(pid) {
 }
 
 /** SIGTERM the child's process GROUP (children are spawned detached as group leaders, so this
- *  reaches pnpm's node grandchildren too), escalate to SIGKILL for survivors. */
+ *  reaches pnpm's node grandchildren too), escalate to SIGKILL for survivors. Shared with
+ *  `pnpm dev` via scripts/proc-group.mjs (#1198). */
 async function stopRecorded(records) {
-  const signalGroup = (pid, sig) => {
-    try {
-      process.kill(-pid, sig)
-    } catch {
-      try {
-        process.kill(pid, sig)
-      } catch {
-        /* already gone */
-      }
-    }
-  }
-  for (const r of records) signalGroup(r.pid, 'SIGTERM')
-  await sleep(1200)
-  for (const r of records) {
-    if (isAlive(r.pid)) signalGroup(r.pid, 'SIGKILL')
-  }
+  await stopGroups(records.map((r) => r.pid))
 }
 
 function requireBinary(bin, installHint) {

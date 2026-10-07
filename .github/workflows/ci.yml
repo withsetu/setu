@@ -321,9 +321,8 @@ jobs:
       # probe dir holding only the lockfile + workspace settings: with the root package.json
       # in scope, the nested v11 would read `packageManager: pnpm@10.x` and delegate straight
       # back to the broken v10 client (manage-package-manager-versions). Same lockfile, same
-      # high+ gate — the gate is NOT weakened. v11 doesn't read `pnpm.auditConfig` from
-      # package.json (root allowlist GHSA-67mh-4wv8-2f99 — moderate, never gates at high+);
-      # the allowlist the gate DOES honor is `auditConfig.ignoreGhsas` in pnpm-workspace.yaml,
+      # high+ gate — the gate is NOT weakened. The allowlist the gate honors is
+      # `auditConfig.ignoreGhsas` in pnpm-workspace.yaml,
       # copied into the probe below (#880). Entries there are restricted to advisories with no
       # patched release inside the affected major, and each carries a dated tracking issue —
       # see that file's comments before adding one. That expiry is enforced by

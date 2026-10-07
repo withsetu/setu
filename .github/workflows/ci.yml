@@ -310,6 +310,9 @@ jobs:
       # see that file's comments before adding one. That expiry is enforced by
       # audit-allowlist.yml (#1152), not by this step.
       - name: 'pnpm audit (gate: high)'
+        # base_ref bound as data, not interpolated into the script (#813).
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
           probe="$RUNNER_TEMP/audit-probe"
@@ -338,6 +341,26 @@ jobs:
             exit 1
           fi
           echo "Canary OK: audit examined $examined packages."
+
+          # PR scope (#1211): a pull request fails only on high+ advisories its lockfile
+          # INTRODUCES. An advisory already on the base branch is printed as a warning and left
+          # to main's own gate below — it reds every push to main and the weekly run until it is
+          # fixed, instead of redding every open PR at once (#1148, #1192, #1205). The base scan
+          # reads the lockfile + workspace settings from origin/<base_ref> (fetched by the scope
+          # step), never from the PR. scripts/audit-new-advisories.mjs fails closed (exit 2) if
+          # either scan is unreadable or examined nothing; tests: scripts/audit-new-advisories.test.mjs.
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            printf '%s\n' "$audit_json" > "$RUNNER_TEMP/audit-head.json"
+            base_probe="$RUNNER_TEMP/audit-probe-base"
+            mkdir -p "$base_probe"
+            git -C "$GITHUB_WORKSPACE" show "origin/$BASE_REF:pnpm-lock.yaml" > "$base_probe/pnpm-lock.yaml"
+            git -C "$GITHUB_WORKSPACE" show "origin/$BASE_REF:pnpm-workspace.yaml" > "$base_probe/pnpm-workspace.yaml"
+            echo '{"name":"audit-probe-base","private":true}' > "$base_probe/package.json"
+            (cd "$base_probe" && pnpm dlx pnpm@11.13.0 audit --json > "$RUNNER_TEMP/audit-base.json" || true)
+            echo "Gating on high+ advisories this PR introduces (vs origin/$BASE_REF):"
+            node "$GITHUB_WORKSPACE/scripts/audit-new-advisories.mjs" "$RUNNER_TEMP/audit-base.json" "$RUNNER_TEMP/audit-head.json"
+            exit $?
+          fi
 
           echo "Gating on high+ severity (moderate/low above are informational):"
           pnpm dlx pnpm@11.13.0 audit --audit-level=high

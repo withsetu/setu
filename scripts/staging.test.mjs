@@ -16,7 +16,8 @@ import {
   adminBuildEnvFor,
   siteBuildEnvFor,
   caddyfileFor,
-  planStop
+  planStop,
+  devServerRefusal
 } from './staging.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -432,4 +433,14 @@ test('.env.example parses and matches the script defaults exactly', () => {
   // And the tracked example must never carry an auth secret value.
   assert.equal(parsed.SETU_AUTH_SECRET, undefined)
   assert.equal(defaults.SETU_AUTH_SECRET, undefined)
+})
+
+test('staging refuses to build under a live astro dev, naming the pid and the fix (#1200)', () => {
+  assert.equal(
+    devServerRefusal('/repo/apps/site', () => null),
+    null
+  )
+  const msg = devServerRefusal('/repo/apps/site', () => 4321)
+  assert.match(msg, /pid 4321/)
+  assert.match(msg, /pnpm dev:stop/)
 })

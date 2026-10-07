@@ -115,6 +115,16 @@ test('laneEnv derives every origin from the lane, so nothing is hand-configured'
   assert.equal(env.SETU_API_URL, 'https://a-api.example.com')
   assert.equal(env.PUBLIC_SETU_MEDIA, 'https://a-api.example.com')
   assert.equal(env.SETU_MEDIA_PUBLIC_URL, 'https://a-api.example.com/media')
+  assert.equal(
+    env.PUBLIC_SETU_API_BASE,
+    'https://a-api.example.com',
+    "unset, the contact block posts to http://localhost:4444 — the MAIN lane's api (#1200)"
+  )
+  assert.equal(
+    env.SETU_BASE_URL,
+    'https://a-api.example.com',
+    'unset, better-auth builds reset links from http://localhost:<port> (#1200)'
+  )
   assert.equal(env.SETU_REPO_DIR, '/s/dev')
   assert.equal(
     env.SETU_CONTENT_DIR,
@@ -164,6 +174,18 @@ test('laneEnv without a domain keeps every origin on loopback', () => {
   })
   assert.equal(env.VITE_SETU_API, 'http://localhost:4444')
   assert.equal(env.SETU_ADMIN_ORIGIN, 'http://localhost:5173')
+  assert.equal(env.PUBLIC_SETU_API_BASE, 'http://localhost:4444')
+  assert.equal(
+    laneEnv({
+      lane: 'b',
+      domain: undefined,
+      slot: 1,
+      repoDir: '/s/dev',
+      checkoutDir: '/s'
+    }).PUBLIC_SETU_API_BASE,
+    'http://localhost:4544',
+    "a non-main lane's contact form posts to its OWN api (#1200)"
+  )
   assert.equal(
     env.SETU_DEV_ALLOWED_HOSTS,
     undefined,

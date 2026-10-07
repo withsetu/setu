@@ -142,3 +142,22 @@ test('isDirectInvocation: false for a different module or a missing argv[1]', ()
   assert.equal(isDirectInvocation(undefined, meta), false)
   assert.equal(isDirectInvocation('', meta), false)
 })
+
+test('from a worktree, the link is read from the SHARED lane sandbox in the main checkout (#1200)', () => {
+  const main = makeRoot()
+  const wt = makeRoot()
+  try {
+    const shared = path.join(main, '.content-sandbox', 'dev')
+    writeHandshake(shared, 'http://localhost:5273/#setu-token=shared')
+    const { url, file } = readLoginLink(
+      wt,
+      {},
+      { laneSandboxFor: () => ({ dir: shared, owned: true, mainRoot: main }) }
+    )
+    assert.equal(url, 'http://localhost:5273/#setu-token=shared')
+    assert.equal(file, path.join(shared, '.setu', 'handshake-url'))
+  } finally {
+    rmSync(main, { recursive: true, force: true })
+    rmSync(wt, { recursive: true, force: true })
+  }
+})

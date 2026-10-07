@@ -55,6 +55,7 @@ function deps(over = {}) {
     }),
     envOf: () => ({}),
     loginLink: () => ({ error: 'none' }),
+    laneSandboxOf: () => null,
     home: '/Users/dev',
     now: NOW,
     ...over
@@ -565,7 +566,10 @@ test('a cross-wired admin (worktree UI against main’s api) is flagged loudly',
   assert.match(out, /main/)
 })
 
-test('a cross-wired site (content dir from another worktree) is flagged too', () => {
+// #1053 made every lane share <main>/.content-sandbox/dev, so a worktree site reading it is
+// CORRECTLY wired. This test used to pin the opposite ("cross-wired"), which flagged every
+// healthy worktree lane (#1200).
+test('a worktree site reading the shared lane sandbox is wired correctly, not cross-wired', () => {
   const status = buildStatus(
     deps({
       listeners: [
@@ -578,13 +582,43 @@ test('a cross-wired site (content dir from another worktree) is flagged too', ()
         root: '/Users/dev/wt/editor-focus',
         branch: 'editor-focus-757'
       }),
+      laneSandboxOf: () => '/Users/dev/setu/.content-sandbox/dev',
       startedAt: () => minutesAgo(6),
       envOf: (pid) =>
         pid === 4
           ? {
-              // api is this worktree's own (consistent) — only the content dir is foreign.
               SETU_API_URL: 'http://localhost:4455',
               SETU_CONTENT_DIR: '/Users/dev/setu/.content-sandbox/dev/content'
+            }
+          : {}
+    })
+  )
+  const site = status.rows.find((r) => r.role === 'site')
+  assert.equal(site.wiring.known, true)
+  assert.deepEqual(site.wiring.issues, [])
+  assert.doesNotMatch(render(status), /cross-wired/)
+})
+
+test('a site reading some OTHER directory than its lane sandbox is still flagged', () => {
+  const status = buildStatus(
+    deps({
+      listeners: [
+        { pid: 3, port: 4455 },
+        { pid: 4, port: 4331 }
+      ],
+      cwdOf: (pid) =>
+        `/Users/dev/wt/editor-focus/apps/${pid === 3 ? 'api' : 'site'}`,
+      worktreeOf: () => ({
+        root: '/Users/dev/wt/editor-focus',
+        branch: 'editor-focus-757'
+      }),
+      laneSandboxOf: () => '/Users/dev/setu/.content-sandbox/dev',
+      startedAt: () => minutesAgo(6),
+      envOf: (pid) =>
+        pid === 4
+          ? {
+              SETU_API_URL: 'http://localhost:4455',
+              SETU_CONTENT_DIR: '/Users/dev/setu/.content-sandbox/e2e/content'
             }
           : {}
     })

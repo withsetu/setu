@@ -155,7 +155,10 @@ export function laneEnv({
       // The Rebuild child's canonical origin (#1183) — see preferOperatorSiteUrl.
       SETU_SITE_URL: `http://localhost:${ports.site}`,
       SETU_API_URL: api,
-      PUBLIC_SETU_MEDIA: api
+      PUBLIC_SETU_MEDIA: api,
+      // The contact block's form endpoint (blocks/contact/contact.astro) — unset, it falls back
+      // to http://localhost:4444, i.e. the MAIN lane's api (#1200).
+      PUBLIC_SETU_API_BASE: api
     }
   }
 
@@ -168,6 +171,11 @@ export function laneEnv({
     SETU_SITE_URL: `https://${hosts.site}`,
     SETU_API_URL: api,
     PUBLIC_SETU_MEDIA: api,
+    PUBLIC_SETU_API_BASE: api,
+    // better-auth's baseURL (apps/api/src/server.ts) — unset, reset/verify links are built from
+    // http://localhost:<port>, which is unreachable through the tunnel (#1200). On loopback that
+    // fallback is already the right origin, so it is only set here.
+    SETU_BASE_URL: api,
     SETU_MEDIA_PUBLIC_URL: `${api}/media`,
     // Only this lane's own two browser-facing hosts. parseAllowedHosts still refuses `true`/`*`
     // (#1049), so nothing on this path can switch the DNS-rebinding guard off.

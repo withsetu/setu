@@ -66,6 +66,15 @@
   // are listed because eslint-config-prettier's effect and the format:check gate both key off
   // them. They are declared GLOBALLY rather than per-task because a rule change can flip any
   // package's lint result, and turbo has no per-task way to say "all packages".
+  // `concurrency` (#1202): how many tasks turbo runs at once. turbo's default is a fixed 10,
+  // regardless of machine size; on CI's 4-core ubuntu-latest runner that let `turbo run
+  // typecheck test lint` stack up to ten tsc/eslint/vitest processes — each vitest also
+  // forking its own workers — onto four cores, a contributor to the load-only timeouts in
+  // #979/#684. "100%" = one task per logical core; vitest.shared.ts halves each suite's
+  // workers while running under turbo, so the worst case is ~2x the core count instead of
+  // ~10x. The CI wall-time comparison against main is in the #1202 PR.
+  "concurrency": "100%",
+
   "globalDependencies": [
     "tsconfig.base.json",
     "types/**",

@@ -98,7 +98,9 @@ jobs:
       #     resolved through the PACKAGE dependency graph — i.e. workspace deps in each
       #     package.json, not turbo.json's `dependsOn`, which governs task hashing and
       #     ordering. A file that maps to no package therefore selects no tasks at all,
-      #     which is what the root-impact guard below exists to catch (#817).
+      #     which is what the root-impact guard below exists to catch (#817). A file one
+      #     package owns but ANOTHER package's tests read selects the owner, not the reader —
+      #     the cross-package-read guard below catches that (#1206).
       # Push: no since-SHA -> full suite. Diagnostics print what will run.
       #
       # `github.base_ref` crosses into the shell as an env var rather than being
@@ -119,6 +121,14 @@ jobs:
             changed="$(git diff --name-only "$since" HEAD)"
             echo "Base: $base   since: $since"
             echo "Changed files:"; printf '%s\n' "$changed" | sed 's/^/  /'
+            # Changed files that another package's code reads but whose OWNER that package does not
+            # depend on (#1206) — computed by the same scan scripts/turbo-inputs.test.mjs checks
+            # turbo `inputs` against. A scan failure stops the job rather than falling through
+            # to the narrower affected run.
+            if ! guarded="$(printf '%s\n' "$changed" | node scripts/cross-package-reads.mjs)"; then
+              echo "::error::scripts/cross-package-reads.mjs failed; cannot tell whether the affected filter is safe."
+              exit 1
+            fi
             if [ -n "$changed" ] && ! printf '%s\n' "$changed" | grep -qvE '\.mdx?$'; then
               echo "→ docs-only: skipping typecheck + test."
               echo "skip=true" >> "$GITHUB_OUTPUT"
@@ -130,6 +140,15 @@ jobs:
               # a ci.yml-only diff). pnpm's #271 filter ran the FULL suite for root files;
               # restore that conservative semantic: no filter -> full run.
               echo "→ root-impact change (files outside packages/apps): running the FULL suite."
+            elif [ -n "$guarded" ]; then
+              # Cross-package-read guard (#1206): `...[<sha>]` selects a changed file's OWNING
+              # package plus its dependents. A test in a package that does not depend on the
+              # owner but reads one of its files (apps/admin's block-registry test reads
+              # apps/site/src/preview/preview.astro) would not be scheduled, and the first run
+              # to catch a break would be post-merge. turbo `inputs` fix cache hashing, not this
+              # selection. Same conservative answer as the root-impact guard: full run.
+              echo "→ cross-package read changed (another package's tests read it): running the FULL suite."
+              printf '%s\n' "$guarded" | sed 's/^/  /'
             else
               echo "since=$since" >> "$GITHUB_OUTPUT"
               echo "turbo's affected scope for '...[${since:0:9}]':"
@@ -302,9 +321,8 @@ jobs:
       # probe dir holding only the lockfile + workspace settings: with the root package.json
       # in scope, the nested v11 would read `packageManager: pnpm@10.x` and delegate straight
       # back to the broken v10 client (manage-package-manager-versions). Same lockfile, same
-      # high+ gate — the gate is NOT weakened. v11 doesn't read `pnpm.auditConfig` from
-      # package.json (root allowlist GHSA-67mh-4wv8-2f99 — moderate, never gates at high+);
-      # the allowlist the gate DOES honor is `auditConfig.ignoreGhsas` in pnpm-workspace.yaml,
+      # high+ gate — the gate is NOT weakened. The allowlist the gate honors is
+      # `auditConfig.ignoreGhsas` in pnpm-workspace.yaml,
       # copied into the probe below (#880). Entries there are restricted to advisories with no
       # patched release inside the affected major, and each carries a dated tracking issue —
       # see that file's comments before adding one. That expiry is enforced by

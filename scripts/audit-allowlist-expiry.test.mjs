@@ -110,10 +110,17 @@ test('parseIgnoreGhsas reads the real pnpm-workspace.yaml', () => {
     new URL('../pnpm-workspace.yaml', import.meta.url),
     'utf8'
   )
+  // Structure, not size: an EMPTY allowlist is the goal state (every advisory patched), so
+  // removing the last entry must keep this green. parseIgnoreGhsas throws on anything it
+  // cannot read, so reaching the loop already proves the block parsed.
   const entries = parseIgnoreGhsas(real)
-  assert.ok(entries.length > 0)
-  for (const e of entries)
+  assert.ok(Array.isArray(entries))
+  const ids = entries.map((e) => e.id)
+  assert.equal(new Set(ids).size, ids.length, 'duplicate ignoreGhsas entry')
+  for (const e of entries) {
+    assert.match(e.id, /^GHSA(-[0-9a-z]{4}){3}$/, `${e.id} is not a GHSA id`)
     assert.match(e.issue ?? '', /^#\d+$/, `${e.id} names no Expiry issue`)
+  }
 })
 
 test('parseLockfileVersions reads packages: only, scoped names, strips peer suffixes', () => {

@@ -295,6 +295,18 @@
       "outputs": []
     },
 
+    // @setu/email-smtp#test (#1202): same graph as the generic `test` task, plus one env var.
+    // SETU_TEST_MAILPIT=1 tells packages/email-smtp/test/mailpit-live.test.ts that CI's Mailpit
+    // service container is listening, so the live SMTP round-trip runs (and fails if Mailpit is
+    // unreachable) instead of skipping. Declared in `env`, not passThroughEnv: turbo 2's strict
+    // env mode would otherwise strip it, and folding its value into the hash keeps a local run
+    // that skipped the live test from being replayed as a CI pass that ran it.
+    "@setu/email-smtp#test": {
+      "dependsOn": ["^test"],
+      "env": ["SETU_TEST_MAILPIT"],
+      "outputs": []
+    },
+
     // @setu/admin#test (#293) runs TWO vitest projects via vitest.config.ts (`test.projects`,
     // migrated off the deprecated vitest.workspace.ts in #818): the existing
     // jsdom suite (vite.config.ts) plus a real-chromium component-test project

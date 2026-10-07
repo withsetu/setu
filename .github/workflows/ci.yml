@@ -57,6 +57,17 @@ jobs:
     # events (push/schedule/workflow_dispatch) have no `pull_request` context, so the first
     # clause keeps them running; only a draft PR is skipped.
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    # Mailpit SMTP sink for packages/email-smtp/test/mailpit-live.test.ts (#1202), which until
+    # now skipped on every CI run. Mapped to the test's fixed non-default ports; the turbo step
+    # below sets SETU_TEST_MAILPIT=1 so the suite uses it and fails if it is unreachable.
+    # Pinned by digest (the v1.31.4 multi-arch index on Docker Hub; MIT, axllent/mailpit) —
+    # same supply-chain posture as the SHA-pinned third-party actions in this file.
+    services:
+      mailpit:
+        image: axllent/mailpit@sha256:b68349e3a014b90c5610bfb26b2ae36f3892d7b8cf25ee140c6c71c98d2fcf48 # v1.31.4
+        ports:
+          - 11025:1025
+          - 18025:8025
     steps:
       - uses: actions/checkout@v7
         with:
@@ -227,6 +238,7 @@ jobs:
       - name: Typecheck + test + lint (incl. core edge build)
         env:
           NODE_OPTIONS: --max-old-space-size=4096
+          SETU_TEST_MAILPIT: '1'
         run: |
           if [ "${{ steps.scope.outputs.skip }}" = "true" ]; then echo "docs-only change — skipped"; exit 0; fi
           since='${{ steps.scope.outputs.since }}'

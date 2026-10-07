@@ -348,3 +348,38 @@ test('clone leaves no temp directory behind, on success or refusal', () => {
     rmSync(root, { recursive: true, force: true })
   }
 })
+
+// #1202: CI run 37130458907 failed `rmSync` of `.git/objects/pack` with ENOTEMPTY right after a
+// `git commit` — git's auto-maintenance can detach a background gc that is still writing packs
+// while the tree is removed. The sandbox repo opts out of auto gc/maintenance (so neither the seed
+// nor git-local's later commits into it spawn one) and every recursive remove retries.
+test('a seeded sandbox repo has auto gc and auto maintenance disabled', () => {
+  const root = makeRoot()
+  try {
+    seedSandbox(root, 'dev')
+    const dir = sandboxPath(root, 'dev')
+    const cfg = (key) =>
+      execFileSync('git', ['config', '--local', '--get', key], {
+        cwd: dir,
+        encoding: 'utf8'
+      }).trim()
+    assert.equal(cfg('gc.auto'), '0')
+    assert.equal(cfg('maintenance.auto'), 'false')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('every recursive remove in content-sandbox.mjs goes through the retrying helper', () => {
+  const src = readFileSync(
+    new URL('./content-sandbox.mjs', import.meta.url),
+    'utf8'
+  )
+  const calls = src.match(/\brmSync\s*\(/g) ?? []
+  assert.equal(
+    calls.length,
+    1,
+    'rmSync is called exactly once — inside removeTree, which passes maxRetries'
+  )
+  assert.match(src, /maxRetries:\s*\d+/)
+})

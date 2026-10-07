@@ -347,8 +347,15 @@ export class EditorPage {
     await expect(this.slashMenu).toBeHidden()
   }
 
-  /** Wait for autosave to settle: SaveIndicator flips through "Saving…" to
-   *  "Backed up on this device". */
+  /** Wait until the LATEST edit is backed up. This relies on the indicator being
+   *  honest about pending work (#1195): an edit flips a settled "Backed up on this
+   *  device" to "Saving…" (status `pending`) as soon as its rev change commits, and an
+   *  in-flight save of an OLDER buffer no longer reports "Backed up" while a newer edit
+   *  waits on its debounce — both enforced by apps/admin/test/autosave.test.ts ("a new
+   *  edit after a completed save is reported pending", "an edit made during an
+   *  in-flight save survives"). That the flip lands before Playwright's next command is
+   *  intended (Tiptap's onUpdate → setRev runs synchronously in the input event), not
+   *  separately tested. */
   async save() {
     await expect(this.savedIndicator).toBeVisible({ timeout: 10_000 })
   }

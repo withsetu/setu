@@ -478,3 +478,134 @@ describe('useAutosave — a failed save is reported as failed (#782)', () => {
     expect(fireBeforeUnload()).toBe(false)
   })
 })
+
+// ---------------------------------------------------------------------------------
+// #1195 — an edit that arrives while a save is in flight, but whose debounce has not
+// fired yet, is NOT queued as a follow-up (`pending` is only set when the timer fires
+// mid-flight). The in-flight save's `finally` used to see an empty queue, clear
+// `dirty` and report 'saved' for the OLDER buffer — so an unmount inside the new
+// debounce window cancelled the timer and skipped the flush, and a tab close in the
+// same window returned without warning. The newest edit was lost silently.
+// ---------------------------------------------------------------------------------
+
+describe('useAutosave — an edit made during an in-flight save survives (#1195)', () => {
+  /** A save whose every call freezes until the test releases it, recording the
+   *  buffer each call wrote. */
+  function recordingSave(): {
+    save: Save
+    written: string[]
+    release: (i: number) => void
+  } {
+    const written: string[] = []
+    const releases: Array<() => void> = []
+    const save = vi.fn((d: DraftInput) => {
+      written.push(String(d.metadata['body']))
+      return new Promise<{ saved: boolean }>((r) =>
+        releases.push(() => r({ saved: true }))
+      )
+    })
+    return { save, written, release: (i) => releases[i]?.() }
+  }
+
+  /** Drive: edit 'A' → its save starts → edit 'AB' while it is in flight → the
+   *  first save resolves, all inside the 'AB' debounce window. */
+  async function editDuringFlight() {
+    let buffer = 'A'
+    const rec = recordingSave()
+    const statuses: SaveStatus[] = []
+    const props = (rev: number) => ({
+      enabled: true,
+      rev,
+      getInput: (): DraftInput => ({ ...input(), metadata: { body: buffer } }),
+      save: rec.save,
+      onStatus: (s: SaveStatus) => statuses.push(s),
+      delayMs: 800
+    })
+    const hook = renderHook((p) => useAutosave(p), { initialProps: props(0) })
+    hook.rerender(props(1))
+    await vi.advanceTimersByTimeAsync(800)
+    expect(rec.written).toEqual(['A']) // save #1 is in flight with 'A'
+    buffer = 'AB'
+    hook.rerender(props(2)) // newer edit: debounce scheduled, not yet fired
+    await vi.advanceTimersByTimeAsync(100)
+    rec.release(0) // save #1 resolves — 'AB' is still unwritten
+    await vi.advanceTimersByTimeAsync(0)
+    return { ...hook, ...rec, statuses }
+  }
+
+  it('does not report "saved" for the older buffer while the newer edit is pending', async () => {
+    const { statuses } = await editDuringFlight()
+    expect(statuses).not.toContain('saved')
+    expect(statuses.at(-1)).toBe('pending')
+  })
+
+  it('unmount inside the new debounce window flushes the newer edit', async () => {
+    const { unmount, written, release } = await editDuringFlight()
+    unmount()
+    release(1)
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(written).toEqual(['A', 'AB'])
+  })
+
+  it('a tab close inside the new debounce window warns and flushes the newer edit', async () => {
+    const { written } = await editDuringFlight()
+    expect(fireBeforeUnload()).toBe(true)
+    expect(written).toEqual(['A', 'AB'])
+  })
+
+  it('left alone, the newer edit saves on its own debounce and only then reports saved', async () => {
+    const { written, statuses, release } = await editDuringFlight()
+    await vi.advanceTimersByTimeAsync(800) // the 'AB' debounce fires
+    expect(written).toEqual(['A', 'AB'])
+    release(1)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(statuses.at(-1)).toBe('saved')
+    expect(fireBeforeUnload()).toBe(false)
+  })
+})
+
+describe('useAutosave — a new edit after a completed save is reported pending (#1195)', () => {
+  it('flips "saved" to "pending" on the next change, before its debounce fires', async () => {
+    const save = vi.fn(async () => ({ saved: true }))
+    const statuses: SaveStatus[] = []
+    const props = (rev: number) => ({
+      enabled: true,
+      rev,
+      getInput: input,
+      save,
+      onStatus: (s: SaveStatus) => statuses.push(s),
+      delayMs: 800
+    })
+    const { rerender } = renderHook((p) => useAutosave(p), {
+      initialProps: props(0)
+    })
+    rerender(props(1))
+    await vi.advanceTimersByTimeAsync(800)
+    expect(statuses.at(-1)).toBe('saved')
+    rerender(props(2))
+    expect(statuses.at(-1)).toBe('pending')
+  })
+
+  it('keeps an "error" on screen through the next change — that work is still not backed up', async () => {
+    const save = vi.fn(async () => {
+      throw new Error('offline')
+    }) as unknown as Save
+    const statuses: SaveStatus[] = []
+    const props = (rev: number) => ({
+      enabled: true,
+      rev,
+      getInput: input,
+      save,
+      onStatus: (s: SaveStatus) => statuses.push(s),
+      delayMs: 800
+    })
+    const { rerender } = renderHook((p) => useAutosave(p), {
+      initialProps: props(0)
+    })
+    rerender(props(1))
+    await vi.advanceTimersByTimeAsync(800)
+    expect(statuses.at(-1)).toBe('error')
+    rerender(props(2))
+    expect(statuses.at(-1)).toBe('error')
+  })
+})

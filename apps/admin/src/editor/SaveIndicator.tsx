@@ -23,7 +23,10 @@ export function SaveIndicator({
       </span>
     )
   }
-  if (status === 'saving') {
+  // 'pending' (a newer edit is waiting for its debounced save, #1195) reads the same as
+  // 'saving': the save is imminent, and — the part that matters — the indicator stops
+  // claiming "Backed up" for a buffer that has moved on since the last save.
+  if (status === 'saving' || status === 'pending') {
     return (
       <span className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground">
         <Loader2 className="size-3.5 animate-spin" /> Saving…

@@ -2,7 +2,8 @@
 // Build-time codegen: scan repo-root blocks/, build the registry, and write the site's
 // Markdoc tags include. Run as apps/site's predev/prebuild. Pure build-time => zero
 // per-visitor cost. Uses jiti (like @setu/core) to import the TS block contracts + core.
-import { existsSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, readdirSync, statSync } from 'node:fs'
+import { writeFileAtomic } from './atomic-write.mjs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
@@ -79,7 +80,7 @@ export async function main() {
   // back to post/page here would make every declared collection a build error instead.
   const config = await loadConfig(SITE_CONFIG)
   const collections = config.collections.map((c) => c.name)
-  writeFileSync(OUT, generateMarkdocTagsInclude(registry, { collections }))
+  writeFileAtomic(OUT, generateMarkdocTagsInclude(registry, { collections }))
   console.log(
     `gen-blocks: ${registry.blocks.length} block(s): ${registry.blocks.map((b) => b.tag).join(', ') || '(none)'}`
   )

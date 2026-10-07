@@ -4,15 +4,25 @@ import { createSmtpEmailAdapter } from '../src/index'
 
 /** Live round-trip against a real Mailpit SMTP sink (the contract target named
  *  on #256): send through the adapter over an actual socket, then assert via
- *  Mailpit's REST API that the identifying fields arrived intact. Auto-skips
- *  when the mailpit binary isn't installed (`brew install mailpit`), so CI
- *  without it stays green — #454 owns wiring Mailpit into CI. Non-default
- *  ports to avoid colliding with a developer's own Mailpit on :1025/:8025. */
+ *  Mailpit's REST API that the identifying fields arrived intact.
+ *
+ *  Two ways to get a Mailpit (#1202):
+ *   - CI: the `check` job runs Mailpit as a service container mapped to the
+ *     ports below and sets SETU_TEST_MAILPIT=1. With that set the suite uses the
+ *     running instance and FAILS (never skips) if it is unreachable, so CI cannot
+ *     go green on a silently skipped live test.
+ *   - Locally: if the `mailpit` binary is installed (`brew install mailpit`) the
+ *     suite spawns its own on these non-default ports, avoiding a developer's own
+ *     Mailpit on :1025/:8025. With neither, it skips. */
 const SMTP_HOST = '127.0.0.1'
 const SMTP_PORT = 11025
 const HTTP_BASE = 'http://127.0.0.1:18025'
 
+/** A Mailpit is already listening on the ports above (CI's service container). */
+const external = process.env.SETU_TEST_MAILPIT === '1'
+
 const hasMailpit = (() => {
+  if (external) return true
   try {
     return spawnSync('mailpit', ['version'], { stdio: 'ignore' }).status === 0
   } catch {
@@ -39,11 +49,12 @@ describe.skipIf(!hasMailpit)('smtp adapter → live Mailpit round-trip', () => {
 
   beforeAll(async () => {
     // In-memory store (no --db-file): each run starts empty and leaves nothing.
-    mailpit = spawn(
-      'mailpit',
-      ['--smtp', `${SMTP_HOST}:${SMTP_PORT}`, '--listen', '127.0.0.1:18025'],
-      { stdio: 'ignore' }
-    )
+    if (!external)
+      mailpit = spawn(
+        'mailpit',
+        ['--smtp', `${SMTP_HOST}:${SMTP_PORT}`, '--listen', '127.0.0.1:18025'],
+        { stdio: 'ignore' }
+      )
     await waitForMailpit()
   }, 30000)
 

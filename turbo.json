@@ -127,6 +127,9 @@
     // all four @setu/site tasks list them. Per-task, NOT globalDependencies: only the tasks that
     // load a config importing them should miss, not every cache in the repo. The same applies
     // to dev-lanes.mjs on @setu/api#test. Enforced by scripts/turbo-inputs.test.mjs.
+    // atomic-write.mjs (#1207): every generator above writes its output through it, so it is
+    // part of each generator and is listed wherever they are — enforced by
+    // scripts/atomic-write.test.mjs.
     "@setu/site#typecheck": {
       "dependsOn": ["^typecheck"],
       "env": ["SETU_CONTENT_DIR"],
@@ -136,6 +139,7 @@
         "../../content/**",
         "../../scripts/gen-blocks.mjs",
         "../../scripts/gen-relations.mjs",
+        "../../scripts/atomic-write.mjs",
         "../../scripts/dev-allowed-hosts.mjs",
         "../../scripts/dev-port.mjs",
         "../../url-map.json",
@@ -264,6 +268,7 @@
         "../../content/**",
         "../../scripts/gen-blocks.mjs",
         "../../scripts/gen-relations.mjs",
+        "../../scripts/atomic-write.mjs",
         "../../scripts/dev-allowed-hosts.mjs",
         "../../scripts/dev-port.mjs",
         "../../url-map.json",
@@ -472,6 +477,7 @@
         "../../content/**",
         "../../scripts/gen-blocks.mjs",
         "../../scripts/gen-relations.mjs",
+        "../../scripts/atomic-write.mjs",
         "../../scripts/gen-redirects.mjs",
         "../../scripts/dev-allowed-hosts.mjs",
         "../../scripts/dev-port.mjs",
@@ -529,6 +535,7 @@
         "../../content/**",
         "../../scripts/gen-blocks.mjs",
         "../../scripts/gen-relations.mjs",
+        "../../scripts/atomic-write.mjs",
         "../../scripts/gen-redirects.mjs",
         "../../scripts/dev-allowed-hosts.mjs",
         "../../scripts/dev-port.mjs",

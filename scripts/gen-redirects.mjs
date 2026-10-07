@@ -10,7 +10,8 @@
 //   redirects.json — accumulated [{from,to}] 301s, chains collapsed to their terminal target
 // Both are written here and ride the normal deploy/commit flow. The generated `_redirects` under
 // apps/site/public/ is a disposable artifact (gitignored); astro copies public/* into dist/.
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { readFileSync, mkdirSync } from 'node:fs'
+import { writeFileAtomic } from './atomic-write.mjs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
@@ -85,10 +86,10 @@ export async function run(
       .sort()
       .map((k) => [k, urlMap[k]])
   )
-  writeFileSync(urlMapPath, JSON.stringify(sortedMap, null, 2) + '\n')
-  writeFileSync(redirectsPath, JSON.stringify(redirects, null, 2) + '\n')
+  writeFileAtomic(urlMapPath, JSON.stringify(sortedMap, null, 2) + '\n')
+  writeFileAtomic(redirectsPath, JSON.stringify(redirects, null, 2) + '\n')
   mkdirSync(path.dirname(publicRedirects), { recursive: true })
-  writeFileSync(publicRedirects, redirectsToText(redirects))
+  writeFileAtomic(publicRedirects, redirectsToText(redirects))
   return redirects
 }
 

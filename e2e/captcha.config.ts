@@ -107,7 +107,12 @@ export default defineConfig({
         outputFolder: path.join(__dirname, 'playwright-report-captcha')
       }
     ],
-    ['line']
+    ['line'],
+    // #1201: same flaky-visibility reporter as the main lane, under its own summary heading.
+    [
+      path.join(repoRoot, 'scripts', 'e2e-flaky-reporter.mjs'),
+      { heading: 'Flaky e2e tests (captcha lane)' }
+    ]
   ],
   use: {
     trace: 'on-first-retry',

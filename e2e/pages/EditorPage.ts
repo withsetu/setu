@@ -3,6 +3,29 @@ import { expect } from '@playwright/test'
 import { ContentListPage } from './ContentListPage'
 import { watchNotifications } from '../lib/notifications'
 
+/** The slice of a Tiptap `Editor` that `placeCaretAtEndOf` touches inside the page. Declared
+ *  structurally (not imported from @tiptap/core) because e2e/ is not a workspace package and the
+ *  object only exists in the browser. */
+interface PmNode {
+  isTextblock: boolean
+  textContent: string
+  nodeSize: number
+  content: { size: number }
+  forEach(fn: (node: PmNode, offset: number) => void): void
+}
+interface TiptapLike {
+  state: {
+    doc: PmNode
+    selection: {
+      empty: boolean
+      $from: { parent: PmNode; parentOffset: number }
+    }
+  }
+  chain(): {
+    focus(): { setTextSelection(pos: number): { run(): boolean } }
+  }
+}
+
 /** The post/page editor at `/edit/:collection/:locale/:slug` — EditorScreen.tsx.
  *  Autosave (per-browser IndexedDB, no team visibility) runs continuously: typing
  *  schedules a debounced save and `SaveIndicator` renders "Saving…" then "Backed up
@@ -167,6 +190,60 @@ export class EditorPage {
    *  moves whichever top-level block contains the current selection. */
   async clickBlock(text: string) {
     await this.blocks.filter({ hasText: text }).first().click()
+  }
+
+  /** Put a collapsed caret at the very END of the first top-level text block containing
+   *  `text`, deterministically, so a following `keyboard.type` appends to that block.
+   *
+   *  Why not `clickBlock` + `End` (#1201): the click lands at the block's visual centre, and
+   *  on webkit/firefox `End` did not always reach the end of the block before typing began —
+   *  4 of 30 full-matrix runs typed mid-word ("Second version e Third…xtra words.").
+   *
+   *  So: click the block (real focus, real user path), then set the selection through the
+   *  live Tiptap instance Tiptap attaches to its view DOM (`dom.editor`, set by @tiptap/core's
+   *  createView), and poll the editor STATE — not the DOM selection — until the caret sits at
+   *  the block's content end. ProseMirror re-derives the DOM selection from that state on every
+   *  transaction, so the state is the source of truth the next keystroke lands on. Placing the
+   *  caret is the precondition here, not the behaviour under test, which is why it may bypass
+   *  keyboard navigation. */
+  async placeCaretAtEndOf(text: string) {
+    await this.clickBlock(text)
+    await this.body.evaluate((dom, needle) => {
+      const editor = (dom as unknown as { editor?: TiptapLike }).editor
+      if (!editor)
+        throw new Error('placeCaretAtEndOf: no Tiptap editor on the canvas')
+      const end = blockContentEnd(editor, needle)
+      if (end < 0)
+        throw new Error(`placeCaretAtEndOf: no block contains "${needle}"`)
+      editor.chain().focus().setTextSelection(end).run()
+
+      function blockContentEnd(ed: TiptapLike, t: string) {
+        let pos = -1
+        ed.state.doc.forEach((node, offset) => {
+          if (pos < 0 && node.isTextblock && node.textContent.includes(t))
+            pos = offset + node.nodeSize - 1
+        })
+        return pos
+      }
+    }, text)
+    await expect
+      .poll(
+        () =>
+          this.body.evaluate((dom, needle) => {
+            const editor = (dom as unknown as { editor?: TiptapLike }).editor
+            if (!editor) return 'no editor'
+            const { selection } = editor.state
+            if (!selection.empty) return 'selection not collapsed'
+            const { $from } = selection
+            if (!$from.parent.textContent.includes(needle))
+              return `caret in another block: "${$from.parent.textContent}"`
+            return $from.parentOffset === $from.parent.content.size
+              ? 'at end'
+              : `caret at ${$from.parentOffset}/${$from.parent.content.size}`
+          }, text),
+        { message: `caret should sit at the end of the "${text}" block` }
+      )
+      .toBe('at end')
   }
 
   /** Move the block containing `text` one slot up via the real keyboard shortcut —

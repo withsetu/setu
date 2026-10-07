@@ -30,7 +30,7 @@ test('an author is denied the admin-only Users screen', async ({ page }) => {
   await expect(dashboard.heading).toBeVisible()
 
   // (1) The nav never offers Users to an author (`useCan` — UX).
-  await expect(page.getByRole('link', { name: 'Users' })).toBeHidden()
+  await expect(dashboard.navLink('Users')).toBeHidden()
 
   // (2) A direct deep link is bounced back to the dashboard by the `RequireCan` route guard, so
   //     the Users screen never renders for an author. Also UX: this is client-side React routing,
@@ -53,10 +53,28 @@ test('an author is denied the Settings screen (incl. Settings → Email)', async
   await expect(dashboard.heading).toBeVisible()
 
   // (1) The nav never offers Settings to an author (`useCan` — UX).
-  await expect(page.getByRole('link', { name: 'Settings' })).toBeHidden()
+  await expect(dashboard.navLink('Settings')).toBeHidden()
 
   // (2) A direct deep link is bounced back to the dashboard by `RequireCan`.
   await page.goto('/settings')
   await expect(page).toHaveURL(/\/dashboard$/)
   await expect(dashboard.heading).toBeVisible()
+})
+
+// #1201 positive control for the two `toBeHidden` checks above. A hidden-check alone passes
+// vacuously if the link is renamed or its locator stops matching anything — it would then be
+// "hidden" for every role. Asserting the SAME locator (`DashboardPage.navLink`) IS visible for a
+// role that holds `users.view` / `settings.view` makes such a rename fail here instead.
+test.describe('positive control', () => {
+  test.use({ storageState: storageStateFor('admin') })
+
+  test('an admin IS offered the Users and Settings nav links', async ({
+    page
+  }) => {
+    const dashboard = new DashboardPage(page)
+    await page.goto('/dashboard')
+    await expect(dashboard.heading).toBeVisible()
+    await expect(dashboard.navLink('Users')).toBeVisible()
+    await expect(dashboard.navLink('Settings')).toBeVisible()
+  })
 })

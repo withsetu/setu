@@ -48,8 +48,7 @@ test('publish twice, inspect the diff, restore the older revision; author sees a
   // Revision 2: change the title (a frontmatter diff) and extend the body
   // (a word-level prose diff), then publish again.
   await editor.setTitle(`${title} v2`)
-  await editor.clickBlock('First version')
-  await page.keyboard.press('End')
+  await editor.placeCaretAtEndOf('First version')
   await page.keyboard.type(' Second version extra words.')
   await editor.publish()
 
@@ -68,8 +67,7 @@ test('publish twice, inspect the diff, restore the older revision; author sees a
   // Owner-UAT defect (#466): type WITHOUT committing, reopen History — the
   // live buffer must appear as a pinned synthetic row, HEAD demotes from
   // "Current" to "Last commit", and diffs baseline on what the user sees.
-  await editor.clickBlock('First version')
-  await page.keyboard.press('End')
+  await editor.placeCaretAtEndOf('First version')
   await page.keyboard.type(' Third uncommitted words.')
   await editor.openHistory()
   await expect(editor.revisionRows).toHaveCount(3)

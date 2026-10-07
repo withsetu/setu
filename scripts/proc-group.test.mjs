@@ -68,3 +68,19 @@ test('stopGroups never signals pid 1, 0, or a negative', async () => {
   })
   assert.deepEqual(fake.calls, [])
 })
+
+test('groupOnly never falls back to the bare pid — a detached child that is gone may have a reused pid (#1214 review)', async () => {
+  const fake = fakeKill() // no such group
+  signalGroup(42, 'SIGTERM', fake.kill, { groupOnly: true })
+  assert.deepEqual(fake.calls, [[-42, 'SIGTERM']])
+  const fake2 = fakeKill()
+  await stopGroups([42], {
+    kill: fake2.kill,
+    sleepFn: async () => {},
+    groupOnly: true
+  })
+  assert.ok(
+    fake2.calls.every(([pid]) => pid < 0),
+    `only group signals expected, got ${JSON.stringify(fake2.calls)}`
+  )
+})

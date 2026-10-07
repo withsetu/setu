@@ -17,8 +17,9 @@
 //         pnpm dev <lane>                # a named worktree (`dev` = the main checkout)
 //         pnpm dev:stop [lane...]        # free the ports your own servers hold on those lanes
 //                                        #   (no lane: every known lane)
-//         pnpm dev:stop --force [lane]   # also stop processes this worktree does not own on
-//                                        #   that ONE lane's ports (no lane: the lane you are in)
+//         pnpm dev:stop --force [lane...] # also stop processes this worktree does not own, on
+//                                        #   the named lanes' ports only (no lane: the lane you
+//                                        #   are in — never every lane)
 //         pnpm dev:fresh [lane]          # dev:stop for that lane, then pnpm dev
 
 import { execFileSync, spawn, spawnSync } from 'node:child_process'
@@ -28,6 +29,7 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  rmSync,
   writeFileSync
 } from 'node:fs'
 import path from 'node:path'
@@ -168,9 +170,23 @@ const slotFor = (registry, lane) =>
       ? 0
       : undefined
 
+/** Which lanes a stop covers, asking for the current lane (`cwdLane`, which runs git and refuses a
+ *  worktree outside `.claude/worktrees`) only when the answer depends on it: `dev:fresh` or
+ *  `dev:stop --force` with no lane named. Plain `dev:stop` therefore works from anywhere. Pinned
+ *  in scripts/dev.test.mjs ("plain dev:stop never needs the current lane"). */
+export function resolveStopLanes({ mode, force, lanes, cwdLane }) {
+  if (lanes.length > 0)
+    return { lanes: mode === 'fresh' ? [lanes[0]] : lanes, here: lanes[0] }
+  if (mode === 'fresh' || force) {
+    const here = cwdLane()
+    return { lanes: [here], here }
+  }
+  return { lanes: [], here: null }
+}
+
 /** Which ports `dev:stop` frees. `--force` signals processes this worktree does not own, so it is
- *  always scoped to ONE lane's own ports — the named lane(s), or the lane you are standing in —
- *  never "every known lane". Pure; pinned in scripts/dev.test.mjs. */
+ *  scoped to the named lanes' own ports, or with no lane named to the lane you are standing in —
+ *  never to "every known lane". Pure; pinned in scripts/dev.test.mjs. */
 export function stopTargets({ lanes, force, registry, cwdLane }) {
   const names =
     lanes.length > 0 ? lanes : force ? [cwdLane] : Object.keys(registry)
@@ -265,7 +281,10 @@ export function planCaddy({ ownedPid, adminListeners }) {
       action: 'refuse',
       reason:
         `the lane Caddy admin endpoint ${DEV_CADDY_ADMIN} is held by pid ` +
-        `${adminListeners.join(', ')}, which this launcher did not start — not touching it`
+        `${adminListeners.join(', ')}, which this launcher did not start — not touching it.\n` +
+        `     If it is a lane Caddy left by an interrupted \`pnpm dev\`, check it with ` +
+        `\`ps -p ${adminListeners[0]} -o command=\` and stop it with \`kill ${adminListeners[0]}\`, ` +
+        'then re-run `pnpm dev`'
     }
   return { action: 'start' }
 }
@@ -291,9 +310,16 @@ function tail(file, lines = 8) {
 }
 
 /** Start the lane Caddy and wait until it is actually listening on the front port — or report
- *  why it is not (#1199: the launcher used to print "caddy started" whatever happened). */
-async function startCaddy(root, file, frontPort) {
+ *  why it is not (#1199: the launcher used to print "caddy started" whatever happened).
+ *
+ *  The pid is recorded the moment it is spawned, not once it is listening: a Ctrl-C during the
+ *  wait would otherwise leave an untracked Caddy holding the admin endpoint, which every later
+ *  `pnpm dev` would refuse as foreign. Recording early is safe because ownership is re-checked
+ *  against the pid's command line (ownedCaddyPid). On failure the instance is stopped and the
+ *  record cleared. Pinned in scripts/dev.test.mjs ("a starting lane Caddy is recorded at once"). */
+async function startCaddy(root, file, frontPort, { waitMs = 8000 } = {}) {
   const log = caddyLogPath(root)
+  const state = caddyStatePath(root)
   const fd = openSync(log, 'w')
   const child = spawn(
     'caddy',
@@ -305,26 +331,22 @@ async function startCaddy(root, file, frontPort) {
   child.on('exit', (code) => (exited = { code }))
   child.on('error', (err) => (exited = { error: err.message }))
   child.unref()
+  if (child.pid !== undefined)
+    writeFileSync(
+      state,
+      `${JSON.stringify({ pid: child.pid, config: file }, null, 2)}\n`
+    )
 
-  const deadline = Date.now() + 8000
+  const deadline = Date.now() + waitMs
   while (Date.now() < deadline) {
     if (exited) break
-    if (listenersOf(frontPort).includes(child.pid)) {
-      writeFileSync(
-        caddyStatePath(root),
-        `${JSON.stringify({ pid: child.pid, config: file }, null, 2)}\n`
-      )
+    if (listenersOf(frontPort).includes(child.pid))
       return { ok: true, pid: child.pid }
-    }
     await new Promise((r) => setTimeout(r, 150))
   }
-  if (!exited && child.pid) {
-    try {
-      process.kill(child.pid, 'SIGTERM')
-    } catch {
-      /* gone */
-    }
-  }
+  if (!exited && child.pid !== undefined)
+    await stopGroups([child.pid], { groupOnly: true })
+  rmSync(state, { force: true })
   return {
     ok: false,
     detail: exited?.error ?? tail(log)
@@ -334,7 +356,13 @@ async function startCaddy(root, file, frontPort) {
 /** Regenerate the Caddyfile from EVERY registered lane, not just the running one, so starting a
  *  second lane does not tear down the first one's route. A route to a stopped lane simply 502s.
  *  Never touches a Caddy this launcher did not start (#1199). */
-export async function syncCaddy(root, registry, domain, frontPort) {
+export async function syncCaddy(
+  root,
+  registry,
+  domain,
+  frontPort,
+  { waitMs } = {}
+) {
   if (!domain) return null
   if (!have('caddy')) {
     console.warn(
@@ -386,7 +414,7 @@ export async function syncCaddy(root, registry, domain, frontPort) {
       )
     return file
   }
-  const started = await startCaddy(root, file, frontPort)
+  const started = await startCaddy(root, file, frontPort, { waitMs })
   if (started.ok)
     console.log(
       `dev: caddy started on loopback :${frontPort} (pid ${started.pid}, ${lanes.length} lane(s))`
@@ -428,7 +456,14 @@ const ROLES = [
  *  scripts/dev.test.mjs. */
 export function superviseLane(
   roles,
-  { cwd, env, log = console.log, adopt = () => [] }
+  {
+    cwd,
+    env,
+    log = console.log,
+    adopt = () => [],
+    stopFn = stopGroups,
+    attachProcess = true
+  }
 ) {
   const children = roles.map(({ name, command, args, colour = '' }) => {
     const child = spawn(command, args, {
@@ -455,51 +490,76 @@ export function superviseLane(
     return child
   })
 
-  const rolePids = children.map((c) => c.pid).filter((pid) => pid !== undefined)
+  // Role pids still worth signalling. A pid leaves this set the moment its leader exits — after
+  // its group is reaped — because a detached child's pid is free for reuse once it and its group
+  // are gone, and must never be signalled again (scripts/dev.test.mjs, "a role that exits is
+  // reaped at once and dropped"). With an agent present astro's re-launch makes the site role's
+  // leader exit within seconds, so this is the common path, not a corner case.
+  const live = new Set(
+    children.map((c) => c.pid).filter((pid) => pid !== undefined)
+  )
+  const reaps = []
+  const groupOnly = { groupOnly: true }
   // `adopt` is asked at stop time, not spawn time: a server that re-launches itself in the
   // background only exists (and only has a pid) after its role has started.
-  const targets = () => [...new Set([...rolePids, ...adopt()])]
+  const targets = () => [...new Set([...live, ...adopt()])]
   let stopping = false
   const stop = async () => {
     if (stopping) return
     stopping = true
-    await stopGroups(targets())
+    await stopFn(targets(), groupOnly)
   }
 
   const done = Promise.all(
     children.map(
       (child) =>
         new Promise((resolve) => {
-          if (child.exitCode !== null || child.signalCode !== null) resolve()
-          child.once('exit', resolve)
-          child.once('error', resolve)
+          const finish = () => {
+            if (child.pid !== undefined && live.delete(child.pid))
+              // Reap the group while its id is still reserved by any member left behind (a
+              // crashed pnpm leaves its server running in it).
+              reaps.push(stopFn([child.pid], groupOnly))
+            resolve()
+          }
+          if (child.exitCode !== null || child.signalCode !== null) finish()
+          child.once('exit', finish)
+          child.once('error', finish)
         })
     )
   ).then(async () => {
-    // A role's leader can exit while its group lives on (a crashed pnpm leaves its server). Reap
-    // the groups before the launcher goes, so nothing outlives it holding a port.
-    await stopGroups(targets())
+    await Promise.all(reaps)
+    // Adopted servers (outside every role group) go with the launcher too.
+    const adopted = adopt()
+    if (adopted.length > 0) await stopFn(adopted, groupOnly)
   })
 
-  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP'])
-    process.on(sig, () => {
-      void stop()
-    })
-  void done.then(() => process.exit(stopping ? 0 : 1))
+  if (attachProcess) {
+    for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP'])
+      process.on(sig, () => {
+        void stop()
+      })
+    void done.then(() => process.exit(stopping ? 0 : 1))
+  }
   return { children, stop, done }
 }
 
 /** The lane's `astro dev` server, from its own lockfile (`<dir>/apps/site/.astro/dev.json`) — but
- *  only while that pid's command line still runs from THIS lane's checkout, so a stale lockfile
- *  whose pid was reused can never aim the stop at somebody else's process. */
+ *  only while that pid's command line still runs astro's `dev` command from THIS lane's
+ *  `node_modules`. The check is intended to keep a stale lockfile whose pid was reused (by
+ *  vitest, tsc, eslint, `astro build`, another lane's server, …) from aiming the stop at somebody
+ *  else's process; the shapes it rejects are pinned by the siteServerPids tests in
+ *  scripts/dev.test.mjs. A reused pid that happens to be this lane's own `astro dev` is, by
+ *  construction, ours. */
 export function siteServerPids(
   dir,
   { pidOf = astroDevPid, cmdOf = commandOf } = {}
 ) {
   const pid = pidOf(path.join(dir, 'apps', 'site'))
   if (pid === null) return []
+  const cmd = cmdOf(pid)
   const ownModules = path.join(dir, 'node_modules') + path.sep
-  return cmdOf(pid).includes(ownModules) ? [pid] : []
+  const astroDev = /[/\\]astro(?:\.mjs|\.js)?\s+dev(?:\s|$)/
+  return cmd.includes(ownModules) && astroDev.test(cmd) ? [pid] : []
 }
 
 /** Free a set of lane ports via free-ports.mjs and wait for it — `dev:fresh` chains a start on
@@ -539,10 +599,14 @@ async function main(argv) {
   if (mode === 'stop' || mode === 'fresh') {
     // Ports come from the registry AS READ, so a lane pruned just now (its worktree is gone but
     // its servers may still be running) can still be stopped by name.
-    // `dev:fresh` stops one lane — the named one, or the one you are standing in — then starts it.
-    const here = lanes.length > 0 ? lanes[0] : cwdLane(root)
+    const { lanes: stopLanes, here } = resolveStopLanes({
+      mode,
+      force,
+      lanes,
+      cwdLane: () => cwdLane(root)
+    })
     const { ports, unknown } = stopTargets({
-      lanes: mode === 'fresh' ? [here] : lanes,
+      lanes: stopLanes,
       force,
       registry: read,
       cwdLane: here

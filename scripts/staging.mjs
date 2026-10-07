@@ -281,8 +281,10 @@ ${host(origins.mailpit)} {
 /** Why `pnpm staging` must not build `siteDir` right now, or null (#1200). Building the site
  *  under a live `astro dev` corrupts the caches that dev server is serving from — the api's
  *  Rebuild path already refuses for the same reason (#1087) — so staging runs the same
- *  dev-lockfile probe (scripts/astro-dev-lock.mjs) before seeding or building anything.
- *  Pinned by the "staging refuses to build under a live astro dev" test in
+ *  dev-lockfile probe (scripts/astro-dev-lock.mjs) before seeding or building anything. The
+ *  message is pinned by the "staging refuses to build under a live astro dev" test, and the
+ *  call's position in start() — before the first seed, build or launch — by the "start() runs
+ *  the astro-dev preflight before it seeds or builds anything" test, both in
  *  scripts/staging.test.mjs. */
 export function devServerRefusal(siteDir, pidOf = astroDevPid) {
   const pid = pidOf(siteDir)

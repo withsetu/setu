@@ -207,8 +207,9 @@ export function preferOperatorSiteUrl(derived, ...sources) {
  *  with a system Caddy (a distro systemd unit) that endpoint is the system instance's, and a bare
  *  `caddy reload` replaced its config with the lane routes — which a later `systemctl reload`
  *  then silently dropped again. Written into the generated global options and passed as
- *  `--address` on every reload. Pinned by the "lane Caddy admin endpoint" test in
- *  scripts/dev.test.mjs and the "pins the lane Caddy to its own admin endpoint" test in
+ *  `--address` on every reload. Pinned by the "the lane Caddy admin endpoint is NOT the default
+ *  :2019" and "reload always targets the lane admin endpoint with --address" tests in
+ *  scripts/dev.test.mjs, and the "pins the lane Caddy to its own admin endpoint" test in
  *  scripts/dev-lanes.test.mjs. */
 export const DEV_CADDY_ADMIN = '127.0.0.1:2119'
 

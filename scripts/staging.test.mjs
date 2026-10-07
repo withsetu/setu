@@ -444,3 +444,17 @@ test('staging refuses to build under a live astro dev, naming the pid and the fi
   assert.match(msg, /pid 4321/)
   assert.match(msg, /pnpm dev:stop/)
 })
+
+test('start() runs the astro-dev preflight before it seeds or builds anything (#1200)', () => {
+  // start() is the process-touching half (binaries, builds, process.exit), so its ORDER is pinned
+  // from the source: the refusal must exist, and precede the first side effect.
+  const src = readFileSync(new URL('./staging.mjs', import.meta.url), 'utf8')
+  const body = src.slice(src.indexOf('async function start()'))
+  const guard = body.indexOf('devServerRefusal(')
+  assert.notEqual(guard, -1, 'start() no longer calls devServerRefusal')
+  for (const effect of ['seedSandbox(', 'runBuild(', 'launch({'])
+    assert.ok(
+      guard < body.indexOf(effect),
+      `the preflight must run before ${effect}`
+    )
+})

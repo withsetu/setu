@@ -4,8 +4,10 @@ import path from 'node:path'
 import process from 'node:process'
 import { execFileSync, spawn } from 'node:child_process'
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   realpathSync,
   rmSync,
   writeFileSync
@@ -23,9 +25,13 @@ import {
   parseLaneArgs,
   planCaddy,
   pruneRegistry,
+  resolveStopLanes,
   siteServerPids,
-  stopTargets
+  stopTargets,
+  superviseLane,
+  syncCaddy
 } from './dev.mjs'
+import { stopGroups } from './proc-group.mjs'
 import { MAIN_LANE } from './dev-lanes.mjs'
 
 const ROOT = '/repo'
@@ -433,4 +439,197 @@ test('siteServerPids adopts the lockfile pid only while it still runs from this 
     siteServerPids(dir, { pidOf: () => null, cmdOf: () => '' }),
     []
   )
+})
+
+// --- review fixes (#1214) -----------------------------------------------------------------------
+
+test('a role that exits is reaped at once and dropped — a later stop never signals its stale pid', async () => {
+  const calls = []
+  const lane = superviseLane(
+    [
+      {
+        name: 'quick',
+        command: process.execPath,
+        args: ['-e', 'process.exit(0)']
+      },
+      {
+        name: 'long',
+        command: process.execPath,
+        args: ['-e', 'setInterval(() => {}, 1000)']
+      }
+    ],
+    {
+      cwd: process.cwd(),
+      env: process.env,
+      log: () => {},
+      attachProcess: false,
+      stopFn: async (pids, opts) => {
+        calls.push({ pids: [...pids], opts })
+        return stopGroups(pids, opts)
+      }
+    }
+  )
+  const [quick, long] = lane.children.map((c) => c.pid)
+  try {
+    assert.ok(await waitFor(() => lane.children[0].exitCode !== null))
+    await new Promise((r) => setTimeout(r, 100))
+    assert.ok(
+      calls.some((c) => c.pids.includes(quick)),
+      "the exited role's group is reaped as soon as it exits, while its pgid is still reserved"
+    )
+    const before = calls.length
+    await lane.stop()
+    await lane.done
+    const later = calls.slice(before)
+    assert.ok(later.length > 0)
+    for (const c of later) {
+      assert.ok(
+        !c.pids.includes(quick),
+        `stale pid ${quick} signalled again: ${JSON.stringify(c.pids)}`
+      )
+      assert.equal(
+        c.opts?.groupOnly,
+        true,
+        'no bare-pid fallback for detached children'
+      )
+    }
+    assert.ok(later.some((c) => c.pids.includes(long)))
+  } finally {
+    if (isAlive(long)) process.kill(long, 'SIGKILL')
+  }
+})
+
+test('siteServerPids adopts only an astro dev command line, not vitest/tsc/eslint from the same checkout', () => {
+  const dir = '/repo/.claude/worktrees/a'
+  const pidOf = () => 900
+  for (const cmd of [
+    `node ${dir}/node_modules/vitest/vitest.mjs run`,
+    `node ${dir}/node_modules/typescript/bin/tsc --noEmit`,
+    `node ${dir}/node_modules/eslint/bin/eslint.js .`,
+    `node ${dir}/node_modules/astro/bin/astro.mjs build`
+  ])
+    assert.deepEqual(siteServerPids(dir, { pidOf, cmdOf: () => cmd }), [], cmd)
+  assert.deepEqual(
+    siteServerPids(dir, {
+      pidOf,
+      cmdOf: () =>
+        `/usr/bin/node ${dir}/node_modules/.pnpm/astro@7/node_modules/astro/bin/astro.mjs dev --json`
+    }),
+    [900]
+  )
+})
+
+test('plain dev:stop never needs the current lane, so it works from any directory', () => {
+  let asked = 0
+  const cwd = () => {
+    asked++
+    throw new Error('outside .claude/worktrees')
+  }
+  assert.deepEqual(
+    resolveStopLanes({ mode: 'stop', force: false, lanes: [], cwdLane: cwd }),
+    {
+      lanes: [],
+      here: null
+    }
+  )
+  assert.equal(asked, 0)
+  assert.deepEqual(
+    resolveStopLanes({
+      mode: 'stop',
+      force: true,
+      lanes: ['a', 'b'],
+      cwdLane: cwd
+    }),
+    { lanes: ['a', 'b'], here: 'a' }
+  )
+  assert.equal(asked, 0)
+  assert.throws(() =>
+    resolveStopLanes({ mode: 'stop', force: true, lanes: [], cwdLane: cwd })
+  )
+  assert.deepEqual(
+    resolveStopLanes({
+      mode: 'fresh',
+      force: false,
+      lanes: [],
+      cwdLane: () => 'x'
+    }),
+    { lanes: ['x'], here: 'x' }
+  )
+})
+
+test('the "admin endpoint held" refusal tells you how to recover', () => {
+  const r = planCaddy({ ownedPid: null, adminListeners: [77] })
+  assert.match(r.reason, /ps -p 77/)
+  assert.match(r.reason, /kill 77/)
+})
+
+// A fake `caddy` on PATH: `run` stays alive without listening; `reload` records its argv.
+function fakeCaddyDir() {
+  const bin = mkdtempSync(path.join(tmpdir(), 'setu-fakecaddy-'))
+  writeFileSync(
+    path.join(bin, 'caddy'),
+    '#!/bin/sh\nif [ "$1" = run ]; then sleep 30; exit 0; fi\necho "$@" >> "$(dirname "$0")/reload.args"\n',
+    { mode: 0o755 }
+  )
+  return bin
+}
+
+async function withFakeCaddy(fn) {
+  const bin = fakeCaddyDir()
+  const root = mkdtempSync(path.join(tmpdir(), 'setu-caddyroot-'))
+  mkdirSync(path.join(root, '.claude'))
+  const PATH = process.env.PATH
+  process.env.PATH = `${bin}${path.delimiter}${PATH}`
+  try {
+    return await fn({ bin, root })
+  } finally {
+    process.env.PATH = PATH
+    rmSync(bin, { recursive: true, force: true })
+    rmSync(root, { recursive: true, force: true })
+  }
+}
+
+test('a starting lane Caddy is recorded at once, so an interrupted start leaves it ours, not "foreign"', async () => {
+  await withFakeCaddy(async ({ root }) => {
+    const state = path.join(root, '.claude', 'dev-caddy.json')
+    const pending = syncCaddy(root, { dev: 0 }, 'example.test', 18190, {
+      waitMs: 1500
+    })
+    assert.ok(
+      await waitFor(() => existsSync(state), 1000),
+      'pid not recorded while waiting'
+    )
+    const { pid } = JSON.parse(readFileSync(state, 'utf8'))
+    assert.ok(isAlive(pid))
+    await pending // never listens → reported, stopped, and the record cleared
+    assert.ok(await waitFor(() => !isAlive(pid), 2000))
+    assert.ok(!existsSync(state))
+  })
+})
+
+test('reload always targets the lane admin endpoint with --address', async () => {
+  await withFakeCaddy(async ({ bin, root }) => {
+    const file = path.join(root, '.claude', 'Caddyfile')
+    const running = spawn(path.join(bin, 'caddy'), ['run', '--config', file], {
+      stdio: 'ignore',
+      detached: true
+    })
+    try {
+      await waitFor(() => running.pid !== undefined)
+      writeFileSync(
+        path.join(root, '.claude', 'dev-caddy.json'),
+        JSON.stringify({ pid: running.pid, config: file })
+      )
+      await syncCaddy(root, { dev: 0 }, 'example.test', 18191)
+      const args = readFileSync(path.join(bin, 'reload.args'), 'utf8').trim()
+      assert.match(
+        args,
+        new RegExp(
+          `^reload --config ${file} --adapter caddyfile --address ${DEV_CADDY_ADMIN.replace(/\./g, '\\.')}$`
+        )
+      )
+    } finally {
+      process.kill(-running.pid, 'SIGKILL')
+    }
+  })
 })

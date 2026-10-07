@@ -2,7 +2,9 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import FlakyReporter, {
   collectFlaky,
+  escapeData,
   escapeProperty,
+  mdCell,
   formatAnnotation,
   formatSummary
 } from './e2e-flaky-reporter.mjs'
@@ -137,4 +139,49 @@ test('outside Actions: plain lines, no workflow commands, no summary file', () =
   assert.equal(out.length, 1)
   assert.match(out[0], /^\[flaky\] \[chromium\]/)
   assert.equal(summaries.length, 0)
+})
+
+test('table cells survive backslashes, pipes and newlines', () => {
+  // Backslash escaped BEFORE the pipe: an input `\|` must become `\\\|` (escaped backslash +
+  // escaped pipe), never `\\|` — which GFM reads as a literal backslash then a live separator.
+  assert.equal(mdCell('a\\|b'), 'a\\\\\\|b')
+  assert.equal(mdCell('a|b'), 'a\\|b')
+  assert.equal(mdCell('C:\\path'), 'C:\\\\path')
+  assert.equal(mdCell('x\r\ny\nz\rw'), 'x y z w')
+  // Whatever the input, a cell never contains an unescaped `|` or a line break.
+  for (const raw of ['\\|', '\\\\|', '|\\', 'a\n|b', '\\\n|']) {
+    const cell = mdCell(raw)
+    assert.ok(!/[\r\n]/.test(cell), raw)
+    // Every `|` is preceded by an ODD run of backslashes (i.e. it is itself escaped).
+    for (const m of cell.matchAll(/(\\*)\|/g))
+      assert.equal(m[1].length % 2, 1, `${JSON.stringify(raw)} -> ${cell}`)
+  }
+})
+
+test('workflow-command escaping matches @actions/core (data: % CR LF; property: also : ,)', () => {
+  assert.equal(escapeData('50% a\r\nb'), '50%25 a%0D%0Ab')
+  // `%` first, so an input `%0A` is not decoded back into a newline by the runner.
+  assert.equal(escapeData('%0A'), '%250A')
+  assert.equal(escapeProperty('a:b,c%\n'), 'a%3Ab%2Cc%25%0A')
+})
+
+test('a summary row stays one row with one cell per column, whatever the title holds', () => {
+  const [f] = collectFlaky(
+    [
+      tc('flaky', ['failed', 'passed'], {
+        title: 'evil \\| x\n| y',
+        error: 'e \\|\n z'
+      })
+    ],
+    '/repo'
+  )
+  const row = formatSummary([f])
+    .split('\n')
+    .find((l) => l.startsWith('| chromium'))
+  assert.ok(row)
+  // Live (unescaped) separators = 5 columns + 1.
+  const live = [...row.matchAll(/(\\*)\|/g)].filter(
+    (m) => m[1].length % 2 === 0
+  )
+  assert.equal(live.length, 6, row)
 })

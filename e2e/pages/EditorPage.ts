@@ -18,11 +18,15 @@ interface TiptapLike {
     doc: PmNode
     selection: {
       empty: boolean
+      from: number
       $from: { parent: PmNode; parentOffset: number }
     }
   }
-  chain(): {
-    focus(): { setTextSelection(pos: number): { run(): boolean } }
+  commands: { focus(pos: number): boolean }
+  view: {
+    dom: HTMLElement
+    hasFocus(): boolean
+    posAtDOM(node: Node, offset: number): number
   }
 }
 
@@ -195,36 +199,39 @@ export class EditorPage {
   /** Put a collapsed caret at the very END of the first top-level text block containing
    *  `text`, deterministically, so a following `keyboard.type` appends to that block.
    *
-   *  Why not `clickBlock` + `End` (#1201): the click lands at the block's visual centre, and
-   *  on webkit/firefox `End` did not always reach the end of the block before typing began —
-   *  4 of 30 full-matrix runs typed mid-word ("Second version e Third…xtra words.").
+   *  Deliberately NO click (#1201). A click's caret is placed natively by the browser and
+   *  only reaches ProseMirror later, through the async `selectionchange` event
+   *  (prosemirror-view's DOMObserver.onSelectionChange → readDOMChange, tagged "pointer").
+   *  Anything that sets the selection programmatically between the click and that event
+   *  races it — measured: `click` then `setTextSelection(end)` lost 4 of 8 local runs, the
+   *  same "caret at 36/47" CI saw. When the editor's state ALREADY held `end` (it did: the
+   *  previous typing ended there), the set was a no-op, so ProseMirror never re-wrote the
+   *  DOM selection; the late `selectionchange` then read the click point (offset 36, the
+   *  block's visual centre) back into state. The original centre-click + `End` failures typed at that same offset
+   *  36, consistent with the same race (not separately instrumented). The
+   *  caret the click put there is correct for a real user — they typed where they clicked —
+   *  so this is a harness race, not an editor defect.
    *
-   *  So: click the block (real focus, real user path), then set the selection through the
-   *  live Tiptap instance Tiptap attaches to its view DOM (`dom.editor`, set by @tiptap/core's
-   *  createView), and poll the editor STATE — not the DOM selection — until the caret sits at
-   *  the block's content end. ProseMirror re-derives the DOM selection from that state on every
-   *  transaction, so the state is the source of truth the next keystroke lands on. Placing the
-   *  caret is the precondition here, not the behaviour under test, which is why it may bypass
-   *  keyboard navigation. */
+   *  So: focus the editor AT the position through Tiptap's own `focus(pos)` command on the
+   *  live instance (`dom.editor`, set by @tiptap/core's createView). No native caret move
+   *  means no pending `selectionchange` to lose to. Then wait until BOTH the editor state
+   *  and the browser's DOM selection agree the caret is at the block's end and the canvas
+   *  holds focus — the DOM half is what the next keystroke actually lands on. Placing the
+   *  caret is this helper's precondition, not behaviour under test, so it may bypass the
+   *  pointer. */
   async placeCaretAtEndOf(text: string) {
-    await this.clickBlock(text)
     await this.body.evaluate((dom, needle) => {
       const editor = (dom as unknown as { editor?: TiptapLike }).editor
       if (!editor)
         throw new Error('placeCaretAtEndOf: no Tiptap editor on the canvas')
-      const end = blockContentEnd(editor, needle)
+      let end = -1
+      editor.state.doc.forEach((node, offset) => {
+        if (end < 0 && node.isTextblock && node.textContent.includes(needle))
+          end = offset + node.nodeSize - 1
+      })
       if (end < 0)
         throw new Error(`placeCaretAtEndOf: no block contains "${needle}"`)
-      editor.chain().focus().setTextSelection(end).run()
-
-      function blockContentEnd(ed: TiptapLike, t: string) {
-        let pos = -1
-        ed.state.doc.forEach((node, offset) => {
-          if (pos < 0 && node.isTextblock && node.textContent.includes(t))
-            pos = offset + node.nodeSize - 1
-        })
-        return pos
-      }
+      editor.commands.focus(end)
     }, text)
     await expect
       .poll(
@@ -233,13 +240,24 @@ export class EditorPage {
             const editor = (dom as unknown as { editor?: TiptapLike }).editor
             if (!editor) return 'no editor'
             const { selection } = editor.state
-            if (!selection.empty) return 'selection not collapsed'
             const { $from } = selection
+            if (!selection.empty) return 'selection not collapsed'
             if (!$from.parent.textContent.includes(needle))
               return `caret in another block: "${$from.parent.textContent}"`
-            return $from.parentOffset === $from.parent.content.size
+            if ($from.parentOffset !== $from.parent.content.size)
+              return `state caret at ${$from.parentOffset}/${$from.parent.content.size}`
+            if (!editor.view.hasFocus()) return 'canvas not focused'
+            const dsel = window.getSelection()
+            if (!dsel?.anchorNode || !dsel.isCollapsed)
+              return 'no collapsed DOM selection'
+            const domPos = editor.view.posAtDOM(
+              dsel.anchorNode,
+              dsel.anchorOffset
+            )
+            const statePos = selection.from
+            return domPos === statePos
               ? 'at end'
-              : `caret at ${$from.parentOffset}/${$from.parent.content.size}`
+              : `DOM caret at ${domPos}, state at ${statePos}`
           }, text),
         { message: `caret should sit at the end of the "${text}" block` }
       )

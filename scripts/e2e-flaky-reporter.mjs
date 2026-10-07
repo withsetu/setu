@@ -16,7 +16,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-/** Escape a workflow-command MESSAGE (the part after `::`). */
+/** Escape a workflow-command MESSAGE (the part after `::`) — the same rules as @actions/core's
+ *  `escapeData` (actions/toolkit packages/core/src/command.ts): `%`, CR, LF. */
 export function escapeData(s) {
   return String(s)
     .replace(/%/g, '%25')
@@ -24,7 +25,8 @@ export function escapeData(s) {
     .replace(/\n/g, '%0A')
 }
 
-/** Escape a workflow-command PROPERTY value (file=, title=) — also `:` and `,`. */
+/** Escape a workflow-command PROPERTY value (file=, title=) — @actions/core's `escapeProperty`:
+ *  the data rules plus `:` and `,`, which delimit properties. */
 export function escapeProperty(s) {
   return escapeData(s).replace(/:/g, '%3A').replace(/,/g, '%2C')
 }
@@ -72,8 +74,15 @@ export function formatAnnotation(f) {
   return `::warning file=${escapeProperty(f.file)},line=${f.line},title=${escapeProperty(title)}::${escapeData(msg)}`
 }
 
-function mdCell(s) {
-  return String(s).replace(/\|/g, '\\|').replace(/\n/g, ' ')
+/** Make a value safe inside one GFM table cell. Backslashes are escaped FIRST, so an input
+ *  `\|` cannot turn our own `\|` into `\\|` (an escaped backslash followed by a live column
+ *  separator); then `|` is escaped, and CR/LF (which would end the row) become spaces. Enforced by
+ *  scripts/e2e-flaky-reporter.test.mjs ("table cells survive backslashes, pipes and newlines"). */
+export function mdCell(s) {
+  return String(s)
+    .replace(/\\/g, '\\\\')
+    .replace(/\|/g, '\\|')
+    .replace(/\r\n|\r|\n/g, ' ')
 }
 
 export function formatSummary(flaky, heading = 'Flaky e2e tests') {
@@ -81,7 +90,7 @@ export function formatSummary(flaky, heading = 'Flaky e2e tests') {
     return `### ${heading}\n\nNone — no test needed a retry to pass.\n`
   const rows = flaky.map(
     (f) =>
-      `| ${mdCell(f.project)} | ${mdCell(f.title)} | \`${mdCell(f.file)}:${f.line}\` | ${f.attempts} | ${mdCell(f.error)} |`
+      `| ${mdCell(f.project)} | ${mdCell(f.title)} | \`${mdCell(f.file).replace(/`/g, "'")}:${f.line}\` | ${f.attempts} | ${mdCell(f.error)} |`
   )
   return [
     `### ${heading}`,

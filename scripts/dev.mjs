@@ -22,12 +22,20 @@
 //         pnpm dev:fresh [lane]          # dev:stop for that lane, then pnpm dev
 
 import { execFileSync, spawn, spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  writeFileSync
+} from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import {
+  DEV_CADDY_ADMIN,
   MAIN_LANE,
   allocateSlot,
   assertValidLaneName,
@@ -38,11 +46,13 @@ import {
   renderCaddyfile
 } from './dev-lanes.mjs'
 import { astroDevPid } from './astro-dev-lock.mjs'
+import { parsePort } from './dev-port.mjs'
 import { seedSandbox } from './content-sandbox.mjs'
+import { listenersOf } from './free-ports.mjs'
 import { laneSandbox, mainCheckout, readDotenvAt } from './lane-sandbox.mjs'
 import { stopGroups } from './proc-group.mjs'
 
-export { mainCheckout }
+export { DEV_CADDY_ADMIN, mainCheckout }
 
 const DEFAULT_FRONT_PORT = 8080
 
@@ -190,11 +200,30 @@ export function busyPortAdvice(lane, cwdLane) {
   )
 }
 
+/** SETU_DEV_CADDY_PORT through the shared port parser (#1199): `Number()` turned a typo into
+ *  `:NaN` in the generated Caddyfile. Pinned in scripts/dev.test.mjs. */
+export function frontPortFrom(fileEnv) {
+  return parsePort(
+    fileEnv.SETU_DEV_CADDY_PORT,
+    DEFAULT_FRONT_PORT,
+    'SETU_DEV_CADDY_PORT'
+  )
+}
+
 function have(bin) {
   try {
     // `sh -c` because `command -v` is a shell builtin. `bin` is a module-local literal, never
     // caller input, so there is nothing here to interpolate hostilely.
     execFileSync('sh', ['-c', `command -v ${bin}`], { stdio: 'ignore' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+function isAlive(pid) {
+  try {
+    process.kill(pid, 0)
     return true
   } catch {
     return false
@@ -213,9 +242,99 @@ function commandOf(pid) {
   }
 }
 
+const caddyStatePath = (root) => path.join(root, '.claude', 'dev-caddy.json')
+const caddyLogPath = (root) => path.join(root, '.claude', 'dev-caddy.log')
+
+/** The pid of the lane Caddy THIS launcher started, or null. A recorded pid counts only while it
+ *  is alive AND its current command line still names our generated Caddyfile — a reused pid, or
+ *  the system Caddy, is never ours (the staging.mjs planStop rule). Pure; pinned in
+ *  scripts/dev.test.mjs. */
+export function ownedCaddyPid(state, file, { alive, cmdOf }) {
+  if (!state || !Number.isInteger(state.pid) || state.pid <= 1) return null
+  if (!alive(state.pid)) return null
+  const cmd = cmdOf(state.pid)
+  return cmd.includes('caddy') && cmd.includes(file) ? state.pid : null
+}
+
+/** Reload only a Caddy the launcher started; start one when nothing holds our admin endpoint;
+ *  otherwise refuse and say who holds it. Pure; pinned in scripts/dev.test.mjs. */
+export function planCaddy({ ownedPid, adminListeners }) {
+  if (ownedPid) return { action: 'reload' }
+  if (adminListeners.length > 0)
+    return {
+      action: 'refuse',
+      reason:
+        `the lane Caddy admin endpoint ${DEV_CADDY_ADMIN} is held by pid ` +
+        `${adminListeners.join(', ')}, which this launcher did not start — not touching it`
+    }
+  return { action: 'start' }
+}
+
+function readCaddyState(root) {
+  try {
+    return JSON.parse(readFileSync(caddyStatePath(root), 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+function tail(file, lines = 8) {
+  try {
+    return readFileSync(file, 'utf8')
+      .trim()
+      .split('\n')
+      .slice(-lines)
+      .join('\n')
+  } catch {
+    return '(no output captured)'
+  }
+}
+
+/** Start the lane Caddy and wait until it is actually listening on the front port — or report
+ *  why it is not (#1199: the launcher used to print "caddy started" whatever happened). */
+async function startCaddy(root, file, frontPort) {
+  const log = caddyLogPath(root)
+  const fd = openSync(log, 'w')
+  const child = spawn(
+    'caddy',
+    ['run', '--config', file, '--adapter', 'caddyfile'],
+    { stdio: ['ignore', fd, fd], detached: true }
+  )
+  closeSync(fd)
+  let exited = null
+  child.on('exit', (code) => (exited = { code }))
+  child.on('error', (err) => (exited = { error: err.message }))
+  child.unref()
+
+  const deadline = Date.now() + 8000
+  while (Date.now() < deadline) {
+    if (exited) break
+    if (listenersOf(frontPort).includes(child.pid)) {
+      writeFileSync(
+        caddyStatePath(root),
+        `${JSON.stringify({ pid: child.pid, config: file }, null, 2)}\n`
+      )
+      return { ok: true, pid: child.pid }
+    }
+    await new Promise((r) => setTimeout(r, 150))
+  }
+  if (!exited && child.pid) {
+    try {
+      process.kill(child.pid, 'SIGTERM')
+    } catch {
+      /* gone */
+    }
+  }
+  return {
+    ok: false,
+    detail: exited?.error ?? tail(log)
+  }
+}
+
 /** Regenerate the Caddyfile from EVERY registered lane, not just the running one, so starting a
- *  second lane does not tear down the first one's route. A route to a stopped lane simply 502s. */
-function syncCaddy(root, registry, domain, frontPort) {
+ *  second lane does not tear down the first one's route. A route to a stopped lane simply 502s.
+ *  Never touches a Caddy this launcher did not start (#1199). */
+export async function syncCaddy(root, registry, domain, frontPort) {
   if (!domain) return null
   if (!have('caddy')) {
     console.warn(
@@ -227,31 +346,57 @@ function syncCaddy(root, registry, domain, frontPort) {
   const lanes = Object.entries(registry).map(([lane, slot]) => ({ lane, slot }))
   const file = path.join(root, '.claude', 'Caddyfile')
   mkdirSync(path.dirname(file), { recursive: true })
-  writeFileSync(file, renderCaddyfile(lanes, domain, frontPort))
+  writeFileSync(
+    file,
+    renderCaddyfile(lanes, domain, frontPort, DEV_CADDY_ADMIN)
+  )
 
-  // Reload if Caddy is already fronting other lanes; otherwise start it. Reload keeps every
-  // running lane's proxy up — see the admin-API note in dev-lanes.mjs.
-  try {
-    execFileSync(
-      'caddy',
-      ['reload', '--config', file, '--adapter', 'caddyfile'],
-      {
-        stdio: 'ignore'
-      }
-    )
-    console.log(`dev: caddy reloaded (${lanes.length} lane(s))`)
-  } catch {
-    const child = spawn(
-      'caddy',
-      ['run', '--config', file, '--adapter', 'caddyfile'],
-      {
-        stdio: 'ignore',
-        detached: true
-      }
-    )
-    child.unref()
-    console.log(`dev: caddy started on :${frontPort} (${lanes.length} lane(s))`)
+  const adminPort = Number(DEV_CADDY_ADMIN.split(':').pop())
+  const plan = planCaddy({
+    ownedPid: ownedCaddyPid(readCaddyState(root), file, {
+      alive: isAlive,
+      cmdOf: commandOf
+    }),
+    adminListeners: listenersOf(adminPort)
+  })
+
+  if (plan.action === 'refuse') {
+    console.warn(`dev: caddy NOT updated — ${plan.reason}.`)
+    return null
   }
+  if (plan.action === 'reload') {
+    const res = spawnSync(
+      'caddy',
+      [
+        'reload',
+        '--config',
+        file,
+        '--adapter',
+        'caddyfile',
+        '--address',
+        DEV_CADDY_ADMIN
+      ],
+      { encoding: 'utf8' }
+    )
+    if (res.status === 0)
+      console.log(`dev: caddy reloaded (${lanes.length} lane(s))`)
+    else
+      console.warn(
+        `dev: caddy reload FAILED — lane hostnames may be stale:\n${(res.stderr || res.error?.message || '').trim()}`
+      )
+    return file
+  }
+  const started = await startCaddy(root, file, frontPort)
+  if (started.ok)
+    console.log(
+      `dev: caddy started on loopback :${frontPort} (pid ${started.pid}, ${lanes.length} lane(s))`
+    )
+  else
+    console.warn(
+      `dev: caddy did NOT start — lane hostnames will not resolve (loopback ports still work).\n` +
+        `     ${started.detail.split('\n').join('\n     ')}\n` +
+        `     Full log: ${caddyLogPath(root)}`
+    )
   return file
 }
 
@@ -423,7 +568,7 @@ async function main(argv) {
 
   const fileEnv = readDotenvAt(root)
   const domain = fileEnv.SETU_DEV_DOMAIN || undefined
-  const frontPort = Number(fileEnv.SETU_DEV_CADDY_PORT ?? DEFAULT_FRONT_PORT)
+  const frontPort = frontPortFrom(fileEnv)
 
   const slot = allocateSlot(registry, lane)
   if (registry[lane] !== slot) {
@@ -475,7 +620,7 @@ async function main(argv) {
     process.exit(1)
   }
 
-  syncCaddy(root, registry, domain, frontPort)
+  await syncCaddy(root, registry, domain, frontPort)
 
   const hosts = laneHostnames(lane, domain)
   console.log(`\ndev: lane ${lane}  (slot ${slot})  ${dir}`)

@@ -12,12 +12,16 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import {
+  DEV_CADDY_ADMIN,
   busyPortAdvice,
   dirForLane,
+  frontPortFrom,
   laneForCheckout,
   laneForCwd,
   mainCheckout,
+  ownedCaddyPid,
   parseLaneArgs,
+  planCaddy,
   pruneRegistry,
   siteServerPids,
   stopTargets
@@ -258,6 +262,73 @@ test('the busy-port advice names this lane and the force flag, and no longer sug
   assert.match(text, /pnpm dev:stop --force feature-x/)
   assert.doesNotMatch(text, /SETU_ADMIN_PORT/)
   assert.match(busyPortAdvice('dev', 'dev'), /pnpm dev:stop --force(\s|$)/)
+})
+
+// --- lane Caddy (#1199) -------------------------------------------------------------------------
+
+test('SETU_DEV_CADDY_PORT is validated, never Number()-ed into :NaN', () => {
+  assert.equal(frontPortFrom({}), 8080)
+  assert.equal(frontPortFrom({ SETU_DEV_CADDY_PORT: '9090' }), 9090)
+  assert.throws(
+    () => frontPortFrom({ SETU_DEV_CADDY_PORT: 'eighty' }),
+    /SETU_DEV_CADDY_PORT/
+  )
+  assert.throws(
+    () => frontPortFrom({ SETU_DEV_CADDY_PORT: '8080 }' }),
+    /SETU_DEV_CADDY_PORT/
+  )
+  assert.throws(
+    () => frontPortFrom({ SETU_DEV_CADDY_PORT: '70000' }),
+    /SETU_DEV_CADDY_PORT/
+  )
+})
+
+test('the lane Caddy admin endpoint is NOT the default :2019 any system Caddy owns', () => {
+  assert.doesNotMatch(DEV_CADDY_ADMIN, /:2019$/)
+  assert.match(DEV_CADDY_ADMIN, /^127\.0\.0\.1:\d+$/)
+})
+
+test('a recorded Caddy is ours only while that pid still runs OUR Caddyfile', () => {
+  const file = '/repo/.claude/Caddyfile'
+  const deps = (cmd, alive = true) => ({ alive: () => alive, cmdOf: () => cmd })
+  const state = { pid: 500, config: file }
+  assert.equal(
+    ownedCaddyPid(
+      state,
+      file,
+      deps(`caddy run --config ${file} --adapter caddyfile`)
+    ),
+    500
+  )
+  assert.equal(
+    ownedCaddyPid(
+      state,
+      file,
+      deps('/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile')
+    ),
+    null,
+    'a reused pid running the system Caddy is not ours'
+  )
+  assert.equal(ownedCaddyPid(state, file, deps('', false)), null, 'dead')
+  assert.equal(ownedCaddyPid(null, file, deps('caddy')), null, 'never started')
+  assert.equal(
+    ownedCaddyPid({ pid: 1, config: file }, file, deps(`caddy ${file}`)),
+    null
+  )
+})
+
+test('planCaddy reloads only a Caddy the launcher started, and refuses a foreign admin endpoint', () => {
+  assert.equal(
+    planCaddy({ ownedPid: 500, adminListeners: [500] }).action,
+    'reload'
+  )
+  assert.equal(
+    planCaddy({ ownedPid: null, adminListeners: [] }).action,
+    'start'
+  )
+  const refused = planCaddy({ ownedPid: null, adminListeners: [77] })
+  assert.equal(refused.action, 'refuse')
+  assert.match(refused.reason, /77/)
 })
 
 test('a worktree outside .claude/worktrees is refused, not silently run as the main lane (#1200)', () => {

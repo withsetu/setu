@@ -55,18 +55,18 @@
 /* Form-level status: one persistent polite live region (#1248). It stays in the tree while
    empty so its first message is announced; the negative margin cancels the grid gap it
    would otherwise leave behind. */
-.setu-contact__status {
+.setu-contact .setu-contact__status {
   margin: 0;
   color: var(--text-2);
   font-size: 0.9rem;
 }
-.setu-contact__status:empty {
+.setu-contact .setu-contact__status:empty {
   margin-block-end: -1rem;
 }
-.setu-contact__status.is-error {
+.setu-contact .setu-contact__status.is-error {
   color: var(--red);
 }
-.setu-contact__hint {
+.setu-contact .setu-contact__hint {
   margin: 0;
   color: var(--text-2);
   font-size: 0.85rem;
@@ -88,4 +88,8 @@
   width: 1px;
   height: 1px;
   overflow: hidden;
+}
+/* Nothing rendered into the provider's mount point yet (loading, or failed): take no space. */
+.setu-contact__captcha:empty {
+  display: none;
 }

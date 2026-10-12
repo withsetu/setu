@@ -3,7 +3,8 @@ import {
   coerceBool,
   genFormId,
   ensureFormId,
-  contactPreviewFields
+  contactPreviewFields,
+  contactText
 } from '../src/editor/extensions/contact-helpers'
 
 describe('coerceBool', () => {
@@ -66,5 +67,31 @@ describe('contactPreviewFields', () => {
     })
     expect(fields.map((f) => f.name)).toContain('subject')
     expect(fields.find((f) => f.name === 'name')!.required).toBe(false)
+  })
+})
+
+// #1248: the in-canvas preview shows the visitor text the published form will render —
+// the author's override when set, the shared CONTACT_DEFAULT_TEXT otherwise.
+describe('contact visitor text (#1248)', () => {
+  it('previews author labels, falling back to the defaults for blank/unset ones', () => {
+    const fields = contactPreviewFields({
+      subject: true,
+      nameLabel: 'Nom',
+      emailLabel: '',
+      subjectLabel: 'Objet'
+    })
+    expect(fields.map((f) => f.label)).toEqual([
+      'Nom',
+      'Email',
+      'Objet',
+      'Message'
+    ])
+  })
+  it('resolves the button text the same way', () => {
+    expect(contactText({}, 'submitLabel')).toBe('Send')
+    expect(contactText({ submitLabel: '' }, 'submitLabel')).toBe('Send')
+    expect(contactText({ submitLabel: 'Envoyer' }, 'submitLabel')).toBe(
+      'Envoyer'
+    )
   })
 })

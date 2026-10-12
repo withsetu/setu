@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { DEFAULT_LOCALE } from '@setu/core'
 import { useIndex } from '../../data/index-store'
 import {
@@ -35,39 +36,72 @@ const UNSET_LABEL = `Site default (${DEFAULT_LOCALE})`
 export function LocaleControl({ value, onChange, meta }: ControlProps) {
   const index = useIndex()
   const [locales, setLocales] = useState<string[]>([])
+  // 'error' is a state of its own (#971): a failed read must not render the same one-item
+  // picker as a genuinely single-locale site. Shape mirrors QueryPreview's 'error' state.
+  const [load, setLoad] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [attempt, setAttempt] = useState(0)
   useEffect(() => {
     let live = true
-    void index
+    index
       .distinctLocales()
       .then((ls) => {
-        if (live) setLocales(ls)
+        if (!live) return
+        setLocales(ls)
+        setLoad('ready')
       })
-      .catch(() => {})
+      .catch(() => {
+        if (live) setLoad('error')
+      })
     return () => {
       live = false
     }
-  }, [index])
+  }, [index, attempt])
 
+  const id = `${meta.idPrefix ?? 'bi'}-${meta.name}`
+  const errorId = `${id}-error`
   const val = typeof value === 'string' ? value : ''
   return (
-    <Select
-      value={val || ANY}
-      onValueChange={(v) => onChange(v === ANY ? '' : v)}
-    >
-      <SelectTrigger
-        id={`${meta.idPrefix ?? 'bi'}-${meta.name}`}
-        aria-label={meta.name}
+    <div className="grid gap-1.5">
+      <Select
+        value={val || ANY}
+        onValueChange={(v) => onChange(v === ANY ? '' : v)}
       >
-        <SelectValue placeholder={UNSET_LABEL} />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={ANY}>{UNSET_LABEL}</SelectItem>
-        {locales.map((l) => (
-          <SelectItem key={l} value={l}>
-            {localeLabel(l)}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+        <SelectTrigger
+          id={id}
+          aria-label={meta.name}
+          aria-busy={load === 'loading' || undefined}
+          aria-invalid={load === 'error' || undefined}
+          aria-describedby={load === 'error' ? errorId : undefined}
+        >
+          <SelectValue placeholder={UNSET_LABEL} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ANY}>{UNSET_LABEL}</SelectItem>
+          {locales.map((l) => (
+            <SelectItem key={l} value={l}>
+              {localeLabel(l)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {load === 'error' && (
+        <div className="flex items-center justify-between gap-2 text-sm">
+          <span id={errorId} className="text-destructive">
+            Couldn’t load the site’s locales.
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setLoad('loading')
+              setAttempt((a) => a + 1)
+            }}
+          >
+            Retry
+          </Button>
+        </div>
+      )}
+    </div>
   )
 }

@@ -25,7 +25,7 @@
   border: 0;
   border-radius: 0.5rem;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   font: inherit;
   cursor: pointer;
 }
@@ -36,6 +36,45 @@
 .setu-contact__error {
   color: var(--red);
   font-size: 0.85rem;
+}
+.setu-contact input:disabled,
+.setu-contact textarea:disabled {
+  background: var(--surface-2);
+  color: var(--text-2);
+  cursor: not-allowed;
+}
+.setu-contact input[aria-invalid='true'],
+.setu-contact textarea[aria-invalid='true'] {
+  border-color: var(--red);
+}
+/* Required marker: decorative (aria-hidden); aria-required carries it for AT. */
+.setu-contact__req {
+  color: var(--red);
+  font-weight: 600;
+}
+/* Form-level status: one persistent polite live region (#1248). It stays in the tree while
+   empty so its first message is announced; the negative margin cancels the grid gap it
+   would otherwise leave behind. */
+.setu-contact__status {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 0.9rem;
+}
+.setu-contact__status:empty {
+  margin-block-end: -1rem;
+}
+.setu-contact__status.is-error {
+  color: var(--red);
+}
+.setu-contact__hint {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 0.85rem;
+}
+.setu-contact button.setu-contact__retry {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
 }
 .setu-contact__success {
   padding: 1rem;

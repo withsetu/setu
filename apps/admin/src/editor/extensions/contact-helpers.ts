@@ -1,4 +1,19 @@
-export const DEFAULT_SUCCESS_MESSAGE = 'Thanks — your message has been sent.'
+import { CONTACT_DEFAULT_TEXT, type ContactText } from '@setu/core'
+
+export const DEFAULT_SUCCESS_MESSAGE = CONTACT_DEFAULT_TEXT.successMessage
+
+/** The visitor-facing text a contact block will render for `key`: the author's override
+ *  when it is a non-blank string, the shared default otherwise — the same rule the
+ *  published island applies (#1248). */
+export function contactText(
+  mdAttrs: Record<string, unknown>,
+  key: keyof ContactText
+): string {
+  const v = mdAttrs[key]
+  return typeof v === 'string' && v.trim() !== ''
+    ? v
+    : CONTACT_DEFAULT_TEXT[key]
+}
 
 /** Markdoc may deliver booleans as the strings "true"/"false". Normalize. */
 export function coerceBool(v: unknown, dflt: boolean): boolean {
@@ -39,19 +54,29 @@ export function contactPreviewFields(
   const nameRequired = coerceBool(mdAttrs.nameRequired, true)
   const subjectRequired = coerceBool(mdAttrs.subjectRequired, false)
   const fields: PreviewField[] = [
-    { name: 'name', label: 'Name', type: 'text', required: nameRequired },
-    { name: 'email', label: 'Email', type: 'email', required: true }
+    {
+      name: 'name',
+      label: contactText(mdAttrs, 'nameLabel'),
+      type: 'text',
+      required: nameRequired
+    },
+    {
+      name: 'email',
+      label: contactText(mdAttrs, 'emailLabel'),
+      type: 'email',
+      required: true
+    }
   ]
   if (subject)
     fields.push({
       name: 'subject',
-      label: 'Subject',
+      label: contactText(mdAttrs, 'subjectLabel'),
       type: 'text',
       required: subjectRequired
     })
   fields.push({
     name: 'message',
-    label: 'Message',
+    label: contactText(mdAttrs, 'messageLabel'),
     type: 'textarea',
     required: true
   })

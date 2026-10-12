@@ -12,14 +12,47 @@ import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { CONTACT_DEFAULT_TEXT, type ContactText } from '@setu/core'
 import {
   DEFAULT_SUCCESS_MESSAGE,
   coerceBool,
   contactPreviewFields,
+  contactText,
   ensureFormId
 } from './contact-helpers'
 import { attrString } from '../attr-string'
 import { useMirroredField } from '../useMirroredField'
+
+/** One optional visitor-text override (#1248). Blank = the default, shown as the
+ *  placeholder; clearing the field removes the attribute rather than storing ''. Mirrored
+ *  like the other free-text inputs here (#691). */
+function TextOverride({
+  id,
+  label,
+  attr,
+  mdAttrs,
+  onCommit
+}: {
+  id: string
+  label: string
+  attr: keyof ContactText
+  mdAttrs: Record<string, unknown>
+  onCommit: (attr: keyof ContactText, value: string) => void
+}) {
+  const current = attrString(mdAttrs[attr])
+  const field = useMirroredField(current, (v) => onCommit(attr, v))
+  return (
+    <div className="space-y-1">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        value={field.value}
+        placeholder={CONTACT_DEFAULT_TEXT[attr]}
+        onChange={(e) => field.onChange(e.target.value)}
+      />
+    </div>
+  )
+}
 
 function ContactView({ node, updateAttributes, selected }: ReactNodeViewProps) {
   const mdAttrs = (node.attrs.mdAttrs ?? {}) as Record<string, unknown>
@@ -36,6 +69,12 @@ function ContactView({ node, updateAttributes, selected }: ReactNodeViewProps) {
 
   const setAttrs = (patch: Record<string, unknown>) =>
     updateAttributes({ mdAttrs: { ...mdAttrs, ...patch } })
+  const setText = (attr: keyof ContactText, value: string) => {
+    const next = { ...mdAttrs }
+    if (value === '') delete next[attr]
+    else next[attr] = value
+    updateAttributes({ mdAttrs: next })
+  }
 
   const formLabel = attrString(mdAttrs.formLabel)
   const subject = coerceBool(mdAttrs.subject, false)
@@ -75,7 +114,10 @@ function ContactView({ node, updateAttributes, selected }: ReactNodeViewProps) {
                 <Settings className="size-4" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-72 space-y-3">
+            <PopoverContent
+              align="end"
+              className="max-h-[min(40rem,80vh)] w-80 space-y-3 overflow-y-auto"
+            >
               <div className="space-y-1">
                 <Label htmlFor={`${uid}-name`}>Form name</Label>
                 <Input
@@ -124,12 +166,64 @@ function ContactView({ node, updateAttributes, selected }: ReactNodeViewProps) {
                   <span className="text-muted-foreground">Always</span>
                 </div>
               </div>
-              <div className="space-y-1">
-                <Label htmlFor={`${uid}-success`}>Success message</Label>
-                <Input
-                  id={`${uid}-success`}
-                  value={successField.value}
-                  onChange={(e) => successField.onChange(e.target.value)}
+              <div className="space-y-2 border-t pt-3">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Text
+                </span>
+                <p className="text-xs text-muted-foreground">
+                  What visitors read. Leave a field blank to use the default.
+                </p>
+                <TextOverride
+                  id={`${uid}-name-label`}
+                  label="Name label"
+                  attr="nameLabel"
+                  mdAttrs={mdAttrs}
+                  onCommit={setText}
+                />
+                <TextOverride
+                  id={`${uid}-email-label`}
+                  label="Email label"
+                  attr="emailLabel"
+                  mdAttrs={mdAttrs}
+                  onCommit={setText}
+                />
+                {subject && (
+                  <TextOverride
+                    id={`${uid}-subject-label`}
+                    label="Subject label"
+                    attr="subjectLabel"
+                    mdAttrs={mdAttrs}
+                    onCommit={setText}
+                  />
+                )}
+                <TextOverride
+                  id={`${uid}-message-label`}
+                  label="Message label"
+                  attr="messageLabel"
+                  mdAttrs={mdAttrs}
+                  onCommit={setText}
+                />
+                <TextOverride
+                  id={`${uid}-submit-label`}
+                  label="Button text"
+                  attr="submitLabel"
+                  mdAttrs={mdAttrs}
+                  onCommit={setText}
+                />
+                <div className="space-y-1">
+                  <Label htmlFor={`${uid}-success`}>Success message</Label>
+                  <Input
+                    id={`${uid}-success`}
+                    value={successField.value}
+                    onChange={(e) => successField.onChange(e.target.value)}
+                  />
+                </div>
+                <TextOverride
+                  id={`${uid}-error-message`}
+                  label="Error message"
+                  attr="errorMessage"
+                  mdAttrs={mdAttrs}
+                  onCommit={setText}
                 />
               </div>
             </PopoverContent>
@@ -167,7 +261,7 @@ function ContactView({ node, updateAttributes, selected }: ReactNodeViewProps) {
             disabled
             className="w-fit rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground opacity-70"
           >
-            Send
+            {contactText(mdAttrs, 'submitLabel')}
           </button>
         </div>
       </div>

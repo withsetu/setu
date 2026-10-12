@@ -38,6 +38,14 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    # @types/node describes the runtime's API, so its major moves with .nvmrc as part of a
+    # Node upgrade, never on its own: a newer types major lets typecheck accept APIs that
+    # throw on the Node we ship on (#1228). Minor/patch in the current line still flow
+    # through the group above. scripts/types-node-runtime.test.mjs fails if the two drift.
+    ignore:
+      - dependency-name: "@types/node"
+        update-types:
+          - "version-update:semver-major"
 
   - package-ecosystem: "github-actions"
     directory: "/"

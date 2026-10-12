@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest'
+import { useEffect } from 'react'
 import { render, cleanup } from '@testing-library/react'
 import { page } from 'vitest/browser'
 import { useEditor, EditorContent } from '@tiptap/react'
@@ -57,21 +58,26 @@ const block = (
   mdAttrs: Record<string, unknown> = {}
 ): JSONContent => ({ type: 'setuBlock', attrs: { tag, mdAttrs }, content })
 
-let current: Editor | null = null
-
 function Harness({ content }: { content: JSONContent }) {
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [StarterKit, createSetuBlock(registry.blocks, blockCores)],
     content
   })
-  current = editor
+  // Test-only escape hatch: expose the live editor after commit, not during render.
+  useEffect(() => {
+    ;(
+      window as unknown as { __setuChromeEditor?: Editor | null }
+    ).__setuChromeEditor = editor
+  }, [editor])
   return <EditorContent editor={editor} />
 }
 
 function editor(): Editor {
-  if (!current) throw new Error('editor not mounted')
-  return current
+  const ed = (window as unknown as { __setuChromeEditor?: Editor | null })
+    .__setuChromeEditor
+  if (!ed) throw new Error('editor not mounted')
+  return ed
 }
 
 /** Text of the textblock the caret sits in, and the folder block the inspector resolves. */

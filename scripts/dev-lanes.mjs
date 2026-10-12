@@ -51,6 +51,25 @@ export function assertValidLaneName(name) {
   return name
 }
 
+/** Lane implied by where you are standing: a worktree under `.claude/worktrees/<name>` is that
+ *  name; anywhere else in the repo is the main checkout's lane. */
+export function laneForCwd(cwd, root) {
+  const worktrees = path.join(root, '.claude', 'worktrees')
+  const rel = path.relative(worktrees, cwd)
+  if (rel && !rel.startsWith('..') && !path.isAbsolute(rel))
+    return rel.split(path.sep)[0]
+  return MAIN_LANE
+}
+
+/** The file under `<sandbox>/.setu/` holding a lane's sign-in link (#1213). Lanes share one
+ *  sandbox (#1053), so each lane's api writes its own `handshake-url.<lane>`; with no lane (a bare
+ *  api run) it is the shared `handshake-url`. The api restates this in
+ *  apps/api/src/handshake-file.ts; apps/api/test/handshake-file.test.ts holds the two equal. */
+export function handshakeFileFor(lane) {
+  if (lane === undefined) return 'handshake-url'
+  return `handshake-url.${assertValidLaneName(lane)}`
+}
+
 /** @returns {{api: number, admin: number, site: number}} */
 export function portsForSlot(slot) {
   if (!Number.isInteger(slot) || slot < 0 || slot >= MAX_SLOTS)
@@ -137,6 +156,8 @@ export function laneEnv({
     SETU_ADMIN_PORT: String(ports.admin),
     SETU_SITE_PORT: String(ports.site),
     SETU_REPO_DIR: repoDir,
+    // Names this lane's sign-in link file in the shared sandbox (#1213, handshakeFileFor).
+    SETU_DEV_LANE: lane,
     SETU_CONTENT_DIR: path.join(repoDir, 'content'),
     SETU_CONFIG_PATH: path.join(checkoutDir, 'apps', 'site', 'setu.config.ts'),
     SETU_MEDIA_DIR:

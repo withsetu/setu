@@ -348,7 +348,9 @@ const localToken =
         dir,
         adminOrigin,
         getAuth: () => authRef!,
-        identity: resolveGitIdentity()
+        identity: resolveGitIdentity(),
+        // Set by `pnpm dev` (scripts/dev-lanes.mjs laneEnv): this lane's own link file (#1213).
+        lane: process.env.SETU_DEV_LANE || undefined
       })
     : undefined
 

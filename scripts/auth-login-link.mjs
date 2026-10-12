@@ -13,6 +13,10 @@
 //                                      worktree (#1053, #1200), or the main `.env`'s SETU_REPO_DIR
 //   3. <root>                        — a bare api run from the content repo itself (cwd fallback)
 //
+// Every `pnpm dev` lane shares that sandbox, so each lane's api writes its own
+// `handshake-url.<lane>` (#1213). In the lane sandbox the lane's own file is read first, then the
+// shared `handshake-url` (a bare api, or one started before #1213) — never another lane's.
+//
 // Kept dependency-free (node builtins only), same pattern as content-sandbox.mjs.
 //
 // Usage:  node scripts/auth-login-link.mjs           (or `pnpm auth:login-link` from the repo root)
@@ -24,6 +28,7 @@ import { platform } from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { handshakeFileFor, laneForCwd } from './dev-lanes.mjs'
 import { laneSandboxFor as defaultLaneSandboxFor } from './lane-sandbox.mjs'
 
 /** Resolve and read the current handshake URL for the api rooted at/under `rootDir`.
@@ -35,13 +40,21 @@ export function readLoginLink(
   env = process.env,
   { laneSandboxFor = defaultLaneSandboxFor } = {}
 ) {
-  const lane = laneSandboxFor(rootDir).dir
-  const candidates = env.SETU_REPO_DIR
-    ? [env.SETU_REPO_DIR, lane, rootDir]
-    : [lane, rootDir]
+  const { dir: sandbox, mainRoot } = laneSandboxFor(rootDir)
+  const own = path.join(
+    sandbox,
+    '.setu',
+    handshakeFileFor(laneForCwd(path.resolve(rootDir), mainRoot ?? rootDir))
+  )
+  const shared = (dir) => path.join(dir, '.setu', handshakeFileFor(undefined))
+  const dirs = env.SETU_REPO_DIR
+    ? [env.SETU_REPO_DIR, sandbox, rootDir]
+    : [sandbox, rootDir]
+  const files = [...new Set(dirs)].flatMap((dir) =>
+    dir === sandbox ? [own, shared(dir)] : [shared(dir)]
+  )
   const checked = []
-  for (const dir of [...new Set(candidates)]) {
-    const file = path.join(dir, '.setu', 'handshake-url')
+  for (const file of files) {
     checked.push(file)
     let raw
     try {

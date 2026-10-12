@@ -18,9 +18,9 @@ function makeRoot() {
   return mkdtempSync(path.join(tmpdir(), 'setu-login-link-'))
 }
 
-function writeHandshake(dir, url) {
+function writeHandshake(dir, url, name = 'handshake-url') {
   mkdirSync(path.join(dir, '.setu'), { recursive: true })
-  writeFileSync(path.join(dir, '.setu', 'handshake-url'), `${url}\n`)
+  writeFileSync(path.join(dir, '.setu', name), `${url}\n`)
 }
 
 test('reads the handshake URL from the root itself (bare api run)', () => {
@@ -159,5 +159,71 @@ test('from a worktree, the link is read from the SHARED lane sandbox in the main
   } finally {
     rmSync(main, { recursive: true, force: true })
     rmSync(wt, { recursive: true, force: true })
+  }
+})
+
+// #1213: every lane's api shares the sandbox, so each writes its own handshake-url.<lane>.
+test("each lane reads its OWN link from the shared sandbox, not the last-started lane's (#1213)", () => {
+  const main = makeRoot()
+  try {
+    const shared = path.join(main, '.content-sandbox', 'dev')
+    writeHandshake(
+      shared,
+      'http://localhost:5173/#setu-token=main',
+      'handshake-url.dev'
+    )
+    writeHandshake(
+      shared,
+      'http://localhost:5273/#setu-token=a',
+      'handshake-url.a'
+    )
+    writeHandshake(
+      shared,
+      'http://localhost:5373/#setu-token=b',
+      'handshake-url.b'
+    )
+    const lanes = {
+      laneSandboxFor: () => ({ dir: shared, owned: true, mainRoot: main })
+    }
+    const wt = (name) => path.join(main, '.claude', 'worktrees', name)
+
+    assert.equal(
+      readLoginLink(main, {}, lanes).url,
+      'http://localhost:5173/#setu-token=main'
+    )
+    assert.equal(
+      readLoginLink(wt('a'), {}, lanes).url,
+      'http://localhost:5273/#setu-token=a'
+    )
+    const b = readLoginLink(path.join(wt('b'), 'apps', 'admin'), {}, lanes)
+    assert.equal(b.url, 'http://localhost:5373/#setu-token=b')
+    assert.equal(b.file, path.join(shared, '.setu', 'handshake-url.b'))
+  } finally {
+    rmSync(main, { recursive: true, force: true })
+  }
+})
+
+test("a lane with no file of its own falls back to the shared one, never another lane's (#1213)", () => {
+  const main = makeRoot()
+  try {
+    const shared = path.join(main, '.content-sandbox', 'dev')
+    writeHandshake(
+      shared,
+      'http://localhost:5273/#setu-token=a',
+      'handshake-url.a'
+    )
+    const lanes = {
+      laneSandboxFor: () => ({ dir: shared, owned: true, mainRoot: main })
+    }
+    const c = path.join(main, '.claude', 'worktrees', 'c')
+    assert.throws(() => readLoginLink(c, {}, lanes), /handshake-url\.c/)
+
+    writeHandshake(shared, 'http://localhost:5173/#setu-token=old')
+    assert.equal(
+      readLoginLink(c, {}, lanes).url,
+      'http://localhost:5173/#setu-token=old'
+    )
+  } finally {
+    rmSync(main, { recursive: true, force: true })
   }
 })

@@ -1,6 +1,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import path from 'node:path'
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import {
   MAIN_LANE,
   allocateSlot,
@@ -115,6 +118,16 @@ test('laneEnv derives every origin from the lane, so nothing is hand-configured'
   assert.equal(env.SETU_API_URL, 'https://a-api.example.com')
   assert.equal(env.PUBLIC_SETU_MEDIA, 'https://a-api.example.com')
   assert.equal(env.SETU_MEDIA_PUBLIC_URL, 'https://a-api.example.com/media')
+  assert.equal(
+    env.PUBLIC_SETU_API_BASE,
+    'https://a-api.example.com',
+    "unset, the contact block posts to http://localhost:4444 — the MAIN lane's api (#1200)"
+  )
+  assert.equal(
+    env.SETU_BASE_URL,
+    'https://a-api.example.com',
+    'unset, better-auth builds reset links from http://localhost:<port> (#1200)'
+  )
   assert.equal(env.SETU_REPO_DIR, '/s/dev')
   assert.equal(
     env.SETU_CONTENT_DIR,
@@ -164,6 +177,18 @@ test('laneEnv without a domain keeps every origin on loopback', () => {
   })
   assert.equal(env.VITE_SETU_API, 'http://localhost:4444')
   assert.equal(env.SETU_ADMIN_ORIGIN, 'http://localhost:5173')
+  assert.equal(env.PUBLIC_SETU_API_BASE, 'http://localhost:4444')
+  assert.equal(
+    laneEnv({
+      lane: 'b',
+      domain: undefined,
+      slot: 1,
+      repoDir: '/s/dev',
+      checkoutDir: '/s'
+    }).PUBLIC_SETU_API_BASE,
+    'http://localhost:4544',
+    "a non-main lane's contact form posts to its OWN api (#1200)"
+  )
   assert.equal(
     env.SETU_DEV_ALLOWED_HOSTS,
     undefined,
@@ -262,10 +287,67 @@ test('upstreams are named, not literal IPv4 — vite and astro bind [::1] only',
   assert.match(text, /reverse_proxy localhost:\d+/)
 })
 
-test('Caddy listens on loopback only — it is reached through the tunnel, never directly', () => {
+test('Caddy listens on loopback only — it is reached through the tunnel, never directly (#1199)', () => {
   const text = renderCaddyfile([{ lane: 'dev', slot: 0 }], 'example.com', 8080)
   assert.match(text, /http:\/\/dev-admin\.example\.com:8080/)
-  assert.doesNotMatch(text, /\n\s*bind\s+0\.0\.0\.0/)
+  // The global default_bind is what keeps every generated site off the LAN; without it Caddy
+  // listens on all interfaces. Asserted positively — the previous check (no `bind 0.0.0.0`)
+  // passed against a config that bound everything.
+  assert.match(text, /^\{[^}]*\n\tdefault_bind 127\.0\.0\.1 \[::1\]\n[^}]*\}/m)
+  assert.doesNotMatch(
+    text,
+    /\n\s*bind\s/,
+    'no per-site bind overriding the default'
+  )
+})
+
+test('the generated config pins the lane Caddy to its own admin endpoint (#1199)', () => {
+  const text = renderCaddyfile(
+    [{ lane: 'dev', slot: 0 }],
+    'example.com',
+    8080,
+    '127.0.0.1:2119'
+  )
+  assert.match(text, /^\{[^}]*\n\tadmin 127\.0\.0\.1:2119\n[^}]*\}/m)
+  assert.doesNotMatch(text, /2019/)
+})
+
+test('real Caddy adapts the generated config to loopback-only listeners (skipped without caddy)', (t) => {
+  let adapted
+  const dir = mkdtempSync(path.join(tmpdir(), 'setu-caddy-'))
+  try {
+    const file = path.join(dir, 'Caddyfile')
+    writeFileSync(
+      file,
+      renderCaddyfile(
+        [{ lane: 'dev', slot: 0 }],
+        'example.com',
+        8080,
+        '127.0.0.1:2119'
+      )
+    )
+    try {
+      adapted = JSON.parse(
+        execFileSync(
+          'caddy',
+          ['adapt', '--config', file, '--adapter', 'caddyfile'],
+          {
+            stdio: ['ignore', 'pipe', 'ignore']
+          }
+        ).toString()
+      )
+    } catch (err) {
+      if (err.code === 'ENOENT') return t.skip('caddy not installed')
+      throw err
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+  assert.equal(adapted.admin.listen, '127.0.0.1:2119')
+  const listen = Object.values(adapted.apps.http.servers).flatMap(
+    (s) => s.listen
+  )
+  assert.deepEqual(listen.sort(), ['127.0.0.1:8080', '[::1]:8080'])
 })
 
 test('rendering with no lanes still produces a valid, empty config', () => {

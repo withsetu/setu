@@ -59,6 +59,10 @@ function apiEnv(opts: {
     SETU_MODE: 'local',
     SETU_API_PORT: String(opts.apiPort),
     SETU_REPO_DIR: path.join(repoRoot, '.content-sandbox', opts.sandbox),
+    // The real site config, exactly as `pnpm dev` derives it (scripts/dev-lanes.mjs laneEnv). Unset,
+    // resolveSetuConfigPath looks for <SETU_REPO_DIR>/setu.config.ts, which the sandbox lacks, and
+    // the api boots its write-path field gate on FALLBACK_CONFIG instead (#975, #1200).
+    SETU_CONFIG_PATH: path.join(repoRoot, 'apps', 'site', 'setu.config.ts'),
     SETU_MEDIA_DIR: path.join(repoRoot, '.setu', `${opts.sandbox}-uploads`),
     // CORS/origin allowlist must name the real admin origin (see playwright.config.ts).
     SETU_ADMIN_ORIGIN: opts.adminUrl,

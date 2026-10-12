@@ -17,6 +17,8 @@ import { cpSync, existsSync, mkdirSync, renameSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
+import { laneSandboxFor as defaultLaneSandboxFor } from './lane-sandbox.mjs'
+
 export const SANDBOX_ROOT = '.content-sandbox'
 const DEFAULT_NAME = 'dev'
 
@@ -138,15 +140,15 @@ export function seedSandbox(root, name = DEFAULT_NAME) {
  *  renamed into place, so a failed copy leaves nothing at the target name. Enforced by the clone
  *  cases in scripts/content-sandbox.test.mjs.
  */
-export function cloneSandbox(root, from, to) {
+export function cloneSandbox(root, from, to, { fromRoot = root } = {}) {
   assertValidName(from)
   assertValidName(to)
-  if (from === to)
+  if (from === to && fromRoot === root)
     throw new Error(`content-sandbox: cannot clone ${from} onto itself`)
 
-  const src = sandboxPath(root, from)
+  const src = sandboxPath(fromRoot, from)
   const dst = sandboxPath(root, to)
-  assertContained(root, src)
+  assertContained(fromRoot, src)
   assertContained(root, dst)
 
   if (!isSeeded(src))
@@ -182,15 +184,37 @@ export function resetSandbox(root, name = DEFAULT_NAME) {
   seedSandbox(root, name)
 }
 
+/** The checkout a sandbox NAME lives in (#1200). The lane sandbox (`dev`) is shared by every
+ *  `pnpm dev` lane since #1053, so it resolves to the MAIN checkout through scripts/lane-sandbox.mjs
+ *  — from a worktree, `pnpm content:reset` used to reset a worktree-local sandbox no lane reads.
+ *  When the operator pointed the lanes at their own SETU_REPO_DIR, that directory is theirs and is
+ *  refused rather than touched. Every other name (e2e, staging, …) is rooted where the command
+ *  runs, which is what the e2e harness and `pnpm staging` expect. Pinned in
+ *  scripts/content-sandbox.test.mjs. */
+export function rootForSandbox(
+  name,
+  cwd = process.cwd(),
+  { laneSandboxFor = defaultLaneSandboxFor } = {}
+) {
+  if (name !== DEFAULT_NAME) return cwd
+  const lane = laneSandboxFor(cwd)
+  if (!lane.owned)
+    throw new Error(
+      `content-sandbox: the dev lanes read SETU_REPO_DIR=${lane.dir} (set in ${path.join(lane.mainRoot, '.env')}), ` +
+        'not a sandbox this script manages — refusing to touch it.'
+    )
+  return lane.mainRoot
+}
+
 function main(argv) {
   const [cmd, name = DEFAULT_NAME] = argv
-  const root = process.cwd()
+  const root = cmd === 'clone' ? process.cwd() : rootForSandbox(name)
   if (cmd === 'seed') {
     const seeded = seedSandbox(root, name)
     console.log(
       seeded
-        ? `seeded ${SANDBOX_ROOT}/${name} from content/`
-        : `${SANDBOX_ROOT}/${name} already exists — left as is`
+        ? `seeded ${sandboxPath(root, name)} from content/`
+        : `${sandboxPath(root, name)} already exists — left as is`
     )
   } else if (cmd === 'clone') {
     const [, fromName, toName] = argv
@@ -198,14 +222,16 @@ function main(argv) {
       console.error('usage: content-sandbox.mjs clone <from> <to>')
       process.exit(1)
     }
-    cloneSandbox(root, fromName, toName)
+    cloneSandbox(rootForSandbox(toName), fromName, toName, {
+      fromRoot: rootForSandbox(fromName)
+    })
     console.log(
       `cloned ${SANDBOX_ROOT}/${fromName} -> ${SANDBOX_ROOT}/${toName}`
     )
   } else if (cmd === 'reset') {
     resetSandbox(root, name)
     console.log(
-      `reset ${SANDBOX_ROOT}/${name} (wiped + re-seeded from content/)`
+      `reset ${sandboxPath(root, name)} (wiped + re-seeded from content/)`
     )
   } else {
     console.error(

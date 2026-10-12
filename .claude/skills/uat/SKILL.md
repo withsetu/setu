@@ -43,11 +43,12 @@ on (`VITE_SETU_API`, `VITE_SETU_SITE`, `SETU_REPO_DIR`, `SETU_CONTENT_DIR`, `PUB
 Without it, preview, media upload, and auth **silently vanish** (controls are gated
 `Boolean(previewApi)`) and you will "debug" a feature that isn't broken.
 
-**From a worktree:** use a `.claude/launch.json` configuration that (a) `cd`s into the worktree —
-`preview_start` otherwise runs the MAIN checkout's code — and (b) uses non-dev ports (the
-`date-authoring-uat-365` config is the precedent: api `:4446`, admin `:5175`, site `:4325`; note
-`:4446/:5175` collide with the e2e harness — don't run both at once). The worktree seeds its own
-`.content-sandbox/dev`. `better-sqlite3` may need `pnpm rebuild better-sqlite3` there.
+**From a worktree:** run `pnpm dev` inside it (`.claude/worktrees/<name>`). The launcher gives
+each worktree its own lane — ports from its slot in `.claude/dev-lanes.json` (slot N = api
+`4444+100N`, admin `5173+100N`, site `4321+100N`), printed at startup — and every lane shares
+the main checkout's `.content-sandbox/dev`. A worktree outside `.claude/worktrees` is refused.
+Stop a lane with Ctrl-C, `pnpm dev:stop`, or `pnpm dev:stop --force` for orphans on its ports.
+`better-sqlite3` may need `pnpm rebuild better-sqlite3` there.
 
 **Shared-checkout hazard:** another session can `git checkout` the main checkout mid-UAT — HMR then
 serves a half-switched tree and you chase phantom bugs. If behavior turns bizarre, check
@@ -90,7 +91,7 @@ UAT: <branch> at <sha>, `pnpm dev` from <checkout>
 ## Phantom-bug checklist (run BEFORE blaming the code)
 
 1. `git branch --show-current` — right branch? `git reflog` — did another session move it?
-2. Launched via `pnpm dev` (or a worktree launch config)? Is `VITE_SETU_API` actually set?
+2. Launched via `pnpm dev` (in that worktree)? Is `VITE_SETU_API` actually set?
 3. Is the missing feature **API-gated** (`Boolean(previewApi)` / capability-gated)?
 4. Did a merge just land? → `git pull` + `pnpm install`, then re-check.
 5. Permalink/settings change not taking? Astro dev caches `getStaticPaths` — restart the site dev

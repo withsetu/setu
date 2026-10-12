@@ -2,16 +2,36 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import path from 'node:path'
 import process from 'node:process'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   realpathSync,
   rmSync,
   writeFileSync
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirForLane, laneForCwd, mainCheckout } from './dev.mjs'
+import {
+  DEV_CADDY_ADMIN,
+  busyPortAdvice,
+  dirForLane,
+  frontPortFrom,
+  laneForCheckout,
+  laneForCwd,
+  mainCheckout,
+  ownedCaddyPid,
+  parseLaneArgs,
+  planCaddy,
+  pruneRegistry,
+  resolveStopLanes,
+  siteServerPids,
+  stopTargets,
+  superviseLane,
+  syncCaddy
+} from './dev.mjs'
+import { stopGroups } from './proc-group.mjs'
 import { MAIN_LANE } from './dev-lanes.mjs'
 
 const ROOT = '/repo'
@@ -78,4 +98,536 @@ test('mainCheckout resolves the shared checkout from inside a real worktree', ()
   } finally {
     rmSync(base, { recursive: true, force: true })
   }
+})
+
+// --- process lifecycle (#1198) ----------------------------------------------------------------
+
+/** A role that behaves like `pnpm --filter <pkg> dev`: it spawns the real server as a grandchild
+ *  and, on SIGTERM, exits WITHOUT forwarding the signal. Signalling only its pid therefore leaves
+ *  the grandchild running — the orphaned-vite bug this test exists to catch. */
+const PNPM_LIKE = `
+  const { spawn } = require('node:child_process')
+  const gc = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' })
+  console.log('GRANDCHILD ' + gc.pid)
+  process.on('SIGTERM', () => process.exit(0))
+  setInterval(() => {}, 1000)
+`
+
+const isAlive = (pid) => {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function waitFor(pred, ms = 5000) {
+  const deadline = Date.now() + ms
+  while (Date.now() < deadline) {
+    if (await pred()) return true
+    await new Promise((r) => setTimeout(r, 50))
+  }
+  return false
+}
+
+test('a SIGTERM to the launcher reaps a grandchild its role did not forward the signal to, and the launcher exits (#1198)', async () => {
+  const devUrl = new URL('./dev.mjs', import.meta.url).href
+  const harness = `
+    const { superviseLane } = await import(${JSON.stringify(devUrl)})
+    superviseLane([{ name: 'fake', command: process.execPath, args: ['-e', ${JSON.stringify(PNPM_LIKE)}] }], {
+      cwd: process.cwd(), env: {}, log: (line) => console.log(line)
+    })
+  `
+  const launcher = spawn(
+    process.execPath,
+    ['--input-type=module', '-e', harness],
+    {
+      stdio: ['ignore', 'pipe', 'inherit']
+    }
+  )
+  let out = ''
+  launcher.stdout.on('data', (c) => (out += c))
+  const exited = new Promise((r) =>
+    launcher.on('exit', (code, sig) => r({ code, sig }))
+  )
+  let grandchild = null
+  try {
+    assert.ok(
+      await waitFor(() => {
+        const m = /GRANDCHILD (\d+)/.exec(out)
+        if (m) grandchild = Number(m[1])
+        return grandchild !== null
+      }),
+      `role never started; launcher said: ${out}`
+    )
+    assert.ok(isAlive(grandchild))
+
+    launcher.kill('SIGTERM') // the launcher pid only — NOT a tty group signal
+    const result = await Promise.race([
+      exited,
+      new Promise((r) => setTimeout(() => r('timeout'), 8000))
+    ])
+    assert.notEqual(
+      result,
+      'timeout',
+      'the launcher must exit once its children are gone'
+    )
+    assert.ok(
+      await waitFor(() => !isAlive(grandchild), 3000),
+      `grandchild ${grandchild} survived the launcher — it would keep the lane's port`
+    )
+  } finally {
+    if (grandchild && isAlive(grandchild)) process.kill(grandchild, 'SIGKILL')
+    if (launcher.exitCode === null) launcher.kill('SIGKILL')
+  }
+})
+
+// --- dev:stop / dev:fresh argument handling (#1198) ---------------------------------------------
+
+test('--force is a flag, never a lane name', () => {
+  assert.deepEqual(parseLaneArgs(['--stop', '--force']), {
+    mode: 'stop',
+    force: true,
+    lanes: []
+  })
+  assert.deepEqual(parseLaneArgs(['--stop', 'a', '-f']), {
+    mode: 'stop',
+    force: true,
+    lanes: ['a']
+  })
+  assert.deepEqual(parseLaneArgs(['--fresh', 'b']), {
+    mode: 'fresh',
+    force: false,
+    lanes: ['b']
+  })
+  assert.deepEqual(parseLaneArgs([]), {
+    mode: 'start',
+    force: false,
+    lanes: []
+  })
+})
+
+test('unknown flags and --force on a plain start are refused, not guessed at', () => {
+  assert.throws(() => parseLaneArgs(['--stop', '--frce']), /unknown flag/)
+  assert.throws(() => parseLaneArgs(['--force']), /--force/)
+  assert.throws(() => parseLaneArgs(['a', 'b']), /one lane/)
+})
+
+test('dev:stop --force with no lane is scoped to the lane you are standing in, never every lane', () => {
+  const registry = { dev: 0, a: 1, b: 2 }
+  const t = stopTargets({ lanes: [], force: true, registry, cwdLane: 'a' })
+  assert.deepEqual(t.ports, [4544, 5273, 4421])
+})
+
+test('dev:stop without --force still covers every known lane (free-ports keeps it to your own pids)', () => {
+  const t = stopTargets({
+    lanes: [],
+    force: false,
+    registry: { dev: 0, a: 1 },
+    cwdLane: 'dev'
+  })
+  assert.deepEqual(t.ports.sort(), [4321, 4421, 4444, 4544, 5173, 5273].sort())
+})
+
+test('the main lane is always slot 0, registered or not', () => {
+  const t = stopTargets({
+    lanes: ['dev'],
+    force: true,
+    registry: {},
+    cwdLane: 'dev'
+  })
+  assert.deepEqual(t.ports, [4444, 5173, 4321])
+})
+
+test('an unregistered lane is reported, not silently skipped', () => {
+  const t = stopTargets({
+    lanes: ['ghost'],
+    force: true,
+    registry: {},
+    cwdLane: 'dev'
+  })
+  assert.deepEqual(t.ports, [])
+  assert.deepEqual(t.unknown, ['ghost'])
+})
+
+test('pruneRegistry drops lanes whose worktree is gone, and never the main lane', () => {
+  const live = new Set([path.join(WT, 'a')])
+  const { registry, pruned } = pruneRegistry(
+    { dev: 0, a: 1, gone: 2, '../x': 3 },
+    ROOT,
+    (dir) => live.has(dir)
+  )
+  assert.deepEqual(registry, { dev: 0, a: 1 })
+  assert.deepEqual(pruned.sort(), ['../x', 'gone'])
+})
+
+test('the busy-port advice names this lane and the force flag, and no longer suggests SETU_ADMIN_PORT', () => {
+  const text = busyPortAdvice('feature-x', 'dev')
+  assert.match(text, /pnpm dev:stop feature-x/)
+  assert.match(text, /pnpm dev:stop --force feature-x/)
+  assert.doesNotMatch(text, /SETU_ADMIN_PORT/)
+  assert.match(busyPortAdvice('dev', 'dev'), /pnpm dev:stop --force(\s|$)/)
+})
+
+// --- lane Caddy (#1199) -------------------------------------------------------------------------
+
+test('SETU_DEV_CADDY_PORT is validated, never Number()-ed into :NaN', () => {
+  assert.equal(frontPortFrom({}), 8080)
+  assert.equal(frontPortFrom({ SETU_DEV_CADDY_PORT: '9090' }), 9090)
+  assert.throws(
+    () => frontPortFrom({ SETU_DEV_CADDY_PORT: 'eighty' }),
+    /SETU_DEV_CADDY_PORT/
+  )
+  assert.throws(
+    () => frontPortFrom({ SETU_DEV_CADDY_PORT: '8080 }' }),
+    /SETU_DEV_CADDY_PORT/
+  )
+  assert.throws(
+    () => frontPortFrom({ SETU_DEV_CADDY_PORT: '70000' }),
+    /SETU_DEV_CADDY_PORT/
+  )
+})
+
+test('the lane Caddy admin endpoint is NOT the default :2019 any system Caddy owns', () => {
+  assert.doesNotMatch(DEV_CADDY_ADMIN, /:2019$/)
+  assert.match(DEV_CADDY_ADMIN, /^127\.0\.0\.1:\d+$/)
+})
+
+test('a recorded Caddy is ours only while that pid still runs OUR Caddyfile', () => {
+  const file = '/repo/.claude/Caddyfile'
+  const deps = (cmd, alive = true) => ({ alive: () => alive, cmdOf: () => cmd })
+  const state = { pid: 500, config: file }
+  assert.equal(
+    ownedCaddyPid(
+      state,
+      file,
+      deps(`caddy run --config ${file} --adapter caddyfile`)
+    ),
+    500
+  )
+  assert.equal(
+    ownedCaddyPid(
+      state,
+      file,
+      deps('/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile')
+    ),
+    null,
+    'a reused pid running the system Caddy is not ours'
+  )
+  assert.equal(ownedCaddyPid(state, file, deps('', false)), null, 'dead')
+  assert.equal(ownedCaddyPid(null, file, deps('caddy')), null, 'never started')
+  assert.equal(
+    ownedCaddyPid({ pid: 1, config: file }, file, deps(`caddy ${file}`)),
+    null
+  )
+})
+
+test('planCaddy reloads only a Caddy the launcher started, and refuses a foreign admin endpoint', () => {
+  assert.equal(
+    planCaddy({ ownedPid: 500, adminListeners: [500] }).action,
+    'reload'
+  )
+  assert.equal(
+    planCaddy({ ownedPid: null, adminListeners: [] }).action,
+    'start'
+  )
+  const refused = planCaddy({ ownedPid: null, adminListeners: [77] })
+  assert.equal(refused.action, 'refuse')
+  assert.match(refused.reason, /77/)
+})
+
+test('a worktree outside .claude/worktrees is refused, not silently run as the main lane (#1200)', () => {
+  assert.equal(laneForCheckout(ROOT, ROOT), MAIN_LANE)
+  assert.equal(laneForCheckout(path.join(WT, 'a'), ROOT), 'a')
+  assert.throws(
+    () => laneForCheckout('/elsewhere/my-wt', ROOT),
+    /outside .*worktrees.*MAIN checkout's code[\s\S]*git worktree move/
+  )
+})
+
+/** A role that behaves like `astro dev` under an auto-detected AI agent (astro 7): it re-launches
+ *  the server DETACHED — in its own process group, out of reach of a group signal — and exits 0
+ *  at once, leaving only a lockfile-style pid behind. */
+const ASTRO_BACKGROUND_LIKE = `
+  const { spawn } = require('node:child_process')
+  const bg = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore', detached: true })
+  bg.unref()
+  console.log('BACKGROUND ' + bg.pid)
+`
+
+test('a server its role re-launched in the background is adopted and stopped too (#1198)', async () => {
+  const devUrl = new URL('./dev.mjs', import.meta.url).href
+  const harness = `
+    const { superviseLane } = await import(${JSON.stringify(devUrl)})
+    let bg = null
+    superviseLane([
+      { name: 'site', command: process.execPath, args: ['-e', ${JSON.stringify(ASTRO_BACKGROUND_LIKE)}] },
+      { name: 'api', command: process.execPath, args: ['-e', 'setInterval(() => {}, 1000)'] }
+    ], {
+      cwd: process.cwd(), env: {},
+      log: (line) => { const m = /BACKGROUND (\\d+)/.exec(line); if (m) bg = Number(m[1]); console.log(line) },
+      adopt: () => (bg ? [bg] : [])
+    })
+  `
+  const launcher = spawn(
+    process.execPath,
+    ['--input-type=module', '-e', harness],
+    {
+      stdio: ['ignore', 'pipe', 'inherit']
+    }
+  )
+  let out = ''
+  launcher.stdout.on('data', (c) => (out += c))
+  const exited = new Promise((r) =>
+    launcher.on('exit', (code, sig) => r({ code, sig }))
+  )
+  let bg = null
+  try {
+    assert.ok(
+      await waitFor(() => {
+        const m = /BACKGROUND (\d+)/.exec(out)
+        if (m) bg = Number(m[1])
+        return bg !== null
+      }),
+      `role never started; launcher said: ${out}`
+    )
+    await new Promise((r) => setTimeout(r, 200)) // the role leader has exited by now
+    launcher.kill('SIGTERM')
+    const result = await Promise.race([
+      exited,
+      new Promise((r) => setTimeout(() => r('timeout'), 8000))
+    ])
+    assert.notEqual(result, 'timeout', 'the launcher must exit')
+    assert.ok(
+      await waitFor(() => !isAlive(bg), 3000),
+      `background server ${bg} outlived the launcher`
+    )
+  } finally {
+    if (bg && isAlive(bg)) process.kill(bg, 'SIGKILL')
+    if (launcher.exitCode === null) launcher.kill('SIGKILL')
+  }
+})
+
+test('siteServerPids adopts the lockfile pid only while it still runs from this lane', () => {
+  const dir = '/repo/.claude/worktrees/a'
+  const pidOf = () => 900
+  assert.deepEqual(
+    siteServerPids(dir, {
+      pidOf,
+      cmdOf: () => `node ${dir}/node_modules/astro/bin/astro.mjs dev`
+    }),
+    [900]
+  )
+  assert.deepEqual(
+    siteServerPids(dir, {
+      pidOf,
+      cmdOf: () => 'node /repo/node_modules/astro dev'
+    }),
+    [],
+    "another lane's (or a reused) pid is not ours"
+  )
+  assert.deepEqual(
+    siteServerPids('/repo', {
+      pidOf,
+      cmdOf: () => `node ${dir}/node_modules/astro dev`
+    }),
+    [],
+    "the main lane does not adopt a worktree's server just because its path is a prefix"
+  )
+  assert.deepEqual(
+    siteServerPids(dir, { pidOf: () => null, cmdOf: () => '' }),
+    []
+  )
+})
+
+// --- review fixes (#1214) -----------------------------------------------------------------------
+
+test('a role that exits is reaped at once and dropped — a later stop never signals its stale pid', async () => {
+  const calls = []
+  const lane = superviseLane(
+    [
+      {
+        name: 'quick',
+        command: process.execPath,
+        args: ['-e', 'process.exit(0)']
+      },
+      {
+        name: 'long',
+        command: process.execPath,
+        args: ['-e', 'setInterval(() => {}, 1000)']
+      }
+    ],
+    {
+      cwd: process.cwd(),
+      env: process.env,
+      log: () => {},
+      attachProcess: false,
+      stopFn: async (pids, opts) => {
+        calls.push({ pids: [...pids], opts })
+        return stopGroups(pids, opts)
+      }
+    }
+  )
+  const [quick, long] = lane.children.map((c) => c.pid)
+  try {
+    assert.ok(await waitFor(() => lane.children[0].exitCode !== null))
+    await new Promise((r) => setTimeout(r, 100))
+    assert.ok(
+      calls.some((c) => c.pids.includes(quick)),
+      "the exited role's group is reaped as soon as it exits, while its pgid is still reserved"
+    )
+    const before = calls.length
+    await lane.stop()
+    await lane.done
+    const later = calls.slice(before)
+    assert.ok(later.length > 0)
+    for (const c of later) {
+      assert.ok(
+        !c.pids.includes(quick),
+        `stale pid ${quick} signalled again: ${JSON.stringify(c.pids)}`
+      )
+      assert.equal(
+        c.opts?.groupOnly,
+        true,
+        'no bare-pid fallback for detached children'
+      )
+    }
+    assert.ok(later.some((c) => c.pids.includes(long)))
+  } finally {
+    if (isAlive(long)) process.kill(long, 'SIGKILL')
+  }
+})
+
+test('siteServerPids adopts only an astro dev command line, not vitest/tsc/eslint from the same checkout', () => {
+  const dir = '/repo/.claude/worktrees/a'
+  const pidOf = () => 900
+  for (const cmd of [
+    `node ${dir}/node_modules/vitest/vitest.mjs run`,
+    `node ${dir}/node_modules/typescript/bin/tsc --noEmit`,
+    `node ${dir}/node_modules/eslint/bin/eslint.js .`,
+    `node ${dir}/node_modules/astro/bin/astro.mjs build`
+  ])
+    assert.deepEqual(siteServerPids(dir, { pidOf, cmdOf: () => cmd }), [], cmd)
+  assert.deepEqual(
+    siteServerPids(dir, {
+      pidOf,
+      cmdOf: () =>
+        `/usr/bin/node ${dir}/node_modules/.pnpm/astro@7/node_modules/astro/bin/astro.mjs dev --json`
+    }),
+    [900]
+  )
+})
+
+test('plain dev:stop never needs the current lane, so it works from any directory', () => {
+  let asked = 0
+  const cwd = () => {
+    asked++
+    throw new Error('outside .claude/worktrees')
+  }
+  assert.deepEqual(
+    resolveStopLanes({ mode: 'stop', force: false, lanes: [], cwdLane: cwd }),
+    {
+      lanes: [],
+      here: null
+    }
+  )
+  assert.equal(asked, 0)
+  assert.deepEqual(
+    resolveStopLanes({
+      mode: 'stop',
+      force: true,
+      lanes: ['a', 'b'],
+      cwdLane: cwd
+    }),
+    { lanes: ['a', 'b'], here: 'a' }
+  )
+  assert.equal(asked, 0)
+  assert.throws(() =>
+    resolveStopLanes({ mode: 'stop', force: true, lanes: [], cwdLane: cwd })
+  )
+  assert.deepEqual(
+    resolveStopLanes({
+      mode: 'fresh',
+      force: false,
+      lanes: [],
+      cwdLane: () => 'x'
+    }),
+    { lanes: ['x'], here: 'x' }
+  )
+})
+
+test('the "admin endpoint held" refusal tells you how to recover', () => {
+  const r = planCaddy({ ownedPid: null, adminListeners: [77] })
+  assert.match(r.reason, /ps -p 77/)
+  assert.match(r.reason, /kill 77/)
+})
+
+// A fake `caddy` on PATH: `run` stays alive without listening; `reload` records its argv.
+function fakeCaddyDir() {
+  const bin = mkdtempSync(path.join(tmpdir(), 'setu-fakecaddy-'))
+  writeFileSync(
+    path.join(bin, 'caddy'),
+    '#!/bin/sh\nif [ "$1" = run ]; then sleep 30; exit 0; fi\necho "$@" >> "$(dirname "$0")/reload.args"\n',
+    { mode: 0o755 }
+  )
+  return bin
+}
+
+async function withFakeCaddy(fn) {
+  const bin = fakeCaddyDir()
+  const root = mkdtempSync(path.join(tmpdir(), 'setu-caddyroot-'))
+  mkdirSync(path.join(root, '.claude'))
+  const PATH = process.env.PATH
+  process.env.PATH = `${bin}${path.delimiter}${PATH}`
+  try {
+    return await fn({ bin, root })
+  } finally {
+    process.env.PATH = PATH
+    rmSync(bin, { recursive: true, force: true })
+    rmSync(root, { recursive: true, force: true })
+  }
+}
+
+test('a starting lane Caddy is recorded at once, so an interrupted start leaves it ours, not "foreign"', async () => {
+  await withFakeCaddy(async ({ root }) => {
+    const state = path.join(root, '.claude', 'dev-caddy.json')
+    const pending = syncCaddy(root, { dev: 0 }, 'example.test', 18190, {
+      waitMs: 1500
+    })
+    assert.ok(
+      await waitFor(() => existsSync(state), 1000),
+      'pid not recorded while waiting'
+    )
+    const { pid } = JSON.parse(readFileSync(state, 'utf8'))
+    assert.ok(isAlive(pid))
+    await pending // never listens → reported, stopped, and the record cleared
+    assert.ok(await waitFor(() => !isAlive(pid), 2000))
+    assert.ok(!existsSync(state))
+  })
+})
+
+test('reload always targets the lane admin endpoint with --address', async () => {
+  await withFakeCaddy(async ({ bin, root }) => {
+    const file = path.join(root, '.claude', 'Caddyfile')
+    const running = spawn(path.join(bin, 'caddy'), ['run', '--config', file], {
+      stdio: 'ignore',
+      detached: true
+    })
+    try {
+      await waitFor(() => running.pid !== undefined)
+      writeFileSync(
+        path.join(root, '.claude', 'dev-caddy.json'),
+        JSON.stringify({ pid: running.pid, config: file })
+      )
+      await syncCaddy(root, { dev: 0 }, 'example.test', 18191)
+      const args = readFileSync(path.join(bin, 'reload.args'), 'utf8').trim()
+      assert.equal(
+        args,
+        `reload --config ${file} --adapter caddyfile --address ${DEV_CADDY_ADMIN}`
+      )
+    } finally {
+      process.kill(-running.pid, 'SIGKILL')
+    }
+  })
 })

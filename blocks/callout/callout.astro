@@ -1,13 +1,13 @@
 ---
 import { createElement } from 'react'
-import { Callout, variantFor } from '@setu/blocks'
+import { Callout, calloutIcon, variantFor } from '@setu/blocks'
 import '@setu/blocks/callout.css'
 
-const { type = 'info', title } = Astro.props
+const { type = 'info', title, icon } = Astro.props
 const variant = variantFor(String(type))
 const titleNode = title ? createElement('span', { className: 'callout-title' }, title) : undefined
 ---
 
-<Callout tone={variant.tone} icon={variant.icon} title={titleNode}>
+<Callout tone={variant.tone} icon={calloutIcon(String(type), icon)} title={titleNode}>
   <div class="callout-body"><slot /></div>
 </Callout>

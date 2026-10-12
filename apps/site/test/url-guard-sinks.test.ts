@@ -167,9 +167,9 @@ describe('render-sink URL guards (#857/#968) — built output', () => {
 
   describe('embed (#968 — the block that had no URL validation at all)', () => {
     it('still renders a legitimate provider frame and facade (guards are not a blanket no)', () => {
-      expect(html).toContain('src="https://player.example/embed/xyz"')
+      expect(html).toContain('src="https://player.vimeo.com/video/76979871"')
       expect(html).toContain(
-        'data-embed-url="https://player.example/embed/abc"'
+        'data-embed-url="https://www.dailymotion.com/embed/video/x7tgad0"'
       )
       expect(html).toContain('src="https://cdn.example.test/thumb.jpg"')
     })

@@ -12,6 +12,32 @@ sandboxed `srcdoc` frame — statically when there is no poster, behind the clic
 facade when there is one. Both are fixtures for the sandbox assertions in
 `apps/site/test/embed-block.test.ts` (#1115).
 
-{% embed url="https://ok.example/script-embed" provider="example" providerLabel="Example" mediaType="rich" title="Script embed, static srcdoc" html="<blockquote>A script-based embed</blockquote>" /%}
+{% embed url="https://x.com/withsetu/status/1" provider="twitter" providerLabel="X (Twitter)" mediaType="rich" title="Script embed, static srcdoc" html="<blockquote>A script-based embed</blockquote>" /%}
 
-{% embed url="https://ok.example/script-facade" provider="example" providerLabel="Example" mediaType="rich" title="Script embed behind a facade" html="<blockquote>A script-based embed behind a poster</blockquote>" thumbnailUrl="https://cdn.example.test/script-thumb.jpg" /%}
+{% embed url="https://bsky.app/profile/setu.example/post/abc" provider="bluesky" providerLabel="Bluesky" mediaType="rich" title="Script embed behind a facade" html="<blockquote>A script-based embed behind a poster</blockquote>" thumbnailUrl="https://cdn.example.test/script-thumb.jpg" /%}
+
+Embeds outside the provider allowlist (#1246). The oEmbed resolver only ever returns
+registered providers, but content can be written directly, so the renderer re-checks: an
+`embedUrl` is framed only when its host belongs to a registered provider, and `html` is
+rendered only when the entry's `url` does. Anything else degrades to the plain link. These
+are fixtures for `apps/site/test/embed-block.test.ts`.
+
+{% embed url="https://ok.example/off-list-frame" embedUrl="https://evil.example/frame" title="Off-list frame 1246" /%}
+
+{% embed url="https://ok.example/look-alike" embedUrl="https://www.youtube.com.evil.example/embed/x" thumbnailUrl="https://cdn.example.test/look-alike.jpg" title="Look-alike facade 1246" /%}
+
+{% embed url="https://ok.example/off-list-html" html="<p>offlist-srcdoc-1246</p>" title="Off-list srcdoc 1246" /%}
+
+{% embed url="https://ok.example/off-list-html-facade" html="<p>offlist-facade-1246</p>" thumbnailUrl="https://cdn.example.test/off-list.jpg" title="Off-list srcdoc facade 1246" /%}
+
+A provider frame with nonsensical dimensions falls back to the default aspect ratio
+rather than writing them into the inline style.
+
+{% embed url="https://vimeo.com/76979871" embedUrl="https://player.vimeo.com/video/76979871" width=-640 height=360 title="Bad dimensions 1246" /%}
+
+A provider whose player lives on a host outside its own domains (WordPress.tv's player is
+served from `video.wordpress.com`) is still framed, while a look-alike of that host is not.
+
+{% embed url="https://wordpress.tv/2026/08/20/keynote-fireside-chat-2/" provider="wordpress-tv" providerLabel="WordPress.tv" mediaType="video" embedUrl="https://video.wordpress.com/embed/OWeq4IPf" title="Player host 1246" /%}
+
+{% embed url="https://ok.example/player-look-alike" embedUrl="https://evil-video.wordpress.com/embed/OWeq4IPf" title="Player host look-alike 1246" /%}

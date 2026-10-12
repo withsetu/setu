@@ -53,7 +53,9 @@ const quoteList = (xs) => xs.map((x) => JSON.stringify(x)).join(', ')
 /** The error messages for one attribute value, or `[]` when it is valid. Exported for the
  *  unit test; Markdoc reaches it through `blockAttr(...).validate`. */
 export function blockAttrErrors(tag, name, spec, value) {
-  // A `$variable` / function call is resolved at render time — nothing to check statically.
+  // A `$variable` is resolved at render time — nothing to check statically. Function calls
+  // are rejected at tag level in `blockTagValidate` (#1246): Markdoc 0.5 skips an attribute's
+  // `validate` for a function value unless `validation.validateFunctions` is set.
   if (isAstValue(value)) return []
   const where = `{% ${tag} %} attribute "${name}"`
   if (!hasType(spec.type, value)) {
@@ -98,7 +100,25 @@ export function blockTagValidate(tag) {
   return (node, config) => {
     const known = Object.keys(config?.tags?.[tag]?.attributes ?? {})
     const errors = []
-    for (const key of Object.keys(node.attributes ?? {})) {
+    for (const [key, value] of Object.entries(node.attributes ?? {})) {
+      // #1246: a function call (`default(…)`, `and(…)`, …) resolves at render time to a
+      // value of ANY type. Markdoc 0.5 skips an attribute's `validate` for it unless
+      // `validation.validateFunctions` is set (see blockAttrErrors), so without this check
+      // every blockAttrErrors type/enum rule was skippable and a block sink received a value
+      // its schema never allowed. No content uses functions on block attributes: reject
+      // them here, in the tag-level hook Markdoc always calls.
+      // Enforced by apps/site/test/markdoc-attr-validate.test.ts.
+      if (isAstValue(value) && value.$$mdtype === 'Function') {
+        const fn = typeof value.name === 'string' ? value.name : 'function'
+        errors.push({
+          id: 'attribute-value-invalid',
+          level: /** @type {const} */ ('error'),
+          message:
+            `{% ${tag} %} attribute "${key}" cannot be a function call — got ${fn}(…). ` +
+            'Write the value directly.'
+        })
+        continue
+      }
       if (known.includes(key) || GLOBAL_ATTRS.has(key)) continue
       errors.push({
         id: 'attribute-undefined',

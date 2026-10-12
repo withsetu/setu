@@ -31,8 +31,18 @@ export interface OembedApiOptions {
 /** `POST /api/oembed { url }` → resolved oEmbed metadata for the embed block (#187).
  *
  *  Gated on `content.create` (an authoring capability), NOT admin: unlike the raw-HTML block
- *  (#260), this only ever embeds allow-listed providers rendered in a sandboxed iframe, so it is
- *  safe for authors.
+ *  (#260), what this route returns is limited to registered providers, so it is safe for
+ *  authors. Two layers enforce that, and neither is this route alone:
+ *   - resolve time: `resolveOembed` returns `unsupported` (→ 422 here) for any URL outside the
+ *     `matchProvider` registry in @setu/core — packages/core/test/oembed/providers.test.ts and
+ *     apps/api/test/oembed.test.ts;
+ *   - render time (#1246): content can be written without this route (raw source, the commit
+ *     API), so blocks/embed/embed.astro re-checks the same registry — it frames `embedUrl`
+ *     only on a registered provider host (`matchPlayerProvider`: a provider domain or an exact
+ *     `playerHosts` entry — packages/core/test/oembed/providers.test.ts) and renders `html`
+ *     (in an opaque-origin sandboxed srcdoc frame) only when the entry's `url` is a registered
+ *     provider, else it falls back to a plain link — apps/site/test/embed-block.test.ts
+ *     ('embed provider allowlist at render').
  *
  *  SSRF (#626, OWASP A01): the resolver's provider allowlist pins the FIRST hop only, so the fetch
  *  itself MUST go through the shared safeFetch seam — this factory builds that `fetchImpl` itself

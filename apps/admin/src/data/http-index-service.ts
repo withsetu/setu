@@ -101,9 +101,21 @@ export const INDEX_CACHE_VERSION = -1000 - INDEX_VERSION
 
 const NO_DEPLOY: DeployInfo = { deployedSha: null, changed: [] }
 
+/** The admin's server-backed IndexService, plus one read the shared interface has no
+ *  word for: the committed rows without this browser's draft overlay. */
+export interface HttpIndexService extends IndexService {
+  /** Server truth (committed content + deploy-derived lifecycle), WITHOUT the local-draft
+   *  overlay — what a site build sees. The Query / Latest Posts canvas preview reads this
+   *  so an unsaved working copy can't change what the published block appears to list
+   *  (#1245). Offline → the stale-while-offline cache, as `query` does (best-effort: that
+   *  cache also holds rows `reindexEntry` derived with a draft). Pinned by
+   *  apps/admin/test/http-index-service.test.ts ("queryCommitted"). */
+  queryCommitted(q: IndexQuery): Promise<{ rows: ContentRow[]; total: number }>
+}
+
 export function createHttpIndexService(
   deps: HttpIndexServiceDeps
-): IndexService {
+): HttpIndexService {
   const { apiBase, fetchImpl, data, git, index, deploy } = deps
 
   // --- offline cache -------------------------------------------------------
@@ -299,12 +311,11 @@ export function createHttpIndexService(
 
   // --- IndexService surface --------------------------------------------------
 
-  async function query(
+  async function queryCommitted(
     q: IndexQuery
   ): Promise<{ rows: ContentRow[]; total: number }> {
-    let base: { rows: ContentRow[]; total: number }
     try {
-      base = await fetchQueryPaged(q)
+      const base = await fetchQueryPaged(q)
       // SWR cache write — a cache hiccup must never break a successful read.
       try {
         await ensureCache()
@@ -312,13 +323,19 @@ export function createHttpIndexService(
       } catch {
         /* cache is best-effort */
       }
+      return base
     } catch {
       // Server unreachable → answer from the last-fetched rows (stale, honest).
       await ensureCache()
       const cached = await index.query(q)
-      base = { rows: cached.rows.map(rowToContentRow), total: cached.total }
+      return { rows: cached.rows.map(rowToContentRow), total: cached.total }
     }
-    return overlayDrafts(q, base)
+  }
+
+  async function query(
+    q: IndexQuery
+  ): Promise<{ rows: ContentRow[]; total: number }> {
+    return overlayDrafts(q, await queryCommitted(q))
   }
 
   // Dashboard At-a-glance counts (#587). Server truth (committed content +
@@ -558,6 +575,7 @@ export function createHttpIndexService(
     // indexedSha bookkeeping belongs to the server's own index now.
     markSyncedAt: () => Promise.resolve(),
     query,
+    queryCommitted,
     stats,
     distinctTags,
     distinctLocales,

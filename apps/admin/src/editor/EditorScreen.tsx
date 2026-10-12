@@ -36,7 +36,7 @@ import { useDeploy } from '../deploy/deploy'
 import { StripStatus } from './StripStatus'
 import { siteUrl } from '../shell/site-url'
 import { useSettings } from '../data/settings-store'
-import { useIndex } from '../data/index-store'
+import { useCommittedIndexQuery, useIndex } from '../data/index-store'
 import { Canvas } from './Canvas'
 import type { RunQuery } from './QueryPreview'
 import { pathForCollection } from '@/data/collections'
@@ -128,9 +128,15 @@ export function EditorScreen() {
   const viewOnly = liveCommitted && !can('content.publish')
   const editable = phase === 'ready' && !viewOnly
 
-  // Feeds the query block's in-canvas live preview with real index results (same query the
-  // published block resolves at build time).
-  const runQuery = useCallback<RunQuery>((q) => index.query(q), [index])
+  // Feeds the Query / Latest Posts canvas previews. The COMMITTED read (no local-draft
+  // overlay): the published block builds from Git, so an unsaved working copy must not
+  // change what the preview lists; preview-posts.ts then applies the site's selectPosts
+  // (parity: apps/admin/test/query-preview-parity.test.tsx, #1245).
+  const committedQuery = useCommittedIndexQuery()
+  const runQuery = useCallback<RunQuery>(
+    (q) => committedQuery(q),
+    [committedQuery]
+  )
 
   useEffect(() => onRequestShortcuts(() => setShortcutsOpen(true)), [])
 

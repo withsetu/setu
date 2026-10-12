@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { DEFAULT_LOCALE } from '@setu/core'
 import { useIndex } from '../../data/index-store'
 import {
   Select,
@@ -24,9 +25,13 @@ function localeLabel(code: string): string {
   }
 }
 
+/** What an unset locale resolves to on the published Query / Latest Posts blocks: they list
+ *  `DEFAULT_LOCALE` only, never every locale (#1245) — so the unset option says so. */
+const UNSET_LABEL = `Site default (${DEFAULT_LOCALE})`
+
 /** Single-select locale filter fed by the content index (`distinctLocales`) — the system already
- *  knows its locales, so the author picks one instead of typing a raw code (DoD #4). Empty value
- *  ("Any") clears the attr, mirroring CategoryControl. */
+ *  knows its locales, so the author picks one instead of typing a raw code (DoD #4). The unset
+ *  option clears the attr, mirroring CategoryControl. */
 export function LocaleControl({ value, onChange, meta }: ControlProps) {
   const index = useIndex()
   const [locales, setLocales] = useState<string[]>([])
@@ -53,10 +58,10 @@ export function LocaleControl({ value, onChange, meta }: ControlProps) {
         id={`${meta.idPrefix ?? 'bi'}-${meta.name}`}
         aria-label={meta.name}
       >
-        <SelectValue placeholder="Any locale" />
+        <SelectValue placeholder={UNSET_LABEL} />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value={ANY}>Any locale</SelectItem>
+        <SelectItem value={ANY}>{UNSET_LABEL}</SelectItem>
         {locales.map((l) => (
           <SelectItem key={l} value={l}>
             {localeLabel(l)}

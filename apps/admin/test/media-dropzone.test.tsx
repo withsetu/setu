@@ -123,30 +123,88 @@ describe('MediaDropzone', () => {
     expect(onError).not.toHaveBeenCalled()
   })
 
-  // #1232: react-dropzone 19.2+ handles paste by default and preventDefault()s any paste that
-  // carries files. filesFromEvent doesn't read clipboardData, so that paste would resolve to no
-  // files: swallowed, nothing uploaded, nothing said. Paste-to-upload is #1234; until then the
-  // dropzone must leave pastes alone.
-  it('leaves a paste carrying files untouched and uploads nothing (#1232)', async () => {
-    const upload = vi.fn(async () => result)
-    render(
-      <MediaDropzone apiBase="http://x" onUploaded={vi.fn()} upload={upload} />
-    )
-    const zone = screen.getByTestId('media-dropzone-input')
-      .parentElement as HTMLElement
-    const file = new File([new Uint8Array([1])], 'shot.png', {
-      type: 'image/png'
+  // #1234: a pasted file (a screenshot on Ctrl/Cmd+V) runs the same pipeline as a drop.
+  describe('paste-to-upload (#1234)', () => {
+    const shot = () =>
+      new File([new Uint8Array([1])], 'shot.png', { type: 'image/png' })
+    const clipboard = (files: File[], types = ['Files']) => ({
+      files,
+      items: files.map((f) => ({
+        kind: 'file',
+        type: f.type,
+        getAsFile: () => f
+      })),
+      types
     })
-    const notCancelled = fireEvent.paste(zone, {
-      clipboardData: {
-        files: [file],
-        items: [{ kind: 'file', type: 'image/png', getAsFile: () => file }],
-        types: ['Files']
-      }
+    const zoneOf = () =>
+      screen.getByTestId('media-dropzone-input').parentElement as HTMLElement
+
+    it('uploads a pasted image', async () => {
+      const upload = vi.fn(async () => result)
+      const onUploaded = vi.fn()
+      render(
+        <MediaDropzone
+          apiBase="http://x"
+          onUploaded={onUploaded}
+          upload={upload}
+          accept={{ 'image/*': [] }}
+        />
+      )
+      const file = shot()
+      fireEvent.paste(zoneOf(), { clipboardData: clipboard([file]) })
+      await waitFor(() => expect(onUploaded).toHaveBeenCalledWith(result))
+      expect(upload).toHaveBeenCalledWith('http://x', file)
     })
-    expect(notCancelled).toBe(true)
-    await new Promise((r) => setTimeout(r, 20))
-    expect(upload).not.toHaveBeenCalled()
+
+    it('reports a pasted file the picker does not accept, and uploads nothing', async () => {
+      const upload = vi.fn(async () => result)
+      const onError = vi.fn()
+      render(
+        <MediaDropzone
+          apiBase="http://x"
+          onUploaded={vi.fn()}
+          onError={onError}
+          upload={upload}
+          accept={{ 'image/*': [] }}
+          acceptLabel="images"
+        />
+      )
+      const pdf = new File([new Uint8Array([1])], 'notes.pdf', {
+        type: 'application/pdf'
+      })
+      fireEvent.paste(zoneOf(), { clipboardData: clipboard([pdf]) })
+      await waitFor(() =>
+        expect(onError).toHaveBeenCalledWith(
+          "notes.pdf can't be added — this picker accepts images."
+        )
+      )
+      expect(upload).not.toHaveBeenCalled()
+    })
+
+    it('leaves a text paste alone', async () => {
+      const upload = vi.fn(async () => result)
+      render(
+        <MediaDropzone
+          apiBase="http://x"
+          onUploaded={vi.fn()}
+          upload={upload}
+        />
+      )
+      const notCancelled = fireEvent.paste(zoneOf(), {
+        clipboardData: { files: [], items: [], types: ['text/plain'] }
+      })
+      expect(notCancelled).toBe(true)
+      await new Promise((r) => setTimeout(r, 20))
+      expect(upload).not.toHaveBeenCalled()
+    })
+
+    it('reads files from clipboardData', () => {
+      const file = shot()
+      const event = {
+        clipboardData: clipboard([file])
+      } as unknown as ClipboardEvent
+      expect(filesFromEvent(event)).toEqual([file])
+    })
   })
 
   it('treats a FileSystemFileHandle list as a hard error, never an empty drop (#1232)', () => {
@@ -251,7 +309,16 @@ describe('MediaDropzone', () => {
         />
       )
       expect(
-        screen.getByText('Drag MP4 or WebM videos here, or click to upload')
+        screen.getByText(
+          'Drag MP4 or WebM videos here, paste, or click to upload'
+        )
+      ).toBeInTheDocument()
+    })
+
+    it('says "files" in the hint when nothing narrows what it accepts', () => {
+      render(<MediaDropzone apiBase="http://x" onUploaded={vi.fn()} />)
+      expect(
+        screen.getByText('Drag files here, paste, or click to upload')
       ).toBeInTheDocument()
     })
   })

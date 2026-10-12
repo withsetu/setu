@@ -9,10 +9,10 @@ import {
   readdirSync,
   statSync,
   readFileSync,
-  writeFileSync,
   mkdirSync
 } from 'node:fs'
 import path from 'node:path'
+import { writeFileAtomic } from './atomic-write.mjs'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
 import { createJiti } from 'jiti'
@@ -297,7 +297,7 @@ const isMain =
 if (isMain) {
   const out = await buildRelationsGraph(DEFAULT_CONTENT_DIR)
   mkdirSync(path.dirname(OUT), { recursive: true })
-  writeFileSync(OUT, JSON.stringify(out, null, 2) + '\n')
+  writeFileAtomic(OUT, JSON.stringify(out, null, 2) + '\n')
   const n = Object.keys(out).length
   console.log(
     `gen-relations: ${n} graph key${n === 1 ? '' : 's'} -> apps/site/.setu/cache/relations.json`

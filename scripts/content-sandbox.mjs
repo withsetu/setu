@@ -55,6 +55,18 @@ export function assertContained(root, dir) {
   return resolved
 }
 
+/** Git settings that stop auto-maintenance in a sandbox repo (#1202). `git commit` can trigger
+ *  `gc --auto` / `maintenance run --auto`, which may DETACH into the background and keep writing
+ *  `.git/objects/pack` after the command returns — so an immediate recursive remove of the tree
+ *  failed with ENOTEMPTY (CI run 37130458907). Passed on every helper call AND written into the
+ *  sandbox repo's own config at seed time, so git-local's later commits into it don't spawn one
+ *  either. A throwaway sandbox never needs repacking. Enforced by "a seeded sandbox repo has auto
+ *  gc and auto maintenance disabled" in scripts/content-sandbox.test.mjs. */
+const NO_AUTO_MAINTENANCE = [
+  ['gc.auto', '0'],
+  ['maintenance.auto', 'false']
+]
+
 function git(cwd, args) {
   // Inline identity so a fresh `git init` repo can commit even without a global git config, and
   // gpgsign off so a global `commit.gpgsign=true` with no agent cannot fail the seed (#814).
@@ -67,10 +79,19 @@ function git(cwd, args) {
       'user.email=uat@setu.local',
       '-c',
       'commit.gpgsign=false',
+      ...NO_AUTO_MAINTENANCE.flatMap(([k, v]) => ['-c', `${k}=${v}`]),
       ...args
     ],
     { cwd, stdio: 'pipe' }
   )
+}
+
+/** Recursive remove that retries the transient errors a just-used git tree can raise (ENOTEMPTY,
+ *  EBUSY, EPERM — Node's `maxRetries` list) with a linear backoff, instead of failing a seed or
+ *  reset on the first race (#1202). The only rmSync call in this file — enforced by "every
+ *  recursive remove … goes through the retrying helper" in scripts/content-sandbox.test.mjs. */
+function removeTree(p) {
+  rmSync(p, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
 }
 
 export function sandboxPath(root, name = DEFAULT_NAME) {
@@ -103,11 +124,11 @@ export function seedSandbox(root, name = DEFAULT_NAME) {
 
   assertContained(root, dir)
   // A leftover half-built directory (exists, no HEAD) is discarded so the sandbox self-heals.
-  if (existsSync(dir)) rmSync(dir, { recursive: true, force: true })
+  if (existsSync(dir)) removeTree(dir)
 
   const tmp = `${dir}.tmp-${process.pid}`
   assertContained(root, tmp)
-  rmSync(tmp, { recursive: true, force: true })
+  removeTree(tmp)
   try {
     const contentSrc = path.join(root, 'content')
     const contentDst = path.join(tmp, 'content')
@@ -117,11 +138,12 @@ export function seedSandbox(root, name = DEFAULT_NAME) {
     else mkdirSync(contentDst, { recursive: true })
 
     git(tmp, ['init', '-q'])
+    for (const [k, v] of NO_AUTO_MAINTENANCE) git(tmp, ['config', k, v])
     git(tmp, ['add', '-A'])
     git(tmp, ['commit', '-q', '-m', 'seed sandbox from canonical content/'])
     renameSync(tmp, dir)
   } catch (err) {
-    rmSync(tmp, { recursive: true, force: true })
+    removeTree(tmp)
     throw err
   }
   return true
@@ -165,12 +187,12 @@ export function cloneSandbox(root, from, to, { fromRoot = root } = {}) {
 
   const tmp = `${dst}.tmp-${process.pid}`
   assertContained(root, tmp)
-  rmSync(tmp, { recursive: true, force: true })
+  removeTree(tmp)
   try {
     cpSync(src, tmp, { recursive: true })
     renameSync(tmp, dst)
   } catch (err) {
-    rmSync(tmp, { recursive: true, force: true })
+    removeTree(tmp)
     throw err
   }
   return true
@@ -180,7 +202,7 @@ export function cloneSandbox(root, from, to, { fromRoot = root } = {}) {
 export function resetSandbox(root, name = DEFAULT_NAME) {
   const dir = sandboxPath(root, name)
   assertContained(root, dir)
-  rmSync(dir, { recursive: true, force: true })
+  removeTree(dir)
   seedSandbox(root, name)
 }
 

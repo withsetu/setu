@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitest/config'
+import { maxWorkers } from '../../vitest.shared'
 
 // Two vitest "projects" sharing one `vitest run` invocation (#293):
 //   - vite.config.ts's existing `test` block — jsdom, apps/admin/test/**, UNTOUCHED
@@ -17,8 +18,13 @@ import { defineConfig } from 'vitest/config'
 // config paths). Renamed to vitest.config.ts because that is the file vitest resolves
 // first; vite.config.ts stays exactly where it is and is referenced below as a project, so
 // the jsdom suite's environment/setup/include are untouched.
+// `maxWorkers`: the repo-wide worker cap from vitest.shared.ts (#1202). This aggregator does
+// not merge the shared config, so it applies the cap itself. On vitest 4.1 the NODE pool (the
+// jsdom project) falls back to this root value, but the BROWSER pool reads only its own
+// project's `maxWorkers` — so vitest.browser.config.ts sets it again; drop neither.
 export default defineConfig({
   test: {
+    maxWorkers,
     projects: ['./vite.config.ts', './vitest.browser.config.ts']
   }
 })

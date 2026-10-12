@@ -1,6 +1,7 @@
 import type { Editor } from '@tiptap/core'
 import {
   ingestFailureNotice,
+  uploadErrorMessage,
   uploadFile,
   type UploadResult
 } from '../media/upload-client'
@@ -52,7 +53,7 @@ export function pickAndUploadImage(
       const notice = ingestFailureNotice(result)
       if (notice) handlers.onError?.(notice)
     } catch (err) {
-      handlers.onError?.(err instanceof Error ? err.message : String(err))
+      handlers.onError?.(uploadErrorMessage(err))
     } finally {
       handlers.onUploading?.(false)
     }

@@ -1,7 +1,8 @@
 import {
   variantFor,
   calloutVariants,
-  CALLOUT_ICONS
+  CALLOUT_ICONS,
+  calloutIcon
 } from '../src/callout/variants'
 
 test('variantFor maps a known type to tone + icon', () => {
@@ -42,4 +43,15 @@ test('CALLOUT_ICONS is the curated picker set', () => {
     'lock',
     'settings'
   ])
+})
+
+// #1247: one rule for the callout's icon, shared by the editor canvas and the site renderer.
+describe('calloutIcon', () => {
+  it('uses a valid override, else the tone default', () => {
+    expect(calloutIcon('info', 'lock')).toBe('lock')
+    expect(calloutIcon('warning', undefined)).toBe('alert')
+    expect(calloutIcon('warning', '')).toBe('alert')
+    expect(calloutIcon('success', 'not-an-icon')).toBe('check')
+    expect(calloutIcon('info', 42)).toBe('info')
+  })
 })

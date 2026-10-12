@@ -1,7 +1,12 @@
 export { BlockIcon } from './icons/BlockIcon'
 export { isBlockIconName, BLOCK_ICON_SVGS } from './icons/svgs'
 export type { BlockIconName } from './icons/svgs'
-export { variantFor, calloutVariants, CALLOUT_ICONS } from './callout/variants'
+export {
+  variantFor,
+  calloutVariants,
+  calloutIcon,
+  CALLOUT_ICONS
+} from './callout/variants'
 export type { CalloutVariant } from './callout/variants'
 export { Callout } from './callout/Callout'
 

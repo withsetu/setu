@@ -12,7 +12,7 @@ import {
   variantFor,
   calloutVariants,
   CALLOUT_ICONS,
-  isBlockIconName
+  calloutIcon
 } from '@setu/blocks'
 import type { BlockIconName } from '@setu/blocks'
 import { useToolbarRoving } from '../useToolbarRoving'
@@ -54,11 +54,7 @@ function CalloutView({
   const type = attrString(mdAttrs['type'], 'info')
   const title = attrString(mdAttrs['title'])
   const variant = variantFor(type)
-  const overrideIcon = mdAttrs['icon']
-  const icon: BlockIconName =
-    typeof overrideIcon === 'string' && isBlockIconName(overrideIcon)
-      ? overrideIcon
-      : variant.icon
+  const icon: BlockIconName = calloutIcon(type, mdAttrs['icon'])
 
   const setAttrs = (patch: Record<string, unknown>) => {
     const next: Record<string, unknown> = { ...mdAttrs, ...patch }

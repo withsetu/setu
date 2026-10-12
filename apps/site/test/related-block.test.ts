@@ -31,6 +31,14 @@ describe('{% related %} block', () => {
       /class="setu-post-card__media"[\s\S]*?\/media\/2026\/06\/test-cat\.jpg/
     )
   })
+  // #1244: related-demo also names `unpublished-demo` (published: false). The block must skip
+  // it like every other consumer of the collection; published-gate.test.ts separately asserts
+  // its title appears in no built page.
+  it('skips an entry that is published: false', () => {
+    expect(html).not.toContain('/post/unpublished-demo')
+    expect(html).not.toContain('Unpublished Demo')
+    expect(html.match(/class="setu-post-card"/g)?.length ?? 0).toBe(2)
+  })
   it('ships zero JS', () => {
     expect(html).not.toContain('astro-island')
     expect(html).not.toMatch(

@@ -7,6 +7,7 @@ import {
 } from '../src/media/MediaDropzone'
 import type { FileRejection } from 'react-dropzone'
 import type { UploadResult } from '../src/media/upload-client'
+import { MediaTransportError } from '../src/media/media-client'
 
 const result: UploadResult = {
   id: '2026/06/cat',
@@ -317,6 +318,132 @@ describe('MediaDropzone', () => {
 
     it('says "files" in the hint when nothing narrows what it accepts', () => {
       render(<MediaDropzone apiBase="http://x" onUploaded={vi.fn()} />)
+      expect(
+        screen.getByText('Drag files here, paste, or click to upload')
+      ).toBeInTheDocument()
+    })
+  })
+
+  // #872: the upload never reached the server → a connection message; the server answered →
+  // its own reason, verbatim.
+  describe('upload failures (#872)', () => {
+    const drop = (
+      onError: (m: string) => void,
+      upload: () => Promise<never>
+    ) => {
+      render(
+        <MediaDropzone
+          apiBase="http://x"
+          onUploaded={vi.fn()}
+          onError={onError}
+          upload={upload}
+        />
+      )
+      fireEvent.change(screen.getByTestId('media-dropzone-input'), {
+        target: {
+          files: [
+            new File([new Uint8Array([1])], 'cat.png', { type: 'image/png' })
+          ]
+        }
+      })
+    }
+
+    it('shows a connection message when the request never reached the server', async () => {
+      const onError = vi.fn()
+      drop(onError, async () => {
+        throw new MediaTransportError(new TypeError('Failed to fetch'))
+      })
+      await waitFor(() =>
+        expect(onError).toHaveBeenCalledWith(
+          "Couldn't upload the file. Check your connection and try again."
+        )
+      )
+    })
+
+    it("shows the server's reason when the server refused the upload", async () => {
+      const onError = vi.fn()
+      drop(onError, async () => {
+        throw new Error('file is too large (max 25 MB)')
+      })
+      await waitFor(() =>
+        expect(onError).toHaveBeenCalledWith('file is too large (max 25 MB)')
+      )
+    })
+  })
+
+  // #840: the dropzone is every live upload path (Media library, editor picker, featured image),
+  // and none of them showed anything while a file uploaded.
+  describe('shows the upload in progress (#840)', () => {
+    const png = (name: string) =>
+      new File([new Uint8Array([1])], name, { type: 'image/png' })
+
+    it('names the file while it uploads, then returns to the hint', async () => {
+      let finish!: (r: UploadResult) => void
+      const upload = vi.fn(
+        () => new Promise<UploadResult>((resolve) => (finish = resolve))
+      )
+      render(
+        <MediaDropzone
+          apiBase="http://x"
+          onUploaded={vi.fn()}
+          upload={upload}
+        />
+      )
+      fireEvent.change(screen.getByTestId('media-dropzone-input'), {
+        target: { files: [png('cat.png')] }
+      })
+      const status = await screen.findByRole('status')
+      expect(status).toHaveTextContent('Uploading cat.png…')
+      finish(result)
+      await waitFor(() => expect(screen.queryByRole('status')).toBeNull())
+      expect(
+        screen.getByText('Drag files here, paste, or click to upload')
+      ).toBeInTheDocument()
+    })
+
+    it('counts through a multi-file drop', async () => {
+      const finishers: Array<(r: UploadResult) => void> = []
+      const upload = vi.fn(
+        () => new Promise<UploadResult>((resolve) => finishers.push(resolve))
+      )
+      render(
+        <MediaDropzone
+          apiBase="http://x"
+          onUploaded={vi.fn()}
+          upload={upload}
+        />
+      )
+      fireEvent.change(screen.getByTestId('media-dropzone-input'), {
+        target: { files: [png('a.png'), png('b.png')] }
+      })
+      expect(await screen.findByRole('status')).toHaveTextContent(
+        'Uploading a.png (1 of 2)…'
+      )
+      finishers[0]!(result)
+      await waitFor(() =>
+        expect(screen.getByRole('status')).toHaveTextContent(
+          'Uploading b.png (2 of 2)…'
+        )
+      )
+      finishers[1]!(result)
+      await waitFor(() => expect(screen.queryByRole('status')).toBeNull())
+    })
+
+    it('clears the progress when the upload fails', async () => {
+      render(
+        <MediaDropzone
+          apiBase="http://x"
+          onUploaded={vi.fn()}
+          onError={vi.fn()}
+          upload={async () => {
+            throw new Error('nope')
+          }}
+        />
+      )
+      fireEvent.change(screen.getByTestId('media-dropzone-input'), {
+        target: { files: [png('cat.png')] }
+      })
+      await waitFor(() => expect(screen.queryByRole('status')).toBeNull())
       expect(
         screen.getByText('Drag files here, paste, or click to upload')
       ).toBeInTheDocument()

@@ -1,5 +1,7 @@
 import type { MediaRecord } from '@setu/core'
 import { apiFetch } from '../lib/api-fetch'
+import { connectionError } from '../ui/error-message'
+import { MediaTransportError } from './media-client'
 
 export interface UploadResult {
   id: string
@@ -39,10 +41,27 @@ export async function uploadFile(
 ): Promise<UploadResult> {
   const body = new FormData()
   body.append('file', file)
-  const res = await apiFetch(`${apiBase}/media`, { method: 'POST', body })
+  let res: Response
+  try {
+    res = await apiFetch(`${apiBase}/media`, { method: 'POST', body })
+  } catch (err) {
+    // Never reached the server (offline, api down): tagged so callers say so (#872).
+    throw new MediaTransportError(err)
+  }
   if (!res.ok) {
     const detail = (await res.json().catch(() => ({}))) as { error?: string }
     throw new Error(detail.error ?? `upload failed (${res.status})`)
   }
   return (await res.json()) as UploadResult
+}
+
+/** The message for a failed upload (#872), shared by MediaDropzone and the editor's direct
+ *  upload. A MediaTransportError never reached the server, so its message would be fetch's raw
+ *  "Failed to fetch": say to check the connection. Anything else is the server's own reason
+ *  (unsupported type, too large) and is shown as-is — curating it away is the #852 inversion.
+ *  Both directions pinned by apps/admin/test/upload-client.test.ts. */
+export function uploadErrorMessage(err: unknown): string {
+  if (err instanceof MediaTransportError)
+    return connectionError('upload the file')
+  return err instanceof Error ? err.message : String(err)
 }

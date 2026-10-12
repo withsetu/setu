@@ -20,7 +20,8 @@ import {
  *  "NotAllowedError: getFile on FileSystemFileHandle" in several browsers/contexts
  *  — breaking drag-and-drop upload. We don't need folder traversal for media, so a
  *  plain list from `dataTransfer.files` / `input.files` is exactly right (and uses
- *  only the synchronous `getAsFile`, never the FS-handle API).
+ *  only the synchronous `getAsFile`, never the FS-handle API). A pasted file (a screenshot on
+ *  Ctrl/Cmd+V) is read the same way from `clipboardData` (#1234).
  *
  *  react-dropzone hands this a FileSystemFileHandle list only when `useFsAccessApi` is on;
  *  MediaDropzone sets it false, so a handle list is a wiring error and throws (routed to
@@ -33,7 +34,9 @@ export function filesFromEvent(
     throw new Error(
       'MediaDropzone received file-system handles; it must run with useFsAccessApi: false'
     )
-  const dt = (event as DragEvent).dataTransfer
+  // A paste (#1234) carries its files under clipboardData; a drop under dataTransfer.
+  const dt =
+    (event as DragEvent).dataTransfer ?? (event as ClipboardEvent).clipboardData
   if (dt) {
     if (dt.files && dt.files.length > 0) return Array.from(dt.files)
     if (dt.items && dt.items.length > 0) {
@@ -121,10 +124,6 @@ export function MediaDropzone({
     accept,
     disabled,
     useFsAccessApi: false,
-    // Paste-to-upload (react-dropzone 19.2+) is off until filesFromEvent reads clipboardData
-    // (#1234); left on, a pasted file is cancelled and resolves to nothing (#1232). Enforced by
-    // apps/admin/test/media-dropzone.test.tsx.
-    noPaste: true,
     getFilesFromEvent: async (event) => filesFromEvent(event),
     onError: (err) => onError?.(err.message),
     onDropRejected: (rejections) => {
@@ -148,7 +147,7 @@ export function MediaDropzone({
         } as DropzoneInputProps)}
       />
       {children ?? (
-        <p>Drag {acceptLabel ?? 'images'} here, or click to upload</p>
+        <p>Drag {acceptLabel ?? 'files'} here, paste, or click to upload</p>
       )}
     </div>
   )

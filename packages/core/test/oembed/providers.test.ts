@@ -160,6 +160,46 @@ describe('oembedEndpoint — builds the fixed provider endpoint (never the user 
     expect(ep.searchParams.get('format')).toBe('json')
   })
 
+  // #1260: public-api.wordpress.com answers 501 "Please state who you are through the for
+  // query parameter" without `for` (probed live 2026-10-12; with `for` → 200). WordPress.com
+  // documents `for` as "the requesting domain or domain or company name"
+  // (https://developer.wordpress.com/docs/guides/oembed-provider-api/).
+  it('sends the fixed `for` identifier to the VideoPress (WordPress.com) endpoint', () => {
+    const p = OEMBED_PROVIDERS.find((x) => x.name === 'videopress')!
+    const ep = new URL(oembedEndpoint(p, 'https://videopress.com/v/abc12345'))
+    expect(ep.host).toBe('public-api.wordpress.com')
+    expect(ep.searchParams.get('for')).toBe('setu')
+    expect(ep.searchParams.get('url')).toBe('https://videopress.com/v/abc12345')
+    expect(ep.searchParams.get('format')).toBe('json')
+  })
+
+  it('leaves every other provider’s request at exactly url + format', () => {
+    for (const p of OEMBED_PROVIDERS) {
+      if (p.name === 'videopress') continue
+      const ep = new URL(oembedEndpoint(p, 'https://example.test/x'))
+      expect([...ep.searchParams.keys()].sort(), p.name).toEqual([
+        'format',
+        'url'
+      ])
+    }
+  })
+
+  it('a fixed endpoint param can never replace the user url or the format', () => {
+    for (const p of OEMBED_PROVIDERS) {
+      const keys = Object.keys(p.endpointParams ?? {})
+      expect(keys, p.name).not.toContain('url')
+      expect(keys, p.name).not.toContain('format')
+    }
+    // Even a registry entry that tried would lose: url/format are set last.
+    const hostile = {
+      ...OEMBED_PROVIDERS[0]!,
+      endpointParams: { url: 'https://evil.test/', format: 'xml' }
+    }
+    const ep = new URL(oembedEndpoint(hostile, 'https://youtu.be/abc'))
+    expect(ep.searchParams.getAll('url')).toEqual(['https://youtu.be/abc'])
+    expect(ep.searchParams.getAll('format')).toEqual(['json'])
+  })
+
   it('every provider endpoint is https and on the provider’s own host', () => {
     for (const p of OEMBED_PROVIDERS) {
       const u = new URL(p.endpoint)

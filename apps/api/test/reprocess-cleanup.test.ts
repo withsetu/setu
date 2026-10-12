@@ -20,6 +20,11 @@ afterEach(() => {
 
 const image = createSharpImageAdapter()
 
+// #1216: the suite asserts variant cleanup and the record rewrite, not encode quality, so the
+// source and widths are kept small. AVIF is CPU-heavy, and libvips's own thread pool competes
+// with vitest's workers, so a full-size image here timed out under a loaded full run.
+const SRC = { width: 160, height: 96 }
+
 function fresh() {
   const dir = mkdtempSync(join(tmpdir(), 'reprocess-cleanup-'))
   dirs.push(dir)
@@ -31,7 +36,7 @@ function fresh() {
     storage,
     resolveActor: () => ({ id: 'o', role: 'admin' }),
     image,
-    widths: [400, 800],
+    widths: [64, 128],
     mediaSettings: { imageFormat: 'webp', imageLqip: false }
   })
   return { app, storage }
@@ -52,7 +57,9 @@ describe('reprocessOne cleans up the previous variants (#1160)', () => {
       const body = new FormData()
       body.append(
         'file',
-        new File([makeTestPng(1000, 600)], 'pic.png', { type: 'image/png' })
+        new File([makeTestPng(SRC.width, SRC.height)], 'pic.png', {
+          type: 'image/png'
+        })
       )
       const up = (await (
         await app.fetch(
@@ -68,7 +75,7 @@ describe('reprocessOne cleans up the previous variants (#1160)', () => {
           image,
           storage,
           media: { imageFormat: 'avif', imageLqip: false },
-          widths: [300, 600],
+          widths: [48, 96],
           mediaIndex: {
             upsertOne: async (r) => {
               upserts.push(r)
@@ -90,8 +97,8 @@ describe('reprocessOne cleans up the previous variants (#1160)', () => {
       const rec = await readJson<MediaRecord>(storage, mediaRecordKey(up.id))
       const smallest = [...man.variants].sort((a, b) => a.width - b.width)[0]!
       expect(rec.thumbKey).toBe(smallest.key)
-      expect(rec.width).toBe(1000)
-      expect(rec.height).toBe(600)
+      expect(rec.width).toBe(SRC.width)
+      expect(rec.height).toBe(SRC.height)
       expect(rec.filename).toBe('pic.png') // the rest of the record is preserved
       expect(upserts).toEqual([rec])
 
@@ -111,18 +118,20 @@ describe('reprocessOne cleans up the previous variants (#1160)', () => {
     async () => {
       const { app, storage } = fresh()
       // Two uploads in the damaged layout pre-#1159 storage could reach: `cat`'s manifest lists
-      // `cat-400w.webp`, which is also the original of the separate upload `cat-400w`.
+      // `cat-<w>w.webp`, which is also the original of the separate upload `cat-<w>w`.
       const body = new FormData()
       body.append(
         'file',
-        new File([makeTestPng(1000, 600)], 'cat.png', { type: 'image/png' })
+        new File([makeTestPng(SRC.width, SRC.height)], 'cat.png', {
+          type: 'image/png'
+        })
       )
       const cat = (await (
         await app.fetch(
           new Request('http://test/media', { method: 'POST', body })
         )
       ).json()) as { id: string; manifest: MediaManifest }
-      const other = `${cat.id}-400w`
+      const other = `${cat.id}-${cat.manifest.variants[0]!.width}w`
       const otherBytes = new Uint8Array([7, 7, 7])
       await storage.put(`${other}.webp`, otherBytes, {
         contentType: 'image/webp'
@@ -149,7 +158,7 @@ describe('reprocessOne cleans up the previous variants (#1160)', () => {
           image,
           storage,
           media: { imageFormat: 'avif', imageLqip: false },
-          widths: [400]
+          widths: [48]
         },
         manifestKey(cat.id)
       )

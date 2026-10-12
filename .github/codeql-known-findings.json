@@ -1,5 +1,5 @@
 {
-  "_policy": "Known CodeQL findings, allowlisted per the repo's fail-on-NEW gate policy (same shape as the axe allowlists, #220). Each entry matches ruleId + file uri (line numbers drift, deliberately not matched). Every entry MUST carry a tracking issue; removing the entry once fixed is that issue's DoD — the gate then guards the fix forever. Adding an entry requires triage, never convenience. KNOWN BLIND SPOT: the ruleId+uri fingerprint means a genuinely NEW instance of an allowlisted rule IN THE SAME FILE is also swallowed until that file's entry is removed — bounded to the 6 tracked files, self-healing as #323/#324 land; deliberate trade vs line-drift false-reds. NOTE the two #698 entries and the two #1071 fill-template entries are FALSE POSITIVES rather than deferred fixes, so they do not self-heal — they persist until the property that makes them false changes (the escaping contract for #698; the trailing tag-strip and text/plain destination for #1071). That makes their blind spot permanent for those rules in those files: a genuinely new incomplete sanitizer added there would be swallowed. All four are small, single-purpose files, which is what makes that acceptable; if any grows, re-evaluate.",
+  "_policy": "Known CodeQL findings, allowlisted per the repo's fail-on-NEW gate policy (same shape as the axe allowlists, #220). Each entry matches ruleId + file uri (line numbers drift, deliberately not matched). Every entry MUST carry a tracking issue; removing the entry once fixed is that issue's DoD — the gate then guards the fix forever. Adding an entry requires triage, never convenience. KNOWN BLIND SPOT: the ruleId+uri fingerprint means a genuinely NEW instance of an allowlisted rule IN THE SAME FILE is also swallowed until that file's entry is removed — bounded to the files listed below (9 as of #1203), self-healing for the deferred entries as #324/#340 land; deliberate trade vs line-drift false-reds. NOTE the two #698 entries and the two #1071 fill-template entries are FALSE POSITIVES rather than deferred fixes, so they do not self-heal — they persist until the property that makes them false changes (the escaping contract for #698; the trailing tag-strip and text/plain destination for #1071). That makes their blind spot permanent for those rules in those files: a genuinely new incomplete sanitizer added there would be swallowed. All four are small, single-purpose files, which is what makes that acceptable; if any grows, re-evaluate.",
   "known": [
     {
       "ruleId": "js/bad-tag-filter",
@@ -22,7 +22,7 @@
     {
       "ruleId": "js/incomplete-url-substring-sanitization",
       "uri": "scripts/sync-health-rubric.test.mjs",
-      "issue": "#831",
+      "issue": "#324",
       "note": "Test-only URL substring check — asserts parsed items point at the spec host. Same benign shape as the two entries above (verified against the code, not assumed): an assertion over data this script itself generated, not a sanitiser on untrusted input."
     },
     {

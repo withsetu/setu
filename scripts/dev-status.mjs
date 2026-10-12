@@ -45,6 +45,7 @@ import path from 'node:path'
 import process from 'node:process'
 
 import { isDirectInvocation, readLoginLink } from './auth-login-link.mjs'
+import { laneSandboxFor } from './lane-sandbox.mjs'
 
 /** The `pnpm dev` defaults — used only to NAME a process whose cwd is uninformative, and to
  *  make the "nothing running" message concrete. Discovery itself is not limited to these. */
@@ -150,6 +151,7 @@ export function buildStatus({
   upstreamOf,
   envOf,
   loginLink,
+  laneSandboxOf = () => null,
   home,
   now
 }) {
@@ -207,7 +209,8 @@ export function buildStatus({
 
   // Wiring needs the full row set (a target port is resolved to another row's worktree), so it
   // runs as a second pass.
-  for (const row of rows) row.wiring = wiringFor(row, rows, home)
+  for (const row of rows)
+    row.wiring = wiringFor(row, rows, home, laneSandboxOf(row.root))
 
   // Axis (b) is a property of the CHECKOUT, so it is computed once per root and rendered once —
   // not repeated on every server that happens to run from it.
@@ -258,7 +261,7 @@ export function buildStatus({
 /** Compare a process's env wiring against its own worktree. Returns
  *  `{ known, issues }` — `known: false` means the env was unreadable, which must render as
  *  "unknown", never as consistent. */
-function wiringFor(row, rows, home) {
+function wiringFor(row, rows, home, laneSandbox = null) {
   if (!row.env) return { known: false, issues: [] }
   const issues = []
   const targetOf = (port) => rows.find((r) => r.port === port && r !== row)
@@ -284,7 +287,16 @@ function wiringFor(row, rows, home) {
   checkPort(row.env.VITE_SETU_SITE, 'site')
 
   const contentDir = row.env.SETU_CONTENT_DIR
-  if (contentDir) {
+  // Every `pnpm dev` lane shares one sandbox (#1053) — `<main>/.content-sandbox/dev`, or the main
+  // `.env`'s SETU_REPO_DIR — resolved by scripts/lane-sandbox.mjs, the launcher's own rule. A
+  // site reading it is wired correctly whichever worktree it runs from (#1200).
+  const readsLaneSandbox =
+    laneSandbox !== null &&
+    contentDir !== undefined &&
+    path
+      .resolve(contentDir)
+      .startsWith(`${path.resolve(laneSandbox)}${path.sep}`)
+  if (contentDir && !readsLaneSandbox) {
     // Worktrees live UNDER the main checkout (.claude/worktrees/<name>), so "starts with my
     // root" is not enough: main's root is a prefix of every worktree path. Attribute the dir to
     // the DEEPEST root that contains it, then compare that with the process's own.
@@ -629,7 +641,8 @@ export function envOf(pid) {
  *  missing/empty-file cases. `env` is injectable for tests. */
 export function loginLinkFor(root, env = process.env) {
   try {
-    // Deliberately NOT this process's SETU_REPO_DIR: we want each worktree's own sandbox.
+    // Deliberately NOT this process's SETU_REPO_DIR: readLoginLink resolves the root's lane
+    // sandbox itself (scripts/lane-sandbox.mjs), including the main `.env`'s SETU_REPO_DIR.
     const { SETU_REPO_DIR: _ignored, ...rest } = env
     return readLoginLink(root, rest)
   } catch (err) {
@@ -654,6 +667,7 @@ function main() {
     upstreamOf,
     envOf,
     loginLink: (root) => loginLinkFor(root),
+    laneSandboxOf: (root) => laneSandboxFor(root).dir,
     home: homedir(),
     now: new Date()
   })

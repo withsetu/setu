@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
+import { maxWorkers } from '../../vitest.shared'
 
 // Real-browser component tests (#293). The historical bug this project exists to catch:
 // BlockInspector wires a Radix Select/ToggleGroup rail to a live Tiptap editor
@@ -118,6 +119,11 @@ export default defineConfig({
   test: {
     name: 'browser',
     globals: true,
+    // The repo-wide worker cap (#1202, vitest.shared.ts). Set HERE, not only on the root
+    // vitest.config.ts: vitest 4.1's browser pool sizes itself from this project's own
+    // `maxWorkers` and ignores the root value (it would otherwise launch cores-1 chromiums).
+    // Presence enforced by scripts/vitest-worker-cap.test.mjs.
+    maxWorkers,
     include: ['test-browser/**/*.test.{ts,tsx}'],
     // REAL BROWSER: each file boots a Vite server, launches chromium and mounts a live
     // React tree — for the heaviest specs that is the whole Tiptap editor plus the Radix

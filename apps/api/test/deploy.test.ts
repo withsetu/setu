@@ -4,6 +4,14 @@ import { createSqliteDeployJobStore } from '@setu/db-sqlite'
 import { createDeployApi } from '../src/deploy'
 import type { ResolveActor } from '../src/auth/resolve-actor'
 
+/** `vi.waitFor` options for the waits below that poll a job through the native
+ *  better-sqlite3 job store (#1202). vi.waitFor's 1 s default is sized for in-memory work;
+ *  on a loaded CI runner a few synchronous sqlite round-trips plus the async build hop can
+ *  exceed it without anything being wrong. 4 s is a hang gate, not an expected duration, kept
+ *  under vitest's 5 s test timeout so a real hang fails with waitFor's last assertion error
+ *  (the job's actual status) rather than a bare "test timed out". */
+const REAL_IO_WAIT = { timeout: 4_000, interval: 25 }
+
 const asRole =
   (role: Role): ResolveActor =>
   () =>
@@ -211,7 +219,7 @@ describe('deploy api — rebuild (#209)', () => {
     await vi.waitFor(async () => {
       const { body: s } = await h.status()
       expect((s.job as { status: string }).status).toBe('done')
-    })
+    }, REAL_IO_WAIT)
     expect(h.getState()).toEqual({
       sha: 'sha-at-start',
       at: new Date(1_000_000).toISOString(),
@@ -264,7 +272,7 @@ describe('deploy api — rebuild (#209)', () => {
     await Promise.resolve()
     // …while the build finishes.
     resolveBuild()
-    await vi.waitFor(() => expect(state?.sha).toBe('new-sha'))
+    await vi.waitFor(() => expect(state?.sha).toBe('new-sha'), REAL_IO_WAIT)
     releaseHead()
     const body = (await (await pending).json()) as {
       job: { status: string }
@@ -285,7 +293,7 @@ describe('deploy api — rebuild (#209)', () => {
     await vi.waitFor(async () => {
       const { body: s } = await h.status()
       expect((s.job as { status: string }).status).toBe('failed')
-    })
+    }, REAL_IO_WAIT)
     expect(h.getState()).toBeNull()
   })
 
@@ -306,7 +314,7 @@ describe('deploy api — rebuild (#209)', () => {
       expect(job.error).toMatch(/SETU_SITE_URL is not set/)
       expect(job.error).toMatch(/build exited with code 1/)
       expect(job.logTail).toMatch(/astro build/)
-    })
+    }, REAL_IO_WAIT)
     expect(h.getState()).toBeNull()
   })
 

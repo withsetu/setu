@@ -36,7 +36,12 @@ export default defineConfig({
       'html',
       { open: 'never', outputFolder: path.join(__dirname, 'playwright-report') }
     ],
-    ['line']
+    ['line'],
+    // #1201: `retries` above means a fail-then-pass run is green. This reporter turns every such
+    // flaky test into a GitHub `::warning` annotation + a job-summary row so a retry is never
+    // silent (we chose visibility over `failOnFlakyTests`, which would block merges on any flake).
+    // Detection + output format: scripts/e2e-flaky-reporter.test.mjs.
+    [path.join(repoRoot, 'scripts', 'e2e-flaky-reporter.mjs')]
   ],
   // Visual baselines are captured on Linux CI; ignore local diffs elsewhere.
   ignoreSnapshots: !process.env.CI,
@@ -156,6 +161,10 @@ export default defineConfig({
         SETU_MODE: 'local',
         SETU_API_PORT: String(API_PORT),
         SETU_REPO_DIR: path.join(repoRoot, '.content-sandbox', 'e2e'),
+        // The real site config, exactly as `pnpm dev` derives it (scripts/dev-lanes.mjs laneEnv). Unset,
+        // resolveSetuConfigPath looks for <SETU_REPO_DIR>/setu.config.ts, which the sandbox lacks, and
+        // the api boots its write-path field gate on FALLBACK_CONFIG instead (#975, #1200).
+        SETU_CONFIG_PATH: path.join(repoRoot, 'apps', 'site', 'setu.config.ts'),
         SETU_MEDIA_DIR: path.join(repoRoot, '.setu', 'e2e-uploads'),
         // The admin runs on ADMIN_PORT (5175), not the 5173 default — so the CORS/origin allowlist
         // MUST be told the real admin origin, or the cross-origin capabilities GET and the login

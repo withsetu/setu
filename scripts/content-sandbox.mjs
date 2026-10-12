@@ -17,6 +17,8 @@ import { cpSync, existsSync, mkdirSync, renameSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
+import { laneSandboxFor as defaultLaneSandboxFor } from './lane-sandbox.mjs'
+
 export const SANDBOX_ROOT = '.content-sandbox'
 const DEFAULT_NAME = 'dev'
 
@@ -53,6 +55,18 @@ export function assertContained(root, dir) {
   return resolved
 }
 
+/** Git settings that stop auto-maintenance in a sandbox repo (#1202). `git commit` can trigger
+ *  `gc --auto` / `maintenance run --auto`, which may DETACH into the background and keep writing
+ *  `.git/objects/pack` after the command returns — so an immediate recursive remove of the tree
+ *  failed with ENOTEMPTY (CI run 37130458907). Passed on every helper call AND written into the
+ *  sandbox repo's own config at seed time, so git-local's later commits into it don't spawn one
+ *  either. A throwaway sandbox never needs repacking. Enforced by "a seeded sandbox repo has auto
+ *  gc and auto maintenance disabled" in scripts/content-sandbox.test.mjs. */
+const NO_AUTO_MAINTENANCE = [
+  ['gc.auto', '0'],
+  ['maintenance.auto', 'false']
+]
+
 function git(cwd, args) {
   // Inline identity so a fresh `git init` repo can commit even without a global git config, and
   // gpgsign off so a global `commit.gpgsign=true` with no agent cannot fail the seed (#814).
@@ -65,10 +79,19 @@ function git(cwd, args) {
       'user.email=uat@setu.local',
       '-c',
       'commit.gpgsign=false',
+      ...NO_AUTO_MAINTENANCE.flatMap(([k, v]) => ['-c', `${k}=${v}`]),
       ...args
     ],
     { cwd, stdio: 'pipe' }
   )
+}
+
+/** Recursive remove that retries the transient errors a just-used git tree can raise (ENOTEMPTY,
+ *  EBUSY, EPERM — Node's `maxRetries` list) with a linear backoff, instead of failing a seed or
+ *  reset on the first race (#1202). The only rmSync call in this file — enforced by "every
+ *  recursive remove … goes through the retrying helper" in scripts/content-sandbox.test.mjs. */
+function removeTree(p) {
+  rmSync(p, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
 }
 
 export function sandboxPath(root, name = DEFAULT_NAME) {
@@ -101,11 +124,11 @@ export function seedSandbox(root, name = DEFAULT_NAME) {
 
   assertContained(root, dir)
   // A leftover half-built directory (exists, no HEAD) is discarded so the sandbox self-heals.
-  if (existsSync(dir)) rmSync(dir, { recursive: true, force: true })
+  if (existsSync(dir)) removeTree(dir)
 
   const tmp = `${dir}.tmp-${process.pid}`
   assertContained(root, tmp)
-  rmSync(tmp, { recursive: true, force: true })
+  removeTree(tmp)
   try {
     const contentSrc = path.join(root, 'content')
     const contentDst = path.join(tmp, 'content')
@@ -115,11 +138,12 @@ export function seedSandbox(root, name = DEFAULT_NAME) {
     else mkdirSync(contentDst, { recursive: true })
 
     git(tmp, ['init', '-q'])
+    for (const [k, v] of NO_AUTO_MAINTENANCE) git(tmp, ['config', k, v])
     git(tmp, ['add', '-A'])
     git(tmp, ['commit', '-q', '-m', 'seed sandbox from canonical content/'])
     renameSync(tmp, dir)
   } catch (err) {
-    rmSync(tmp, { recursive: true, force: true })
+    removeTree(tmp)
     throw err
   }
   return true
@@ -138,15 +162,15 @@ export function seedSandbox(root, name = DEFAULT_NAME) {
  *  renamed into place, so a failed copy leaves nothing at the target name. Enforced by the clone
  *  cases in scripts/content-sandbox.test.mjs.
  */
-export function cloneSandbox(root, from, to) {
+export function cloneSandbox(root, from, to, { fromRoot = root } = {}) {
   assertValidName(from)
   assertValidName(to)
-  if (from === to)
+  if (from === to && fromRoot === root)
     throw new Error(`content-sandbox: cannot clone ${from} onto itself`)
 
-  const src = sandboxPath(root, from)
+  const src = sandboxPath(fromRoot, from)
   const dst = sandboxPath(root, to)
-  assertContained(root, src)
+  assertContained(fromRoot, src)
   assertContained(root, dst)
 
   if (!isSeeded(src))
@@ -163,12 +187,12 @@ export function cloneSandbox(root, from, to) {
 
   const tmp = `${dst}.tmp-${process.pid}`
   assertContained(root, tmp)
-  rmSync(tmp, { recursive: true, force: true })
+  removeTree(tmp)
   try {
     cpSync(src, tmp, { recursive: true })
     renameSync(tmp, dst)
   } catch (err) {
-    rmSync(tmp, { recursive: true, force: true })
+    removeTree(tmp)
     throw err
   }
   return true
@@ -178,19 +202,41 @@ export function cloneSandbox(root, from, to) {
 export function resetSandbox(root, name = DEFAULT_NAME) {
   const dir = sandboxPath(root, name)
   assertContained(root, dir)
-  rmSync(dir, { recursive: true, force: true })
+  removeTree(dir)
   seedSandbox(root, name)
+}
+
+/** The checkout a sandbox NAME lives in (#1200). The lane sandbox (`dev`) is shared by every
+ *  `pnpm dev` lane since #1053, so it resolves to the MAIN checkout through scripts/lane-sandbox.mjs
+ *  — from a worktree, `pnpm content:reset` used to reset a worktree-local sandbox no lane reads.
+ *  When the operator pointed the lanes at their own SETU_REPO_DIR, that directory is theirs and is
+ *  refused rather than touched. Every other name (e2e, staging, …) is rooted where the command
+ *  runs, which is what the e2e harness and `pnpm staging` expect. Pinned in
+ *  scripts/content-sandbox.test.mjs. */
+export function rootForSandbox(
+  name,
+  cwd = process.cwd(),
+  { laneSandboxFor = defaultLaneSandboxFor } = {}
+) {
+  if (name !== DEFAULT_NAME) return cwd
+  const lane = laneSandboxFor(cwd)
+  if (!lane.owned)
+    throw new Error(
+      `content-sandbox: the dev lanes read SETU_REPO_DIR=${lane.dir} (set in ${path.join(lane.mainRoot, '.env')}), ` +
+        'not a sandbox this script manages — refusing to touch it.'
+    )
+  return lane.mainRoot
 }
 
 function main(argv) {
   const [cmd, name = DEFAULT_NAME] = argv
-  const root = process.cwd()
+  const root = cmd === 'clone' ? process.cwd() : rootForSandbox(name)
   if (cmd === 'seed') {
     const seeded = seedSandbox(root, name)
     console.log(
       seeded
-        ? `seeded ${SANDBOX_ROOT}/${name} from content/`
-        : `${SANDBOX_ROOT}/${name} already exists — left as is`
+        ? `seeded ${sandboxPath(root, name)} from content/`
+        : `${sandboxPath(root, name)} already exists — left as is`
     )
   } else if (cmd === 'clone') {
     const [, fromName, toName] = argv
@@ -198,14 +244,16 @@ function main(argv) {
       console.error('usage: content-sandbox.mjs clone <from> <to>')
       process.exit(1)
     }
-    cloneSandbox(root, fromName, toName)
+    cloneSandbox(rootForSandbox(toName), fromName, toName, {
+      fromRoot: rootForSandbox(fromName)
+    })
     console.log(
       `cloned ${SANDBOX_ROOT}/${fromName} -> ${SANDBOX_ROOT}/${toName}`
     )
   } else if (cmd === 'reset') {
     resetSandbox(root, name)
     console.log(
-      `reset ${SANDBOX_ROOT}/${name} (wiped + re-seeded from content/)`
+      `reset ${sandboxPath(root, name)} (wiped + re-seeded from content/)`
     )
   } else {
     console.error(

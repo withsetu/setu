@@ -8,7 +8,7 @@ The hard rule that prevents 90% of the pain:
 > **`origin/main` is the single source of truth. No session "owns" local `main`.
 > You integrate by *pushing*, never by checking out `main` in a worktree.**
 
-This repo uses **git worktrees** (`.claude/worktrees/feat+X`). All worktrees share
+This repo uses **git worktrees** (`.claude/worktrees/<name>`). All worktrees share
 one local repo, so there is only one `main` ref — and git lets only **one** worktree
 have `main` checked out at a time. If a session sits on local `main`, no other
 worktree can `git checkout main` to merge into it ("main is already checked out at …").
@@ -45,14 +45,19 @@ That is exactly the lock we hit. The flow below routes around it.
 ### 1. Start a feature (fresh, decoupled base)
 ```bash
 git fetch origin
-git worktree add .claude/worktrees/feat+<name> -b feat/<name> origin/main
-cd .claude/worktrees/feat+<name>
+git worktree add .claude/worktrees/<name> -b <issue-slug>-<N> origin/main
+cd .claude/worktrees/<name>
 pnpm install
 ```
+`<name>` becomes the worktree's `pnpm dev` lane name and its hostnames, so it must be one
+segment matching `^[a-z0-9][a-z0-9-]*$` (no `+`, `/` or dots — `pnpm dev` refuses anything else).
+Create worktrees **under `.claude/worktrees/`**: `pnpm dev` derives the lane from that location
+and refuses to start a worktree that lives anywhere else, rather than running the main
+checkout's code.
 (The superpowers `using-git-worktrees` skill creates the worktree; just make sure the
 base is `origin/main` after a fetch.)
 
-### 2. Work — commit normally on `feat/<name>`.
+### 2. Work — commit normally on your branch.
 
 ### 3. Sync before shipping (and periodically)
 ```bash
@@ -68,7 +73,7 @@ Pick **one**:
 
 **A) GitHub PR (recommended for parallel sessions):**
 ```bash
-git push -u origin feat/<name>
+git push -u origin <branch>
 gh pr create --fill
 gh pr merge --merge        # (or --squash) — merges on GitHub, no local main needed
 git fetch origin           # refresh local refs
@@ -76,14 +81,14 @@ git fetch origin           # refresh local refs
 
 **B) Hand off to the integrator session** (lightweight, what we did once):
 ```bash
-git push -u origin feat/<name>
+git push -u origin <branch>
 # then tell the session/human that owns the primary checkout:
-#   "feat/<name> is pushed and green — please merge it into main"
+#   "<branch> is pushed and green — please merge it into main"
 ```
 The integrator (the one worktree on `main`) runs:
 ```bash
 git fetch origin
-git merge --no-ff origin/feat/<name>
+git merge --no-ff origin/<branch>
 pnpm install && pnpm -r test && pnpm -r typecheck
 git push origin main
 ```
@@ -129,7 +134,7 @@ Before starting a feature, each session appends a line here (and removes it when
 so the other session can see the turf. Keep it short.
 
 <!-- ACTIVE WORK (newest first) -->
-- _(none currently — add `Session <id>: feat/<name> — touching <paths> — started <date>`)_
+- _(none currently — add `Session <id>: <branch> — touching <paths> — started <date>`)_
 
 ---
 

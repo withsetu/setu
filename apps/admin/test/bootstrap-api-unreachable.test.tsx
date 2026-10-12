@@ -1,6 +1,6 @@
 import { StrictMode } from 'react'
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 
 // #1181: when the API is down at page load, Bootstrap must show the same can't-reach card as
 // SessionGate (#1165) — plain-words cause, Retry, and a backoff auto-retry — and recover on its
@@ -138,29 +138,41 @@ describe('Bootstrap — API unreachable at startup (#1181)', () => {
   })
 
   it('retries automatically with backoff and recovers without a click', async () => {
-    // Same deterministic-timer approach as apps/admin/test/session-gate.test.tsx: the countdown
-    // is awaited with a one-second tolerance, the backoff pinned by call counts.
-    vi.useFakeTimers({ shouldAdvanceTime: true })
+    // Fully fake clock — no `shouldAdvanceTime`, so no real time leaks into it (#1202). Testing
+    // Library's findBy/waitFor poll on timers this clock now owns, so the test never relies on
+    // them: `flush()` advances the fake clock by 0 ms inside act() — draining resolved fetches,
+    // React work and zero-delay timers — and every assertion after it is synchronous. That pins
+    // the countdown copy to the exact second and the backoff to exact call counts.
+    vi.useFakeTimers()
+    const flush = () => act(() => vi.advanceTimersByTimeAsync(0))
     const api = stubApi(async () => {
       throw new TypeError('Failed to fetch')
     })
     await renderBootstrap()
-    await expectUnreachable(/didn.t respond/i)
+    await flush()
+    expect(screen.getByText(/can.t reach the setu api/i)).toBeInTheDocument()
+    expect(screen.getByText(/didn.t respond/i)).toBeInTheDocument()
     expect(
-      await screen.findByText(/trying again automatically in [12] s/i)
+      screen.getByText(/trying again automatically in 2 s/i)
     ).toBeInTheDocument()
     const before = api.calls()
+    // First automatic attempt after the 2 s step — still failing, so the next is 4 s out.
     await act(() => vi.advanceTimersByTimeAsync(2000))
-    await waitFor(() => expect(api.calls()).toBe(before + 1))
+    await flush()
+    expect(api.calls()).toBe(before + 1)
     expect(
-      await screen.findByText(/trying again automatically in [34] s/i)
+      screen.getByText(/trying again automatically in 4 s/i)
     ).toBeInTheDocument()
     // Halfway into the 4 s step: no further attempt yet (the delay grew, it did not repeat 2 s).
     await act(() => vi.advanceTimersByTimeAsync(2000))
     expect(api.calls()).toBe(before + 1)
+    expect(
+      screen.getByText(/trying again automatically in 2 s/i)
+    ).toBeInTheDocument()
     api.recover()
     await act(() => vi.advanceTimersByTimeAsync(2000))
-    expect(await screen.findByText('App rendered')).toBeInTheDocument()
+    await flush()
+    expect(screen.getByText('App rendered')).toBeInTheDocument()
   })
 })
 

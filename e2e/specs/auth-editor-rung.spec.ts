@@ -114,10 +114,26 @@ test.describe('#811 the editor rung, both ways', () => {
     await page.goto('/dashboard')
     await expect(dashboard.heading).toBeVisible()
 
-    await expect(page.getByRole('link', { name: 'Users' })).toBeHidden()
+    await expect(dashboard.navLink('Users')).toBeHidden()
 
     await page.goto('/users')
     await expect(page).toHaveURL(/\/dashboard$/)
     await expect(dashboard.heading).toBeVisible()
+  })
+})
+
+// #1201 positive control for the editor's `toBeHidden` Users-link check above: the next rung up
+// (maintainer holds `users.view`) IS offered the same link, through the same locator
+// (`DashboardPage.navLink`). Without it a renamed or unmatched link reads as "hidden" for every
+// role and the editor check passes vacuously. Maintainer, not admin, so the pair also pins exactly
+// where on the ladder the Users surface starts.
+test.describe('#811 positive control: the rung above the editor', () => {
+  test.use({ storageState: storageStateFor('maintainer') })
+
+  test('maintainer: IS offered the Users nav link', async ({ page }) => {
+    const dashboard = new DashboardPage(page)
+    await page.goto('/dashboard')
+    await expect(dashboard.heading).toBeVisible()
+    await expect(dashboard.navLink('Users')).toBeVisible()
   })
 })

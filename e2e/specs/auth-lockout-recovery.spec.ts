@@ -144,8 +144,15 @@ test('#386: a passwordless local owner recovers from sign-out via the rotated ha
   })
 
   await test.step('the consumed boot link grants no session in a fresh browser context', async () => {
-    // browser.newContext() ignores test.use fixtures — a genuinely fresh, cookie-less context.
-    const freshContext = await browser.newContext()
+    // Empty storage state passed EXPLICITLY. `browser.newContext()` from the built-in `browser`
+    // fixture does NOT ignore `test.use` — it inherits the project/`use` context options,
+    // storageState included (Playwright docs, "Test use options": contexts created via
+    // browser.newContext() inherit `use` options). It only happened to be empty here because of
+    // this file's own `test.use` above; the project default is the ADMIN's session (#634 class).
+    // Stating it at the call site keeps this context cookie-less even if that line moves.
+    const freshContext = await browser.newContext({
+      storageState: { cookies: [], origins: [] }
+    })
     try {
       const freshPage = await freshContext.newPage()
       await freshPage.goto(bootUrl)

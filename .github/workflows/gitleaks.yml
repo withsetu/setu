@@ -35,6 +35,10 @@ jobs:
   scan:
     name: gitleaks scan
     runs-on: ubuntu-latest
+    # Bounded so a hung scan can't hold a runner for the 6-hour default (#1203). Across the
+    # last 300 runs the job itself took at most ~37s (median run ~17s); 10 minutes leaves
+    # room for history growth and a slow image pull.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:

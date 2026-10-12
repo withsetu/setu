@@ -1,6 +1,12 @@
 {
   "$schema": "https://turborepo.com/schema.json",
 
+  // turbo >=2.11 writes a managed block into a root AGENTS.md whenever it detects an AI agent,
+  // and re-adds it if removed. This repo's agent contract is CLAUDE.md, so opt out instead of
+  // leaving an untracked file in every agent-run checkout (#1223; option documented in the
+  // installed turbo's schema.json and docs/guides/ai.mdx).
+  "agentGuidance": false,
+
   // ---------------------------------------------------------------------------------
   // Setu / turbo.json — task graph for the pnpm workspace (apps/* + packages/*).
   // e2e/ (Playwright, root-level) is NOT a workspace package and is intentionally untouched

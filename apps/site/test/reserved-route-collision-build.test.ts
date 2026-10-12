@@ -61,6 +61,10 @@ describe('a permalink that collides with a site route fails the build', () => {
   })
 
   it('does not report an unpublished entry (it gets no route)', () => {
-    expect(result.output).not.toContain('page/en/rss.xml')
+    // Scoped to the collision report's own line shape (asserted above for the published
+    // entry): the build log also names every content file in unrelated bundler warnings
+    // (vite 8.3's MODULE_LEVEL_DIRECTIVE lists `…/page/en/rss.xml.mdoc`), so a bare
+    // substring check fails on noise rather than on a reported collision (#1223).
+    expect(result.output).not.toMatch(/entry "page\/en\/rss\.xml" resolves to/)
   })
 })

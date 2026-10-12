@@ -152,3 +152,69 @@ describe('BlockInspector', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 })
+
+// #1249: the embed's resolved oEmbed data (url/provider/embedUrl/html/…) is set by
+// paste-to-embed, never hand-typed — `editor.managed` keeps those props out of the rail,
+// so only the presentation props the contract declares (caption/ratio/align) render.
+describe('BlockInspector — embed (#1249)', () => {
+  const EMBED = {
+    url: 'https://youtu.be/abc',
+    provider: 'youtube',
+    providerLabel: 'YouTube',
+    mediaType: 'video',
+    title: 'Clip',
+    embedUrl: 'https://www.youtube.com/embed/abc',
+    html: '<p>x</p>',
+    thumbnailUrl: 'https://i.ytimg.com/vi/abc/hqdefault.jpg',
+    width: 480,
+    height: 270,
+    caption: 'Hello'
+  }
+
+  it('renders exactly the caption, aspect-ratio and width controls', () => {
+    const onChange = vi.fn()
+    const { container } = render(
+      <BlockInspector
+        tag="embed"
+        mdAttrs={EMBED}
+        onChange={onChange}
+        apiBase=""
+      />,
+      { wrapper }
+    )
+    const caption = screen.getByLabelText<HTMLTextAreaElement>('caption')
+    expect(caption.tagName.toLowerCase()).toBe('textarea')
+    expect(caption.value).toBe('Hello')
+    fireEvent.change(caption, { target: { value: 'New caption' } })
+    expect(onChange).toHaveBeenCalledWith('caption', 'New caption')
+    expect(screen.getByLabelText('ratio')).toBeInTheDocument()
+    expect(screen.getByLabelText('Width')).toBeInTheDocument()
+    expect(screen.getByText('Aspect ratio')).toBeInTheDocument()
+    // The three controls and nothing else: one label per rendered control.
+    const labels = [...container.querySelectorAll('label')].map(
+      (l) => l.textContent
+    )
+    expect(labels).toEqual(['Caption', 'Aspect ratio', 'Width'])
+  })
+})
+
+describe('editor.managed — every listed prop is real and never also a control', () => {
+  it('names only declared props, none of which carries a control hint or a group slot', async () => {
+    const { registry } = await import('../src/blocks/registry')
+    const { markdocAttributesFor } = await import('@setu/core')
+    const withManaged = registry.blocks.filter(
+      (b) => (b.editor?.managed?.length ?? 0) > 0
+    )
+    // Anti-vacuity: embed declares it.
+    expect(withManaged.map((b) => b.tag)).toContain('embed')
+    for (const b of withManaged) {
+      const props = Object.keys(markdocAttributesFor(b.props))
+      const grouped = new Set(b.editor?.groups?.flatMap((g) => g.controls))
+      for (const name of b.editor!.managed!) {
+        expect(props, `${b.tag}.${name}`).toContain(name)
+        expect(b.editor?.controls?.[name], `${b.tag}.${name}`).toBeUndefined()
+        expect(grouped.has(name), `${b.tag}.${name}`).toBe(false)
+      }
+    }
+  })
+})

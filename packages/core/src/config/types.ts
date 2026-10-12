@@ -45,6 +45,12 @@ export interface BlockEditorMeta {
    *  String-backed props may upgrade to 'textarea' | 'media' | 'url' | 'color';
    *  enum-backed props may upgrade to 'position9' | 'align'. */
   controls?: Record<string, BlockControl>
+  /** Props the SYSTEM sets, never the author — e.g. the embed's resolved oEmbed data, written
+   *  by paste-to-embed. They are excluded from the inspector rail (no control is rendered for
+   *  them) but still validated and round-tripped like any other prop. Each name must be a
+   *  declared prop that has no control hint and no group slot — enforced over every registry
+   *  block by apps/admin/test/BlockInspector.test.tsx ('editor.managed — …'). */
+  managed?: string[]
   /** Optional friendly field labels for the inspector (propName → label). When absent
    *  for a prop, the label is humanized from the prop name (e.g. textPosition → "Text Position"). */
   labels?: Record<string, string>

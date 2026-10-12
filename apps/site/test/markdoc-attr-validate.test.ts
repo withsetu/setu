@@ -102,6 +102,28 @@ describe('named block-attribute validation (#1126)', () => {
     ).toEqual([])
   })
 
+  // #1246: a function call resolves at render time to ANY value, so letting it through
+  // skipped every enum/number check below — and a block sink that trusts its validated
+  // type (embed's width/height → inline style) received a string instead. No content uses
+  // functions on block attributes, so they are rejected outright; `$variables` (above) stay.
+  it('rejects a function-call value on a block attribute, naming block and attribute', () => {
+    const msgs = messages('{% query limit=default(1, 2) /%}')
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0]).toContain('{% query %} attribute "limit"')
+    expect(msgs[0]).toContain('default(')
+    expect(msgs[0]).toContain('function call')
+  })
+
+  it('rejects a function call that would smuggle a string past an enum', () => {
+    expect(
+      messages('{% query sort=default("random", "newest") /%}')
+    ).toHaveLength(1)
+  })
+
+  it('still accepts a $variable through real Markdoc validation', () => {
+    expect(messages('{% query limit=$n /%}')).toEqual([])
+  })
+
   it('keeps defaults on the schema so Markdoc still applies them', () => {
     expect(config.tags.query.attributes.collection.default).toBe('post')
   })

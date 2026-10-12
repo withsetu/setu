@@ -10,17 +10,17 @@ const distDir = join(appDir, 'dist')
 const page = (route: string) =>
   readFileSync(join(distDir, route, 'index.html'), 'utf8')
 
-/** Marker from the srcdoc fixtures in content/page/en/embed-demo.mdoc — a dist built
- *  before they existed would silently skip the srcdoc halves, so its absence forces a
- *  rebuild rather than a vacuous pass. */
-const SRCDOC_FIXTURE_MARKER = 'Script embed, static srcdoc'
+/** Markers from the fixtures in content/page/en/embed-demo.mdoc — a dist built before
+ *  they existed would silently skip the srcdoc halves (#1115) or the off-allowlist cases
+ *  (#1246), so the absence of either forces a rebuild rather than a vacuous pass. */
+const FIXTURE_MARKERS = ['Script embed, static srcdoc', 'Bad dimensions 1246']
 
 let html = ''
 beforeAll(() => {
   const demo = join(distDir, 'page', 'embed-demo', 'index.html')
   if (
     !existsSync(demo) ||
-    !readFileSync(demo, 'utf8').includes(SRCDOC_FIXTURE_MARKER)
+    !FIXTURE_MARKERS.every((m) => readFileSync(demo, 'utf8').includes(m))
   ) {
     execSync('pnpm build', { cwd: appDir, stdio: 'inherit' })
   }
@@ -167,5 +167,84 @@ describe('embed iframe sandbox — every load path (#1115)', () => {
       expect(f.sandbox, `facade-built ${f.kind} iframe in ${f.page}`).toEqual(
         f.kind === 'src' ? SRC_SANDBOX : SRCDOC_SANDBOX
       )
+  })
+})
+
+// ---- #1246: the provider allowlist, enforced at the render sink ---------------------
+//
+// The oEmbed resolver only ever produces registered providers, but `.mdoc` content can be
+// written directly (raw source, the commit API), so embed.astro re-checks at render time:
+// `embedUrl` is framed only when its host belongs to a registered provider, and `html` is
+// rendered (srcdoc) only when the entry's `url` does. A failing check degrades to the plain
+// outbound link — never to nothing. The legitimate provider frame/facade/srcdoc fixtures
+// asserted above (and in url-guard-sinks.test.ts) are the anti-vacuity half: the guard must
+// still let registered providers through.
+describe('embed provider allowlist at render (#1246)', () => {
+  const doc = () => new JSDOM(html).window.document
+
+  const fallbackHref = (title: string): string | null => {
+    const a = [...doc().querySelectorAll('a.blk-embed-fallback')].find(
+      (el) => el.textContent?.trim() === title
+    )
+    return a ? a.getAttribute('href') : null
+  }
+
+  it('does not frame an embedUrl whose host is not a registered provider (incl. a look-alike)', () => {
+    expect(html).not.toContain('evil.example')
+    expect(fallbackHref('Off-list frame 1246')).toBe(
+      'https://ok.example/off-list-frame'
+    )
+    // A thumbnail does not rescue it: no facade for a look-alike host either.
+    expect(fallbackHref('Look-alike facade 1246')).toBe(
+      'https://ok.example/look-alike'
+    )
+  })
+
+  it('does not render html (srcdoc) for an entry whose url is not a registered provider', () => {
+    expect(html).not.toContain('offlist-srcdoc-1246')
+    expect(html).not.toContain('offlist-facade-1246')
+    expect(fallbackHref('Off-list srcdoc 1246')).toBe(
+      'https://ok.example/off-list-html'
+    )
+    expect(fallbackHref('Off-list srcdoc facade 1246')).toBe(
+      'https://ok.example/off-list-html-facade'
+    )
+  })
+
+  it('still renders html for a registered provider url (the guard is not a blanket no)', () => {
+    const srcdocs = [...doc().querySelectorAll('iframe[srcdoc]')].map((f) =>
+      f.getAttribute('srcdoc')
+    )
+    expect(srcdocs).toContain('<blockquote>A script-based embed</blockquote>')
+    expect(html).toContain('A script-based embed behind a poster')
+  })
+})
+
+describe('embed width/height clamp (#1246)', () => {
+  /** Every inline aspect-ratio the embed block writes (static frames + facades). */
+  const aspects = (): string[] =>
+    [
+      ...new JSDOM(html).window.document.querySelectorAll(
+        '.blk-embed-frame, .blk-embed-facade'
+      )
+    ].map((el) => el.getAttribute('style') ?? '')
+
+  it('falls back to 16 / 9 instead of writing non-positive dimensions into the style', () => {
+    const iframe = new JSDOM(html).window.document.querySelector(
+      'iframe[title="Bad dimensions 1246"]'
+    )
+    expect(iframe).not.toBeNull()
+    expect(iframe?.parentElement?.getAttribute('style')).toBe(
+      'aspect-ratio:16 / 9'
+    )
+  })
+
+  it('every embed aspect-ratio is two positive numbers', () => {
+    const styles = aspects()
+    expect(styles.length).toBeGreaterThan(0)
+    // The YouTube facade's real 480x270 must survive the clamp (anti-vacuity).
+    expect(styles).toContain('aspect-ratio:480 / 270')
+    for (const s of styles)
+      expect(s).toMatch(/^aspect-ratio:\d+(\.\d+)? \/ \d+(\.\d+)?$/)
   })
 })

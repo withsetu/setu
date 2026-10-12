@@ -1,6 +1,7 @@
 ---
 import './embed.css'
 import { safeLinkHref, resolveMediaSrc } from '@setu/blocks'
+import { matchProvider } from '@setu/core'
 import { resolveMediaBase } from '@setu/image-astro'
 
 interface Props {
@@ -43,11 +44,19 @@ const RATIOS: Record<string, string> = {
   '1:1': '1 / 1',
   '21:9': '21 / 9'
 }
+// #1246: `width`/`height` are interpolated into an inline style, so only positive finite
+// numbers get through — anything else (negative, zero, non-number) falls back to 16 / 9,
+// the same clamp-at-the-sink stance as spacer/gallery/query. Enforced by
+// apps/site/test/embed-block.test.ts ('embed width/height clamp').
+const dim = (n: unknown): number | null =>
+  typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : null
+const safeWidth = dim(width)
+const safeHeight = dim(height)
 const aspect =
   ratio !== 'auto' && RATIOS[ratio]
     ? RATIOS[ratio]
-    : width && height
-      ? `${width} / ${height}`
+    : safeWidth !== null && safeHeight !== null
+      ? `${safeWidth} / ${safeHeight}`
       : '16 / 9'
 
 const label = providerLabel ?? provider ?? 'embed'
@@ -87,12 +96,22 @@ const frameSrc = (candidate: string | undefined): string | null => {
   const safe = safeLinkHref(candidate)
   return safe !== null && /^https?:\/\//i.test(safe) ? safe : null
 }
-const safeEmbedUrl = frameSrc(embedUrl)
+
+// #1246: the provider allowlist (@setu/core `matchProvider`, the same registry the oEmbed
+// resolver uses) is enforced HERE, at render, not only at resolve time — content can be
+// written directly (raw source, the commit API) with any `embedUrl`/`html`. So:
+//   - `embedUrl` is framed only when its own host belongs to a registered provider;
+//   - `html` (srcdoc) is rendered only when the entry's `url` belongs to one.
+// Anything else falls through to the plain outbound link below — degraded, not dropped.
+// Enforced by apps/site/test/embed-block.test.ts ('embed provider allowlist at render').
+const framed = frameSrc(embedUrl)
+const safeEmbedUrl = framed !== null && matchProvider(framed) ? framed : null
+const safeHtml = html && matchProvider(url) ? html : null
 
 const isPhoto = mediaType === 'photo'
 // Branch on the GUARDED values, never the raw props: a rejected thumbnail must not leave
 // an <img> with no src, and a rejected embedUrl must fall through to the next branch.
-const hasFacade = Boolean(safeThumbnailUrl) && Boolean(safeEmbedUrl || html)
+const hasFacade = Boolean(safeThumbnailUrl) && Boolean(safeEmbedUrl || safeHtml)
 ---
 
 <figure class:list={['blk-embed', alignClass]}>
@@ -111,7 +130,7 @@ const hasFacade = Boolean(safeThumbnailUrl) && Boolean(safeEmbedUrl || html)
         class="blk-embed-facade"
         style={`aspect-ratio:${aspect}`}
         data-embed-url={safeEmbedUrl ?? ''}
-        data-embed-html={safeEmbedUrl ? '' : (html ?? '')}
+        data-embed-html={safeEmbedUrl ? '' : (safeHtml ?? '')}
         aria-label={`Play ${title ?? label}`}
       >
         <img
@@ -139,11 +158,11 @@ const hasFacade = Boolean(safeThumbnailUrl) && Boolean(safeEmbedUrl || html)
           allowfullscreen
         />
       </div>
-    ) : html ? (
+    ) : safeHtml ? (
       <div class="blk-embed-frame" style={`aspect-ratio:${aspect}`}>
         <iframe
           class="blk-embed-iframe"
-          srcdoc={html}
+          srcdoc={safeHtml}
           title={title ?? label}
           loading="lazy"
           sandbox="allow-scripts allow-popups allow-presentation"
@@ -166,8 +185,8 @@ const hasFacade = Boolean(safeThumbnailUrl) && Boolean(safeEmbedUrl || html)
 <script>
   // Facade → click-to-load: swap the poster for the player only on interaction, so no provider
   // cookies/JS load until the visitor chooses to play (privacy + performance).
-  // Security: `data-embed-url` is the value `frameSrc` accepted above (absolute http(s) only),
-  // so the `src` iframe frames a foreign origin and allow-same-origin cannot be turned against
+  // Security: `data-embed-url` is the value accepted above (absolute http(s) on a registered
+  // provider host, #1246), so the `src` iframe frames a foreign origin and allow-same-origin cannot be turned against
   // this page; a `srcdoc` iframe would be same-origin by default, so its sandbox OMITS
   // allow-same-origin → an opaque origin that cannot touch this page's DOM. Enforced, NOT by
   // this comment, by apps/site/test/embed-block.test.ts ('embed iframe sandbox — every load

@@ -41,9 +41,9 @@ A legitimate provider frame and a legitimate click-to-load facade come first, so
 assertions on the rejected shapes below can never pass vacuously — the guards have to let
 real embeds through.
 
-{% embed url="https://ok.example/player" embedUrl="https://player.example/embed/xyz" title="Legitimate provider frame" ratio="16:9" /%}
+{% embed url="https://vimeo.com/76979871" embedUrl="https://player.vimeo.com/video/76979871" title="Legitimate provider frame" ratio="16:9" /%}
 
-{% embed url="https://ok.example/facade" provider="example" providerLabel="Example" mediaType="video" title="Legitimate facade" embedUrl="https://player.example/embed/abc" thumbnailUrl="https://cdn.example.test/thumb.jpg" /%}
+{% embed url="https://www.dailymotion.com/video/x7tgad0" provider="dailymotion" providerLabel="Dailymotion" mediaType="video" title="Legitimate facade" embedUrl="https://www.dailymotion.com/embed/video/x7tgad0" thumbnailUrl="https://cdn.example.test/thumb.jpg" /%}
 
 {% embed url="javascript:alert(1)" title="Fallback with a dangerous scheme" /%}
 

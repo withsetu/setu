@@ -355,7 +355,12 @@ async function startCaddy(root, file, frontPort, { waitMs = 8000 } = {}) {
 
 /** Regenerate the Caddyfile from EVERY registered lane, not just the running one, so starting a
  *  second lane does not tear down the first one's route. A route to a stopped lane simply 502s.
- *  Never touches a Caddy this launcher did not start (#1199). */
+ *  Never touches a Caddy this launcher did not start (#1199).
+ *
+ *  Resolves `{ hostnames }`: true only when the lane Caddy is serving the freshly written routes
+ *  (a reload that succeeded, or a start that came up listening). Anything else (no domain, no
+ *  caddy binary, a refused admin endpoint, a failed reload or start) is false, and the caller
+ *  runs the lane on loopback (#1224). Pinned by scripts/dev.test.mjs. */
 export async function syncCaddy(
   root,
   registry,
@@ -363,13 +368,13 @@ export async function syncCaddy(
   frontPort,
   { waitMs } = {}
 ) {
-  if (!domain) return null
+  if (!domain) return { hostnames: false }
   if (!have('caddy')) {
     console.warn(
-      'dev: SETU_DEV_DOMAIN is set but `caddy` is not installed — lane hostnames will not resolve.\n' +
-        '     Install caddy, or unset SETU_DEV_DOMAIN to run on loopback ports only.'
+      'dev: SETU_DEV_DOMAIN is set but `caddy` is not installed — running this lane on loopback ports.\n' +
+        '     Install caddy to use lane hostnames.'
     )
-    return null
+    return { hostnames: false }
   }
   const lanes = Object.entries(registry).map(([lane, slot]) => ({ lane, slot }))
   const file = path.join(root, '.claude', 'Caddyfile')
@@ -389,8 +394,10 @@ export async function syncCaddy(
   })
 
   if (plan.action === 'refuse') {
-    console.warn(`dev: caddy NOT updated — ${plan.reason}.`)
-    return null
+    console.warn(
+      `dev: caddy NOT updated — ${plan.reason}.\n     Running this lane on loopback ports.`
+    )
+    return { hostnames: false }
   }
   if (plan.action === 'reload') {
     const res = spawnSync(
@@ -406,26 +413,36 @@ export async function syncCaddy(
       ],
       { encoding: 'utf8' }
     )
-    if (res.status === 0)
+    if (res.status === 0) {
       console.log(`dev: caddy reloaded (${lanes.length} lane(s))`)
-    else
-      console.warn(
-        `dev: caddy reload FAILED — lane hostnames may be stale:\n${(res.stderr || res.error?.message || '').trim()}`
-      )
-    return file
+      return { hostnames: true }
+    }
+    console.warn(
+      `dev: caddy reload FAILED — running this lane on loopback ports:\n${(res.stderr || res.error?.message || '').trim()}`
+    )
+    return { hostnames: false }
   }
   const started = await startCaddy(root, file, frontPort, { waitMs })
-  if (started.ok)
+  if (started.ok) {
     console.log(
       `dev: caddy started on loopback :${frontPort} (pid ${started.pid}, ${lanes.length} lane(s))`
     )
-  else
-    console.warn(
-      `dev: caddy did NOT start — lane hostnames will not resolve (loopback ports still work).\n` +
-        `     ${started.detail.split('\n').join('\n     ')}\n` +
-        `     Full log: ${caddyLogPath(root)}`
-    )
-  return file
+    return { hostnames: true }
+  }
+  console.warn(
+    `dev: caddy did NOT start — running this lane on loopback ports instead of its hostnames.\n` +
+      `     ${started.detail.split('\n').join('\n     ')}\n` +
+      `     Full log: ${caddyLogPath(root)}\n` +
+      `     To use hostnames: free :${frontPort}, or set SETU_DEV_CADDY_PORT in .env and point the tunnel at it.`
+  )
+  return { hostnames: false }
+}
+
+/** The domain a lane's env is built for: the configured one only while its Caddy serves the lane
+ *  hostnames. Otherwise undefined, so laneEnv produces loopback origins the admin can actually
+ *  reach (#1224). Pinned by scripts/dev.test.mjs. */
+export function laneDomain(domain, caddy) {
+  return domain && caddy?.hostnames ? domain : undefined
 }
 
 const ROLES = [
@@ -648,25 +665,6 @@ async function main(argv) {
   const repoDir = sandbox.dir
   if (sandbox.owned) seedSandbox(root, MAIN_LANE)
 
-  // `dir` (the lane's own worktree), not `root`: setu.config.ts belongs to the checkout being
-  // run, while the sandbox above is shared (#1086).
-  const derived = laneEnv({
-    lane,
-    domain,
-    slot,
-    repoDir,
-    checkoutDir: dir,
-    mediaDir: fileEnv.SETU_MEDIA_DIR
-  })
-  // Anything the operator set in .env that this does not derive (secrets, email transport,
-  // SETU_AUTH_SECRET) still applies; derived values win so a stale hand-written origin cannot
-  // silently override the lane's own.
-  const env = preferOperatorSiteUrl(
-    { ...fileEnv, ...derived },
-    process.env,
-    fileEnv
-  )
-
   const ports = portsForSlot(slot)
   const check = spawnSync(
     'node',
@@ -684,9 +682,32 @@ async function main(argv) {
     process.exit(1)
   }
 
-  await syncCaddy(root, registry, domain, frontPort)
+  // The env is built AFTER the Caddy sync: when the lane hostnames are not live, the lane runs on
+  // loopback origins instead of pointing the admin at hostnames nothing serves (#1224).
+  const effectiveDomain = laneDomain(
+    domain,
+    await syncCaddy(root, registry, domain, frontPort)
+  )
+  // `dir` (the lane's own worktree), not `root`: setu.config.ts belongs to the checkout being
+  // run, while the sandbox above is shared (#1086).
+  const derived = laneEnv({
+    lane,
+    domain: effectiveDomain,
+    slot,
+    repoDir,
+    checkoutDir: dir,
+    mediaDir: fileEnv.SETU_MEDIA_DIR
+  })
+  // Anything the operator set in .env that this does not derive (secrets, email transport,
+  // SETU_AUTH_SECRET) still applies; derived values win so a stale hand-written origin cannot
+  // silently override the lane's own.
+  const env = preferOperatorSiteUrl(
+    { ...fileEnv, ...derived },
+    process.env,
+    fileEnv
+  )
 
-  const hosts = laneHostnames(lane, domain)
+  const hosts = laneHostnames(lane, effectiveDomain)
   console.log(`\ndev: lane ${lane}  (slot ${slot})  ${dir}`)
   console.log(`     sandbox ${repoDir}`)
   for (const role of ['admin', 'api', 'site'])

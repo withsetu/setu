@@ -1,6 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { MediaDropzone, filesFromEvent } from '../src/media/MediaDropzone'
+import {
+  MediaDropzone,
+  filesFromEvent,
+  rejectionMessage
+} from '../src/media/MediaDropzone'
+import type { FileRejection } from 'react-dropzone'
 import type { UploadResult } from '../src/media/upload-client'
 
 const result: UploadResult = {
@@ -148,5 +153,106 @@ describe('MediaDropzone', () => {
     // Only reachable with useFsAccessApi, which MediaDropzone sets false: the handle API is the
     // getFile() NotAllowedError path filesFromEvent exists to avoid.
     expect(() => filesFromEvent([])).toThrow(/useFsAccessApi/)
+  })
+
+  // #1233: a drop the `accept` filter rejects used to vanish: no upload, no message.
+  describe('rejected drops are reported, not dropped silently (#1233)', () => {
+    const pdf = () =>
+      new File([new Uint8Array([1])], 'notes.pdf', { type: 'application/pdf' })
+    const png = () =>
+      new File([new Uint8Array([1])], 'cat.png', { type: 'image/png' })
+    const drop = (files: File[]) => {
+      const zone = screen.getByTestId('media-dropzone-input')
+        .parentElement as HTMLElement
+      fireEvent.drop(zone, {
+        dataTransfer: {
+          files,
+          items: files.map((f) => ({
+            kind: 'file',
+            type: f.type,
+            getAsFile: () => f
+          })),
+          types: ['Files']
+        }
+      })
+    }
+
+    it('names the file and what the picker accepts', async () => {
+      const upload = vi.fn(async () => result)
+      const onError = vi.fn()
+      render(
+        <MediaDropzone
+          apiBase="http://x"
+          onUploaded={vi.fn()}
+          onError={onError}
+          upload={upload}
+          accept={{ 'image/*': [] }}
+          acceptLabel="images"
+        />
+      )
+      drop([pdf()])
+      await waitFor(() =>
+        expect(onError).toHaveBeenCalledWith(
+          "notes.pdf can't be added — this picker accepts images."
+        )
+      )
+      expect(upload).not.toHaveBeenCalled()
+    })
+
+    it('uploads the accepted files of a mixed drop and reports the rest', async () => {
+      const upload = vi.fn(async () => result)
+      const onUploaded = vi.fn()
+      const onError = vi.fn()
+      render(
+        <MediaDropzone
+          apiBase="http://x"
+          onUploaded={onUploaded}
+          onError={onError}
+          upload={upload}
+          accept={{ 'image/*': [] }}
+          acceptLabel="images"
+        />
+      )
+      const second = new File([new Uint8Array([1])], 'clip.mov', {
+        type: 'video/quicktime'
+      })
+      drop([pdf(), png(), second])
+      await waitFor(() => expect(onUploaded).toHaveBeenCalledWith(result))
+      expect(upload).toHaveBeenCalledTimes(1)
+      expect(onError).toHaveBeenCalledWith(
+        "notes.pdf and 1 more can't be added — this picker accepts images."
+      )
+    })
+
+    it('keeps the library reason for a rejection that is not about type', () => {
+      expect(
+        rejectionMessage(
+          [
+            {
+              file: pdf() as FileRejection['file'],
+              errors: [
+                { code: 'file-too-large', message: 'File is larger than 5 MB' }
+              ]
+            }
+          ],
+          'images'
+        )
+      ).toBe("notes.pdf can't be added: File is larger than 5 MB.")
+      expect(rejectionMessage([], 'images')).toBeNull()
+    })
+
+    it('says what it accepts in the hint', () => {
+      render(
+        <MediaDropzone
+          apiBase="http://x"
+          onUploaded={vi.fn()}
+          accept={{ 'video/mp4': [], 'video/webm': [] }}
+          acceptLabel="MP4 or WebM videos"
+        />
+      )
+      expect(
+        screen.getByText('Drag MP4 or WebM videos here, or click to upload')
+      ).toBeInTheDocument()
+    })
   })
 })

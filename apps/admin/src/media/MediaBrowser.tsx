@@ -124,12 +124,14 @@ export function MediaBrowser({
     pickKind === 'video'
       ? { 'video/mp4': [], 'video/webm': [] }
       : { 'image/*': [] }
+  const pickAcceptLabel = pickKind === 'video' ? 'MP4 or WebM videos' : 'images'
 
   return (
     <div className="flex flex-col gap-3.5">
       <MediaDropzone
         apiBase={apiBase}
         accept={mode === 'pick' ? pickAccept : undefined}
+        acceptLabel={mode === 'pick' ? pickAcceptLabel : undefined}
         onUploaded={onUploaded}
         onError={onError}
       />

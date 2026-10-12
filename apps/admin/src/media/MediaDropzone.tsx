@@ -4,7 +4,8 @@ import {
   useDropzone,
   type Accept,
   type DropEvent,
-  type DropzoneInputProps
+  type DropzoneInputProps,
+  type FileRejection
 } from 'react-dropzone'
 import { cn } from '@/lib/utils'
 import {
@@ -57,6 +58,31 @@ export interface MediaDropzoneProps {
   children?: ReactNode
   upload?: typeof uploadFile
   accept?: Accept
+  /** What `accept` admits, in words ("images", "MP4 or WebM videos"). Used in the hint and
+   *  in the message for a rejected drop. */
+  acceptLabel?: string
+}
+
+/** One message for a drop's rejected files (#1233), so a mismatched drop is never silent.
+ *  Enforced by apps/admin/test/media-dropzone.test.tsx. */
+export function rejectionMessage(
+  rejections: readonly FileRejection[],
+  acceptLabel = 'files of this type'
+): string | null {
+  const [first, ...rest] = rejections
+  if (!first) return null
+  // Only a type mismatch is about what the picker accepts; anything else (a size limit, say)
+  // keeps the library's own reason rather than being mislabelled.
+  const other = rejections.find(
+    (r) => !r.errors.every((e) => e.code === 'file-invalid-type')
+  )
+  if (other)
+    return `${other.file.name} can't be added: ${other.errors[0]?.message ?? 'rejected'}.`
+  const who =
+    rest.length === 0
+      ? first.file.name
+      : `${first.file.name} and ${rest.length} more`
+  return `${who} can't be added — this picker accepts ${acceptLabel}.`
 }
 
 export function MediaDropzone({
@@ -67,7 +93,8 @@ export function MediaDropzone({
   disabled,
   children,
   upload = uploadFile,
-  accept
+  accept,
+  acceptLabel
 }: MediaDropzoneProps) {
   const onDrop = useCallback(
     async (files: File[]) => {
@@ -99,7 +126,11 @@ export function MediaDropzone({
     // apps/admin/test/media-dropzone.test.tsx.
     noPaste: true,
     getFilesFromEvent: async (event) => filesFromEvent(event),
-    onError: (err) => onError?.(err.message)
+    onError: (err) => onError?.(err.message),
+    onDropRejected: (rejections) => {
+      const msg = rejectionMessage(rejections, acceptLabel)
+      if (msg) onError?.(msg)
+    }
   })
 
   return (
@@ -116,7 +147,9 @@ export function MediaDropzone({
           'data-testid': 'media-dropzone-input'
         } as DropzoneInputProps)}
       />
-      {children ?? <p>Drag images here, or click to upload</p>}
+      {children ?? (
+        <p>Drag {acceptLabel ?? 'images'} here, or click to upload</p>
+      )}
     </div>
   )
 }

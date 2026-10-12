@@ -46,6 +46,23 @@ describe('resolveOembed', () => {
     expect(called.searchParams.get('url')).toBe('https://youtu.be/abc')
   })
 
+  it('sends `for` when resolving a VideoPress URL (#1260)', async () => {
+    let calledWith = ''
+    const fetchImpl: typeof fetch = (input) => {
+      calledWith =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url
+      return Promise.resolve(jsonRes(YT))
+    }
+    await resolveOembed('https://videopress.com/v/abc12345', { fetchImpl })
+    const called = new URL(calledWith)
+    expect(called.host).toBe('public-api.wordpress.com')
+    expect(called.searchParams.get('for')).toBe('setu')
+  })
+
   it('normalizes a successful video oEmbed response', async () => {
     const fetchImpl = vi.fn(async () => jsonRes(YT))
     const r = await resolveOembed('https://youtu.be/abc', { fetchImpl })

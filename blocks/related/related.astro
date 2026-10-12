@@ -25,6 +25,9 @@ const cards: Card[] = String(posts)
   .filter(Boolean)
   .map((slug) => byId.get(`${collection}/${loc}/${slug}`))
   .filter((e): e is NonNullable<typeof e> => Boolean(e))
+  // #1244: `published !== false` is the only published-ness signal — same predicate as
+  // selectPosts and the entry route. Pinned by apps/site/test/related-block.test.ts.
+  .filter((e) => (e.data as { published?: unknown }).published !== false)
   .map((e) => {
     const d = (e.data ?? {}) as Record<string, unknown>
     const [col = '', l = '', ...rest] = e.id.split('/')

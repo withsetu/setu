@@ -106,6 +106,15 @@ describe('render pipeline — standard nodes', () => {
 })
 
 describe('render pipeline — callout', () => {
+  // #1247: the icon picked in the editor (`icon="lock"` in kitchen-sink) must reach the site,
+  // not be replaced by the tone's default.
+  it('renders the icon chosen in the editor, not the tone default', () => {
+    const lockPath = 'M8 10.5V7a4 4 0 0 1 8 0v3.5'
+    const i = html.indexOf('Members only')
+    expect(i).toBeGreaterThan(-1)
+    const aside = html.slice(html.lastIndexOf('<aside', i), i)
+    expect(aside).toContain(lockPath)
+  })
   it('renders the callout via the shared @setu/blocks core with attrs + body', () => {
     expect(html).toContain('blk-callout tone-amber')
     expect(html).toContain('<svg')

@@ -1,3 +1,4 @@
+import { isBlockIconName } from '../icons/svgs'
 import type { BlockIconName } from '../icons/svgs'
 
 export interface CalloutVariant {
@@ -50,4 +51,14 @@ export function variantFor(type: string): CalloutVariant {
 
 export function calloutVariants(): CalloutVariant[] {
   return Object.keys(VARIANT_MAP).map(variantFor)
+}
+
+/** The callout's icon: an author's override when it names a known icon, else the tone's
+ *  default (#1247). One rule for the editor canvas (apps/admin Callout.tsx) and the site
+ *  renderer (blocks/callout/callout.astro), so the two can't show different icons.
+ *  Pinned by packages/blocks/test/variants.test.ts and apps/site/test/render.test.ts. */
+export function calloutIcon(type: string, override: unknown): BlockIconName {
+  return typeof override === 'string' && isBlockIconName(override)
+    ? override
+    : variantFor(type).icon
 }

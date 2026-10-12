@@ -10,6 +10,7 @@ import {
   replaceImage
 } from '../src/editor/image-insert'
 import type { UploadResult } from '../src/media/upload-client'
+import { MediaTransportError } from '../src/media/media-client'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -107,6 +108,33 @@ describe('pickImageAndInsert', () => {
     expect(
       editor.getJSON().content?.find((n) => n.type === 'imageBlock')
     ).toBeUndefined()
+    editor.destroy()
+  })
+})
+
+describe('pickImageAndInsert — transport failure (#872)', () => {
+  it('reports a connection message, not fetch\'s raw "Failed to fetch"', async () => {
+    const editor = new Editor({
+      extensions: [StarterKit, ImageBlock],
+      content: { type: 'doc', content: [{ type: 'paragraph' }] }
+    })
+    const upload = vi
+      .fn()
+      .mockRejectedValue(
+        new MediaTransportError(new TypeError('Failed to fetch'))
+      )
+    const onError = vi.fn()
+    const input = document.createElement('input')
+    vi.spyOn(document, 'createElement').mockReturnValueOnce(input)
+    vi.spyOn(input, 'click').mockImplementation(() => {})
+    pickImageAndInsert(editor, 'http://localhost:4444', { onError }, upload)
+    Object.defineProperty(input, 'files', {
+      value: [new File([new Uint8Array([1])], 'cat.png', { type: 'image/png' })]
+    })
+    await input.onchange?.(new Event('change'))
+    expect(onError).toHaveBeenCalledWith(
+      "Couldn't upload the file. Check your connection and try again."
+    )
     editor.destroy()
   })
 })

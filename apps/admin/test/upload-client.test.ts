@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { ingestFailureNotice, uploadFile } from '../src/media/upload-client'
+import {
+  ingestFailureNotice,
+  uploadErrorMessage,
+  uploadFile
+} from '../src/media/upload-client'
+import { MediaTransportError } from '../src/media/media-client'
 
 afterEach(() => vi.restoreAllMocks())
 const file = new File([new Uint8Array([1, 2])], 'a.png', { type: 'image/png' })
@@ -54,5 +59,33 @@ describe('ingestFailureNotice (#1161)', () => {
       ingestFailureNotice({ filename: 'a', ingestFailed: false })
     ).toBeNull()
     expect(ingestFailureNotice({ filename: 'a' })).toBeNull()
+  })
+})
+
+// #872: a request that never reached the server must not put fetch's "Failed to fetch" in front
+// of the user; a reply from the server keeps its own reason (#852 — don't curate those away).
+describe('upload failures: transport vs server (#872)', () => {
+  it('tags a request that never reached the server as a transport error', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(
+      new TypeError('Failed to fetch')
+    )
+    await expect(uploadFile('http://api', file)).rejects.toBeInstanceOf(
+      MediaTransportError
+    )
+  })
+
+  it('says to check the connection for a transport error', () => {
+    expect(
+      uploadErrorMessage(
+        new MediaTransportError(new TypeError('Failed to fetch'))
+      )
+    ).toBe("Couldn't upload the file. Check your connection and try again.")
+  })
+
+  it("passes the server's own reason through unchanged", () => {
+    expect(
+      uploadErrorMessage(new Error('unsupported type: image/svg+xml'))
+    ).toBe('unsupported type: image/svg+xml')
+    expect(uploadErrorMessage('boom')).toBe('boom')
   })
 })

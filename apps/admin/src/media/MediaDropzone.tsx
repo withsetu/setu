@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   useDropzone,
@@ -7,9 +7,11 @@ import {
   type DropzoneInputProps,
   type FileRejection
 } from 'react-dropzone'
+import { Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   ingestFailureNotice,
+  uploadErrorMessage,
   uploadFile,
   type UploadResult
 } from './upload-client'
@@ -99,11 +101,18 @@ export function MediaDropzone({
   accept,
   acceptLabel
 }: MediaDropzoneProps) {
+  // The file uploading now, shown in the zone (#840): every live upload path goes through here.
+  const [current, setCurrent] = useState<{
+    name: string
+    index: number
+    total: number
+  } | null>(null)
   const onDrop = useCallback(
     async (files: File[]) => {
       onBusy?.(true)
       try {
-        for (const file of files) {
+        for (const [index, file] of files.entries()) {
+          setCurrent({ name: file.name, index, total: files.length })
           const result = await upload(apiBase, file)
           onUploaded(result)
           // #1161: stored, but no resized versions — usable, and the user must hear about it.
@@ -111,8 +120,9 @@ export function MediaDropzone({
           if (notice) onError?.(notice)
         }
       } catch (err) {
-        onError?.(err instanceof Error ? err.message : String(err))
+        onError?.(uploadErrorMessage(err))
       } finally {
+        setCurrent(null)
         onBusy?.(false)
       }
     },
@@ -146,8 +156,19 @@ export function MediaDropzone({
           'data-testid': 'media-dropzone-input'
         } as DropzoneInputProps)}
       />
-      {children ?? (
-        <p>Drag {acceptLabel ?? 'files'} here, paste, or click to upload</p>
+      {current ? (
+        <p role="status" className="flex items-center gap-2 text-foreground">
+          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          Uploading {current.name}
+          {current.total > 1
+            ? ` (${current.index + 1} of ${current.total})`
+            : ''}
+          …
+        </p>
+      ) : (
+        (children ?? (
+          <p>Drag {acceptLabel ?? 'files'} here, paste, or click to upload</p>
+        ))
       )}
     </div>
   )

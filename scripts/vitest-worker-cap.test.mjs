@@ -32,7 +32,35 @@ test('the shared config sets the worker cap', () => {
   assert.match(src, /test:\s*\{\s*maxWorkers,/)
 })
 
-for (const rel of configs) {
+/** Relative paths a config lists under `test.projects` (string entries only). */
+export function projectFiles(src) {
+  const m = /projects:\s*\[([^\]]*)\]/.exec(src)
+  if (!m) return []
+  return [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1])
+}
+
+test('projectFiles reads the string entries of a projects array', () => {
+  assert.deepEqual(
+    projectFiles("test: { projects: ['./vite.config.ts', './b.ts'] }"),
+    ['./vite.config.ts', './b.ts']
+  )
+  assert.deepEqual(projectFiles('test: { maxWorkers }'), [])
+})
+
+// #1230: a config's `projects` are configs too. vitest 5 refuses to start when projects that
+// share a `sequence.groupOrder` disagree on `maxWorkers`, so every project file carries the cap,
+// not only the root config that lists them.
+const projectConfigs = configs.flatMap((rel) =>
+  projectFiles(readFileSync(path.join(repoRoot, rel), 'utf8')).map((p) =>
+    path.posix.join(path.posix.dirname(rel), p)
+  )
+)
+
+test('there are project configs to check', () => {
+  assert.ok(projectConfigs.length > 0, 'no `projects:` entries found')
+})
+
+for (const rel of new Set([...configs, ...projectConfigs])) {
   test(`${rel} runs under the worker cap`, () => {
     const src = readFileSync(path.join(repoRoot, rel), 'utf8')
     const mergesShared =

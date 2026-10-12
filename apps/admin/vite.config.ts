@@ -6,6 +6,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { parseAllowedHosts } from '../../scripts/dev-allowed-hosts.mjs'
 import { parsePort } from '../../scripts/dev-port.mjs'
+import { maxWorkers } from '../../vitest.shared'
 
 // block.ts files at the repo-root blocks/ folder are glob-imported into the
 // admin bundle. Vite resolves their imports from *their* on-disk location
@@ -89,6 +90,11 @@ export default defineConfig(({ command }) => ({
     }
   },
   test: {
+    // Same cap as the browser project. vitest 5 refuses to start when two projects share a
+    // `sequence.groupOrder` but differ in `maxWorkers` (#1230), and under turbo
+    // (TURBO_HASH set) the browser project is capped while this one would otherwise get
+    // vitest's default. Presence enforced by scripts/vitest-worker-cap.test.mjs.
+    maxWorkers,
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./test/setup.ts'],

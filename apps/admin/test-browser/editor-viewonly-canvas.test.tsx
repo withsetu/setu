@@ -95,7 +95,7 @@ describe('view-only canvas blocks real input (#382, real browser)', () => {
     // The honest-UI banner is visible.
     await expect
       .element(page.getByRole('status'))
-      .toHaveTextContent(/This post is live/)
+      .toMatchTextContent(/This post is live/)
 
     // Attempt to type into the real ProseMirror canvas the way a user would.
     await userEvent.click(page.getByText(BODY_TEXT))

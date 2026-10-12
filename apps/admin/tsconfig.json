@@ -8,12 +8,10 @@
       "node",
       "vite/client",
       "vitest/globals",
-      "@testing-library/jest-dom",
-      "@vitest/browser-playwright/context",
-      "@vitest/browser/matchers"
+      "@testing-library/jest-dom"
     ],
     "baseUrl": ".",
     "paths": { "@/*": ["./src/*"] }
   },
-  "include": ["src", "test", "test-browser"]
+  "include": ["src", "test"]
 }

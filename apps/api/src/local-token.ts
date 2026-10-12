@@ -4,7 +4,7 @@ import {
   type AuthInstance,
   type LocalOwnerIdentity
 } from '@setu/auth'
-import { writeHandshakeFile } from './handshake-file'
+import { handshakeFileName, writeHandshakeFile } from './handshake-file'
 
 export interface BuildLocalTokenOptionsArgs {
   /** Repo dir whose `.setu/handshake-url` holds the persisted recovery link (server.ts:
@@ -20,6 +20,9 @@ export interface BuildLocalTokenOptionsArgs {
   /** Owner identity for `ensureLocalOwner` (#248 Task 7) — resolved ONCE by the caller (server.ts
    *  via `resolveGitIdentity()`, "read git config once at boot"), not on every exchange. */
   identity: LocalOwnerIdentity
+  /** `pnpm dev` lane (SETU_DEV_LANE): the file becomes `.setu/handshake-url.<lane>` so lanes
+   *  sharing a sandbox don't overwrite each other's link (#1213). Validated at build time. */
+  lane?: string
   /** Injectable handshake-file writer — tests drive the persist-failure/self-heal path with a
    *  throwing writer; the default is the real `writeHandshakeFile` and MUST stay the production
    *  path. Synchronous by contract (see the rotation invariant below). */
@@ -55,7 +58,12 @@ export interface BuildLocalTokenOptionsArgs {
  *  handoff URL; every rotation rewrites the file from inside `consume()`. */
 export function buildLocalTokenOptions(args: BuildLocalTokenOptionsArgs) {
   const { dir, adminOrigin, getAuth, identity } = args
-  const persist = args.persist ?? writeHandshakeFile
+  const { lane } = args
+  // Fail at boot on an unsafe lane, not on the first write (which only logs).
+  handshakeFileName(lane)
+  const persist =
+    args.persist ??
+    ((d: string, url: string) => writeHandshakeFile(d, url, lane))
   let token = randomBytes(32).toString('base64url')
   // True while the LAST persist attempt failed — the file on disk is stale until a retry lands.
   let pendingPersist = false

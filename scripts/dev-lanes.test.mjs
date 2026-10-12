@@ -12,7 +12,8 @@ import {
   preferOperatorSiteUrl,
   laneHostnames,
   portsForSlot,
-  renderCaddyfile
+  renderCaddyfile,
+  handshakeFileFor
 } from './dev-lanes.mjs'
 
 // --- names -----------------------------------------------------------------
@@ -387,4 +388,32 @@ test('laneEnv keeps an operator-chosen media dir from .env', () => {
     mediaDir: '/var/media'
   })
   assert.equal(env.SETU_MEDIA_DIR, '/var/media')
+})
+
+// #1213: lanes share one sandbox, so the api's sign-in link file is keyed by lane — otherwise
+// the last api to start overwrites every other lane's link.
+test('laneEnv names the lane to the api, so its sign-in link file is its own (#1213)', () => {
+  for (const [lane, domain] of [
+    ['dev', undefined],
+    ['b', undefined],
+    ['b', 'example.com']
+  ]) {
+    const env = laneEnv({
+      lane,
+      domain,
+      slot: 1,
+      repoDir: '/s/dev',
+      checkoutDir: '/s'
+    })
+    assert.equal(env.SETU_DEV_LANE, lane)
+  }
+})
+
+test('handshakeFileFor: one file per lane; no lane is the shared file (#1213)', () => {
+  assert.equal(handshakeFileFor(undefined), 'handshake-url')
+  assert.equal(handshakeFileFor('dev'), 'handshake-url.dev')
+  assert.equal(handshakeFileFor('feature-x'), 'handshake-url.feature-x')
+  assert.notEqual(handshakeFileFor('a'), handshakeFileFor('b'))
+  for (const bad of ['../x', 'a/b', '.hidden', '-flag', ''])
+    assert.throws(() => handshakeFileFor(bad), /invalid lane name/)
 })

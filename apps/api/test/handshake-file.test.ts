@@ -9,7 +9,12 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { writeHandshakeFile } from '../src/handshake-file'
+import { handshakeFileName, writeHandshakeFile } from '../src/handshake-file'
+// Plain JS outside the workspace graph: a non-literal specifier keeps tsc from resolving it.
+const devLanes = new URL('../../../scripts/dev-lanes.mjs', import.meta.url).href
+const { handshakeFileFor } = (await import(devLanes)) as {
+  handshakeFileFor: (lane: string | undefined) => string
+}
 
 const dirs: string[] = []
 afterEach(() => {
@@ -59,5 +64,34 @@ describe('writeHandshakeFile (#386)', () => {
 
     expect(readFileSync(file, 'utf-8')).toBe(`${url}\n`)
     expect(statSync(file).mode & 0o777).toBe(0o600)
+  })
+})
+
+// #1213: `pnpm dev` lanes share one sandbox; each lane's api writes its own file, which the
+// readers (scripts/auth-login-link.mjs, dev-status.mjs) find by the same lane name.
+describe('per-lane handshake file (#1213)', () => {
+  it('writes .setu/handshake-url.<lane> when given a lane, leaving other lanes alone', () => {
+    const dir = makeDir()
+    writeHandshakeFile(dir, 'http://localhost:5273/#setu-token=a', 'a')
+    writeHandshakeFile(dir, 'http://localhost:5373/#setu-token=b', 'b')
+    expect(readFileSync(join(dir, '.setu', 'handshake-url.a'), 'utf8')).toBe(
+      'http://localhost:5273/#setu-token=a\n'
+    )
+    expect(readFileSync(join(dir, '.setu', 'handshake-url.b'), 'utf8')).toBe(
+      'http://localhost:5373/#setu-token=b\n'
+    )
+    expect(statSync(join(dir, '.setu', 'handshake-url.a')).mode & 0o777).toBe(
+      0o600
+    )
+  })
+
+  it('refuses a lane name that is not a single safe segment', () => {
+    for (const bad of ['../x', 'a/b', '.hidden', '-flag', ''])
+      expect(() => handshakeFileName(bad)).toThrow(/invalid lane name/)
+  })
+
+  it('names the same file the dev scripts read', () => {
+    for (const lane of [undefined, 'dev', 'feature-x'])
+      expect(handshakeFileName(lane)).toBe(handshakeFileFor(lane))
   })
 })

@@ -42,6 +42,7 @@ import {
   allocateSlot,
   assertValidLaneName,
   laneEnv,
+  laneForCwd,
   preferOperatorSiteUrl,
   laneHostnames,
   portsForSlot,
@@ -64,15 +65,8 @@ const DEFAULT_FRONT_PORT = 8080
  *  time — an older free-ports.mjs with no `--check`). */
 const sibling = (name) => fileURLToPath(new URL(`./${name}`, import.meta.url))
 
-/** Lane implied by where you are standing: a worktree under `.claude/worktrees/<name>` is that
- *  name; anywhere else in the repo is the main checkout's lane. */
-export function laneForCwd(cwd, root) {
-  const worktrees = path.join(root, '.claude', 'worktrees')
-  const rel = path.relative(worktrees, cwd)
-  if (rel && !rel.startsWith('..') && !path.isAbsolute(rel))
-    return rel.split(path.sep)[0]
-  return MAIN_LANE
-}
+// Moved to dev-lanes.mjs (#1213) so the login-link reader shares it; re-exported for callers.
+export { laneForCwd }
 
 /** The lane for the checkout you are standing in, given that checkout's own top level (#1200).
  *  laneForCwd alone maps a worktree created OUTSIDE `.claude/worktrees` to the main lane, so

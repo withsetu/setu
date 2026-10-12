@@ -3,7 +3,7 @@
 // not a test-local stub. The end-to-end exchange behavior (through better-auth's real handler)
 // lives in local-token-exchange.test.ts, which constructs its harness via this same builder.
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { buildLocalTokenOptions } from '../src/local-token'
@@ -43,6 +43,40 @@ function build(dir: string, persist?: (dir: string, url: string) => void) {
 }
 
 describe('buildLocalTokenOptions (real provider wiring)', () => {
+  it("with a lane (#1213), boot and every rotation write that lane's own file", () => {
+    const dir = makeDir()
+    const opts = buildLocalTokenOptions({
+      dir,
+      adminOrigin: ADMIN_ORIGIN,
+      getAuth: () => {
+        throw new Error('getAuth must not be called outside an exchange')
+      },
+      identity: IDENTITY,
+      lane: 'feature-x'
+    })
+    const laneFile = () =>
+      readFileSync(join(dir, '.setu', 'handshake-url.feature-x'), 'utf8').trim()
+    opts.persistUrl()
+    expect(laneFile()).toBe(`${ADMIN_ORIGIN}/#setu-token=${opts.getToken()}`)
+    opts.consume()
+    expect(laneFile()).toBe(`${ADMIN_ORIGIN}/#setu-token=${opts.getToken()}`)
+    expect(existsSync(join(dir, '.setu', 'handshake-url'))).toBe(false)
+  })
+
+  it('refuses an unsafe lane name at build time, not at the first write', () => {
+    expect(() =>
+      buildLocalTokenOptions({
+        dir: makeDir(),
+        adminOrigin: ADMIN_ORIGIN,
+        getAuth: () => {
+          throw new Error('unused')
+        },
+        identity: IDENTITY,
+        lane: '../escape'
+      })
+    ).toThrow(/invalid lane name/)
+  })
+
   it('persistUrl() writes the current handshake URL; consume() rotates synchronously and rewrites it', () => {
     const dir = makeDir()
     const opts = build(dir)

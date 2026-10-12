@@ -33,10 +33,7 @@ auditConfig:
     # fast-glob → micromatch in dev/build tooling (astro-eslint-parser, purgecss), on
     # repo-owned glob patterns; nothing in the published site or the API. Expiry: #1149.
     - GHSA-vfj7-8cjw-p6xm
-    # http-cache-semantics max-stale shared-cache disclosure (high, <=4.2.0). NO patched
-    # release exists: first_patched_version is null, npm latest is 4.2.0 (2025-05-09),
-    # upstream kornelski/http-cache-semantics#56 has no fix (checked 2026-10-03). Reached
-    # only through astro's build-time remote-image TTL (assets/build/remote.js), whose
-    # requests Astro constructs itself — no client max-stale header reaches it, and it is
-    # not a multi-user cache. Expiry: #1150.
-    - GHSA-ch52-4w7c-c8xp
+    # GHSA-ch52-4w7c-c8xp (http-cache-semantics max-stale disclosure, high, <=4.2.0) was
+    # allowlisted here while no patched release existed (#1150). 4.3.0 is out and the
+    # lockfile resolves it (#1223), so the entry suppressed nothing and is gone. Do not
+    # re-add it.

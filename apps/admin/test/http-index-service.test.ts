@@ -336,6 +336,58 @@ describe('createHttpIndexService · query', () => {
   })
 })
 
+describe('createHttpIndexService · queryCommitted (#1245)', () => {
+  // The Query / Latest Posts canvas preview reads through this: the published block renders
+  // committed Git content, so this browser's unsaved working copies must not leak in.
+  it('returns the server rows without the local-draft overlay', async () => {
+    const base = draftInput('a', { title: 'Alpha', tags: ['x'] })
+    const edited = draftInput('a', { title: 'Alpha v2', tags: [] }, 'changed')
+    const { service } = makeHarness({
+      routes: {
+        '/api/index/query': () => ({
+          rows: [serverRow('a', { title: 'Alpha', tags: ['x'] })],
+          total: 1
+        })
+      },
+      files: [{ path: 'content/post/en/a.mdoc', content: committedOf(base) }],
+      drafts: [edited, draftInput('b', { title: 'Local only' })]
+    })
+    const committed = await service.queryCommitted(q({ tag: 'x' }))
+    expect(committed.total).toBe(1)
+    expect(
+      committed.rows.map((r) => [r.ref.slug, r.title, r.hasDraft])
+    ).toEqual([['a', 'Alpha', false]])
+    // Same read through query(): the overlay applies (draft title, tag removed → dropped).
+    const overlaid = await service.query(q())
+    expect(overlaid.rows.map((r) => r.title)).toEqual([
+      'Local only',
+      'Alpha v2'
+    ])
+  })
+
+  it('pages over the server cap and falls back to the offline cache', async () => {
+    const mkRows = (from: number, n: number) =>
+      Array.from({ length: n }, (_, i) => serverRow(`p${from + i}`))
+    const { service, failing } = makeHarness({
+      routes: {
+        '/api/index/query': (url) =>
+          Number(url.searchParams.get('offset')) === 0
+            ? { rows: mkRows(0, 100), total: 120 }
+            : { rows: mkRows(100, 20), total: 120 }
+      }
+    })
+    const r = await service.queryCommitted(
+      q({ limit: Number.MAX_SAFE_INTEGER })
+    )
+    expect(r.rows).toHaveLength(120)
+    failing.on = true
+    const offline = await service.queryCommitted(
+      q({ limit: Number.MAX_SAFE_INTEGER })
+    )
+    expect(offline.total).toBe(120)
+  })
+})
+
 describe('createHttpIndexService · stats (count semantics)', () => {
   it('counts committed/server truth only — a local-only draft shows in the query but is NOT counted (owner-approved 2026-07-17)', async () => {
     const serverStats = {

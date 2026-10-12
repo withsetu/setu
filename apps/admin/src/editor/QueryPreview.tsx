@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { ImageIcon } from 'lucide-react'
-import type { ContentRow, IndexQuery, SortKey } from '@setu/core'
+import type { ContentRow, IndexQuery } from '@setu/core'
 import { resolveMediaSrc } from './media-src'
 import { useCollections } from '../data/collections-store'
 import { findCollection } from '../data/collections'
+import { resolvePreviewPosts } from './preview-posts'
 
 /** The block's attribute bag, as stored on the node (all optional — defaults applied here). */
 export interface QueryAttrs {
@@ -19,34 +20,14 @@ export interface QueryAttrs {
   showImage?: boolean
 }
 
-/** Run the same content-index query the published block resolves, so the editor preview is
- *  real data — not a mock. Injected via editor.storage (like imageBlock.apiBase) so the node
- *  view never reaches into React context. */
+/** Reads content-index rows for the canvas preview. Injected via editor.storage (like
+ *  imageBlock.apiBase) so the node view never reaches into React context. The index is
+ *  only the row source: `resolvePreviewPosts` (./preview-posts.ts) picks and orders the
+ *  rows with the same `selectPosts` the published block runs, so the canvas lists what
+ *  the site would — pinned by apps/admin/test/query-preview-parity.test.tsx. */
 export type RunQuery = (
   q: IndexQuery
 ) => Promise<{ rows: ContentRow[]; total: number }>
-
-const SORT_MAP: Record<
-  NonNullable<QueryAttrs['sort']>,
-  { key: SortKey; dir: 'asc' | 'desc' }
-> = {
-  newest: { key: 'updatedAt', dir: 'desc' },
-  oldest: { key: 'updatedAt', dir: 'asc' },
-  title: { key: 'title', dir: 'asc' }
-}
-
-export function queryFromAttrs(a: QueryAttrs): IndexQuery {
-  const q: IndexQuery = {
-    collection: a.collection || 'post',
-    sort: SORT_MAP[a.sort ?? 'newest'],
-    offset: Math.max(0, Number(a.offset) || 0),
-    limit: Math.min(50, Math.max(1, Number(a.limit) || 10))
-  }
-  if (a.locale) q.locale = a.locale
-  if (a.category) q.category = a.category
-  if (a.tag) q.tag = a.tag
-  return q
-}
 
 /** Locale-aware short date in UTC — a frontmatter date is a calendar date, not an instant
  *  (mirrors the site renderers), so the preview label can't drift across timezones. */
@@ -59,8 +40,9 @@ function fmtPreviewDate(ms: number, locale: string): string {
   })
 }
 
-/** Live, in-canvas preview of what the query block will render: the real matching entries
- *  from the content index, in the chosen layout / column count. Shared with the latest-posts
+/** Live, in-canvas preview of what the query block will render: the entries the published
+ *  block would list (committed, published, default locale unless one is chosen, ordered by
+ *  frontmatter date or title), in the chosen layout / column count. Shared with the latest-posts
  *  block (#192), which pins the query to "newest posts" and adds date/excerpt toggles. */
 export function QueryPreview({
   attrs,
@@ -110,7 +92,7 @@ export function QueryPreview({
     if (!runQuery) return
     let cancelled = false
     setState('loading')
-    void runQuery(queryFromAttrs(attrs))
+    void resolvePreviewPosts(runQuery, attrs)
       .then((res) => {
         if (cancelled) return
         setRows(res.rows)

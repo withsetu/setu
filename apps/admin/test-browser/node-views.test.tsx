@@ -169,7 +169,8 @@ describe('LatestPostsBlock node view (real browser)', () => {
     tags: [],
     categories: [],
     mediaRefs: [],
-    audit: { audited: false, hasTitle: true, imagesWithoutAlt: 0, h1Count: 0 },
+    // Committed + published: the preview lists only what the site would (#1245).
+    audit: { audited: true, hasTitle: true, imagesWithoutAlt: 0, h1Count: 0 },
     hasFeaturedImage: false,
     hasSeoOverrides: false
   })

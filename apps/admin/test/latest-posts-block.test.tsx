@@ -78,8 +78,8 @@ describe('latestPostsQueryAttrs — preview reuses the query seam', () => {
     expect(latestPostsQueryAttrs({ locale: 'fr' })).toMatchObject({
       locale: 'fr'
     })
-    // No locale set -> no locale key (the site render then defaults, the
-    // preview shows all locales — matching the query block's semantics).
+    // No locale set -> no locale key: the preview resolves it to DEFAULT_LOCALE exactly
+    // as the site render does (parity: test/query-preview-parity.test.tsx, #1245).
     expect('locale' in latestPostsQueryAttrs({})).toBe(false)
   })
 })

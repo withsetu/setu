@@ -3,6 +3,33 @@ import { expect } from '@playwright/test'
 import { ContentListPage } from './ContentListPage'
 import { watchNotifications } from '../lib/notifications'
 
+/** The slice of a Tiptap `Editor` that `placeCaretAtEndOf` touches inside the page. Declared
+ *  structurally (not imported from @tiptap/core) because e2e/ is not a workspace package and the
+ *  object only exists in the browser. */
+interface PmNode {
+  isTextblock: boolean
+  textContent: string
+  nodeSize: number
+  content: { size: number }
+  forEach(fn: (node: PmNode, offset: number) => void): void
+}
+interface TiptapLike {
+  state: {
+    doc: PmNode
+    selection: {
+      empty: boolean
+      from: number
+      $from: { parent: PmNode; parentOffset: number }
+    }
+  }
+  commands: { focus(pos: number): boolean }
+  view: {
+    dom: HTMLElement
+    hasFocus(): boolean
+    posAtDOM(node: Node, offset: number): number
+  }
+}
+
 /** The post/page editor at `/edit/:collection/:locale/:slug` — EditorScreen.tsx.
  *  Autosave (per-browser IndexedDB, no team visibility) runs continuously: typing
  *  schedules a debounced save and `SaveIndicator` renders "Saving…" then "Backed up
@@ -167,6 +194,74 @@ export class EditorPage {
    *  moves whichever top-level block contains the current selection. */
   async clickBlock(text: string) {
     await this.blocks.filter({ hasText: text }).first().click()
+  }
+
+  /** Put a collapsed caret at the very END of the first top-level text block containing
+   *  `text`, deterministically, so a following `keyboard.type` appends to that block.
+   *
+   *  Deliberately NO click (#1201). A click's caret is placed natively by the browser and
+   *  only reaches ProseMirror later, through the async `selectionchange` event
+   *  (prosemirror-view's DOMObserver.onSelectionChange → readDOMChange, tagged "pointer").
+   *  Anything that sets the selection programmatically between the click and that event
+   *  races it — measured: `click` then `setTextSelection(end)` lost 4 of 8 local runs, the
+   *  same "caret at 36/47" CI saw. When the editor's state ALREADY held `end` (it did: the
+   *  previous typing ended there), the set was a no-op, so ProseMirror never re-wrote the
+   *  DOM selection; the late `selectionchange` then read the click point (offset 36, the
+   *  block's visual centre) back into state. The original centre-click + `End` failures typed at that same offset
+   *  36, consistent with the same race (not separately instrumented). The
+   *  caret the click put there is correct for a real user — they typed where they clicked —
+   *  so this is a harness race, not an editor defect.
+   *
+   *  So: focus the editor AT the position through Tiptap's own `focus(pos)` command on the
+   *  live instance (`dom.editor`, set by @tiptap/core's createView). No native caret move
+   *  means no pending `selectionchange` to lose to. Then wait until BOTH the editor state
+   *  and the browser's DOM selection agree the caret is at the block's end and the canvas
+   *  holds focus — the DOM half is what the next keystroke actually lands on. Placing the
+   *  caret is this helper's precondition, not behaviour under test, so it may bypass the
+   *  pointer. */
+  async placeCaretAtEndOf(text: string) {
+    await this.body.evaluate((dom, needle) => {
+      const editor = (dom as unknown as { editor?: TiptapLike }).editor
+      if (!editor)
+        throw new Error('placeCaretAtEndOf: no Tiptap editor on the canvas')
+      let end = -1
+      editor.state.doc.forEach((node, offset) => {
+        if (end < 0 && node.isTextblock && node.textContent.includes(needle))
+          end = offset + node.nodeSize - 1
+      })
+      if (end < 0)
+        throw new Error(`placeCaretAtEndOf: no block contains "${needle}"`)
+      editor.commands.focus(end)
+    }, text)
+    await expect
+      .poll(
+        () =>
+          this.body.evaluate((dom, needle) => {
+            const editor = (dom as unknown as { editor?: TiptapLike }).editor
+            if (!editor) return 'no editor'
+            const { selection } = editor.state
+            const { $from } = selection
+            if (!selection.empty) return 'selection not collapsed'
+            if (!$from.parent.textContent.includes(needle))
+              return `caret in another block: "${$from.parent.textContent}"`
+            if ($from.parentOffset !== $from.parent.content.size)
+              return `state caret at ${$from.parentOffset}/${$from.parent.content.size}`
+            if (!editor.view.hasFocus()) return 'canvas not focused'
+            const dsel = window.getSelection()
+            if (!dsel?.anchorNode || !dsel.isCollapsed)
+              return 'no collapsed DOM selection'
+            const domPos = editor.view.posAtDOM(
+              dsel.anchorNode,
+              dsel.anchorOffset
+            )
+            const statePos = selection.from
+            return domPos === statePos
+              ? 'at end'
+              : `DOM caret at ${domPos}, state at ${statePos}`
+          }, text),
+        { message: `caret should sit at the end of the "${text}" block` }
+      )
+      .toBe('at end')
   }
 
   /** Move the block containing `text` one slot up via the real keyboard shortcut —

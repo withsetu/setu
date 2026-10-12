@@ -36,7 +36,12 @@ export default defineConfig({
       'html',
       { open: 'never', outputFolder: path.join(__dirname, 'playwright-report') }
     ],
-    ['line']
+    ['line'],
+    // #1201: `retries` above means a fail-then-pass run is green. This reporter turns every such
+    // flaky test into a GitHub `::warning` annotation + a job-summary row so a retry is never
+    // silent (we chose visibility over `failOnFlakyTests`, which would block merges on any flake).
+    // Detection + output format: scripts/e2e-flaky-reporter.test.mjs.
+    [path.join(repoRoot, 'scripts', 'e2e-flaky-reporter.mjs')]
   ],
   // Visual baselines are captured on Linux CI; ignore local diffs elsewhere.
   ignoreSnapshots: !process.env.CI,

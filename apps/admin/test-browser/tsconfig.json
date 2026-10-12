@@ -1,0 +1,18 @@
+{
+  // The browser lane's own program (#1230). It must NOT see @testing-library/jest-dom: from
+  // vitest 5 jest-dom's `Assertion<T>` augmentation overrides the browser matchers it shares a
+  // name with, so `expect.element(x).toBeInTheDocument()` typed as returning the element rather
+  // than Promise<void> (type-aware lint then flagged every await) and `toHaveTextContent`
+  // accepted a RegExp it can no longer match. The jsdom lane (../tsconfig.json) keeps jest-dom.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": [
+      "node",
+      "vite/client",
+      "vitest/globals",
+      "@vitest/browser-playwright/context",
+      "@vitest/browser/matchers"
+    ]
+  },
+  "include": ["../src", "."]
+}

@@ -104,6 +104,12 @@ describe('detached-tester-frame retry shim (#954)', () => {
 // `keyboard` still evaluates focusIframe as its first statement, and `context.frame()` still has
 // exactly the three call sites the no-double-apply argument depends on. vitest-dev/vitest#10300
 // is still closed unmerged. Pin moved; shim kept.
+//
+// #1230 (4.1.11 → 5.0.4): re-derived from the 5.0.4 dist. The provider still lives in
+// `@vitest/browser-playwright`; `frame()` is unchanged (name lookup, no `isDetached()`, same
+// `frameattached` fallback); `keyboard` still evaluates focusIframe before keyboardImplementation;
+// `context.frame()` still has exactly three call sites. vitest-dev/vitest#10300 is still closed
+// unmerged. Pin moved; shim kept.
 describe('the vendor facts the shim rests on (#954)', () => {
   const require = createRequire(import.meta.url)
   // vitest 4 carries the provider (and therefore the `frame()` resolver and the `keyboard`
@@ -117,7 +123,7 @@ describe('the vendor facts the shim rests on (#954)', () => {
     expect(
       pkg.version,
       `a ${PROVIDER_PKG} bump invalidates the source-verified claims in detached-tester-frame.ts — re-read them, re-check vitest-dev/vitest#10300, then move this pin`
-    ).toBe('4.1.11')
+    ).toBe('5.0.4')
   })
 
   it('still resolves the tester frame by NAME with no isDetached check — the bug is still there', () => {

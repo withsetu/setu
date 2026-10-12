@@ -37,6 +37,7 @@ import { FormatBubble } from './FormatBubble'
 import { TableMenu } from './TableMenu'
 import { MediaPickerModal } from './MediaPickerModal'
 import { useNotify } from '../ui/notify'
+import { UploadingBanner } from './UploadingBanner'
 
 const cellAlign = {
   align: {
@@ -218,7 +219,7 @@ export function Canvas({
 
   return (
     <>
-      {imgBusy && <div className="editor-banner">Uploading image…</div>}
+      {imgBusy && <UploadingBanner />}
       <EditorContent editor={editor} />
       {editor && <FormatBubble editor={editor} />}
       {editor && <TableMenu editor={editor} />}

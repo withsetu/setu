@@ -3,6 +3,10 @@
   display: grid;
   gap: 1rem;
   max-width: 32rem;
+  /* Block-owned vertical rhythm (spacing is structural, not tokenized — see
+     docs/block-styling-contract.md), matching latest-posts' 1.5rem, so a contact block never
+     sits flush against the block or paragraph next to it. */
+  margin: 1.5rem 0;
 }
 .setu-contact__row {
   display: grid;
@@ -92,4 +96,9 @@
 /* Nothing rendered into the provider's mount point yet (loading, or failed): take no space. */
 .setu-contact__captcha:empty {
   display: none;
+}
+/* The success message replaces the form, so it takes the form's rhythm. Doubled class: a
+   theme's `.prose p` margins (0,1,1) would otherwise win over a single class. */
+.setu-contact__success.setu-contact__success {
+  margin: 1.5rem 0;
 }

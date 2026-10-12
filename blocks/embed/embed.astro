@@ -1,7 +1,7 @@
 ---
 import './embed.css'
 import { safeLinkHref, resolveMediaSrc } from '@setu/blocks'
-import { matchProvider } from '@setu/core'
+import { matchPlayerProvider, matchProvider } from '@setu/core'
 import { resolveMediaBase } from '@setu/image-astro'
 
 interface Props {
@@ -100,12 +100,15 @@ const frameSrc = (candidate: string | undefined): string | null => {
 // #1246: the provider allowlist (@setu/core `matchProvider`, the same registry the oEmbed
 // resolver uses) is enforced HERE, at render, not only at resolve time — content can be
 // written directly (raw source, the commit API) with any `embedUrl`/`html`. So:
-//   - `embedUrl` is framed only when its own host belongs to a registered provider;
+//   - `embedUrl` is framed only when its own host belongs to a registered provider — its
+//     domains, or one of its exact `playerHosts` (VideoPress/WordPress.tv play from
+//     video.wordpress.com) — see `matchPlayerProvider`;
 //   - `html` (srcdoc) is rendered only when the entry's `url` belongs to one.
 // Anything else falls through to the plain outbound link below — degraded, not dropped.
 // Enforced by apps/site/test/embed-block.test.ts ('embed provider allowlist at render').
 const framed = frameSrc(embedUrl)
-const safeEmbedUrl = framed !== null && matchProvider(framed) ? framed : null
+const safeEmbedUrl =
+  framed !== null && matchPlayerProvider(framed) ? framed : null
 const safeHtml = html && matchProvider(url) ? html : null
 
 const isPhoto = mediaType === 'photo'

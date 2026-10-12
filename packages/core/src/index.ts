@@ -322,6 +322,7 @@ export { newCid, isCid } from './content-id/cid'
 
 export {
   matchProvider,
+  matchPlayerProvider,
   oembedEndpoint,
   OEMBED_PROVIDERS,
   OEMBED_ENDPOINT_HOSTS

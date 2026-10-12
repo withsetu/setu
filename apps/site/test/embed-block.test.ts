@@ -13,7 +13,11 @@ const page = (route: string) =>
 /** Markers from the fixtures in content/page/en/embed-demo.mdoc — a dist built before
  *  they existed would silently skip the srcdoc halves (#1115) or the off-allowlist cases
  *  (#1246), so the absence of either forces a rebuild rather than a vacuous pass. */
-const FIXTURE_MARKERS = ['Script embed, static srcdoc', 'Bad dimensions 1246']
+const FIXTURE_MARKERS = [
+  'Script embed, static srcdoc',
+  'Bad dimensions 1246',
+  'Player host look-alike 1246'
+]
 
 let html = ''
 beforeAll(() => {
@@ -197,6 +201,17 @@ describe('embed provider allowlist at render (#1246)', () => {
     // A thumbnail does not rescue it: no facade for a look-alike host either.
     expect(fallbackHref('Look-alike facade 1246')).toBe(
       'https://ok.example/look-alike'
+    )
+  })
+
+  it("frames a provider's registered player host, but not a look-alike of it", () => {
+    const frame = doc().querySelector('iframe[title="Player host 1246"]')
+    expect(frame?.getAttribute('src')).toBe(
+      'https://video.wordpress.com/embed/OWeq4IPf'
+    )
+    expect(html).not.toContain('evil-video.wordpress.com')
+    expect(fallbackHref('Player host look-alike 1246')).toBe(
+      'https://ok.example/player-look-alike'
     )
   })
 

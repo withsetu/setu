@@ -30,6 +30,13 @@ export interface OembedProvider {
   domains: string[]
   /** The provider's own fixed oEmbed endpoint (always https, provider-owned host). */
   endpoint: string
+  /** EXACT hostnames (lowercased, no suffix matching) the provider serves its player iframe
+   *  from when that host is outside `domains` — e.g. VideoPress/WordPress.tv answer with an
+   *  iframe on `video.wordpress.com`. Read only by `matchPlayerProvider` (the render-time
+   *  `embedUrl` check, #1246); a pasted URL on one of these hosts is NOT resolvable. Exact so
+   *  `video.wordpress.com` does not admit the rest of wordpress.com. Each entry was taken from
+   *  a live oEmbed response (evidence in the #1246 PR). */
+  playerHosts?: string[]
 }
 
 export const OEMBED_PROVIDERS: OembedProvider[] = [
@@ -88,7 +95,8 @@ export const OEMBED_PROVIDERS: OembedProvider[] = [
     icon: 'brand-wordpress',
     type: 'video',
     domains: ['videopress.com'],
-    endpoint: 'https://public-api.wordpress.com/oembed/'
+    endpoint: 'https://public-api.wordpress.com/oembed/',
+    playerHosts: ['video.wordpress.com']
   },
   {
     name: 'wordpress-tv',
@@ -96,7 +104,8 @@ export const OEMBED_PROVIDERS: OembedProvider[] = [
     icon: 'brand-wordpress',
     type: 'video',
     domains: ['wordpress.tv'],
-    endpoint: 'https://wordpress.tv/oembed/'
+    endpoint: 'https://wordpress.tv/oembed/',
+    playerHosts: ['video.wordpress.com']
   },
   // --- audio ---
   {
@@ -328,6 +337,27 @@ export function matchProvider(input: string): OembedProvider | null {
     if (host === domain || host.endsWith('.' + domain)) return provider
   }
   return null
+}
+
+/** Return the provider whose player may be framed at `input` (a stored `embedUrl`), or null.
+ *  Admits exactly what `matchProvider` admits, plus an EXACT match on any provider's
+ *  `playerHosts`. Used only at render time (blocks/embed/embed.astro, #1246) — never to decide
+ *  what to fetch, so it does not widen the SSRF boundary above. Never throws. Enforced by
+ *  packages/core/test/oembed/providers.test.ts ('matchPlayerProvider'). */
+export function matchPlayerProvider(input: string): OembedProvider | null {
+  const byDomain = matchProvider(input)
+  if (byDomain) return byDomain
+  let host: string
+  try {
+    const url = new URL(input)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
+    host = url.hostname.toLowerCase()
+  } catch {
+    return null
+  }
+  return (
+    OEMBED_PROVIDERS.find((p) => (p.playerHosts ?? []).includes(host)) ?? null
+  )
 }
 
 /** Build the fixed oEmbed request URL for a matched provider. The host is always the provider's

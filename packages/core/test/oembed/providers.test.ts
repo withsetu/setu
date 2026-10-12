@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   matchProvider,
+  matchPlayerProvider,
   oembedEndpoint,
   OEMBED_PROVIDERS
 } from '../../src/oembed/providers'
@@ -164,5 +165,67 @@ describe('oembedEndpoint — builds the fixed provider endpoint (never the user 
       const u = new URL(p.endpoint)
       expect(u.protocol).toBe('https:')
     }
+  })
+})
+
+// #1246: the embed render sink frames a stored `embedUrl` only on a provider host. Some
+// providers serve their player from a host outside their paste domains (VideoPress and
+// WordPress.tv both answer with an iframe on video.wordpress.com — probed live, evidence in
+// the #1246 PR), so `playerHosts` lists those as EXACT hostnames.
+describe('matchPlayerProvider — the render-time player-host allowlist (#1246)', () => {
+  const withPlayerHosts = OEMBED_PROVIDERS.filter(
+    (p) => (p.playerHosts ?? []).length > 0
+  )
+
+  it('has the live-probed player hosts registered', () => {
+    const byName = Object.fromEntries(
+      OEMBED_PROVIDERS.map((p) => [p.name, p.playerHosts ?? []])
+    )
+    expect(byName['videopress']).toContain('video.wordpress.com')
+    expect(byName['wordpress-tv']).toContain('video.wordpress.com')
+  })
+
+  it('admits every registered player host, exactly', () => {
+    expect(withPlayerHosts.length).toBeGreaterThan(0)
+    for (const p of withPlayerHosts)
+      for (const host of p.playerHosts ?? [])
+        expect(
+          matchPlayerProvider(`https://${host}/embed/abc?hd=1`),
+          host
+        ).not.toBeNull()
+  })
+
+  it('rejects look-alikes, subdomains and the parent domain of a player host', () => {
+    for (const p of withPlayerHosts)
+      for (const host of p.playerHosts ?? []) {
+        const parent = host.split('.').slice(1).join('.')
+        for (const evil of [
+          `${host}.evil.example`,
+          `evil-${host}`,
+          `x.${host}`,
+          parent
+        ])
+          expect(
+            matchPlayerProvider(`https://${evil}/embed/abc`),
+            evil
+          ).toBeNull()
+      }
+  })
+
+  it("still admits a player on the provider's own domains (as matchProvider does)", () => {
+    expect(matchPlayerProvider('https://player.vimeo.com/video/1')?.name).toBe(
+      'vimeo'
+    )
+    expect(matchPlayerProvider('https://www.youtube.com/embed/x')?.name).toBe(
+      'youtube'
+    )
+    expect(matchPlayerProvider('https://youtube.com.evil.example/x')).toBeNull()
+    expect(matchPlayerProvider('javascript:alert(1)')).toBeNull()
+  })
+
+  it('does not widen what a PASTED url can resolve: matchProvider ignores playerHosts', () => {
+    for (const p of withPlayerHosts)
+      for (const host of p.playerHosts ?? [])
+        expect(matchProvider(`https://${host}/embed/abc`), host).toBeNull()
   })
 })

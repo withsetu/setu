@@ -34,3 +34,10 @@ A provider frame with nonsensical dimensions falls back to the default aspect ra
 rather than writing them into the inline style.
 
 {% embed url="https://vimeo.com/76979871" embedUrl="https://player.vimeo.com/video/76979871" width=-640 height=360 title="Bad dimensions 1246" /%}
+
+A provider whose player lives on a host outside its own domains (WordPress.tv's player is
+served from `video.wordpress.com`) is still framed, while a look-alike of that host is not.
+
+{% embed url="https://wordpress.tv/2026/08/20/keynote-fireside-chat-2/" provider="wordpress-tv" providerLabel="WordPress.tv" mediaType="video" embedUrl="https://video.wordpress.com/embed/OWeq4IPf" title="Player host 1246" /%}
+
+{% embed url="https://ok.example/player-look-alike" embedUrl="https://evil-video.wordpress.com/embed/OWeq4IPf" title="Player host look-alike 1246" /%}

@@ -18,6 +18,7 @@ import {
   busyPortAdvice,
   dirForLane,
   frontPortFrom,
+  laneDomain,
   laneForCheckout,
   laneForCwd,
   mainCheckout,
@@ -32,7 +33,7 @@ import {
   syncCaddy
 } from './dev.mjs'
 import { stopGroups } from './proc-group.mjs'
-import { MAIN_LANE } from './dev-lanes.mjs'
+import { MAIN_LANE, laneEnv } from './dev-lanes.mjs'
 
 const ROOT = '/repo'
 const WT = path.join(ROOT, '.claude', 'worktrees')
@@ -626,6 +627,84 @@ test('reload always targets the lane admin endpoint with --address', async () =>
         args,
         `reload --config ${file} --adapter caddyfile --address ${DEV_CADDY_ADMIN}`
       )
+    } finally {
+      process.kill(-running.pid, 'SIGKILL')
+    }
+  })
+})
+
+// --- #1224: a lane whose hostnames are not live runs on loopback, and says so --------------------
+
+test('laneDomain keeps the domain only when the lane Caddy is serving its hostnames', () => {
+  assert.equal(laneDomain('example.test', { hostnames: true }), 'example.test')
+  assert.equal(laneDomain('example.test', { hostnames: false }), undefined)
+  assert.equal(laneDomain(undefined, { hostnames: false }), undefined)
+})
+
+test('a lane on the loopback fallback gets loopback origins, not https hostnames', () => {
+  const env = laneEnv({
+    lane: 'x',
+    domain: laneDomain('example.test', { hostnames: false }),
+    slot: 2,
+    repoDir: '/repo',
+    checkoutDir: '/wt'
+  })
+  assert.equal(env.VITE_SETU_API, 'http://localhost:4644')
+  assert.equal(env.SETU_ADMIN_ORIGIN, 'http://localhost:5373')
+  assert.ok(!Object.values(env).some((v) => /^https:\/\//.test(String(v))))
+})
+
+test('syncCaddy reports no live hostnames when the lane Caddy never comes up', async () => {
+  await withFakeCaddy(async ({ root }) => {
+    const res = await syncCaddy(root, { dev: 0 }, 'example.test', 18192, {
+      waitMs: 600
+    })
+    assert.equal(res.hostnames, false)
+  })
+})
+
+test('syncCaddy reports live hostnames after a successful reload of its own Caddy', async () => {
+  await withFakeCaddy(async ({ bin, root }) => {
+    const file = path.join(root, '.claude', 'Caddyfile')
+    const running = spawn(path.join(bin, 'caddy'), ['run', '--config', file], {
+      stdio: 'ignore',
+      detached: true
+    })
+    try {
+      await waitFor(() => running.pid !== undefined)
+      writeFileSync(
+        path.join(root, '.claude', 'dev-caddy.json'),
+        JSON.stringify({ pid: running.pid, config: file })
+      )
+      const res = await syncCaddy(root, { dev: 0 }, 'example.test', 18193)
+      assert.equal(res.hostnames, true)
+    } finally {
+      process.kill(-running.pid, 'SIGKILL')
+    }
+  })
+})
+
+test('syncCaddy reports no live hostnames when the reload fails', async () => {
+  await withFakeCaddy(async ({ bin, root }) => {
+    // Same fake, but `reload` exits non-zero.
+    writeFileSync(
+      path.join(bin, 'caddy'),
+      '#!/bin/sh\nif [ "$1" = run ]; then sleep 30; exit 0; fi\necho "reload refused" >&2; exit 1\n',
+      { mode: 0o755 }
+    )
+    const file = path.join(root, '.claude', 'Caddyfile')
+    const running = spawn(path.join(bin, 'caddy'), ['run', '--config', file], {
+      stdio: 'ignore',
+      detached: true
+    })
+    try {
+      await waitFor(() => running.pid !== undefined)
+      writeFileSync(
+        path.join(root, '.claude', 'dev-caddy.json'),
+        JSON.stringify({ pid: running.pid, config: file })
+      )
+      const res = await syncCaddy(root, { dev: 0 }, 'example.test', 18194)
+      assert.equal(res.hostnames, false)
     } finally {
       process.kill(-running.pid, 'SIGKILL')
     }

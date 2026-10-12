@@ -19,6 +19,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { stripJsonComments } from './turbo-api-deps.test.mjs'
+import { CODE, owningDir, scanReads } from './cross-package-reads.mjs'
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -94,69 +95,9 @@ test('covers', () => {
   assert.ok(!covers(['$TURBO_DEFAULT$'], 'apps/admin', 'blocks'))
 })
 
-const CODE = /\.(m?[jt]sx?|astro)$/
-
-/** Which of a package's tasks load `file` (package-relative). A test file is loaded by #test.
- *  Anything else — src/, integrations/, the vite/vitest/astro config — is loaded by #test and
- *  #build (configs and source are what those run) and is in #lint's program (`eslint .`). */
-function tasksLoading(file, scripts) {
-  const has = (t) => Boolean(scripts[t])
-  const isTest =
-    /^(test|test-browser)\//.test(file) || /\.test\.[jt]sx?$/.test(file)
-  const tasks = isTest ? ['test'] : ['test', 'build', 'lint']
-  return tasks.filter(has)
-}
-
-/** Relative path literals in `src` that leave `pkgDir`. Resolved against the file's directory,
- *  kept only if they name something that exists (a string that merely LOOKS like a path — e.g.
- *  an expected-output fixture in generate-markdoc.test.ts — resolves to nothing and is ignored).
- *  A literal that resolves to the repo root itself (`const repoRoot = …'../../..'…`) names no
- *  input on its own; the root-relative segments joined onto that binding later in the file —
- *  `join(repoRoot, 'content')`, `${repoRoot}/blocks` — are what get read, so those are followed.
- *  A root literal with no such binding (vite's `server.fs.allow: ['../..']`) is a permission,
- *  not a read, and is dropped. */
-function externalRefs(pkgDir, fileRel, src) {
-  const out = []
-  const fileDir = path.posix.dirname(path.posix.join(pkgDir, fileRel))
-  const keep = (resolved) => {
-    if (resolved === pkgDir || resolved.startsWith(pkgDir + '/')) return
-    if (resolved.startsWith('..') || resolved.includes('node_modules')) return
-    const star = resolved.indexOf('*')
-    const probe = star === -1 ? resolved : resolved.slice(0, star)
-    if (!existsSync(path.join(repoRoot, probe))) return
-    out.push(resolved.replace(/\/$/, ''))
-  }
-  for (const m of src.matchAll(
-    /['"`]((?:\.\.\/)+[^'"`\s$]*|(?:\.\.\/)+\.\.)['"`]/g
-  )) {
-    const resolved = path.posix
-      .normalize(path.posix.join(fileDir, m[1]))
-      .replace(/(.)\/$/, '$1')
-    if (resolved !== '.' && resolved !== './') {
-      keep(resolved)
-      continue
-    }
-    const lineStart = src.lastIndexOf('\n', m.index) + 1
-    const binding = /(?:const|let)\s+(\w+)\s*=/.exec(
-      src.slice(lineStart, m.index)
-    )?.[1]
-    if (!binding) continue
-    const uses = [
-      ...src.matchAll(
-        new RegExp(`(?:join|resolve)\\(\\s*${binding},\\s*'([^']+)'`, 'g')
-      ),
-      ...src.matchAll(new RegExp(`\\$\\{${binding}\\}/([\\w./-]+)`, 'g'))
-    ]
-    for (const u of uses) keep(path.posix.normalize(u[1]))
-  }
-  return out
-}
-
 /** The workspace package (dir + name) a repo-relative path sits in, if any. */
 function owningPackage(target) {
-  const dir = PACKAGE_DIRS.find(
-    (d) => target === d || target.startsWith(d + '/')
-  )
+  const dir = owningDir(PACKAGE_DIRS, target)
   return dir ? { dir, name: readJson(`${dir}/package.json`).name } : undefined
 }
 
@@ -172,21 +113,9 @@ function coveredByEdge(pkg, task, target) {
   return dependsOn.includes(`^${task}`) && owner.name in deps
 }
 
-const findings = []
-for (const pkgDir of PACKAGE_DIRS) {
-  const pkg = readJson(`${pkgDir}/package.json`)
-  const scripts = pkg.scripts ?? {}
-  for (const f of tracked) {
-    if (!f.startsWith(pkgDir + '/') || !CODE.test(f)) continue
-    const fileRel = f.slice(pkgDir.length + 1)
-    const src = readFileSync(path.join(repoRoot, f), 'utf8')
-    for (const target of externalRefs(pkgDir, fileRel, src)) {
-      for (const task of tasksLoading(fileRel, scripts)) {
-        findings.push({ pkgDir, pkg, pkgName: pkg.name, file: f, target, task })
-      }
-    }
-  }
-}
+// The scan itself lives in cross-package-reads.mjs, shared with ci.yml's affected-scope guard
+// (#1206) so the two cannot disagree about which reads exist.
+const { findings } = scanReads(repoRoot)
 
 test('the scan finds the known out-of-package reads (it is not vacuous)', () => {
   // If a refactor makes the scanner miss these, the test below would pass on nothing.

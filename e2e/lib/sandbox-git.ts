@@ -114,3 +114,16 @@ export function sandboxStatusPorcelain(
     { cwd: sandboxDir, encoding: 'utf8' }
   ).trim()
 }
+
+/** ALL commit subjects that ever touched one repo-relative path, newest first — the
+ *  path-generic sibling of `sandboxSubjectsFor`, for repo-ROOT files (`settings.json`,
+ *  `theme-options.json`) no entry triple can name. Same #551 rationale: path-scoped, never
+ *  HEAD, so a parallel worker's commit elsewhere cannot race it. Lets a refused-write spec
+ *  assert nothing reached HISTORY, alongside `sandboxRepoFile`'s working-tree check (#1201). */
+export function sandboxSubjectsForPath(repoPath: string): string[] {
+  const out = execSync(`git log --format=%s -- '${repoPath}'`, {
+    cwd: sandboxDir,
+    encoding: 'utf8'
+  }).trim()
+  return out === '' ? [] : out.split('\n')
+}

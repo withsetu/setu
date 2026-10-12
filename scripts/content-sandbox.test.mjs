@@ -18,6 +18,7 @@ import {
   assertContained,
   cloneSandbox,
   resetSandbox,
+  rootForSandbox,
   SANDBOX_ROOT,
   sandboxPath,
   seedSandbox
@@ -382,4 +383,52 @@ test('every recursive remove in content-sandbox.mjs goes through the retrying he
     'rmSync is called exactly once — inside removeTree, which passes maxRetries'
   )
   assert.match(src, /maxRetries:\s*\d+/)
+})
+// --- which checkout a sandbox name lives in (#1200) ---------------------------------------------
+
+test('the lane sandbox (dev) resolves to the MAIN checkout, from any worktree', () => {
+  const lane = () => ({
+    dir: '/main/.content-sandbox/dev',
+    owned: true,
+    mainRoot: '/main'
+  })
+  assert.equal(
+    rootForSandbox('dev', '/main/.claude/worktrees/x', {
+      laneSandboxFor: lane
+    }),
+    '/main',
+    'resetting a worktree-local dev sandbox resets something no lane reads'
+  )
+})
+
+test('an operator-pointed lane sandbox is never reset or seeded by name', () => {
+  const lane = () => ({ dir: '/data/site', owned: false, mainRoot: '/main' })
+  assert.throws(
+    () => rootForSandbox('dev', '/main', { laneSandboxFor: lane }),
+    /SETU_REPO_DIR[\s\S]*\/data\/site/
+  )
+})
+
+test('every other sandbox name stays rooted where the command runs (e2e, staging)', () => {
+  const lane = () => {
+    throw new Error('must not be consulted')
+  }
+  assert.equal(rootForSandbox('e2e', '/wt', { laneSandboxFor: lane }), '/wt')
+})
+
+test('clone can read the shared lane sandbox while writing into another checkout', () => {
+  const main = makeRoot()
+  const wt = makeRoot()
+  try {
+    seedSandbox(main, 'dev')
+    cloneSandbox(wt, 'dev', 'mine', { fromRoot: main })
+    assert.ok(existsSync(path.join(sandboxPath(wt, 'mine'), '.git')))
+    assert.ok(
+      !existsSync(sandboxPath(wt, 'dev')),
+      'the source is the main checkout one'
+    )
+  } finally {
+    rmSync(main, { recursive: true, force: true })
+    rmSync(wt, { recursive: true, force: true })
+  }
 })

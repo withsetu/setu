@@ -6,11 +6,11 @@
 // runs `pnpm auth:login-link` instead of restarting the api and grepping its logs.
 //
 // Where `dir` is depends on how the api was started (server.ts: `SETU_REPO_DIR ?? cwd`), so the
-// lookup order here mirrors the ways this repo actually runs it — verified against the root
-// package.json `dev` script, which starts the api with `SETU_REPO_DIR=$PWD/.content-sandbox/dev`:
+// lookup order here mirrors the ways this repo actually runs it:
 //   1. $SETU_REPO_DIR                — an explicitly pointed-at instance (env var first)
-//   2. <root>/.content-sandbox/dev  — the `pnpm dev` sandbox default, so a plain
-//                                      `pnpm auth:login-link` matches the running dev api
+//   2. the `pnpm dev` lane sandbox   — resolved by scripts/lane-sandbox.mjs, the same rule the
+//                                      launcher uses: `<main>/.content-sandbox/dev` from ANY
+//                                      worktree (#1053, #1200), or the main `.env`'s SETU_REPO_DIR
 //   3. <root>                        — a bare api run from the content repo itself (cwd fallback)
 //
 // Kept dependency-free (node builtins only), same pattern as content-sandbox.mjs.
@@ -24,16 +24,21 @@ import { platform } from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-import { sandboxPath } from './content-sandbox.mjs'
+import { laneSandboxFor as defaultLaneSandboxFor } from './lane-sandbox.mjs'
 
 /** Resolve and read the current handshake URL for the api rooted at/under `rootDir`.
  *  Returns `{ url, file }` (url trimmed, file = the path it came from); throws with a
  *  topology-honest, actionable message when no non-empty handshake file exists anywhere
- *  in the lookup order above. `env` is injectable for tests. */
-export function readLoginLink(rootDir, env = process.env) {
+ *  in the lookup order above. `env` and the lane-sandbox resolver are injectable for tests. */
+export function readLoginLink(
+  rootDir,
+  env = process.env,
+  { laneSandboxFor = defaultLaneSandboxFor } = {}
+) {
+  const lane = laneSandboxFor(rootDir).dir
   const candidates = env.SETU_REPO_DIR
-    ? [env.SETU_REPO_DIR, sandboxPath(rootDir), rootDir]
-    : [sandboxPath(rootDir), rootDir]
+    ? [env.SETU_REPO_DIR, lane, rootDir]
+    : [lane, rootDir]
   const checked = []
   for (const dir of [...new Set(candidates)]) {
     const file = path.join(dir, '.setu', 'handshake-url')

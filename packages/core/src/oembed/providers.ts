@@ -37,6 +37,12 @@ export interface OembedProvider {
    *  `video.wordpress.com` does not admit the rest of wordpress.com. Each entry was taken from
    *  a live oEmbed response (evidence in the #1246 PR). */
   playerHosts?: string[]
+  /** FIXED query parameters the provider's endpoint requires on every request, beyond `url` and
+   *  `format` — literals from this registry, never derived from user input or site config, so
+   *  they cannot widen what is contacted (the host stays `endpoint`'s). `url` and `format` are
+   *  set after these and so always win; enforced by packages/core/test/oembed/providers.test.ts
+   *  ('a fixed endpoint param can never replace the user url or the format'). */
+  endpointParams?: Readonly<Record<string, string>>
 }
 
 export const OEMBED_PROVIDERS: OembedProvider[] = [
@@ -96,6 +102,11 @@ export const OEMBED_PROVIDERS: OembedProvider[] = [
     type: 'video',
     domains: ['videopress.com'],
     endpoint: 'https://public-api.wordpress.com/oembed/',
+    // #1260: this endpoint answers 501 without `for`, documented as "the requesting domain or
+    // domain or company name" (https://developer.wordpress.com/docs/guides/oembed-provider-api/).
+    // A fixed product name, not the site's host: identifies the client without disclosing which
+    // site (or private admin origin) is asking, and needs no per-deployment config.
+    endpointParams: { for: 'setu' },
     playerHosts: ['video.wordpress.com']
   },
   {
@@ -361,9 +372,12 @@ export function matchPlayerProvider(input: string): OembedProvider | null {
 }
 
 /** Build the fixed oEmbed request URL for a matched provider. The host is always the provider's
- *  own endpoint host — the user's URL only ever travels as the `url` query param. */
+ *  own endpoint host — the user's URL only ever travels as the `url` query param. The provider's
+ *  fixed `endpointParams` go first so `url`/`format` (set after) always win. */
 export function oembedEndpoint(provider: OembedProvider, url: string): string {
   const ep = new URL(provider.endpoint)
+  for (const [k, v] of Object.entries(provider.endpointParams ?? {}))
+    ep.searchParams.set(k, v)
   ep.searchParams.set('url', url)
   ep.searchParams.set('format', 'json')
   return ep.href

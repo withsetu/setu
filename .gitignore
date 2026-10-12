@@ -56,6 +56,8 @@ e2e/.auth/
 
 # vitest browser-mode failure screenshots (#293 — apps/admin/test-browser/**)
 apps/admin/test-browser/__screenshots__/
+# vitest 5 writes failure screenshots and attachments to <project>/.vitest/ (#1230)
+.vitest/
 
 # curl/httpie cookie jars from manual API poking. Session tokens must never be
 # committed — env only (#650). The three that had been tracked were untracked in

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { MediaDropzone } from '../src/media/MediaDropzone'
+import { MediaDropzone, filesFromEvent } from '../src/media/MediaDropzone'
 import type { UploadResult } from '../src/media/upload-client'
 
 const result: UploadResult = {
@@ -116,5 +116,37 @@ describe('MediaDropzone', () => {
     })
     await waitFor(() => expect(onUploaded).toHaveBeenCalled())
     expect(onError).not.toHaveBeenCalled()
+  })
+
+  // #1232: react-dropzone 19.2+ handles paste by default and preventDefault()s any paste that
+  // carries files. filesFromEvent doesn't read clipboardData, so that paste would resolve to no
+  // files: swallowed, nothing uploaded, nothing said. Paste-to-upload is #1234; until then the
+  // dropzone must leave pastes alone.
+  it('leaves a paste carrying files untouched and uploads nothing (#1232)', async () => {
+    const upload = vi.fn(async () => result)
+    render(
+      <MediaDropzone apiBase="http://x" onUploaded={vi.fn()} upload={upload} />
+    )
+    const zone = screen.getByTestId('media-dropzone-input')
+      .parentElement as HTMLElement
+    const file = new File([new Uint8Array([1])], 'shot.png', {
+      type: 'image/png'
+    })
+    const notCancelled = fireEvent.paste(zone, {
+      clipboardData: {
+        files: [file],
+        items: [{ kind: 'file', type: 'image/png', getAsFile: () => file }],
+        types: ['Files']
+      }
+    })
+    expect(notCancelled).toBe(true)
+    await new Promise((r) => setTimeout(r, 20))
+    expect(upload).not.toHaveBeenCalled()
+  })
+
+  it('treats a FileSystemFileHandle list as a hard error, never an empty drop (#1232)', () => {
+    // Only reachable with useFsAccessApi, which MediaDropzone sets false: the handle API is the
+    // getFile() NotAllowedError path filesFromEvent exists to avoid.
+    expect(() => filesFromEvent([])).toThrow(/useFsAccessApi/)
   })
 })

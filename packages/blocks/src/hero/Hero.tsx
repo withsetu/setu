@@ -15,6 +15,11 @@ export interface HeroProps {
   overlayColor?: string
   textColor?: string
   width?: string
+  /** Intended for the editor canvas only (#1252): text shown in the headline slot when
+   *  the headline is blank, as a muted, italic non-heading so it never reads as content
+   *  (Hero.astro renders nothing there). Pinned by packages/blocks/test/hero-core.test.tsx
+   *  and apps/admin/test-browser/node-views.test.tsx. */
+  headlinePlaceholder?: string
 }
 
 /** The hero visual core. Rendered read-only in the editor canvas (props from the node's
@@ -33,7 +38,8 @@ export function Hero({
   textAlign,
   overlayColor,
   textColor,
-  width
+  width,
+  headlinePlaceholder
 }: HeroProps) {
   // Mirror Hero.astro's #857 color validation and #862 a11y handling so the canvas and
   // the site never disagree. isSafeColor drops an injection payload; the empty <h2> and
@@ -57,7 +63,13 @@ export function Hero({
         </div>
       ) : null}
       <div className="blk-hero-text">
-        {hasHeadline ? <h2 className="blk-hero-headline">{headline}</h2> : null}
+        {hasHeadline ? (
+          <h2 className="blk-hero-headline">{headline}</h2>
+        ) : headlinePlaceholder ? (
+          <p className="blk-hero-headline blk-hero-headline-placeholder">
+            {headlinePlaceholder}
+          </p>
+        ) : null}
         {subhead ? <p className="blk-hero-subhead">{subhead}</p> : null}
         {ctaLabel ? <span className="blk-hero-cta">{ctaLabel}</span> : null}
       </div>

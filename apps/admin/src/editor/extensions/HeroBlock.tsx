@@ -4,14 +4,18 @@ import { resolveMediaSrc } from '../media-src'
 import { attrString, attrStringOrUndefined } from '../attr-string'
 import { createAtomBlock, atomCoreView } from './atom-block'
 
+/** What the canvas shows in the headline slot while the headline is blank. */
+export const HEADLINE_PLACEHOLDER = 'Add a headline in the block panel'
+
 /** Map the hero node's raw mdAttrs onto Hero's props for the read-only canvas view:
  *  `image` is a `/media/…` src resolved against the canvas media origin; every other
- *  field is passed through, with the headline falling back to a visible placeholder so
- *  a fresh hero never renders an empty heading. */
+ *  field is passed through. A blank headline shows a muted, italic placeholder (#1252) —
+ *  not a heading, since the published hero renders none. */
 function heroProps(md: Record<string, unknown>, apiBase: string): HeroProps {
   const imageAttr = attrStringOrUndefined(md['image'])
   return {
-    headline: attrString(md['headline'], 'Hero headline'),
+    headline: attrString(md['headline']),
+    headlinePlaceholder: HEADLINE_PLACEHOLDER,
     subhead: attrStringOrUndefined(md['subhead']),
     image: imageAttr
       ? resolveMediaSrc(imageAttr, apiBase || undefined)

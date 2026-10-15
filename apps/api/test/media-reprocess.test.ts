@@ -1,8 +1,13 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { Actor, MediaManifest, MediaSettings } from '@setu/core'
+import type {
+  Actor,
+  MediaManifest,
+  MediaSettings,
+  StoragePort
+} from '@setu/core'
 import { manifestKey } from '@setu/core'
 import { createLocalStorage } from '@setu/storage-local'
 import { createSharpImageAdapter } from '@setu/image-sharp'
@@ -315,5 +320,97 @@ describe('POST /api/media/reprocess', () => {
     expect(st.status).toBe('done')
     expect(st.total).toBe(1)
     expect(st.processed).toBe(0)
+  })
+})
+
+describe('POST /api/media/reprocess — single-flight under concurrency (#1276)', () => {
+  /** A real local storage whose `list()` — the await inside the route, before the job exists —
+   *  is held open on a deferred the test releases, so both requests are provably inside that
+   *  window together. `failNext` makes the next held list() reject instead. */
+  function harness() {
+    const dir = mkdtempSync(join(tmpdir(), 'reprocess-sf-'))
+    dirs.push(dir)
+    const base = createLocalStorage({
+      dir,
+      baseUrl: 'http://localhost:4444/media'
+    })
+    const pending: Array<{ go: () => void; fail: () => void }> = []
+    const storage: StoragePort = {
+      ...base,
+      list: (...args: Parameters<StoragePort['list']>) =>
+        new Promise((resolve, reject) => {
+          pending.push({
+            go: () => resolve(base.list(...args)),
+            fail: () => reject(new Error('storage list failed'))
+          })
+        })
+    }
+    const store = createSqliteReprocessJobStore(':memory:')
+    const create = vi.spyOn(store, 'create')
+    // The runner is a no-op: the job stays `running`, which is the window under test.
+    const run = vi.fn()
+    const app = createUploadApi({
+      storage,
+      resolveActor: () => owner,
+      image: createSharpImageAdapter(),
+      mediaSettings: { imageFormat: 'webp', imageLqip: false },
+      reprocess: { store, run }
+    })
+    const post = () =>
+      Promise.resolve(
+        app.fetch(
+          new Request('http://test/api/media/reprocess', { method: 'POST' })
+        )
+      )
+    /** Let queued microtasks/handlers reach their await before releasing. */
+    const settle = async () => {
+      for (let i = 0; i < 20; i++) await Promise.resolve()
+    }
+    return { post, pending, create, run, settle }
+  }
+
+  it('two concurrent requests create exactly one job; both get 202 with its id', async () => {
+    const h = harness()
+    const first = h.post()
+    const second = h.post()
+    await h.settle()
+    // Only the claimant may list the library — the second request never starts a scan.
+    expect(h.pending).toHaveLength(1)
+    h.pending[0]!.go()
+    const [a, b] = await Promise.all([first, second])
+    expect(a.status).toBe(202)
+    expect(b.status).toBe(202)
+    const ja = (await a.json()) as { jobId: string; status: string }
+    const jb = (await b.json()) as { jobId: string; status: string }
+    expect(jb.jobId).toBe(ja.jobId)
+    expect(jb.status).toBe('running')
+    expect(h.create).toHaveBeenCalledTimes(1)
+    expect(h.run).toHaveBeenCalledTimes(1)
+  })
+
+  it('a failed library scan releases the claim: a waiting request starts its own job', async () => {
+    const h = harness()
+    const first = h.post()
+    const second = h.post()
+    await h.settle()
+    expect(h.pending).toHaveLength(1)
+    h.pending[0]!.fail()
+    const a = await first
+    expect(a.status).toBe(500)
+    expect(h.create).not.toHaveBeenCalled()
+    // The waiter retried on its own and is now the claimant.
+    await h.settle()
+    expect(h.pending).toHaveLength(2)
+    h.pending[1]!.go()
+    const b = await second
+    expect(b.status).toBe(202)
+    expect(h.create).toHaveBeenCalledTimes(1)
+    // And a later request sees the running job rather than starting another.
+    const c = await h.post()
+    expect(c.status).toBe(202)
+    expect(((await c.json()) as { jobId: string }).jobId).toBe(
+      ((await b.json()) as { jobId: string }).jobId
+    )
+    expect(h.create).toHaveBeenCalledTimes(1)
   })
 })

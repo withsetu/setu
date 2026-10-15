@@ -15,7 +15,10 @@ export interface ReprocessJob {
 export interface ReprocessJobStore {
   create(keys: string[], now: number): ReprocessJob // status 'running', cursor/processed 0
   get(id: string): ReprocessJob | null
-  active(): ReprocessJob | null // the single 'running' job, if any
+  /** The single 'running' job, if any. The store does not enforce single-flight — the
+   *  reprocess route does, claiming the slot before its first await; pinned by
+   *  apps/api/test/media-reprocess.test.ts ("single-flight under concurrency"). */
+  active(): ReprocessJob | null
   latest(): ReprocessJob | null // most-recent job by startedAt (for status)
   saveProgress(id: string, processed: number, cursor: number, now: number): void
   finish(

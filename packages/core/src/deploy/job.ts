@@ -27,7 +27,9 @@ export interface DeployJob {
 export interface DeployJobStore {
   create(sha: string, mode: DeployMode, now: number): DeployJob
   get(id: string): DeployJob | null
-  /** The single running job, if any (single-flight is enforced by the API). */
+  /** The single running job, if any. The store does not enforce single-flight — the rebuild
+   *  route does, claiming the slot before its first await; pinned by
+   *  apps/api/test/deploy.test.ts ("two concurrent rebuilds start exactly one job"). */
   active(): DeployJob | null
   /** Most recent job by startedAt, any status (for status display). */
   latest(): DeployJob | null

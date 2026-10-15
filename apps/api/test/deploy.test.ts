@@ -31,19 +31,24 @@ function harness(opts?: {
   state?: DeployState | null
   build?: () => Promise<void>
   buildBlocked?: () => string | null
+  /** Replace the HEAD lookup outright — lets a test hold it open on a deferred (#1276). */
+  headSha?: () => Promise<string>
 }) {
   let state: DeployState | null = opts?.state ?? null
   const build = vi.fn(opts?.build ?? (async () => {}))
+  const jobs = createSqliteDeployJobStore(':memory:')
+  const create = vi.spyOn(jobs, 'create')
   const app = createDeployApi({
     resolveActor: opts?.resolveActor ?? asRole('admin'),
     siteDir: opts?.siteDir === undefined ? '/site' : opts.siteDir,
     buildBlocked: opts?.buildBlocked,
-    jobs: createSqliteDeployJobStore(':memory:'),
+    jobs,
     readState: () => state,
     writeState: (s) => {
       state = s
     },
     headSha: async () => {
+      if (opts?.headSha) return opts.headSha()
       if (opts?.headFails)
         throw new Error("fatal: ambiguous argument 'HEAD': unknown revision")
       return opts?.head ?? 'head-sha'
@@ -63,6 +68,7 @@ function harness(opts?: {
   return {
     app,
     build,
+    create,
     getState: () => state,
     status: async () => {
       const r = await Promise.resolve(
@@ -325,6 +331,46 @@ describe('deploy api — rebuild (#209)', () => {
     expect((await h.rebuild()).code).toBe(202)
     expect((await h.rebuild()).code).toBe(409)
     resolveBuild()
+  })
+
+  it('two concurrent rebuilds start exactly one job; the other gets the busy 409 (#1276)', async () => {
+    // HEAD is held open on a deferred so both requests are provably inside the await window
+    // together — the interleaving is forced, not timing-dependent.
+    let releaseHead!: (sha: string) => void
+    const head = new Promise<string>((r) => (releaseHead = r))
+    let resolveBuild!: () => void
+    const gate = new Promise<void>((r) => (resolveBuild = r))
+    const h = harness({ headSha: () => head, build: () => gate })
+    const first = h.rebuild()
+    const second = h.rebuild()
+    releaseHead('head-sha')
+    const codes = (await Promise.all([first, second])).map((r) => r.code)
+    expect(codes.sort()).toEqual([202, 409])
+    const busy = (await Promise.all([first, second])).find(
+      (r) => r.code === 409
+    )
+    expect(busy?.body.error).toBe('A build is already running.')
+    expect(h.create).toHaveBeenCalledTimes(1)
+    expect(h.build).toHaveBeenCalledTimes(1)
+    resolveBuild()
+  })
+
+  it('a failed HEAD lookup releases the single-flight claim, so the next rebuild runs (#1276)', async () => {
+    let calls = 0
+    const h = harness({
+      headSha: async () => {
+        calls += 1
+        if (calls === 1)
+          throw new Error("fatal: ambiguous argument 'HEAD': unknown revision")
+        return 'head-sha'
+      }
+    })
+    const failed = await h.rebuild()
+    expect(failed.code).toBe(409)
+    expect(failed.body.error).not.toBe('A build is already running.')
+    expect(h.create).not.toHaveBeenCalled()
+    expect((await h.rebuild()).code).toBe(202)
+    expect(h.create).toHaveBeenCalledTimes(1)
   })
 
   it('409 with an honest message when the topology cannot build (no site dir)', async () => {

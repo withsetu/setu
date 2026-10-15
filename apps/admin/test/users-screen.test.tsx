@@ -1133,6 +1133,42 @@ describe('UsersScreen', () => {
       expect(screen.queryByText(/password reset email sent to/i)).toBeNull()
     })
 
+    // #1275: the route now rate-limits sends per actor and per target (429 `rate_limited`). The
+    // generic "Could not send" would hide that waiting is the whole repair.
+    it('says to wait — not that sending failed — when the server rate-limited the reset', async () => {
+      mockListUsers.mockResolvedValue({
+        data: { users: [OWNER, EDITOR], total: 2 },
+        error: null
+      })
+      mockListAccounts.mockResolvedValue({
+        data: [{ id: 'a1', providerId: 'credential' }],
+        error: null
+      })
+      stubCredentialStatus(
+        { 'owner-1': true, 'editor-1': true },
+        { transport: 'smtp', deliverable: true },
+        { status: 429, error: 'rate_limited' }
+      )
+
+      renderAsActor('admin', 'owner-1')
+      await screen.findByText('Eve Editor')
+
+      fireEvent.keyDown(
+        screen.getByRole('button', { name: /more actions for eve editor/i }),
+        { key: 'Enter' }
+      )
+      fireEvent.click(
+        await screen.findByRole('menuitem', {
+          name: /send password reset email/i
+        })
+      )
+
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent(/no reset email was sent/i)
+      expect(alert).toHaveTextContent(/wait a minute/i)
+      expect(screen.queryByText(/password reset email sent to/i)).toBeNull()
+    })
+
     it('renders the reset item disabled with the honest capability tooltip when email is not deliverable', async () => {
       mockListUsers.mockResolvedValue({
         data: { users: [OWNER, EDITOR], total: 2 },

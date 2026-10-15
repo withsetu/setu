@@ -2,6 +2,7 @@ import Markdoc from '@markdoc/markdoc'
 import type { TiptapDoc, TiptapMark, TiptapNode } from './types'
 import { tableToGfm } from './table-gfm'
 import { ATOM_NODE_TO_TAG } from './atom-blocks'
+import { needsPlainSpelling, plainDecimal } from './plain-number'
 import {
   codeSpan,
   decodeProtected,
@@ -416,11 +417,56 @@ function buildBlock(
   }
 }
 
+/** #1252: Markdoc.format wraps a block tag opening wider than 80 columns across
+ *  lines (`MAX_TAG_OPENING_WIDTH`, @markdoc/markdoc src/formatter.ts). Authors write
+ *  tag openings on one line, so the default would rewrite tags nobody edited on the
+ *  first save. Every Markdoc.format call that can emit a block tag passes this.
+ *  Enforced by `packages/core/test/single-line-tag-roundtrip.test.ts`. */
+const ONE_LINE_TAGS = { maxTagOpeningWidth: Number.POSITIVE_INFINITY } as const
+
+/** Stand-in for a re-spelled number while `Markdoc.format` runs. A control character is
+ *  intended to be a value no real attribute string carries (`JSON.stringify` escapes it,
+ *  so the slot is matched in its escaped form); an unmatched slot index is left as-is. */
+const NUM_MARK = '\u0001'
+const NUM_SLOT = /"\\u0001(\d+)\\u0001"/g
+
+/** #1252: `Markdoc.format` for anything that can emit a block tag. It keeps tag openings
+ *  on one line ({@link ONE_LINE_TAGS}) and spells every attribute number in plain
+ *  decimal (see ./plain-number — `1e+21` is unparseable Markdoc). Numbers are swapped
+ *  for string slots on a COPY of each node's attributes (the editor's own `mdAttrs`
+ *  objects are never mutated), then the quoted slots are replaced with the digits.
+ *  Enforced by `packages/core/test/exponent-number-roundtrip.test.ts` and
+ *  `packages/core/test/single-line-tag-roundtrip.test.ts`. */
+function formatTagTree(doc: InstanceType<typeof N>): string {
+  const spelled: string[] = []
+  const swap = (v: unknown): unknown => {
+    if (typeof v === 'number') {
+      if (!needsPlainSpelling(v)) return v
+      spelled.push(plainDecimal(v))
+      return `${NUM_MARK}${spelled.length - 1}${NUM_MARK}`
+    }
+    if (Array.isArray(v)) return v.map(swap)
+    if (v !== null && typeof v === 'object' && !Markdoc.Ast.isAst(v))
+      return Object.fromEntries(
+        Object.entries(v).map(([k, inner]) => [k, swap(inner)])
+      )
+    return v
+  }
+  const walk = (n: InstanceType<typeof N>): void => {
+    n.attributes = swap(n.attributes) as Record<string, unknown>
+    n.children.forEach(walk)
+  }
+  walk(doc)
+  const out = Markdoc.format(doc, ONE_LINE_TAGS)
+  if (spelled.length === 0) return out
+  return out.replace(NUM_SLOT, (slot, i: string) => spelled[Number(i)] ?? slot)
+}
+
 const formatNative = (
   node: TiptapNode,
   position: BlockPosition = 'block-start'
 ): string =>
-  Markdoc.format(new N('document', {}, [buildBlock(node, position)])).replace(
+  formatTagTree(new N('document', {}, [buildBlock(node, position)])).replace(
     /\n+$/,
     ''
   )
@@ -450,9 +496,7 @@ function imageBlockToMarkdoc(node: TiptapNode): string {
   // Markdoc.format wraps a tag opening wider than 80 chars across lines. The
   // hand-rolled serializer never did, and image `src` paths routinely exceed it, so
   // keep it on one line or every existing {% image %} would be rewritten.
-  return selfClosingTagFor('image', ordered, {
-    maxTagOpeningWidth: Number.POSITIVE_INFINITY
-  })
+  return selfClosingTagFor('image', ordered)
 }
 
 /** The set of body-bearing tag node types serialized at the STRING level (open tag +
@@ -483,21 +527,15 @@ const TAG_NODE_TYPES: Record<string, (node: TiptapNode) => string> = {
  *  whole subtrees went through it (round-trip stability for existing content). */
 function selfClosingTagFor(
   tag: string,
-  mdAttrs: Record<string, unknown>,
-  opts?: { maxTagOpeningWidth?: number }
+  mdAttrs: Record<string, unknown>
 ): string {
-  return Markdoc.format(
-    new N('document', {}, [new N('tag', mdAttrs, [], tag)]),
-    opts
+  return formatTagTree(
+    new N('document', {}, [new N('tag', mdAttrs, [], tag)])
   ).replace(/\n+$/, '')
 }
 
-function openTagFor(
-  tag: string,
-  mdAttrs: Record<string, unknown>,
-  opts?: { maxTagOpeningWidth?: number }
-): string {
-  return selfClosingTagFor(tag, mdAttrs, opts).replace(/ \/%\}$/, ' %}')
+function openTagFor(tag: string, mdAttrs: Record<string, unknown>): string {
+  return selfClosingTagFor(tag, mdAttrs).replace(/ \/%\}$/, ' %}')
 }
 
 /** #967. The ONE-LINE spelling `{% tag %}body{% /tag %}`, or null when this node cannot
@@ -528,9 +566,7 @@ function inlineBodyForm(
   // 'after-inline-marker' is the position that already means "this text is emitted after
   // something else on the same line", so no leading `#`/`-`/`>` is a block marker here.
   const body = only ? serializeBlock(only, 'after-inline-marker') : ''
-  const line = `${openTagFor(tag, mdAttrs, {
-    maxTagOpeningWidth: Number.POSITIVE_INFINITY
-  })}${body}{% /${tag} %}`
+  const line = `${openTagFor(tag, mdAttrs)}${body}{% /${tag} %}`
   return line.includes('\n') ? null : line
 }
 

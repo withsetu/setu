@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { readdirSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { readdirSync, readFileSync } from 'node:fs'
+import { relative, resolve } from 'node:path'
 import { markdocToTiptap } from '../src/markdoc/to-tiptap'
 import { tiptapToMarkdoc } from '../src/markdoc/to-markdoc'
 import { STANDARD_BLOCKS } from '../src/blocks/standard'
+import { parseMdoc } from '../src/markdoc/frontmatter'
 
 /**
  * #967 — a body-bearing Markdoc tag written on ONE line
@@ -248,4 +249,73 @@ describe('shapes the single-line handling must NOT disturb', () => {
     expect(doc.content[0]!.type).toBe('heroBlock')
     expect(roundTrip(src)).toBe(src)
   })
+})
+
+describe('a tag opening wider than 80 columns stays on one line (#1252)', () => {
+  // Markdoc.format wraps a block tag opening once it passes 80 columns
+  // (`MAX_TAG_OPENING_WIDTH` in @markdoc/markdoc src/formatter.ts). Authors write these
+  // on one line, so the first save would rewrite a tag nobody touched.
+  const longAttr = 'x'.repeat(90)
+
+  it('an atom (self-closing) block tag', () => {
+    const src = `{% hero title="${longAttr}" subtitle="Also here" /%}`
+    expect(src.length).toBeGreaterThan(80)
+    const doc = markdocToTiptap(src, { knownBlockTags: known })
+    expect(doc.content[0]!.type).toBe('heroBlock')
+    expect(roundTrip(src)).toBe(src)
+  })
+
+  it('a body-bearing block tag (multi-line body)', () => {
+    const src = `{% callout type="info" title="${longAttr}" %}\nBODYTEXT\n{% /callout %}`
+    expect(src.split('\n')[0]!.length).toBeGreaterThan(80)
+    expect(roundTrip(src)).toBe(src)
+  })
+
+  it('a body-bearing tag nested inside another tag body', () => {
+    const src = `{% columns %}\n{% column %}\n{% callout type="info" title="${longAttr}" %}\nBODYTEXT\n{% /callout %}\n{% /column %}\n{% /columns %}`
+    expect(roundTrip(src)).toBe(src)
+  })
+})
+
+describe('the shipped demo pages round-trip byte-stable (#1252)', () => {
+  // Every content/ page that carries a block tag opening wider than 80 columns. The
+  // list is DERIVED (a hand list drifts) and guarded against coming back empty.
+  const contentRoot = resolve(__dirname, '../../../content')
+  const files: string[] = []
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const p = resolve(dir, entry.name)
+      if (entry.isDirectory()) walk(p)
+      else if (entry.name.endsWith('.mdoc')) files.push(p)
+    }
+  }
+  walk(contentRoot)
+  const longTag = /^\s*\{%[^\n]{77,}%\}\s*$/m
+  const withLongTags = files.filter((f) =>
+    longTag.test(parseMdoc(readFileSync(f, 'utf8')).body)
+  )
+
+  it('finds the long-tag demo pages', () => {
+    expect(withLongTags.length).toBeGreaterThanOrEqual(5)
+  })
+
+  // kitchen-sink.mdoc also carries a GFM table whose delimiter row (`:---`) and raw
+  // `<script>` cell text the table serializer normalises — churn unrelated to tag
+  // width, so that file is held to the narrower claim: its long tag lines survive.
+  const TABLE_CHURN = new Set(['post/en/kitchen-sink.mdoc'])
+
+  for (const file of withLongTags) {
+    const name = relative(contentRoot, file)
+    const body = parseMdoc(readFileSync(file, 'utf8')).body.trim()
+    it(`${name}: every long tag line survives verbatim`, () => {
+      const out = roundTrip(body).split('\n')
+      const long = body.split('\n').filter((line) => longTag.test(line))
+      expect(long.length).toBeGreaterThan(0)
+      for (const line of long) expect(out).toContain(line)
+    })
+    if (!TABLE_CHURN.has(name))
+      it(`${name}: round-trips byte-identically`, () => {
+        expect(roundTrip(body)).toBe(body)
+      })
+  }
 })

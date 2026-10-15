@@ -39,7 +39,7 @@ function isLoopbackHost(host: string): boolean {
 /** true when `path` is exactly `publicPath` or sits under it as a
  *  path-segment prefix (`/forms/submit/x` matches `/forms/submit`, but
  *  `/forms/submit-other` does not). */
-function pathIsPublic(path: string, publicPaths: string[]): boolean {
+export function pathIsPublic(path: string, publicPaths: string[]): boolean {
   return publicPaths.some((p) => path === p || path.startsWith(`${p}/`))
 }
 

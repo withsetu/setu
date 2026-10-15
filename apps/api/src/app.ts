@@ -610,7 +610,7 @@ function requireCan(action: Action) {
  *  returns repo content is gated. Zero role regression: `content.view` is in the shared `VIEW` set
  *  held by all four roles (packages/core/src/authz/default-roles.ts).
  *
- *  CORS/origin policy is owned centrally by server.ts (the allowlisted `cors()` +
+ *  CORS/origin policy is owned centrally by server.ts (auth/cors-policy.ts's `apiCors` +
  *  `originGuard`), not per-factory — a factory-local permissive `cors()` here would
  *  be clobbered onto the response after server.ts's allowlist runs, silently
  *  reopening every route to `*` origins. Tests exercise this app standalone

@@ -4,7 +4,6 @@ import { mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { Hono } from 'hono'
-import { cors } from 'hono/cors'
 import { serve } from '@hono/node-server'
 import { createLocalGitAdapter } from '@setu/git-local'
 import { createLocalStorage, resolveMediaDir } from '@setu/storage-local'
@@ -62,7 +61,8 @@ import { createDemoApi } from './demo'
 import { resolveSessionActor } from './auth/resolve-session-actor'
 import type { ResolveActor } from './auth/resolve-actor'
 import { allowedOrigins, resolveAdminOrigin } from './auth/allowed-origins'
-import { originGuard, originMatches } from './auth/origin-guard'
+import { originGuard } from './auth/origin-guard'
+import { apiCors, PUBLIC_PATHS } from './auth/cors-policy'
 import { authUnconfiguredGuard } from './auth/auth-unconfigured-guard'
 import {
   authCaptchaFromEnv,
@@ -748,19 +748,12 @@ app.onError(apiOnError())
 // the site build emits its own report-only CSP).
 app.use('*', securityHeaders())
 
-// CORS allowlist (credentialed) + Host/Origin guard (DNS-rebinding/tunnel-detection), applied
-// globally, before any route — including /api/auth/*.
+// CORS (credentialed allowlist; non-credentialed `*` for the public submit route, #1264) +
+// Host/Origin guard (DNS-rebinding/tunnel-detection), applied globally, before any route —
+// including /api/auth/*. Both policies live in auth/cors-policy.ts.
 app.use(
   '*',
-  cors({
-    origin: (origin) => {
-      if (!origin) return undefined
-      return originAllowlist.some((pattern) => originMatches(origin, pattern))
-        ? origin
-        : undefined
-    },
-    credentials: true
-  })
+  apiCors(() => originAllowlist)
 )
 // Fail-closed boot degradation (#248 Task 5): when auth couldn't be constructed, short-circuit
 // every unsafe-method request (including /api/auth/* below) with a 503 rather than let it reach a
@@ -773,16 +766,11 @@ app.use(
   '*',
   authUnconfiguredGuard(() => !authConfigured)
 )
-// publicPaths: routes that are deliberately public and read NO ambient credentials (no session
-// cookie, no auth check) — captcha is the only gate. `/forms/submit` is an embeddable public form
-// widget (#248 follow-up): it must stay reachable from any visitor origin. Anything reading a
-// session (e.g. the /forms/submissions admin CRUD routes) MUST NOT be listed here — those stay
-// behind the origin check.
+// PUBLIC_PATHS (auth/cors-policy.ts): routes that read NO ambient credentials, so the origin
+// check is skipped — an embeddable public form must stay reachable from any visitor origin.
 app.use(
   '*',
-  originGuard(() => originAllowlist, {
-    publicPaths: ['/forms/submit']
-  })
+  originGuard(() => originAllowlist, { publicPaths: PUBLIC_PATHS })
 )
 
 // authUnconfiguredGuard only 503s unsafe methods — GET is a safe method and passes through even

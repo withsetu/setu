@@ -32,7 +32,10 @@ function makeApp(onAuthEvent: (e: AuthEvent) => void) {
   })
 
   const app = new Hono()
-  mountAuthWithFailureEvents(app, auth, onAuthEvent)
+  mountAuthWithFailureEvents(app, auth, {
+    onAuthEvent,
+    clientIp: () => undefined
+  })
 
   return {
     app,

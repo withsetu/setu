@@ -470,7 +470,7 @@ const EMAIL_CAPS_UNKNOWN_REASON =
 
 /** What `POST /api/users/send-reset`'s error codes mean to an admin: the 409 refusal codes
  *  apps/api/src/reset-email-gate.ts emits, plus #1164's 502 `email_send_failed` (the transport
- *  was handed the message and threw — SMTP down, provider rejected it). One message per REASON: the server used to collapse
+ *  was handed the message and threw — SMTP down, provider rejected it), and #1275's 429 `rate_limited`. One message per REASON: the server used to collapse
  *  every refusal into a single code and this screen answered all of them with "Pick a provider",
  *  which fixes nothing when the from-address is what is empty (#944). A code with no entry here
  *  falls through to the generic 409 copy in `sendReset`, which is the honest answer for
@@ -482,7 +482,10 @@ const RESET_REFUSAL_MESSAGES: Record<string, string> = {
   email_from_address_missing:
     'No reset email was sent — this site has no from-address to send it from. Set one in Settings → Email.',
   email_send_failed:
-    "No reset email was sent — the email provider couldn't deliver it. Check Settings → Email (Send test email shows the provider's error), then try again."
+    "No reset email was sent — the email provider couldn't deliver it. Check Settings → Email (Send test email shows the provider's error), then try again.",
+  // #1275: the 429 from the route's per-actor / per-target send limits.
+  rate_limited:
+    'No reset email was sent — too many reset emails were requested just now. Wait a minute and try again.'
 }
 
 /** One row's role-change control + disable/enable/reset-password menu. Kept together since all

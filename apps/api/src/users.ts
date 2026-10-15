@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
 import { z } from 'zod'
 import { asc, eq } from 'drizzle-orm'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
@@ -12,6 +13,7 @@ import {
 import type { Actor } from '@setu/core'
 import { authMiddleware } from './auth/middleware'
 import { apiOnError } from './errors'
+import { createWindowLimiter } from './rate-limit'
 import type { ResolveActor } from './auth/resolve-actor'
 import type { ResetEmailRefusal, ResetSendOutcome } from './reset-email-gate'
 
@@ -45,7 +47,30 @@ export interface UsersApiOptions {
    *  `{ status: true }` over a message that was never sent. Omitted only where
    *  `requestPasswordReset` is too (reset unwired at boot → the route's 409 fires first). */
   resetEmailRefusal?: () => ResetEmailRefusal | null
+  /** Injectable clock for the send-reset limiter tests (#1275). */
+  now?: () => number
 }
+
+/** #1275: the body cap on `POST /api/users/send-reset`, enforced before the body is read. The only
+ *  accepted body is `{ userId }` with a ≤256-char id (`sendResetBody`), so 4 KiB is ample headroom
+ *  for a legitimate client. Pinned by apps/api/test/users-send-reset.test.ts ("413s an oversized
+ *  body", "413s an oversized STREAMED body"). */
+export const SEND_RESET_MAX_BODY_BYTES = 4 * 1024
+
+/** #1275: send-reset bounds. The route calls better-auth SERVER-SIDE, which never passes through
+ *  better-auth's HTTP rate limiter, and each successful call sends a real email — so it carries its
+ *  own. Two keys, both drawn from server-side sets (a session's actor id; a target id that has
+ *  already been looked up in the user table), so neither needs `maxKeys`:
+ *   - per TARGET: 3 per minute, the same budget better-auth gives its own public
+ *     `/request-password-reset` (getDefaultSpecialRules in better-auth 1.7.7
+ *     dist/api/rate-limiter/index.mjs) — bounds what lands in one mailbox;
+ *   - per ACTOR: 5 per minute across all targets — bounds one session as a mail source while
+ *     leaving room to onboard a handful of users back to back.
+ *  In-process, so a per-instance ceiling (see rate-limit.ts). Pinned by
+ *  apps/api/test/users-send-reset.test.ts ("per TARGET", "per ACTOR", "the window slides"). */
+export const SEND_RESET_WINDOW_MS = 60_000
+export const SEND_RESET_TARGET_MAX = 3
+export const SEND_RESET_ACTOR_MAX = 5
 
 const sendResetBody = z.object({ userId: z.string().min(1).max(256) })
 
@@ -65,6 +90,17 @@ const sendResetBody = z.object({ userId: z.string().min(1).max(256) })
 export function createUsersApi(opts: UsersApiOptions) {
   const { db } = opts
   const app = new Hono<{ Variables: { actor: Actor } }>()
+  const clock = opts.now ? { now: opts.now } : {}
+  const resetByActor = createWindowLimiter({
+    max: SEND_RESET_ACTOR_MAX,
+    windowMs: SEND_RESET_WINDOW_MS,
+    ...clock
+  })
+  const resetByTarget = createWindowLimiter({
+    max: SEND_RESET_TARGET_MAX,
+    windowMs: SEND_RESET_WINDOW_MS,
+    ...clock
+  })
 
   /** `users.view`-gated user roster. The admin Users screen previously listed via better-auth's admin
    *  plugin (`authClient.admin.listUsers` → `/api/auth/admin/list-users`), which authorizes against
@@ -123,13 +159,19 @@ export function createUsersApi(opts: UsersApiOptions) {
    *  is the public forgot-password flow with a known-good address, no permission needed beyond a
    *  session; any OTHER target needs `users.view` AND strict rank (known role + outranks — an
    *  admin cannot trigger one for a peer admin, and an unknown/legacy target role fails closed
-   *  for everyone). Fail-closed ladder: 401 unauth → 400 bad body → 403 unauthorized → 409 reset
-   *  not wired → 404 unknown target → 409 email not deliverable (#912, last so it reveals nothing
+   *  for everyone). Fail-closed ladder: 413 oversized body → 401 unauth → 400 bad body → 403
+   *  unauthorized → 409 reset not wired → 404 unknown target → 429 rate-limited (#1275) → 409 email
+   *  not deliverable (#912, last so it reveals nothing
    *  to an actor who failed a gate above) → 502 `email_send_failed` when the transport itself
    *  failed (#1164). Covered (incl. wrong-actor + kill-shot) by
    *  apps/api/test/users-send-reset.test.ts. */
   app.post(
     '/api/users/send-reset',
+    // #1275: first, so an oversized body is refused before the session lookup or any parse.
+    bodyLimit({
+      maxSize: SEND_RESET_MAX_BODY_BYTES,
+      onError: (c) => c.json({ error: 'payload too large' }, 413)
+    }),
     authMiddleware(opts.resolveActor),
     async (c) => {
       const actor = c.get('actor')
@@ -165,6 +207,18 @@ export function createUsersApi(opts: UsersApiOptions) {
           return c.json({ error: 'forbidden' }, 403)
       }
 
+      // #1275: AFTER the authz ladder, so a wrong actor's refused attempts cannot exhaust a
+      // target's budget and lock the right actor out ("a wrong actor's refused (403) attempts do
+      // not burn the target's quota" in apps/api/test/users-send-reset.test.ts). Checked here,
+      // recorded only once a send is actually attempted below.
+      if (!resetByActor.check(actor.id) || !resetByTarget.check(target.id)) {
+        c.header('Retry-After', String(Math.ceil(SEND_RESET_WINDOW_MS / 1000)))
+        return c.json(
+          { error: 'rate_limited', retryAfterMs: SEND_RESET_WINDOW_MS },
+          429
+        )
+      }
+
       // #912: last, AFTER the authz ladder, so an unauthorized actor learns nothing about this
       // deployment's email posture. The reset gate refuses inside better-auth's send hook and its
       // reason cannot come back out, so this asks the same question — the `refusal` half of the
@@ -187,6 +241,10 @@ export function createUsersApi(opts: UsersApiOptions) {
       // #1164: report what the send DID, not that it was asked for. The pre-check above stays —
       // it refuses before better-auth mints a token — but it is only a prediction; this is the
       // answer, and it also catches a refusal that landed between the two.
+      // Recorded before the call, whatever it reports: better-auth has minted a token and may have
+      // sent mail even when the outcome is a failure.
+      resetByActor.record(actor.id)
+      resetByTarget.record(target.id)
       const outcome = await opts.requestPasswordReset(target.email)
       if (outcome?.kind === 'sent') return c.json({ status: true })
       if (outcome?.kind === 'refused') {

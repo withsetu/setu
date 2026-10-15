@@ -6,7 +6,6 @@ import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { Hono } from 'hono'
-import { cors } from 'hono/cors'
 import { createAuth } from '@setu/auth'
 import type { StoragePort, StoredObject } from '@setu/core'
 import { createMemorySubmissionPort } from '@setu/db-memory'
@@ -14,7 +13,8 @@ import { createSubmissionService } from '@setu/core'
 import { createUploadApi } from '../src/media'
 import { createFormsApi } from '../src/forms'
 import { resolveSessionActor } from '../src/auth/resolve-session-actor'
-import { originGuard, originMatches } from '../src/auth/origin-guard'
+import { originGuard } from '../src/auth/origin-guard'
+import { apiCors, PUBLIC_PATHS } from '../src/auth/cors-policy'
 import { allowedOrigins } from '../src/auth/allowed-origins'
 
 /** Inline in-memory StoragePort fake, matching the pattern in media-upload.test.ts. */
@@ -69,19 +69,8 @@ function makeApp() {
     allowedOrigins({ SETU_ADMIN_ORIGIN: TRUSTED_ORIGIN, SETU_API_PORT: '4444' })
 
   const app = new Hono()
-  app.use(
-    '*',
-    cors({
-      origin: (origin) => {
-        if (!origin) return undefined
-        return allowed().some((pattern) => originMatches(origin, pattern))
-          ? origin
-          : undefined
-      },
-      credentials: true
-    })
-  )
-  app.use('*', originGuard(allowed, { publicPaths: ['/forms/submit'] }))
+  app.use('*', apiCors(allowed))
+  app.use('*', originGuard(allowed, { publicPaths: PUBLIC_PATHS }))
   app.on(['POST', 'GET'], '/api/auth/*', (c) => auth.handler(c.req.raw))
   app.route(
     '/',

@@ -385,10 +385,11 @@ function requireCan(action: Action) {
  *  via the same `authMiddleware` + `authz.can` pattern media.ts/users.ts use. The server is the
  *  enforcement boundary; the admin's `useCan` is UX only. The two PUBLIC embed routes are exempt by
  *  design: `POST /forms/submit` is a captcha-gated widget reachable from ANY origin (no session
- *  cookies read — server.ts's `originGuard` lists it in `publicPaths`), and `/forms/captcha-status`
+ *  cookies read — it is in auth/cors-policy.ts's `PUBLIC_PATHS`, so `originGuard` skips it and CORS
+ *  answers it with a non-credentialed `*`, #1264), and `/forms/captcha-status`
  *  exposes only two booleans, no PII.
  *
- *  CORS/origin policy is owned centrally by server.ts's allowlisted `cors()` + `originGuard`
+ *  CORS/origin policy is owned centrally by server.ts (`apiCors` + `originGuard`)
  *  (see app.ts's comment on createGitApi) — this factory sets none of its own. */
 export function createFormsApi(opts: {
   submit: SubmissionService

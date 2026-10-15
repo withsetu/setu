@@ -118,6 +118,23 @@ export const setuAdminRoles = {
   ReturnType<typeof defaultAc.newRole>
 >
 
+/** #1274: the ONE request header better-auth reads a client address from — for its rate limiter
+ *  (sign-in, sign-up, password-reset request), the captcha plugin's `remoteip`, and the session
+ *  row's `ipAddress`. In better-auth 1.7.7 all three go through `getIP`
+ *  (@better-auth/core dist/utils/ip.mjs), which believes ANY single syntactically valid address
+ *  in that header — there is no check of who set it. (With no usable value it keys on one shared
+ *  `no-trusted-ip` bucket in production, and on 127.0.0.1 under NODE_ENV test/development —
+ *  better-auth/dist/api/rate-limiter/index.mjs `resolveRateLimitConfig`.)
+ *
+ *  So this is deliberately a Setu-internal name rather than a provider header like
+ *  `cf-connecting-ip` (the value before #1274): nothing outside Setu sets it, and the host is
+ *  intended to DELETE every inbound copy and set it from its own trust model — apps/api does
+ *  that at the mount (apps/api/src/auth/login-failure-events.ts, from apps/api/src/client-ip.ts).
+ *  A host that mounts `auth.handler` without doing so hands every caller a fresh rate-limit
+ *  bucket per request. That the API's mount strips a client-supplied copy is pinned by
+ *  apps/api/test/auth-mount-bounds.test.ts. */
+export const CLIENT_IP_HEADER = 'x-setu-client-ip'
+
 export function createAuth(opts: CreateAuthOptions) {
   // Structured audit-event seam (#248 Task 9). Defaults to a no-op so every existing caller of
   // createAuth (tests, and any future consumer that doesn't opt in) keeps total silence — server.ts
@@ -304,7 +321,8 @@ export function createAuth(opts: CreateAuthOptions) {
       }
     },
     advanced: {
-      ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] },
+      // #1274: read ONLY the host-set header — see CLIENT_IP_HEADER's doc.
+      ipAddress: { ipAddressHeaders: [CLIENT_IP_HEADER] },
       defaultCookieAttributes: { httpOnly: true, sameSite: 'lax' }
     },
     rateLimit: {

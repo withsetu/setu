@@ -3,7 +3,7 @@ import { createRequire } from 'node:module'
 import { mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { randomBytes } from 'node:crypto'
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { serve } from '@hono/node-server'
 import { createLocalGitAdapter } from '@setu/git-local'
 import { createLocalStorage, resolveMediaDir } from '@setu/storage-local'
@@ -103,7 +103,11 @@ import {
   type CaptchaConfig
 } from './captcha-config'
 import { createNotifyCeiling, boundFromEnv } from './rate-limit'
-import { parseTrustedProxies, parseTrustedProxyHeader } from './client-ip'
+import {
+  parseTrustedProxies,
+  parseTrustedProxyHeader,
+  resolveClientIp
+} from './client-ip'
 import { getConnInfo } from '@hono/node-server/conninfo'
 
 // #248 Task 9: default audit-event consumer — a single structured log line. The REAL consumer
@@ -595,6 +599,19 @@ if (proxyTrust.header !== undefined && proxyTrust.proxies.length === 0) {
       'proxy address. Set both, or neither.'
   )
 }
+/** #918 layer 2: the socket peer is the ONLY unforgeable identity an unauthenticated caller has;
+ *  reading it is topology-specific, hence one reader shared by every per-client bound (the forms
+ *  submit limiter and, since #1274, better-auth's limiter via the auth mount). @hono/node-server
+ *  exposes the Node request through c.env — a Workers entrypoint would pass its own reader.
+ *  Defensive try/catch: a runtime without `incoming` must degrade to the one-shared-bucket
+ *  fallback, never throw on a public path. */
+const socketIpOf = (c: Context): string | undefined => {
+  try {
+    return getConnInfo(c).remote.address
+  } catch {
+    return undefined
+  }
+}
 
 const submit = createSubmissionService({
   submissions,
@@ -787,7 +804,16 @@ app.use(
 // login-failure-events.ts's module comment for the full derivation from source). Every other
 // /api/auth/* route's behavior is unchanged.
 if (auth) {
-  mountAuthWithFailureEvents(app, auth, logAuthEvent)
+  mountAuthWithFailureEvents(app, auth, {
+    onAuthEvent: logAuthEvent,
+    // #1274: better-auth's limiter keys on the SAME resolution the forms submit limiter uses —
+    // socket peer by default, forwarding headers only from SETU_TRUSTED_PROXIES.
+    clientIp: (c) =>
+      resolveClientIp(
+        { header: (n) => c.req.header(n), socketIp: socketIpOf(c) },
+        proxyTrust
+      )
+  })
 }
 
 // Index refresh after content commits (#464): HEAD moved, so the next latched
@@ -884,18 +910,8 @@ app.route(
     submissions,
     captchaStatus,
     resolveActor,
-    // #918 layer 2. The socket peer is the ONLY unforgeable identity an unauthenticated caller
-    // has; reading it is topology-specific, hence the injection (@hono/node-server exposes the
-    // Node request through c.env — a Workers entrypoint would pass its own reader). Defensive
-    // try/catch: a runtime without `incoming` must degrade to the one-shared-bucket fallback,
-    // never throw on the public submit path.
-    socketIp: (c) => {
-      try {
-        return getConnInfo(c).remote.address
-      } catch {
-        return undefined
-      }
-    },
+    // #918 layer 2 — see socketIpOf.
+    socketIp: socketIpOf,
     proxyTrust,
     submitRateLimit: submitBound,
     // #918 review F2: the per-IP bound's accepted zero-config trade (an undeclared proxy

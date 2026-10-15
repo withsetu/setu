@@ -7,3 +7,8 @@ A demo page for the contact form block (#448) — an interactive block (React is
 rendered here through the real markdoc + theme pipeline.
 
 {% contact formId="contact-demo" formLabel="Contact demo" /%}
+
+A second instance with author-supplied visitor text (#1248), as a page in another language
+would carry it.
+
+{% contact formId="contact-demo-fr" formLabel="Contact demo (fr)" nameLabel="Nom" emailLabel="Courriel" messageLabel="Votre message" submitLabel="Envoyer" successMessage="Merci, votre message a été envoyé." errorMessage="Une erreur est survenue." /%}

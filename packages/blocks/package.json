@@ -30,6 +30,7 @@
     "./ContactForm": "./src/contact/ContactForm.tsx",
     "./contact.css": "./src/contact/contact.css",
     "./mount-captcha": "./src/contact/mount-captcha.ts",
+    "./contact-endpoint": "./src/contact/endpoint.ts",
     "./tokens.css": "./src/tokens.css"
   },
   "scripts": {

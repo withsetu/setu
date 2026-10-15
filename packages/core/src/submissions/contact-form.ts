@@ -6,6 +6,40 @@ export interface ContactRequired {
   message: boolean
 }
 
+/** The contact block's visitor-facing text when the author sets none. One source for the
+ *  published island (`@setu/blocks` ContactForm), the block contract's renderer and the
+ *  editor's in-canvas preview, so the three cannot drift. Pinned by
+ *  packages/core/test/submissions/contact-form.test.ts. */
+export const CONTACT_DEFAULT_TEXT = {
+  nameLabel: 'Name',
+  emailLabel: 'Email',
+  subjectLabel: 'Subject',
+  messageLabel: 'Message',
+  submitLabel: 'Send',
+  successMessage: 'Thanks — your message has been sent.',
+  errorMessage: 'Something went wrong. Please try again.'
+} as const
+
+export type ContactText = { [K in keyof typeof CONTACT_DEFAULT_TEXT]: string }
+
+/** The local dev API origin `pnpm dev` runs. */
+const DEV_API_BASE = 'http://localhost:4444'
+
+/** The origin the contact island posts to (#1248). A configured value wins in every mode;
+ *  unset (or blank) falls back to the local dev API ONLY in dev — mirroring
+ *  `@setu/image-astro`'s resolveMediaBase — and is `null` in a production build, so static
+ *  HTML never carries a localhost endpoint that would post visitors' messages to their own
+ *  machine. `null` means "render the form as unavailable". Pinned by
+ *  packages/core/test/submissions/contact-form.test.ts. */
+export function resolveContactApiBase(
+  configured: string | undefined,
+  isDev: boolean
+): string | null {
+  const v = configured?.trim() ?? ''
+  if (v !== '') return v
+  return isDev ? DEV_API_BASE : null
+}
+
 /** Linear-time email floor check, exactly equivalent to the old
  *  `/^[^\s@]+@[^\s@]+\.[^\s@]+$/` but without the polynomial backtracking
  *  (issue #340). Mirrors the server floor in submission-service.ts. */

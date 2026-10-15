@@ -1,6 +1,8 @@
 ---
 // blocks/contact/contact.astro
 import ContactForm from '@setu/blocks/ContactForm'
+import { contactApiBaseForBuild } from '@setu/blocks/contact-endpoint'
+import { CONTACT_DEFAULT_TEXT } from '@setu/core'
 import '@setu/blocks/contact.css'
 
 const {
@@ -10,13 +12,27 @@ const {
   nameRequired = true,
   subjectRequired = false,
   messageRequired = true,
-  successMessage = 'Thanks — your message has been sent.',
+  successMessage,
+  nameLabel,
+  emailLabel,
+  subjectLabel,
+  messageLabel,
+  submitLabel,
+  errorMessage,
 } = Astro.props
 
 const provider = (import.meta.env.PUBLIC_CAPTCHA_PROVIDER ?? 'turnstile') as 'turnstile' | 'recaptcha'
 const siteKey = import.meta.env.PUBLIC_CAPTCHA_SITE_KEY ?? ''
-const apiBase = import.meta.env.PUBLIC_SETU_API_BASE ?? 'http://localhost:4444'
+// localhost only under `astro dev`; a production build without PUBLIC_SETU_API_BASE gets
+// null → the form renders as unavailable and the build warns once (#1248). Keyed on the
+// Astro command, not import.meta.env.DEV, because DEV follows NODE_ENV (a build spawned
+// from vitest reports DEV=true) — see the setu:astro-command-env integration.
+const apiBase = contactApiBaseForBuild(
+  import.meta.env.PUBLIC_SETU_API_BASE,
+  import.meta.env.SETU_ASTRO_COMMAND === 'dev',
+)
 const required = { name: nameRequired, subject: subjectRequired, message: messageRequired }
+const labels = { name: nameLabel, email: emailLabel, subject: subjectLabel, message: messageLabel }
 ---
 
 <ContactForm
@@ -28,5 +44,8 @@ const required = { name: nameRequired, subject: subjectRequired, message: messag
   siteKey={siteKey}
   subject={subject}
   required={required}
-  successMessage={successMessage}
+  labels={labels}
+  submitLabel={submitLabel}
+  errorMessage={errorMessage}
+  successMessage={successMessage || CONTACT_DEFAULT_TEXT.successMessage}
 />

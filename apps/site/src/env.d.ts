@@ -9,6 +9,14 @@ interface ImportMetaEnv {
   /** Public origin serving uploaded media (client + server); see @setu/image-astro's
    *  resolveMediaBase. Falls back to http://localhost:4444 in dev when unset. */
   readonly PUBLIC_SETU_MEDIA?: string
+  /** The @setu/api origin the contact block's form posts to. Under `astro dev` it falls back
+   *  to http://localhost:4444; a production build without it renders contact forms as
+   *  unavailable and warns once (see @setu/blocks/contact-endpoint, #1248). */
+  readonly PUBLIC_SETU_API_BASE?: string
+  /** Captcha provider for the contact form ('turnstile' | 'recaptcha'; default turnstile). */
+  readonly PUBLIC_CAPTCHA_PROVIDER?: string
+  /** The captcha provider's public site key; unset = no captcha widget. */
+  readonly PUBLIC_CAPTCHA_SITE_KEY?: string
   /** The @setu/api origin the live-preview bridge polls. Falls back to
    *  http://localhost:4444 when unset (see preview/preview.astro). */
   readonly SETU_API_URL?: string

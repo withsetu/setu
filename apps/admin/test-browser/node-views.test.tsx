@@ -153,6 +153,49 @@ describe('ContactBlock node view (real browser)', () => {
   })
 })
 
+describe('ContactBlock visitor text (#1248, real browser)', () => {
+  it('previews author text and edits it from the Text section of the settings popover', async () => {
+    render(
+      <Harness
+        extensions={[StarterKit, ContactBlock]}
+        content={{
+          type: 'doc',
+          content: [
+            {
+              type: 'contactBlock',
+              attrs: {
+                mdAttrs: ensureFormId({
+                  formLabel: 'Contact',
+                  nameLabel: 'Nom',
+                  successMessage: DEFAULT_SUCCESS_MESSAGE
+                })
+              }
+            }
+          ]
+        }}
+      />
+    )
+    // canvas preview carries the override, and the default where none is set
+    await expect.element(page.getByText(/^Nom\b/)).toBeInTheDocument()
+    await expect.element(page.getByText(/^Email\b/)).toBeInTheDocument()
+    await expect
+      .element(page.getByRole('button', { name: 'Send', exact: true }))
+      .toBeInTheDocument()
+
+    await page.getByRole('button', { name: 'Form settings' }).click()
+    await expect.element(page.getByLabelText('Name label')).toHaveValue('Nom')
+    // unset fields show the default as a placeholder, not as stored text
+    await expect.element(page.getByLabelText('Email label')).toHaveValue('')
+    await expect
+      .element(page.getByLabelText('Email label'))
+      .toHaveAttribute('placeholder', 'Email')
+    await page.getByLabelText('Button text').fill('Envoyer')
+    await expect
+      .element(page.getByRole('button', { name: 'Envoyer', exact: true }))
+      .toBeInTheDocument()
+  })
+})
+
 describe('LatestPostsBlock node view (real browser)', () => {
   const row = (
     slug: string,

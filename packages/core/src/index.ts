@@ -125,9 +125,11 @@ export type {
 } from './submissions/submission-service'
 export {
   validateContactFields,
-  submitContact
+  submitContact,
+  resolveContactApiBase,
+  CONTACT_DEFAULT_TEXT
 } from './submissions/contact-form'
-export type { ContactRequired } from './submissions/contact-form'
+export type { ContactRequired, ContactText } from './submissions/contact-form'
 export { submissionsToCsv } from './submissions/csv'
 
 export type {

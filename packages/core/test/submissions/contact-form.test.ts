@@ -2,7 +2,9 @@ import { describe, it, expect, vi } from 'vitest'
 import {
   validateContactFields,
   submitContact,
-  isEmailish
+  isEmailish,
+  resolveContactApiBase,
+  CONTACT_DEFAULT_TEXT
 } from '../../src/submissions/contact-form'
 
 const req = { name: true, subject: false, message: true }
@@ -116,5 +118,44 @@ describe('submitContact', () => {
       fetchImpl
     })
     expect(r).toEqual({ ok: false, error: 'server' })
+  })
+})
+
+// #1248: the contact island's API origin. localhost is a dev-only convenience — a production
+// build without PUBLIC_SETU_API_BASE must NOT bake it into static HTML (it would post visitors'
+// messages to their own machine); null tells the renderer to show an honest unavailable state.
+describe('resolveContactApiBase (#1248)', () => {
+  it('uses the configured origin in any mode', () => {
+    expect(resolveContactApiBase('https://api.example.com', false)).toBe(
+      'https://api.example.com'
+    )
+    expect(resolveContactApiBase('https://api.example.com', true)).toBe(
+      'https://api.example.com'
+    )
+  })
+  it('falls back to the local dev API only in dev', () => {
+    expect(resolveContactApiBase(undefined, true)).toBe('http://localhost:4444')
+  })
+  it('is null (unavailable) in a production build with nothing configured', () => {
+    expect(resolveContactApiBase(undefined, false)).toBeNull()
+    expect(resolveContactApiBase('', false)).toBeNull()
+    expect(resolveContactApiBase('   ', false)).toBeNull()
+  })
+  it('treats a blank value as unset in dev too', () => {
+    expect(resolveContactApiBase('', true)).toBe('http://localhost:4444')
+  })
+})
+
+describe('CONTACT_DEFAULT_TEXT (#1248)', () => {
+  it('keeps the shipped English defaults', () => {
+    expect(CONTACT_DEFAULT_TEXT).toEqual({
+      nameLabel: 'Name',
+      emailLabel: 'Email',
+      subjectLabel: 'Subject',
+      messageLabel: 'Message',
+      submitLabel: 'Send',
+      successMessage: 'Thanks — your message has been sent.',
+      errorMessage: 'Something went wrong. Please try again.'
+    })
   })
 })

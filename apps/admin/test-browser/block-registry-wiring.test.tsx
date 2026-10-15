@@ -106,7 +106,7 @@ describe('registry-driven editor — every atom inserts, renders, and selects (r
       expect(editor.state.selection).toBeInstanceOf(NodeSelection)
 
       // Inspector parity: an inspectable atom surfaces via selectedBlockOf with its tag;
-      // a bespoke-UI atom (contact/embed) intentionally does not open the rail.
+      // a bespoke-UI atom (contact) intentionally does not open the rail.
       const selected = selectedBlockOf(editor.state)
       if (INSPECTABLE_NODES.has(node)) {
         expect(selected).not.toBeNull()

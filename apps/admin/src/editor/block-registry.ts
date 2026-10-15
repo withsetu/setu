@@ -59,7 +59,7 @@ export interface EditorBlockDef {
   /** Tiptap node name, e.g. `heroBlock`. */
   node: string
   /** True when the block's props are edited in the inspector rail — drives INSPECTABLE.
-   *  callout/contact/embed keep their own bespoke in-canvas UI and are NOT inspector-driven. */
+   *  callout/contact keep their own bespoke in-canvas UI and are NOT inspector-driven. */
   inspectable: boolean
   /** Materialise the Tiptap extension(s) this block contributes to the editor. A builder
    *  (not a value) so query/latest-posts bind the live `runQuery`, columns adds its `Column`
@@ -194,9 +194,11 @@ export const EDITOR_BLOCKS: EditorBlockDef[] = [
   {
     tag: 'embed',
     node: 'embedBlock',
-    // NOT inspector-driven: the embed card is edited in place (its own node view), never
-    // via the inspector rail — so it stays out of INSPECTABLE, exactly as before #563.
-    inspectable: false,
+    // Inspector-driven (#1249): the canvas card is read-only; caption / aspect ratio / width
+    // are edited in the inspector rail, and the resolved oEmbed data is `managed` (no control).
+    // Pinned by apps/admin/test/block-registry.test.ts ('INSPECTABLE is exactly the expected
+    // set') and driven end-to-end by apps/admin/test-browser/embed-inspector.test.tsx.
+    inspectable: true,
     extensions: () => [EmbedBlock]
     // No slashInsert: `embed` is paste-driven (EmbedPaste resolves a provider URL into a
     // ready embed); a cold slash-insert without a URL has nothing to render.

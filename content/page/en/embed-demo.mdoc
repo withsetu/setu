@@ -41,3 +41,12 @@ served from `video.wordpress.com`) is still framed, while a look-alike of that h
 {% embed url="https://wordpress.tv/2026/08/20/keynote-fireside-chat-2/" provider="wordpress-tv" providerLabel="WordPress.tv" mediaType="video" embedUrl="https://video.wordpress.com/embed/OWeq4IPf" title="Player host 1246" /%}
 
 {% embed url="https://ok.example/player-look-alike" embedUrl="https://evil-video.wordpress.com/embed/OWeq4IPf" title="Player host look-alike 1246" /%}
+
+Presentation props (#1249): a wide 21:9 embed with a caption, and a full-bleed one. Both
+player URLs carry a `#fragment` (a start time), which click-to-play must keep AFTER the
+`autoplay=1` it adds — with and without an existing query string. Fixtures for
+`apps/site/test/embed-block.test.ts` and `apps/site/test/block-width-breakout.test.ts`.
+
+{% embed url="https://vimeo.com/76979871" provider="vimeo" providerLabel="Vimeo" mediaType="video" title="Fragment facade 1249" embedUrl="https://player.vimeo.com/video/76979871?h=abc#t=30s" thumbnailUrl="https://cdn.example.test/vimeo-wide.jpg" ratio="21:9" align="wide" caption="Wide 21:9 embed 1249" /%}
+
+{% embed url="https://vimeo.com/76979871" provider="vimeo" providerLabel="Vimeo" mediaType="video" title="Fragment no-query facade 1249" embedUrl="https://player.vimeo.com/video/76979871#t=5s" thumbnailUrl="https://cdn.example.test/vimeo-full.jpg" align="full" /%}

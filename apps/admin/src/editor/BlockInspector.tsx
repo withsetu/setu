@@ -34,7 +34,11 @@ export function BlockInspector({
 
   // Capture the narrowed editor meta so the (hoisted) renderControl closure keeps the type.
   const editor = block.editor
-  const controls = resolveControls(block.props, block.editor?.controls)
+  // `managed` props are system-set (e.g. the embed's resolved oEmbed data) — no control.
+  const managed = new Set(block.editor?.managed ?? [])
+  const controls = resolveControls(block.props, block.editor?.controls).filter(
+    (c) => !managed.has(c.name)
+  )
   const showWhen = block.editor?.showWhen ?? {}
   const visible = controls.filter((c) => {
     const rule = showWhen[c.name]

@@ -28,7 +28,7 @@ export default defineBlock({
   }),
   editor: {
     label: 'Embed',
-    icon: 'movie',
+    icon: 'video',
     group: 'embed',
     keywords: [
       'embed',
@@ -40,8 +40,24 @@ export default defineBlock({
       'tweet',
       'link'
     ],
-    // Only presentation is inspector-controlled; the resolved data props have no control (the
-    // paste-to-embed flow sets them). ratio/align are pickers, caption a textarea.
+    // Only presentation is inspector-controlled: the resolved data props are `managed` (the
+    // paste-to-embed flow sets them), so the inspector renders no control for them —
+    // apps/admin/test/BlockInspector.test.tsx ('BlockInspector — embed (#1249)').
+    // ratio/align are pickers, caption a textarea.
+    managed: [
+      'url',
+      'provider',
+      'providerLabel',
+      'mediaType',
+      'oembedType',
+      'title',
+      'authorName',
+      'embedUrl',
+      'html',
+      'thumbnailUrl',
+      'width',
+      'height'
+    ],
     controls: { caption: 'textarea', ratio: 'select', align: 'align' },
     labels: { align: 'Width', ratio: 'Aspect ratio' },
     groups: [

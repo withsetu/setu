@@ -113,7 +113,9 @@ describe('registry ↔ core bijection (wired-but-not-registered guard)', () => {
 })
 
 describe('behaviour preservation — the derived sites equal the historical hand-kept lists', () => {
-  it('INSPECTABLE is exactly the pre-#563 set', () => {
+  // The pre-#563 set, plus `embedBlock` (#1249): its caption/ratio/width are edited in the
+  // inspector rail. callout/contact stay out — they keep bespoke in-canvas UI.
+  it('INSPECTABLE is exactly the expected set', () => {
     expect(new Set(INSPECTABLE_NODES)).toEqual(
       new Set([
         SETU_BLOCK_NODE,
@@ -123,7 +125,8 @@ describe('behaviour preservation — the derived sites equal the historical hand
         'queryBlock',
         'spacerBlock',
         'columns',
-        'latestPostsBlock'
+        'latestPostsBlock',
+        'embedBlock'
       ])
     )
   })

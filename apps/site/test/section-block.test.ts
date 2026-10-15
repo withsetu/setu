@@ -1,7 +1,6 @@
 import { execSync } from 'node:child_process'
 import {
   readFileSync,
-  readdirSync,
   mkdtempSync,
   mkdirSync,
   writeFileSync,
@@ -72,18 +71,6 @@ afterAll(() => {
   if (mediaDir) rmSync(mediaDir, { recursive: true, force: true })
 })
 
-function pageCss(): string {
-  const inline = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)]
-    .map((m) => m[1])
-    .join('\n')
-  const astroDir = join(appDir, 'dist', '_astro')
-  const external = readdirSync(astroDir)
-    .filter((f) => f.endsWith('.css'))
-    .map((f) => readFileSync(join(astroDir, f), 'utf8'))
-    .join('\n')
-  return `${inline}\n${external}`
-}
-
 describe('section block render (#182)', () => {
   it('renders each band with its background/padding/width classes', () => {
     // sectionClasses(background, padding, width): `blk-section pad-<p> [bg-<b>] [w-<w>]`.
@@ -111,12 +98,6 @@ describe('section block render (#182)', () => {
     expect(media).toContain('test-cat-1000w.webp')
   })
 
-  it('ships the theme breakout so wide and full render distinctly', () => {
-    const css = pageCss()
-    expect(css).toContain('.blk-section.w-wide')
-    expect(css).toContain('.blk-section.w-full')
-    // full = 100vw bleed; wide = page-measure band — the two must not be the same rule
-    expect(css).toMatch(/\.blk-section\.w-full[^}]*100vw/)
-    expect(css).toMatch(/\.blk-section\.w-wide[^}]*var\(--measure-page\)/)
-  })
+  // The wide/full theme breakout is asserted for every width-capable block (this one
+  // included) by apps/site/test/block-width-breakout.test.ts (#1249).
 })

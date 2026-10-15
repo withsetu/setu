@@ -134,6 +134,7 @@ const hasFacade = Boolean(safeThumbnailUrl) && Boolean(safeEmbedUrl || safeHtml)
         style={`aspect-ratio:${aspect}`}
         data-embed-url={safeEmbedUrl ?? ''}
         data-embed-html={safeEmbedUrl ? '' : (safeHtml ?? '')}
+        data-embed-title={title ?? label}
         aria-label={`Play ${title ?? label}`}
       >
         <img
@@ -209,9 +210,15 @@ const hasFacade = Boolean(safeThumbnailUrl) && Boolean(safeEmbedUrl || safeHtml)
         const iframe = document.createElement('iframe')
         iframe.className = 'blk-embed-iframe'
         iframe.setAttribute('allowfullscreen', '')
+        // Same accessible name the static player gets (`title ?? label`) — focus lands here.
+        iframe.title = btn.dataset.embedTitle ?? ''
         if (src) {
           iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation allow-popups')
-          iframe.src = src.includes('?') ? `${src}&autoplay=1` : `${src}?autoplay=1`
+          // URL API, not string-append: a player URL may carry a `#fragment` (a start time),
+          // and `autoplay=1` belongs in the query, before it (#1249).
+          const player = new URL(src)
+          player.searchParams.set('autoplay', '1')
+          iframe.src = player.href
         } else if (doc) {
           iframe.setAttribute('sandbox', 'allow-scripts allow-popups allow-presentation')
           iframe.srcdoc = doc
@@ -220,6 +227,10 @@ const hasFacade = Boolean(safeThumbnailUrl) && Boolean(safeEmbedUrl || safeHtml)
         }
         btn.replaceWith(frame)
         frame.appendChild(iframe)
+        // The button that held focus is gone; hand focus to the player instead of letting
+        // it fall back to the document start (#1249). Both enforced by
+        // apps/site/test/embed-block.test.ts ('embed presentation + click-to-play (#1249)').
+        iframe.focus()
       },
       { once: true }
     )

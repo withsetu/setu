@@ -16,7 +16,8 @@ const page = (route: string) =>
 const FIXTURE_MARKERS = [
   'Script embed, static srcdoc',
   'Bad dimensions 1246',
-  'Player host look-alike 1246'
+  'Player host look-alike 1246',
+  'Fragment no-query facade 1249'
 ]
 
 let html = ''
@@ -261,5 +262,86 @@ describe('embed width/height clamp (#1246)', () => {
     expect(styles).toContain('aspect-ratio:480 / 270')
     for (const s of styles)
       expect(s).toMatch(/^aspect-ratio:\d+(\.\d+)? \/ \d+(\.\d+)?$/)
+  })
+})
+
+// ---- #1249: presentation props + click-to-play ---------------------------------------
+//
+// Click-to-play swaps the facade <button> for the player. Two defects lived there: the
+// button that held keyboard focus was removed, dropping focus to the document start (a
+// keyboard user who pressed Enter on "Play" lost their place), and `autoplay=1` was
+// string-appended, so a player URL carrying a `#fragment` got it glued AFTER the fragment
+// (`…#t=30s&autoplay=1`), where the player never sees it. Both are asserted by running the
+// built page's own script in jsdom, like the sandbox suite above.
+describe('embed presentation + click-to-play (#1249)', () => {
+  const figureFor = (doc: Document, title: string) =>
+    [...doc.querySelectorAll('figure.blk-embed')].find(
+      (f) => f.querySelector(`[aria-label="Play ${title}"]`) !== null
+    )
+
+  it('renders ratio, width and caption from the presentation props', () => {
+    const doc = new JSDOM(html).window.document
+    const wide = figureFor(doc, 'Fragment facade 1249')
+    expect(wide?.className).toBe('blk-embed align-wide')
+    expect(
+      wide?.querySelector('.blk-embed-facade')?.getAttribute('style')
+    ).toBe('aspect-ratio:21 / 9')
+    expect(wide?.querySelector('figcaption')?.textContent).toBe(
+      'Wide 21:9 embed 1249'
+    )
+    expect(figureFor(doc, 'Fragment no-query facade 1249')?.className).toBe(
+      'blk-embed align-full'
+    )
+  })
+
+  /** embed-demo with its own click-to-load script running. */
+  const livePage = () => {
+    const dom = new JSDOM(html, { runScripts: 'outside-only' })
+    const { document } = dom.window
+    const script = [
+      ...document.querySelectorAll<HTMLScriptElement>('script[type="module"]')
+    ]
+      .map(scriptSource)
+      .find((code) => code.includes('blk-embed-facade'))
+    expect(script).toBeDefined()
+    dom.window.eval(script!)
+    return document
+  }
+
+  /** Focus a facade's Play button, click it, and return the player that replaced it. */
+  const play = (document: Document, title: string) => {
+    const btn = document.querySelector<HTMLButtonElement>(
+      `.blk-embed-facade[aria-label="Play ${title}"]`
+    )
+    expect(btn).not.toBeNull()
+    const fig = btn!.closest('figure')
+    btn!.focus()
+    expect(document.activeElement).toBe(btn)
+    btn!.click()
+    expect(btn!.isConnected).toBe(false)
+    return fig?.querySelector('iframe') ?? null
+  }
+
+  it('moves keyboard focus to the new player iframe', () => {
+    const document = livePage()
+    const frame = play(document, 'Fragment facade 1249')
+    expect(frame).not.toBeNull()
+    expect(document.activeElement).toBe(frame)
+    // Focus lands on a NAMED frame (the same name the static player gets).
+    expect(frame?.getAttribute('title')).toBe('Fragment facade 1249')
+  })
+
+  it('adds autoplay=1 to the query, keeping a #fragment last', () => {
+    const document = livePage()
+    expect(play(document, 'Fragment facade 1249')?.getAttribute('src')).toBe(
+      'https://player.vimeo.com/video/76979871?h=abc&autoplay=1#t=30s'
+    )
+    expect(
+      play(document, 'Fragment no-query facade 1249')?.getAttribute('src')
+    ).toBe('https://player.vimeo.com/video/76979871?autoplay=1#t=5s')
+    // A plain query-string URL still just gains the param.
+    expect(play(document, 'Never Gonna Give You Up')?.getAttribute('src')).toBe(
+      'https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1'
+    )
   })
 })

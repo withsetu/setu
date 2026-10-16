@@ -39,6 +39,10 @@ const choiceSchema = z.object({
     .regex(SAFE_VALUE_RE, 'choice tokenValue may not contain ; { } < > or \\')
 })
 
+/** The roles an option may declare. Unknown roles are rejected rather than ignored, so a typo
+ *  fails the declaration instead of silently dropping the behaviour it asked for. */
+const THEME_OPTION_ROLES = ['typeface'] as const
+
 const optionSchema = z
   .object({
     key: z.string().min(1),
@@ -46,9 +50,18 @@ const optionSchema = z
     type: z.enum(['color', 'select']),
     token: z.union([tokenSchema, z.array(tokenSchema).min(1)]),
     default: z.string().min(1),
-    choices: z.array(choiceSchema).optional()
+    choices: z.array(choiceSchema).optional(),
+    /** What Setu itself does with this option, beyond emitting its tokens (#1295). `typeface`
+     *  marks the option whose selected choice decides which font family the site build
+     *  bundles — found by role, never by key, so a theme may name the option anything. */
+    role: z.enum(THEME_OPTION_ROLES).optional()
   })
   .superRefine((opt, ctx) => {
+    if (opt.role === 'typeface' && opt.type !== 'select')
+      ctx.addIssue({
+        code: 'custom',
+        message: `option "${opt.key}": a typeface role must be a select (a family is chosen from its choices)`
+      })
     if (opt.type === 'color' && !COLOR_RE.test(opt.default))
       ctx.addIssue({
         code: 'custom',
@@ -68,6 +81,20 @@ const optionSchema = z
     }
   })
 
+/** At most one option per declaration may carry a given role — two typeface options would leave
+ *  the build guessing which one picks the bundled family. */
+const declarationSchema = z.array(optionSchema).superRefine((opts, ctx) => {
+  for (const role of THEME_OPTION_ROLES) {
+    const keys = opts.filter((o) => o.role === role).map((o) => o.key)
+    if (keys.length > 1)
+      ctx.addIssue({
+        code: 'custom',
+        message: `more than one option declares role "${role}" (${keys.join(', ')}); at most one may`
+      })
+  }
+})
+
+export type ThemeOptionRole = (typeof THEME_OPTION_ROLES)[number]
 export type ThemeOptionType = 'color' | 'select'
 export type ThemeOptionChoice = z.infer<typeof choiceSchema>
 export type ThemeOption = z.infer<typeof optionSchema>
@@ -76,7 +103,7 @@ export type ThemeOption = z.infer<typeof optionSchema>
  *  must never silently degrade to "this theme has no options" (that is indistinguishable from a
  *  theme that genuinely declares none). */
 export function parseThemeOptions(raw: unknown): ThemeOption[] {
-  const parsed = z.array(optionSchema).safeParse(raw)
+  const parsed = declarationSchema.safeParse(raw)
   if (!parsed.success) {
     const first = parsed.error.issues[0]
     throw new Error(
@@ -85,6 +112,30 @@ export function parseThemeOptions(raw: unknown): ThemeOption[] {
     )
   }
   return parsed.data
+}
+
+/** The option that declares `role: 'typeface'`, or undefined when the theme declares none — which
+ *  means the theme offers no selectable family and ships its fonts on its own terms. */
+export function typefaceOption(
+  options: ThemeOption[]
+): ThemeOption | undefined {
+  return options.find((o) => o.role === 'typeface')
+}
+
+/**
+ * Pure: the selected typeface CHOICE VALUE (e.g. `"lora"`), read from the typeface-role option's
+ * own key. A missing or undeclared stored value resolves to the option's default — the same
+ * fallback `resolveThemeTokens` applies, so the family the build bundles and the family the CSS
+ * names are intended to agree. Undefined when the theme declares no typeface role.
+ */
+export function selectedTypeface(
+  options: ThemeOption[],
+  values: Record<string, string>
+): string | undefined {
+  const opt = typefaceOption(options)
+  if (!opt) return undefined
+  const raw = values[opt.key]
+  return opt.choices?.some((c) => c.value === raw) ? raw : opt.default
 }
 
 const tokensOf = (opt: ThemeOption): string[] =>

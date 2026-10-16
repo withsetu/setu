@@ -26,6 +26,8 @@ export const themeOptions: ThemeOption[] = [
     key: 'font',
     label: 'Font',
     type: 'select',
+    // The site build finds the bundled family by this role, not by the key (#1295).
+    role: 'typeface',
     token: ['--font-body', '--font-heading'],
     default: 'grotesk',
     choices: [

@@ -25,20 +25,23 @@ const config = await loadConfig(
 )
 const activeTheme = config.theme ?? '@setu/theme-default'
 
-// Bundle ONLY the selected font family (+ mono), not every font the theme offers. The choice
-// lives in setu.config themeOptions / the Customizer-published theme-options.json (file wins,
-// matching loadThemeOptions); the theme's Layout imports `virtual:setu-fonts`, filled here.
-function selectedFontChoice() {
-  let fromFile
+// Bundle ONLY the selected font family (+ mono), not every font the theme offers. The values live
+// in setu.config themeOptions / the Customizer-published theme-options.json (file wins, matching
+// loadThemeOptions); `themeFontImports` reads the family from the declaration's typeface-ROLE
+// option, never from a fixed key (#1295). The theme's Layout imports `virtual:setu-fonts`.
+function themeOptionValues() {
+  let fromFile = {}
   try {
     const p = process.env.SETU_CONTENT_DIR
       ? join(process.env.SETU_CONTENT_DIR, '..', 'theme-options.json')
       : fileURLToPath(new URL('../../theme-options.json', import.meta.url))
-    fromFile = JSON.parse(readFileSync(p, 'utf8'))?.font
+    const parsed = JSON.parse(readFileSync(p, 'utf8'))
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed))
+      fromFile = parsed
   } catch {
     /* no published theme-options.json → fall back to the config / theme default */
   }
-  return fromFile ?? config.themeOptions?.font
+  return { ...config.themeOptions, ...fromFile }
 }
 
 // Fonts come from whichever theme is active — never from a hardcoded package name (#1075).
@@ -46,7 +49,7 @@ function selectedFontChoice() {
 // resolve bare specifiers from, so each is resolved to an absolute path from the theme's own
 // context. `themeFontImports` keeps "ships no fonts" (announced, fine) apart from "fonts are
 // broken" (throws) — see apps/site/test/theme-fonts.test.ts.
-const fontImports = await themeFontImports(activeTheme, selectedFontChoice(), {
+const fontImports = await themeFontImports(activeTheme, themeOptionValues(), {
   importModule: (specifier) => import(/* @vite-ignore */ specifier),
   resolvePackageFile: (pkg, fromTheme) => {
     const themeDir = dirname(

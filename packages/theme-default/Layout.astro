@@ -8,13 +8,14 @@ import './site.css'
 // system fonts), so the import is always safe.
 import 'virtual:setu-fonts'
 
-import { optionsToCss, DEFAULT_LOCALE } from '@setu/core'
-import { themeOptions as themeOptionDeclaration } from './options'
+import { DEFAULT_LOCALE } from '@setu/core'
 import type { SiteSettings, ResolvedSeo } from '@setu/core'
 
 interface Props {
   title: string
   lang?: string
+  /** Chosen option values. Setu writes the resulting `:root:root` override into the page head
+   *  itself (apps/site/integrations/theme-options.mjs, #1294), so this layout ignores them. */
   themeOptions?: Record<string, string>
   siteSettings?: SiteSettings
   feedLocales?: string[]
@@ -22,8 +23,7 @@ interface Props {
    *  When present it drives the head; absent → the legacy title/description/robots fallback. */
   seo?: ResolvedSeo
 }
-const { title, lang = 'en', themeOptions = {}, siteSettings, feedLocales = [], seo } = Astro.props
-const overrideCss = optionsToCss(themeOptionDeclaration, themeOptions)
+const { title, lang = 'en', siteSettings, feedLocales = [], seo } = Astro.props
 const siteTitle = siteSettings?.general.title ?? 'Setu'
 const tagline = siteSettings?.general.tagline ?? ''
 const description = siteSettings?.general.description ?? ''
@@ -68,7 +68,6 @@ const feedLinks = siteSettings?.reading.feed.enabled
         hreflang={loc}
       />
     ))}
-    <style is:inline set:html={overrideCss}></style>
   </head>
   <body>
     <header class="site-header">

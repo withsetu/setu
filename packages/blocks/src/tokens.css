@@ -27,4 +27,7 @@
   --r-md: 10px;
 
   --font-ui: ui-sans-serif, system-ui, sans-serif;
+
+  --measure-post: 38rem;
+  --measure-page: 64rem;
 }

@@ -11,9 +11,10 @@ import {
 import type { BlockEntry } from '@setu/core'
 import { loadEntries } from '../../../scripts/gen-blocks.mjs'
 
-// #1249 — a block whose contract offers a Wide / Full width only works on the site if the
-// THEME breaks it out of the reading measure (docs/block-styling-contract.md: the
-// align-wide/full pattern lives in theme CSS, never block CSS). Nothing tied the two
+// #1249 — a block whose contract offers a Wide / Full width only works on the site if a
+// breakout rule moves it out of the reading measure (docs/block-styling-contract.md: since
+// #1296 those rules live in the shared @setu/blocks/base.css a theme loads first, never in a
+// block's own CSS). Nothing tied the two
 // together: the embed shipped `align: none|wide|full` for months with no theme rule at all,
 // while the only test of this class covered `section`.
 //
@@ -21,7 +22,7 @@ import { loadEntries } from '../../../scripts/gen-blocks.mjs'
 // blocks/ folders, loaded the same way scripts/gen-blocks.mjs loads them): every prop whose
 // enum offers both `wide` and `full` must have, in the BUILT CSS, a wide rule that sizes to
 // the page measure and a full rule that bleeds 100vw. A new block that declares the enum
-// without the theme rules fails here by name.
+// without the breakout rules fails here by name.
 //
 // Class vocabulary: renderers mark the width as `.blk-<tag>.w-<value>` (hero, gallery,
 // video, section) or `.blk-<tag>.align-<value>` (embed — the image's `align-*` naming).
@@ -80,7 +81,7 @@ const rulesFor = (tag: string, value: string): string[] => {
     .map((m) => m[2])
 }
 
-describe('wide / full breakout — every block that offers it is styled by the theme (#1249)', () => {
+describe('wide / full breakout — every block that offers it is styled in the built site (#1249)', () => {
   it('found the width-capable blocks from the contracts (anti-vacuity)', () => {
     const tags = widthBlocks.map((b) => b.tag)
     // The ones known today — derived, not hard-coded; this only proves discovery works.

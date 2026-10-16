@@ -1,5 +1,5 @@
 /* {% video %} — reads only contract tokens (docs/block-styling-contract.md).
-   Breakout (w-wide/w-full) is the theme's job; the block only marks intent via the
+   Breakout (w-wide/w-full) lives in the shared base layer (../base.css); the block only marks intent via the
    class and drops its own radius on full-bleed, mirroring the hero. */
 .blk-video {
   box-sizing: border-box;

@@ -1,7 +1,7 @@
 /** The canonical style axes a standard block may be themeable on. Carried as data so the
  *  contract is MCP-introspectable; not enforced at runtime. */
 export type BlockStyleAxis =
-  'accent' | 'surface' | 'text' | 'tone' | 'radius' | 'typography'
+  'accent' | 'surface' | 'text' | 'tone' | 'radius' | 'typography' | 'layout'
 
 export interface BlockToken {
   name: `--${string}`
@@ -57,6 +57,19 @@ export const BLOCK_TOKENS: readonly BlockToken[] = [
     name: '--font-ui',
     axis: 'typography',
     description: 'UI / block font family'
+  },
+  // The layout axis (#1296): the two measures the shared width primitives in base.css size
+  // against. A theme sets them (theme-default exposes --measure-page as "Content width");
+  // the base layer reads them and nothing else from the theme's layout.
+  {
+    name: '--measure-post',
+    axis: 'layout',
+    description: 'Reading-column width (post/page body measure)'
+  },
+  {
+    name: '--measure-page',
+    axis: 'layout',
+    description: 'Page width — what Width = Wide breaks out to'
   }
 ] as const
 

@@ -99,7 +99,6 @@ const fmtDate = (ms: number, loc: string): string =>
   @media (max-width: 560px) { .setu-posts--grid { grid-template-columns: 1fr; } }
   .setu-posts--list { grid-template-columns: 1fr; }
   /* The shared `.setu-post-card__*` card internals + `.setu-posts__empty` empty state live once,
-     global, in theme-default/site.css (#424). Only this block's own grid layout stays here.
-     They can't be a shared frontmatter CSS import — Astro's markdoc pipeline doesn't load one for
-     a `component()`-rendered block — so the theme global is the single source instead. */
+     global, in @setu/blocks/base.css, which every theme loads first (#424, #1296). Only this
+     block's own grid layout stays here. */
 </style>

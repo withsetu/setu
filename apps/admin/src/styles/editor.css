@@ -39,8 +39,10 @@
   margin: 0;
   padding: 64px 40px 40vh;
   position: relative;
-  --measure-post: 38rem;
-  --measure-page: 64rem;
+  /* --measure-post / --measure-page are NOT set here (#1296): the contract defaults come from
+     @setu/blocks/tokens.css at :root, and EditorScreen sets the active theme's published values
+     inline on this element (src/editor/useThemeMeasure.ts), so the canvas tracks Content width
+     the way the site does. A value set here would only ever be the wrong theme's. */
   /* Block-contract brand accent (#182): the admin chrome's shadcn `--accent` (a grey
      hover surface — tokens.css) shadows the contract token of the same name, so any
      block CSS reading the contract accent rendered grey in-canvas instead of the brand

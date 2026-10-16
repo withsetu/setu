@@ -1,7 +1,7 @@
 /* packages/blocks/src/section/section.css — token-contract styles (loaded by site + admin).
-   Reads only the 19 contract tokens or --blk-section-* locals (token guard enforced).
-   Width breakout math (w-wide / w-full) lives in the THEME (site.css), not here — the
-   block only marks intent via the w-* class and drops its radius on full bleed. */
+   Reads only contract tokens or --blk-section-* locals (token guard enforced).
+   Width breakout math (w-wide / w-full) lives in the shared base layer (../base.css, #1296),
+   not here — the block only marks intent via the w-* class and drops its radius on full bleed. */
 
 .blk-section {
   box-sizing: border-box; /* padding must not widen the band past 100vw on full bleed */

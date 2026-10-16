@@ -1,0 +1,194 @@
+/* @setu/blocks base layer — what every theme gets without implementing it (#1296).
+
+   A theme loads this ONE file first (`@import '@setu/blocks/base.css';`), then sets its own
+   tokens and overrides after it. It brings:
+     1. the token defaults (./tokens.css) — every contract token, themeless-safe;
+     2. the width primitives — Wide / Full breakout for every block family that offers them;
+     3. the post-card internals — the `.setu-post-card__*` markup query / related / archive render.
+
+   A theme sets `--measure-post` / `--measure-page` (and the colour tokens) and may restyle any of
+   the rules below by repeating the selector later in its own CSS; it no longer has to write them.
+   Reads only contract tokens (src/tokens.ts) or `--blk-*` locals — enforced by
+   packages/blocks/test/token-contract.test.ts. That a theme defining only the measure tokens gets
+   working Wide/Full and styled cards is exercised in real layout by
+   apps/admin/test-browser/theme-base-primitives.test.tsx; that the built site still ships these
+   rules for every width-capable block is apps/site/test/block-width-breakout.test.ts and
+   apps/site/test/blocks-base-css.test.ts.
+
+   Scoped under `.prose` (the theme's content container) so nothing here reaches the editor
+   canvas, which mirrors the same widths with its own pane-relative rules (apps/admin
+   editor.css). */
+@import './tokens.css';
+
+/* ---------- Width primitives ----------
+   One ladder for every block family: none = column width (no rule); wide = break out of the
+   reading measure to the page measure; full = 100vw bleed. `margin-left: 50%` +
+   `translateX(-50%)` centres the band on the column without knowing the column's width. */
+
+/* {% image %} — the `align-*` vocabulary. wide/full stretch the image to fill their band
+   (matches Gutenberg): without width:100% a source narrower than the band renders at its
+   natural size, left-aligned. */
+.prose figure.setu-image.align-wide {
+  width: min(var(--measure-page), calc(100vw - 2rem));
+  margin-left: 50%;
+  transform: translateX(-50%);
+}
+.prose figure.setu-image.align-wide img {
+  width: 100%;
+}
+.prose figure.setu-image.align-full {
+  width: 100vw;
+  margin-left: 50%;
+  transform: translateX(-50%);
+}
+.prose figure.setu-image.align-full img {
+  width: 100%;
+  border-radius: 0;
+}
+
+/* {% hero %} width — mirrors the image align breakout out of the reading measure.
+   none = column width (no rule); wide = breakout to page measure; full = 100vw bleed.
+   A background hero bleeds full-width by default (it's a banner) unless narrowed to wide. */
+.prose .blk-hero.w-wide {
+  width: min(var(--measure-page), calc(100vw - 2rem));
+  margin-left: 50%;
+  transform: translateX(-50%);
+}
+/* Full-bleed hero (Width = Full) spans the viewport, but its TEXT content stays aligned
+   to the page measure column (gutter grows to (100vw - measure)/2). The background image,
+   absolutely positioned, still fills edge-to-edge. Width is consistent for every layout:
+   None = column, Wide = page measure, Full = bleed (background does NOT auto-bleed). */
+.prose .blk-hero.w-full {
+  width: 100vw;
+  margin-left: 50%;
+  transform: translateX(-50%);
+  border-radius: 0;
+}
+/* Only a BACKGROUND hero keeps its text in the measure column (the image bleeds behind
+   it). Split/centered heroes let their content actually widen with the bleed — otherwise
+   full looks identical to wide. */
+.prose .blk-hero.layout-background.w-full {
+  padding-inline: max(
+    clamp(1.5rem, 5vw, 3rem),
+    calc((100vw - var(--measure-page)) / 2)
+  );
+}
+
+/* {% gallery %} width — same breakout vocabulary as image/hero: none = column width
+   (no rule); wide = page measure; full = 100vw bleed with a small edge gutter so
+   flush-cropped thumbnails don't kiss the viewport edge. */
+.prose .blk-gallery.w-wide {
+  width: min(var(--measure-page), calc(100vw - 2rem));
+  margin-left: 50%;
+  transform: translateX(-50%);
+}
+.prose .blk-gallery.w-full {
+  width: 100vw;
+  margin-left: 50%;
+  transform: translateX(-50%);
+  padding-inline: clamp(0.5rem, 2vw, 1.5rem);
+  box-sizing: border-box;
+}
+/* {% video %} width — same breakout ladder as the hero/image blocks.
+   none = column width (no rule); wide = page measure; full = 100vw bleed. */
+.prose .blk-video.w-wide {
+  width: min(var(--measure-page), calc(100vw - 2rem));
+  margin-left: 50%;
+  transform: translateX(-50%);
+}
+.prose .blk-video.w-full {
+  width: 100vw;
+  margin-left: 50%;
+  transform: translateX(-50%);
+}
+/* {% embed %} width — the image's `align-*` vocabulary on `figure.blk-embed`, same
+   breakout ladder: none = column width (no rule); wide = page measure; full = 100vw bleed.
+   The frame/facade inside is width:100% with an aspect-ratio, so it scales with the band. */
+.prose figure.blk-embed.align-wide {
+  width: min(var(--measure-page), calc(100vw - 2rem));
+  margin-left: 50%;
+  transform: translateX(-50%);
+}
+.prose figure.blk-embed.align-full {
+  width: 100vw;
+  margin-left: 50%;
+  transform: translateX(-50%);
+}
+.prose figure.blk-embed.align-full .blk-embed-frame,
+.prose figure.blk-embed.align-full .blk-embed-facade,
+.prose figure.blk-embed.align-full .blk-embed-photo {
+  border-radius: 0;
+}
+/* {% section %} width — same breakout math as the hero (#182).
+   Normal = column width (no rule); Wide = the band breaks out to the page measure;
+   Full = the band bleeds 100vw while the grouped CONTENT stays aligned to the page
+   measure (the gutter grows to (100vw - measure)/2, never below the block's own
+   pad-* inline padding) — so Wide and Full read distinctly: Wide widens the box,
+   Full bleeds the background edge-to-edge. */
+.prose .blk-section.w-wide {
+  width: min(var(--measure-page), calc(100vw - 2rem));
+  margin-left: 50%;
+  transform: translateX(-50%);
+}
+.prose .blk-section.w-full {
+  width: 100vw;
+  margin-left: 50%;
+  transform: translateX(-50%);
+  padding-inline: max(
+    var(--blk-section-pad-x, 1.25rem),
+    calc((100vw - var(--measure-page)) / 2)
+  );
+}
+
+/* ---------- Post-card internals ----------
+   The `.setu-post-card__*` markup that {% query %}, {% related %} and a theme's archive list all
+   render (#424). One copy here; each consumer keeps only its own grid / heading / pager chrome
+   in its scoped <style>. Global (not a frontmatter import inside the query/related folder blocks)
+   so the rules reach every page that renders a card, including a theme's archive list, through
+   the theme's single import of this file.
+
+   Scoped under `.setu-posts` (two classes → specificity 0,2,0) so the card rules out-specify a
+   theme's content-link styling (`.prose a`, 0,1,1) — the blocks render inside `.prose`, and a
+   bare `.setu-post-card__title` (0,1,0) would lose the cascade and the titles would fall back to
+   underlined accent links. A theme restyling a card repeats the same selector after this file. */
+.setu-posts .setu-post-card__media img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--r-md);
+  display: block;
+}
+.setu-posts .setu-post-card__title {
+  display: inline-block;
+  margin-top: 0.5rem;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+}
+.setu-posts .setu-post-card__title:hover {
+  color: var(--accent);
+}
+.setu-posts .setu-post-card__date {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--text-2);
+}
+.setu-posts .setu-post-card__excerpt {
+  margin: 0.4rem 0 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--text-2);
+  /* Clamp to 3 lines so uneven-length excerpts keep the grid tidy. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.setu-posts__empty {
+  margin: 1.5rem 0;
+  color: var(--text-2);
+  font-style: italic;
+}

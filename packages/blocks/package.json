@@ -31,7 +31,8 @@
     "./contact.css": "./src/contact/contact.css",
     "./mount-captcha": "./src/contact/mount-captcha.ts",
     "./contact-endpoint": "./src/contact/endpoint.ts",
-    "./tokens.css": "./src/tokens.css"
+    "./tokens.css": "./src/tokens.css",
+    "./base.css": "./src/base.css"
   },
   "scripts": {
     "test": "vitest run",

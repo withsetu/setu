@@ -26,7 +26,7 @@ tomorrow's theme, and a theme author should be able to re-skin all 20+ blocks by
 
 ## The token vocabulary
 
-19 tokens across 6 style axes. Every token is defined with a themeless-safe default in
+21 tokens across 7 style axes. Every token is defined with a themeless-safe default in
 `packages/blocks/src/tokens.css`; a block reads a token with no inline `var(--x, fallback)` —
 the base layer guarantees the name always resolves.
 
@@ -51,6 +51,16 @@ the base layer guarantees the name always resolves.
 | `--r-sm` | radius | Small corner radius | `6px` |
 | `--r-md` | radius | Medium corner radius | `10px` |
 | `--font-ui` | typography | UI / block font family | `ui-sans-serif, system-ui, sans-serif` |
+| `--measure-post` | layout | Reading-column width | `38rem` |
+| `--measure-page` | layout | Page width — what Width = Wide breaks out to | `64rem` |
+
+**The layout axis (added #1296).** The two measures are what the shared width primitives
+(below) size against. They joined the contract when those primitives moved out of
+theme-default into `@setu/blocks/base.css`: base CSS may only read contract tokens, and the
+breakout math cannot be written without them. A theme sets them; theme-default exposes
+`--measure-page` as the Customizer's "Content width". The editor canvas reads the active theme's
+published values for both (`apps/admin/src/editor/useThemeMeasure.ts`), falling back to these
+defaults.
 
 Names are unprefixed and shared by three consumers that must agree on them: block CSS
 (`@setu/blocks`), the editor canvas (`apps/admin`), and themes (`theme-default` and any custom
@@ -63,11 +73,11 @@ theme). That's the whole point — one name, three readers, no translation layer
 A theme (or a site-local override) can re-skin a block at three different depths, in order of
 how often you'll actually reach for them:
 
-**(a) Override tokens — the ~80% path.** Redeclare a subset of the 19 names in the theme's own
-`:root`, after importing the base layer. This is all `theme-default/theme.css` does:
+**(a) Override tokens — the ~80% path.** Redeclare a subset of the contract names in the theme's
+own `:root`, after importing the base layer. This is all `theme-default/theme.css` does:
 
 ```css
-@import '@setu/blocks/tokens.css';
+@import '@setu/blocks/base.css';
 
 :root {
   --r-md: var(--radius-base);
@@ -83,8 +93,8 @@ Most theming work should stop here.
 `.setu-<block>` (e.g. `.setu-button`) or `.blk-<block>` (e.g. `.blk-callout`, `.blk-hero`), plus
 block-local element classes like `.blk-hero-headline`. A theme can write CSS against these
 classes directly for a look the token vocabulary doesn't cover (a layout tweak, a breakout rule,
-a hover treatment) without forking the block. `theme-default/site.css` does exactly this for the
-hero's width breakout (see below) and the image block's `.align-wide`/`.align-full`.
+a hover treatment) without forking the block — e.g. repeating `.setu-posts .setu-post-card__title`
+after the base layer to restyle the post-card titles.
 
 **(c) Replace the renderer entirely.** A site can supply its own component + CSS for a given
 block tag in a site-local `blocks/<tag>/` folder (auto-discovered — see root `CLAUDE.md`),
@@ -99,7 +109,7 @@ renders it.
 on different mechanisms, not one uniform cascade:
 
 - **Tokens (hatch a) genuinely cascade.** `theme-default/theme.css` imports
-  `@setu/blocks/tokens.css` first, then its own `:root` block runs after — same-specificity CSS,
+  `@setu/blocks/base.css` (which brings `tokens.css`) first, then its own `:root` block runs after — same-specificity CSS,
   later wins — so a theme's token overrides beat the base defaults, and `site.css` loads after
   `theme.css` for a further site-specific layer on top of that.
 - **A block's component + CSS (hatch c) is a full shadow, not a cascade.** A site-local
@@ -131,16 +141,22 @@ by the test guard below.
   `hero.css`'s `padding-block: clamp(2rem, 6vw, 4rem)`), not read from a token. This is
   intentional, not an oversight: there is no spacing-scale axis in `BLOCK_TOKENS` yet (see
   "What's intentionally not here" below).
-- **Breakout lives in the theme, not the block.** A block widening past its column (Gutenberg's
-  wide/full align) is layout-context-specific — it depends on the page's measure, gutter, and
-  grid, which only the theme knows. The block itself only marks *intent* via a class
-  (`.blk-hero.w-wide`, `.blk-hero.w-full`) and does the minimum block-local adjustment (e.g.
-  dropping its own corner radius on full-bleed); the actual breakout math —
-  `width: min(var(--measure-page), calc(100vw - 2rem)); margin-left: 50%; transform:
-  translateX(-50%);` — is written once in `theme-default/site.css` against `.prose .blk-hero.w-wide`
-  / `.w-full`, mirroring the pattern already proven by the image block's `.align-wide`/`.align-full`.
-  Don't put breakout math in block CSS — it was tried for the hero and had to be pulled back out
-  into the theme.
+- **Breakout lives in the shared base layer, not in the block and not in each theme.** A block
+  widening past its column (Gutenberg's wide/full align) marks only *intent* via a class
+  (`.blk-hero.w-wide`, `.blk-hero.w-full`, or the image/embed `.align-wide`/`.align-full`) and
+  does the minimum block-local adjustment (e.g. dropping its own corner radius on full-bleed).
+  The breakout math — `width: min(var(--measure-page), calc(100vw - 2rem)); margin-left: 50%;
+  transform: translateX(-50%);` for Wide, `width: 100vw` for Full — is written once in
+  `packages/blocks/src/base.css`, scoped under the theme's `.prose` content container, reading
+  only the layout-axis tokens. A new width-capable block adds its pair of rules there (the
+  table-driven `apps/site/test/block-width-breakout.test.ts` fails by name until it does). Don't
+  put breakout math in a block's own CSS: that CSS also loads in the editor canvas, which mirrors
+  the widths with pane-relative rules (`apps/admin/src/styles/editor.css`) instead of viewport
+  units — it was tried for the hero and had to be pulled back out.
+- **Post-card internals live in the base layer too.** `{% query %}`, `{% related %}` and a theme's
+  archive list render the same `.setu-post-card__*` markup; the card internals are written once in
+  `base.css` (scoped under `.setu-posts` so they out-specify a theme's `.prose a`), and each
+  consumer keeps only its grid/heading/pager chrome.
 - **`--blk-<block>-*` for block-local computed values.** Values that are derived per-instance
   from a prop (not part of the shared contract) get a block-scoped custom property name and are
   exempt from the token contract — e.g. `--blk-hero-scrim` and `--blk-hero-text-color` in
@@ -151,6 +167,22 @@ by the test guard below.
 
 ---
 
+## The base layer a theme loads
+
+`@setu/blocks/base.css` is the single stylesheet a theme imports first. It brings the token
+defaults (`tokens.css`), the Wide/Full width primitives for every width-capable block family
+(image, hero, gallery, video, embed, section), and the post-card internals. A theme sets
+`--measure-post` / `--measure-page` and the colour tokens and gets all of it; it implements none
+of it. Because the theme's own CSS follows the import, repeating any base selector in the theme is
+a restyle that wins by source order. `tokens.css` stays importable on its own for consumers that
+want only the token defaults (the admin editor, whose canvas has its own width rules).
+
+Guarded by `packages/theme-default/base-layer.test.ts` (theme-default imports the base first and
+keeps no copy of its rules), `apps/site/test/blocks-base-css.test.ts` (every width marker and card
+part a built page renders is matched by CSS that page loads, base before theme), and
+`apps/admin/test-browser/theme-base-primitives.test.tsx` (a theme that sets only the measures gets
+working Wide/Full and styled cards, measured in a real browser).
+
 ## Enforcement
 
 `packages/blocks/test/token-contract.test.ts` runs in CI and enforces the contract mechanically
@@ -159,7 +191,8 @@ so it can't silently drift as more blocks land:
 - **Every `BLOCK_TOKENS` entry must be defined in `tokens.css`** — a definition (`--accent:`),
   not merely referenced. Adding a token to the vocabulary without giving it a default fails CI.
 - **Every block CSS file may only read a declared contract token or a `--blk-*` local.** The
-  test globs every `.css` file under `packages/blocks/src/` (excluding `tokens.css` itself, which
+  test globs every `.css` file under `packages/blocks/src/` — `base.css` included — (excluding
+  `tokens.css` itself, which
   is allowed to define literals), strips comments, extracts every `var(--...)` read, and fails if
   any name isn't in `BLOCK_TOKENS` and doesn't start with `--blk-`. This is what stops a new block
   from inventing a one-off variable name instead of using — or proposing an addition to — the

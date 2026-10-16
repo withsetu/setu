@@ -1,0 +1,60 @@
+---
+import { taxonomyArchivePath, DEFAULT_LOCALE } from '@setu/core'
+
+interface Props {
+  categories: { slug: string; name: string }[]
+  tags: string[]
+  /** The post's own locale: terms link to that locale's archive (#1114). */
+  locale?: string
+}
+const { categories, tags, locale = DEFAULT_LOCALE } = Astro.props
+const has = categories.length > 0 || tags.length > 0
+---
+
+{has && (
+  <nav class="fx-terms" aria-label="Categories and tags">
+    {categories.length > 0 && (
+      <p>
+        <span class="fx-terms__label">Filed under</span>
+        {categories.map((c, i) => (
+          <>
+            {i > 0 && ', '}
+            <a href={taxonomyArchivePath('category', c.slug, locale)}>{c.name}</a>
+          </>
+        ))}
+      </p>
+    )}
+    {tags.length > 0 && (
+      <p>
+        <span class="fx-terms__label">Tagged</span>
+        {tags.map((t, i) => (
+          <>
+            {i > 0 && ' · '}
+            <a href={taxonomyArchivePath('tag', t, locale)}>{t}</a>
+          </>
+        ))}
+      </p>
+    )}
+  </nav>
+)}
+
+<style>
+  .fx-terms {
+    margin-top: 2.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    font-family: var(--font-ui);
+    font-size: 0.9rem;
+  }
+  .fx-terms p {
+    margin: 0 0 0.35rem;
+  }
+  .fx-terms__label {
+    margin-right: 0.6rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-2);
+  }
+</style>

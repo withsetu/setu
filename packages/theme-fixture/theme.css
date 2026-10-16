@@ -1,0 +1,57 @@
+/* Setu fixture theme — token layer.
+   A warm "paper and ink" palette with a serif voice. The block-contract tokens get their
+   themeless defaults from @setu/blocks; this file only sets this theme's values for them,
+   plus the two measure tokens every theme owes (--measure-post, --measure-page).
+   Customizer values arrive as a `:root:root` override Setu writes after this file, so the
+   defaults here are only ever the starting point. */
+@import '@setu/blocks/tokens.css';
+
+:root {
+  color-scheme: light dark;
+
+  /* ---- Palette (light): warm paper, brown-black ink, terracotta highlight ---- */
+  --accent: #b4532a;
+  --on-accent: #fffaf1;
+  --bg: #f5efe4;
+  --canvas: #fffaf1;
+  --surface-2: #ede5d6;
+  --border: #dacfbb;
+  --text: #221f1a;
+  --text-2: #6a6156;
+  /* Link ink: the highlight itself in light mode, lifted toward white in dark mode below. */
+  --fx-link: var(--accent);
+  --fx-rule: #221f1a;
+
+  /* ---- Type ---- */
+  --font-heading: 'Fraunces Variable', 'Fraunces', ui-serif, Georgia, serif;
+  --font-body: 'Fraunces Variable', 'Fraunces', ui-serif, Georgia, serif;
+  --font-mono:
+    'Fira Code Variable', 'Fira Code', ui-monospace, 'SF Mono', Menlo, monospace;
+  /* Small chrome (dates, nav, chips) stays in the system sans so the serif carries the reading. */
+  --font-ui: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* ---- Measures: the two width tokens Setu's Wide/Full primitives read ---- */
+  --measure-post: 40rem;
+  --measure-page: 70rem;
+
+  /* ---- Shape: squarer than the default theme ---- */
+  --r-sm: 2px;
+  --r-md: 4px;
+}
+
+/* Dark mode follows the reader's system setting. Every colour above is re-pointed; the
+   highlight colour is the reader's choice, so it is kept but read through --fx-link, which
+   lifts it far enough from the dark paper to stay legible as link text. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15130f;
+    --canvas: #1d1a15;
+    --surface-2: #26221b;
+    --border: #3a342a;
+    --text: #ece5d8;
+    --text-2: #a89e8e;
+    --fx-link: color-mix(in oklch, var(--accent) 62%, white);
+    --fx-rule: #ece5d8;
+    --accent-soft: color-mix(in oklch, var(--accent) 22%, transparent);
+  }
+}

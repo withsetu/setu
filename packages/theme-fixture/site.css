@@ -1,0 +1,282 @@
+/* Setu fixture theme — page chrome and reading typography.
+   Written for this theme; it reads the block-contract tokens and its own --fx-* locals.
+   Block width (Wide/Full) and post-card internals are NOT here: Setu ships those in
+   @setu/blocks, and this theme only supplies the measures they read (theme.css). */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 1.125rem;
+  line-height: 1.65;
+  font-optical-sizing: auto;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: var(--fx-link);
+}
+
+:focus-visible {
+  outline: 2px solid var(--fx-link);
+  outline-offset: 3px;
+}
+
+.fx-skip {
+  position: absolute;
+  left: -999px;
+}
+.fx-skip:focus {
+  left: 1rem;
+  top: 1rem;
+  padding: 0.5rem 0.9rem;
+  background: var(--canvas);
+  z-index: 10;
+}
+
+/* ---- Masthead: a centred newspaper-style nameplate between two rules ---- */
+.fx-masthead {
+  max-width: var(--measure-page);
+  margin: 0 auto;
+  padding: 2.75rem 1.5rem 0;
+  text-align: center;
+}
+.fx-nameplate {
+  display: inline-block;
+  font-family: var(--font-heading);
+  font-size: clamp(2.1rem, 5vw, 3.1rem);
+  font-weight: 650;
+  font-variation-settings:
+    'SOFT' 100,
+    'WONK' 1;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  color: var(--text);
+  text-decoration: none;
+}
+.fx-tagline {
+  margin: 0.55rem 0 0;
+  font-style: italic;
+  color: var(--text-2);
+}
+.fx-nav {
+  margin-top: 1.6rem;
+  border-top: 3px double var(--fx-rule);
+  border-bottom: 1px solid var(--fx-rule);
+  padding: 0.55rem 0;
+}
+.fx-nav ul {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.4rem 2rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.fx-nav a {
+  color: var(--text);
+  text-decoration: none;
+}
+.fx-nav a:hover {
+  color: var(--fx-link);
+}
+
+/* ---- Main column + footer ---- */
+.fx-main {
+  padding: 0 1.5rem;
+}
+.fx-footer {
+  max-width: var(--measure-page);
+  margin: 5rem auto 0;
+  padding: 1.75rem 1.5rem 3rem;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.fx-footer a {
+  color: inherit;
+}
+
+.measure-post {
+  max-width: var(--measure-post);
+  margin-inline: auto;
+}
+.measure-page {
+  max-width: var(--measure-page);
+  margin-inline: auto;
+}
+
+/* ---- Reading typography ---- */
+.prose {
+  padding-block: 3.25rem 1rem;
+}
+.prose > h1,
+.fx-archive-title {
+  margin: 0 0 1.75rem;
+  font-family: var(--font-heading);
+  font-size: clamp(2.2rem, 5.5vw, 3.4rem);
+  font-weight: 600;
+  font-variation-settings: 'SOFT' 50;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+.fx-post > h1 {
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.prose h2,
+.prose h3,
+.prose h4 {
+  font-family: var(--font-heading);
+  line-height: 1.2;
+  text-wrap: balance;
+}
+.prose h2 {
+  margin: 2.6rem 0 0.8rem;
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+.prose h3 {
+  margin: 2rem 0 0.6rem;
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+.prose h4 {
+  margin: 1.6rem 0 0.4rem;
+  font-size: 1.05rem;
+}
+.prose p,
+.prose ul,
+.prose ol {
+  margin: 0 0 1.2rem;
+}
+.prose a {
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+.prose a:hover {
+  text-decoration-thickness: 2px;
+}
+/* An opening drop cap on posts: the first paragraph straight after the title. */
+.fx-post > h1 + p::first-letter {
+  float: left;
+  margin: 0.08em 0.1em 0 0;
+  font-family: var(--font-heading);
+  font-size: 3.6em;
+  font-weight: 600;
+  line-height: 0.82;
+  color: var(--fx-link);
+}
+.prose ul,
+.prose ol {
+  padding-left: 1.4rem;
+}
+.prose li + li {
+  margin-top: 0.35rem;
+}
+.prose li::marker {
+  color: var(--text-2);
+}
+.prose li.task {
+  list-style: none;
+  margin-left: -1.4rem;
+}
+.prose li.task input[type='checkbox'] {
+  accent-color: var(--accent);
+  margin-right: 0.5rem;
+}
+.prose blockquote {
+  margin: 2rem 0;
+  padding: 0 0 0 1.4rem;
+  border-left: 2px solid var(--fx-link);
+  font-size: 1.2rem;
+  font-style: italic;
+  color: var(--text);
+}
+.prose hr {
+  margin: 3rem auto;
+  width: 4rem;
+  border: 0;
+  border-top: 1px solid var(--text-2);
+}
+.prose code {
+  padding: 0.1em 0.3em;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--surface-2);
+  border-radius: var(--r-sm);
+}
+.prose pre {
+  margin: 1.6rem 0;
+  padding: 1.1rem 1.25rem;
+  overflow-x: auto;
+  background: var(--canvas);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+.prose pre code {
+  padding: 0;
+  background: none;
+}
+.prose table {
+  width: 100%;
+  margin: 1.6rem 0;
+  border-collapse: collapse;
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+}
+.prose th,
+.prose td {
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+.prose th {
+  border-bottom: 2px solid var(--fx-rule);
+  font-weight: 650;
+}
+.prose img {
+  max-width: 100%;
+  height: auto;
+}
+.prose figure {
+  margin: 2rem 0;
+}
+.prose figcaption {
+  margin-top: 0.55rem;
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  color: var(--text-2);
+}
+
+/* ---- Featured image above a post ---- */
+.post-hero {
+  margin: 2.5rem auto 0;
+  padding-inline: 0;
+}
+.post-hero img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--r-md);
+}

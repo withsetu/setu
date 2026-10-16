@@ -1,0 +1,108 @@
+---
+import Layout from './Layout.astro'
+import { ensureTrailingSlashPath } from '@setu/core'
+import type { SiteSettings, ResolvedSeo } from '@setu/core'
+
+interface RelatedItem {
+  title: string
+  href: string
+  image?: string
+}
+interface Props {
+  title: string
+  lang?: string
+  themeOptions?: Record<string, string>
+  siteSettings?: SiteSettings
+  related?: RelatedItem[]
+  feedLocales?: string[]
+  heading?: string
+  showImage?: boolean
+  seo?: ResolvedSeo
+}
+const {
+  title,
+  lang,
+  themeOptions,
+  siteSettings,
+  related = [],
+  feedLocales,
+  heading = 'Read Next',
+  showImage = true,
+  seo
+} = Astro.props
+// Related hrefs arrive slash-less from the relations cache; the site's trailing-slash policy is
+// applied here so they match the canonical spelling (#889).
+const items = related.map((r) => ({ ...r, href: ensureTrailingSlashPath(r.href) }))
+---
+
+<Layout title={title} lang={lang} themeOptions={themeOptions} siteSettings={siteSettings} feedLocales={feedLocales} seo={seo}>
+  <slot name="hero" />
+  <article class="prose fx-post measure-post"><slot /></article>
+  {items.length > 0 && (
+    <aside class="fx-next measure-post" aria-label="Related posts">
+      <h2>{heading}</h2>
+      <ol>
+        {items.map((r) => (
+          <li>
+            {showImage && r.image && (
+              <a href={r.href} class="fx-next__thumb" tabindex="-1" aria-hidden="true">
+                <img src={r.image} alt="" loading="lazy" />
+              </a>
+            )}
+            <a href={r.href} class="fx-next__title">{r.title}</a>
+          </li>
+        ))}
+      </ol>
+    </aside>
+  )}
+</Layout>
+
+<style>
+  .fx-next {
+    margin-top: 3.5rem;
+    padding-top: 1.25rem;
+    border-top: 3px double var(--fx-rule);
+  }
+  .fx-next h2 {
+    margin: 0 0 1rem;
+    font-family: var(--font-ui);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-2);
+  }
+  .fx-next ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .fx-next li {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.85rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .fx-next__thumb {
+    flex: none;
+  }
+  .fx-next__thumb img {
+    display: block;
+    width: 5.5rem;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    border-radius: var(--r-sm);
+  }
+  .fx-next__title {
+    font-family: var(--font-heading);
+    font-size: 1.2rem;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--text);
+    text-decoration: none;
+  }
+  .fx-next__title:hover {
+    color: var(--fx-link);
+  }
+</style>

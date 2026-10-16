@@ -1,0 +1,103 @@
+---
+// The fixture theme's page shell. It is internal: the site renders through PageLayout and
+// PostLayout, which wrap it.
+import './theme.css'
+import './site.css'
+
+// The selected typeface (+ the mono face) — the host build fills this virtual module from
+// ./fonts.ts. A host that provides nothing gives an empty module, and the stacks in theme.css
+// then fall back to system faces.
+import 'virtual:setu-fonts'
+
+import { DEFAULT_LOCALE } from '@setu/core'
+import type { SiteSettings, ResolvedSeo } from '@setu/core'
+
+interface Props {
+  title: string
+  lang?: string
+  /** Chosen Customizer values. Setu writes their CSS override into the page head itself
+   *  (#1294), so the theme never reads them. */
+  themeOptions?: Record<string, string>
+  siteSettings?: SiteSettings
+  feedLocales?: string[]
+  seo?: ResolvedSeo
+}
+const { title, lang = 'en', siteSettings, feedLocales = [], seo } = Astro.props
+const siteTitle = siteSettings?.general.title ?? 'Setu'
+const tagline = siteSettings?.general.tagline ?? ''
+const description = siteSettings?.general.description ?? ''
+const docTitle = seo?.title ?? (title ? `${title} — ${siteTitle}` : siteTitle)
+const feedLinks = siteSettings?.reading.feed.enabled
+  ? feedLocales.length
+    ? feedLocales
+    : [DEFAULT_LOCALE]
+  : []
+const here = Astro.url.pathname
+const nav = [
+  { href: '/', label: 'Home' },
+  { href: '/posts/', label: 'Writing' },
+  { href: '/page/about/', label: 'About' }
+]
+const isCurrent = (href: string) =>
+  href === '/' ? here === '/' : here.startsWith(href.replace(/\/$/, ''))
+---
+
+<html lang={lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{docTitle}</title>
+    {seo ? (
+      <>
+        <link rel="canonical" href={seo.canonical} />
+        {seo.prev && <link rel="prev" href={seo.prev} />}
+        {seo.next && <link rel="next" href={seo.next} />}
+        {seo.alternates?.map((a) => (
+          <link rel="alternate" hreflang={a.hreflang} href={a.href} />
+        ))}
+        {seo.meta.map((m) => (
+          <meta name={m.name} property={m.property} content={m.content} />
+        ))}
+        {seo.jsonLd && <script type="application/ld+json" set:html={seo.jsonLd} />}
+      </>
+    ) : (
+      <>
+        {description && <meta name="description" content={description} />}
+        {siteSettings?.reading.searchEngineVisible === false && (
+          <meta name="robots" content="noindex, nofollow" />
+        )}
+      </>
+    )}
+    {feedLinks.map((loc) => (
+      <link
+        rel="alternate"
+        type="application/rss+xml"
+        title={loc === DEFAULT_LOCALE ? siteTitle : `${siteTitle} (${loc.toUpperCase()})`}
+        href={loc === DEFAULT_LOCALE ? '/rss.xml' : `/${loc}/rss.xml`}
+        hreflang={loc}
+      />
+    ))}
+  </head>
+  <body>
+    <a class="fx-skip" href="#content">Skip to content</a>
+    <header class="fx-masthead">
+      <a class="fx-nameplate" href="/">{siteTitle}</a>
+      {tagline && <p class="fx-tagline">{tagline}</p>}
+      <nav class="fx-nav" aria-label="Site">
+        <ul>
+          {nav.map((n) => (
+            <li>
+              <a href={n.href} aria-current={isCurrent(n.href) ? 'page' : undefined}>{n.label}</a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    </header>
+    <main id="content" class="fx-main">
+      <slot />
+    </main>
+    <footer class="fx-footer">
+      {siteTitle} · Set in the fixture theme · Built with Setu
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,139 @@
+---
+import { entryUrlPath, ensureTrailingSlashPath, DEFAULT_LOCALE, type PostRow } from '@setu/core'
+import type { Page } from 'astro'
+
+interface Props {
+  page: Page<PostRow>
+  heading: string
+  basePath: string
+  mediaBase: string
+}
+const { page, heading, mediaBase } = Astro.props
+
+const resolveImg = (s: string): string =>
+  !s || /^https?:\/\//i.test(s) ? s : s.startsWith('/') ? `${mediaBase}${s}` : s
+// Card links follow the site's trailing-slash policy so they match the canonical spelling (#889).
+const hrefOf = (p: PostRow) =>
+  ensureTrailingSlashPath(
+    p.urlPath !== undefined
+      ? `/${p.urlPath}`
+      : `/${entryUrlPath({ collection: p.collection, locale: p.locale, slug: p.slug })}`
+  )
+// A frontmatter date is a calendar date, not an instant, so it is formatted in UTC.
+const fmtDate = (ms: number, loc: string): string =>
+  new Date(ms).toLocaleDateString(loc || DEFAULT_LOCALE, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'UTC'
+  })
+---
+
+<header class="fx-archive-head">
+  <h1 class="fx-archive-title">{heading}</h1>
+  {page.lastPage > 1 && <p>Page {page.currentPage} of {page.lastPage}</p>}
+</header>
+
+{page.data.length === 0 ? (
+  <p class="setu-posts__empty">Nothing here yet.</p>
+) : (
+  <ul class="setu-posts fx-archive">
+    {page.data.map((p) => (
+      <li class="setu-post-card">
+        <div class="fx-archive__text">
+          {p.date !== null && (
+            <time class="setu-post-card__date" datetime={new Date(p.date).toISOString().slice(0, 10)}>
+              {fmtDate(p.date, p.locale)}
+            </time>
+          )}
+          <a href={hrefOf(p)} class="setu-post-card__title">{p.title}</a>
+          {p.excerpt && <p class="setu-post-card__excerpt">{p.excerpt}</p>}
+        </div>
+        {p.featuredImage && (
+          <a href={hrefOf(p)} class="setu-post-card__media" tabindex="-1" aria-hidden="true">
+            <img src={resolveImg(p.featuredImage)} alt="" loading="lazy" />
+          </a>
+        )}
+      </li>
+    ))}
+  </ul>
+)}
+
+{page.lastPage > 1 && (
+  <nav class="fx-pager" aria-label="Pagination">
+    {page.url.prev ? <a href={page.url.prev} rel="prev">← Newer</a> : <span aria-hidden="true"></span>}
+    {page.url.next ? <a href={page.url.next} rel="next">Older →</a> : <span aria-hidden="true"></span>}
+  </nav>
+)}
+
+<style>
+  /* An index reads as a column, not a page-wide table: a little wider than the post measure. */
+  .fx-archive-head,
+  .fx-archive,
+  .fx-pager,
+  .setu-posts__empty {
+    max-width: calc(var(--measure-post) + 8rem);
+    margin-inline: auto;
+  }
+  .fx-archive-head {
+    margin-bottom: 1rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 3px double var(--fx-rule);
+  }
+  .fx-archive-head .fx-archive-title {
+    margin-bottom: 0.25rem;
+  }
+  .fx-archive-head p {
+    margin: 0;
+    font-family: var(--font-ui);
+    font-size: 0.85rem;
+    color: var(--text-2);
+  }
+  /* One column of entries, newest first: text on the left, a small thumbnail on the right. */
+  .fx-archive {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .fx-archive .setu-post-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 1.5rem;
+    align-items: start;
+    padding: 1.6rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .fx-archive .setu-post-card__media {
+    width: 9rem;
+  }
+  .fx-archive .setu-post-card__title {
+    display: block;
+    font-family: var(--font-heading);
+    font-size: 1.55rem;
+    line-height: 1.2;
+  }
+  .fx-archive .setu-post-card__date {
+    font-family: var(--font-ui);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  @media (max-width: 34rem) {
+    .fx-archive .setu-post-card {
+      grid-template-columns: 1fr;
+    }
+    .fx-archive .setu-post-card__media {
+      grid-row: 1;
+      width: 100%;
+    }
+  }
+  .fx-pager {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 2rem;
+    font-family: var(--font-ui);
+    font-weight: 600;
+  }
+  .fx-pager a {
+    text-decoration: none;
+  }
+</style>

@@ -1,0 +1,39 @@
+{
+  "name": "@setu/theme-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "description": "A deliberately minimal second theme that proves the Setu theme contract.",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "exports": {
+    "./PageLayout.astro": "./PageLayout.astro",
+    "./PostLayout.astro": "./PostLayout.astro",
+    "./ArchiveList.astro": "./ArchiveList.astro",
+    "./TaxonomyChips.astro": "./TaxonomyChips.astro",
+    "./theme.css": "./theme.css",
+    "./site.css": "./site.css",
+    "./options": "./options.ts",
+    "./fonts": "./fonts.ts"
+  },
+  "peerDependencies": {
+    "astro": "^7.0.0"
+  },
+  "devDependencies": {
+    "astro": "7.3.8",
+    "typescript": "^5.6.3",
+    "vitest": "^5.0.4"
+  },
+  "dependencies": {
+    "@setu/blocks": "workspace:*",
+    "@setu/core": "workspace:*",
+    "@fontsource-variable/bricolage-grotesque": "5.3.0",
+    "@fontsource-variable/fira-code": "5.3.0",
+    "@fontsource-variable/fraunces": "5.3.0",
+    "@fontsource-variable/literata": "5.3.0"
+  }
+}

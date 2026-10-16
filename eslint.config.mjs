@@ -302,8 +302,8 @@ export default tseslint.config(
       'apps/admin/test-browser/**/*.{ts,tsx}',
       // #819: the public rendering path. `.astro` templates are covered separately by the
       // astro block above (different parser); these are the .tsx/.ts renderers that sit
-      // beside them — packages/blocks' React block components and theme-default's helpers.
-      'packages/theme-default/**/*.{ts,tsx}',
+      // beside them — packages/blocks' React block components and the workspace themes' helpers.
+      'packages/theme-*/**/*.{ts,tsx}',
       'packages/blocks/**/*.{ts,tsx}'
     ],
     plugins: {
@@ -344,10 +344,7 @@ export default tseslint.config(
   // react-hooks rule off here keeps #267's deliberate "themes are not bound to admin React
   // conventions" decision intact instead of quietly importing a second rule set with it.
   {
-    files: [
-      'packages/theme-default/**/*.{ts,tsx}',
-      'packages/blocks/**/*.{ts,tsx}'
-    ],
+    files: ['packages/theme-*/**/*.{ts,tsx}', 'packages/blocks/**/*.{ts,tsx}'],
     rules: Object.fromEntries(
       Object.keys(reactHooks.configs.flat.recommended.rules).map((rule) => [
         rule,

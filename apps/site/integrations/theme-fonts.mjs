@@ -13,7 +13,15 @@
 // indistinguishable from the bug this replaces. A theme whose fonts module is broken is a broken
 // theme and must fail loudly rather than degrade to no fonts.
 //
+// WHICH family is selected is read from the declaration's `role: 'typeface'` option, under that
+// option's own key (#1295). It used to be read from the key `font` — theme-default's name for it —
+// so a theme naming the option `typeface` got its default family bundled while the CSS override
+// named the chosen one. A declaration with no typeface role selects no family; that is announced
+// too, for the same reason as above.
+//
 // Behaviour is covered by apps/site/test/theme-fonts.test.ts.
+
+import { parseThemeOptions, selectedTypeface } from '@setu/core'
 
 /** True when `err` means "this package has no such subpath", as opposed to "something inside
  *  that module failed to load". Node reports the first as ERR_PACKAGE_PATH_NOT_EXPORTED; it
@@ -27,9 +35,29 @@ function isMissingExport(err, specifier) {
   return String(err.message).includes(specifier)
 }
 
+/** The active theme's validated option declaration; `[]` for a theme with no `./options` export
+ *  (it declares nothing to customise). A broken module or an invalid declaration throws. */
+async function loadDeclaration(activeTheme, importModule) {
+  const specifier = `${activeTheme}/options`
+  let mod
+  try {
+    mod = await importModule(specifier)
+  } catch (err) {
+    if (isMissingExport(err, specifier)) return []
+    throw err
+  }
+  try {
+    return parseThemeOptions(mod?.themeOptions)
+  } catch (err) {
+    throw new Error(
+      `[setu] theme ${activeTheme}: ${err instanceof Error ? err.message : String(err)}`
+    )
+  }
+}
+
 /**
  * @param {string} activeTheme    Package name of the configured theme.
- * @param {string|undefined} fontChoice  The selected family (Customizer / setu.config).
+ * @param {Record<string, string>} values  The theme option values (Customizer file over setu.config).
  * @param {{
  *   importModule: (specifier: string) => Promise<unknown>,
  *   resolvePackageFile: (pkg: string, fromTheme: string) => string,
@@ -37,7 +65,14 @@ function isMissingExport(err, specifier) {
  * }} deps
  * @returns {Promise<string>} Import statements for the virtual module; '' when the theme ships none.
  */
-export async function themeFontImports(activeTheme, fontChoice, deps) {
+export async function themeFontImports(activeTheme, values, deps) {
+  const declaration = await loadDeclaration(activeTheme, deps.importModule)
+  const fontChoice = selectedTypeface(declaration, values ?? {})
+  if (fontChoice === undefined)
+    deps.logger.info(
+      `[setu] theme ${activeTheme} declares no typeface option (role: "typeface") — no family is selectable; the theme's own font set is used as-is`
+    )
+
   const specifier = `${activeTheme}/fonts`
   let mod
   try {

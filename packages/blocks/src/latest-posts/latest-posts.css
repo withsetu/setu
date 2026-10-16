@@ -1,4 +1,4 @@
-/* latest-posts block (#192) — reads ONLY the 19 contract tokens
+/* latest-posts block (#192) — reads ONLY the contract tokens
    (docs/block-styling-contract.md); enforced by test/token-contract.test.ts.
    Every card rule is scoped `.blk-latest-posts .blk-latest-posts-*` (0,2,0) so it
    out-specifies the theme's `.prose a` content-link styling (0,1,1) — the block renders

@@ -5,7 +5,12 @@ import type { ThemeOption } from '@setu/core'
 import { Callout } from '@setu/blocks'
 import { PageHeader } from '../shell/PageHeader'
 import { PageBody } from '../shell/PageBody'
-import { apiFetch } from '@/lib/api-fetch'
+import {
+  fetchThemeDeclaration,
+  readPublishedThemeValues,
+  themeDefaults as defaults,
+  THEME_OPTIONS_PATH
+} from '@/lib/theme-options'
 import { useServices } from '../data/store'
 import { useCan } from '../auth/actor'
 import { useNotify } from '../ui/notify'
@@ -14,21 +19,12 @@ import {
   SETTINGS_LOAD_FAILED_MESSAGE
 } from './settings/SettingsLoadError'
 
-// apiFetch only adds credentials — it does NOT prepend the API origin, so the base is composed
-// here as every other admin->API call does (SessionGate.tsx, SetupScreen.tsx). Without it the
-// request hits the admin's own dev server and comes back as index.html.
-const apiBase = import.meta.env.VITE_SETU_API ?? ''
-
 const STORAGE_KEY = 'setu-theme-options'
-// The committed file the site reads (content-repo root); see apps/site/src/lib/site-config.ts.
-const THEME_OPTIONS_PATH = 'theme-options.json'
 const AUTHOR = { name: 'Local', email: 'local@setu.dev' }
 
 // #1076: the option declaration is FETCHED from the active theme rather than imported from one
-// named theme at build time, so everything derived from it takes it as an argument.
-function defaults(options: ThemeOption[]): Record<string, string> {
-  return Object.fromEntries(options.map((o) => [o.key, o.default]))
-}
+// named theme at build time, so everything derived from it takes it as an argument. The fetch and
+// the published-values read are shared with the editor canvas (#1296): src/lib/theme-options.ts.
 
 /** Shallow record equality over the manifest's full value set. */
 function sameValues(
@@ -83,12 +79,10 @@ export function Appearance() {
     let live = true
     void (async () => {
       try {
-        const res = await apiFetch(`${apiBase}/api/theme/options`)
-        if (!res.ok) throw new Error(`theme options responded ${res.status}`)
-        const body = (await res.json()) as { options: ThemeOption[] }
+        const declared = await fetchThemeDeclaration()
         if (!live) return
-        setOptions(body.options)
-        setValues(loadValues(body.options))
+        setOptions(declared)
+        setValues(loadValues(declared))
         setOptionsError(false)
       } catch (err) {
         if (!live) return
@@ -112,18 +106,7 @@ export function Appearance() {
         // Only git.readFile can reject; a malformed committed file is swallowed → defaults, so it
         // is NOT a load failure. A failed read must NOT fall through to a "Published" button over
         // theme options that were never read from the repo (#837).
-        const raw = await git.readFile(THEME_OPTIONS_PATH)
-        let committed = defaults(options)
-        if (raw) {
-          try {
-            committed = {
-              ...defaults(options),
-              ...(JSON.parse(raw) as Record<string, string>)
-            }
-          } catch {
-            // malformed committed file → treat the live state as defaults
-          }
-        }
+        const committed = await readPublishedThemeValues(git, options)
         if (!live) return
         setPublished(committed)
         setLoadFailed(false)

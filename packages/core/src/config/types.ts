@@ -24,7 +24,7 @@ export type BlockControl =
  *  introspection + future auto-CSS; NOT enforced at runtime. Mirrors @setu/blocks'
  *  BlockStyleAxis, redeclared here to keep @setu/core free of a @setu/blocks dependency. */
 export type BlockStyleAxis =
-  'accent' | 'surface' | 'text' | 'tone' | 'radius' | 'typography'
+  'accent' | 'surface' | 'text' | 'tone' | 'radius' | 'typography' | 'layout'
 
 /** Editor-facing metadata for a block (consumed by the slash menu). */
 export interface BlockEditorMeta {

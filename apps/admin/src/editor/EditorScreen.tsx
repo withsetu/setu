@@ -74,6 +74,7 @@ import { apiFetch } from '../lib/api-fetch'
 import { useCapabilities } from '../lib/useCapabilities'
 import { useRegisterCommands } from '../command/registry'
 import { attrString } from './attr-string'
+import { useThemeMeasure } from './useThemeMeasure'
 
 const EDITOR_ID = 'local'
 const BLANK: TiptapDoc = { type: 'doc', content: [{ type: 'paragraph' }] }
@@ -122,6 +123,8 @@ export function EditorScreen() {
   const [editor, setEditor] = useState<Editor | null>(null)
   const selectedBlock = useSelectedBlock(editor)
   const { caps } = useCapabilities()
+  // #1296: the canvas sizes Wide/Full blocks by the active theme's published measures.
+  const canvasMeasure = useThemeMeasure()
   const apiBase = import.meta.env.VITE_SETU_API ?? ''
   // #382 WordPress-Contributor: a non-publisher can view a live post but never alter it
   // (the server enforces the same rule; this is the honest UI for it).
@@ -1021,7 +1024,7 @@ export function EditorScreen() {
       )}
       <div className="editor-stage">
         <div className="ed-scroll">
-          <div className="ed-canvas">
+          <div className="ed-canvas" style={canvasMeasure}>
             <input
               className="ed-title"
               aria-label="Title"

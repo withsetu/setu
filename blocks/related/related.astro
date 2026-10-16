@@ -64,10 +64,9 @@ const cards: Card[] = String(posts)
 }
 
 <style>
-  /* The shared `.setu-post-card__*` card internals live once, global, in theme-default/site.css
-     (#424). Only this block's own chrome (the Related section + its auto-fill grid) stays here.
-     Not a shared frontmatter CSS import — Astro's markdoc pipeline doesn't load one for a
-     `component()`-rendered block; the theme global is the single source instead. */
+  /* The shared `.setu-post-card__*` card internals live once, global, in @setu/blocks/base.css,
+     which every theme loads first (#424, #1296). Only this block's own chrome (the Related
+     section + its auto-fill grid) stays here. */
   .setu-related { margin: 2rem 0; }
   .setu-related h2 {
     font-family: var(--font-ui);

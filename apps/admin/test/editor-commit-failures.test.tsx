@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { Services } from '../src/data/store'
@@ -56,6 +56,22 @@ function renderEditor(
   )
   return services
 }
+
+// The canvas reads the theme's content width on mount (#1296, src/editor/useThemeMeasure.ts) and
+// reports a failed read; answer it with a theme that declares nothing, so the only alert in these
+// tests is the commit failure under test. Every other request fails as it did before.
+beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((input: unknown) =>
+      String(input).includes('/api/theme/options')
+        ? Promise.resolve(
+            new Response(JSON.stringify({ options: [] }), { status: 200 })
+          )
+        : Promise.reject(new TypeError('no network in this test'))
+    )
+  )
+})
 
 const clickPublish = () =>
   fireEvent.click(screen.getByRole('button', { name: /^publish$/i }))

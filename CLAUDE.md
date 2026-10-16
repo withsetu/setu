@@ -93,7 +93,7 @@ The full standard with the worked "good vs. skeleton" case study: [docs/quality-
   is UX, not security. Unknown role → null actor → 401 (fail closed).
 - **Blocks:** contract in core (`defineBlock`: zod props + editor meta), renderer in theme/
   `@setu/blocks`. Repo-root `blocks/<tag>/` folders are auto-discovered (site-local wins on tag
-  collision). Styling obeys the **19-token contract** — read
+  collision). Styling obeys the **21-token contract** — read
   [docs/block-styling-contract.md](docs/block-styling-contract.md) before ANY block work; a vitest
   guard (`packages/blocks/test/token-contract.test.ts`) fails the build on violations. Block work
   follows the `/new-block` skill.
@@ -354,7 +354,7 @@ Each has happened in this repo. When your plan pattern-matches a row, apply the 
 - [ ] Read [docs/block-styling-contract.md](docs/block-styling-contract.md) first
 - [ ] Contract via `defineBlock` (zod props + editor meta: label, icon, category, `group`,
       `keywords`, control hints/groups)
-- [ ] CSS reads only the 19 contract tokens or `--blk-<block>-*` locals; token guard test green
+- [ ] CSS reads only the 21 contract tokens or `--blk-<block>-*` locals; token guard test green
 - [ ] Inserted via slash menu; inspector controls render grouped and typed (no raw text for enums)
 - [ ] Renders in the editor canvas AND the preview iframe AND the built site (register everywhere;
       §4 #14); round-trips insert → publish → reopen byte-stable

@@ -112,12 +112,13 @@ describe('EditorScreen preview', () => {
 // ---------------------------------------------------------------------------------
 describe('#804 a failed preview is never silent', () => {
   /** fetch stub: the /preview POST behaves as `preview`, everything else (the
-   *  DeployProvider status GET) answers 200 so only the POST is under test. */
+   *  DeployProvider status GET, the canvas's theme-measure read — #1296) answers 200 so only
+   *  the POST is under test. */
   function stubFetch(preview: () => Promise<unknown>) {
     const fetchMock = vi.fn((input: unknown) =>
       String(input).includes('/preview')
         ? preview()
-        : Promise.resolve({ ok: true, json: async () => ({}) })
+        : Promise.resolve({ ok: true, json: async () => ({ options: [] }) })
     )
     vi.stubGlobal('fetch', fetchMock)
     return fetchMock

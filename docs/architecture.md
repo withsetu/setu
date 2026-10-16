@@ -254,7 +254,8 @@ feature we haven't gotten to.
 hand-written `background: var(--accent)` is byte-for-byte what a `supports`-style generator would
 emit, so adding that generator later is just a new *producer* of output blocks already consume —
 no block has to change when it lands. There is exactly one source of token defaults
-(`@setu/blocks/tokens.css`), imported by every theme and enforced by a CI test
+(`@setu/blocks/tokens.css`), loaded by every theme through `@setu/blocks/base.css` — which also
+carries the shared Wide/Full width primitives and post-card internals (#1296) — and enforced by a CI test
 (`packages/blocks/test/token-contract.test.ts`) that fails the build on an undeclared token read
 or a hardcoded brand color. Full vocabulary, authoring rules, and the three theme-override hatches
 are in [docs/block-styling-contract.md](block-styling-contract.md); the design rationale behind

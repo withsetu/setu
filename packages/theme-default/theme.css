@@ -1,9 +1,10 @@
 /* Setu default theme — token layer. Every taste choice is a knob with a default;
    change a token and the site restyles. Block tokens (names + values) are shared with
    the editor (apps/admin tokens.css) so @setu/blocks render themed + matching. The
-   themeless-safe defaults for all block-contract tokens come from the base layer
-   imported below; this file only keeps genuine overrides. */
-@import '@setu/blocks/tokens.css';
+   base layer imported below brings the themeless-safe defaults for every block-contract
+   token plus the shared Wide/Full width primitives and post-card internals (#1296); this
+   file only keeps genuine overrides. */
+@import '@setu/blocks/base.css';
 
 :root {
   /* ---- Identity knobs (defaults — the customization surface) ---- */

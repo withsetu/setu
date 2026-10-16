@@ -361,10 +361,13 @@
     // without recreating the dependsOn cycle.
     // `../../blocks/**` (#1197 gap 1): test/single-line-tag-roundtrip.test.ts derives its tag
     // table from the repo-root blocks/ folders, so adding a block must re-run it.
+    // `../../content/**` (#1252): the same test round-trips the demo pages under content/, so
+    // editing one must re-run it (enforced by scripts/turbo-inputs.test.mjs).
     "@setu/core#test": {
       "inputs": [
         "$TURBO_DEFAULT$",
         "../../blocks/**",
+        "../../content/**",
         "../db-memory/src/**",
         "../git-memory/src/**"
       ],

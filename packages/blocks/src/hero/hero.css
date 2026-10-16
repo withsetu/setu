@@ -37,6 +37,18 @@
   color: inherit;
 }
 
+/* #1252 — intended for the editor canvas only: the Hero core shows this in the headline
+   slot when the headline is blank and a placeholder is passed (HeroBlock.tsx does;
+   Hero.astro has no such slot). Styling pinned by
+   apps/admin/test-browser/node-views.test.tsx. Muted + italic + regular weight so an
+   unfilled slot never reads as the published headline; opacity rather than a color keeps
+   it legible over a background-image scrim and an author-set text color. */
+.blk-hero .blk-hero-headline-placeholder {
+  font-style: italic;
+  font-weight: 400;
+  opacity: 0.5;
+}
+
 /* Text alignment — how the lines align inside the text box (overrides the layout default). */
 .blk-hero.ta-left .blk-hero-text {
   text-align: left;

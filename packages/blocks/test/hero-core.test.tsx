@@ -78,6 +78,26 @@ describe('Hero canvas core', () => {
     expect(container.querySelector('h2')).toBeNull()
   })
 
+  // #1252 — the editor canvas passes a placeholder for a blank headline. It must not
+  // read as the published headline: no <h2> (the site renders none) and its own class.
+  it('renders a blank headline as a non-heading placeholder when one is given', () => {
+    const { container } = render(
+      <Hero headline="" headlinePlaceholder="Add a headline" />
+    )
+    expect(container.querySelector('h2')).toBeNull()
+    const ph = container.querySelector('.blk-hero-headline-placeholder')
+    expect(ph?.textContent).toBe('Add a headline')
+    expect(ph?.tagName).toBe('P')
+  })
+
+  it('never shows the placeholder over a real headline', () => {
+    const { container } = render(
+      <Hero headline="Real" headlinePlaceholder="Add a headline" />
+    )
+    expect(container.querySelector('h2')?.textContent).toBe('Real')
+    expect(container.querySelector('.blk-hero-headline-placeholder')).toBeNull()
+  })
+
   it('gives a split-layout content image a non-empty alt (imageAlt, else headline)', () => {
     const { container } = render(
       <Hero

@@ -74,6 +74,59 @@ describe('HeroBlock node view (real browser)', () => {
   })
 })
 
+describe('HeroBlock blank-headline placeholder (real browser, #1252)', () => {
+  // The site renders NO heading for a blank headline, so the canvas must not show one
+  // either: the placeholder is a muted, italic non-heading. Computed style needs a real
+  // browser (jsdom does not cascade stylesheets), hence this lives in test-browser.
+  it('shows a muted italic placeholder, not a heading, when the headline is empty', async () => {
+    render(
+      <Harness
+        extensions={[StarterKit, HeroBlock]}
+        content={{
+          type: 'doc',
+          content: [
+            {
+              type: 'heroBlock',
+              attrs: { mdAttrs: { headline: '', layout: 'centered' } }
+            }
+          ]
+        }}
+      />
+    )
+    const placeholder = page.getByText('Add a headline in the block panel')
+    await expect.element(placeholder).toBeInTheDocument()
+    expect(page.getByRole('heading').elements()).toHaveLength(0)
+    const style = getComputedStyle(placeholder.element())
+    expect(style.fontStyle).toBe('italic')
+    expect(Number(style.opacity)).toBeLessThan(1)
+  })
+
+  it('a real headline renders as the heading at full strength', async () => {
+    render(
+      <Harness
+        extensions={[StarterKit, HeroBlock]}
+        content={{
+          type: 'doc',
+          content: [
+            {
+              type: 'heroBlock',
+              attrs: { mdAttrs: { headline: 'Shipped', layout: 'centered' } }
+            }
+          ]
+        }}
+      />
+    )
+    const heading = page.getByRole('heading', { name: 'Shipped' })
+    await expect.element(heading).toBeInTheDocument()
+    const style = getComputedStyle(heading.element())
+    expect(style.fontStyle).toBe('normal')
+    expect(style.opacity).toBe('1')
+    expect(
+      page.getByText('Add a headline in the block panel').elements()
+    ).toHaveLength(0)
+  })
+})
+
 describe('ImageBlock node view (real browser)', () => {
   it('renders an accessible toolbar with align control, alt text, and caption inputs', async () => {
     render(

@@ -79,8 +79,21 @@ export function parseThemeOptions(raw: unknown): ThemeOption[] {
   const parsed = z.array(optionSchema).safeParse(raw)
   if (!parsed.success) {
     const first = parsed.error.issues[0]
+    // Field-level issues carry only a path (`1.token`); name the option by its key so the build
+    // log and the admin's 500 say which option to fix. Refinement messages already name it.
+    // Enforced by packages/core/test/theme/options.test.ts.
+    const index = first?.path?.[0]
+    const key =
+      Array.isArray(raw) && typeof index === 'number'
+        ? (raw[index] as { key?: unknown } | null)?.key
+        : undefined
+    const message = first?.message ?? 'unrecognised shape'
+    const named =
+      typeof key === 'string' && !message.startsWith('option "')
+        ? `option "${key}": ${message}`
+        : message
     throw new Error(
-      `invalid theme options declaration: ${first?.message ?? 'unrecognised shape'}` +
+      `invalid theme options declaration: ${named}` +
         (first?.path?.length ? ` (at ${first.path.join('.')})` : '')
     )
   }

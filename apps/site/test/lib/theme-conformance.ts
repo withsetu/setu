@@ -158,7 +158,7 @@ export function resolveExport(
     if (!t) continue
     return join(
       dir,
-      t.replace('*', subpath.slice(pre.length, subpath.length - post.length))
+      t.replaceAll('*', subpath.slice(pre.length, subpath.length - post.length))
     )
   }
   return null
@@ -178,7 +178,7 @@ function exportedStylesheets(dir: string, pkg: PackageJson): string[] {
 /** True when `css` DEFINES `token` with a non-empty value (a `var(--x)` read does not count). */
 export function definesToken(css: string, token: string): boolean {
   const code = css.replace(/\/\*[\s\S]*?\*\//g, '')
-  const escaped = token.replace(/[-]/g, '\\-')
+  const escaped = token.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&')
   return new RegExp(`(^|[\\s;{])${escaped}\\s*:\\s*[^;}\\s]`).test(code)
 }
 

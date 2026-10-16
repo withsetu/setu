@@ -150,6 +150,8 @@
       "env": ["SETU_CONTENT_DIR"],
       "inputs": [
         "$TURBO_DEFAULT$",
+        "../../pnpm-workspace.yaml",
+        "../../packages/theme-*/**",
         "../../blocks/**",
         "../../content/**",
         "../../scripts/gen-blocks.mjs",
@@ -279,6 +281,8 @@
       "env": ["SETU_CONTENT_DIR"],
       "inputs": [
         "$TURBO_DEFAULT$",
+        "../../pnpm-workspace.yaml",
+        "../../packages/theme-*/**",
         "../../blocks/**",
         "../../content/**",
         "../../scripts/gen-blocks.mjs",
@@ -573,6 +577,8 @@
       ],
       "inputs": [
         "$TURBO_DEFAULT$",
+        "../../pnpm-workspace.yaml",
+        "../../packages/theme-*/**",
         "../../blocks/**",
         "../../content/**",
         "../../scripts/gen-blocks.mjs",

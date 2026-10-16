@@ -37,6 +37,7 @@ import Th from '../components/Th.astro'
 import Td from '../components/Td.astro'
 import { loadThemeOptions } from '../lib/site-config'
 import { loadPreviewDraft } from './load-draft'
+import { pageLayoutProps } from '../lib/layout-props'
 
 const apiUrl = import.meta.env.SETU_API_URL ?? 'http://localhost:4444'
 
@@ -107,16 +108,20 @@ if (draft) {
 
 const themeOptions = loadThemeOptions()
 const TemplateLayout = isPost ? PostLayout : PageLayout
+// The preview passes only the frame: no settings, feeds or SEO head (it is never indexed).
+const layout = pageLayoutProps(title, lang, { themeOptions })
+const unavailable = pageLayoutProps('Preview unavailable', 'en', { themeOptions })
+const empty = pageLayoutProps('Preview', 'en', { themeOptions })
 ---
 
 {
   draft && Content ? (
-    <TemplateLayout title={title} lang={lang} themeOptions={themeOptions}>
+    <TemplateLayout {...layout}>
       <h1>{title}</h1>
       <Content />
     </TemplateLayout>
   ) : failure ? (
-    <PageLayout title="Preview unavailable" lang="en" themeOptions={themeOptions}>
+    <PageLayout {...unavailable}>
       <h1>Preview unavailable</h1>
       <div class="preview-error" role="alert">
         <p class="preview-error-title">{failure.title}</p>
@@ -125,7 +130,7 @@ const TemplateLayout = isPost ? PostLayout : PageLayout
       </div>
     </PageLayout>
   ) : (
-    <PageLayout title="Preview" lang="en" themeOptions={themeOptions}>
+    <PageLayout {...empty}>
       <h1>Nothing to preview yet</h1>
       <p>Open an entry in the editor and hit Preview.</p>
     </PageLayout>

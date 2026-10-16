@@ -1,0 +1,10 @@
+---
+import type { PageLayoutProps } from '@setu/core'
+type Props = PageLayoutProps
+const { title, lang } = Astro.props
+---
+
+<html lang={lang}>
+  <head><title>{title}</title></head>
+  <body><main><slot /></main></body>
+</html>

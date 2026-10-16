@@ -9,6 +9,7 @@ import { loadSiteSettings } from '../../lib/site-settings'
 import { toPostRow } from '../../lib/post-row'
 import { pageSeo } from '../../lib/seo'
 import { resolveMediaBase } from '@setu/image-astro'
+import { archiveListProps, pageLayoutProps } from '../../lib/layout-props'
 import { permalinkMap } from 'setu:permalinks'
 
 export const getStaticPaths = (async ({ paginate }) => {
@@ -41,8 +42,10 @@ const seo = pageSeo(Astro.site, Astro.url.pathname, mediaBase, siteSettings, {
   prevPath: page.url.prev ?? undefined,
   nextPath: page.url.next ?? undefined,
 })
+const layout = pageLayoutProps('Posts', 'en', { themeOptions, siteSettings, seo })
+const list = archiveListProps(page, 'Posts', '/posts', mediaBase)
 ---
 
-<PageLayout title="Posts" lang="en" themeOptions={themeOptions} siteSettings={siteSettings} seo={seo}>
-  <ArchiveList page={page} heading="Posts" basePath="/posts" mediaBase={mediaBase} />
+<PageLayout {...layout}>
+  <ArchiveList {...list} />
 </PageLayout>

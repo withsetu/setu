@@ -1,14 +1,9 @@
 ---
-import { entryUrlPath, ensureTrailingSlashPath, DEFAULT_LOCALE, type PostRow } from '@setu/core'
-import type { Page } from 'astro'
+import { entryUrlPath, ensureTrailingSlashPath, DEFAULT_LOCALE, type ArchiveListProps, type PostRow } from '@setu/core'
 import { paginationWindow } from './pagination'
 
-interface Props {
-  page: Page<PostRow>
-  heading: string
-  basePath: string
-  mediaBase: string
-}
+// The theme contract's props for this component (packages/core/src/theme/layout-props.ts).
+type Props = ArchiveListProps
 const { page, heading, basePath, mediaBase } = Astro.props
 
 const resolveImg = (s: string): string =>

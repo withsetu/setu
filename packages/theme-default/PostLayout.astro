@@ -1,25 +1,11 @@
 ---
 import Layout from './Layout.astro'
 import RelatedReading from './RelatedReading.astro'
-import type { SiteSettings, ResolvedSeo } from '@setu/core'
+import type { PostLayoutProps } from '@setu/core'
 
-interface RelatedItem {
-  title: string
-  href: string
-  image?: string
-}
-interface Props {
-  title: string
-  lang?: string
-  themeOptions?: Record<string, string>
-  siteSettings?: SiteSettings
-  related?: RelatedItem[]
-  feedLocales?: string[]
-  heading?: string
-  showImage?: boolean
-  seo?: ResolvedSeo
-}
-const { title, lang = 'en', themeOptions = {}, siteSettings, related = [], feedLocales, heading = 'Read Next', showImage = true, seo } = Astro.props
+// The theme contract's props for this component (packages/core/src/theme/layout-props.ts).
+type Props = PostLayoutProps
+const { title, lang, themeOptions, siteSettings, related = [], feedLocales, heading = 'Read Next', showImage = true, seo } = Astro.props
 ---
 
 <Layout title={title} lang={lang} themeOptions={themeOptions} siteSettings={siteSettings} feedLocales={feedLocales} seo={seo}>

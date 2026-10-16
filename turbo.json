@@ -500,11 +500,17 @@
     // the honest trade — the alternative is a build that cache-hits across a redirect change.
     // `env`: same SETU_CONTENT_DIR reasoning as @setu/site#typecheck above — this task runs the
     // same three generators inside a real `astro build`.
+    // Theme conformance (#1297): test/theme-conformance*.test.ts DISCOVER every workspace theme
+    // from pnpm-workspace.yaml and check/build each one. `^test` hashes only the themes apps/site
+    // depends on, so the theme packages and the workspace file are listed explicitly; a theme
+    // outside `packages/theme-*` fails theme-conformance.test.ts rather than escaping this glob.
     "@setu/site#test": {
       "dependsOn": ["^test", "@setu/site#typecheck"],
       "env": ["SETU_CONTENT_DIR"],
       "inputs": [
         "$TURBO_DEFAULT$",
+        "../../pnpm-workspace.yaml",
+        "../../packages/theme-*/**",
         "../../blocks/**",
         "../../content/**",
         "../../scripts/gen-blocks.mjs",
@@ -553,13 +559,17 @@
     // SETU_MEDIA_DIR / SETU_ARCHIVE_PER_PAGE (#1197 gap 5): the media-manifest integration and
     // @setu/image-astro read the former to find srcset manifests; the archive routes read the
     // latter for page size. Both change dist/, so strict env mode must neither strip nor ignore them.
+    // SETU_TEST_THEME / VITEST (#1294): astro.config.mjs builds through a fixture theme when both
+    // are set (the render-smoke's seam), which changes dist/ entirely.
     "@setu/site#build": {
       "dependsOn": ["^typecheck"],
       "env": [
         "SETU_CONTENT_DIR",
         "SETU_SITE_URL",
         "SETU_MEDIA_DIR",
-        "SETU_ARCHIVE_PER_PAGE"
+        "SETU_ARCHIVE_PER_PAGE",
+        "SETU_TEST_THEME",
+        "VITEST"
       ],
       "inputs": [
         "$TURBO_DEFAULT$",

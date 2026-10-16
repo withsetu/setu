@@ -23,7 +23,11 @@ import { parsePort } from '../../scripts/dev-port.mjs'
 const config = await loadConfig(
   new URL('./setu.config.ts', import.meta.url).pathname
 )
-const activeTheme = config.theme ?? '@setu/theme-default'
+// `SETU_TEST_THEME` lets the render-smoke build through a fixture theme (a package name or a
+// directory). It is honoured only under vitest: the admin's Customizer reads setu.config's
+// theme, so a deployment that overrode it here would edit one theme and publish another.
+const testTheme = process.env.VITEST ? process.env.SETU_TEST_THEME : undefined
+const activeTheme = testTheme || (config.theme ?? '@setu/theme-default')
 
 // Bundle ONLY the selected font family (+ mono), not every font the theme offers. The choice
 // lives in setu.config themeOptions / the Customizer-published theme-options.json (file wins,

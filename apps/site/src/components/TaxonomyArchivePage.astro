@@ -12,6 +12,7 @@ import { loadSiteSettings } from '../lib/site-settings'
 import { loadCategories } from '../lib/categories'
 import { pageSeo } from '../lib/seo'
 import { resolveMediaBase } from '@setu/image-astro'
+import { archiveListProps, pageLayoutProps } from '../lib/layout-props'
 
 interface Props {
   page: Page<PostRow>
@@ -39,8 +40,10 @@ const seo = pageSeo(Astro.site, Astro.url.pathname, mediaBase, siteSettings, {
   // posts per locale, so they are not translations of each other and advertise no cluster.
   alternates: page.currentPage === 1 ? alternates : undefined,
 })
+const layout = pageLayoutProps(heading, locale, { themeOptions, siteSettings, seo })
+const list = archiveListProps(page, heading, basePath, mediaBase)
 ---
 
-<PageLayout title={heading} lang={locale} themeOptions={themeOptions} siteSettings={siteSettings} seo={seo}>
-  <ArchiveList page={page} heading={heading} basePath={basePath} mediaBase={mediaBase} />
+<PageLayout {...layout}>
+  <ArchiveList {...list} />
 </PageLayout>

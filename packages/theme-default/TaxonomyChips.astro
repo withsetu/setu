@@ -1,14 +1,11 @@
 ---
-import { taxonomyArchivePath, DEFAULT_LOCALE } from '@setu/core'
-interface Props {
-  categories: { slug: string; name: string }[]
-  tags: string[]
-  /** The post's own locale: chips link to THAT locale's archive (`/fr/tag/<slug>/` for a French
-   *  post, unprefixed for the default locale), which the site emits for every term carrying ≥1
-   *  post in the locale — so a fr-only tag is a real page, never a 404 (#1114). */
-  locale?: string
-}
-const { categories, tags, locale = DEFAULT_LOCALE } = Astro.props
+import { taxonomyArchivePath, type TaxonomyChipsProps } from '@setu/core'
+// The theme contract's props for this component (packages/core/src/theme/layout-props.ts).
+// `locale` is the post's own: chips link to THAT locale's archive (`/fr/tag/<slug>/` for a French
+// post, unprefixed for the default locale), which the site emits for every term carrying ≥1 post
+// in the locale — so a fr-only tag is a real page, never a 404 (#1114).
+type Props = TaxonomyChipsProps
+const { categories, tags, locale } = Astro.props
 const has = categories.length > 0 || tags.length > 0
 // The archive path is the ONE shared spelling (@setu/core `taxonomyArchivePath`): Astro's route
 // encoding for #/? plus URL serialization (a space is %20), with the directory-format trailing

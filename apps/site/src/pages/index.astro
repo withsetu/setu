@@ -8,6 +8,7 @@ import { feedLocales } from '../lib/feed'
 import { pageSeo } from '../lib/seo'
 import { parsePageSeoOverride } from '@setu/core'
 import { resolveMediaBase } from '@setu/image-astro'
+import { pageLayoutProps } from '../lib/layout-props'
 
 const themeOptions = loadThemeOptions()
 const siteSettings = loadSiteSettings()
@@ -36,9 +37,15 @@ const seo = pageSeo(Astro.site, Astro.url.pathname, mediaBase, siteSettings, {
   noindex: ov.noindex,
   canonical: ov.canonical,
 })
+const layout = pageLayoutProps(title, 'en', {
+  themeOptions,
+  siteSettings,
+  feedLocales: localesForFeed,
+  seo,
+})
 ---
 
-<PageLayout title={title} lang="en" themeOptions={themeOptions} siteSettings={siteSettings} feedLocales={localesForFeed} seo={seo}>
+<PageLayout {...layout}>
   {Content ? (
     <>
       <h1>{title}</h1>

@@ -106,7 +106,9 @@ describe('@setu/blocks base layer styles every page that needs it (#1296)', () =
       for (const marker of markersOf(page.html)) {
         // A compound selector names the marker when it contains it as a whole class run,
         // e.g. `.prose .blk-hero.w-wide` or `.prose figure.setu-image.align-full img`.
-        const re = new RegExp(`${marker.replace(/[.]/g, '\\.')}(?![\\w-])`)
+        const re = new RegExp(
+          `${marker.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&')}(?![\\w-])`
+        )
         if (!selectors.some((s) => re.test(s)))
           unstyled.push(`${page.route}: ${marker}`)
       }

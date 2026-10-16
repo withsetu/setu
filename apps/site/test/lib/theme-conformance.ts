@@ -12,7 +12,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { parseThemeOptions, type ThemeOption } from '@setu/core'
+import { parseThemeOptions, typefaceOption, type ThemeOption } from '@setu/core'
 
 export const CONTRACT_REF =
   'Theme contract: https://github.com/withsetu/setu/issues/342'
@@ -235,9 +235,13 @@ export async function checkThemeStatic(dir: string): Promise<string[]> {
     }
   }
 
-  // 3. The fonts entry, when the theme ships one: every package it names for any select
-  //    choice (and for no choice) must resolve from the theme, as apps/site/astro.config.mjs
-  //    resolves them. A theme with no `./fonts` export ships its fonts itself.
+  // 3. The fonts entry, when the theme ships one. The site build calls `fontPackagesFor` with
+  //    the selected choice of the option declared `role: 'typeface'` (#1295), or with nothing
+  //    when no option has that role (apps/site/integrations/theme-fonts.mjs). Every package it
+  //    names for each of those calls must resolve from the theme, and each typeface choice must
+  //    bundle its own family: a choice that falls back to the default's packages ships one
+  //    family while the CSS names another. A theme with no `./fonts` export ships its fonts
+  //    itself.
   const fontsFile = resolveExport(dir, pkg, './fonts')
   if (fontsFile !== null) {
     try {
@@ -252,12 +256,13 @@ export async function checkThemeStatic(dir: string): Promise<string[]> {
         const fontPackagesFor = mod.fontPackagesFor as (
           choice: string | undefined
         ) => unknown
-        const choices = [
-          undefined,
-          ...options.flatMap((o) => (o.choices ?? []).map((c) => c.value))
-        ]
+        const typeface = typefaceOption(options)
+        const choices: (string | undefined)[] = typeface
+          ? (typeface.choices ?? []).map((c) => c.value)
+          : [undefined]
         const req = createRequire(pkgPath)
         const unresolved = new Set<string>()
+        const bundles = new Map<string | undefined, string>()
         for (const choice of choices) {
           const pkgs = fontPackagesFor(choice)
           if (!Array.isArray(pkgs) || pkgs.some((p) => typeof p !== 'string')) {
@@ -266,6 +271,7 @@ export async function checkThemeStatic(dir: string): Promise<string[]> {
             )
             continue
           }
+          bundles.set(choice, [...(pkgs as string[])].sort().join(' '))
           for (const p of pkgs as string[]) {
             try {
               req.resolve(p)
@@ -278,6 +284,14 @@ export async function checkThemeStatic(dir: string): Promise<string[]> {
           say(
             `its fonts entry names "${p}", which does not resolve from the theme. Add it to the theme's dependencies, or the site build fails when that font is selected.`
           )
+        if (typeface) {
+          const fallback = bundles.get(typeface.default)
+          for (const [choice, bundle] of bundles)
+            if (choice !== typeface.default && bundle === fallback)
+              say(
+                `typeface choice "${choice}" (option "${typeface.key}") bundles the same font packages as the default "${typeface.default}", so selecting it changes the CSS font name but ships no matching font files. Map it to its own package in fontPackagesFor.`
+              )
+        }
       }
     } catch (err) {
       say(`exports "./fonts" but that module fails to load: ${errorText(err)}.`)

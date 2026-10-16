@@ -200,6 +200,27 @@ describe('the check catches a broken theme', () => {
     )
   })
 
+  it('names a typeface choice that falls back to the default family', async () => {
+    const dir = brokenTheme((d) => {
+      editJson(d, (pkg) => (pkg.exports['./fonts'] = './fonts.ts'))
+      writeFileSync(
+        join(d, 'options.ts'),
+        "export const themeOptions = [{ key: 'typeface', role: 'typeface', label: 'Typeface', type: 'select', token: '--font-body', default: 'sans', choices: [{ value: 'sans', label: 'Sans', tokenValue: 'sans-serif' }, { value: 'serif', label: 'Serif', tokenValue: 'serif' }] }]\n"
+      )
+      // Both choices resolve (a builtin resolves from any directory, unlike a package in this temp
+      // copy), but `serif` silently falls back to the default's bundle.
+      writeFileSync(
+        join(d, 'fonts.ts'),
+        "export const fontPackagesFor = (_choice: string | undefined): string[] => ['node:fs']\n"
+      )
+    })
+    expect(await checkThemeStatic(dir)).toEqual([
+      expect.stringMatching(
+        /typeface choice "serif" \(option "typeface"\) bundles the same font packages as the default "sans"/
+      )
+    ])
+  })
+
   it('names a fonts entry with no `fontPackagesFor`', async () => {
     const dir = brokenTheme((d) => {
       editJson(d, (pkg) => (pkg.exports['./fonts'] = './fonts.ts'))

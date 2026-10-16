@@ -13,9 +13,7 @@ import relations from '../../.setu/cache/relations.json'
 import Image from '@setu/image-astro/Image.astro'
 import { resolveMediaBase } from '@setu/image-astro'
 import TaxonomyChips from '@theme/TaxonomyChips.astro'
-import { categoryNameMap } from '@setu/core'
-import { loadCategories } from '../lib/categories'
-import { strArr } from '../lib/post-row'
+import { pageLayoutProps, postLayoutProps, taxonomyChipsProps } from '../lib/layout-props'
 
 export async function getStaticPaths() {
   const all = await getCollection('entries')
@@ -58,11 +56,7 @@ const featuredImage = typeof (entry.data as { featuredImage?: unknown }).feature
   ? (entry.data as { featuredImage: string }).featuredImage
   : undefined
 const isPost = collection === 'post'
-const catNames = isPost ? categoryNameMap(loadCategories()) : new Map<string, string>()
-const postCategories = isPost
-  ? strArr((entry.data as { categories?: unknown }).categories).map((slug) => ({ slug, name: catNames.get(slug) ?? slug }))
-  : []
-const postTags = isPost ? strArr((entry.data as { tags?: unknown }).tags) : []
+const chips = isPost ? taxonomyChipsProps(entry.data as Record<string, unknown>, locale) : null
 const allEntries = await getCollection('entries')
 // feedLocales + the id index below are site-invariant; memoize per collection so the whole build
 // pays for each once, not per page render (#858). getCollection is build-cached, so 'entries' is
@@ -106,9 +100,16 @@ const seo = pageSeo(Astro.site, Astro.url.pathname, mediaBase, siteSettings, {
   dateModified: modified?.toISOString(),
   alternates,
 })
+// The same props reach PageLayout when the entry is not a post (PostLayoutProps extends
+// PageLayoutProps), exactly as before the contract was typed.
+const layout = postLayoutProps(
+  pageLayoutProps(title, locale, { themeOptions, siteSettings, feedLocales: localesForFeed, seo }),
+  related,
+  rp,
+)
 ---
 
-<TemplateLayout title={title} lang={locale} themeOptions={themeOptions} siteSettings={siteSettings} related={related} feedLocales={localesForFeed} heading={rp.heading} showImage={rp.showImage} seo={seo}>
+<TemplateLayout {...layout}>
   {featuredImage && collection === 'post' && (
     <figure class="post-hero measure-post" slot="hero">
       <Image src={featuredImage} alt={title} sizes="(min-width: 40rem) 38rem, 100vw" priority />
@@ -116,5 +117,5 @@ const seo = pageSeo(Astro.site, Astro.url.pathname, mediaBase, siteSettings, {
   )}
   <h1>{title}</h1>
   <Content />
-  {collection === 'post' && <TaxonomyChips categories={postCategories} tags={postTags} locale={locale} />}
+  {chips && <TaxonomyChips {...chips} />}
 </TemplateLayout>

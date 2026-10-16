@@ -1,0 +1,6 @@
+/* A deliberately minimal theme for the conformance check's own tests
+   (apps/site/test/theme-conformance.test.ts). Never built or shipped. */
+:root {
+  --measure-post: 40rem;
+  --measure-page: 60rem;
+}

@@ -1,0 +1,13 @@
+{
+  "name": "conformance-fixture-minimal",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./PageLayout.astro": "./PageLayout.astro",
+    "./PostLayout.astro": "./PostLayout.astro",
+    "./ArchiveList.astro": "./ArchiveList.astro",
+    "./TaxonomyChips.astro": "./TaxonomyChips.astro",
+    "./theme.css": "./theme.css",
+    "./options": "./options.ts"
+  }
+}

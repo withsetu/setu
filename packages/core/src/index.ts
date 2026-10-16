@@ -553,5 +553,15 @@ export type {
   ThemeOptionType
 } from './theme/options'
 export { DEFAULT_THEME } from './config/default-config'
+// The props apps/site passes to a theme's route components — the typed half of the theme
+// contract (#1297, #342).
+export type {
+  ArchiveListProps,
+  ArchivePage,
+  PageLayoutProps,
+  PostLayoutProps,
+  RelatedPostItem,
+  TaxonomyChipsProps
+} from './theme/layout-props'
 
 export { collectionRef, isCollectionRef } from './blocks/collection-ref'

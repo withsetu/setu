@@ -1,14 +1,9 @@
 ---
-import { ensureTrailingSlashPath } from '@setu/core'
-interface RelatedItem {
-  title: string
-  href: string
-  image?: string
-}
+import { ensureTrailingSlashPath, type RelatedPostItem } from '@setu/core'
 interface Props {
   heading?: string
   showImage?: boolean
-  related?: RelatedItem[]
+  related?: RelatedPostItem[]
 }
 const { heading = 'Read Next', showImage = true, related = [] } = Astro.props
 // The related hrefs come precomputed from the relations cache in the slash-less form; normalize

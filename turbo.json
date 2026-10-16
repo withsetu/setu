@@ -150,6 +150,8 @@
       "env": ["SETU_CONTENT_DIR"],
       "inputs": [
         "$TURBO_DEFAULT$",
+        "../../pnpm-workspace.yaml",
+        "../../packages/theme-*/**",
         "../../blocks/**",
         "../../content/**",
         "../../scripts/gen-blocks.mjs",
@@ -279,6 +281,8 @@
       "env": ["SETU_CONTENT_DIR"],
       "inputs": [
         "$TURBO_DEFAULT$",
+        "../../pnpm-workspace.yaml",
+        "../../packages/theme-*/**",
         "../../blocks/**",
         "../../content/**",
         "../../scripts/gen-blocks.mjs",
@@ -500,11 +504,17 @@
     // the honest trade — the alternative is a build that cache-hits across a redirect change.
     // `env`: same SETU_CONTENT_DIR reasoning as @setu/site#typecheck above — this task runs the
     // same three generators inside a real `astro build`.
+    // Theme conformance (#1297): test/theme-conformance*.test.ts DISCOVER every workspace theme
+    // from pnpm-workspace.yaml and check/build each one. `^test` hashes only the themes apps/site
+    // depends on, so the theme packages and the workspace file are listed explicitly; a theme
+    // outside `packages/theme-*` fails theme-conformance.test.ts rather than escaping this glob.
     "@setu/site#test": {
       "dependsOn": ["^test", "@setu/site#typecheck"],
       "env": ["SETU_CONTENT_DIR"],
       "inputs": [
         "$TURBO_DEFAULT$",
+        "../../pnpm-workspace.yaml",
+        "../../packages/theme-*/**",
         "../../blocks/**",
         "../../content/**",
         "../../scripts/gen-blocks.mjs",
@@ -567,6 +577,8 @@
       ],
       "inputs": [
         "$TURBO_DEFAULT$",
+        "../../pnpm-workspace.yaml",
+        "../../packages/theme-*/**",
         "../../blocks/**",
         "../../content/**",
         "../../scripts/gen-blocks.mjs",

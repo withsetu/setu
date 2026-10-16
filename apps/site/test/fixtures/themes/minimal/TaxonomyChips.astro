@@ -1,0 +1,7 @@
+---
+import type { TaxonomyChipsProps } from '@setu/core'
+type Props = TaxonomyChipsProps
+const { tags } = Astro.props
+---
+
+<ul>{tags.map((t) => <li>{t}</li>)}</ul>

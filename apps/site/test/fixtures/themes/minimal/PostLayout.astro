@@ -1,0 +1,10 @@
+---
+import type { PostLayoutProps } from '@setu/core'
+type Props = PostLayoutProps
+const { title, lang } = Astro.props
+---
+
+<html lang={lang}>
+  <head><title>{title}</title></head>
+  <body><article><slot /></article></body>
+</html>

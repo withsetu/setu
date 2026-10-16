@@ -6,6 +6,7 @@ import { join, dirname } from 'node:path'
 import markdoc from '@astrojs/markdoc'
 import react from '@astrojs/react'
 import { loadConfig } from '@setu/core/node'
+import { parseThemeOptions } from '@setu/core'
 import { mediaManifestCheck } from './integrations/media-manifest-check.mjs'
 import { perPageCssPurge } from './integrations/per-page-css-purge.mjs'
 import { securityHeaders } from './integrations/security-headers.mjs'
@@ -15,6 +16,10 @@ import {
   requireSiteUrl
 } from './integrations/require-site-url.mjs'
 import { themeFontImports } from './integrations/theme-fonts.mjs'
+import {
+  loadThemeDeclaration,
+  themeOptionsOverride
+} from './integrations/theme-options.mjs'
 import { parseAllowedHosts } from '../../scripts/dev-allowed-hosts.mjs'
 import { parsePort } from '../../scripts/dev-port.mjs'
 
@@ -23,7 +28,20 @@ import { parsePort } from '../../scripts/dev-port.mjs'
 const config = await loadConfig(
   new URL('./setu.config.ts', import.meta.url).pathname
 )
-const activeTheme = config.theme ?? '@setu/theme-default'
+// `SETU_TEST_THEME` lets the render-smoke build through a fixture theme (a package name or a
+// directory). It is honoured only under vitest: the admin's Customizer reads setu.config's
+// theme, so a deployment that overrode it here would edit one theme and publish another.
+const testTheme = process.env.VITEST ? process.env.SETU_TEST_THEME : undefined
+const activeTheme = testTheme || (config.theme ?? '@setu/theme-default')
+
+// The theme's option declaration, validated with the same parseThemeOptions the API runs, so a
+// bad one stops the build naming the option (#1294). Setu — not the theme — then writes the
+// resulting override into every page; see integrations/theme-options.mjs.
+const themeDeclaration = await loadThemeDeclaration(activeTheme, {
+  importModule: (specifier) => import(/* @vite-ignore */ specifier),
+  parse: parseThemeOptions,
+  logger: console
+})
 
 // Bundle ONLY the selected font family (+ mono), not every font the theme offers. The values live
 // in setu.config themeOptions / the Customizer-published theme-options.json (file wins, matching
@@ -210,7 +228,8 @@ export default defineConfig({
     // Warns (never fails) when built pages use uploaded /media/ images but SETU_MEDIA_DIR is
     // unset, so they shipped without srcset/<picture> (#1161). Build-only.
     mediaManifestCheck(),
-    settingsWatcher()
+    settingsWatcher(),
+    themeOptionsOverride(themeDeclaration)
   ],
   vite: {
     resolve: {

@@ -56,3 +56,9 @@ declare module 'setu:collections' {
     labelPlural: string
   }>
 }
+
+// Virtual module (see integrations/theme-options.mjs): the active theme's option declaration,
+// already validated by `parseThemeOptions` at config time.
+declare module 'setu:theme-options' {
+  export const themeOptions: ReadonlyArray<import('@setu/core').ThemeOption>
+}

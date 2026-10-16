@@ -553,13 +553,17 @@
     // SETU_MEDIA_DIR / SETU_ARCHIVE_PER_PAGE (#1197 gap 5): the media-manifest integration and
     // @setu/image-astro read the former to find srcset manifests; the archive routes read the
     // latter for page size. Both change dist/, so strict env mode must neither strip nor ignore them.
+    // SETU_TEST_THEME / VITEST (#1294): astro.config.mjs builds through a fixture theme when both
+    // are set (the render-smoke's seam), which changes dist/ entirely.
     "@setu/site#build": {
       "dependsOn": ["^typecheck"],
       "env": [
         "SETU_CONTENT_DIR",
         "SETU_SITE_URL",
         "SETU_MEDIA_DIR",
-        "SETU_ARCHIVE_PER_PAGE"
+        "SETU_ARCHIVE_PER_PAGE",
+        "SETU_TEST_THEME",
+        "VITEST"
       ],
       "inputs": [
         "$TURBO_DEFAULT$",

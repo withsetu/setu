@@ -542,11 +542,14 @@ export {
 export {
   optionsToCss,
   parseThemeOptions,
-  resolveThemeTokens
+  resolveThemeTokens,
+  selectedTypeface,
+  typefaceOption
 } from './theme/options'
 export type {
   ThemeOption,
   ThemeOptionChoice,
+  ThemeOptionRole,
   ThemeOptionType
 } from './theme/options'
 export { DEFAULT_THEME } from './config/default-config'

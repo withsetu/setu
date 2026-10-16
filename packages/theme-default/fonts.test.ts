@@ -5,6 +5,7 @@ import {
   DEFAULT_FONT,
   fontPackagesFor
 } from './fonts'
+import { parseThemeOptions, typefaceOption } from '@setu/core'
 import { themeOptions } from './options'
 
 describe('fontPackagesFor', () => {
@@ -23,7 +24,12 @@ describe('fontPackagesFor', () => {
 })
 
 describe('font registry stays in sync with the theme option', () => {
-  const fontOption = themeOptions.find((o) => o.key === 'font')!
+  // Found by ROLE, exactly as the site build finds it (#1295) — not by this theme's key.
+  const fontOption = typefaceOption(parseThemeOptions(themeOptions))!
+
+  it('declares exactly one typeface-role option (the one the build bundles from)', () => {
+    expect(fontOption?.key).toBe('font')
+  })
 
   it('every `font` choice maps to a fontsource package (no drift)', () => {
     const missing = (fontOption.choices ?? [])

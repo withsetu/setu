@@ -18,6 +18,7 @@ import type {
   MediaManifest,
   MediaRecord,
   MediaSettings,
+  ReprocessJob,
   ReprocessJobStore,
   StoragePort
 } from '@setu/core'
@@ -157,6 +158,9 @@ export function createUploadApi(opts: UploadApiOptions) {
   const maxBytes = opts.limits?.maxBytes ?? DEFAULT_MAX_BYTES
   const allowed = opts.limits?.allowedContentTypes ?? DEFAULT_ALLOWED
   const { storage } = opts
+  /** Settles with the created job (or null on failure) while a reprocess request is between its
+   *  single-flight check and creating its job (#1276). */
+  let reprocessClaim: Promise<ReprocessJob | null> | null = null
   // Resolve per request so a settings change (Media format/LQIP) takes effect without an api restart.
   const resolveMedia = (): MediaSettings => {
     const m = opts.mediaSettings
@@ -339,29 +343,49 @@ export function createUploadApi(opts: UploadApiOptions) {
         return c.json({ error: 'forbidden' }, 403)
       if (!opts.image || !opts.reprocess)
         return c.json({ error: 'reprocess unavailable in this mode' }, 409)
-      const running = opts.reprocess.store.active()
-      if (running)
-        return c.json(
+      const { store, run } = opts.reprocess
+      const accepted = (job: ReprocessJob) =>
+        c.json(
           {
-            jobId: running.id,
-            status: running.status,
-            total: running.total,
-            processed: running.processed
+            jobId: job.id,
+            status: job.status,
+            total: job.total,
+            processed: job.processed
           },
           202
         )
-      const keys = await reprocessKeys(storage)
-      const job = opts.reprocess.store.create(keys, Date.now())
-      opts.reprocess.run(job.id)
-      return c.json(
-        {
-          jobId: job.id,
-          status: job.status,
-          total: job.total,
-          processed: job.processed
-        },
-        202
-      )
+      // Single-flight: `reprocessClaim` covers the gap between the `active()` check and
+      // `store.create` (the library scan is awaited in between); from `create` on, the running
+      // row governs. A request arriving inside that gap joins the claimant and answers with its
+      // job — the same 202 it would get a moment later from `active()`. If the claimant fails,
+      // the claim is released and the waiter loops round to claim for itself. Pinned by
+      // apps/api/test/media-reprocess.test.ts ("single-flight under concurrency").
+      for (;;) {
+        const running = store.active()
+        if (running) return accepted(running)
+        const claim = reprocessClaim
+        if (claim === null) break
+        const joined = await claim
+        if (joined) return accepted(joined)
+        // Never re-await a claim that has already settled: a stale one would otherwise spin
+        // this loop on microtasks forever. Only a newer claim (another waiter won) is joined.
+        if (reprocessClaim === claim) break
+      }
+      let settle!: (job: ReprocessJob | null) => void
+      reprocessClaim = new Promise((r) => (settle = r))
+      let job: ReprocessJob | null = null
+      try {
+        const keys = await reprocessKeys(storage)
+        job = store.create(keys, Date.now())
+      } finally {
+        // Release before waking waiters: on success they see the running row via `active()`;
+        // on failure they loop round and one of them claims afresh. The error itself still
+        // propagates to this request (Hono's error handler → 500); nothing is swallowed.
+        reprocessClaim = null
+        settle(job)
+      }
+      run(job.id)
+      return accepted(job)
     }
   )
 

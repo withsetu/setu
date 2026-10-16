@@ -7,7 +7,13 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { createAuth, PROVISIONING } from '@setu/auth'
 import { resolveSessionActor } from '../src/auth/resolve-session-actor'
-import { createUsersApi } from '../src/users'
+import {
+  createUsersApi,
+  SEND_RESET_ACTOR_MAX,
+  SEND_RESET_MAX_BODY_BYTES,
+  SEND_RESET_TARGET_MAX,
+  SEND_RESET_WINDOW_MS
+} from '../src/users'
 import type {
   ResetEmailRefusal,
   ResetSendOutcome
@@ -24,6 +30,8 @@ type BuildOpts = {
   refusal?: ResetEmailRefusal
   /** What the observed send reports (#1164); default `{ kind: 'sent' }`. */
   outcome?: ResetSendOutcome | null
+  /** Injectable clock for the send-reset limiter (#1275). */
+  now?: () => number
 }
 
 function makeApp(opts: BuildOpts = { withSend: true }) {
@@ -47,6 +55,7 @@ function makeApp(opts: BuildOpts = { withSend: true }) {
   const app = createUsersApi({
     db,
     resolveActor: resolveSessionActor(auth),
+    ...(opts.now ? { now: opts.now } : {}),
     ...(opts.withSend === false
       ? {}
       : {
@@ -498,6 +507,168 @@ describe('POST /api/users/send-reset', () => {
       expect(await res.json()).toEqual({
         error: 'email_transport_not_deliverable'
       })
+    })
+  })
+
+  // #1275: the route sends a real email per call and calls better-auth SERVER-SIDE, which skips
+  // better-auth's HTTP rate limiter — so it carries its own body cap and its own limits.
+  describe('#1275 — request-size bound and send limits', () => {
+    async function signedIn(
+      built: ReturnType<typeof build>,
+      role = 'admin',
+      email = 'owner@test.com'
+    ) {
+      const me = await makeUser(built.auth, {
+        email,
+        name: 'Me',
+        role,
+        password: 'a-strong-password-12'
+      })
+      const cookie = await signInCookie(
+        built.auth,
+        email,
+        'a-strong-password-12'
+      )
+      return { me, cookie }
+    }
+
+    function editors(built: ReturnType<typeof build>, n: number) {
+      return Promise.all(
+        Array.from({ length: n }, (_, i) =>
+          makeUser(built.auth, {
+            email: `ed${i}@test.com`,
+            name: `Ed ${i}`,
+            role: 'editor'
+          })
+        )
+      )
+    }
+
+    it('413s an oversized body before any send', async () => {
+      const built = build()
+      const { me, cookie } = await signedIn(built)
+      const res = await built.app.fetch(
+        post(
+          { userId: me.id, pad: 'x'.repeat(SEND_RESET_MAX_BODY_BYTES) },
+          cookie
+        )
+      )
+      expect(res.status).toBe(413)
+      expect(built.sendSpy).not.toHaveBeenCalled()
+    })
+
+    it('413s an oversized STREAMED body (no content-length)', async () => {
+      const built = build()
+      const { me, cookie } = await signedIn(built)
+      const bytes = new TextEncoder().encode(
+        JSON.stringify({
+          userId: me.id,
+          pad: 'x'.repeat(SEND_RESET_MAX_BODY_BYTES)
+        })
+      )
+      const req = new Request('http://test/api/users/send-reset', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie },
+        body: new ReadableStream<Uint8Array>({
+          start(controller) {
+            for (let i = 0; i < bytes.length; i += 1024)
+              controller.enqueue(bytes.slice(i, i + 1024))
+            controller.close()
+          }
+        }),
+        duplex: 'half'
+      })
+      expect(req.headers.get('content-length')).toBeNull()
+      const res = await built.app.fetch(req)
+      expect(res.status).toBe(413)
+      expect(built.sendSpy).not.toHaveBeenCalled()
+    })
+
+    it(`per TARGET: the ${SEND_RESET_TARGET_MAX + 1}th send to one user in a window is 429 with Retry-After`, async () => {
+      const built = build()
+      const { cookie } = await signedIn(built)
+      const [target] = await editors(built, 1)
+      const got: number[] = []
+      for (let i = 0; i <= SEND_RESET_TARGET_MAX; i++)
+        got.push(
+          (await built.app.fetch(post({ userId: target!.id }, cookie))).status
+        )
+      expect(got.slice(0, SEND_RESET_TARGET_MAX)).toEqual(
+        Array(SEND_RESET_TARGET_MAX).fill(200)
+      )
+      expect(got[SEND_RESET_TARGET_MAX]).toBe(429)
+      expect(built.sendSpy).toHaveBeenCalledTimes(SEND_RESET_TARGET_MAX)
+
+      const res = await built.app.fetch(post({ userId: target!.id }, cookie))
+      expect(res.status).toBe(429)
+      expect(res.headers.get('retry-after')).toBe(
+        String(Math.ceil(SEND_RESET_WINDOW_MS / 1000))
+      )
+      expect(await res.json()).toEqual({
+        error: 'rate_limited',
+        retryAfterMs: SEND_RESET_WINDOW_MS
+      })
+    })
+
+    it('the per-target bound is per target: another user can still be sent to', async () => {
+      const built = build()
+      const { cookie } = await signedIn(built)
+      const [a, b] = await editors(built, 2)
+      for (let i = 0; i <= SEND_RESET_TARGET_MAX; i++)
+        await built.app.fetch(post({ userId: a!.id }, cookie))
+      const res = await built.app.fetch(post({ userId: b!.id }, cookie))
+      expect(res.status).toBe(200)
+      expect(built.sendSpy).toHaveBeenLastCalledWith(b!.email)
+    })
+
+    it(`per ACTOR: the ${SEND_RESET_ACTOR_MAX + 1}th send by one actor in a window is 429, across distinct targets`, async () => {
+      const built = build()
+      const { cookie } = await signedIn(built)
+      const targets = await editors(built, SEND_RESET_ACTOR_MAX + 1)
+      const got: number[] = []
+      for (const t of targets)
+        got.push((await built.app.fetch(post({ userId: t.id }, cookie))).status)
+      expect(got.slice(0, SEND_RESET_ACTOR_MAX)).toEqual(
+        Array(SEND_RESET_ACTOR_MAX).fill(200)
+      )
+      expect(got[SEND_RESET_ACTOR_MAX]).toBe(429)
+      expect(built.sendSpy).toHaveBeenCalledTimes(SEND_RESET_ACTOR_MAX)
+    })
+
+    it('the window slides: once it has passed, sends are allowed again', async () => {
+      let t = 1_000_000
+      const built = build({ now: () => t })
+      const { cookie } = await signedIn(built)
+      const [target] = await editors(built, 1)
+      for (let i = 0; i < SEND_RESET_TARGET_MAX; i++)
+        await built.app.fetch(post({ userId: target!.id }, cookie))
+      expect(
+        (await built.app.fetch(post({ userId: target!.id }, cookie))).status
+      ).toBe(429)
+      t += SEND_RESET_WINDOW_MS
+      expect(
+        (await built.app.fetch(post({ userId: target!.id }, cookie))).status
+      ).toBe(200)
+    })
+
+    it("a wrong actor's refused (403) attempts do not burn the target's quota", async () => {
+      const built = build()
+      const admin = await signedIn(built)
+      const editor = await signedIn(built, 'editor', 'editor@test.com')
+      const target = await makeUser(built.auth, {
+        email: 'target@test.com',
+        name: 'Target',
+        role: 'author'
+      })
+      for (let i = 0; i <= SEND_RESET_TARGET_MAX; i++)
+        expect(
+          (await built.app.fetch(post({ userId: target.id }, editor.cookie)))
+            .status
+        ).toBe(403)
+      const res = await built.app.fetch(
+        post({ userId: target.id }, admin.cookie)
+      )
+      expect(res.status).toBe(200)
     })
   })
 })

@@ -5,6 +5,7 @@ import type {
   Action,
   Actor,
   ChangedPath,
+  DeployJob,
   DeployJobStore,
   DeployState,
   DeployStatus
@@ -77,6 +78,8 @@ export function createDeployApi(opts: {
   const app = new Hono<{ Variables: { actor: Actor } }>()
   const auth = authMiddleware(resolveActor)
   const canDeploy = requireCan('site.deploy')
+  /** A rebuild request is between its single-flight check and creating its job (#1276). */
+  let claiming = false
 
   /** HEAD, or null when the repo has no commits (`git rev-parse HEAD` exits 128) — there is
    *  nothing saved to build. Any lookup failure lands here: the status route must answer, not
@@ -152,17 +155,34 @@ export function createDeployApi(opts: {
     // build must leave no trace, least of all a job the UI would poll.
     const blocked = buildBlocked()
     if (blocked !== null) return c.json({ error: blocked }, 409)
-    if (jobs.active() !== null)
+    // Single-flight: `claiming` covers the gap between this check and `jobs.create` (the HEAD
+    // lookup is awaited in between); from `create` on, the running row governs via `active()`.
+    // Both are read and the claim taken before the first await, so two requests arriving
+    // together cannot both pass. Pinned by apps/api/test/deploy.test.ts ("two concurrent
+    // rebuilds start exactly one job"; "a failed HEAD lookup releases the single-flight claim").
+    if (claiming || jobs.active() !== null)
       return c.json({ error: 'A build is already running.' }, 409)
 
-    const sha = await resolveHead()
-    if (sha === null) return c.json({ error: NO_COMMITS }, 409)
-    const job = jobs.create(sha, 'static', now())
+    claiming = true
+    let job: DeployJob
+    try {
+      const sha = await resolveHead()
+      if (sha === null) return c.json({ error: NO_COMMITS }, 409)
+      job = jobs.create(sha, 'static', now())
+    } finally {
+      // Released on every exit — success, the no-commits 409, or a throw — so a failed
+      // lookup cannot wedge rebuild until restart. Once `create` ran, `active()` holds the slot.
+      claiming = false
+    }
     // Fire-and-forget: the build outlives this request; status is polled via GET.
     void runBuild()
       .then(() => {
         jobs.finish(job.id, 'done', now())
-        writeState({ sha, at: new Date(now()).toISOString(), mode: 'static' })
+        writeState({
+          sha: job.sha,
+          at: new Date(now()).toISOString(),
+          mode: 'static'
+        })
       })
       .catch((e: unknown) => {
         const message = e instanceof Error ? e.message : String(e)

@@ -63,7 +63,7 @@ Also run the standing gates: security checklist if it fetches/embeds/parses anyt
    loops).
 3. **Renderer.** `.astro` component using **global CSS** (a plain `.css` import, NOT a scoped
    `<style>` — themes must see stable selectors). Class namespace: root `.setu-<block>` /
-   `.blk-<block>`, parts `.blk-<block>-<part>`. Read only the 19 contract tokens
+   `.blk-<block>`, parts `.blk-<block>-<part>`. Read only the 21 contract tokens
    (`var(--accent)`, `--bg`, `--text`, `--green-soft`, `--r-md`, `--font-ui`, …) or block-locals
    `--blk-<block>-*` (locals keep inline fallbacks). Hardcoded colors: `#fff`/`#000` neutrals only.
    Images render through `@setu/image-astro` (real srcset), never a bare `<img src>`.

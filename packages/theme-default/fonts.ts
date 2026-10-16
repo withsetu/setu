@@ -1,5 +1,5 @@
-// Which `@fontsource-variable/*` package backs each `font` theme-option choice (see the `font`
-// option in ./options.ts) — plus the mono font, always bundled for code. The site build bundles
+// Which `@fontsource-variable/*` package backs each typeface choice (the `role: 'typeface'`
+// option in ./options.ts, keyed `font` in this theme) — plus the mono font, always bundled for code. The site build bundles
 // ONLY the selected family + mono (via the `virtual:setu-fonts` module), instead of all of them.
 
 /** `font` choice value → its fontsource package. Keys MUST match the `font` option choices. */

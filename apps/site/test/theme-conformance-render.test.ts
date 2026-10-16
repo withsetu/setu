@@ -116,6 +116,19 @@ describe.each(themes)('the standard pages render through $name', ({ name }) => {
     )
   })
 
+  it('every standard page carries the theme-options override Setu writes (#1294)', () => {
+    for (const rel of [
+      '',
+      'page/about',
+      'post/hello',
+      'posts',
+      'tag/conformance'
+    ])
+      expect(page(rel), `${rel || '/'} has no :root:root override`).toContain(
+        ':root:root {'
+      )
+  })
+
   it('homepage: PageLayout renders the configured homepage entry', () => {
     expect(page('')).toContain('Conformance home body.')
   })

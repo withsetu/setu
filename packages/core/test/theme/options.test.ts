@@ -124,6 +124,14 @@ describe('parseThemeOptions rejects a declaration that could inject CSS', () => 
     expect(parseThemeOptions(OPTIONS)).toEqual(OPTIONS)
   })
 
+  it('names the offending option by key, whichever field failed (#1294)', () => {
+    // A field-level failure (here the token) reports a path like `0.token`; the build log and
+    // the admin's 500 both need the option's KEY to be actionable.
+    expect(() =>
+      parseThemeOptions([OPTIONS[0], { ...OPTIONS[1], token: 'font-body' }])
+    ).toThrow(/option "font".*token must be a CSS custom property/)
+  })
+
   it('refuses a declaration that is not an array at all', () => {
     expect(() => parseThemeOptions({ nope: true })).toThrow()
   })

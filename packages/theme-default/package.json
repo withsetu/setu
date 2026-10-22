@@ -24,9 +24,9 @@
     "astro": "^7.0.0"
   },
   "devDependencies": {
-    "astro": "7.3.8",
+    "astro": "7.4.0",
     "typescript": "^5.6.3",
-    "vitest": "^5.0.4"
+    "vitest": "^5.0.5"
   },
   "dependencies": {
     "@setu/blocks": "workspace:*",
@@ -36,7 +36,7 @@
     "@fontsource-variable/jetbrains-mono": "5.3.0",
     "@fontsource-variable/lora": "5.3.0",
     "@fontsource-variable/newsreader": "5.3.0",
-    "@fontsource-variable/source-serif-4": "5.3.0",
+    "@fontsource-variable/source-serif-4": "5.3.1",
     "@fontsource-variable/space-grotesk": "5.3.0"
   }
 }

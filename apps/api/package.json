@@ -40,7 +40,7 @@
     "@setu/git-http": "workspace:*",
     "@setu/git-memory": "workspace:*",
     "@setu/image-testing": "workspace:*",
-    "@types/better-sqlite3": "^7.6.13",
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^22.10.2",
     "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.45.4",
